@@ -138,15 +138,52 @@ file → POST /api/cms/_media → StorageDriver.put → cms_media row → FK on 
 ```
 
 - **`StorageDriver`** seam (`server/utils/cmsStorage.ts`): `LocalDriver` writes to disk and
-  serves through a Nitro route; `s3`/`r2` share the interface and are reserved (fail loudly).
-  Selected via `cms.storage.driver`; size cap via `cms.storage.maxSizeMb` (default 10).
+  serves through a Nitro route; `S3Driver` targets any S3-compatible store (AWS S3,
+  Cloudflare R2, MinIO). Selected via `cms.storage.driver`; size cap via `cms.storage.maxSizeMb`.
 - Upload widget with thumbnail preview, replace/remove, and list-cell thumbnails.
-- Path-traversal-guarded serving; media behave like public CDN assets.
+- `DELETE /api/cms/_media/:id` removes the row **and** the blob.
+- **Hardened:** strict server-side MIME allowlist (no SVG/HTML → no stored-XSS),
+  `nosniff` + `Content-Security-Policy: sandbox` on served blobs, path-traversal guards,
+  and a `Content-Length` ceiling on `/api/cms/**` before any body is buffered.
+
+### S3 / Cloudflare R2
+
+The S3 driver signs requests with SigV4 via [`aws4fetch`](https://github.com/mhart/aws4fetch)
+(`fetch` + Web Crypto), so it runs unchanged on Node **and** Cloudflare Workers. Objects are
+served straight from a public bucket / CDN URL (`publicBaseUrl`), never proxied through the app.
+
+Configure with env vars (secrets stay server-side — never commit them):
+
+```bash
+NUXT_CMS_STORAGE_DRIVER=r2                 # or 's3'
+NUXT_CMS_STORAGE_S3_ENDPOINT=https://<account>.r2.cloudflarestorage.com
+NUXT_CMS_STORAGE_S3_REGION=auto            # 'auto' for R2; e.g. 'us-east-1' for AWS
+NUXT_CMS_STORAGE_S3_BUCKET=my-bucket
+NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID=...
+NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY=...
+NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL=https://cdn.example.com   # public bucket / custom domain
+```
+
+Verified end-to-end against MinIO (an S3-compatible store you can run locally):
+
+```bash
+docker network create cms-net
+docker run -d --name my-cms-minio --network cms-net -p 9000:9000 -p 9001:9001 \
+  -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
+  minio/minio server /data --console-address ":9001"
+# create a public-read bucket
+docker run --rm --network cms-net --entrypoint /bin/sh minio/mc -c \
+  'mc alias set m http://my-cms-minio:9000 minio minio12345 && \
+   mc mb -p m/cms-media && mc anonymous set download m/cms-media'
+# then run the playground with NUXT_CMS_STORAGE_DRIVER=s3, ENDPOINT=http://localhost:9000, etc.
+```
 
 ## Not yet built (next slices, in rough order)
 
-- **S3/R2 storage driver** (the `StorageDriver` seam + `cms.storage.driver` switch are ready)
-  and `@nuxt/image` presets; orphan-blob GC when media is deleted/unlinked
+- **`@nuxt/image` presets** + image dimension extraction; **auto** orphan-blob GC when a
+  hero is replaced/cleared or its owning row is deleted (manual `DELETE` exists today)
+- **Upload quota / rate-limit** per user (today any authenticated user can upload, capped
+  only by per-file size); streaming multipart parser to bound chunked uploads
 - **Per-field permissions** (`fieldMode`) + a roles-management UI. (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
 - **Field-type & view registries** (replace the `CmsField` switch with `app.config` overrides)
 - **TipTap rich-text editor** (currently a textarea proxy)
