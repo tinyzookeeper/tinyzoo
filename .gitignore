@@ -1,0 +1,12 @@
+node_modules
+.nuxt
+.output
+.data
+.cms-uploads
+dist
+*.log
+.env
+.DS_Store
+
+# verification artifacts
+.playwright-mcp

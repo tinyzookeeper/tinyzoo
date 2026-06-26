@@ -1,0 +1,17 @@
+export default defineEventHandler(async (event) => {
+  const { db, reg } = useCms()
+  const user = requireCmsUser(event)
+  const e = getEntity(reg, getRouterParam(event, 'entity'))
+  authorize(e, 'create', user)
+
+  const data = parseOr422(e.insertSchema, await readBody(event))
+  const { values, m2m } = splitPayload(e, data)
+
+  const row = await db.transaction(async (tx: any) => {
+    const [created] = await tx.insert(e.table).values(values).returning()
+    await writeM2M(tx, reg, e, created.id, m2m)
+    return created
+  })
+  setResponseStatus(event, 201)
+  return { row }
+})

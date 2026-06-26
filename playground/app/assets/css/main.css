@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* Tailwind v4 must scan the CMS layer's shipped components for utility classes. */
+@source "../../../../packages/cms/app";
+
+/*
+ * Brand tokens (host-owned). The CMS layer's components use semantic classes
+ * (bg-primary, text-muted, ...), so re-skinning happens here, not in the package.
+ * `ink` is a neutral gray ramp anchored at 500 = #555 — see app.config.ts, which
+ * maps ui.colors.primary -> 'ink' and ui.colors.neutral -> 'neutral'.
+ * `static` forces every shade to be emitted even if a given shade is unused.
+ */
+@theme static {
+  --color-ink-50: #f6f6f6;
+  --color-ink-100: #e7e7e7;
+  --color-ink-200: #d1d1d1;
+  --color-ink-300: #b0b0b0;
+  --color-ink-400: #888888;
+  --color-ink-500: #555555;
+  --color-ink-600: #4d4d4d;
+  --color-ink-700: #404040;
+  --color-ink-800: #2e2e2e;
+  --color-ink-900: #1f1f1f;
+  --color-ink-950: #141414;
+}
