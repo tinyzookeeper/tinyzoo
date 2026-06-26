@@ -82,10 +82,21 @@ export function propOf(key: string, fld: FieldDescriptor): string {
   return fld.spec?.nameSuffix === '_id' ? key + 'Id' : key
 }
 
+/** Entity names the CMS uses internally; user entities may not take them. */
+const RESERVED_ENTITY_NAMES = new Set(['media', 'graph'])
+
 export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: EntityDef<F>,
 ): Entity<F> {
+  // Reserve `_`-prefixed names and built-ins so an entity can never shadow the
+  // internal API routes (/api/cms/_media, /api/cms/_graph).
+  if (name.startsWith('_') || RESERVED_ENTITY_NAMES.has(name)) {
+    throw new Error(
+      `Invalid entity name "${name}": names starting with "_" or in `
+      + `{${[...RESERVED_ENTITY_NAMES].join(', ')}} are reserved by the CMS.`,
+    )
+  }
   const fields = def.fields as unknown as Record<string, FieldDescriptor>
 
   // 1) pgEnums for select fields
