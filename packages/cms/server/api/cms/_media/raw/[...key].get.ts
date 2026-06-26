@@ -9,6 +9,11 @@ export default defineEventHandler(async (event) => {
   if (!obj) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
   setResponseHeader(event, 'Content-Type', obj.contentType)
+  // Defense in depth against a hostile blob that slipped the upload allowlist:
+  // never sniff a different type, and neutralize any inline script execution.
+  setResponseHeader(event, 'X-Content-Type-Options', 'nosniff')
+  setResponseHeader(event, 'Content-Security-Policy', "default-src 'none'; sandbox")
+  setResponseHeader(event, 'Content-Disposition', 'inline')
   setResponseHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
   return obj.body
 })
