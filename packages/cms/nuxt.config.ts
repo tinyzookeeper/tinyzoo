@@ -10,4 +10,10 @@ const layerDir = dirname(fileURLToPath(import.meta.url))
 
 export default defineNuxtConfig({
   modules: [join(layerDir, 'module')],
+  // Register the layer's components as GLOBAL so the field/cell registry can
+  // resolve them by name at runtime (resolveComponent only finds globals; plain
+  // auto-imports are compile-time only). pathPrefix:false keeps flat names.
+  components: [
+    { path: join(layerDir, 'app/components'), pathPrefix: false, global: true },
+  ],
 })
