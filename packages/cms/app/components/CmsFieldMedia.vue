@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Media upload widget. `model` is the cms_media id (the FK value the form saves).
-const props = defineProps<{ field: any }>()
+const props = defineProps<{ field: any; entity?: string }>()
 const model = defineModel<string | null>()
 
 const media = ref<any>(null)

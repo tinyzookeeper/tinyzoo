@@ -27,14 +27,6 @@ function toggleSort(key: string) {
   if (sort.value === key) dir.value = dir.value === 'asc' ? 'desc' : 'asc'
   else { sort.value = key; dir.value = 'asc' }
 }
-const goodValues = new Set(['published', 'active', 'live', 'on'])
-function badgeColor(v: string) { return goodValues.has(String(v)) ? 'success' : 'neutral' }
-function text(v: any) {
-  if (v == null || v === '') return '—'
-  if (typeof v === 'object') return '{…}'
-  return String(v)
-}
-
 const deleting = ref<string | null>(null)
 async function del(id: string) {
   deleting.value = id
@@ -95,23 +87,8 @@ async function del(id: string) {
             >
               <td v-for="key in meta?.listColumns" :key="key" class="px-4 py-3">
                 <NuxtLink :to="`/admin/${entity}/${row.id}`" class="block">
-                  <UBadge v-if="fieldOf(key)?.type === 'select'" :color="badgeColor(row[key])" variant="subtle">{{ row[key] }}</UBadge>
-                  <template v-else-if="fieldOf(key)?.type === 'media'">
-                    <img
-                      v-if="row[`${key}__media`]?.mime?.startsWith('image/')"
-                      :src="row[`${key}__media`].url"
-                      :width="row[`${key}__media`].width || undefined"
-                      :height="row[`${key}__media`].height || undefined"
-                      loading="lazy" decoding="async"
-                      class="size-9 rounded object-cover border border-default"
-                    >
-                    <UIcon v-else-if="row[`${key}__media`]" name="i-lucide-file" class="size-5 text-dimmed" />
-                    <span v-else class="text-dimmed">—</span>
-                  </template>
-                  <span v-else-if="fieldOf(key)?.relation?.kind === 'many-to-one'">{{ row[`${key}__label`] ?? '—' }}</span>
-                  <span v-else-if="fieldOf(key)?.type === 'datetime'" class="text-muted">{{ row[key] ? new Date(row[key]).toLocaleDateString() : '—' }}</span>
-                  <code v-else-if="fieldOf(key)?.type === 'slug'" class="text-xs text-muted">{{ row[key] }}</code>
-                  <span v-else>{{ text(row[key]) }}</span>
+                  <CmsCell v-if="fieldOf(key)" :field="fieldOf(key)" :row="row" :entity="entity" />
+                  <span v-else>{{ row[key] ?? '—' }}</span>
                 </NuxtLink>
               </td>
               <td class="px-4 py-3 text-right whitespace-nowrap">

@@ -127,6 +127,42 @@ host re-skins the whole admin from its own `app.config.ts` + `main.css` — no p
 The playground ships a monochrome theme: `primary` is a custom `ink` ramp anchored at `#555`
 (defined via `@theme` in `main.css`), `neutral` is a true-neutral gray.
 
+## Extensibility — the field & view registry
+
+Every field renders through a tiny dispatcher (`CmsField` for the edit form,
+`CmsCell` for list cells) that resolves a component **by name** with this precedence:
+
+```
+app.config  cms.fields[type].edit   (host override, by field type)
+  → field.ui.edit                   (built-in default, from the descriptor)
+    → CmsFieldText                   (fallback)
+```
+
+So a host adds or replaces a renderer **without touching the package** — ship a
+component and register its name:
+
+```ts
+// app.config.ts
+export default defineAppConfig({
+  cms: { fields: { select: { edit: 'MySegmentedSelect' }, color: { edit: 'ColorPicker', cell: 'ColorSwatch' } } },
+})
+```
+
+```vue
+<!-- components/global/MySegmentedSelect.vue  (props: { field }, v-model) -->
+```
+
+> Custom renderers must be **globally registered** (put them in `components/global/`
+> or use the `.global.vue` suffix) — the registry resolves them at runtime, and
+> `resolveComponent` only sees globals. The playground does exactly this in
+> `app/components/global/PgStatusSelect.vue`, rendering the post status as a
+> segmented control instead of the default dropdown.
+
+![form with a custom (host-registered) status field renderer](docs/screenshots/admin-form.png)
+
+Built-in renderers live in `packages/cms/app/components` (`CmsField*` / `CmsCell*`),
+one small component per type — each independently overridable.
+
 ## Media upload
 
 `f.media({ accept })` is now a working pipeline, not just an FK column:
@@ -205,8 +241,8 @@ domain for the cloud driver.
   shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
 - A media **library browser** (reuse an existing upload instead of re-uploading)
 - **Per-field permissions** (`fieldMode`) + a roles-management UI. (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
-- **Field-type & view registries** (replace the `CmsField` switch with `app.config` overrides)
-- **TipTap rich-text editor** (currently a textarea proxy)
+- **TipTap rich-text editor** (currently a textarea proxy — now droppable in as a
+  registered `cms.fields.richtext.edit` override)
 - **`blocks`** page-builder field (the `f.json` hook already reserves the path)
 - Golden-file tests for descriptor→DDL; precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
 - Cloudflare Workers adapter; publish pipeline (changesets); package-name layer resolution
