@@ -47,6 +47,13 @@ export interface CmsModuleOptions {
     /** Max uploads per user per minute. 0 = unlimited. Default 60. */
     uploadRatePerMin?: number
   }
+  /** Public content-delivery API (`/api/content/*`). */
+  content?: {
+    /** If set, every content request must carry this token (x-api-key or Bearer). Default: open. */
+    token?: string
+    /** Cache-Control header for content responses when open. */
+    cacheControl?: string
+  }
 }
 
 export default defineNuxtModule<CmsModuleOptions>({
@@ -94,6 +101,11 @@ export default defineNuxtModule<CmsModuleOptions>({
         maxSizeMb: options.storage?.maxSizeMb ?? 10,
         maxBytesPerUser: options.storage?.maxBytesPerUser ?? 0,
         uploadRatePerMin: options.storage?.uploadRatePerMin ?? 60,
+      },
+      content: {
+        // Empty so NUXT_CMS_CONTENT_TOKEN can bind at runtime; '' = open API.
+        token: options.content?.token || '',
+        cacheControl: options.content?.cacheControl || '',
       },
       ...(nuxt.options.runtimeConfig.cms as Record<string, unknown> | undefined),
     }

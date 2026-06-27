@@ -32,12 +32,35 @@ type TableColumns<F> = Prettify<
   { [K in keyof F & string as ColumnKey<K, F[K]>]: PgColumn }
 >
 
+/** Headless content-delivery config — drives the public `/api/content/*` API. */
+export interface ContentConfig<F extends Record<string, AnyFieldDescriptor>> {
+  /** Expose this entity through the public content API. Default: false. */
+  public?: boolean
+  /**
+   * Drizzle condition (against the entity's own table) that an item must satisfy
+   * to be delivered publicly, e.g. `(t) => eq(t.status, 'published')`. Omit to make
+   * every row public (reference data such as tags/categories).
+   */
+  published?: (table: TableColumns<F>) => unknown
+  /** Field used to look a single item up by, e.g. 'slug'. Falls back to id. */
+  slug?: keyof F & string
+  /** Relation/media field keys to resolve into the response. Default: all of them. */
+  populate?: (keyof F & string)[]
+  /**
+   * Denylist of field keys to omit from the public response — applied to this entity
+   * AND when it is populated as another entity's relation. Every sensitive scalar on a
+   * publicly-readable/populatable entity must be listed here.
+   */
+  hidden?: (keyof F & string)[]
+}
+
 export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
   label: string
   titleField: keyof F & string
   fields: F
   admin?: { list?: { columns: (keyof F & string)[]; searchable?: (keyof F & string)[] } }
   access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
+  content?: ContentConfig<F>
 }
 
 /** The precisely-typed entity returned by defineEntity. */
@@ -53,6 +76,7 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   updateSchema: z.ZodType<Partial<InsertFields<F>>>
   admin?: EntityDef<F>['admin']
   access?: EntityDef<F>['access']
+  content?: EntityDef<F>['content']
 }
 
 /** Public data-shape helpers — `Row<typeof Post>`, `Insert<typeof Post>`, `Update<typeof Post>`. */
@@ -73,6 +97,13 @@ export interface CmsEntity {
   updateSchema: z.ZodTypeAny
   admin?: { list?: { columns: string[]; searchable?: string[] } }
   access?: Record<string, (ctx: { user: any; table: any }) => unknown>
+  content?: {
+    public?: boolean
+    published?: (table: any) => unknown
+    slug?: string
+    populate?: string[]
+    hidden?: string[]
+  }
 }
 
 interface EntityEnum { key: string; varName: string; enumName: string; values: readonly string[] }
@@ -138,7 +169,7 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   return {
     __cms: 'entity',
     name, label: def.label, titleField: def.titleField,
-    table, admin: def.admin, access: def.access, fields: def.fields,
+    table, admin: def.admin, access: def.access, content: def.content, fields: def.fields,
     enums,
     insertSchema: z.object(createShape),
     updateSchema: z.object(updateShape),

@@ -15,6 +15,8 @@ export const Author = defineEntity("author", {
     }),
   },
   access: { read: () => true },
+  // Public via the content API, but never expose the author's email.
+  content: { public: true, hidden: ["email"] },
 })
 
 export const Tag = defineEntity("tag", {
@@ -25,6 +27,8 @@ export const Tag = defineEntity("tag", {
     name: f.text({ required: true }),
     slug: f.slug({ from: "name", unique: true }),
   },
+  // Reference data — every tag is public (no published filter).
+  content: { public: true },
 })
 
 export const Post = defineEntity("post", {
@@ -59,5 +63,12 @@ export const Post = defineEntity("post", {
     // `table` is the entity's own typed table — no need to reference Post here.
     update: ({ user, table }) =>
       user.role === "admin" || eq(table.authorId, user.id),
+  },
+  // Headless delivery: only published posts, looked up by slug, with relations resolved.
+  content: {
+    public: true,
+    published: (table) => eq(table.status, "published"),
+    slug: "slug",
+    populate: ["hero", "author", "tags"],
   },
 })
