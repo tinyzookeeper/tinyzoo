@@ -26,7 +26,8 @@ validation, and correct PATCH semantics (omitted fields preserved, defaults don'
 Plus: real auth (nuxt-auth-utils), route-protected dashboard, role + **row-level** access
 enforcement, a polished sidebar shell, list search/sort/pagination, dark mode,
 **media upload** (pluggable `StorageDriver`: local + S3/R2) with image previews, a
-**TipTap** rich-text editor, and a **host-overridable field/view registry**.
+**TipTap** rich-text editor, a **host-overridable field/view registry**, and a public
+**headless content API** for your frontends.
 
 ![login](docs/screenshots/login.png)
 ![dashboard](docs/screenshots/admin-shell-dashboard.png)
@@ -236,6 +237,44 @@ backend). Each `cms_media` row exposes everything an image component needs — `
 Point `@nuxt/image` at an `ipx`/CDN provider for the `local` driver, or your R2/S3 public
 domain for the cloud driver.
 
+## Headless content API
+
+A separate, **public, read-only** delivery API for your frontends — distinct from the
+auth-gated admin API. Entities opt in from `cms.config.ts`:
+
+```ts
+export const Post = defineEntity('post', {
+  /* …fields… */
+  content: {
+    public: true,
+    published: (t) => eq(t.status, 'published'), // only these are served
+    slug: 'slug',                                //  → GET /api/content/post/:slug
+    populate: ['hero', 'author', 'tags'],        // resolved into the response
+  },
+})
+export const Author = defineEntity('author', {
+  /* … */ content: { public: true, hidden: ['email'] }, // never expose email
+})
+```
+
+```
+GET /api/content/:entity         # published list — ?page= ?limit= ?sort= ?dir= ?q= ?<field>=
+GET /api/content/:entity/:slug   # single published item by slug (or id)
+```
+
+Responses resolve relations + media into nested objects, drop raw FK ids, and omit
+`hidden` fields — on the item **and** on populated relations (a non-public relation target
+collapses to `{ id, title }`). Drafts are never served (list excludes them; single → 404).
+Responses are CDN-cacheable (`Cache-Control`), or lock the whole API behind a token with
+`cms.content.token` / `NUXT_CMS_CONTENT_TOKEN`.
+
+Render stored rich text on the frontend with the shipped `<CmsContent :doc="post.body" />`
+(safe — builds VNodes from the structured doc, no `v-html`). The playground's `/blog` and
+`/blog/[slug]` pages are a complete consumer demo.
+
+![blog list](docs/screenshots/blog-list.png)
+![blog post](docs/screenshots/blog-post.png)
+
 ## Dual runtime — Node or Cloudflare Workers
 
 The same code runs on a Node server or on Cloudflare Workers; the two runtime-specific
@@ -265,6 +304,9 @@ Set runtime secrets as Worker vars: `NUXT_CMS_DATABASE_URL` (Neon/Hyperdrive),
 
 ## Not yet built (next slices, in rough order)
 
+- **OpenAPI spec + typed client** generated from `cms.config.ts`, so a *separate* frontend
+  app (any language) gets a fully-typed client over the content API — no shared monorepo
+- **Draft preview** (tokened access to unpublished content) and on-publish **webhooks** / ISR revalidation
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`) and a
   shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
 - A media **library browser** (reuse an existing upload instead of re-uploading)

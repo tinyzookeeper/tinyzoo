@@ -1,6 +1,6 @@
 // Public API of @my-cms/core (consumed by host cms.config.ts and by the runtime).
 export { defineEntity, buildRegistry, propOf } from './entity'
-export type { CmsEntity, CmsRegistry, EntityDef, Entity, Junction, Row, Insert, Update } from './entity'
+export type { CmsEntity, CmsRegistry, ContentConfig, EntityDef, Entity, Junction, Row, Insert, Update } from './entity'
 export { f, snake, camel, pascal, buildColumn, serializeColumn } from './fields'
 export { emitSchema } from './emitter'
 export { cmsMedia } from './media'
