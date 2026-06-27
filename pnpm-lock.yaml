@@ -16,6 +16,15 @@ importers:
       '@nuxt/ui':
         specifier: ^4.0.0
         version: 4.9.0(7d51009835648e5c19570b3fc25294e1)
+      '@tiptap/pm':
+        specifier: ^3.27.1
+        version: 3.27.1
+      '@tiptap/starter-kit':
+        specifier: ^3.27.1
+        version: 3.27.1
+      '@tiptap/vue-3':
+        specifier: ^3.27.1
+        version: 3.27.1(@floating-ui/dom@1.7.6)(@tiptap/core@3.27.1(@tiptap/pm@3.27.1))(@tiptap/pm@3.27.1)(vue@3.5.39(typescript@5.9.3))
       aws4fetch:
         specifier: ^1.0.20
         version: 1.0.20

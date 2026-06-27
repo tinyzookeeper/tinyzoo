@@ -21,6 +21,9 @@
   ],
   "dependencies": {
     "@nuxt/kit": "^4.0.0",
+    "@tiptap/pm": "^3.27.1",
+    "@tiptap/starter-kit": "^3.27.1",
+    "@tiptap/vue-3": "^3.27.1",
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.44.0",
     "image-size": "^2.0.2",

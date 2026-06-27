@@ -24,8 +24,9 @@ m2m junction tables, m2o label population, m2m junction diff-writes, richtext (j
 validation, and correct PATCH semantics (omitted fields preserved, defaults don't fire on update).
 
 Plus: real auth (nuxt-auth-utils), route-protected dashboard, role + **row-level** access
-enforcement, a polished sidebar shell, list search/sort/pagination, dark mode, and
-**media upload** (pluggable `StorageDriver`, local filesystem driver) with image previews.
+enforcement, a polished sidebar shell, list search/sort/pagination, dark mode,
+**media upload** (pluggable `StorageDriver`: local + S3/R2) with image previews, a
+**TipTap** rich-text editor, and a **host-overridable field/view registry**.
 
 ![login](docs/screenshots/login.png)
 ![dashboard](docs/screenshots/admin-shell-dashboard.png)
@@ -241,8 +242,6 @@ domain for the cloud driver.
   shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
 - A media **library browser** (reuse an existing upload instead of re-uploading)
 - **Per-field permissions** (`fieldMode`) + a roles-management UI. (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
-- **TipTap rich-text editor** (currently a textarea proxy — now droppable in as a
-  registered `cms.fields.richtext.edit` override)
 - **`blocks`** page-builder field (the `f.json` hook already reserves the path)
 - Golden-file tests for descriptor→DDL; precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
 - Cloudflare Workers adapter; publish pipeline (changesets); package-name layer resolution
