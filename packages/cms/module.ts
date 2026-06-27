@@ -1,12 +1,22 @@
 import { existsSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineNuxtModule } from '@nuxt/kit'
+
+const layerDir = dirname(fileURLToPath(import.meta.url))
 
 export interface CmsModuleOptions {
   /** Path to the host config, relative to rootDir. Default: 'cms.config.ts'. */
   config?: string
-  /** Postgres connection string (Node). Falls back to env DATABASE_URL at runtime. */
+  /** Postgres connection string. Falls back to env DATABASE_URL at runtime. */
   databaseUrl?: string
+  /**
+   * Runtime DB driver, chosen at BUILD time so only its deps are bundled:
+   *  - 'node' (default): node-postgres + `pg` (Node servers)
+   *  - 'edge': Neon serverless over WebSocket (Cloudflare Workers et al.)
+   * Env override: CMS_DB_DRIVER.
+   */
+  db?: { driver?: 'node' | 'edge' }
   /** Blob storage for uploaded media. Defaults to the local filesystem driver. */
   storage?: {
     /** 'local' (default) writes to disk; 's3'/'r2' use an S3-compatible store. */
@@ -48,12 +58,17 @@ export default defineNuxtModule<CmsModuleOptions>({
       console.warn(`[@my-cms/core] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
     }
 
-    // Expose the host config as #cms/config to both the app and the Nitro server.
+    // Pick the DB driver impl at build time so only its deps land in the bundle.
+    const dbDriver = options.db?.driver || process.env.CMS_DB_DRIVER || 'node'
+    const dbImpl = resolve(layerDir, 'server/db', dbDriver === 'edge' ? 'driver.edge.ts' : 'driver.node.ts')
+
+    // Expose the host config + DB driver as virtual aliases to app and Nitro server.
     nuxt.options.alias['#cms/config'] = configPath
+    nuxt.options.alias['#cms/db'] = dbImpl
     nuxt.hook('nitro:config', (nitro) => {
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
-      // pg is a Node driver — keep it external in the server bundle.
+      nitro.alias['#cms/db'] = dbImpl
       nitro.externals = nitro.externals || {}
       nitro.externals.inline = nitro.externals.inline || []
     })
