@@ -141,7 +141,13 @@ file → POST /api/cms/_media → StorageDriver.put → cms_media row → FK on 
   serves through a Nitro route; `S3Driver` targets any S3-compatible store (AWS S3,
   Cloudflare R2, MinIO). Selected via `cms.storage.driver`; size cap via `cms.storage.maxSizeMb`.
 - Upload widget with thumbnail preview, replace/remove, and list-cell thumbnails.
-- `DELETE /api/cms/_media/:id` removes the row **and** the blob.
+- **Image dimensions** captured on upload (`width`/`height` via `image-size`) and used
+  for intrinsic sizing + lazy loading in the admin.
+- **Lifecycle / GC:** blobs are reference-counted across every media field — replacing or
+  clearing a media field, or deleting its owning row, removes the now-orphan row **and** blob.
+  `DELETE /api/cms/_media/:id` removes a specific media (409 if still referenced).
+- **Limits:** per-file `cms.storage.maxSizeMb`, per-user `maxBytesPerUser` quota (0 = off),
+  and `uploadRatePerMin` rate-limit (default 60; in-memory, single-instance).
 - **Hardened:** strict server-side MIME allowlist (no SVG/HTML → no stored-XSS),
   `nosniff` + `Content-Security-Policy: sandbox` on served blobs, path-traversal guards,
   and a `Content-Length` ceiling on `/api/cms/**` before any body is buffered.
@@ -178,12 +184,26 @@ docker run --rm --network cms-net --entrypoint /bin/sh minio/mc -c \
 # then run the playground with NUXT_CMS_STORAGE_DRIVER=s3, ENDPOINT=http://localhost:9000, etc.
 ```
 
+### Rendering media on your frontend
+
+`@nuxt/image` is a **host/frontend** concern, not baked into the layer (it would force the
+dependency + a provider config on every host, and the right provider differs by storage
+backend). Each `cms_media` row exposes everything an image component needs — `url`, `width`,
+`height`, `mime`, `alt` — so on your site you wire it to your chosen provider:
+
+```vue
+<NuxtImg :src="post.hero.url" :width="post.hero.width" :height="post.hero.height"
+         :alt="post.hero.alt" sizes="sm:100vw md:50vw" />
+```
+
+Point `@nuxt/image` at an `ipx`/CDN provider for the `local` driver, or your R2/S3 public
+domain for the cloud driver.
+
 ## Not yet built (next slices, in rough order)
 
-- **`@nuxt/image` presets** + image dimension extraction; **auto** orphan-blob GC when a
-  hero is replaced/cleared or its owning row is deleted (manual `DELETE` exists today)
-- **Upload quota / rate-limit** per user (today any authenticated user can upload, capped
-  only by per-file size); streaming multipart parser to bound chunked uploads
+- **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`) and a
+  shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
+- A media **library browser** (reuse an existing upload instead of re-uploading)
 - **Per-field permissions** (`fieldMode`) + a roles-management UI. (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
 - **Field-type & view registries** (replace the `CmsField` switch with `app.config` overrides)
 - **TipTap rich-text editor** (currently a textarea proxy)

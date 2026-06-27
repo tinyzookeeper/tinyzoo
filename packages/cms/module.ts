@@ -30,8 +30,12 @@ export interface CmsModuleOptions {
       /** Public URL prefix for serving (CDN / r2.dev / custom domain). */
       publicBaseUrl?: string
     }
-    /** Max upload size in MB. Default 10. */
+    /** Max upload size in MB (per file). Default 10. */
     maxSizeMb?: number
+    /** Per-user total storage quota in bytes. 0 = unlimited (default). */
+    maxBytesPerUser?: number
+    /** Max uploads per user per minute. 0 = unlimited. Default 60. */
+    uploadRatePerMin?: number
   }
 }
 
@@ -73,6 +77,8 @@ export default defineNuxtModule<CmsModuleOptions>({
           publicBaseUrl: options.storage?.s3?.publicBaseUrl || '',
         },
         maxSizeMb: options.storage?.maxSizeMb ?? 10,
+        maxBytesPerUser: options.storage?.maxBytesPerUser ?? 0,
+        uploadRatePerMin: options.storage?.uploadRatePerMin ?? 60,
       },
       ...(nuxt.options.runtimeConfig.cms as Record<string, unknown> | undefined),
     }

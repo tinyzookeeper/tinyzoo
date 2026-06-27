@@ -100,6 +100,9 @@ async function del(id: string) {
                     <img
                       v-if="row[`${key}__media`]?.mime?.startsWith('image/')"
                       :src="row[`${key}__media`].url"
+                      :width="row[`${key}__media`].width || undefined"
+                      :height="row[`${key}__media`].height || undefined"
+                      loading="lazy" decoding="async"
                       class="size-9 rounded object-cover border border-default"
                     >
                     <UIcon v-else-if="row[`${key}__media`]" name="i-lucide-file" class="size-5 text-dimmed" />

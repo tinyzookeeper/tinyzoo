@@ -25,6 +25,9 @@ watch(model, resolveMedia, { immediate: true })
 
 const isImage = computed(() => String(media.value?.mime ?? '').startsWith('image/'))
 const filename = computed(() => media.value?.alt || media.value?.key?.split('/').pop() || 'file')
+const dims = computed(() =>
+  media.value?.width && media.value?.height ? `${media.value.width}×${media.value.height}` : null,
+)
 const sizeLabel = computed(() => {
   const b = Number(media.value?.size ?? 0)
   if (b < 1024) return `${b} B`
@@ -71,12 +74,16 @@ function clear() {
       class="flex items-center gap-3 rounded-lg border border-default bg-elevated/30 p-2"
     >
       <div class="size-16 shrink-0 overflow-hidden rounded-md bg-muted flex items-center justify-center">
-        <img v-if="isImage" :src="media.url" :alt="media.alt ?? ''" class="size-full object-cover">
+        <img
+          v-if="isImage" :src="media.url" :alt="media.alt ?? ''"
+          :width="media.width || undefined" :height="media.height || undefined"
+          loading="lazy" decoding="async" class="size-full object-cover"
+        >
         <UIcon v-else name="i-lucide-file" class="size-6 text-dimmed" />
       </div>
       <div class="min-w-0 flex-1">
         <p class="truncate text-sm font-medium">{{ filename }}</p>
-        <p class="text-xs text-muted">{{ media.mime }} · {{ sizeLabel }}</p>
+        <p class="text-xs text-muted">{{ dims ? `${dims} · ` : '' }}{{ media.mime }} · {{ sizeLabel }}</p>
       </div>
       <div class="flex items-center gap-1">
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-repeat-2" :loading="uploading" @click="pick">

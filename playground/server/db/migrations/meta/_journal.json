@@ -8,6 +8,13 @@
       "when": 1782415611527,
       "tag": "0000_flippant_whistler",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782587005293,
+      "tag": "0001_mighty_invaders",
+      "breakpoints": true
     }
   ]
 }

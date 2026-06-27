@@ -1,0 +1,1 @@
+ALTER TABLE "cms_media" ADD COLUMN "uploaded_by" uuid;

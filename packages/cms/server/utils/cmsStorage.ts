@@ -252,8 +252,18 @@ export function useCmsStorage(): StorageDriver {
   return _driver
 }
 
-/** Configured upload ceiling in bytes (default 10MB). */
+/** Configured per-file upload ceiling in bytes (default 10MB). */
 export function maxUploadBytes(): number {
   const mb = Number((useRuntimeConfig().cms as any)?.storage?.maxSizeMb) || 10
   return mb * 1024 * 1024
+}
+
+/** Per-user total storage quota in bytes (0 = unlimited). */
+export function maxBytesPerUser(): number {
+  return Number((useRuntimeConfig().cms as any)?.storage?.maxBytesPerUser) || 0
+}
+
+/** Max uploads per user per minute (0 = unlimited; default 60). */
+export function uploadRatePerMin(): number {
+  return Number((useRuntimeConfig().cms as any)?.storage?.uploadRatePerMin ?? 60) || 0
 }
