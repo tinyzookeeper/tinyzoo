@@ -40,5 +40,8 @@
     "@nuxt/ui": "^4.0.0",
     "nuxt": "^4.0.0",
     "nuxt-auth-utils": "^0.5.0"
+  },
+  "optionalDependencies": {
+    "@neondatabase/serverless": "^1.1.0"
   }
 }

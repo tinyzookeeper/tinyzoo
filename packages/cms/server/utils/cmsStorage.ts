@@ -1,4 +1,3 @@
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { dirname, extname, resolve, sep } from 'node:path'
 
 /** Result of persisting a blob. */
@@ -62,6 +61,7 @@ class LocalDriver implements StorageDriver {
   }
 
   async put(key: string, body: Buffer): Promise<StoredObject> {
+    const { mkdir, writeFile } = await import('node:fs/promises')
     const abs = this.pathFor(key)
     await mkdir(dirname(abs), { recursive: true })
     await writeFile(abs, body)
@@ -70,6 +70,7 @@ class LocalDriver implements StorageDriver {
 
   async get(key: string): Promise<{ body: Buffer; contentType: string } | null> {
     try {
+      const { readFile } = await import('node:fs/promises')
       const body = await readFile(this.pathFor(key))
       return { body, contentType: mimeFromKey(key) }
     } catch {
@@ -79,6 +80,7 @@ class LocalDriver implements StorageDriver {
 
   async delete(key: string): Promise<void> {
     try {
+      const { unlink } = await import('node:fs/promises')
       await unlink(this.pathFor(key))
     } catch {
       /* already gone — fine */

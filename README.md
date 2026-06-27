@@ -117,8 +117,8 @@ pnpm play
 ## Decisions locked in this MVP
 
 - **Stack:** Nuxt 4, Tailwind 4, Nuxt UI v4, Zod 4, Drizzle (Postgres dialect).
-- **Dual-runtime ready:** runtime-specific code is isolated behind the `useCms` DataSource seam;
-  Postgres dialect stays identical for a future Cloudflare Workers target (Neon/Hyperdrive). D1/SQLite deferred.
+- **Dual-runtime:** runs on a Node server **or** Cloudflare Workers — see below. The Postgres
+  dialect is identical for both; runtime-specific code is isolated to the DB + storage seams. D1/SQLite deferred.
 - `select` → native `pgEnum`; rich text → `jsonb` (TipTap doc); ids → `uuid`; media → `cms_media` FK.
 
 ## Theming (host-owned)
@@ -236,6 +236,33 @@ backend). Each `cms_media` row exposes everything an image component needs — `
 Point `@nuxt/image` at an `ipx`/CDN provider for the `local` driver, or your R2/S3 public
 domain for the cloud driver.
 
+## Dual runtime — Node or Cloudflare Workers
+
+The same code runs on a Node server or on Cloudflare Workers; the two runtime-specific
+seams are selected by config:
+
+- **Database** — `cms.db.driver` picks the driver at **build time**, so only its deps land
+  in the bundle:
+  - `'node'` (default) → node-postgres (`pg`).
+  - `'edge'` → Neon serverless over WebSocket — supports the interactive transactions the
+    CRUD layer uses (unlike neon-http). Point it at Neon, or Postgres behind Cloudflare Hyperdrive.
+- **Storage** — use the `s3` / `r2` `StorageDriver` (the `local` filesystem driver has no place
+  on Workers; its `node:fs` is lazy-loaded so it never breaks an edge bundle).
+
+```bash
+# build for Workers with the edge DB driver (env override of cms.db.driver)
+CMS_DB_DRIVER=edge NITRO_PRESET=cloudflare_module pnpm --filter playground build
+npx wrangler deploy .output/server/index.mjs --assets .output/public
+```
+
+Set runtime secrets as Worker vars: `NUXT_CMS_DATABASE_URL` (Neon/Hyperdrive),
+`NUXT_SESSION_PASSWORD`, `NUXT_CMS_STORAGE_DRIVER=r2` + the `NUXT_CMS_STORAGE_S3_*` R2 creds.
+
+> **Verified:** the playground builds cleanly for `cloudflare_module` with the edge driver
+> (`pg` excluded from the bundle, Neon included). A *live* deploy needs your own Cloudflare
+> account + a Neon/Hyperdrive DB. Note: the in-memory upload rate-limiter doesn't coordinate
+> across isolates — back it with KV / a Durable Object for multi-isolate production.
+
 ## Not yet built (next slices, in rough order)
 
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`) and a
@@ -244,4 +271,5 @@ domain for the cloud driver.
 - **Per-field permissions** (`fieldMode`) + a roles-management UI. (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
 - **`blocks`** page-builder field (the `f.json` hook already reserves the path)
 - Golden-file tests for descriptor→DDL; precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
-- Cloudflare Workers adapter; publish pipeline (changesets); package-name layer resolution
+- A *live* Cloudflare deploy recipe (wrangler config + Hyperdrive binding); publish pipeline
+  (changesets); package-name layer resolution
