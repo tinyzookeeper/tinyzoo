@@ -10,6 +10,8 @@ export const cmsMedia = pgTable('cms_media', {
   width: integer('width'),
   height: integer('height'),
   alt: text('alt'),
+  // Host user id of the uploader (no FK — the users table is host-owned). Drives per-user quota.
+  uploadedBy: uuid('uploaded_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })
 
@@ -23,5 +25,6 @@ export const CMS_MEDIA_SOURCE = `export const cmsMedia = pgTable('cms_media', {
   width: integer('width'),
   height: integer('height'),
   alt: text('alt'),
+  uploadedBy: uuid('uploaded_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })`

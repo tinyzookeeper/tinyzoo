@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto'
+import { eq, sql } from '@my-cms/core'
+import { imageSize } from 'image-size'
 
 // Allowlist of storable types → canonical extension. Deliberately EXCLUDES
 // svg / html / xml: those execute script when served inline from our own origin
@@ -19,9 +21,14 @@ const ALLOWED: Record<string, string> = {
 // POST /api/cms/_media — multipart upload. Stores the blob via the StorageDriver
 // and records metadata in cms_media. Returns the media record.
 export default defineEventHandler(async (event) => {
-  requireCmsUser(event)
+  const user = requireCmsUser(event)
   const { db, reg } = useCms()
   const storage = useCmsStorage()
+
+  // Rate-limit per user before doing any work.
+  if (!rateLimitOk(`upload:${user.id}`, uploadRatePerMin(), 60_000)) {
+    throw createError({ statusCode: 429, statusMessage: 'Too many uploads — slow down.' })
+  }
 
   const max = maxUploadBytes()
   // Reject oversized uploads from the declared Content-Length BEFORE buffering the
@@ -48,6 +55,31 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 415, statusMessage: `Unsupported media type: ${mime || 'unknown'}` })
   }
 
+  // Per-user storage quota.
+  const quota = maxBytesPerUser()
+  if (quota) {
+    const [{ used }] = await db
+      .select({ used: sql<string>`coalesce(sum(${reg.cmsMedia.size}), 0)` })
+      .from(reg.cmsMedia)
+      .where(eq(reg.cmsMedia.uploadedBy, user.id))
+    if (Number(used) + file.data.length > quota) {
+      throw createError({ statusCode: 413, statusMessage: 'Storage quota exceeded.' })
+    }
+  }
+
+  // Dimensions for images (best-effort; pure-JS, Workers-safe).
+  let width: number | null = null
+  let height: number | null = null
+  if (mime.startsWith('image/')) {
+    try {
+      const dim = imageSize(new Uint8Array(file.data))
+      width = dim.width ?? null
+      height = dim.height ?? null
+    } catch {
+      /* unreadable header — leave dimensions null */
+    }
+  }
+
   // Date-prefixed, uuid-named key: tidy directory tree, collision-free, RFC3986-safe.
   const now = new Date()
   const key = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${randomUUID()}.${ext}`
@@ -61,6 +93,9 @@ export default defineEventHandler(async (event) => {
       key: stored.key,
       mime,
       size: stored.size,
+      width,
+      height,
+      uploadedBy: user.id,
       // default the alt text to the original filename — editable later
       alt: file.filename ?? null,
     })
