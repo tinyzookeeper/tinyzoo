@@ -4,6 +4,8 @@ export default defineNuxtConfig({
   // `exports` map would otherwise resolve the layer root to src/.
   extends: ['../packages/cms'],
   modules: ['@nuxt/ui', 'nuxt-auth-utils'],
+  // @my-cms/client ships TS source; let Vite transpile it (no build step in-repo).
+  build: { transpile: ['@my-cms/client'] },
   css: ['~/assets/css/main.css'],
   cms: {
     databaseUrl: process.env.DATABASE_URL,
