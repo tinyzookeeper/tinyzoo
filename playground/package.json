@@ -8,9 +8,12 @@
     "build": "nuxt build",
     "typecheck": "nuxt typecheck",
     "db:generate": "tsx ../packages/cms/cli/index.ts generate",
-    "db:migrate": "tsx ../packages/cms/cli/index.ts up"
+    "db:migrate": "tsx ../packages/cms/cli/index.ts up",
+    "cms:client": "tsx ../packages/cms/cli/index.ts client app/lib/cms-content.ts",
+    "cms:openapi": "tsx ../packages/cms/cli/index.ts openapi openapi.json"
   },
   "dependencies": {
+    "@my-cms/client": "workspace:*",
     "@my-cms/core": "workspace:*",
     "@nuxt/ui": "^4.0.0",
     "drizzle-orm": "^0.44.0",

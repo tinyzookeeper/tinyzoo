@@ -15,6 +15,7 @@ function fmtDate(d?: string) {
         <p class="text-sm font-medium text-muted uppercase tracking-wide">Headless demo</p>
         <h1 class="text-4xl font-bold mt-1">The Blog</h1>
         <p class="text-muted mt-2">Published posts served from <code class="text-xs">/api/content/post</code>.</p>
+        <ULink to="/blog/typed" class="text-sm text-primary mt-3 inline-block">Typed SDK version →</ULink>
       </div>
     </header>
 

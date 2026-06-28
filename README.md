@@ -82,14 +82,16 @@ type NewPost = Insert<typeof Post>
 
 ```
 packages/cms/          @my-cms/core — the Layer + Module
-  src/                 field engine, defineEntity, registry, emitter
-  cli/                 cms migrate (wraps drizzle-kit)
+  src/                 field engine, defineEntity, registry, emitters (schema / openapi / sdk)
+  cli/                 cms generate|up|client|openapi (wraps drizzle-kit + codegen)
   module.ts            build-time wiring (#cms/config alias, runtimeConfig)
   nuxt.config.ts       layer root
-  server/              generic CRUD + drizzle DataSource (useCms)
+  server/              generic CRUD + content API + drizzle DataSource (useCms)
   app/                 /admin pages + CmsField renderer
+packages/client/       @my-cms/client — tiny strictly-typed content-API client (publishable)
 playground/            demo host app: `extends: ['../packages/cms']`
   cms.config.ts        Post + Author + Tag (the source of truth)
+  app/lib/             generated cms-content.ts (typed client bindings)
   server/db/           generated schema.ts + migrations
 ```
 
@@ -275,6 +277,49 @@ Render stored rich text on the frontend with the shipped `<CmsContent :doc="post
 ![blog list](docs/screenshots/blog-list.png)
 ![blog post](docs/screenshots/blog-post.png)
 
+## Typed clients & OpenAPI
+
+Two ways for a **separate** frontend (any framework, its own repo — no shared monorepo)
+to consume the content API with full types. Both are generated from `cms.config.ts` via a
+single IR (`content-shape.ts`) that mirrors the runtime projection exactly, so the types
+**cannot drift** from what the API actually returns. Hidden fields (e.g. `author.email`)
+never appear; nullability, enums and populated-relation shapes are all precise.
+
+**OpenAPI 3.1 — any language.** A spec with a concrete path per public collection:
+
+```
+GET /api/openapi.json    # the document
+GET /api/openapi         # interactive reference (Scalar)
+```
+```bash
+npx openapi-typescript https://cms.example.com/api/openapi.json -o cms.d.ts
+```
+
+**Typed TS SDK — `@my-cms/client`.** A ~2 kB, dependency-free, strictly-typed client.
+Generate the bindings, install the runtime, go:
+
+```bash
+pnpm cms:client                                              # writes app/lib/cms-content.ts
+# …or from anywhere with API access:
+curl https://cms.example.com/api/content-types.ts -o src/cms-content.ts
+npm i @my-cms/client
+```
+```ts
+import { createClient } from './cms-content'
+const cms = createClient({ baseUrl: 'https://cms.example.com', token: process.env.CMS_TOKEN })
+
+const { items } = await cms.post.list({ filter: { status: 'published' }, sort: 'publishedAt', dir: 'desc' })
+//      ^? Post[] — items[0].author.name, .hero?.url, .tags[0].slug are all typed
+const post = await cms.post.get('hello-world') // Post, or throws CmsError on 404
+```
+
+Per-collection sort keys, filters and enum values are type-checked; an invalid sort key or
+filter value is a compile error. Set `cms.content.publicUrl` to stamp the spec's `servers`
+URL (it stays relative otherwise — the request Host is never reflected). The playground's
+`/blog/typed` page is a working consumer.
+
+![OpenAPI reference](docs/screenshots/openapi-docs.png)
+
 ## Dual runtime — Node or Cloudflare Workers
 
 The same code runs on a Node server or on Cloudflare Workers; the two runtime-specific
@@ -304,8 +349,6 @@ Set runtime secrets as Worker vars: `NUXT_CMS_DATABASE_URL` (Neon/Hyperdrive),
 
 ## Not yet built (next slices, in rough order)
 
-- **OpenAPI spec + typed client** generated from `cms.config.ts`, so a *separate* frontend
-  app (any language) gets a fully-typed client over the content API — no shared monorepo
 - **Draft preview** (tokened access to unpublished content) and on-publish **webhooks** / ISR revalidation
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`) and a
   shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)

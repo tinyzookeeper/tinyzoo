@@ -1,0 +1,39 @@
+{
+  "name": "@my-cms/client",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Tiny, dependency-free, strictly-typed client for the @my-cms content API.",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "files": [
+    "src",
+    "dist"
+  ],
+  "scripts": {
+    "build": "unbuild",
+    "prepublishOnly": "unbuild"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.mjs"
+      },
+      "./package.json": "./package.json"
+    },
+    "main": "./dist/index.mjs",
+    "types": "./dist/index.d.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "unbuild": "^3.0.0"
+  }
+}

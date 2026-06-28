@@ -1,0 +1,223 @@
+import { buildContentModel, type ContentField, type ContentFieldType, type ContentShape } from './content-shape'
+
+// Emit an OpenAPI 3.1 document describing the PUBLIC content API, generated from
+// cms.config.ts. Every public collection gets concrete `/api/content/<name>` and
+// `/<name>/{slug}` paths (concrete, not templated — far better codegen DX), and the
+// response schemas mirror the actual projected shapes (see content-shape.ts).
+
+export interface OpenApiOptions {
+  title?: string
+  version?: string
+  description?: string
+  servers?: { url: string; description?: string }[]
+  /** When true, declare + require the content API token security scheme. */
+  tokenAuth?: boolean
+}
+
+type JsonSchema = Record<string, any>
+
+const REF = (name: string): JsonSchema => ({ $ref: `#/components/schemas/${name}` })
+
+/** Wrap a schema so the value may also be JSON `null` (OpenAPI 3.1 style). */
+function nullable(schema: JsonSchema, isNullable: boolean): JsonSchema {
+  if (!isNullable) return schema
+  if (schema.$ref) return { anyOf: [schema, { type: 'null' }] }
+  const t = schema.type
+  if (typeof t === 'string') {
+    const out: JsonSchema = { ...schema, type: [t, 'null'] }
+    // A nullable enum must list null, else strict 2020-12 validators reject null.
+    if (Array.isArray(out.enum) && !out.enum.includes(null)) out.enum = [...out.enum, null]
+    return out
+  }
+  return { anyOf: [schema, { type: 'null' }] }
+}
+
+function scalarSchema(t: Extract<ContentFieldType, { kind: 'scalar' }>): JsonSchema {
+  switch (t.scalar) {
+    case 'integer': return { type: 'integer' }
+    case 'number': return { type: 'number' }
+    case 'boolean': return { type: 'boolean' }
+    case 'datetime': return { type: 'string', format: 'date-time' }
+    case 'string': {
+      const s: JsonSchema = { type: 'string' }
+      if (t.enumValues) s.enum = [...t.enumValues]
+      if (t.pattern) s.pattern = t.pattern
+      return s
+    }
+  }
+}
+
+/** Map a projected field's value-type to a JSON Schema (relations → $refs). */
+function fieldSchema(t: ContentFieldType): JsonSchema {
+  switch (t.kind) {
+    case 'scalar': return scalarSchema(t)
+    case 'richtext': return REF('RichTextDoc')
+    case 'media': return REF('CmsMedia')
+    case 'relation-one': return REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`)
+    case 'relation-many': return { type: 'array', items: REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`) }
+  }
+}
+
+// content-shape already pascal-cases; we only have the entity name on relation
+// targets, so re-derive here with the same rule (snake/kebab → Pascal).
+function pascalRef(name: string): string {
+  return name.replace(/(^|[_-])([a-z0-9])/g, (_, __, c) => c.toUpperCase())
+}
+
+/** An object schema for a list of projected fields, with id + optional timestamps. */
+function objectSchema(fields: ContentField[], opts: { timestamps: boolean }): JsonSchema {
+  const properties: JsonSchema = { id: { type: 'string', format: 'uuid' } }
+  const required = ['id']
+  for (const f of fields) {
+    properties[f.key] = nullable(fieldSchema(f.type), f.nullable)
+    required.push(f.key)
+  }
+  if (opts.timestamps) {
+    properties.createdAt = { type: 'string', format: 'date-time' }
+    properties.updatedAt = { type: 'string', format: 'date-time' }
+    required.push('createdAt', 'updatedAt')
+  }
+  return { type: 'object', additionalProperties: false, properties, required }
+}
+
+function listParams(shape: ContentShape): JsonSchema[] {
+  const params: JsonSchema[] = [
+    { name: 'page', in: 'query', schema: { type: 'integer', minimum: 1, default: 1 } },
+    { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+    { name: 'sort', in: 'query', schema: { type: 'string', enum: shape.sortKeys, default: 'createdAt' } },
+    { name: 'dir', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } },
+    { name: 'q', in: 'query', description: `Substring match against \`${shape.titleField}\`.`, schema: { type: 'string' } },
+  ]
+  for (const filter of shape.filters) {
+    params.push({
+      name: filter.key,
+      in: 'query',
+      description: 'Exact-match filter.',
+      schema: filter.enumValues ? { type: 'string', enum: [...filter.enumValues] } : { type: 'string' },
+    })
+  }
+  return params
+}
+
+export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiOptions = {}): JsonSchema {
+  const model = buildContentModel(config)
+  const tokenAuth = !!opts.tokenAuth
+
+  const schemas: JsonSchema = {
+    RichTextNode: {
+      type: 'object',
+      description: 'A ProseMirror/TipTap node. Render with a structured renderer — never raw HTML.',
+      properties: {
+        type: { type: 'string' },
+        text: { type: 'string' },
+        content: { type: 'array', items: REF('RichTextNode') },
+        marks: { type: 'array', items: { type: 'object', additionalProperties: true } },
+        attrs: { type: 'object', additionalProperties: true },
+      },
+      required: ['type'],
+      additionalProperties: true,
+    },
+    RichTextDoc: {
+      type: 'object',
+      properties: { type: { type: 'string', const: 'doc' }, content: { type: 'array', items: REF('RichTextNode') } },
+      required: ['type'],
+      additionalProperties: true,
+    },
+    CmsMedia: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        url: { type: 'string', format: 'uri' },
+        width: { type: ['integer', 'null'] },
+        height: { type: ['integer', 'null'] },
+        alt: { type: ['string', 'null'] },
+        mime: { type: 'string' },
+      },
+      required: ['id', 'url', 'width', 'height', 'alt', 'mime'],
+    },
+  }
+
+  // Embedded (nested public) + ref (nested non-public) target schemas.
+  for (const emb of model.embedded) schemas[`${emb.pascal}Embedded`] = objectSchema(emb.fields, { timestamps: false })
+  for (const ref of model.refs) {
+    schemas[`${ref.pascal}Ref`] = {
+      type: 'object',
+      additionalProperties: false,
+      // The title key is ALWAYS present (publicProjection sets it); only its value
+      // may be null — so it stays `required`, the schema just allows null.
+      properties: { id: { type: 'string', format: 'uuid' }, [ref.titleField]: nullable(fieldSchema(ref.titleType), ref.titleNullable) },
+      required: ['id', ref.titleField],
+    }
+  }
+
+  // Top-level item + list-wrapper schemas, plus paths.
+  const paths: JsonSchema = {}
+  const tag = (name: string) => name
+  for (const shape of model.entities) {
+    schemas[shape.pascal] = objectSchema(shape.fields, { timestamps: true })
+    schemas[`${shape.pascal}List`] = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        items: { type: 'array', items: REF(shape.pascal) },
+        total: { type: 'integer' },
+        page: { type: 'integer' },
+        limit: { type: 'integer' },
+      },
+      required: ['items', 'total', 'page', 'limit'],
+    }
+
+    const lookupBy = shape.slugField ? `\`${shape.slugField}\` (falling back to id)` : 'id'
+    paths[`/api/content/${shape.name}`] = {
+      get: {
+        operationId: `list${shape.pascal}`,
+        tags: [tag(shape.name)],
+        summary: `List ${shape.name} items`,
+        description: shape.gated ? 'Returns only published items.' : undefined,
+        parameters: listParams(shape),
+        responses: {
+          200: { description: 'OK', content: { 'application/json': { schema: REF(`${shape.pascal}List`) } } },
+          ...(tokenAuth ? { 401: { description: 'Missing or invalid API token' } } : {}),
+        },
+      },
+    }
+    paths[`/api/content/${shape.name}/{slug}`] = {
+      get: {
+        operationId: `get${shape.pascal}`,
+        tags: [tag(shape.name)],
+        summary: `Get one ${shape.name} by ${lookupBy}`,
+        parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          200: { description: 'OK', content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { item: REF(shape.pascal) }, required: ['item'] } } } },
+          404: { description: 'Not found or not published' },
+          ...(tokenAuth ? { 401: { description: 'Missing or invalid API token' } } : {}),
+        },
+      },
+    }
+  }
+
+  const doc: JsonSchema = {
+    openapi: '3.1.0',
+    info: {
+      title: opts.title ?? 'Content API',
+      version: opts.version ?? '1.0.0',
+      description: opts.description ?? 'Public, read-only content delivery API generated from cms.config.ts.',
+    },
+    servers: opts.servers ?? [{ url: '/' }],
+    paths,
+    components: {
+      schemas,
+      ...(tokenAuth
+        ? {
+            securitySchemes: {
+              ApiKey: { type: 'apiKey', in: 'header', name: 'x-api-key' },
+              BearerToken: { type: 'http', scheme: 'bearer' },
+            },
+          }
+        : {}),
+    },
+    ...(tokenAuth ? { security: [{ ApiKey: [] }, { BearerToken: [] }] } : {}),
+  }
+  return doc
+}

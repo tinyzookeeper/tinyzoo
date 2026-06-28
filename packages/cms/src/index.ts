@@ -3,6 +3,18 @@ export { defineEntity, buildRegistry, propOf } from './entity'
 export type { CmsEntity, CmsRegistry, ContentConfig, EntityDef, Entity, Junction, Row, Insert, Update } from './entity'
 export { f, snake, camel, pascal, buildColumn, serializeColumn } from './fields'
 export { emitSchema } from './emitter'
+export { buildOpenApiDocument, type OpenApiOptions } from './openapi'
+export { emitContentTypes, type SdkOptions } from './sdk'
+export {
+  buildContentModel,
+  type ContentModel,
+  type ContentShape,
+  type ContentField,
+  type ContentFieldType,
+  type EmbeddedShape,
+  type RefShape,
+  type FilterParam,
+} from './content-shape'
 export { cmsMedia } from './media'
 export { richTextSchema, emptyDoc, type RichTextDoc } from './richtext'
 export type * from './descriptor'
