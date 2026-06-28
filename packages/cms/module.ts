@@ -53,6 +53,12 @@ export interface CmsModuleOptions {
     token?: string
     /** Cache-Control header for content responses when open. */
     cacheControl?: string
+    /**
+     * Absolute public origin of this CMS (e.g. 'https://cms.example.com'), used as the
+     * OpenAPI `servers[].url`. Left blank, the spec uses a relative '/' server — never
+     * the request Host (which is attacker-controlled and would poison the cached spec).
+     */
+    publicUrl?: string
   }
 }
 
@@ -106,6 +112,7 @@ export default defineNuxtModule<CmsModuleOptions>({
         // Empty so NUXT_CMS_CONTENT_TOKEN can bind at runtime; '' = open API.
         token: options.content?.token || '',
         cacheControl: options.content?.cacheControl || '',
+        publicUrl: options.content?.publicUrl || '',
       },
       ...(nuxt.options.runtimeConfig.cms as Record<string, unknown> | undefined),
     }
