@@ -14,13 +14,20 @@ const component = computed(() => {
   const override = (appConfig.cms as any)?.fields?.[props.field.type]?.edit
   return resolveComponent(override || props.field.ui?.edit || 'CmsFieldText')
 })
+
+// "publishedAt" → "Published at", "hero_image" → "Hero image". Overridable via .label().
+function humanize(key: string) {
+  const words = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').trim()
+  return words.charAt(0).toUpperCase() + words.slice(1).toLowerCase()
+}
+const label = computed(() => props.field.meta?.label || humanize(props.field.key))
+const help = computed(() => props.field.meta?.help as string | undefined)
 </script>
 
 <template>
   <UFormField
-    :label="field.key" :name="field.key" :required="field.required" :error="error"
+    :label="label" :description="help" :name="field.key" :required="field.required" :error="error"
     :hint="field.optional ? 'optional' : undefined"
-    :ui="{ label: 'capitalize' }"
   >
     <component :is="component" v-model="model" :field="field" :entity="entity" />
   </UFormField>
