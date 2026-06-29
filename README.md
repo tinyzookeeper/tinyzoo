@@ -167,6 +167,29 @@ export default defineAppConfig({
 Built-in renderers live in `packages/cms/app/components` (`CmsField*` / `CmsCell*`),
 one small component per type — each independently overridable.
 
+## Authoring experience
+
+The admin is built for non-technical clients, not just developers:
+
+- **Rich text** — the TipTap editor does **links** and **inline images** (pick from
+  the media library or upload inline). Stored content is sanitized on write *and* at
+  render (CmsContent), so a `javascript:`/`data:` href or src can never reach a visitor.
+- **Media library** — browse, search and **reuse** existing uploads instead of
+  re-uploading; set **alt text** per image (accessibility + SEO). Blobs are
+  reference-counted across media fields **and images embedded in rich text**, so an
+  asset is GC'd only when truly orphaned (and never while still referenced).
+- **Slugs auto-generate** from their source field (`f.slug({ from: 'title' })`) until
+  you edit them, and never clobber an existing slug.
+- **Friendly fields** — labels are humanized from the key, overridable with
+  `.label('Publish date')`, with help text via `.help('…')`.
+- **Safety rails** — destructive deletes ask for confirmation, and leaving a form with
+  unsaved changes warns you (in-app navigation and tab close).
+
+```ts
+publishedAt: f.datetime().optional().label('Publish date'),
+slug: f.slug({ from: 'title', unique: true }).help('Auto-generated — edit to override.'),
+```
+
 ## Media upload
 
 `f.media({ accept })` is now a working pipeline, not just an FK column:

@@ -6,8 +6,9 @@ export const Author = defineEntity("author", {
   admin: { list: { columns: ["name", "email"] } },
   fields: {
     name: f.text({ required: true }),
-    email: f.text({ required: true, format: "email" }).unique(),
-    bio: f.richtext().optional(),
+    email: f.text({ required: true, format: "email" }).unique()
+      .help("Private — used for sign-in, never shown on the public site."),
+    bio: f.richtext().optional().help("A short author biography."),
     posts: f.relation({
       to: () => Post,
       kind: "one-to-many",
@@ -42,13 +43,15 @@ export const Post = defineEntity("post", {
   },
   fields: {
     title: f.text({ required: true }),
-    slug: f.slug({ from: "title", unique: true }),
+    slug: f.slug({ from: "title", unique: true })
+      .help("Auto-generated from the title — edit to override."),
     status: f.select({
       options: ["draft", "published"] as const,
       default: "draft",
     }),
-    publishedAt: f.datetime().optional(),
-    hero: f.media({ accept: "image/*" }).optional(),
+    publishedAt: f.datetime().optional().label("Publish date"),
+    hero: f.media({ accept: "image/*" }).optional()
+      .help("Shown at the top of the post and in listings."),
     author: f.relation({
       to: () => Author,
       kind: "many-to-one",
@@ -56,7 +59,7 @@ export const Post = defineEntity("post", {
       onDelete: "restrict",
     }),
     tags: f.relation({ to: () => Tag, kind: "many-to-many" }),
-    body: f.richtext(),
+    body: f.richtext().help("Use the toolbar to add headings, links, and images."),
   },
   access: {
     read: () => true,

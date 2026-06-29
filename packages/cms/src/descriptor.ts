@@ -101,6 +101,10 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   optional(): FieldDescriptor<Nullable<K>>
   unique(): FieldDescriptor<K>
   withDefault(value: K['out']): FieldDescriptor<Defaulted<K>>
+  /** Human-friendly admin label (defaults to a humanized field key). */
+  label(text: string): FieldDescriptor<K>
+  /** Help text shown under the field in the admin form. */
+  help(text: string): FieldDescriptor<K>
 }
 
 /** Any descriptor, regardless of kind. */

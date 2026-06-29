@@ -96,6 +96,8 @@ interface Mods {
   isOptional?: boolean
   default?: unknown
   dbDefault?: 'now' | 'random'
+  label?: string
+  help?: string
 }
 
 function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
@@ -131,15 +133,22 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     return s
   }
 
+  // Admin label/help live in meta so they flow through the serialized graph untouched.
+  const meta: Record<string, unknown> = { ...(cfg.meta ?? {}) }
+  if (mods.label !== undefined) meta.label = mods.label
+  if (mods.help !== undefined) meta.help = mods.help
+
   const descriptor = {
     type: cfg.type,
     isRequired, isUnique, isOptional,
     default: mods.default, dbDefault,
-    ui: cfg.ui, meta: cfg.meta ?? {}, relation: cfg.relation,
+    ui: cfg.ui, meta, relation: cfg.relation,
     spec, zod,
     optional: () => createField(cfg, { ...mods, isOptional: true, isRequired: false }),
     unique: () => createField(cfg, { ...mods, isUnique: true }),
     withDefault: (value: unknown) => createField(cfg, { ...mods, default: value }),
+    label: (text: string) => createField(cfg, { ...mods, label: text }),
+    help: (text: string) => createField(cfg, { ...mods, help: text }),
   }
   return descriptor as unknown as FieldDescriptor
 }

@@ -1,16 +1,38 @@
 <script setup lang="ts">
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
+import Link from '@tiptap/extension-link'
+import Image from '@tiptap/extension-image'
 
 // Built-in rich-text editor (TipTap). The model IS the ProseMirror/TipTap JSON doc
 // stored in the jsonb column — no conversion. Swap it out per host by registering
 // `cms.fields.richtext.edit` in app.config.
 const model = defineModel<any>()
+const libraryOpen = ref(false)
+
+// Image node that also records the cms_media id (as data-media-id) so the media GC
+// can see images embedded in body text and never orphans them.
+const MediaImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      mediaId: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute('data-media-id'),
+        renderHTML: (attrs: Record<string, any>) => (attrs.mediaId ? { 'data-media-id': attrs.mediaId } : {}),
+      },
+    }
+  },
+})
 
 const editor = useEditor({
   content: model.value || { type: 'doc', content: [] },
   immediatelyRender: false, // SSR-safe: defer view creation to the client
-  extensions: [StarterKit],
+  extensions: [
+    StarterKit,
+    Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
+    MediaImage.configure({ HTMLAttributes: { class: 'cms-embed-img' } }),
+  ],
   onUpdate: ({ editor }) => {
     model.value = editor.getJSON()
   },
@@ -28,7 +50,24 @@ watch(model, (val) => {
 
 onBeforeUnmount(() => editor.value?.destroy())
 
-type Tool = { icon: string; label: string; run: () => void; active: () => boolean }
+function setLink() {
+  const ed = editor.value
+  if (!ed) return
+  const prev = ed.getAttributes('link').href as string | undefined
+  const url = window.prompt('Link URL', prev ?? 'https://')
+  if (url === null) return // cancelled
+  if (url.trim() === '') {
+    ed.chain().focus().extendMarkRange('link').unsetLink().run()
+    return
+  }
+  ed.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run()
+}
+
+function onImageSelect(m: any) {
+  editor.value?.chain().focus().setImage({ src: m.url, alt: m.alt ?? '', mediaId: m.id } as any).run()
+}
+
+type Tool = { icon: string, label: string, run: () => void, active: () => boolean }
 const tools = computed<Tool[]>(() => {
   const ed = editor.value
   if (!ed) return []
@@ -43,12 +82,14 @@ const tools = computed<Tool[]>(() => {
     { icon: 'i-lucide-list-ordered', label: 'Ordered list', run: () => chain().toggleOrderedList().run(), active: () => ed.isActive('orderedList') },
     { icon: 'i-lucide-quote', label: 'Quote', run: () => chain().toggleBlockquote().run(), active: () => ed.isActive('blockquote') },
     { icon: 'i-lucide-code', label: 'Inline code', run: () => chain().toggleCode().run(), active: () => ed.isActive('code') },
+    { icon: 'i-lucide-link', label: 'Link', run: setLink, active: () => ed.isActive('link') },
   ]
 })
 </script>
 
 <template>
   <div class="w-full overflow-hidden rounded-lg border border-default bg-default">
+    <CmsMediaLibrary v-model:open="libraryOpen" accept="image/*" @select="onImageSelect" />
     <ClientOnly>
       <div v-if="editor" class="flex flex-wrap items-center gap-0.5 border-b border-default bg-elevated/30 p-1">
         <UButton
@@ -56,6 +97,10 @@ const tools = computed<Tool[]>(() => {
           :icon="t.icon" size="xs" variant="ghost"
           :color="t.active() ? 'primary' : 'neutral'"
           :aria-label="t.label" @click="t.run()"
+        />
+        <UButton
+          icon="i-lucide-image" size="xs" variant="ghost" color="neutral"
+          aria-label="Insert image" @click="libraryOpen = true"
         />
         <div class="ml-auto flex gap-0.5">
           <UButton icon="i-lucide-undo-2" size="xs" variant="ghost" color="neutral" aria-label="Undo" @click="editor.chain().focus().undo().run()" />
@@ -81,4 +126,7 @@ const tools = computed<Tool[]>(() => {
 :deep(.ProseMirror code) { font-family: ui-monospace, monospace; background: rgb(127 127 127 / 0.15); padding: 0.1em 0.3em; border-radius: 0.25rem; font-size: 0.9em; }
 :deep(.ProseMirror pre) { background: rgb(127 127 127 / 0.12); padding: 0.5rem 0.75rem; border-radius: 0.375rem; overflow-x: auto; }
 :deep(.ProseMirror pre code) { background: none; padding: 0; }
+:deep(.ProseMirror a) { color: var(--ui-primary, currentColor); text-decoration: underline; }
+:deep(.ProseMirror img) { max-width: 100%; height: auto; border-radius: 0.375rem; }
+:deep(.ProseMirror img.ProseMirror-selectednode) { outline: 2px solid var(--ui-primary, currentColor); }
 </style>

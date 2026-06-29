@@ -1,5 +1,7 @@
 <script setup lang="ts">
-definePageMeta({ layout: 'admin' })
+// Remount per record so state/dirty/guard fully reset when switching records
+// (and after a create→redirect), rather than reusing a stale component instance.
+definePageMeta({ layout: 'admin', key: (route) => route.fullPath })
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
@@ -13,6 +15,8 @@ const editable = computed(() => (meta.value?.fields ?? []).filter((f: any) => f.
 
 const state = reactive<Record<string, any>>({})
 const fieldErrors = reactive<Record<string, string>>({})
+// Let field components (e.g. slug auto-gen) read sibling values + create-mode.
+provide('cmsForm', { state, isNew })
 
 function blankFor(f: any) {
   if (f.type === 'boolean') return false
@@ -29,6 +33,26 @@ watchEffect(() => {
   for (const f of editable.value) if (!(f.key in state)) state[f.key] = blankFor(f)
 })
 
+// Unsaved-changes guard: mark dirty on edits made after the initial load/populate,
+// and warn before leaving (in-app nav + hard unload). Cleared on successful save.
+const dirty = ref(false)
+let ready = false
+watch(state, () => { if (ready) dirty.value = true }, { deep: true })
+onMounted(() => {
+  ready = true
+  window.addEventListener('beforeunload', onBeforeUnload)
+})
+onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload))
+function onBeforeUnload(e: BeforeUnloadEvent) {
+  if (!dirty.value) return
+  e.preventDefault()
+  e.returnValue = ''
+}
+onBeforeRouteLeave(() => {
+  if (!dirty.value) return true
+  return window.confirm('You have unsaved changes. Leave without saving?')
+})
+
 const saving = ref(false)
 async function save() {
   saving.value = true
@@ -42,10 +66,12 @@ async function save() {
     }
     if (isNew.value) {
       const res: any = await $fetch(`/api/cms/${entity.value}`, { method: 'POST', body })
+      dirty.value = false // clear before the redirect so the guard doesn't fire
       toast.add({ title: 'Created', icon: 'i-lucide-check', color: 'success' })
       await router.push(`/admin/${entity.value}/${res.row.id}`)
     } else {
       await $fetch(`/api/cms/${entity.value}/${id.value}`, { method: 'PATCH', body })
+      dirty.value = false
       toast.add({ title: 'Saved', icon: 'i-lucide-check', color: 'success' })
     }
   } catch (e: any) {
