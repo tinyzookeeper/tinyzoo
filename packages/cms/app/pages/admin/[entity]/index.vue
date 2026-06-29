@@ -28,11 +28,19 @@ function toggleSort(key: string) {
   else { sort.value = key; dir.value = 'asc' }
 }
 const deleting = ref<string | null>(null)
-async function del(id: string) {
-  deleting.value = id
+const pendingDelete = ref<any | null>(null)
+const deleteLabel = computed(() => {
+  const tf = meta.value?.titleField
+  return (tf && pendingDelete.value?.[tf]) || 'this item'
+})
+async function confirmDelete() {
+  const row = pendingDelete.value
+  if (!row) return
+  deleting.value = row.id
   try {
-    await $fetch(`/api/cms/${entity.value}/${id}`, { method: 'DELETE' })
+    await $fetch(`/api/cms/${entity.value}/${row.id}`, { method: 'DELETE' })
     toast.add({ title: 'Deleted', icon: 'i-lucide-check', color: 'success' })
+    pendingDelete.value = null
     refresh()
   } catch (e: any) {
     toast.add({ title: 'Delete failed', description: e.data?.statusMessage, icon: 'i-lucide-x', color: 'error' })
@@ -97,7 +105,7 @@ async function del(id: string) {
                   <UButton
                     v-if="meta?.can?.delete !== false"
                     size="xs" variant="ghost" color="error" icon="i-lucide-trash-2"
-                    :loading="deleting === row.id" @click="del(row.id)"
+                    :loading="deleting === row.id" @click="pendingDelete = row"
                   />
                 </div>
               </td>
@@ -122,5 +130,22 @@ async function del(id: string) {
         </div>
       </div>
     </div>
+
+    <UModal
+      :open="!!pendingDelete" title="Delete this record?"
+      @update:open="(v: boolean) => { if (!v) pendingDelete = null }"
+    >
+      <template #body>
+        <p class="text-sm text-muted">
+          Delete <span class="font-medium text-default">{{ deleteLabel }}</span>? This can't be undone.
+        </p>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2 w-full">
+          <UButton color="neutral" variant="ghost" @click="pendingDelete = null">Cancel</UButton>
+          <UButton color="error" icon="i-lucide-trash-2" :loading="!!deleting" @click="confirmDelete">Delete</UButton>
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>
