@@ -36,6 +36,21 @@ export const post = pgTable('post', {
   heroId: uuid('hero_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   authorId: uuid('author_id').notNull().references(() => author.id, { onDelete: 'restrict' }),
   body: jsonb('body').$type<RichTextDoc>().notNull(),
+  metaTitle: text('meta_title'),
+  metaDescription: text('meta_description'),
+  ogImageId: uuid('og_image_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
+export const siteSettings = pgTable('siteSettings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  siteName: text('site_name').notNull(),
+  tagline: text('tagline'),
+  logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
+  metaTitle: text('meta_title'),
+  metaDescription: text('meta_description'),
+  ogImageId: uuid('og_image_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })

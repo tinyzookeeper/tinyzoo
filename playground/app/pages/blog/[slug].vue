@@ -1,15 +1,26 @@
 <script setup lang="ts">
 const route = useRoute()
-const { data, error } = await useFetch(() => `/api/content/post/${route.params.slug}`)
+// Pass ?preview through so an authenticated editor can see a draft. useRequestFetch
+// forwards the incoming cookie on SSR so the editor's session reaches the content API
+// (a plain useFetch would drop it → the draft would 404 during server render).
+const { data, error } = await useFetch(() => `/api/content/post/${route.params.slug}`, {
+  query: { preview: route.query.preview },
+  $fetch: useRequestFetch(),
+})
 const post = computed(() => data.value?.item)
+const isPreview = computed(() => !!data.value?.preview)
 
-function fmtDate(d?: string) {
-  return d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : ''
+function fmtDate(d?: string | null) {
+  // Fixed locale + UTC so server and client render identically (no hydration mismatch).
+  return d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) : ''
 }
 </script>
 
 <template>
   <div class="min-h-screen bg-default">
+    <div v-if="isPreview" class="bg-warning/15 text-warning border-b border-warning/30 px-6 py-2 text-sm text-center font-medium">
+      Draft preview — not visible to the public.
+    </div>
     <div class="max-w-2xl mx-auto px-6 py-10">
       <ULink to="/blog" class="text-sm text-muted hover:text-default">← Back to the blog</ULink>
 
