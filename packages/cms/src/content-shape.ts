@@ -198,7 +198,9 @@ function scalarEnum(fld: FieldDescriptor): readonly string[] | undefined {
 /** Build the full content model: top-level shapes + the embedded/ref shapes they reference. */
 export function buildContentModel(config: Record<string, any>): ContentModel {
   const reg = buildRegistry(config)
-  const publicEntities = reg.entities.filter((e) => e.content?.public)
+  // Singletons are delivered via /api/content/_global/:name (object), not as a
+  // collection list, so they are excluded from the generated collection clients.
+  const publicEntities = reg.entities.filter((e) => e.content?.public && !e.singleton)
 
   const entities: ContentShape[] = publicEntities.map((e) => ({
     name: e.name,
