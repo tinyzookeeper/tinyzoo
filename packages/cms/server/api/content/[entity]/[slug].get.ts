@@ -8,9 +8,13 @@ export default defineEventHandler(async (event) => {
   assertContentAuth(event)
   const { db, reg } = useCms()
   const e = getPublicEntity(reg, getRouterParam(event, 'entity'))
+  if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use /api/content/_global/:name' })
   const key = getRouterParam(event, 'slug')!
 
-  const published = publishedCond(e)
+  // Authorized preview (admin session or content token + ?preview) bypasses the
+  // published filter so editors can see drafts; everyone else only sees published.
+  const preview = isPreviewAuthorized(event)
+  const published = preview ? undefined : publishedCond(e)
   const guard = (col: any, val: string) => (published ? and(published, eq(col, val)) : eq(col, val))
 
   let row: any
@@ -24,6 +28,8 @@ export default defineEventHandler(async (event) => {
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
   await populateItems(db, reg, e, [row], e.content?.populate)
-  setContentCache(event)
-  return { item: projectItem(e, row) }
+  // Never let a draft preview be cached by a shared/browser cache.
+  if (preview) setResponseHeader(event, 'Cache-Control', 'private, no-store')
+  else setContentCache(event)
+  return { item: projectItem(e, row), ...(preview ? { preview: true } : {}) }
 })

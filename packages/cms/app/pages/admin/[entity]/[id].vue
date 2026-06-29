@@ -53,6 +53,29 @@ onBeforeRouteLeave(() => {
   return window.confirm('You have unsaved changes. Leave without saving?')
 })
 
+// Publish workflow (only when the entity declares `publish`).
+const publish = computed(() => meta.value?.publish)
+const isPublished = computed(() => !!publish.value && state[publish.value.field] === publish.value.publishedValue)
+async function togglePublish() {
+  const p = publish.value
+  if (!p) return
+  const willPublish = !isPublished.value
+  state[p.field] = willPublish ? p.publishedValue : p.draftValue
+  if (willPublish && p.dateField && !state[p.dateField]) state[p.dateField] = new Date().toISOString()
+  await save()
+}
+const previewUrl = computed(() => {
+  const p = publish.value
+  if (!p?.preview) return null
+  let ok = true
+  const url = p.preview.replace(/:(\w+)/g, (_m, k) => {
+    const v = state[k]
+    if (v === undefined || v === null || v === '') ok = false
+    return encodeURIComponent(v ?? '')
+  })
+  return ok ? `${url}?preview` : null
+})
+
 const saving = ref(false)
 async function save() {
   saving.value = true
@@ -97,8 +120,20 @@ async function save() {
         <ULink :to="`/admin/${entity}`" class="text-muted hover:text-default">{{ meta?.label }}</ULink>
         <UIcon name="i-lucide-chevron-right" class="size-3.5 text-dimmed" />
         <span class="font-semibold truncate">{{ isNew ? 'New' : 'Edit' }}</span>
+        <UBadge
+          v-if="publish && !isNew" :color="isPublished ? 'success' : 'neutral'" variant="subtle" size="sm"
+        >{{ isPublished ? 'Published' : 'Draft' }}</UBadge>
       </div>
       <div class="flex items-center gap-2">
+        <UButton
+          v-if="publish && !isNew && previewUrl" :to="previewUrl" target="_blank"
+          variant="ghost" color="neutral" size="sm" icon="i-lucide-external-link"
+        >Preview</UButton>
+        <UButton
+          v-if="publish && !isNew" :color="isPublished ? 'neutral' : 'success'"
+          :variant="isPublished ? 'outline' : 'solid'" size="sm" :loading="saving"
+          :icon="isPublished ? 'i-lucide-eye-off' : 'i-lucide-globe'" @click="togglePublish"
+        >{{ isPublished ? 'Unpublish' : 'Publish' }}</UButton>
         <UButton :to="`/admin/${entity}`" variant="ghost" color="neutral" size="sm">Cancel</UButton>
         <UButton :loading="saving" icon="i-lucide-save" size="sm" @click="save">{{ isNew ? 'Create' : 'Save' }}</UButton>
       </div>

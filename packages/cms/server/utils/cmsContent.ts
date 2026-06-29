@@ -36,6 +36,21 @@ export function assertContentAuth(event: any): void {
   }
 }
 
+/**
+ * Is this request allowed to see unpublished drafts? Only when `?preview` is present
+ * AND the caller is an authenticated CMS user (admin session) OR presents the content
+ * token. Never lets an anonymous visitor bypass the published filter.
+ */
+export function isPreviewAuthorized(event: any): boolean {
+  if (getQuery(event).preview === undefined) return false
+  if (event.context?.cmsUser) return true
+  const token = (useRuntimeConfig().cms as any)?.content?.token
+  if (!token) return false
+  const header = getHeader(event, 'authorization') || ''
+  const provided = getHeader(event, 'x-api-key') || header.replace(/^Bearer\s+/i, '') || String(getQuery(event).preview || '')
+  return !!provided && constantTimeEqual(provided, token)
+}
+
 /** AND the target's published condition into an id filter — so population never serves drafts. */
 function withPublished(target: CmsEntity, idCond: any): any {
   const pub = publishedCond(target)
