@@ -2,11 +2,13 @@
 // Media upload widget. `model` is the cms_media id (the FK value the form saves).
 const props = defineProps<{ field: any; entity?: string }>()
 const model = defineModel<string | null>()
+const toast = useToast()
 
 const media = ref<any>(null)
 const uploading = ref(false)
 const errorMsg = ref('')
 const input = ref<HTMLInputElement | null>(null)
+const libraryOpen = ref(false)
 
 // Resolve the current id -> media record (so the preview survives a page load).
 async function resolveMedia(id: string | null | undefined) {
@@ -24,7 +26,7 @@ async function resolveMedia(id: string | null | undefined) {
 watch(model, resolveMedia, { immediate: true })
 
 const isImage = computed(() => String(media.value?.mime ?? '').startsWith('image/'))
-const filename = computed(() => media.value?.alt || media.value?.key?.split('/').pop() || 'file')
+const filename = computed(() => media.value?.key?.split('/').pop() || 'file')
 const dims = computed(() =>
   media.value?.width && media.value?.height ? `${media.value.width}×${media.value.height}` : null,
 )
@@ -34,6 +36,21 @@ const sizeLabel = computed(() => {
   if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`
   return `${(b / 1024 / 1024).toFixed(1)} MB`
 })
+
+// Alt text — edit + persist on the media record (accessibility / SEO).
+const alt = ref('')
+watch(media, (m) => { alt.value = m?.alt ?? '' })
+async function saveAlt() {
+  if (!media.value) return
+  const next = alt.value.trim()
+  if (next === (media.value.alt ?? '')) return
+  try {
+    const rec: any = await $fetch(`/api/cms/_media/${media.value.id}`, { method: 'PATCH', body: { alt: next } })
+    media.value = rec
+  } catch (err: any) {
+    toast.add({ title: 'Could not save alt text', description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
+  }
+}
 
 function pick() {
   input.value?.click()
@@ -58,6 +75,11 @@ async function onChange(e: Event) {
   }
 }
 
+function onLibrarySelect(rec: any) {
+  media.value = rec
+  model.value = rec.id
+}
+
 function clear() {
   model.value = null
   media.value = null
@@ -67,47 +89,55 @@ function clear() {
 <template>
   <div class="w-full">
     <input ref="input" type="file" class="hidden" :accept="field.meta?.accept" @change="onChange">
+    <CmsMediaLibrary v-model:open="libraryOpen" :accept="field.meta?.accept" @select="onLibrarySelect" />
 
-    <!-- has media → preview card -->
-    <div
-      v-if="media"
-      class="flex items-center gap-3 rounded-lg border border-default bg-elevated/30 p-2"
-    >
-      <div class="size-16 shrink-0 overflow-hidden rounded-md bg-muted flex items-center justify-center">
-        <img
-          v-if="isImage" :src="media.url" :alt="media.alt ?? ''"
-          :width="media.width || undefined" :height="media.height || undefined"
-          loading="lazy" decoding="async" class="size-full object-cover"
-        >
-        <UIcon v-else name="i-lucide-file" class="size-6 text-dimmed" />
+    <!-- has media → preview card + alt editor -->
+    <div v-if="media" class="rounded-lg border border-default bg-elevated/30 p-2 space-y-2">
+      <div class="flex items-center gap-3">
+        <div class="size-16 shrink-0 overflow-hidden rounded-md bg-muted flex items-center justify-center">
+          <img
+            v-if="isImage" :src="media.url" :alt="media.alt ?? ''"
+            :width="media.width || undefined" :height="media.height || undefined"
+            loading="lazy" decoding="async" class="size-full object-cover"
+          >
+          <UIcon v-else name="i-lucide-file" class="size-6 text-dimmed" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm font-medium">{{ filename }}</p>
+          <p class="text-xs text-muted">{{ dims ? `${dims} · ` : '' }}{{ media.mime }} · {{ sizeLabel }}</p>
+        </div>
+        <div class="flex items-center gap-1">
+          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-images" :aria-label="'Browse library'" @click="libraryOpen = true" />
+          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-repeat-2" :loading="uploading" @click="pick">Replace</UButton>
+          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" :aria-label="'Remove'" @click="clear" />
+        </div>
       </div>
-      <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-medium">{{ filename }}</p>
-        <p class="text-xs text-muted">{{ dims ? `${dims} · ` : '' }}{{ media.mime }} · {{ sizeLabel }}</p>
-      </div>
-      <div class="flex items-center gap-1">
-        <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-repeat-2" :loading="uploading" @click="pick">
-          Replace
-        </UButton>
-        <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" :aria-label="'Remove'" @click="clear" />
-      </div>
+      <UInput
+        v-if="isImage" v-model="alt" size="sm" class="w-full"
+        placeholder="Alt text (described for screen readers & SEO)"
+        @blur="saveAlt" @keydown.enter.prevent="saveAlt"
+      />
     </div>
 
-    <!-- empty → upload dropzone -->
-    <button
-      v-else
-      type="button"
-      class="w-full rounded-lg border border-dashed border-default px-4 py-6 flex flex-col items-center gap-1.5 text-muted transition hover:border-primary hover:bg-elevated/30 disabled:opacity-60"
-      :disabled="uploading"
-      @click="pick"
-    >
-      <UIcon
-        :name="uploading ? 'i-lucide-loader-circle' : 'i-lucide-upload'"
-        :class="['size-5', uploading && 'animate-spin']"
-      />
-      <span class="text-sm">{{ uploading ? 'Uploading…' : 'Click to upload' }}</span>
-      <span v-if="field.meta?.accept" class="text-xs text-dimmed">{{ field.meta.accept }}</span>
-    </button>
+    <!-- empty → upload dropzone + browse -->
+    <div v-else class="flex flex-col gap-2">
+      <button
+        type="button"
+        class="w-full rounded-lg border border-dashed border-default px-4 py-6 flex flex-col items-center gap-1.5 text-muted transition hover:border-primary hover:bg-elevated/30 disabled:opacity-60"
+        :disabled="uploading"
+        @click="pick"
+      >
+        <UIcon
+          :name="uploading ? 'i-lucide-loader-circle' : 'i-lucide-upload'"
+          :class="['size-5', uploading && 'animate-spin']"
+        />
+        <span class="text-sm">{{ uploading ? 'Uploading…' : 'Click to upload' }}</span>
+        <span v-if="field.meta?.accept" class="text-xs text-dimmed">{{ field.meta.accept }}</span>
+      </button>
+      <UButton variant="link" size="xs" icon="i-lucide-images" class="self-center" @click="libraryOpen = true">
+        or choose from library
+      </UButton>
+    </div>
 
     <p v-if="errorMsg" class="mt-1 text-sm text-error">{{ errorMsg }}</p>
   </div>

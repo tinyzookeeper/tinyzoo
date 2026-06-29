@@ -8,11 +8,26 @@ type Node = { type: string; content?: Node[]; text?: string; marks?: any[]; attr
 
 // Only emit hrefs with a safe scheme — a stored `javascript:`/`data:` link mark
 // would otherwise be clickable stored-XSS in the visitor's origin.
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\x00-\x1F]/
 const SAFE_SCHEMES = new Set(['http:', 'https:', 'mailto:', 'tel:'])
 function safeHref(u: unknown): string | null {
   const s = String(u ?? '').trim()
+  if (CONTROL_CHARS.test(s)) return null // reject control chars (validator/sink differential)
   try {
     return SAFE_SCHEMES.has(new URL(s, 'https://x.invalid').protocol) ? s : null
+  } catch {
+    return null
+  }
+}
+
+// Image src: only http(s) or relative (a stored `javascript:`/`data:` src is dropped).
+function safeSrc(u: unknown): string | null {
+  const s = String(u ?? '').trim()
+  if (!s || CONTROL_CHARS.test(s)) return null
+  try {
+    const proto = new URL(s, 'https://x.invalid').protocol
+    return proto === 'http:' || proto === 'https:' ? s : null
   } catch {
     return null
   }
@@ -48,6 +63,10 @@ function render(node: Node | null | undefined): any {
     case 'codeBlock': return h('pre', [h('code', kids)])
     case 'horizontalRule': return h('hr')
     case 'hardBreak': return h('br')
+    case 'image': {
+      const src = safeSrc(node.attrs?.src)
+      return src ? h('img', { src, alt: node.attrs?.alt ?? '', loading: 'lazy', decoding: 'async' }) : null
+    }
     case 'text': return withMarks(node.text ?? '', node.marks)
     default: return kids.length ? kids : null
   }
@@ -73,4 +92,5 @@ export default defineComponent({
 .cms-content :deep(pre) { background: rgb(127 127 127 / 0.12); padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; }
 .cms-content :deep(pre code) { background: none; padding: 0; }
 .cms-content :deep(a) { color: var(--ui-primary, currentColor); text-decoration: underline; }
+.cms-content :deep(img) { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; }
 </style>

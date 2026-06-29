@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   if (!media) throw createError({ statusCode: 404, statusMessage: 'Media not found' })
 
   // Refuse rather than orphan a live reference (entity GC handles auto-cleanup).
-  if (await isMediaReferenced(db, reg, id)) {
+  if (await isMediaReferenced(db, reg, id, media.key)) {
     throw createError({ statusCode: 409, statusMessage: 'Media is in use and cannot be deleted.' })
   }
 

@@ -16,7 +16,7 @@ export {
   type FilterParam,
 } from './content-shape'
 export { cmsMedia } from './media'
-export { richTextSchema, emptyDoc, type RichTextDoc } from './richtext'
+export { richTextSchema, sanitizeRichText, emptyDoc, type RichTextDoc } from './richtext'
 export type * from './descriptor'
 
 // Re-export drizzle query helpers so host access rules can use them

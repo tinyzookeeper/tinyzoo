@@ -9,15 +9,20 @@ export default defineEventHandler(async (event) => {
   const data = parseOr422(e.updateSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
 
-  // Capture the OLD media FK values for any media field being changed, so we can
-  // GC the replaced/cleared blob after the write commits.
+  // Capture OLD media references for any media FK or rich-text field being changed,
+  // so we can GC the blobs that get replaced/cleared/removed after the write commits.
   const changedMediaCols = Object.entries(e.fields)
     .filter(([k, f]) => (f as any).type === 'media' && `${k}Id` in values)
     .map(([k]) => `${k}Id`)
+  const changedRichCols = Object.entries(e.fields)
+    .filter(([k, f]) => (f as any).type === 'richtext' && k in values)
+    .map(([k]) => k)
   const oldMedia: Record<string, string | null> = {}
-  if (changedMediaCols.length) {
+  let oldEmbedded: string[] = []
+  if (changedMediaCols.length || changedRichCols.length) {
     const [old] = await db.select().from(e.table).where(eq(e.table.id, id))
     for (const c of changedMediaCols) oldMedia[c] = old?.[c] ?? null
+    if (old) oldEmbedded = changedRichCols.flatMap((k) => embeddedMediaIds(old[k]))
   }
 
   const row = await db.transaction(async (tx: any) => {
@@ -34,10 +39,17 @@ export default defineEventHandler(async (event) => {
   })
 
   // GC each replaced/cleared media blob after commit (skip if unchanged or reused).
-  if (changedMediaCols.length) {
+  if (changedMediaCols.length || changedRichCols.length) {
     const storage = useCmsStorage()
     for (const c of changedMediaCols) {
       if (oldMedia[c] && oldMedia[c] !== row[c]) await gcMediaIfOrphan(db, reg, storage, oldMedia[c])
+    }
+    // Images dropped from rich text on this edit → GC if now orphaned.
+    if (oldEmbedded.length) {
+      const stillEmbedded = new Set(changedRichCols.flatMap((k) => embeddedMediaIds(row[k])))
+      for (const mid of new Set(oldEmbedded)) {
+        if (!stillEmbedded.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid)
+      }
     }
   }
 
