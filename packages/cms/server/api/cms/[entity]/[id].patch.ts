@@ -4,6 +4,7 @@ export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
   const user = requireCmsUser(event)
   const e = getEntity(reg, getRouterParam(event, 'entity'))
+  if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use PUT /api/cms/_singleton/:name' })
   const rowFilter = authorize(e, 'update', user)
   const id = getRouterParam(event, 'id')!
   const data = parseOr422(e.updateSchema, await readBody(event))

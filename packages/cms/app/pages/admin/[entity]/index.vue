@@ -52,6 +52,8 @@ async function confirmDelete() {
 
 <template>
   <div>
+    <CmsSingletonForm v-if="meta?.singleton" :entity="entity" :meta="meta" />
+    <template v-else>
     <header class="h-16 border-b border-default bg-default/80 backdrop-blur sticky top-0 z-10 flex items-center justify-between px-8 gap-4">
       <div class="flex items-center gap-2 min-w-0">
         <ULink to="/admin" class="text-muted hover:text-default text-sm">Dashboard</ULink>
@@ -147,5 +149,6 @@ async function confirmDelete() {
         </div>
       </template>
     </UModal>
+    </template>
   </div>
 </template>

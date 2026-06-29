@@ -8,6 +8,7 @@ export default defineEventHandler(async (event) => {
   assertContentAuth(event)
   const { db, reg } = useCms()
   const e = getPublicEntity(reg, getRouterParam(event, 'entity'))
+  if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use /api/content/_global/:name' })
 
   const query = getQuery(event)
   const page = Math.max(1, Number(query.page) || 1)

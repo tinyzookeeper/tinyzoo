@@ -3,8 +3,13 @@
 const { data } = await useFetch('/api/content/post', { query: { limit: 20 } })
 const posts = computed(() => data.value?.items ?? [])
 
-function fmtDate(d?: string) {
-  return d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : ''
+// Site-wide settings (a singleton global) delivered headlessly.
+const { data: settings } = await useFetch('/api/content/_global/siteSettings')
+const site = computed(() => settings.value?.item)
+
+function fmtDate(d?: string | null) {
+  // Fixed locale + UTC so server and client render identically (no hydration mismatch).
+  return d ? new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' }) : ''
 }
 </script>
 
@@ -12,9 +17,9 @@ function fmtDate(d?: string) {
   <div class="min-h-screen bg-default">
     <header class="border-b border-default">
       <div class="max-w-3xl mx-auto px-6 py-10">
-        <p class="text-sm font-medium text-muted uppercase tracking-wide">Headless demo</p>
+        <p class="text-sm font-medium text-muted uppercase tracking-wide">{{ site?.siteName || 'Headless demo' }}</p>
         <h1 class="text-4xl font-bold mt-1">The Blog</h1>
-        <p class="text-muted mt-2">Published posts served from <code class="text-xs">/api/content/post</code>.</p>
+        <p class="text-muted mt-2">{{ site?.tagline || 'Published posts served from /api/content/post.' }}</p>
         <ULink to="/blog/typed" class="text-sm text-primary mt-3 inline-block">Typed SDK version →</ULink>
       </div>
     </header>

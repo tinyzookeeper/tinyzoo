@@ -4,6 +4,7 @@ export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
   const user = requireCmsUser(event)
   const e = getEntity(reg, getRouterParam(event, 'entity'))
+  if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Globals are not deletable' })
   const rowFilter = authorize(e, 'delete', user)
   const id = getRouterParam(event, 'id')!
 

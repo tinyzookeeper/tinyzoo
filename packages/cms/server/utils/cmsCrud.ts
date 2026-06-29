@@ -24,6 +24,32 @@ export function splitPayload(e: CmsEntity, data: Record<string, any>) {
   return { values, m2m }
 }
 
+/**
+ * Shape a DB row for the admin edit form: m2m → id arrays, owned FKs (media +
+ * to-one) aliased from `${key}Id` back to the field key, and the media record
+ * attached as `${key}__media` for the preview. Mutates + returns the row.
+ */
+export async function hydrateRowForForm(db: any, reg: CmsRegistry, e: CmsEntity, row: any) {
+  for (const [key, fld] of Object.entries(e.fields)) {
+    if (fld.relation?.kind !== 'many-to-many') continue
+    const j = reg.junctionByOwnerField.get(`${e.name}.${key}`)!
+    const links: any[] = await db.select().from(j.table).where(eq(j.table[j.ownerCol], row.id))
+    row[key] = links.map((l) => l[j.targetCol])
+  }
+  for (const [key, fld] of Object.entries(e.fields)) {
+    const ownsFk = (fld as any).type === 'media' || fld.relation?.kind === 'many-to-one'
+    if (!ownsFk) continue
+    const fkId = row[`${key}Id`] ?? null
+    row[key] = fkId
+    if ((fld as any).type === 'media') {
+      row[`${key}__media`] = fkId
+        ? (await db.select().from(reg.cmsMedia).where(eq(reg.cmsMedia.id, fkId)))[0] ?? null
+        : null
+    }
+  }
+  return row
+}
+
 /** Diff-write m2m junction rows in the surrounding transaction. */
 export async function writeM2M(
   db: any, reg: CmsRegistry, e: CmsEntity, rowId: string,

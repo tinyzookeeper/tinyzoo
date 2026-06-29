@@ -54,13 +54,33 @@ export interface ContentConfig<F extends Record<string, AnyFieldDescriptor>> {
   hidden?: (keyof F & string)[]
 }
 
+/** Drives the admin publish/unpublish workflow + draft preview. */
+export interface PublishConfig<F extends Record<string, AnyFieldDescriptor>> {
+  /** The status field toggled by publish/unpublish (e.g. 'status'). */
+  field: keyof F & string
+  /** Value meaning "live". */
+  publishedValue: string
+  /** Value meaning "draft". */
+  draftValue: string
+  /** Optional datetime field stamped with now() on publish. */
+  dateField?: keyof F & string
+  /**
+   * Frontend preview path template with `:field` placeholders, e.g. '/blog/:slug'.
+   * The admin opens it with `?preview` so an editor can see an unpublished draft.
+   */
+  preview?: string
+}
+
 export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
   label: string
   titleField: keyof F & string
   fields: F
+  /** A single-row global (Settings/Homepage) — admin shows one form, no list. */
+  singleton?: boolean
   admin?: { list?: { columns: (keyof F & string)[]; searchable?: (keyof F & string)[] } }
   access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
   content?: ContentConfig<F>
+  publish?: PublishConfig<F>
 }
 
 /** The precisely-typed entity returned by defineEntity. */
@@ -74,9 +94,11 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   enums: EntityEnum[]
   insertSchema: z.ZodType<InsertFields<F>>
   updateSchema: z.ZodType<Partial<InsertFields<F>>>
+  singleton?: boolean
   admin?: EntityDef<F>['admin']
   access?: EntityDef<F>['access']
   content?: EntityDef<F>['content']
+  publish?: EntityDef<F>['publish']
 }
 
 /** Public data-shape helpers — `Row<typeof Post>`, `Insert<typeof Post>`, `Update<typeof Post>`. */
@@ -95,6 +117,7 @@ export interface CmsEntity {
   enums: EntityEnum[]
   insertSchema: z.ZodTypeAny
   updateSchema: z.ZodTypeAny
+  singleton?: boolean
   admin?: { list?: { columns: string[]; searchable?: string[] } }
   access?: Record<string, (ctx: { user: any; table: any }) => unknown>
   content?: {
@@ -104,6 +127,7 @@ export interface CmsEntity {
     populate?: string[]
     hidden?: string[]
   }
+  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; preview?: string }
 }
 
 interface EntityEnum { key: string; varName: string; enumName: string; values: readonly string[] }
@@ -170,10 +194,19 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
     __cms: 'entity',
     name, label: def.label, titleField: def.titleField,
     table, admin: def.admin, access: def.access, content: def.content, fields: def.fields,
+    singleton: def.singleton, publish: def.publish,
     enums,
     insertSchema: z.object(createShape),
     updateSchema: z.object(updateShape),
   } as unknown as Entity<F>
+}
+
+/** Define a single-row global (Settings, Homepage). One editable record, no list. */
+export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(
+  name: string,
+  def: Omit<EntityDef<F>, 'singleton' | 'admin'>,
+): Entity<F> {
+  return defineEntity(name, { ...def, singleton: true } as EntityDef<F>)
 }
 
 // ── registry: junctions + serializable graph, memoized per config module ────────
@@ -250,6 +283,8 @@ function entityGraph(e: CmsEntity) {
     name: e.name,
     label: e.label,
     titleField: e.titleField,
+    singleton: !!e.singleton,
+    publish: e.publish,
     listColumns: e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4),
     searchable: e.admin?.list?.searchable ?? [],
     fields: Object.entries(e.fields).map(([key, fld]) => ({

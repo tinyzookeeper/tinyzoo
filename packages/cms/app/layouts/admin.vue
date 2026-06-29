@@ -8,9 +8,9 @@ const colorMode = useColorMode()
 const icons: Record<string, string> = {
   post: 'i-lucide-file-text', author: 'i-lucide-users', tag: 'i-lucide-tag', cms_media: 'i-lucide-image',
 }
-const nav = computed(() =>
-  (graph.value ?? []).map((e: any) => ({ label: e.label, to: `/admin/${e.name}`, icon: icons[e.name] ?? 'i-lucide-database' })),
-)
+const toNav = (e: any) => ({ label: e.label, to: `/admin/${e.name}`, icon: icons[e.name] ?? 'i-lucide-database' })
+const collections = computed(() => (graph.value ?? []).filter((e: any) => !e.singleton).map(toNav))
+const globals = computed(() => (graph.value ?? []).filter((e: any) => e.singleton).map((e: any) => ({ ...toNav(e), icon: icons[e.name] ?? 'i-lucide-settings' })))
 const isActive = (to: string) => route.path === to || route.path.startsWith(to + '/')
 
 const initials = computed(() =>
@@ -51,11 +51,21 @@ const navItem = 'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition
 
         <p class="px-3 pt-5 pb-1.5 text-xs font-semibold text-dimmed uppercase tracking-wider">Collections</p>
         <NuxtLink
-          v-for="item in nav" :key="item.to" :to="item.to"
+          v-for="item in collections" :key="item.to" :to="item.to"
           :class="[navItem, isActive(item.to) ? 'bg-primary/10 text-primary font-medium' : 'text-muted hover:text-default hover:bg-elevated']"
         >
           <UIcon :name="item.icon" class="size-4" /> {{ item.label }}
         </NuxtLink>
+
+        <template v-if="globals.length">
+          <p class="px-3 pt-5 pb-1.5 text-xs font-semibold text-dimmed uppercase tracking-wider">Globals</p>
+          <NuxtLink
+            v-for="item in globals" :key="item.to" :to="item.to"
+            :class="[navItem, isActive(item.to) ? 'bg-primary/10 text-primary font-medium' : 'text-muted hover:text-default hover:bg-elevated']"
+          >
+            <UIcon :name="item.icon" class="size-4" /> {{ item.label }}
+          </NuxtLink>
+        </template>
       </nav>
 
       <div class="p-3 border-t border-default">

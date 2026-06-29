@@ -15,6 +15,13 @@
       "when": 1782587005293,
       "tag": "0001_mighty_invaders",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782726472799,
+      "tag": "0002_shiny_gambit",
+      "breakpoints": true
     }
   ]
 }

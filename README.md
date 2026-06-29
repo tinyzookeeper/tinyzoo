@@ -190,6 +190,38 @@ publishedAt: f.datetime().optional().label('Publish date'),
 slug: f.slug({ from: 'title', unique: true }).help('Auto-generated — edit to override.'),
 ```
 
+## Globals, SEO & publishing
+
+**Globals (singletons)** — single-row records like Site Settings or a Homepage, edited
+as one form under a "Globals" section in the admin (no list, no create/delete):
+
+```ts
+export const SiteSettings = defineSingleton('siteSettings', {
+  label: 'Site settings', titleField: 'siteName',
+  fields: { siteName: f.text({ required: true }), tagline: f.text().optional(), logo: f.media().optional(), ...seo() },
+  content: { public: true },          // delivered at GET /api/content/_global/siteSettings
+})
+```
+
+**SEO preset** — `seo()` is a reusable fields fragment (metaTitle / metaDescription /
+ogImage) you spread into any entity or global: `fields: { ...seo(), title: … }`.
+
+**Publish workflow** — declare `publish` and the editor gets Publish/Unpublish buttons,
+a status badge, and a Preview button:
+
+```ts
+publish: {
+  field: 'status', publishedValue: 'published', draftValue: 'draft',
+  dateField: 'publishedAt',   // stamped on publish
+  preview: '/blog/:slug',     // opened with ?preview
+},
+```
+
+**Draft preview** — the content API serves a draft only to an authenticated editor (or a
+caller with the content token) when the request carries `?preview`; everyone else gets a
+404, and previews are sent `no-store`. The frontend forwards the editor's cookie with
+`useRequestFetch()` and shows a "Draft preview" banner.
+
 ## Media upload
 
 `f.media({ accept })` is now a working pipeline, not just an FK column:
@@ -372,11 +404,10 @@ Set runtime secrets as Worker vars: `NUXT_CMS_DATABASE_URL` (Neon/Hyperdrive),
 
 ## Not yet built (next slices, in rough order)
 
-- **Draft preview** (tokened access to unpublished content) and on-publish **webhooks** / ISR revalidation
+- On-publish **webhooks** / ISR revalidation (publish + draft preview themselves are built)
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`) and a
   shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
-- A media **library browser** (reuse an existing upload instead of re-uploading)
-- **Per-field permissions** (`fieldMode`) + a roles-management UI. (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
+- **Per-field permissions** (`fieldMode`) + a roles-management UI, incl. per-user **media access scoping** (media is a shared authenticated pool today). (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
 - **`blocks`** page-builder field (the `f.json` hook already reserves the path)
 - Golden-file tests for descriptor→DDL; precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
 - A *live* Cloudflare deploy recipe (wrangler config + Hyperdrive binding); publish pipeline

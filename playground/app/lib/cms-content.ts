@@ -56,6 +56,9 @@ export interface Post {
   author: AuthorEmbedded
   tags: TagEmbedded[]
   body: RichTextDoc
+  metaTitle: string | null
+  metaDescription: string | null
+  ogImage: CmsMedia | null
   createdAt: string
   updatedAt: string
 }
@@ -76,6 +79,8 @@ export interface PostFilters {
   slug?: string
   status?: 'draft' | 'published'
   author?: string
+  metaTitle?: string
+  metaDescription?: string
 }
 export interface TagFilters {
   name?: string
@@ -85,7 +90,7 @@ export interface TagFilters {
 /** Maps each collection to its item / sort keys / filters. */
 export type ContentSchema = {
   author: { item: Author, sort: 'createdAt' | 'updatedAt' | 'name', filters: AuthorFilters }
-  post: { item: Post, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'publishedAt', filters: PostFilters }
+  post: { item: Post, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'publishedAt' | 'metaTitle' | 'metaDescription', filters: PostFilters }
   tag: { item: Tag, sort: 'createdAt' | 'updatedAt' | 'name' | 'slug', filters: TagFilters }
 }
 

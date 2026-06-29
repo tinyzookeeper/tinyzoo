@@ -1,4 +1,18 @@
-import { defineEntity, eq, f } from "@my-cms/core"
+import { defineEntity, defineSingleton, eq, f, seo } from "@my-cms/core"
+
+// A single-row global: site-wide settings, editable under "Globals" in the admin
+// and delivered headlessly at GET /api/content/_global/siteSettings.
+export const SiteSettings = defineSingleton("siteSettings", {
+  label: "Site settings",
+  titleField: "siteName",
+  fields: {
+    siteName: f.text({ required: true }).help("Shown in the header and browser tab."),
+    tagline: f.text().optional(),
+    logo: f.media({ accept: "image/*" }).optional(),
+    ...seo(),
+  },
+  content: { public: true, populate: ["logo", "ogImage"] },
+})
 
 export const Author = defineEntity("author", {
   label: "Authors",
@@ -60,6 +74,7 @@ export const Post = defineEntity("post", {
     }),
     tags: f.relation({ to: () => Tag, kind: "many-to-many" }),
     body: f.richtext().help("Use the toolbar to add headings, links, and images."),
+    ...seo(),
   },
   access: {
     read: () => true,
@@ -67,11 +82,20 @@ export const Post = defineEntity("post", {
     update: ({ user, table }) =>
       user.role === "admin" || eq(table.authorId, user.id),
   },
+  // First-class publish workflow: publish/unpublish toggles `status`, stamps
+  // `publishedAt`, and the Preview button opens the draft at /blog/:slug?preview.
+  publish: {
+    field: "status",
+    publishedValue: "published",
+    draftValue: "draft",
+    dateField: "publishedAt",
+    preview: "/blog/:slug",
+  },
   // Headless delivery: only published posts, looked up by slug, with relations resolved.
   content: {
     public: true,
     published: (table) => eq(table.status, "published"),
     slug: "slug",
-    populate: ["hero", "author", "tags"],
+    populate: ["hero", "author", "tags", "ogImage"],
   },
 })
