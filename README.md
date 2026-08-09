@@ -93,6 +93,7 @@ playground/            demo host app: `extends: ['../packages/cms']`
   cms.config.ts        Post + Author + Tag (the source of truth)
   app/lib/             generated cms-content.ts (typed client bindings)
   server/db/           generated schema.ts + migrations
+compose.yaml           local dev deps: Postgres, + MinIO behind the `s3` profile
 ```
 
 ## Run it
@@ -100,9 +101,8 @@ playground/            demo host app: `extends: ['../packages/cms']`
 ```bash
 pnpm install
 
-# 1. start Postgres (any Postgres works; this is the local demo DB on :5434)
-docker run -d --name my-cms-pg -e POSTGRES_USER=cms -e POSTGRES_PASSWORD=cms \
-  -e POSTGRES_DB=cms -p 5434:5432 postgres:16-alpine
+# 1. start Postgres (any Postgres works; compose.yaml is the local demo DB on :5434)
+docker compose up -d
 
 # 2. emit schema.ts from cms.config.ts and generate the SQL migration
 pnpm db:generate
@@ -113,6 +113,10 @@ pnpm db:migrate
 # 4. run the playground → http://localhost:3000/admin
 pnpm play
 ```
+
+`docker compose down` stops it; the data lives in a named volume and survives (use
+`down -v` to wipe it). If `:5434` is taken, `CMS_PG_PORT=5455 docker compose up -d` —
+then match `DATABASE_URL` in `playground/.env`.
 
 `DATABASE_URL` is read from `playground/.env`. Edit `playground/cms.config.ts`, re-run
 `pnpm db:generate` (review the SQL!) and `pnpm db:migrate`, and the dashboard updates itself.
@@ -265,19 +269,29 @@ NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY=...
 NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL=https://cdn.example.com   # public bucket / custom domain
 ```
 
-Verified end-to-end against MinIO (an S3-compatible store you can run locally):
+Verified end-to-end against MinIO (an S3-compatible store you can run locally). It ships in
+`compose.yaml` behind the `s3` profile, together with a one-shot job that creates a
+public-read `cms-media` bucket:
 
 ```bash
-docker network create cms-net
-docker run -d --name my-cms-minio --network cms-net -p 9000:9000 -p 9001:9001 \
-  -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
-  minio/minio server /data --console-address ":9001"
-# create a public-read bucket
-docker run --rm --network cms-net --entrypoint /bin/sh minio/mc -c \
-  'mc alias set m http://my-cms-minio:9000 minio minio12345 && \
-   mc mb -p m/cms-media && mc anonymous set download m/cms-media'
-# then run the playground with NUXT_CMS_STORAGE_DRIVER=s3, ENDPOINT=http://localhost:9000, etc.
+docker compose --profile s3 up -d     # MinIO on :9100, console on :9101
 ```
+
+Then run the playground against it (console login: `minio` / `minio12345`):
+
+```bash
+NUXT_CMS_STORAGE_DRIVER=s3 \
+NUXT_CMS_STORAGE_S3_ENDPOINT=http://localhost:9100 \
+NUXT_CMS_STORAGE_S3_REGION=us-east-1 \
+NUXT_CMS_STORAGE_S3_BUCKET=cms-media \
+NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID=minio \
+NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY=minio12345 \
+NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL=http://localhost:9100/cms-media \
+pnpm play
+```
+
+> Host ports are `9100`/`9101` rather than MinIO's usual `9000`/`9001`, which collide with
+> common local tooling; override with `CMS_MINIO_PORT` / `CMS_MINIO_CONSOLE_PORT`.
 
 ### Rendering media on your frontend
 

@@ -1,0 +1,73 @@
+name: my-cms
+
+# Local development dependencies for the playground.
+#
+#   docker compose up -d                 # Postgres only (all you need for `pnpm play`)
+#   docker compose --profile s3 up -d    # + MinIO, to exercise the S3/R2 storage driver
+#   docker compose down                  # stop (data survives — it lives in named volumes)
+#   docker compose down -v               # stop *and* wipe the data
+#
+# Host ports are overridable so they can dodge whatever else you have running:
+#   CMS_PG_PORT=5455 docker compose up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cms
+      POSTGRES_PASSWORD: cms
+      POSTGRES_DB: cms
+    ports:
+      # 5434 matches DATABASE_URL in playground/.env
+      - "${CMS_PG_PORT:-5434}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms -d cms"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # --- S3-compatible storage (opt-in) -------------------------------------
+  # Only started with `--profile s3`. Exercises the S3Driver end-to-end
+  # without an AWS/Cloudflare account.
+  minio:
+    image: minio/minio
+    profiles: ["s3"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio12345
+    ports:
+      # 9100/9101, not the usual 9000/9001 — those often collide with
+      # kubectl port-forwards and other local tooling.
+      - "${CMS_MINIO_PORT:-9100}:9000"
+      - "${CMS_MINIO_CONSOLE_PORT:-9101}:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  # One-shot: creates a public-read bucket, then exits. Re-running is a no-op.
+  minio-init:
+    image: minio/mc
+    profiles: ["s3"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command: -c "
+      mc alias set m http://minio:9000 minio minio12345 &&
+      mc mb -p m/cms-media &&
+      mc anonymous set download m/cms-media"
+
+volumes:
+  pgdata:
+  miniodata:
