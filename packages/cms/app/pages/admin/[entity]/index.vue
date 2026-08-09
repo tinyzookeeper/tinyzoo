@@ -92,17 +92,22 @@ async function confirmDelete() {
           </thead>
           <tbody>
             <tr
-              v-for="row in rows" :key="row.id"
-              class="border-b border-default last:border-0 hover:bg-elevated/40 transition group"
+              v-for="(row, ri) in rows" :key="row.id"
+              class="relative border-b border-default last:border-0 hover:bg-elevated/40 transition group cursor-pointer"
             >
-              <td v-for="key in meta?.listColumns" :key="key" class="px-4 py-3">
-                <NuxtLink :to="`/admin/${entity}/${row.id}`" class="block">
-                  <CmsCell v-if="fieldOf(key)" :field="fieldOf(key)" :row="row" :entity="entity" />
-                  <span v-else>{{ row[key] ?? '—' }}</span>
-                </NuxtLink>
+              <!-- One "stretched link" (absolute, inset-0) covers the whole row (the
+                   <tr> is the positioned ancestor), so the entire row navigates. The
+                   action buttons are raised above it (relative z-10) to stay clickable. -->
+              <td v-for="(key, ci) in meta?.listColumns" :key="key" class="px-4 py-3">
+                <NuxtLink
+                  v-if="ci === 0" :to="`/admin/${entity}/${row.id}`"
+                  class="absolute inset-0" :aria-label="`Open ${row[meta?.titleField] ?? `row ${ri + 1}`}`"
+                />
+                <CmsCell v-if="fieldOf(key)" :field="fieldOf(key)" :row="row" :entity="entity" />
+                <span v-else>{{ row[key] ?? '—' }}</span>
               </td>
               <td class="px-4 py-3 text-right whitespace-nowrap">
-                <div class="opacity-0 group-hover:opacity-100 transition flex items-center justify-end gap-0.5">
+                <div class="relative z-10 opacity-0 group-hover:opacity-100 transition flex items-center justify-end gap-0.5">
                   <UButton :to="`/admin/${entity}/${row.id}`" size="xs" variant="ghost" color="neutral" icon="i-lucide-pencil" />
                   <UButton
                     v-if="meta?.can?.delete !== false"
