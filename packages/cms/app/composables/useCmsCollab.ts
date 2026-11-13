@@ -76,7 +76,7 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
     const q = new URLSearchParams({ entity: opts.entity, id: opts.id, ...(opts.locale ? { locale: opts.locale } : {}) })
     let session: { name: string; epoch: string; fields: string[]; access: 'write' | 'read'; you?: string }
     try {
-      session = await $fetch(`/api/cms/_collab/session?${q}`)
+      session = await cmsFetch(`/api/cms/_collab/session?${q}`)
     }
     catch {
       collab.status.value = 'off' // nothing to share, not permitted, or unavailable

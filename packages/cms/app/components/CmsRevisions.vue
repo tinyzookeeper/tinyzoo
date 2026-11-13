@@ -21,7 +21,7 @@ async function pick(rev: string) {
   selectedId.value = rev
   loading.value = true
   try {
-    const found = (await $fetch<{ revision: any }>(`/api/cms/${props.entity}/${props.id}/revisions/${rev}`)).revision
+    const found = (await cmsFetch<{ revision: any }>(`/api/cms/${props.entity}/${props.id}/revisions/${rev}`)).revision
     // Clicked another one meanwhile: that answer wins, not this one.
     if (selectedId.value === rev) selected.value = found
   }

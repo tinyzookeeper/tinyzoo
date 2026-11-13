@@ -19,7 +19,7 @@
   ],
   "scripts": {
     "build": "unbuild",
-    "prepublishOnly": "unbuild"
+    "prepack": "unbuild"
   },
   "publishConfig": {
     "exports": {
