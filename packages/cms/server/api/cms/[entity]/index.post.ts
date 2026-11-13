@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
   await audit(event, 'entry.create', { entity: e.name, recordId: row.id })
   if (publishAction(e, null, row) === 'entry.publish') await audit(event, 'entry.publish', { entity: e.name, recordId: row.id })
+  if (e.preset === 'redirects') invalidateRedirects() // takes effect at once on this instance
   setResponseStatus(event, 201)
   return { row }
 })

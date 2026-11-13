@@ -7,6 +7,9 @@ export default defineEventHandler(async (event) => {
   if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use PUT /api/cms/_singleton/:name' })
   const rowFilter = authorize(e, 'update', user)
   const id = getIdParam(event)
+  // ?locale=<translation>: write that language's translation only.
+  const locale = requestedLocale(event, reg)
+  if (isTranslationLocale(reg, locale)) return { row: await writeTranslation(event, e, id, locale, user, rowFilter) }
   const data = parseOr422(e.updateSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
 
@@ -16,7 +19,7 @@ export default defineEventHandler(async (event) => {
     .filter(([k, f]) => (f as any).type === 'media' && `${k}Id` in values)
     .map(([k]) => `${k}Id`)
   const changedRichCols = Object.entries(e.fields)
-    .filter(([k, f]) => (f as any).type === 'richtext' && k in values)
+    .filter(([k, f]) => ((f as any).type === 'richtext' || (f as any).type === 'blocks') && k in values)
     .map(([k]) => k)
   const oldMedia: Record<string, string | null> = {}
   let oldEmbedded: string[] = []
@@ -24,7 +27,7 @@ export default defineEventHandler(async (event) => {
   const [old] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
   if (!old) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   for (const c of changedMediaCols) oldMedia[c] = old[c] ?? null
-  oldEmbedded = changedRichCols.flatMap((k) => embeddedMediaIds(old[k]))
+  oldEmbedded = changedRichCols.flatMap((k) => jsonMediaIds(e.fields[k], old[k]))
   assertPublishAllowed(e, user, values, old)
 
   const row = await db.transaction(async (tx: any) => {
@@ -51,13 +54,14 @@ export default defineEventHandler(async (event) => {
     }
     // Images dropped from rich text on this edit → GC if now orphaned.
     if (oldEmbedded.length) {
-      const stillEmbedded = new Set(changedRichCols.flatMap((k) => embeddedMediaIds(row[k])))
+      const stillEmbedded = new Set(changedRichCols.flatMap((k) => jsonMediaIds(e.fields[k], row[k])))
       for (const mid of new Set(oldEmbedded)) {
         if (!stillEmbedded.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
       }
     }
   }
 
+  if (e.preset === 'redirects') invalidateRedirects() // takes effect at once on this instance
   await audit(event, publishAction(e, old, row) ?? 'entry.update', { entity: e.name, recordId: id })
   return { row }
 })

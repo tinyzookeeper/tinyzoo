@@ -10,6 +10,7 @@ export default defineEventHandler(async (event) => {
   const e = getPublicEntity(reg, getRouterParam(event, 'entity'))
   if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use /api/content/_global/:name' })
   const key = getRouterParam(event, 'slug')!
+  const locale = requestedLocale(event, reg)
 
   // Authorized preview (admin session or content token + ?preview) bypasses the
   // published filter so editors can see drafts; everyone else only sees published.
@@ -19,7 +20,13 @@ export default defineEventHandler(async (event) => {
 
   let row: any
   const slugField = e.content?.slug
-  if (slugField && e.table[slugField]) {
+  // A translated URL address first (e.g. /en/christmas-cookies), then the default one.
+  if (slugField && isTranslationLocale(reg, locale) && e.localized.includes(slugField) && e.localesTable) {
+    const t = e.localesTable
+    const [tr] = await db.select({ parentId: t.parentId }).from(t).where(and(eq(t.locale, locale), eq(t[slugField], key)))
+    if (tr) [row] = await db.select().from(e.table).where(guard(e.table.id, tr.parentId))
+  }
+  if (!row && slugField && e.table[slugField]) {
     ;[row] = await db.select().from(e.table).where(guard(e.table[slugField], key))
   }
   if (!row && UUID.test(key)) {
@@ -27,9 +34,12 @@ export default defineEventHandler(async (event) => {
   }
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
-  await populateItems(db, reg, e, [row], e.content?.populate)
+  await overlayTranslations(db, reg, e, [row], locale)
+  await populateItems(db, reg, e, [row], e.content?.populate, locale)
   // Never let a draft preview be cached by a shared/browser cache.
   if (preview) setResponseHeader(event, 'Cache-Control', 'private, no-store')
   else setContentCache(event)
-  return { item: projectItem(e, row), ...(preview ? { preview: true } : {}) }
+  const item = projectItem(e, row)
+  await attachLocaleInfo(db, reg, e, [row], [item], locale)
+  return { item, ...(preview ? { preview: true } : {}) }
 })

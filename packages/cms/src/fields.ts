@@ -1,4 +1,6 @@
 import type { LocalizedText } from './i18n'
+import { isSafeLink } from './richtext'
+import { type BlockDef, type BlocksValue, blocksGraph, blocksSchema } from './blocks'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
   type PgColumnBuilder,
@@ -75,6 +77,13 @@ export function serializeColumn(spec: ColumnSpec, colName: string, ctx: Serializ
   return s
 }
 
+/**
+ * Field types whose value can differ per language. Media, relations, numbers, dates
+ * and switches are the same in every language (translate the text around them).
+ * Blocks are translated as a whole list per language.
+ */
+export const LOCALIZABLE_TYPES = new Set(['text', 'slug', 'richtext', 'blocks'])
+
 // ── the single field factory ──────────────────────────────────────────────────
 interface FieldConfig {
   type: string
@@ -89,11 +98,14 @@ interface FieldConfig {
   defaultDbDefault?: 'now' | 'random'
   /** Payload default applied ONLY on create (e.g. [] for m2m). Never on update. */
   createDefault?: unknown
+  /** Block type definitions (blocks fields only). */
+  blocks?: Record<string, BlockDef>
 }
 
 interface Mods {
   isRequired?: boolean
   isUnique?: boolean
+  isLocalized?: boolean
   isOptional?: boolean
   default?: unknown
   dbDefault?: 'now' | 'random'
@@ -145,12 +157,18 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
 
   const descriptor = {
     type: cfg.type,
-    isRequired, isUnique, isOptional,
+    isRequired, isUnique, isOptional, isLocalized: !!mods.isLocalized,
     default: mods.default, dbDefault,
-    ui: cfg.ui, meta, relation: cfg.relation,
+    ui: cfg.ui, meta, relation: cfg.relation, blocks: cfg.blocks,
     spec, zod,
     optional: () => createField(cfg, { ...mods, isOptional: true, isRequired: false }),
     unique: () => createField(cfg, { ...mods, isUnique: true }),
+    localized: () => {
+      if (!LOCALIZABLE_TYPES.has(cfg.type)) {
+        throw new Error(`Only ${[...LOCALIZABLE_TYPES].join(', ')} fields can be localized (got "${cfg.type}").`)
+      }
+      return createField(cfg, { ...mods, isLocalized: true })
+    },
     withDefault: (value: unknown) => createField(cfg, { ...mods, default: value }),
     label: (text: LocalizedText) => createField(cfg, { ...mods, label: text }),
     help: (text: LocalizedText) => createField(cfg, { ...mods, help: text }),
@@ -172,12 +190,18 @@ const as = <K extends FieldKind>(d: FieldDescriptor): FieldDescriptor<K> => d as
 
 // ── the closed MVP field catalog ───────────────────────────────────────────────
 export const f = {
-  text: (o: { required?: boolean; format?: 'email' | 'url' } = {}) =>
+  text: (o: { required?: boolean; format?: 'email' | 'url' | 'path' | 'link' } = {}) =>
     as<ScalarKind<string>>(createField({
       type: 'text', ui: { edit: 'CmsFieldText', cell: 'CmsCellText' },
       base: { kind: 'text' },
       zod: () => {
-        let s: ZodTypeAny = o.format === 'email' ? z.email() : o.format === 'url' ? z.url() : z.string()
+        let s: ZodTypeAny = o.format === 'email' ? z.email() : o.format === 'url' ? z.url()
+          // An address on this site: starts with one slash; no spaces, query, fragment
+          // or trailing slash (so each address has exactly one spelling).
+          : o.format === 'path' ? z.string().max(2000).regex(/^\/(?!\/)(?:[^\s\\?#]*[^\s\\?#/])?$/, 'Start with / (e.g. /old-page), without ? or # or a trailing /')
+          // A link: a site path, #anchor, or http(s) / mailto / tel — never javascript: or data:.
+          : o.format === 'link' ? z.string().max(2000).refine(isSafeLink, 'Use /page, https://…, mailto: or tel:')
+          : z.string()
         if (o.required) s = (s as any).min(1, 'Required')
         return s
       },
@@ -236,6 +260,22 @@ export const f = {
       type: 'richtext', ui: { edit: 'CmsFieldRichText', cell: 'CmsCellExcerpt' },
       base: { kind: 'jsonb' }, tsType: 'RichTextDoc', zod: () => richTextSchema as ZodTypeAny,
     })),
+
+  /**
+   * An ordered list of typed sections (hero, text, gallery…) that editors arrange
+   * into a page. Define each type with `defineBlock()`. Stored as jsonb; defaults to [].
+   *
+   *   sections: f.blocks({ hero: defineBlock({ label: 'Hero', fields: { heading: f.text() } }) })
+   */
+  blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) =>
+    as<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>(createField({
+      type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
+      base: { kind: 'jsonb' }, tsType: 'CmsBlock[]',
+      meta: { blocks: blocksGraph(blocks as Record<string, BlockDef>) },
+      zod: () => blocksSchema(blocks as Record<string, BlockDef>),
+      createDefault: [],
+      blocks: blocks as Record<string, BlockDef>,
+    }, { default: [] })),
 
   media: (o: { accept?: string } = {}) =>
     as<FkKind>(createField({

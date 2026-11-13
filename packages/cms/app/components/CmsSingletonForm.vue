@@ -1,24 +1,41 @@
 <script setup lang="ts">
-// Edits a single-row global (site settings, homepage). Fetches the one row, renders
+// Edits a single-row global (site settings, navigation). Fetches the one row, renders
 // the same CmsField widgets as the entry editor, and upserts via PUT /_singleton/:name.
+// With translatable fields, a language switcher edits the translations (?locale=).
 const props = defineProps<{ entity: string, meta: any }>()
+const route = useRoute()
 const { t, tl, entityLabel } = useCmsI18n()
 
 // A global never "creates" from the form's point of view (PUT upserts).
 const form = useCmsForm(computed(() => props.meta?.fields ?? []), computed(() => false))
 const { state, fieldErrors, editable, dirty, saving } = form
 
-const { data } = await useFetch<{ row: Record<string, any> | null }>((): string => `/api/cms/_singleton/${props.entity}`, { watch: [() => props.entity] })
+// ── content languages (as in the entry editor) ──
+const locales = computed(() => props.meta?.locales as { default: string; all: string[]; labels: Record<string, any> } | null)
+const currentLocale = computed(() => {
+  const q = route.query.locale
+  return typeof q === 'string' && locales.value?.all.includes(q) ? q : (locales.value?.default ?? null)
+})
+const isTranslation = computed(() => !!locales.value && currentLocale.value !== locales.value.default)
+const localeLabel = (code?: string | null) => (code ? tl(locales.value?.labels?.[code], code.toUpperCase()) : '')
+const defaultLabel = computed(() => localeLabel(locales.value?.default))
+
+const { data } = await useFetch<{ row: Record<string, any> | null }>((): string =>
+  `/api/cms/_singleton/${props.entity}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`, { watch: [() => props.entity] })
 form.load(data.value?.row)
+const exists = computed(() => !!data.value?.row?.id)
+const available = ref<string[]>(data.value?.row?.__locales ?? [])
+const defaults = computed<Record<string, any>>(() => data.value?.row?.__defaults ?? {})
 
 const title = computed(() => entityLabel(props.meta))
+const visible = computed(() => editable.value.filter((f: any) => !isTranslation.value || f.localized))
 
 // Same convention as the entry editor: grouped fields (e.g. "Search & sharing")
 // collapse below the rest.
-const ungrouped = computed(() => editable.value.filter((f: any) => !f.meta?.group))
+const ungrouped = computed(() => visible.value.filter((f: any) => !f.meta?.group))
 const groups = computed(() => {
   const out = new Map<string, { label: string; fields: any[] }>()
-  for (const f of editable.value) {
+  for (const f of visible.value) {
     if (!f.meta?.group) continue
     const label = tl(f.meta.group)
     if (!out.has(label)) out.set(label, { label, fields: [] })
@@ -32,8 +49,22 @@ watch(() => ({ ...fieldErrors }), (errs) => {
 })
 useHead({ title })
 
+const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
+  label: code === locales.value?.default ? `${localeLabel(code)} (${t('translation.default')})` : localeLabel(code),
+  description: code === locales.value?.default ? undefined : (available.value.includes(code) ? t('translation.translated') : t('translation.notTranslated')),
+  icon: code === currentLocale.value ? 'i-lucide-check' : undefined,
+  to: { query: code === locales.value?.default ? {} : { locale: code } },
+})))
+
 function save() {
   return form.submit(async () => {
+    if (isTranslation.value) {
+      const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
+      const url: string = `/api/cms/_singleton/${props.entity}?locale=${currentLocale.value}`
+      await $fetch(url, { method: 'PUT', body })
+      if (currentLocale.value && !available.value.includes(currentLocale.value)) available.value = [...available.value, currentLocale.value]
+      return
+    }
     const url: string = `/api/cms/_singleton/${props.entity}`
     await $fetch(url, { method: 'PUT', body: form.body() })
   })
@@ -47,17 +78,32 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]"
   >
     <template #actions>
+      <UDropdownMenu v-if="locales && exists" :items="localeItems" :content="{ align: 'end' }">
+        <UButton color="neutral" variant="ghost" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
+          {{ (currentLocale ?? '').toUpperCase() }}
+        </UButton>
+      </UDropdownMenu>
       <span v-if="dirty" class="hidden md:inline text-sm text-warning mr-1">{{ t('editor.unsaved') }}</span>
       <UTooltip :text="t('editor.shortcutSave')">
-        <UButton :loading="saving" :disabled="meta?.can?.update === false" icon="i-lucide-check" @click="save()">{{ t('common.save') }}</UButton>
+        <UButton :loading="saving" :disabled="meta?.can?.update === false" icon="i-lucide-check" @click="save()">
+          {{ isTranslation ? t('translation.save') : t('common.save') }}
+        </UButton>
       </UTooltip>
     </template>
 
     <div class="space-y-6">
-      <CmsField
-        v-for="f in ungrouped" :key="f.key"
-        v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]"
-      />
+      <p v-if="isTranslation" class="text-sm text-muted">
+        {{ t('translation.shared') }}
+        <NuxtLink :to="{ query: {} }" class="underline underline-offset-2 hover:text-highlighted">{{ t('translation.editShared', { lang: defaultLabel }) }}</NuxtLink>
+      </p>
+      <div v-for="f in ungrouped" :key="f.key">
+        <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" />
+        <CmsTranslationRef
+          v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+          :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+          @copy="state[f.key] = structuredClone(toRaw(defaults[f.key]))"
+        />
+      </div>
       <UCollapsible
         v-for="g in groups" :key="g.label" v-model:open="openGroups[g.label]"
         class="border-t border-default pt-4"

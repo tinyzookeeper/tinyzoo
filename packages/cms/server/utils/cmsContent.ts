@@ -1,4 +1,4 @@
-import { and, inArray } from '@my-cms/core'
+import { and, blockMediaKeys, inArray, or, sql } from '@my-cms/core'
 import type { CmsEntity, CmsRegistry } from '@my-cms/core'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
@@ -76,7 +76,7 @@ function projectScalars(target: CmsEntity, row: any) {
   const hidden = new Set(target.content?.hidden ?? [])
   const out: Record<string, any> = { id: row.id }
   for (const [key, fld] of Object.entries(target.fields)) {
-    if (hidden.has(key) || fld.relation || fld.type === 'media') continue
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks') continue
     out[key] = row[key]
   }
   return out
@@ -103,8 +103,9 @@ function populatableKeys(e: CmsEntity): string[] {
  * Resolve media + relations on `rows` IN PLACE (batched, depth 1). Nested targets
  * get a safe projection; non-listed fields are left as raw FK ids for projectItem to drop.
  */
-export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[]) {
+export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null) {
   if (!rows.length) return
+  await populateBlocks(db, reg, e, rows)
   const keys = populate ?? populatableKeys(e)
   for (const key of keys) {
     const fld = e.fields[key]
@@ -125,6 +126,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const byId = new Map<string, any>()
       if (ids.length) {
         const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, ids)))
+        await overlayTranslations(db, reg, target, targets, locale)
         for (const t of targets) byId.set(t.id, publicProjection(target, t))
       }
       for (const r of rows) r[key] = byId.get(r[`${key}Id`]) ?? null
@@ -138,6 +140,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const tById = new Map<string, any>()
       if (targetIds.length) {
         const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, targetIds)))
+        await overlayTranslations(db, reg, target, targets, locale)
         for (const t of targets) tById.set(t.id, publicProjection(target, t))
       }
       const byOwner = new Map<string, any[]>()
@@ -148,6 +151,46 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
         byOwner.set(l[j.ownerCol], arr)
       }
       for (const r of rows) r[key] = byOwner.get(r.id) ?? []
+    }
+  }
+}
+
+/**
+ * Blocks as the public API returns them (mirrored by content-shape blocksType): only
+ * known block types; every block has id, type and each of its fields (null when
+ * empty); media ids replaced by the public media object (batched across rows).
+ */
+async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[]) {
+  const blockFields = Object.entries(e.fields).filter(([, f]) => f.type === 'blocks' && f.blocks)
+  if (!blockFields.length) return
+  const ids = new Set<string>()
+  for (const [key, fld] of blockFields) {
+    const mediaKeys = blockMediaKeys(fld.blocks!)
+    for (const r of rows) {
+      for (const b of Array.isArray(r[key]) ? r[key] : []) {
+        if (!b || typeof b.type !== 'string' || !Object.hasOwn(fld.blocks!, b.type)) continue
+        for (const mk of mediaKeys.get(b.type) ?? []) if (typeof b[mk] === 'string' && b[mk]) ids.add(b[mk])
+      }
+    }
+  }
+  const byId = new Map<string, any>()
+  if (ids.size) {
+    const media: any[] = await db.select().from(reg.cmsMedia).where(inArray(reg.cmsMedia.id, [...ids]))
+    for (const m of media) byId.set(m.id, mediaProjection(m))
+  }
+  for (const [key, fld] of blockFields) {
+    const defs = fld.blocks!
+    for (const r of rows) {
+      r[key] = (Array.isArray(r[key]) ? r[key] : [])
+        .filter((b: any) => b && typeof b === 'object' && typeof b.type === 'string' && Object.hasOwn(defs, b.type))
+        .map((b: any) => {
+          const out: Record<string, any> = { id: String(b.id), type: b.type }
+          for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) {
+            const v = b[fk] ?? null
+            out[fk] = bf.type === 'media' ? (v ? byId.get(v) ?? null : null) : v
+          }
+          return out
+        })
     }
   }
 }
@@ -171,4 +214,28 @@ export function projectItem(e: CmsEntity, row: any) {
   out.createdAt = row.createdAt
   out.updatedAt = row.updatedAt
   return out
+}
+
+/**
+ * Which language each item is served in and which languages it exists in — added to
+ * items of collections with translatable fields (mirrored by content-shape).
+ */
+export async function attachLocaleInfo(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], items: any[], locale: string | null) {
+  if (!reg.locales || !e.localized.length) return
+  const avail = await availableLocales(db, reg, e, rows.map((r) => r.id))
+  items.forEach((item, i) => {
+    item.locale = locale ?? reg.locales!.default
+    item.locales = avail.get(rows[i].id) ?? [reg.locales!.default]
+  })
+}
+
+/**
+ * Match a localized text column in the requested language: the default-language
+ * value, or the translation's (so filters and search work in every language).
+ */
+export function localizedMatch(reg: CmsRegistry, e: CmsEntity, key: string, locale: string | null, cond: (col: any) => any): any {
+  const base = cond(e.table[key])
+  if (!isTranslationLocale(reg, locale) || !e.localized.includes(key) || !e.localesTable) return base
+  const t = e.localesTable
+  return or(base, sql`exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${t.locale} = ${locale} and ${cond(t[key])})`)
 }

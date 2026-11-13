@@ -10,6 +10,14 @@ export default defineEventHandler(async (event) => {
   if (!e.singleton) throw createError({ statusCode: 404, statusMessage: `Not a global: ${e.name}` })
   const rowFilter = authorize(e, 'update', user)
 
+  // ?locale=<translation>: translate the (existing) settings row.
+  const locale = requestedLocale(event, reg)
+  if (isTranslationLocale(reg, locale)) {
+    const [existing] = await db.select({ id: e.table.id }).from(e.table).orderBy(e.table.createdAt).limit(1)
+    if (!existing) throw createError({ statusCode: 409, statusMessage: 'Save the default language first' })
+    return { row: await writeTranslation(event, e, existing.id, locale, user, rowFilter) }
+  }
+
   const data = parseOr422(e.insertSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
 
@@ -17,10 +25,14 @@ export default defineEventHandler(async (event) => {
     .filter(([, f]) => (f as any).type === 'media')
     .map(([k]) => `${k}Id`)
   const oldMedia: Record<string, string | null> = {}
+  // Media referenced inside rich text / blocks before this write (cleanup below).
+  const jsonCols = Object.entries(e.fields).filter(([, f]) => (f as any).type === 'richtext' || (f as any).type === 'blocks').map(([k]) => k)
+  let oldEmbedded: string[] = []
 
   const row = await db.transaction(async (tx: any) => {
     const [existing] = await tx.select().from(e.table).orderBy(e.table.createdAt).limit(1)
     for (const c of mediaCols) oldMedia[c] = existing?.[c] ?? null
+    if (existing) oldEmbedded = jsonCols.flatMap((k) => jsonMediaIds(e.fields[k], existing[k]))
 
     let current: any
     values.updatedBy = actorId(user)
@@ -36,12 +48,15 @@ export default defineEventHandler(async (event) => {
     return current
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
 
-  // GC each replaced/cleared media blob after commit.
-  if (mediaCols.length) {
-    const storage = useCmsStorage()
-    for (const c of mediaCols) {
-      if (oldMedia[c] && oldMedia[c] !== row[c]) await gcMediaIfOrphan(db, reg, storage, oldMedia[c])
-    }
+  // GC each replaced/cleared media blob after commit — fields, and anything dropped
+  // from rich text or blocks.
+  const storage = useCmsStorage()
+  for (const c of mediaCols) {
+    if (oldMedia[c] && oldMedia[c] !== row[c]) await gcMediaIfOrphan(db, reg, storage, oldMedia[c], gcScope(user))
+  }
+  if (oldEmbedded.length) {
+    const still = new Set(jsonCols.flatMap((k) => jsonMediaIds(e.fields[k], row[k])))
+    for (const mid of new Set(oldEmbedded)) if (!still.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
   }
 
   await audit(event, 'settings.update', { entity: e.name, recordId: row.id })

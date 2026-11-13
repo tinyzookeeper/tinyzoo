@@ -51,7 +51,7 @@ describe('buildRegistry', () => {
   const reg = buildRegistry(config)
 
   it('collects entities, singletons and the m2m junction', () => {
-    expect(reg.entities.map((e) => e.name).sort()).toEqual(['author', 'post', 'siteSettings', 'tag'])
+    expect(reg.entities.map((e) => e.name).sort()).toEqual(['author', 'navigation', 'page', 'post', 'redirect', 'siteSettings', 'tag'])
     expect(reg.byName.get('siteSettings')?.singleton).toBe(true)
     expect(reg.junctions.map((j) => j.name)).toEqual(['post_to_tag'])
   })
@@ -76,5 +76,31 @@ describe('buildRegistry', () => {
 
   it('is memoised per config object', () => {
     expect(buildRegistry(config)).toBe(reg)
+  })
+})
+
+describe('content languages', () => {
+  it('only lets text, URL addresses, rich text and blocks be translated', () => {
+    expect(() => f.media().localized()).toThrow(/can be localized/)
+    expect(() => f.number().localized()).toThrow(/can be localized/)
+    expect(f.text().localized().isLocalized).toBe(true)
+  })
+
+  it('needs defineLocales when anything is translatable', () => {
+    const E = defineEntity('lonely', { label: 'L', titleField: 'name', fields: { name: f.text().localized() } })
+    expect(() => buildRegistry({ E })).toThrow(/no languages are defined/)
+  })
+
+  it('builds a translations table for entities with localized fields only', () => {
+    expect(config.Post.localized).toEqual(['title', 'slug', 'body'])
+    expect(config.Post.localesTable).toBeTruthy()
+    expect(config.Author.localesTable).toBeUndefined()
+    expect(buildRegistry(config).locales).toMatchObject({ default: 'cs', locales: ['cs', 'en'] })
+  })
+})
+
+describe('reserved field names', () => {
+  it.each(['locale', 'locales', 'parentId', 'createdBy', 'id'])('refuses a field named %s', (key) => {
+    expect(() => defineEntity('reserved_test', { label: 'R', titleField: 'name', fields: { name: f.text(), [key]: f.text() } as any })).toThrow(/reserved/)
   })
 })

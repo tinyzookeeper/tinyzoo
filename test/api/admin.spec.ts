@@ -87,6 +87,19 @@ describe('admin pages (server-rendered)', () => {
     expect(body).not.toContain('>publishedAt<')
   })
 
+  // Generated ids differ between the server and the browser on pages that await
+  // data, which left server-rendered labels pointing at nothing. Labels use stable
+  // ids derived from the field key instead.
+  it('links every server-rendered label to its control by a stable id', async () => {
+    const author = await createAuthor(admin)
+    const post = await createPost(admin, { author: author.id })
+    const { body } = await html(admin, `/admin/post/${post.id}`, { 'accept-language': 'en' })
+    for (const key of ['slug', 'publishedAt']) {
+      expect(body).toContain(`for="cms-field-${key}"`)
+      expect(body).toContain(`id="cms-field-${key}"`)
+    }
+  })
+
   it('serves the design system page', async () => {
     const { status, body } = await html(admin, '/admin/styleguide', { 'accept-language': 'en' })
     expect(status).toBe(200)

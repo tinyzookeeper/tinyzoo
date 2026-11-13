@@ -35,6 +35,13 @@ export interface ListParams<Sort extends string = string, Filters = Record<strin
   q?: string
   /** Exact-match filters (collection-specific). */
   filter?: Filters
+  /** Language to serve (collections with translations). Untranslated fields fall back to the default. */
+  locale?: string
+}
+
+export interface GetOptions {
+  /** Language to serve (collections with translations). */
+  locale?: string
 }
 
 export interface CollectionSpec {
@@ -50,7 +57,7 @@ export interface Collection<C extends CollectionSpec> {
   /** List published items, paginated, filtered and sorted. */
   list: (params?: ListParams<Extract<C['sort'], string>, C['filters']>) => Promise<ListResponse<C['item']>>
   /** Fetch a single published item by slug (falling back to id). Throws CmsError on 404. */
-  get: (slugOrId: string) => Promise<C['item']>
+  get: (slugOrId: string, options?: GetOptions) => Promise<C['item']>
 }
 
 export type CmsClient<S extends AnyContentSchema> =
@@ -118,8 +125,8 @@ export function createCmsClient<S extends AnyContentSchema>(options: ClientOptio
       // reserved params (rest) spread LAST so a filter key can never clobber page/limit/sort/dir/q
       return request(`/api/content/${seg}`, { ...((filter as Record<string, unknown>) ?? {}), ...rest })
     }
-    const get = async (slugOrId: string) => {
-      const res = await request<{ item: unknown }>(`/api/content/${seg}/${encodeURIComponent(slugOrId)}`)
+    const get = async (slugOrId: string, opts: GetOptions = {}) => {
+      const res = await request<{ item: unknown }>(`/api/content/${seg}/${encodeURIComponent(slugOrId)}`, { locale: opts.locale })
       return res.item
     }
     return { list, get } as unknown as Collection<CollectionSpec>

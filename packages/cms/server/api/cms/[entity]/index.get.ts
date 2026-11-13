@@ -54,5 +54,10 @@ export default defineEventHandler(async (event) => {
     for (const r of rows) r[`${key}__media`] = byId.get(r[`${key}Id`]) ?? null
   }
 
+  // Which languages each row is available in (for the list's language column).
+  if (reg.locales && e.localized.length) {
+    const avail = await availableLocales(db, reg, e, rows.map((r) => r.id))
+    for (const r of rows) r.__locales = avail.get(r.id) ?? [reg.locales.default]
+  }
   return { rows, total: count, page, limit }
 })

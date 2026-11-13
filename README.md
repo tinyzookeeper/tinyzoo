@@ -176,6 +176,51 @@ server log.
 
 ![team](docs/screenshots/admin-team-invite.png)
 
+## Pages, blocks & languages
+
+**Blocks** — an ordered list of typed sections editors arrange into a page:
+
+```ts
+const hero = defineBlock({
+  label: { en: 'Hero', cs: 'Úvod' }, icon: 'i-lucide-panel-top',
+  fields: { heading: f.text({ required: true }), image: f.media({ accept: 'image/*' }) },
+})
+sections: f.blocks({ hero, text, gallery })
+```
+
+Each block is validated against its own type; rich text inside is sanitised; media
+inside is resolved by the content API and protected by media cleanup. The typed
+client gets an exact union per block type. Block fields: text, slug, number,
+boolean, datetime, select, rich text, media.
+
+**Languages** — declare them once, mark what is translatable:
+
+```ts
+export const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
+title: f.text({ required: true }).localized()
+```
+
+Text, URL addresses, rich text and blocks can be `.localized()`. The entry's row
+holds the default language; translations live in `<entity>_locales` (typed columns,
+URL addresses unique per language) and fall back per field to the default. The
+admin edits a translation with the language switcher (default text shown as
+reference). The content API takes `?locale=en`, finds items by translated URL
+addresses, searches in the language, translates related items, and adds `locale` +
+`locales` to each item. Publishing applies to all languages.
+
+**Site presets:**
+
+```ts
+export const Page = definePages({ blocks: { hero, text, cta }, localized: true }) // title, address, status, blocks, SEO, preview
+export const Navigation = defineNavigation({ localized: true })                  // main + footer menus as lists of links
+export const Redirect = defineRedirects()                                         // old address → new, applied to every page request
+```
+
+Collections with `content.path` (e.g. `'/blog/:slug'`) appear in **`/sitemap.xml`**
+(published only, with `hreflang` alternates; `defineLocales({ prefix })` controls
+`/en/…` prefixes) and in `GET /api/content/_sitemap`. A host can replace the XML
+route with its own `server/routes/sitemap.xml`.
+
 ## Admin look & language
 
 The admin has its own design system, scoped so it never touches the host website's
@@ -531,7 +576,6 @@ Set runtime secrets as Worker vars: `NUXT_CMS_DATABASE_URL` (Neon/Hyperdrive),
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`) and a
   shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
 - **Per-field permissions** (`fieldMode`) and custom roles beyond admin / editor / author.
-- **`blocks`** page-builder field (the `f.json` hook already reserves the path)
 - Precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
 - A *live* Cloudflare deploy recipe (wrangler config + Hyperdrive binding); publish pipeline
   (changesets); package-name layer resolution

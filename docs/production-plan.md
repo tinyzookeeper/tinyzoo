@@ -268,7 +268,7 @@ delay that person's sign-in for 15 minutes (the usual trade-off of per-account l
 limits are per instance until Phase 5 adds a shared store; Workers can only `log`
 mail until an HTTP mail provider is added.
 
-### Phase 3 — Content model for real sites
+### Phase 3 — Content model for real sites ✅ *done (manual ordering deferred)*
 
 - **Localization.**
   - `locales: ['cs', 'en', …]`, `defaultLocale`, per-locale fallback chain in the
@@ -290,6 +290,52 @@ mail until an HTTP mail provider is added.
   SEO, blocks), `navigation()` (menus with internal/external links),
   `redirects()`, sitemap and robots endpoints driven by the content.
 - Manual ordering (drag to sort) for collections that need it.
+
+#### How it landed (2026-11-13)
+
+Three slices, each tested and committed:
+
+1. **Blocks** — `f.blocks({ type: defineBlock(...) })`, jsonb validated per type
+   (discriminated union), sanitised rich text inside, media resolved by the content
+   API and counted by cleanup, exact per-type unions in the typed client and OpenAPI.
+   Admin: collapsible block cards with summary and error marker, insert anywhere via a
+   searchable picker (or directly when a field has one block type), move / duplicate /
+   remove from a "…" menu (no drag needed).
+2. **Languages** — `defineLocales`, `.localized()` on text, slug, rich text, blocks.
+   Storage as planned: `<entity>_locales` with typed columns, per-language unique
+   slugs; the base row is the default language; per-field fallback. Admin and content
+   API take `?locale`; globals (navigation) too. Editor translation mode shows only
+   translatable fields with the default text as reference and "copy from".
+   **Publishing applies to all languages** (per-language publishing deferred; the UI
+   says so).
+3. **Site essentials** — `definePages`, `defineNavigation`, `defineRedirects` (server
+   middleware, cache invalidated on change, 30 s TTL across replicas, path-only
+   sources), `content.path` + `/sitemap.xml` with hreflang and `/api/content/_sitemap`.
+
+Found and fixed on the way: server-rendered field labels pointed at ids the browser
+regenerated differently (Vue `useId` under pages that await data) — labels now use
+stable ids from the field key; globals' saves did not clean up images removed from
+rich text.
+
+**Independent review** of the public-API changes (separate agent): no draft or
+hidden-field leaks, the translation subqueries are parameterised and correctly
+scoped. 10 findings, all fixed with regression tests:
+
+| Severity | Finding | Fix |
+|---|---|---|
+| High | Authors could create redirects, which go live at once (whole-site redirect off-domain) | entities can be marked `live`; authors cannot write them (redirects are) |
+| Medium | Translation writes/deletes checked "not live" before, not at, write time | the entry is touched under `notLiveCond` inside the transaction first |
+| Medium | Redirects with Czech characters never matched; a non-ASCII target made a 500 | paths decoded for lookup; Location header percent-encoded |
+| Medium | `/sitemap.xml` read whole rows (page bodies) for up to 50k items per request | reads only id, updatedAt and path columns; memoised for a minute |
+| Medium | Menu links accepted `javascript:` URLs | `f.text({ format: 'link' })` (path, #, http(s), mailto, tel) for menu and redirect targets |
+| Low | `/sitemap.xml` ignored the content token; base URL could come from Host | private API → no sitemap; base only from `cms.publicUrl` in production |
+| Low | Removed languages kept appearing in the sitemap | only configured languages are read |
+| Low | Fields named `locale`, `locales`, `parentId`… collided with CMS columns/keys | reserved names refused in `defineEntity` |
+| Low | Redirect sources with `?`, `#` or a trailing slash collided after normalisation | sources have exactly one spelling |
+| Hardening | Block types looked up on plain objects; duplicate block ids allowed | `Object.hasOwn` lookups; unique block ids per field |
+
+Deferred: manual ordering (drag to sort) for collections — moves to Phase 4 with the
+list work; nested pages (parent / full paths); relations inside blocks.
 
 ### Phase 4 — Editorial experience
 
