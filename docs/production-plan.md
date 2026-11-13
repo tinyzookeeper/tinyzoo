@@ -602,18 +602,53 @@ setup on a fresh deploy. A form is now "unsaved" exactly when it differs from th
 saved version. Still not shared: rich text inside blocks (needs the block list
 itself in the shared document — a larger piece).
 
-### Phase 6 — The test client site
+### Phase 6 — The test client site 🚧 *site built; publishing and deploy wait on the GitHub org and Pushbase credentials*
 
-Proves the package from the outside.
+Proves the package from the outside: **Triathlon Team Tábor**
+(triatlon-tabor.cz), built after the club's mockup (home, news, article, desktop
+and mobile) in its own repository, `../triatlon-tabor-web`.
 
-- Its own repo, installs the published package (no workspace links).
-- Multilingual (cs + en, a third locale to prove it scales), pages built
-  from blocks, navigation, SEO with `hreflang`, sitemap, redirects.
-- Sections designed from Mobbin references, one block = one section type.
-- Deployed to Pushbase with Postgres, Redis, EU object storage and a custom
-  domain; publish → webhook → page updates.
-- Everything that was awkward while building it becomes an issue against the
-  CMS before calling it done.
+- ✅ Own repo, installs `@my-cms/core` and `@my-cms/client` from packed tarballs
+  (`vendor/`) — no workspace links. GitHub Packages once the org exists.
+- ✅ Czech + English: Czech addresses unprefixed, English under `/en` with English
+  words (`/aktuality/…` ↔ `/en/news/…`, `/galerie/…` ↔ `/en/gallery/…`); the
+  sitemap lists both with `hreflang`. A third language was not added — the club needs
+  two, and nothing in the CMS is two-language specific.
+- ✅ Content model: club details, home page (opening, figures, main event of the
+  season, about, call to action), news with sections, race facts and photos, the
+  calendar (upcoming / past), gallery albums, partners (hand-ordered), pages from
+  blocks (text, photo, training schedule, call to action, contacts), menus, redirects.
+- ✅ Demo content seeded through the CMS's own API (`pnpm seed`: account, photos with
+  alt text in both languages and focal points, 8 articles, 7 events, 3 albums, 4 pages).
+- ✅ Light-only site in club red with Barlow Condensed + Inter; the admin keeps its own
+  look and the visitor's dark mode.
+- ⏳ Deploy to Pushbase (Postgres, Redis, EU bucket, SMTP, custom domain) — needs the
+  platform token and the club's bucket and mail account.
+- ⏳ Publish the packages to GitHub Packages — needs the org and a `write:packages` token.
+
+**What was awkward, fixed in the CMS** (each with tests):
+
+| Found while building the site | Fix |
+|---|---|
+| A translated address (`/aktuality/x` vs `/en/news/x`) could not be expressed | `content.path`, `publish.preview` and `definePages({ path })` take one template per language; sitemap, webhooks and preview use it; invalid maps fail at startup |
+| "Upcoming events" and "articles from 2025" were impossible on the public API | date ranges (`startsAt.from` / `.to`, a bare date covers the day) and yes/no filters; typed in the client and OpenAPI |
+| A perex in a one-line input | `f.text({ multiline: true, max })` — a growing text box with a counter |
+| Site settings and the home page had no generated types | typed globals: `GlobalSchema`, `cms.global(name, { locale })`, OpenAPI paths |
+| The packed client had no code (its publish config points at `dist/`, never built) | `prepack` builds it |
+| The site's typecheck failed inside the CMS (`process`, `Buffer`, `pg` types; route types too deep) | core ships `@types/pg` / `@types/nodemailer`; admin calls with computed addresses use an untyped `cmsFetch`; the consumer check now typechecks |
+| The CMS's rich-text styles beat the site's own | defaults are zero-specificity (`:where`) |
+| Internal links in rich text opened a new tab | only external links do |
+
+**Noted, not changed:**
+
+- A field without `required` is still required unless `.optional()` — easy to miss
+  (the first seed failed on it). Making optional the default changes every existing
+  schema; decide with the rename.
+- The sitemap lists only collections with an address; a site's fixed pages (`/aktuality`,
+  `/zavody-a-akce`) need a hook to be added.
+- Content API items do not carry their address in the other language, so the language
+  switch on an article goes to the other language's list.
+- Admin icons load on first use (a short pop-in in a fresh browser).
 
 ## Open decisions
 
