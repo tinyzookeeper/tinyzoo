@@ -1,3 +1,12 @@
 packages:
   - packages/*
   - playground
+
+# One copy of the editor stack: collaborative editing breaks when two ProseMirror
+# or TipTap core versions meet (Nuxt UI brings its own editor packages).
+overrides:
+  '@tiptap/core': 3.34.0
+  '@tiptap/pm': 3.34.0
+  prosemirror-model: ^1.25.13
+  prosemirror-state: ^1.4.4
+  prosemirror-view: ^1.41.0

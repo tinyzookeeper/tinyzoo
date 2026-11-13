@@ -2,7 +2,7 @@ import { type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueInde
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
-import { cmsAudit, cmsTokens, cmsUsers } from './system'
+import { cmsAudit, cmsCollab, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
@@ -309,6 +309,7 @@ export interface CmsRegistry {
   cmsUsers: typeof cmsUsers
   cmsTokens: typeof cmsTokens
   cmsAudit: typeof cmsAudit
+  cmsCollab: typeof cmsCollab
 }
 
 const _regCache = new WeakMap<object, CmsRegistry>()
@@ -358,13 +359,13 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     throw new Error(`${withLocalized.map((e) => e.name).join(', ')} ha${withLocalized.length > 1 ? 've' : 's'} localized fields, but no languages are defined. Export \`locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })\` from cms.config.ts.`)
   }
 
-  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit }
+  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab }
   for (const e of entities) schema[e.name] = e.table
   for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
   for (const j of junctions) schema[j.name] = j.table
 
   const graph = entities.map((e) => entityGraph(e, locales))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab }
   _regCache.set(config, reg)
   return reg
 }

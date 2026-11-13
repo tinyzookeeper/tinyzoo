@@ -6,7 +6,7 @@
 # NUXT_CMS_MIGRATIONS_ON_START=true. See docs/deploying.md for the environment.
 FROM node:22-alpine AS build
 WORKDIR /repo
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 NODE_OPTIONS=--max-old-space-size=4096 CMS_DB_DRIVER=node
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 NODE_OPTIONS=--max-old-space-size=4096
 RUN corepack enable
 COPY . .
 RUN pnpm install --frozen-lockfile --filter ./playground...

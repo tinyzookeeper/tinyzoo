@@ -271,6 +271,7 @@ export default {
     languages: 'Jazyky',
   },
   live: {
+    connecting: 'Připojování ke sdílenému textu…',
     editing: '{name} upravuje',
     viewing: '{name} si prohlíží',
     changed: '{name} mezitím uložil(a) novější verzi',

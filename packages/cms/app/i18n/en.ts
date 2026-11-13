@@ -272,6 +272,7 @@ export default {
     languages: 'Languages',
   },
   live: {
+    connecting: 'Connecting to the shared text…',
     editing: '{name} is editing',
     viewing: '{name} is viewing',
     changed: '{name} saved a newer version',

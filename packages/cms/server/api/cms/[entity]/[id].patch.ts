@@ -68,6 +68,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  await noteCollabSave(event, { entity: e, id, locale: null }, row.updatedAt)
   const action = publishAction(e, old, row)
   await audit(event, action ?? 'entry.update', { entity: e.name, recordId: id })
   await reportChange(event, {

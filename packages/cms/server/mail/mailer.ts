@@ -2,7 +2,6 @@ import type { CmsMailConfig, CmsMailMessage } from '../utils/cmsMail'
 
 // Node mail transports: smtp (nodemailer), file (one JSON file per email — for tests
 // and for looking at emails locally without a mail server) and log (stdout).
-// Aliased as #cms/mailer only in Node builds, so nodemailer never reaches an edge bundle.
 
 let transporter: any
 let transporterKey = ''

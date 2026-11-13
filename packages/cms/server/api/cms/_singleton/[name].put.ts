@@ -67,6 +67,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await audit(event, 'settings.update', { entity: e.name, recordId: row.id })
+  await noteCollabSave(event, { entity: e, id: row.id, locale: null }, row.updatedAt)
   await reportChange(event, { type: 'global.updated', entity: e, id: row.id, before: seenBefore, after: row })
   await hydrateRowForForm(db, reg, e, row)
   return { row }

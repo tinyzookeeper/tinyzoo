@@ -60,6 +60,25 @@ export const cmsAudit = pgTable('cms_audit', {
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [index('cms_audit_created_idx').on(t.createdAt)])
 
+/**
+ * Shared editing documents (Yjs state, one per entry and language). The working copy
+ * people type into together; saving the entry stores its content as usual. `epoch`
+ * changes when the document is started afresh from the saved entry, so a browser
+ * holding an older history cannot merge it back in.
+ */
+export const cmsCollab = pgTable('cms_collab', {
+  // <entity>/<id> or <entity>/<id>/<locale>
+  name: text('name').primaryKey(),
+  epoch: uuid('epoch').notNull(),
+  // Yjs update (state as one update), base64.
+  state: text('state').notNull(),
+  // The entry (or translation) version the document last matched.
+  baseVersion: ts('base_version'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+  // Refreshed while anyone has the document open: it is never restarted under them.
+  activeAt: ts('active_at'),
+})
+
 /** Source emitted verbatim into db/schema.ts (imports provided by the emitter). */
 export const CMS_SYSTEM_SOURCE = `export const cmsUsers = pgTable('cms_users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -94,4 +113,13 @@ export const cmsAudit = pgTable('cms_audit', {
   recordId: text('record_id'),
   meta: jsonb('meta'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
-}, (t) => [index('cms_audit_created_idx').on(t.createdAt)])`
+}, (t) => [index('cms_audit_created_idx').on(t.createdAt)])
+
+export const cmsCollab = pgTable('cms_collab', {
+  name: text('name').primaryKey(),
+  epoch: uuid('epoch').notNull(),
+  state: text('state').notNull(),
+  baseVersion: timestamp('base_version', { withTimezone: true, mode: 'date', precision: 3 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  activeAt: timestamp('active_at', { withTimezone: true, mode: 'date', precision: 3 }),
+})`

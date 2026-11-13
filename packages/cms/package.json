@@ -18,15 +18,23 @@
     "module.ts",
     "nuxt.config.ts",
     "server",
+    "shared",
     "src"
   ],
   "dependencies": {
+    "@hocuspocus/extension-redis": "^3.4.4",
+    "@hocuspocus/provider": "^3.4.4",
+    "@hocuspocus/server": "^3.4.4",
     "@nuxt/kit": "^4.0.0",
-    "@tiptap/extension-image": "^3.27.1",
-    "@tiptap/extension-link": "^3.27.1",
-    "@tiptap/pm": "^3.27.1",
-    "@tiptap/starter-kit": "^3.27.1",
-    "@tiptap/vue-3": "^3.27.1",
+    "@tiptap/core": "^3.34.0",
+    "@tiptap/extension-collaboration": "^3.34.0",
+    "@tiptap/extension-collaboration-caret": "3.34.0",
+    "@tiptap/extension-image": "^3.34.0",
+    "@tiptap/extension-link": "^3.34.0",
+    "@tiptap/pm": "^3.34.0",
+    "@tiptap/starter-kit": "^3.34.0",
+    "@tiptap/vue-3": "^3.34.0",
+    "@tiptap/y-tiptap": "^3.3.0",
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.44.0",
     "image-size": "^2.0.2",
@@ -34,6 +42,7 @@
     "nodemailer": "^7.0.13",
     "pg": "^8.16.3",
     "tsx": "^4.19.0",
+    "yjs": "^13.6.31",
     "zod": "^4.0.0"
   },
   "devDependencies": {
@@ -46,9 +55,6 @@
     "@nuxt/ui": "^4.0.0",
     "nuxt": "^4.0.0",
     "nuxt-auth-utils": "^0.5.0"
-  },
-  "optionalDependencies": {
-    "@neondatabase/serverless": "^1.1.0"
   },
   "bin": {
     "cms": "./cli/index.ts"

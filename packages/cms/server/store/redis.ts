@@ -1,7 +1,7 @@
 import type { CmsStoreConfig, SharedStore } from './types'
 
-// Node shared store: Redis (ioredis) when a URL is configured, else nothing (the
-// caller falls back to per-process memory). Aliased as #cms/store only in Node builds.
+// Shared store: Redis (ioredis) when a URL is configured, else nothing (the caller
+// falls back to per-process memory).
 //
 // Commands never wait on a Redis that is down: no offline queue, a short timeout,
 // and the caller falls back (rate limits count in memory, publishes are dropped).

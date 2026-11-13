@@ -1,5 +1,4 @@
-// #cms/store is aliased by the module to the node (Redis) or edge implementation.
-import { createRedisStore } from '#cms/store'
+import { createRedisStore } from '../store/redis'
 
 import type { SharedStore } from '../store/types'
 
@@ -37,7 +36,7 @@ export function useCmsStore(): Promise<SharedStore> {
     const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
     const redisUrl = String(cfg.url || env.REDIS_URL || '')
     try {
-      const redis = await createRedisStore({ redisUrl, prefix: storePrefix(cfg.prefix) })
+      const redis = await createRedisStore({ redisUrl, prefix: cmsStorePrefix(cfg.prefix) })
       if (redis) {
         console.info('[cms] shared store: redis')
         return redis
@@ -56,7 +55,7 @@ export function useCmsStore(): Promise<SharedStore> {
  * and production, two client sites) never share counters or messages:
  * `cms.redis.prefix` / NUXT_CMS_REDIS_PREFIX, else `cms:<database name>`.
  */
-function storePrefix(configured?: string): string {
+export function cmsStorePrefix(configured: string = (useRuntimeConfig().cms as any)?.redis?.prefix): string {
   if (configured) return String(configured)
   try {
     const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}

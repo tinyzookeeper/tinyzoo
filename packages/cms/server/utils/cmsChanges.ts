@@ -16,7 +16,7 @@ export const CHANGES_CHANNEL = 'changes'
 
 /**
  * Identifies this process on the shared channel, so it can skip its own messages.
- * Made on first use: Workers refuse random values at module load (global scope).
+ * Made on first use.
  */
 let _instanceId: string | undefined
 export function instanceId(): string {

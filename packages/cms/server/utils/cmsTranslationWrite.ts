@@ -67,6 +67,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
     for (const mid of new Set(oldMedia)) if (!still.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
   }
   await audit(event, 'entry.translate', { entity: e.name, recordId: id, meta: { locale } })
+  await noteCollabSave(event, { entity: e, id, locale }, row.updatedAt)
 
   const [fresh] = await db.select().from(e.table).where(eq(e.table.id, id))
   await reportChange(event, { type: 'translation.updated', entity: e, id, locale, before: seenBefore, after: { updatedAt: row.updatedAt } })
@@ -96,6 +97,7 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
     for (const mid of new Set(jsonMediaIds(e.fields[k], gone[k]))) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
   }
   await audit(event, 'entry.translation_delete', { entity: e.name, recordId: id, meta: { locale } })
+  await dropCollabDocuments(e.name, id, locale)
   await reportChange(event, { type: 'translation.deleted', entity: e, id, locale, before: seenBefore, after: null })
   return { ok: true }
 }

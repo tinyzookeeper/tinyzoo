@@ -7,6 +7,8 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 // move, duplicate and remove from the block's "…" menu (keyboard- and touch-friendly,
 // no drag required).
 const props = defineProps<{ field: any; entity: string }>()
+// Text inside blocks is edited on its own (not shared), even on a shared entry.
+provide('cmsCollab', null)
 const model = defineModel<any[] | null>()
 const { t, tl } = useCmsI18n()
 const form = inject<{ issues?: Record<string, string> } | null>('cmsForm', null)

@@ -27,6 +27,7 @@ export default defineEventHandler(async (event) => {
     await gcMediaIfOrphan(db, reg, storage, mediaId, gcScope(user))
   }
   await audit(event, 'entry.delete', { entity: e.name, recordId: id })
+  await dropCollabDocuments(e.name, id)
   await reportChange(event, { type: 'entry.deleted', entity: e, id, before: seenBefore })
   return { ok: true }
 })

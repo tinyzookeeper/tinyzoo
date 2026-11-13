@@ -66,6 +66,8 @@ async function loadNewest() {
   const row = await fetchRow()
   await form.replace(row)
   adopt(row)
+  // Shared text follows only when someone asks for the saved version: for everyone.
+  for (const key of sharedFields.value) collab?.set(key, row[key])
   if (live) live.incoming.value = null
 }
 
@@ -79,13 +81,14 @@ async function onRemoteChange(c: LiveChange) {
   if (!row) return
   const newest = (isTranslation.value ? row.__version : row.updatedAt) ?? null
   if (newest === version.value) return
-  if (dirty.value || saving.value) {
-    if (live) live.incoming.value = c
+  // Their changes come in field by field; only the same field changed differently on
+  // both sides needs a decision. Shared text merges by itself.
+  if (!saving.value && await form.merge(row, sharedFields.value)) {
+    adopt(row)
+    toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
     return
   }
-  await form.replace(row)
-  adopt(row)
-  toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
+  if (live) live.incoming.value = c
 }
 
 /**
@@ -115,6 +118,28 @@ const live = isNew.value
       onChange: onRemoteChange,
     })
 const others = computed(() => live?.others.value ?? [])
+
+// ── shared editing of the rich-text fields (this entry, in this language) ──
+const collab = isNew.value ? null : useCmsCollab({ entity: entity.value, id: id.value, locale: isTranslation.value ? currentLocale.value : null })
+// Shared on this page right now: a shared editor is mounted for it (not, say, a
+// field in a collapsed group, which then merges like any other field).
+const sharedFields = computed(() => (collab?.status.value === 'ready' ? collab.mounted.value : new Set<string>()))
+/**
+ * Saves made from the shared document say so (it then matches the saved version) —
+ * only when every shared field is on the page, so the save really holds the shared text.
+ */
+const collabHeaders = (): Record<string, string> => {
+  if (!collab || collab.status.value !== 'ready' || !collab.epoch.value) return {}
+  for (const k of collab.fields.value) if (!collab.mounted.value.has(k)) return {}
+  return { 'x-cms-collab': collab.epoch.value }
+}
+
+/** Copy the default language's value into this translation's field (shared text: for everyone). */
+function copyDefault(key: string) {
+  const value = structuredClone(toRaw(defaults.value[key]))
+  if (sharedFields.value.has(key) && collab?.set(key, value)) return
+  state[key] = value
+}
 
 // ── layout: which field goes where ──
 const publish = computed(() => meta.value?.publish)
@@ -169,7 +194,7 @@ async function save(successTitle?: string) {
     }
     else {
       const url: string = `/api/cms/${entity.value}/${id.value}`
-      const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+      const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
       const res: any = await $fetch(url, { method: 'PATCH', body: form.body(), headers })
       savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
       version.value = res?.row?.updatedAt ?? null
@@ -182,7 +207,7 @@ async function saveTranslation() {
   return form.submit(async () => {
     const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
-    const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+    const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
     const res: any = await $fetch(url, { method: 'PATCH', body, headers })
     savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
     version.value = res?.row?.__version ?? null
@@ -307,7 +332,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           <CmsTranslationRef
             v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
             :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
-            @copy="state[f.key] = structuredClone(toRaw(defaults[f.key]))"
+            @copy="copyDefault(f.key)"
           />
         </div>
       </div>

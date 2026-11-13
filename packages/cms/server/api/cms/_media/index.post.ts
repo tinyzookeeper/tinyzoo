@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
   // body (the coarse global guard in cms-limits.ts backs this up). +1MB multipart margin.
   const declared = Number(getHeader(event, 'content-length') || 0)
   if (declared && declared > max + 1024 * 1024) {
-    throw createError({ statusCode: 413, statusMessage: `File too large (max ${Math.round(max / 1024 / 1024)}MB)` })
+    throw createError({ statusCode: 413, statusMessage: 'File too large (max ' + Math.round(max / 1024 / 1024) + 'MB)' })
   }
 
   const parts = await readMultipartFormData(event)
@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
 
   // Inner bound: enforce the real cap on the buffered bytes (covers missing/forged Content-Length).
   if (file.data.length > max) {
-    throw createError({ statusCode: 413, statusMessage: `File too large (max ${Math.round(max / 1024 / 1024)}MB)` })
+    throw createError({ statusCode: 413, statusMessage: 'File too large (max ' + Math.round(max / 1024 / 1024) + 'MB)' })
   }
 
   const mime = (file.type || '').toLowerCase()
@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Dimensions for images (best-effort; pure-JS, Workers-safe).
+  // Dimensions for images (best-effort, pure JS).
   let width: number | null = null
   let height: number | null = null
   if (mime.startsWith('image/')) {
