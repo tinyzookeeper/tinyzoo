@@ -86,6 +86,8 @@ export interface CmsModuleOptions {
    * `cms:<database name>`, so environments sharing one Redis stay apart.
    */
   redis?: { url?: string; prefix?: string }
+  /** Revisions (history, compare, restore): how many to keep per entry and language. 0 = off. */
+  revisions?: { keep?: number }
   /**
    * Publish webhooks: every change visible on the website is POSTed, signed, to these
    * URLs (e.g. the site's cache-purge endpoint). See server/utils/cmsWebhooks.ts.
@@ -171,6 +173,8 @@ export {}
       databaseUrl: options.databaseUrl || '',
       migrations: { onStart: options.migrations?.onStart ?? false },
       redis: { url: options.redis?.url || '', prefix: options.redis?.prefix || '' },
+      // Revisions kept per entry and language (0 = off). Env NUXT_CMS_REVISIONS_KEEP.
+      revisions: { keep: options.revisions?.keep ?? 50 },
       // Empty defaults so NUXT_CMS_WEBHOOKS_URLS / NUXT_CMS_WEBHOOKS_SECRET bind at runtime.
       webhooks: {
         urls: (Array.isArray(options.webhooks?.urls) ? options.webhooks.urls.join(',') : options.webhooks?.urls) || '',

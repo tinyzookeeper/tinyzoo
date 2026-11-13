@@ -63,6 +63,19 @@ export const cmsCollab = pgTable('cms_collab', {
   activeAt: timestamp('active_at', { withTimezone: true, mode: 'date', precision: 3 }),
 })
 
+export const cmsRevisions = pgTable('cms_revisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entity: text('entity').notNull(),
+  recordId: uuid('record_id').notNull(),
+  locale: text('locale'),
+  action: text('action').notNull(),
+  version: timestamp('version', { withTimezone: true, mode: 'date', precision: 3 }),
+  data: jsonb('data').notNull(),
+  changed: jsonb('changed').notNull(),
+  userId: uuid('user_id'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])
+
 export const author = pgTable('author', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

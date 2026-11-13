@@ -28,6 +28,7 @@ export default defineEventHandler(async (event) => {
   }
   await audit(event, 'entry.delete', { entity: e.name, recordId: id })
   await dropCollabDocuments(e.name, id)
+  await dropRevisions(e, id)
   await reportChange(event, { type: 'entry.deleted', entity: e, id, before: seenBefore })
   return { ok: true }
 })

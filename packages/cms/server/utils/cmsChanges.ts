@@ -119,6 +119,10 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
       version: r.after?.updatedAt ? new Date(r.after.updatedAt).toISOString() : null,
       at: new Date().toISOString(),
     }
+    // What was saved, for the history (not for deletions).
+    if (r.type !== 'entry.deleted' && r.type !== 'translation.deleted') {
+      await recordRevision(event, e, r.id, r.type === 'translation.updated' ? locale : null, r.type)
+    }
     applyChangeLocally(change)
     notifyChangeListeners(change)
     // Neither the other replicas nor the host's hooks hold up the response.

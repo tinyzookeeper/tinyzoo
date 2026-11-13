@@ -79,6 +79,27 @@ export const cmsCollab = pgTable('cms_collab', {
   activeAt: ts('active_at'),
 })
 
+/**
+ * Revisions: a snapshot of an entry (or one translation) after every save — its
+ * field values as the editor sees them — for the history panel, compare and restore.
+ */
+export const cmsRevisions = pgTable('cms_revisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entity: text('entity').notNull(),
+  recordId: uuid('record_id').notNull(),
+  // null = the entry itself; else the translation's language.
+  locale: text('locale'),
+  // entry.created, entry.updated, entry.published, translation.updated, …
+  action: text('action').notNull(),
+  // The entry's (translation's) version after this save.
+  version: ts('version'),
+  data: jsonb('data').notNull(),
+  // Field keys that differ from the previous revision.
+  changed: jsonb('changed').notNull(),
+  userId: uuid('user_id'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])
+
 /** Source emitted verbatim into db/schema.ts (imports provided by the emitter). */
 export const CMS_SYSTEM_SOURCE = `export const cmsUsers = pgTable('cms_users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -122,4 +143,17 @@ export const cmsCollab = pgTable('cms_collab', {
   baseVersion: timestamp('base_version', { withTimezone: true, mode: 'date', precision: 3 }),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   activeAt: timestamp('active_at', { withTimezone: true, mode: 'date', precision: 3 }),
-})`
+})
+
+export const cmsRevisions = pgTable('cms_revisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entity: text('entity').notNull(),
+  recordId: uuid('record_id').notNull(),
+  locale: text('locale'),
+  action: text('action').notNull(),
+  version: timestamp('version', { withTimezone: true, mode: 'date', precision: 3 }),
+  data: jsonb('data').notNull(),
+  changed: jsonb('changed').notNull(),
+  userId: uuid('user_id'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])`

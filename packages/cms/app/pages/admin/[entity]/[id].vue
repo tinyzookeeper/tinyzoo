@@ -164,6 +164,18 @@ function restoreLost() {
   if (collab) collab.lost.value = null
 }
 
+// ── history ──
+const historyOpen = ref(false)
+/** Put an older version into the form (shared text: for everyone). Saving makes it current. */
+function restoreRevision(data: Record<string, any>) {
+  for (const f of editable.value) {
+    if (!(f.key in data)) continue
+    if (sharedFields.value.has(f.key) && collab?.set(f.key, data[f.key])) continue
+    state[f.key] = structuredClone(toRaw(data[f.key]))
+  }
+  toast.add({ title: t('revisions.restored'), icon: 'i-lucide-history', color: 'info' })
+}
+
 /** Copy the default language's value into this translation's field (shared text: for everyone). */
 function copyDefault(key: string) {
   const value = structuredClone(toRaw(defaults.value[key]))
@@ -309,6 +321,9 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         <template v-if="dirty">{{ t('editor.unsaved') }}</template>
         <template v-else-if="savedAt">{{ t('editor.savedAgo', { time: '' }) }}<CmsTime :value="savedAt" relative /></template>
       </span>
+      <UTooltip v-if="!isNew" :text="t('revisions.open')">
+        <UButton variant="ghost" color="neutral" icon="i-lucide-history" :aria-label="t('revisions.open')" @click="historyOpen = true" />
+      </UTooltip>
       <UTooltip v-if="previewUrl" :text="t('editor.preview')">
         <UButton :to="previewUrl" target="_blank" variant="ghost" color="neutral" icon="i-lucide-eye" :aria-label="t('editor.preview')" />
       </UTooltip>
@@ -339,6 +354,10 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       close @update:open="(open: boolean) => { if (!open) lostText = null }"
     />
 
+    <CmsRevisions
+      v-if="!isNew" v-model:open="historyOpen" :entity="entity" :id="id"
+      :locale="isTranslation ? currentLocale : null" :fields="editable" :current="state" @restore="restoreRevision"
+    />
     <CmsLiveNotice
       :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
       :list-to="`/admin/${entity}`"
