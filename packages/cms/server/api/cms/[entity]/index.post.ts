@@ -8,6 +8,7 @@ export default defineEventHandler(async (event) => {
   const data = parseOr422(e.insertSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
   assertPublishAllowed(e, user, values)
+  stampPublishDate(e, values, null)
   values.createdBy = actorId(user)
   values.updatedBy = actorId(user)
 

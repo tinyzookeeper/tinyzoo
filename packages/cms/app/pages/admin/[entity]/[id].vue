@@ -19,7 +19,9 @@ const isNew = computed(() => id.value === 'new')
 
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
 const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === entity.value))
-const form = useCmsForm(computed(() => meta.value?.fields ?? []), isNew)
+// The manual-order position is set by arranging the list, never by this form (a stale
+// position saved from here would undo someone's reordering).
+const form = useCmsForm(computed(() => (meta.value?.fields ?? []).filter((f: any) => f.key !== meta.value?.orderField)), isNew)
 const { state, fieldErrors, editable, dirty, saving, conflict } = form
 
 // ── content languages ──
@@ -164,6 +166,70 @@ function restoreLost() {
   if (collab) collab.lost.value = null
 }
 
+// ── history ──
+const historyOpen = ref(false)
+/** Put an older version into the form (shared text: for everyone). Saving makes it current. */
+// Restoring brings back content, not the workflow: status, publish date (and the
+// list position, which is not in this form) stay as they are now.
+const workflowFields = computed(() => new Set([publish.value?.field, publish.value?.dateField].filter(Boolean) as string[]))
+async function restoreRevision(data: Record<string, any>) {
+  // Files deleted since that version are left out (an empty field, no broken image).
+  const gone = await missingMedia(data)
+  data = withoutMedia(data, gone)
+  for (const f of editable.value) {
+    if (!(f.key in data) || workflowFields.value.has(f.key)) continue
+    if (sharedFields.value.has(f.key) && collab?.set(f.key, data[f.key])) continue
+    state[f.key] = structuredClone(toRaw(data[f.key]))
+  }
+  toast.add({
+    title: t('revisions.restored'), icon: 'i-lucide-history', color: 'info',
+    description: gone.size ? t('revisions.filesGone', { count: gone.size }) : undefined,
+  })
+}
+
+/** Media ids a snapshot uses (media fields, images in rich text and blocks). */
+function mediaIdsIn(data: Record<string, any>): string[] {
+  const ids: string[] = []
+  const walk = (v: any) => {
+    if (!v || typeof v !== 'object') return
+    if (Array.isArray(v)) return v.forEach(walk)
+    if (typeof v.attrs?.mediaId === 'string') ids.push(v.attrs.mediaId)
+    for (const x of Object.values(v)) walk(x)
+  }
+  for (const f of editable.value) {
+    const v = data[f.key]
+    if (f.type === 'media' && typeof v === 'string') ids.push(v)
+    else if (f.type === 'richtext') walk(v)
+    else if (f.type === 'blocks' && Array.isArray(v)) {
+      for (const b of v) for (const [k, x] of Object.entries(b ?? {})) {
+        const bf = f.meta?.blocks?.[b?.type]?.fields?.find((y: any) => y.key === k)
+        if (bf?.type === 'media' && typeof x === 'string') ids.push(x)
+        else walk(x)
+      }
+    }
+  }
+  return [...new Set(ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))]
+}
+async function missingMedia(data: Record<string, any>): Promise<Set<string>> {
+  const ids = mediaIdsIn(data)
+  if (!ids.length) return new Set()
+  const res = await $fetch<{ ids: string[] }>('/api/cms/_media/exists', { method: 'POST', body: { ids } }).catch(() => ({ ids }))
+  const have = new Set(res.ids)
+  return new Set(ids.filter((id) => !have.has(id)))
+}
+/** A copy of the snapshot without the given files: fields emptied, images removed. */
+function withoutMedia(data: Record<string, any>, gone: Set<string>): Record<string, any> {
+  if (!gone.size) return data
+  const strip = (v: any): any => {
+    if (Array.isArray(v)) return v.filter((x) => !(x?.type === 'image' && gone.has(x?.attrs?.mediaId))).map(strip)
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, typeof x === 'string' && gone.has(x) ? null : strip(x)]))
+    return v
+  }
+  const out: Record<string, any> = {}
+  for (const [k, v] of Object.entries(data)) out[k] = typeof v === 'string' && gone.has(v) ? null : strip(v)
+  return out
+}
+
 /** Copy the default language's value into this translation's field (shared text: for everyone). */
 function copyDefault(key: string) {
   const value = structuredClone(toRaw(defaults.value[key]))
@@ -180,8 +246,27 @@ const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TY
 // The publish field is changed by the Publish action, not edited as a field. In a
 // translation only the translatable fields are shown.
 const formFields = computed(() => editable.value.filter((f: any) =>
-  f.key !== titleKey.value && f.key !== publish.value?.field && (!isTranslation.value || f.localized)))
+  f.key !== titleKey.value && f.key !== publish.value?.field && f.key !== meta.value?.orderField && (!isTranslation.value || f.localized)))
 const mainFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'main'))
+// Tabs for long forms (admin.tabs): fields in no tab go into the first. All tabs stay
+// mounted, so shared text and field state survive switching.
+const tabItems = computed(() => {
+  const tabs = (meta.value?.tabs ?? []) as { label: any; fields: string[] }[]
+  if (!tabs.length) return []
+  const assigned = new Set(tabs.flatMap((tab) => tab.fields))
+  return tabs.map((tab, i) => {
+    const fields = mainFields.value.filter((f: any) => tab.fields.includes(f.key) || (i === 0 && !assigned.has(f.key)))
+    const hasError = fields.some((f: any) => fieldErrors[f.key])
+    return { label: tl(tab.label), value: String(i), fields, icon: hasError ? 'i-lucide-circle-alert' : undefined }
+  }).filter((tab) => tab.fields.length)
+})
+
+// ── live preview beside the form: opened on demand (it loads the site's page, with
+// whatever the entry contains, so only when someone asks for it) ──
+const previewOpen = ref(false)
+function togglePreview() {
+  previewOpen.value = !previewOpen.value
+}
 const sideFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'sidebar'))
 const groups = computed(() => {
   const out = new Map<string, { label: string; fields: any[] }>()
@@ -212,6 +297,9 @@ useHead({ title: heading })
 const canPublish = computed(() => meta.value?.can?.publish !== false)
 const isPublished = computed(() => !!publish.value && state[publish.value.field] === publish.value.publishedValue)
 const publishedOn = computed(() => (publish.value?.dateField ? state[publish.value.dateField] : null))
+// A publish date ahead: publishing schedules it (live from that moment).
+const futureDate = computed(() => !!publishedOn.value && new Date(publishedOn.value).getTime() > Date.now())
+const isScheduled = computed(() => isPublished.value && futureDate.value)
 
 async function save(successTitle?: string) {
   if (isTranslation.value) return saveTranslation()
@@ -228,6 +316,9 @@ async function save(successTitle?: string) {
       const res: any = await $fetch(url, { method: 'PATCH', body: form.body(), headers })
       savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
       version.value = res?.row?.updatedAt ?? null
+      // The publish date may have been stamped by the server: show what was stored.
+      const dateKey = publish.value?.dateField
+      if (dateKey && res?.row && dateKey in res.row) state[dateKey] = res.row[dateKey]
       if (live) live.incoming.value = null
     }
   }, successTitle ?? (isNew.value ? t('editor.created') : t('editor.saved')))
@@ -272,8 +363,8 @@ async function setPublished(next: boolean) {
   if (!p) return
   const before = { status: state[p.field], date: p.dateField ? state[p.dateField] : undefined }
   state[p.field] = next ? p.publishedValue : p.draftValue
-  if (next && p.dateField && !state[p.dateField]) state[p.dateField] = new Date().toISOString()
-  const ok = await save(next ? t('editor.publishedToast') : t('editor.unpublishedToast'))
+  // The server stamps the publish date when there is none (its clock, not ours).
+  const ok = await save(next ? (futureDate.value ? t('editor.scheduledToast', { date: formatDate(publishedOn.value) }) : t('editor.publishedToast')) : t('editor.unpublishedToast'))
   if (!ok) {
     // Never show "Published" for something the server did not accept.
     state[p.field] = before.status
@@ -309,8 +400,14 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         <template v-if="dirty">{{ t('editor.unsaved') }}</template>
         <template v-else-if="savedAt">{{ t('editor.savedAgo', { time: '' }) }}<CmsTime :value="savedAt" relative /></template>
       </span>
-      <UTooltip v-if="previewUrl" :text="t('editor.preview')">
-        <UButton :to="previewUrl" target="_blank" variant="ghost" color="neutral" icon="i-lucide-eye" :aria-label="t('editor.preview')" />
+      <UTooltip v-if="!isNew" :text="t('revisions.open')">
+        <UButton variant="ghost" color="neutral" icon="i-lucide-history" :aria-label="t('revisions.open')" @click="historyOpen = true" />
+      </UTooltip>
+      <UTooltip v-if="previewUrl" :text="t('editor.previewPanel')">
+        <UButton
+          variant="ghost" :color="previewOpen ? 'primary' : 'neutral'" icon="i-lucide-panel-right"
+          :aria-label="t('editor.previewPanel')" :aria-pressed="previewOpen" @click="togglePreview"
+        />
       </UTooltip>
 
       <!-- one primary action -->
@@ -324,7 +421,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         </template>
         <template v-else>
           <UButton color="neutral" variant="outline" :loading="saving" @click="save()">{{ t('editor.saveDraft') }}</UButton>
-          <UButton :loading="saving" @click="setPublished(true)">{{ t('editor.publish') }}</UButton>
+          <UButton :loading="saving" :icon="futureDate ? 'i-lucide-clock' : undefined" @click="setPublished(true)">{{ futureDate ? t('editor.schedule') : t('editor.publish') }}</UButton>
         </template>
       </template>
       <UButton v-else :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.save') }}</UButton>
@@ -339,11 +436,16 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       close @update:open="(open: boolean) => { if (!open) lostText = null }"
     />
 
+    <CmsRevisions
+      v-if="!isNew" v-model:open="historyOpen" :entity="entity" :id="id"
+      :locale="isTranslation ? currentLocale : null" :fields="editable.filter((f: any) => !workflowFields.has(f.key))" :current="state" @restore="restoreRevision"
+    />
     <CmsLiveNotice
       :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
       :list-to="`/admin/${entity}`"
       @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
     />
+    <div :class="previewOpen && previewUrl ? 'cms-with-preview' : ''">
     <div class="cms-editor">
       <div class="cms-editor__main space-y-8">
         <!-- the title is the page heading -->
@@ -360,22 +462,40 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
           />
         </div>
-        <div v-for="f in mainFields" :key="f.key">
-          <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
-          <CmsTranslationRef
-            v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
-            :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
-            @copy="copyDefault(f.key)"
-          />
-        </div>
+        <UTabs
+          v-if="tabItems.length" :items="tabItems" :unmount-on-hide="false" variant="link"
+          :ui="{ list: 'border-b border-default gap-4', trigger: 'px-0', content: 'pt-6 space-y-8' }"
+        >
+          <template #content="{ item }">
+            <div v-for="f in (item as any).fields" :key="f.key">
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
+              <CmsTranslationRef
+                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+                @copy="copyDefault(f.key)"
+              />
+            </div>
+          </template>
+        </UTabs>
+        <template v-else>
+          <div v-for="f in mainFields" :key="f.key">
+            <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
+            <CmsTranslationRef
+              v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+              :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+              @copy="copyDefault(f.key)"
+            />
+          </div>
+        </template>
       </div>
 
       <aside class="cms-editor__aside space-y-5" :aria-label="t('editor.status')">
         <div v-if="publish && !isNew" class="space-y-1">
           <p class="text-xs font-medium text-muted">{{ t('editor.status') }}</p>
-          <CmsStatusBadge :published="isPublished" />
+          <CmsStatusBadge :published="isPublished" :scheduled-for="publishedOn" />
           <p class="text-xs text-dimmed">
-            <template v-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
+            <template v-if="isScheduled">{{ t('editor.goesLive', { date: formatDate(publishedOn) }) }}</template>
+            <template v-else-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
             <template v-else-if="!isPublished">{{ canPublish ? t('editor.notPublished') : t('editor.cannotPublish') }}</template>
           </p>
           <p v-if="isTranslation" class="text-xs text-dimmed">{{ t('translation.publishingShared') }}</p>
@@ -411,6 +531,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           </template>
         </UCollapsible>
       </aside>
+    </div>
+    <CmsPreviewPanel
+      v-if="previewOpen && previewUrl" :url="previewUrl" :entity="entity" :id="id"
+      :locale="isTranslation ? currentLocale : null" :data="form.body()" :version="version" @close="togglePreview"
+    />
     </div>
   </CmsPage>
 </template>

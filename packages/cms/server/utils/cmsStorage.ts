@@ -272,3 +272,10 @@ export function maxBytesPerUser(): number {
 export function uploadRatePerMin(): number {
   return Number((useRuntimeConfig().cms as any)?.storage?.uploadRatePerMin ?? 60) || 0
 }
+
+/** A library folder name: one level, trimmed, bounded; empty = no folder. */
+export function cleanFolder(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const v = value.replace(/[\u0000-\u001f\u007f/\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
+  return v || null
+}

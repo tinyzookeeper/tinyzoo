@@ -15,7 +15,9 @@ export default defineEventHandler(async (event) => {
   // Authorized preview (admin session or content token + ?preview) bypasses the
   // published filter so editors can see drafts; everyone else only sees published.
   const preview = isPreviewAuthorized(event)
-  const published = preview ? undefined : publishedCond(e)
+  // A signed-in preview sees drafts — but only rows that person may read.
+  const previewRows = preview && event.context?.cmsUser ? accessWhere(e, 'read', event.context.cmsUser) : null
+  const published = !preview ? publishedCond(e) : previewRows ? (previewRows.allowed ? previewRows.where : publishedCond(e)) : undefined
   const guard = (col: any, val: string) => (published ? and(published, eq(col, val)) : eq(col, val))
 
   let row: any

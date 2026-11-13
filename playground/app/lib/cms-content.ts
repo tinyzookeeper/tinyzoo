@@ -24,12 +24,15 @@ export interface CmsMedia {
   height: number | null
   alt: string | null
   mime: string
+  /** Focal point in percent (0–100) of width and height: keep it in view when cropping. */
+  focal: { x: number; y: number } | null
 }
 
 // ── nested (populated) projections ─────────────────────────────────────────────
 export interface AuthorEmbedded {
   id: string
   name: string
+  position: number | null
   bio: RichTextDoc | null
 }
 export interface TagEmbedded {
@@ -42,6 +45,7 @@ export interface TagEmbedded {
 export interface Author {
   id: string
   name: string
+  position: number | null
   bio: RichTextDoc | null
   createdAt: string
   updatedAt: string
@@ -120,7 +124,7 @@ export interface TagFilters {
 
 /** Maps each collection to its item / sort keys / filters. */
 export type ContentSchema = {
-  author: { item: Author, sort: 'createdAt' | 'updatedAt' | 'name', filters: AuthorFilters }
+  author: { item: Author, sort: 'createdAt' | 'updatedAt' | 'name' | 'position', filters: AuthorFilters }
   page: { item: Page, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'metaTitle' | 'metaDescription', filters: PageFilters }
   post: { item: Post, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'publishedAt' | 'metaTitle' | 'metaDescription', filters: PostFilters }
   tag: { item: Tag, sort: 'createdAt' | 'updatedAt' | 'name' | 'slug', filters: TagFilters }

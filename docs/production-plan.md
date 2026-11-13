@@ -337,7 +337,7 @@ scoped. 10 findings, all fixed with regression tests:
 Deferred: manual ordering (drag to sort) for collections — moves to Phase 4 with the
 list work; nested pages (parent / full paths); relations inside blocks.
 
-### Phase 4 — Editorial experience
+### Phase 4 — Editorial experience ✅ *done*
 
 Built on the Phase 1 foundation and the Mobbin references.
 
@@ -366,6 +366,60 @@ Built on the Phase 1 foundation and the Mobbin references.
 - Live preview: the site in a side panel next to the form, refreshed on change.
 - Media library v2: grid, folders/tags, drag-and-drop upload, focal point and
   alt text per locale, usage ("used in 3 pages").
+
+#### How it landed (2026-11-13)
+
+Five slices, each tested, checked in the browser and committed:
+
+1. **Revisions** — every save stores a snapshot of the entry (or one translation)
+   as the editor loads it, with the changed fields and who saved it
+   (`cms_revisions`, newest 50 per entry and language). The editor's History panel
+   (pattern from Canva, Plane and Descript on Mobbin: versions on the right, the
+   difference highlighted) shows the fields that differ from the form now, word by
+   word. Restore loads a version into the form; saving it goes through the normal
+   write path.
+2. **Scheduled publishing** — a published entry with a publish date ahead is
+   scheduled: every visibility check now requires the date to have come, so it
+   appears on time with no job. A Nitro task (every minute, one replica via an
+   advisory lock, catching up after downtime) only announces it: webhooks, live
+   updates, `cms:change`. Admin: "Schedule", a Scheduled status, a list tab.
+3. **Lists** — filters by field type (`filter.<field>`), search/tab/filters/sort/page
+   in the address, hideable columns, bulk publish / take off / delete (each through
+   the entry's own endpoint and rules), manual order (`admin.list.orderField`,
+   drag or arrows, one transaction; the content API returns that order).
+4. **Dashboard, tabs, preview** — home adds your drafts and what goes live next;
+   long forms can use tabs (`admin.tabs`); the site's preview beside the form,
+   reloaded after saves, with the unsaved values posted to the page (`cms:preview`).
+5. **Media library** — a Media page (grid, folders, search, type filter, drop to
+   upload), descriptions per content language, a focal point (the content API
+   returns both), file names, and where each file is used.
+
+Found on the way: Nitro skips scheduled tasks when the server inherits Vitest's
+`TEST` flag (the test setup no longer passes it); the relation picker's options
+ignored row-level read rules; admin search treated `%`/`_` as wildcards; a "dirty"
+form stayed dirty after editing a field back (now: dirty = differs from saved).
+
+**Independent review** (separate agent): no High findings — scheduling hides
+future entries everywhere public, access checks held. Fixed:
+
+| Severity | Finding | Fix |
+|---|---|---|
+| Medium | Entries saved < 30 s before their publish time went live unannounced; "publish now" used the browser's clock | the server stamps a missing publish date (database clock); the scheduler announces any entry saved before its date |
+| Medium | Restoring a version also restored status, publish date and position (could unpublish a live entry) | restore brings back content only; the position is never sent by the editor |
+| Medium | A restored version could point at files deleted since | restore checks which files still exist, leaves the rest out and says so |
+| Medium | Revisions never recorded for external-auth users (non-UUID ids) | `actorId` |
+| Medium | Manual order had no tie-breaker: pages repeated or skipped entries | every list sorts empties last, then by creation and id |
+| Medium | Authors could change the public description/focal point of their file while it is on the website; the site was not told | refused for people who may not publish; media edits report the entries showing the file (webhooks) |
+| Low | Reordering filled the history and could fire 100 revisions | reorders record no revisions |
+| Low | Arranging > 100 entries saved a partial order | not offered beyond 100 |
+| Low | Bulk publish could overwrite a schedule from a stale row | the client never sends a publish date |
+| Low | A hidden order field flipped the public default to oldest-first | only when that field is the sort |
+| Low | Decimal order fields | must be whole numbers |
+| Low | Fast clicks could restore or show the wrong version / file usage | stale answers ignored |
+| Low | Preview posted the whole form state (could throw, leaked internals) | a JSON copy of the field values only |
+| Low | Translation revisions outlived the translation | deleted with it |
+| Hardening | Usage lookup unbounded; preview opened itself; reorder did work before the access check and could deadlock; non-object media PATCH → 500; media edits unaudited; first scheduler run started from "now" | rate limit; opens on demand; check first, lock in id order; 422; audited; first run looks back 10 min |
+| Adjacent | List relation labels ignored the related collection's read rules; signed-in preview ignored row rules | both apply the read rules |
 
 ### Phase 5 — Production operations on Pushbase ✅ *done (registry publishing and a workerd smoke test deferred)*
 

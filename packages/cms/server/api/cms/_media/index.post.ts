@@ -96,6 +96,8 @@ export default defineEventHandler(async (event) => {
       width,
       height,
       uploadedBy: user.id,
+      name: displayFileName(file.filename),
+      folder: cleanFolder(parts?.find((p) => p.name === 'folder')?.data?.toString('utf8')),
       // No default description: a file name ("IMG_2041.jpg") read aloud by a screen
       // reader is worse than none. Editors add it next to the image.
       alt: null,
@@ -106,3 +108,10 @@ export default defineEventHandler(async (event) => {
   setResponseStatus(event, 201)
   return media
 })
+
+/** The uploaded file's name, for people (no path, no control characters, bounded). */
+function displayFileName(name: string | undefined): string | null {
+  const base = String(name ?? '').split(/[\\/]/).pop() ?? ''
+  const clean = base.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 200)
+  return clean || null
+}

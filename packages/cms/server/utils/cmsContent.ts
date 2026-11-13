@@ -1,4 +1,4 @@
-import { and, blockMediaKeys, inArray, or, sql } from '@my-cms/core'
+import { and, blockMediaKeys, eq, inArray, isNull, lte, or, propOf, sql } from '@my-cms/core'
 import type { CmsEntity, CmsRegistry } from '@my-cms/core'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
@@ -20,9 +20,26 @@ export function getPublicEntity(reg: CmsRegistry, name: string | undefined): Cms
   return e
 }
 
-/** The "is published" Drizzle condition for an entity (undefined = everything is public). */
+/**
+ * The "is live" Drizzle condition for an entity (undefined = everything is public):
+ * `content.published` — or, without one, the publish workflow's status — and, for
+ * scheduled entries, a publish date that has come. Everything that decides what
+ * visitors see goes through here: the content API, populated references, the
+ * sitemap, webhooks.
+ */
 export function publishedCond(e: CmsEntity): any {
-  return e.content?.published ? e.content.published(e.table) : undefined
+  const p = e.publish
+  const status = p ? eq(e.table[propOf(p.field, e.fields[p.field]!)], p.publishedValue) : undefined
+  const base = e.content?.published ? e.content.published(e.table) : status
+  return both(base, scheduleCond(e))
+}
+
+/** "Its publish date has come" (or it has none), for entities whose publishing is scheduled. */
+export function scheduleCond(e: CmsEntity): any {
+  const p = e.publish
+  if (!p?.dateField || p.schedule === false) return undefined
+  const col = e.table[propOf(p.dateField, e.fields[p.dateField]!)]
+  return or(isNull(col), lte(col, sql`now()`))
 }
 
 /** Optional API-token gate. No-op unless `cms.content.token` is configured. */
@@ -67,8 +84,12 @@ export function setContentCache(event: any): void {
 }
 
 /** Media → a lean public shape (never the storage key or internals). */
-function mediaProjection(m: any) {
-  return m && { id: m.id, url: m.url, width: m.width, height: m.height, alt: m.alt, mime: m.mime }
+/** A file as the website gets it: alt text in the requested language, the focal point. */
+function mediaProjection(m: any, locale: string | null = null) {
+  if (!m) return m
+  const alt = (locale && m.altLocales?.[locale]) || m.alt
+  const focal = m.focalX != null && m.focalY != null ? { x: m.focalX, y: m.focalY } : null
+  return { id: m.id, url: m.url, width: m.width, height: m.height, alt, mime: m.mime, focal }
 }
 
 /** Scalar-only projection of a related target (no deep nesting), respecting its own `hidden`. */
@@ -105,7 +126,7 @@ function populatableKeys(e: CmsEntity): string[] {
  */
 export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null) {
   if (!rows.length) return
-  await populateBlocks(db, reg, e, rows)
+  await populateBlocks(db, reg, e, rows, locale)
   const keys = populate ?? populatableKeys(e)
   for (const key of keys) {
     const fld = e.fields[key]
@@ -116,7 +137,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const byId = new Map<string, any>()
       if (ids.length) {
         const media: any[] = await db.select().from(reg.cmsMedia).where(inArray(reg.cmsMedia.id, ids))
-        for (const m of media) byId.set(m.id, mediaProjection(m))
+        for (const m of media) byId.set(m.id, mediaProjection(m, locale))
       }
       for (const r of rows) r[key] = byId.get(r[`${key}Id`]) ?? null
     }
@@ -160,7 +181,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
  * known block types; every block has id, type and each of its fields (null when
  * empty); media ids replaced by the public media object (batched across rows).
  */
-async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[]) {
+async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], locale: string | null = null) {
   const blockFields = Object.entries(e.fields).filter(([, f]) => f.type === 'blocks' && f.blocks)
   if (!blockFields.length) return
   const ids = new Set<string>()
@@ -176,7 +197,7 @@ async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any
   const byId = new Map<string, any>()
   if (ids.size) {
     const media: any[] = await db.select().from(reg.cmsMedia).where(inArray(reg.cmsMedia.id, [...ids]))
-    for (const m of media) byId.set(m.id, mediaProjection(m))
+    for (const m of media) byId.set(m.id, mediaProjection(m, locale))
   }
   for (const [key, fld] of blockFields) {
     const defs = fld.blocks!

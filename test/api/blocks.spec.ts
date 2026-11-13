@@ -36,7 +36,7 @@ describe('blocks on the public content API', () => {
     const p = await page([{ id: 'h', type: 'hero', heading: 'Vítejte', image: m.id }, { id: 't', type: 'text', body: doc('Ahoj') }])
     const item = (await anonymous().get(`/api/content/page/${p.slug}`)).body.item
     expect(item.sections).toEqual([
-      { id: 'h', type: 'hero', heading: 'Vítejte', lead: null, image: { id: m.id, url: m.url, width: 1, height: 1, alt: null, mime: 'image/png' }, buttonLabel: null, buttonUrl: null },
+      { id: 'h', type: 'hero', heading: 'Vítejte', lead: null, image: { id: m.id, url: m.url, width: 1, height: 1, alt: null, mime: 'image/png', focal: null }, buttonLabel: null, buttonUrl: null },
       { id: 't', type: 'text', heading: null, body: doc('Ahoj') },
     ])
   })

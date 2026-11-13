@@ -29,6 +29,17 @@ describe('admin home overview', () => {
     expect(res.body.recent.find((r: any) => r.entity === 'author')).toMatchObject({ title: 'Carol', published: null })
   })
 
+  it('lists my own drafts, and what is scheduled to go live next, soonest first', async () => {
+    const a = await createAuthor(admin)
+    const mine = await createPost(editor, { author: a.id, title: 'Můj koncept' })
+    await createPost(admin, { author: a.id, title: 'Cizí koncept' })
+    const later = await createPost(admin, { author: a.id, title: 'Později', status: 'published', publishedAt: new Date(Date.now() + 2 * 86400_000).toISOString() })
+    const sooner = await createPost(admin, { author: a.id, title: 'Dříve', status: 'published', publishedAt: new Date(Date.now() + 86400_000).toISOString() })
+    const res = (await editor.get('/api/cms/_overview')).body
+    expect(res.drafts.map((d: any) => d.id)).toEqual([mine.id])
+    expect(res.scheduled.map((d: any) => d.id)).toEqual([sooner.id, later.id])
+  })
+
   it('requires sign-in', async () => {
     expect((await fetch(`${admin.baseURL}/api/cms/_overview`)).status).toBe(401)
   })

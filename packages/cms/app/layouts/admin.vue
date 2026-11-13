@@ -26,7 +26,7 @@ const navigation = computed<NavigationMenuItem[][]>(() => {
   const collections = all.filter((e) => !e.singleton)
   const settings = all.filter((e) => e.singleton)
   const groups: NavigationMenuItem[][] = [[{ label: t('nav.home'), icon: 'i-lucide-house', to: '/admin', exact: true }]]
-  if (collections.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav)])
+  if (collections.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav), { label: t('media.libraryTitle'), icon: 'i-lucide-images', to: '/admin/media' }])
   const settingsGroup: NavigationMenuItem[] = settings.map(toNav)
   if (user.value?.role === 'admin') settingsGroup.push({ label: t('nav.team'), icon: 'i-lucide-users-round', to: '/admin/team' })
   if (settingsGroup.length) groups.push([{ label: t('nav.settings'), type: 'label' }, ...settingsGroup])

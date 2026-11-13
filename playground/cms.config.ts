@@ -28,9 +28,11 @@ export const Author = defineEntity("author", {
   description: { en: "People who write for the blog. Their name and bio appear with each post.", cs: "Lidé, kteří píšou na blog. Jméno a medailonek se zobrazí u každého článku." },
   icon: "i-lucide-users",
   titleField: "name",
-  admin: { list: { columns: ["name", "email"] } },
+  // Arranged by hand (drag in the list): the website lists authors in this order.
+  admin: { list: { columns: ["name", "email"], orderField: "position" } },
   fields: {
     name: f.text({ required: true }).label({ en: "Name", cs: "Jméno" }),
+    position: f.number().optional().label({ en: "Position", cs: "Pořadí" }),
     email: f.text({ required: true, format: "email" }).unique()
       .label({ en: "Email", cs: "E-mail" })
       .help({ en: "Private — never shown on the website.", cs: "Soukromé — na webu se nikdy nezobrazí." }),
@@ -74,6 +76,11 @@ export const Post = defineEntity("post", {
       columns: ["hero", "title", "status", "author", "publishedAt"],
       searchable: ["title"],
     },
+    // The form's main column in two tabs: the text first, the main image beside it.
+    tabs: [
+      { label: { en: "Text", cs: "Text" }, fields: ["body"] },
+      { label: { en: "Image", cs: "Obrázek" }, fields: ["hero"] },
+    ],
   },
   fields: {
     title: f.text({ required: true }).localized().label({ en: "Title", cs: "Název" }),

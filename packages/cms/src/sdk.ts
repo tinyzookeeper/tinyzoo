@@ -100,6 +100,8 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('  height: number | null')
   out.push('  alt: string | null')
   out.push('  mime: string')
+  out.push('  /** Focal point in percent (0–100) of width and height: keep it in view when cropping. */')
+  out.push('  focal: { x: number; y: number } | null')
   out.push('}')
   out.push('')
 

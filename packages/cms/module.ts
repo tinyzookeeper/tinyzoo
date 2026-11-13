@@ -87,6 +87,14 @@ export interface CmsModuleOptions {
    */
   redis?: { url?: string; prefix?: string }
   /**
+   * How often scheduled entries are checked for going live (a cron expression; build
+   * time, env CMS_SCHEDULER_CRON). Their content is live on time regardless — this
+   * only sends the webhooks and live updates for that moment. Default every minute.
+   */
+  scheduler?: { cron?: string }
+  /** Revisions (history, compare, restore): how many to keep per entry and language. 0 = off. */
+  revisions?: { keep?: number }
+  /**
    * Publish webhooks: every change visible on the website is POSTed, signed, to these
    * URLs (e.g. the site's cache-purge endpoint). See server/utils/cmsWebhooks.ts.
    * Env: NUXT_CMS_WEBHOOKS_URLS (comma separated), NUXT_CMS_WEBHOOKS_SECRET.
@@ -132,6 +140,10 @@ export default defineNuxtModule<CmsModuleOptions>({
         nitro.serverAssets = nitro.serverAssets || []
         nitro.serverAssets.push({ baseName: 'cms-migrations', dir: migrationsDir })
       }
+      // Scheduled publishing: announce entries whose publish time has come.
+      nitro.experimental = { ...(nitro.experimental || {}), tasks: true }
+      const cron = options.scheduler?.cron || process.env.CMS_SCHEDULER_CRON || '* * * * *'
+      nitro.scheduledTasks = { ...(nitro.scheduledTasks || {}), [cron]: [...((nitro.scheduledTasks as any)?.[cron] ?? []), 'cms:scheduled'] }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
       nitro.externals = nitro.externals || {}
@@ -171,6 +183,8 @@ export {}
       databaseUrl: options.databaseUrl || '',
       migrations: { onStart: options.migrations?.onStart ?? false },
       redis: { url: options.redis?.url || '', prefix: options.redis?.prefix || '' },
+      // Revisions kept per entry and language (0 = off). Env NUXT_CMS_REVISIONS_KEEP.
+      revisions: { keep: options.revisions?.keep ?? 50 },
       // Empty defaults so NUXT_CMS_WEBHOOKS_URLS / NUXT_CMS_WEBHOOKS_SECRET bind at runtime.
       webhooks: {
         urls: (Array.isArray(options.webhooks?.urls) ? options.webhooks.urls.join(',') : options.webhooks?.urls) || '',

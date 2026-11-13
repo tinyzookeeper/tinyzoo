@@ -22,10 +22,10 @@ export {
 } from './content-shape'
 export { cmsMedia } from './media'
 export type { CmsChange, CmsChangeType } from './changes'
-export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, CMS_ROLES, type CmsRole } from './system'
+export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, CMS_ROLES, type CmsRole } from './system'
 export { richTextSchema, sanitizeRichText, emptyDoc, type RichTextDoc } from './richtext'
 export type * from './descriptor'
 
 // Re-export drizzle query helpers so host access rules can use them
 // (e.g. `update: ({ user }) => eq(Post.table.authorId, user.id)`).
-export { eq, ne, gt, lt, and, or, not, ilike, inArray, isNull, isNotNull, sql, desc, asc } from 'drizzle-orm'
+export { eq, ne, gt, gte, lt, lte, and, or, not, ilike, inArray, notInArray, isNull, isNotNull, sql, desc, asc } from 'drizzle-orm'

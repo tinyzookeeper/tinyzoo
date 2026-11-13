@@ -15,6 +15,11 @@ export const cmsMedia = pgTable('cms_media', {
   width: integer('width'),
   height: integer('height'),
   alt: text('alt'),
+  altLocales: jsonb('alt_locales'),
+  name: text('name'),
+  folder: text('folder'),
+  focalX: integer('focal_x'),
+  focalY: integer('focal_y'),
   uploadedBy: uuid('uploaded_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })
@@ -63,9 +68,29 @@ export const cmsCollab = pgTable('cms_collab', {
   activeAt: timestamp('active_at', { withTimezone: true, mode: 'date', precision: 3 }),
 })
 
+export const cmsRevisions = pgTable('cms_revisions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  entity: text('entity').notNull(),
+  recordId: uuid('record_id').notNull(),
+  locale: text('locale'),
+  action: text('action').notNull(),
+  version: timestamp('version', { withTimezone: true, mode: 'date', precision: 3 }),
+  data: jsonb('data').notNull(),
+  changed: jsonb('changed').notNull(),
+  userId: uuid('user_id'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])
+
+export const cmsState = pgTable('cms_state', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
 export const author = pgTable('author', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  position: integer('position'),
   email: text('email').notNull().unique(),
   bio: jsonb('bio').$type<RichTextDoc>(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),

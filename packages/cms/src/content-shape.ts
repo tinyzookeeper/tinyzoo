@@ -133,7 +133,7 @@ function blocksType(fld: FieldDescriptor): ContentFieldType {
 function relationOneNullable(reg: CmsRegistry, fld: FieldDescriptor): boolean {
   const optional = !fld.relation!.required
   const target = reg.byName.get(fld.relation!.to().name)
-  const targetGated = !!target?.content?.published
+  const targetGated = !!(target?.content?.published || target?.publish)
   return optional || targetGated
 }
 
@@ -231,7 +231,7 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
     pascal: pascal(e.name),
     titleField: e.titleField,
     slugField: e.content?.slug,
-    gated: !!e.content?.published,
+    gated: !!(e.content?.published || e.publish),
     fields: topLevelFields(reg, e),
     sortKeys: sortKeys(e),
     filters: filters(e),
