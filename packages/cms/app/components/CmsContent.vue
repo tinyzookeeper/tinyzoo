@@ -42,7 +42,8 @@ function withMarks(text: string, marks: any[] = []): VNode | string {
     else if (m.type === 'code') node = h('code', node)
     else if (m.type === 'link') {
       const href = safeHref(m.attrs?.href)
-      if (href) node = h('a', { href, rel: 'noopener noreferrer', target: '_blank' }, node)
+      // Links to other sites open in a new tab; the site's own pages, mail and phone do not.
+      if (href) node = h('a', /^https?:\/\//i.test(href) ? { href, rel: 'noopener noreferrer', target: '_blank' } : { href }, node)
     }
   }
   return node
