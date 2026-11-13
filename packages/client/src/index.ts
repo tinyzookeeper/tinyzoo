@@ -33,7 +33,7 @@ export interface ListParams<Sort extends string = string, Filters = Record<strin
   dir?: 'asc' | 'desc'
   /** Substring search against the collection's title field. */
   q?: string
-  /** Exact-match filters (collection-specific). */
+  /** Filters (collection-specific): exact matches, yes/no, and date ranges (`'startsAt.from'`). */
   filter?: Filters
   /** Language to serve (collections with translations). Untranslated fields fall back to the default. */
   locale?: string
@@ -90,7 +90,7 @@ function buildQuery(query?: Record<string, unknown>): string {
   const sp = new URLSearchParams()
   for (const [k, v] of Object.entries(query)) {
     if (v === undefined || v === null || v === '') continue
-    sp.set(k, String(v))
+    sp.set(k, v instanceof Date ? v.toISOString() : String(v))
   }
   const s = sp.toString()
   return s ? `?${s}` : ''

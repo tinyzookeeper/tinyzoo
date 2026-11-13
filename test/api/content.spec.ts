@@ -57,6 +57,18 @@ describe('collection list', () => {
     expect((await anonymous().get('/api/content/post?q=%25')).body.items.map((i: any) => i.slug)).toEqual(['organic'])
   })
 
+  it('filters a date field by range: from, to (a bare date covers the whole day)', async () => {
+    await publish({ title: 'Jaro', slug: 'jaro', publishedAt: '2025-04-14T10:00:00Z' })
+    await publish({ title: 'Léto', slug: 'leto', publishedAt: '2025-07-27T18:30:00Z' })
+    await publish({ title: 'Loni', slug: 'loni', publishedAt: '2024-08-05T08:00:00Z' })
+    const titles = async (q: string) => (await anonymous().get(`/api/content/post?sort=publishedAt&dir=asc&${q}`)).body.items.map((p: any) => p.title)
+    expect(await titles('publishedAt.from=2025-01-01&publishedAt.to=2025-12-31')).toEqual(['Jaro', 'Léto'])
+    expect(await titles('publishedAt.to=2025-07-27')).toEqual(['Loni', 'Jaro', 'Léto'])
+    expect(await titles('publishedAt.to=2025-07-27T18:00:00Z')).toEqual(['Loni', 'Jaro'])
+    expect((await anonymous().get('/api/content/post?publishedAt.from=nope')).status).toBe(400)
+    expect(await titles('title.from=2025-01-01')).toHaveLength(3) // not a date field: ignored
+  })
+
   it('ignores an unknown sort key and caps the page size', async () => {
     await publish()
     expect((await anonymous().get('/api/content/post?sort=constructor')).status).toBe(200)

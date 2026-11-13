@@ -128,8 +128,10 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('// ── query types ─────────────────────────────────────────────────────────────────')
   for (const e of model.entities) {
     const filterLines = e.filters.map((f) => {
-      const t = f.enumValues ? f.enumValues.map((v) => `'${v}'`).join(' | ') : 'string'
-      return `  ${f.key}?: ${t}`
+      const t = f.value === 'boolean' ? 'boolean' : f.value === 'datetime' ? 'string | Date' : f.enumValues ? f.enumValues.map((v) => `'${v}'`).join(' | ') : 'string'
+      const key = /^[A-Za-z_$][\w$]*$/.test(f.key) ? f.key : `'${f.key}'`
+      const doc = f.value === 'datetime' ? `  /** ${f.key.endsWith('.from') ? 'On or after' : 'On or before'} this date or time. */\n` : ''
+      return `${doc}  ${key}?: ${t}`
     })
     out.push(`export interface ${e.pascal}Filters {${filterLines.length ? `\n${filterLines.join('\n')}\n` : ''}}`)
   }

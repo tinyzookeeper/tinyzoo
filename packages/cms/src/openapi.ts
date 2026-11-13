@@ -113,11 +113,21 @@ function listParams(shape: ContentShape): JsonSchema[] {
     ...localeParam(shape),
   ]
   for (const filter of shape.filters) {
+    if (filter.value === 'datetime') {
+      const from = filter.key.endsWith('.from')
+      params.push({
+        name: filter.key,
+        in: 'query',
+        description: from ? 'Only items on or after this date or time (ISO 8601).' : 'Only items on or before this date or time (ISO 8601; a bare date includes the whole day).',
+        schema: { type: 'string' },
+      })
+      continue
+    }
     params.push({
       name: filter.key,
       in: 'query',
       description: 'Exact-match filter.',
-      schema: filter.enumValues ? { type: 'string', enum: [...filter.enumValues] } : { type: 'string' },
+      schema: filter.value === 'boolean' ? { type: 'boolean' } : filter.enumValues ? { type: 'string', enum: [...filter.enumValues] } : { type: 'string' },
     })
   }
   return params

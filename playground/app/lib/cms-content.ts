@@ -119,6 +119,10 @@ export interface PostFilters {
   title?: string
   slug?: string
   status?: 'draft' | 'published'
+  /** On or after this date or time. */
+  'publishedAt.from'?: string | Date
+  /** On or before this date or time. */
+  'publishedAt.to'?: string | Date
   author?: string
   metaTitle?: string
   metaDescription?: string

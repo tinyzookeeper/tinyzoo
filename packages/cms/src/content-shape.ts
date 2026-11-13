@@ -34,6 +34,8 @@ export interface ContentField {
 export interface FilterParam {
   key: string
   enumValues?: readonly string[]
+  /** 'boolean': `true`/`false`; 'datetime': an ISO date or time (a `.from` / `.to` bound). Default: exact text. */
+  value?: 'boolean' | 'datetime'
 }
 
 /** Top-level shape of a public collection (drives `/api/content/:name` + `/:slug`). */
@@ -204,7 +206,10 @@ function sortKeys(e: CmsEntity): string[] {
 /** Query keys the list endpoint reserves for paging/sort/search (index.get.ts RESERVED). */
 const RESERVED_QUERY_KEYS = new Set(['page', 'limit', 'sort', 'dir', 'q', 'locale'])
 
-/** Filter allowlist (mirror index.get.ts filter loop): non-hidden text/slug/select + to-one FKs. */
+/**
+ * Filter allowlist (mirror index.get.ts filter loop): non-hidden text/slug/select +
+ * to-one FKs (exact match), yes/no fields, and date ranges (`<field>.from` / `.to`).
+ */
 function filters(e: CmsEntity): FilterParam[] {
   const hidden = hiddenSet(e)
   const out: FilterParam[] = []
@@ -216,6 +221,8 @@ function filters(e: CmsEntity): FilterParam[] {
     else if (!fld.relation && ['text', 'slug', 'select'].includes(fld.type)) {
       out.push({ key, enumValues: fld.type === 'select' ? scalarEnum(fld) : undefined })
     }
+    else if (fld.type === 'boolean') out.push({ key, value: 'boolean' })
+    else if (fld.type === 'datetime') out.push({ key: `${key}.from`, value: 'datetime' }, { key: `${key}.to`, value: 'datetime' })
   }
   return out
 }

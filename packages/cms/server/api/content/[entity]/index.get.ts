@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, sql } from '@my-cms/core'
+import { and, asc, desc, eq, gte, ilike, lt, sql } from '@my-cms/core'
 
 // GET /api/content/:entity — public, read-only list of PUBLISHED items.
 // Resolves relations/media, hides private fields, paginates, and is cacheable.
@@ -39,10 +39,24 @@ export default defineEventHandler(async (event) => {
   }
 
   // Filters by known, NON-HIDDEN fields only — values are bound parameters (injection-safe).
-  for (const [k, v] of Object.entries(query)) {
-    if (RESERVED.has(k) || hidden.has(k)) continue
-    const fld = e.fields[k]
-    if (!fld) continue
+  for (const [param, raw] of Object.entries(query)) {
+    const [k = '', bound] = param.split('.')
+    if (RESERVED.has(k) || hidden.has(k) || !Object.hasOwn(e.fields, k)) continue
+    const fld = e.fields[k]!
+    const v = Array.isArray(raw) ? raw[0] : raw
+    if (bound !== undefined) {
+      // Date ranges: `startsAt.from=2026-07-01`, `startsAt.to=2026-07-31` (a bare date
+      // as `to` includes that whole day).
+      if (fld.type !== 'datetime' || (bound !== 'from' && bound !== 'to')) continue
+      const when = dateBound(String(v ?? ''), bound)
+      if (!when) throw createError({ statusCode: 400, statusMessage: `Invalid date for ${param}` })
+      conds.push(bound === 'from' ? gte(e.table[k], when) : lt(e.table[k], when))
+      continue
+    }
+    if (fld.type === 'boolean') {
+      if (v === 'true' || v === 'false') conds.push(eq(e.table[k], v === 'true'))
+      continue
+    }
     if (fld.relation?.kind === 'many-to-one') conds.push(eq(e.table[`${k}Id`], String(v)))
     else if (!fld.relation && ['text', 'slug', 'select'].includes(fld.type)) conds.push(localizedMatch(reg, e, k, locale, (col) => eq(col, String(v))))
   }
@@ -62,3 +76,15 @@ export default defineEventHandler(async (event) => {
   setContentCache(event)
   return { items, total: count, page, limit }
 })
+
+/**
+ * A date-range bound: an ISO date or date-time. `to` is exclusive of the next moment:
+ * a bare date ('2026-07-31') covers that whole day (UTC), a time is inclusive.
+ */
+function dateBound(value: string, bound: 'from' | 'to'): Date | null {
+  if (!value || value.length > 40) return null
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return null
+  if (bound === 'to') return new Date(d.getTime() + (/^\d{4}-\d{2}-\d{2}$/.test(value) ? 86_400_000 : 1))
+  return d
+}

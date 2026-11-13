@@ -545,6 +545,11 @@ const { items } = await cms.post.list({ filter: { status: 'published' }, sort: '
 const post = await cms.post.get('hello-world') // Post, or throws CmsError on 404
 ```
 
+Filters match text, choice and relation fields exactly, yes/no fields with `true`/`false`,
+and date fields by range — `'publishedAt.from'` / `'publishedAt.to'` (an ISO date or time;
+a bare date as `to` covers the whole day), e.g. upcoming events:
+`cms.event.list({ filter: { 'startsAt.from': new Date() }, sort: 'startsAt', dir: 'asc' })`.
+
 Per-collection sort keys, filters and enum values are type-checked; an invalid sort key or
 filter value is a compile error. Set `cms.content.publicUrl` to stamp the spec's `servers`
 URL (it stays relative otherwise — the request Host is never reflected). The playground's
