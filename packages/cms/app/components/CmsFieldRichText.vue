@@ -27,7 +27,6 @@ const MediaImage = Image.extend({
 
 const editor = useEditor({
   content: model.value || { type: 'doc', content: [] },
-  immediatelyRender: false, // SSR-safe: defer view creation to the client
   extensions: [
     StarterKit,
     Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),

@@ -5,7 +5,8 @@ const route = useRoute()
 // (a plain useFetch would drop it → the draft would 404 during server render).
 const { data, error } = await useFetch(() => `/api/content/post/${route.params.slug}`, {
   query: { preview: route.query.preview },
-  $fetch: useRequestFetch(),
+  // useRequestFetch's server-side type lacks $fetch's .raw/.create; the call shape is the same.
+  $fetch: useRequestFetch() as typeof $fetch,
 })
 const post = computed(() => data.value?.item)
 const isPreview = computed(() => !!data.value?.preview)

@@ -58,11 +58,11 @@ export default defineEventHandler(async (event) => {
   // Per-user storage quota.
   const quota = maxBytesPerUser()
   if (quota) {
-    const [{ used }] = await db
+    const [usage] = await db
       .select({ used: sql<string>`coalesce(sum(${reg.cmsMedia.size}), 0)` })
       .from(reg.cmsMedia)
       .where(eq(reg.cmsMedia.uploadedBy, user.id))
-    if (Number(used) + file.data.length > quota) {
+    if (Number(usage?.used ?? 0) + file.data.length > quota) {
       throw createError({ statusCode: 413, statusMessage: 'Storage quota exceeded.' })
     }
   }

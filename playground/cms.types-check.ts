@@ -16,6 +16,9 @@ const row: PostRow = {
   heroId: null, // FK → `${key}Id`, nullable
   authorId: "a", // required FK
   body: { type: "doc" },
+  metaTitle: null, // seo() preset: nullable text …
+  metaDescription: null,
+  ogImageId: null, // … and a nullable media FK
   createdAt: new Date(),
   updatedAt: new Date(),
 }

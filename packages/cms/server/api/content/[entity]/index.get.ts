@@ -47,7 +47,8 @@ export default defineEventHandler(async (event) => {
 
   const rows: any[] = await db.select().from(e.table).where(where)
     .orderBy(dir(sortCol)).limit(limit).offset(offset)
-  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(e.table).where(where)
+  const [counted] = await db.select({ count: sql<number>`count(*)::int` }).from(e.table).where(where)
+  const count = counted?.count ?? 0
 
   await populateItems(db, reg, e, rows, e.content?.populate)
   setContentCache(event)

@@ -15,7 +15,7 @@ const sort = ref('createdAt')
 const dir = ref<'asc' | 'desc'>('desc')
 watch([q, entity], () => { page.value = 1 })
 
-const { data, refresh, status } = await useFetch(() => `/api/cms/${entity.value}`, {
+const { data, refresh, status } = await useFetch<{ rows: Record<string, any>[]; total: number }>((): string => `/api/cms/${entity.value}`, {
   query: { page, q, sort, dir, limit },
   watch: [entity],
 })
@@ -38,7 +38,8 @@ async function confirmDelete() {
   if (!row) return
   deleting.value = row.id
   try {
-    await $fetch(`/api/cms/${entity.value}/${row.id}`, { method: 'DELETE' })
+    const url: string = `/api/cms/${entity.value}/${row.id}`
+    await $fetch(url, { method: 'DELETE' })
     toast.add({ title: 'Deleted', icon: 'i-lucide-check', color: 'success' })
     pendingDelete.value = null
     refresh()
