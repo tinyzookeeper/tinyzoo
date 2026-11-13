@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, ne, not, or, propOf, sql } from '@my-cms/core'
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, not, or, propOf, sql } from '@my-cms/core'
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
@@ -18,8 +18,10 @@ export default defineEventHandler(async (event) => {
   if (rowFilter) conds.push(rowFilter)
   if (search) {
     const fields = e.admin?.list?.searchable?.length ? e.admin.list.searchable : [e.titleField]
-    conds.push(or(...fields.map((fn) => ilike(e.table[fn], `%${search}%`))))
+    const esc = search.replace(/[\\%_]/g, (c) => '\\' + c) // LIKE wildcards are literal
+    conds.push(or(...fields.map((fn) => ilike(e.table[fn], '%' + esc + '%'))))
   }
+  conds.push(...listFilters(e, reg, query))
   // Status tabs: ?status=published | scheduled | draft (entities with a publish workflow).
   const p = e.publish
   if (p && ['published', 'scheduled', 'draft'].includes(String(query.status))) {
@@ -64,3 +66,52 @@ export default defineEventHandler(async (event) => {
   }
   return { rows, total: count, page, limit }
 })
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * The list's filters: `filter.<field>=<value>` by field type — a choice (several
+ * comma-separated), yes/no, a related entry (to-one or many), has an image or not,
+ * and a date range (`filter.<field>.from` / `.to`, ISO dates). Unknown or invalid
+ * filters are ignored; values are bound parameters.
+ */
+function listFilters(e: any, reg: any, query: Record<string, any>): any[] {
+  const out: any[] = []
+  for (const [param, raw] of Object.entries(query)) {
+    if (!param.startsWith('filter.')) continue
+    const [key = '', part] = param.slice('filter.'.length).split('.')
+    const fld = key && Object.hasOwn(e.fields, key) ? e.fields[key] : null
+    if (!fld) continue
+    const value = String(Array.isArray(raw) ? raw[0] : raw ?? '').slice(0, 500)
+    if (!value) continue
+    if (fld.type === 'select') {
+      const allowed = new Set<string>(fld.meta?.options ?? fld.options ?? [])
+      const picked = value.split(',').filter((v) => !allowed.size || allowed.has(v))
+      if (picked.length) out.push(inArray(e.table[propOf(key, fld)], picked))
+    }
+    else if (fld.type === 'boolean') {
+      if (value === 'true' || value === 'false') out.push(eq(e.table[propOf(key, fld)], value === 'true'))
+    }
+    else if (fld.type === 'media') {
+      const col = e.table[`${key}Id`]
+      if (value === 'yes') out.push(isNotNull(col))
+      else if (value === 'no') out.push(isNull(col))
+    }
+    else if (fld.relation?.kind === 'many-to-one') {
+      if (UUID.test(value)) out.push(eq(e.table[`${key}Id`], value))
+    }
+    else if (fld.relation?.kind === 'many-to-many') {
+      const j = reg.junctionByOwnerField.get(`${e.name}.${key}`)
+      if (j && UUID.test(value)) {
+        out.push(sql`exists (select 1 from ${j.table} where ${j.table[j.ownerCol]} = ${e.table.id} and ${j.table[j.targetCol]} = ${value})`)
+      }
+    }
+    else if (fld.type === 'datetime' && (part === 'from' || part === 'to')) {
+      const d = new Date(value)
+      if (Number.isNaN(d.getTime())) continue
+      const col = e.table[propOf(key, fld)]
+      out.push(part === 'from' ? gte(col, d) : lte(col, d))
+    }
+  }
+  return out
+}

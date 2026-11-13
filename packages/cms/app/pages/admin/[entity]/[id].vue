@@ -192,7 +192,7 @@ const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TY
 // The publish field is changed by the Publish action, not edited as a field. In a
 // translation only the translatable fields are shown.
 const formFields = computed(() => editable.value.filter((f: any) =>
-  f.key !== titleKey.value && f.key !== publish.value?.field && (!isTranslation.value || f.localized)))
+  f.key !== titleKey.value && f.key !== publish.value?.field && f.key !== meta.value?.orderField && (!isTranslation.value || f.localized)))
 const mainFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'main'))
 const sideFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'sidebar'))
 const groups = computed(() => {

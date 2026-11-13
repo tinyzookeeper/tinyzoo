@@ -106,7 +106,17 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
    * not publish (authors) cannot write such content.
    */
   live?: boolean
-  admin?: { list?: { columns: (keyof F & string)[]; searchable?: (keyof F & string)[] } }
+  admin?: {
+    list?: {
+      columns: (keyof F & string)[]
+      searchable?: (keyof F & string)[]
+      /**
+       * A number field holding a manual order: the list can then be arranged by
+       * dragging, and the content API returns this order unless asked to sort.
+       */
+      orderField?: keyof F & string
+    }
+  }
   access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
   content?: ContentConfig<F>
   publish?: PublishConfig<F>
@@ -159,7 +169,7 @@ export interface CmsEntity {
   insertSchema: z.ZodTypeAny
   updateSchema: z.ZodTypeAny
   singleton?: boolean
-  admin?: { list?: { columns: string[]; searchable?: string[] } }
+  admin?: { list?: { columns: string[]; searchable?: string[]; orderField?: string } }
   access?: Record<string, (ctx: { user: any; table: any }) => unknown>
   content?: {
     public?: boolean
@@ -210,6 +220,10 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
     if (RESERVED_FIELD_NAMES.has(key)) {
       throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}).`)
     }
+  }
+  const orderField = def.admin?.list?.orderField as string | undefined
+  if (orderField && fields[orderField]?.type !== 'number') {
+    throw new Error(`admin.list.orderField of "${name}" must be a number field ("${orderField}" is not).`)
   }
 
   // 1) pgEnums for select fields
@@ -395,6 +409,7 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     publish: e.publish,
     listColumns: e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4),
     searchable: e.admin?.list?.searchable ?? [],
+    orderField: e.admin?.list?.orderField ?? null,
     fields: Object.entries(e.fields).map(([key, fld]) => ({
       key,
       type: fld.type,

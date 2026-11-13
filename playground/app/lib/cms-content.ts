@@ -30,6 +30,7 @@ export interface CmsMedia {
 export interface AuthorEmbedded {
   id: string
   name: string
+  position: number | null
   bio: RichTextDoc | null
 }
 export interface TagEmbedded {
@@ -42,6 +43,7 @@ export interface TagEmbedded {
 export interface Author {
   id: string
   name: string
+  position: number | null
   bio: RichTextDoc | null
   createdAt: string
   updatedAt: string
@@ -120,7 +122,7 @@ export interface TagFilters {
 
 /** Maps each collection to its item / sort keys / filters. */
 export type ContentSchema = {
-  author: { item: Author, sort: 'createdAt' | 'updatedAt' | 'name', filters: AuthorFilters }
+  author: { item: Author, sort: 'createdAt' | 'updatedAt' | 'name' | 'position', filters: AuthorFilters }
   page: { item: Page, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'metaTitle' | 'metaDescription', filters: PageFilters }
   post: { item: Post, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'publishedAt' | 'metaTitle' | 'metaDescription', filters: PostFilters }
   tag: { item: Tag, sort: 'createdAt' | 'updatedAt' | 'name' | 'slug', filters: TagFilters }

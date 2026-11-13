@@ -32,7 +32,7 @@ describe('collection list', () => {
     const media = (await admin.upload('/api/cms/_media', { name: 'hero.png', type: 'image/png', data: PNG_1x1 })).body
     await publish({ slug: 'p', hero: media.id })
     const [item] = (await anonymous().get('/api/content/post')).body.items
-    expect(item.author).toEqual({ id: author.id, name: 'Carol', bio: null })
+    expect(item.author).toEqual({ id: author.id, name: 'Carol', bio: null, position: null })
     expect(item.tags).toEqual([{ id: tag.id, name: 'News', slug: 'news' }])
     expect(item.hero).toEqual({ id: media.id, url: media.url, width: 1, height: 1, alt: null, mime: 'image/png' })
     expect(item).not.toHaveProperty('authorId')

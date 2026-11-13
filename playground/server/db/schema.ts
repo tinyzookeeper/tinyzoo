@@ -85,6 +85,7 @@ export const cmsState = pgTable('cms_state', {
 export const author = pgTable('author', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  position: integer('position'),
   email: text('email').notNull().unique(),
   bio: jsonb('bio').$type<RichTextDoc>(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
