@@ -194,6 +194,34 @@ const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TY
 const formFields = computed(() => editable.value.filter((f: any) =>
   f.key !== titleKey.value && f.key !== publish.value?.field && f.key !== meta.value?.orderField && (!isTranslation.value || f.localized)))
 const mainFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'main'))
+// Tabs for long forms (admin.tabs): fields in no tab go into the first. All tabs stay
+// mounted, so shared text and field state survive switching.
+const tabItems = computed(() => {
+  const tabs = (meta.value?.tabs ?? []) as { label: any; fields: string[] }[]
+  if (!tabs.length) return []
+  const assigned = new Set(tabs.flatMap((tab) => tab.fields))
+  return tabs.map((tab, i) => {
+    const fields = mainFields.value.filter((f: any) => tab.fields.includes(f.key) || (i === 0 && !assigned.has(f.key)))
+    const hasError = fields.some((f: any) => fieldErrors[f.key])
+    return { label: tl(tab.label), value: String(i), fields, icon: hasError ? 'i-lucide-circle-alert' : undefined }
+  }).filter((tab) => tab.fields.length)
+})
+
+// ── live preview beside the form (remembered in this browser) ──
+const previewOpen = ref(false)
+onMounted(() => {
+  try {
+    previewOpen.value = localStorage.getItem('cms:preview-open') === '1'
+  }
+  catch { /* storage blocked */ }
+})
+function togglePreview() {
+  previewOpen.value = !previewOpen.value
+  try {
+    localStorage.setItem('cms:preview-open', previewOpen.value ? '1' : '0')
+  }
+  catch { /* storage blocked */ }
+}
 const sideFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'sidebar'))
 const groups = computed(() => {
   const out = new Map<string, { label: string; fields: any[] }>()
@@ -327,8 +355,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       <UTooltip v-if="!isNew" :text="t('revisions.open')">
         <UButton variant="ghost" color="neutral" icon="i-lucide-history" :aria-label="t('revisions.open')" @click="historyOpen = true" />
       </UTooltip>
-      <UTooltip v-if="previewUrl" :text="t('editor.preview')">
-        <UButton :to="previewUrl" target="_blank" variant="ghost" color="neutral" icon="i-lucide-eye" :aria-label="t('editor.preview')" />
+      <UTooltip v-if="previewUrl" :text="t('editor.previewPanel')">
+        <UButton
+          variant="ghost" :color="previewOpen ? 'primary' : 'neutral'" icon="i-lucide-panel-right"
+          :aria-label="t('editor.previewPanel')" :aria-pressed="previewOpen" @click="togglePreview"
+        />
       </UTooltip>
 
       <!-- one primary action -->
@@ -366,6 +397,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       :list-to="`/admin/${entity}`"
       @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
     />
+    <div :class="previewOpen && previewUrl ? 'cms-with-preview' : ''">
     <div class="cms-editor">
       <div class="cms-editor__main space-y-8">
         <!-- the title is the page heading -->
@@ -382,14 +414,31 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
           />
         </div>
-        <div v-for="f in mainFields" :key="f.key">
-          <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
-          <CmsTranslationRef
-            v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
-            :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
-            @copy="copyDefault(f.key)"
-          />
-        </div>
+        <UTabs
+          v-if="tabItems.length" :items="tabItems" :unmount-on-hide="false" variant="link"
+          :ui="{ list: 'border-b border-default gap-4', trigger: 'px-0', content: 'pt-6 space-y-8' }"
+        >
+          <template #content="{ item }">
+            <div v-for="f in (item as any).fields" :key="f.key">
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
+              <CmsTranslationRef
+                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+                @copy="copyDefault(f.key)"
+              />
+            </div>
+          </template>
+        </UTabs>
+        <template v-else>
+          <div v-for="f in mainFields" :key="f.key">
+            <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
+            <CmsTranslationRef
+              v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+              :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+              @copy="copyDefault(f.key)"
+            />
+          </div>
+        </template>
       </div>
 
       <aside class="cms-editor__aside space-y-5" :aria-label="t('editor.status')">
@@ -434,6 +483,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           </template>
         </UCollapsible>
       </aside>
+    </div>
+    <CmsPreviewPanel
+      v-if="previewOpen && previewUrl" :url="previewUrl" :entity="entity" :id="id"
+      :locale="isTranslation ? currentLocale : null" :data="state" :version="version" @close="togglePreview"
+    />
     </div>
   </CmsPage>
 </template>

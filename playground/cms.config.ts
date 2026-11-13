@@ -76,6 +76,11 @@ export const Post = defineEntity("post", {
       columns: ["hero", "title", "status", "author", "publishedAt"],
       searchable: ["title"],
     },
+    // The form's main column in two tabs: the text first, the main image beside it.
+    tabs: [
+      { label: { en: "Text", cs: "Text" }, fields: ["body"] },
+      { label: { en: "Image", cs: "Obrázek" }, fields: ["hero"] },
+    ],
   },
   fields: {
     title: f.text({ required: true }).localized().label({ en: "Title", cs: "Název" }),

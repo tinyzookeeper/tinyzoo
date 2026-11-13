@@ -49,6 +49,8 @@ export default {
     items: { one: '{count} položka', few: '{count} položky', many: '{count} položky', other: '{count} položek' },
   },
   home: {
+    scheduled: 'Brzy se zveřejní',
+    myDrafts: 'Vaše koncepty',
     greeting: { morning: 'Dobré ráno, {name}', afternoon: 'Dobré odpoledne, {name}', evening: 'Dobrý večer, {name}' },
     greetingAnonymous: 'Vítejte zpět',
     subtitle: 'Navažte, kde jste skončili, nebo začněte něco nového.',
@@ -108,6 +110,10 @@ export default {
     retry: 'Zkusit znovu',
   },
   editor: {
+    previewPanel: 'Náhled vedle formuláře',
+    previewDesktop: 'Šířka počítače',
+    previewPhone: 'Šířka telefonu',
+    previewReload: 'Znovu načíst náhled',
     scheduled: 'Naplánováno',
     schedule: 'Naplánovat',
     scheduledFor: 'Zveřejní se {date}',

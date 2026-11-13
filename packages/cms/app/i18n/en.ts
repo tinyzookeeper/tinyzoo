@@ -50,6 +50,8 @@ export default {
     items: { one: '{count} item', other: '{count} items' },
   },
   home: {
+    scheduled: 'Going live soon',
+    myDrafts: 'Your drafts',
     greeting: { morning: 'Good morning, {name}', afternoon: 'Good afternoon, {name}', evening: 'Good evening, {name}' },
     greetingAnonymous: 'Welcome back',
     subtitle: 'Pick up where you left off, or start something new.',
@@ -109,6 +111,10 @@ export default {
     retry: 'Try again',
   },
   editor: {
+    previewPanel: 'Preview beside the form',
+    previewDesktop: 'Desktop width',
+    previewPhone: 'Phone width',
+    previewReload: 'Reload preview',
     scheduled: 'Scheduled',
     schedule: 'Schedule',
     scheduledFor: 'Goes live {date}',

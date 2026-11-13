@@ -116,6 +116,11 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
        */
       orderField?: keyof F & string
     }
+    /**
+     * Tabs for a long form: each lists the fields it shows in the main column
+     * (fields in no tab go into the first). The side panel is not tabbed.
+     */
+    tabs?: { label: LocalizedText; fields: (keyof F & string)[] }[]
   }
   access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
   content?: ContentConfig<F>
@@ -169,7 +174,7 @@ export interface CmsEntity {
   insertSchema: z.ZodTypeAny
   updateSchema: z.ZodTypeAny
   singleton?: boolean
-  admin?: { list?: { columns: string[]; searchable?: string[]; orderField?: string } }
+  admin?: { list?: { columns: string[]; searchable?: string[]; orderField?: string }; tabs?: { label: LocalizedText; fields: string[] }[] }
   access?: Record<string, (ctx: { user: any; table: any }) => unknown>
   content?: {
     public?: boolean
@@ -410,6 +415,7 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     listColumns: e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4),
     searchable: e.admin?.list?.searchable ?? [],
     orderField: e.admin?.list?.orderField ?? null,
+    tabs: e.admin?.tabs ?? null,
     fields: Object.entries(e.fields).map(([key, fld]) => ({
       key,
       type: fld.type,
