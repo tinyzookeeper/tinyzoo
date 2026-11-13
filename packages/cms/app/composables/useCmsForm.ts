@@ -65,10 +65,13 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   let ready = false
   // Counts edits, so a save can tell whether anything was typed while it ran.
   let revision = 0
+  // Unsaved = differs from what was last loaded or saved (editing a field back to its
+  // saved value, or discarding, makes the form clean again).
+  const differs = () => editable.value.some((f: any) => json(state[f.key]) !== loaded[f.key])
   watch(state, () => {
     if (!ready) return
     revision++
-    dirty.value = true
+    dirty.value = differs()
   }, { deep: true })
   function onBeforeUnload(e: BeforeUnloadEvent) {
     if (!dirty.value) return
@@ -91,7 +94,8 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     for (const k of Object.keys(state)) if (!(k in (row ?? {}))) delete state[k]
     load(row)
     await nextTick()
-    dirty.value = false
+    // Usually clean; not when shared text here is ahead of the saved version.
+    dirty.value = differs()
     conflict.value = null
     ready = true
   }

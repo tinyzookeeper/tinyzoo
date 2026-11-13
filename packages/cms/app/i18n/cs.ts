@@ -82,6 +82,9 @@ export default {
     retry: 'Zkusit znovu',
   },
   editor: {
+    discard: 'Zahodit změny',
+    discardConfirm: 'Zahodit neuložené změny a vrátit se k uložené verzi?',
+    discardSharedConfirm: 'Vrátit se k uložené verzi? Sdílený text se vrátí i všem, kdo ho právě upravují.',
     newTitle: 'Nová položka: {label}',
     created: 'Vytvořeno',
     saved: 'Uloženo',
@@ -141,6 +144,9 @@ export default {
     loadMore: 'Načíst další',
   },
   auth: {
+    setupToken: 'Instalační kód',
+    setupTokenHint: 'Nastavuje ten, kdo web nasadil (NUXT_CMS_AUTH_SETUP_TOKEN).',
+    setupTokenWrong: 'Instalační kód nesouhlasí.',
     signInTitle: 'Přihlášení',
     signInSubtitle: 'Správa obsahu webu {site}.',
     email: 'E-mail',
@@ -271,6 +277,9 @@ export default {
     languages: 'Jazyky',
   },
   live: {
+    offlineLost: 'Text napsaný bez připojení se nepodařilo sloučit',
+    offlineLostBody: 'Mezitím byla uložena nová verze. Svůj text můžete vrátit (nahradí sdílený text).',
+    restoreMine: 'Vrátit můj text',
     connecting: 'Připojování ke sdílenému textu…',
     editing: '{name} upravuje',
     viewing: '{name} si prohlíží',

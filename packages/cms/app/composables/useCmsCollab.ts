@@ -17,6 +17,8 @@ export interface CmsCollab {
   readOnly: Ref<boolean>
   fields: Ref<Set<string>>
   epoch: Ref<string | null>
+  /** Text typed here while offline that the restarted document could not take back. */
+  lost: Ref<Record<string, any> | null>
   /** Fields whose shared editor is on the page right now (a collapsed group has none). */
   mounted: Ref<Set<string>>
   /** Current Yjs document and provider (non-reactive on purpose). */
@@ -41,6 +43,7 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
     fields: ref(new Set<string>()),
     epoch: ref(null),
     mounted: ref(new Set<string>()),
+    lost: ref(null),
     current: () => live,
     setters: new Map(),
     set: (field, value) => {
@@ -71,7 +74,7 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
 
   async function start() {
     const q = new URLSearchParams({ entity: opts.entity, id: opts.id, ...(opts.locale ? { locale: opts.locale } : {}) })
-    let session: { name: string; epoch: string; fields: string[]; access: 'write' | 'read' }
+    let session: { name: string; epoch: string; fields: string[]; access: 'write' | 'read'; you?: string }
     try {
       session = await $fetch(`/api/cms/_collab/session?${q}`)
     }
@@ -80,6 +83,8 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
       return
     }
     if (disposed) return
+    // The server checks the name on our cursor against the account: use its spelling.
+    if (session.you) collab.user.name = session.you
     const [{ HocuspocusProvider, HocuspocusProviderWebsocket }, Y] = await Promise.all([import('@hocuspocus/provider'), import('yjs')])
     if (disposed) return
     const doc = new Y.Doc()
@@ -97,9 +102,18 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
         restarts = 0
         collab.status.value = 'ready'
       },
-      onAuthenticationFailed: () => {
+      onAuthenticationFailed: async () => {
         // Our history is no longer the document's (it restarted from a newer save
-        // while we were away), or access changed: start over, a couple of times.
+        // while we were away), or access changed: start over, a couple of times —
+        // keeping a copy of anything typed here that never reached the others.
+        const old = live
+        if (old?.provider.hasUnsyncedChanges) {
+          const { yXmlFragmentToProsemirrorJSON } = await import('@tiptap/y-tiptap')
+          const keep: Record<string, any> = {}
+          for (const key of collab.fields.value) keep[key] = yXmlFragmentToProsemirrorJSON(old.doc.getXmlFragment(key))
+          collab.lost.value = keep
+        }
+        if (live !== old) return
         teardown()
         if (disposed) return
         if (++restarts > 2) {

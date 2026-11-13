@@ -20,6 +20,10 @@ import * as Y from 'yjs'
 
 interface CollabContext {
   user: CmsUser
+  /** The name other people see on this person's cursor (from the account, not the browser). */
+  displayName: string
+  /** The one Yjs client this connection may speak for in cursor (awareness) updates. */
+  clientId?: number
   sv: number
   epoch: string
   access: 'write' | 'read'
@@ -34,7 +38,9 @@ const HEARTBEAT_MS = 30_000
 const MAX_UPDATE_BYTES = 1024 * 1024
 const MAX_STATE_BYTES = 8 * 1024 * 1024
 const MAX_DOCS_PER_SOCKET = 10
-// Hocuspocus message types this admin never sends (y-protocols / Hocuspocus numbering).
+// Hocuspocus message types (y-protocols / Hocuspocus numbering).
+const AWARENESS = 1
+// …and ones this admin never sends.
 const STATELESS = 5
 const BROADCAST_STATELESS = 6
 
@@ -71,25 +77,73 @@ async function recheck(ctx: CollabContext): Promise<'write' | 'read' | null> {
   return target ? collabAccess({ ...ctx.user, role: u.role }, target) : null
 }
 
-/** A message's Hocuspocus type: after the document name (a length-prefixed string). */
-function messageType(update: Uint8Array): number | null {
+/** Reads the lib0 encoding Hocuspocus messages use (varUint, length-prefixed strings). */
+function reader(bytes: Uint8Array) {
   let pos = 0
   const varUint = () => {
     let n = 0
     let mult = 1
-    while (pos < update.length) {
-      const b = update[pos++]!
+    while (pos < bytes.length) {
+      const b = bytes[pos++]!
       n += (b & 0x7F) * mult
       if (b < 0x80) return n
       mult *= 128
     }
-    return -1
+    throw new Error('truncated')
   }
-  const nameLength = varUint()
-  if (nameLength < 0) return null
-  pos += nameLength
-  const type = varUint()
-  return type < 0 ? null : type
+  const bytesOf = () => {
+    const len = varUint()
+    if (pos + len > bytes.length) throw new Error('truncated')
+    const out = bytes.subarray(pos, pos + len)
+    pos += len
+    return out
+  }
+  return { varUint, bytesOf, string: () => new TextDecoder().decode(bytesOf()) }
+}
+
+/** A message's type and the rest of it: after the document name. */
+function parseMessage(update: Uint8Array): { type: number; body: ReturnType<typeof reader> } | null {
+  try {
+    const r = reader(update)
+    r.bytesOf() // document name
+    return { type: r.varUint(), body: r }
+  }
+  catch {
+    return null
+  }
+}
+
+/**
+ * A cursor (awareness) update is accepted when its own entry — this connection's
+ * Yjs client, the first one it announced — carries the account's own name, and any
+ * other entries are echoes (a browser answering "who is here?" repeats everyone it
+ * knows): not newer than what the server already has, and not removing anyone. So
+ * nobody can pass as someone else, or move or remove other people's cursors.
+ */
+function awarenessAllowed(ctx: CollabContext, body: ReturnType<typeof reader>, awareness: any): boolean {
+  try {
+    const r = reader(body.bytesOf())
+    const count = r.varUint()
+    if (count > 200) return false
+    const entries: { clientId: number; clock: number; state: any }[] = []
+    for (let i = 0; i < count; i++) entries.push({ clientId: r.varUint(), clock: r.varUint(), state: JSON.parse(r.string()) })
+    if (ctx.clientId === undefined && entries.length === 1) ctx.clientId = entries[0]!.clientId
+    for (const e of entries) {
+      if (e.clientId === ctx.clientId) {
+        // No `user` yet (the first, empty state) is fine; a name must be the account's.
+        if (e.state?.user !== undefined && e.state.user?.name !== ctx.displayName) return false
+        continue
+      }
+      const known = awareness?.meta?.get(e.clientId)
+      if (!known) return false
+      if (e.clock > known.clock) return false
+      if (e.clock === known.clock && e.state === null) return false
+    }
+    return true
+  }
+  catch {
+    return false
+  }
 }
 
 async function startCollabServer(): Promise<Hocuspocus> {
@@ -138,7 +192,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
       docs.add(documentName)
       docsBySocket.set(socketId, docs)
       if (access === 'read') connectionConfig.readOnly = true
-      return { user, sv: context.sv, epoch: row.epoch, access, checkedAt: Date.now(), target: { entityName: target.entity.name, id: target.id, locale: target.locale } } satisfies CollabContext
+      return { user, displayName: displayName(u.name, u.email), sv: context.sv, epoch: row.epoch, access, checkedAt: Date.now(), target: { entityName: target.entity.name, id: target.id, locale: target.locale } } satisfies CollabContext
     },
 
     async onLoadDocument({ documentName, document, context }) {
@@ -185,16 +239,20 @@ async function startCollabServer(): Promise<Hocuspocus> {
       if (docs && !docs.size) docsBySocket.delete(socketId)
     },
 
-    async beforeHandleMessage({ context, update, connection }) {
+    async beforeHandleMessage({ context, update, connection, document }) {
       const ctx = context as CollabContext
       if (update.length > MAX_UPDATE_BYTES) {
         dropSocket(connection.webSocket, 1009, 'Message too large')
         throw new Error('Message too large')
       }
-      const type = messageType(update)
-      if (type === STATELESS || type === BROADCAST_STATELESS) {
+      const message = parseMessage(update)
+      if (!message || message.type === STATELESS || message.type === BROADCAST_STATELESS) {
         dropSocket(connection.webSocket, 4400, 'Unsupported message')
         throw new Error('Unsupported message')
+      }
+      if (message.type === AWARENESS && !awarenessAllowed(ctx, message.body, document.awareness)) {
+        dropSocket(connection.webSocket, 4403, 'Not your cursor')
+        throw new Error('Cursor update for someone else')
       }
       // Messages wait for a check in progress, so none slips past a revocation.
       if (ctx.checking) await ctx.checking

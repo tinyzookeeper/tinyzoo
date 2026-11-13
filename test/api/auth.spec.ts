@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { accounts, anonymous, Client, linkIn, login, newAccount, sentMail, signIn, tokenOf, waitForMail } from '../helpers/api'
+import { SETUP_TOKEN } from '../setup/server'
 
 describe('first run', () => {
   it('reports that setup is done once an account exists, and refuses a second setup', async () => {
-    expect((await anonymous().get('/api/cms/_auth/status')).body).toEqual({ mode: 'builtin', needsSetup: false })
-    const res = await anonymous().post('/api/cms/_auth/setup', { name: 'Mallory', email: 'mallory@test.local', password: 'a long enough password' })
+    expect((await anonymous().get('/api/cms/_auth/status')).body).toEqual({ mode: 'builtin', needsSetup: false, needsToken: false })
+    const res = await anonymous().post('/api/cms/_auth/setup', { name: 'Mallory', email: 'mallory@test.local', password: 'a long enough password', token: SETUP_TOKEN })
     expect(res.status).toBe(409)
+  })
+
+  it('needs the deploy\'s setup code when one is configured', async () => {
+    const res = await anonymous().post('/api/cms/_auth/setup', { name: 'Mallory', email: 'mallory@test.local', password: 'a long enough password', token: 'guess' })
+    expect(res.status).toBe(403)
+    expect(res.body.data.code).toBe('setup_token')
+    expect((await anonymous().post('/api/cms/_auth/setup', { name: 'Mallory', email: 'mallory@test.local', password: 'a long enough password' })).status).toBe(403)
   })
 })
 

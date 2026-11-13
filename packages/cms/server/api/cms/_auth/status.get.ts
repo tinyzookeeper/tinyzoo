@@ -6,5 +6,7 @@ export default defineEventHandler(async () => {
   if (cmsAuthMode() !== 'builtin') return { mode: 'external', needsSetup: false }
   const { db, reg } = useCms()
   const [row] = await db.select({ n: sql<number>`count(*)::int` }).from(reg.cmsUsers)
-  return { mode: 'builtin', needsSetup: (row?.n ?? 0) === 0 }
+  const needsSetup = (row?.n ?? 0) === 0
+  // Whether first-run setup asks for the deploy's setup code (never the code itself).
+  return { mode: 'builtin', needsSetup, needsToken: needsSetup && !!setupToken() }
 })

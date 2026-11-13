@@ -110,6 +110,8 @@ export default async function setup(project: TestProject) {
       // Publish webhooks go to a receiver in this process (see startWebhookReceiver).
       NUXT_CMS_WEBHOOKS_URLS: `${hooks.url}/ok, ${hooks.url}/flaky`,
       NUXT_CMS_WEBHOOKS_SECRET: WEBHOOK_SECRET,
+      // First-run setup needs this code (seedAccounts sends it).
+      NUXT_CMS_AUTH_SETUP_TOKEN: SETUP_TOKEN,
     },
   })
   child.stdout?.on('data', (d) => logs.push(String(d)))
@@ -152,6 +154,7 @@ export default async function setup(project: TestProject) {
 }
 
 export const WEBHOOK_SECRET = 'test-webhook-secret'
+export const SETUP_TOKEN = 'test-setup-code'
 
 /**
  * Receives the server's publish webhooks and writes each request into a temp dir as
@@ -209,7 +212,7 @@ async function post(baseURL: string, path: string, body: unknown, cookie = '') {
  * specs that sign out or change passwords use their own throwaway accounts.
  */
 async function seedAccounts(baseURL: string): Promise<TestAccounts> {
-  const admin = await post(baseURL, '/api/cms/_auth/setup', { name: 'Ada Admin', email: 'admin@test.local', password: TEST_PASSWORD })
+  const admin = await post(baseURL, '/api/cms/_auth/setup', { name: 'Ada Admin', email: 'admin@test.local', password: TEST_PASSWORD, token: SETUP_TOKEN })
   if (admin.status !== 201) throw new Error(`setup: ${admin.status} ${JSON.stringify(admin.body)}`)
   const accounts = { admin: { id: admin.body.user.id, email: 'admin@test.local', password: TEST_PASSWORD, cookie: admin.cookie } } as TestAccounts
   for (const [role, name] of [['editor', 'Eda Editor'], ['author', 'Alma Author']] as const) {
