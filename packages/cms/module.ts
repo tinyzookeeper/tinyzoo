@@ -123,12 +123,12 @@ export interface CmsModuleOptions {
 }
 
 export default defineNuxtModule<CmsModuleOptions>({
-  meta: { name: '@my-cms/core', configKey: 'cms' },
+  meta: { name: 'tinyzoo', configKey: 'cms' },
   defaults: { config: 'cms.config.ts' },
   setup(options, nuxt) {
     const configPath = resolve(nuxt.options.rootDir, options.config || 'cms.config.ts')
     if (!existsSync(configPath)) {
-      console.warn(`[@my-cms/core] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
+      console.warn(`[tinyzoo] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
     }
 
     // Expose the host config as a virtual alias to app and Nitro server.
@@ -169,7 +169,7 @@ export default defineNuxtModule<CmsModuleOptions>({
 declare module 'nitropack/types' {
   interface NitroRuntimeHooks {
     /** A content change was saved (see CmsChange). Runs on the instance that saved it. */
-    'cms:change': (change: import('@my-cms/core').CmsChange) => void | Promise<void>
+    'cms:change': (change: import('tinyzoo').CmsChange) => void | Promise<void>
   }
 }
 export {}

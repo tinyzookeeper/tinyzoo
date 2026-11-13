@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitest/config'
 
 // Two projects:
-//  - unit: pure functions of @my-cms/core (descriptors, codegen, sanitiser, …). No DB, fast.
+//  - unit: pure functions of tinyzoo (descriptors, codegen, sanitiser, …). No DB, fast.
 //  - api:  the built playground served over HTTP against its own `<db>_test` Postgres.
 //          Files run one at a time — they share that database and truncate it.
 export default defineConfig({

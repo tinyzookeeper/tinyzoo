@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from '@my-cms/core'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'tinyzoo'
 
 // GET /api/cms/_media — paginated media library (newest first). Optional ?q= search
 // over name/alt/key/mime, ?accept= (e.g. "image/*") to filter by MIME so a typed

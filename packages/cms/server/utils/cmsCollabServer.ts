@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from '@my-cms/core'
+import { and, eq, inArray, sql } from 'tinyzoo'
 import { Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs'
 

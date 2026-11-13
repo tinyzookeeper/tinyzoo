@@ -1,4 +1,4 @@
-import { ilike, inArray, or } from '@my-cms/core'
+import { ilike, inArray, or } from 'tinyzoo'
 
 // Relation-picker typeahead: GET /api/cms/:entity/options?q=&selected=id,id
 export default defineEventHandler(async (event) => {

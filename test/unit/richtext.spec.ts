@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { richTextSchema, sanitizeRichText } from '@my-cms/core'
+import { richTextSchema, sanitizeRichText } from 'tinyzoo'
 
 const link = (href: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x', marks: [{ type: 'link', attrs: { href } }] }] }] })
 const linkKept = (href: string) => (sanitizeRichText(link(href) as any) as any).content[0].content[0].marks.length === 1

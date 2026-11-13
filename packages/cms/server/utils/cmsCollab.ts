@@ -1,4 +1,4 @@
-import { and, eq, sql, type CmsEntity } from '@my-cms/core'
+import { and, eq, sql, type CmsEntity } from 'tinyzoo'
 import * as Y from 'yjs'
 import { prosemirrorJSONToYXmlFragment } from '@tiptap/y-tiptap'
 import { editorSchema } from '../../shared/richtext-editor'

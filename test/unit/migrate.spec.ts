@@ -6,7 +6,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
 import { PgDialect } from 'drizzle-orm/pg-core'
-import { applyMigrations, isConnectionError, sqlWithParams, type MigrationSource } from '@my-cms/core'
+import { applyMigrations, isConnectionError, sqlWithParams, type MigrationSource } from 'tinyzoo'
 import { testDatabaseUrl } from '../setup/database'
 
 // The start-up migrator must keep exactly drizzle-kit's bookkeeping, so either can

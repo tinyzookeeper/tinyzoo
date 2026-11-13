@@ -1,5 +1,5 @@
-import { and, eq, sql } from '@my-cms/core'
-import type { CmsEntity, CmsRegistry } from '@my-cms/core'
+import { and, eq, sql } from 'tinyzoo'
+import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 import { z } from 'zod'
 import type { CmsUser } from './cmsSession'
 

@@ -1,4 +1,4 @@
-import { buildRegistry, type CmsRegistry } from '@my-cms/core'
+import { buildRegistry, type CmsRegistry } from 'tinyzoo'
 import { createCmsDb } from '../db/driver'
 import * as cmsConfig from '#cms/config'
 

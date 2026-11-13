@@ -13,8 +13,8 @@
     "cms:openapi": "tsx ../packages/cms/cli/index.ts openapi openapi.json"
   },
   "dependencies": {
-    "@my-cms/client": "workspace:*",
-    "@my-cms/core": "workspace:*",
+    "@tinyzoo/client": "workspace:*",
+    "tinyzoo": "workspace:*",
     "@nuxt/ui": "^4.0.0",
     "drizzle-orm": "^0.44.0",
     "nuxt": "^4.0.0",

@@ -1,4 +1,4 @@
-import { eq, inArray, propOf } from '@my-cms/core'
+import { eq, inArray, propOf } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/:entity/_order { ids: [...] } — store a manual order (collections

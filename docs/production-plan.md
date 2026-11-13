@@ -26,7 +26,7 @@ Solid, and kept:
   (list, form, globals, media library, TipTap rich text, slug auto-fill,
   publish/unpublish, draft preview, unsaved-changes guard).
 - Headless delivery API (`/api/content/*`), OpenAPI 3.1, a typed client
-  (`@my-cms/client`), rich-text sanitising on write and on render.
+  (`@tinyzoo/client`), rich-text sanitising on write and on render.
 - Media pipeline: local or S3/R2, MIME allowlist, dimensions, quota, rate limit,
   reference-counted cleanup.
 - Two security review passes, fixed.
@@ -451,7 +451,7 @@ future entries everywhere public, access checks held. Fixed:
 
 Five slices, each tested and committed:
 
-1. **Installable package** — `@my-cms/core/layer` subpath export (a bare
+1. **Installable package** — `tinyzoo/layer` subpath export (a bare
    package-name `extends` silently loaded `src/`), `cms` bin, and a consumer check
    that installs the packed package into a fresh app and builds it.
 2. **Migrations at start and health** — bundled drizzle-kit migrations applied on
@@ -608,7 +608,7 @@ Proves the package from the outside: **Triathlon Team Tábor**
 (triatlon-tabor.cz), built after the club's mockup (home, news, article, desktop
 and mobile) in its own repository, `../triatlon-tabor-web`.
 
-- ✅ Own repo, installs `@my-cms/core` and `@my-cms/client` from packed tarballs
+- ✅ Own repo, installs `tinyzoo` and `@tinyzoo/client` from packed tarballs
   (`vendor/`) — no workspace links. GitHub Packages once the org exists.
 - ✅ Czech + English: Czech addresses unprefixed, English under `/en` with English
   words (`/aktuality/…` ↔ `/en/news/…`, `/galerie/…` ↔ `/en/gallery/…`); the

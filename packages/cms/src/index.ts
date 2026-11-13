@@ -1,4 +1,4 @@
-// Public API of @my-cms/core (consumed by host cms.config.ts and by the runtime).
+// Public API of tinyzoo (consumed by host cms.config.ts and by the runtime).
 export { defineEntity, defineSingleton, buildRegistry, propOf } from './entity'
 export type { CmsEntity, CmsRegistry, ContentConfig, PublishConfig, EntityDef, Entity, Junction, Row, Insert, Update } from './entity'
 export { f, snake, camel, pascal, buildColumn, serializeColumn, type CmsGalleryValue } from './fields'

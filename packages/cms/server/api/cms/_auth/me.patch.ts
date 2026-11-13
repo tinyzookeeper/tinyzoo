@@ -1,4 +1,4 @@
-import { and, eq } from '@my-cms/core'
+import { and, eq } from 'tinyzoo'
 import { z } from 'zod'
 
 // PATCH /api/cms/_auth/me — change your own name and interface language.

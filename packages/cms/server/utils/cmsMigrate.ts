@@ -16,7 +16,7 @@
  * rather than staying up and answering 503 forever.
  */
 
-import { applyMigrations, isConnectionError, sqlWithParams, type MigrationJournal, type MigrationSource } from '@my-cms/core'
+import { applyMigrations, isConnectionError, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
 
 let ready: Promise<void> = Promise.resolve()
 let state: 'idle' | 'running' | 'done' | 'failed' = 'idle'

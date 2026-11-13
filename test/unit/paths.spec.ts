@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildRegistry, defineEntity, defineLocales, f, prefixedTemplates, sitePath, pathTemplateKeys } from '@my-cms/core'
+import { buildRegistry, defineEntity, defineLocales, f, prefixedTemplates, sitePath, pathTemplateKeys } from 'tinyzoo'
 
 const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
 const translated = { cs: '/aktuality/:slug', en: '/news/:slug' }

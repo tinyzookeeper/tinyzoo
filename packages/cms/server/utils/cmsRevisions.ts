@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, notInArray, type CmsEntity } from '@my-cms/core'
+import { and, desc, eq, inArray, isNull, notInArray, type CmsEntity } from 'tinyzoo'
 
 /**
  * Revisions: after every save, a snapshot of what was saved — the entry's field values

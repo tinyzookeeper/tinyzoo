@@ -1,5 +1,5 @@
 {
-  "name": "my-cms-workspace",
+  "name": "tinyzoo-workspace",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -20,8 +20,8 @@
   },
   "devDependencies": {
     "@hocuspocus/provider": "^3.4.4",
-    "@my-cms/client": "workspace:*",
-    "@my-cms/core": "workspace:*",
+    "@tinyzoo/client": "workspace:*",
+    "tinyzoo": "workspace:*",
     "@tiptap/y-tiptap": "^3.3.0",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.20.0",

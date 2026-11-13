@@ -1,4 +1,4 @@
-import { and, eq, fillPathTemplate, inArray, pathTemplateKeys, sitePath, sitePrefix, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from '@my-cms/core'
+import { and, eq, fillPathTemplate, inArray, pathTemplateKeys, sitePath, sitePrefix, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 
 /**
  * One place every content write reports to. A change:

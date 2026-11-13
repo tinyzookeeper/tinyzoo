@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()

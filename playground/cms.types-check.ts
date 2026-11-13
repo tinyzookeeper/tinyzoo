@@ -1,6 +1,6 @@
 // Type-level assertions for the inferred entity types. `tsc --noEmit` must pass.
 // (Each @ts-expect-error must actually error, or tsc fails — so this verifies precision.)
-import type { Insert, Row } from "@my-cms/core"
+import type { Insert, Row } from "tinyzoo"
 import { Post } from "./cms.config"
 
 type PostRow = Row<typeof Post>

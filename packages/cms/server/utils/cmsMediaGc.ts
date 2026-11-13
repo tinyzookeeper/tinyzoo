@@ -1,5 +1,5 @@
-import { eq, mediaIdsInBlocks, sql } from '@my-cms/core'
-import type { CmsRegistry } from '@my-cms/core'
+import { eq, mediaIdsInBlocks, sql } from 'tinyzoo'
+import type { CmsRegistry } from 'tinyzoo'
 import type { StorageDriver } from './cmsStorage'
 
 /** Field types storing JSON that can hold media ids (rich text images, blocks, galleries). */

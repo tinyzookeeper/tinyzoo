@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 // GET /api/cms/_media/:id — resolve a media id to its record (used by the
 // media field widget to render the existing preview when editing).

@@ -1,4 +1,4 @@
-import { sql } from '@my-cms/core'
+import { sql } from 'tinyzoo'
 
 // GET /api/health/ready — ready for traffic (readiness): migrations done (when run at
 // start) and the database answers. 503 otherwise.

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { buildOpenApiDocument, emitContentTypes, emitSchema } from '@my-cms/core'
+import { buildOpenApiDocument, emitContentTypes, emitSchema } from 'tinyzoo'
 import * as config from '../../playground/cms.config'
 
 const playground = join(import.meta.dirname, '../../playground')

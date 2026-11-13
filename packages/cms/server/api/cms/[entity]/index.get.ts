@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, not, or, propOf, sql } from '@my-cms/core'
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, ne, not, or, propOf, sql } from 'tinyzoo'
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()

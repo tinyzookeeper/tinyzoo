@@ -1,6 +1,6 @@
-// Installability check: pack @my-cms/core and @my-cms/client, install them from the
+// Installability check: pack tinyzoo and @tinyzoo/client, install them from the
 // tarballs into a fresh app outside the workspace (no workspace links), generate the
-// schema and typed client with the `cms` CLI, typecheck and production-build the app.
+// schema and typed client with the `tinyzoo` CLI, typecheck and production-build the app.
 //
 //   node scripts/consumer-check.mjs
 import { execFileSync } from 'node:child_process'
@@ -29,8 +29,8 @@ try {
   writeFileSync(join(app, 'package.json'), JSON.stringify({
     name: 'cms-consumer-check', private: true, type: 'module',
     dependencies: {
-      '@my-cms/core': `file:${tgz('my-cms-core-')}`,
-      '@my-cms/client': `file:${tgz('my-cms-client-')}`,
+      'tinyzoo': `file:${tgz('tinyzoo-0')}`,
+      '@tinyzoo/client': `file:${tgz('tinyzoo-client-')}`,
       ...Object.fromEntries(['@nuxt/ui', 'nuxt', 'nuxt-auth-utils', 'tailwindcss', 'drizzle-orm', 'pg', 'zod'].map((n) => [n, dep(n)])),
     },
     devDependencies: { ...Object.fromEntries(['@iconify-json/lucide', 'drizzle-kit', 'typescript', 'vue-tsc'].map((n) => [n, dep(n)])), '@types/node': '^22.0.0' },
@@ -40,8 +40,8 @@ try {
 
   run('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], app)
   // The CLI works from the installed package: schema + typed client.
-  run('pnpm', ['exec', 'cms', 'client', 'app/lib/cms-content.ts'], app)
-  run('pnpm', ['exec', 'tsx', '-e', "import * as c from './cms.config.ts'; import { emitSchema } from '@my-cms/core'; import { writeFileSync } from 'node:fs'; writeFileSync('server/db/schema.ts', emitSchema(c))"], app)
+  run('pnpm', ['exec', 'tinyzoo', 'client', 'app/lib/cms-content.ts'], app)
+  run('pnpm', ['exec', 'tsx', '-e', "import * as c from './cms.config.ts'; import { emitSchema } from 'tinyzoo'; import { writeFileSync } from 'node:fs'; writeFileSync('server/db/schema.ts', emitSchema(c))"], app)
   // The layer ships TypeScript source: it must typecheck inside a consumer too.
   run('pnpm', ['exec', 'nuxi', 'typecheck'], app)
   run('pnpm', ['exec', 'nuxi', 'build'], app, { NODE_ENV: 'production' })

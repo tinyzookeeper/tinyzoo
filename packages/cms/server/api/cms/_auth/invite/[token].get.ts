@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 // GET /api/cms/_auth/invite/:token — what the accept page shows: who is invited and
 // by whom. 410 when the link is no longer valid.

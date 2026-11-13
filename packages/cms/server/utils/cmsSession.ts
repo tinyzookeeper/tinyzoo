@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 
 export interface CmsUser {

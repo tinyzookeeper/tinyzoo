@@ -10,7 +10,7 @@ describe('generated endpoints', () => {
     expect(Object.keys(res.body.paths)).toContain('/api/content/post')
   })
 
-  // What a frontend curls must be what is committed (and what `cms client` emits).
+  // What a frontend curls must be what is committed (and what `tinyzoo client` emits).
   it('serves typed bindings identical to the committed ones', async () => {
     const res = await anonymous().get('/api/content-types.ts')
     expect(res.status).toBe(200)

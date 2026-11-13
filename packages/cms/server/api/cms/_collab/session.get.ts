@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 // GET /api/cms/_collab/session?entity=&id=&locale= — the shared document for one entry
 // (or one translation): its name, the epoch to present when connecting, the fields

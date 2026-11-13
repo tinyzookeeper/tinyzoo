@@ -1,4 +1,4 @@
-import { sql } from '@my-cms/core'
+import { sql } from 'tinyzoo'
 
 // GET /api/cms/_auth/status — what the sign-in page needs to know: whether the CMS
 // still needs its first administrator. Public.

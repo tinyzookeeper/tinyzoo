@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { blocksSchema, defineBlock, defineEntity, f, mediaIdsInBlocks } from '@my-cms/core'
+import { blocksSchema, defineBlock, defineEntity, f, mediaIdsInBlocks } from 'tinyzoo'
 import * as config from '../../playground/cms.config'
 
 const defs = config.Page.fields.sections.blocks!

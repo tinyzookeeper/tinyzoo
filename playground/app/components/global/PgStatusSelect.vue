@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Host-provided custom field renderer. Registered for the `select` type via
 // app.config (`cms.fields.select.edit`) — proves a host can replace a built-in
-// field editor without touching the @my-cms/core package. Renders the options as
+// field editor without touching the tinyzoo package. Renders the options as
 // a segmented control instead of the default dropdown.
 //
 // NB: lives in components/global/ so it is globally registered — the registry

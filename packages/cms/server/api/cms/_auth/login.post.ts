@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_auth/login — email + password. One generic answer for every

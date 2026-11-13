@@ -1,6 +1,6 @@
 // GET /api/cms/:entity/:id/revisions?locale= — the entry's history (or one
 // translation's), newest first. Anyone who may read the entry may see it.
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()

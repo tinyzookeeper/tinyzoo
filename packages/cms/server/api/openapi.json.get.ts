@@ -1,4 +1,4 @@
-import { buildOpenApiDocument } from '@my-cms/core'
+import { buildOpenApiDocument } from 'tinyzoo'
 // virtual alias provided by the module (build-time); typed through the host's tsconfig paths
 import * as cmsConfig from '#cms/config'
 

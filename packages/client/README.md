@@ -1,7 +1,7 @@
-# @my-cms/client
+# @tinyzoo/client
 
 A tiny (~2 kB), dependency-free, **strictly-typed** client for the public content
-API of a [`@my-cms`](../cms) instance. Works in any framework or runtime with
+API of a [tinyzoo](../cms) instance. Works in any framework or runtime with
 `fetch` (browser, Node 18+, Workers, Deno, Bun).
 
 It carries no knowledge of your specific schema — all types come from a generated
@@ -13,13 +13,13 @@ It carries no knowledge of your specific schema — all types come from a genera
 
    ```sh
    curl https://cms.example.com/api/content-types.ts -o src/cms-content.ts
-   # or, with repo access: `cms client > src/cms-content.ts`
+   # or, with repo access: `tinyzoo client --stdout > src/cms-content.ts`
    ```
 
 2. Install this runtime:
 
    ```sh
-   npm i @my-cms/client
+   npm i @tinyzoo/client
    ```
 
 3. Use it — fully typed, with autocomplete on collections, fields, sort keys and filters:

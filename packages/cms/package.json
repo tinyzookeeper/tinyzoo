@@ -1,5 +1,5 @@
 {
-  "name": "@my-cms/core",
+  "name": "tinyzoo",
   "version": "0.1.0",
   "type": "module",
   "description": "Code-first, distributable CMS for Nuxt 4 (Layer + Module).",
@@ -58,6 +58,6 @@
     "nuxt-auth-utils": "^0.5.0"
   },
   "bin": {
-    "cms": "./cli/index.ts"
+    "tinyzoo": "./cli/index.ts"
   }
 }
