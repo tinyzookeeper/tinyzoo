@@ -7,9 +7,9 @@ here, each ending green, each shipped before the next one starts.
 
 **Target:** small and mid-sized clients, mostly Czech and European, many of them
 multilingual, nothing that rules out clients elsewhere. Production runs on
-**Pushbase** (Node 22 on Kubernetes, managed Postgres + Redis). Cloudflare
-Workers stays a supported target (the build already works) but is not the one
-we optimise for.
+**Pushbase** (Node 22 on Kubernetes, managed Postgres + Redis). Node only:
+Cloudflare Workers support was dropped on 2026-11-13 (it ruled out realtime and
+co-editing, and nobody plans to deploy there) — the history below still mentions it.
 
 **Done means:** a client signs in with their own account, builds a page out of
 blocks in two languages, uploads images, schedules or publishes it, and the live

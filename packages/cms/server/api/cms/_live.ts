@@ -4,15 +4,9 @@
 // carries a valid built-in session for an active account. Realtime needs the
 // built-in sign-in: with external auth the host owns identity and there is no
 // request event here to read it from.
-//
-// Node only. On Workers a socket can be written to only from the request that
-// accepted it, so changes saved by other requests could never reach it; the edge
-// build refuses the upgrade and the admin works without realtime.
-import { driverKind } from '#cms/db'
 
 export default defineWebSocketHandler({
   async upgrade(request: any) {
-    if (driverKind === 'edge') throw new Response('Realtime is not available on this deployment', { status: 501 })
     if (cmsAuthMode() !== 'builtin') throw new Response('Realtime needs the built-in sign-in', { status: 404 })
     if (!sameOrigin(request)) throw new Response('Forbidden', { status: 403 })
     const session: any = await getUserSession(request).catch(() => null)

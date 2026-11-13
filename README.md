@@ -250,8 +250,7 @@ pnpm test          # unit + API suites (needs the compose Postgres running)
 pnpm test:unit     # pure core: descriptors, codegen drift, sanitiser, client — no DB, < 1 s
 pnpm test:api      # the built playground over real HTTP against real Postgres
 pnpm typecheck     # core/client/tests (tsc) + the playground and layer (nuxt typecheck)
-pnpm build:node    # production build for Node (Pushbase, Docker, any VM)
-pnpm build:edge    # production build for Cloudflare Workers
+pnpm build         # production build (Pushbase, Docker, any VM)
 pnpm check         # all of the above, what CI runs
 ```
 
@@ -278,8 +277,8 @@ and both production builds on Node 22 — the runtime Pushbase deploys on.
 ## Decisions locked in this MVP
 
 - **Stack:** Nuxt 4, Tailwind 4, Nuxt UI v4, Zod 4, Drizzle (Postgres dialect).
-- **Dual-runtime:** runs on a Node server **or** Cloudflare Workers — see below. The Postgres
-  dialect is identical for both; runtime-specific code is isolated to the DB + storage seams. D1/SQLite deferred.
+- **Runtime:** a Node server (Node 22+) — Pushbase, Docker or any VM. Cloudflare Workers
+  support was dropped in Phase 5b; see docs/production-plan.md.
 - `select` → native `pgEnum`; rich text → `jsonb` (TipTap doc); ids → `uuid`; media → `cms_media` FK.
 
 ## Theming (host-owned)
@@ -408,7 +407,7 @@ file → POST /api/cms/_media → StorageDriver.put → cms_media row → FK on 
 ### S3 / Cloudflare R2
 
 The S3 driver signs requests with SigV4 via [`aws4fetch`](https://github.com/mhart/aws4fetch)
-(`fetch` + Web Crypto), so it runs unchanged on Node **and** Cloudflare Workers. Objects are
+(`fetch` + Web Crypto). Objects are
 served straight from a public bucket / CDN URL (`publicBaseUrl`), never proxied through the app.
 
 Configure with env vars (secrets stay server-side — never commit them):
@@ -543,39 +542,9 @@ URL (it stays relative otherwise — the request Host is never reflected). The p
 
 ![OpenAPI reference](docs/screenshots/openapi-docs.png)
 
-## Dual runtime — Node or Cloudflare Workers
-
-The same code runs on a Node server or on Cloudflare Workers; the two runtime-specific
-seams are selected by config:
-
-- **Database** — `cms.db.driver` picks the driver at **build time**, so only its deps land
-  in the bundle:
-  - `'node'` (default) → node-postgres (`pg`).
-  - `'edge'` → Neon serverless over WebSocket — supports the interactive transactions the
-    CRUD layer uses (unlike neon-http). Point it at Neon, or Postgres behind Cloudflare Hyperdrive.
-- **Storage** — use the `s3` / `r2` `StorageDriver` (the `local` filesystem driver has no place
-  on Workers; its `node:fs` is lazy-loaded so it never breaks an edge bundle).
-
-```bash
-# build for Workers with the edge DB driver (env override of cms.db.driver)
-CMS_DB_DRIVER=edge NITRO_PRESET=cloudflare_module pnpm --filter playground build
-npx wrangler deploy .output/server/index.mjs --assets .output/public
-```
-
-Set runtime secrets as Worker vars: `NUXT_CMS_DATABASE_URL` (Neon/Hyperdrive),
-`NUXT_SESSION_PASSWORD`, `NUXT_CMS_STORAGE_DRIVER=r2` + the `NUXT_CMS_STORAGE_S3_*` R2 creds.
-
-> **Verified:** the playground builds cleanly for `cloudflare_module` with the edge driver
-> (`pg` excluded from the bundle, Neon included). A *live* deploy needs your own Cloudflare
-> account + a Neon/Hyperdrive DB. Note: the in-memory upload rate-limiter doesn't coordinate
-> across isolates — back it with KV / a Durable Object for multi-isolate production.
-
 ## Not yet built (next slices, in rough order)
 
-- On-publish **webhooks** / ISR revalidation (publish + draft preview themselves are built)
-- **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`) and a
-  shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
+- **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`)
 - **Per-field permissions** (`fieldMode`) and custom roles beyond admin / editor / author.
 - Precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
-- A *live* Cloudflare deploy recipe (wrangler config + Hyperdrive binding); publish pipeline
-  (changesets); package-name layer resolution
+- Publish pipeline (changesets) once the name is picked

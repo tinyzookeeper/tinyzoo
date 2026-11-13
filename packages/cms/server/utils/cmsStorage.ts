@@ -106,8 +106,7 @@ export interface S3Config {
 
 /**
  * S3-compatible driver (AWS S3, Cloudflare R2, MinIO). Requests are signed with
- * SigV4 via `aws4fetch` — built on `fetch` + Web Crypto, so it runs unchanged on
- * Node and on Cloudflare Workers (the dual-runtime target). Uses path-style
+ * SigV4 via `aws4fetch` (`fetch` + Web Crypto). Uses path-style
  * addressing (`endpoint/bucket/key`), which R2 and MinIO accept.
  *
  * Uploaded objects are served straight from their public URL (a public bucket or

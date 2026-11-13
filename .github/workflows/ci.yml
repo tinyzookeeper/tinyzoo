@@ -57,10 +57,6 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [node, edge]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -69,7 +65,7 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm build:${{ matrix.target }}
+      - run: pnpm build
 
   # The packages as a client app gets them: packed, installed from the tarballs into
   # a fresh app outside the workspace, CLI run from the install, production build.

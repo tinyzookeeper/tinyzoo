@@ -6,8 +6,7 @@ import { z } from 'zod'
  * Built-in accounts: sessions (sealed cookie via nuxt-auth-utils), one-time links
  * for invites and password resets, and the helpers the auth and team endpoints share.
  *
- * Everything here uses Web Crypto and fetch-free primitives, so it runs on Node and
- * on Workers alike (password hashing is nuxt-auth-utils' scrypt).
+ * Password hashing is nuxt-auth-utils' scrypt.
  */
 
 export type CmsAuthMode = 'builtin' | 'external'

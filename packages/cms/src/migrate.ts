@@ -1,7 +1,7 @@
 /**
  * Applying drizzle-kit migrations with drizzle's own bookkeeping — the same
  * `drizzle.__drizzle_migrations` table, hashes and ordering as `drizzle-kit migrate`,
- * so either tool can take over from the other. Web Crypto only (Node and Workers).
+ * so either tool can take over from the other. Web Crypto only.
  * A Postgres advisory lock makes concurrent starts take turns.
  */
 import { sql, type SQL } from 'drizzle-orm'

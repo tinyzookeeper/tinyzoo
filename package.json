@@ -14,9 +14,8 @@
     "test:api": "vitest run --project api",
     "test:watch": "vitest --project unit",
     "typecheck": "tsc -p tsconfig.json && pnpm --filter playground typecheck",
-    "build:node": "node scripts/build-check.mjs node",
-    "build:edge": "node scripts/build-check.mjs edge",
-    "check": "pnpm typecheck && pnpm test && pnpm build:node && pnpm build:edge",
+    "build": "node scripts/build-check.mjs",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
     "check:consumer": "node scripts/consumer-check.mjs"
   },
   "devDependencies": {

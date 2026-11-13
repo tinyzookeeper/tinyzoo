@@ -1,5 +1,4 @@
-// #cms/mailer is aliased by the module to the node or edge implementation at build time.
-import { deliverMail } from '#cms/mailer'
+import { deliverMail } from '../mail/mailer'
 
 export interface CmsMailMessage { to: string; subject: string; text: string; html: string }
 export interface CmsMailConfig {

@@ -1,8 +1,7 @@
 // Sliding-window rate limiter keyed by an arbitrary string.
 //
-// NB: per-process, in-memory state. Fine for a single Node instance. With several
-// replicas, or on Cloudflare Workers (per isolate), each instance counts on its own —
-// a shared store (Redis / KV / Durable Object) is the Phase 5 follow-up.
+// Per-process, in-memory state: the fallback when Redis is not configured or cannot
+// answer (see rateLimit in cmsStore.ts, which shares counts between replicas).
 //
 // Memory is bounded: keys are capped in length, and once the map grows past
 // MAX_KEYS, expired entries are swept and, if still too many, the oldest dropped —

@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest'
-import { createRedisStore } from '../../packages/cms/server/store/store.node'
+import { createRedisStore } from '../../packages/cms/server/store/redis'
 
 // Runs against a real Redis when TEST_REDIS_URL is set (CI; locally:
 // `docker compose --profile redis up -d` and TEST_REDIS_URL=redis://localhost:6383).

@@ -1,7 +1,5 @@
 import { buildRegistry, type CmsRegistry } from '@my-cms/core'
-// #cms/db is aliased by the module to the node or edge driver at BUILD time, so
-// only the selected driver (and its deps: pg vs @neondatabase/serverless) is bundled.
-import { createCmsDb } from '#cms/db'
+import { createCmsDb } from '../db/driver'
 import * as cmsConfig from '#cms/config'
 
 let _db: ReturnType<typeof createCmsDb> | undefined

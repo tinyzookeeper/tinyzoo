@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Dimensions for images (best-effort; pure-JS, Workers-safe).
+  // Dimensions for images (best-effort, pure JS).
   let width: number | null = null
   let height: number | null = null
   if (mime.startsWith('image/')) {

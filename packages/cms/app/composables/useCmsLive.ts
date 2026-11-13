@@ -5,8 +5,8 @@ import type { Ref } from 'vue'
  * on first use, reconnecting with backoff, and re-sending what this tab watches
  * after a reconnect. Server side: server/utils/cmsLive.ts.
  *
- * Realtime is an extra: when the socket cannot connect (an edge deployment without
- * WebSockets, a proxy that blocks them), the admin works exactly as before.
+ * Realtime is an extra: when the socket cannot connect (a proxy that blocks
+ * WebSockets), the admin works exactly as before.
  */
 export interface LivePerson { id: string; name: string; editing: boolean }
 export interface LiveChange {

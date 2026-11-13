@@ -1,5 +1,4 @@
-// #cms/store is aliased by the module to the node (Redis) or edge implementation.
-import { createRedisStore } from '#cms/store'
+import { createRedisStore } from '../store/redis'
 
 import type { SharedStore } from '../store/types'
 

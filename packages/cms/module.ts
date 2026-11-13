@@ -13,13 +13,6 @@ export interface CmsModuleOptions {
    * NUXT_CMS_DATABASE_URL or DATABASE_URL at runtime, which win over this value.
    */
   databaseUrl?: string
-  /**
-   * Runtime DB driver, chosen at BUILD time so only its deps are bundled:
-   *  - 'node' (default): node-postgres + `pg` (Node servers)
-   *  - 'edge': Neon serverless over WebSocket (Cloudflare Workers et al.)
-   * Env override: CMS_DB_DRIVER.
-   */
-  db?: { driver?: 'node' | 'edge' }
   /** Blob storage for uploaded media. Defaults to the local filesystem driver. */
   storage?: {
     /** 'local' (default) writes to disk; 's3'/'r2' use an S3-compatible store. */
@@ -130,19 +123,8 @@ export default defineNuxtModule<CmsModuleOptions>({
       console.warn(`[@my-cms/core] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
     }
 
-    // Pick the DB driver impl at build time so only its deps land in the bundle.
-    const dbDriver = options.db?.driver || process.env.CMS_DB_DRIVER || 'node'
-    const dbImpl = resolve(layerDir, 'server/db', dbDriver === 'edge' ? 'driver.edge.ts' : 'driver.node.ts')
-    // Same switch for mail: only the Node build bundles SMTP (nodemailer).
-    const mailImpl = resolve(layerDir, 'server/mail', dbDriver === 'edge' ? 'mailer.edge.ts' : 'mailer.node.ts')
-    // …and for the shared store: only the Node build bundles the Redis client.
-    const storeImpl = resolve(layerDir, 'server/store', dbDriver === 'edge' ? 'store.edge.ts' : 'store.node.ts')
-
-    // Expose the host config + DB driver as virtual aliases to app and Nitro server.
+    // Expose the host config as a virtual alias to app and Nitro server.
     nuxt.options.alias['#cms/config'] = configPath
-    nuxt.options.alias['#cms/db'] = dbImpl
-    nuxt.options.alias['#cms/mailer'] = mailImpl
-    nuxt.options.alias['#cms/store'] = storeImpl
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
     nuxt.hook('nitro:config', (nitro) => {
@@ -152,9 +134,6 @@ export default defineNuxtModule<CmsModuleOptions>({
       }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
-      nitro.alias['#cms/db'] = dbImpl
-      nitro.alias['#cms/mailer'] = mailImpl
-      nitro.alias['#cms/store'] = storeImpl
       nitro.externals = nitro.externals || {}
       nitro.externals.inline = nitro.externals.inline || []
     })
