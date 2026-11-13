@@ -1,4 +1,4 @@
-import type { CmsChange } from '@my-cms/core'
+import type { CmsChange } from 'tinyzoo'
 
 /**
  * Publish webhooks: POST each public content change to the configured URLs so the

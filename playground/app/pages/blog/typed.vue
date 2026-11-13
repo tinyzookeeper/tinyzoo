@@ -2,7 +2,7 @@
 import { createClient, type Post } from '~/lib/cms-content'
 
 // The SAME public API as /blog, but consumed through the generated, strictly-typed
-// @my-cms/client. `cms.post.list(...)` resolves to Post[]; sort keys and filters are
+// @tinyzoo/client. `cms.post.list(...)` resolves to Post[]; sort keys and filters are
 // autocompleted and type-checked. A separate frontend app uses this exact pattern.
 const cms = createClient({ baseUrl: useRequestURL().origin })
 
@@ -27,7 +27,7 @@ function fmtDate(d?: string | null) {
         <h1 class="text-4xl font-bold mt-1">The Blog</h1>
         <p class="text-muted mt-2">
           Same data, fetched with the typed
-          <code class="text-xs">@my-cms/client</code> + generated bindings.
+          <code class="text-xs">@tinyzoo/client</code> + generated bindings.
         </p>
         <ULink to="/blog" class="text-sm text-primary mt-3 inline-block">← Plain fetch version</ULink>
       </div>

@@ -1,4 +1,4 @@
-import { eq, sql } from '@my-cms/core'
+import { eq, sql } from 'tinyzoo'
 
 // PUT /api/cms/_singleton/:name — upsert the single row of a global. Validates the
 // full payload, inserts on first save or updates the existing row, and GCs any media

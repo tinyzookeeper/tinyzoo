@@ -1,6 +1,6 @@
-// @my-cms/client — a tiny, dependency-free, strictly-typed client for the public
+// @tinyzoo/client — a tiny, dependency-free, strictly-typed client for the public
 // content API. It carries ZERO knowledge of any specific CMS: all types come from
-// a generated `ContentSchema` (see `cms client`), so the runtime is stable across
+// a generated `ContentSchema` (see `tinyzoo client`), so the runtime is stable across
 // schema changes and the same build serves every CMS instance.
 //
 //   import { createClient } from './cms-content'   // generated
@@ -102,7 +102,7 @@ export function createCmsClient<S extends AnyContentSchema, G extends object = R
   const base = options.baseUrl.replace(/\/+$/, '')
   const doFetch = options.fetch ?? globalThis.fetch
   if (typeof doFetch !== 'function') {
-    throw new Error('@my-cms/client: no fetch available — pass options.fetch')
+    throw new Error('@tinyzoo/client: no fetch available — pass options.fetch')
   }
 
   async function request<T>(path: string, query?: Record<string, unknown>): Promise<T> {

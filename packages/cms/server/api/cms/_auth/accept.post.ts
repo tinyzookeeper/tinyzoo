@@ -1,4 +1,4 @@
-import { and, eq, isNull } from '@my-cms/core'
+import { and, eq, isNull } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_auth/accept — accept an invitation: choose a name and password, and

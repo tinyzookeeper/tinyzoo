@@ -18,12 +18,9 @@ importers:
       '@hocuspocus/provider':
         specifier: ^3.4.4
         version: 3.4.4(y-protocols@1.0.7(yjs@13.6.31))(yjs@13.6.31)
-      '@my-cms/client':
+      '@tinyzoo/client':
         specifier: workspace:*
         version: link:packages/client
-      '@my-cms/core':
-        specifier: workspace:*
-        version: link:packages/cms
       '@tiptap/y-tiptap':
         specifier: ^3.3.0
         version: 3.3.0(prosemirror-model@1.25.13)(prosemirror-state@1.4.4)(prosemirror-view@1.42.9)(y-protocols@1.0.7(yjs@13.6.31))(yjs@13.6.31)
@@ -45,6 +42,9 @@ importers:
       pg:
         specifier: ^8.22.0
         version: 8.22.0
+      tinyzoo:
+        specifier: workspace:*
+        version: link:packages/cms
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -163,15 +163,12 @@ importers:
 
   playground:
     dependencies:
-      '@my-cms/client':
-        specifier: workspace:*
-        version: link:../packages/client
-      '@my-cms/core':
-        specifier: workspace:*
-        version: link:../packages/cms
       '@nuxt/ui':
         specifier: ^4.0.0
         version: 4.9.0(16e2351757d052cc1760fa24c7f3f600)
+      '@tinyzoo/client':
+        specifier: workspace:*
+        version: link:../packages/client
       drizzle-orm:
         specifier: ^0.44.0
         version: 0.44.7(@neondatabase/serverless@1.1.0)(@types/pg@8.20.0)(pg@8.22.0)
@@ -187,6 +184,9 @@ importers:
       tailwindcss:
         specifier: ^4.3.1
         version: 4.3.1
+      tinyzoo:
+        specifier: workspace:*
+        version: link:../packages/cms
       zod:
         specifier: ^4.0.0
         version: 4.4.3

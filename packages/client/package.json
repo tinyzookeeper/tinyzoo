@@ -1,8 +1,8 @@
 {
-  "name": "@my-cms/client",
+  "name": "@tinyzoo/client",
   "version": "0.1.0",
   "type": "module",
-  "description": "Tiny, dependency-free, strictly-typed client for the @my-cms content API.",
+  "description": "Tiny, dependency-free, strictly-typed client for the tinyzoo content API.",
   "sideEffects": false,
   "exports": {
     ".": {

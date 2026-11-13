@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 /**
- * `cms` CLI — thin wrapper over drizzle-kit + the codegen sinks.
- *   cms generate          → emit host db/schema.ts from cms.config.ts, then `drizzle-kit generate`
- *   cms up                → `drizzle-kit migrate`
- *   cms client [out]      → emit the typed @my-cms/client bindings (default cms-content.ts; --stdout)
- *   cms openapi [out]     → emit the OpenAPI 3.1 document (default openapi.json; --stdout)
+ * `tinyzoo` CLI — thin wrapper over drizzle-kit + the codegen sinks.
+ *   tinyzoo generate          → emit host db/schema.ts from cms.config.ts, then `drizzle-kit generate`
+ *   tinyzoo up                → `drizzle-kit migrate`
+ *   tinyzoo client [out]      → emit the typed @tinyzoo/client bindings (default cms-content.ts; --stdout)
+ *   tinyzoo openapi [out]     → emit the OpenAPI 3.1 document (default openapi.json; --stdout)
  * Run from the host app root (cwd = host). Designed to run under tsx.
  */
 import { execFileSync } from 'node:child_process'
@@ -66,6 +66,6 @@ switch (cmd) {
   case 'client': await client(); break
   case 'openapi': await openapi(); break
   default:
-    console.error('usage: cms <generate|up|client|openapi> [out] [--stdout]')
+    console.error('usage: tinyzoo <generate|up|client|openapi> [out] [--stdout]')
     process.exit(1)
 }

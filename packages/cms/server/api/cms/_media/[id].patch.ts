@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 // PATCH /api/cms/_media/:id — update a file's editable details: alt text (and per
 // content language: altLocales { en: '…' }), its library folder, and its focal point

@@ -1,4 +1,4 @@
-import { CMS_ROLES, eq, sql } from '@my-cms/core'
+import { CMS_ROLES, eq, sql } from 'tinyzoo'
 import { z } from 'zod'
 
 // PATCH /api/cms/_users/:id — change someone's role, or disable / re-enable them.

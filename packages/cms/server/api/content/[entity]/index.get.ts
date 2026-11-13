@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, ilike, lt, sql } from '@my-cms/core'
+import { and, asc, desc, eq, gte, ilike, lt, sql } from 'tinyzoo'
 
 // GET /api/content/:entity — public, read-only list of PUBLISHED items.
 // Resolves relations/media, hides private fields, paginates, and is cacheable.

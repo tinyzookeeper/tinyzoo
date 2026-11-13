@@ -1,4 +1,4 @@
-import { and, eq } from '@my-cms/core'
+import { and, eq } from 'tinyzoo'
 
 // GET /api/content/:entity/:slug — a single PUBLISHED item by its slug field
 // (falling back to id). 404 for missing OR unpublished (never reveal drafts).

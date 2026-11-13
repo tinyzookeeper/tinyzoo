@@ -1,4 +1,4 @@
-import { eq, sql } from '@my-cms/core'
+import { eq, sql } from 'tinyzoo'
 
 // DELETE /api/cms/_users/:id — remove someone's access entirely (also withdraws a
 // pending invitation). Not yourself, and never the last active administrator.

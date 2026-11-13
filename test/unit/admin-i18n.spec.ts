@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import en from '../../packages/cms/app/i18n/en'
 import cs from '../../packages/cms/app/i18n/cs'
-import { resolveText } from '@my-cms/core'
+import { resolveText } from 'tinyzoo'
 
 type Tree = { [k: string]: string | Tree }
 const isPlural = (v: unknown): v is Record<string, string> => !!v && typeof v === 'object' && typeof (v as any).other === 'string'

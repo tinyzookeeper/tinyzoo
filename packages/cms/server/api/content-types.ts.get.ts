@@ -1,8 +1,8 @@
-import { emitContentTypes } from '@my-cms/core'
+import { emitContentTypes } from 'tinyzoo'
 // virtual alias provided by the module (build-time); typed through the host's tsconfig paths
 import * as cmsConfig from '#cms/config'
 
-// GET /api/content-types.ts — the generated, strictly-typed @my-cms/client
+// GET /api/content-types.ts — the generated, strictly-typed @tinyzoo/client
 // bindings for this CMS. A separate frontend can `curl` it straight into its src:
 //   curl https://cms.example.com/api/content-types.ts -o src/cms-content.ts
 // Pure function of the immutable config → built once and cached.

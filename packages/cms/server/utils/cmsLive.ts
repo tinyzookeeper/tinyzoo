@@ -1,4 +1,4 @@
-import { eq, inArray, type CmsChange } from '@my-cms/core'
+import { eq, inArray, type CmsChange } from 'tinyzoo'
 
 /**
  * Realtime for the admin: who else is looking at (or editing) the same content, and

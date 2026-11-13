@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { eq, sql } from '@my-cms/core'
+import { eq, sql } from 'tinyzoo'
 import { imageSize } from 'image-size'
 
 // Allowlist of storable types → canonical extension. Deliberately EXCLUDES

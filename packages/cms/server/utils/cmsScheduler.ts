@@ -1,4 +1,4 @@
-import { and, eq, gt, lte, propOf, sql } from '@my-cms/core'
+import { and, eq, gt, lte, propOf, sql } from 'tinyzoo'
 
 const LOCK = 72_011_004
 const KEY = 'scheduler.lastRun'

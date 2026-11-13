@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildRegistry, defineEntity, f } from '@my-cms/core'
+import { buildRegistry, defineEntity, f } from 'tinyzoo'
 import * as config from '../../playground/cms.config'
 
 describe('defineEntity', () => {

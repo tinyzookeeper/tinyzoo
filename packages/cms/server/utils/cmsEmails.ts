@@ -1,5 +1,5 @@
 import { INVITE_TTL_MS } from './cmsAuth'
-import { resolveText } from '@my-cms/core'
+import { resolveText } from 'tinyzoo'
 
 // The emails the CMS sends: an invitation and a password-reset link. Plain, neutral
 // HTML that survives every mail client, with a text version. Czech and English,

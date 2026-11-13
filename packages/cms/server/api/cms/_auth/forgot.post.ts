@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_auth/forgot — email a password-reset link. Always the same answer,

@@ -9,7 +9,7 @@ const config = useCmsAdminConfig()
 const { t, locale, locales, setLocale, entityLabel } = useCmsI18n()
 
 // The admin's own look (cms-admin.css) applies while this layout is mounted.
-const { productName } = useCmsAdminHead()
+const { productName, unbranded } = useCmsAdminHead()
 
 // The server re-checks the account on every request. If it no longer accepts the
 // session (disabled, password changed elsewhere, removed), go back to sign-in.
@@ -86,7 +86,8 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
     >
       <template #header="{ collapsed }">
         <NuxtLink to="/admin" class="flex items-center gap-2.5 min-w-0" :class="collapsed ? 'mx-auto' : ''">
-          <span class="size-7 shrink-0 rounded-md bg-inverted text-inverted grid place-items-center text-sm font-semibold leading-none" aria-hidden="true">
+          <CmsMascot v-if="unbranded" class="h-6 w-auto shrink-0" />
+          <span v-else class="size-7 shrink-0 rounded-md bg-inverted text-inverted grid place-items-center text-sm font-semibold leading-none" aria-hidden="true">
             {{ productName.charAt(0) }}
           </span>
           <span v-if="!collapsed" class="truncate font-semibold text-highlighted">{{ productName }}</span>

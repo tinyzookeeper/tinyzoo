@@ -1,5 +1,5 @@
-import { and, blockMediaKeys, eq, inArray, isNull, lte, or, propOf, sql } from '@my-cms/core'
-import type { CmsEntity, CmsRegistry } from '@my-cms/core'
+import { and, blockMediaKeys, eq, inArray, isNull, lte, or, propOf, sql } from 'tinyzoo'
+import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
 

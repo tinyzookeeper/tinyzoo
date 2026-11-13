@@ -1,5 +1,5 @@
-import { and, eq, inArray } from '@my-cms/core'
-import type { CmsEntity, CmsRegistry } from '@my-cms/core'
+import { and, eq, inArray } from 'tinyzoo'
+import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 
 /**
  * Content translations. Each entry's own row holds the default language; the

@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 // DELETE /api/cms/_media/:id — remove a media record and its blob. Lets orphaned
 // uploads be reclaimed (full auto-GC on hero replace / entity delete is a follow-up).

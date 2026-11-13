@@ -1,5 +1,5 @@
-import { and, eq, isNull, ne, or, sql } from '@my-cms/core'
-import { propOf, type CmsEntity, type CmsRegistry } from '@my-cms/core'
+import { and, eq, isNull, ne, or, sql } from 'tinyzoo'
+import { propOf, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 import type { CmsUser } from './cmsSession'
 
 export function getEntity(reg: CmsRegistry, name: string | undefined): CmsEntity {

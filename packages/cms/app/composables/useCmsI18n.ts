@@ -34,7 +34,7 @@ export function useCmsAdminConfig() {
     const admin = ((appConfig.cms as any)?.admin ?? {}) as Record<string, any>
     const locales = ((admin.locales as string[] | undefined) ?? Object.keys(catalogs)).filter((l) => catalogs[l])
     return {
-      name: (admin.name as LocalizedText | undefined) ?? 'Content',
+      name: (admin.name as LocalizedText | undefined) ?? 'tinyzoo',
       siteUrl: (admin.siteUrl as string | undefined) ?? '/',
       accent: (admin.accent as string | undefined) ?? 'mono',
       locales: locales.length ? locales : ['en'],

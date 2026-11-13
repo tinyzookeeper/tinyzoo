@@ -1,9 +1,15 @@
-# my-cms
+<p><img src="docs/brand/logo/logo-primary.svg" alt="tinyzoo" height="48"></p>
+
+*A tiny CMS that lives inside your Nuxt app.*
 
 A **code-first, distributable CMS for Nuxt 4**, shipped as a single Nuxt **Layer + Module**
-(`@my-cms/core`). You define content entities once in TypeScript; the package derives the
+(`tinyzoo`, with the typed content client `@tinyzoo/client`). You define content entities once in TypeScript; the package derives the
 database schema, validation, a typed CRUD API, and an auto-generated admin dashboard. Your
 clients edit **data** through the dashboard — never the UI or the structure.
+
+The name is always **tinyzoo** — one word, lowercase. Brand guide, logo and the animal
+characters: [`docs/brand/`](docs/brand/brand-guide.md). Inside the code the CMS keeps its
+`cms` namespace (`cms.config.ts`, `NUXT_CMS_*`, `cms_*` tables, `Cms*` components).
 
 > Philosophy: structure is a developer concern, owned in git (like Payload/Sanity). There is
 > **no runtime schema editor** — that's the differentiator, not a limitation.
@@ -68,7 +74,7 @@ export const Post = defineEntity('post', {
 Entities are **precisely typed with no annotations** — the data shapes are inferred:
 
 ```ts
-import type { Row, Insert } from "@my-cms/core"
+import type { Row, Insert } from "tinyzoo"
 
 type PostRow = Row<typeof Post>
 //   { id: string; title: string; status: 'draft' | 'published';
@@ -82,14 +88,14 @@ type NewPost = Insert<typeof Post>
 ## Repository layout
 
 ```
-packages/cms/          @my-cms/core — the Layer + Module
+packages/cms/          tinyzoo — the Layer + Module
   src/                 field engine, defineEntity, registry, emitters (schema / openapi / sdk)
-  cli/                 cms generate|up|client|openapi (wraps drizzle-kit + codegen)
+  cli/                 tinyzoo generate|up|client|openapi (wraps drizzle-kit + codegen)
   module.ts            build-time wiring (#cms/config alias, runtimeConfig)
   nuxt.config.ts       layer root
   server/              generic CRUD + content API + drizzle DataSource (useCms)
   app/                 /admin pages + CmsField renderer
-packages/client/       @my-cms/client — tiny strictly-typed content-API client (publishable)
+packages/client/       @tinyzoo/client — tiny strictly-typed content-API client (publishable)
 playground/            demo host app: `extends: ['../packages/cms']`
   cms.config.ts        Post + Author + Tag (the source of truth)
   app/lib/             generated cms-content.ts (typed client bindings)
@@ -527,14 +533,14 @@ GET /api/openapi         # interactive reference (Scalar)
 npx openapi-typescript https://cms.example.com/api/openapi.json -o cms.d.ts
 ```
 
-**Typed TS SDK — `@my-cms/client`.** A ~2 kB, dependency-free, strictly-typed client.
+**Typed TS SDK — `@tinyzoo/client`.** A ~2 kB, dependency-free, strictly-typed client.
 Generate the bindings, install the runtime, go:
 
 ```bash
 pnpm cms:client                                              # writes app/lib/cms-content.ts
 # …or from anywhere with API access:
 curl https://cms.example.com/api/content-types.ts -o src/cms-content.ts
-npm i @my-cms/client
+npm i @tinyzoo/client
 ```
 ```ts
 import { createClient } from './cms-content'

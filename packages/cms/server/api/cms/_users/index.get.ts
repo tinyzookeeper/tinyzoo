@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNull } from '@my-cms/core'
+import { and, asc, desc, eq, gt, isNull } from 'tinyzoo'
 
 // GET /api/cms/_users — everyone with access to the admin, for the Team page.
 // Invited people carry when their invitation expires. Administrators only.

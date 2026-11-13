@@ -1,4 +1,4 @@
-import { inArray } from '@my-cms/core'
+import { inArray } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_media/exists { ids } — which of these files still exist. Restoring

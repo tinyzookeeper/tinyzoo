@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { CmsError, createCmsClient } from '@my-cms/client'
+import { CmsError, createCmsClient } from '@tinyzoo/client'
 
 function client(response: { status?: number; body?: unknown } = {}) {
   const fetch = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify(response.body ?? { items: [], total: 0, page: 1, limit: 20 }), { status: response.status ?? 200, headers: { 'content-type': 'application/json' } }))
@@ -7,7 +7,7 @@ function client(response: { status?: number; body?: unknown } = {}) {
   return { cms, fetch }
 }
 
-describe('@my-cms/client', () => {
+describe('@tinyzoo/client', () => {
   it('builds list URLs with paging, sort and flattened filters, and sends the token', async () => {
     const { cms, fetch } = client()
     await cms.post.list({ page: 2, limit: 5, sort: 'title', dir: 'asc', q: 'hi', filter: { status: 'published' } })

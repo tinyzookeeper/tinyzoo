@@ -1,4 +1,4 @@
-import { CMS_ROLES, eq } from '@my-cms/core'
+import { CMS_ROLES, eq } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_users — invite someone. Creates the account (status "invited"),

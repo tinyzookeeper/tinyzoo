@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 // POST /api/cms/_users/:id/resend — send a fresh invitation link (the old one stops
 // working). Returns the link for copying. Administrators only.

@@ -1,4 +1,4 @@
-import { and, eq, sql } from '@my-cms/core'
+import { and, eq, sql } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_auth/password — change your own password (the current one is

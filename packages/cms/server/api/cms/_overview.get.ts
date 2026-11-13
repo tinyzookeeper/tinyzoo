@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNull, ne, or, propOf, sql } from '@my-cms/core'
+import { and, asc, desc, eq, gt, isNull, ne, or, propOf, sql } from 'tinyzoo'
 
 // GET /api/cms/_overview — what the admin home page shows: how many items each
 // collection holds, the most recently edited items across all of them, this

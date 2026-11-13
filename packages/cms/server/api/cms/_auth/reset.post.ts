@@ -1,4 +1,4 @@
-import { and, eq, isNull, sql } from '@my-cms/core'
+import { and, eq, isNull, sql } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_auth/reset — set a new password with a reset link. Every other

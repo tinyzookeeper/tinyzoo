@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq } from 'tinyzoo'
 
 // GET /api/cms/_media/:id/usage — where this file is used (entries this person may
 // read): media fields, rich text and blocks, translations included.

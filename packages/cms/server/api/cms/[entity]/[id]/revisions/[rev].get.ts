@@ -1,6 +1,6 @@
 // GET /api/cms/:entity/:id/revisions/:rev — one snapshot's values (to compare or
 // restore in the editor). Anyone who may read the entry may see it.
-import { and, eq } from '@my-cms/core'
+import { and, eq } from 'tinyzoo'
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()

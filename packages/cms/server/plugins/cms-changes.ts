@@ -1,4 +1,4 @@
-import type { CmsChange } from '@my-cms/core'
+import type { CmsChange } from 'tinyzoo'
 
 // Listen for content changes saved on the OTHER replicas (shared store, `changes`
 // channel) and clear this instance's caches built from that content. Changes saved

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/pg-core'
-import { cmsAudit, cmsMedia, cmsTokens, cmsUsers } from '@my-cms/core'
+import { cmsAudit, cmsMedia, cmsTokens, cmsUsers } from 'tinyzoo'
 import * as emitted from '../../playground/server/db/schema'
 
 // The CMS's own tables exist twice: as runtime Drizzle tables and as source

@@ -1,4 +1,4 @@
-import { sql } from '@my-cms/core'
+import { sql } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_auth/setup — create the first administrator on a fresh install and

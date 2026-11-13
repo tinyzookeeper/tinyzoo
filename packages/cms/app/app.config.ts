@@ -23,7 +23,8 @@ export default defineAppConfig({
   cms: {
     fields: {} as Record<string, { edit?: string; cell?: string }>,
     admin: {
-      name: 'Content' as string | Record<string, string>,
+      // Unset: the admin is called tinyzoo. A client's name makes it theirs.
+      name: 'tinyzoo' as string | Record<string, string>,
       siteUrl: '/',
       accent: 'mono' as 'mono' | 'indigo' | 'blue' | 'violet' | 'emerald',
       locales: ['cs', 'en'] as string[],

@@ -1,5 +1,5 @@
-import { and, eq, gt, isNull, ne, sql } from '@my-cms/core'
-import type { CmsRegistry } from '@my-cms/core'
+import { and, eq, gt, isNull, ne, sql } from 'tinyzoo'
+import type { CmsRegistry } from 'tinyzoo'
 import { z } from 'zod'
 
 /**

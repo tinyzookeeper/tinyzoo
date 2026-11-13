@@ -1,5 +1,5 @@
-import { and, inArray, sitePath } from '@my-cms/core'
-import type { CmsEntity, CmsRegistry } from '@my-cms/core'
+import { and, inArray, sitePath } from 'tinyzoo'
+import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 
 /**
  * Sitemap entries for every public collection with `content.path` (e.g.

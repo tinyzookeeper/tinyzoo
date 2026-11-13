@@ -1,4 +1,4 @@
-import type { CmsRegistry } from '@my-cms/core'
+import type { CmsRegistry } from 'tinyzoo'
 
 // Redirects defined with defineRedirects(), served by the cms-redirects middleware.
 // Loaded into memory and refreshed every 30 s (other replicas) or right after a
