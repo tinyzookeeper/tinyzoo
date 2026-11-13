@@ -174,7 +174,7 @@ const arrangeRows = ref<any[]>([])
 const arrangeTooMany = ref(false)
 const savingOrder = ref(false)
 async function startArrange() {
-  const res = await $fetch<{ rows: any[]; total: number }>(`/api/cms/${entity.value}`, { query: { sort: orderField.value, dir: 'asc', limit: 100 } })
+  const res = await cmsFetch<{ rows: any[]; total: number }>(`/api/cms/${entity.value}`, { query: { sort: orderField.value, dir: 'asc', limit: 100 } })
   arrangeTooMany.value = res.total > res.rows.length
   arrangeRows.value = res.rows
   selected.value = new Set()
@@ -200,7 +200,7 @@ function move(i: number, delta: number) {
 async function saveOrder() {
   savingOrder.value = true
   try {
-    await $fetch(`/api/cms/${entity.value}/_order`, { method: 'POST', body: { ids: arrangeRows.value.map((r) => r.id) } })
+    await cmsFetch(`/api/cms/${entity.value}/_order`, { method: 'POST', body: { ids: arrangeRows.value.map((r) => r.id) } })
     toast.add({ title: t('list.orderSaved'), icon: 'i-lucide-check', color: 'success' })
     arranging.value = false
     sort.value = orderField.value!

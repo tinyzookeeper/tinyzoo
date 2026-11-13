@@ -96,7 +96,7 @@ async function open(m: any) {
   draft.folder = m.folder ?? ''
   draft.focal = m.focalX != null ? { x: m.focalX, y: m.focalY } : null
   usage.value = null
-  const found = (await $fetch<{ usage: any[] }>(`/api/cms/_media/${m.id}/usage`).catch(() => ({ usage: [] }))).usage
+  const found = (await cmsFetch<{ usage: any[] }>(`/api/cms/_media/${m.id}/usage`).catch(() => ({ usage: [] }))).usage
   // Opened another file meanwhile: its usage, not this one's.
   if (current.value?.id === m.id) usage.value = found
 }

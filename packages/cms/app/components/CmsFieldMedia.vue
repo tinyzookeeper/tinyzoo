@@ -20,7 +20,7 @@ async function resolveMedia(id: string | null | undefined) {
   }
   if (media.value?.id === id) return
   try {
-    media.value = await $fetch(`/api/cms/_media/${id}`)
+    media.value = await cmsFetch(`/api/cms/_media/${id}`)
   } catch {
     media.value = null
   }

@@ -150,6 +150,10 @@ export default {
     shortcutSave: 'Save (Ctrl/⌘ S)',
   },
   fields: {
+    galleryCaption: 'Caption',
+    galleryEarlier: 'Move earlier',
+    galleryLater: 'Move later',
+    galleryCount: { one: '{count} file', other: '{count} files' },
     slugPlaceholder: 'lowercase-with-dashes',
     linkPrompt: 'Link address',
     loadingEditor: 'Loading editor…',

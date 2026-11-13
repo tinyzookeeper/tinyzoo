@@ -72,6 +72,20 @@ describe('publish webhooks', () => {
     expect(tr(await waitForHooks(mark, (h) => !!tr(h)))!.json).toMatchObject({ locale: 'en', paths: ['/en/blog/article'] })
   })
 
+  it('reports the translated address of a collection with one per language', async () => {
+    const page = (await admin.post('/api/cms/page', { title: 'Kontakt', slug: 'kontakt', status: 'published', sections: [] })).body.row
+    const mark = hooksMark()
+    expect((await admin.patch(`/api/cms/page/${page.id}?locale=en`, { title: 'Contact', slug: 'contact' })).status).toBe(200)
+    const tr = (h: ReceivedHook[]) => h.find((x) => x.path === '/ok' && x.json.type === 'translation.updated' && x.json.entity === 'page')
+    expect(tr(await waitForHooks(mark, (h) => !!tr(h)))!.json).toMatchObject({ locale: 'en', paths: ['/en/pages/contact'] })
+  })
+
+  it('gives the admin the preview address per language', async () => {
+    const graph = (await admin.get('/api/cms/_graph')).body
+    expect(graph.find((g: any) => g.name === 'page').previewPaths).toEqual({ cs: '/:slug', en: '/en/pages/:slug' })
+    expect(graph.find((g: any) => g.name === 'post').previewPaths).toEqual({ cs: '/blog/:slug', en: '/en/blog/:slug' })
+  })
+
   it('signs the delivery id into the body and keeps who made the change out', async () => {
     const a = await createAuthor(admin)
     const post = await createPost(admin, { author: a.id, status: 'published' })

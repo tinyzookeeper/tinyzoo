@@ -29,6 +29,7 @@ function tsType(t: ContentFieldType): string {
       return 'string' // string + datetime(ISO) both serialize as string
     case 'richtext': return 'RichTextDoc'
     case 'media': return 'CmsMedia'
+    case 'gallery': return 'CmsGalleryItem[]'
     case 'relation-one': return t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`
     case 'relation-many': return `${t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`}[]`
     case 'blocks': {
@@ -104,6 +105,11 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('  focal: { x: number; y: number } | null')
   out.push('}')
   out.push('')
+  out.push('/** One item of a gallery field: the file, and its caption. */')
+  out.push('export interface CmsGalleryItem extends CmsMedia {')
+  out.push('  caption: string | null')
+  out.push('}')
+  out.push('')
 
   // Embedded + ref shapes (nested populated targets).
   if (model.embedded.length || model.refs.length) {
@@ -118,12 +124,21 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   for (const e of model.entities) out.push(objectInterface(e.pascal, e.fields, { timestamps: true, locales: e.locales }))
   out.push('')
 
+  // Globals (singletons).
+  if (model.globals.length) {
+    out.push('// ── globals ─────────────────────────────────────────────────────────────────────')
+    for (const g of model.globals) out.push(objectInterface(g.pascal, g.fields, { timestamps: true, locales: g.locales }))
+    out.push('')
+  }
+
   // Per-collection filter types.
   out.push('// ── query types ─────────────────────────────────────────────────────────────────')
   for (const e of model.entities) {
     const filterLines = e.filters.map((f) => {
-      const t = f.enumValues ? f.enumValues.map((v) => `'${v}'`).join(' | ') : 'string'
-      return `  ${f.key}?: ${t}`
+      const t = f.value === 'boolean' ? 'boolean' : f.value === 'datetime' ? 'string | Date' : f.enumValues ? f.enumValues.map((v) => `'${v}'`).join(' | ') : 'string'
+      const key = /^[A-Za-z_$][\w$]*$/.test(f.key) ? f.key : `'${f.key}'`
+      const doc = f.value === 'datetime' ? `  /** ${f.key.endsWith('.from') ? 'On or after' : 'On or before'} this date or time. */\n` : ''
+      return `${doc}  ${key}?: ${t}`
     })
     out.push(`export interface ${e.pascal}Filters {${filterLines.length ? `\n${filterLines.join('\n')}\n` : ''}}`)
   }
@@ -140,10 +155,14 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('}')
   out.push('')
 
+  out.push('/** Maps each global to its object (`cms.global(name)`). */')
+  out.push(`export type GlobalSchema = {${model.globals.length ? `\n${model.globals.map((g) => `  ${g.name}: ${g.pascal}`).join('\n')}\n` : ''}}`)
+  out.push('')
+
   // Pre-bound, fully-typed client factory.
   out.push('/** Create a typed client for this CMS. `baseUrl` is the CMS origin. */')
-  out.push('export function createClient(options: ClientOptions): CmsClient<ContentSchema> {')
-  out.push('  return createCmsClient<ContentSchema>(options)')
+  out.push('export function createClient(options: ClientOptions): CmsClient<ContentSchema, GlobalSchema> {')
+  out.push('  return createCmsClient<ContentSchema, GlobalSchema>(options)')
   out.push('}')
   out.push('')
 

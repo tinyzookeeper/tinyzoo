@@ -28,6 +28,11 @@ export interface CmsMedia {
   focal: { x: number; y: number } | null
 }
 
+/** One item of a gallery field: the file, and its caption. */
+export interface CmsGalleryItem extends CmsMedia {
+  caption: string | null
+}
+
 // ── nested (populated) projections ─────────────────────────────────────────────
 export interface AuthorEmbedded {
   id: string
@@ -76,6 +81,7 @@ export interface Post {
   author: AuthorEmbedded
   tags: TagEmbedded[]
   body: RichTextDoc
+  gallery: CmsGalleryItem[]
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null
@@ -98,6 +104,30 @@ export interface Tag {
   locales: Array<'cs' | 'en'>
 }
 
+// ── globals ─────────────────────────────────────────────────────────────────────
+export interface Navigation {
+  id: string
+  main: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null }>
+  footer: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null }>
+  createdAt: string
+  updatedAt: string
+  /** The language this item is served in. */
+  locale: 'cs' | 'en'
+  /** Languages this item exists in (the default and every translation). */
+  locales: Array<'cs' | 'en'>
+}
+export interface SiteSettings {
+  id: string
+  siteName: string
+  tagline: string | null
+  logo: CmsMedia | null
+  metaTitle: string | null
+  metaDescription: string | null
+  ogImage: CmsMedia | null
+  createdAt: string
+  updatedAt: string
+}
+
 // ── query types ─────────────────────────────────────────────────────────────────
 export interface AuthorFilters {
   name?: string
@@ -113,6 +143,10 @@ export interface PostFilters {
   title?: string
   slug?: string
   status?: 'draft' | 'published'
+  /** On or after this date or time. */
+  'publishedAt.from'?: string | Date
+  /** On or before this date or time. */
+  'publishedAt.to'?: string | Date
   author?: string
   metaTitle?: string
   metaDescription?: string
@@ -130,7 +164,13 @@ export type ContentSchema = {
   tag: { item: Tag, sort: 'createdAt' | 'updatedAt' | 'name' | 'slug', filters: TagFilters }
 }
 
+/** Maps each global to its object (`cms.global(name)`). */
+export type GlobalSchema = {
+  navigation: Navigation
+  siteSettings: SiteSettings
+}
+
 /** Create a typed client for this CMS. `baseUrl` is the CMS origin. */
-export function createClient(options: ClientOptions): CmsClient<ContentSchema> {
-  return createCmsClient<ContentSchema>(options)
+export function createClient(options: ClientOptions): CmsClient<ContentSchema, GlobalSchema> {
+  return createCmsClient<ContentSchema, GlobalSchema>(options)
 }

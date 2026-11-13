@@ -8,7 +8,7 @@ const loading = ref(false)
 async function load(q = '') {
   loading.value = true
   try {
-    options.value = await $fetch(`/api/cms/${props.field.relation.to}/options`, {
+    options.value = await cmsFetch(`/api/cms/${props.field.relation.to}/options`, {
       query: { q, selected: model.value ?? '' },
     })
   } finally {

@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     .map(([k]) => `${k}Id`)
   const oldMedia: Record<string, string | null> = {}
   // Media referenced inside rich text / blocks before this write (cleanup below).
-  const jsonCols = Object.entries(e.fields).filter(([, f]) => (f as any).type === 'richtext' || (f as any).type === 'blocks').map(([k]) => k)
+  const jsonCols = Object.entries(e.fields).filter(([, f]) => JSON_MEDIA_TYPES.has((f as any).type)).map(([k]) => k)
   let oldEmbedded: string[] = []
 
   const row = await db.transaction(async (tx: any) => {

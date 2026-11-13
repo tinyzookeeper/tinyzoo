@@ -18,6 +18,22 @@ type JsonSchema = Record<string, any>
 
 const REF = (name: string): JsonSchema => ({ $ref: `#/components/schemas/${name}` })
 
+const MEDIA_PROPERTIES: JsonSchema = {
+  id: { type: 'string', format: 'uuid' },
+  url: { type: 'string', format: 'uri' },
+  width: { type: ['integer', 'null'] },
+  height: { type: ['integer', 'null'] },
+  alt: { type: ['string', 'null'] },
+  mime: { type: 'string' },
+  focal: {
+    type: ['object', 'null'],
+    additionalProperties: false,
+    properties: { x: { type: 'integer', minimum: 0, maximum: 100 }, y: { type: 'integer', minimum: 0, maximum: 100 } },
+    required: ['x', 'y'],
+  },
+}
+const MEDIA_REQUIRED = ['id', 'url', 'width', 'height', 'alt', 'mime', 'focal']
+
 /** Wrap a schema so the value may also be JSON `null` (OpenAPI 3.1 style). */
 function nullable(schema: JsonSchema, isNullable: boolean): JsonSchema {
   if (!isNullable) return schema
@@ -53,6 +69,7 @@ function fieldSchema(t: ContentFieldType): JsonSchema {
     case 'scalar': return scalarSchema(t)
     case 'richtext': return REF('RichTextDoc')
     case 'media': return REF('CmsMedia')
+    case 'gallery': return { type: 'array', items: REF('CmsGalleryItem') }
     case 'relation-one': return REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`)
     case 'relation-many': return { type: 'array', items: REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`) }
     case 'blocks': {
@@ -112,11 +129,21 @@ function listParams(shape: ContentShape): JsonSchema[] {
     ...localeParam(shape),
   ]
   for (const filter of shape.filters) {
+    if (filter.value === 'datetime') {
+      const from = filter.key.endsWith('.from')
+      params.push({
+        name: filter.key,
+        in: 'query',
+        description: from ? 'Only items on or after this date or time (ISO 8601).' : 'Only items on or before this date or time (ISO 8601; a bare date includes the whole day).',
+        schema: { type: 'string' },
+      })
+      continue
+    }
     params.push({
       name: filter.key,
       in: 'query',
       description: 'Exact-match filter.',
-      schema: filter.enumValues ? { type: 'string', enum: [...filter.enumValues] } : { type: 'string' },
+      schema: filter.value === 'boolean' ? { type: 'boolean' } : filter.enumValues ? { type: 'string', enum: [...filter.enumValues] } : { type: 'string' },
     })
   }
   return params
@@ -146,24 +173,14 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
       required: ['type'],
       additionalProperties: true,
     },
-    CmsMedia: {
+    CmsMedia: { type: 'object', additionalProperties: false, properties: MEDIA_PROPERTIES, required: MEDIA_REQUIRED },
+    // Spelled out (not allOf CmsMedia): CmsMedia forbids extra properties, so an allOf
+    // with it would reject every item for carrying `caption`.
+    CmsGalleryItem: {
       type: 'object',
       additionalProperties: false,
-      properties: {
-        id: { type: 'string', format: 'uuid' },
-        url: { type: 'string', format: 'uri' },
-        width: { type: ['integer', 'null'] },
-        height: { type: ['integer', 'null'] },
-        alt: { type: ['string', 'null'] },
-        mime: { type: 'string' },
-        focal: {
-          type: ['object', 'null'],
-          additionalProperties: false,
-          properties: { x: { type: 'integer', minimum: 0, maximum: 100 }, y: { type: 'integer', minimum: 0, maximum: 100 } },
-          required: ['x', 'y'],
-        },
-      },
-      required: ['id', 'url', 'width', 'height', 'alt', 'mime', 'focal'],
+      properties: { ...MEDIA_PROPERTIES, caption: { type: ['string', 'null'] } },
+      required: [...MEDIA_REQUIRED, 'caption'],
     },
   }
 
@@ -220,6 +237,22 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
         responses: {
           200: { description: 'OK', content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { item: REF(shape.pascal) }, required: ['item'] } } } },
           404: { description: 'Not found or not published' },
+          ...(tokenAuth ? { 401: { description: 'Missing or invalid API token' } } : {}),
+        },
+      },
+    }
+  }
+
+  for (const g of model.globals) {
+    schemas[g.pascal] = objectSchema(g.fields, { timestamps: true, locales: g.locales })
+    paths[`/api/content/_global/${g.name}`] = {
+      get: {
+        operationId: `getGlobal${g.pascal}`,
+        tags: ['globals'],
+        summary: `Get the ${g.name} global`,
+        parameters: localeParam(g),
+        responses: {
+          200: { description: 'OK (item is null until it is first saved)', content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { item: { anyOf: [REF(g.pascal), { type: 'null' }] } }, required: ['item'] } } } },
           ...(tokenAuth ? { 401: { description: 'Missing or invalid API token' } } : {}),
         },
       },

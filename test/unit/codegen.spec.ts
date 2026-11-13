@@ -23,14 +23,23 @@ describe('generated artifacts are in sync with cms.config.ts', () => {
 describe('OpenAPI document', () => {
   const doc: any = buildOpenApiDocument(config, { title: 'Content API' })
 
-  it('is OpenAPI 3.1 with a path per public collection, never a global', () => {
+  it('is OpenAPI 3.1 with a path per public collection, and globals on their own route', () => {
     expect(doc.openapi).toMatch(/^3\.1\./)
     const paths = Object.keys(doc.paths)
     expect(paths).toEqual(expect.arrayContaining([
       '/api/content/post', '/api/content/post/{slug}',
       '/api/content/author', '/api/content/tag',
+      '/api/content/_global/siteSettings',
     ]))
-    expect(paths.some((p) => p.includes('siteSettings'))).toBe(false)
+    expect(paths).not.toContain('/api/content/siteSettings')
+    expect(doc.components.schemas.SiteSettings.properties).toHaveProperty('siteName')
+  })
+
+  it('documents a gallery item as a whole object (an allOf with a closed schema would reject it)', () => {
+    const item = doc.components.schemas.CmsGalleryItem
+    expect(item.allOf).toBeUndefined()
+    expect(item.additionalProperties).toBe(false)
+    expect(item.required).toEqual(expect.arrayContaining(['id', 'url', 'alt', 'focal', 'caption']))
   })
 
   it('never documents a hidden field', () => {

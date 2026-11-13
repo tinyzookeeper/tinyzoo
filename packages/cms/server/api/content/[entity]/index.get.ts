@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, sql } from '@my-cms/core'
+import { and, asc, desc, eq, gte, ilike, lt, sql } from '@my-cms/core'
 
 // GET /api/content/:entity — public, read-only list of PUBLISHED items.
 // Resolves relations/media, hides private fields, paginates, and is cacheable.
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   // arbitrary keys (proto/Drizzle methods) and never a hidden-column ordering oracle.
   const sortable = new Set<string>(['createdAt', 'updatedAt'])
   for (const [k, fld] of Object.entries(e.fields)) {
-    if (!hidden.has(k) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks') sortable.add(k)
+    if (!hidden.has(k) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks' && fld.type !== 'gallery') sortable.add(k)
   }
   const sortKey = sortable.has(String(query.sort)) ? String(query.sort) : (orderField && sortable.has(orderField) ? orderField : 'createdAt')
   const dir = query.dir === 'asc' || (!query.dir && !query.sort && sortKey === orderField) ? asc : desc
@@ -39,10 +39,26 @@ export default defineEventHandler(async (event) => {
   }
 
   // Filters by known, NON-HIDDEN fields only — values are bound parameters (injection-safe).
-  for (const [k, v] of Object.entries(query)) {
-    if (RESERVED.has(k) || hidden.has(k)) continue
-    const fld = e.fields[k]
-    if (!fld) continue
+  for (const [param, raw] of Object.entries(query)) {
+    const parts = param.split('.')
+    if (parts.length > 2) continue
+    const [k = '', bound] = parts
+    if (RESERVED.has(k) || hidden.has(k) || !Object.hasOwn(e.fields, k)) continue
+    const fld = e.fields[k]!
+    const v = Array.isArray(raw) ? raw[0] : raw
+    if (bound !== undefined) {
+      // Date ranges: `startsAt.from=2026-07-01`, `startsAt.to=2026-07-31` (a bare date
+      // as `to` includes that whole day).
+      if (fld.type !== 'datetime' || (bound !== 'from' && bound !== 'to')) continue
+      const when = dateBound(String(v ?? ''), bound)
+      if (!when) throw createError({ statusCode: 400, statusMessage: `Invalid date for ${param}` })
+      conds.push(bound === 'from' ? gte(e.table[k], when) : lt(e.table[k], when))
+      continue
+    }
+    if (fld.type === 'boolean') {
+      if (v === 'true' || v === 'false') conds.push(eq(e.table[k], v === 'true'))
+      continue
+    }
     if (fld.relation?.kind === 'many-to-one') conds.push(eq(e.table[`${k}Id`], String(v)))
     else if (!fld.relation && ['text', 'slug', 'select'].includes(fld.type)) conds.push(localizedMatch(reg, e, k, locale, (col) => eq(col, String(v))))
   }
@@ -62,3 +78,20 @@ export default defineEventHandler(async (event) => {
   setContentCache(event)
   return { items, total: count, page, limit }
 })
+
+/**
+ * A date-range bound: an ISO date (`2026-07-31`, a whole day in UTC) or date-time
+ * (`2026-07-31T18:00`, `…Z` or `…+02:00`; without an offset it is read as UTC, never
+ * in the server's own zone). `to` is inclusive: a bare date covers that whole day.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?$/
+function dateBound(value: string, bound: 'from' | 'to'): Date | null {
+  const dateOnly = ISO_DATE.test(value)
+  const m = dateOnly ? null : ISO_DATETIME.exec(value)
+  if (!dateOnly && !m) return null
+  const d = new Date(dateOnly ? `${value}T00:00:00Z` : m![1] ? value : `${value}Z`)
+  if (Number.isNaN(d.getTime())) return null
+  const out = bound === 'to' ? new Date(d.getTime() + (dateOnly ? 86_400_000 : 1)) : d
+  return Number.isNaN(out.getTime()) ? null : out
+}

@@ -84,6 +84,9 @@ export function serializeColumn(spec: ColumnSpec, colName: string, ctx: Serializ
  */
 export const LOCALIZABLE_TYPES = new Set(['text', 'slug', 'richtext', 'blocks'])
 
+/** The stored value of a gallery field. */
+export type CmsGalleryValue = { mediaId: string; caption?: string | null }[]
+
 // ── the single field factory ──────────────────────────────────────────────────
 interface FieldConfig {
   type: string
@@ -190,10 +193,15 @@ const as = <K extends FieldKind>(d: FieldDescriptor): FieldDescriptor<K> => d as
 
 // ── the closed MVP field catalog ───────────────────────────────────────────────
 export const f = {
-  text: (o: { required?: boolean; format?: 'email' | 'url' | 'path' | 'link' } = {}) =>
+  /**
+   * A line of text. `multiline` gives a growing text box (a perex, a short note —
+   * plain text, line breaks kept; use richtext for formatting). `max` caps the length.
+   */
+  text: (o: { required?: boolean; format?: 'email' | 'url' | 'path' | 'link'; multiline?: boolean; max?: number } = {}) =>
     as<ScalarKind<string>>(createField({
       type: 'text', ui: { edit: 'CmsFieldText', cell: 'CmsCellText' },
       base: { kind: 'text' },
+      meta: o.multiline || o.max ? { ...(o.multiline ? { multiline: true } : {}), ...(o.max ? { max: o.max } : {}) } : undefined,
       zod: () => {
         let s: ZodTypeAny = o.format === 'email' ? z.email() : o.format === 'url' ? z.url()
           // An address on this site: starts with one slash; no spaces, query, fragment
@@ -202,6 +210,7 @@ export const f = {
           // A link: a site path, #anchor, or http(s) / mailto / tel — never javascript: or data:.
           : o.format === 'link' ? z.string().max(2000).refine(isSafeLink, 'Use /page, https://…, mailto: or tel:')
           : z.string()
+        if (o.max) s = (s as any).max(o.max)
         if (o.required) s = (s as any).min(1, 'Required')
         return s
       },
@@ -275,6 +284,20 @@ export const f = {
       zod: () => blocksSchema(blocks as Record<string, BlockDef>),
       createDefault: [],
       blocks: blocks as Record<string, BlockDef>,
+    }, { default: [] })),
+
+  /**
+   * Several files in order, each with an optional caption (a photo gallery, an album).
+   * Stored as `[{ mediaId, caption }]`; the content API returns each as the full media
+   * object plus `caption`.
+   */
+  gallery: (o: { accept?: string; max?: number } = {}) =>
+    as<ScalarKind<CmsGalleryValue, CmsGalleryValue, true>>(createField({
+      type: 'gallery', ui: { edit: 'CmsFieldGallery', cell: 'CmsCellGallery' },
+      base: { kind: 'jsonb' }, tsType: 'CmsGalleryValue',
+      meta: { accept: o.accept ?? 'image/*' },
+      zod: () => z.array(z.object({ mediaId: z.uuid(), caption: z.string().trim().max(500).nullish() })).max(o.max ?? 200),
+      createDefault: [],
     }, { default: [] })),
 
   media: (o: { accept?: string } = {}) =>

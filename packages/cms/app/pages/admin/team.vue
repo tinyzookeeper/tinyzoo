@@ -67,12 +67,12 @@ async function act(run: () => Promise<unknown>, success: string) {
     toast.add({ title: t('team.actionFailed'), description: cmsErrorMessage(err, ''), color: 'error', icon: 'i-lucide-x' })
   }
 }
-const patch = (id: string, body: Record<string, string>) => $fetch(`/api/cms/_users/${id}` as string, { method: 'PATCH', body })
+const patch = (id: string, body: Record<string, string>) => cmsFetch(`/api/cms/_users/${id}`, { method: 'PATCH', body })
 
 const resent = ref<{ email: string; role: string; url: string; emailed: boolean } | null>(null)
 async function resend(u: any) {
   await act(async () => {
-    const res = await $fetch<{ inviteUrl: string; emailed: boolean }>(`/api/cms/_users/${u.id}/resend` as string, { method: 'POST' })
+    const res = await cmsFetch<{ inviteUrl: string; emailed: boolean }>(`/api/cms/_users/${u.id}/resend`, { method: 'POST' })
     resent.value = { email: u.email, role: u.role, url: res.inviteUrl, emailed: res.emailed }
   }, t('team.resent'))
 }
@@ -81,7 +81,7 @@ const pendingRemove = ref<any | null>(null)
 async function confirmRemove() {
   const u = pendingRemove.value
   if (!u) return
-  await act(() => $fetch(`/api/cms/_users/${u.id}` as string, { method: 'DELETE' }), t('team.removed'))
+  await act(() => cmsFetch(`/api/cms/_users/${u.id}`, { method: 'DELETE' }), t('team.removed'))
   pendingRemove.value = null
 }
 

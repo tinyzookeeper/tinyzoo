@@ -52,6 +52,14 @@ describe('sitemap', () => {
     expect(xml).toContain(`hreflang="en" href="${anonymous().baseURL}/en/blog/sourdough-bread"`)
     expect(xml).not.toContain('koncept')
   })
+
+  it('uses the address of each language when it is translated', async () => {
+    // Pages: { cs: '/:slug', en: '/pages/:slug' } in the playground.
+    const page = (await admin.post('/api/cms/page', { title: 'O nás', slug: 'o-nas', status: 'published', sections: [] })).body.row
+    await admin.request('PATCH', `/api/cms/page/${page.id}?locale=en`, { json: { title: 'About', slug: 'about' } })
+    const entries = (await anonymous().get('/api/content/_sitemap')).body.entries
+    expect(entries.map((e: any) => e.loc).sort()).toEqual(['/en/pages/about', '/o-nas'])
+  })
 })
 
 describe('navigation', () => {

@@ -221,6 +221,16 @@ Collections with `content.path` (e.g. `'/blog/:slug'`) appear in **`/sitemap.xml
 `/en/…` prefixes) and in `GET /api/content/_sitemap`. A host can replace the XML
 route with its own `server/routes/sitemap.xml`.
 
+When the address itself is translated, give one template per language — for
+`content.path`, `publish.preview` and `definePages({ path })` alike:
+
+```ts
+content: { public: true, slug: 'slug', path: { cs: '/aktuality/:slug', en: '/news/:slug' } }
+// → /aktuality/zavod-tabor and /en/news/tabor-race (sitemap, webhooks, preview)
+```
+
+A language left out of the map has no page for that collection.
+
 ## Admin look & language
 
 The admin has its own design system, scoped so it never touches the host website's
@@ -533,7 +543,13 @@ const cms = createClient({ baseUrl: 'https://cms.example.com', token: process.en
 const { items } = await cms.post.list({ filter: { status: 'published' }, sort: 'publishedAt', dir: 'desc' })
 //      ^? Post[] — items[0].author.name, .hero?.url, .tags[0].slug are all typed
 const post = await cms.post.get('hello-world') // Post, or throws CmsError on 404
+const settings = await cms.global('siteSettings', { locale: 'en' }) // SiteSettings | null
 ```
+
+Filters match text, choice and relation fields exactly, yes/no fields with `true`/`false`,
+and date fields by range — `'publishedAt.from'` / `'publishedAt.to'` (an ISO date or time;
+a bare date is a whole day in UTC, a time without an offset is UTC), e.g. upcoming events:
+`cms.event.list({ filter: { 'startsAt.from': new Date() }, sort: 'startsAt', dir: 'asc' })`.
 
 Per-collection sort keys, filters and enum values are type-checked; an invalid sort key or
 filter value is a compile error. Set `cms.content.publicUrl` to stamp the spec's `servers`

@@ -37,7 +37,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   assertPublishAllowed(e, user, {}, base)
   const seenBefore = await changeSnapshot(e, id)
 
-  const jsonKeys = e.localized.filter((k) => ['richtext', 'blocks'].includes(e.fields[k]!.type) && k in data)
+  const jsonKeys = e.localized.filter((k) => JSON_MEDIA_TYPES.has(e.fields[k]!.type) && k in data)
   const before = (await translationRows(db, e, [id], locale)).get(id)
   const oldMedia = jsonKeys.flatMap((k) => jsonMediaIds(e.fields[k], before?.[k]))
 

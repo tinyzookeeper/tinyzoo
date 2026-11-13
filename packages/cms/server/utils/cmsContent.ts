@@ -97,7 +97,7 @@ function projectScalars(target: CmsEntity, row: any) {
   const hidden = new Set(target.content?.hidden ?? [])
   const out: Record<string, any> = { id: row.id }
   for (const [key, fld] of Object.entries(target.fields)) {
-    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks') continue
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'gallery') continue
     out[key] = row[key]
   }
   return out
@@ -127,6 +127,7 @@ function populatableKeys(e: CmsEntity): string[] {
 export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null) {
   if (!rows.length) return
   await populateBlocks(db, reg, e, rows, locale)
+  await populateGalleries(db, reg, e, rows, locale)
   const keys = populate ?? populatableKeys(e)
   for (const key of keys) {
     const fld = e.fields[key]
@@ -259,4 +260,27 @@ export function localizedMatch(reg: CmsRegistry, e: CmsEntity, key: string, loca
   if (!isTranslationLocale(reg, locale) || !e.localized.includes(key) || !e.localesTable) return base
   const t = e.localesTable
   return or(base, sql`exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${t.locale} = ${locale} and ${cond(t[key])})`)
+}
+
+/**
+ * Galleries as the public API returns them: each item the public media object plus
+ * its caption, in order; items whose file is gone are left out (batched across rows).
+ */
+async function populateGalleries(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], locale: string | null = null) {
+  const keys = Object.entries(e.fields).filter(([, f]) => f.type === 'gallery').map(([k]) => k)
+  if (!keys.length) return
+  const ids = new Set<string>()
+  for (const k of keys) for (const r of rows) for (const it of Array.isArray(r[k]) ? r[k] : []) if (typeof it?.mediaId === 'string') ids.add(it.mediaId)
+  const byId = new Map<string, any>()
+  if (ids.size) {
+    const media: any[] = await db.select().from(reg.cmsMedia).where(inArray(reg.cmsMedia.id, [...ids]))
+    for (const m of media) byId.set(m.id, mediaProjection(m, locale))
+  }
+  for (const k of keys) {
+    for (const r of rows) {
+      r[k] = (Array.isArray(r[k]) ? r[k] : [])
+        .filter((it: any) => byId.has(it?.mediaId))
+        .map((it: any) => ({ ...byId.get(it.mediaId), caption: typeof it.caption === 'string' && it.caption ? it.caption : null }))
+    }
+  }
 }

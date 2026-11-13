@@ -24,6 +24,14 @@ describe('@my-cms/client', () => {
     expect(fetch.mock.calls[0]![0]).toBe('https://cms.example.com/api/content/post/a%2Fb%20c')
   })
 
+  it('fetches a global in a language, and sends dates in filters as ISO', async () => {
+    const { cms, fetch } = client({ body: { item: { id: 'g' } } })
+    expect(await cms.global('siteSettings', { locale: 'en' })).toEqual({ id: 'g' })
+    expect(fetch.mock.calls[0]![0]).toBe('https://cms.example.com/api/content/_global/siteSettings?locale=en')
+    await cms.post.list({ filter: { 'publishedAt.from': new Date('2026-01-01T00:00:00Z') } as any })
+    expect(new URL(fetch.mock.calls[1]![0]).searchParams.get('publishedAt.from')).toBe('2026-01-01T00:00:00.000Z')
+  })
+
   it('throws CmsError with the status on a non-2xx', async () => {
     const { cms } = client({ status: 404, body: { statusMessage: 'Not found' } })
     await expect(cms.post.get('missing')).rejects.toBeInstanceOf(CmsError)

@@ -19,7 +19,7 @@ const relationOptions = reactive<Record<string, { id: string; label: string }[]>
 async function loadRelation(f: any) {
   if (relationOptions[f.key]) return
   const selected = model.value[`filter.${f.key}`]
-  relationOptions[f.key] = await $fetch<any[]>(`/api/cms/${f.relation.to}/options`, { query: selected ? { selected } : {} }).catch(() => [])
+  relationOptions[f.key] = await cmsFetch<any[]>(`/api/cms/${f.relation.to}/options`, { query: selected ? { selected } : {} }).catch(() => [])
 }
 watch(() => props.fields, (fs) => { for (const f of fs) if (f.relation && model.value[`filter.${f.key}`]) loadRelation(f) }, { immediate: true })
 

@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
     .filter(([k, f]) => (f as any).type === 'media' && `${k}Id` in values)
     .map(([k]) => `${k}Id`)
   const changedRichCols = Object.entries(e.fields)
-    .filter(([k, f]) => ((f as any).type === 'richtext' || (f as any).type === 'blocks') && k in values)
+    .filter(([k, f]) => JSON_MEDIA_TYPES.has((f as any).type) && k in values)
     .map(([k]) => k)
   const oldMedia: Record<string, string | null> = {}
   let oldEmbedded: string[] = []

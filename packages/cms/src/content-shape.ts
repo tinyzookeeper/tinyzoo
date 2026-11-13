@@ -18,6 +18,7 @@ export type ContentFieldType =
   | { kind: 'scalar'; scalar: 'string' | 'integer' | 'number' | 'boolean' | 'datetime'; enumValues?: readonly string[]; pattern?: string }
   | { kind: 'richtext' }
   | { kind: 'media' }
+  | { kind: 'gallery' }
   | { kind: 'relation-one'; target: string; public: boolean }
   | { kind: 'relation-many'; target: string; public: boolean }
   | { kind: 'blocks'; blocks: { type: string; fields: ContentField[] }[] }
@@ -33,6 +34,8 @@ export interface ContentField {
 export interface FilterParam {
   key: string
   enumValues?: readonly string[]
+  /** 'boolean': `true`/`false`; 'datetime': an ISO date or time (a `.from` / `.to` bound). Default: exact text. */
+  value?: 'boolean' | 'datetime'
 }
 
 /** Top-level shape of a public collection (drives `/api/content/:name` + `/:slug`). */
@@ -72,6 +75,8 @@ export interface RefShape {
 
 export interface ContentModel {
   entities: ContentShape[]
+  /** Public singletons (globals), served at /api/content/_global/:name. */
+  globals: ContentShape[]
   embedded: EmbeddedShape[]
   refs: RefShape[]
 }
@@ -168,6 +173,11 @@ function topLevelFields(reg: CmsRegistry, e: CmsEntity): ContentField[] {
       out.push({ key, type: blocksType(fld), nullable: false })
       continue
     }
+    // Galleries are always resolved (like blocks): an array of media + caption.
+    if (fld.type === 'gallery') {
+      out.push({ key, type: { kind: 'gallery' }, nullable: false })
+      continue
+    }
     out.push({ key, type: scalarType(fld), nullable: fld.isOptional })
   }
   return out
@@ -179,7 +189,7 @@ function embeddedFields(e: CmsEntity): ContentField[] {
   const out: ContentField[] = []
   for (const [key, fld] of Object.entries(e.fields)) {
     // Blocks are not embedded in related items (they can hold media to resolve).
-    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks') continue
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'gallery') continue
     out.push({ key, type: scalarType(fld), nullable: fld.isOptional })
   }
   return out
@@ -190,7 +200,7 @@ function sortKeys(e: CmsEntity): string[] {
   const hidden = hiddenSet(e)
   const keys = ['createdAt', 'updatedAt']
   for (const [key, fld] of Object.entries(e.fields)) {
-    if (!hidden.has(key) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks') keys.push(key)
+    if (!hidden.has(key) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks' && fld.type !== 'gallery') keys.push(key)
   }
   return keys
 }
@@ -198,7 +208,10 @@ function sortKeys(e: CmsEntity): string[] {
 /** Query keys the list endpoint reserves for paging/sort/search (index.get.ts RESERVED). */
 const RESERVED_QUERY_KEYS = new Set(['page', 'limit', 'sort', 'dir', 'q', 'locale'])
 
-/** Filter allowlist (mirror index.get.ts filter loop): non-hidden text/slug/select + to-one FKs. */
+/**
+ * Filter allowlist (mirror index.get.ts filter loop): non-hidden text/slug/select +
+ * to-one FKs (exact match), yes/no fields, and date ranges (`<field>.from` / `.to`).
+ */
 function filters(e: CmsEntity): FilterParam[] {
   const hidden = hiddenSet(e)
   const out: FilterParam[] = []
@@ -210,6 +223,8 @@ function filters(e: CmsEntity): FilterParam[] {
     else if (!fld.relation && ['text', 'slug', 'select'].includes(fld.type)) {
       out.push({ key, enumValues: fld.type === 'select' ? scalarEnum(fld) : undefined })
     }
+    else if (fld.type === 'boolean') out.push({ key, value: 'boolean' })
+    else if (fld.type === 'datetime') out.push({ key: `${key}.from`, value: 'datetime' }, { key: `${key}.to`, value: 'datetime' })
   }
   return out
 }
@@ -225,6 +240,18 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
   // Singletons are delivered via /api/content/_global/:name (object), not as a
   // collection list, so they are excluded from the generated collection clients.
   const publicEntities = reg.entities.filter((e) => e.content?.public && !e.singleton)
+  const publicGlobals = reg.entities.filter((e) => e.content?.public && e.singleton)
+
+  const globals: ContentShape[] = publicGlobals.map((e) => ({
+    name: e.name,
+    pascal: pascal(e.name),
+    titleField: e.titleField,
+    gated: false,
+    fields: topLevelFields(reg, e),
+    sortKeys: [],
+    filters: [],
+    locales: reg.locales && e.localized.length ? reg.locales.locales : null,
+  }))
 
   const entities: ContentShape[] = publicEntities.map((e) => ({
     name: e.name,
@@ -241,7 +268,7 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
   // Collect every relation target reachable through a populated field.
   const embeddedByName = new Map<string, EmbeddedShape>()
   const refByName = new Map<string, RefShape>()
-  for (const e of publicEntities) {
+  for (const e of [...publicEntities, ...publicGlobals]) {
     for (const f of topLevelFields(reg, e)) {
       if (f.type.kind !== 'relation-one' && f.type.kind !== 'relation-many') continue
       const target = reg.byName.get(f.type.target)
@@ -264,5 +291,5 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
     }
   }
 
-  return { entities, embedded: [...embeddedByName.values()], refs: [...refByName.values()] }
+  return { entities, globals, embedded: [...embeddedByName.values()], refs: [...refByName.values()] }
 }

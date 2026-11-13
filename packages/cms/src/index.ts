@@ -1,11 +1,12 @@
 // Public API of @my-cms/core (consumed by host cms.config.ts and by the runtime).
 export { defineEntity, defineSingleton, buildRegistry, propOf } from './entity'
 export type { CmsEntity, CmsRegistry, ContentConfig, PublishConfig, EntityDef, Entity, Junction, Row, Insert, Update } from './entity'
-export { f, snake, camel, pascal, buildColumn, serializeColumn } from './fields'
+export { f, snake, camel, pascal, buildColumn, serializeColumn, type CmsGalleryValue } from './fields'
 export { seo, linkBlock, definePages, defineNavigation, defineRedirects } from './presets'
 export { defineBlock, blocksSchema, mediaIdsInBlocks, blockMediaKeys, BLOCK_FIELD_TYPES, type BlockDef, type BlockValue, type BlocksValue, type CmsBlock } from './blocks'
 export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'
+export { sitePrefix, pathTemplateFor, pathTemplateKeys, fillPathTemplate, sitePath, prefixedTemplates, type PathTemplate } from './paths'
 export { applyMigrations, sqlWithParams, isConnectionError, type MigrationJournal, type MigrationSource, type SqlRunner } from './migrate'
 export { emitSchema } from './emitter'
 export { buildOpenApiDocument, type OpenApiOptions } from './openapi'

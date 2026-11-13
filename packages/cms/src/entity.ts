@@ -4,6 +4,7 @@ import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
+import { pathTemplateProblem, prefixedTemplates, type PathTemplate } from './paths'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
 
@@ -48,10 +49,12 @@ export interface ContentConfig<F extends Record<string, AnyFieldDescriptor>> {
   /** Field used to look a single item up by, e.g. 'slug'. Falls back to id. */
   slug?: keyof F & string
   /**
-   * The item's address on the website, e.g. '/blog/:slug' (`:field` placeholders).
-   * Used for the sitemap (with a language prefix per `defineLocales`).
+   * The item's address on the website, e.g. '/blog/:slug' (`:field` placeholders),
+   * or one per language when the address is translated:
+   * { cs: '/aktuality/:slug', en: '/news/:slug' }. Used for the sitemap, webhooks and
+   * cache purging (with a language prefix per `defineLocales`).
    */
-  path?: string
+  path?: PathTemplate
   /** Relation/media field keys to resolve into the response. Default: all of them. */
   populate?: (keyof F & string)[]
   /**
@@ -82,10 +85,11 @@ export interface PublishConfig<F extends Record<string, AnyFieldDescriptor>> {
    */
   schedule?: boolean
   /**
-   * Frontend preview path template with `:field` placeholders, e.g. '/blog/:slug'.
-   * The admin opens it with `?preview` so an editor can see an unpublished draft.
+   * Frontend preview path template with `:field` placeholders, e.g. '/blog/:slug',
+   * or one per language ({ cs: '/aktuality/:slug', en: '/news/:slug' }). The admin
+   * opens it (language prefix added) with `?preview` so an editor can see a draft.
    */
-  preview?: string
+  preview?: PathTemplate
 }
 
 export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
@@ -180,11 +184,11 @@ export interface CmsEntity {
     public?: boolean
     published?: (table: any) => unknown
     slug?: string
-    path?: string
+    path?: PathTemplate
     populate?: string[]
     hidden?: string[]
   }
-  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: string }
+  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: PathTemplate }
   live?: boolean
   /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
   preset?: string
@@ -389,6 +393,13 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     throw new Error(`${withLocalized.map((e) => e.name).join(', ')} ha${withLocalized.length > 1 ? 've' : 's'} localized fields, but no languages are defined. Export \`locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })\` from cms.config.ts.`)
   }
 
+  for (const e of entities) {
+    for (const [what, t] of [['content.path', e.content?.path], ['publish.preview', e.publish?.preview]] as const) {
+      const problem = pathTemplateProblem(t, locales)
+      if (problem) throw new Error(`${what} of "${e.name}" ${problem}.`)
+    }
+  }
+
   const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState }
   for (const e of entities) schema[e.name] = e.table
   for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
@@ -412,6 +423,8 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     titleField: e.titleField,
     singleton: !!e.singleton,
     publish: e.publish,
+    // The preview address per language, prefix included ({ cs: '/aktuality/:slug', en: '/en/news/:slug' }).
+    previewPaths: prefixedTemplates(e.publish?.preview, locales),
     listColumns: e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4),
     searchable: e.admin?.list?.searchable ?? [],
     orderField: e.admin?.list?.orderField ?? null,

@@ -199,6 +199,7 @@ function mediaIdsIn(data: Record<string, any>): string[] {
   for (const f of editable.value) {
     const v = data[f.key]
     if (f.type === 'media' && typeof v === 'string') ids.push(v)
+    else if (f.type === 'gallery' && Array.isArray(v)) ids.push(...v.map((x: any) => x?.mediaId).filter(Boolean))
     else if (f.type === 'richtext') walk(v)
     else if (f.type === 'blocks' && Array.isArray(v)) {
       for (const b of v) for (const [k, x] of Object.entries(b ?? {})) {
@@ -221,7 +222,7 @@ async function missingMedia(data: Record<string, any>): Promise<Set<string>> {
 function withoutMedia(data: Record<string, any>, gone: Set<string>): Record<string, any> {
   if (!gone.size) return data
   const strip = (v: any): any => {
-    if (Array.isArray(v)) return v.filter((x) => !(x?.type === 'image' && gone.has(x?.attrs?.mediaId))).map(strip)
+    if (Array.isArray(v)) return v.filter((x) => !(x?.type === 'image' && gone.has(x?.attrs?.mediaId)) && !gone.has(x?.mediaId)).map(strip)
     if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, typeof x === 'string' && gone.has(x) ? null : strip(x)]))
     return v
   }
@@ -241,7 +242,7 @@ function copyDefault(key: string) {
 const publish = computed(() => meta.value?.publish)
 const titleKey = computed(() => meta.value?.titleField as string | undefined)
 const titleField = computed(() => editable.value.find((f: any) => f.key === titleKey.value))
-const MAIN_TYPES = new Set(['text', 'richtext', 'media', 'blocks'])
+const MAIN_TYPES = new Set(['text', 'richtext', 'media', 'blocks', 'gallery'])
 const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TYPES.has(f.type) ? 'main' : 'sidebar')
 // The publish field is changed by the Publish action, not edited as a field. In a
 // translation only the translatable fields are shown.
@@ -373,10 +374,14 @@ async function setPublished(next: boolean) {
 }
 
 const previewUrl = computed(() => {
-  const p = publish.value
-  if (!p?.preview || isNew.value) return null
+  // The address in the language being edited (prefix included), from the graph.
+  const paths: Record<string, string> | null = meta.value?.previewPaths ?? null
+  // A language left out of a per-language map has no page: no preview then. An entry
+  // without languages of its own uses the default language's address.
+  const template = !paths ? null : currentLocale.value ? (paths[currentLocale.value] ?? null) : (paths[''] ?? Object.values(paths)[0] ?? null)
+  if (!template || isNew.value) return null
   let ok = true
-  const url = p.preview.replace(/:(\w+)/g, (_m: string, k: string) => {
+  const url = template.replace(/:(\w+)/g, (_m: string, k: string) => {
     const v = state[k]
     if (v === undefined || v === null || v === '') ok = false
     return encodeURIComponent(v ?? '')
