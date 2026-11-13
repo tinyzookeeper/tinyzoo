@@ -357,7 +357,7 @@ const tabs = computed(() => [
 
       <CmsEmptyState
         v-else-if="!rows.length && fetchStatus !== 'pending'"
-        :icon="meta?.icon" :title="t('list.emptyTitle', { label: title.toLowerCase() })"
+        :icon="meta?.icon" :character="entity" :title="t('list.emptyTitle', { label: title.toLowerCase() })"
         :description="tl(meta?.description) || t('list.emptyDescription')"
       >
         <template v-if="canCreate" #actions>

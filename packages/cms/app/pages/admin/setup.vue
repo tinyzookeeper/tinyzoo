@@ -46,7 +46,12 @@ async function submit() {
 <template>
   <form class="space-y-5" novalidate @submit.prevent="submit">
     <div>
-      <h1 class="text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.setupTitle') }}</h1>
+      <!-- First run: the whole family says hello. -->
+      <div class="-mt-1 mb-5 flex items-end gap-1.5" aria-hidden="true">
+        <img v-for="c in cmsCharacters.bright" :key="c.name" :src="c.url" alt="" class="h-7 w-auto" draggable="false">
+      </div>
+      <p class="text-xs font-medium text-muted">{{ t('auth.setupWelcome') }}</p>
+      <h1 class="mt-1 text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.setupTitle') }}</h1>
       <p class="mt-1 text-sm text-muted">{{ t('auth.setupSubtitle', { site: productName }) }}</p>
     </div>
     <UFormField v-if="askToken" :label="t('auth.setupToken')" name="token" :description="t('auth.setupTokenHint')" :error="errors.token">

@@ -1,9 +1,15 @@
-# tinyzoo
+<p><img src="docs/brand/logo/logo-primary.svg" alt="tinyzoo" height="48"></p>
+
+*A tiny CMS that lives inside your Nuxt app.*
 
 A **code-first, distributable CMS for Nuxt 4**, shipped as a single Nuxt **Layer + Module**
-(`tinyzoo`). You define content entities once in TypeScript; the package derives the
+(`tinyzoo`, with the typed content client `@tinyzoo/client`). You define content entities once in TypeScript; the package derives the
 database schema, validation, a typed CRUD API, and an auto-generated admin dashboard. Your
 clients edit **data** through the dashboard — never the UI or the structure.
+
+The name is always **tinyzoo** — one word, lowercase. Brand guide, logo and the animal
+characters: [`docs/brand/`](docs/brand/brand-guide.md). Inside the code the CMS keeps its
+`cms` namespace (`cms.config.ts`, `NUXT_CMS_*`, `cms_*` tables, `Cms*` components).
 
 > Philosophy: structure is a developer concern, owned in git (like Payload/Sanity). There is
 > **no runtime schema editor** — that's the differentiator, not a limitation.

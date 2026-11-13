@@ -137,7 +137,20 @@ Noted for later phases, not changed here:
   hoisting. Fine for now; revisit when the package is consumed from a registry
   (Phase 5).
 
-### Phase 1 — Name, brand and UI foundation 🚧 *foundation done; name, logo and package rename deferred*
+### Phase 1 — Name, brand and UI foundation ✅ *done — named tinyzoo (2026-11-13); brand colour and type still a working draft*
+
+**Brand update (2026-11-13):** the product is **tinyzoo** (`docs/brand/brand-guide.md`,
+logo and 32 animal characters in `docs/brand/`). Packages `tinyzoo` and
+`@tinyzoo/client` (npm), CLI `tinyzoo`. The `cms` namespace inside the code stays
+(config key, `NUXT_CMS_*`, `cms_*` tables, `Cms*` components), so existing databases
+and deploys are untouched. The admin stays white-label — the client's name leads —
+and tinyzoo shows in calm places: cream sign-in screens with the mark in the footer,
+the six bright animals greeting a fresh install, the mascot as the admin's tab icon
+(follows light/dark), a muted animal in each first-use empty state (the same one per
+collection), and a brand section in `/admin/styleguide`. Unbranded installs are called
+tinyzoo and show the mascot instead of an initial. Still open in the guide (round 2):
+the palette and its roles, the type scale (Manrope is the working choice; the admin
+keeps Geist until then), clear space and minimum logo size.
 
 The admin is the product the client sees, so it gets an identity and a design
 system before more screens are built on the scaffold.
@@ -669,9 +682,9 @@ A collection named `global`, `collection` or `openapi` is reachable only through
 
 | Decision | Recommendation | Status |
 |---|---|---|
-| Product name and npm scope | — | to pick (Phase 1) |
+| Product name and npm scope | tinyzoo | decided — `tinyzoo`, `@tinyzoo/client` |
 | Git remote / CI | GitHub + GitHub Actions | decided |
-| Package registry | GitHub Packages (private) or npm | deferred — decide with the name |
+| Package registry | npm | decided — npm (claim the `tinyzoo` org); private packages need a paid org |
 | Object storage for production media | EU S3-compatible (Hetzner or R2 EU) | decided — documented in deploying.md, bucket per site |
 | Localization storage | `<entity>_locales` table | proposed (Phase 3) |
 | Admin UI languages at launch | cs + en | proposed |

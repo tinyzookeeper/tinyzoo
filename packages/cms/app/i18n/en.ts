@@ -224,6 +224,7 @@ export default {
     signIn: 'Sign in',
     wrongCredentials: 'Wrong email or password.',
     tooMany: 'Too many attempts. Wait a few minutes and try again.',
+    setupWelcome: 'Welcome to tinyzoo.',
     setupTitle: 'Create the first account',
     setupSubtitle: 'You’ll be the administrator of {site}. You can invite colleagues afterwards.',
     name: 'Your name',

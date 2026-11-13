@@ -184,7 +184,8 @@ async function copyUrl() {
       </div>
 
       <CmsEmptyState
-        v-if="!items.length && !loading" icon="i-lucide-images"
+        v-if="!items.length && !loading" icon="i-lucide-images" character="media"
+        :variant="q || folder !== 'all' || kind !== 'all' ? 'no-results' : 'first-use'"
         :title="q || folder !== 'all' || kind !== 'all' ? t('media.noMatches') : t('media.empty')" :description="t('media.dropHint')"
       />
       <ul v-else class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">

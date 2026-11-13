@@ -223,6 +223,7 @@ export default {
     signIn: 'Přihlásit se',
     wrongCredentials: 'Nesprávný e-mail nebo heslo.',
     tooMany: 'Příliš mnoho pokusů. Počkejte pár minut a zkuste to znovu.',
+    setupWelcome: 'Vítá vás tinyzoo.',
     setupTitle: 'Vytvořte první účet',
     setupSubtitle: 'Budete administrátorem webu {site}. Kolegy můžete pozvat potom.',
     name: 'Vaše jméno',

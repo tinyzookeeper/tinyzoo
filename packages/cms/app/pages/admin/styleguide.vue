@@ -25,8 +25,13 @@ const variants = ['solid', 'outline', 'soft', 'subtle', 'ghost', 'link'] as cons
 const sample = ref('Domácí kváskový chléb')
 const toggle = ref(true)
 const option = ref('draft')
+const brandColors = [
+  { name: 'Charcoal', value: '#2E3035', use: 'The mascot' },
+  { name: 'Ink', value: '#131313', use: 'Text, the wordmark' },
+  { name: 'Cream', value: '#F9F5EF', use: 'Backgrounds, eye whites' },
+] as const
 const toc = [
-  ['color', 'Colour'], ['type', 'Typography'], ['surfaces', 'Surfaces & shape'],
+  ['brand', 'tinyzoo'], ['color', 'Colour'], ['type', 'Typography'], ['surfaces', 'Surfaces & shape'],
   ['actions', 'Actions'], ['status', 'Status'], ['forms', 'Forms'], ['states', 'Empty & error states'],
 ] as const
 </script>
@@ -50,6 +55,43 @@ const toc = [
     </nav>
 
     <div class="space-y-10">
+      <section id="brand" class="space-y-4 scroll-mt-20">
+        <h2 class="cms-display text-lg font-semibold text-highlighted">tinyzoo</h2>
+        <p class="text-muted max-w-2xl">The admin carries the client's name; tinyzoo stays in the background — the sign-in footer, first-run setup, the tab icon and the animals in empty states. Brand guide: docs/brand/brand-guide.md (colour and type are still a working draft).</p>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div class="cms-card p-8 grid place-items-center" style="background: var(--tz-cream)">
+            <img :src="cmsBrand.logoUrl" alt="tinyzoo" class="h-10 w-auto">
+          </div>
+          <div class="cms-card p-8 grid place-items-center" style="background: var(--tz-charcoal)">
+            <img :src="cmsBrand.logoReversedUrl" alt="tinyzoo" class="h-10 w-auto">
+          </div>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-3">
+          <div v-for="c in brandColors" :key="c.name" class="cms-card p-4 flex items-center gap-3">
+            <span class="size-9 rounded-md border border-default shrink-0" :style="{ backgroundColor: c.value }" />
+            <span>
+              <span class="block text-sm font-medium text-highlighted">{{ c.name }} <span class="font-mono text-xs text-muted">{{ c.value }}</span></span>
+              <span class="block text-xs text-muted">{{ c.use }}</span>
+            </span>
+          </div>
+        </div>
+        <CmsSection title="The animals">
+          <p class="text-sm text-muted mb-4">One flat colour, the same eyes, everyone looking up and to the right. The muted family appears in empty states (one per place, always the same); the bright six greet a fresh install.</p>
+          <ul class="flex flex-wrap items-end gap-x-5 gap-y-4">
+            <li v-for="c in cmsCharacters.muted" :key="c.name" class="flex flex-col items-center gap-1.5">
+              <img :src="c.url" :alt="c.name" class="h-10 w-auto">
+              <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
+            </li>
+          </ul>
+          <ul class="mt-6 flex flex-wrap items-end gap-x-5 gap-y-4">
+            <li v-for="c in cmsCharacters.bright" :key="c.name" class="flex flex-col items-center gap-1.5">
+              <img :src="c.url" :alt="c.name" class="h-10 w-auto">
+              <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
+            </li>
+          </ul>
+        </CmsSection>
+      </section>
+
       <section id="color" class="space-y-4 scroll-mt-20">
         <h2 class="cms-display text-lg font-semibold text-highlighted">Colour</h2>
         <p class="text-muted max-w-2xl">Neutral greys, black for primary actions. Colour appears only where it means something: status. A client's accent can replace black.</p>

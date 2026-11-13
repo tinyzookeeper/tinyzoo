@@ -110,7 +110,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
     </template>
 
     <div class="cms-card overflow-hidden">
-      <CmsEmptyState v-if="!isAdmin" icon="i-lucide-lock" :title="t('team.adminsOnly')" />
+      <CmsEmptyState v-if="!isAdmin" plain icon="i-lucide-lock" :title="t('team.adminsOnly')" />
       <CmsEmptyState v-else-if="error" variant="error" :title="t('list.loadFailed')">
         <template #actions>
           <UButton color="neutral" variant="outline" icon="i-lucide-rotate-ccw" @click="refresh()">{{ t('list.retry') }}</UButton>

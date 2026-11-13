@@ -119,7 +119,7 @@ const choices = computed(() => {
 <template>
   <div class="space-y-2">
     <CmsEmptyState
-      v-if="!blocks.length && !onlyType" icon="i-lucide-layout-template" :title="t('blocks.emptyTitle')" :description="t('blocks.emptyDescription')"
+      v-if="!blocks.length && !onlyType" plain icon="i-lucide-layout-template" :title="t('blocks.emptyTitle')" :description="t('blocks.emptyDescription')"
       class="rounded-(--ui-radius) border border-dashed border-accented !py-10"
     >
       <template #actions>
