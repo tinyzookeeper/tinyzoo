@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
     }
     await writeM2M(tx, reg, e, current.id, m2m, true)
     return current
-  })
+  }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
 
   // GC each replaced/cleared media blob after commit.
   if (mediaCols.length) {

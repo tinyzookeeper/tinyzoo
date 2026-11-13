@@ -6,7 +6,7 @@ export default defineEventHandler(async (event) => {
   const e = getEntity(reg, getRouterParam(event, 'entity'))
   if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use PUT /api/cms/_singleton/:name' })
   const rowFilter = authorize(e, 'update', user)
-  const id = getRouterParam(event, 'id')!
+  const id = getIdParam(event)
   const data = parseOr422(e.updateSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
 
@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
     if (!current) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
     await writeM2M(tx, reg, e, id, m2m, true)
     return current
-  })
+  }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
 
   // GC each replaced/cleared media blob after commit (skip if unchanged or reused).
   if (changedMediaCols.length || changedRichCols.length) {

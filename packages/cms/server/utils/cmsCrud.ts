@@ -99,6 +99,52 @@ export function authorize(e: CmsEntity, op: 'read' | 'create' | 'update' | 'dele
   return where
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** The `:id` route param, or 404 when it cannot be a row id (Postgres would 500 on a non-uuid). */
+export function getIdParam(event: any, name = 'id'): string {
+  const id = getRouterParam(event, name)
+  if (!id || !UUID_RE.test(id)) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  return id
+}
+
+/** Field key whose column a Postgres unique constraint (`<table>_<column>_unique`) is on. */
+function fieldOfConstraint(e: CmsEntity, constraint: string | undefined): string | undefined {
+  if (!constraint) return undefined
+  for (const [key, fld] of Object.entries(e.fields)) {
+    const col = (e.table as any)[propOf(key, fld)]
+    if (col?.name && constraint === `${e.name}_${col.name}_unique`) return key
+  }
+  return undefined
+}
+
+/**
+ * Translate Postgres constraint violations into answers an editor can act on,
+ * instead of a 500. Rethrows anything else untouched.
+ *  - unique violation → 409, with a Zod-shaped issue on the field when known
+ *  - FK violation on delete → 409 (still referenced, e.g. `onDelete: 'restrict'`)
+ *  - FK violation on write → 422 (points at a row that does not exist)
+ */
+export function rethrowDbError(err: any, e: CmsEntity, op: 'write' | 'delete'): never {
+  // Drizzle wraps driver errors (DrizzleQueryError) and keeps the original as `cause`.
+  const pgErr = err?.code ? err : err?.cause
+  if (pgErr?.code === '23505') {
+    const field = fieldOfConstraint(e, pgErr.constraint)
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'Value already in use',
+      data: field ? [{ path: [field], code: 'unique', message: 'Already in use' }] : undefined,
+    })
+  }
+  if (pgErr?.code === '23503') {
+    if (op === 'delete') {
+      throw createError({ statusCode: 409, statusMessage: 'Still in use by other content — remove those references first' })
+    }
+    throw createError({ statusCode: 422, statusMessage: 'Refers to an item that does not exist' })
+  }
+  throw err
+}
+
 /** AND two optional Drizzle conditions. */
 export function both(a: any, b: any) {
   return b ? (a ? and(a, b) : b) : a

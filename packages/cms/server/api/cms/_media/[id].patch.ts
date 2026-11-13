@@ -5,7 +5,7 @@ import { eq } from '@my-cms/core'
 export default defineEventHandler(async (event) => {
   requireCmsUser(event)
   const { db, reg } = useCms()
-  const id = getRouterParam(event, 'id')!
+  const id = getIdParam(event)
 
   const body = await readBody(event).catch(() => ({})) as { alt?: unknown }
   // Normalize: trim, cap length, empty → null.
