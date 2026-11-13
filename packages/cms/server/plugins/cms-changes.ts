@@ -6,6 +6,7 @@ import type { CmsChange } from '@my-cms/core'
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('close', async () => {
     stopLive()
+    await stopCollabServer()
     await closeCmsStore()
   })
   void (async () => {

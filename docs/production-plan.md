@@ -488,11 +488,31 @@ auth, origin check, topic access and the version check itself held. Fixed:
 Deferred: `maxPayload` for the socket (Nitro does not expose the `ws` option yet;
 messages over 1 KB are ignored after parsing).
 
-**Stage 2 — co-editing rich text** (next): Yjs documents for rich-text and block
-fields with TipTap's collaboration extension, synced over the same socket with
-short-lived per-document tokens (Postyard uses Hocuspocus; here it has to share
-the app port on Pushbase and persist into the entry's jsonb on save), cursors
-with names, and the version check kept for non-collaborative fields.
+**Stage 2 ✅ (2026-11-13): co-editing rich text.** Several people type in the
+same text at once, each cursor labelled with its owner's name.
+
+- One Yjs document per entry and language (`post/<id>`, `post/<id>/en`), one shared
+  fragment per top-level rich-text field (text inside blocks is edited alone).
+  Hocuspocus runs on the app's own port (`/api/cms/_collab/socket`, the raw `ws`
+  socket behind the crossws peer, as in Postyard); Redis carries edits between
+  replicas.
+- The shared document is everyone's working copy; Save stores its content in the
+  entry exactly as before (content API, versions, webhooks unchanged). Its state
+  lives in `cms_collab`, so replicas and reconnecting browsers share one history. An
+  `epoch` names that history: the document starts afresh from the saved entry when
+  nobody has it open and the entry was saved some other way, or after a week; a
+  browser holding an older history is refused and starts over instead of merging
+  stale text back in. Saves made from the document (`X-CMS-Collab`) keep it current.
+- Identity: the signed session at the upgrade (same check as `_live`); per document,
+  edit rights → write, read rights → read-only (sees the others typing); re-checked
+  every 30 s.
+- Editors: form state follows the shared text; another person's save now merges
+  field by field against what this tab loaded (3-way), so a notice appears only when
+  both changed the same field differently. Comparisons ignore key order (Postgres
+  reorders jsonb keys — that alone made every shared form look unsaved).
+- Not shared yet: globals, rich text inside blocks. A document whose entry was
+  changed through the API while people have it open keeps their text; the next save
+  from it wins.
 
 ### Phase 6 — The test client site
 

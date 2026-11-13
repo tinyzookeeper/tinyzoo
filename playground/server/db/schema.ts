@@ -54,6 +54,15 @@ export const cmsAudit = pgTable('cms_audit', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [index('cms_audit_created_idx').on(t.createdAt)])
 
+export const cmsCollab = pgTable('cms_collab', {
+  name: text('name').primaryKey(),
+  epoch: uuid('epoch').notNull(),
+  state: text('state').notNull(),
+  baseVersion: timestamp('base_version', { withTimezone: true, mode: 'date', precision: 3 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  activeAt: timestamp('active_at', { withTimezone: true, mode: 'date', precision: 3 }),
+})
+
 export const author = pgTable('author', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

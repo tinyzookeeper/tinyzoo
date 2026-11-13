@@ -31,7 +31,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   // The values as last loaded from the server, per field (JSON), to tell which
   // fields this tab changed — "save my changes on top" sends only those.
   let loaded: Record<string, string> = {}
-  const json = (v: unknown) => JSON.stringify(v ?? null)
+  const json = stableJson
 
   /** Fill with a loaded row (and blanks for anything missing). Not a user edit. */
   function load(row: Record<string, any> | null | undefined) {
@@ -96,6 +96,36 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     ready = true
   }
 
+  /**
+   * Bring in a newer saved version without losing edits made here — field by field,
+   * against what was last loaded: a field only they changed takes their value, a
+   * field only we changed keeps ours, the same change on both sides is fine. Returns
+   * false (and changes nothing) when both sides changed a field differently.
+   * `skip`: fields that merge by themselves (shared text).
+   */
+  async function merge(row: Record<string, any>, skip: Set<string> = new Set()): Promise<boolean> {
+    const theirs: Record<string, any> = {}
+    for (const f of editable.value) {
+      const k = f.key
+      if (skip.has(k) || !(k in row)) continue
+      const base = loaded[k]
+      const mine = json(state[k])
+      const next = json(row[k])
+      if (next === base || next === mine) continue
+      if (mine !== base) return false
+      theirs[k] = row[k]
+    }
+    ready = false
+    const keys = new Set(editable.value.map((f: any) => f.key))
+    // Their values, plus everything that is not a field (version, languages…).
+    for (const [k, v] of Object.entries(row)) if (!keys.has(k) || k in theirs) state[k] = v
+    await nextTick()
+    loaded = Object.fromEntries(editable.value.map((f: any) => [f.key, json(row[f.key])]))
+    dirty.value = editable.value.some((f: any) => json(state[f.key]) !== loaded[f.key])
+    ready = true
+    return true
+  }
+
   /** Set when a save was refused because someone saved in between (409 stale). */
   const conflict = ref<{ version: string; updatedByName: string | null } | null>(null)
 
@@ -148,5 +178,5 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     }
   }
 
-  return { state, fieldErrors, issues, editable, dirty, saving, conflict, load, replace, body, submit, changedFields }
+  return { state, fieldErrors, issues, editable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields }
 }

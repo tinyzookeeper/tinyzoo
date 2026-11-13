@@ -6,14 +6,8 @@
 // request event here to read it from.
 
 export default defineWebSocketHandler({
-  async upgrade(request: any) {
-    if (cmsAuthMode() !== 'builtin') throw new Response('Realtime needs the built-in sign-in', { status: 404 })
-    if (!sameOrigin(request)) throw new Response('Forbidden', { status: 403 })
-    const session: any = await getUserSession(request).catch(() => null)
-    const u = await activeAccountOf(session)
-    if (!u) throw new Response('Unauthorized', { status: 401 })
-    request.context.cmsUser = { id: u.id, email: u.email, name: u.name || u.email, role: u.role, locale: u.locale }
-    request.context.cmsSessionVersion = u.sessionVersion
+  upgrade(request: any) {
+    return admitAdminSocket(request)
   },
   open(peer: any) {
     const user = peer.context?.cmsUser
@@ -30,30 +24,3 @@ export default defineWebSocketHandler({
     liveClose(peer)
   },
 })
-
-/**
- * Browsers always send Origin on a WebSocket handshake, and cookies go with it even
- * from other sites, so the origin must be this host (as the browser addressed it,
- * or the configured public address).
- */
-function sameOrigin(request: any): boolean {
-  const origin = request.headers?.get?.('origin')
-  if (!origin) return false
-  let host: string
-  try {
-    host = new URL(origin).host
-  }
-  catch {
-    return false
-  }
-  const allowed = new Set<string>()
-  for (const h of [request.headers.get('host'), request.headers.get('x-forwarded-host')]) if (h) allowed.add(String(h).split(',')[0]!.trim())
-  const pub = (useRuntimeConfig().cms as any)?.publicUrl
-  if (pub) {
-    try {
-      allowed.add(new URL(pub).host)
-    }
-    catch { /* not a URL */ }
-  }
-  return allowed.has(host)
-}

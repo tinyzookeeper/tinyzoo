@@ -79,13 +79,14 @@ async function onRemoteChange(c: LiveChange) {
   if (!row) return
   const newest = (isTranslation.value ? row.__version : row.updatedAt) ?? null
   if (newest === version.value) return
-  if (dirty.value || saving.value) {
-    if (live) live.incoming.value = c
+  // Their changes come in field by field; only the same field changed differently on
+  // both sides needs a decision. Shared text merges by itself.
+  if (!saving.value && await form.merge(row, sharedFields.value)) {
+    adopt(row)
+    toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
     return
   }
-  await form.replace(row)
-  adopt(row)
-  toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
+  if (live) live.incoming.value = c
 }
 
 /**
@@ -115,6 +116,12 @@ const live = isNew.value
       onChange: onRemoteChange,
     })
 const others = computed(() => live?.others.value ?? [])
+
+// ── shared editing of the rich-text fields (this entry, in this language) ──
+const collab = isNew.value ? null : useCmsCollab({ entity: entity.value, id: id.value, locale: isTranslation.value ? currentLocale.value : null })
+const sharedFields = computed(() => (collab?.status.value === 'ready' ? collab.fields.value : new Set<string>()))
+/** Saves made from the shared document say so: it then matches the saved version. */
+const collabHeaders = (): Record<string, string> => (collab?.status.value === 'ready' && collab.epoch.value ? { 'x-cms-collab': collab.epoch.value } : {})
 
 // ── layout: which field goes where ──
 const publish = computed(() => meta.value?.publish)
@@ -169,7 +176,7 @@ async function save(successTitle?: string) {
     }
     else {
       const url: string = `/api/cms/${entity.value}/${id.value}`
-      const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+      const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
       const res: any = await $fetch(url, { method: 'PATCH', body: form.body(), headers })
       savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
       version.value = res?.row?.updatedAt ?? null
@@ -182,7 +189,7 @@ async function saveTranslation() {
   return form.submit(async () => {
     const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
-    const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+    const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
     const res: any = await $fetch(url, { method: 'PATCH', body, headers })
     savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
     version.value = res?.row?.__version ?? null
