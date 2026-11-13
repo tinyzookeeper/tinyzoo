@@ -8,8 +8,8 @@ export default defineEventHandler(async (event) => {
   const data = parseOr422(e.insertSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
   assertPublishAllowed(e, user, values)
-  values.createdBy = user.id
-  values.updatedBy = user.id
+  values.createdBy = actorId(user)
+  values.updatedBy = actorId(user)
 
   const row = await db.transaction(async (tx: any) => {
     const [created] = await tx.insert(e.table).values(values).returning()

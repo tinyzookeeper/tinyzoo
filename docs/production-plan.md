@@ -197,7 +197,7 @@ Bugs found and fixed along the way:
 
 Still open in this phase: the name, logo/mark, and the package rename.
 
-### Phase 2 — Real users and auth (owned by the CMS)
+### Phase 2 — Real users and auth (owned by the CMS) ✅ *done*
 
 Move auth from the host into the package.
 
@@ -218,6 +218,55 @@ Move auth from the host into the package.
 - Users screen: list, invite, change role, disable.
 - Host override seam kept: a host can still provide its own user lookup
   (e.g. SSO) through the existing `event.context.cmsUser` contract.
+
+#### How it landed (2026-11-13)
+
+- **Tables:** `cms_users`, `cms_tokens` (invite/reset, SHA-256 of a 256-bit
+  secret, expiring, single-use), `cms_audit`; `created_by` / `updated_by` on every
+  entity table. Migration 0003, additive. The CMS's runtime tables and the source it
+  emits into the host schema are checked identical by a unit test.
+- **Sessions:** nuxt-auth-utils sealed cookie, CMS identity under `session.cms`
+  (so a host's own sign-in never collides), re-validated against the database on
+  every API request (status, role, session version). Password change, reset,
+  disabling and role changes bump the version. 14-day lifetime.
+- **Flows:** first-run setup (advisory lock), sign-in (generic failures, equal-cost
+  verification, rate limits per address and per client IP behind trusted proxies),
+  forgot/reset (answered before any work happens), invite/resend/accept, account
+  (name, language, password). Links come from `cms.publicUrl`, never the Host header.
+- **Roles:** admin / editor / author, applied before the entity's own `access` rules
+  (AND). Authors: own entries only, no publishing (create, update, delete or racing
+  an editor's publish), no settings, no writes to public content without a publish
+  step, own media only.
+- **Mail:** `log` (bodies kept out of production logs) | `file` | `smtp` (Node build
+  only, via the `#cms/mailer` alias). Czech/English invite and reset emails.
+  Mailpit in compose.
+- **Admin:** sign-in, setup, forgot, reset, invitation, Team and Account screens.
+- **Host seam kept:** `cms.auth.mode: 'external'`.
+
+**Independent security review** (separate agent, given the code, not my
+conclusions): no privilege escalation to admin and no account takeover without a
+prior foothold. 12 findings, all fixed, each with a regression test
+(`test/api/security.spec.ts`, `test/unit/rate-limit-ip.spec.ts`):
+
+| Severity | Finding | Fix |
+|---|---|---|
+| Medium | A stolen session could survive the owner's password change by re-signing itself via `PATCH /me` in the gap | writes that re-sign the session are conditional on the session version the request was authorised with |
+| Medium | Per-IP limits read the first X-Forwarded-For entry (client-controlled); limiter memory unbounded | client IP read `trustedProxies` hops from the end (or a trusted edge header); limiter keys capped and swept |
+| Medium | CSRF: h3 parses urlencoded/multipart form posts, so a same-site page could invite an attacker as admin | `/api/cms/**` writes must be JSON (multipart only for media) and same-origin per Sec-Fetch-Site |
+| Low–Med | An author could get another person's unused file deleted via a draft and media cleanup | cleanup triggered by an author only removes their own uploads |
+| Low–Med | A host's own nuxt-auth-utils sessions (non-UUID ids) made every `/api/` request fail | CMS identity under `session.cms.uid`, UUID-checked |
+| Low | Reset/invite links printed to logs in production by the default `log` transport | bodies never logged in production |
+| Low | `forgot` was slower for existing accounts (enumeration by timing) | work happens after the response (`event.waitUntil`) |
+| Low | An author could delete their own live entry, or edit one an editor published between check and write | delete checks publication; updates by non-publishers carry a "not live" condition |
+| Low | A reset/invite link could be used twice by simultaneous requests | the link is claimed atomically (`used_at is null` in the update) |
+| Low | Two admins could remove each other at the same moment | the last-admin check and the change run under one advisory lock |
+| Low | Sessions never expired | 14-day max age |
+| Low | Authors could publish via public entities with no publish step; non-UUID external user ids broke writes | authors cannot write such entities; `createdBy` only stores UUIDs |
+
+Accepted for now: the per-address sign-in limit lets someone who knows an address
+delay that person's sign-in for 15 minutes (the usual trade-off of per-account limits);
+limits are per instance until Phase 5 adds a shared store; Workers can only `log`
+mail until an HTTP mail provider is added.
 
 ### Phase 3 — Content model for real sites
 

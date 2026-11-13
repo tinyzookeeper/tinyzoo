@@ -13,12 +13,20 @@ export interface ApiResponse<T = any> {
  * A tiny HTTP client for the test server that keeps a session cookie, so one
  * instance = one signed-in (or anonymous) browser.
  */
+let visitor = 0
+
 export class Client {
   cookie = ''
+  /**
+   * Each client is its own visitor: the test server trusts one proxy hop (like
+   * production behind an ingress), so this X-Forwarded-For entry is the client IP
+   * its rate limits count against.
+   */
+  ip = `198.18.${Math.floor(++visitor / 250) % 250}.${visitor % 250 + 1}`
   constructor(readonly baseURL = inject('baseURL')) {}
 
   async request<T = any>(method: string, path: string, init: { json?: unknown; body?: BodyInit; headers?: Record<string, string> } = {}): Promise<ApiResponse<T>> {
-    const headers: Record<string, string> = { accept: 'application/json', ...init.headers }
+    const headers: Record<string, string> = { 'accept': 'application/json', 'x-forwarded-for': this.ip, ...init.headers }
     if (this.cookie) headers.cookie = this.cookie
     let body = init.body
     if (init.json !== undefined) {
@@ -92,6 +100,17 @@ export function sentMail(to?: string): { to: string; subject: string; text: stri
   return readdirSync(dir).sort().reverse()
     .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')))
     .filter((m) => !to || m.to === to)
+}
+
+/** Wait for an email to `to` matching `match` (some are sent after the response, e.g. password resets). */
+export async function waitForMail(to: string, match: (m: { subject: string; text: string }) => boolean = () => true, timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const mail = sentMail(to).find(match)
+    if (mail) return mail
+    await new Promise((r) => setTimeout(r, 50))
+  }
+  throw new Error(`no email to ${to} within ${timeoutMs}ms`)
 }
 
 /** The first link in an email's text. */

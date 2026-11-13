@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { and, eq, isNull } from '@my-cms/core'
 import { z } from 'zod'
 
 // POST /api/cms/_auth/accept — accept an invitation: choose a name and password, and
@@ -17,7 +17,10 @@ export default defineEventHandler(async (event) => {
 
   const passwordHash = await hashPassword(data.password)
   const user = await db.transaction(async (tx: any) => {
-    await tx.update(reg.cmsTokens).set({ usedAt: new Date() }).where(eq(reg.cmsTokens.id, found.token.id))
+    // Claim the link atomically: of two simultaneous requests only one gets the row.
+    const [claimed] = await tx.update(reg.cmsTokens).set({ usedAt: new Date() })
+      .where(and(eq(reg.cmsTokens.id, found.token.id), isNull(reg.cmsTokens.usedAt))).returning({ id: reg.cmsTokens.id })
+    if (!claimed) throw createError({ statusCode: 410, statusMessage: 'This link has expired or was already used' })
     const [u] = await tx.update(reg.cmsUsers)
       .set({ name: data.name, passwordHash, status: 'active', updatedAt: new Date(), lastLoginAt: new Date() })
       .where(eq(reg.cmsUsers.id, found.user.id)).returning()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accounts, anonymous, Client, linkIn, login, newAccount, sentMail, signIn, tokenOf } from '../helpers/api'
+import { accounts, anonymous, Client, linkIn, login, newAccount, sentMail, signIn, tokenOf, waitForMail } from '../helpers/api'
 
 describe('first run', () => {
   it('reports that setup is done once an account exists, and refuses a second setup', async () => {
@@ -97,9 +97,9 @@ describe('password reset', () => {
     const acc = await newAccount('editor')
     expect((await anonymous().post('/api/cms/_auth/forgot', { email: acc.email })).status).toBe(200)
 
-    const [mail] = sentMail(acc.email)
+    const mail = await waitForMail(acc.email, (m) => m.text.includes('/admin/reset/')) // sent after the response
     expect(mail?.subject).toBeTruthy() // in the admin's default language (Czech in the playground)
-    const link = linkIn(mail!.text)
+    const link = linkIn(mail.text)
     expect(link.startsWith(`${new Client().baseURL}/admin/reset/`)).toBe(true)
 
     const c = new Client()
@@ -112,10 +112,10 @@ describe('password reset', () => {
   })
 
   it('answers the same for an unknown address and sends nothing', async () => {
-    const before = sentMail().length
     const res = await anonymous().post('/api/cms/_auth/forgot', { email: 'ghost@test.local' })
     expect(res.status).toBe(200)
-    expect(sentMail().length).toBe(before)
+    await new Promise((r) => setTimeout(r, 300))
+    expect(sentMail('ghost@test.local')).toEqual([])
   })
 
   it('rejects a made-up token and a weak password', async () => {

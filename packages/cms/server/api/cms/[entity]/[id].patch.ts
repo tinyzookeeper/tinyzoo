@@ -31,8 +31,10 @@ export default defineEventHandler(async (event) => {
     let current: any
     if (Object.keys(values).length) {
       values.updatedAt = new Date()
-      values.updatedBy = user.id
-      ;[current] = await tx.update(e.table).set(values).where(both(eq(e.table.id, id), rowFilter)).returning()
+      values.updatedBy = actorId(user)
+      // For people who may not publish, the row must still not be live at write time
+      // (an editor may have published it since we read it).
+      ;[current] = await tx.update(e.table).set(values).where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning()
     } else {
       ;[current] = await tx.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
     }
@@ -45,13 +47,13 @@ export default defineEventHandler(async (event) => {
   if (changedMediaCols.length || changedRichCols.length) {
     const storage = useCmsStorage()
     for (const c of changedMediaCols) {
-      if (oldMedia[c] && oldMedia[c] !== row[c]) await gcMediaIfOrphan(db, reg, storage, oldMedia[c])
+      if (oldMedia[c] && oldMedia[c] !== row[c]) await gcMediaIfOrphan(db, reg, storage, oldMedia[c], gcScope(user))
     }
     // Images dropped from rich text on this edit → GC if now orphaned.
     if (oldEmbedded.length) {
       const stillEmbedded = new Set(changedRichCols.flatMap((k) => embeddedMediaIds(row[k])))
       for (const mid of new Set(oldEmbedded)) {
-        if (!stillEmbedded.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid)
+        if (!stillEmbedded.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
       }
     }
   }

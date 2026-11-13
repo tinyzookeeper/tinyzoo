@@ -74,12 +74,22 @@ export async function gcMediaIfOrphan(
   reg: CmsRegistry,
   storage: StorageDriver,
   mediaId: string | null | undefined,
+  scope: { onlyUploadedBy?: string } = {},
 ): Promise<void> {
   if (!mediaId) return
   // Load the row first so we can check references by storage key too (see above).
   const [m] = await db.select().from(reg.cmsMedia).where(eq(reg.cmsMedia.id, mediaId))
   if (!m) return
+  // Cleanup triggered by someone who may only delete their own files (authors) must
+  // not remove anyone else's — pointing a draft at a file and clearing it would
+  // otherwise be a way around that rule.
+  if (scope.onlyUploadedBy !== undefined && m.uploadedBy !== scope.onlyUploadedBy) return
   if (await isMediaReferenced(db, reg, mediaId, m.key)) return
   await storage.delete(m.key)
   await db.delete(reg.cmsMedia).where(eq(reg.cmsMedia.id, mediaId))
+}
+
+/** Whose files a write by `user` may clean up: authors only their own, everyone else any. */
+export function gcScope(user: { id: string; role: string }): { onlyUploadedBy?: string } {
+  return user.role === 'author' ? { onlyUploadedBy: user.id } : {}
 }

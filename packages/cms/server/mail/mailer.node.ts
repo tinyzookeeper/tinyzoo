@@ -32,5 +32,11 @@ export async function deliverMail(msg: CmsMailMessage, cfg: CmsMailConfig): Prom
     await writeFile(join(dir, name), JSON.stringify({ from: cfg.from, ...msg }, null, 2))
     return
   }
+  // In production the body stays out of the logs: it holds one-time sign-in links,
+  // and logs are read by more people (and systems) than the inbox is.
+  if (process.env.NODE_ENV === 'production') {
+    console.warn(`[cms] email to ${msg.to} not sent — no mail transport configured (cms.mail.transport is "log"). Subject: ${msg.subject}`)
+    return
+  }
   console.info(`[cms] email to ${msg.to}: ${msg.subject}\n${msg.text}`)
 }

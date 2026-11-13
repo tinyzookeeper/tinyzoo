@@ -1,4 +1,4 @@
-import { eq, sql } from '@my-cms/core'
+import { and, eq, sql } from '@my-cms/core'
 import { z } from 'zod'
 
 // POST /api/cms/_auth/password — change your own password (the current one is
@@ -17,7 +17,11 @@ export default defineEventHandler(async (event) => {
   }
   const [updated] = await db.update(reg.cmsUsers)
     .set({ passwordHash: await hashPassword(data.password), sessionVersion: sql`${reg.cmsUsers.sessionVersion} + 1`, updatedAt: new Date() })
-    .where(eq(reg.cmsUsers.id, me.id)).returning()
+    .where(and(eq(reg.cmsUsers.id, me.id), eq(reg.cmsUsers.sessionVersion, event.context.cmsSessionVersion))).returning()
+  if (!updated) {
+    await clearUserSession(event)
+    throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
+  }
   await startCmsSession(event, updated)
   await audit(event, 'account.password')
   return { ok: true }

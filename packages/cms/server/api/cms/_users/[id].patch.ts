@@ -24,13 +24,19 @@ export default defineEventHandler(async (event) => {
 
   const losesAdmin = target.role === 'admin' && target.status === 'active'
     && ((data.role && data.role !== 'admin') || data.status === 'disabled')
-  if (losesAdmin) await assertAnotherActiveAdmin(db, reg, id)
 
   const set: Record<string, unknown> = { ...data, updatedAt: new Date() }
   if (data.status === 'disabled' || (data.role && data.role !== target.role)) {
     set.sessionVersion = sql`${reg.cmsUsers.sessionVersion} + 1`
   }
-  const [updated] = await db.update(reg.cmsUsers).set(set).where(eq(reg.cmsUsers.id, id)).returning()
+  // Check-and-change under one lock, so two administrators demoting each other at the
+  // same moment cannot both pass the "another active admin remains" check.
+  const updated = await db.transaction(async (tx: any) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${ADMIN_GUARD_LOCK})`)
+    if (losesAdmin) await assertAnotherActiveAdmin(tx, reg, id)
+    const [row] = await tx.update(reg.cmsUsers).set(set).where(eq(reg.cmsUsers.id, id)).returning()
+    return row
+  })
   if (!updated) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
   if (data.role && data.role !== target.role) await audit(event, 'user.role', { recordId: id, meta: { from: target.role, to: data.role } })

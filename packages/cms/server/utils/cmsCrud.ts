@@ -1,4 +1,4 @@
-import { and, eq } from '@my-cms/core'
+import { and, eq, isNull, ne, or } from '@my-cms/core'
 import { propOf, type CmsEntity, type CmsRegistry } from '@my-cms/core'
 import type { CmsUser } from './cmsSession'
 
@@ -107,8 +107,24 @@ export function roleAccess(e: CmsEntity, op: 'read' | 'create' | 'update' | 'del
   if (user.role !== 'author') return { allowed: true, where: undefined }
   if (op === 'read') return { allowed: true, where: undefined }
   if (e.singleton) return { allowed: false, where: undefined }
+  // Public content without a publish workflow is live the moment it is saved —
+  // writing it would be publishing, which authors may not do.
+  if (e.content?.public && !e.publish) return { allowed: false, where: undefined }
   if (op === 'create') return { allowed: true, where: undefined }
   return { allowed: true, where: eq(e.table.createdBy, user.id) }
+}
+
+/** Rows that are not live (for writes by people who may not publish), or undefined. */
+export function notLiveCond(e: CmsEntity, user: CmsUser): any {
+  const p = e.publish
+  if (!p || canPublish(user)) return undefined
+  const col = e.table[propOf(p.field, e.fields[p.field]!)]
+  return or(isNull(col), ne(col, p.publishedValue))
+}
+
+/** The id to record as createdBy/updatedBy — only a UUID fits the column (external auth may use others). */
+export function actorId(user: CmsUser): string | null {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id) ? user.id : null
 }
 
 /** May this person publish (or unpublish) entries? Authors write drafts only. */

@@ -53,7 +53,17 @@ export interface CmsModuleOptions {
    * `event.context.cmsUser` itself (e.g. SSO); the CMS's auth pages and team
    * management are switched off.
    */
-  auth?: { mode?: 'builtin' | 'external' }
+  auth?: {
+    mode?: 'builtin' | 'external'
+    /**
+     * Proxies in front of the app that append to X-Forwarded-For (default 1 — one
+     * ingress/load balancer). The client IP for rate limits is read that many hops
+     * from the end, so a client cannot choose it. 0 = use the socket address.
+     */
+    trustedProxies?: number
+    /** Header holding the client IP when a trusted edge sets one, e.g. 'cf-connecting-ip'. */
+    ipHeader?: string
+  }
   /**
    * Absolute public URL of this app, e.g. 'https://cms.example.com'. Used for links
    * in emails (invites, password resets) — required in production. Env: NUXT_CMS_PUBLIC_URL.
@@ -128,7 +138,7 @@ export default defineNuxtModule<CmsModuleOptions>({
     locale: string | null
   }
   interface UserSession {
-    cms?: { sv: number }
+    cms?: { uid: string; sv: number }
   }
 }
 export {}
@@ -138,7 +148,11 @@ export {}
     // Runtime config consumed by the server DataSource (env override: NUXT_CMS_DATABASE_URL).
     nuxt.options.runtimeConfig.cms = {
       databaseUrl: options.databaseUrl || process.env.DATABASE_URL || '',
-      auth: { mode: options.auth?.mode || 'builtin' },
+      auth: {
+        mode: options.auth?.mode || 'builtin',
+        trustedProxies: options.auth?.trustedProxies ?? 1,
+        ipHeader: options.auth?.ipHeader || '',
+      },
       // Empty defaults so NUXT_CMS_PUBLIC_URL / NUXT_CMS_MAIL_* bind at runtime.
       publicUrl: options.publicUrl || '',
       mail: {

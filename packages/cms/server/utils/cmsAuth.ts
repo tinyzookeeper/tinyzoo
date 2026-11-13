@@ -82,7 +82,7 @@ export function sessionUser(u: any) {
 
 /** Sign the person in on this browser (replaces any previous session). */
 export async function startCmsSession(event: any, u: any): Promise<void> {
-  await replaceUserSession(event, { user: sessionUser(u), cms: { sv: u.sessionVersion as number } } as any)
+  await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number } } as any)
 }
 
 // ── links in emails ────────────────────────────────────────────────────────────
@@ -102,9 +102,20 @@ export function adminLink(event: any, path: string): string {
   throw createError({ statusCode: 500, statusMessage: 'cms.publicUrl (NUXT_CMS_PUBLIC_URL) must be set to send links by email' })
 }
 
-/** A client IP for rate limiting (behind a proxy, the first X-Forwarded-For hop). */
+/**
+ * The client IP for rate limiting. `cms.auth.ipHeader` (e.g. 'cf-connecting-ip' on
+ * Cloudflare) wins when set; otherwise X-Forwarded-For is read through exactly
+ * `cms.auth.trustedProxies` hops (default 1: one ingress / load balancer, as on
+ * Pushbase). Set 0 when the app is reached directly.
+ */
 export function clientIp(event: any): string {
-  return getRequestIP(event, { xForwardedFor: true }) || 'unknown'
+  const auth = ((useRuntimeConfig().cms as any)?.auth ?? {}) as { ipHeader?: string; trustedProxies?: number }
+  if (auth.ipHeader) {
+    const v = getRequestHeader(event, auth.ipHeader)
+    if (v) return v.trim().slice(0, 64)
+  }
+  const socketIp = getRequestIP(event) || undefined
+  return pickClientIp(getRequestHeader(event, 'x-forwarded-for'), socketIp, Number(auth.trustedProxies ?? 1))
 }
 
 /** Equal-time sign-in failures: verify against a fixed hash when the account does not exist. */
@@ -113,6 +124,9 @@ export function dummyPasswordHash(): Promise<string> {
   dummyHash ??= hashPassword('not-a-real-password-just-for-timing')
   return dummyHash
 }
+
+/** Advisory lock serialising changes that could remove the last active administrator. */
+export const ADMIN_GUARD_LOCK = 72_011_002
 
 /** 409 unless some other active administrator exists (never lock everyone out). */
 export async function assertAnotherActiveAdmin(db: any, reg: CmsRegistry, exceptId: string): Promise<void> {

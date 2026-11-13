@@ -155,9 +155,19 @@ cms: {
     from: 'Pekárna Novák <web@pekarna-novak.cz>',
     smtp: { host: 'smtp.example.com', port: 587, user: '…', pass: '…' }, // NUXT_CMS_MAIL_SMTP_*
   },
-  auth: { mode: 'builtin' },              // 'external': your app signs people in and sets event.context.cmsUser
+  auth: {
+    mode: 'builtin',                      // 'external': your app signs people in and sets event.context.cmsUser
+    trustedProxies: 1,                    // proxies appending to X-Forwarded-For (rate limits read the client IP behind them)
+    ipHeader: '',                         // or a trusted edge header, e.g. 'cf-connecting-ip'
+  },
 }
 ```
+
+Sessions last 14 days from sign-in (`runtimeConfig.session.maxAge`). State-changing
+requests to `/api/cms/**` must send JSON (multipart only for media uploads) and, when
+the browser reports it, come from the same origin — so a form on another page of the
+site or a sibling subdomain cannot act as a signed-in editor (CSRF). Rate limits are
+in memory per instance today; a shared store for several replicas is planned (Phase 5).
 
 Locally, `docker compose --profile mail up -d` starts Mailpit; set
 `NUXT_CMS_MAIL_TRANSPORT=smtp NUXT_CMS_MAIL_SMTP_HOST=localhost NUXT_CMS_MAIL_SMTP_PORT=1025`

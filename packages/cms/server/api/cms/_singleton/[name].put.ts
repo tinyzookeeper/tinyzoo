@@ -23,13 +23,13 @@ export default defineEventHandler(async (event) => {
     for (const c of mediaCols) oldMedia[c] = existing?.[c] ?? null
 
     let current: any
-    values.updatedBy = user.id
+    values.updatedBy = actorId(user)
     if (existing) {
       values.updatedAt = new Date()
       ;[current] = await tx.update(e.table).set(values).where(both(eq(e.table.id, existing.id), rowFilter)).returning()
       if (!current) throw createError({ statusCode: 403, statusMessage: 'Not permitted' })
     } else {
-      values.createdBy = user.id
+      values.createdBy = actorId(user)
       ;[current] = await tx.insert(e.table).values(values).returning()
     }
     await writeM2M(tx, reg, e, current.id, m2m, true)
