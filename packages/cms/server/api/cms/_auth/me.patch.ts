@@ -14,7 +14,7 @@ const body = z.object({
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   const me = requireCmsUser(event)
-  if (!rateLimitOk(`me:${me.id}`, 60, 60_000)) throw createError({ statusCode: 429, statusMessage: 'Too many requests' })
+  if (!(await rateLimit(`me:${me.id}`, 60, 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many requests' })
   const data = parseOr422(body, await readBody(event))
   const { db, reg } = useCms()
   const [u] = await db.update(reg.cmsUsers).set({ ...data, updatedAt: new Date() })

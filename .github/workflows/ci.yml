@@ -37,9 +37,14 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      redis:
+        image: valkey/valkey:8-alpine
+        ports: ['6379:6379']
     env:
       # The suite creates, wipes and migrates this database itself.
       TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
+      # Shared store (rate limits, realtime) runs through Redis in CI.
+      TEST_REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

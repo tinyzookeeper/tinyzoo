@@ -10,7 +10,7 @@ const SETUP_LOCK = 72_011_001
 
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
-  if (!rateLimitOk(`setup:${clientIp(event)}`, 10, 15 * 60_000)) throw createError({ statusCode: 429, statusMessage: 'Too many attempts — try again later' })
+  if (!(await rateLimit(`setup:${clientIp(event)}`, 10, 15 * 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many attempts — try again later' })
   const data = parseOr422(body, await readBody(event))
   const { db, reg } = useCms()
   const passwordHash = await hashPassword(data.password)

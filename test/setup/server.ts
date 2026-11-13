@@ -53,6 +53,14 @@ async function waitForServer(baseURL: string, child: ChildProcess, logs: string[
 export default async function setup(project: TestProject) {
   const databaseUrl = testDatabaseUrl()
   await prepareTestDatabase(databaseUrl)
+  // Rate-limit counters in Redis outlive a run; start every run clean.
+  if (process.env.TEST_REDIS_URL) {
+    const { default: Redis } = await import('ioredis')
+    const r = new Redis(process.env.TEST_REDIS_URL)
+    const keys = await r.keys('cms:*')
+    if (keys.length) await r.del(...keys)
+    await r.quit()
+  }
 
   const serverEntry = join(outputDir, 'server/index.mjs')
   const reuse = process.env.CMS_TEST_REUSE_BUILD === '1' && existsSync(serverEntry)
@@ -93,6 +101,9 @@ export default async function setup(project: TestProject) {
       // The database was migrated by drizzle's migrator above; migrating again at
       // start must be a no-op (same bookkeeping) — every run checks that.
       NUXT_CMS_MIGRATIONS_ON_START: 'true',
+      // With TEST_REDIS_URL (CI, or the compose 'redis' profile), the server shares
+      // rate limits / realtime through Redis, exercising that path.
+      ...(process.env.TEST_REDIS_URL ? { NUXT_CMS_REDIS_URL: process.env.TEST_REDIS_URL } : {}),
       NUXT_CMS_MAIL_FILE_DIR: mailDir,
     },
   })

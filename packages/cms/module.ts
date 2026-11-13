@@ -83,6 +83,12 @@ export interface CmsModuleOptions {
     file?: { dir?: string }
   }
   /**
+   * Redis for state shared by all instances (rate limits, realtime). Defaults to the
+   * REDIS_URL environment variable (Pushbase sets it for a linked Redis service).
+   * Env: NUXT_CMS_REDIS_URL. Without it, state lives in each instance's memory.
+   */
+  redis?: { url?: string }
+  /**
    * Database migrations bundled into the server build and applied when it starts —
    * for platforms that ship only the build output (Pushbase, containers).
    *  - dir: the drizzle-kit migrations folder, relative to rootDir (default server/db/migrations)
@@ -118,11 +124,14 @@ export default defineNuxtModule<CmsModuleOptions>({
     const dbImpl = resolve(layerDir, 'server/db', dbDriver === 'edge' ? 'driver.edge.ts' : 'driver.node.ts')
     // Same switch for mail: only the Node build bundles SMTP (nodemailer).
     const mailImpl = resolve(layerDir, 'server/mail', dbDriver === 'edge' ? 'mailer.edge.ts' : 'mailer.node.ts')
+    // …and for the shared store: only the Node build bundles the Redis client.
+    const storeImpl = resolve(layerDir, 'server/store', dbDriver === 'edge' ? 'store.edge.ts' : 'store.node.ts')
 
     // Expose the host config + DB driver as virtual aliases to app and Nitro server.
     nuxt.options.alias['#cms/config'] = configPath
     nuxt.options.alias['#cms/db'] = dbImpl
     nuxt.options.alias['#cms/mailer'] = mailImpl
+    nuxt.options.alias['#cms/store'] = storeImpl
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
     nuxt.hook('nitro:config', (nitro) => {
@@ -134,6 +143,7 @@ export default defineNuxtModule<CmsModuleOptions>({
       nitro.alias['#cms/config'] = configPath
       nitro.alias['#cms/db'] = dbImpl
       nitro.alias['#cms/mailer'] = mailImpl
+      nitro.alias['#cms/store'] = storeImpl
       nitro.externals = nitro.externals || {}
       nitro.externals.inline = nitro.externals.inline || []
     })
@@ -162,6 +172,7 @@ export {}
     nuxt.options.runtimeConfig.cms = {
       databaseUrl: options.databaseUrl || process.env.DATABASE_URL || '',
       migrations: { onStart: options.migrations?.onStart ?? false },
+      redis: { url: options.redis?.url || '' },
       auth: {
         mode: options.auth?.mode || 'builtin',
         trustedProxies: options.auth?.trustedProxies ?? 1,
