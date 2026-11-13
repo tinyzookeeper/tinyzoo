@@ -9,8 +9,26 @@
 //   export default defineAppConfig({
 //     cms: { fields: { select: { edit: 'MySegmentedSelect' } } },
 //   })
+//
+// `cms.admin` brands and localizes the administration (host values win):
+//
+//   cms: { admin: {
+//     name: { cs: 'Pekárna Novák', en: 'Novák Bakery' }, // shown in the sidebar and tab title
+//     siteUrl: 'https://pekarna-novak.cz',                // "View website" link
+//     accent: 'mono',                                     // mono | indigo | blue | violet | emerald
+//     locales: ['cs', 'en'], defaultLocale: 'cs',         // admin interface languages
+//     timeZone: 'Europe/Prague',                          // how dates are shown
+//   } }
 export default defineAppConfig({
   cms: {
     fields: {} as Record<string, { edit?: string; cell?: string }>,
+    admin: {
+      name: 'Content' as string | Record<string, string>,
+      siteUrl: '/',
+      accent: 'mono' as 'mono' | 'indigo' | 'blue' | 'violet' | 'emerald',
+      locales: ['cs', 'en'] as string[],
+      defaultLocale: 'en',
+      timeZone: 'Europe/Prague',
+    },
   },
 })

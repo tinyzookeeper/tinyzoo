@@ -3,7 +3,7 @@ import { buildRegistry, defineEntity, f } from '@my-cms/core'
 import * as config from '../../playground/cms.config'
 
 describe('defineEntity', () => {
-  it.each(['_secret', 'media', 'graph'])('rejects the reserved name %s', (name) => {
+  it.each(['_secret', 'media', 'graph', 'styleguide'])('rejects the reserved name %s', (name) => {
     expect(() => defineEntity(name, { label: 'X', titleField: 'title', fields: { title: f.text() } })).toThrow(/reserved/)
   })
 
@@ -59,9 +59,10 @@ describe('buildRegistry', () => {
   it('serialises a graph the admin can render, with labels and help text', () => {
     const post = reg.graph.find((g: any) => g.name === 'post')
     const field = (k: string) => post.fields.find((x: any) => x.key === k)
-    expect(field('publishedAt').meta.label).toBe('Publish date')
-    expect(field('slug').meta).toMatchObject({ from: 'title', help: expect.stringMatching(/Auto-generated/) })
-    expect(field('status').meta.options).toEqual(['draft', 'published'])
+    expect(field('publishedAt').meta.label).toEqual({ en: 'Publish date', cs: 'Datum zveřejnění' })
+    expect(field('slug').meta).toMatchObject({ from: 'title', help: { en: expect.stringMatching(/title/) } })
+    expect(field('status').meta).toMatchObject({ options: ['draft', 'published'], labels: { draft: { cs: 'Koncept' } } })
+    expect(post).toMatchObject({ icon: 'i-lucide-newspaper', labelSingular: { en: 'Post' }, description: { cs: expect.any(String) } })
     expect(field('title')).toMatchObject({ required: true, ui: { edit: 'CmsFieldText', cell: 'CmsCellText' } })
   })
 

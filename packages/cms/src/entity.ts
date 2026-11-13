@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
+import type { LocalizedText } from './i18n'
 
 // ── type-level inference helpers ────────────────────────────────────────────────
 type Prettify<T> = { [K in keyof T]: T[K] } & {}
@@ -72,7 +73,14 @@ export interface PublishConfig<F extends Record<string, AnyFieldDescriptor>> {
 }
 
 export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
-  label: string
+  /** Plural name shown in the admin ("Posts"). One string, or one per admin locale. */
+  label: LocalizedText
+  /** Singular name for buttons and messages ("New post"). Defaults to `label`. */
+  labelSingular?: LocalizedText
+  /** One or two sentences on what this content is for — shown in the admin's lists and empty states. */
+  description?: LocalizedText
+  /** Iconify name for the admin navigation, e.g. 'i-lucide-newspaper'. */
+  icon?: string
   titleField: keyof F & string
   fields: F
   /** A single-row global (Settings/Homepage) — admin shows one form, no list. */
@@ -87,7 +95,10 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
 export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<string, AnyFieldDescriptor>> {
   __cms: 'entity'
   name: string
-  label: string
+  label: LocalizedText
+  labelSingular?: LocalizedText
+  description?: LocalizedText
+  icon?: string
   titleField: keyof F & string
   table: TableColumns<F>
   fields: F
@@ -110,7 +121,10 @@ export type Update<E> = E extends Entity<infer F> ? Partial<InsertFields<F>> : n
 export interface CmsEntity {
   __cms: 'entity'
   name: string
-  label: string
+  label: LocalizedText
+  labelSingular?: LocalizedText
+  description?: LocalizedText
+  icon?: string
   titleField: string
   table: any
   fields: Record<string, FieldDescriptor>
@@ -138,7 +152,7 @@ export function propOf(key: string, fld: FieldDescriptor): string {
 }
 
 /** Entity names the CMS uses internally; user entities may not take them. */
-const RESERVED_ENTITY_NAMES = new Set(['media', 'graph'])
+const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'styleguide'])
 
 export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
@@ -193,6 +207,7 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   return {
     __cms: 'entity',
     name, label: def.label, titleField: def.titleField,
+    labelSingular: def.labelSingular, description: def.description, icon: def.icon,
     table, admin: def.admin, access: def.access, content: def.content, fields: def.fields,
     singleton: def.singleton, publish: def.publish,
     enums,
@@ -285,6 +300,9 @@ function entityGraph(e: CmsEntity) {
   return {
     name: e.name,
     label: e.label,
+    labelSingular: e.labelSingular ?? e.label,
+    description: e.description ?? null,
+    icon: e.icon ?? (e.singleton ? 'i-lucide-settings-2' : 'i-lucide-folder'),
     titleField: e.titleField,
     singleton: !!e.singleton,
     publish: e.publish,

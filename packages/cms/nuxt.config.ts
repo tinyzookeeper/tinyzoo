@@ -16,4 +16,17 @@ export default defineNuxtConfig({
   components: [
     { path: join(layerDir, 'app/components'), pathPrefix: false, global: true },
   ],
+  // Admin design tokens, scoped to html[data-cms-admin] so the host site's own
+  // theme is untouched (see app/assets/css/cms-admin.css).
+  css: [join(layerDir, 'app/assets/css/cms-admin.css')],
+  // The admin's typefaces, through @nuxt/fonts (bundled with Nuxt UI): downloaded at
+  // build time and served from the app itself — no requests to Google at runtime.
+  // The admin's tokens reference them through CSS variables, which @nuxt/fonts
+  // cannot see, so they are declared here and registered globally.
+  fonts: {
+    families: [
+      { name: 'Geist', provider: 'google', weights: [400, 500, 600], global: true },
+      { name: 'Geist Mono', provider: 'google', weights: [400, 500], global: true },
+    ],
+  },
 })

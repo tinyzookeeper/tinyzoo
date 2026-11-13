@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useCmsI18n()
 // Slug field. Auto-derives from its source field (`from`, set in cms.config) until
 // the editor types in it manually — and never clobbers a slug that already exists
 // on a record being edited.
@@ -32,5 +33,5 @@ if (form && from) {
 </script>
 
 <template>
-  <UInput v-model="model" placeholder="lowercase-with-dashes" class="w-full" />
+  <UInput v-model="model" :placeholder="t('fields.slugPlaceholder')" class="w-full" />
 </template>

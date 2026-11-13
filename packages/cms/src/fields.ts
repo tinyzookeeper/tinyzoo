@@ -1,3 +1,4 @@
+import type { LocalizedText } from './i18n'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
   type PgColumnBuilder,
@@ -96,8 +97,8 @@ interface Mods {
   isOptional?: boolean
   default?: unknown
   dbDefault?: 'now' | 'random'
-  label?: string
-  help?: string
+  label?: LocalizedText
+  help?: LocalizedText
 }
 
 function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
@@ -147,8 +148,8 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     optional: () => createField(cfg, { ...mods, isOptional: true, isRequired: false }),
     unique: () => createField(cfg, { ...mods, isUnique: true }),
     withDefault: (value: unknown) => createField(cfg, { ...mods, default: value }),
-    label: (text: string) => createField(cfg, { ...mods, label: text }),
-    help: (text: string) => createField(cfg, { ...mods, help: text }),
+    label: (text: LocalizedText) => createField(cfg, { ...mods, label: text }),
+    help: (text: LocalizedText) => createField(cfg, { ...mods, help: text }),
   }
   return descriptor as unknown as FieldDescriptor
 }
@@ -209,13 +210,18 @@ export const f = {
     }, { dbDefault: o.default === 'now' ? 'now' : undefined })),
 
   select: <const T extends readonly [string, ...string[]], D extends T[number] | undefined = undefined>(
-    o: { options: T; default?: D },
+    o: {
+      options: T
+      default?: D
+      /** How each option reads in the admin, e.g. `{ draft: { en: 'Draft', cs: 'Koncept' } }`. Defaults to the value. */
+      labels?: Partial<Record<T[number], LocalizedText>>
+    },
   ) =>
     as<ScalarKind<T[number], T[number], undefined extends D ? false : true>>(createField({
       type: 'select', ui: { edit: 'CmsFieldSelect', cell: 'CmsCellBadge' },
       base: { kind: 'enum', values: o.options },
       tsType: o.options.map((v) => `'${v}'`).join(' | '),
-      meta: { options: o.options },
+      meta: { options: o.options, ...(o.labels ? { labels: o.labels } : {}) },
       zod: () => z.enum([...o.options] as [string, ...string[]]),
     }, { default: o.default })),
 

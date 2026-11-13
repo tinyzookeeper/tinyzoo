@@ -5,6 +5,7 @@ const props = defineProps<{ accept?: string }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ select: [media: any] }>()
 const toast = useToast()
+const { t } = useCmsI18n()
 
 const items = ref<any[]>([])
 const total = ref(0)
@@ -22,7 +23,7 @@ async function load(reset = false) {
     items.value = reset ? res.items : [...items.value, ...res.items]
     total.value = res.total
   } catch (err: any) {
-    toast.add({ title: 'Could not load media', description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
+    toast.add({ title: t('media.loadFailed'), description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
   } finally {
     loading.value = false
   }
@@ -65,7 +66,7 @@ async function onUpload(e: Event) {
     items.value.unshift(rec)
     choose(rec)
   } catch (err: any) {
-    toast.add({ title: 'Upload failed', description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
+    toast.add({ title: t('media.uploadFailed'), description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
   } finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''
@@ -74,18 +75,18 @@ async function onUpload(e: Event) {
 </script>
 
 <template>
-  <UModal v-model:open="open" title="Media library" :ui="{ content: 'sm:max-w-3xl' }">
+  <UModal v-model:open="open" :title="t('media.libraryTitle')" :ui="{ content: 'sm:max-w-3xl' }">
     <template #body>
       <input ref="fileInput" type="file" class="hidden" :accept="accept" @change="onUpload">
 
       <div class="flex items-center gap-2 mb-4">
-        <UInput v-model="q" icon="i-lucide-search" placeholder="Search media…" class="flex-1" :loading="loading" />
-        <UButton icon="i-lucide-upload" :loading="uploading" @click="pick">Upload</UButton>
+        <UInput v-model="q" icon="i-lucide-search" :placeholder="t('media.searchPlaceholder')" class="flex-1" :loading="loading" />
+        <UButton icon="i-lucide-upload" :loading="uploading" @click="pick">{{ t('media.upload') }}</UButton>
       </div>
 
       <div v-if="!visible.length && !loading" class="py-16 text-center text-muted">
         <UIcon name="i-lucide-image-off" class="size-8 mx-auto mb-2 text-dimmed" />
-        <p>{{ q ? 'No matching media.' : 'No media yet — upload one.' }}</p>
+        <p>{{ q ? t('media.noMatches') : t('media.empty') }}</p>
       </div>
 
       <div v-else class="grid grid-cols-2 sm:grid-cols-4 gap-3 max-h-[55vh] overflow-y-auto">
@@ -106,7 +107,7 @@ async function onUpload(e: Event) {
       </div>
 
       <div v-if="canLoadMore" class="mt-4 text-center">
-        <UButton variant="outline" color="neutral" size="sm" :loading="loading" @click="more">Load more</UButton>
+        <UButton variant="outline" color="neutral" size="sm" :loading="loading" @click="more">{{ t('media.loadMore') }}</UButton>
       </div>
     </template>
   </UModal>

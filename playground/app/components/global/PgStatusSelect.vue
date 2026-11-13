@@ -8,18 +8,19 @@
 // resolves renderers by name at runtime, which only works for global components.
 const props = defineProps<{ field: any; entity?: string }>()
 const model = defineModel<any>()
+const { tl } = useCmsI18n()
 </script>
 
 <template>
   <div class="flex gap-1.5">
     <UButton
       v-for="opt in props.field.meta.options" :key="opt"
-      size="sm" class="capitalize"
+      size="sm"
       :color="model === opt ? 'primary' : 'neutral'"
       :variant="model === opt ? 'solid' : 'outline'"
       @click="model = opt"
     >
-      {{ opt }}
+      {{ tl(props.field.meta.labels?.[opt], opt) }}
     </UButton>
   </div>
 </template>

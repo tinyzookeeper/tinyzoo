@@ -9,6 +9,7 @@ import Image from '@tiptap/extension-image'
 // `cms.fields.richtext.edit` in app.config.
 const model = defineModel<any>()
 const libraryOpen = ref(false)
+const { t } = useCmsI18n()
 
 // Image node that also records the cms_media id (as data-media-id) so the media GC
 // can see images embedded in body text and never orphans them.
@@ -28,7 +29,8 @@ const MediaImage = Image.extend({
 const editor = useEditor({
   content: model.value || { type: 'doc', content: [] },
   extensions: [
-    StarterKit,
+    // StarterKit v3 bundles Link; ours is configured below, so turn the bundled one off.
+    StarterKit.configure({ link: false }),
     Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
     MediaImage.configure({ HTMLAttributes: { class: 'cms-embed-img' } }),
   ],
@@ -53,7 +55,7 @@ function setLink() {
   const ed = editor.value
   if (!ed) return
   const prev = ed.getAttributes('link').href as string | undefined
-  const url = window.prompt('Link URL', prev ?? 'https://')
+  const url = window.prompt(t('fields.linkPrompt'), prev ?? 'https://')
   if (url === null) return // cancelled
   if (url.trim() === '') {
     ed.chain().focus().extendMarkRange('link').unsetLink().run()
@@ -72,16 +74,16 @@ const tools = computed<Tool[]>(() => {
   if (!ed) return []
   const chain = () => ed.chain().focus()
   return [
-    { icon: 'i-lucide-bold', label: 'Bold', run: () => chain().toggleBold().run(), active: () => ed.isActive('bold') },
-    { icon: 'i-lucide-italic', label: 'Italic', run: () => chain().toggleItalic().run(), active: () => ed.isActive('italic') },
-    { icon: 'i-lucide-strikethrough', label: 'Strike', run: () => chain().toggleStrike().run(), active: () => ed.isActive('strike') },
-    { icon: 'i-lucide-heading-2', label: 'Heading 2', run: () => chain().toggleHeading({ level: 2 }).run(), active: () => ed.isActive('heading', { level: 2 }) },
-    { icon: 'i-lucide-heading-3', label: 'Heading 3', run: () => chain().toggleHeading({ level: 3 }).run(), active: () => ed.isActive('heading', { level: 3 }) },
-    { icon: 'i-lucide-list', label: 'Bullet list', run: () => chain().toggleBulletList().run(), active: () => ed.isActive('bulletList') },
-    { icon: 'i-lucide-list-ordered', label: 'Ordered list', run: () => chain().toggleOrderedList().run(), active: () => ed.isActive('orderedList') },
-    { icon: 'i-lucide-quote', label: 'Quote', run: () => chain().toggleBlockquote().run(), active: () => ed.isActive('blockquote') },
-    { icon: 'i-lucide-code', label: 'Inline code', run: () => chain().toggleCode().run(), active: () => ed.isActive('code') },
-    { icon: 'i-lucide-link', label: 'Link', run: setLink, active: () => ed.isActive('link') },
+    { icon: 'i-lucide-bold', label: t('fields.toolbar.bold'), run: () => chain().toggleBold().run(), active: () => ed.isActive('bold') },
+    { icon: 'i-lucide-italic', label: t('fields.toolbar.italic'), run: () => chain().toggleItalic().run(), active: () => ed.isActive('italic') },
+    { icon: 'i-lucide-strikethrough', label: t('fields.toolbar.strike'), run: () => chain().toggleStrike().run(), active: () => ed.isActive('strike') },
+    { icon: 'i-lucide-heading-2', label: t('fields.toolbar.h2'), run: () => chain().toggleHeading({ level: 2 }).run(), active: () => ed.isActive('heading', { level: 2 }) },
+    { icon: 'i-lucide-heading-3', label: t('fields.toolbar.h3'), run: () => chain().toggleHeading({ level: 3 }).run(), active: () => ed.isActive('heading', { level: 3 }) },
+    { icon: 'i-lucide-list', label: t('fields.toolbar.bulletList'), run: () => chain().toggleBulletList().run(), active: () => ed.isActive('bulletList') },
+    { icon: 'i-lucide-list-ordered', label: t('fields.toolbar.orderedList'), run: () => chain().toggleOrderedList().run(), active: () => ed.isActive('orderedList') },
+    { icon: 'i-lucide-quote', label: t('fields.toolbar.quote'), run: () => chain().toggleBlockquote().run(), active: () => ed.isActive('blockquote') },
+    { icon: 'i-lucide-code', label: t('fields.toolbar.code'), run: () => chain().toggleCode().run(), active: () => ed.isActive('code') },
+    { icon: 'i-lucide-link', label: t('fields.toolbar.link'), run: setLink, active: () => ed.isActive('link') },
   ]
 })
 </script>
@@ -92,33 +94,33 @@ const tools = computed<Tool[]>(() => {
     <ClientOnly>
       <div v-if="editor" class="flex flex-wrap items-center gap-0.5 border-b border-default bg-elevated/30 p-1">
         <UButton
-          v-for="t in tools" :key="t.label"
-          :icon="t.icon" size="xs" variant="ghost"
-          :color="t.active() ? 'primary' : 'neutral'"
-          :aria-label="t.label" @click="t.run()"
+          v-for="tool in tools" :key="tool.icon"
+          :icon="tool.icon" size="xs" variant="ghost"
+          :color="tool.active() ? 'primary' : 'neutral'"
+          :aria-label="tool.label" :aria-pressed="tool.active()" @click="tool.run()"
         />
         <UButton
           icon="i-lucide-image" size="xs" variant="ghost" color="neutral"
-          aria-label="Insert image" @click="libraryOpen = true"
+          :aria-label="t('fields.toolbar.image')" @click="libraryOpen = true"
         />
         <div class="ml-auto flex gap-0.5">
-          <UButton icon="i-lucide-undo-2" size="xs" variant="ghost" color="neutral" aria-label="Undo" @click="editor.chain().focus().undo().run()" />
-          <UButton icon="i-lucide-redo-2" size="xs" variant="ghost" color="neutral" aria-label="Redo" @click="editor.chain().focus().redo().run()" />
+          <UButton icon="i-lucide-undo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.undo')" @click="editor.chain().focus().undo().run()" />
+          <UButton icon="i-lucide-redo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.redo')" @click="editor.chain().focus().redo().run()" />
         </div>
       </div>
-      <EditorContent :editor="editor" />
+      <EditorContent :editor="editor" class="cms-prose" />
       <template #fallback>
-        <div class="min-h-32 px-3 py-2 text-sm text-muted">Loading editor…</div>
+        <div class="min-h-32 px-3 py-2 text-sm text-muted">{{ t('fields.loadingEditor') }}</div>
       </template>
     </ClientOnly>
   </div>
 </template>
 
 <style scoped>
-:deep(.ProseMirror) { min-height: 8rem; padding: 0.5rem 0.75rem; outline: none; }
+:deep(.ProseMirror) { min-height: 10rem; padding: 0.75rem 1rem; outline: none; }
 :deep(.ProseMirror > * + *) { margin-top: 0.5rem; }
-:deep(.ProseMirror h2) { font-size: 1.25rem; font-weight: 600; line-height: 1.3; }
-:deep(.ProseMirror h3) { font-size: 1.125rem; font-weight: 600; line-height: 1.3; }
+:deep(.ProseMirror h2) { font-size: 1.25rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; margin-top: 1rem; }
+:deep(.ProseMirror h3) { font-size: 1.0625rem; font-weight: 600; line-height: 1.35; margin-top: 0.75rem; }
 :deep(.ProseMirror ul) { list-style: disc; padding-left: 1.5rem; }
 :deep(.ProseMirror ol) { list-style: decimal; padding-left: 1.5rem; }
 :deep(.ProseMirror blockquote) { border-left: 3px solid currentColor; opacity: 0.85; padding-left: 0.75rem; }
