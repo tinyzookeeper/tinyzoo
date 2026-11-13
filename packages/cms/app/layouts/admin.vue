@@ -1,20 +1,24 @@
 <script setup lang="ts">
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 
-const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
+const { data: graph, error: graphError } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
 const { user, clear } = useUserSession()
-const router = useRouter()
+const route = useRoute()
 const colorMode = useColorMode()
 const config = useCmsAdminConfig()
-const { t, tl, locale, locales, setLocale, entityLabel } = useCmsI18n()
-
-const productName = computed(() => tl(config.value.name, 'Content'))
+const { t, locale, locales, setLocale, entityLabel } = useCmsI18n()
 
 // The admin's own look (cms-admin.css) applies while this layout is mounted.
-useHead(() => ({
-  htmlAttrs: { 'lang': locale.value, 'data-cms-admin': '', 'data-cms-accent': config.value.accent },
-  titleTemplate: (title?: string) => (title ? `${title} · ${productName.value}` : `${t('app.adminTitle')} · ${productName.value}`),
-}))
+const { productName } = useCmsAdminHead()
+
+// The server re-checks the account on every request. If it no longer accepts the
+// session (disabled, password changed elsewhere, removed), go back to sign-in.
+watch(graphError, async (err) => {
+  if (err?.statusCode === 401) {
+    await clear()
+    await navigateTo({ path: '/admin/login', query: { redirect: route.fullPath } })
+  }
+}, { immediate: true })
 
 const toNav = (e: any): NavigationMenuItem => ({ label: entityLabel(e), icon: e.icon, to: `/admin/${e.name}` })
 const navigation = computed<NavigationMenuItem[][]>(() => {
@@ -23,7 +27,9 @@ const navigation = computed<NavigationMenuItem[][]>(() => {
   const settings = all.filter((e) => e.singleton)
   const groups: NavigationMenuItem[][] = [[{ label: t('nav.home'), icon: 'i-lucide-house', to: '/admin', exact: true }]]
   if (collections.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav)])
-  if (settings.length) groups.push([{ label: t('nav.settings'), type: 'label' }, ...settings.map(toNav)])
+  const settingsGroup: NavigationMenuItem[] = settings.map(toNav)
+  if (user.value?.role === 'admin') settingsGroup.push({ label: t('nav.team'), icon: 'i-lucide-users-round', to: '/admin/team' })
+  if (settingsGroup.length) groups.push([{ label: t('nav.settings'), type: 'label' }, ...settingsGroup])
   return groups
 })
 
@@ -32,13 +38,13 @@ const initials = computed(() =>
 )
 const roleLabel = computed(() => {
   const role = user.value?.role as string | undefined
-  return role === 'admin' || role === 'editor' ? t(`user.roles.${role}`) : role
+  return role === 'admin' || role === 'editor' || role === 'author' ? t(`roles.${role}.name`) : role
 })
 
 async function logout() {
-  await $fetch('/api/_cms/logout', { method: 'POST' })
+  await $fetch('/api/cms/_auth/logout', { method: 'POST' })
   await clear()
-  await router.push('/login')
+  await navigateTo('/admin/login')
 }
 
 const userMenu = computed<DropdownMenuItem[][]>(() => [
@@ -65,6 +71,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
         onSelect: (e: Event) => { e.preventDefault(); setLocale(code) },
       })),
     },
+    { label: t('nav.account'), icon: 'i-lucide-user-round', to: '/admin/account' },
     { label: t('nav.designSystem'), icon: 'i-lucide-swatch-book', to: '/admin/styleguide' },
   ],
   [{ label: t('user.signOut'), icon: 'i-lucide-log-out', color: 'error' as const, onSelect: logout }],

@@ -31,7 +31,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     <template #actions>
       <span v-if="dirty" class="hidden md:inline text-sm text-warning mr-1">{{ t('editor.unsaved') }}</span>
       <UTooltip :text="t('editor.shortcutSave')">
-        <UButton :loading="saving" icon="i-lucide-check" @click="save()">{{ t('common.save') }}</UButton>
+        <UButton :loading="saving" :disabled="meta?.can?.update === false" icon="i-lucide-check" @click="save()">{{ t('common.save') }}</UButton>
       </UTooltip>
     </template>
 
