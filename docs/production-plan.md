@@ -137,7 +137,7 @@ Noted for later phases, not changed here:
   hoisting. Fine for now; revisit when the package is consumed from a registry
   (Phase 5).
 
-### Phase 1 — Name, brand and UI foundation
+### Phase 1 — Name, brand and UI foundation 🚧 *foundation done; name, logo and package rename deferred*
 
 The admin is the product the client sees, so it gets an identity and a design
 system before more screens are built on the scaffold.
@@ -157,6 +157,45 @@ system before more screens are built on the scaffold.
   with the host site's own i18n setup. Field labels and help in `cms.config.ts`
   accept a per-locale map.
 - A `/admin/styleguide` route, as in Pushbase.
+
+#### How it landed (foundation, 2026-11-13)
+
+The name is deferred on purpose; everything brand-specific reads from
+`cms.admin.name`, so naming is a one-line change plus the package rename.
+
+- **Tokens** in `app/assets/css/cms-admin.css`, scoped to `html[data-cms-admin]`
+  so the admin and the client's website never share a theme. Warm paper neutrals,
+  one accent. The default is **indigo**, after an early pine-green was dropped:
+  next to green "Published" badges, a green brand read as a status. Pine, plum and
+  clay stay as built-in alternatives (`cms.admin.accent`).
+- **Type:** Geist (interface) + Newsreader (titles and rich text), self-hosted
+  through @nuxt/fonts.
+- **Shell** on Nuxt UI's dashboard components; navigation named by task (Home /
+  Content / Settings / View website); account menu with appearance and language.
+- **Building blocks:** `CmsPage`, `CmsSection`, `CmsEmptyState`, `CmsStatusBadge`,
+  `CmsTime`; `useCmsForm` shared by the entry editor and the settings form.
+- **Admin in Czech and English** (`useCmsI18n`, catalogue parity test, Czech
+  plurals). Config text (`label`, `labelSingular`, `description`, field
+  `.label()`/`.help()`, select option `labels`) accepts per-locale maps; entities
+  gain `icon` and `description`.
+- **Home page** (`GET /api/cms/_overview`): per-collection counts and recently
+  edited items, access rules applied.
+- **`/admin/styleguide`**, and `docs/ui-foundation.md`.
+- Tests: translation parity and placeholders, `resolveText`, the overview
+  endpoint, server-rendered Czech/English, cookie over browser language, list
+  headers from labels, styleguide page, admin time-zone conversion.
+
+Bugs found and fixed along the way:
+
+| Found | Fix |
+|---|---|
+| Date fields never showed a saved value (`datetime-local` cannot read ISO-with-Z), and an edited date was read in the **server's** time zone — off by 1–2 h on a UTC host | Edited as wall-clock time in `cms.admin.timeZone` (Europe/Prague), stored as the exact instant; DST-safe, unit-tested |
+| List dates used the machine's locale and zone (`toLocaleDateString`) — a server/browser hydration mismatch | `formatDate` in the admin's locale and zone |
+| A failed Publish left the badge saying "Published" | the status is reverted when the save is refused |
+| TipTap registered `link` twice (StarterKit v3 bundles it), so the configured link options could be ignored | the bundled one is turned off |
+| List headers showed raw keys ("publishedAt"); entity icons were hardcoded by name in the layer | headers use field labels; icons come from the config |
+
+Still open in this phase: the name, logo/mark, and the package rename.
 
 ### Phase 2 — Real users and auth (owned by the CMS)
 

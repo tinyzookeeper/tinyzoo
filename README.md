@@ -121,6 +121,28 @@ then match `DATABASE_URL` in `playground/.env`.
 `DATABASE_URL` is read from `playground/.env`. Edit `playground/cms.config.ts`, re-run
 `pnpm db:generate` (review the SQL!) and `pnpm db:migrate`, and the dashboard updates itself.
 
+## Admin look & language
+
+The admin has its own design system, scoped so it never touches the host website's
+theme: warm neutrals, one accent, Geist + Newsreader, light and dark. It speaks
+Czech and English (cookie → browser language → default). Brand it per client in
+`app.config.ts`:
+
+```ts
+cms: { admin: {
+  name: { cs: 'Pekárna Novák', en: 'Novák Bakery' },
+  siteUrl: 'https://pekarna-novak.cz',
+  accent: 'indigo',            // indigo | pine | plum | clay
+  locales: ['cs', 'en'], defaultLocale: 'cs',
+  timeZone: 'Europe/Prague',   // dates are shown and edited in this zone
+} }
+```
+
+Labels in `cms.config.ts` take one string or one per admin language
+(`label: { en: 'Posts', cs: 'Články' }`), and entities can set `icon`,
+`labelSingular` and `description`. Tokens, rules and building blocks:
+[`docs/ui-foundation.md`](docs/ui-foundation.md); live tour at `/admin/styleguide`.
+
 ## Tests, typecheck & CI
 
 ```bash
