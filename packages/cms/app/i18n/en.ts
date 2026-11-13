@@ -86,7 +86,7 @@ export default {
     bulkDeleteTitle: { one: 'Delete {count} entry?', other: 'Delete {count} entries?' },
     arrange: 'Arrange',
     arrangeHint: 'Drag entries into place (or use the arrows), then save the order.',
-    arrangeTooMany: 'Only the first 100 entries can be arranged here.',
+    arrangeTooMany: 'This collection has more than 100 entries: arranging them here is not possible yet.',
     saveOrder: 'Save order',
     orderSaved: 'Order saved',
     moveUp: 'Move {name} up',
@@ -364,6 +364,7 @@ export default {
     reloadedSomeone: 'Updated with the latest changes',
   },
   revisions: {
+    filesGone: { one: '{count} file from that version was deleted since and is left out.', other: '{count} files from that version were deleted since and are left out.' },
     title: 'History',
     open: 'History',
     description: 'Every save of this entry. Pick one to see what was different.',

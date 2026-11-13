@@ -98,6 +98,7 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
   }
   await audit(event, 'entry.translation_delete', { entity: e.name, recordId: id, meta: { locale } })
   await dropCollabDocuments(e.name, id, locale)
+  await dropTranslationRevisions(e, id, locale)
   await reportChange(event, { type: 'translation.deleted', entity: e, id, locale, before: seenBefore, after: null })
   return { ok: true }
 }

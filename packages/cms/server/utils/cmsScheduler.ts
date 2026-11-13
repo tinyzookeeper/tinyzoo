@@ -18,16 +18,18 @@ export async function announceScheduled(): Promise<number> {
     const s = reg.cmsState
     const [state] = await tx.select().from(s).where(eq(s.key, KEY))
     const [{ now }] = (await tx.execute(sql`select now() as now`)).rows
-    const since = state?.value?.at ? new Date(state.value.at) : new Date(now)
+    // The very first run looks back ten minutes (an entry going live during a deploy).
+    const since = state?.value?.at ? new Date(state.value.at) : new Date(new Date(now).getTime() - 10 * 60_000)
     for (const e of reg.entities) {
       const p = e.publish
       if (!p?.dateField || p.schedule === false) continue
       const date = e.table[propOf(p.dateField, e.fields[p.dateField]!)]
       const status = e.table[propOf(p.field, e.fields[p.field]!)]
       // Only entries saved before their date (scheduled): "publish now" was announced
-      // when it was saved. The margin absorbs a browser clock a little ahead.
+      // when it was saved — the server stamps that date itself (stampPublishDate),
+      // so it never lies after the save. At worst a borderline case is announced twice.
       const rows: any[] = await tx.select().from(e.table)
-        .where(and(eq(status, p.publishedValue), gt(date, since), lte(date, new Date(now)), sql`${date} > ${e.table.updatedAt} + interval '30 seconds'`))
+        .where(and(eq(status, p.publishedValue), gt(date, since), lte(date, new Date(now)), sql`${date} > ${e.table.updatedAt}`))
       for (const row of rows) due.push({ e, id: row.id, row })
     }
     await tx.insert(s).values({ key: KEY, value: { at: new Date(now).toISOString() } })

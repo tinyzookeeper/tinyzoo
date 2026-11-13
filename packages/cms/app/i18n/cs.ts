@@ -85,7 +85,7 @@ export default {
     bulkDeleteTitle: { one: 'Smazat {count} položku?', few: 'Smazat {count} položky?', other: 'Smazat {count} položek?' },
     arrange: 'Seřadit',
     arrangeHint: 'Přetáhněte položky na místo (nebo použijte šipky) a pořadí uložte.',
-    arrangeTooMany: 'Seřadit tady jde jen prvních 100 položek.',
+    arrangeTooMany: 'Kolekce má víc než 100 položek: tady je zatím seřadit nejde.',
     saveOrder: 'Uložit pořadí',
     orderSaved: 'Pořadí uloženo',
     moveUp: 'Posunout {name} výš',
@@ -363,6 +363,7 @@ export default {
     reloadedSomeone: 'Načteny nejnovější změny',
   },
   revisions: {
+    filesGone: { one: '{count} soubor z té verze byl mezitím smazán a vynechá se.', few: '{count} soubory z té verze byly mezitím smazány a vynechají se.', other: '{count} souborů z té verze bylo mezitím smazáno a vynechá se.' },
     title: 'Historie',
     open: 'Historie',
     description: 'Každé uložení této položky. Vyberte si verzi a uvidíte, čím se lišila.',

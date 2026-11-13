@@ -18,7 +18,6 @@ export default defineEventHandler(async (event) => {
   const search = String(query.q ?? '').trim().slice(0, 100)
   // A collection arranged by hand comes in that order unless asked otherwise.
   const orderField = e.admin?.list?.orderField
-  const dir = query.dir === 'asc' || (!query.dir && !query.sort && orderField) ? asc : desc
 
   const hidden = new Set(e.content?.hidden ?? [])
   // Sort allowlist: createdAt/updatedAt + non-hidden scalar fields only — never
@@ -28,6 +27,7 @@ export default defineEventHandler(async (event) => {
     if (!hidden.has(k) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks') sortable.add(k)
   }
   const sortKey = sortable.has(String(query.sort)) ? String(query.sort) : (orderField && sortable.has(orderField) ? orderField : 'createdAt')
+  const dir = query.dir === 'asc' || (!query.dir && !query.sort && sortKey === orderField) ? asc : desc
   const sortCol = e.table[sortKey]
 
   const conds: any[] = []
@@ -49,7 +49,9 @@ export default defineEventHandler(async (event) => {
   const where = conds.length ? and(...conds) : undefined
 
   const rows: any[] = await db.select().from(e.table).where(where)
-    .orderBy(dir(sortCol)).limit(limit).offset(offset)
+    // Ties (and empty values, last) in a fixed order, so pages never repeat or skip items.
+    .orderBy(sql`${sortCol} ${dir === asc ? sql`asc` : sql`desc`} nulls last`, desc(e.table.createdAt), asc(e.table.id))
+    .limit(limit).offset(offset)
   const [counted] = await db.select({ count: sql<number>`count(*)::int` }).from(e.table).where(where)
   const count = counted?.count ?? 0
 

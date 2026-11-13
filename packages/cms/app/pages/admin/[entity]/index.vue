@@ -149,7 +149,6 @@ async function runBulk(action: 'publish' | 'unpublish' | 'delete') {
       if (action === 'delete') await $fetch(url, { method: 'DELETE' })
       else {
         const body: Record<string, any> = { [p!.field]: action === 'publish' ? p!.publishedValue : p!.draftValue }
-        if (action === 'publish' && p!.dateField && !row[p!.dateField]) body[p!.dateField] = new Date().toISOString()
         await $fetch(url, { method: 'PATCH', body })
       }
       ok++
@@ -243,7 +242,6 @@ async function setPublished(row: any, next: boolean) {
   try {
     const url: string = `/api/cms/${entity.value}/${row.id}`
     const body: Record<string, any> = { [p.field]: next ? p.publishedValue : p.draftValue }
-    if (next && p.dateField && !row[p.dateField]) body[p.dateField] = new Date().toISOString()
     await $fetch(url, { method: 'PATCH', body })
     toast.add({ title: next ? t('editor.publishedToast') : t('editor.unpublishedToast'), icon: 'i-lucide-check', color: 'success' })
     refresh()
@@ -289,7 +287,7 @@ const tabs = computed(() => [
       <p class="text-sm text-muted">{{ t('list.arrangeHint') }}</p>
       <div class="flex gap-2">
         <UButton color="neutral" variant="ghost" size="sm" @click="arranging = false">{{ t('common.cancel') }}</UButton>
-        <UButton size="sm" icon="i-lucide-check" :loading="savingOrder" @click="saveOrder">{{ t('list.saveOrder') }}</UButton>
+        <UButton size="sm" icon="i-lucide-check" :loading="savingOrder" :disabled="arrangeTooMany" @click="saveOrder">{{ t('list.saveOrder') }}</UButton>
       </div>
     </div>
     <div v-else-if="selected.size" class="flex flex-wrap items-center gap-2 mb-3 min-h-8" role="toolbar" :aria-label="t('list.bulkActions')">

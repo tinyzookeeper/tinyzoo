@@ -19,7 +19,9 @@ const isNew = computed(() => id.value === 'new')
 
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
 const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === entity.value))
-const form = useCmsForm(computed(() => meta.value?.fields ?? []), isNew)
+// The manual-order position is set by arranging the list, never by this form (a stale
+// position saved from here would undo someone's reordering).
+const form = useCmsForm(computed(() => (meta.value?.fields ?? []).filter((f: any) => f.key !== meta.value?.orderField)), isNew)
 const { state, fieldErrors, editable, dirty, saving, conflict } = form
 
 // ── content languages ──
@@ -167,13 +169,65 @@ function restoreLost() {
 // ── history ──
 const historyOpen = ref(false)
 /** Put an older version into the form (shared text: for everyone). Saving makes it current. */
-function restoreRevision(data: Record<string, any>) {
+// Restoring brings back content, not the workflow: status, publish date (and the
+// list position, which is not in this form) stay as they are now.
+const workflowFields = computed(() => new Set([publish.value?.field, publish.value?.dateField].filter(Boolean) as string[]))
+async function restoreRevision(data: Record<string, any>) {
+  // Files deleted since that version are left out (an empty field, no broken image).
+  const gone = await missingMedia(data)
+  data = withoutMedia(data, gone)
   for (const f of editable.value) {
-    if (!(f.key in data)) continue
+    if (!(f.key in data) || workflowFields.value.has(f.key)) continue
     if (sharedFields.value.has(f.key) && collab?.set(f.key, data[f.key])) continue
     state[f.key] = structuredClone(toRaw(data[f.key]))
   }
-  toast.add({ title: t('revisions.restored'), icon: 'i-lucide-history', color: 'info' })
+  toast.add({
+    title: t('revisions.restored'), icon: 'i-lucide-history', color: 'info',
+    description: gone.size ? t('revisions.filesGone', { count: gone.size }) : undefined,
+  })
+}
+
+/** Media ids a snapshot uses (media fields, images in rich text and blocks). */
+function mediaIdsIn(data: Record<string, any>): string[] {
+  const ids: string[] = []
+  const walk = (v: any) => {
+    if (!v || typeof v !== 'object') return
+    if (Array.isArray(v)) return v.forEach(walk)
+    if (typeof v.attrs?.mediaId === 'string') ids.push(v.attrs.mediaId)
+    for (const x of Object.values(v)) walk(x)
+  }
+  for (const f of editable.value) {
+    const v = data[f.key]
+    if (f.type === 'media' && typeof v === 'string') ids.push(v)
+    else if (f.type === 'richtext') walk(v)
+    else if (f.type === 'blocks' && Array.isArray(v)) {
+      for (const b of v) for (const [k, x] of Object.entries(b ?? {})) {
+        const bf = f.meta?.blocks?.[b?.type]?.fields?.find((y: any) => y.key === k)
+        if (bf?.type === 'media' && typeof x === 'string') ids.push(x)
+        else walk(x)
+      }
+    }
+  }
+  return [...new Set(ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))]
+}
+async function missingMedia(data: Record<string, any>): Promise<Set<string>> {
+  const ids = mediaIdsIn(data)
+  if (!ids.length) return new Set()
+  const res = await $fetch<{ ids: string[] }>('/api/cms/_media/exists', { method: 'POST', body: { ids } }).catch(() => ({ ids }))
+  const have = new Set(res.ids)
+  return new Set(ids.filter((id) => !have.has(id)))
+}
+/** A copy of the snapshot without the given files: fields emptied, images removed. */
+function withoutMedia(data: Record<string, any>, gone: Set<string>): Record<string, any> {
+  if (!gone.size) return data
+  const strip = (v: any): any => {
+    if (Array.isArray(v)) return v.filter((x) => !(x?.type === 'image' && gone.has(x?.attrs?.mediaId))).map(strip)
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, typeof x === 'string' && gone.has(x) ? null : strip(x)]))
+    return v
+  }
+  const out: Record<string, any> = {}
+  for (const [k, v] of Object.entries(data)) out[k] = typeof v === 'string' && gone.has(v) ? null : strip(v)
+  return out
 }
 
 /** Copy the default language's value into this translation's field (shared text: for everyone). */
@@ -207,20 +261,11 @@ const tabItems = computed(() => {
   }).filter((tab) => tab.fields.length)
 })
 
-// ── live preview beside the form (remembered in this browser) ──
+// ── live preview beside the form: opened on demand (it loads the site's page, with
+// whatever the entry contains, so only when someone asks for it) ──
 const previewOpen = ref(false)
-onMounted(() => {
-  try {
-    previewOpen.value = localStorage.getItem('cms:preview-open') === '1'
-  }
-  catch { /* storage blocked */ }
-})
 function togglePreview() {
   previewOpen.value = !previewOpen.value
-  try {
-    localStorage.setItem('cms:preview-open', previewOpen.value ? '1' : '0')
-  }
-  catch { /* storage blocked */ }
 }
 const sideFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'sidebar'))
 const groups = computed(() => {
@@ -271,6 +316,9 @@ async function save(successTitle?: string) {
       const res: any = await $fetch(url, { method: 'PATCH', body: form.body(), headers })
       savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
       version.value = res?.row?.updatedAt ?? null
+      // The publish date may have been stamped by the server: show what was stored.
+      const dateKey = publish.value?.dateField
+      if (dateKey && res?.row && dateKey in res.row) state[dateKey] = res.row[dateKey]
       if (live) live.incoming.value = null
     }
   }, successTitle ?? (isNew.value ? t('editor.created') : t('editor.saved')))
@@ -315,7 +363,7 @@ async function setPublished(next: boolean) {
   if (!p) return
   const before = { status: state[p.field], date: p.dateField ? state[p.dateField] : undefined }
   state[p.field] = next ? p.publishedValue : p.draftValue
-  if (next && p.dateField && !state[p.dateField]) state[p.dateField] = new Date().toISOString()
+  // The server stamps the publish date when there is none (its clock, not ours).
   const ok = await save(next ? (futureDate.value ? t('editor.scheduledToast', { date: formatDate(publishedOn.value) }) : t('editor.publishedToast')) : t('editor.unpublishedToast'))
   if (!ok) {
     // Never show "Published" for something the server did not accept.
@@ -390,7 +438,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 
     <CmsRevisions
       v-if="!isNew" v-model:open="historyOpen" :entity="entity" :id="id"
-      :locale="isTranslation ? currentLocale : null" :fields="editable" :current="state" @restore="restoreRevision"
+      :locale="isTranslation ? currentLocale : null" :fields="editable.filter((f: any) => !workflowFields.has(f.key))" :current="state" @restore="restoreRevision"
     />
     <CmsLiveNotice
       :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
@@ -486,7 +534,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     </div>
     <CmsPreviewPanel
       v-if="previewOpen && previewUrl" :url="previewUrl" :entity="entity" :id="id"
-      :locale="isTranslation ? currentLocale : null" :data="state" :version="version" @close="togglePreview"
+      :locale="isTranslation ? currentLocale : null" :data="form.body()" :version="version" @close="togglePreview"
     />
     </div>
   </CmsPage>

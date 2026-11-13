@@ -62,3 +62,13 @@ describe('manual order', () => {
     expect((await admin.post('/api/cms/author/_order', { ids: [a.id, a.id] })).status).toBe(422)
   })
 })
+
+describe('stable paging', () => {
+  it('never repeats or skips entries when their positions tie', async () => {
+    const all = []
+    for (let i = 0; i < 5; i++) all.push((await createAuthor(admin)).id)
+    const seen: string[] = []
+    for (let page = 1; page <= 3; page++) seen.push(...(await anonymous().get(`/api/content/author?limit=2&page=${page}`)).body.items.map((x: any) => x.id))
+    expect(seen.sort()).toEqual(all.sort())
+  })
+})

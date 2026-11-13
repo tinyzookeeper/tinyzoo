@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
   for (const c of changedMediaCols) oldMedia[c] = old[c] ?? null
   oldEmbedded = changedRichCols.flatMap((k) => jsonMediaIds(e.fields[k], old[k]))
   assertPublishAllowed(e, user, values, old)
+  stampPublishDate(e, values, old)
   // Saving over someone else's newer version needs the editor's say-so (409 otherwise).
   const base = baseVersion(event)
   await assertCurrentVersion(e, old, base)

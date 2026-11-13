@@ -24,7 +24,9 @@ const target = computed(() => {
 })
 let timer: ReturnType<typeof setTimeout> | null = null
 function post() {
-  frame.value?.contentWindow?.postMessage({ type: 'cms:preview', entity: props.entity, id: props.id, locale: props.locale, data: toRaw(props.data) }, target.value)
+  // A plain copy of the field values (reactive proxies cannot be posted).
+  const data = JSON.parse(JSON.stringify(props.data ?? {}))
+  frame.value?.contentWindow?.postMessage({ type: 'cms:preview', entity: props.entity, id: props.id, locale: props.locale, data }, target.value)
 }
 watch(() => props.data, () => {
   if (timer) clearTimeout(timer)

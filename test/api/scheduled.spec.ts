@@ -39,3 +39,20 @@ describe('scheduled publishing', () => {
     expect(mine.map((h) => h.json.type)).toEqual(['entry.created'])
   }, 10_000)
 })
+
+describe('publish dates', () => {
+  it('are stamped by the server when publishing without one, and announced when saved seconds before', async () => {
+    const a = await createAuthor(admin)
+    const now = (await createPost(admin, { author: a.id, status: 'published' }))
+    expect(Math.abs(new Date(now.publishedAt).getTime() - Date.now())).toBeLessThan(10_000)
+
+    // Saved 2 s before its time (a minute-precision picker, a fast browser clock):
+    // not live at the save, so the scheduler must announce it.
+    const deadline = Date.now() + 5000
+    while (!(await db.query(`select 1 from cms_state where key = 'scheduler.lastRun'`)).rowCount && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100))
+    const mark = hooksMark()
+    const soon = await createPost(admin, { author: a.id, status: 'published', publishedAt: new Date(Date.now() + 2000).toISOString() })
+    const hooks = await waitForHooks(mark, (h) => h.some((x) => x.path === '/ok' && x.json.id === soon.id && x.json.type === 'entry.published'), 9000)
+    expect(hooks.some((x) => x.json.id === soon.id)).toBe(true)
+  }, 15_000)
+})

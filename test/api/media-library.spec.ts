@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { anonymous, type Client, doc, PNG_1x1, signIn, testDb, truncateAll } from '../helpers/api'
+import { anonymous, type Client, doc, hooksMark, PNG_1x1, signIn, testDb, truncateAll, waitForHooks } from '../helpers/api'
 import { createAuthor, createPost } from '../helpers/fixtures'
 
 const db = testDb()
@@ -58,5 +58,32 @@ describe('media library', () => {
     const usage = (await admin.get(`/api/cms/_media/${m.id}/usage`)).body.usage
     expect(usage.map((u: any) => [u.entity, u.id, u.locale]).sort()).toEqual([['post', p1.id, 'en'], ['post', p1.id, null], ['post', p2.id, null]].sort())
     expect((await author.patch(`/api/cms/_media/${m.id}`, { alt: 'x' })).status).toBe(403) // not theirs
+  })
+})
+
+describe('files on the website', () => {
+  it('keep their public details out of reach of authors, and changes reach the website', async () => {
+    const m = await upload(author, 'mine.png')
+    const a = await createAuthor(admin)
+    expect((await author.patch(`/api/cms/_media/${m.id}`, { alt: 'Moje' })).status).toBe(200) // not on the website yet
+    await createPost(admin, { author: a.id, slug: 'na-webu', status: 'published', hero: m.id })
+    expect((await author.patch(`/api/cms/_media/${m.id}`, { alt: 'Jiný popis' })).status).toBe(403)
+    expect((await author.patch(`/api/cms/_media/${m.id}`, { folder: 'Moje' })).status).toBe(200) // not public
+    expect((await admin.patch(`/api/cms/_media/${m.id}`, 'nonsense' as any)).status).toBe(422)
+
+    const mark = hooksMark()
+    await admin.patch(`/api/cms/_media/${m.id}`, { alt: 'Nový popis' })
+    const hooks = await waitForHooks(mark, (h) => h.some((x) => x.path === '/ok' && x.json.paths?.includes('/blog/na-webu')))
+    expect(hooks.length).toBeGreaterThan(0)
+  })
+})
+
+describe('restoring old versions', () => {
+  it('can tell which files still exist', async () => {
+    const kept = await upload(admin, 'kept.png')
+    const gone = await upload(admin, 'gone.png')
+    await admin.delete(`/api/cms/_media/${gone.id}`)
+    expect((await admin.post('/api/cms/_media/exists', { ids: [kept.id, gone.id] })).body.ids).toEqual([kept.id])
+    expect((await anonymous().post('/api/cms/_media/exists', { ids: [kept.id] })).status).toBe(401)
   })
 })

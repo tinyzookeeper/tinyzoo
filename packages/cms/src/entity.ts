@@ -227,8 +227,8 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
     }
   }
   const orderField = def.admin?.list?.orderField as string | undefined
-  if (orderField && fields[orderField]?.type !== 'number') {
-    throw new Error(`admin.list.orderField of "${name}" must be a number field ("${orderField}" is not).`)
+  if (orderField && (fields[orderField]?.type !== 'number' || fields[orderField]?.spec?.base.kind !== 'integer')) {
+    throw new Error(`admin.list.orderField of "${name}" must be a whole-number field ("${orderField}" is not).`)
   }
 
   // 1) pgEnums for select fields

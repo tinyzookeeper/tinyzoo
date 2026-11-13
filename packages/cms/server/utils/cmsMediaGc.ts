@@ -146,3 +146,33 @@ export async function mediaUsage(db: any, reg: CmsRegistry, user: any, mediaId: 
   }
   return [...found.values()].slice(0, limit)
 }
+
+/**
+ * Is this file on the website right now: used by an entry visitors can see (live,
+ * per its collection's rule) — in a media field, rich text or blocks, translations
+ * included? Authors may not change such a file's public details.
+ */
+export async function isMediaLive(db: any, reg: CmsRegistry, mediaId: string, mediaKey?: string): Promise<boolean> {
+  const like = (col: any) => (mediaKey
+    ? sql`(cast(${col} as text) ilike ${'%' + mediaId + '%'} or cast(${col} as text) ilike ${'%' + mediaKey + '%'})`
+    : sql`cast(${col} as text) ilike ${'%' + mediaId + '%'}`)
+  for (const e of reg.entities) {
+    const live = publishedCond(e)
+    for (const [key, fld] of Object.entries(e.fields)) {
+      const type = (fld as any).type
+      let cond: any = null
+      if (type === 'media') cond = eq((e.table as any)[`${key}Id`], mediaId)
+      else if (type === 'richtext' || type === 'blocks') {
+        cond = like((e.table as any)[key])
+        const t = e.localesTable
+        if ((fld as any).isLocalized && t) {
+          cond = sql`(${cond} or exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${like(t[key])}))`
+        }
+      }
+      if (!cond) continue
+      const [hit] = await db.select({ id: e.table.id }).from(e.table).where(both(cond, live)).limit(1)
+      if (hit) return true
+    }
+  }
+  return false
+}

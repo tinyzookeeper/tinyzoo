@@ -33,8 +33,10 @@ export default defineEventHandler(async (event) => {
   }
   const where = conds.length ? and(...conds) : undefined
 
+  // Ties (and empty values, last) in a fixed order, so pages never repeat or skip rows.
   const rows: any[] = await db.select().from(e.table).where(where)
-    .orderBy(dir(sortCol)).limit(limit).offset((page - 1) * limit)
+    .orderBy(sql`${sortCol} ${dir === asc ? sql`asc` : sql`desc`} nulls last`, desc(e.table.createdAt), asc(e.table.id))
+    .limit(limit).offset((page - 1) * limit)
   const [counted] = await db.select({ count: sql<number>`count(*)::int` }).from(e.table).where(where)
   const count = counted?.count ?? 0
 
@@ -44,7 +46,10 @@ export default defineEventHandler(async (event) => {
     const target = reg.byName.get(fld.relation.to().name)!
     const ids = [...new Set(rows.map((r) => r[`${key}Id`]).filter(Boolean))]
     if (!ids.length) continue
-    const targets: any[] = await db.select().from(target.table).where(inArray(target.table.id, ids))
+    // Only titles this person may read (the related collection's own rules).
+    const access = accessWhere(target, 'read', user)
+    if (!access.allowed) continue
+    const targets: any[] = await db.select().from(target.table).where(both(inArray(target.table.id, ids), access.where))
     const labels = new Map(targets.map((t) => [t.id, t[target.titleField]]))
     for (const r of rows) r[`${key}__label`] = labels.get(r[`${key}Id`]) ?? null
   }

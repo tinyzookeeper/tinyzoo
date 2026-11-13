@@ -9,7 +9,9 @@ export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
   const id = getIdParam(event)
 
-  const body = (await readBody(event).catch(() => ({}))) as Record<string, unknown> ?? {}
+  const raw = await readBody(event).catch(() => null)
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw createError({ statusCode: 422, statusMessage: 'Expected an object' })
+  const body = raw as Record<string, unknown>
   const text = (v: unknown) => {
     const raw = typeof v === 'string' ? v.trim().slice(0, 1000) : ''
     return raw.length ? raw : null
@@ -37,8 +39,24 @@ export default defineEventHandler(async (event) => {
   const [existing] = await db.select().from(reg.cmsMedia).where(eq(reg.cmsMedia.id, id))
   if (!existing) throw createError({ statusCode: 404, statusMessage: 'Media not found' })
   assertMediaOwner(user, existing)
+  // What visitors see of a file (description, focal point) is live content: people who
+  // may not publish cannot change it while the website shows the file.
+  const publicChange = 'alt' in set || 'altLocales' in set || 'focalX' in set
+  if (publicChange && !canPublish(user) && await isMediaLive(db, reg, id, existing.key)) {
+    throw createError({ statusCode: 403, statusMessage: 'This file is on the website; your role cannot change what visitors see' })
+  }
 
   const [media] = await db.update(reg.cmsMedia).set(set).where(eq(reg.cmsMedia.id, id)).returning()
   if (!media) throw createError({ statusCode: 404, statusMessage: 'Media not found' })
+  await audit(event, 'media.update', { recordId: id, meta: { fields: Object.keys(set) } })
+  // Entries showing the file changed for visitors: tell the website (webhooks, caches).
+  if (publicChange) {
+    for (const u of await mediaUsage(db, reg, { id: 'system', role: 'admin' }, id, existing.key, 50)) {
+      const e = reg.byName.get(u.entity)
+      if (!e || u.locale) continue
+      const seen = await changeSnapshot(e, u.id)
+      if (seen.live) await reportChange(event, { type: 'entry.updated', entity: e, id: u.id, before: seen, noRevision: true })
+    }
+  }
   return media
 })

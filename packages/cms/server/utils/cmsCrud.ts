@@ -270,3 +270,19 @@ export async function assertCurrentVersion(e: CmsEntity, current: Record<string,
 export function nextVersion(col: any) {
   return sql`greatest(date_trunc('milliseconds', clock_timestamp()), ${col} + interval '1 millisecond')`
 }
+
+/**
+ * Publishing without a publish date stamps "now" — the database's clock, not the
+ * browser's. A date given is kept: ahead schedules the entry (the scheduler announces
+ * it when it comes, even seconds later), behind back-dates it.
+ */
+export function stampPublishDate(e: CmsEntity, values: Record<string, any>, before: Record<string, any> | null) {
+  const p = e.publish
+  if (!p?.dateField) return
+  const statusKey = propOf(p.field, e.fields[p.field]!)
+  const dateKey = propOf(p.dateField, e.fields[p.dateField]!)
+  const status = statusKey in values ? values[statusKey] : before?.[statusKey]
+  if (status !== p.publishedValue) return
+  const date = dateKey in values ? values[dateKey] : before?.[dateKey]
+  if (date == null || date === '') values[dateKey] = sql`date_trunc('milliseconds', clock_timestamp())`
+}

@@ -50,7 +50,7 @@ export async function recordRevision(event: any, e: CmsEntity, id: string, local
       .where(and(eq(r.entity, e.name), eq(r.recordId, id), sameLocale)).orderBy(desc(r.createdAt)).limit(1)
     // The first one has nothing to compare with: it changed nothing in particular.
     const changed = prev ? Object.keys(data).filter((k) => !k.endsWith('__media') && stableJson(data[k]) !== stableJson(prev.data?.[k])) : []
-    await db.insert(r).values({ entity: e.name, recordId: id, locale, action, version, data, changed, userId: event?.context?.cmsUser?.id ?? null })
+    await db.insert(r).values({ entity: e.name, recordId: id, locale, action, version, data, changed, userId: event?.context?.cmsUser ? actorId(event.context.cmsUser) : null })
     // Keep the newest `keep`.
     const newest: any[] = await db.select({ id: r.id }).from(r)
       .where(and(eq(r.entity, e.name), eq(r.recordId, id), sameLocale)).orderBy(desc(r.createdAt)).limit(keep)
@@ -85,4 +85,16 @@ export async function listRevisions(e: CmsEntity, id: string, locale: string | n
   const users: any[] = ids.length ? await db.select({ id: reg.cmsUsers.id, name: reg.cmsUsers.name, email: reg.cmsUsers.email }).from(reg.cmsUsers).where(inArray(reg.cmsUsers.id, ids)) : []
   const names = new Map(users.map((u) => [u.id, displayName(u.name, u.email)]))
   return rows.map((x) => ({ ...x, byName: x.userId ? names.get(x.userId) ?? null : null }))
+}
+
+/** Forget one translation's revisions (it was removed). */
+export async function dropTranslationRevisions(e: CmsEntity, id: string, locale: string): Promise<void> {
+  try {
+    const { db, reg } = useCms()
+    const r = reg.cmsRevisions
+    await db.delete(r).where(and(eq(r.entity, e.name), eq(r.recordId, id), eq(r.locale, locale)))
+  }
+  catch (err) {
+    console.error('[cms] could not drop revisions', (err as Error)?.message ?? err)
+  }
 }

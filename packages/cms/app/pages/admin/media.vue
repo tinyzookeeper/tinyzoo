@@ -96,7 +96,9 @@ async function open(m: any) {
   draft.folder = m.folder ?? ''
   draft.focal = m.focalX != null ? { x: m.focalX, y: m.focalY } : null
   usage.value = null
-  usage.value = (await $fetch<{ usage: any[] }>(`/api/cms/_media/${m.id}/usage`).catch(() => ({ usage: [] }))).usage
+  const found = (await $fetch<{ usage: any[] }>(`/api/cms/_media/${m.id}/usage`).catch(() => ({ usage: [] }))).usage
+  // Opened another file meanwhile: its usage, not this one's.
+  if (current.value?.id === m.id) usage.value = found
 }
 const panelOpen = computed({ get: () => !!current.value, set: (v: boolean) => { if (!v) current.value = null } })
 function setFocal(e: MouseEvent) {
