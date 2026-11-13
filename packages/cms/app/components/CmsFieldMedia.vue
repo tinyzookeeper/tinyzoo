@@ -45,7 +45,8 @@ async function saveAlt() {
   const next = alt.value.trim()
   if (next === (media.value.alt ?? '')) return
   try {
-    const rec: any = await $fetch(`/api/cms/_media/${media.value.id}`, { method: 'PATCH', body: { alt: next } })
+    const url: string = `/api/cms/_media/${media.value.id}`
+    const rec: any = await $fetch(url, { method: 'PATCH', body: { alt: next } })
     media.value = rec
   } catch (err: any) {
     toast.add({ title: 'Could not save alt text', description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })

@@ -241,7 +241,10 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   const cached = _regCache.get(config)
   if (cached) return cached
 
-  const entities = Object.values(config).filter(isEntity)
+  // Sorted by name: a module namespace's key order depends on who loaded it (Node
+  // sorts exports alphabetically, Vite/Rollup may keep declaration order), and
+  // every generated artifact (schema.ts, typed client, OpenAPI) must not.
+  const entities = Object.values(config).filter(isEntity).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
   const byName = new Map(entities.map((e) => [e.name, e]))
 
   const junctions: Junction[] = []

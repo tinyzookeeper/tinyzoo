@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
     const [created] = await tx.insert(e.table).values(values).returning()
     await writeM2M(tx, reg, e, created.id, m2m)
     return created
-  })
+  }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
   setResponseStatus(event, 201)
   return { row }
 })

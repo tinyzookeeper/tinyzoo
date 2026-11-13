@@ -1,0 +1,71 @@
+import { describe, expect, it } from 'vitest'
+import { buildRegistry, defineEntity, f } from '@my-cms/core'
+import * as config from '../../playground/cms.config'
+
+describe('defineEntity', () => {
+  it.each(['_secret', 'media', 'graph'])('rejects the reserved name %s', (name) => {
+    expect(() => defineEntity(name, { label: 'X', titleField: 'title', fields: { title: f.text() } })).toThrow(/reserved/)
+  })
+
+  it('names FK columns `${key}Id` and leaves virtual relations without a column', () => {
+    const cols = Object.keys(config.Post.table)
+    expect(cols).toEqual(expect.arrayContaining(['id', 'title', 'authorId', 'heroId', 'createdAt', 'updatedAt']))
+    expect(cols).not.toContain('tags') // m2m lives in a junction
+    expect(Object.keys(config.Author.table)).not.toContain('posts') // one-to-many is virtual
+  })
+})
+
+describe('validation schemas', () => {
+  const author = '00000000-0000-4000-8000-000000000001'
+  const body = { type: 'doc', content: [] }
+
+  it('requires required fields on create and applies defaults', () => {
+    const missing = config.Post.insertSchema.safeParse({ slug: 'x', author, body })
+    expect(missing.success).toBe(false)
+
+    const ok = config.Post.insertSchema.safeParse({ title: 'Hello', slug: 'hello', author, body })
+    expect(ok.success).toBe(true)
+    expect(ok.data).toMatchObject({ status: 'draft', tags: [] })
+  })
+
+  it('rejects a bad slug, enum value and email', () => {
+    expect(config.Post.insertSchema.safeParse({ title: 'T', slug: 'Not A Slug', author, body }).success).toBe(false)
+    expect(config.Post.insertSchema.safeParse({ title: 'T', slug: 't', author, body, status: 'archived' }).success).toBe(false)
+    expect(config.Author.insertSchema.safeParse({ name: 'A', email: 'not-an-email' }).success).toBe(false)
+  })
+
+  // Regression: building the update schema from insertSchema.partial() fired the
+  // create defaults on PATCH and silently reset omitted fields (tags → [], status → draft).
+  it('does not apply create defaults on update', () => {
+    const r = config.Post.updateSchema.safeParse({ title: 'Only the title' })
+    expect(r.success).toBe(true)
+    expect(r.data).toEqual({ title: 'Only the title' })
+  })
+
+  it('accepts null to clear an optional media field', () => {
+    expect(config.Post.updateSchema.safeParse({ hero: null }).success).toBe(true)
+  })
+})
+
+describe('buildRegistry', () => {
+  const reg = buildRegistry(config)
+
+  it('collects entities, singletons and the m2m junction', () => {
+    expect(reg.entities.map((e) => e.name).sort()).toEqual(['author', 'post', 'siteSettings', 'tag'])
+    expect(reg.byName.get('siteSettings')?.singleton).toBe(true)
+    expect(reg.junctions.map((j) => j.name)).toEqual(['post_to_tag'])
+  })
+
+  it('serialises a graph the admin can render, with labels and help text', () => {
+    const post = reg.graph.find((g: any) => g.name === 'post')
+    const field = (k: string) => post.fields.find((x: any) => x.key === k)
+    expect(field('publishedAt').meta.label).toBe('Publish date')
+    expect(field('slug').meta).toMatchObject({ from: 'title', help: expect.stringMatching(/Auto-generated/) })
+    expect(field('status').meta.options).toEqual(['draft', 'published'])
+    expect(field('title')).toMatchObject({ required: true, ui: { edit: 'CmsFieldText', cell: 'CmsCellText' } })
+  })
+
+  it('is memoised per config object', () => {
+    expect(buildRegistry(config)).toBe(reg)
+  })
+})

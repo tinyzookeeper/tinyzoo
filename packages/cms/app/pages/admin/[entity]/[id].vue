@@ -26,7 +26,7 @@ function blankFor(f: any) {
 }
 
 if (!isNew.value) {
-  const { data } = await useFetch(() => `/api/cms/${entity.value}/${id.value}`)
+  const { data } = await useFetch<{ row: Record<string, any> }>((): string => `/api/cms/${entity.value}/${id.value}`)
   Object.assign(state, data.value?.row ?? {})
 }
 watchEffect(() => {
@@ -68,7 +68,7 @@ const previewUrl = computed(() => {
   const p = publish.value
   if (!p?.preview) return null
   let ok = true
-  const url = p.preview.replace(/:(\w+)/g, (_m, k) => {
+  const url = p.preview.replace(/:(\w+)/g, (_m: string, k: string) => {
     const v = state[k]
     if (v === undefined || v === null || v === '') ok = false
     return encodeURIComponent(v ?? '')
@@ -88,12 +88,14 @@ async function save() {
       body[f.key] = v
     }
     if (isNew.value) {
-      const res: any = await $fetch(`/api/cms/${entity.value}`, { method: 'POST', body })
+      const url: string = `/api/cms/${entity.value}`
+      const res: any = await $fetch(url, { method: 'POST', body })
       dirty.value = false // clear before the redirect so the guard doesn't fire
       toast.add({ title: 'Created', icon: 'i-lucide-check', color: 'success' })
       await router.push(`/admin/${entity.value}/${res.row.id}`)
     } else {
-      await $fetch(`/api/cms/${entity.value}/${id.value}`, { method: 'PATCH', body })
+      const url: string = `/api/cms/${entity.value}/${id.value}`
+      await $fetch(url, { method: 'PATCH', body })
       dirty.value = false
       toast.add({ title: 'Saved', icon: 'i-lucide-check', color: 'success' })
     }

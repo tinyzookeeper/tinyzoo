@@ -6,9 +6,10 @@ export default defineEventHandler(async (event) => {
   const e = getEntity(reg, getRouterParam(event, 'entity'))
   if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Globals are not deletable' })
   const rowFilter = authorize(e, 'delete', user)
-  const id = getRouterParam(event, 'id')!
+  const id = getIdParam(event)
 
-  const deleted = await db.delete(e.table).where(both(eq(e.table.id, id), rowFilter)).returning()
+  const deleted: any[] = await (db as any).delete(e.table).where(both(eq(e.table.id, id), rowFilter)).returning()
+    .catch((err: unknown) => rethrowDbError(err, e, 'delete'))
   if (!deleted.length) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
 
   // GC media the deleted row owned, once nothing else references it.

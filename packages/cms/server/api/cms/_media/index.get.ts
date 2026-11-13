@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
   const where = conds.length ? and(...conds) : undefined
 
   const rows = await db.select().from(m).where(where).orderBy(desc(m.createdAt)).limit(limit).offset(offset)
-  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(m).where(where)
+  const [counted] = await db.select({ count: sql<number>`count(*)::int` }).from(m).where(where)
+  const count = counted?.count ?? 0
   return { items: rows, total: count, page, limit }
 })

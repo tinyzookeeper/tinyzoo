@@ -8,6 +8,27 @@
     "play": "pnpm --filter playground dev",
     "play:build": "pnpm --filter playground build",
     "db:generate": "pnpm --filter playground db:generate",
-    "db:migrate": "pnpm --filter playground db:migrate"
+    "db:migrate": "pnpm --filter playground db:migrate",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:api": "vitest run --project api",
+    "test:watch": "vitest --project unit",
+    "typecheck": "tsc -p tsconfig.json && pnpm --filter playground typecheck",
+    "build:node": "node scripts/build-check.mjs node",
+    "build:edge": "node scripts/build-check.mjs edge",
+    "check": "pnpm typecheck && pnpm test && pnpm build:node && pnpm build:edge"
+  },
+  "devDependencies": {
+    "@my-cms/client": "workspace:*",
+    "@my-cms/core": "workspace:*",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.20.0",
+    "drizzle-orm": "^0.44.7",
+    "pg": "^8.22.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

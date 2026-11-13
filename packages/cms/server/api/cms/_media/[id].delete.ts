@@ -6,7 +6,7 @@ import { eq } from '@my-cms/core'
 export default defineEventHandler(async (event) => {
   requireCmsUser(event)
   const { db, reg } = useCms()
-  const id = getRouterParam(event, 'id')!
+  const id = getIdParam(event)
 
   const [media] = await db.select().from(reg.cmsMedia).where(eq(reg.cmsMedia.id, id))
   if (!media) throw createError({ statusCode: 404, statusMessage: 'Media not found' })

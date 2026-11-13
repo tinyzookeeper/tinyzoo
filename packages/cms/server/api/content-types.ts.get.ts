@@ -1,5 +1,5 @@
 import { emitContentTypes } from '@my-cms/core'
-// @ts-expect-error virtual alias provided by the module (build-time)
+// virtual alias provided by the module (build-time); typed through the host's tsconfig paths
 import * as cmsConfig from '#cms/config'
 
 // GET /api/content-types.ts — the generated, strictly-typed @my-cms/client
