@@ -23,12 +23,27 @@ export const MediaImage = Image.extend({
   },
 })
 
+// Links render with fixed target/rel and never with a class: shared text arrives from
+// other people's browsers, and a crafted class (e.g. a full-screen overlay) or target
+// must not reach the page. Same attributes, so stored JSON keeps its shape.
+export const SafeLink = Link.extend({
+  addAttributes() {
+    const parent = this.parent?.() ?? {}
+    return {
+      ...parent,
+      target: { default: '_blank', parseHTML: () => '_blank', renderHTML: () => ({ target: '_blank' }) },
+      rel: { default: 'noopener noreferrer', parseHTML: () => 'noopener noreferrer', renderHTML: () => ({ rel: 'noopener noreferrer' }) },
+      class: { default: null, parseHTML: () => null, renderHTML: () => ({}) },
+    }
+  },
+})
+
 export function richTextExtensions(opts: { collaborative?: boolean } = {}): AnyExtension[] {
   return [
     // StarterKit v3 bundles Link (configured below) and an undo history, which shared
     // editing replaces with its own (per person, not per document).
     StarterKit.configure({ link: false, ...(opts.collaborative ? { undoRedo: false } : {}) }),
-    Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' } }),
+    SafeLink.configure({ openOnClick: false, autolink: true }),
     MediaImage.configure({ HTMLAttributes: { class: 'cms-embed-img' } }),
   ]
 }

@@ -12,6 +12,10 @@ export default defineWebSocketHandler({
   open(peer: any) {
     const user = peer.context?.cmsUser
     if (!user) return peer.close(4401, 'Unauthorized')
+    // Realtime messages are tiny; refuse big frames before they are buffered whole
+    // (the `ws` default is 100 MiB). crossws-private, so only when it is there.
+    const ws = peer._internal?.ws
+    if (ws?._receiver && typeof ws._receiver._maxPayload === 'number') ws._receiver._maxPayload = 16 * 1024
     liveOpen(peer, user, peer.context.cmsSessionVersion)
   },
   message(peer: any, message: any) {

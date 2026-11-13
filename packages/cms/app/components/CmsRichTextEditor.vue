@@ -2,7 +2,9 @@
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
+import { ySyncPluginKey } from '@tiptap/y-tiptap'
 import { richTextExtensions } from '../../shared/richtext-editor'
+import type { CmsCollab } from '../composables/useCmsCollab'
 
 // The rich-text editor itself (TipTap). The model IS the ProseMirror/TipTap JSON doc
 // stored in the jsonb column — no conversion. Used by CmsFieldRichText, which picks
@@ -16,7 +18,8 @@ const props = defineProps<{
 const model = defineModel<any>()
 const libraryOpen = ref(false)
 const { t } = useCmsI18n()
-const json = stableJson
+const form = inject<{ quiet?: (fn: () => void) => void } | null>('cmsForm', null)
+const shared = props.collab ? inject<CmsCollab | null>('cmsCollab', null) : null
 
 const editor = useEditor({
   // Shared: the content comes from the shared document, never from here.
@@ -31,10 +34,16 @@ const editor = useEditor({
         ]
       : []),
   ],
-  onUpdate: ({ editor }) => {
+  onUpdate: ({ editor, transaction }) => {
     const next = editor.getJSON()
-    // Only real changes reach the form (an identical value would still mark it dirty).
-    if (json(next) !== json(model.value)) model.value = next
+    // Only real changes reach the form (an identical value would still mark it
+    // dirty; empty text stays "no value", so a translation keeps falling back).
+    if (sameRichText(next, model.value)) return
+    const value = isEmptyRichText(next) && (model.value === null || model.value === undefined) ? model.value : next
+    // Someone else typing: the form follows, but it is not unsaved work of this tab.
+    const remote = !!(transaction.getMeta(ySyncPluginKey) as any)?.isChangeOrigin
+    if (remote && form?.quiet) form.quiet(() => { model.value = value })
+    else model.value = value
   },
 })
 
@@ -44,22 +53,36 @@ watch(model, (val) => {
   if (props.collab) {
     // The shared document is the truth: when the form loads another value (a newer
     // version, a merge), the form takes the shared text back instead of overwriting
-    // what everyone is typing.
-    if (json(val) !== json(ed.getJSON())) model.value = ed.getJSON()
+    // what everyone is typing. Replacing it is an explicit choice (collab.set).
+    if (!sameRichText(val, ed.getJSON())) model.value = ed.getJSON()
     return
   }
   const next = val || { type: 'doc', content: [] }
-  if (json(ed.getJSON()) !== json(next)) ed.commands.setContent(next, { emitUpdate: false })
+  if (!sameRichText(ed.getJSON(), next)) ed.commands.setContent(next, { emitUpdate: false })
 })
 
 // Shared: once the editor shows the shared text, the form takes it (it may hold
 // changes not saved yet, typed by anyone).
 if (props.collab) {
+  const key = props.collab.field
   watch(editor, (ed) => {
     if (!ed) return
     const v = ed.getJSON()
-    if (json(v) !== json(model.value)) model.value = v
+    if (!sameRichText(v, model.value)) model.value = v
+    // This field is now shared on the page: merges leave it to the shared text, and
+    // an explicit load or copy goes through here, to everyone.
+    if (shared) {
+      shared.setters.set(key, (value) => ed.commands.setContent(value || { type: 'doc', content: [] }))
+      shared.mounted.value = new Set([...shared.mounted.value, key])
+    }
   }, { once: true })
+  onBeforeUnmount(() => {
+    if (!shared) return
+    shared.setters.delete(key)
+    const next = new Set(shared.mounted.value)
+    next.delete(key)
+    shared.mounted.value = next
+  })
 }
 
 onBeforeUnmount(() => editor.value?.destroy())

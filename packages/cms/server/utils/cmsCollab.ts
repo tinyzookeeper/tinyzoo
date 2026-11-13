@@ -24,9 +24,10 @@ import type { CmsUser } from './cmsSession'
 export interface CollabTarget { entity: CmsEntity; id: string; locale: string | null; name: string }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-/** Someone still has it open if its instance refreshed `active_at` this recently. */
-export const ACTIVE_WINDOW_MS = 90_000
-const STALE_AFTER_MS = 7 * 24 * 60 * 60_000
+/** Someone is still editing it if its instance refreshed `active_at` this recently (seconds). */
+const ACTIVE_WINDOW_S = 90
+/** Unused this long, it starts afresh from the saved entry (seconds). */
+const STALE_AFTER_S = 7 * 24 * 60 * 60
 
 export function collabName(entity: string, id: string, locale: string | null): string {
   return locale ? `${entity}/${id}/${locale}` : `${entity}/${id}`
@@ -80,9 +81,12 @@ export async function collabAccess(user: CmsUser, t: CollabTarget): Promise<'wri
   }
 }
 
-/** The entry's (or translation's) saved values of the shared fields, and its version. */
-async function savedContent(t: CollabTarget): Promise<{ values: Record<string, any>; version: Date | null } | null> {
-  const { db } = useCms()
+/**
+ * The entry's (or translation's) saved values of the shared fields, and its version.
+ * `db` may be a transaction: inside one, everything must go through it (a second
+ * pooled connection could wait forever for the one the transaction holds).
+ */
+export async function savedContent(t: CollabTarget, db: any = useCms().db): Promise<{ values: Record<string, any>; version: Date | null } | null> {
   const e = t.entity
   const keys = collabFields(e, t.locale)
   const [row] = await db.select().from(e.table).where(eq(e.table.id, t.id))
@@ -90,6 +94,22 @@ async function savedContent(t: CollabTarget): Promise<{ values: Record<string, a
   if (!t.locale) return { values: Object.fromEntries(keys.map((k) => [k, row[k]])), version: row.updatedAt ?? null }
   const tr = (await translationRows(db, e, [t.id], t.locale)).get(t.id)
   return { values: Object.fromEntries(keys.map((k) => [k, tr?.[k] ?? null])), version: tr?.updatedAt ?? null }
+}
+
+/**
+ * Can the editor hold this stored rich text? Text written through the API may use
+ * nodes or marks the editor does not know; such a field is edited alone (not shared),
+ * so its stored content is never replaced by an empty shared copy.
+ */
+export function fitsEditor(value: unknown): boolean {
+  if (value === null || value === undefined) return true
+  try {
+    editorSchema().nodeFromJSON(value).check()
+    return true
+  }
+  catch {
+    return false
+  }
 }
 
 /** A fresh document holding the saved content, one fragment per field. */
@@ -122,19 +142,24 @@ export async function ensureCollabDocument(t: CollabTarget): Promise<{ epoch: st
   const { db, reg } = useCms()
   const c = reg.cmsCollab
   return db.transaction(async (tx: any) => {
+    // Waiting for another request opening the same document: briefly, never forever.
+    await tx.execute(sql`set local lock_timeout = '5s'`)
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'cms-collab:' + t.name}))`)
-    const [row] = await tx.select().from(c).where(eq(c.name, t.name))
-    const saved = await savedContent(t)
+    // Times compared on the database's clock (replicas' clocks may differ).
+    const [row] = await tx.select({
+      epoch: c.epoch,
+      baseVersion: c.baseVersion,
+      active: sql<boolean>`coalesce(${c.activeAt} > now() - make_interval(secs => ${ACTIVE_WINDOW_S}), false)`,
+      fresh: sql<boolean>`${c.updatedAt} > now() - make_interval(secs => ${STALE_AFTER_S})`,
+    }).from(c).where(eq(c.name, t.name))
+    const saved = await savedContent(t, tx)
     if (!saved) throw createError({ statusCode: 404, statusMessage: 'Not found' })
-    const now = Date.now()
-    const active = row?.activeAt && now - new Date(row.activeAt).getTime() < ACTIVE_WINDOW_MS
     const sameBase = row && (row.baseVersion?.getTime() ?? null) === (saved.version?.getTime() ?? null)
-    const fresh = row && now - new Date(row.updatedAt).getTime() < STALE_AFTER_MS
-    if (row && (active || (sameBase && fresh))) return { epoch: row.epoch }
+    if (row && (row.active || (sameBase && row.fresh))) return { epoch: row.epoch }
     const epoch = crypto.randomUUID()
     const state = encodeState(seedDocument(saved.values))
-    await tx.insert(c).values({ name: t.name, epoch, state, baseVersion: saved.version, updatedAt: new Date(), activeAt: null })
-      .onConflictDoUpdate({ target: c.name, set: { epoch, state, baseVersion: saved.version, updatedAt: new Date(), activeAt: null } })
+    await tx.insert(c).values({ name: t.name, epoch, state, baseVersion: saved.version, updatedAt: sql`now()`, activeAt: null })
+      .onConflictDoUpdate({ target: c.name, set: { epoch, state, baseVersion: saved.version, updatedAt: sql`now()`, activeAt: null } })
     return { epoch }
   })
 }

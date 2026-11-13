@@ -30,7 +30,9 @@ export function requestedLocale(event: any, reg: CmsRegistry): string | null {
 
 const isEmpty = (v: unknown) => v === null || v === undefined || v === ''
   || (Array.isArray(v) && v.length === 0)
-  || (typeof v === 'object' && v !== null && (v as any).type === 'doc' && !(v as any).content?.length)
+  || (typeof v === 'object' && v !== null && (v as any).type === 'doc'
+    // An empty editor saves one empty paragraph: still nothing written.
+    && !((v as any).content ?? []).some((n: any) => n?.type !== 'paragraph' || n.content?.length))
 
 /** The translation rows of `ids` in `locale`, by parent id. */
 export async function translationRows(db: any, e: CmsEntity, ids: string[], locale: string): Promise<Map<string, any>> {

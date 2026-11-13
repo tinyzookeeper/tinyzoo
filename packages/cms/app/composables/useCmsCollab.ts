@@ -17,8 +17,14 @@ export interface CmsCollab {
   readOnly: Ref<boolean>
   fields: Ref<Set<string>>
   epoch: Ref<string | null>
+  /** Fields whose shared editor is on the page right now (a collapsed group has none). */
+  mounted: Ref<Set<string>>
   /** Current Yjs document and provider (non-reactive on purpose). */
   current: () => { doc: any; provider: any } | null
+  /** Put a value into a shared field, for everyone (an explicit choice: load, copy). */
+  set: (field: string, value: any) => boolean
+  /** Used by the shared editors to offer `set`. */
+  setters: Map<string, (value: any) => void>
   user: { name: string; color: string }
 }
 
@@ -34,7 +40,15 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
     readOnly: ref(false),
     fields: ref(new Set<string>()),
     epoch: ref(null),
+    mounted: ref(new Set<string>()),
     current: () => live,
+    setters: new Map(),
+    set: (field, value) => {
+      const fn = collab.setters.get(field)
+      if (!fn) return false
+      fn(value)
+      return true
+    },
     user: { name: me.name || (me.email ?? '').split('@')[0] || '?', color: colorOf(me.id ?? 'x') },
   }
   provide('cmsCollab', collab)
@@ -80,6 +94,7 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
       token: session.epoch,
       onSynced: () => {
         if (syncTimer) clearTimeout(syncTimer)
+        restarts = 0
         collab.status.value = 'ready'
       },
       onAuthenticationFailed: () => {

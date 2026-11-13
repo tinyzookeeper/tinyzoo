@@ -160,6 +160,55 @@ describe('shared editing', () => {
     expect(tab.text()).not.toContain('Česky')
   })
 
+  it('opens one document for many people at once without blocking the database', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id })
+    const all = await Promise.all(Array.from({ length: 16 }, () => session(editor, 'post', post.id)))
+    expect(all.map((r) => r.status)).toEqual(Array(16).fill(200))
+    expect(new Set(all.map((r) => r.body.epoch)).size).toBe(1)
+    expect((await editor.get('/api/cms/post')).status).toBe(200) // the pool is free
+  })
+
+  it('edits text the editor cannot hold on its own, so it is never replaced', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id })
+    await db.query(`update post set body = $1 where id = $2`, [JSON.stringify({ type: 'doc', content: [{ type: 'mystery', content: [] }] }), post.id])
+    expect((await session(editor, 'post', post.id)).body.fields).toEqual([])
+  })
+
+  it('forgets the shared text when the entry is deleted', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id })
+    await session(editor, 'post', post.id)
+    expect((await db.query(`select count(*)::int as n from cms_collab`)).rows[0].n).toBe(1)
+    expect((await admin.delete(`/api/cms/post/${post.id}`)).status).toBe(200)
+    expect((await db.query(`select count(*)::int as n from cms_collab`)).rows[0].n).toBe(0)
+  })
+
+  it('cuts off an account that is disabled while it has the document open', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id })
+    const person = await newAccount('editor')
+    const tab = await join(person.client, (await session(person.client, 'post', post.id)).body)
+    let closed = false
+    tab.socket.on('close', () => {
+      closed = true
+      tab.close() // a disabled account's reconnect is refused (401); stop here
+    })
+    expect((await admin.patch(`/api/cms/_users/${person.id}`, { status: 'disabled' })).status).toBe(200)
+    // Checked within the 30 s heartbeat, also for a socket that only listens.
+    expect(await until(() => closed, 40_000)).toBe(true)
+  }, 45_000)
+
+  it('treats emptied text in a translation as not translated (the site falls back)', async () => {
+    const a = await createAuthor(admin)
+    await createPost(admin, { author: a.id, slug: 'zahrada', status: 'published', body: doc('Česky') })
+    const post = (await db.query(`select id from post where slug = 'zahrada'`)).rows[0]
+    await admin.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'Garden', body: { type: 'doc', content: [{ type: 'paragraph' }] } })
+    const en = (await anonymous().get('/api/content/post/zahrada?locale=en')).body.item
+    expect(JSON.stringify(en.body)).toContain('Česky')
+  })
+
   it('refuses strangers, other sites and made-up documents', async () => {
     const a = await createAuthor(admin)
     const post = await createPost(admin, { author: a.id })
@@ -173,9 +222,14 @@ describe('shared editing', () => {
     const forged = new Collaborator(editor, { name: `post/${a.id}`, epoch: s.epoch })
     tabs.push(forged)
     await expect(forged.synced()).rejects.toThrow('refused')
-    // Anonymous socket: refused at the door.
-    const anon = new Collaborator(anonymous(), s)
-    tabs.push(anon)
-    await expect(anon.synced(1500)).rejects.toThrow()
+    // Anonymous socket, or one from another site: refused at the door.
+    const status = (headers: Record<string, string>) => new Promise<number>((resolve) => {
+      const ws = new WebSocket(`${editor.baseURL.replace(/^http/, 'ws')}/api/cms/_collab/socket`, { headers })
+      ws.on('unexpected-response', (_req, res) => resolve(res.statusCode ?? 0))
+      ws.on('open', () => { ws.close(); resolve(101) })
+      ws.on('error', () => {})
+    })
+    expect(await status({ origin: editor.baseURL })).toBe(401)
+    expect(await status({ origin: 'https://evil.example', cookie: editor.cookie })).toBe(403)
   })
 })

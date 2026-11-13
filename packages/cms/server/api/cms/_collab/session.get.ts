@@ -10,9 +10,13 @@ export default defineEventHandler(async (event) => {
   const translation = isTranslationLocale(reg, locale) ? locale : null
   const target = parseCollabName(collabName(String(q.entity ?? ''), String(q.id ?? ''), translation))
   if (!target) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  if (!(await rateLimit(`collab:${user.id}`, 120, 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many requests; try again shortly' })
   const access = await collabAccess(user, target)
   if (!access) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   const { epoch } = await ensureCollabDocument(target)
+  // Stored text the editor cannot hold is edited alone, so it is never replaced.
+  const saved = await savedContent(target)
+  const fields = collabFields(target.entity, target.locale).filter((k) => fitsEditor(saved?.values[k]))
   setResponseHeader(event, 'Cache-Control', 'no-store')
-  return { name: target.name, epoch, fields: collabFields(target.entity, target.locale), access }
+  return { name: target.name, epoch, fields, access }
 })

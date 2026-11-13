@@ -66,6 +66,8 @@ async function loadNewest() {
   const row = await fetchRow()
   await form.replace(row)
   adopt(row)
+  // Shared text follows only when someone asks for the saved version: for everyone.
+  for (const key of sharedFields.value) collab?.set(key, row[key])
   if (live) live.incoming.value = null
 }
 
@@ -119,9 +121,25 @@ const others = computed(() => live?.others.value ?? [])
 
 // ── shared editing of the rich-text fields (this entry, in this language) ──
 const collab = isNew.value ? null : useCmsCollab({ entity: entity.value, id: id.value, locale: isTranslation.value ? currentLocale.value : null })
-const sharedFields = computed(() => (collab?.status.value === 'ready' ? collab.fields.value : new Set<string>()))
-/** Saves made from the shared document say so: it then matches the saved version. */
-const collabHeaders = (): Record<string, string> => (collab?.status.value === 'ready' && collab.epoch.value ? { 'x-cms-collab': collab.epoch.value } : {})
+// Shared on this page right now: a shared editor is mounted for it (not, say, a
+// field in a collapsed group, which then merges like any other field).
+const sharedFields = computed(() => (collab?.status.value === 'ready' ? collab.mounted.value : new Set<string>()))
+/**
+ * Saves made from the shared document say so (it then matches the saved version) —
+ * only when every shared field is on the page, so the save really holds the shared text.
+ */
+const collabHeaders = (): Record<string, string> => {
+  if (!collab || collab.status.value !== 'ready' || !collab.epoch.value) return {}
+  for (const k of collab.fields.value) if (!collab.mounted.value.has(k)) return {}
+  return { 'x-cms-collab': collab.epoch.value }
+}
+
+/** Copy the default language's value into this translation's field (shared text: for everyone). */
+function copyDefault(key: string) {
+  const value = structuredClone(toRaw(defaults.value[key]))
+  if (sharedFields.value.has(key) && collab?.set(key, value)) return
+  state[key] = value
+}
 
 // ── layout: which field goes where ──
 const publish = computed(() => meta.value?.publish)
@@ -314,7 +332,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           <CmsTranslationRef
             v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
             :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
-            @copy="state[f.key] = structuredClone(toRaw(defaults[f.key]))"
+            @copy="copyDefault(f.key)"
           />
         </div>
       </div>

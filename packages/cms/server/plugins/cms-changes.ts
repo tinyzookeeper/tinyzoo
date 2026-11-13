@@ -4,6 +4,9 @@ import type { CmsChange } from '@my-cms/core'
 // channel) and clear this instance's caches built from that content. Changes saved
 // here were applied when they were reported.
 export default defineNitroPlugin((nitroApp) => {
+  // The shared-editing engine starts with the server, so a first connection after a
+  // boot finds it ready (its messages would otherwise arrive before it listens).
+  useCollabServer().catch((err) => console.error('[cms] collab could not start', err))
   nitroApp.hooks.hook('close', async () => {
     stopLive()
     await stopCollabServer()

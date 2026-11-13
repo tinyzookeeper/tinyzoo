@@ -16,7 +16,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   const issues = reactive<Record<string, string>>({})
   // Field components (e.g. slug auto-fill, blocks) read sibling values, create-mode
   // and nested issues.
-  provide('cmsForm', { state, isNew, issues })
+  provide('cmsForm', { state, isNew, issues, quiet: (fn: () => void) => quiet(fn) })
 
   const editable = computed(() => fields.value.filter((f: any) => f.relation?.kind !== 'one-to-many'))
 
@@ -124,6 +124,17 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     dirty.value = editable.value.some((f: any) => json(state[f.key]) !== loaded[f.key])
     ready = true
     return true
+  }
+
+  /**
+   * Apply a change that is not this tab's edit (someone else typing in shared text):
+   * the form follows it without counting it as unsaved work here.
+   */
+  function quiet(fn: () => void) {
+    const wasReady = ready
+    ready = false
+    fn()
+    void nextTick(() => { ready = wasReady || ready })
   }
 
   /** Set when a save was refused because someone saved in between (409 stale). */
