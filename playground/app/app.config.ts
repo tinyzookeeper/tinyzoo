@@ -8,6 +8,12 @@ export default defineAppConfig({
     },
   },
   cms: {
+    // The admin's branding and interface languages (see the layer's app.config.ts).
+    admin: {
+      name: { en: 'Demo Blog', cs: 'Demo blog' },
+      siteUrl: '/blog',
+      defaultLocale: 'cs',
+    },
     fields: {
       // Demo of the field registry: render `select` fields (the post status) as a
       // segmented control via a host component instead of the built-in dropdown.

@@ -3,6 +3,7 @@
 const props = defineProps<{ field: any; entity?: string }>()
 const model = defineModel<string | null>()
 const toast = useToast()
+const { t } = useCmsI18n()
 
 const media = ref<any>(null)
 const uploading = ref(false)
@@ -49,7 +50,7 @@ async function saveAlt() {
     const rec: any = await $fetch(url, { method: 'PATCH', body: { alt: next } })
     media.value = rec
   } catch (err: any) {
-    toast.add({ title: 'Could not save alt text', description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
+    toast.add({ title: t('media.altSaveFailed'), description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
   }
 }
 
@@ -69,7 +70,7 @@ async function onChange(e: Event) {
     media.value = rec
     model.value = rec.id
   } catch (err: any) {
-    errorMsg.value = err?.data?.statusMessage ?? 'Upload failed'
+    errorMsg.value = err?.data?.statusMessage ?? t('media.uploadFailed')
   } finally {
     uploading.value = false
     if (input.value) input.value.value = ''
@@ -108,14 +109,14 @@ function clear() {
           <p class="text-xs text-muted">{{ dims ? `${dims} · ` : '' }}{{ media.mime }} · {{ sizeLabel }}</p>
         </div>
         <div class="flex items-center gap-1">
-          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-images" :aria-label="'Browse library'" @click="libraryOpen = true" />
-          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-repeat-2" :loading="uploading" @click="pick">Replace</UButton>
-          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" :aria-label="'Remove'" @click="clear" />
+          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-images" :aria-label="t('media.browse')" @click="libraryOpen = true" />
+          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-repeat-2" :loading="uploading" @click="pick">{{ t('media.replace') }}</UButton>
+          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" :aria-label="t('media.remove')" @click="clear" />
         </div>
       </div>
       <UInput
         v-if="isImage" v-model="alt" size="sm" class="w-full"
-        placeholder="Alt text (described for screen readers & SEO)"
+        :placeholder="t('media.altPlaceholder')"
         @blur="saveAlt" @keydown.enter.prevent="saveAlt"
       />
     </div>
@@ -132,7 +133,7 @@ function clear() {
           :name="uploading ? 'i-lucide-loader-circle' : 'i-lucide-upload'"
           :class="['size-5', uploading && 'animate-spin']"
         />
-        <span class="text-sm">{{ uploading ? 'Uploading…' : 'Click to upload' }}</span>
+        <span class="text-sm">{{ uploading ? t('media.uploading') : t('media.clickToUpload') }}</span>
         <span v-if="field.meta?.accept" class="text-xs text-dimmed">{{ field.meta.accept }}</span>
       </button>
       <UButton variant="link" size="xs" icon="i-lucide-images" class="self-center" @click="libraryOpen = true">

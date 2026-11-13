@@ -1,4 +1,5 @@
 <script setup lang="ts">
+const { t } = useCmsI18n()
 const props = defineProps<{ field: any; entity?: string }>()
 const model = defineModel<any>()
 
@@ -20,6 +21,6 @@ onMounted(() => load())
 <template>
   <USelectMenu
     v-model="model" multiple :items="options" value-key="id" :loading="loading"
-    placeholder="Select…" class="w-full" @update:open="(o: boolean) => o && load()"
+    :placeholder="t('common.select')" class="w-full" @update:open="(o: boolean) => o && load()"
   />
 </template>
