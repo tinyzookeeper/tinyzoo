@@ -1,4 +1,8 @@
-import { defineBlock, defineEntity, defineSingleton, eq, f, seo } from "@my-cms/core"
+import { defineBlock, defineEntity, defineLocales, defineSingleton, eq, f, seo } from "@my-cms/core"
+
+// Content languages: Czech is the default (each entry's own row), English is a
+// translation of the fields marked .localized(), falling back to Czech when missing.
+export const locales = defineLocales({ default: "cs", locales: ["cs", "en"] })
 
 // A single-row global: site-wide settings, editable under "Globals" in the admin
 // and delivered headlessly at GET /api/content/_global/siteSettings.
@@ -52,7 +56,7 @@ export const Tag = defineEntity("tag", {
   titleField: "name",
   admin: { list: { columns: ["name", "slug"] } },
   fields: {
-    name: f.text({ required: true }).label({ en: "Name", cs: "Název" }),
+    name: f.text({ required: true }).localized().label({ en: "Name", cs: "Název" }),
     slug: f.slug({ from: "name", unique: true }).label({ en: "URL address", cs: "Adresa (URL)" }),
   },
   // Reference data — every tag is public (no published filter).
@@ -72,8 +76,8 @@ export const Post = defineEntity("post", {
     },
   },
   fields: {
-    title: f.text({ required: true }).label({ en: "Title", cs: "Název" }),
-    slug: f.slug({ from: "title", unique: true })
+    title: f.text({ required: true }).localized().label({ en: "Title", cs: "Název" }),
+    slug: f.slug({ from: "title", unique: true }).localized()
       .label({ en: "URL address", cs: "Adresa (URL)" })
       .help({ en: "Filled in from the title — change it if you like.", cs: "Vyplní se podle názvu — můžete ji změnit." }),
     status: f.select({
@@ -92,7 +96,7 @@ export const Post = defineEntity("post", {
       onDelete: "restrict",
     }).label({ en: "Author", cs: "Autor" }),
     tags: f.relation({ to: () => Tag, kind: "many-to-many" }).label({ en: "Tags", cs: "Štítky" }),
-    body: f.richtext().label({ en: "Text", cs: "Text" }),
+    body: f.richtext().localized().label({ en: "Text", cs: "Text" }),
     ...seo(),
   },
   // Who may do what comes from the built-in roles (admin, editor, author). An entity
@@ -125,8 +129,8 @@ export const Page = defineEntity("page", {
   titleField: "title",
   admin: { list: { columns: ["title", "status"] } },
   fields: {
-    title: f.text({ required: true }).label({ en: "Title", cs: "Název" }),
-    slug: f.slug({ from: "title", unique: true }).label({ en: "URL address", cs: "Adresa (URL)" }),
+    title: f.text({ required: true }).localized().label({ en: "Title", cs: "Název" }),
+    slug: f.slug({ from: "title", unique: true }).localized().label({ en: "URL address", cs: "Adresa (URL)" }),
     status: f.select({
       options: ["draft", "published"] as const,
       default: "draft",
@@ -174,7 +178,7 @@ export const Page = defineEntity("page", {
           highlighted: f.boolean().label({ en: "Highlighted", cs: "Zvýrazněné" }),
         },
       }),
-    }).label({ en: "Content", cs: "Obsah" }),
+    }).localized().label({ en: "Content", cs: "Obsah" }),
     ...seo(),
   },
   publish: { field: "status", publishedValue: "published", draftValue: "draft", preview: "/:slug" },

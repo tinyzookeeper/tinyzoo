@@ -1,4 +1,4 @@
-import { buildRegistry, type CmsEntity, type Junction, propOf } from './entity'
+import { buildRegistry, type CmsEntity, type Junction, propOf, translationSpec } from './entity'
 import { camel, serializeColumn, snake } from './fields'
 import { CMS_MEDIA_SOURCE } from './media'
 import { CMS_SYSTEM_SOURCE } from './system'
@@ -31,8 +31,11 @@ export function emitSchema(config: Record<string, any>): string {
   // users, one-time links, audit log
   out.push(CMS_SYSTEM_SOURCE, '')
 
-  // entity tables
-  for (const e of reg.entities) out.push(emitEntityTable(e), '')
+  // entity tables (+ their translations tables)
+  for (const e of reg.entities) {
+    out.push(emitEntityTable(e), '')
+    if (e.localized?.length) out.push(emitLocalesTable(e), '')
+  }
 
   // m2m junctions
   for (const j of reg.junctions) out.push(emitJunction(j), '')
@@ -63,4 +66,24 @@ function emitJunction(j: Junction): string {
   ${j.ownerCol}: uuid('${snake(j.ownerEntity)}_id').notNull().references(() => ${camel(j.ownerEntity)}.id, { onDelete: 'cascade' }),
   ${j.targetCol}: uuid('${snake(j.targetEntity)}_id').notNull().references(() => ${camel(j.targetEntity)}.id, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.${j.ownerCol}, t.${j.targetCol}] })])`
+}
+
+function emitLocalesTable(e: CmsEntity): string {
+  const v = camel(e.name)
+  const lines = [
+    `  id: uuid('id').primaryKey().defaultRandom(),`,
+    `  parentId: uuid('parent_id').notNull().references(() => ${v}.id, { onDelete: 'cascade' }),`,
+    `  locale: text('locale').notNull(),`,
+  ]
+  for (const key of e.localized) {
+    const fld = e.fields[key]!
+    lines.push(`  ${key}: ${serializeColumn(translationSpec(fld.spec!), snake(key))},`)
+  }
+  lines.push(`  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
+  lines.push(`  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
+  const idx = [`uniqueIndex('${e.name}_locales_parent_locale_unique').on(t.parentId, t.locale)`]
+  for (const key of e.localized) {
+    if (e.fields[key]!.isUnique) idx.push(`uniqueIndex('${e.name}_locales_${snake(key)}_unique').on(t.locale, t.${key})`)
+  }
+  return `export const ${v}Locales = pgTable('${e.name}_locales', {\n${lines.join('\n')}\n}, (t) => [${idx.join(', ')}])`
 }

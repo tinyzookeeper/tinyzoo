@@ -73,7 +73,7 @@ function pascalRef(name: string): string {
 }
 
 /** An object schema for a list of projected fields, with id + optional timestamps. */
-function objectSchema(fields: ContentField[], opts: { timestamps: boolean }): JsonSchema {
+function objectSchema(fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null }): JsonSchema {
   const properties: JsonSchema = { id: { type: 'string', format: 'uuid' } }
   const required = ['id']
   for (const f of fields) {
@@ -85,7 +85,21 @@ function objectSchema(fields: ContentField[], opts: { timestamps: boolean }): Js
     properties.updatedAt = { type: 'string', format: 'date-time' }
     required.push('createdAt', 'updatedAt')
   }
+  if (opts.locales) {
+    properties.locale = { type: 'string', enum: [...opts.locales], description: 'The language this item is served in.' }
+    properties.locales = { type: 'array', items: { type: 'string', enum: [...opts.locales] }, description: 'Languages this item exists in.' }
+    required.push('locale', 'locales')
+  }
   return { type: 'object', additionalProperties: false, properties, required }
+}
+
+function localeParam(shape: ContentShape): JsonSchema[] {
+  if (!shape.locales) return []
+  return [{
+    name: 'locale', in: 'query',
+    description: 'Language to serve. Untranslated fields fall back to the default language.',
+    schema: { type: 'string', enum: [...shape.locales], default: shape.locales[0] },
+  }]
 }
 
 function listParams(shape: ContentShape): JsonSchema[] {
@@ -95,6 +109,7 @@ function listParams(shape: ContentShape): JsonSchema[] {
     { name: 'sort', in: 'query', schema: { type: 'string', enum: shape.sortKeys, default: 'createdAt' } },
     { name: 'dir', in: 'query', schema: { type: 'string', enum: ['asc', 'desc'], default: 'desc' } },
     { name: 'q', in: 'query', description: `Substring match against \`${shape.titleField}\`.`, schema: { type: 'string' } },
+    ...localeParam(shape),
   ]
   for (const filter of shape.filters) {
     params.push({
@@ -163,7 +178,7 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
   const paths: JsonSchema = {}
   const tag = (name: string) => name
   for (const shape of model.entities) {
-    schemas[shape.pascal] = objectSchema(shape.fields, { timestamps: true })
+    schemas[shape.pascal] = objectSchema(shape.fields, { timestamps: true, locales: shape.locales })
     schemas[`${shape.pascal}List`] = {
       type: 'object',
       additionalProperties: false,
@@ -195,7 +210,7 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
         operationId: `get${shape.pascal}`,
         tags: [tag(shape.name)],
         summary: `Get one ${shape.name} by ${lookupBy}`,
-        parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }],
+        parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }, ...localeParam(shape)],
         responses: {
           200: { description: 'OK', content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { item: REF(shape.pascal) }, required: ['item'] } } } },
           404: { description: 'Not found or not published' },

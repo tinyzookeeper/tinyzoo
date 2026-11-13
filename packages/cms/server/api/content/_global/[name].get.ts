@@ -6,9 +6,13 @@ export default defineEventHandler(async (event) => {
   const e = getPublicEntity(reg, getRouterParam(event, 'name')) // 404 unless content.public
   if (!e.singleton) throw createError({ statusCode: 404, statusMessage: `No public global: ${e.name}` })
 
+  const locale = requestedLocale(event, reg)
   const [row] = await db.select().from(e.table).orderBy(e.table.createdAt).limit(1)
   setContentCache(event)
   if (!row) return { item: null }
-  await populateItems(db, reg, e, [row], e.content?.populate)
-  return { item: projectItem(e, row) }
+  await overlayTranslations(db, reg, e, [row], locale)
+  await populateItems(db, reg, e, [row], e.content?.populate, locale)
+  const item = projectItem(e, row)
+  await attachLocaleInfo(db, reg, e, [row], [item], locale)
+  return { item }
 })

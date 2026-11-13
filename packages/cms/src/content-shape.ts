@@ -49,6 +49,8 @@ export interface ContentShape {
   sortKeys: string[]
   /** Allowed filter query params. */
   filters: FilterParam[]
+  /** Content languages, when the collection has translatable fields: items then carry `locale` + `locales`. */
+  locales: string[] | null
 }
 
 /** Scalar-only projection of a PUBLIC entity when populated as another's relation. */
@@ -194,7 +196,7 @@ function sortKeys(e: CmsEntity): string[] {
 }
 
 /** Query keys the list endpoint reserves for paging/sort/search (index.get.ts RESERVED). */
-const RESERVED_QUERY_KEYS = new Set(['page', 'limit', 'sort', 'dir', 'q'])
+const RESERVED_QUERY_KEYS = new Set(['page', 'limit', 'sort', 'dir', 'q', 'locale'])
 
 /** Filter allowlist (mirror index.get.ts filter loop): non-hidden text/slug/select + to-one FKs. */
 function filters(e: CmsEntity): FilterParam[] {
@@ -233,6 +235,7 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
     fields: topLevelFields(reg, e),
     sortKeys: sortKeys(e),
     filters: filters(e),
+    locales: reg.locales && e.localized.length ? reg.locales.locales : null,
   }))
 
   // Collect every relation target reachable through a populated field.

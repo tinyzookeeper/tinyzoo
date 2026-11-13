@@ -36,6 +36,13 @@
       "when": 1794581808358,
       "tag": "0004_pages_blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794582270605,
+      "tag": "0005_translations",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,9 @@ export default defineEventHandler(async (event) => {
   if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use PUT /api/cms/_singleton/:name' })
   const rowFilter = authorize(e, 'update', user)
   const id = getIdParam(event)
+  // ?locale=<translation>: write that language's translation only.
+  const locale = requestedLocale(event, reg)
+  if (isTranslationLocale(reg, locale)) return { row: await writeTranslation(event, e, id, locale, user, rowFilter) }
   const data = parseOr422(e.updateSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
 

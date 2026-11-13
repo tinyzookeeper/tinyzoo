@@ -76,6 +76,13 @@ export function serializeColumn(spec: ColumnSpec, colName: string, ctx: Serializ
   return s
 }
 
+/**
+ * Field types whose value can differ per language. Media, relations, numbers, dates
+ * and switches are the same in every language (translate the text around them).
+ * Blocks are translated as a whole list per language.
+ */
+export const LOCALIZABLE_TYPES = new Set(['text', 'slug', 'richtext', 'blocks'])
+
 // ── the single field factory ──────────────────────────────────────────────────
 interface FieldConfig {
   type: string
@@ -97,6 +104,7 @@ interface FieldConfig {
 interface Mods {
   isRequired?: boolean
   isUnique?: boolean
+  isLocalized?: boolean
   isOptional?: boolean
   default?: unknown
   dbDefault?: 'now' | 'random'
@@ -148,12 +156,18 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
 
   const descriptor = {
     type: cfg.type,
-    isRequired, isUnique, isOptional,
+    isRequired, isUnique, isOptional, isLocalized: !!mods.isLocalized,
     default: mods.default, dbDefault,
     ui: cfg.ui, meta, relation: cfg.relation, blocks: cfg.blocks,
     spec, zod,
     optional: () => createField(cfg, { ...mods, isOptional: true, isRequired: false }),
     unique: () => createField(cfg, { ...mods, isUnique: true }),
+    localized: () => {
+      if (!LOCALIZABLE_TYPES.has(cfg.type)) {
+        throw new Error(`Only ${[...LOCALIZABLE_TYPES].join(', ')} fields can be localized (got "${cfg.type}").`)
+      }
+      return createField(cfg, { ...mods, isLocalized: true })
+    },
     withDefault: (value: unknown) => createField(cfg, { ...mods, default: value }),
     label: (text: LocalizedText) => createField(cfg, { ...mods, label: text }),
     help: (text: LocalizedText) => createField(cfg, { ...mods, help: text }),

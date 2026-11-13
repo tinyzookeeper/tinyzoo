@@ -1,4 +1,4 @@
-import { and, blockMediaKeys, inArray } from '@my-cms/core'
+import { and, blockMediaKeys, inArray, or, sql } from '@my-cms/core'
 import type { CmsEntity, CmsRegistry } from '@my-cms/core'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
@@ -103,7 +103,7 @@ function populatableKeys(e: CmsEntity): string[] {
  * Resolve media + relations on `rows` IN PLACE (batched, depth 1). Nested targets
  * get a safe projection; non-listed fields are left as raw FK ids for projectItem to drop.
  */
-export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[]) {
+export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null) {
   if (!rows.length) return
   await populateBlocks(db, reg, e, rows)
   const keys = populate ?? populatableKeys(e)
@@ -126,6 +126,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const byId = new Map<string, any>()
       if (ids.length) {
         const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, ids)))
+        await overlayTranslations(db, reg, target, targets, locale)
         for (const t of targets) byId.set(t.id, publicProjection(target, t))
       }
       for (const r of rows) r[key] = byId.get(r[`${key}Id`]) ?? null
@@ -139,6 +140,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const tById = new Map<string, any>()
       if (targetIds.length) {
         const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, targetIds)))
+        await overlayTranslations(db, reg, target, targets, locale)
         for (const t of targets) tById.set(t.id, publicProjection(target, t))
       }
       const byOwner = new Map<string, any[]>()
@@ -211,4 +213,28 @@ export function projectItem(e: CmsEntity, row: any) {
   out.createdAt = row.createdAt
   out.updatedAt = row.updatedAt
   return out
+}
+
+/**
+ * Which language each item is served in and which languages it exists in — added to
+ * items of collections with translatable fields (mirrored by content-shape).
+ */
+export async function attachLocaleInfo(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], items: any[], locale: string | null) {
+  if (!reg.locales || !e.localized.length) return
+  const avail = await availableLocales(db, reg, e, rows.map((r) => r.id))
+  items.forEach((item, i) => {
+    item.locale = locale ?? reg.locales!.default
+    item.locales = avail.get(rows[i].id) ?? [reg.locales!.default]
+  })
+}
+
+/**
+ * Match a localized text column in the requested language: the default-language
+ * value, or the translation's (so filters and search work in every language).
+ */
+export function localizedMatch(reg: CmsRegistry, e: CmsEntity, key: string, locale: string | null, cond: (col: any) => any): any {
+  const base = cond(e.table[key])
+  if (!isTranslationLocale(reg, locale) || !e.localized.includes(key) || !e.localesTable) return base
+  const t = e.localesTable
+  return or(base, sql`exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${t.locale} = ${locale} and ${cond(t[key])})`)
 }

@@ -91,6 +91,8 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   isRequired: boolean
   isUnique: boolean
   isOptional: boolean
+  /** Has a value per language (see `.localized()` and `defineLocales`). */
+  isLocalized: boolean
   default?: unknown
   dbDefault?: 'now' | 'random'
   ui: FieldUi
@@ -103,6 +105,12 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   zod(mode?: ValidationMode): ZodTypeAny
   optional(): FieldDescriptor<Nullable<K>>
   unique(): FieldDescriptor<K>
+  /**
+   * The field has a value per language (text, slug, rich text, blocks). The entry's
+   * own row holds the default language; translations live in `<entity>_locales`, and
+   * an untranslated value falls back to the default language. Needs `defineLocales`.
+   */
+  localized(): FieldDescriptor<K>
   withDefault(value: K['out']): FieldDescriptor<Defaulted<K>>
   /** Human-friendly admin label (defaults to a humanized field key). One string, or one per admin locale. */
   label(text: LocalizedText): FieldDescriptor<K>

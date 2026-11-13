@@ -11,5 +11,10 @@ export default defineEventHandler(async (event) => {
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
   await hydrateRowForForm(db, reg, e, row)
+  // ?locale=<translation>: the translation itself (empty where missing) plus the
+  // default-language values for reference.
+  const locale = requestedLocale(event, reg)
+  if (isTranslationLocale(reg, locale) && e.localized.length) await translationFormRow(db, reg, e, row, locale)
+  if (reg.locales && e.localized.length) row.__locales = (await availableLocales(db, reg, e, [id])).get(id)
   return { row }
 })

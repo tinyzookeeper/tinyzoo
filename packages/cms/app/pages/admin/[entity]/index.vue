@@ -179,6 +179,7 @@ const tabs = computed(() => [
                   <UIcon v-if="sort === key" :name="dir === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down'" class="size-3.5" />
                 </button>
               </th>
+              <th v-if="meta?.locales" scope="col" class="text-left font-medium px-4 py-2.5 whitespace-nowrap">{{ t('translation.languages') }}</th>
               <th scope="col" :aria-sort="ariaSort('updatedAt')" class="text-right font-medium px-4 py-2.5 whitespace-nowrap">
                 <button type="button" class="inline-flex items-center gap-1 hover:text-highlighted" @click="toggleSort('updatedAt')">
                   {{ t('list.updated') }}
@@ -211,6 +212,15 @@ const tabs = computed(() => [
               <td v-for="key in otherCols" :key="key" class="px-4 py-3 whitespace-nowrap">
                 <CmsCell v-if="fieldOf(key)" :field="fieldOf(key)" :row="row" :entity="entity" />
                 <span v-else>{{ row[key] ?? t('common.none') }}</span>
+              </td>
+              <td v-if="meta?.locales" class="px-4 py-3 whitespace-nowrap">
+                <span class="inline-flex gap-1.5 text-xs font-medium tabular-nums">
+                  <span
+                    v-for="code in meta.locales.all" :key="code"
+                    :class="(row.__locales ?? []).includes(code) ? 'text-default' : 'text-dimmed line-through decoration-(--ui-text-dimmed)'"
+                    :title="(row.__locales ?? []).includes(code) ? t('translation.translated') : t('translation.notTranslated')"
+                  >{{ code.toUpperCase() }}</span>
+                </span>
               </td>
               <td class="px-4 py-3 text-right text-muted whitespace-nowrap">
                 <CmsTime :value="row.updatedAt" relative />

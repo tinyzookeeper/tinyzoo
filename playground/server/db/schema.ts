@@ -80,6 +80,17 @@ export const page = pgTable('page', {
   updatedBy: uuid('updated_by'),
 })
 
+export const pageLocales = pgTable('page_locales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  parentId: uuid('parent_id').notNull().references(() => page.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  title: text('title'),
+  slug: text('slug'),
+  sections: jsonb('sections').$type<CmsBlock[]>(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('page_locales_parent_locale_unique').on(t.parentId, t.locale), uniqueIndex('page_locales_slug_unique').on(t.locale, t.slug)])
+
 export const post = pgTable('post', {
   id: uuid('id').primaryKey().defaultRandom(),
   title: text('title').notNull(),
@@ -97,6 +108,17 @@ export const post = pgTable('post', {
   createdBy: uuid('created_by'),
   updatedBy: uuid('updated_by'),
 })
+
+export const postLocales = pgTable('post_locales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  parentId: uuid('parent_id').notNull().references(() => post.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  title: text('title'),
+  slug: text('slug'),
+  body: jsonb('body').$type<RichTextDoc>(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('post_locales_parent_locale_unique').on(t.parentId, t.locale), uniqueIndex('post_locales_slug_unique').on(t.locale, t.slug)])
 
 export const siteSettings = pgTable('siteSettings', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -121,6 +143,15 @@ export const tag = pgTable('tag', {
   createdBy: uuid('created_by'),
   updatedBy: uuid('updated_by'),
 })
+
+export const tagLocales = pgTable('tag_locales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  parentId: uuid('parent_id').notNull().references(() => tag.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  name: text('name'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('tag_locales_parent_locale_unique').on(t.parentId, t.locale)])
 
 export const postToTag = pgTable('post_to_tag', {
   postId: uuid('post_id').notNull().references(() => post.id, { onDelete: 'cascade' }),

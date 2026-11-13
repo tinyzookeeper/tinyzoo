@@ -78,3 +78,23 @@ describe('buildRegistry', () => {
     expect(buildRegistry(config)).toBe(reg)
   })
 })
+
+describe('content languages', () => {
+  it('only lets text, URL addresses, rich text and blocks be translated', () => {
+    expect(() => f.media().localized()).toThrow(/can be localized/)
+    expect(() => f.number().localized()).toThrow(/can be localized/)
+    expect(f.text().localized().isLocalized).toBe(true)
+  })
+
+  it('needs defineLocales when anything is translatable', () => {
+    const E = defineEntity('lonely', { label: 'L', titleField: 'name', fields: { name: f.text().localized() } })
+    expect(() => buildRegistry({ E })).toThrow(/no languages are defined/)
+  })
+
+  it('builds a translations table for entities with localized fields only', () => {
+    expect(config.Post.localized).toEqual(['title', 'slug', 'body'])
+    expect(config.Post.localesTable).toBeTruthy()
+    expect(config.Author.localesTable).toBeUndefined()
+    expect(buildRegistry(config).locales).toMatchObject({ default: 'cs', locales: ['cs', 'en'] })
+  })
+})

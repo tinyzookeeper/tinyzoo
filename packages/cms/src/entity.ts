@@ -1,8 +1,9 @@
-import { type PgColumn, pgEnum, pgTable, primaryKey, timestamp, uuid } from 'drizzle-orm/pg-core'
+import { type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsTokens, cmsUsers } from './system'
+import type { LocalesDef } from './locales'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
 
@@ -102,6 +103,10 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   icon?: string
   titleField: keyof F & string
   table: TableColumns<F>
+  /** Translations of the `.localized()` fields (`<name>_locales`), or undefined. */
+  localesTable?: any
+  /** Keys of the `.localized()` fields. */
+  localized: string[]
   fields: F
   enums: EntityEnum[]
   insertSchema: z.ZodType<InsertFields<F>>
@@ -128,6 +133,8 @@ export interface CmsEntity {
   icon?: string
   titleField: string
   table: any
+  localesTable?: any
+  localized: string[]
   fields: Record<string, FieldDescriptor>
   enums: EntityEnum[]
   insertSchema: z.ZodTypeAny
@@ -146,6 +153,11 @@ export interface CmsEntity {
 }
 
 interface EntityEnum { key: string; varName: string; enumName: string; values: readonly string[] }
+
+/** A translated column: same type, nullable, no default, uniqueness handled per locale. */
+export function translationSpec(spec: import('./descriptor').ColumnSpec): import('./descriptor').ColumnSpec {
+  return { ...spec, notNull: false, unique: false, default: undefined, reference: undefined }
+}
 
 /** DB column property name for a field (FKs become `${key}Id`). */
 export function propOf(key: string, fld: FieldDescriptor): string {
@@ -199,6 +211,29 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   columns.updatedBy = uuid('updated_by')
   const table = pgTable(name, columns)
 
+  // Translations: one row per (entry, language) holding the localized fields.
+  // Nullable — an empty translation falls back to the default language.
+  const localized = Object.entries(fields).filter(([, f]) => f.isLocalized).map(([k]) => k)
+  let localesTable: any
+  if (localized.length) {
+    const lcols: Record<string, any> = {
+      id: uuid('id').primaryKey().defaultRandom(),
+      parentId: uuid('parent_id').notNull().references(() => (table as any).id, { onDelete: 'cascade' }),
+      locale: text('locale').notNull(),
+    }
+    for (const key of localized) {
+      const fld = fields[key]!
+      lcols[key] = buildColumn(translationSpec(fld.spec!), snake(key))
+    }
+    lcols.createdAt = timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
+    lcols.updatedAt = timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
+    const uniqueLocalized = localized.filter((k) => fields[k]!.isUnique)
+    localesTable = pgTable(`${name}_locales`, lcols, (t: any) => [
+      uniqueIndex(`${name}_locales_parent_locale_unique`).on(t.parentId, t.locale),
+      ...uniqueLocalized.map((k) => uniqueIndex(`${name}_locales_${snake(k)}_unique`).on(t.locale, t[k])),
+    ])
+  }
+
   // 3) validation — create and update built separately (update carries no defaults)
   const createShape: Record<string, z.ZodTypeAny> = {}
   const updateShape: Record<string, z.ZodTypeAny> = {}
@@ -210,7 +245,7 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
 
   return {
     __cms: 'entity',
-    name, label: def.label, titleField: def.titleField,
+    name, label: def.label, titleField: def.titleField, localesTable, localized,
     labelSingular: def.labelSingular, description: def.description, icon: def.icon,
     table, admin: def.admin, access: def.access, content: def.content, fields: def.fields,
     singleton: def.singleton, publish: def.publish,
@@ -246,6 +281,8 @@ export interface CmsRegistry {
   junctionByOwnerField: Map<string, Junction>
   schema: Record<string, any>
   graph: any[]
+  /** Content languages (defineLocales), or null when content is single-language. */
+  locales: LocalesDef | null
   cmsMedia: typeof cmsMedia
   cmsUsers: typeof cmsUsers
   cmsTokens: typeof cmsTokens
@@ -293,19 +330,28 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     }
   }
 
+  const locales = (Object.values(config).find((v: any) => v && v.__cms === 'locales') as LocalesDef | undefined) ?? null
+  const withLocalized = entities.filter((e) => e.localized?.length)
+  if (withLocalized.length && !locales) {
+    throw new Error(`${withLocalized.map((e) => e.name).join(', ')} ha${withLocalized.length > 1 ? 've' : 's'} localized fields, but no languages are defined. Export \`locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })\` from cms.config.ts.`)
+  }
+
   const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit }
   for (const e of entities) schema[e.name] = e.table
+  for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
   for (const j of junctions) schema[j.name] = j.table
 
-  const graph = entities.map(entityGraph)
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, cmsMedia, cmsUsers, cmsTokens, cmsAudit }
+  const graph = entities.map((e) => entityGraph(e, locales))
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit }
   _regCache.set(config, reg)
   return reg
 }
 
-function entityGraph(e: CmsEntity) {
+function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
   return {
     name: e.name,
+    // Content languages, for entities with localized fields (drives the editor's switcher).
+    locales: e.localized?.length && locales ? { default: locales.default, all: locales.locales, labels: locales.labels } : null,
     label: e.label,
     labelSingular: e.labelSingular ?? e.label,
     description: e.description ?? null,
@@ -319,6 +365,7 @@ function entityGraph(e: CmsEntity) {
       key,
       type: fld.type,
       optional: fld.isOptional,
+      localized: !!fld.isLocalized,
       required: fld.isRequired,
       unique: fld.isUnique,
       ui: fld.ui,

@@ -4,7 +4,7 @@ const route = useRoute()
 // forwards the incoming cookie on SSR so the editor's session reaches the content API
 // (a plain useFetch would drop it → the draft would 404 during server render).
 const { data, error } = await useFetch(() => `/api/content/post/${route.params.slug}`, {
-  query: { preview: route.query.preview },
+  query: { preview: route.query.preview, locale: route.query.locale },
   // useRequestFetch's server-side type lacks $fetch's .raw/.create; the call shape is the same.
   $fetch: useRequestFetch() as typeof $fetch,
 })

@@ -57,6 +57,10 @@ export interface Page {
   ogImage: CmsMedia | null
   createdAt: string
   updatedAt: string
+  /** The language this item is served in. */
+  locale: 'cs' | 'en'
+  /** Languages this item exists in (the default and every translation). */
+  locales: Array<'cs' | 'en'>
 }
 export interface Post {
   id: string
@@ -73,6 +77,10 @@ export interface Post {
   ogImage: CmsMedia | null
   createdAt: string
   updatedAt: string
+  /** The language this item is served in. */
+  locale: 'cs' | 'en'
+  /** Languages this item exists in (the default and every translation). */
+  locales: Array<'cs' | 'en'>
 }
 export interface Tag {
   id: string
@@ -80,6 +88,10 @@ export interface Tag {
   slug: string
   createdAt: string
   updatedAt: string
+  /** The language this item is served in. */
+  locale: 'cs' | 'en'
+  /** Languages this item exists in (the default and every translation). */
+  locales: Array<'cs' | 'en'>
 }
 
 // ── query types ─────────────────────────────────────────────────────────────────

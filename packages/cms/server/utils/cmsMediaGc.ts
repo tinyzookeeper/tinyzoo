@@ -21,7 +21,11 @@ function richTextColumns(reg: CmsRegistry): { table: any; col: any }[] {
   const cols: { table: any; col: any }[] = []
   for (const e of reg.entities) {
     for (const [key, fld] of Object.entries(e.fields)) {
-      if ((fld as any).type === 'richtext' || (fld as any).type === 'blocks') cols.push({ table: e.table, col: (e.table as any)[key] })
+      if ((fld as any).type === 'richtext' || (fld as any).type === 'blocks') {
+        cols.push({ table: e.table, col: (e.table as any)[key] })
+        // …and the same field in every translation.
+        if ((fld as any).isLocalized && e.localesTable) cols.push({ table: e.localesTable, col: e.localesTable[key] })
+      }
     }
   }
   return cols

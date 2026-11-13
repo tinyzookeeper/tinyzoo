@@ -9,6 +9,7 @@
 definePageMeta({ layout: 'admin', key: (route) => route.fullPath })
 const route = useRoute()
 const router = useRouter()
+const toast = useToast()
 const { t, tl, entityLabel, entitySingular, fieldLabel, formatDate } = useCmsI18n()
 const entity = computed(() => route.params.entity as string)
 const id = computed(() => route.params.id as string)
@@ -19,11 +20,30 @@ const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === enti
 const form = useCmsForm(computed(() => meta.value?.fields ?? []), isNew)
 const { state, fieldErrors, editable, dirty, saving } = form
 
+// ── content languages ──
+// The default language is the entry itself; others are translations of the
+// `.localized()` fields (?locale=en). The page remounts when the language changes.
+const locales = computed(() => meta.value?.locales as { default: string; all: string[]; labels: Record<string, any> } | null)
+const currentLocale = computed(() => {
+  const q = route.query.locale
+  return typeof q === 'string' && locales.value?.all.includes(q) ? q : (locales.value?.default ?? null)
+})
+const isTranslation = computed(() => !!locales.value && !isNew.value && currentLocale.value !== locales.value.default)
+const localeLabel = (code?: string | null) => (code ? tl(locales.value?.labels?.[code], code.toUpperCase()) : '')
+const defaultLabel = computed(() => localeLabel(locales.value?.default))
+const available = ref<string[]>([])
+const defaults = ref<Record<string, any>>({})
+const translated = ref(false)
+
 const savedAt = ref<string | null>(null)
 if (!isNew.value) {
-  const { data } = await useFetch<{ row: Record<string, any> }>((): string => `/api/cms/${entity.value}/${id.value}`)
+  const { data } = await useFetch<{ row: Record<string, any> }>((): string =>
+    `/api/cms/${entity.value}/${id.value}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`)
   form.load(data.value?.row)
   savedAt.value = data.value?.row?.updatedAt ?? null
+  available.value = data.value?.row?.__locales ?? []
+  defaults.value = data.value?.row?.__defaults ?? {}
+  translated.value = !!data.value?.row?.__translated
 }
 else {
   form.load({})
@@ -35,8 +55,10 @@ const titleKey = computed(() => meta.value?.titleField as string | undefined)
 const titleField = computed(() => editable.value.find((f: any) => f.key === titleKey.value))
 const MAIN_TYPES = new Set(['text', 'richtext', 'media', 'blocks'])
 const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TYPES.has(f.type) ? 'main' : 'sidebar')
-// The publish field is changed by the Publish action, not edited as a field.
-const formFields = computed(() => editable.value.filter((f: any) => f.key !== titleKey.value && f.key !== publish.value?.field))
+// The publish field is changed by the Publish action, not edited as a field. In a
+// translation only the translatable fields are shown.
+const formFields = computed(() => editable.value.filter((f: any) =>
+  f.key !== titleKey.value && f.key !== publish.value?.field && (!isTranslation.value || f.localized)))
 const mainFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'main'))
 const sideFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'sidebar'))
 const groups = computed(() => {
@@ -70,6 +92,7 @@ const isPublished = computed(() => !!publish.value && state[publish.value.field]
 const publishedOn = computed(() => (publish.value?.dateField ? state[publish.value.dateField] : null))
 
 async function save(successTitle?: string) {
+  if (isTranslation.value) return saveTranslation()
   return form.submit(async () => {
     if (isNew.value) {
       const url: string = `/api/cms/${entity.value}`
@@ -84,6 +107,37 @@ async function save(successTitle?: string) {
     }
   }, successTitle ?? (isNew.value ? t('editor.created') : t('editor.saved')))
 }
+
+async function saveTranslation() {
+  return form.submit(async () => {
+    const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
+    const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
+    const res: any = await $fetch(url, { method: 'PATCH', body })
+    savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
+    translated.value = true
+    if (currentLocale.value && !available.value.includes(currentLocale.value)) available.value = [...available.value, currentLocale.value]
+  }, t('editor.saved'))
+}
+
+async function removeTranslation() {
+  try {
+    const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
+    await $fetch(url, { method: 'DELETE' })
+    toast.add({ title: t('translation.removed'), icon: 'i-lucide-check', color: 'success' })
+    dirty.value = false
+    await router.push({ query: {} })
+  }
+  catch (e: any) {
+    toast.add({ title: t('team.actionFailed'), description: e?.data?.statusMessage, icon: 'i-lucide-x', color: 'error' })
+  }
+}
+
+const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
+  label: code === locales.value?.default ? `${localeLabel(code)} (${t('translation.default')})` : localeLabel(code),
+  description: code === locales.value?.default ? undefined : (available.value.includes(code) ? t('translation.translated') : t('translation.notTranslated')),
+  icon: code === currentLocale.value ? 'i-lucide-check' : undefined,
+  to: { query: code === locales.value?.default ? {} : { locale: code } },
+})))
 
 async function setPublished(next: boolean) {
   const p = publish.value
@@ -108,7 +162,7 @@ const previewUrl = computed(() => {
     if (v === undefined || v === null || v === '') ok = false
     return encodeURIComponent(v ?? '')
   })
-  return ok ? `${url}?preview` : null
+  return ok ? `${url}?preview${isTranslation.value ? `&locale=${currentLocale.value}` : ''}` : null
 })
 
 defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value) save() } } })
@@ -117,6 +171,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 <template>
   <CmsPage :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: listLabel, to: `/admin/${entity}` }, { label: heading }]">
     <template #actions>
+      <UDropdownMenu v-if="locales && !isNew" :items="localeItems" :content="{ align: 'end' }">
+        <UButton color="neutral" variant="ghost" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
+          {{ (currentLocale ?? '').toUpperCase() }}
+        </UButton>
+      </UDropdownMenu>
       <span class="hidden md:inline text-sm mr-1" :class="dirty ? 'text-warning' : 'text-dimmed'">
         <template v-if="dirty">{{ t('editor.unsaved') }}</template>
         <template v-else-if="savedAt">{{ t('editor.savedAgo', { time: '' }) }}<CmsTime :value="savedAt" relative /></template>
@@ -126,7 +185,13 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       </UTooltip>
 
       <!-- one primary action -->
-      <UButton v-if="isNew" :loading="saving" @click="save()">{{ t('common.create') }}</UButton>
+      <template v-if="isTranslation">
+        <UButton :loading="saving" @click="save()">{{ t('translation.save') }}</UButton>
+        <UDropdownMenu v-if="translated" :items="[[{ label: t('translation.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: removeTranslation }]]" :content="{ align: 'end' }">
+          <UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('editor.moreActions')" />
+        </UDropdownMenu>
+      </template>
+      <UButton v-else-if="isNew" :loading="saving" @click="save()">{{ t('common.create') }}</UButton>
       <template v-else-if="publish && canPublish">
         <template v-if="isPublished">
           <UButton :loading="saving" @click="save()">{{ t('editor.update') }}</UButton>
@@ -147,15 +212,25 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         <!-- the title is the page heading -->
         <div v-if="titleField">
           <input
-            v-model="state[titleField.key]" class="cms-title-input" :placeholder="t('editor.titlePlaceholder')"
+            v-model="state[titleField.key]" class="cms-title-input"
+            :placeholder="isTranslation ? (defaults[titleField.key] || t('editor.titlePlaceholder')) : t('editor.titlePlaceholder')"
+            :disabled="isTranslation && !titleField.localized"
             :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" autocomplete="off"
           >
           <p v-if="fieldErrors[titleField.key]" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
+          <CmsTranslationRef
+            v-if="isTranslation && titleField.localized" :field="titleField" :value="defaults[titleField.key]"
+            :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
+          />
         </div>
-        <CmsField
-          v-for="f in mainFields" :key="f.key"
-          v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main"
-        />
+        <div v-for="f in mainFields" :key="f.key">
+          <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
+          <CmsTranslationRef
+            v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+            :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+            @copy="state[f.key] = structuredClone(toRaw(defaults[f.key]))"
+          />
+        </div>
       </div>
 
       <aside class="cms-editor__aside space-y-5" :aria-label="t('editor.status')">
@@ -166,12 +241,20 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             <template v-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
             <template v-else-if="!isPublished">{{ canPublish ? t('editor.notPublished') : t('editor.cannotPublish') }}</template>
           </p>
+          <p v-if="isTranslation" class="text-xs text-dimmed">{{ t('translation.publishingShared') }}</p>
         </div>
 
-        <CmsField
-          v-for="f in sideFields" :key="f.key"
-          v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar"
-        />
+        <div v-for="f in sideFields" :key="f.key">
+          <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar" />
+          <CmsTranslationRef
+            v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel" :empty="!state[f.key]"
+            @copy="state[f.key] = defaults[f.key]"
+          />
+        </div>
+        <p v-if="isTranslation" class="text-xs text-muted border-t border-default pt-4">
+          {{ t('translation.shared') }}
+          <NuxtLink :to="{ query: {} }" class="underline underline-offset-2 hover:text-highlighted">{{ t('translation.editShared', { lang: defaultLabel }) }}</NuxtLink>
+        </p>
 
         <UCollapsible
           v-for="g in groups" :key="g.label" v-model:open="openGroups[g.label]"
