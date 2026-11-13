@@ -3,26 +3,36 @@ import { defineEntity, defineSingleton, eq, f, seo } from "@my-cms/core"
 // A single-row global: site-wide settings, editable under "Globals" in the admin
 // and delivered headlessly at GET /api/content/_global/siteSettings.
 export const SiteSettings = defineSingleton("siteSettings", {
-  label: "Site settings",
+  label: { en: "Site settings", cs: "Nastavení webu" },
+  description: { en: "The site name, tagline and logo used across the whole website.", cs: "Název webu, slogan a logo, které se používají na celém webu." },
+  icon: "i-lucide-settings-2",
   titleField: "siteName",
   fields: {
-    siteName: f.text({ required: true }).help("Shown in the header and browser tab."),
-    tagline: f.text().optional(),
-    logo: f.media({ accept: "image/*" }).optional(),
+    siteName: f.text({ required: true })
+      .label({ en: "Site name", cs: "Název webu" })
+      .help({ en: "Shown in the header and browser tab.", cs: "Zobrazí se v hlavičce webu a v záložce prohlížeče." }),
+    tagline: f.text().optional().label({ en: "Tagline", cs: "Slogan" }),
+    logo: f.media({ accept: "image/*" }).optional().label({ en: "Logo", cs: "Logo" }),
     ...seo(),
   },
   content: { public: true, populate: ["logo", "ogImage"] },
 })
 
 export const Author = defineEntity("author", {
-  label: "Authors",
+  label: { en: "Authors", cs: "Autoři" },
+  labelSingular: { en: "Author", cs: "Autor" },
+  description: { en: "People who write for the blog. Their name and bio appear with each post.", cs: "Lidé, kteří píšou na blog. Jméno a medailonek se zobrazí u každého článku." },
+  icon: "i-lucide-users",
   titleField: "name",
   admin: { list: { columns: ["name", "email"] } },
   fields: {
-    name: f.text({ required: true }),
+    name: f.text({ required: true }).label({ en: "Name", cs: "Jméno" }),
     email: f.text({ required: true, format: "email" }).unique()
-      .help("Private — used for sign-in, never shown on the public site."),
-    bio: f.richtext().optional().help("A short author biography."),
+      .label({ en: "Email", cs: "E-mail" })
+      .help({ en: "Private — never shown on the website.", cs: "Soukromé — na webu se nikdy nezobrazí." }),
+    bio: f.richtext().optional()
+      .label({ en: "Bio", cs: "Medailonek" })
+      .help({ en: "A few sentences about the author.", cs: "Pár vět o autorovi." }),
     posts: f.relation({
       to: () => Post,
       kind: "one-to-many",
@@ -35,19 +45,25 @@ export const Author = defineEntity("author", {
 })
 
 export const Tag = defineEntity("tag", {
-  label: "Tags",
+  label: { en: "Tags", cs: "Štítky" },
+  labelSingular: { en: "Tag", cs: "Štítek" },
+  description: { en: "Topics that group related posts together.", cs: "Témata, která seskupují související články." },
+  icon: "i-lucide-tag",
   titleField: "name",
   admin: { list: { columns: ["name", "slug"] } },
   fields: {
-    name: f.text({ required: true }),
-    slug: f.slug({ from: "name", unique: true }),
+    name: f.text({ required: true }).label({ en: "Name", cs: "Název" }),
+    slug: f.slug({ from: "name", unique: true }).label({ en: "URL address", cs: "Adresa (URL)" }),
   },
   // Reference data — every tag is public (no published filter).
   content: { public: true },
 })
 
 export const Post = defineEntity("post", {
-  label: "Posts",
+  label: { en: "Posts", cs: "Články" },
+  labelSingular: { en: "Post", cs: "Článek" },
+  description: { en: "Articles on the blog. Drafts stay private until you publish them.", cs: "Články na blogu. Koncepty zůstávají soukromé, dokud je nezveřejníte." },
+  icon: "i-lucide-newspaper",
   titleField: "title",
   admin: {
     list: {
@@ -56,24 +72,29 @@ export const Post = defineEntity("post", {
     },
   },
   fields: {
-    title: f.text({ required: true }),
+    title: f.text({ required: true }).label({ en: "Title", cs: "Název" }),
     slug: f.slug({ from: "title", unique: true })
-      .help("Auto-generated from the title — edit to override."),
+      .label({ en: "URL address", cs: "Adresa (URL)" })
+      .help({ en: "Filled in from the title — change it if you like.", cs: "Vyplní se podle názvu — můžete ji změnit." }),
     status: f.select({
       options: ["draft", "published"] as const,
       default: "draft",
-    }),
-    publishedAt: f.datetime().optional().label("Publish date"),
+      labels: { draft: { en: "Draft", cs: "Koncept" }, published: { en: "Published", cs: "Zveřejněno" } },
+    }).label({ en: "Status", cs: "Stav" }),
+    publishedAt: f.datetime().optional().label({ en: "Publish date", cs: "Datum zveřejnění" }),
     hero: f.media({ accept: "image/*" }).optional()
-      .help("Shown at the top of the post and in listings."),
+      .label({ en: "Main image", cs: "Hlavní obrázek" })
+      .help({ en: "Shown at the top of the post and in listings.", cs: "Zobrazí se nahoře v článku a v přehledu článků." }),
     author: f.relation({
       to: () => Author,
       kind: "many-to-one",
       required: true,
       onDelete: "restrict",
-    }),
-    tags: f.relation({ to: () => Tag, kind: "many-to-many" }),
-    body: f.richtext().help("Use the toolbar to add headings, links, and images."),
+    }).label({ en: "Author", cs: "Autor" }),
+    tags: f.relation({ to: () => Tag, kind: "many-to-many" }).label({ en: "Tags", cs: "Štítky" }),
+    body: f.richtext()
+      .label({ en: "Text", cs: "Text" })
+      .help({ en: "Use the toolbar for headings, links and images.", cs: "Nadpisy, odkazy a obrázky přidáte z panelu nástrojů." }),
     ...seo(),
   },
   access: {

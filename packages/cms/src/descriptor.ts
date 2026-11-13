@@ -1,3 +1,4 @@
+import type { LocalizedText } from './i18n'
 import type { ZodTypeAny } from 'zod'
 
 export type OnDelete = 'cascade' | 'restrict' | 'set null' | 'no action'
@@ -101,10 +102,10 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   optional(): FieldDescriptor<Nullable<K>>
   unique(): FieldDescriptor<K>
   withDefault(value: K['out']): FieldDescriptor<Defaulted<K>>
-  /** Human-friendly admin label (defaults to a humanized field key). */
-  label(text: string): FieldDescriptor<K>
+  /** Human-friendly admin label (defaults to a humanized field key). One string, or one per admin locale. */
+  label(text: LocalizedText): FieldDescriptor<K>
   /** Help text shown under the field in the admin form. */
-  help(text: string): FieldDescriptor<K>
+  help(text: LocalizedText): FieldDescriptor<K>
 }
 
 /** Any descriptor, regardless of kind. */
