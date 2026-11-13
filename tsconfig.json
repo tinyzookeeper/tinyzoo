@@ -1,0 +1,30 @@
+{
+  // Type-checks what Nuxt's own typecheck (playground: `nuxt typecheck`) does not see:
+  // the framework-free core, the client, the playground's content config with its
+  // type-level assertions (cms.types-check.ts), and the test suites.
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false
+  },
+  "include": [
+    "packages/cms/src/**/*.ts",
+    "packages/cms/cli/**/*.ts",
+    "packages/client/src/**/*.ts",
+    "playground/cms.config.ts",
+    "playground/cms.types-check.ts",
+    "playground/app/lib/cms-content.ts",
+    "test/**/*.ts",
+    "vitest.config.ts"
+  ]
+}

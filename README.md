@@ -121,6 +121,36 @@ then match `DATABASE_URL` in `playground/.env`.
 `DATABASE_URL` is read from `playground/.env`. Edit `playground/cms.config.ts`, re-run
 `pnpm db:generate` (review the SQL!) and `pnpm db:migrate`, and the dashboard updates itself.
 
+## Tests, typecheck & CI
+
+```bash
+pnpm test          # unit + API suites (needs the compose Postgres running)
+pnpm test:unit     # pure core: descriptors, codegen drift, sanitiser, client — no DB, < 1 s
+pnpm test:api      # the built playground over real HTTP against real Postgres
+pnpm typecheck     # core/client/tests (tsc) + the playground and layer (nuxt typecheck)
+pnpm build:node    # production build for Node (Pushbase, Docker, any VM)
+pnpm build:edge    # production build for Cloudflare Workers
+pnpm check         # all of the above, what CI runs
+```
+
+The API suites run against **their own database**, `<dev db>_test` (e.g. `cms_test`),
+which the global setup creates, wipes and migrates from the playground's migrations
+on every run — never the development database. Set `TEST_DATABASE_URL` to point
+elsewhere. The setup then production-builds the playground into
+`node_modules/.cache/cms-test` (your own `.nuxt`/`.output` and dev server are left
+alone), starts it on a free port with a throwaway upload directory, and the specs
+talk to it over HTTP with the demo accounts. Files run one at a time and truncate the
+tables they use. While iterating on specs, `CMS_TEST_REUSE_BUILD=1 pnpm test:api`
+skips the ~15 s rebuild (only when the server code did not change);
+`CMS_TEST_SERVER_LOGS=1` prints the server's output at the end.
+
+Codegen drift is a test: the committed `playground/server/db/schema.ts` and
+`playground/app/lib/cms-content.ts` must equal what the generators emit, and the
+served `/api/content-types.ts` must equal the committed file.
+
+CI (`.github/workflows/ci.yml`) runs typecheck, the tests against a Postgres service,
+and both production builds on Node 22 — the runtime Pushbase deploys on.
+
 ## Decisions locked in this MVP
 
 - **Stack:** Nuxt 4, Tailwind 4, Nuxt UI v4, Zod 4, Drizzle (Postgres dialect).
@@ -423,6 +453,6 @@ Set runtime secrets as Worker vars: `NUXT_CMS_DATABASE_URL` (Neon/Hyperdrive),
   shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
 - **Per-field permissions** (`fieldMode`) + a roles-management UI, incl. per-user **media access scoping** (media is a shared authenticated pool today). (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
 - **`blocks`** page-builder field (the `f.json` hook already reserves the path)
-- Golden-file tests for descriptor→DDL; precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
+- Precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
 - A *live* Cloudflare deploy recipe (wrangler config + Hyperdrive binding); publish pipeline
   (changesets); package-name layer resolution
