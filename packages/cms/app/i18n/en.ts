@@ -83,6 +83,11 @@ export default {
     retry: 'Try again',
   },
   editor: {
+    scheduled: 'Scheduled',
+    schedule: 'Schedule',
+    scheduledFor: 'Goes live {date}',
+    goesLive: 'Goes live on the website {date}',
+    scheduledToast: 'Scheduled for {date}',
     discard: 'Discard changes',
     discardConfirm: 'Discard your unsaved changes and go back to the saved version?',
     discardSharedConfirm: 'Go back to the saved version? The shared text goes back for everyone editing it too.',

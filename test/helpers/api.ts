@@ -124,7 +124,7 @@ export function testDb(): pg.Pool {
 }
 
 /** Tables the seeded accounts live in — never truncated, so the shared sessions stay valid. */
-const KEEP = new Set(['cms_users', 'cms_tokens'])
+const KEEP = new Set(['cms_users', 'cms_tokens', 'cms_state'])
 
 /** Empty every content table (keeps accounts and the migrations journal). Call in beforeEach/beforeAll. */
 export async function truncateAll(pool: pg.Pool): Promise<void> {

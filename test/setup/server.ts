@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer as createHttpServer } from 'node:http'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -71,7 +71,8 @@ export default async function setup(project: TestProject) {
       cwd: playgroundDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
-      env: { ...process.env, NODE_ENV: 'production' },
+      // Scheduled entries are checked every 2 s in tests (every minute by default).
+      env: { ...process.env, NODE_ENV: 'production', CMS_SCHEDULER_CRON: '*/2 * * * * *' },
     })
     if (res.status !== 0) {
       throw new Error(`Playground build failed:\n${res.stdout}\n${res.stderr}`)
@@ -85,11 +86,14 @@ export default async function setup(project: TestProject) {
   const port = await freePort()
   const baseURL = `http://127.0.0.1:${port}`
   const logs: string[] = []
+  // The server runs as in production: without Vitest's TEST flag, which would make
+  // Nitro skip its scheduled tasks (std-env's isTest).
+  const { TEST: _test, VITEST: _vitest, ...parentEnv } = process.env
   const child = spawn(process.execPath, [serverEntry], {
     cwd: playgroundDir,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
-      ...process.env,
+      ...parentEnv,
       NODE_ENV: 'production',
       HOST: '127.0.0.1',
       PORT: String(port),
@@ -114,8 +118,14 @@ export default async function setup(project: TestProject) {
       NUXT_CMS_AUTH_SETUP_TOKEN: SETUP_TOKEN,
     },
   })
-  child.stdout?.on('data', (d) => logs.push(String(d)))
-  child.stderr?.on('data', (d) => logs.push(String(d)))
+  // CMS_TEST_SERVER_LOG_FILE=path: the server's output, as it happens (for debugging).
+  const logFile = process.env.CMS_TEST_SERVER_LOG_FILE
+  const keep = (d: unknown) => {
+    logs.push(String(d))
+    if (logFile) appendFileSync(logFile, String(d))
+  }
+  child.stdout?.on('data', keep)
+  child.stderr?.on('data', keep)
 
   try {
     await waitForServer(baseURL, child, logs)

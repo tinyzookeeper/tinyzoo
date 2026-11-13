@@ -1,4 +1,4 @@
-import { and, blockMediaKeys, inArray, or, sql } from '@my-cms/core'
+import { and, blockMediaKeys, eq, inArray, isNull, lte, or, propOf, sql } from '@my-cms/core'
 import type { CmsEntity, CmsRegistry } from '@my-cms/core'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
@@ -20,9 +20,26 @@ export function getPublicEntity(reg: CmsRegistry, name: string | undefined): Cms
   return e
 }
 
-/** The "is published" Drizzle condition for an entity (undefined = everything is public). */
+/**
+ * The "is live" Drizzle condition for an entity (undefined = everything is public):
+ * `content.published` — or, without one, the publish workflow's status — and, for
+ * scheduled entries, a publish date that has come. Everything that decides what
+ * visitors see goes through here: the content API, populated references, the
+ * sitemap, webhooks.
+ */
 export function publishedCond(e: CmsEntity): any {
-  return e.content?.published ? e.content.published(e.table) : undefined
+  const p = e.publish
+  const status = p ? eq(e.table[propOf(p.field, e.fields[p.field]!)], p.publishedValue) : undefined
+  const base = e.content?.published ? e.content.published(e.table) : status
+  return both(base, scheduleCond(e))
+}
+
+/** "Its publish date has come" (or it has none), for entities whose publishing is scheduled. */
+export function scheduleCond(e: CmsEntity): any {
+  const p = e.publish
+  if (!p?.dateField || p.schedule === false) return undefined
+  const col = e.table[propOf(p.dateField, e.fields[p.dateField]!)]
+  return or(isNull(col), lte(col, sql`now()`))
 }
 
 /** Optional API-token gate. No-op unless `cms.content.token` is configured. */

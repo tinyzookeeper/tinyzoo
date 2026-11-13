@@ -19,7 +19,7 @@ useHead({ title })
 const limit = 20
 const page = ref(1)
 const q = ref('')
-const status = ref<'all' | 'published' | 'draft'>('all')
+const status = ref<'all' | 'published' | 'scheduled' | 'draft'>('all')
 const sort = ref('updatedAt')
 const dir = ref<'asc' | 'desc'>('desc')
 watch([q, entity, status], () => { page.value = 1 })
@@ -116,6 +116,7 @@ function rowMenu(row: any): DropdownMenuItem[][] {
 const tabs = computed(() => [
   { value: 'all', label: t('list.all') },
   { value: 'published', label: t('editor.published') },
+  ...(publish.value?.dateField ? [{ value: 'scheduled', label: t('editor.scheduled') }] : []),
   { value: 'draft', label: t('editor.draft') },
 ])
 </script>
@@ -220,7 +221,11 @@ const tabs = computed(() => [
                 </div>
               </td>
               <td v-for="key in otherCols" :key="key" class="px-4 py-3 whitespace-nowrap">
-                <CmsCell v-if="fieldOf(key)" :field="fieldOf(key)" :row="row" :entity="entity" />
+                <CmsStatusBadge
+                  v-if="publish && key === publish.field" :published="row[publish.field] === publish.publishedValue"
+                  :scheduled-for="publish.dateField ? row[publish.dateField] : null"
+                />
+                <CmsCell v-else-if="fieldOf(key)" :field="fieldOf(key)" :row="row" :entity="entity" />
                 <span v-else>{{ row[key] ?? t('common.none') }}</span>
               </td>
               <td v-if="meta?.locales" class="px-4 py-3 whitespace-nowrap">

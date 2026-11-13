@@ -86,6 +86,12 @@ export interface CmsModuleOptions {
    * `cms:<database name>`, so environments sharing one Redis stay apart.
    */
   redis?: { url?: string; prefix?: string }
+  /**
+   * How often scheduled entries are checked for going live (a cron expression; build
+   * time, env CMS_SCHEDULER_CRON). Their content is live on time regardless — this
+   * only sends the webhooks and live updates for that moment. Default every minute.
+   */
+  scheduler?: { cron?: string }
   /** Revisions (history, compare, restore): how many to keep per entry and language. 0 = off. */
   revisions?: { keep?: number }
   /**
@@ -134,6 +140,10 @@ export default defineNuxtModule<CmsModuleOptions>({
         nitro.serverAssets = nitro.serverAssets || []
         nitro.serverAssets.push({ baseName: 'cms-migrations', dir: migrationsDir })
       }
+      // Scheduled publishing: announce entries whose publish time has come.
+      nitro.experimental = { ...(nitro.experimental || {}), tasks: true }
+      const cron = options.scheduler?.cron || process.env.CMS_SCHEDULER_CRON || '* * * * *'
+      nitro.scheduledTasks = { ...(nitro.scheduledTasks || {}), [cron]: [...((nitro.scheduledTasks as any)?.[cron] ?? []), 'cms:scheduled'] }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
       nitro.externals = nitro.externals || {}

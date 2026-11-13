@@ -76,6 +76,12 @@ export const cmsRevisions = pgTable('cms_revisions', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])
 
+export const cmsState = pgTable('cms_state', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
 export const author = pgTable('author', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

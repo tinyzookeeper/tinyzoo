@@ -2,7 +2,7 @@ import { type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueInde
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
-import { cmsAudit, cmsCollab, cmsRevisions, cmsTokens, cmsUsers } from './system'
+import { cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
@@ -70,8 +70,17 @@ export interface PublishConfig<F extends Record<string, AnyFieldDescriptor>> {
   publishedValue: string
   /** Value meaning "draft". */
   draftValue: string
-  /** Optional datetime field stamped with now() on publish. */
+  /**
+   * Optional datetime field stamped with now() on publish. A date in the future
+   * schedules the entry: it goes live at that moment (see `schedule`).
+   */
   dateField?: keyof F & string
+  /**
+   * Treat a future `dateField` as "scheduled": live only from that moment on (the
+   * content API, sitemap and webhooks all follow it). Default true when there is a
+   * `dateField`.
+   */
+  schedule?: boolean
   /**
    * Frontend preview path template with `:field` placeholders, e.g. '/blog/:slug'.
    * The admin opens it with `?preview` so an editor can see an unpublished draft.
@@ -160,7 +169,7 @@ export interface CmsEntity {
     populate?: string[]
     hidden?: string[]
   }
-  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; preview?: string }
+  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: string }
   live?: boolean
   /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
   preset?: string
@@ -311,6 +320,7 @@ export interface CmsRegistry {
   cmsAudit: typeof cmsAudit
   cmsCollab: typeof cmsCollab
   cmsRevisions: typeof cmsRevisions
+  cmsState: typeof cmsState
 }
 
 const _regCache = new WeakMap<object, CmsRegistry>()
@@ -360,13 +370,13 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     throw new Error(`${withLocalized.map((e) => e.name).join(', ')} ha${withLocalized.length > 1 ? 've' : 's'} localized fields, but no languages are defined. Export \`locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })\` from cms.config.ts.`)
   }
 
-  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions }
+  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState }
   for (const e of entities) schema[e.name] = e.table
   for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
   for (const j of junctions) schema[j.name] = j.table
 
   const graph = entities.map((e) => entityGraph(e, locales))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState }
   _regCache.set(config, reg)
   return reg
 }

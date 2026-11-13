@@ -82,6 +82,11 @@ export default {
     retry: 'Zkusit znovu',
   },
   editor: {
+    scheduled: 'Naplánováno',
+    schedule: 'Naplánovat',
+    scheduledFor: 'Zveřejní se {date}',
+    goesLive: 'Na webu se objeví {date}',
+    scheduledToast: 'Naplánováno na {date}',
     discard: 'Zahodit změny',
     discardConfirm: 'Zahodit neuložené změny a vrátit se k uložené verzi?',
     discardSharedConfirm: 'Vrátit se k uložené verzi? Sdílený text se vrátí i všem, kdo ho právě upravují.',

@@ -224,6 +224,9 @@ useHead({ title: heading })
 const canPublish = computed(() => meta.value?.can?.publish !== false)
 const isPublished = computed(() => !!publish.value && state[publish.value.field] === publish.value.publishedValue)
 const publishedOn = computed(() => (publish.value?.dateField ? state[publish.value.dateField] : null))
+// A publish date ahead: publishing schedules it (live from that moment).
+const futureDate = computed(() => !!publishedOn.value && new Date(publishedOn.value).getTime() > Date.now())
+const isScheduled = computed(() => isPublished.value && futureDate.value)
 
 async function save(successTitle?: string) {
   if (isTranslation.value) return saveTranslation()
@@ -285,7 +288,7 @@ async function setPublished(next: boolean) {
   const before = { status: state[p.field], date: p.dateField ? state[p.dateField] : undefined }
   state[p.field] = next ? p.publishedValue : p.draftValue
   if (next && p.dateField && !state[p.dateField]) state[p.dateField] = new Date().toISOString()
-  const ok = await save(next ? t('editor.publishedToast') : t('editor.unpublishedToast'))
+  const ok = await save(next ? (futureDate.value ? t('editor.scheduledToast', { date: formatDate(publishedOn.value) }) : t('editor.publishedToast')) : t('editor.unpublishedToast'))
   if (!ok) {
     // Never show "Published" for something the server did not accept.
     state[p.field] = before.status
@@ -339,7 +342,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         </template>
         <template v-else>
           <UButton color="neutral" variant="outline" :loading="saving" @click="save()">{{ t('editor.saveDraft') }}</UButton>
-          <UButton :loading="saving" @click="setPublished(true)">{{ t('editor.publish') }}</UButton>
+          <UButton :loading="saving" :icon="futureDate ? 'i-lucide-clock' : undefined" @click="setPublished(true)">{{ futureDate ? t('editor.schedule') : t('editor.publish') }}</UButton>
         </template>
       </template>
       <UButton v-else :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.save') }}</UButton>
@@ -392,9 +395,10 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       <aside class="cms-editor__aside space-y-5" :aria-label="t('editor.status')">
         <div v-if="publish && !isNew" class="space-y-1">
           <p class="text-xs font-medium text-muted">{{ t('editor.status') }}</p>
-          <CmsStatusBadge :published="isPublished" />
+          <CmsStatusBadge :published="isPublished" :scheduled-for="publishedOn" />
           <p class="text-xs text-dimmed">
-            <template v-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
+            <template v-if="isScheduled">{{ t('editor.goesLive', { date: formatDate(publishedOn) }) }}</template>
+            <template v-else-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
             <template v-else-if="!isPublished">{{ canPublish ? t('editor.notPublished') : t('editor.cannotPublish') }}</template>
           </p>
           <p v-if="isTranslation" class="text-xs text-dimmed">{{ t('translation.publishingShared') }}</p>

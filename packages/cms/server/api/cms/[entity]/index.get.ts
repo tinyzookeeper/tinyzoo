@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, propOf, sql } from '@my-cms/core'
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, not, or, propOf, sql } from '@my-cms/core'
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
@@ -20,11 +20,14 @@ export default defineEventHandler(async (event) => {
     const fields = e.admin?.list?.searchable?.length ? e.admin.list.searchable : [e.titleField]
     conds.push(or(...fields.map((fn) => ilike(e.table[fn], `%${search}%`))))
   }
-  // Status tabs: ?status=published | draft (entities with a publish workflow).
+  // Status tabs: ?status=published | scheduled | draft (entities with a publish workflow).
   const p = e.publish
-  if (p && (query.status === 'published' || query.status === 'draft')) {
+  if (p && ['published', 'scheduled', 'draft'].includes(String(query.status))) {
     const col = e.table[propOf(p.field, e.fields[p.field]!)]
-    conds.push(query.status === 'published' ? eq(col, p.publishedValue) : or(isNull(col), ne(col, p.publishedValue)))
+    const live = scheduleCond(e)
+    if (query.status === 'draft') conds.push(or(isNull(col), ne(col, p.publishedValue)))
+    else if (query.status === 'published') conds.push(both(eq(col, p.publishedValue), live))
+    else conds.push(live ? and(eq(col, p.publishedValue), not(live)) : sql`false`)
   }
   const where = conds.length ? and(...conds) : undefined
 

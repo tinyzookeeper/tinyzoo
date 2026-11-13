@@ -100,6 +100,13 @@ export const cmsRevisions = pgTable('cms_revisions', {
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])
 
+/** Small bits of state the CMS keeps for itself (e.g. when the scheduler last ran). */
+export const cmsState = pgTable('cms_state', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+})
+
 /** Source emitted verbatim into db/schema.ts (imports provided by the emitter). */
 export const CMS_SYSTEM_SOURCE = `export const cmsUsers = pgTable('cms_users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -156,4 +163,10 @@ export const cmsRevisions = pgTable('cms_revisions', {
   changed: jsonb('changed').notNull(),
   userId: uuid('user_id'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
-}, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])`
+}, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])
+
+export const cmsState = pgTable('cms_state', {
+  key: text('key').primaryKey(),
+  value: jsonb('value').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})`

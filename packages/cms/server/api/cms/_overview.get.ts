@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
 
   const counts: Record<string, number> = {}
-  const recent: { entity: string; id: string; title: string | null; updatedAt: Date; published: boolean | null }[] = []
+  const recent: { entity: string; id: string; title: string | null; updatedAt: Date; published: boolean | null; publishAt?: Date | null }[] = []
 
   for (const e of reg.entities) {
     const { allowed, where } = accessWhere(e, 'read', user)
@@ -27,8 +27,9 @@ export default defineEventHandler(async (event) => {
 
     const titleCol = e.table[e.titleField]
     const statusCol = e.publish ? e.table[e.publish.field] : undefined
+    const dateCol = e.publish?.dateField ? e.table[e.publish.dateField] : undefined
     const rows: any[] = await db
-      .select({ id: e.table.id, title: titleCol, updatedAt: e.table.updatedAt, ...(statusCol ? { status: statusCol } : {}) })
+      .select({ id: e.table.id, title: titleCol, updatedAt: e.table.updatedAt, ...(statusCol ? { status: statusCol } : {}), ...(dateCol ? { date: dateCol } : {}) })
       .from(e.table).where(where).orderBy(desc(e.table.updatedAt)).limit(RECENT)
     for (const r of rows) {
       recent.push({
@@ -37,6 +38,7 @@ export default defineEventHandler(async (event) => {
         title: r.title == null ? null : String(r.title),
         updatedAt: r.updatedAt,
         published: e.publish ? r.status === e.publish.publishedValue : null,
+        publishAt: r.date ?? null,
       })
     }
   }
