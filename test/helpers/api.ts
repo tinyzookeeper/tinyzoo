@@ -148,3 +148,28 @@ export function doc(text: string, image?: { mediaId: string; src: string }) {
   if (image) content.push({ type: 'image', attrs: { src: image.src, mediaId: image.mediaId, alt: '' } })
   return { type: 'doc', content }
 }
+
+export interface ReceivedHook { file: string; path: string; headers: Record<string, string>; body: string; failed: boolean; json: any }
+
+/** Publish webhooks the test receiver got (oldest first), after `since` (a file name from an earlier call). */
+export function receivedHooks(since = ''): ReceivedHook[] {
+  const dir = inject('hooksDir')
+  return readdirSync(dir).sort().filter((f) => f > since).map((file) => {
+    const h = JSON.parse(readFileSync(join(dir, file), 'utf8'))
+    return { file, ...h, json: JSON.parse(h.body) }
+  })
+}
+
+/** The newest received webhook's file name: pass it to receivedHooks/waitForHooks to see only later ones. */
+export const hooksMark = () => receivedHooks().at(-1)?.file ?? ''
+
+/** Wait until `match` holds for the hooks received after `since`. */
+export async function waitForHooks(since: string, match: (hooks: ReceivedHook[]) => boolean, timeoutMs = 10_000): Promise<ReceivedHook[]> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const hooks = receivedHooks(since)
+    if (match(hooks)) return hooks
+    await new Promise((r) => setTimeout(r, 50))
+  }
+  throw new Error(`webhooks did not arrive within ${timeoutMs}ms: ${JSON.stringify(receivedHooks(since).map((h) => [h.path, h.json.type]))}`)
+}

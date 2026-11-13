@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   const { email } = parseOr422(body, await readBody(event))
   if (!(await rateLimit(`forgot:ip:${clientIp(event)}`, 10, 60 * 60_000)) || !(await rateLimit(`forgot:email:${email}`, 3, 60 * 60_000))) {
-    throw createError({ statusCode: 429, statusMessage: 'Too many requests — try again later' })
+    throw createError({ statusCode: 429, statusMessage: 'Too many requests; try again later' })
   }
   // Resolved now, while the request is alive (it needs the configured public URL).
   let linkBase: string | null = null

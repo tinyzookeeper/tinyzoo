@@ -7,7 +7,7 @@ const body = z.object({ token: z.string().min(1).max(200), name: z.string().trim
 
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
-  if (!(await rateLimit(`accept:ip:${clientIp(event)}`, 20, 15 * 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many attempts — try again later' })
+  if (!(await rateLimit(`accept:ip:${clientIp(event)}`, 20, 15 * 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many attempts; try again later' })
   const data = parseOr422(body, await readBody(event))
   const { db, reg } = useCms()
   const found = await findToken(db, reg, data.token, 'invite')

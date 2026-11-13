@@ -228,6 +228,10 @@ export function useCmsStorage(): StorageDriver {
   if (driver === 'local') {
     const dir = resolve(process.cwd(), cfg.local?.dir || '.cms-uploads')
     const publicBase = cfg.local?.publicBase || '/api/cms/_media/raw'
+    if (process.env.NODE_ENV === 'production') {
+      console.warn(`[cms] media are stored on this server's disk (${dir}). Containers lose it on every deploy — `
+        + 'use object storage in production (NUXT_CMS_STORAGE_DRIVER=s3, see docs/deploying.md).')
+    }
     _driver = new LocalDriver(dir, publicBase)
   } else if (driver === 's3' || driver === 'r2') {
     const s = cfg.s3 ?? {}

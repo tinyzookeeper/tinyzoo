@@ -14,7 +14,10 @@ let _db: ReturnType<typeof createCmsDb> | undefined
 export function useCms(): { db: ReturnType<typeof createCmsDb>; reg: CmsRegistry } {
   const reg = buildRegistry(cmsConfig as Record<string, any>)
   if (!_db) {
-    const url = (useRuntimeConfig().cms as any)?.databaseUrl || process.env.DATABASE_URL
+    // The runtime environment wins over anything set at build time (the platform
+    // injects DATABASE_URL for a linked database).
+    const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
+    const url = env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || (useRuntimeConfig().cms as any)?.databaseUrl
     if (!url) throw createError({ statusCode: 500, statusMessage: 'cms.databaseUrl not configured' })
     _db = createCmsDb(url, reg.schema)
   }

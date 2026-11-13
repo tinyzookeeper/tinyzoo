@@ -218,7 +218,7 @@ export function rethrowDbError(err: any, e: CmsEntity, op: 'write' | 'delete'): 
   }
   if (pgErr?.code === '23503') {
     if (op === 'delete') {
-      throw createError({ statusCode: 409, statusMessage: 'Still in use by other content — remove those references first' })
+      throw createError({ statusCode: 409, statusMessage: 'Still in use by other content; remove those references first' })
     }
     throw createError({ statusCode: 422, statusMessage: 'Refers to an item that does not exist' })
   }

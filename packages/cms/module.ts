@@ -8,7 +8,10 @@ const layerDir = dirname(fileURLToPath(import.meta.url))
 export interface CmsModuleOptions {
   /** Path to the host config, relative to rootDir. Default: 'cms.config.ts'. */
   config?: string
-  /** Postgres connection string. Falls back to env DATABASE_URL at runtime. */
+  /**
+   * Postgres connection string. Leave it out in production: the server reads
+   * NUXT_CMS_DATABASE_URL or DATABASE_URL at runtime, which win over this value.
+   */
   databaseUrl?: string
   /**
    * Runtime DB driver, chosen at BUILD time so only its deps are bundled:
@@ -89,6 +92,12 @@ export interface CmsModuleOptions {
    */
   redis?: { url?: string }
   /**
+   * Publish webhooks: every change visible on the website is POSTed, signed, to these
+   * URLs (e.g. the site's cache-purge endpoint). See server/utils/cmsWebhooks.ts.
+   * Env: NUXT_CMS_WEBHOOKS_URLS (comma separated), NUXT_CMS_WEBHOOKS_SECRET.
+   */
+  webhooks?: { urls?: string | string[]; secret?: string }
+  /**
    * Database migrations bundled into the server build and applied when it starts —
    * for platforms that ship only the build output (Pushbase, containers).
    *  - dir: the drizzle-kit migrations folder, relative to rootDir (default server/db/migrations)
@@ -164,15 +173,28 @@ export default defineNuxtModule<CmsModuleOptions>({
     cms?: { uid: string; sv: number }
   }
 }
+declare module 'nitropack/types' {
+  interface NitroRuntimeHooks {
+    /** A content change was saved (see CmsChange). Runs on the instance that saved it. */
+    'cms:change': (change: import('@my-cms/core').CmsChange) => void | Promise<void>
+  }
+}
 export {}
 `,
     }, { nitro: true, nuxt: true })
 
     // Runtime config consumed by the server DataSource (env override: NUXT_CMS_DATABASE_URL).
     nuxt.options.runtimeConfig.cms = {
-      databaseUrl: options.databaseUrl || process.env.DATABASE_URL || '',
+      // Never read DATABASE_URL here: this runs at BUILD time and would bake the build
+      // machine's database into the output. useCms() reads the env at runtime.
+      databaseUrl: options.databaseUrl || '',
       migrations: { onStart: options.migrations?.onStart ?? false },
       redis: { url: options.redis?.url || '' },
+      // Empty defaults so NUXT_CMS_WEBHOOKS_URLS / NUXT_CMS_WEBHOOKS_SECRET bind at runtime.
+      webhooks: {
+        urls: (Array.isArray(options.webhooks?.urls) ? options.webhooks.urls.join(',') : options.webhooks?.urls) || '',
+        secret: options.webhooks?.secret || '',
+      },
       auth: {
         mode: options.auth?.mode || 'builtin',
         trustedProxies: options.auth?.trustedProxies ?? 1,

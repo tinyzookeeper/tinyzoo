@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const { email, password } = parseOr422(body, await readBody(event))
   const ip = clientIp(event)
   if (!(await rateLimit(`login:ip:${ip}`, 30, WINDOW)) || !(await rateLimit(`login:email:${email}`, 10, WINDOW))) {
-    throw createError({ statusCode: 429, statusMessage: 'Too many sign-in attempts — wait a few minutes and try again' })
+    throw createError({ statusCode: 429, statusMessage: 'Too many sign-in attempts; wait a few minutes and try again' })
   }
 
   const { db, reg } = useCms()

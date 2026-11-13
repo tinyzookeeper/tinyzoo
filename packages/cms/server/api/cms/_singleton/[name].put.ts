@@ -60,6 +60,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await audit(event, 'settings.update', { entity: e.name, recordId: row.id })
+  await reportChange(event, { type: 'global.updated', entity: e, id: row.id, after: row })
   await hydrateRowForForm(db, reg, e, row)
   return { row }
 })

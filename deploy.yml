@@ -1,0 +1,5 @@
+# Pushbase deploy target for the staging playground (see docs/deploying.md).
+# Match the slugs to the project you created; builds with the root Dockerfile.
+project: cms-staging
+app: cms-staging
+environment: production

@@ -6,14 +6,7 @@ export default defineNuxtConfig({
   // @my-cms/client ships TS source; let Vite transpile it (no build step in-repo).
   build: { transpile: ['@my-cms/client'] },
   css: ['~/assets/css/main.css'],
-  cms: {
-    databaseUrl: process.env.DATABASE_URL,
-  },
-  runtimeConfig: {
-    cms: {
-      databaseUrl: process.env.DATABASE_URL || 'postgres://cms:cms@localhost:5434/cms',
-    },
-  },
+  // The database comes from DATABASE_URL at runtime (playground/.env in development).
   devtools: { enabled: false },
   compatibilityDate: '2025-06-01',
 })

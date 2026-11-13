@@ -61,7 +61,11 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  if (e.preset === 'redirects') invalidateRedirects() // takes effect at once on this instance
-  await audit(event, publishAction(e, old, row) ?? 'entry.update', { entity: e.name, recordId: id })
+  const action = publishAction(e, old, row)
+  await audit(event, action ?? 'entry.update', { entity: e.name, recordId: id })
+  await reportChange(event, {
+    type: action === 'entry.publish' ? 'entry.published' : action === 'entry.unpublish' ? 'entry.unpublished' : 'entry.updated',
+    entity: e, id, before: old, after: row,
+  })
   return { row }
 })

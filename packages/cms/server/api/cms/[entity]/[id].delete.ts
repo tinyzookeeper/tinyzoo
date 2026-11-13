@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
   for (const mediaId of new Set([...mediaIdsOf(reg, e, deleted[0]), ...translatedMedia])) {
     await gcMediaIfOrphan(db, reg, storage, mediaId, gcScope(user))
   }
-  if (e.preset === 'redirects') invalidateRedirects() // takes effect at once on this instance
   await audit(event, 'entry.delete', { entity: e.name, recordId: id })
+  await reportChange(event, { type: 'entry.deleted', entity: e, id, before: deleted[0] })
   return { ok: true }
 })

@@ -1,0 +1,13 @@
+.git
+node_modules
+**/node_modules
+**/.output
+**/.nuxt
+**/.data
+**/.cms-uploads
+**/.cms-mail
+**/.env
+**/.env.*
+.playwright-mcp
+.claude
+test

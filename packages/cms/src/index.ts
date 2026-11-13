@@ -21,6 +21,7 @@ export {
   type FilterParam,
 } from './content-shape'
 export { cmsMedia } from './media'
+export type { CmsChange, CmsChangeType } from './changes'
 export { cmsUsers, cmsTokens, cmsAudit, CMS_ROLES, type CmsRole } from './system'
 export { richTextSchema, sanitizeRichText, emptyDoc, type RichTextDoc } from './richtext'
 export type * from './descriptor'

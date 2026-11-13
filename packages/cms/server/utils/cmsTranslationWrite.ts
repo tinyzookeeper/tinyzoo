@@ -58,6 +58,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   await audit(event, 'entry.translate', { entity: e.name, recordId: id, meta: { locale } })
 
   const [fresh] = await db.select().from(e.table).where(eq(e.table.id, id))
+  await reportChange(event, { type: 'translation.updated', entity: e, id, locale, before: fresh, after: fresh, translation: row })
   await hydrateRowForForm(db, reg, e, fresh)
   return translationFormRow(db, reg, e, fresh, locale)
 }
@@ -83,6 +84,7 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
     for (const mid of new Set(jsonMediaIds(e.fields[k], gone[k]))) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
   }
   await audit(event, 'entry.translation_delete', { entity: e.name, recordId: id, meta: { locale } })
+  await reportChange(event, { type: 'translation.deleted', entity: e, id, locale, before: base, translation: gone })
   return { ok: true }
 }
 
