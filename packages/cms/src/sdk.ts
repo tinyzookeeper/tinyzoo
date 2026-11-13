@@ -29,6 +29,7 @@ function tsType(t: ContentFieldType): string {
       return 'string' // string + datetime(ISO) both serialize as string
     case 'richtext': return 'RichTextDoc'
     case 'media': return 'CmsMedia'
+    case 'gallery': return 'CmsGalleryItem[]'
     case 'relation-one': return t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`
     case 'relation-many': return `${t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`}[]`
     case 'blocks': {
@@ -102,6 +103,11 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('  mime: string')
   out.push('  /** Focal point in percent (0–100) of width and height: keep it in view when cropping. */')
   out.push('  focal: { x: number; y: number } | null')
+  out.push('}')
+  out.push('')
+  out.push('/** One item of a gallery field: the file, and its caption. */')
+  out.push('export interface CmsGalleryItem extends CmsMedia {')
+  out.push('  caption: string | null')
   out.push('}')
   out.push('')
 

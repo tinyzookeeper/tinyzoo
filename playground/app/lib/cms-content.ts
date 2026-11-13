@@ -28,6 +28,11 @@ export interface CmsMedia {
   focal: { x: number; y: number } | null
 }
 
+/** One item of a gallery field: the file, and its caption. */
+export interface CmsGalleryItem extends CmsMedia {
+  caption: string | null
+}
+
 // ── nested (populated) projections ─────────────────────────────────────────────
 export interface AuthorEmbedded {
   id: string
@@ -76,6 +81,7 @@ export interface Post {
   author: AuthorEmbedded
   tags: TagEmbedded[]
   body: RichTextDoc
+  gallery: CmsGalleryItem[]
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null

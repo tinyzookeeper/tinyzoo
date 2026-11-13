@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, sql } from '@my-cms/core'
+import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from '@my-cms/core'
 
 // GET /api/cms/_media — paginated media library (newest first). Optional ?q= search
 // over name/alt/key/mime, ?accept= (e.g. "image/*") to filter by MIME so a typed
@@ -27,6 +27,9 @@ export default defineEventHandler(async (event) => {
     const mimeConds = parts.map((a) => a.endsWith('/*') ? sql`${m.mime} ilike ${`${a.slice(0, -1)}%`}` : sql`${m.mime} = ${a}`)
     if (mimeConds.length) conds.push(sql`(${sql.join(mimeConds, sql` or `)})`)
   }
+  // ?ids=a,b — exactly these files (a gallery loading its thumbnails).
+  const ids = String(query.ids ?? '').split(',').filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200)
+  if (ids.length) conds.push(inArray(m.id, ids))
   const folder = typeof query.folder === 'string' ? query.folder : ''
   if (folder === 'none') conds.push(isNull(m.folder))
   else if (folder) conds.push(eq(m.folder, folder.slice(0, 80)))

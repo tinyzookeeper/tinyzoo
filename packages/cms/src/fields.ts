@@ -84,6 +84,9 @@ export function serializeColumn(spec: ColumnSpec, colName: string, ctx: Serializ
  */
 export const LOCALIZABLE_TYPES = new Set(['text', 'slug', 'richtext', 'blocks'])
 
+/** The stored value of a gallery field. */
+export type CmsGalleryValue = { mediaId: string; caption?: string | null }[]
+
 // ── the single field factory ──────────────────────────────────────────────────
 interface FieldConfig {
   type: string
@@ -275,6 +278,20 @@ export const f = {
       zod: () => blocksSchema(blocks as Record<string, BlockDef>),
       createDefault: [],
       blocks: blocks as Record<string, BlockDef>,
+    }, { default: [] })),
+
+  /**
+   * Several files in order, each with an optional caption (a photo gallery, an album).
+   * Stored as `[{ mediaId, caption }]`; the content API returns each as the full media
+   * object plus `caption`.
+   */
+  gallery: (o: { accept?: string; max?: number } = {}) =>
+    as<ScalarKind<CmsGalleryValue, CmsGalleryValue, true>>(createField({
+      type: 'gallery', ui: { edit: 'CmsFieldGallery', cell: 'CmsCellGallery' },
+      base: { kind: 'jsonb' }, tsType: 'CmsGalleryValue',
+      meta: { accept: o.accept ?? 'image/*' },
+      zod: () => z.array(z.object({ mediaId: z.uuid(), caption: z.string().trim().max(500).nullish() })).max(o.max ?? 200),
+      createDefault: [],
     }, { default: [] })),
 
   media: (o: { accept?: string } = {}) =>

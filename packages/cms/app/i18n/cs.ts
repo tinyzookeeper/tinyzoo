@@ -149,6 +149,10 @@ export default {
     shortcutSave: 'Uložit (Ctrl/⌘ S)',
   },
   fields: {
+    galleryCaption: 'Popisek',
+    galleryEarlier: 'Posunout dřív',
+    galleryLater: 'Posunout později',
+    galleryCount: { one: '{count} soubor', few: '{count} soubory', other: '{count} souborů' },
     slugPlaceholder: 'mala-pismena-a-pomlcky',
     linkPrompt: 'Adresa odkazu',
     loadingEditor: 'Načítání editoru…',

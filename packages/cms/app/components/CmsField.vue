@@ -30,7 +30,7 @@ const compact = computed(() => props.placement === 'sidebar')
 const showHelp = ref(false)
 const inputId = computed(() => `cms-field-${props.idPrefix ?? ''}${props.field.key}`)
 // Composite fields (rich text, images, blocks) have no single control to focus.
-const composite = computed(() => ['richtext', 'media', 'blocks'].includes(props.field.type))
+const composite = computed(() => ['richtext', 'media', 'blocks', 'gallery'].includes(props.field.type))
 // Field widgets that adapt to where they sit (e.g. the image field) read this.
 provide('cmsFieldPlacement', computed(() => props.placement ?? 'main'))
 </script>

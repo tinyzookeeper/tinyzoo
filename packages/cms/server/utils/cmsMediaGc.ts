@@ -2,6 +2,9 @@ import { eq, mediaIdsInBlocks, sql } from '@my-cms/core'
 import type { CmsRegistry } from '@my-cms/core'
 import type { StorageDriver } from './cmsStorage'
 
+/** Field types storing JSON that can hold media ids (rich text images, blocks, galleries). */
+export const JSON_MEDIA_TYPES = new Set(['richtext', 'blocks', 'gallery'])
+
 /** Every (table, column) pair that holds a media FK, across all entities. */
 function mediaColumns(reg: CmsRegistry): { table: any; col: any }[] {
   const cols: { table: any; col: any }[] = []
@@ -21,7 +24,7 @@ function richTextColumns(reg: CmsRegistry): { table: any; col: any }[] {
   const cols: { table: any; col: any }[] = []
   for (const e of reg.entities) {
     for (const [key, fld] of Object.entries(e.fields)) {
-      if ((fld as any).type === 'richtext' || (fld as any).type === 'blocks') {
+      if (JSON_MEDIA_TYPES.has((fld as any).type)) {
         cols.push({ table: e.table, col: (e.table as any)[key] })
         // …and the same field in every translation.
         if ((fld as any).isLocalized && e.localesTable) cols.push({ table: e.localesTable, col: e.localesTable[key] })
@@ -34,6 +37,7 @@ function richTextColumns(reg: CmsRegistry): { table: any; col: any }[] {
 /** Media ids referenced by one jsonb value of a field (rich text or blocks). */
 export function jsonMediaIds(fld: any, value: unknown): string[] {
   if (fld?.type === 'blocks') return mediaIdsInBlocks(value, fld.blocks ?? {})
+  if (fld?.type === 'gallery') return Array.isArray(value) ? value.map((x: any) => x?.mediaId).filter((id: unknown): id is string => typeof id === 'string') : []
   return embeddedMediaIds(value)
 }
 
@@ -74,7 +78,7 @@ export function mediaIdsOf(reg: CmsRegistry, e: any, row: Record<string, any>): 
   for (const [key, fld] of Object.entries(e.fields)) {
     if ((fld as any).type === 'media' && row[`${key}Id`]) ids.push(row[`${key}Id`])
     else if ((fld as any).type === 'richtext' && row[key]) embeddedMediaIds(row[key], ids)
-    else if ((fld as any).type === 'blocks' && row[key]) ids.push(...jsonMediaIds(fld, row[key]))
+    else if (((fld as any).type === 'blocks' || (fld as any).type === 'gallery') && row[key]) ids.push(...jsonMediaIds(fld, row[key]))
   }
   return ids
 }
@@ -131,7 +135,7 @@ export async function mediaUsage(db: any, reg: CmsRegistry, user: any, mediaId: 
       if (type === 'media') {
         add(await db.select({ id: e.table.id, title }).from(e.table).where(both(eq((e.table as any)[`${key}Id`], mediaId), where)).limit(limit))
       }
-      else if (type === 'richtext' || type === 'blocks') {
+      else if (JSON_MEDIA_TYPES.has(type)) {
         add(await db.select({ id: e.table.id, title }).from(e.table).where(both(like((e.table as any)[key]), where)).limit(limit))
         const t = e.localesTable
         if ((fld as any).isLocalized && t) {
@@ -162,7 +166,7 @@ export async function isMediaLive(db: any, reg: CmsRegistry, mediaId: string, me
       const type = (fld as any).type
       let cond: any = null
       if (type === 'media') cond = eq((e.table as any)[`${key}Id`], mediaId)
-      else if (type === 'richtext' || type === 'blocks') {
+      else if (JSON_MEDIA_TYPES.has(type)) {
         cond = like((e.table as any)[key])
         const t = e.localesTable
         if ((fld as any).isLocalized && t) {

@@ -79,7 +79,7 @@ export const Post = defineEntity("post", {
     // The form's main column in two tabs: the text first, the main image beside it.
     tabs: [
       { label: { en: "Text", cs: "Text" }, fields: ["body"] },
-      { label: { en: "Image", cs: "Obrázek" }, fields: ["hero"] },
+      { label: { en: "Images", cs: "Obrázky" }, fields: ["hero", "gallery"] },
     ],
   },
   fields: {
@@ -104,6 +104,8 @@ export const Post = defineEntity("post", {
     }).label({ en: "Author", cs: "Autor" }),
     tags: f.relation({ to: () => Tag, kind: "many-to-many" }).label({ en: "Tags", cs: "Štítky" }),
     body: f.richtext().localized().label({ en: "Text", cs: "Text" }),
+    gallery: f.gallery().label({ en: "Photos", cs: "Fotky" })
+      .help({ en: "Shown under the text, in this order.", cs: "Zobrazí se pod textem, v tomto pořadí." }),
     ...seo(),
   },
   // Who may do what comes from the built-in roles (admin, editor, author). An entity

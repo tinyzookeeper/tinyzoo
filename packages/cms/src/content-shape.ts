@@ -18,6 +18,7 @@ export type ContentFieldType =
   | { kind: 'scalar'; scalar: 'string' | 'integer' | 'number' | 'boolean' | 'datetime'; enumValues?: readonly string[]; pattern?: string }
   | { kind: 'richtext' }
   | { kind: 'media' }
+  | { kind: 'gallery' }
   | { kind: 'relation-one'; target: string; public: boolean }
   | { kind: 'relation-many'; target: string; public: boolean }
   | { kind: 'blocks'; blocks: { type: string; fields: ContentField[] }[] }
@@ -168,6 +169,11 @@ function topLevelFields(reg: CmsRegistry, e: CmsEntity): ContentField[] {
       out.push({ key, type: blocksType(fld), nullable: false })
       continue
     }
+    // Galleries are always resolved (like blocks): an array of media + caption.
+    if (fld.type === 'gallery') {
+      out.push({ key, type: { kind: 'gallery' }, nullable: false })
+      continue
+    }
     out.push({ key, type: scalarType(fld), nullable: fld.isOptional })
   }
   return out
@@ -179,7 +185,7 @@ function embeddedFields(e: CmsEntity): ContentField[] {
   const out: ContentField[] = []
   for (const [key, fld] of Object.entries(e.fields)) {
     // Blocks are not embedded in related items (they can hold media to resolve).
-    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks') continue
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'gallery') continue
     out.push({ key, type: scalarType(fld), nullable: fld.isOptional })
   }
   return out
@@ -190,7 +196,7 @@ function sortKeys(e: CmsEntity): string[] {
   const hidden = hiddenSet(e)
   const keys = ['createdAt', 'updatedAt']
   for (const [key, fld] of Object.entries(e.fields)) {
-    if (!hidden.has(key) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks') keys.push(key)
+    if (!hidden.has(key) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks' && fld.type !== 'gallery') keys.push(key)
   }
   return keys
 }

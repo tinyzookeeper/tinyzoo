@@ -53,6 +53,7 @@ function fieldSchema(t: ContentFieldType): JsonSchema {
     case 'scalar': return scalarSchema(t)
     case 'richtext': return REF('RichTextDoc')
     case 'media': return REF('CmsMedia')
+    case 'gallery': return { type: 'array', items: REF('CmsGalleryItem') }
     case 'relation-one': return REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`)
     case 'relation-many': return { type: 'array', items: REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`) }
     case 'blocks': {
@@ -164,6 +165,13 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
         },
       },
       required: ['id', 'url', 'width', 'height', 'alt', 'mime', 'focal'],
+    },
+    CmsGalleryItem: {
+      allOf: [REF('CmsMedia'), {
+        type: 'object',
+        properties: { caption: { type: ['string', 'null'] } },
+        required: ['caption'],
+      }],
     },
   }
 

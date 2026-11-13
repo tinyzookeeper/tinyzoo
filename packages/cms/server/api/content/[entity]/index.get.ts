@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   // arbitrary keys (proto/Drizzle methods) and never a hidden-column ordering oracle.
   const sortable = new Set<string>(['createdAt', 'updatedAt'])
   for (const [k, fld] of Object.entries(e.fields)) {
-    if (!hidden.has(k) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks') sortable.add(k)
+    if (!hidden.has(k) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks' && fld.type !== 'gallery') sortable.add(k)
   }
   const sortKey = sortable.has(String(query.sort)) ? String(query.sort) : (orderField && sortable.has(orderField) ? orderField : 'createdAt')
   const dir = query.dir === 'asc' || (!query.dir && !query.sort && sortKey === orderField) ? asc : desc
