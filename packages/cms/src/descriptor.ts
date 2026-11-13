@@ -96,6 +96,8 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   ui: FieldUi
   meta: Record<string, unknown>
   relation?: RelationSpec
+  /** Block type definitions (blocks fields only). */
+  blocks?: Record<string, import('./blocks').BlockDef>
   /** null ⇒ owns no DB column (many-to-many, one-to-many). */
   spec: ColumnSpec | null
   zod(mode?: ValidationMode): ZodTypeAny

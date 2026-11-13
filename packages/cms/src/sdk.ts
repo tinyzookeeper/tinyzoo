@@ -31,6 +31,13 @@ function tsType(t: ContentFieldType): string {
     case 'media': return 'CmsMedia'
     case 'relation-one': return t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`
     case 'relation-many': return `${t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`}[]`
+    case 'blocks': {
+      const variants = t.blocks.map((b) => {
+        const fields = b.fields.map((f) => `${f.key}: ${tsType(f.type)}${f.nullable ? ' | null' : ''}`)
+        return `{ id: string; type: '${b.type}'${fields.length ? `; ${fields.join('; ')}` : ''} }`
+      })
+      return `Array<${variants.length ? variants.join(' | ') : 'never'}>`
+    }
   }
 }
 

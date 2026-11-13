@@ -1,4 +1,4 @@
-import { defineEntity, defineSingleton, eq, f, seo } from "@my-cms/core"
+import { defineBlock, defineEntity, defineSingleton, eq, f, seo } from "@my-cms/core"
 
 // A single-row global: site-wide settings, editable under "Globals" in the admin
 // and delivered headlessly at GET /api/content/_global/siteSettings.
@@ -113,5 +113,74 @@ export const Post = defineEntity("post", {
     published: (table) => eq(table.status, "published"),
     slug: "slug",
     populate: ["hero", "author", "tags", "ogImage"],
+  },
+})
+
+// A page assembled from blocks: the client picks, orders and fills sections.
+export const Page = defineEntity("page", {
+  label: { en: "Pages", cs: "Stránky" },
+  labelSingular: { en: "Page", cs: "Stránka" },
+  description: { en: "Pages of the website, built from blocks.", cs: "Stránky webu poskládané z bloků." },
+  icon: "i-lucide-file",
+  titleField: "title",
+  admin: { list: { columns: ["title", "status"] } },
+  fields: {
+    title: f.text({ required: true }).label({ en: "Title", cs: "Název" }),
+    slug: f.slug({ from: "title", unique: true }).label({ en: "URL address", cs: "Adresa (URL)" }),
+    status: f.select({
+      options: ["draft", "published"] as const,
+      default: "draft",
+      labels: { draft: { en: "Draft", cs: "Koncept" }, published: { en: "Published", cs: "Zveřejněno" } },
+    }),
+    sections: f.blocks({
+      hero: defineBlock({
+        label: { en: "Hero", cs: "Úvod" },
+        description: { en: "A large heading with an image and a button.", cs: "Velký nadpis s obrázkem a tlačítkem." },
+        icon: "i-lucide-panel-top",
+        fields: {
+          heading: f.text({ required: true }).label({ en: "Heading", cs: "Nadpis" }),
+          lead: f.text().label({ en: "Lead", cs: "Perex" }),
+          image: f.media({ accept: "image/*" }).label({ en: "Image", cs: "Obrázek" }),
+          buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
+          buttonUrl: f.text().label({ en: "Button link", cs: "Odkaz tlačítka" }),
+        },
+      }),
+      text: defineBlock({
+        label: { en: "Text", cs: "Text" },
+        description: { en: "Formatted text with an optional heading.", cs: "Formátovaný text s volitelným nadpisem." },
+        icon: "i-lucide-text",
+        fields: {
+          heading: f.text().label({ en: "Heading", cs: "Nadpis" }),
+          body: f.richtext().label({ en: "Text", cs: "Text" }),
+        },
+      }),
+      image: defineBlock({
+        label: { en: "Image", cs: "Obrázek" },
+        description: { en: "One image across the page, with a caption.", cs: "Jeden obrázek přes celou šířku s popiskem." },
+        icon: "i-lucide-image",
+        fields: {
+          image: f.media({ accept: "image/*" }).label({ en: "Image", cs: "Obrázek" }),
+          caption: f.text().label({ en: "Caption", cs: "Popisek" }),
+        },
+      }),
+      cta: defineBlock({
+        label: { en: "Call to action", cs: "Výzva k akci" },
+        description: { en: "A short message with one button.", cs: "Krátké sdělení s jedním tlačítkem." },
+        icon: "i-lucide-mouse-pointer-click",
+        fields: {
+          text: f.text({ required: true }).label({ en: "Text", cs: "Text" }),
+          buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
+          buttonUrl: f.text().label({ en: "Button link", cs: "Odkaz tlačítka" }),
+          highlighted: f.boolean().label({ en: "Highlighted", cs: "Zvýrazněné" }),
+        },
+      }),
+    }).label({ en: "Content", cs: "Obsah" }),
+    ...seo(),
+  },
+  publish: { field: "status", publishedValue: "published", draftValue: "draft", preview: "/:slug" },
+  content: {
+    public: true,
+    published: (table) => eq(table.status, "published"),
+    slug: "slug",
   },
 })

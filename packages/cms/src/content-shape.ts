@@ -20,6 +20,7 @@ export type ContentFieldType =
   | { kind: 'media' }
   | { kind: 'relation-one'; target: string; public: boolean }
   | { kind: 'relation-many'; target: string; public: boolean }
+  | { kind: 'blocks'; blocks: { type: string; fields: ContentField[] }[] }
 
 export interface ContentField {
   key: string
@@ -110,6 +111,22 @@ function scalarType(fld: FieldDescriptor): ContentFieldType {
   }
 }
 
+/**
+ * A blocks field as the API returns it (mirror cmsContent.projectBlocks): every block
+ * carries id, type and each of its type's fields (null when empty); media resolved
+ * to the public media object.
+ */
+function blocksType(fld: FieldDescriptor): ContentFieldType {
+  const blocks = Object.entries(fld.blocks ?? {}).map(([type, def]) => ({
+    type,
+    fields: (Object.entries(def.fields) as [string, FieldDescriptor][]).map(([key, bf]): ContentField =>
+      bf.type === 'media'
+        ? { key, type: { kind: 'media' }, nullable: true }
+        : { key, type: scalarType(bf), nullable: !bf.isRequired }),
+  }))
+  return { kind: 'blocks', blocks }
+}
+
 /** Is a projected to-one relation possibly null? (optional FK, or target is publish-gated.) */
 function relationOneNullable(reg: CmsRegistry, fld: FieldDescriptor): boolean {
   const optional = !fld.relation!.required
@@ -145,6 +162,10 @@ function topLevelFields(reg: CmsRegistry, e: CmsEntity): ContentField[] {
       if (f) out.push(f)
       continue
     }
+    if (fld.type === 'blocks') {
+      out.push({ key, type: blocksType(fld), nullable: false })
+      continue
+    }
     out.push({ key, type: scalarType(fld), nullable: fld.isOptional })
   }
   return out
@@ -155,7 +176,8 @@ function embeddedFields(e: CmsEntity): ContentField[] {
   const hidden = hiddenSet(e)
   const out: ContentField[] = []
   for (const [key, fld] of Object.entries(e.fields)) {
-    if (hidden.has(key) || fld.relation || fld.type === 'media') continue
+    // Blocks are not embedded in related items (they can hold media to resolve).
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks') continue
     out.push({ key, type: scalarType(fld), nullable: fld.isOptional })
   }
   return out
@@ -166,7 +188,7 @@ function sortKeys(e: CmsEntity): string[] {
   const hidden = hiddenSet(e)
   const keys = ['createdAt', 'updatedAt']
   for (const [key, fld] of Object.entries(e.fields)) {
-    if (!hidden.has(key) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext') keys.push(key)
+    if (!hidden.has(key) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks') keys.push(key)
   }
   return keys
 }

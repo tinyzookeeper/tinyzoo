@@ -1,4 +1,5 @@
 import type { LocalizedText } from './i18n'
+import { type BlockDef, type BlocksValue, blocksGraph, blocksSchema } from './blocks'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
   type PgColumnBuilder,
@@ -89,6 +90,8 @@ interface FieldConfig {
   defaultDbDefault?: 'now' | 'random'
   /** Payload default applied ONLY on create (e.g. [] for m2m). Never on update. */
   createDefault?: unknown
+  /** Block type definitions (blocks fields only). */
+  blocks?: Record<string, BlockDef>
 }
 
 interface Mods {
@@ -147,7 +150,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     type: cfg.type,
     isRequired, isUnique, isOptional,
     default: mods.default, dbDefault,
-    ui: cfg.ui, meta, relation: cfg.relation,
+    ui: cfg.ui, meta, relation: cfg.relation, blocks: cfg.blocks,
     spec, zod,
     optional: () => createField(cfg, { ...mods, isOptional: true, isRequired: false }),
     unique: () => createField(cfg, { ...mods, isUnique: true }),
@@ -236,6 +239,22 @@ export const f = {
       type: 'richtext', ui: { edit: 'CmsFieldRichText', cell: 'CmsCellExcerpt' },
       base: { kind: 'jsonb' }, tsType: 'RichTextDoc', zod: () => richTextSchema as ZodTypeAny,
     })),
+
+  /**
+   * An ordered list of typed sections (hero, text, gallery…) that editors arrange
+   * into a page. Define each type with `defineBlock()`. Stored as jsonb; defaults to [].
+   *
+   *   sections: f.blocks({ hero: defineBlock({ label: 'Hero', fields: { heading: f.text() } }) })
+   */
+  blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) =>
+    as<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>(createField({
+      type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
+      base: { kind: 'jsonb' }, tsType: 'CmsBlock[]',
+      meta: { blocks: blocksGraph(blocks as Record<string, BlockDef>) },
+      zod: () => blocksSchema(blocks as Record<string, BlockDef>),
+      createDefault: [],
+      blocks: blocks as Record<string, BlockDef>,
+    }, { default: [] })),
 
   media: (o: { accept?: string } = {}) =>
     as<FkKind>(createField({

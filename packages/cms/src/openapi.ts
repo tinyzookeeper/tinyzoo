@@ -55,6 +55,14 @@ function fieldSchema(t: ContentFieldType): JsonSchema {
     case 'media': return REF('CmsMedia')
     case 'relation-one': return REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`)
     case 'relation-many': return { type: 'array', items: REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`) }
+    case 'blocks': {
+      const variants = t.blocks.map((b) => {
+        const properties: JsonSchema = { id: { type: 'string' }, type: { type: 'string', const: b.type } }
+        for (const f of b.fields) properties[f.key] = nullable(fieldSchema(f.type), f.nullable)
+        return { type: 'object', properties, required: ['id', 'type', ...b.fields.map((f) => f.key)], additionalProperties: false }
+      })
+      return { type: 'array', items: variants.length === 1 ? variants[0] : { oneOf: variants, discriminator: { propertyName: 'type' } } }
+    }
   }
 }
 

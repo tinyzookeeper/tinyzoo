@@ -29,6 +29,13 @@
       "when": 1794578732346,
       "tag": "0003_users_roles_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794581808358,
+      "tag": "0004_pages_blocks",
+      "breakpoints": true
     }
   ]
 }

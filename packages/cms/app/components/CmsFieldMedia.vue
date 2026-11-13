@@ -91,13 +91,13 @@ function clear() {
     <div v-if="media" class="space-y-2">
       <div
         class="group relative overflow-hidden rounded-(--ui-radius) border border-default bg-muted"
-        :class="compact ? 'aspect-[1.91/1]' : 'max-h-80'"
+        :class="compact ? 'aspect-[1.91/1]' : 'max-h-56'"
       >
         <img
           v-if="isImage" :src="media.url" :alt="media.alt ?? ''"
           :width="media.width || undefined" :height="media.height || undefined"
           loading="lazy" decoding="async" class="block size-full object-cover"
-          :class="compact ? '' : 'max-h-80 object-contain mx-auto'"
+          :class="compact ? '' : 'max-h-56 object-contain mx-auto'"
         >
         <div v-else class="flex items-center gap-2 p-3 text-sm text-muted">
           <UIcon name="i-lucide-file" class="size-5" /> {{ media.mime }}

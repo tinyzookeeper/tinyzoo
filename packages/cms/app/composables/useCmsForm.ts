@@ -11,8 +11,12 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
 
   const state = reactive<Record<string, any>>({})
   const fieldErrors = reactive<Record<string, string>>({})
-  // Field components (e.g. slug auto-fill) read sibling values and create-mode.
-  provide('cmsForm', { state, isNew })
+  // Every issue by its full path ("sections.2.heading"), for fields that hold
+  // nested values (blocks) and want to show an error inside a collapsed part.
+  const issues = reactive<Record<string, string>>({})
+  // Field components (e.g. slug auto-fill, blocks) read sibling values, create-mode
+  // and nested issues.
+  provide('cmsForm', { state, isNew, issues })
 
   const editable = computed(() => fields.value.filter((f: any) => f.relation?.kind !== 'one-to-many'))
 
@@ -20,6 +24,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     if (f.type === 'boolean') return false
     if (f.relation?.kind === 'many-to-many') return []
     if (f.type === 'richtext') return { type: 'doc', content: [] }
+    if (f.type === 'blocks') return []
     return undefined
   }
 
@@ -64,6 +69,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   async function submit(run: () => Promise<unknown>, successTitle = t('editor.saved')): Promise<boolean> {
     saving.value = true
     Object.keys(fieldErrors).forEach((k) => delete fieldErrors[k])
+    Object.keys(issues).forEach((k) => delete issues[k])
     try {
       await run()
       dirty.value = false
@@ -71,9 +77,13 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
       return true
     }
     catch (e: any) {
-      const issues = e?.data?.data
-      if (Array.isArray(issues) && issues.some((i: any) => i?.path?.[0])) {
-        for (const i of issues) if (i.path?.[0]) fieldErrors[i.path[0]] = i.message
+      const issueList = e?.data?.data
+      if (Array.isArray(issueList) && issueList.some((i: any) => i?.path?.[0])) {
+        for (const i of issueList) {
+          if (!i.path?.[0]) continue
+          fieldErrors[i.path[0]] ??= i.message
+          issues[i.path.join('.')] = i.message
+        }
         toast.add({ title: t('editor.fixFields'), icon: 'i-lucide-triangle-alert', color: 'error' })
       }
       else {
@@ -86,5 +96,5 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     }
   }
 
-  return { state, fieldErrors, editable, dirty, saving, load, body, submit }
+  return { state, fieldErrors, issues, editable, dirty, saving, load, body, submit }
 }

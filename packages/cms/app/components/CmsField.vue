@@ -9,8 +9,12 @@
 //
 // One field convention everywhere: required fields carry no marker, optional ones
 // say "Optional". Help text sits under the control in the content column; in the
-// properties panel it is behind a small info icon, so the panel stays scannable.
-const props = defineProps<{ field: any; entity: string; error?: string; placement?: 'main' | 'sidebar' }>()
+// properties panel it is one click away behind an info toggle.
+//
+// The label is ours, linked to the control by a STABLE id derived from the field
+// key (not useId): pages that await data render ids differently on the server and
+// in the browser, which left server-rendered labels pointing at nothing.
+const props = defineProps<{ field: any; entity: string; error?: string; placement?: 'main' | 'sidebar'; idPrefix?: string }>()
 const model = defineModel<any>()
 
 const appConfig = useAppConfig()
@@ -23,24 +27,40 @@ const { t, fieldLabel, fieldHelp } = useCmsI18n()
 const label = computed(() => fieldLabel(props.field))
 const help = computed(() => fieldHelp(props.field))
 const compact = computed(() => props.placement === 'sidebar')
+const showHelp = ref(false)
+const inputId = computed(() => `cms-field-${props.idPrefix ?? ''}${props.field.key}`)
+// Composite fields (rich text, images, blocks) have no single control to focus.
+const composite = computed(() => ['richtext', 'media', 'blocks'].includes(props.field.type))
 // Field widgets that adapt to where they sit (e.g. the image field) read this.
 provide('cmsFieldPlacement', computed(() => props.placement ?? 'main'))
 </script>
 
 <template>
-  <UFormField
-    :name="field.key" :error="error" :help="compact ? undefined : help"
-    :ui="{ label: compact ? 'text-xs font-medium text-muted' : 'font-medium text-highlighted', hint: 'text-xs text-dimmed', help: 'text-muted' }"
-  >
-    <template #label>
-      <span class="inline-flex items-center gap-1">
+  <div class="space-y-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <component
+        :is="composite ? 'span' : 'label'" :for="composite ? undefined : inputId" :id="`${inputId}-label`"
+        class="inline-flex items-center gap-1"
+        :class="compact ? 'text-xs font-medium text-muted' : 'text-sm font-medium text-highlighted'"
+      >
         {{ label }}
-        <UTooltip v-if="compact && help" :text="help" :content="{ side: 'top' }">
-          <UIcon name="i-lucide-info" class="size-3.5 text-dimmed" :aria-label="help" />
-        </UTooltip>
-      </span>
-    </template>
-    <template v-if="field.optional" #hint>{{ t('common.optional') }}</template>
-    <component :is="component" v-model="model" :field="field" :entity="entity" />
-  </UFormField>
+        <button
+          v-if="compact && help" type="button" class="text-dimmed hover:text-highlighted"
+          :aria-label="t('fields.showHelp')" :aria-expanded="showHelp" @click.prevent="showHelp = !showHelp"
+        >
+          <UIcon name="i-lucide-info" class="size-3.5 block" />
+        </button>
+      </component>
+      <span v-if="field.optional" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
+    </div>
+    <UFormField
+      :name="field.key" :error="error" :help="compact ? (showHelp ? help : undefined) : help"
+      :ui="{ help: 'text-muted', error: 'text-error' }"
+    >
+      <component
+        :is="component" :id="inputId" v-model="model" :field="field" :entity="entity"
+        :aria-labelledby="composite ? `${inputId}-label` : undefined"
+      />
+    </UFormField>
+  </div>
 </template>

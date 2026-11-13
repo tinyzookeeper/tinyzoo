@@ -46,6 +46,18 @@ export interface Author {
   createdAt: string
   updatedAt: string
 }
+export interface Page {
+  id: string
+  title: string
+  slug: string
+  status: 'draft' | 'published'
+  sections: Array<{ id: string; type: 'hero'; heading: string; lead: string | null; image: CmsMedia | null; buttonLabel: string | null; buttonUrl: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'image'; image: CmsMedia | null; caption: string | null } | { id: string; type: 'cta'; text: string; buttonLabel: string | null; buttonUrl: string | null; highlighted: boolean | null }>
+  metaTitle: string | null
+  metaDescription: string | null
+  ogImage: CmsMedia | null
+  createdAt: string
+  updatedAt: string
+}
 export interface Post {
   id: string
   title: string
@@ -74,6 +86,13 @@ export interface Tag {
 export interface AuthorFilters {
   name?: string
 }
+export interface PageFilters {
+  title?: string
+  slug?: string
+  status?: 'draft' | 'published'
+  metaTitle?: string
+  metaDescription?: string
+}
 export interface PostFilters {
   title?: string
   slug?: string
@@ -90,6 +109,7 @@ export interface TagFilters {
 /** Maps each collection to its item / sort keys / filters. */
 export type ContentSchema = {
   author: { item: Author, sort: 'createdAt' | 'updatedAt' | 'name', filters: AuthorFilters }
+  page: { item: Page, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'metaTitle' | 'metaDescription', filters: PageFilters }
   post: { item: Post, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'publishedAt' | 'metaTitle' | 'metaDescription', filters: PostFilters }
   tag: { item: Tag, sort: 'createdAt' | 'updatedAt' | 'name' | 'slug', filters: TagFilters }
 }

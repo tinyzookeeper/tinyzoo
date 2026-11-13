@@ -1,4 +1,4 @@
-import { eq, sql } from '@my-cms/core'
+import { eq, mediaIdsInBlocks, sql } from '@my-cms/core'
 import type { CmsRegistry } from '@my-cms/core'
 import type { StorageDriver } from './cmsStorage'
 
@@ -13,15 +13,24 @@ function mediaColumns(reg: CmsRegistry): { table: any; col: any }[] {
   return cols
 }
 
-/** Every (table, column) pair that holds a rich-text jsonb doc (may embed images). */
+/**
+ * Every (table, column) pair holding jsonb that can reference media: rich text
+ * (embedded images) and blocks (media fields and rich text inside blocks).
+ */
 function richTextColumns(reg: CmsRegistry): { table: any; col: any }[] {
   const cols: { table: any; col: any }[] = []
   for (const e of reg.entities) {
     for (const [key, fld] of Object.entries(e.fields)) {
-      if ((fld as any).type === 'richtext') cols.push({ table: e.table, col: (e.table as any)[key] })
+      if ((fld as any).type === 'richtext' || (fld as any).type === 'blocks') cols.push({ table: e.table, col: (e.table as any)[key] })
     }
   }
   return cols
+}
+
+/** Media ids referenced by one jsonb value of a field (rich text or blocks). */
+export function jsonMediaIds(fld: any, value: unknown): string[] {
+  if (fld?.type === 'blocks') return mediaIdsInBlocks(value, fld.blocks ?? {})
+  return embeddedMediaIds(value)
 }
 
 /** Collect cms_media ids embedded in a rich-text doc (image nodes carry `mediaId`). */
@@ -61,6 +70,7 @@ export function mediaIdsOf(reg: CmsRegistry, e: any, row: Record<string, any>): 
   for (const [key, fld] of Object.entries(e.fields)) {
     if ((fld as any).type === 'media' && row[`${key}Id`]) ids.push(row[`${key}Id`])
     else if ((fld as any).type === 'richtext' && row[key]) embeddedMediaIds(row[key], ids)
+    else if ((fld as any).type === 'blocks' && row[key]) ids.push(...jsonMediaIds(fld, row[key]))
   }
   return ids
 }

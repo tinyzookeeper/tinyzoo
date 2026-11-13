@@ -1,4 +1,4 @@
-import { and, inArray } from '@my-cms/core'
+import { and, blockMediaKeys, inArray } from '@my-cms/core'
 import type { CmsEntity, CmsRegistry } from '@my-cms/core'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
@@ -76,7 +76,7 @@ function projectScalars(target: CmsEntity, row: any) {
   const hidden = new Set(target.content?.hidden ?? [])
   const out: Record<string, any> = { id: row.id }
   for (const [key, fld] of Object.entries(target.fields)) {
-    if (hidden.has(key) || fld.relation || fld.type === 'media') continue
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks') continue
     out[key] = row[key]
   }
   return out
@@ -105,6 +105,7 @@ function populatableKeys(e: CmsEntity): string[] {
  */
 export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[]) {
   if (!rows.length) return
+  await populateBlocks(db, reg, e, rows)
   const keys = populate ?? populatableKeys(e)
   for (const key of keys) {
     const fld = e.fields[key]
@@ -148,6 +149,45 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
         byOwner.set(l[j.ownerCol], arr)
       }
       for (const r of rows) r[key] = byOwner.get(r.id) ?? []
+    }
+  }
+}
+
+/**
+ * Blocks as the public API returns them (mirrored by content-shape blocksType): only
+ * known block types; every block has id, type and each of its fields (null when
+ * empty); media ids replaced by the public media object (batched across rows).
+ */
+async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[]) {
+  const blockFields = Object.entries(e.fields).filter(([, f]) => f.type === 'blocks' && f.blocks)
+  if (!blockFields.length) return
+  const ids = new Set<string>()
+  for (const [key, fld] of blockFields) {
+    const mediaKeys = blockMediaKeys(fld.blocks!)
+    for (const r of rows) {
+      for (const b of Array.isArray(r[key]) ? r[key] : []) {
+        for (const mk of mediaKeys.get(b?.type) ?? []) if (typeof b[mk] === 'string' && b[mk]) ids.add(b[mk])
+      }
+    }
+  }
+  const byId = new Map<string, any>()
+  if (ids.size) {
+    const media: any[] = await db.select().from(reg.cmsMedia).where(inArray(reg.cmsMedia.id, [...ids]))
+    for (const m of media) byId.set(m.id, mediaProjection(m))
+  }
+  for (const [key, fld] of blockFields) {
+    const defs = fld.blocks!
+    for (const r of rows) {
+      r[key] = (Array.isArray(r[key]) ? r[key] : [])
+        .filter((b: any) => b && typeof b === 'object' && defs[b.type])
+        .map((b: any) => {
+          const out: Record<string, any> = { id: String(b.id), type: b.type }
+          for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) {
+            const v = b[fk] ?? null
+            out[fk] = bf.type === 'media' ? (v ? byId.get(v) ?? null : null) : v
+          }
+          return out
+        })
     }
   }
 }

@@ -33,7 +33,7 @@ else {
 const publish = computed(() => meta.value?.publish)
 const titleKey = computed(() => meta.value?.titleField as string | undefined)
 const titleField = computed(() => editable.value.find((f: any) => f.key === titleKey.value))
-const MAIN_TYPES = new Set(['text', 'richtext', 'media'])
+const MAIN_TYPES = new Set(['text', 'richtext', 'media', 'blocks'])
 const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TYPES.has(f.type) ? 'main' : 'sidebar')
 // The publish field is changed by the Publish action, not edited as a field.
 const formFields = computed(() => editable.value.filter((f: any) => f.key !== titleKey.value && f.key !== publish.value?.field))
