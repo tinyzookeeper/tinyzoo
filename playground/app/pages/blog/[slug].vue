@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// The English version of a post lives under /en (the language prefix the CMS adds).
+definePageMeta({ alias: ["/en/blog/:slug"] })
 const route = useRoute()
 // Pass ?preview through so an authenticated editor can see a draft. useRequestFetch
 // forwards the incoming cookie on SSR so the editor's session reaches the content API

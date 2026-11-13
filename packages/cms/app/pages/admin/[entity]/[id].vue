@@ -374,10 +374,12 @@ async function setPublished(next: boolean) {
 }
 
 const previewUrl = computed(() => {
-  const p = publish.value
-  if (!p?.preview || isNew.value) return null
+  // The address in the language being edited (prefix included), from the graph.
+  const paths: Record<string, string> | null = meta.value?.previewPaths ?? null
+  const template = paths ? (paths[currentLocale.value ?? ''] ?? Object.values(paths)[0] ?? null) : null
+  if (!template || isNew.value) return null
   let ok = true
-  const url = p.preview.replace(/:(\w+)/g, (_m: string, k: string) => {
+  const url = template.replace(/:(\w+)/g, (_m: string, k: string) => {
     const v = state[k]
     if (v === undefined || v === null || v === '') ok = false
     return encodeURIComponent(v ?? '')

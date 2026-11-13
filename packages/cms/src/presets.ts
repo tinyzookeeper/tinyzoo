@@ -3,6 +3,7 @@ import { type BlockDef, defineBlock } from './blocks'
 import { defineEntity, defineSingleton } from './entity'
 import { f } from './fields'
 import type { LocalizedText } from './i18n'
+import type { PathTemplate } from './paths'
 
 const SEO_GROUP = { en: 'Search & sharing', cs: 'Vyhledávače a sdílení' }
 
@@ -48,7 +49,8 @@ export function linkBlock() {
  *   export const Page = definePages({ blocks: { hero, text, gallery }, localized: true })
  *
  * `localized: true` makes the title, address and blocks translatable (needs
- * `defineLocales`). `path` is the page's address on the website (default '/:slug').
+ * `defineLocales`). `path` is the page's address on the website (default '/:slug'),
+ * or one per language: { cs: '/:slug', en: '/pages/:slug' }.
  */
 export function definePages<const B extends Record<string, BlockDef<any>>>(opts: {
   blocks: B
@@ -57,7 +59,7 @@ export function definePages<const B extends Record<string, BlockDef<any>>>(opts:
   labelSingular?: LocalizedText
   description?: LocalizedText
   localized?: boolean
-  path?: string
+  path?: PathTemplate
 }) {
   const loc = <T extends { localized: () => any }>(d: T): T => (opts.localized ? d.localized() : d)
   const path = opts.path ?? '/:slug'

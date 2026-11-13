@@ -221,6 +221,16 @@ Collections with `content.path` (e.g. `'/blog/:slug'`) appear in **`/sitemap.xml
 `/en/…` prefixes) and in `GET /api/content/_sitemap`. A host can replace the XML
 route with its own `server/routes/sitemap.xml`.
 
+When the address itself is translated, give one template per language — for
+`content.path`, `publish.preview` and `definePages({ path })` alike:
+
+```ts
+content: { public: true, slug: 'slug', path: { cs: '/aktuality/:slug', en: '/news/:slug' } }
+// → /aktuality/zavod-tabor and /en/news/tabor-race (sitemap, webhooks, preview)
+```
+
+A language left out of the map has no page for that collection.
+
 ## Admin look & language
 
 The admin has its own design system, scoped so it never touches the host website's

@@ -1,4 +1,4 @@
-import { and, inArray } from '@my-cms/core'
+import { and, inArray, sitePath } from '@my-cms/core'
 import type { CmsEntity, CmsRegistry } from '@my-cms/core'
 
 /**
@@ -35,14 +35,14 @@ export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<Sitemap
     const translations = await translationsByParent(db, reg, e, rows.map((r) => r.id), keys)
     for (const row of rows) {
       const versions: { locale: string | null; loc: string; lastmod: Date }[] = []
-      const defaultLoc = fillPath(e.content.path, row)
-      if (defaultLoc) versions.push({ locale: reg.locales?.default ?? null, loc: localePrefix(reg, reg.locales?.default ?? null) + defaultLoc, lastmod: row.updatedAt })
+      const defaultLoc = sitePath(reg.locales, e.content.path, reg.locales?.default ?? null, row)
+      if (defaultLoc) versions.push({ locale: reg.locales?.default ?? null, loc: defaultLoc, lastmod: row.updatedAt })
       for (const tr of translations.get(row.id) ?? []) {
         // Untranslated fields (e.g. the slug) fall back to the default language.
         const merged = { ...row }
         for (const k of keys) if (tr[k] !== null && tr[k] !== undefined && tr[k] !== '') merged[k] = tr[k]
-        const loc = fillPath(e.content.path, merged)
-        if (loc) versions.push({ locale: tr.locale, loc: localePrefix(reg, tr.locale) + loc, lastmod: tr.updatedAt > row.updatedAt ? tr.updatedAt : row.updatedAt })
+        const loc = sitePath(reg.locales, e.content.path, tr.locale, merged)
+        if (loc) versions.push({ locale: tr.locale, loc, lastmod: tr.updatedAt > row.updatedAt ? tr.updatedAt : row.updatedAt })
       }
       const alternates = reg.locales ? versions.map((v) => ({ locale: v.locale!, loc: v.loc })) : []
       for (const v of versions) out.push({ loc: v.loc, locale: v.locale, lastmod: new Date(v.lastmod).toISOString(), alternates })

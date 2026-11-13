@@ -1,4 +1,4 @@
-import { and, eq, inArray, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from '@my-cms/core'
+import { and, eq, fillPathTemplate, inArray, pathTemplateKeys, sitePath, sitePrefix, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from '@my-cms/core'
 
 /**
  * One place every content write reports to. A change:
@@ -25,25 +25,14 @@ export function instanceId(): string {
 
 /** The address prefix of a language ('/en'), per `defineLocales({ prefix })`. */
 export function localePrefix(reg: CmsRegistry, locale: string | null): string {
-  const l = reg.locales
-  if (!l || !locale || l.prefix === 'none') return ''
-  if (l.prefix === 'except-default' && locale === l.default) return ''
-  return `/${locale}`
+  return sitePrefix(reg.locales, locale)
 }
 
-/** `content.path` filled in from a row ('/blog/:slug' → '/blog/hello'), or null when a part is empty. */
-export function fillPath(template: string, row: Record<string, any>): string | null {
-  let ok = true
-  const out = template.replace(/:(\w+)/g, (_m, key: string) => {
-    const v = row[key]
-    if (v === null || v === undefined || v === '') ok = false
-    return encodeURIComponent(String(v ?? ''))
-  })
-  return ok ? out : null
-}
+/** A path template filled in from a row ('/blog/:slug' → '/blog/hello'), or null when a part is empty. */
+export const fillPath = fillPathTemplate
 
-/** Placeholder keys of a path template ('/blog/:slug' → ['slug']). */
-export const pathKeys = (template: string) => [...template.matchAll(/:(\w+)/g)].map((m) => m[1]!)
+/** Placeholder keys of `content.path` (every language's, for a per-language map). */
+export const pathKeys = pathTemplateKeys
 
 /**
  * What visitors can see of one entry right now: whether it is live (public
@@ -56,7 +45,7 @@ export async function changeSnapshot(e: CmsEntity, id: string): Promise<ChangeSn
   const none: ChangeSnapshot = { live: false, paths: [] }
   if (!e.content?.public) return none
   const { db, reg } = useCms()
-  const keys = e.content.path && !e.singleton ? pathKeys(e.content.path).filter((k) => e.table[k]) : []
+  const keys = !e.singleton ? pathKeys(e.content.path).filter((k) => e.table[k]) : []
   const cols: Record<string, any> = { id: e.table.id }
   for (const k of keys) cols[k] = e.table[k]
   const [row] = await db.select(cols).from(e.table).where(both(eq(e.table.id, id), publishedCond(e)))
@@ -64,8 +53,8 @@ export async function changeSnapshot(e: CmsEntity, id: string): Promise<ChangeSn
   const out: ChangeSnapshot = { live: true, paths: [] }
   if (!keys.length) return out
   const defaultLocale = reg.locales?.default ?? null
-  const base = fillPath(e.content.path!, row)
-  if (base) out.paths.push({ locale: defaultLocale, path: localePrefix(reg, defaultLocale) + base })
+  const base = sitePath(reg.locales, e.content.path, defaultLocale, row)
+  if (base) out.paths.push({ locale: defaultLocale, path: base })
   const t = e.localesTable
   const others = reg.locales?.locales.filter((l) => l !== defaultLocale) ?? []
   if (t && others.length) {
@@ -76,8 +65,8 @@ export async function changeSnapshot(e: CmsEntity, id: string): Promise<ChangeSn
       // Untranslated parts of the address fall back to the default language.
       const merged = { ...row }
       for (const k of keys) if (tr[k] !== null && tr[k] !== undefined && tr[k] !== '') merged[k] = tr[k]
-      const p = fillPath(e.content.path!, merged)
-      if (p) out.paths.push({ locale: tr.locale, path: localePrefix(reg, tr.locale) + p })
+      const p = sitePath(reg.locales, e.content.path, tr.locale, merged)
+      if (p) out.paths.push({ locale: tr.locale, path: p })
     }
   }
   return out

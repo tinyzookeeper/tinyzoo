@@ -134,6 +134,8 @@ export const Post = defineEntity("post", {
 // search & sharing, publishing and preview). Title, address and blocks are translatable.
 export const Page = definePages({
   localized: true,
+  // The address differs per language: /o-nas in Czech, /en/pages/about in English.
+  path: { cs: "/:slug", en: "/pages/:slug" },
   blocks: {
     hero: defineBlock({
       label: { en: "Hero", cs: "Úvod" },
