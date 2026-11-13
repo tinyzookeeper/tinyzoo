@@ -82,16 +82,17 @@ export default defineComponent({
 })
 </script>
 
-<style scoped>
-.cms-content :deep(h2) { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
-.cms-content :deep(h3) { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
-.cms-content :deep(p) { margin: 0.75rem 0; line-height: 1.7; }
-.cms-content :deep(ul) { list-style: disc; padding-left: 1.5rem; margin: 0.75rem 0; }
-.cms-content :deep(ol) { list-style: decimal; padding-left: 1.5rem; margin: 0.75rem 0; }
-.cms-content :deep(blockquote) { border-left: 3px solid currentColor; opacity: 0.85; padding-left: 1rem; margin: 0.75rem 0; }
-.cms-content :deep(code) { font-family: ui-monospace, monospace; background: rgb(127 127 127 / 0.15); padding: 0.1em 0.3em; border-radius: 0.25rem; font-size: 0.9em; }
-.cms-content :deep(pre) { background: rgb(127 127 127 / 0.12); padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; }
-.cms-content :deep(pre code) { background: none; padding: 0; }
-.cms-content :deep(a) { color: var(--ui-primary, currentColor); text-decoration: underline; }
-.cms-content :deep(img) { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; }
+<style>
+/* Defaults only: zero specificity (:where), so any style of the host site wins. */
+:where(.cms-content h2) { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
+:where(.cms-content h3) { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+:where(.cms-content p) { margin: 0.75rem 0; line-height: 1.7; }
+:where(.cms-content ul) { list-style: disc; padding-left: 1.5rem; margin: 0.75rem 0; }
+:where(.cms-content ol) { list-style: decimal; padding-left: 1.5rem; margin: 0.75rem 0; }
+:where(.cms-content blockquote) { border-left: 3px solid currentColor; opacity: 0.85; padding-left: 1rem; margin: 0.75rem 0; }
+:where(.cms-content code) { font-family: ui-monospace, monospace; background: rgb(127 127 127 / 0.15); padding: 0.1em 0.3em; border-radius: 0.25rem; font-size: 0.9em; }
+:where(.cms-content pre) { background: rgb(127 127 127 / 0.12); padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; }
+:where(.cms-content pre code) { background: none; padding: 0; }
+:where(.cms-content a) { color: var(--ui-primary, currentColor); text-decoration: underline; }
+:where(.cms-content img) { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; }
 </style>
