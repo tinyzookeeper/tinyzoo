@@ -33,9 +33,11 @@ let store: Promise<SharedStore> | undefined
 
 export function useCmsStore(): Promise<SharedStore> {
   store ??= (async () => {
-    const redisUrl = String((useRuntimeConfig().cms as any)?.redis?.url || process.env.REDIS_URL || '')
+    const cfg = (useRuntimeConfig().cms as any)?.redis ?? {}
+    const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
+    const redisUrl = String(cfg.url || env.REDIS_URL || '')
     try {
-      const redis = await createRedisStore({ redisUrl })
+      const redis = await createRedisStore({ redisUrl, prefix: storePrefix(cfg.prefix) })
       if (redis) {
         console.info('[cms] shared store: redis')
         return redis
@@ -50,9 +52,36 @@ export function useCmsStore(): Promise<SharedStore> {
 }
 
 /**
+ * Keys and channels are namespaced so that environments sharing one Redis (staging
+ * and production, two client sites) never share counters or messages:
+ * `cms.redis.prefix` / NUXT_CMS_REDIS_PREFIX, else `cms:<database name>`.
+ */
+function storePrefix(configured?: string): string {
+  if (configured) return String(configured)
+  try {
+    const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
+    const url = env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || (useRuntimeConfig().cms as any)?.databaseUrl
+    const name = url ? decodeURIComponent(new URL(url).pathname.slice(1)) : ''
+    return name ? `cms:${name}` : 'cms'
+  }
+  catch {
+    return 'cms'
+  }
+}
+
+/** Close the store's connections (server shutdown). */
+export async function closeCmsStore(): Promise<void> {
+  if (!store) return
+  const s = await store.catch(() => null)
+  store = undefined
+  await s?.close?.()
+}
+
+/**
  * Rate limit: true if this action is allowed (and counts it). Shared across instances
- * when Redis is configured. `max <= 0` means unlimited. Fails open with a log line if
- * the store errors — an outage must not lock everyone out of signing in.
+ * when Redis is configured. `max <= 0` means unlimited. When Redis cannot answer, this
+ * instance counts on its own instead — an outage must neither lock everyone out nor
+ * switch brute-force protection off.
  */
 export async function rateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
   if (max <= 0) return true
@@ -62,7 +91,7 @@ export async function rateLimit(key: string, max: number, windowMs: number): Pro
     return (await s.hit(key.slice(0, 200), windowMs)) <= max
   }
   catch (err) {
-    console.error('[cms] rate limit store error', err)
-    return true
+    console.error('[cms] rate limit store error, counting locally:', (err as Error)?.message ?? err)
+    return rateLimitOk(key, max, windowMs)
   }
 }

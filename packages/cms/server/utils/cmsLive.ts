@@ -181,7 +181,7 @@ function broadcastPresence(topic: string): void {
 async function announce(topic: string, peerId: string, person: Person | null): Promise<void> {
   try {
     const store = await useCmsStore()
-    await store.publish(LIVE_CHANNEL, JSON.stringify({ origin: instanceId, topic, peer: peerId, person }))
+    await store.publish(LIVE_CHANNEL, JSON.stringify({ origin: instanceId(), topic, peer: peerId, person }))
   }
   catch (err) {
     console.error('[cms] realtime announce failed', err)
@@ -189,7 +189,7 @@ async function announce(topic: string, peerId: string, person: Person | null): P
 }
 
 function onRemote(msg: any): void {
-  if (!msg || msg.origin === instanceId || typeof msg.topic !== 'string' || typeof msg.peer !== 'string') return
+  if (!msg || msg.origin === instanceId() || typeof msg.topic !== 'string' || typeof msg.peer !== 'string') return
   if (!parseTopic(msg.topic)) return
   const key = `${msg.origin}:${msg.peer}`
   let map = remote.get(msg.topic)

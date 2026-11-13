@@ -9,5 +9,11 @@ export interface SharedStore {
   publish: (channel: string, message: string) => Promise<void>
   /** Subscribe to a channel; returns an unsubscribe function. */
   subscribe: (channel: string, handler: (message: string) => void) => Promise<() => Promise<void>>
+  /** Close connections (server shutdown). */
+  close?: () => Promise<void>
 }
-export interface CmsStoreConfig { redisUrl: string }
+export interface CmsStoreConfig {
+  redisUrl: string
+  /** Namespace for keys and channels, so environments sharing one Redis stay apart. */
+  prefix?: string
+}

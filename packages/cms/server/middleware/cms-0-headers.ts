@@ -17,7 +17,10 @@ export default defineEventHandler((event) => {
   event.context.requestId = id
   setResponseHeader(event, 'X-Request-Id', id)
 
-  const path = (event.path || '').split('?')[0]!
+  // The router matches /ADMIN too, and the app may live under a base URL.
+  const base = String(useRuntimeConfig().app?.baseURL || '/').replace(/\/+$/, '').toLowerCase()
+  let path = (event.path || '').split('?')[0]!.toLowerCase()
+  if (base && path.startsWith(base)) path = path.slice(base.length) || '/'
   const admin = path === '/admin' || path.startsWith('/admin/')
   const api = path.startsWith('/api/cms/') && !path.startsWith('/api/cms/_media/raw/')
   if (!admin && !api) return

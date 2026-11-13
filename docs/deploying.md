@@ -34,6 +34,7 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails |
 | `NUXT_CMS_MIGRATIONS_ON_START` | recommended | `true`: apply bundled migrations at start (below) |
 | `REDIS_URL` | with > 1 replica | `NUXT_CMS_REDIS_URL` overrides |
+| `NUXT_CMS_REDIS_PREFIX` | optional | namespace for keys and channels; default `cms:<database name>`, so environments sharing one Redis stay apart |
 | `NUXT_CMS_STORAGE_DRIVER` | yes | `s3` (or `r2`) in production; `local` is for development |
 | `NUXT_CMS_STORAGE_S3_ENDPOINT`, `_REGION`, `_BUCKET`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY` | with s3 | bucket credentials |
 | `NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL` | with s3 | where browsers load media from (bucket's public URL or a CDN in front) |
@@ -41,7 +42,7 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASS` | with smtp | |
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (below) |
 | `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API |
-| `NUXT_CMS_AUTH_TRUSTED_PROXIES` | optional | proxy hops in front of the app (default 1 — Pushbase's ingress). Wrong values make rate limits count the proxy instead of visitors |
+| `NUXT_CMS_AUTH_TRUSTED_PROXIES` | optional | proxy hops in front of the app (default 1 — Pushbase's ingress). Too few and rate limits count the proxy instead of visitors; too many (e.g. 1 with no proxy at all) and visitors can fake their address in `X-Forwarded-For` to dodge limits. Set `0` when the app is reached directly |
 
 `playground/.env.example` lists them with local-development values.
 
@@ -55,16 +56,19 @@ replicas take turns, so the first one migrates and the rest find nothing to do.
 The bookkeeping is drizzle's own (`drizzle.__drizzle_migrations`), so running
 `drizzle-kit migrate` by hand stays compatible.
 
-A failed migration is logged and keeps the new instance's API answering 503
-(and `/api/health/ready` failing) rather than running on a half-migrated schema.
-Pushbase's readiness check is the open port, so watch the deploy log after a
-schema change. Destructive changes
+If the database does not accept connections yet (freshly provisioned,
+restarting), the instance retries for about a minute and a half. A migration that
+fails is logged, the API answers 503 instead of running on a half-migrated
+schema, `/api/health/live` fails, and in production the process exits so the
+platform restarts it. Pushbase's readiness check is the open port, so watch the
+deploy log after a schema change. Destructive changes
 (dropping a column the running version still reads) need two deploys: stop
 using it, then drop it.
 
 ## Health
 
-- `GET /api/health/live` — the process is up (liveness).
+- `GET /api/health/live` — the process is up (liveness); fails when start-up
+  migrations gave up.
 - `GET /api/health/ready` — migrations done and the database answers (readiness).
 
 ## Media
@@ -80,20 +84,29 @@ versioning or a lifecycle copy if losing an upload matters.
 
 ## Publish webhooks
 
-Every change a visitor could see — a published entry created, changed,
-unpublished or deleted, a translation, a global — is POSTed to each URL in
-`NUXT_CMS_WEBHOOKS_URLS`, so the website can purge its cache. Drafts stay quiet.
+Saving content of a public collection that visitors can see — before or after
+the save, judged by the collection's `content.published` rule (the same one the
+content API applies) — is POSTed to each URL in `NUXT_CMS_WEBHOOKS_URLS`, so the
+website can purge its cache: entries created, changed, published, unpublished or
+deleted, translations, globals. Drafts stay quiet.
 
 ```json
-{ "type": "entry.published", "entity": "post", "id": "…", "locale": null,
-  "public": true, "paths": ["/blog/hello"], "by": "…", "at": "2026-11-13T10:00:00.000Z" }
+{ "delivery": "…", "type": "entry.published", "entity": "post", "id": "…", "locale": null,
+  "public": true, "paths": ["/blog/hello", "/en/blog/hello"], "version": "…", "at": "2026-11-13T10:00:00.000Z" }
 ```
 
-`paths` are the addresses from `content.path`, old and new (a renamed slug
-gives both). Each request carries `X-CMS-Event`, `X-CMS-Delivery` (the same id on
-every retry — deduplicate on it) and `X-CMS-Signature: t=<unix>,v1=<hex>`, an
-HMAC-SHA256 of `` `${t}.${rawBody}` `` with `NUXT_CMS_WEBHOOKS_SECRET`. Up to three
-attempts (now, +1 s, +5 s); failures are logged.
+`paths` are the addresses from `content.path` that visitors could reach before or
+after the change, in every language (a renamed slug gives both; a translation
+change only that language's). `delivery` is unique per change and the same on
+every retry — deduplicate on it; it is inside the signed body. Each request
+carries `X-CMS-Event`, `X-CMS-Delivery` and `X-CMS-Signature: t=<unix>,v1=<hex>`, an
+HMAC-SHA256 of `` `${t}.${rawBody}` `` with `NUXT_CMS_WEBHOOKS_SECRET`. In production
+nothing is sent without a secret. Up to three attempts (the second 1 s after the
+first fails, the third 5 s later); failures are logged.
+
+Not reported (yet): media edits (alt text, deletion), and changes that show on
+a page only through a relation (renaming an author shown on their posts) — purge
+by time for those.
 
 Verifying in a Nuxt site:
 
@@ -115,7 +128,8 @@ export default defineEventHandler(async (event) => {
 })
 ```
 
-In-process code can listen too, with no network involved:
+In-process code can listen too, with no network involved (it runs after the
+response, on the instance that saved):
 
 ```ts
 // server/plugins/on-change.ts in the host app
@@ -126,10 +140,19 @@ export default defineNitroPlugin((nitro) => {
 
 ## Logs
 
-Server errors (5xx) are written to stdout as one JSON line each, with the request
+Server errors (5xx) are written to stderr as one JSON line each, with the request
 id the browser got in `X-Request-Id` (an incoming `X-Request-Id` from the proxy is
-kept). Expected errors (validation, permissions) are not logged; sign-ins,
-invitations and content changes are in the audit log instead.
+kept) and without query parameters (no emails or content in logs). Expected
+errors (validation, permissions) are not logged; sign-ins, invitations and
+content changes are in the audit log instead.
+
+## Realtime
+
+The admin keeps one WebSocket per tab (`/api/cms/_live`, same port) for presence
+("Jana is editing") and live updates. Redis carries them between replicas. If a
+proxy blocks WebSockets the admin works as before, without them. Saves are
+protected either way: an editor saving over a version someone else saved in the
+meantime gets a choice instead of silently overwriting it.
 
 ## Security
 
@@ -148,7 +171,9 @@ invitations and content changes are in the audit log instead.
 
 The repo's root `Dockerfile` builds the playground as a staging site; a client
 site is its own repo with the CMS as a dependency, and Pushbase's `nuxt` preset
-builds it as-is.
+builds it as-is. The image runs as the unprivileged `node` user and keeps
+local media and file mail in `/app/data`, which is enough for a quick look but
+gone after every deploy — give staging a bucket too.
 
 1. Create the project (its slug becomes `<slug>.pushbase.app`).
 2. Provision Postgres and Redis and link both to the environment

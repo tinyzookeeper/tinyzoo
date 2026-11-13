@@ -4,6 +4,8 @@
  * so either tool can take over from the other. Web Crypto only (Node and Workers).
  * A Postgres advisory lock makes concurrent starts take turns.
  */
+import { sql, type SQL } from 'drizzle-orm'
+
 export interface MigrationJournal { entries: { idx: number; when: number; tag: string }[] }
 export interface MigrationSource {
   journal: MigrationJournal
@@ -50,3 +52,33 @@ export async function applyMigrations(
   })
 }
 
+
+/**
+ * Positional params ($1, $2…) → a drizzle sql chunk with bound values. Without
+ * params the text goes through untouched: migration SQL may contain `$1` in a
+ * function body or `'$5'` in a literal.
+ */
+export function sqlWithParams(text: string, params: unknown[] = []): SQL {
+  if (!params.length) return sql.raw(text)
+  const chunks: SQL[] = []
+  let last = 0
+  for (const m of text.matchAll(/\$(\d+)/g)) {
+    const n = Number(m[1])
+    if (n < 1 || n > params.length) continue
+    chunks.push(sql.raw(text.slice(last, m.index)), sql`${params[n - 1]}`)
+    last = m.index! + m[0].length
+  }
+  chunks.push(sql.raw(text.slice(last)))
+  return sql.join(chunks, sql.raw(''))
+}
+
+const CONNECTION_ERRORS = new Set(['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'EHOSTUNREACH', '57P03', '08000', '08001', '08003', '08006'])
+
+/** Could not reach the database (worth retrying), as opposed to a statement that failed. */
+export function isConnectionError(err: any): boolean {
+  for (let e = err, depth = 0; e && depth < 4; e = e.cause, depth++) {
+    if (CONNECTION_ERRORS.has(e.code)) return true
+    if (Array.isArray(e.errors) && e.errors.some((x: any) => CONNECTION_ERRORS.has(x?.code))) return true
+  }
+  return false
+}

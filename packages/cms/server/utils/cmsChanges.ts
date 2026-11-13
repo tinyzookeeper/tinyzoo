@@ -1,4 +1,4 @@
-import { propOf, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from '@my-cms/core'
+import { and, eq, inArray, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from '@my-cms/core'
 
 /**
  * One place every content write reports to. A change:
@@ -14,15 +14,13 @@ import { propOf, type CmsChange, type CmsChangeType, type CmsEntity, type CmsReg
  */
 export const CHANGES_CHANNEL = 'changes'
 
-/** Identifies this process on the shared channel, so it can skip its own messages. */
-export const instanceId = crypto.randomUUID()
-
-/** Is this stored row live on the website? Content without a publish workflow always is. */
-export function isLiveRow(e: CmsEntity, row: Record<string, any> | null | undefined): boolean {
-  if (!row) return false
-  const p = e.publish
-  if (!p) return true
-  return row[propOf(p.field, e.fields[p.field]!)] === p.publishedValue
+/**
+ * Identifies this process on the shared channel, so it can skip its own messages.
+ * Made on first use: Workers refuse random values at module load (global scope).
+ */
+let _instanceId: string | undefined
+export function instanceId(): string {
+  return (_instanceId ??= crypto.randomUUID())
 }
 
 /** The address prefix of a language ('/en'), per `defineLocales({ prefix })`. */
@@ -44,62 +42,95 @@ export function fillPath(template: string, row: Record<string, any>): string | n
   return ok ? out : null
 }
 
-/** The website addresses of these versions of an entry, in `locale` (null = default language). */
-export function entryPaths(reg: CmsRegistry, e: CmsEntity, rows: (Record<string, any> | null | undefined)[], locale: string | null): string[] {
-  const template = e.content?.path
-  if (!template || e.singleton) return []
-  const lang = locale ?? reg.locales?.default ?? null
-  const out = new Set<string>()
-  for (const row of rows) {
-    if (!row) continue
-    const p = fillPath(template, row)
-    if (p) out.add(localePrefix(reg, lang) + p)
+/** Placeholder keys of a path template ('/blog/:slug' → ['slug']). */
+export const pathKeys = (template: string) => [...template.matchAll(/:(\w+)/g)].map((m) => m[1]!)
+
+/**
+ * What visitors can see of one entry right now: whether it is live (public
+ * collection, and its `content.published` rule holds — the same rule the content
+ * API applies, scheduling included) and its addresses in every language.
+ */
+export interface ChangeSnapshot { live: boolean; paths: { locale: string | null; path: string }[] }
+
+export async function changeSnapshot(e: CmsEntity, id: string): Promise<ChangeSnapshot> {
+  const none: ChangeSnapshot = { live: false, paths: [] }
+  if (!e.content?.public) return none
+  const { db, reg } = useCms()
+  const keys = e.content.path && !e.singleton ? pathKeys(e.content.path).filter((k) => e.table[k]) : []
+  const cols: Record<string, any> = { id: e.table.id }
+  for (const k of keys) cols[k] = e.table[k]
+  const [row] = await db.select(cols).from(e.table).where(both(eq(e.table.id, id), publishedCond(e)))
+  if (!row) return none
+  const out: ChangeSnapshot = { live: true, paths: [] }
+  if (!keys.length) return out
+  const defaultLocale = reg.locales?.default ?? null
+  const base = fillPath(e.content.path!, row)
+  if (base) out.paths.push({ locale: defaultLocale, path: localePrefix(reg, defaultLocale) + base })
+  const t = e.localesTable
+  const others = reg.locales?.locales.filter((l) => l !== defaultLocale) ?? []
+  if (t && others.length) {
+    const tcols: Record<string, any> = { locale: t.locale }
+    for (const k of keys) if (e.localized.includes(k)) tcols[k] = t[k]
+    const rows: any[] = await db.select(tcols).from(t).where(and(eq(t.parentId, id), inArray(t.locale, others)))
+    for (const tr of rows) {
+      // Untranslated parts of the address fall back to the default language.
+      const merged = { ...row }
+      for (const k of keys) if (tr[k] !== null && tr[k] !== undefined && tr[k] !== '') merged[k] = tr[k]
+      const p = fillPath(e.content.path!, merged)
+      if (p) out.paths.push({ locale: tr.locale, path: localePrefix(reg, tr.locale) + p })
+    }
   }
-  return [...out]
+  return out
 }
 
 export interface ReportChange {
   type: CmsChangeType
   entity: CmsEntity
   id: string
-  /** The row before and after the write (either may be missing: create / delete). */
-  before?: Record<string, any> | null
+  /** What visitors saw before the write (changeSnapshot); omit for a new entry. */
+  before?: ChangeSnapshot | null
+  /** The row after the write, for its version. */
   after?: Record<string, any> | null
+  /** The language a translation change is about. */
   locale?: string | null
-  /** For translations: the translated values, overlaid on the entry to build its address. */
-  translation?: Record<string, any> | null
 }
 
 export async function reportChange(event: any, r: ReportChange): Promise<void> {
   try {
-    const { reg } = useCms()
     const e = r.entity
     const locale = r.locale ?? null
-    const live = isLiveRow(e, r.before) || isLiveRow(e, r.after)
-    const overlay = (row?: Record<string, any> | null) => {
-      if (!row || !r.translation) return row
-      const merged = { ...row }
-      for (const [k, v] of Object.entries(r.translation)) if (v !== null && v !== undefined && v !== '') merged[k] = v
-      return merged
+    const deleted = r.type === 'entry.deleted'
+    const before = r.before ?? { live: false, paths: [] }
+    const after = deleted ? { live: false, paths: [] } : await changeSnapshot(e, r.id)
+    // Only addresses a visitor could have reached, in the language the change is about.
+    const paths = new Set<string>()
+    for (const snap of [before, after]) {
+      if (!snap.live) continue
+      for (const p of snap.paths) if (!locale || p.locale === locale) paths.add(p.path)
     }
     const change: CmsChange = {
       type: r.type,
       entity: e.name,
       id: r.id,
       locale,
-      public: !!e.content?.public && live,
-      paths: entryPaths(reg, e, [overlay(r.before), overlay(r.after)], locale),
+      public: before.live || after.live,
+      paths: [...paths],
       by: event?.context?.cmsUser?.id ?? null,
       version: r.after?.updatedAt ? new Date(r.after.updatedAt).toISOString() : null,
       at: new Date().toISOString(),
     }
     applyChangeLocally(change)
     notifyChangeListeners(change)
-    const store = await useCmsStore()
-    await store.publish(CHANGES_CHANNEL, JSON.stringify({ origin: instanceId, change }))
-      .catch((err) => console.error('[cms] could not publish change', err))
-    await useNitroApp().hooks.callHook('cms:change', change).catch((err: unknown) => console.error('[cms] cms:change hook failed', err))
-    if (change.public) sendWebhooks(event, change)
+    // Neither the other replicas nor the host's hooks hold up the response.
+    const background: Promise<unknown>[] = [
+      useCmsStore().then((store) => store.publish(CHANGES_CHANNEL, JSON.stringify({ origin: instanceId(), change })))
+        .catch((err) => console.error('[cms] could not publish change', err)),
+      Promise.resolve(useNitroApp().hooks.callHook('cms:change', change))
+        .catch((err: unknown) => console.error('[cms] cms:change hook failed', err)),
+    ]
+    if (change.public) background.push(sendWebhooks(change))
+    const all = Promise.all(background)
+    if (typeof event?.waitUntil === 'function') event.waitUntil(all)
   }
   catch (err) {
     console.error('[cms] reporting a change failed', err)

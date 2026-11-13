@@ -5,7 +5,8 @@ import pg from 'pg'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { readMigrationFiles } from 'drizzle-orm/migrator'
-import { applyMigrations, type MigrationSource } from '@my-cms/core'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { applyMigrations, isConnectionError, sqlWithParams, type MigrationSource } from '@my-cms/core'
 import { testDatabaseUrl } from '../setup/database'
 
 // The start-up migrator must keep exactly drizzle-kit's bookkeeping, so either can
@@ -70,5 +71,29 @@ describe('start-up migrations', () => {
     await pool.query('drop schema public cascade; create schema public; drop schema drizzle cascade')
     const [a, b] = await Promise.all([applyMigrations(source, inTransaction), applyMigrations(source, inTransaction)])
     expect([a.length, b.length].sort()).toEqual([0, source.journal.entries.length])
+  })
+})
+
+describe('sqlWithParams', () => {
+  const render = (text: string, params?: unknown[]) => new PgDialect().sqlToQuery(sqlWithParams(text, params))
+
+  it('leaves migration SQL alone, $ signs included', () => {
+    const text = `ALTER TABLE "p" ADD COLUMN "price" text DEFAULT 'costs $5';\nCREATE FUNCTION f(int) RETURNS int AS 'select $1' LANGUAGE sql;`
+    expect(render(text)).toMatchObject({ sql: text, params: [] })
+  })
+
+  it('binds positional params by number, in any order', () => {
+    expect(render('select $2, $1, $2', ['a', 'b'])).toMatchObject({ sql: 'select $1, $2, $3', params: ['b', 'a', 'b'] })
+  })
+})
+
+describe('isConnectionError', () => {
+  it('recognises an unreachable database, also wrapped and aggregated', () => {
+    expect(isConnectionError(Object.assign(new Error('x'), { code: 'ECONNREFUSED' }))).toBe(true)
+    expect(isConnectionError(new Error('wrapped', { cause: { code: '57P03' } }))).toBe(true)
+    expect(isConnectionError(Object.assign(new AggregateError([{ code: 'ECONNREFUSED' }]), {}))).toBe(true)
+  })
+  it('does not retry a failing statement', () => {
+    expect(isConnectionError(Object.assign(new Error('syntax'), { code: '42601' }))).toBe(false)
   })
 })

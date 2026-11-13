@@ -21,6 +21,8 @@ export default defineEventHandler(async (event) => {
   const data = parseOr422(e.insertSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
   const base = baseVersion(event)
+  const [prior] = await db.select({ id: e.table.id }).from(e.table).orderBy(e.table.createdAt).limit(1)
+  const seenBefore = prior ? await changeSnapshot(e, prior.id) : null
 
   const mediaCols = Object.entries(e.fields)
     .filter(([, f]) => (f as any).type === 'media')
@@ -63,7 +65,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await audit(event, 'settings.update', { entity: e.name, recordId: row.id })
-  await reportChange(event, { type: 'global.updated', entity: e, id: row.id, after: row })
+  await reportChange(event, { type: 'global.updated', entity: e, id: row.id, before: seenBefore, after: row })
   await hydrateRowForForm(db, reg, e, row)
   return { row }
 })

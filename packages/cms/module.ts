@@ -89,8 +89,10 @@ export interface CmsModuleOptions {
    * Redis for state shared by all instances (rate limits, realtime). Defaults to the
    * REDIS_URL environment variable (Pushbase sets it for a linked Redis service).
    * Env: NUXT_CMS_REDIS_URL. Without it, state lives in each instance's memory.
+   * `prefix` (NUXT_CMS_REDIS_PREFIX) namespaces keys and channels; default
+   * `cms:<database name>`, so environments sharing one Redis stay apart.
    */
-  redis?: { url?: string }
+  redis?: { url?: string; prefix?: string }
   /**
    * Publish webhooks: every change visible on the website is POSTed, signed, to these
    * URLs (e.g. the site's cache-purge endpoint). See server/utils/cmsWebhooks.ts.
@@ -189,7 +191,7 @@ export {}
       // machine's database into the output. useCms() reads the env at runtime.
       databaseUrl: options.databaseUrl || '',
       migrations: { onStart: options.migrations?.onStart ?? false },
-      redis: { url: options.redis?.url || '' },
+      redis: { url: options.redis?.url || '', prefix: options.redis?.prefix || '' },
       // Empty defaults so NUXT_CMS_WEBHOOKS_URLS / NUXT_CMS_WEBHOOKS_SECRET bind at runtime.
       webhooks: {
         urls: (Array.isArray(options.webhooks?.urls) ? options.webhooks.urls.join(',') : options.webhooks?.urls) || '',

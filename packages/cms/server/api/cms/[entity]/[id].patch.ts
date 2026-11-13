@@ -32,6 +32,8 @@ export default defineEventHandler(async (event) => {
   // Saving over someone else's newer version needs the editor's say-so (409 otherwise).
   const base = baseVersion(event)
   await assertCurrentVersion(e, old, base)
+  // What visitors could see before this save (for the change report / webhooks).
+  const seenBefore = await changeSnapshot(e, id)
 
   const row = await db.transaction(async (tx: any) => {
     let current: any
@@ -74,7 +76,7 @@ export default defineEventHandler(async (event) => {
   await audit(event, action ?? 'entry.update', { entity: e.name, recordId: id })
   await reportChange(event, {
     type: action === 'entry.publish' ? 'entry.published' : action === 'entry.unpublish' ? 'entry.unpublished' : 'entry.updated',
-    entity: e, id, before: old, after: row,
+    entity: e, id, before: seenBefore, after: row,
   })
   return { row }
 })

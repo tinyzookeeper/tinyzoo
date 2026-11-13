@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
   if (!current) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, current)
   const translatedMedia = await translationMediaIds(db, e, id)
+  const seenBefore = await changeSnapshot(e, id)
   const deleted: any[] = await (db as any).delete(e.table).where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning()
     .catch((err: unknown) => rethrowDbError(err, e, 'delete'))
   if (!deleted.length) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
@@ -26,6 +27,6 @@ export default defineEventHandler(async (event) => {
     await gcMediaIfOrphan(db, reg, storage, mediaId, gcScope(user))
   }
   await audit(event, 'entry.delete', { entity: e.name, recordId: id })
-  await reportChange(event, { type: 'entry.deleted', entity: e, id, before: deleted[0] })
+  await reportChange(event, { type: 'entry.deleted', entity: e, id, before: seenBefore })
   return { ok: true }
 })

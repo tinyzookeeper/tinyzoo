@@ -16,6 +16,10 @@ FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
 COPY --from=build /repo/playground/.output ./.output
+# A writable place for the local media driver and file mail, for a quick staging
+# run without object storage. It does not survive a redeploy: production uses S3.
+RUN mkdir -p /app/data && chown node:node /app/data
+ENV NUXT_CMS_STORAGE_LOCAL_DIR=/app/data/uploads NUXT_CMS_MAIL_FILE_DIR=/app/data/mail
 USER node
 EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]

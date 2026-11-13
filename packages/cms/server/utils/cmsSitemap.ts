@@ -16,8 +16,6 @@ export function invalidateSitemap(): void {
   memo = null
 }
 
-/** Placeholder keys of a path template ('/blog/:slug' → ['slug']). */
-const pathKeys = (template: string) => [...template.matchAll(/:(\w+)/g)].map((m) => m[1]!)
 
 /**
  * All sitemap entries. Reads only what the addresses need (id, updatedAt and the

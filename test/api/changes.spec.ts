@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest'
 import { anonymous, type Client, hooksMark, type ReceivedHook, receivedHooks, signIn, testDb, truncateAll, waitForHooks } from '../helpers/api'
 import { createAuthor, createPost, createTag } from '../helpers/fixtures'
 import { WEBHOOK_SECRET } from '../setup/server'
@@ -72,6 +72,41 @@ describe('publish webhooks', () => {
     expect(tr(await waitForHooks(mark, (h) => !!tr(h)))!.json).toMatchObject({ locale: 'en', paths: ['/en/blog/article'] })
   })
 
+  it('signs the delivery id into the body and keeps who made the change out', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id, status: 'published' })
+    const mark = hooksMark()
+    await admin.patch(`/api/cms/post/${post.id}`, { title: 'Signed' })
+    const hook = (await waitForHooks(mark, (h) => h.some((x) => x.path === '/ok' && x.json.type === 'entry.updated')))
+      .find((x) => x.path === '/ok' && x.json.type === 'entry.updated')!
+    expect(hook.json.delivery).toBe(hook.headers['x-cms-delivery'])
+    expect(hook.json).not.toHaveProperty('by')
+  })
+
+  it('covers every language: a renamed translated slug, and a deleted translated post', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id, status: 'published', slug: 'akce' })
+    await admin.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'Event', slug: 'event' })
+    let mark = hooksMark()
+    await admin.patch(`/api/cms/post/${post.id}?locale=en`, { slug: 'events' })
+    const tr = (h: ReceivedHook[]) => h.find((x) => x.path === '/ok' && x.json.type === 'translation.updated' && x.json.paths.includes('/en/blog/events'))
+    expect(tr(await waitForHooks(mark, (h) => !!tr(h)))!.json.paths).toEqual(['/en/blog/event', '/en/blog/events'])
+
+    mark = hooksMark()
+    await admin.delete(`/api/cms/post/${post.id}`)
+    const del = (h: ReceivedHook[]) => h.find((x) => x.path === '/ok' && x.json.type === 'entry.deleted')
+    expect(del(await waitForHooks(mark, (h) => !!del(h)))!.json.paths.sort()).toEqual(['/blog/akce', '/en/blog/events'])
+  })
+
+  it('does not announce the new address of a post taken off the website', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id, status: 'published', slug: 'verejny' })
+    const mark = hooksMark()
+    await admin.patch(`/api/cms/post/${post.id}`, { status: 'draft', slug: 'tajny' })
+    const un = (h: ReceivedHook[]) => h.find((x) => x.path === '/ok' && x.json.type === 'entry.unpublished')
+    expect(un(await waitForHooks(mark, (h) => !!un(h)))!.json.paths).toEqual(['/blog/verejny'])
+  })
+
   it('stays quiet about drafts nobody can see on the website', async () => {
     const a = await createAuthor(admin)
     const mark = hooksMark()
@@ -124,7 +159,9 @@ describe.skipIf(!process.env.TEST_REDIS_URL)('changes from other replicas', () =
 
     const { default: Redis } = await import('ioredis')
     const r = new Redis(process.env.TEST_REDIS_URL!)
-    await r.publish('cms:changes', JSON.stringify({ origin: 'another-replica', change: { type: 'entry.created', entity: 'redirect', id: 'x' } }))
+    // Channels are namespaced by database name (cms.redis.prefix default).
+    const dbName = new URL(inject('databaseUrl')).pathname.slice(1)
+    await r.publish(`cms:${dbName}:changes`, JSON.stringify({ origin: 'another-replica', change: { type: 'entry.created', entity: 'redirect', id: 'x' } }))
     await r.quit()
     await settle()
     const res = await raw('/z-repliky')
