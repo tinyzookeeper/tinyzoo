@@ -21,6 +21,8 @@ const row: PostRow = {
   ogImageId: null, // … and a nullable media FK
   createdAt: new Date(),
   updatedAt: new Date(),
+  createdBy: null, // system columns: which CMS user created / last changed the row
+  updatedBy: "u",
 }
 void row
 
