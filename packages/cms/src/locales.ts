@@ -14,6 +14,11 @@ export interface LocalesDef {
   locales: string[]
   /** How each language is named in the admin, e.g. { cs: 'Čeština', en: 'English' }. */
   labels: Record<string, LocalizedText>
+  /**
+   * How addresses carry the language on the website (used for the sitemap):
+   * 'except-default' (default): /blog/x and /en/blog/x; 'all': /cs/… and /en/…; 'none'.
+   */
+  prefix: 'except-default' | 'all' | 'none'
 }
 
 const KNOWN: Record<string, string> = {
@@ -22,7 +27,7 @@ const KNOWN: Record<string, string> = {
 }
 const CODE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/
 
-export function defineLocales(def: { default: string; locales: string[]; labels?: Record<string, LocalizedText> }): LocalesDef {
+export function defineLocales(def: { default: string; locales: string[]; labels?: Record<string, LocalizedText>; prefix?: LocalesDef['prefix'] }): LocalesDef {
   const locales = [...new Set(def.locales)]
   for (const l of locales) if (!CODE.test(l)) throw new Error(`Invalid locale code "${l}" (use e.g. "cs", "en", "pt-BR").`)
   if (!locales.includes(def.default)) throw new Error(`The default locale "${def.default}" must be one of the locales.`)
@@ -30,5 +35,5 @@ export function defineLocales(def: { default: string; locales: string[]; labels?
   const ordered = [def.default, ...locales.filter((l) => l !== def.default)]
   const labels: Record<string, LocalizedText> = {}
   for (const l of ordered) labels[l] = def.labels?.[l] ?? KNOWN[l.split('-')[0]!] ?? l
-  return { __cms: 'locales', default: def.default, locales: ordered, labels }
+  return { __cms: 'locales', default: def.default, locales: ordered, labels, prefix: def.prefix ?? 'except-default' }
 }

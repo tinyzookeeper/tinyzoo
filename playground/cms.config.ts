@@ -1,4 +1,4 @@
-import { defineBlock, defineEntity, defineLocales, defineSingleton, eq, f, seo } from "@my-cms/core"
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from "@my-cms/core"
 
 // Content languages: Czech is the default (each entry's own row), English is a
 // translation of the fields marked .localized(), falling back to Czech when missing.
@@ -116,75 +116,62 @@ export const Post = defineEntity("post", {
     public: true,
     published: (table) => eq(table.status, "published"),
     slug: "slug",
+    path: "/blog/:slug",
     populate: ["hero", "author", "tags", "ogImage"],
   },
 })
 
-// A page assembled from blocks: the client picks, orders and fills sections.
-export const Page = defineEntity("page", {
-  label: { en: "Pages", cs: "Stránky" },
-  labelSingular: { en: "Page", cs: "Stránka" },
-  description: { en: "Pages of the website, built from blocks.", cs: "Stránky webu poskládané z bloků." },
-  icon: "i-lucide-file",
-  titleField: "title",
-  admin: { list: { columns: ["title", "status"] } },
-  fields: {
-    title: f.text({ required: true }).localized().label({ en: "Title", cs: "Název" }),
-    slug: f.slug({ from: "title", unique: true }).localized().label({ en: "URL address", cs: "Adresa (URL)" }),
-    status: f.select({
-      options: ["draft", "published"] as const,
-      default: "draft",
-      labels: { draft: { en: "Draft", cs: "Koncept" }, published: { en: "Published", cs: "Zveřejněno" } },
+// Pages assembled from blocks (a ready-made preset: title, address, status, blocks,
+// search & sharing, publishing and preview). Title, address and blocks are translatable.
+export const Page = definePages({
+  localized: true,
+  blocks: {
+    hero: defineBlock({
+      label: { en: "Hero", cs: "Úvod" },
+      description: { en: "A large heading with an image and a button.", cs: "Velký nadpis s obrázkem a tlačítkem." },
+      icon: "i-lucide-panel-top",
+      fields: {
+        heading: f.text({ required: true }).label({ en: "Heading", cs: "Nadpis" }),
+        lead: f.text().label({ en: "Lead", cs: "Perex" }),
+        image: f.media({ accept: "image/*" }).label({ en: "Image", cs: "Obrázek" }),
+        buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
+        buttonUrl: f.text().label({ en: "Button link", cs: "Odkaz tlačítka" }),
+      },
     }),
-    sections: f.blocks({
-      hero: defineBlock({
-        label: { en: "Hero", cs: "Úvod" },
-        description: { en: "A large heading with an image and a button.", cs: "Velký nadpis s obrázkem a tlačítkem." },
-        icon: "i-lucide-panel-top",
-        fields: {
-          heading: f.text({ required: true }).label({ en: "Heading", cs: "Nadpis" }),
-          lead: f.text().label({ en: "Lead", cs: "Perex" }),
-          image: f.media({ accept: "image/*" }).label({ en: "Image", cs: "Obrázek" }),
-          buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
-          buttonUrl: f.text().label({ en: "Button link", cs: "Odkaz tlačítka" }),
-        },
-      }),
-      text: defineBlock({
-        label: { en: "Text", cs: "Text" },
-        description: { en: "Formatted text with an optional heading.", cs: "Formátovaný text s volitelným nadpisem." },
-        icon: "i-lucide-text",
-        fields: {
-          heading: f.text().label({ en: "Heading", cs: "Nadpis" }),
-          body: f.richtext().label({ en: "Text", cs: "Text" }),
-        },
-      }),
-      image: defineBlock({
-        label: { en: "Image", cs: "Obrázek" },
-        description: { en: "One image across the page, with a caption.", cs: "Jeden obrázek přes celou šířku s popiskem." },
-        icon: "i-lucide-image",
-        fields: {
-          image: f.media({ accept: "image/*" }).label({ en: "Image", cs: "Obrázek" }),
-          caption: f.text().label({ en: "Caption", cs: "Popisek" }),
-        },
-      }),
-      cta: defineBlock({
-        label: { en: "Call to action", cs: "Výzva k akci" },
-        description: { en: "A short message with one button.", cs: "Krátké sdělení s jedním tlačítkem." },
-        icon: "i-lucide-mouse-pointer-click",
-        fields: {
-          text: f.text({ required: true }).label({ en: "Text", cs: "Text" }),
-          buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
-          buttonUrl: f.text().label({ en: "Button link", cs: "Odkaz tlačítka" }),
-          highlighted: f.boolean().label({ en: "Highlighted", cs: "Zvýrazněné" }),
-        },
-      }),
-    }).localized().label({ en: "Content", cs: "Obsah" }),
-    ...seo(),
-  },
-  publish: { field: "status", publishedValue: "published", draftValue: "draft", preview: "/:slug" },
-  content: {
-    public: true,
-    published: (table) => eq(table.status, "published"),
-    slug: "slug",
+    text: defineBlock({
+      label: { en: "Text", cs: "Text" },
+      description: { en: "Formatted text with an optional heading.", cs: "Formátovaný text s volitelným nadpisem." },
+      icon: "i-lucide-text",
+      fields: {
+        heading: f.text().label({ en: "Heading", cs: "Nadpis" }),
+        body: f.richtext().label({ en: "Text", cs: "Text" }),
+      },
+    }),
+    image: defineBlock({
+      label: { en: "Image", cs: "Obrázek" },
+      description: { en: "One image across the page, with a caption.", cs: "Jeden obrázek přes celou šířku s popiskem." },
+      icon: "i-lucide-image",
+      fields: {
+        image: f.media({ accept: "image/*" }).label({ en: "Image", cs: "Obrázek" }),
+        caption: f.text().label({ en: "Caption", cs: "Popisek" }),
+      },
+    }),
+    cta: defineBlock({
+      label: { en: "Call to action", cs: "Výzva k akci" },
+      description: { en: "A short message with one button.", cs: "Krátké sdělení s jedním tlačítkem." },
+      icon: "i-lucide-mouse-pointer-click",
+      fields: {
+        text: f.text({ required: true }).label({ en: "Text", cs: "Text" }),
+        buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
+        buttonUrl: f.text().label({ en: "Button link", cs: "Odkaz tlačítka" }),
+        highlighted: f.boolean().label({ en: "Highlighted", cs: "Zvýrazněné" }),
+      },
+    }),
   },
 })
+
+// The site's menus (main + footer), each an ordered list of links, per language.
+export const Navigation = defineNavigation({ localized: true })
+
+// Old address → new address, applied by the server to every page request.
+export const Redirect = defineRedirects()

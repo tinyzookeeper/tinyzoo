@@ -243,6 +243,8 @@ export default {
     emptyTitle: 'No content yet',
     emptyDescription: 'Build this page from blocks — a heading, text, images…',
     emptyAction: 'Add the first block',
+    emptyGeneric: 'Nothing here yet',
+    addType: 'Add: {label}',
     moveUp: 'Move up',
     moveDown: 'Move down',
     duplicate: 'Duplicate',

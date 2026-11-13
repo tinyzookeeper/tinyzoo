@@ -4,7 +4,7 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 // Collection list. Quiet by design: the count sits next to the title, status tabs
 // and search share one bare row, the title cell carries the thumbnail and URL, the
 // whole row opens the entry, and the rest lives behind one "…" menu.
-definePageMeta({ layout: 'admin' })
+definePageMeta({ layout: 'admin', key: (route) => route.fullPath })
 const route = useRoute()
 const toast = useToast()
 const { t, tl, entityLabel, entitySingular, fieldLabel, formatNumber } = useCmsI18n()

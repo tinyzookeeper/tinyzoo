@@ -47,6 +47,11 @@ export interface ContentConfig<F extends Record<string, AnyFieldDescriptor>> {
   published?: (table: TableColumns<F>) => unknown
   /** Field used to look a single item up by, e.g. 'slug'. Falls back to id. */
   slug?: keyof F & string
+  /**
+   * The item's address on the website, e.g. '/blog/:slug' (`:field` placeholders).
+   * Used for the sitemap (with a language prefix per `defineLocales`).
+   */
+  path?: string
   /** Relation/media field keys to resolve into the response. Default: all of them. */
   populate?: (keyof F & string)[]
   /**
@@ -146,10 +151,13 @@ export interface CmsEntity {
     public?: boolean
     published?: (table: any) => unknown
     slug?: string
+    path?: string
     populate?: string[]
     hidden?: string[]
   }
   publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; preview?: string }
+  /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
+  preset?: string
 }
 
 interface EntityEnum { key: string; varName: string; enumName: string; values: readonly string[] }

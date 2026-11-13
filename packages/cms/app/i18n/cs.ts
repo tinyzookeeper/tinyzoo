@@ -242,6 +242,8 @@ export default {
     emptyTitle: 'Zatím bez obsahu',
     emptyDescription: 'Poskládejte stránku z bloků — nadpis, text, obrázky…',
     emptyAction: 'Přidat první blok',
+    emptyGeneric: 'Zatím prázdné',
+    addType: 'Přidat: {label}',
     moveUp: 'Posunout nahoru',
     moveDown: 'Posunout dolů',
     duplicate: 'Duplikovat',

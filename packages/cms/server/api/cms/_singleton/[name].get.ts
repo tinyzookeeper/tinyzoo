@@ -9,6 +9,11 @@ export default defineEventHandler(async (event) => {
   const where = authorize(e, 'read', user)
 
   const [row] = await db.select().from(e.table).where(where).orderBy(e.table.createdAt).limit(1)
-  if (row) await hydrateRowForForm(db, reg, e, row)
+  if (row) {
+    await hydrateRowForForm(db, reg, e, row)
+    const locale = requestedLocale(event, reg)
+    if (isTranslationLocale(reg, locale) && e.localized.length) await translationFormRow(db, reg, e, row, locale)
+    if (reg.locales && e.localized.length) row.__locales = (await availableLocales(db, reg, e, [row.id])).get(row.id)
+  }
   return { row: row ?? null }
 })

@@ -94,7 +94,14 @@ function menu(index: number): DropdownMenuItem[][] {
 const pickerOpen = ref(false)
 const pickerAt = ref(0)
 const pickerQuery = ref('')
+// One block type (e.g. menu links): no picker, the button names the type.
+const onlyType = computed(() => {
+  const types = Object.keys(defs.value)
+  return types.length === 1 ? types[0]! : null
+})
+const addLabel = computed(() => (onlyType.value ? t('blocks.addType', { label: tl(defs.value[onlyType.value]?.label, onlyType.value) }) : t('blocks.add')))
 function openPicker(at: number) {
+  if (onlyType.value) return insertAt(at, onlyType.value)
   pickerAt.value = at
   pickerQuery.value = ''
   pickerOpen.value = true
@@ -110,13 +117,14 @@ const choices = computed(() => {
 <template>
   <div class="space-y-2">
     <CmsEmptyState
-      v-if="!blocks.length" icon="i-lucide-layout-template" :title="t('blocks.emptyTitle')" :description="t('blocks.emptyDescription')"
+      v-if="!blocks.length && !onlyType" icon="i-lucide-layout-template" :title="t('blocks.emptyTitle')" :description="t('blocks.emptyDescription')"
       class="rounded-(--ui-radius) border border-dashed border-accented !py-10"
     >
       <template #actions>
         <UButton color="neutral" variant="outline" icon="i-lucide-plus" @click="openPicker(0)">{{ t('blocks.emptyAction') }}</UButton>
       </template>
     </CmsEmptyState>
+    <p v-else-if="!blocks.length" class="text-sm text-muted">{{ t('blocks.emptyGeneric') }}</p>
 
     <template v-for="(b, i) in blocks" :key="b.id">
       <!-- insertion point between blocks -->
@@ -161,8 +169,8 @@ const choices = computed(() => {
       </div>
     </template>
 
-    <UButton v-if="blocks.length" color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openPicker(blocks.length)">
-      {{ t('blocks.add') }}
+    <UButton v-if="blocks.length || onlyType" color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openPicker(blocks.length)">
+      {{ addLabel }}
     </UButton>
 
     <UModal v-model:open="pickerOpen" :title="t('blocks.pickerTitle')">

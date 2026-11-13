@@ -65,6 +65,26 @@ export const author = pgTable('author', {
   updatedBy: uuid('updated_by'),
 })
 
+export const navigation = pgTable('navigation', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  main: jsonb('main').$type<CmsBlock[]>().notNull().default([]),
+  footer: jsonb('footer').$type<CmsBlock[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+})
+
+export const navigationLocales = pgTable('navigation_locales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  parentId: uuid('parent_id').notNull().references(() => navigation.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  main: jsonb('main').$type<CmsBlock[]>(),
+  footer: jsonb('footer').$type<CmsBlock[]>(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('navigation_locales_parent_locale_unique').on(t.parentId, t.locale)])
+
 export const page = pgTable('page', {
   id: uuid('id').primaryKey().defaultRandom(),
   title: text('title').notNull(),
@@ -119,6 +139,17 @@ export const postLocales = pgTable('post_locales', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('post_locales_parent_locale_unique').on(t.parentId, t.locale), uniqueIndex('post_locales_slug_unique').on(t.locale, t.slug)])
+
+export const redirect = pgTable('redirect', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  from: text('from').notNull().unique(),
+  to: text('to').notNull(),
+  permanent: boolean('permanent').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+})
 
 export const siteSettings = pgTable('siteSettings', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -268,7 +268,7 @@ delay that person's sign-in for 15 minutes (the usual trade-off of per-account l
 limits are per instance until Phase 5 adds a shared store; Workers can only `log`
 mail until an HTTP mail provider is added.
 
-### Phase 3 — Content model for real sites
+### Phase 3 — Content model for real sites ✅ *done (manual ordering deferred)*
 
 - **Localization.**
   - `locales: ['cs', 'en', …]`, `defaultLocale`, per-locale fallback chain in the
@@ -290,6 +290,35 @@ mail until an HTTP mail provider is added.
   SEO, blocks), `navigation()` (menus with internal/external links),
   `redirects()`, sitemap and robots endpoints driven by the content.
 - Manual ordering (drag to sort) for collections that need it.
+
+#### How it landed (2026-11-13)
+
+Three slices, each tested and committed:
+
+1. **Blocks** — `f.blocks({ type: defineBlock(...) })`, jsonb validated per type
+   (discriminated union), sanitised rich text inside, media resolved by the content
+   API and counted by cleanup, exact per-type unions in the typed client and OpenAPI.
+   Admin: collapsible block cards with summary and error marker, insert anywhere via a
+   searchable picker (or directly when a field has one block type), move / duplicate /
+   remove from a "…" menu (no drag needed).
+2. **Languages** — `defineLocales`, `.localized()` on text, slug, rich text, blocks.
+   Storage as planned: `<entity>_locales` with typed columns, per-language unique
+   slugs; the base row is the default language; per-field fallback. Admin and content
+   API take `?locale`; globals (navigation) too. Editor translation mode shows only
+   translatable fields with the default text as reference and "copy from".
+   **Publishing applies to all languages** (per-language publishing deferred; the UI
+   says so).
+3. **Site essentials** — `definePages`, `defineNavigation`, `defineRedirects` (server
+   middleware, cache invalidated on change, 30 s TTL across replicas, path-only
+   sources), `content.path` + `/sitemap.xml` with hreflang and `/api/content/_sitemap`.
+
+Found and fixed on the way: server-rendered field labels pointed at ids the browser
+regenerated differently (Vue `useId` under pages that await data) — labels now use
+stable ids from the field key; globals' saves did not clean up images removed from
+rich text.
+
+Deferred: manual ordering (drag to sort) for collections — moves to Phase 4 with the
+list work; nested pages (parent / full paths); relations inside blocks.
 
 ### Phase 4 — Editorial experience
 

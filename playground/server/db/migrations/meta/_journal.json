@@ -43,6 +43,13 @@
       "when": 1794582270605,
       "tag": "0005_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794582782921,
+      "tag": "0006_navigation_redirects",
+      "breakpoints": true
     }
   ]
 }

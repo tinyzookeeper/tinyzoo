@@ -51,7 +51,7 @@ describe('buildRegistry', () => {
   const reg = buildRegistry(config)
 
   it('collects entities, singletons and the m2m junction', () => {
-    expect(reg.entities.map((e) => e.name).sort()).toEqual(['author', 'page', 'post', 'siteSettings', 'tag'])
+    expect(reg.entities.map((e) => e.name).sort()).toEqual(['author', 'navigation', 'page', 'post', 'redirect', 'siteSettings', 'tag'])
     expect(reg.byName.get('siteSettings')?.singleton).toBe(true)
     expect(reg.junctions.map((j) => j.name)).toEqual(['post_to_tag'])
   })

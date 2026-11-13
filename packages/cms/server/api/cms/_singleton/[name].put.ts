@@ -10,6 +10,14 @@ export default defineEventHandler(async (event) => {
   if (!e.singleton) throw createError({ statusCode: 404, statusMessage: `Not a global: ${e.name}` })
   const rowFilter = authorize(e, 'update', user)
 
+  // ?locale=<translation>: translate the (existing) settings row.
+  const locale = requestedLocale(event, reg)
+  if (isTranslationLocale(reg, locale)) {
+    const [existing] = await db.select({ id: e.table.id }).from(e.table).orderBy(e.table.createdAt).limit(1)
+    if (!existing) throw createError({ statusCode: 409, statusMessage: 'Save the default language first' })
+    return { row: await writeTranslation(event, e, existing.id, locale, user, rowFilter) }
+  }
+
   const data = parseOr422(e.insertSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
 

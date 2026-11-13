@@ -189,12 +189,15 @@ const as = <K extends FieldKind>(d: FieldDescriptor): FieldDescriptor<K> => d as
 
 // ── the closed MVP field catalog ───────────────────────────────────────────────
 export const f = {
-  text: (o: { required?: boolean; format?: 'email' | 'url' } = {}) =>
+  text: (o: { required?: boolean; format?: 'email' | 'url' | 'path' } = {}) =>
     as<ScalarKind<string>>(createField({
       type: 'text', ui: { edit: 'CmsFieldText', cell: 'CmsCellText' },
       base: { kind: 'text' },
       zod: () => {
-        let s: ZodTypeAny = o.format === 'email' ? z.email() : o.format === 'url' ? z.url() : z.string()
+        let s: ZodTypeAny = o.format === 'email' ? z.email() : o.format === 'url' ? z.url()
+          // An address on this site: starts with a slash, no spaces or scheme tricks.
+          : o.format === 'path' ? z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/, 'Start with / (e.g. /old-page)')
+          : z.string()
         if (o.required) s = (s as any).min(1, 'Required')
         return s
       },
