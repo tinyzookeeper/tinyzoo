@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { defineNuxtModule } from '@nuxt/kit'
+import { addTypeTemplate, defineNuxtModule } from '@nuxt/kit'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
 
@@ -47,6 +47,41 @@ export interface CmsModuleOptions {
     /** Max uploads per user per minute. 0 = unlimited. Default 60. */
     uploadRatePerMin?: number
   }
+  /**
+   * Who owns sign-in. 'builtin' (default): the CMS has its own users, invites,
+   * password resets and roles. 'external': the host signs people in and sets
+   * `event.context.cmsUser` itself (e.g. SSO); the CMS's auth pages and team
+   * management are switched off.
+   */
+  auth?: {
+    mode?: 'builtin' | 'external'
+    /**
+     * Proxies in front of the app that append to X-Forwarded-For (default 1 — one
+     * ingress/load balancer). The client IP for rate limits is read that many hops
+     * from the end, so a client cannot choose it. 0 = use the socket address.
+     */
+    trustedProxies?: number
+    /** Header holding the client IP when a trusted edge sets one, e.g. 'cf-connecting-ip'. */
+    ipHeader?: string
+  }
+  /**
+   * Absolute public URL of this app, e.g. 'https://cms.example.com'. Used for links
+   * in emails (invites, password resets) — required in production. Env: NUXT_CMS_PUBLIC_URL.
+   */
+  publicUrl?: string
+  /**
+   * Outgoing email (invites, password resets).
+   *  - 'log' (default): print to the server log
+   *  - 'file': write each email as JSON into `file.dir` (local development, tests)
+   *  - 'smtp': any SMTP server (Node runtime only)
+   * Env: NUXT_CMS_MAIL_TRANSPORT, NUXT_CMS_MAIL_FROM, NUXT_CMS_MAIL_SMTP_HOST, …
+   */
+  mail?: {
+    transport?: 'log' | 'file' | 'smtp'
+    from?: string
+    smtp?: { host?: string; port?: number; secure?: boolean; user?: string; pass?: string }
+    file?: { dir?: string }
+  }
   /** Public content-delivery API (`/api/content/*`). */
   content?: {
     /** If set, every content request must carry this token (x-api-key or Bearer). Default: open. */
@@ -74,21 +109,64 @@ export default defineNuxtModule<CmsModuleOptions>({
     // Pick the DB driver impl at build time so only its deps land in the bundle.
     const dbDriver = options.db?.driver || process.env.CMS_DB_DRIVER || 'node'
     const dbImpl = resolve(layerDir, 'server/db', dbDriver === 'edge' ? 'driver.edge.ts' : 'driver.node.ts')
+    // Same switch for mail: only the Node build bundles SMTP (nodemailer).
+    const mailImpl = resolve(layerDir, 'server/mail', dbDriver === 'edge' ? 'mailer.edge.ts' : 'mailer.node.ts')
 
     // Expose the host config + DB driver as virtual aliases to app and Nitro server.
     nuxt.options.alias['#cms/config'] = configPath
     nuxt.options.alias['#cms/db'] = dbImpl
+    nuxt.options.alias['#cms/mailer'] = mailImpl
     nuxt.hook('nitro:config', (nitro) => {
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
       nitro.alias['#cms/db'] = dbImpl
+      nitro.alias['#cms/mailer'] = mailImpl
       nitro.externals = nitro.externals || {}
       nitro.externals.inline = nitro.externals.inline || []
     })
 
+    // The session shape the built-in sign-in stores (nuxt-auth-utils' User/UserSession),
+    // so hosts get `useUserSession().user.value.role` typed without declaring it.
+    addTypeTemplate({
+      filename: 'types/cms-auth.d.ts',
+      getContents: () => `declare module '#auth-utils' {
+  interface User {
+    id: string
+    email: string
+    name: string
+    role: 'admin' | 'editor' | 'author' | (string & {})
+    locale: string | null
+  }
+  interface UserSession {
+    cms?: { uid: string; sv: number }
+  }
+}
+export {}
+`,
+    }, { nitro: true, nuxt: true })
+
     // Runtime config consumed by the server DataSource (env override: NUXT_CMS_DATABASE_URL).
     nuxt.options.runtimeConfig.cms = {
       databaseUrl: options.databaseUrl || process.env.DATABASE_URL || '',
+      auth: {
+        mode: options.auth?.mode || 'builtin',
+        trustedProxies: options.auth?.trustedProxies ?? 1,
+        ipHeader: options.auth?.ipHeader || '',
+      },
+      // Empty defaults so NUXT_CMS_PUBLIC_URL / NUXT_CMS_MAIL_* bind at runtime.
+      publicUrl: options.publicUrl || '',
+      mail: {
+        transport: options.mail?.transport || 'log',
+        from: options.mail?.from || '',
+        smtp: {
+          host: options.mail?.smtp?.host || '',
+          port: options.mail?.smtp?.port ?? 587,
+          secure: options.mail?.smtp?.secure ?? false,
+          user: options.mail?.smtp?.user || '',
+          pass: options.mail?.smtp?.pass || '',
+        },
+        file: { dir: options.mail?.file?.dir || '.cms-mail' },
+      },
       storage: {
         driver: options.storage?.driver || 'local',
         local: {

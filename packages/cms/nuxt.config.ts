@@ -19,6 +19,12 @@ export default defineNuxtConfig({
   // Admin design tokens, scoped to html[data-cms-admin] so the host site's own
   // theme is untouched (see app/assets/css/cms-admin.css).
   css: [join(layerDir, 'app/assets/css/cms-admin.css')],
+  // Admin sessions end after 14 days at the latest (sign in again). Without a maxAge
+  // a copied session cookie would stay valid until the account changes. Hosts can
+  // override with runtimeConfig.session.maxAge / NUXT_SESSION_MAX_AGE.
+  runtimeConfig: {
+    session: { maxAge: 60 * 60 * 24 * 14 },
+  },
   // The admin's typefaces, through @nuxt/fonts (bundled with Nuxt UI): downloaded at
   // build time and served from the app itself — no requests to Google at runtime.
   // The admin's tokens reference them through CSS variables, which @nuxt/fonts

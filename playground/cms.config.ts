@@ -97,12 +97,9 @@ export const Post = defineEntity("post", {
       .help({ en: "Use the toolbar for headings, links and images.", cs: "Nadpisy, odkazy a obrázky přidáte z panelu nástrojů." }),
     ...seo(),
   },
-  access: {
-    read: () => true,
-    // `table` is the entity's own typed table — no need to reference Post here.
-    update: ({ user, table }) =>
-      user.role === "admin" || eq(table.authorId, user.id),
-  },
+  // Who may do what comes from the built-in roles (admin, editor, author). An entity
+  // can narrow it further with `access`, e.g. a row-level rule that is AND-ed in:
+  //   access: { update: ({ user, table }) => eq(table.authorId, user.id) }
   // First-class publish workflow: publish/unpublish toggles `status`, stamps
   // `publishedAt`, and the Preview button opens the draft at /blog/:slug?preview.
   publish: {

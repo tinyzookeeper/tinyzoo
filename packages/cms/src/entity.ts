@@ -2,6 +2,7 @@ import { type PgColumn, pgEnum, pgTable, primaryKey, timestamp, uuid } from 'dri
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
+import { cmsAudit, cmsTokens, cmsUsers } from './system'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
 
@@ -16,7 +17,7 @@ type ColumnKey<K extends string, D> = KindOf<D>['col'] extends 'none' ? never
 
 /** A selected row: system columns + each owned column at its DB key. */
 type RowFields<F> = Prettify<
-  { id: string; createdAt: Date; updatedAt: Date } &
+  { id: string; createdAt: Date; updatedAt: Date; createdBy: string | null; updatedBy: string | null } &
   { [K in keyof F & string as ColumnKey<K, F[K]>]: KindOf<F[K]>['out'] }
 >
 
@@ -29,7 +30,7 @@ type InsertFields<F> = Prettify<
 
 /** The entity's drizzle table, typed enough for `eq()` + key autocomplete in access rules. */
 type TableColumns<F> = Prettify<
-  { id: PgColumn; createdAt: PgColumn; updatedAt: PgColumn } &
+  { id: PgColumn; createdAt: PgColumn; updatedAt: PgColumn; createdBy: PgColumn; updatedBy: PgColumn } &
   { [K in keyof F & string as ColumnKey<K, F[K]>]: PgColumn }
 >
 
@@ -152,7 +153,7 @@ export function propOf(key: string, fld: FieldDescriptor): string {
 }
 
 /** Entity names the CMS uses internally; user entities may not take them. */
-const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'styleguide'])
+const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'styleguide', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account'])
 
 export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
@@ -193,6 +194,9 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   }
   columns.createdAt = timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
   columns.updatedAt = timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
+  // Who created / last changed the row (a CMS user id; no FK so external auth works too).
+  columns.createdBy = uuid('created_by')
+  columns.updatedBy = uuid('updated_by')
   const table = pgTable(name, columns)
 
   // 3) validation — create and update built separately (update carries no defaults)
@@ -243,6 +247,9 @@ export interface CmsRegistry {
   schema: Record<string, any>
   graph: any[]
   cmsMedia: typeof cmsMedia
+  cmsUsers: typeof cmsUsers
+  cmsTokens: typeof cmsTokens
+  cmsAudit: typeof cmsAudit
 }
 
 const _regCache = new WeakMap<object, CmsRegistry>()
@@ -286,12 +293,12 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     }
   }
 
-  const schema: Record<string, any> = { cmsMedia }
+  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit }
   for (const e of entities) schema[e.name] = e.table
   for (const j of junctions) schema[j.name] = j.table
 
   const graph = entities.map(entityGraph)
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, cmsMedia }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, cmsMedia, cmsUsers, cmsTokens, cmsAudit }
   _regCache.set(config, reg)
   return reg
 }

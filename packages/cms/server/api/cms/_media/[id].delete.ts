@@ -4,12 +4,13 @@ import { eq } from '@my-cms/core'
 // uploads be reclaimed (full auto-GC on hero replace / entity delete is a follow-up).
 // If a required FK still references it, the DB's ON DELETE restrict surfaces an error.
 export default defineEventHandler(async (event) => {
-  requireCmsUser(event)
+  const user = requireCmsUser(event)
   const { db, reg } = useCms()
   const id = getIdParam(event)
 
   const [media] = await db.select().from(reg.cmsMedia).where(eq(reg.cmsMedia.id, id))
   if (!media) throw createError({ statusCode: 404, statusMessage: 'Media not found' })
+  assertMediaOwner(user, media)
 
   // Refuse rather than orphan a live reference (entity GC handles auto-cleanup).
   if (await isMediaReferenced(db, reg, id, media.key)) {
@@ -20,5 +21,6 @@ export default defineEventHandler(async (event) => {
   await useCmsStorage().delete(media.key)
   await db.delete(reg.cmsMedia).where(eq(reg.cmsMedia.id, id))
 
+  await audit(event, 'media.delete', { recordId: id })
   return { ok: true }
 })

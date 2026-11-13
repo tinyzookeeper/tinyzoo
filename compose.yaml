@@ -4,6 +4,7 @@ name: my-cms
 #
 #   docker compose up -d                 # Postgres only (all you need for `pnpm play`)
 #   docker compose --profile s3 up -d    # + MinIO, to exercise the S3/R2 storage driver
+#   docker compose --profile mail up -d  # + Mailpit: catches invite/reset emails (UI on :8025)
 #   docker compose down                  # stop (data survives — it lives in named volumes)
 #   docker compose down -v               # stop *and* wipe the data
 #
@@ -67,6 +68,19 @@ services:
       mc alias set m http://minio:9000 minio minio12345 &&
       mc mb -p m/cms-media &&
       mc anonymous set download m/cms-media"
+
+
+  # --- Email catcher (opt-in) ---------------------------------------------
+  # Invitations and password resets go here instead of real inboxes. Point the
+  # playground at it with NUXT_CMS_MAIL_TRANSPORT=smtp, NUXT_CMS_MAIL_SMTP_HOST=localhost,
+  # NUXT_CMS_MAIL_SMTP_PORT=1025 and open http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    profiles: ["mail"]
+    restart: unless-stopped
+    ports:
+      - "${CMS_SMTP_PORT:-1025}:1025"
+      - "${CMS_MAILPIT_UI_PORT:-8025}:8025"
 
 volumes:
   pgdata:

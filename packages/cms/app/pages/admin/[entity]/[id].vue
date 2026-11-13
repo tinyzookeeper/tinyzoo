@@ -95,7 +95,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         variant="ghost" color="neutral" icon="i-lucide-external-link"
       >{{ t('editor.preview') }}</UButton>
       <UButton
-        v-if="publish && !isNew" color="neutral" variant="outline" :loading="saving"
+        v-if="publish && !isNew && meta?.can?.publish !== false" color="neutral" variant="outline" :loading="saving"
         :icon="isPublished ? 'i-lucide-eye-off' : 'i-lucide-globe'" @click="togglePublish"
       >{{ isPublished ? t('editor.unpublish') : t('editor.publish') }}</UButton>
       <UTooltip :text="t('editor.shortcutSave')">

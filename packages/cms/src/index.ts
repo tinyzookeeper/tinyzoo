@@ -18,9 +18,10 @@ export {
   type FilterParam,
 } from './content-shape'
 export { cmsMedia } from './media'
+export { cmsUsers, cmsTokens, cmsAudit, CMS_ROLES, type CmsRole } from './system'
 export { richTextSchema, sanitizeRichText, emptyDoc, type RichTextDoc } from './richtext'
 export type * from './descriptor'
 
 // Re-export drizzle query helpers so host access rules can use them
 // (e.g. `update: ({ user }) => eq(Post.table.authorId, user.id)`).
-export { eq, and, or, ilike, inArray, sql, desc, asc } from 'drizzle-orm'
+export { eq, ne, gt, lt, and, or, not, ilike, inArray, isNull, isNotNull, sql, desc, asc } from 'drizzle-orm'

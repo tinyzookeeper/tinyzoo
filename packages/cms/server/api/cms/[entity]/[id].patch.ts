@@ -20,17 +20,21 @@ export default defineEventHandler(async (event) => {
     .map(([k]) => k)
   const oldMedia: Record<string, string | null> = {}
   let oldEmbedded: string[] = []
-  if (changedMediaCols.length || changedRichCols.length) {
-    const [old] = await db.select().from(e.table).where(eq(e.table.id, id))
-    for (const c of changedMediaCols) oldMedia[c] = old?.[c] ?? null
-    if (old) oldEmbedded = changedRichCols.flatMap((k) => embeddedMediaIds(old[k]))
-  }
+  // The row as it is now: for media cleanup, the publish rule and the audit entry.
+  const [old] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
+  if (!old) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+  for (const c of changedMediaCols) oldMedia[c] = old[c] ?? null
+  oldEmbedded = changedRichCols.flatMap((k) => embeddedMediaIds(old[k]))
+  assertPublishAllowed(e, user, values, old)
 
   const row = await db.transaction(async (tx: any) => {
     let current: any
     if (Object.keys(values).length) {
       values.updatedAt = new Date()
-      ;[current] = await tx.update(e.table).set(values).where(both(eq(e.table.id, id), rowFilter)).returning()
+      values.updatedBy = actorId(user)
+      // For people who may not publish, the row must still not be live at write time
+      // (an editor may have published it since we read it).
+      ;[current] = await tx.update(e.table).set(values).where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning()
     } else {
       ;[current] = await tx.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
     }
@@ -43,16 +47,17 @@ export default defineEventHandler(async (event) => {
   if (changedMediaCols.length || changedRichCols.length) {
     const storage = useCmsStorage()
     for (const c of changedMediaCols) {
-      if (oldMedia[c] && oldMedia[c] !== row[c]) await gcMediaIfOrphan(db, reg, storage, oldMedia[c])
+      if (oldMedia[c] && oldMedia[c] !== row[c]) await gcMediaIfOrphan(db, reg, storage, oldMedia[c], gcScope(user))
     }
     // Images dropped from rich text on this edit → GC if now orphaned.
     if (oldEmbedded.length) {
       const stillEmbedded = new Set(changedRichCols.flatMap((k) => embeddedMediaIds(row[k])))
       for (const mid of new Set(oldEmbedded)) {
-        if (!stillEmbedded.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid)
+        if (!stillEmbedded.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
       }
     }
   }
 
+  await audit(event, publishAction(e, old, row) ?? 'entry.update', { entity: e.name, recordId: id })
   return { row }
 })

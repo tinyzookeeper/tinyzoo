@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { type Client, DEMO, signIn, testDb, truncateAll } from '../helpers/api'
+import { type Client, signIn, testDb, truncateAll } from '../helpers/api'
 import { createAuthor, createPost, createTag } from '../helpers/fixtures'
 
 const db = testDb()
@@ -33,11 +33,9 @@ describe('admin home overview', () => {
     expect((await fetch(`${admin.baseURL}/api/cms/_overview`)).status).toBe(401)
   })
 
-  it('applies row-level read rules to counts (an editor sees what they may read)', async () => {
-    // Post `read` is open in the playground, so both see the same; the endpoint
-    // goes through the same accessWhere as the list, which the access suite covers.
-    await db.query('insert into author (id, name, email) values ($1, $2, $3)', [DEMO.editor.id, 'Edie', 'edie@example.com'])
-    await createPost(admin, { author: DEMO.editor.id })
+  it('counts what an author may read (everything) the same as an admin', async () => {
+    const author = await createAuthor(admin)
+    await createPost(admin, { author: author.id })
     expect((await editor.get('/api/cms/_overview')).body.counts.post).toBe(1)
   })
 })
@@ -86,6 +84,6 @@ describe('admin pages (server-rendered)', () => {
   it('sends anonymous visitors to sign in', async () => {
     const res = await fetch(`${admin.baseURL}/admin`, { redirect: 'manual' })
     expect([301, 302, 307]).toContain(res.status)
-    expect(res.headers.get('location')).toMatch(/^\/login/)
+    expect(res.headers.get('location')).toMatch(/^\/admin\/login/)
   })
 })

@@ -23,16 +23,17 @@ Verified: enum (`pgEnum`), unique constraints, nullable/non-null FKs with correc
 m2m junction tables, m2o label population, m2m junction diff-writes, richtext (jsonb), Zod 422
 validation, and correct PATCH semantics (omitted fields preserved, defaults don't fire on update).
 
-Plus: real auth (nuxt-auth-utils), route-protected dashboard, role + **row-level** access
-enforcement, a polished sidebar shell, list search/sort/pagination, dark mode,
+Plus: built-in accounts (first-run setup, invitations, password reset, admin/editor/author
+roles, audit log), entity- and **row-level** access enforcement, a polished sidebar shell, list search/sort/pagination, dark mode,
 **media upload** (pluggable `StorageDriver`: local + S3/R2) with image previews, a
 **TipTap** rich-text editor, a **host-overridable field/view registry**, and a public
 **headless content API** for your frontends.
 
-![login](docs/screenshots/login.png)
-![dashboard](docs/screenshots/admin-shell-dashboard.png)
+![home](docs/screenshots/admin-home.png)
+![editor](docs/screenshots/admin-editor.png)
+![sign in](docs/screenshots/admin-sign-in.png)
 ![media upload](docs/screenshots/media-upload.png)
-![list (dark)](docs/screenshots/admin-shell-dark.png)
+![list (dark)](docs/screenshots/admin-list-dark.png)
 
 ## Architecture
 
@@ -114,12 +115,66 @@ pnpm db:migrate
 pnpm play
 ```
 
+On a fresh database, `/admin` asks you to create the first administrator; invite
+everyone else from **Settings → Team**.
+
 `docker compose down` stops it; the data lives in a named volume and survives (use
 `down -v` to wipe it). If `:5434` is taken, `CMS_PG_PORT=5455 docker compose up -d` —
 then match `DATABASE_URL` in `playground/.env`.
 
 `DATABASE_URL` is read from `playground/.env`. Edit `playground/cms.config.ts`, re-run
 `pnpm db:generate` (review the SQL!) and `pnpm db:migrate`, and the dashboard updates itself.
+
+## Accounts, roles & sign-in
+
+The CMS owns its users (`cms_users`). A fresh install shows **first-run setup** at
+`/admin`, which creates the first administrator; everyone else is **invited** from
+Settings → Team (email with a one-time link, plus a copyable link if the email gets
+lost). People reset forgotten passwords themselves; links expire (invites 7 days,
+resets 1 hour) and only a hash of each is stored.
+
+| Role | Can |
+|---|---|
+| Administrator | everything, plus people (invite, change role, disable, remove) |
+| Editor | create, edit, publish and delete all content; edit site settings |
+| Author | create drafts; edit and delete only what they created; never publish, never touch settings |
+
+An entity's own `access` rules still apply on top (AND-ed). Every request re-reads
+the account, so disabling someone, changing their role or changing a password takes
+effect immediately, not when a cookie expires. Sign-in is rate-limited, failures look
+identical whether or not the address exists, and writes, sign-ins and people changes go
+to an audit log (`cms_audit`). Every content row records `createdBy` / `updatedBy`.
+
+Configuration (all overridable by env):
+
+```ts
+cms: {
+  publicUrl: 'https://cms.example.com',   // NUXT_CMS_PUBLIC_URL — required in production: links in emails use it, never the Host header
+  mail: {
+    transport: 'smtp',                    // NUXT_CMS_MAIL_TRANSPORT: log (default) | file | smtp (Node only)
+    from: 'Pekárna Novák <web@pekarna-novak.cz>',
+    smtp: { host: 'smtp.example.com', port: 587, user: '…', pass: '…' }, // NUXT_CMS_MAIL_SMTP_*
+  },
+  auth: {
+    mode: 'builtin',                      // 'external': your app signs people in and sets event.context.cmsUser
+    trustedProxies: 1,                    // proxies appending to X-Forwarded-For (rate limits read the client IP behind them)
+    ipHeader: '',                         // or a trusted edge header, e.g. 'cf-connecting-ip'
+  },
+}
+```
+
+Sessions last 14 days from sign-in (`runtimeConfig.session.maxAge`). State-changing
+requests to `/api/cms/**` must send JSON (multipart only for media uploads) and, when
+the browser reports it, come from the same origin — so a form on another page of the
+site or a sibling subdomain cannot act as a signed-in editor (CSRF). Rate limits are
+in memory per instance today; a shared store for several replicas is planned (Phase 5).
+
+Locally, `docker compose --profile mail up -d` starts Mailpit; set
+`NUXT_CMS_MAIL_TRANSPORT=smtp NUXT_CMS_MAIL_SMTP_HOST=localhost NUXT_CMS_MAIL_SMTP_PORT=1025`
+and read the emails at http://localhost:8025. Without it, emails are printed to the
+server log.
+
+![team](docs/screenshots/admin-team-invite.png)
 
 ## Admin look & language
 
@@ -161,7 +216,9 @@ on every run — never the development database. Set `TEST_DATABASE_URL` to poin
 elsewhere. The setup then production-builds the playground into
 `node_modules/.cache/cms-test` (your own `.nuxt`/`.output` and dev server are left
 alone), starts it on a free port with a throwaway upload directory, and the specs
-talk to it over HTTP with the demo accounts. Files run one at a time and truncate the
+talk to it over HTTP. The setup creates one account per role the way a real install
+does (first-run setup for the admin, invitations for the editor and author) and
+shares their sessions with the specs; emails land in a temp folder the specs read. Files run one at a time and truncate the
 tables they use. While iterating on specs, `CMS_TEST_REUSE_BUILD=1 pnpm test:api`
 skips the ~15 s rebuild (only when the server code did not change);
 `CMS_TEST_SERVER_LOGS=1` prints the server's output at the end.
@@ -218,7 +275,7 @@ export default defineAppConfig({
 > `app/components/global/PgStatusSelect.vue`, rendering the post status as a
 > segmented control instead of the default dropdown.
 
-![form with a custom (host-registered) status field renderer](docs/screenshots/admin-form.png)
+![form with a custom (host-registered) status field renderer](docs/screenshots/admin-editor.png)
 
 Built-in renderers live in `packages/cms/app/components` (`CmsField*` / `CmsCell*`),
 one small component per type — each independently overridable.
@@ -473,7 +530,7 @@ Set runtime secrets as Worker vars: `NUXT_CMS_DATABASE_URL` (Neon/Hyperdrive),
 - On-publish **webhooks** / ISR revalidation (publish + draft preview themselves are built)
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`) and a
   shared-store rate-limiter/quota for multi-instance / Workers deploys (today: in-memory)
-- **Per-field permissions** (`fieldMode`) + a roles-management UI, incl. per-user **media access scoping** (media is a shared authenticated pool today). (Auth is real — nuxt-auth-utils; entity- and row-level `access` is enforced server-side. The package reads `event.context.cmsUser`, which the host sets — see `playground/server/middleware/cms-session.ts`.)
+- **Per-field permissions** (`fieldMode`) and custom roles beyond admin / editor / author.
 - **`blocks`** page-builder field (the `f.json` hook already reserves the path)
 - Precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
 - A *live* Cloudflare deploy recipe (wrangler config + Hyperdrive binding); publish pipeline
