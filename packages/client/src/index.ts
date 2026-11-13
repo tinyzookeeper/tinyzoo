@@ -60,11 +60,13 @@ export interface Collection<C extends CollectionSpec> {
   get: (slugOrId: string, options?: GetOptions) => Promise<C['item']>
 }
 
-export type CmsClient<S extends AnyContentSchema> =
+export type CmsClient<S extends AnyContentSchema, G extends object = Record<string, unknown>> =
   & { readonly [K in keyof S]: Collection<S[K]> }
   & {
     /** Same as `client[name]`, but accepts a runtime collection name. */
     collection: <K extends keyof S & string>(name: K) => Collection<S[K]>
+    /** A global (site settings and other one-of-a-kind content), or null before it is first saved. */
+    global: <K extends keyof G & string>(name: K, options?: GetOptions) => Promise<G[K] | null>
     /** Fetch the OpenAPI 3.1 document for this CMS. */
     openapi: () => Promise<unknown>
   }
@@ -96,7 +98,7 @@ function buildQuery(query?: Record<string, unknown>): string {
   return s ? `?${s}` : ''
 }
 
-export function createCmsClient<S extends AnyContentSchema>(options: ClientOptions): CmsClient<S> {
+export function createCmsClient<S extends AnyContentSchema, G extends object = Record<string, unknown>>(options: ClientOptions): CmsClient<S, G> {
   const base = options.baseUrl.replace(/\/+$/, '')
   const doFetch = options.fetch ?? globalThis.fetch
   if (typeof doFetch !== 'function') {
@@ -132,8 +134,14 @@ export function createCmsClient<S extends AnyContentSchema>(options: ClientOptio
     return { list, get } as unknown as Collection<CollectionSpec>
   }
 
+  const global = async (name: string, opts: GetOptions = {}) => {
+    const res = await request<{ item: unknown }>(`/api/content/_global/${encodeURIComponent(name)}`, { locale: opts.locale })
+    return res.item
+  }
+
   const root = {
     collection,
+    global,
     openapi: () => request('/api/openapi.json'),
   }
 

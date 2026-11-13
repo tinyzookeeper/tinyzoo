@@ -75,6 +75,8 @@ export interface RefShape {
 
 export interface ContentModel {
   entities: ContentShape[]
+  /** Public singletons (globals), served at /api/content/_global/:name. */
+  globals: ContentShape[]
   embedded: EmbeddedShape[]
   refs: RefShape[]
 }
@@ -238,6 +240,18 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
   // Singletons are delivered via /api/content/_global/:name (object), not as a
   // collection list, so they are excluded from the generated collection clients.
   const publicEntities = reg.entities.filter((e) => e.content?.public && !e.singleton)
+  const publicGlobals = reg.entities.filter((e) => e.content?.public && e.singleton)
+
+  const globals: ContentShape[] = publicGlobals.map((e) => ({
+    name: e.name,
+    pascal: pascal(e.name),
+    titleField: e.titleField,
+    gated: false,
+    fields: topLevelFields(reg, e),
+    sortKeys: [],
+    filters: [],
+    locales: reg.locales && e.localized.length ? reg.locales.locales : null,
+  }))
 
   const entities: ContentShape[] = publicEntities.map((e) => ({
     name: e.name,
@@ -254,7 +268,7 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
   // Collect every relation target reachable through a populated field.
   const embeddedByName = new Map<string, EmbeddedShape>()
   const refByName = new Map<string, RefShape>()
-  for (const e of publicEntities) {
+  for (const e of [...publicEntities, ...publicGlobals]) {
     for (const f of topLevelFields(reg, e)) {
       if (f.type.kind !== 'relation-one' && f.type.kind !== 'relation-many') continue
       const target = reg.byName.get(f.type.target)
@@ -277,5 +291,5 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
     }
   }
 
-  return { entities, embedded: [...embeddedByName.values()], refs: [...refByName.values()] }
+  return { entities, globals, embedded: [...embeddedByName.values()], refs: [...refByName.values()] }
 }

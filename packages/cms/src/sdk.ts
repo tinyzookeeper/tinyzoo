@@ -124,6 +124,13 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   for (const e of model.entities) out.push(objectInterface(e.pascal, e.fields, { timestamps: true, locales: e.locales }))
   out.push('')
 
+  // Globals (singletons).
+  if (model.globals.length) {
+    out.push('// ── globals ─────────────────────────────────────────────────────────────────────')
+    for (const g of model.globals) out.push(objectInterface(g.pascal, g.fields, { timestamps: true, locales: g.locales }))
+    out.push('')
+  }
+
   // Per-collection filter types.
   out.push('// ── query types ─────────────────────────────────────────────────────────────────')
   for (const e of model.entities) {
@@ -148,10 +155,14 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('}')
   out.push('')
 
+  out.push('/** Maps each global to its object (`cms.global(name)`). */')
+  out.push(`export type GlobalSchema = {${model.globals.length ? `\n${model.globals.map((g) => `  ${g.name}: ${g.pascal}`).join('\n')}\n` : ''}}`)
+  out.push('')
+
   // Pre-bound, fully-typed client factory.
   out.push('/** Create a typed client for this CMS. `baseUrl` is the CMS origin. */')
-  out.push('export function createClient(options: ClientOptions): CmsClient<ContentSchema> {')
-  out.push('  return createCmsClient<ContentSchema>(options)')
+  out.push('export function createClient(options: ClientOptions): CmsClient<ContentSchema, GlobalSchema> {')
+  out.push('  return createCmsClient<ContentSchema, GlobalSchema>(options)')
   out.push('}')
   out.push('')
 

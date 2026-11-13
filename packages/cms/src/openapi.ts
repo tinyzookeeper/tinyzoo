@@ -244,6 +244,22 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
     }
   }
 
+  for (const g of model.globals) {
+    schemas[g.pascal] = objectSchema(g.fields, { timestamps: true, locales: g.locales })
+    paths[`/api/content/_global/${g.name}`] = {
+      get: {
+        operationId: `getGlobal${g.pascal}`,
+        tags: ['globals'],
+        summary: `Get the ${g.name} global`,
+        parameters: localeParam(g),
+        responses: {
+          200: { description: 'OK (item is null until it is first saved)', content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { item: { anyOf: [REF(g.pascal), { type: 'null' }] } }, required: ['item'] } } } },
+          ...(tokenAuth ? { 401: { description: 'Missing or invalid API token' } } : {}),
+        },
+      },
+    }
+  }
+
   const doc: JsonSchema = {
     openapi: '3.1.0',
     info: {

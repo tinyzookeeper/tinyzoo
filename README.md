@@ -543,6 +543,7 @@ const cms = createClient({ baseUrl: 'https://cms.example.com', token: process.en
 const { items } = await cms.post.list({ filter: { status: 'published' }, sort: 'publishedAt', dir: 'desc' })
 //      ^? Post[] — items[0].author.name, .hero?.url, .tags[0].slug are all typed
 const post = await cms.post.get('hello-world') // Post, or throws CmsError on 404
+const settings = await cms.global('siteSettings', { locale: 'en' }) // SiteSettings | null
 ```
 
 Filters match text, choice and relation fields exactly, yes/no fields with `true`/`false`,

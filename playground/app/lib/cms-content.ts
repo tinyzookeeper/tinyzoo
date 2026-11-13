@@ -104,6 +104,30 @@ export interface Tag {
   locales: Array<'cs' | 'en'>
 }
 
+// ── globals ─────────────────────────────────────────────────────────────────────
+export interface Navigation {
+  id: string
+  main: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null }>
+  footer: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null }>
+  createdAt: string
+  updatedAt: string
+  /** The language this item is served in. */
+  locale: 'cs' | 'en'
+  /** Languages this item exists in (the default and every translation). */
+  locales: Array<'cs' | 'en'>
+}
+export interface SiteSettings {
+  id: string
+  siteName: string
+  tagline: string | null
+  logo: CmsMedia | null
+  metaTitle: string | null
+  metaDescription: string | null
+  ogImage: CmsMedia | null
+  createdAt: string
+  updatedAt: string
+}
+
 // ── query types ─────────────────────────────────────────────────────────────────
 export interface AuthorFilters {
   name?: string
@@ -140,7 +164,13 @@ export type ContentSchema = {
   tag: { item: Tag, sort: 'createdAt' | 'updatedAt' | 'name' | 'slug', filters: TagFilters }
 }
 
+/** Maps each global to its object (`cms.global(name)`). */
+export type GlobalSchema = {
+  navigation: Navigation
+  siteSettings: SiteSettings
+}
+
 /** Create a typed client for this CMS. `baseUrl` is the CMS origin. */
-export function createClient(options: ClientOptions): CmsClient<ContentSchema> {
-  return createCmsClient<ContentSchema>(options)
+export function createClient(options: ClientOptions): CmsClient<ContentSchema, GlobalSchema> {
+  return createCmsClient<ContentSchema, GlobalSchema>(options)
 }
