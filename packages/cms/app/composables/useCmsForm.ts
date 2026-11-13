@@ -28,10 +28,25 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     return undefined
   }
 
+  // The values as last loaded from the server, per field (JSON), to tell which
+  // fields this tab changed — "save my changes on top" sends only those.
+  let loaded: Record<string, string> = {}
+  const json = (v: unknown) => JSON.stringify(v ?? null)
+
   /** Fill with a loaded row (and blanks for anything missing). Not a user edit. */
   function load(row: Record<string, any> | null | undefined) {
     Object.assign(state, row ?? {})
     for (const f of editable.value) if (!(f.key in state)) state[f.key] = blankFor(f)
+    loaded = Object.fromEntries(editable.value.map((f: any) => [f.key, json(state[f.key])]))
+  }
+
+  /** The fields whose value differs from what was last loaded, with this tab's values. */
+  function changedFields(): Record<string, any> {
+    const out: Record<string, any> = {}
+    for (const f of editable.value) {
+      if (json(state[f.key]) !== loaded[f.key]) out[f.key] = structuredClone(toRaw(state[f.key]))
+    }
+    return out
   }
 
   /** The request body: every editable field, minus empty optional values. */
@@ -48,7 +63,13 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   // Unsaved changes: edits made after the initial load mark the form dirty.
   const dirty = ref(false)
   let ready = false
-  watch(state, () => { if (ready) dirty.value = true }, { deep: true })
+  // Counts edits, so a save can tell whether anything was typed while it ran.
+  let revision = 0
+  watch(state, () => {
+    if (!ready) return
+    revision++
+    dirty.value = true
+  }, { deep: true })
   function onBeforeUnload(e: BeforeUnloadEvent) {
     if (!dirty.value) return
     e.preventDefault()
@@ -61,6 +82,23 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload))
   onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('editor.unsavedConfirm')) : true))
 
+  /**
+   * Load a newer version over the form (someone else saved): not a user edit, so the
+   * form is clean afterwards. Fields the row no longer has are cleared.
+   */
+  async function replace(row: Record<string, any> | null | undefined) {
+    ready = false
+    for (const k of Object.keys(state)) if (!(k in (row ?? {}))) delete state[k]
+    load(row)
+    await nextTick()
+    dirty.value = false
+    conflict.value = null
+    ready = true
+  }
+
+  /** Set when a save was refused because someone saved in between (409 stale). */
+  const conflict = ref<{ version: string; updatedByName: string | null } | null>(null)
+
   const saving = ref(false)
   /**
    * Run a save. On a validation answer (422/409 with issues) the messages land on
@@ -70,13 +108,27 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     saving.value = true
     Object.keys(fieldErrors).forEach((k) => delete fieldErrors[k])
     Object.keys(issues).forEach((k) => delete issues[k])
+    // Let edits made just before the save (e.g. Publish setting the status) be
+    // counted first: they are part of this save, not typed during it.
+    await nextTick()
+    const startedAt = revision
     try {
       await run()
-      dirty.value = false
+      // Edits typed while the request ran were not in it: they stay unsaved.
+      await nextTick()
+      dirty.value = revision !== startedAt
+      if (!dirty.value) loaded = Object.fromEntries(editable.value.map((f: any) => [f.key, json(state[f.key])]))
+      conflict.value = null
       toast.add({ title: successTitle, icon: 'i-lucide-check', color: 'success' })
       return true
     }
     catch (e: any) {
+      if (e?.data?.data?.code === 'stale') {
+        conflict.value = e.data.data
+        // The notice sits at the top of the page; say it where the eye is too.
+        toast.add({ title: t('live.notSaved'), icon: 'i-lucide-git-compare-arrows', color: 'warning' })
+        return false
+      }
       const issueList = e?.data?.data
       if (Array.isArray(issueList) && issueList.some((i: any) => i?.path?.[0])) {
         for (const i of issueList) {
@@ -96,5 +148,5 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     }
   }
 
-  return { state, fieldErrors, issues, editable, dirty, saving, load, body, submit }
+  return { state, fieldErrors, issues, editable, dirty, saving, conflict, load, replace, body, submit, changedFields }
 }

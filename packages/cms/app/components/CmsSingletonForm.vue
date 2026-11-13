@@ -2,13 +2,16 @@
 // Edits a single-row global (site settings, navigation). Fetches the one row, renders
 // the same CmsField widgets as the entry editor, and upserts via PUT /_singleton/:name.
 // With translatable fields, a language switcher edits the translations (?locale=).
+import type { LiveChange } from '../composables/useCmsLive'
+
 const props = defineProps<{ entity: string, meta: any }>()
 const route = useRoute()
 const { t, tl, entityLabel } = useCmsI18n()
 
 // A global never "creates" from the form's point of view (PUT upserts).
 const form = useCmsForm(computed(() => props.meta?.fields ?? []), computed(() => false))
-const { state, fieldErrors, editable, dirty, saving } = form
+const { state, fieldErrors, editable, dirty, saving, conflict } = form
+const toast = useToast()
 
 // ── content languages (as in the entry editor) ──
 const locales = computed(() => props.meta?.locales as { default: string; all: string[]; labels: Record<string, any> } | null)
@@ -20,12 +23,61 @@ const isTranslation = computed(() => !!locales.value && currentLocale.value !== 
 const localeLabel = (code?: string | null) => (code ? tl(locales.value?.labels?.[code], code.toUpperCase()) : '')
 const defaultLabel = computed(() => localeLabel(locales.value?.default))
 
-const { data } = await useFetch<{ row: Record<string, any> | null }>((): string =>
-  `/api/cms/_singleton/${props.entity}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`, { watch: [() => props.entity] })
+const rowUrl = (): string => `/api/cms/_singleton/${props.entity}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`
+const { data } = await useFetch<{ row: Record<string, any> | null }>(rowUrl, { watch: [() => props.entity] })
 form.load(data.value?.row)
 const exists = computed(() => !!data.value?.row?.id)
 const available = ref<string[]>(data.value?.row?.__locales ?? [])
 const defaults = computed<Record<string, any>>(() => data.value?.row?.__defaults ?? {})
+// The version this form edits (a translation has its own); see the entry editor.
+const versionOf = (row: Record<string, any> | null | undefined) => (isTranslation.value ? row?.__version : row?.updatedAt) ?? null
+const version = ref<string | null>(versionOf(data.value?.row))
+const fetchRow = async () => (await $fetch<{ row: Record<string, any> | null }>(rowUrl())).row
+
+async function loadNewest() {
+  const row = await fetchRow()
+  await form.replace(row)
+  data.value = { row }
+  version.value = versionOf(row)
+  if (live) live.incoming.value = null
+}
+
+/** Someone else saved or we reconnected: fetch, then decide (as in the entry editor). */
+async function onRemoteChange(c: LiveChange) {
+  const row = await fetchRow().catch(() => null)
+  if (!row || versionOf(row) === version.value) return
+  if (dirty.value || saving.value) {
+    if (live) live.incoming.value = c
+    return
+  }
+  await form.replace(row)
+  data.value = { row }
+  version.value = versionOf(row)
+  toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
+}
+
+/** The newest version with only this form's changed fields put back on it, saved. */
+async function saveOnTop() {
+  const mine = form.changedFields()
+  await loadNewest()
+  Object.assign(state, mine)
+  await save()
+}
+
+// Realtime, once the global has its row (the first save creates it).
+const rowId = data.value?.row?.id as string | undefined
+const live = rowId
+  ? useCmsEntryLive({
+      entity: props.entity,
+      id: rowId,
+      version,
+      dirty,
+      saving,
+      locale: computed(() => (isTranslation.value ? currentLocale.value : null)),
+      onChange: onRemoteChange,
+    })
+  : null
+const others = computed(() => live?.others.value ?? [])
 
 const title = computed(() => entityLabel(props.meta))
 const visible = computed(() => editable.value.filter((f: any) => !isTranslation.value || f.localized))
@@ -61,12 +113,18 @@ function save() {
     if (isTranslation.value) {
       const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
       const url: string = `/api/cms/_singleton/${props.entity}?locale=${currentLocale.value}`
-      await $fetch(url, { method: 'PUT', body })
+      const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+      const res: any = await $fetch(url, { method: 'PUT', body, headers })
+      version.value = versionOf(res?.row)
+      if (live) live.incoming.value = null
       if (currentLocale.value && !available.value.includes(currentLocale.value)) available.value = [...available.value, currentLocale.value]
       return
     }
     const url: string = `/api/cms/_singleton/${props.entity}`
-    await $fetch(url, { method: 'PUT', body: form.body() })
+    const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+    const res: any = await $fetch(url, { method: 'PUT', body: form.body(), headers })
+    version.value = versionOf(res?.row)
+    if (live) live.incoming.value = null
   })
 }
 defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value) save() } } })
@@ -78,6 +136,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]"
   >
     <template #actions>
+      <CmsPresence :people="others" />
       <UDropdownMenu v-if="locales && exists" :items="localeItems" :content="{ align: 'end' }">
         <UButton color="neutral" variant="ghost" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
           {{ (currentLocale ?? '').toUpperCase() }}
@@ -91,6 +150,10 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       </UTooltip>
     </template>
 
+    <CmsLiveNotice
+      :conflict="conflict" :incoming="live?.incoming.value"
+      @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
+    />
     <div class="space-y-6">
       <p v-if="isTranslation" class="text-sm text-muted">
         {{ t('translation.shared') }}

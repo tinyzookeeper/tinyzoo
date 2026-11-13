@@ -367,7 +367,7 @@ Built on the Phase 1 foundation and the Mobbin references.
 - Media library v2: grid, folders/tags, drag-and-drop upload, focal point and
   alt text per locale, usage ("used in 3 pages").
 
-### Phase 5 — Production operations on Pushbase
+### Phase 5 — Production operations on Pushbase ✅ *done (registry publishing and a workerd smoke test deferred)*
 
 - **Installable package:** fix layer resolution by package name, build step,
   publish to GitHub Packages (or npm), Changesets for versions and
@@ -393,6 +393,107 @@ Built on the Phase 1 foundation and the Mobbin references.
 - A `starter` template (host app wired for Pushbase: `deploy.yml`, env example,
   migrate-on-start) deployed to a staging environment.
 
+#### How it landed (2026-11-13)
+
+Five slices, each tested and committed:
+
+1. **Installable package** — `@my-cms/core/layer` subpath export (a bare
+   package-name `extends` silently loaded `src/`), `cms` bin, and a consumer check
+   that installs the packed package into a fresh app and builds it.
+2. **Migrations at start and health** — bundled drizzle-kit migrations applied on
+   boot with drizzle's own bookkeeping under an advisory lock; API requests wait;
+   `/api/health/live` and `/ready`.
+3. **Shared store** — Redis (ioredis) for rate limits and pub/sub, memory
+   fallback; keys namespaced per environment.
+4. **Changes, webhooks, headers, container** — every content write reports one
+   change: local caches cleared, other replicas told, `cms:change` hook, and signed
+   publish webhooks (HMAC-SHA256, retries, addresses in every language). Admin
+   security headers, request ids, JSON error logs. A root `Dockerfile` builds the
+   playground for Pushbase; running it showed the build had baked the build
+   machine's `DATABASE_URL` into the output — the URL is now read at runtime only.
+   `docs/deploying.md` covers environment, services, EU object storage, backups.
+5. **Realtime** (below).
+
+**Independent review** (separate agent, committed diff only): 2 High, 7 Medium, 8
+Low, 6 hardening — all fixed except the ones marked deferred:
+
+| Severity | Finding | Fix |
+|---|---|---|
+| High | `crypto.randomUUID()` at module load: a Worker would refuse to start | instance id made on first use |
+| High | A boot migration that hit a not-yet-ready database failed for good: API 503 forever while liveness said OK | retries for ~90 s on connection errors, then liveness fails and the process exits in production |
+| Medium | Migration SQL lost every `$N` token (`'costs $5'`, function bodies) | SQL without params passes through untouched; unit tests |
+| Medium | Migrate-on-start would do I/O in a Worker's global scope | refused on the edge driver with a clear log line |
+| Medium | Webhook "live" used the publish field, not `content.published` (scheduled or hidden rows announced) | visibility queried with the collection's own rule, before and after |
+| Medium | Old translated slugs and other languages' addresses missing from webhooks | addresses in every language; tests for rename and delete |
+| Medium | A down Redis held up every save and sign-in | 500 ms command timeout, no offline queue, publish off the request path |
+| Medium | A wrong or down `REDIS_URL` switched rate limiting off (fail-open) | counts locally when Redis cannot answer |
+| Medium | A replica that booted before Redis never heard other replicas | subscriber waits and re-subscribes; handler registered only on success |
+| Low | Admin headers skipped `/ADMIN/…` and base URLs | case-insensitive, base-aware |
+| Low | A malformed webhook URL could crash the failure log | URLs validated up front, logged without query |
+| Low | Environments sharing one Redis shared counters and messages | prefix, default `cms:<database name>` |
+| Low | Docs said stdout; overstated what webhooks cover; trusted-proxy pitfall | corrected |
+| Low | Webhooks went out unsigned | not sent without a secret in production |
+| Low | Image could not write local media | writable `/app/data` |
+| Low | Redis connections never closed | `close()` on shutdown |
+| Hardening | Failed-query logs carried parameters (emails, hashes) | stripped |
+| Hardening | Raw emails in Redis keys; null counter = allowed | hashed keys; null is an error |
+| Hardening | Replica messages forwarded unchecked | rebuilt field by field |
+| Hardening | Delivery id not signed; user ids sent to sites | id inside the signed body; `by` dropped |
+| Hardening | Host hooks slowed every save | run after the response |
+| Deferred | Fresh deploy exposes an unclaimed `/admin/setup` | optional setup token — Phase 6 checklist |
+
+Found on the way: Nitro's auto-import scanner silently skipped a whole file
+because of a `/` inside a template-literal expression (runtime "is not defined").
+
+Deferred: publishing to a registry with Changesets (decide with the name), a
+workerd smoke test in CI (needs wrangler in CI), the setup token.
+
+### Phase 5b — Realtime collaboration (like Postyard)
+
+**Stage 1 ✅ (2026-11-13): presence, live updates, overwrite protection.** One
+WebSocket per admin tab (`/api/cms/_live`, crossws on the app port). Unlike
+Postyard's channels, identity is the signed session checked at the upgrade and
+re-checked every 20 s heartbeat (disabled account, password change or role change
+drops the socket); the upgrade must come from the site's own origin; watching a
+list or entry needs read access (row rules included). Presence and changes cross
+replicas through the Redis store; presence entries expire if a replica stops
+repeating them.
+
+In the admin: avatars of who else has an entry or global open, a dot for unsaved
+changes; a newer version saved elsewhere reloads quietly when nothing is unsaved,
+otherwise a notice offers to load it; saves send `X-CMS-Version` and get a 409
+with who saved in between — the editor loads the newer version or saves over it.
+Lists refresh when their collection changes. Translations keep their own version.
+
+**Independent review** of stage 1 (separate agent): no High findings — socket
+auth, origin check, topic access and the version check itself held. Fixed:
+
+| Severity | Finding | Fix |
+|---|---|---|
+| Medium | First socket on a replica waited for Redis; its first messages were dropped, and with Redis down realtime hung | peers registered at once, replica listening started in the background |
+| Medium | A tab's own translation save came back as "someone else's"; translators overwrote each other | translations have their own version, checked on save (409) |
+| Medium | Edits typed during a save or a quiet reload could be dropped | edit counter: a save leaves later edits unsaved; reloads fetch first, then decide |
+| Medium | "Save mine anyway" re-sent the whole stale form (could unpublish a post published meanwhile) | "Save my changes on top": newest version + only the fields changed in this tab |
+| Medium | On Workers a socket cannot be written to from other requests | realtime refused on the edge build; the admin works without it |
+| Medium | No keepalive: proxies closed idle sockets, dead sockets lingered as "editing" | ping every 20 s, silent sockets dropped after 65 s, resync after reconnect |
+| Low | Messages handled concurrently (editing flag lost on reconnect, topic cap bypassable) | one message at a time per socket; `editing` travels with `watch` |
+| Low | Relation-only saves did not change the version; equal versions under clock skew | every save bumps; versions computed in SQL and strictly increasing |
+| Low | 409 re-read ignored row rules; emails shown as names | row rule applied; names fall back to the email's local part |
+| Low | Watches outlived lost row access; sockets lived forever | row-ruled watches re-checked each heartbeat; sockets re-open every 12 h |
+| Low | Conflict only shown at the page top; presence not accessible | toast too; `role=alert`; keyboard-focusable presence with screen-reader text and a pencil badge |
+| Low | Socket URL ignored the base URL; stale socket events | both fixed |
+| Hardening | Unlimited sockets/messages; log floods while Redis is down | 10 tabs per person, 60 messages / 10 s, throttled logs, timers stopped on shutdown |
+| Hardening | Two first saves of a global could both insert | advisory lock per global |
+
+Deferred: `maxPayload` for the socket (Nitro does not expose the `ws` option yet;
+messages over 1 KB are ignored after parsing).
+
+**Stage 2 — co-editing rich text** (next): Yjs documents for rich-text and block
+fields with TipTap's collaboration extension, synced over the same socket with
+short-lived per-document tokens (Postyard uses Hocuspocus; here it has to share
+the app port on Pushbase and persist into the entry's jsonb on save), cursors
+with names, and the version check kept for non-collaborative fields.
+
 ### Phase 6 — The test client site
 
 Proves the package from the outside.
@@ -412,7 +513,7 @@ Proves the package from the outside.
 |---|---|---|
 | Product name and npm scope | — | to pick (Phase 1) |
 | Git remote / CI | GitHub + GitHub Actions | decided |
-| Package registry | GitHub Packages (private) or npm | to confirm (Phase 5) |
-| Object storage for production media | EU S3-compatible (Hetzner or R2 EU) | to confirm (Phase 5) |
+| Package registry | GitHub Packages (private) or npm | deferred — decide with the name |
+| Object storage for production media | EU S3-compatible (Hetzner or R2 EU) | decided — documented in deploying.md, bucket per site |
 | Localization storage | `<entity>_locales` table | proposed (Phase 3) |
 | Admin UI languages at launch | cs + en | proposed |

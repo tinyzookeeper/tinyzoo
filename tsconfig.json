@@ -26,5 +26,7 @@
     "playground/app/lib/cms-content.ts",
     "test/**/*.ts",
     "vitest.config.ts"
-  ]
+  ],
+  // A template for an app outside the workspace (scripts/consumer-check.mjs).
+  "exclude": ["test/consumer"]
 }

@@ -25,6 +25,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     session: { maxAge: 60 * 60 * 24 * 14 },
   },
+  // The admin's realtime socket (/api/cms/_live): presence and live updates.
+  nitro: {
+    experimental: { websocket: true },
+  },
   // The admin's typefaces, through @nuxt/fonts (bundled with Nuxt UI): downloaded at
   // build time and served from the app itself — no requests to Google at runtime.
   // The admin's tokens reference them through CSS variables, which @nuxt/fonts

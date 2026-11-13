@@ -1,5 +1,6 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer as createHttpServer } from 'node:http'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -53,6 +54,14 @@ async function waitForServer(baseURL: string, child: ChildProcess, logs: string[
 export default async function setup(project: TestProject) {
   const databaseUrl = testDatabaseUrl()
   await prepareTestDatabase(databaseUrl)
+  // Rate-limit counters in Redis outlive a run; start every run clean.
+  if (process.env.TEST_REDIS_URL) {
+    const { default: Redis } = await import('ioredis')
+    const r = new Redis(process.env.TEST_REDIS_URL)
+    const keys = await r.keys('cms:*')
+    if (keys.length) await r.del(...keys)
+    await r.quit()
+  }
 
   const serverEntry = join(outputDir, 'server/index.mjs')
   const reuse = process.env.CMS_TEST_REUSE_BUILD === '1' && existsSync(serverEntry)
@@ -72,6 +81,7 @@ export default async function setup(project: TestProject) {
 
   const uploadsDir = mkdtempSync(join(tmpdir(), 'cms-test-uploads-'))
   const mailDir = mkdtempSync(join(tmpdir(), 'cms-test-mail-'))
+  const hooks = await startWebhookReceiver()
   const port = await freePort()
   const baseURL = `http://127.0.0.1:${port}`
   const logs: string[] = []
@@ -90,7 +100,16 @@ export default async function setup(project: TestProject) {
       NUXT_CMS_STORAGE_LOCAL_DIR: uploadsDir,
       NUXT_CMS_PUBLIC_URL: baseURL,
       NUXT_CMS_MAIL_TRANSPORT: 'file',
+      // The database was migrated by drizzle's migrator above; migrating again at
+      // start must be a no-op (same bookkeeping) — every run checks that.
+      NUXT_CMS_MIGRATIONS_ON_START: 'true',
+      // With TEST_REDIS_URL (CI, or the compose 'redis' profile), the server shares
+      // rate limits / realtime through Redis, exercising that path.
+      ...(process.env.TEST_REDIS_URL ? { NUXT_CMS_REDIS_URL: process.env.TEST_REDIS_URL } : {}),
       NUXT_CMS_MAIL_FILE_DIR: mailDir,
+      // Publish webhooks go to a receiver in this process (see startWebhookReceiver).
+      NUXT_CMS_WEBHOOKS_URLS: `${hooks.url}/ok, ${hooks.url}/flaky`,
+      NUXT_CMS_WEBHOOKS_SECRET: WEBHOOK_SECRET,
     },
   })
   child.stdout?.on('data', (d) => logs.push(String(d)))
@@ -117,6 +136,7 @@ export default async function setup(project: TestProject) {
   project.provide('databaseUrl', databaseUrl)
   project.provide('uploadsDir', uploadsDir)
   project.provide('mailDir', mailDir)
+  project.provide('hooksDir', hooks.dir)
   project.provide('accounts', accounts)
 
   return async () => {
@@ -126,7 +146,44 @@ export default async function setup(project: TestProject) {
     }
     rmSync(uploadsDir, { recursive: true, force: true })
     rmSync(mailDir, { recursive: true, force: true })
+    await hooks.close()
     if (process.env.CMS_TEST_SERVER_LOGS === '1') console.log(logs.join(''))
+  }
+}
+
+export const WEBHOOK_SECRET = 'test-webhook-secret'
+
+/**
+ * Receives the server's publish webhooks and writes each request into a temp dir as
+ * JSON ({ path, headers, body }), where specs read them (they run in other processes).
+ * /ok always answers 200; /flaky fails the first attempt of every delivery (500), to
+ * exercise retries.
+ */
+async function startWebhookReceiver(): Promise<{ url: string; dir: string; close: () => Promise<void> }> {
+  const dir = mkdtempSync(join(tmpdir(), 'cms-test-hooks-'))
+  const failedOnce = new Set<string>()
+  let seq = 0
+  const server = createHttpServer((req, res) => {
+    let body = ''
+    req.on('data', (c) => { body += c })
+    req.on('end', () => {
+      const delivery = String(req.headers['x-cms-delivery'] ?? '')
+      const fail = req.url === '/flaky' && !failedOnce.has(delivery)
+      if (fail) failedOnce.add(delivery)
+      writeFileSync(join(dir, `${String(++seq).padStart(6, '0')}.json`), JSON.stringify({ path: req.url, headers: req.headers, body, failed: fail }))
+      res.statusCode = fail ? 500 : 200
+      res.end()
+    })
+  })
+  const port = await freePort()
+  await new Promise<void>((r) => server.listen(port, '127.0.0.1', r))
+  return {
+    url: `http://127.0.0.1:${port}`,
+    dir,
+    close: async () => {
+      await new Promise((r) => server.close(r))
+      rmSync(dir, { recursive: true, force: true })
+    },
   }
 }
 
@@ -173,6 +230,7 @@ declare module 'vitest' {
     databaseUrl: string
     uploadsDir: string
     mailDir: string
+    hooksDir: string
     accounts: TestAccounts
   }
 }

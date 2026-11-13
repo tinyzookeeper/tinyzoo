@@ -60,3 +60,15 @@ export function pickClientIp(xff: string | undefined, socketIp: string | undefin
   const ip = chain[chain.length - trustedHops]
   return (ip || chain[0] || socketIp || 'unknown').slice(0, 64)
 }
+
+/** Hits for `key` in the last `windowMs`, counting this one (memory store). */
+export function rateLimitCount(key: string, windowMs: number): number {
+  const k = key.length > MAX_KEY_LENGTH ? key.slice(0, MAX_KEY_LENGTH) : key
+  const now = Date.now()
+  const recent = (hits.get(k) ?? []).filter((t) => t > now - windowMs)
+  recent.push(now)
+  hits.delete(k)
+  hits.set(k, recent)
+  if (hits.size > MAX_KEYS) sweep(now, windowMs)
+  return recent.length
+}

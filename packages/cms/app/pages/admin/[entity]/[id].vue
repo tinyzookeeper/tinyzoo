@@ -6,6 +6,8 @@
 //
 // Remount per record so state/dirty/guard fully reset when switching records
 // (and after a create→redirect), rather than reusing a stale component instance.
+import type { LiveChange } from '../../../composables/useCmsLive'
+
 definePageMeta({ layout: 'admin', key: (route) => route.fullPath })
 const route = useRoute()
 const router = useRouter()
@@ -18,7 +20,7 @@ const isNew = computed(() => id.value === 'new')
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
 const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === entity.value))
 const form = useCmsForm(computed(() => meta.value?.fields ?? []), isNew)
-const { state, fieldErrors, editable, dirty, saving } = form
+const { state, fieldErrors, editable, dirty, saving, conflict } = form
 
 // ── content languages ──
 // The default language is the entry itself; others are translations of the
@@ -36,18 +38,83 @@ const defaults = ref<Record<string, any>>({})
 const translated = ref(false)
 
 const savedAt = ref<string | null>(null)
+// The version this tab edits (the entry's updatedAt): sent with every save, so saving
+// over someone else's newer version is refused unless the editor chooses to.
+const version = ref<string | null>(null)
+const rowUrl = (): string => `/api/cms/${entity.value}/${id.value}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`
+function adopt(row: Record<string, any> | null | undefined) {
+  savedAt.value = row?.updatedAt ?? null
+  // A translation has its own version.
+  version.value = (isTranslation.value ? row?.__version : row?.updatedAt) ?? null
+  available.value = row?.__locales ?? []
+  defaults.value = row?.__defaults ?? {}
+  translated.value = !!row?.__translated
+}
 if (!isNew.value) {
-  const { data } = await useFetch<{ row: Record<string, any> }>((): string =>
-    `/api/cms/${entity.value}/${id.value}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`)
+  const { data } = await useFetch<{ row: Record<string, any> }>(rowUrl)
   form.load(data.value?.row)
-  savedAt.value = data.value?.row?.updatedAt ?? null
-  available.value = data.value?.row?.__locales ?? []
-  defaults.value = data.value?.row?.__defaults ?? {}
-  translated.value = !!data.value?.row?.__translated
+  adopt(data.value?.row)
 }
 else {
   form.load({})
 }
+
+const fetchRow = async () => (await $fetch<{ row: Record<string, any> }>(rowUrl())).row
+
+/** Replace the form with the newest saved version (discarding unsaved edits here). */
+async function loadNewest() {
+  const row = await fetchRow()
+  await form.replace(row)
+  adopt(row)
+  if (live) live.incoming.value = null
+}
+
+/**
+ * Someone else saved, or the connection came back (we may have missed something).
+ * Fetch first, then decide: nothing new → nothing; unsaved edits here (also ones
+ * typed while fetching) → offer the newer version; otherwise show it.
+ */
+async function onRemoteChange(c: LiveChange) {
+  const row = await fetchRow().catch(() => null)
+  if (!row) return
+  const newest = (isTranslation.value ? row.__version : row.updatedAt) ?? null
+  if (newest === version.value) return
+  if (dirty.value || saving.value) {
+    if (live) live.incoming.value = c
+    return
+  }
+  await form.replace(row)
+  adopt(row)
+  toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
+}
+
+/**
+ * "Save my changes on top": the newest version, with only the fields changed in
+ * this tab put back on it — everything else (a publish, other people's edits) stays
+ * as they saved it.
+ */
+async function saveOnTop() {
+  const mine = form.changedFields()
+  const row = await fetchRow()
+  await form.replace(row)
+  adopt(row)
+  Object.assign(state, mine)
+  await save()
+}
+
+// ── realtime: who else is here, and what they saved ──
+const live = isNew.value
+  ? null
+  : useCmsEntryLive({
+      entity: entity.value,
+      id: id.value,
+      version,
+      dirty,
+      saving,
+      locale: computed(() => (isTranslation.value ? currentLocale.value : null)),
+      onChange: onRemoteChange,
+    })
+const others = computed(() => live?.others.value ?? [])
 
 // ── layout: which field goes where ──
 const publish = computed(() => meta.value?.publish)
@@ -102,8 +169,11 @@ async function save(successTitle?: string) {
     }
     else {
       const url: string = `/api/cms/${entity.value}/${id.value}`
-      const res: any = await $fetch(url, { method: 'PATCH', body: form.body() })
+      const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+      const res: any = await $fetch(url, { method: 'PATCH', body: form.body(), headers })
       savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
+      version.value = res?.row?.updatedAt ?? null
+      if (live) live.incoming.value = null
     }
   }, successTitle ?? (isNew.value ? t('editor.created') : t('editor.saved')))
 }
@@ -112,8 +182,11 @@ async function saveTranslation() {
   return form.submit(async () => {
     const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
-    const res: any = await $fetch(url, { method: 'PATCH', body })
+    const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+    const res: any = await $fetch(url, { method: 'PATCH', body, headers })
     savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
+    version.value = res?.row?.__version ?? null
+    if (live) live.incoming.value = null
     translated.value = true
     if (currentLocale.value && !available.value.includes(currentLocale.value)) available.value = [...available.value, currentLocale.value]
   }, t('editor.saved'))
@@ -171,6 +244,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 <template>
   <CmsPage :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: listLabel, to: `/admin/${entity}` }, { label: heading }]">
     <template #actions>
+      <CmsPresence :people="others" />
       <UDropdownMenu v-if="locales && !isNew" :items="localeItems" :content="{ align: 'end' }">
         <UButton color="neutral" variant="ghost" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
           {{ (currentLocale ?? '').toUpperCase() }}
@@ -207,6 +281,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       <UButton v-else :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.save') }}</UButton>
     </template>
 
+    <CmsLiveNotice
+      :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
+      :list-to="`/admin/${entity}`"
+      @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
+    />
     <div class="cms-editor">
       <div class="cms-editor__main space-y-8">
         <!-- the title is the page heading -->

@@ -16,17 +16,21 @@
     "typecheck": "tsc -p tsconfig.json && pnpm --filter playground typecheck",
     "build:node": "node scripts/build-check.mjs node",
     "build:edge": "node scripts/build-check.mjs edge",
-    "check": "pnpm typecheck && pnpm test && pnpm build:node && pnpm build:edge"
+    "check": "pnpm typecheck && pnpm test && pnpm build:node && pnpm build:edge",
+    "check:consumer": "node scripts/consumer-check.mjs"
   },
   "devDependencies": {
     "@my-cms/client": "workspace:*",
     "@my-cms/core": "workspace:*",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.20.0",
+    "@types/ws": "^8.18.2",
     "drizzle-orm": "^0.44.7",
+    "ioredis": "^5.11.1",
     "pg": "^8.22.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.12"
+    "vitest": "^4.1.12",
+    "ws": "^8.21.0"
   },
   "engines": {
     "node": ">=22"

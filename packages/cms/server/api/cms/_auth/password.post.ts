@@ -8,7 +8,7 @@ const body = z.object({ current: z.string().max(200), password: passwordSchema }
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   const me = requireCmsUser(event)
-  if (!rateLimitOk(`password:${me.id}`, 10, 15 * 60_000)) throw createError({ statusCode: 429, statusMessage: 'Too many attempts — try again later' })
+  if (!(await rateLimit(`password:${me.id}`, 10, 15 * 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many attempts; try again later' })
   const data = parseOr422(body, await readBody(event))
   const { db, reg } = useCms()
   const [u] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.id, me.id))

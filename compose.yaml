@@ -5,6 +5,7 @@ name: my-cms
 #   docker compose up -d                 # Postgres only (all you need for `pnpm play`)
 #   docker compose --profile s3 up -d    # + MinIO, to exercise the S3/R2 storage driver
 #   docker compose --profile mail up -d  # + Mailpit: catches invite/reset emails (UI on :8025)
+#   docker compose --profile redis up -d # + Valkey (Redis): shared rate limits / realtime across instances
 #   docker compose down                  # stop (data survives — it lives in named volumes)
 #   docker compose down -v               # stop *and* wipe the data
 #
@@ -81,6 +82,17 @@ services:
     ports:
       - "${CMS_SMTP_PORT:-1025}:1025"
       - "${CMS_MAILPIT_UI_PORT:-8025}:8025"
+
+
+  # --- Redis-compatible store (opt-in) -----------------------------------
+  # Set NUXT_CMS_REDIS_URL=redis://localhost:6383 to share rate limits and realtime
+  # messages between instances (as with Pushbase's managed Redis).
+  valkey:
+    image: valkey/valkey:8-alpine
+    profiles: ["redis"]
+    restart: unless-stopped
+    ports:
+      - "${CMS_REDIS_PORT:-6383}:6379"
 
 volumes:
   pgdata:

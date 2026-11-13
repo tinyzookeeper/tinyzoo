@@ -37,9 +37,14 @@ jobs:
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
+      redis:
+        image: valkey/valkey:8-alpine
+        ports: ['6379:6379']
     env:
       # The suite creates, wipes and migrates this database itself.
       TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
+      # Shared store (rate limits, realtime) runs through Redis in CI.
+      TEST_REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -65,3 +70,17 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build:${{ matrix.target }}
+
+  # The packages as a client app gets them: packed, installed from the tarballs into
+  # a fresh app outside the workspace, CLI run from the install, production build.
+  consumer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:consumer

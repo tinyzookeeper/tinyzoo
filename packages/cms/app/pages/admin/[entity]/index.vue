@@ -28,6 +28,16 @@ const { data, refresh, status: fetchStatus, error } = await useFetch<{ rows: Rec
   query: { page, q, sort, dir, limit, status: computed(() => (status.value === 'all' ? undefined : status.value)) },
   watch: [entity],
 })
+// Someone else created, changed or deleted something here: refresh (a burst of
+// changes, e.g. a bulk edit, refreshes once).
+let liveRefresh: ReturnType<typeof setTimeout> | null = null
+useCmsLiveTopic(`list:${entity.value}`, () => {
+  liveRefresh ??= setTimeout(() => {
+    liveRefresh = null
+    refresh()
+  }, 400)
+})
+onBeforeUnmount(() => { if (liveRefresh) clearTimeout(liveRefresh) })
 const rows = computed(() => data.value?.rows ?? [])
 const total = computed(() => data.value?.total ?? 0)
 const pages = computed(() => Math.max(1, Math.ceil(total.value / limit)))

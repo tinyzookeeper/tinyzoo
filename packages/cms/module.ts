@@ -8,7 +8,10 @@ const layerDir = dirname(fileURLToPath(import.meta.url))
 export interface CmsModuleOptions {
   /** Path to the host config, relative to rootDir. Default: 'cms.config.ts'. */
   config?: string
-  /** Postgres connection string. Falls back to env DATABASE_URL at runtime. */
+  /**
+   * Postgres connection string. Leave it out in production: the server reads
+   * NUXT_CMS_DATABASE_URL or DATABASE_URL at runtime, which win over this value.
+   */
   databaseUrl?: string
   /**
    * Runtime DB driver, chosen at BUILD time so only its deps are bundled:
@@ -82,6 +85,27 @@ export interface CmsModuleOptions {
     smtp?: { host?: string; port?: number; secure?: boolean; user?: string; pass?: string }
     file?: { dir?: string }
   }
+  /**
+   * Redis for state shared by all instances (rate limits, realtime). Defaults to the
+   * REDIS_URL environment variable (Pushbase sets it for a linked Redis service).
+   * Env: NUXT_CMS_REDIS_URL. Without it, state lives in each instance's memory.
+   * `prefix` (NUXT_CMS_REDIS_PREFIX) namespaces keys and channels; default
+   * `cms:<database name>`, so environments sharing one Redis stay apart.
+   */
+  redis?: { url?: string; prefix?: string }
+  /**
+   * Publish webhooks: every change visible on the website is POSTed, signed, to these
+   * URLs (e.g. the site's cache-purge endpoint). See server/utils/cmsWebhooks.ts.
+   * Env: NUXT_CMS_WEBHOOKS_URLS (comma separated), NUXT_CMS_WEBHOOKS_SECRET.
+   */
+  webhooks?: { urls?: string | string[]; secret?: string }
+  /**
+   * Database migrations bundled into the server build and applied when it starts —
+   * for platforms that ship only the build output (Pushbase, containers).
+   *  - dir: the drizzle-kit migrations folder, relative to rootDir (default server/db/migrations)
+   *  - onStart: apply them at start (env NUXT_CMS_MIGRATIONS_ON_START=true). Default off.
+   */
+  migrations?: { dir?: string; onStart?: boolean }
   /** Public content-delivery API (`/api/content/*`). */
   content?: {
     /** If set, every content request must carry this token (x-api-key or Bearer). Default: open. */
@@ -111,16 +135,26 @@ export default defineNuxtModule<CmsModuleOptions>({
     const dbImpl = resolve(layerDir, 'server/db', dbDriver === 'edge' ? 'driver.edge.ts' : 'driver.node.ts')
     // Same switch for mail: only the Node build bundles SMTP (nodemailer).
     const mailImpl = resolve(layerDir, 'server/mail', dbDriver === 'edge' ? 'mailer.edge.ts' : 'mailer.node.ts')
+    // …and for the shared store: only the Node build bundles the Redis client.
+    const storeImpl = resolve(layerDir, 'server/store', dbDriver === 'edge' ? 'store.edge.ts' : 'store.node.ts')
 
     // Expose the host config + DB driver as virtual aliases to app and Nitro server.
     nuxt.options.alias['#cms/config'] = configPath
     nuxt.options.alias['#cms/db'] = dbImpl
     nuxt.options.alias['#cms/mailer'] = mailImpl
+    nuxt.options.alias['#cms/store'] = storeImpl
+    // Bundle the host's migrations as server assets so they ship with .output.
+    const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
     nuxt.hook('nitro:config', (nitro) => {
+      if (existsSync(migrationsDir)) {
+        nitro.serverAssets = nitro.serverAssets || []
+        nitro.serverAssets.push({ baseName: 'cms-migrations', dir: migrationsDir })
+      }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
       nitro.alias['#cms/db'] = dbImpl
       nitro.alias['#cms/mailer'] = mailImpl
+      nitro.alias['#cms/store'] = storeImpl
       nitro.externals = nitro.externals || {}
       nitro.externals.inline = nitro.externals.inline || []
     })
@@ -141,13 +175,28 @@ export default defineNuxtModule<CmsModuleOptions>({
     cms?: { uid: string; sv: number }
   }
 }
+declare module 'nitropack/types' {
+  interface NitroRuntimeHooks {
+    /** A content change was saved (see CmsChange). Runs on the instance that saved it. */
+    'cms:change': (change: import('@my-cms/core').CmsChange) => void | Promise<void>
+  }
+}
 export {}
 `,
     }, { nitro: true, nuxt: true })
 
     // Runtime config consumed by the server DataSource (env override: NUXT_CMS_DATABASE_URL).
     nuxt.options.runtimeConfig.cms = {
-      databaseUrl: options.databaseUrl || process.env.DATABASE_URL || '',
+      // Never read DATABASE_URL here: this runs at BUILD time and would bake the build
+      // machine's database into the output. useCms() reads the env at runtime.
+      databaseUrl: options.databaseUrl || '',
+      migrations: { onStart: options.migrations?.onStart ?? false },
+      redis: { url: options.redis?.url || '', prefix: options.redis?.prefix || '' },
+      // Empty defaults so NUXT_CMS_WEBHOOKS_URLS / NUXT_CMS_WEBHOOKS_SECRET bind at runtime.
+      webhooks: {
+        urls: (Array.isArray(options.webhooks?.urls) ? options.webhooks.urls.join(',') : options.webhooks?.urls) || '',
+        secret: options.webhooks?.secret || '',
+      },
       auth: {
         mode: options.auth?.mode || 'builtin',
         trustedProxies: options.auth?.trustedProxies ?? 1,

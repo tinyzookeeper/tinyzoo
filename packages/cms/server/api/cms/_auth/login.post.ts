@@ -11,8 +11,8 @@ export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   const { email, password } = parseOr422(body, await readBody(event))
   const ip = clientIp(event)
-  if (!rateLimitOk(`login:ip:${ip}`, 30, WINDOW) || !rateLimitOk(`login:email:${email}`, 10, WINDOW)) {
-    throw createError({ statusCode: 429, statusMessage: 'Too many sign-in attempts — wait a few minutes and try again' })
+  if (!(await rateLimit(`login:ip:${ip}`, 30, WINDOW)) || !(await rateLimit(`login:email:${email}`, 10, WINDOW))) {
+    throw createError({ statusCode: 429, statusMessage: 'Too many sign-in attempts; wait a few minutes and try again' })
   }
 
   const { db, reg } = useCms()

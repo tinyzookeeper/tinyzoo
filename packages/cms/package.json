@@ -5,19 +5,20 @@
   "description": "Code-first, distributable CMS for Nuxt 4 (Layer + Module).",
   "exports": {
     ".": "./src/index.ts",
+    "./layer": "./nuxt.config.ts",
     "./module": "./module.ts",
     "./package.json": "./package.json"
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "files": [
-    "src",
     "app",
-    "server",
+    "app.config.ts",
+    "cli",
     "module.ts",
     "nuxt.config.ts",
-    "app.config.ts",
-    "cli"
+    "server",
+    "src"
   ],
   "dependencies": {
     "@nuxt/kit": "^4.0.0",
@@ -29,15 +30,16 @@
     "aws4fetch": "^1.0.20",
     "drizzle-orm": "^0.44.0",
     "image-size": "^2.0.2",
+    "ioredis": "^5.11.1",
     "nodemailer": "^7.0.13",
     "pg": "^8.16.3",
+    "tsx": "^4.19.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.11.0",
     "drizzle-kit": "^0.31.0",
-    "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   },
   "peerDependencies": {
@@ -47,5 +49,8 @@
   },
   "optionalDependencies": {
     "@neondatabase/serverless": "^1.1.0"
+  },
+  "bin": {
+    "cms": "./cli/index.ts"
   }
 }

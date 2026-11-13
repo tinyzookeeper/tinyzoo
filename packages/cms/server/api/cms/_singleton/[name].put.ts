@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq, sql } from '@my-cms/core'
 
 // PUT /api/cms/_singleton/:name — upsert the single row of a global. Validates the
 // full payload, inserts on first save or updates the existing row, and GCs any media
@@ -20,6 +20,9 @@ export default defineEventHandler(async (event) => {
 
   const data = parseOr422(e.insertSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
+  const base = baseVersion(event)
+  const [prior] = await db.select({ id: e.table.id }).from(e.table).orderBy(e.table.createdAt).limit(1)
+  const seenBefore = prior ? await changeSnapshot(e, prior.id) : null
 
   const mediaCols = Object.entries(e.fields)
     .filter(([, f]) => (f as any).type === 'media')
@@ -30,14 +33,18 @@ export default defineEventHandler(async (event) => {
   let oldEmbedded: string[] = []
 
   const row = await db.transaction(async (tx: any) => {
-    const [existing] = await tx.select().from(e.table).orderBy(e.table.createdAt).limit(1)
+    // One save of this global at a time (also the very first one, when there is no
+    // row to lock yet): a concurrent save waits, then sees this one's version.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'cms-global:' + e.name}))`)
+    const [existing] = await tx.select().from(e.table).orderBy(e.table.createdAt).limit(1).for('update')
+    await assertCurrentVersion(e, existing, base)
     for (const c of mediaCols) oldMedia[c] = existing?.[c] ?? null
     if (existing) oldEmbedded = jsonCols.flatMap((k) => jsonMediaIds(e.fields[k], existing[k]))
 
     let current: any
     values.updatedBy = actorId(user)
     if (existing) {
-      values.updatedAt = new Date()
+      values.updatedAt = nextVersion(e.table.updatedAt)
       ;[current] = await tx.update(e.table).set(values).where(both(eq(e.table.id, existing.id), rowFilter)).returning()
       if (!current) throw createError({ statusCode: 403, statusMessage: 'Not permitted' })
     } else {
@@ -60,6 +67,7 @@ export default defineEventHandler(async (event) => {
   }
 
   await audit(event, 'settings.update', { entity: e.name, recordId: row.id })
+  await reportChange(event, { type: 'global.updated', entity: e, id: row.id, before: seenBefore, after: row })
   await hydrateRowForForm(db, reg, e, row)
   return { row }
 })
