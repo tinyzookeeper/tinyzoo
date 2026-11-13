@@ -78,6 +78,13 @@
       "when": 1794594374248,
       "tag": "0010_author_position",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794595172232,
+      "tag": "0011_media_library",
+      "breakpoints": true
     }
   ]
 }

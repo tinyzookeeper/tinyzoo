@@ -15,6 +15,11 @@ export const cmsMedia = pgTable('cms_media', {
   width: integer('width'),
   height: integer('height'),
   alt: text('alt'),
+  altLocales: jsonb('alt_locales'),
+  name: text('name'),
+  folder: text('folder'),
+  focalX: integer('focal_x'),
+  focalY: integer('focal_y'),
   uploadedBy: uuid('uploaded_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })

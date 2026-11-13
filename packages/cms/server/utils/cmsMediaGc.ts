@@ -107,3 +107,42 @@ export async function gcMediaIfOrphan(
 export function gcScope(user: { id: string; role: string }): { onlyUploadedBy?: string } {
   return user.role === 'author' ? { onlyUploadedBy: user.id } : {}
 }
+
+/**
+ * Where a file is used: the entries (and globals) holding it in a media field, in rich
+ * text or in blocks — also in translations. Only entries this person may read are
+ * listed. At most `limit`.
+ */
+export async function mediaUsage(db: any, reg: CmsRegistry, user: any, mediaId: string, mediaKey: string | undefined, limit = 50) {
+  const found = new Map<string, { entity: string; id: string; title: string | null; locale: string | null }>()
+  const like = (col: any) => (mediaKey
+    ? sql`(cast(${col} as text) ilike ${'%' + mediaId + '%'} or cast(${col} as text) ilike ${'%' + mediaKey + '%'})`
+    : sql`cast(${col} as text) ilike ${'%' + mediaId + '%'}`)
+  for (const e of reg.entities) {
+    if (found.size >= limit) break
+    const { allowed, where } = accessWhere(e, 'read', user)
+    if (!allowed) continue
+    const title = (e.table as any)[e.titleField]
+    const add = (rows: any[], locale: string | null = null) => {
+      for (const r of rows) found.set(`${e.name}:${r.id}:${locale ?? ''}`, { entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), locale })
+    }
+    for (const [key, fld] of Object.entries(e.fields)) {
+      const type = (fld as any).type
+      if (type === 'media') {
+        add(await db.select({ id: e.table.id, title }).from(e.table).where(both(eq((e.table as any)[`${key}Id`], mediaId), where)).limit(limit))
+      }
+      else if (type === 'richtext' || type === 'blocks') {
+        add(await db.select({ id: e.table.id, title }).from(e.table).where(both(like((e.table as any)[key]), where)).limit(limit))
+        const t = e.localesTable
+        if ((fld as any).isLocalized && t) {
+          const hits: any[] = await db.select({ parentId: t.parentId, locale: t.locale }).from(t).where(like(t[key])).limit(limit)
+          for (const h of hits) {
+            const [parent] = await db.select({ id: e.table.id, title }).from(e.table).where(both(eq(e.table.id, h.parentId), where))
+            if (parent) add([parent], h.locale)
+          }
+        }
+      }
+    }
+  }
+  return [...found.values()].slice(0, limit)
+}

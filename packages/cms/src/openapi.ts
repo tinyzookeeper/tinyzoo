@@ -156,8 +156,14 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
         height: { type: ['integer', 'null'] },
         alt: { type: ['string', 'null'] },
         mime: { type: 'string' },
+        focal: {
+          type: ['object', 'null'],
+          additionalProperties: false,
+          properties: { x: { type: 'integer', minimum: 0, maximum: 100 }, y: { type: 'integer', minimum: 0, maximum: 100 } },
+          required: ['x', 'y'],
+        },
       },
-      required: ['id', 'url', 'width', 'height', 'alt', 'mime'],
+      required: ['id', 'url', 'width', 'height', 'alt', 'mime', 'focal'],
     },
   }
 

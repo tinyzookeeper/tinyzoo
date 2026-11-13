@@ -24,6 +24,8 @@ export interface CmsMedia {
   height: number | null
   alt: string | null
   mime: string
+  /** Focal point in percent (0–100) of width and height: keep it in view when cropping. */
+  focal: { x: number; y: number } | null
 }
 
 // ── nested (populated) projections ─────────────────────────────────────────────
