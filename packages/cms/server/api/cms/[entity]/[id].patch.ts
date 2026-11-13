@@ -36,21 +36,17 @@ export default defineEventHandler(async (event) => {
   const seenBefore = await changeSnapshot(e, id)
 
   const row = await db.transaction(async (tx: any) => {
-    let current: any
-    if (Object.keys(values).length) {
-      values.updatedAt = new Date()
-      values.updatedBy = actorId(user)
-      // For people who may not publish, the row must still not be live at write time
-      // (an editor may have published it since we read it).
-      // …and still the version the editor saw (someone may have saved since we read it).
-      const sameVersion = base ? eq(e.table.updatedAt, base) : undefined
-      ;[current] = await tx.update(e.table).set(values).where(both(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user)), sameVersion)).returning()
-      if (!current && base) {
-        const [now] = await tx.select().from(e.table).where(eq(e.table.id, id))
-        await assertCurrentVersion(e, now, base)
-      }
-    } else {
-      ;[current] = await tx.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
+    // Every save is a new version, relation-only ones included.
+    values.updatedAt = nextVersion(e.table.updatedAt)
+    values.updatedBy = actorId(user)
+    // For people who may not publish, the row must still not be live at write time
+    // (an editor may have published it since we read it), and it must still be the
+    // version the editor saw (someone may have saved since we read it).
+    const sameVersion = base ? eq(e.table.updatedAt, base) : undefined
+    const [current] = await tx.update(e.table).set(values).where(both(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user)), sameVersion)).returning()
+    if (!current && base) {
+      const [now] = await tx.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
+      await assertCurrentVersion(e, now, base)
     }
     if (!current) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
     await writeM2M(tx, reg, e, id, m2m, true)

@@ -59,6 +59,6 @@ const notice = computed(() => {
   <UAlert
     v-if="notice" :color="notice.color" variant="subtle" :icon="notice.icon"
     :title="notice.title" :description="notice.description" :actions="notice.actions"
-    :close="notice.close" class="mb-6" role="status" @update:open="(open: boolean) => { if (!open) emit('dismiss') }"
+    :close="notice.close" class="mb-6" :role="notice.close ? 'status' : 'alert'" @update:open="(open: boolean) => { if (!open) emit('dismiss') }"
   />
 </template>

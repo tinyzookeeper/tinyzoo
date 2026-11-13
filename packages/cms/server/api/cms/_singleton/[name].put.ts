@@ -1,4 +1,4 @@
-import { eq } from '@my-cms/core'
+import { eq, sql } from '@my-cms/core'
 
 // PUT /api/cms/_singleton/:name — upsert the single row of a global. Validates the
 // full payload, inserts on first save or updates the existing row, and GCs any media
@@ -33,7 +33,9 @@ export default defineEventHandler(async (event) => {
   let oldEmbedded: string[] = []
 
   const row = await db.transaction(async (tx: any) => {
-    // Locked, so a concurrent save waits and then sees this one's version.
+    // One save of this global at a time (also the very first one, when there is no
+    // row to lock yet): a concurrent save waits, then sees this one's version.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${'cms-global:' + e.name}))`)
     const [existing] = await tx.select().from(e.table).orderBy(e.table.createdAt).limit(1).for('update')
     await assertCurrentVersion(e, existing, base)
     for (const c of mediaCols) oldMedia[c] = existing?.[c] ?? null
@@ -42,7 +44,7 @@ export default defineEventHandler(async (event) => {
     let current: any
     values.updatedBy = actorId(user)
     if (existing) {
-      values.updatedAt = new Date()
+      values.updatedAt = nextVersion(e.table.updatedAt)
       ;[current] = await tx.update(e.table).set(values).where(both(eq(e.table.id, existing.id), rowFilter)).returning()
       if (!current) throw createError({ statusCode: 403, statusMessage: 'Not permitted' })
     } else {

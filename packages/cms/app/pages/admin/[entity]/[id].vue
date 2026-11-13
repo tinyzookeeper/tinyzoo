@@ -6,6 +6,8 @@
 //
 // Remount per record so state/dirty/guard fully reset when switching records
 // (and after a create→redirect), rather than reusing a stale component instance.
+import type { LiveChange } from '../../../composables/useCmsLive'
+
 definePageMeta({ layout: 'admin', key: (route) => route.fullPath })
 const route = useRoute()
 const router = useRouter()
@@ -42,7 +44,8 @@ const version = ref<string | null>(null)
 const rowUrl = (): string => `/api/cms/${entity.value}/${id.value}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`
 function adopt(row: Record<string, any> | null | undefined) {
   savedAt.value = row?.updatedAt ?? null
-  version.value = row?.updatedAt ?? null
+  // A translation has its own version.
+  version.value = (isTranslation.value ? row?.__version : row?.updatedAt) ?? null
   available.value = row?.__locales ?? []
   defaults.value = row?.__defaults ?? {}
   translated.value = !!row?.__translated
@@ -56,12 +59,47 @@ else {
   form.load({})
 }
 
+const fetchRow = async () => (await $fetch<{ row: Record<string, any> }>(rowUrl())).row
+
 /** Replace the form with the newest saved version (discarding unsaved edits here). */
 async function loadNewest() {
-  const res = await $fetch<{ row: Record<string, any> }>(rowUrl())
-  await form.replace(res.row)
-  adopt(res.row)
-  live && (live.incoming.value = null)
+  const row = await fetchRow()
+  await form.replace(row)
+  adopt(row)
+  if (live) live.incoming.value = null
+}
+
+/**
+ * Someone else saved, or the connection came back (we may have missed something).
+ * Fetch first, then decide: nothing new → nothing; unsaved edits here (also ones
+ * typed while fetching) → offer the newer version; otherwise show it.
+ */
+async function onRemoteChange(c: LiveChange) {
+  const row = await fetchRow().catch(() => null)
+  if (!row) return
+  const newest = (isTranslation.value ? row.__version : row.updatedAt) ?? null
+  if (newest === version.value) return
+  if (dirty.value || saving.value) {
+    if (live) live.incoming.value = c
+    return
+  }
+  await form.replace(row)
+  adopt(row)
+  toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
+}
+
+/**
+ * "Save my changes on top": the newest version, with only the fields changed in
+ * this tab put back on it — everything else (a publish, other people's edits) stays
+ * as they saved it.
+ */
+async function saveOnTop() {
+  const mine = form.changedFields()
+  const row = await fetchRow()
+  await form.replace(row)
+  adopt(row)
+  Object.assign(state, mine)
+  await save()
 }
 
 // ── realtime: who else is here, and what they saved ──
@@ -74,11 +112,7 @@ const live = isNew.value
       dirty,
       saving,
       locale: computed(() => (isTranslation.value ? currentLocale.value : null)),
-      reload: async (c) => {
-        const by = c.byName
-        await loadNewest()
-        toast.add({ title: by ? t('live.reloaded', { name: by }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
-      },
+      onChange: onRemoteChange,
     })
 const others = computed(() => live?.others.value ?? [])
 
@@ -124,7 +158,7 @@ const canPublish = computed(() => meta.value?.can?.publish !== false)
 const isPublished = computed(() => !!publish.value && state[publish.value.field] === publish.value.publishedValue)
 const publishedOn = computed(() => (publish.value?.dateField ? state[publish.value.dateField] : null))
 
-async function save(successTitle?: string, force = false) {
+async function save(successTitle?: string) {
   if (isTranslation.value) return saveTranslation()
   return form.submit(async () => {
     if (isNew.value) {
@@ -135,7 +169,7 @@ async function save(successTitle?: string, force = false) {
     }
     else {
       const url: string = `/api/cms/${entity.value}/${id.value}`
-      const headers: Record<string, string> = !force && version.value ? { 'x-cms-version': version.value } : {}
+      const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
       const res: any = await $fetch(url, { method: 'PATCH', body: form.body(), headers })
       savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
       version.value = res?.row?.updatedAt ?? null
@@ -148,8 +182,11 @@ async function saveTranslation() {
   return form.submit(async () => {
     const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
-    const res: any = await $fetch(url, { method: 'PATCH', body })
+    const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+    const res: any = await $fetch(url, { method: 'PATCH', body, headers })
     savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
+    version.value = res?.row?.__version ?? null
+    if (live) live.incoming.value = null
     translated.value = true
     if (currentLocale.value && !available.value.includes(currentLocale.value)) available.value = [...available.value, currentLocale.value]
   }, t('editor.saved'))
@@ -245,9 +282,9 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     </template>
 
     <CmsLiveNotice
-      :deleted="live?.deleted.value" :conflict="isTranslation ? null : conflict" :incoming="live?.incoming.value"
+      :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
       :list-to="`/admin/${entity}`"
-      @load="loadNewest" @save-anyway="save(undefined, true)" @dismiss="live && (live.incoming.value = null)"
+      @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
     />
     <div class="cms-editor">
       <div class="cms-editor__main space-y-8">

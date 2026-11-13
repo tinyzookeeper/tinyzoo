@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import WebSocket from 'ws'
 import { accounts, type Client, newAccount, signIn, testDb, truncateAll } from '../helpers/api'
-import { createAuthor, createPost } from '../helpers/fixtures'
+import { createAuthor, createPost, createTag } from '../helpers/fixtures'
 
 const db = testDb()
 let admin: Client
@@ -129,6 +129,32 @@ describe('realtime socket', () => {
     await tab.next((m) => m.type === 'error')
   })
 
+  it('lets the oldest tab go when someone opens too many, and closes a flooding socket', async () => {
+    const person = await newAccount('editor')
+    const first = await open(person.client)
+    for (let i = 0; i < 10; i++) await open(person.client)
+    const deadline = Date.now() + 3000
+    while (!first.closed && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
+    expect(first.closed?.code).toBe(4429)
+
+    const flood = await open(admin)
+    for (let i = 0; i < 80; i++) flood.send({ type: 'unwatch', topic: 'list:post' })
+    const until = Date.now() + 3000
+    while (!flood.closed && Date.now() < until) await new Promise((r) => setTimeout(r, 25))
+    expect(flood.closed?.code).toBe(4408)
+  })
+
+  it('keeps the editing flag of a tab that reconnects with unsaved changes', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id })
+    const topic = `entry:post:${post.id}`
+    const tab = await open(editor)
+    // A reconnecting tab with unsaved changes says so in the watch itself.
+    tab.send({ type: 'watch', topic, editing: true })
+    const p = await tab.presence(topic, (people) => people.length === 1)
+    expect(p.people[0].editing).toBe(true)
+  })
+
   it('drops the socket when the account is disabled', async () => {
     const person = await newAccount('editor')
     const tab = await open(person.client)
@@ -168,6 +194,30 @@ describe('saving over someone else’s change', () => {
     const post = await createPost(admin, { author: a.id })
     expect((await editor.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'English' })).status).toBe(200)
     expect((await admin.request('PATCH', `/api/cms/post/${post.id}`, { json: { title: 'Czech' }, headers: { 'x-cms-version': post.updatedAt } })).status).toBe(200)
+  })
+
+  it('protects a translation from another translator, and gives it its own version', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id })
+    const first = await editor.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'One' })
+    const v = first.body.row.__version
+    expect(v).toBeTruthy()
+    const second = await admin.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { title: 'Two' }, headers: { 'x-cms-version': v } })
+    expect(second.status).toBe(200)
+    expect(second.body.row.__version).not.toBe(v)
+    const stale = await editor.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { title: 'Three' }, headers: { 'x-cms-version': v } })
+    expect(stale.status).toBe(409)
+    expect(stale.body.data.code).toBe('stale')
+  })
+
+  it('makes every save a new version, relation-only ones too', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id })
+    const tag = await createTag(admin)
+    const res = await admin.request('PATCH', `/api/cms/post/${post.id}`, { json: { tags: [tag.id] }, headers: { 'x-cms-version': post.updatedAt } })
+    expect(res.status).toBe(200)
+    expect(res.body.row.updatedAt).not.toBe(post.updatedAt)
+    expect((await admin.request('PATCH', `/api/cms/post/${post.id}`, { json: { tags: [] }, headers: { 'x-cms-version': post.updatedAt } })).status).toBe(409)
   })
 
   it('refuses a malformed version', async () => {

@@ -2,6 +2,8 @@
 // Edits a single-row global (site settings, navigation). Fetches the one row, renders
 // the same CmsField widgets as the entry editor, and upserts via PUT /_singleton/:name.
 // With translatable fields, a language switcher edits the translations (?locale=).
+import type { LiveChange } from '../composables/useCmsLive'
+
 const props = defineProps<{ entity: string, meta: any }>()
 const route = useRoute()
 const { t, tl, entityLabel } = useCmsI18n()
@@ -27,15 +29,39 @@ form.load(data.value?.row)
 const exists = computed(() => !!data.value?.row?.id)
 const available = ref<string[]>(data.value?.row?.__locales ?? [])
 const defaults = computed<Record<string, any>>(() => data.value?.row?.__defaults ?? {})
-// The version this form edits; see the entry editor.
-const version = ref<string | null>(data.value?.row?.updatedAt ?? null)
+// The version this form edits (a translation has its own); see the entry editor.
+const versionOf = (row: Record<string, any> | null | undefined) => (isTranslation.value ? row?.__version : row?.updatedAt) ?? null
+const version = ref<string | null>(versionOf(data.value?.row))
+const fetchRow = async () => (await $fetch<{ row: Record<string, any> | null }>(rowUrl())).row
 
 async function loadNewest() {
-  const res = await $fetch<{ row: Record<string, any> | null }>(rowUrl())
-  await form.replace(res.row)
-  data.value = res
-  version.value = res.row?.updatedAt ?? null
+  const row = await fetchRow()
+  await form.replace(row)
+  data.value = { row }
+  version.value = versionOf(row)
   if (live) live.incoming.value = null
+}
+
+/** Someone else saved or we reconnected: fetch, then decide (as in the entry editor). */
+async function onRemoteChange(c: LiveChange) {
+  const row = await fetchRow().catch(() => null)
+  if (!row || versionOf(row) === version.value) return
+  if (dirty.value || saving.value) {
+    if (live) live.incoming.value = c
+    return
+  }
+  await form.replace(row)
+  data.value = { row }
+  version.value = versionOf(row)
+  toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
+}
+
+/** The newest version with only this form's changed fields put back on it, saved. */
+async function saveOnTop() {
+  const mine = form.changedFields()
+  await loadNewest()
+  Object.assign(state, mine)
+  await save()
 }
 
 // Realtime, once the global has its row (the first save creates it).
@@ -48,10 +74,7 @@ const live = rowId
       dirty,
       saving,
       locale: computed(() => (isTranslation.value ? currentLocale.value : null)),
-      reload: async (c) => {
-        await loadNewest()
-        toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
-      },
+      onChange: onRemoteChange,
     })
   : null
 const others = computed(() => live?.others.value ?? [])
@@ -85,19 +108,22 @@ const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
   to: { query: code === locales.value?.default ? {} : { locale: code } },
 })))
 
-function save(force = false) {
+function save() {
   return form.submit(async () => {
     if (isTranslation.value) {
       const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
       const url: string = `/api/cms/_singleton/${props.entity}?locale=${currentLocale.value}`
-      await $fetch(url, { method: 'PUT', body })
+      const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+      const res: any = await $fetch(url, { method: 'PUT', body, headers })
+      version.value = versionOf(res?.row)
+      if (live) live.incoming.value = null
       if (currentLocale.value && !available.value.includes(currentLocale.value)) available.value = [...available.value, currentLocale.value]
       return
     }
     const url: string = `/api/cms/_singleton/${props.entity}`
-    const headers: Record<string, string> = !force && version.value ? { 'x-cms-version': version.value } : {}
+    const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
     const res: any = await $fetch(url, { method: 'PUT', body: form.body(), headers })
-    version.value = res?.row?.updatedAt ?? null
+    version.value = versionOf(res?.row)
     if (live) live.incoming.value = null
   })
 }
@@ -125,8 +151,8 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     </template>
 
     <CmsLiveNotice
-      :conflict="isTranslation ? null : conflict" :incoming="live?.incoming.value"
-      @load="loadNewest" @save-anyway="save(true)" @dismiss="live && (live.incoming.value = null)"
+      :conflict="conflict" :incoming="live?.incoming.value"
+      @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
     />
     <div class="space-y-6">
       <p v-if="isTranslation" class="text-sm text-muted">

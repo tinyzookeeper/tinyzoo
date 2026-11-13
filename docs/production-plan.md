@@ -465,6 +465,29 @@ otherwise a notice offers to load it; saves send `X-CMS-Version` and get a 409
 with who saved in between — the editor loads the newer version or saves over it.
 Lists refresh when their collection changes. Translations keep their own version.
 
+**Independent review** of stage 1 (separate agent): no High findings — socket
+auth, origin check, topic access and the version check itself held. Fixed:
+
+| Severity | Finding | Fix |
+|---|---|---|
+| Medium | First socket on a replica waited for Redis; its first messages were dropped, and with Redis down realtime hung | peers registered at once, replica listening started in the background |
+| Medium | A tab's own translation save came back as "someone else's"; translators overwrote each other | translations have their own version, checked on save (409) |
+| Medium | Edits typed during a save or a quiet reload could be dropped | edit counter: a save leaves later edits unsaved; reloads fetch first, then decide |
+| Medium | "Save mine anyway" re-sent the whole stale form (could unpublish a post published meanwhile) | "Save my changes on top": newest version + only the fields changed in this tab |
+| Medium | On Workers a socket cannot be written to from other requests | realtime refused on the edge build; the admin works without it |
+| Medium | No keepalive: proxies closed idle sockets, dead sockets lingered as "editing" | ping every 20 s, silent sockets dropped after 65 s, resync after reconnect |
+| Low | Messages handled concurrently (editing flag lost on reconnect, topic cap bypassable) | one message at a time per socket; `editing` travels with `watch` |
+| Low | Relation-only saves did not change the version; equal versions under clock skew | every save bumps; versions computed in SQL and strictly increasing |
+| Low | 409 re-read ignored row rules; emails shown as names | row rule applied; names fall back to the email's local part |
+| Low | Watches outlived lost row access; sockets lived forever | row-ruled watches re-checked each heartbeat; sockets re-open every 12 h |
+| Low | Conflict only shown at the page top; presence not accessible | toast too; `role=alert`; keyboard-focusable presence with screen-reader text and a pencil badge |
+| Low | Socket URL ignored the base URL; stale socket events | both fixed |
+| Hardening | Unlimited sockets/messages; log floods while Redis is down | 10 tabs per person, 60 messages / 10 s, throttled logs, timers stopped on shutdown |
+| Hardening | Two first saves of a global could both insert | advisory lock per global |
+
+Deferred: `maxPayload` for the socket (Nitro does not expose the `ws` option yet;
+messages over 1 KB are ignored after parsing).
+
 **Stage 2 — co-editing rich text** (next): Yjs documents for rich-text and block
 fields with TipTap's collaboration extension, synced over the same socket with
 short-lived per-document tokens (Postyard uses Hocuspocus; here it has to share

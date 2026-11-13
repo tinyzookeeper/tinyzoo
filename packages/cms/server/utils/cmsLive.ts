@@ -35,15 +35,37 @@ export interface LiveSocket {
 }
 
 interface Person { id: string; name: string; editing: boolean }
-/** `rowFiltered`: the person may read only some rows of this collection (list topics). */
+/**
+ * `rowFiltered`: the person may read only some rows of this collection — list
+ * changes reach them without ids, and an entry watch is re-checked every heartbeat.
+ */
 interface Watch { editing: boolean; rowFiltered: boolean }
-interface LocalPeer { socket: LiveSocket; user: CmsUser; sv: number; topics: Map<string, Watch> }
+interface LocalPeer {
+  socket: LiveSocket
+  user: CmsUser
+  sv: number
+  topics: Map<string, Watch>
+  /** Messages are handled one at a time, in order. */
+  queue: Promise<void>
+  openedAt: number
+  /** Last sign of life (any message, including the answer to our ping). */
+  seenAt: number
+  /** Messages in the current rate window. */
+  burst: { at: number; n: number }
+}
 
 const LIVE_CHANNEL = 'live'
 const HEARTBEAT_MS = 20_000
 const REMOTE_TTL_MS = 50_000
+/** A socket that has not answered for this long is gone (sleeping laptop, dead network). */
+const SILENT_MS = 65_000
+/** Sockets are re-opened (and re-authorised) at least this often. */
+const MAX_SOCKET_AGE_MS = 12 * 60 * 60_000
 const MAX_TOPICS = 20
 const MAX_MESSAGE = 1024
+const MAX_SOCKETS_PER_USER = 10
+const RATE_WINDOW_MS = 10_000
+const RATE_MAX = 60
 
 const local = new Map<string, LocalPeer>()
 /** topic → `${instance}:${peer}` → what another replica said about one of its peers. */
@@ -51,10 +73,19 @@ const remote = new Map<string, Map<string, { person: Person; at: number }>>()
 
 let started: Promise<void> | null = null
 let timer: ReturnType<typeof setInterval> | null = null
+let stopChanges: (() => void) | null = null
 
-/** Start listening to other replicas and to content changes (once, on the first connection). */
-function start(): Promise<void> {
-  started ??= (async () => {
+/**
+ * Start listening to other replicas and to content changes (once, on the first
+ * connection). Runs in the background: a slow or absent Redis never holds up a
+ * socket — presence then stays on this instance until it is back.
+ */
+function start(): void {
+  if (started) return
+  timer = setInterval(() => { void heartbeat() }, HEARTBEAT_MS)
+  ;(timer as any).unref?.()
+  stopChanges = onCmsChange((change) => { void deliverChange(change).catch((err) => console.error('[cms] realtime delivery failed', err)) })
+  started = (async () => {
     const store = await useCmsStore()
     await store.subscribe(LIVE_CHANNEL, (raw) => {
       try {
@@ -62,21 +93,34 @@ function start(): Promise<void> {
       }
       catch { /* not ours */ }
     })
-    onCmsChange((change) => { void deliverChange(change) })
-    timer = setInterval(() => { void heartbeat() }, HEARTBEAT_MS)
-    ;(timer as any).unref?.()
-  })().catch((err) => {
-    started = null
-    console.error('[cms] realtime could not start', err)
-  })
-  return started
+  })().catch((err) => console.error('[cms] realtime cannot hear other instances', err))
+}
+
+/** Stop timers and listeners (server shutdown, dev reload). */
+export function stopLive(): void {
+  if (timer) clearInterval(timer)
+  timer = null
+  stopChanges?.()
+  stopChanges = null
+  started = null
+  for (const p of local.values()) p.socket.close(1001, 'Server shutting down')
+  local.clear()
+  remote.clear()
 }
 
 // ── connections ──
 
-export async function liveOpen(socket: LiveSocket, user: CmsUser, sv: number): Promise<void> {
-  await start()
-  local.set(socket.id, { socket, user, sv, topics: new Map() })
+export function liveOpen(socket: LiveSocket, user: CmsUser, sv: number): void {
+  const mine = [...local.values()].filter((p) => p.user.id === user.id)
+  if (mine.length >= MAX_SOCKETS_PER_USER) {
+    // Too many tabs: the oldest one gives way.
+    const oldest = mine.sort((x, y) => x.openedAt - y.openedAt)[0]!
+    oldest.socket.close(4429, 'Too many open tabs')
+    liveClose(oldest.socket)
+  }
+  const now = Date.now()
+  local.set(socket.id, { socket, user, sv, topics: new Map(), queue: Promise.resolve(), openedAt: now, seenAt: now, burst: { at: now, n: 0 } })
+  start()
 }
 
 export function liveClose(socket: LiveSocket): void {
@@ -89,9 +133,23 @@ export function liveClose(socket: LiveSocket): void {
   }
 }
 
-export async function liveMessage(socket: LiveSocket, text: string): Promise<void> {
+export function liveMessage(socket: LiveSocket, text: string): Promise<void> {
   const p = local.get(socket.id)
-  if (!p) return
+  if (!p) return Promise.resolve()
+  const now = Date.now()
+  p.seenAt = now
+  if (now - p.burst.at > RATE_WINDOW_MS) p.burst = { at: now, n: 0 }
+  if (++p.burst.n > RATE_MAX) {
+    socket.close(4408, 'Too many messages')
+    liveClose(socket)
+    return Promise.resolve()
+  }
+  p.queue = p.queue.then(() => handle(p, text)).catch((err) => console.error('[cms] realtime message failed', err))
+  return p.queue
+}
+
+async function handle(p: LocalPeer, text: string): Promise<void> {
+  if (!local.has(p.socket.id)) return // closed meanwhile
   if (text.length > MAX_MESSAGE) return send(p, { type: 'error', message: 'Message too large' })
   let msg: any
   try {
@@ -100,27 +158,29 @@ export async function liveMessage(socket: LiveSocket, text: string): Promise<voi
   catch {
     return
   }
+  if (msg?.type === 'pong') return
   const topic = typeof msg?.topic === 'string' ? msg.topic : ''
   if (msg?.type === 'watch') {
     if (p.topics.has(topic)) return broadcastPresence(topic)
     if (p.topics.size >= MAX_TOPICS) return send(p, { type: 'error', topic, message: 'Watching too many things at once' })
     const access = await mayWatch(p.user, topic)
     if (!access) return send(p, { type: 'error', topic, message: 'Not found or not permitted' })
-    if (!local.has(socket.id)) return // closed while we checked
-    p.topics.set(topic, { editing: false, rowFiltered: access.rowFiltered })
-    void announce(topic, socket.id, personOf(p, topic))
+    if (!local.has(p.socket.id) || p.topics.size >= MAX_TOPICS) return
+    // `editing` may come with the watch (a tab with unsaved changes reconnecting).
+    p.topics.set(topic, { editing: msg.editing === true, rowFiltered: access.rowFiltered })
+    void announce(topic, p.socket.id, personOf(p, topic))
     broadcastPresence(topic)
   }
   else if (msg?.type === 'unwatch') {
     if (!p.topics.delete(topic)) return
-    void announce(topic, socket.id, null)
+    void announce(topic, p.socket.id, null)
     broadcastPresence(topic)
   }
   else if (msg?.type === 'editing') {
     const w = p.topics.get(topic)
     if (!w || w.editing === !!msg.editing) return
     w.editing = !!msg.editing
-    void announce(topic, socket.id, personOf(p, topic))
+    void announce(topic, p.socket.id, personOf(p, topic))
     broadcastPresence(topic)
   }
 }
@@ -148,7 +208,7 @@ async function mayWatch(user: CmsUser, topic: string): Promise<{ rowFiltered: bo
     const rowFilter = authorize(e, 'read', user)
     if (t.kind === 'list') return { rowFiltered: rowFilter !== undefined }
     const [row] = await db.select({ id: e.table.id }).from(e.table).where(both(eq(e.table.id, t.id!), rowFilter))
-    return row ? { rowFiltered: false } : null
+    return row ? { rowFiltered: rowFilter !== undefined } : null
   }
   catch {
     return null
@@ -157,7 +217,12 @@ async function mayWatch(user: CmsUser, topic: string): Promise<{ rowFiltered: bo
 
 // ── presence ──
 
-const personOf = (p: LocalPeer, topic: string): Person => ({ id: p.user.id, name: p.user.name || p.user.email || '', editing: !!p.topics.get(topic)?.editing })
+/** How colleagues see someone: their name, never their full email address. */
+export function displayName(name?: string | null, email?: string | null): string {
+  return name?.trim() || (email ? email.split('@')[0]! : '')
+}
+
+const personOf = (p: LocalPeer, topic: string): Person => ({ id: p.user.id, name: displayName(p.user.name, p.user.email), editing: !!p.topics.get(topic)?.editing })
 
 /** Everyone on a topic, one entry per person (several tabs: editing if any tab is). */
 export function presenceOf(topic: string): Person[] {
@@ -178,13 +243,19 @@ function broadcastPresence(topic: string): void {
   for (const p of local.values()) if (p.topics.has(topic)) send(p, { type: 'presence', topic, people })
 }
 
+let lastAnnounceError = 0
+
 async function announce(topic: string, peerId: string, person: Person | null): Promise<void> {
   try {
     const store = await useCmsStore()
     await store.publish(LIVE_CHANNEL, JSON.stringify({ origin: instanceId(), topic, peer: peerId, person }))
   }
   catch (err) {
-    console.error('[cms] realtime announce failed', err)
+    // One line a minute is enough while Redis is down.
+    if (Date.now() - lastAnnounceError > 60_000) {
+      lastAnnounceError = Date.now()
+      console.error('[cms] realtime announce failed', (err as Error)?.message ?? err)
+    }
   }
 }
 
@@ -213,6 +284,18 @@ function onRemote(msg: any): void {
  * quiet, and drop sockets whose account may no longer be used.
  */
 async function heartbeat(): Promise<void> {
+  const now0 = Date.now()
+  for (const p of [...local.values()]) {
+    // Gone quiet (no answer to the last pings) or open too long: drop it — a live
+    // browser reconnects at once, and is authorised afresh.
+    if (now0 - p.seenAt > SILENT_MS || now0 - p.openedAt > MAX_SOCKET_AGE_MS) {
+      p.socket.close(4000, 'Reconnect')
+      liveClose(p.socket)
+      continue
+    }
+    // Keeps proxies from closing an idle socket, and asks for a sign of life.
+    send(p, { type: 'ping' })
+  }
   for (const [id, p] of local) for (const topic of p.topics.keys()) void announce(topic, id, personOf(p, topic))
   const now = Date.now()
   for (const [topic, map] of remote) {
@@ -222,6 +305,21 @@ async function heartbeat(): Promise<void> {
     if (changed) broadcastPresence(topic)
   }
   await recheckAccounts().catch((err) => console.error('[cms] realtime account check failed', err))
+  await recheckRowWatches().catch((err) => console.error('[cms] realtime access check failed', err))
+}
+
+/** Entry watches under a row rule (authors' own entries): still allowed? */
+async function recheckRowWatches(): Promise<void> {
+  for (const p of [...local.values()]) {
+    for (const [topic, w] of [...p.topics]) {
+      if (!w.rowFiltered || !topic.startsWith('entry:')) continue
+      if (await mayWatch(p.user, topic)) continue
+      if (!p.topics.delete(topic)) continue
+      send(p, { type: 'error', topic, message: 'Not found or not permitted' })
+      void announce(topic, p.socket.id, null)
+      broadcastPresence(topic)
+    }
+  }
 }
 
 async function recheckAccounts(): Promise<void> {
@@ -252,7 +350,7 @@ async function nameOf(userId: string | null): Promise<string | null> {
   try {
     const { db, reg } = useCms()
     const [u] = await db.select({ name: reg.cmsUsers.name, email: reg.cmsUsers.email }).from(reg.cmsUsers).where(eq(reg.cmsUsers.id, userId))
-    const name = u ? (u.name || u.email) : null
+    const name = u ? displayName(u.name, u.email) || null : null
     if (name) names.set(userId, { name, at: Date.now() })
     if (names.size > 500) names.clear()
     return name
@@ -269,10 +367,15 @@ async function deliverChange(change: CmsChange): Promise<void> {
   // Only what a watcher needs to react — not the public flag or website addresses.
   const body = { type: change.type, entity: change.entity, id: change.id, locale: change.locale, version: change.version, by: change.by, byName: await nameOf(change.by), at: change.at }
   for (const p of recipients) {
-    // An entry watcher learns about that entry; otherwise the list topic.
-    if (p.topics.has(topics[1]!)) send(p, { type: 'change', topic: topics[1], change: body })
+    // Looked up again: the person may have stopped watching while we fetched the name.
+    if (p.topics.has(topics[1]!)) {
+      send(p, { type: 'change', topic: topics[1], change: body })
+      continue
+    }
+    const list = p.topics.get(topics[0]!)
+    if (!list) continue
     // Someone who may read only some rows learns that the list changed, not which row.
-    else send(p, { type: 'change', topic: topics[0], change: p.topics.get(topics[0]!)!.rowFiltered ? { ...body, id: null, version: null, by: null, byName: null } : body })
+    send(p, { type: 'change', topic: topics[0], change: list.rowFiltered ? { ...body, id: null, version: null, by: null, byName: null } : body })
   }
 }
 

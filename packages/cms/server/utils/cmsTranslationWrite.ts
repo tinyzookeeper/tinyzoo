@@ -9,6 +9,8 @@ export async function translationFormRow(db: any, reg: CmsRegistry, e: CmsEntity
   row.__defaults = Object.fromEntries(e.localized.map((k) => [k, row[k]]))
   for (const k of e.localized) row[k] = tr?.[k] ?? null
   row.__translated = !!tr
+  // The translation's own version: what a translation save is checked against.
+  row.__version = tr?.updatedAt ? new Date(tr.updatedAt).toISOString() : null
   return row
 }
 
@@ -16,7 +18,8 @@ export async function translationFormRow(db: any, reg: CmsRegistry, e: CmsEntity
  * Write the translation of one entry: only `.localized()` fields, empty = fall back to
  * the default language. Same access as editing the entry (row rules, and people who
  * cannot publish cannot change a live entry). The entry's own version (updatedAt) stays:
- * the translation has its own, so translating never conflicts with editing the entry.
+ * the translation has its own, so translating never conflicts with editing the entry
+ * — but two people saving the same language do (X-CMS-Version, 409).
  */
 export async function writeTranslation(event: any, e: CmsEntity, id: string, locale: string, user: CmsUser, rowFilter: any) {
   const { db, reg } = useCms()
@@ -38,7 +41,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   const before = (await translationRows(db, e, [id], locale)).get(id)
   const oldMedia = jsonKeys.flatMap((k) => jsonMediaIds(e.fields[k], before?.[k]))
 
-  const now = new Date()
+  const baseTr = baseVersion(event)
   const row = await db.transaction(async (tx: any) => {
     // Touch the entry first, under the same rules as editing it — including "not
     // live" for people who cannot publish, re-checked here at write time (an editor
@@ -47,6 +50,11 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
     const [touched] = await tx.update(e.table).set({ updatedAt: sql`${e.table.updatedAt}` })
       .where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning({ id: e.table.id })
     if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+    // The entry is locked now, so this is the translation as it stands.
+    const [current] = await tx.select({ updatedAt: t.updatedAt }).from(t).where(and(eq(t.parentId, id), eq(t.locale, locale)))
+    if (current) await assertCurrentVersion(e, { updatedAt: current.updatedAt, updatedBy: null }, baseTr)
+    // A new version, never equal to the last one (clocks may differ between replicas).
+    const now = new Date(Math.max(Date.now(), current ? new Date(current.updatedAt).getTime() + 1 : 0))
     const [saved] = await tx.insert(t).values({ parentId: id, locale, ...data, updatedAt: now })
       .onConflictDoUpdate({ target: [t.parentId, t.locale], set: { ...data, updatedAt: now } })
       .returning()
@@ -61,7 +69,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   await audit(event, 'entry.translate', { entity: e.name, recordId: id, meta: { locale } })
 
   const [fresh] = await db.select().from(e.table).where(eq(e.table.id, id))
-  await reportChange(event, { type: 'translation.updated', entity: e, id, locale, before: seenBefore, after: fresh })
+  await reportChange(event, { type: 'translation.updated', entity: e, id, locale, before: seenBefore, after: { updatedAt: row.updatedAt } })
   await hydrateRowForForm(db, reg, e, fresh)
   return translationFormRow(db, reg, e, fresh, locale)
 }
@@ -88,7 +96,7 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
     for (const mid of new Set(jsonMediaIds(e.fields[k], gone[k]))) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
   }
   await audit(event, 'entry.translation_delete', { entity: e.name, recordId: id, meta: { locale } })
-  await reportChange(event, { type: 'translation.deleted', entity: e, id, locale, before: seenBefore, after: base })
+  await reportChange(event, { type: 'translation.deleted', entity: e, id, locale, before: seenBefore, after: null })
   return { ok: true }
 }
 

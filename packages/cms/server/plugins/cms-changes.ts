@@ -4,7 +4,10 @@ import type { CmsChange } from '@my-cms/core'
 // channel) and clear this instance's caches built from that content. Changes saved
 // here were applied when they were reported.
 export default defineNitroPlugin((nitroApp) => {
-  nitroApp.hooks.hook('close', () => closeCmsStore())
+  nitroApp.hooks.hook('close', async () => {
+    stopLive()
+    await closeCmsStore()
+  })
   void (async () => {
     try {
       const store = await useCmsStore()

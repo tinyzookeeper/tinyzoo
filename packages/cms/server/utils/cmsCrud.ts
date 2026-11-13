@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne, or } from '@my-cms/core'
+import { and, eq, isNull, ne, or, sql } from '@my-cms/core'
 import { propOf, type CmsEntity, type CmsRegistry } from '@my-cms/core'
 import type { CmsUser } from './cmsSession'
 
@@ -254,11 +254,19 @@ export async function assertCurrentVersion(e: CmsEntity, current: Record<string,
   if (current.updatedBy) {
     const { db, reg } = useCms()
     const [u] = await db.select({ name: reg.cmsUsers.name, email: reg.cmsUsers.email }).from(reg.cmsUsers).where(eq(reg.cmsUsers.id, current.updatedBy))
-    byName = u ? (u.name || u.email) : null
+    byName = u ? displayName(u.name, u.email) || null : null
   }
   throw createError({
     statusCode: 409,
     statusMessage: 'Changed by someone else since you opened it',
     data: { code: 'stale', entity: e.name, version: new Date(current.updatedAt).toISOString(), updatedBy: current.updatedBy ?? null, updatedByName: byName },
   })
+}
+
+/**
+ * The next version stamp for a row: now, but always at least 1 ms after the current
+ * one — two saves never share a version, even with replica clocks out of step.
+ */
+export function nextVersion(col: any) {
+  return sql`greatest(date_trunc('milliseconds', clock_timestamp()), ${col} + interval '1 millisecond')`
 }
