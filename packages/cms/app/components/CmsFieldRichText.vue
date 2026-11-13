@@ -119,8 +119,8 @@ const tools = computed<Tool[]>(() => {
 <style scoped>
 :deep(.ProseMirror) { min-height: 10rem; padding: 0.75rem 1rem; outline: none; }
 :deep(.ProseMirror > * + *) { margin-top: 0.5rem; }
-:deep(.ProseMirror h2) { font-size: 1.5rem; font-weight: 500; line-height: 1.25; margin-top: 1rem; }
-:deep(.ProseMirror h3) { font-size: 1.25rem; font-weight: 500; line-height: 1.3; margin-top: 0.75rem; }
+:deep(.ProseMirror h2) { font-size: 1.25rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; margin-top: 1rem; }
+:deep(.ProseMirror h3) { font-size: 1.0625rem; font-weight: 600; line-height: 1.35; margin-top: 0.75rem; }
 :deep(.ProseMirror ul) { list-style: disc; padding-left: 1.5rem; }
 :deep(.ProseMirror ol) { list-style: decimal; padding-left: 1.5rem; }
 :deep(.ProseMirror blockquote) { border-left: 3px solid currentColor; opacity: 0.85; padding-left: 0.75rem; }

@@ -27,7 +27,6 @@ export default defineNuxtConfig({
     families: [
       { name: 'Geist', provider: 'google', weights: [400, 500, 600], global: true },
       { name: 'Geist Mono', provider: 'google', weights: [400, 500], global: true },
-      { name: 'Newsreader', provider: 'google', weights: [400, 500, 600], styles: ['normal', 'italic'], global: true },
     ],
   },
 })

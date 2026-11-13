@@ -124,7 +124,7 @@ then match `DATABASE_URL` in `playground/.env`.
 ## Admin look & language
 
 The admin has its own design system, scoped so it never touches the host website's
-theme: warm neutrals, one accent, Geist + Newsreader, light and dark. It speaks
+theme: modern and neutral — true greys, black primary, Geist, light and dark. It speaks
 Czech and English (cookie → browser language → default). Brand it per client in
 `app.config.ts`:
 
@@ -132,7 +132,7 @@ Czech and English (cookie → browser language → default). Brand it per client
 cms: { admin: {
   name: { cs: 'Pekárna Novák', en: 'Novák Bakery' },
   siteUrl: 'https://pekarna-novak.cz',
-  accent: 'indigo',            // indigo | pine | plum | clay
+  accent: 'mono',              // mono (default) | indigo | blue | violet | emerald
   locales: ['cs', 'en'], defaultLocale: 'cs',
   timeZone: 'Europe/Prague',   // dates are shown and edited in this zone
 } }

@@ -43,16 +43,16 @@ const createItems = computed(() => collections.value
         <CmsSection :title="t('home.yourContent')" flush>
           <ul class="divide-y divide-default">
             <li v-for="e in collections" :key="e.name">
-              <NuxtLink :to="`/admin/${e.name}`" class="group flex items-center gap-4 px-5 py-4 hover:bg-elevated/50 transition-colors">
-                <span class="size-10 shrink-0 rounded-lg bg-primary/10 text-primary grid place-items-center">
-                  <UIcon :name="e.icon" class="size-5" />
+              <NuxtLink :to="`/admin/${e.name}`" class="group flex items-center gap-3.5 px-4 py-3 hover:bg-elevated/50 transition-colors">
+                <span class="size-9 shrink-0 rounded-md border border-default text-muted grid place-items-center">
+                  <UIcon :name="e.icon" class="size-4.5" />
                 </span>
                 <span class="min-w-0 flex-1">
-                  <span class="block font-medium text-highlighted group-hover:text-primary transition-colors">{{ entityLabel(e) }}</span>
+                  <span class="block text-sm font-medium text-highlighted ">{{ entityLabel(e) }}</span>
                   <span v-if="e.description" class="block text-sm text-muted truncate">{{ tl(e.description) }}</span>
                 </span>
                 <span class="text-sm text-muted tabular-nums whitespace-nowrap">{{ t('common.items', { count: overview?.counts?.[e.name] ?? 0 }) }}</span>
-                <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed group-hover:text-primary transition-colors" />
+                <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed group-hover:text-highlighted transition-colors" />
               </NuxtLink>
             </li>
           </ul>
@@ -61,13 +61,13 @@ const createItems = computed(() => collections.value
         <CmsSection v-if="settings.length" :title="t('nav.settings')" flush>
           <ul class="divide-y divide-default">
             <li v-for="e in settings" :key="e.name">
-              <NuxtLink :to="`/admin/${e.name}`" class="group flex items-center gap-4 px-5 py-3.5 hover:bg-elevated/50 transition-colors">
-                <UIcon :name="e.icon" class="size-5 text-muted group-hover:text-primary" />
+              <NuxtLink :to="`/admin/${e.name}`" class="group flex items-center gap-3.5 px-4 py-3 hover:bg-elevated/50 transition-colors">
+                <UIcon :name="e.icon" class="size-4.5 text-muted" />
                 <span class="min-w-0 flex-1">
-                  <span class="block font-medium text-highlighted">{{ entityLabel(e) }}</span>
+                  <span class="block text-sm font-medium text-highlighted">{{ entityLabel(e) }}</span>
                   <span v-if="e.description" class="block text-sm text-muted truncate">{{ tl(e.description) }}</span>
                 </span>
-                <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed group-hover:text-primary transition-colors" />
+                <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed group-hover:text-highlighted transition-colors" />
               </NuxtLink>
             </li>
           </ul>
@@ -77,7 +77,7 @@ const createItems = computed(() => collections.value
       <CmsSection :title="t('home.recent')" flush class="self-start">
         <ul v-if="overview?.recent?.length" class="divide-y divide-default">
           <li v-for="item in overview.recent" :key="`${item.entity}:${item.id}`">
-            <NuxtLink :to="`/admin/${item.entity}/${item.id}`" class="block px-5 py-3 hover:bg-elevated/50 transition-colors">
+            <NuxtLink :to="`/admin/${item.entity}/${item.id}`" class="block px-4 py-2.5 hover:bg-elevated/50 transition-colors">
               <span class="flex items-center gap-2 min-w-0">
                 <span class="truncate text-sm font-medium text-highlighted">{{ item.title || t('common.untitled') }}</span>
                 <CmsStatusBadge v-if="item.published !== null" :published="item.published" class="shrink-0" />
@@ -88,7 +88,7 @@ const createItems = computed(() => collections.value
             </NuxtLink>
           </li>
         </ul>
-        <p v-else class="px-5 py-6 text-sm text-muted">{{ t('home.recentEmpty') }}</p>
+        <p v-else class="px-4 py-6 text-sm text-muted">{{ t('home.recentEmpty') }}</p>
       </CmsSection>
     </div>
   </CmsPage>

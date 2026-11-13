@@ -6,14 +6,14 @@ defineProps<{ title?: string; description?: string; flush?: boolean }>()
 
 <template>
   <section class="cms-card overflow-hidden">
-    <header v-if="title || $slots.actions" class="flex items-start justify-between gap-4 px-5 pt-4" :class="flush ? 'pb-3 border-b border-default' : ''">
+    <header v-if="title || $slots.actions" class="flex items-start justify-between gap-4 px-4 pt-3" :class="flush ? 'pb-3 border-b border-default' : ''">
       <div class="min-w-0">
         <h2 v-if="title" class="text-sm font-semibold text-highlighted">{{ title }}</h2>
         <p v-if="description" class="mt-0.5 text-sm text-muted">{{ description }}</p>
       </div>
       <slot name="actions" />
     </header>
-    <div :class="flush ? '' : 'p-5'">
+    <div :class="flush ? '' : 'p-4'">
       <slot />
     </div>
   </section>

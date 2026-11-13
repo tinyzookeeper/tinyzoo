@@ -36,7 +36,7 @@ export function useCmsAdminConfig() {
     return {
       name: (admin.name as LocalizedText | undefined) ?? 'Content',
       siteUrl: (admin.siteUrl as string | undefined) ?? '/',
-      accent: (admin.accent as string | undefined) ?? 'indigo',
+      accent: (admin.accent as string | undefined) ?? 'mono',
       locales: locales.length ? locales : ['en'],
       defaultLocale: (admin.defaultLocale as string | undefined) ?? 'en',
       timeZone: (admin.timeZone as string | undefined) ?? 'Europe/Prague',

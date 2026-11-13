@@ -164,12 +164,12 @@ The name is deferred on purpose; everything brand-specific reads from
 `cms.admin.name`, so naming is a one-line change plus the package rename.
 
 - **Tokens** in `app/assets/css/cms-admin.css`, scoped to `html[data-cms-admin]`
-  so the admin and the client's website never share a theme. Warm paper neutrals,
-  one accent. The default is **indigo**, after an early pine-green was dropped:
-  next to green "Published" badges, a green brand read as a status. Pine, plum and
-  clay stay as built-in alternatives (`cms.admin.accent`).
-- **Type:** Geist (interface) + Newsreader (titles and rich text), self-hosted
-  through @nuxt/fonts.
+  so the admin and the client's website never share a theme. **Modern and
+  neutral:** true greys, black primary ("mono"), one sans-serif (Geist), flat cards
+  with hairline borders. Colour accents (`indigo`, `blue`, `violet`, `emerald`) are
+  opt-in per client via `cms.admin.accent`.
+  *A first pass with warm "paper" greys, a serif for titles and a coloured accent
+  was reviewed and rejected the same day ("not modern and neutral") and replaced.*
 - **Shell** on Nuxt UI's dashboard components; navigation named by task (Home /
   Content / Settings / View website); account menu with appearance and language.
 - **Building blocks:** `CmsPage`, `CmsSection`, `CmsEmptyState`, `CmsStatusBadge`,

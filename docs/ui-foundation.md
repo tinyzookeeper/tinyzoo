@@ -1,10 +1,14 @@
-# UI foundation — a calm editorial workspace
+# UI foundation — modern and neutral
 
-Direction from the Mobbin study (`docs/research/admin-ux-references.md`): closer to
-Shopify admin / Squarespace / beehiiv than to Linear. Friendly and spacious enough
-for a café owner who edits the menu once a month, crisp enough that an agency is
-proud to hand it over. Light by default, dark supported. Live reference:
-`/admin/styleguide`.
+Modern and neutral: true greys, black as the primary colour, one sans-serif
+typeface, flat surfaces with hairline borders. The structure and copy follow the
+Mobbin study (`docs/research/admin-ux-references.md`); the look is deliberately
+quiet so the client's content is what stands out. Light by default, dark
+supported. Live reference: `/admin/styleguide`.
+
+*History: the first pass (2026-11-13) was a "calm editorial" look — warm paper
+greys and a serif for titles. Reviewed and rejected as not modern/neutral enough;
+replaced the same day.*
 
 ## Where things live
 
@@ -28,38 +32,31 @@ Nuxt UI's `:root`. The website's pages are untouched.
 
 ## Colour
 
-- **One accent** (`--ui-color-primary-*`), for primary actions and the active
-  navigation item only. Default **indigo**; built-in alternatives `pine`, `plum`,
-  `clay` via `cms.admin.accent`. The default is deliberately not green: green
-  means *published*, and the brand colour must never read as a status.
-- **Neutrals: warm paper grey** (OKLCH hue 75, very low chroma). The page is
-  `neutral-50`, cards are white, hairline borders.
-- **Status is the only other colour.** Draft = neutral, Published = success
-  (green), Scheduled = info, Changed since publishing = warning, errors = error.
-- **Contrast:** light-mode text roles are one step darker than Nuxt UI's default
-  (`text-muted` = neutral-600) and `--ui-primary` is the 600 step, so white labels
-  on solid buttons pass AA. Dark mode uses the 400 step.
-- Re-skin for a client: pick an accent, or override the `--ui-color-primary-*`
-  variables under `html[data-cms-admin]` in the host's CSS.
+- **Neutral, true grey** (OKLCH chroma 0). Page and cards white, sidebar
+  `neutral-50`, hairline `neutral-200` borders.
+- **Accent "mono" by default:** primary actions are black (white in dark mode).
+  Colour then appears only where it means something — status: Draft = neutral,
+  Published = success (green), Scheduled = info, Changed since publishing =
+  warning, errors = error.
+- **Client accents:** `cms.admin.accent` = `indigo`, `blue`, `violet` or
+  `emerald` turns primary actions and the active state into that colour; or
+  override `--ui-color-primary-*` under `html[data-cms-admin]` in the host's CSS.
 
 ## Type
 
-- **Geist** for the interface (14–15 px body, 12–13 px meta, sentence-case labels,
-  never all caps except the small sidebar group labels).
-- **Newsreader** (serif) for page titles, the greeting and **the text inside the
-  rich-text editor**. Writers see their words as readers will, and the serif titles
-  are what makes it feel editorial rather than like a dev tool.
+- **One typeface: Geist** (sans-serif), self-hosted via @nuxt/fonts, Geist Mono
+  for code. No serif anywhere.
+- Page titles 24 px semibold with tight tracking; section titles 14 px semibold;
+  body 14 px; meta 12–13 px; sidebar group labels 12 px, sentence case.
 - `tabular-nums` for counts and dates.
-- Utilities: `.cms-display` (serif title), `.cms-prose` (serif long text).
 
 ## Shape & density
 
-- Radius `0.5rem` (controls), cards `0.75rem`.
-- **Comfortable, not compact:** list rows ~56 px, form fields `md`, 24 px between
-  fields, 24 px between cards.
-- `.cms-card` is the one frame: white, hairline border, a whisper of shadow. One
-  frame per group, never nested.
-- `.cms-page` owns the gutters and max width (72 rem); `narrow` (52 rem) for forms.
+- Radius `0.375rem` (controls), cards `0.5625rem`.
+- **Flat:** `.cms-card` is a white surface with a hairline border and no shadow.
+  One frame per group, never nested.
+- Comfortable but not airy: list rows ~48–56 px, 24 px between form fields.
+- `.cms-page` owns the gutters and max width (72 rem); `narrow` (48 rem) for forms.
   Pages add no padding of their own.
 
 ## Shell
@@ -70,7 +67,7 @@ remembered locally). Sidebar groups are named by task, not by implementation:
 **Home**, **Content** (collections), **Settings** (globals), then **View website**
 pinned at the bottom and the account menu (appearance, language, design system,
 sign out). Every page is a `CmsPage`: a sticky top bar with breadcrumbs and the
-page's actions (always reachable), over a body with a serif title and an optional
+page's actions (always reachable), over a body with the page title and an optional
 description.
 
 ## Building blocks

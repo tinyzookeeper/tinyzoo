@@ -79,7 +79,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
     >
       <template #header="{ collapsed }">
         <NuxtLink to="/admin" class="flex items-center gap-2.5 min-w-0" :class="collapsed ? 'mx-auto' : ''">
-          <span class="size-8 shrink-0 rounded-lg bg-primary text-inverted grid place-items-center cms-display text-lg font-semibold leading-none" aria-hidden="true">
+          <span class="size-7 shrink-0 rounded-md bg-inverted text-inverted grid place-items-center text-sm font-semibold leading-none" aria-hidden="true">
             {{ productName.charAt(0) }}
           </span>
           <span v-if="!collapsed" class="truncate font-semibold text-highlighted">{{ productName }}</span>
@@ -90,12 +90,12 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
         <UNavigationMenu
           v-for="(group, i) in navigation" :key="i"
           :items="group" orientation="vertical" :collapsed="collapsed" tooltip
-          :ui="{ label: 'text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-dimmed pt-4', link: 'text-[0.9375rem] py-2' }"
+          :ui="{ label: 'text-xs font-medium text-dimmed pt-4', link: 'text-sm py-1.5' }"
         />
         <div class="mt-auto">
           <UNavigationMenu
             :items="[{ label: t('nav.viewSite'), icon: 'i-lucide-globe', to: config.siteUrl, target: '_blank' }]"
-            orientation="vertical" :collapsed="collapsed" tooltip :ui="{ link: 'text-[0.9375rem] py-2 text-muted' }"
+            orientation="vertical" :collapsed="collapsed" tooltip :ui="{ link: 'text-sm py-1.5 text-muted' }"
           />
         </div>
       </template>
@@ -106,7 +106,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
             color="neutral" variant="ghost" class="w-full p-1.5" :class="collapsed ? 'justify-center' : ''"
             :aria-label="t('user.account')"
           >
-            <span class="size-8 shrink-0 rounded-full bg-primary/12 text-primary grid place-items-center text-xs font-semibold">{{ initials }}</span>
+            <span class="size-7 shrink-0 rounded-full bg-elevated text-highlighted grid place-items-center text-xs font-medium">{{ initials }}</span>
             <span v-if="!collapsed" class="min-w-0 flex-1 text-left">
               <span class="block text-sm font-medium text-highlighted truncate">{{ user?.name }}</span>
               <span class="block text-xs text-muted truncate">{{ roleLabel }}</span>

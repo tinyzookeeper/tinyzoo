@@ -15,7 +15,7 @@
 //   cms: { admin: {
 //     name: { cs: 'Pekárna Novák', en: 'Novák Bakery' }, // shown in the sidebar and tab title
 //     siteUrl: 'https://pekarna-novak.cz',                // "View website" link
-//     accent: 'indigo',                                   // indigo | pine | plum | clay
+//     accent: 'mono',                                     // mono | indigo | blue | violet | emerald
 //     locales: ['cs', 'en'], defaultLocale: 'cs',         // admin interface languages
 //     timeZone: 'Europe/Prague',                          // how dates are shown
 //   } }
@@ -25,7 +25,7 @@ export default defineAppConfig({
     admin: {
       name: 'Content' as string | Record<string, string>,
       siteUrl: '/',
-      accent: 'indigo' as 'indigo' | 'pine' | 'plum' | 'clay',
+      accent: 'mono' as 'mono' | 'indigo' | 'blue' | 'violet' | 'emerald',
       locales: ['cs', 'en'] as string[],
       defaultLocale: 'en',
       timeZone: 'Europe/Prague',

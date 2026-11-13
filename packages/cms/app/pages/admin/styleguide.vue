@@ -13,7 +13,7 @@ const states = [
   { color: 'warning', label: 'Warning', use: 'Unsaved or changed since publishing' },
   { color: 'error', label: 'Error', use: 'Validation, destructive actions' },
 ] as const
-const accents = ['indigo', 'pine', 'plum', 'clay'] as const
+const accents = ['mono', 'indigo', 'blue', 'violet', 'emerald'] as const
 const config = useCmsAdminConfig()
 const accent = ref<string>(config.value.accent)
 // Preview another accent on this page only (the layout restores the configured one on leave).
@@ -51,8 +51,8 @@ const toc = [
 
     <div class="space-y-10">
       <section id="color" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-2xl font-medium text-highlighted">Colour</h2>
-        <p class="text-muted max-w-2xl">One accent for primary actions and the active place in the navigation. Warm, paper-like neutrals for everything else. Colour carries meaning only for status.</p>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">Colour</h2>
+        <p class="text-muted max-w-2xl">Neutral greys, black for primary actions. Colour appears only where it means something: status. A client's accent can replace black.</p>
         <CmsSection v-for="ramp in ramps" :key="ramp" :title="ramp">
           <div class="cms-ramp gap-1.5">
             <div v-for="s in steps" :key="s" class="space-y-1.5">
@@ -73,11 +73,11 @@ const toc = [
       </section>
 
       <section id="type" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-2xl font-medium text-highlighted">Typography</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">Typography</h2>
         <div class="grid gap-4 lg:grid-cols-3">
-          <CmsSection title="Display — Newsreader">
-            <p class="cms-display text-3xl leading-tight text-highlighted">Dobré ráno, Jano</p>
-            <p class="mt-2 text-xs text-muted">Page titles, the greeting, entry titles. Serif, medium weight.</p>
+          <CmsSection title="Titles — Geist semibold">
+            <p class="cms-display text-2xl font-semibold leading-tight text-highlighted">Dobré ráno, Jano</p>
+            <p class="mt-2 text-xs text-muted">Page titles 24 px, section titles 14–18 px. Tight tracking.</p>
           </CmsSection>
           <CmsSection title="Interface — Geist">
             <p class="text-sm text-highlighted font-medium">Uložit a zveřejnit</p>
@@ -85,15 +85,15 @@ const toc = [
             <p class="text-xs text-muted">Secondary text and metadata, 12–13 px.</p>
             <p class="mt-2 text-xs text-muted tabular-nums">Numbers: 1 234 · 12. 11. 2026 9:00</p>
           </CmsSection>
-          <CmsSection title="Writing — Newsreader">
+          <CmsSection title="Writing — Geist">
             <p class="cms-prose text-default">Rich text in the editor reads like the published page, so writers see their words as readers will.</p>
           </CmsSection>
         </div>
       </section>
 
       <section id="surfaces" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-2xl font-medium text-highlighted">Surfaces &amp; shape</h2>
-        <p class="text-muted max-w-2xl">White cards on a paper background group related things. One frame per group — cards are never nested. Radius {{ '0.5rem' }}, a hairline border and a whisper of shadow.</p>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">Surfaces &amp; shape</h2>
+        <p class="text-muted max-w-2xl">Flat white surfaces separated by hairline borders, no shadows. One frame per group — never nested. Radius 6 px for controls, 9 px for cards.</p>
         <div class="grid gap-4 sm:grid-cols-3">
           <div class="cms-card p-5 text-sm">.cms-card</div>
           <div class="rounded-(--ui-radius) bg-elevated p-5 text-sm">bg-elevated (hover, selected)</div>
@@ -102,7 +102,7 @@ const toc = [
       </section>
 
       <section id="actions" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-2xl font-medium text-highlighted">Actions</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">Actions</h2>
         <p class="text-muted max-w-2xl">At most one solid primary button per view. Verbs on buttons ("Publish post", not "OK"). Destructive actions are red and always confirmed.</p>
         <CmsSection>
           <div class="space-y-3 overflow-x-auto">
@@ -115,7 +115,7 @@ const toc = [
       </section>
 
       <section id="status" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-2xl font-medium text-highlighted">Status</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">Status</h2>
         <CmsSection>
           <div class="flex flex-wrap items-center gap-3">
             <CmsStatusBadge :published="false" />
@@ -128,7 +128,7 @@ const toc = [
       </section>
 
       <section id="forms" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-2xl font-medium text-highlighted">Forms</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">Forms</h2>
         <div class="cms-card p-5 sm:p-6 space-y-6 max-w-2xl">
           <UFormField label="Name" description="Shown as the page heading." required :ui="{ label: 'font-medium text-highlighted' }">
             <UInput v-model="sample" class="w-full" />
@@ -146,7 +146,7 @@ const toc = [
       </section>
 
       <section id="states" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-2xl font-medium text-highlighted">Empty &amp; error states</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">Empty &amp; error states</h2>
         <div class="grid gap-4 lg:grid-cols-3">
           <div class="cms-card">
             <CmsEmptyState icon="i-lucide-newspaper" title="No posts yet" description="Articles on the blog. Drafts stay private until you publish them.">

@@ -37,13 +37,13 @@ defineProps<{
 
     <template #body>
       <div class="cms-page" :class="narrow ? 'cms-page--narrow' : ''">
-        <header v-if="title || $slots.meta" class="mb-6 sm:mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <header v-if="title || $slots.meta" class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           <div class="min-w-0">
             <div class="flex items-center gap-3 flex-wrap">
-              <h1 class="cms-display text-[1.75rem] sm:text-[2rem] leading-tight font-medium text-highlighted">{{ title }}</h1>
+              <h1 class="cms-display text-2xl leading-tight font-semibold text-highlighted">{{ title }}</h1>
               <slot name="badge" />
             </div>
-            <p v-if="description" class="mt-1.5 text-muted max-w-2xl">{{ description }}</p>
+            <p v-if="description" class="mt-1 text-sm text-muted max-w-2xl">{{ description }}</p>
           </div>
           <slot name="meta" />
         </header>
