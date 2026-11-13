@@ -71,6 +71,7 @@ export default async function setup(project: TestProject) {
   }
 
   const uploadsDir = mkdtempSync(join(tmpdir(), 'cms-test-uploads-'))
+  const mailDir = mkdtempSync(join(tmpdir(), 'cms-test-mail-'))
   const port = await freePort()
   const baseURL = `http://127.0.0.1:${port}`
   const logs: string[] = []
@@ -87,6 +88,9 @@ export default async function setup(project: TestProject) {
       NUXT_SESSION_PASSWORD: 'test-session-password-at-least-32-characters-long',
       NUXT_CMS_STORAGE_DRIVER: 'local',
       NUXT_CMS_STORAGE_LOCAL_DIR: uploadsDir,
+      NUXT_CMS_PUBLIC_URL: baseURL,
+      NUXT_CMS_MAIL_TRANSPORT: 'file',
+      NUXT_CMS_MAIL_FILE_DIR: mailDir,
     },
   })
   child.stdout?.on('data', (d) => logs.push(String(d)))
@@ -100,9 +104,20 @@ export default async function setup(project: TestProject) {
     throw err
   }
 
+  let accounts: TestAccounts
+  try {
+    accounts = await seedAccounts(baseURL)
+  }
+  catch (err) {
+    child.kill()
+    throw new Error(`Seeding test accounts failed: ${(err as Error).message}\n${logs.join('')}`)
+  }
+
   project.provide('baseURL', baseURL)
   project.provide('databaseUrl', databaseUrl)
   project.provide('uploadsDir', uploadsDir)
+  project.provide('mailDir', mailDir)
+  project.provide('accounts', accounts)
 
   return async () => {
     if (child.exitCode === null) {
@@ -110,8 +125,46 @@ export default async function setup(project: TestProject) {
       await new Promise((r) => child.once('exit', r))
     }
     rmSync(uploadsDir, { recursive: true, force: true })
+    rmSync(mailDir, { recursive: true, force: true })
     if (process.env.CMS_TEST_SERVER_LOGS === '1') console.log(logs.join(''))
   }
+}
+
+export type TestRole = 'admin' | 'editor' | 'author'
+export type TestAccounts = Record<TestRole, { id: string; email: string; password: string; cookie: string }>
+export const TEST_PASSWORD = 'correct horse battery'
+
+/** POST JSON, return { status, body, cookie } (cookie = the session the response set). */
+async function post(baseURL: string, path: string, body: unknown, cookie = '') {
+  const res = await fetch(baseURL + path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json', ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify(body),
+  })
+  const setCookie = res.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
+  return { status: res.status, body: await res.json() as any, cookie: setCookie }
+}
+
+/**
+ * One account per role, created the way a real install gets them: the first
+ * administrator through first-run setup, the others invited and accepting their
+ * invitation. Their sessions are shared with every spec (signIn() reuses them), so
+ * specs that sign out or change passwords use their own throwaway accounts.
+ */
+async function seedAccounts(baseURL: string): Promise<TestAccounts> {
+  const admin = await post(baseURL, '/api/cms/_auth/setup', { name: 'Ada Admin', email: 'admin@test.local', password: TEST_PASSWORD })
+  if (admin.status !== 201) throw new Error(`setup: ${admin.status} ${JSON.stringify(admin.body)}`)
+  const accounts = { admin: { id: admin.body.user.id, email: 'admin@test.local', password: TEST_PASSWORD, cookie: admin.cookie } } as TestAccounts
+  for (const [role, name] of [['editor', 'Eda Editor'], ['author', 'Alma Author']] as const) {
+    const email = `${role}@test.local`
+    const invited = await post(baseURL, '/api/cms/_users', { email, role }, admin.cookie)
+    if (invited.status !== 201) throw new Error(`invite ${role}: ${invited.status} ${JSON.stringify(invited.body)}`)
+    const token = String(invited.body.inviteUrl).split('/').pop()
+    const accepted = await post(baseURL, '/api/cms/_auth/accept', { token, name, password: TEST_PASSWORD })
+    if (accepted.status !== 200) throw new Error(`accept ${role}: ${accepted.status} ${JSON.stringify(accepted.body)}`)
+    accounts[role] = { id: accepted.body.user.id, email, password: TEST_PASSWORD, cookie: accepted.cookie }
+  }
+  return accounts
 }
 
 declare module 'vitest' {
@@ -119,5 +172,7 @@ declare module 'vitest' {
     baseURL: string
     databaseUrl: string
     uploadsDir: string
+    mailDir: string
+    accounts: TestAccounts
   }
 }

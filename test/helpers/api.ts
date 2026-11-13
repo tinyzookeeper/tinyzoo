@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { inject } from 'vitest'
 import pg from 'pg'
 
@@ -46,18 +48,54 @@ export class Client {
   }
 }
 
-/** Demo accounts the playground ships with (`playground/server/utils/users.ts`). */
-export const DEMO = {
-  admin: { id: '11111111-1111-4111-8111-111111111111', email: 'admin@demo.test', password: 'admin' },
-  editor: { id: '22222222-2222-4222-8222-222222222222', email: 'editor@demo.test', password: 'editor' },
-} as const
+/** The seeded accounts (see test/setup/server.ts): one per role. */
+export const accounts = () => inject('accounts')
 
-export async function signIn(who: keyof typeof DEMO): Promise<Client> {
+/** A client signed in as the seeded account for `role` (shares that account's session). */
+export async function signIn(role: 'admin' | 'editor' | 'author'): Promise<Client> {
   const c = new Client()
-  const res = await c.post('/api/_cms/login', { email: DEMO[who].email, password: DEMO[who].password })
-  if (res.status !== 200) throw new Error(`login as ${who} failed: ${res.status} ${JSON.stringify(res.body)}`)
+  c.cookie = inject('accounts')[role].cookie
   return c
 }
+
+/** Sign in with email + password, as a browser would. Throws unless it succeeds. */
+export async function login(email: string, password: string): Promise<Client> {
+  const c = new Client()
+  const res = await c.post('/api/cms/_auth/login', { email, password })
+  if (res.status !== 200) throw new Error(`login ${email} failed: ${res.status} ${JSON.stringify(res.body)}`)
+  return c
+}
+
+/**
+ * A fresh account with the given role, invited by the seeded admin and accepted
+ * (signed in). For specs that sign out, change passwords or disable people, so the
+ * shared seeded sessions stay valid.
+ */
+let seq = 0
+export async function newAccount(role: 'admin' | 'editor' | 'author', password = 'a long enough password'): Promise<{ client: Client; id: string; email: string; password: string }> {
+  const admin = await signIn('admin')
+  const email = `${role}-${Date.now().toString(36)}-${seq++}@test.local`
+  const invited = await admin.post('/api/cms/_users', { email, role })
+  if (invited.status !== 201) throw new Error(`invite: ${invited.status} ${JSON.stringify(invited.body)}`)
+  const client = new Client()
+  const accepted = await client.post('/api/cms/_auth/accept', { token: tokenOf(invited.body.inviteUrl), name: `Person ${seq}`, password })
+  if (accepted.status !== 200) throw new Error(`accept: ${accepted.status} ${JSON.stringify(accepted.body)}`)
+  return { client, id: accepted.body.user.id, email, password }
+}
+
+/** The secret at the end of an invite/reset link. */
+export const tokenOf = (url: string) => String(url).split('/').pop()!
+
+/** Emails the server wrote (file transport), newest first, optionally only to `to`. */
+export function sentMail(to?: string): { to: string; subject: string; text: string; html: string }[] {
+  const dir = inject('mailDir')
+  return readdirSync(dir).sort().reverse()
+    .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')))
+    .filter((m) => !to || m.to === to)
+}
+
+/** The first link in an email's text. */
+export const linkIn = (text: string) => /https?:\/\/\S+/.exec(text)?.[0] ?? ''
 
 export const anonymous = () => new Client()
 
@@ -66,11 +104,15 @@ export function testDb(): pg.Pool {
   return new pg.Pool({ connectionString: inject('databaseUrl'), max: 2 })
 }
 
-/** Empty every content table (keeps the migrations journal). Call in beforeEach/beforeAll. */
+/** Tables the seeded accounts live in — never truncated, so the shared sessions stay valid. */
+const KEEP = new Set(['cms_users', 'cms_tokens'])
+
+/** Empty every content table (keeps accounts and the migrations journal). Call in beforeEach/beforeAll. */
 export async function truncateAll(pool: pg.Pool): Promise<void> {
-  const { rows } = await pool.query<{ tablename: string }>(
+  const { rows: all } = await pool.query<{ tablename: string }>(
     `select tablename from pg_tables where schemaname = 'public'`,
   )
+  const rows = all.filter((r) => !KEEP.has(r.tablename))
   if (!rows.length) return
   await pool.query(`truncate ${rows.map((r) => `"${r.tablename}"`).join(', ')} restart identity cascade`)
 }
