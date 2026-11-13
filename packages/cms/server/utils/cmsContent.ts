@@ -168,7 +168,8 @@ async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any
     const mediaKeys = blockMediaKeys(fld.blocks!)
     for (const r of rows) {
       for (const b of Array.isArray(r[key]) ? r[key] : []) {
-        for (const mk of mediaKeys.get(b?.type) ?? []) if (typeof b[mk] === 'string' && b[mk]) ids.add(b[mk])
+        if (!b || typeof b.type !== 'string' || !Object.hasOwn(fld.blocks!, b.type)) continue
+        for (const mk of mediaKeys.get(b.type) ?? []) if (typeof b[mk] === 'string' && b[mk]) ids.add(b[mk])
       }
     }
   }
@@ -181,7 +182,7 @@ async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any
     const defs = fld.blocks!
     for (const r of rows) {
       r[key] = (Array.isArray(r[key]) ? r[key] : [])
-        .filter((b: any) => b && typeof b === 'object' && defs[b.type])
+        .filter((b: any) => b && typeof b === 'object' && typeof b.type === 'string' && Object.hasOwn(defs, b.type))
         .map((b: any) => {
           const out: Record<string, any> = { id: String(b.id), type: b.type }
           for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) {

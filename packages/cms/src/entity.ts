@@ -92,6 +92,11 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
   fields: F
   /** A single-row global (Settings/Homepage) — admin shows one form, no list. */
   singleton?: boolean
+  /**
+   * Every write takes effect on the website at once (e.g. redirects). People who may
+   * not publish (authors) cannot write such content.
+   */
+  live?: boolean
   admin?: { list?: { columns: (keyof F & string)[]; searchable?: (keyof F & string)[] } }
   access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
   content?: ContentConfig<F>
@@ -156,6 +161,7 @@ export interface CmsEntity {
     hidden?: string[]
   }
   publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; preview?: string }
+  live?: boolean
   /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
   preset?: string
 }
@@ -171,6 +177,9 @@ export function translationSpec(spec: import('./descriptor').ColumnSpec): import
 export function propOf(key: string, fld: FieldDescriptor): string {
   return fld.spec?.nameSuffix === '_id' ? key + 'Id' : key
 }
+
+/** Field names the CMS uses itself (system columns, translations, public item keys). */
+const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales'])
 
 /** Entity names the CMS uses internally; user entities may not take them. */
 const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'styleguide', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account'])
@@ -188,6 +197,11 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
     )
   }
   const fields = def.fields as unknown as Record<string, FieldDescriptor>
+  for (const key of Object.keys(fields)) {
+    if (RESERVED_FIELD_NAMES.has(key)) {
+      throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}).`)
+    }
+  }
 
   // 1) pgEnums for select fields
   const enums: EntityEnum[] = []
@@ -256,7 +270,7 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
     name, label: def.label, titleField: def.titleField, localesTable, localized,
     labelSingular: def.labelSingular, description: def.description, icon: def.icon,
     table, admin: def.admin, access: def.access, content: def.content, fields: def.fields,
-    singleton: def.singleton, publish: def.publish,
+    singleton: def.singleton, publish: def.publish, live: def.live,
     enums,
     insertSchema: z.object(createShape),
     updateSchema: z.object(updateShape),

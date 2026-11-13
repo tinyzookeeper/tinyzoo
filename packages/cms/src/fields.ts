@@ -1,4 +1,5 @@
 import type { LocalizedText } from './i18n'
+import { isSafeLink } from './richtext'
 import { type BlockDef, type BlocksValue, blocksGraph, blocksSchema } from './blocks'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
@@ -189,14 +190,17 @@ const as = <K extends FieldKind>(d: FieldDescriptor): FieldDescriptor<K> => d as
 
 // ── the closed MVP field catalog ───────────────────────────────────────────────
 export const f = {
-  text: (o: { required?: boolean; format?: 'email' | 'url' | 'path' } = {}) =>
+  text: (o: { required?: boolean; format?: 'email' | 'url' | 'path' | 'link' } = {}) =>
     as<ScalarKind<string>>(createField({
       type: 'text', ui: { edit: 'CmsFieldText', cell: 'CmsCellText' },
       base: { kind: 'text' },
       zod: () => {
         let s: ZodTypeAny = o.format === 'email' ? z.email() : o.format === 'url' ? z.url()
-          // An address on this site: starts with a slash, no spaces or scheme tricks.
-          : o.format === 'path' ? z.string().max(2000).regex(/^\/(?!\/)[^\s\\]*$/, 'Start with / (e.g. /old-page)')
+          // An address on this site: starts with one slash; no spaces, query, fragment
+          // or trailing slash (so each address has exactly one spelling).
+          : o.format === 'path' ? z.string().max(2000).regex(/^\/(?!\/)(?:[^\s\\?#]*[^\s\\?#/])?$/, 'Start with / (e.g. /old-page), without ? or # or a trailing /')
+          // A link: a site path, #anchor, or http(s) / mailto / tel — never javascript: or data:.
+          : o.format === 'link' ? z.string().max(2000).refine(isSafeLink, 'Use /page, https://…, mailto: or tel:')
           : z.string()
         if (o.required) s = (s as any).min(1, 'Required')
         return s

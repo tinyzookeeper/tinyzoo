@@ -34,7 +34,7 @@ export function linkBlock() {
     icon: 'i-lucide-link',
     fields: {
       label: f.text({ required: true }).label({ en: 'Label', cs: 'Text odkazu' }),
-      url: f.text({ required: true }).label({ en: 'Address', cs: 'Adresa' })
+      url: f.text({ required: true, format: 'link' }).label({ en: 'Address', cs: 'Adresa' })
         .help({ en: 'A page on this site (/contact) or a full address (https://…).', cs: 'Stránka tohoto webu (/kontakt) nebo celá adresa (https://…).' }),
       newTab: f.boolean().label({ en: 'Open in a new tab', cs: 'Otevřít v nové záložce' }),
     },
@@ -131,12 +131,14 @@ export function defineRedirects(opts: { name?: string } = {}) {
     },
     icon: 'i-lucide-corner-down-right',
     titleField: 'from',
+    // Applied to the website the moment it is saved: authors cannot write redirects.
+    live: true,
     admin: { list: { columns: ['from', 'to', 'permanent'] } },
     fields: {
       from: f.text({ required: true, format: 'path' }).unique()
         .label({ en: 'From', cs: 'Z adresy' })
         .help({ en: 'The old address on this site, e.g. /old-page.', cs: 'Stará adresa na tomto webu, např. /stara-stranka.' }),
-      to: f.text({ required: true })
+      to: f.text({ required: true, format: 'link' })
         .label({ en: 'To', cs: 'Na adresu' })
         .help({ en: 'Where to send visitors: /new-page or https://…', cs: 'Kam návštěvníky poslat: /nova-stranka nebo https://…' }),
       permanent: f.boolean({ default: true })

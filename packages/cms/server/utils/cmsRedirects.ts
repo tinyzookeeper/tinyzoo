@@ -15,10 +15,27 @@ export function invalidateRedirects(): void {
   cache = null
 }
 
-/** Normalise an incoming path for lookup: no query, no trailing slash (except "/"). */
+/**
+ * Normalise a path for lookup: decoded (browsers send /star%C3%A1, editors type
+ * /stará), no query or fragment, no repeated or trailing slash (except "/").
+ */
 export function normalizePath(path: string): string {
-  const p = (path.split('?')[0] || '/').replace(/\/{2,}/g, '/')
+  let p = (path.split(/[?#]/)[0] || '/').replace(/\/{2,}/g, '/')
+  try {
+    p = decodeURI(p)
+  }
+  catch { /* malformed escape: compare as sent */ }
   return p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p
+}
+
+/** A Location header value: non-ASCII percent-encoded (headers are ASCII), existing escapes kept. */
+export function locationHeader(to: string): string {
+  try {
+    return encodeURI(decodeURI(to))
+  }
+  catch {
+    return encodeURI(to)
+  }
 }
 
 export async function findRedirect(path: string): Promise<Target | null> {

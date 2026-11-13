@@ -317,6 +317,23 @@ regenerated differently (Vue `useId` under pages that await data) — labels now
 stable ids from the field key; globals' saves did not clean up images removed from
 rich text.
 
+**Independent review** of the public-API changes (separate agent): no draft or
+hidden-field leaks, the translation subqueries are parameterised and correctly
+scoped. 10 findings, all fixed with regression tests:
+
+| Severity | Finding | Fix |
+|---|---|---|
+| High | Authors could create redirects, which go live at once (whole-site redirect off-domain) | entities can be marked `live`; authors cannot write them (redirects are) |
+| Medium | Translation writes/deletes checked "not live" before, not at, write time | the entry is touched under `notLiveCond` inside the transaction first |
+| Medium | Redirects with Czech characters never matched; a non-ASCII target made a 500 | paths decoded for lookup; Location header percent-encoded |
+| Medium | `/sitemap.xml` read whole rows (page bodies) for up to 50k items per request | reads only id, updatedAt and path columns; memoised for a minute |
+| Medium | Menu links accepted `javascript:` URLs | `f.text({ format: 'link' })` (path, #, http(s), mailto, tel) for menu and redirect targets |
+| Low | `/sitemap.xml` ignored the content token; base URL could come from Host | private API → no sitemap; base only from `cms.publicUrl` in production |
+| Low | Removed languages kept appearing in the sitemap | only configured languages are read |
+| Low | Fields named `locale`, `locales`, `parentId`… collided with CMS columns/keys | reserved names refused in `defineEntity` |
+| Low | Redirect sources with `?`, `#` or a trailing slash collided after normalisation | sources have exactly one spelling |
+| Hardening | Block types looked up on plain objects; duplicate block ids allowed | `Object.hasOwn` lookups; unique block ids per field |
+
 Deferred: manual ordering (drag to sort) for collections — moves to Phase 4 with the
 list work; nested pages (parent / full paths); relations inside blocks.
 

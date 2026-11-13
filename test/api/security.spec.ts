@@ -105,3 +105,45 @@ describe('authors', () => {
     expect((await editor.post('/api/cms/tag', { name: 'Editor tag', slug: 'editor-tag' })).status).toBe(201)
   })
 })
+
+// Regression tests for the Phase 3 review.
+describe('phase 3: live content and links', () => {
+  it('authors cannot write redirects (they go live at once)', async () => {
+    expect((await author.post('/api/cms/redirect', { from: '/x', to: 'https://phish.example' })).status).toBe(403)
+    expect((await editor.post('/api/cms/redirect', { from: '/x', to: '/y' })).status).toBe(201)
+  })
+
+  it('refuses script links in menus and redirects', async () => {
+    const link = (url: string) => ({ main: [{ id: 'a', type: 'link', label: 'x', url }], footer: [] })
+    expect((await admin.put('/api/cms/_singleton/navigation', link('javascript:alert(1)'))).status).toBe(422)
+    expect((await admin.put('/api/cms/_singleton/navigation', link('/kontakt'))).status).toBe(200)
+    expect((await admin.post('/api/cms/redirect', { from: '/js', to: 'javascript:alert(1)' })).status).toBe(422)
+  })
+
+  it('gives each redirect source one spelling (no query, fragment or trailing slash)', async () => {
+    for (const from of ['/a/', '/a?x=1', '/a#b']) expect((await admin.post('/api/cms/redirect', { from, to: '/b' })).status).toBe(422)
+  })
+
+  it('matches and sends addresses with Czech characters', async () => {
+    await admin.post('/api/cms/redirect', { from: '/stará-stránka', to: '/nová-služba' })
+    const res = await fetch(`${anonymous().baseURL}/star%C3%A1-str%C3%A1nka`, { redirect: 'manual' })
+    expect(res.status).toBe(301)
+    expect(res.headers.get('location')).toBe('/nov%C3%A1-slu%C5%BEba')
+  })
+})
+
+describe('phase 3: blocks', () => {
+  it('refuses duplicate block ids', async () => {
+    const res = await admin.post('/api/cms/page', { title: 'X', slug: 'dup', sections: [{ id: 'a', type: 'cta', text: 'one' }, { id: 'a', type: 'cta', text: 'two' }] })
+    expect(res.status).toBe(422)
+    expect(res.body.data[0].path).toEqual(['sections', 1, 'id'])
+  })
+
+  it('ignores stored blocks of unknown or prototype-named types instead of failing', async () => {
+    const page = (await admin.post('/api/cms/page', { title: 'P', slug: 'proto', status: 'published', sections: [] })).body.row
+    await db.query(`update page set sections = $1 where id = $2`, [JSON.stringify([{ id: 'x', type: 'constructor' }, { id: 'y', type: 'cta', text: 'ok' }]), page.id])
+    const res = await anonymous().get('/api/content/page/proto')
+    expect(res.status).toBe(200)
+    expect(res.body.item.sections.map((b: any) => b.id)).toEqual(['y'])
+  })
+})

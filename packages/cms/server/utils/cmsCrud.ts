@@ -107,9 +107,9 @@ export function roleAccess(e: CmsEntity, op: 'read' | 'create' | 'update' | 'del
   if (user.role !== 'author') return { allowed: true, where: undefined }
   if (op === 'read') return { allowed: true, where: undefined }
   if (e.singleton) return { allowed: false, where: undefined }
-  // Public content without a publish workflow is live the moment it is saved —
-  // writing it would be publishing, which authors may not do.
-  if (e.content?.public && !e.publish) return { allowed: false, where: undefined }
+  // Content that is live the moment it is saved (public without a publish workflow,
+  // or marked `live`, e.g. redirects) — writing it would be publishing.
+  if (e.live || (e.content?.public && !e.publish)) return { allowed: false, where: undefined }
   if (op === 'create') return { allowed: true, where: undefined }
   return { allowed: true, where: eq(e.table.createdBy, user.id) }
 }

@@ -38,10 +38,15 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
 
   const now = new Date()
   const row = await db.transaction(async (tx: any) => {
+    // Touch the entry first, under the same rules as editing it — including "not
+    // live" for people who cannot publish, re-checked here at write time (an editor
+    // may have published it since we read it).
+    const [touched] = await tx.update(e.table).set({ updatedAt: now, updatedBy: actorId(user) })
+      .where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning({ id: e.table.id })
+    if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
     const [saved] = await tx.insert(t).values({ parentId: id, locale, ...data, updatedAt: now })
       .onConflictDoUpdate({ target: [t.parentId, t.locale], set: { ...data, updatedAt: now } })
       .returning()
-    await tx.update(e.table).set({ updatedAt: now, updatedBy: actorId(user) }).where(eq(e.table.id, id))
     return saved
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
 
@@ -65,13 +70,18 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
   const [base] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
   if (!base) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, base)
-  const [gone]: any[] = await (db as any).delete(t).where(and(eq(t.parentId, id), eq(t.locale, locale))).returning()
-  if (!gone) throw createError({ statusCode: 404, statusMessage: 'No translation in this language' })
+  const gone: any = await db.transaction(async (tx: any) => {
+    const [touched] = await tx.update(e.table).set({ updatedAt: sql`now()`, updatedBy: actorId(user) })
+      .where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning({ id: e.table.id })
+    if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+    const [deleted]: any[] = await tx.delete(t).where(and(eq(t.parentId, id), eq(t.locale, locale))).returning()
+    if (!deleted) throw createError({ statusCode: 404, statusMessage: 'No translation in this language' })
+    return deleted
+  })
   const storage = useCmsStorage()
   for (const k of e.localized) {
     for (const mid of new Set(jsonMediaIds(e.fields[k], gone[k]))) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
   }
-  await db.update(e.table).set({ updatedAt: sql`now()`, updatedBy: actorId(user) }).where(eq(e.table.id, id))
   await audit(event, 'entry.translation_delete', { entity: e.name, recordId: id, meta: { locale } })
   return { ok: true }
 }

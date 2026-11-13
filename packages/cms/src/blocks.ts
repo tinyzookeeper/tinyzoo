@@ -71,7 +71,13 @@ export function blocksSchema(blocks: Record<string, BlockDef>): ZodTypeAny {
   })
   if (!variants.length) return z.array(z.never()).max(0)
   const union = variants.length === 1 ? variants[0]! : z.discriminatedUnion('type', variants as any)
-  return z.array(union).max(500)
+  return z.array(union).max(500).superRefine((list, ctx) => {
+    const seen = new Set<string>()
+    list.forEach((b: any, i: number) => {
+      if (seen.has(b.id)) ctx.addIssue({ code: 'custom', path: [i, 'id'], message: 'Duplicate block id' })
+      seen.add(b.id)
+    })
+  })
 }
 
 /** Serializable description of the block types for the admin graph. */
@@ -106,11 +112,11 @@ export function mediaIdsInBlocks(value: unknown, blocks: Record<string, BlockDef
   const mediaKeys = blockMediaKeys(blocks)
   for (const block of value as CmsBlock[]) {
     if (!block || typeof block !== 'object') continue
-    for (const key of mediaKeys.get(block.type) ?? []) {
+    for (const key of (Object.hasOwn(blocks, block.type) ? mediaKeys.get(block.type) : undefined) ?? []) {
       const v = block[key]
       if (typeof v === 'string' && v) out.push(v)
     }
-    const def = blocks[block.type]
+    const def = Object.hasOwn(blocks, block.type) ? blocks[block.type] : undefined
     if (!def) continue
     for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
       if (fld.type === 'richtext') collectEmbedded(block[key], out)

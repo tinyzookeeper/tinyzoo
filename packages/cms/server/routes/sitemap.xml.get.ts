@@ -4,8 +4,14 @@
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&apos;' }[c]!))
 
 export default defineEventHandler(async (event) => {
+  // A private content API (content token) means a private site map too.
+  if ((useRuntimeConfig().cms as any)?.content?.token) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  const base = siteBase(event)
+  if (!base) {
+    console.error('[cms] /sitemap.xml needs cms.publicUrl (NUXT_CMS_PUBLIC_URL) in production')
+    throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  }
   const { db, reg } = useCms()
-  const base = adminLink(event, '')
   const entries = await sitemapEntries(db, reg)
   const urls = entries.map((e) => {
     const alt = e.alternates.length > 1

@@ -98,3 +98,9 @@ describe('content languages', () => {
     expect(buildRegistry(config).locales).toMatchObject({ default: 'cs', locales: ['cs', 'en'] })
   })
 })
+
+describe('reserved field names', () => {
+  it.each(['locale', 'locales', 'parentId', 'createdBy', 'id'])('refuses a field named %s', (key) => {
+    expect(() => defineEntity('reserved_test', { label: 'R', titleField: 'name', fields: { name: f.text(), [key]: f.text() } as any })).toThrow(/reserved/)
+  })
+})

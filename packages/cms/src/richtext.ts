@@ -24,6 +24,13 @@ function schemeAllowed(u: unknown, allowed: Set<string>): boolean {
   }
 }
 
+/** Safe as a link target: a site path, #anchor, or http(s)/mailto/tel. No control chars or spaces. */
+export function isSafeLink(u: unknown): boolean {
+  const s = String(u ?? '')
+  if (!s || /\s/.test(s)) return false
+  return schemeAllowed(s, SAFE_LINK_SCHEMES)
+}
+
 function sanitizeNode(node: any): void {
   if (!node || typeof node !== 'object') return
   // Drop link marks with an unsafe href (javascript:/data:/… → keep the text, lose the link).
