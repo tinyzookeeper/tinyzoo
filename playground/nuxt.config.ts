@@ -1,8 +1,7 @@
 export default defineNuxtConfig({
-  // Pull in the whole CMS layer (pages/components/server + its module).
-  // NB: point at the layer directory, not the package name — the package's
-  // `exports` map would otherwise resolve the layer root to src/.
-  extends: ['../packages/cms'],
+  // The whole CMS (admin pages, components, server API and its module), by package
+  // name — exactly as a client app installs it.
+  extends: ['@my-cms/core/layer'],
   modules: ['@nuxt/ui', 'nuxt-auth-utils'],
   // @my-cms/client ships TS source; let Vite transpile it (no build step in-repo).
   build: { transpile: ['@my-cms/client'] },
