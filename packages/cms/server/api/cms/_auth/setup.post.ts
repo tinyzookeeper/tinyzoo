@@ -5,13 +5,20 @@ import { z } from 'zod'
 // sign them in. Refused (409) as soon as any account exists. The check and the
 // insert run under a transaction-scoped advisory lock, so two simultaneous setups
 // cannot both win.
-const body = z.object({ name: z.string().trim().min(1).max(120), email: emailSchema, password: passwordSchema })
+//
+// With NUXT_CMS_AUTH_SETUP_TOKEN set, setup also needs that code: a fresh deploy is
+// reachable before anyone has claimed it, and the code keeps it for whoever deployed.
+const body = z.object({ name: z.string().trim().min(1).max(120), email: emailSchema, password: passwordSchema, token: z.string().max(200).optional() })
 const SETUP_LOCK = 72_011_001
 
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   if (!(await rateLimit(`setup:${clientIp(event)}`, 10, 15 * 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many attempts; try again later' })
   const data = parseOr422(body, await readBody(event))
+  const required = setupToken()
+  if (required && !constantTimeEqual(data.token ?? '', required)) {
+    throw createError({ statusCode: 403, statusMessage: 'The setup code is missing or wrong', data: { code: 'setup_token' } })
+  }
   const { db, reg } = useCms()
   const passwordHash = await hashPassword(data.password)
 

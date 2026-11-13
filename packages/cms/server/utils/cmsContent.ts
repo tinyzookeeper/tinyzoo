@@ -4,7 +4,7 @@ import type { CmsEntity, CmsRegistry } from '@my-cms/core'
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
 
 /** Length-tolerant, content-constant-time string compare (no early-exit on mismatch). */
-function constantTimeEqual(a: string, b: string): boolean {
+export function constantTimeEqual(a: string, b: string): boolean {
   const max = Math.max(a.length, b.length)
   let diff = a.length ^ b.length
   for (let i = 0; i < max; i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0)

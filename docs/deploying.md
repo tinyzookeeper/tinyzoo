@@ -42,6 +42,7 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASS` | with smtp | |
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (below) |
 | `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API |
+| `NUXT_CMS_AUTH_SETUP_TOKEN` | recommended | first-run setup then needs this code (`/admin/setup?token=…`), so nobody else can claim a fresh deploy |
 | `NUXT_CMS_AUTH_TRUSTED_PROXIES` | optional | proxy hops in front of the app (default 1 — Pushbase's ingress). Too few and rate limits count the proxy instead of visitors; too many (e.g. 1 with no proxy at all) and visitors can fake their address in `X-Forwarded-For` to dodge limits. Set `0` when the app is reached directly |
 
 `playground/.env.example` lists them with local-development values.
@@ -182,8 +183,9 @@ gone after every deploy — give staging a bucket too.
    `NUXT_CMS_MIGRATIONS_ON_START=true`).
 4. Connect the GitHub repo (`--preset nuxt` for a site, `dockerfile` for this
    repo's staging build) or upload with `pushbase deploy`.
-5. Open `/admin`: a fresh database asks for the first administrator. Do it
-   right away — until then anyone who finds the address could.
+5. Open `/admin/setup?token=<NUXT_CMS_AUTH_SETUP_TOKEN>`: a fresh database asks
+   for the first administrator. Without a setup code anyone who finds the address
+   first could claim it — set one.
 6. Add the custom domain and update `NUXT_CMS_PUBLIC_URL` to match.
 
 Backups: Pushbase backs up its managed Postgres; the bucket needs its own policy

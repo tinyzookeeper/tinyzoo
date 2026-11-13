@@ -39,21 +39,22 @@ async function loadNewest() {
   await form.replace(row)
   data.value = { row }
   version.value = versionOf(row)
+  // Shared text follows only when someone asks for the saved version: for everyone.
+  for (const key of sharedFields.value) collab?.set(key, row?.[key])
   if (live) live.incoming.value = null
 }
 
-/** Someone else saved or we reconnected: fetch, then decide (as in the entry editor). */
+/** Someone else saved or we reconnected: fetch, then merge field by field (as in the entry editor). */
 async function onRemoteChange(c: LiveChange) {
   const row = await fetchRow().catch(() => null)
   if (!row || versionOf(row) === version.value) return
-  if (dirty.value || saving.value) {
-    if (live) live.incoming.value = c
+  if (!saving.value && await form.merge(row, sharedFields.value)) {
+    data.value = { row }
+    version.value = versionOf(row)
+    toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
     return
   }
-  await form.replace(row)
-  data.value = { row }
-  version.value = versionOf(row)
-  toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
+  if (live) live.incoming.value = c
 }
 
 /** The newest version with only this form's changed fields put back on it, saved. */
@@ -78,6 +79,20 @@ const live = rowId
     })
   : null
 const others = computed(() => live?.others.value ?? [])
+
+// Shared editing of the rich-text fields, as in the entry editor.
+const collab = rowId ? useCmsCollab({ entity: props.entity, id: rowId, locale: isTranslation.value ? currentLocale.value : null }) : null
+const sharedFields = computed(() => (collab?.status.value === 'ready' ? collab.mounted.value : new Set<string>()))
+const collabHeaders = (): Record<string, string> => {
+  if (!collab || collab.status.value !== 'ready' || !collab.epoch.value) return {}
+  for (const k of collab.fields.value) if (!collab.mounted.value.has(k)) return {}
+  return { 'x-cms-collab': collab.epoch.value }
+}
+function copyDefault(key: string) {
+  const value = structuredClone(toRaw(defaults.value[key]))
+  if (sharedFields.value.has(key) && collab?.set(key, value)) return
+  state[key] = value
+}
 
 const title = computed(() => entityLabel(props.meta))
 const visible = computed(() => editable.value.filter((f: any) => !isTranslation.value || f.localized))
@@ -113,7 +128,7 @@ function save() {
     if (isTranslation.value) {
       const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
       const url: string = `/api/cms/_singleton/${props.entity}?locale=${currentLocale.value}`
-      const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+      const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
       const res: any = await $fetch(url, { method: 'PUT', body, headers })
       version.value = versionOf(res?.row)
       if (live) live.incoming.value = null
@@ -121,7 +136,7 @@ function save() {
       return
     }
     const url: string = `/api/cms/_singleton/${props.entity}`
-    const headers: Record<string, string> = version.value ? { 'x-cms-version': version.value } : {}
+    const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
     const res: any = await $fetch(url, { method: 'PUT', body: form.body(), headers })
     version.value = versionOf(res?.row)
     if (live) live.incoming.value = null
@@ -164,7 +179,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         <CmsTranslationRef
           v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
           :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
-          @copy="state[f.key] = structuredClone(toRaw(defaults[f.key]))"
+          @copy="copyDefault(f.key)"
         />
       </div>
       <UCollapsible

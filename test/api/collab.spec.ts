@@ -16,7 +16,7 @@ beforeAll(async () => {
 beforeEach(() => truncateAll(db))
 afterAll(() => db.end())
 
-interface Session { name: string; epoch: string; fields: string[]; access: 'write' | 'read' }
+interface Session { name: string; epoch: string; fields: string[]; access: 'write' | 'read'; you?: string }
 
 /** A browser tab joining a shared document, as the admin does. */
 class Collaborator {
@@ -207,6 +207,27 @@ describe('shared editing', () => {
     await admin.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'Garden', body: { type: 'doc', content: [{ type: 'paragraph' }] } })
     const en = (await anonymous().get('/api/content/post/zahrada?locale=en')).body.item
     expect(JSON.stringify(en.body)).toContain('Česky')
+  })
+
+  it('puts the account\'s own name on a cursor, never someone else\'s', async () => {
+    const a = await createAuthor(admin)
+    const post = await createPost(admin, { author: a.id })
+    const s = (await session(editor, 'post', post.id)).body
+    expect(s.you).toBe('Eda Editor')
+    const honest = await join(editor, s)
+    honest.provider.setAwarenessField('user', { name: 'Eda Editor', color: '#0090ff' })
+    const watcher = await join(admin, (await session(admin, 'post', post.id)).body)
+    expect(await until(() => [...watcher.provider.awareness!.getStates().values()].some((st: any) => st.user?.name === 'Eda Editor'))).toBe(true)
+
+    const liar = await join(editor, s)
+    let closed = false
+    liar.socket.on('close', () => {
+      closed = true
+      liar.close()
+    })
+    liar.provider.setAwarenessField('user', { name: 'Ada Admin', color: '#e5484d' })
+    expect(await until(() => closed)).toBe(true)
+    expect([...watcher.provider.awareness!.getStates().values()].some((st: any) => st.user?.name === 'Ada Admin')).toBe(false)
   })
 
   it('refuses strangers, other sites and made-up documents', async () => {

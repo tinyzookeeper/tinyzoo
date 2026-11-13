@@ -134,6 +134,36 @@ const collabHeaders = (): Record<string, string> => {
   return { 'x-cms-collab': collab.epoch.value }
 }
 
+// ── the "…" menu: whatever applies here ──
+const moreItems = computed(() => {
+  const items: any[] = []
+  if (!isNew.value && dirty.value) items.push({ label: t('editor.discard'), icon: 'i-lucide-undo-2', onSelect: discardChanges })
+  if (!isNew.value && !isTranslation.value && publish.value && canPublish.value && isPublished.value) {
+    items.push({ label: t('editor.unpublish'), icon: 'i-lucide-eye-off', onSelect: () => setPublished(false) })
+  }
+  if (isTranslation.value && translated.value) items.push({ label: t('translation.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: removeTranslation })
+  return items
+})
+
+/** Back to the saved version. Shared text goes back for everyone editing it, so ask first. */
+async function discardChanges() {
+  const others = (live?.others.value ?? []).length > 0 && sharedFields.value.size > 0
+  if (!window.confirm(others ? t('editor.discardSharedConfirm') : t('editor.discardConfirm'))) return
+  await loadNewest()
+}
+
+// Text typed while offline that the shared document could not take back (it was
+// restarted meanwhile): offered back, never dropped silently.
+const lostText = ref<Record<string, any> | null>(null)
+if (collab) watch(collab.lost, (v) => { if (v) lostText.value = v })
+function restoreLost() {
+  for (const [key, value] of Object.entries(lostText.value ?? {})) {
+    if (!collab?.set(key, value)) state[key] = value
+  }
+  lostText.value = null
+  if (collab) collab.lost.value = null
+}
+
 /** Copy the default language's value into this translation's field (shared text: for everyone). */
 function copyDefault(key: string) {
   const value = structuredClone(toRaw(defaults.value[key]))
@@ -286,17 +316,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       <!-- one primary action -->
       <template v-if="isTranslation">
         <UButton :loading="saving" @click="save()">{{ t('translation.save') }}</UButton>
-        <UDropdownMenu v-if="translated" :items="[[{ label: t('translation.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: removeTranslation }]]" :content="{ align: 'end' }">
-          <UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('editor.moreActions')" />
-        </UDropdownMenu>
       </template>
       <UButton v-else-if="isNew" :loading="saving" @click="save()">{{ t('common.create') }}</UButton>
       <template v-else-if="publish && canPublish">
         <template v-if="isPublished">
           <UButton :loading="saving" @click="save()">{{ t('editor.update') }}</UButton>
-          <UDropdownMenu :items="[[{ label: t('editor.unpublish'), icon: 'i-lucide-eye-off', onSelect: () => setPublished(false) }]]" :content="{ align: 'end' }">
-            <UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('editor.moreActions')" />
-          </UDropdownMenu>
         </template>
         <template v-else>
           <UButton color="neutral" variant="outline" :loading="saving" @click="save()">{{ t('editor.saveDraft') }}</UButton>
@@ -304,7 +328,16 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         </template>
       </template>
       <UButton v-else :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.save') }}</UButton>
+      <UDropdownMenu v-if="moreItems.length" :items="[moreItems]" :content="{ align: 'end' }">
+        <UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('editor.moreActions')" />
+      </UDropdownMenu>
     </template>
+    <UAlert
+      v-if="lostText" color="warning" variant="subtle" icon="i-lucide-cloud-off" class="mb-6" role="alert"
+      :title="t('live.offlineLost')" :description="t('live.offlineLostBody')"
+      :actions="[{ label: t('live.restoreMine'), color: 'neutral', variant: 'outline', onClick: restoreLost }]"
+      close @update:open="(open: boolean) => { if (!open) lostText = null }"
+    />
 
     <CmsLiveNotice
       :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"

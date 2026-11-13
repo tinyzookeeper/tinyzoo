@@ -538,9 +538,15 @@ enforcement, access mapping and sanitising on save held. Fixed:
 | Low | Everyone's form looked unsaved while one person typed | other people's typing updates the form quietly |
 | Hardening | Non-canonical names, messages racing a re-check, listen-only tabs keeping a document "active" | canonical names only, messages wait for a running check, only writers keep it active |
 
-Still open: cursor names come from each browser (awareness is not verified); text
-typed offline is dropped without a notice if the document restarted meanwhile;
-no "discard shared changes" action yet.
+Follow-ups done (2026-11-13): cursor updates are checked on the server (a cursor
+carries its account's name; other people's cursors can only be echoed, never moved
+or removed); text typed offline that a restarted document cannot take back is
+offered back instead of dropped; "Discard changes" in the editor's menu (shared
+text goes back for everyone, after a confirmation); site settings share their rich
+text too; an optional setup code (`NUXT_CMS_AUTH_SETUP_TOKEN`) guards first-run
+setup on a fresh deploy. A form is now "unsaved" exactly when it differs from the
+saved version. Still not shared: rich text inside blocks (needs the block list
+itself in the shared document — a larger piece).
 
 ### Phase 6 — The test client site
 

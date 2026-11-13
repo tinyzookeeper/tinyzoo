@@ -180,6 +180,8 @@ export {}
         mode: options.auth?.mode || 'builtin',
         trustedProxies: options.auth?.trustedProxies ?? 1,
         ipHeader: options.auth?.ipHeader || '',
+        // Empty default so NUXT_CMS_AUTH_SETUP_TOKEN binds at runtime ('' = no token needed).
+        setupToken: '',
       },
       // Empty defaults so NUXT_CMS_PUBLIC_URL / NUXT_CMS_MAIL_* bind at runtime.
       publicUrl: options.publicUrl || '',

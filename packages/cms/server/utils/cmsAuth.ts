@@ -136,3 +136,8 @@ export async function assertAnotherActiveAdmin(db: any, reg: CmsRegistry, except
     throw createError({ statusCode: 409, statusMessage: 'There must always be at least one active administrator' })
   }
 }
+
+/** The setup code first-run setup requires, or '' when none is configured. */
+export function setupToken(): string {
+  return String((useRuntimeConfig().cms as any)?.auth?.setupToken || '')
+}

@@ -83,6 +83,9 @@ export default {
     retry: 'Try again',
   },
   editor: {
+    discard: 'Discard changes',
+    discardConfirm: 'Discard your unsaved changes and go back to the saved version?',
+    discardSharedConfirm: 'Go back to the saved version? The shared text goes back for everyone editing it too.',
     newTitle: 'New {label}',
     created: 'Created',
     saved: 'Saved',
@@ -142,6 +145,9 @@ export default {
     loadMore: 'Load more',
   },
   auth: {
+    setupToken: 'Setup code',
+    setupTokenHint: 'Set by whoever deployed this site (NUXT_CMS_AUTH_SETUP_TOKEN).',
+    setupTokenWrong: 'That setup code is not right.',
     signInTitle: 'Sign in',
     signInSubtitle: 'Manage the content of {site}.',
     email: 'Email',
@@ -272,6 +278,9 @@ export default {
     languages: 'Languages',
   },
   live: {
+    offlineLost: 'Text you typed while offline could not be merged',
+    offlineLostBody: 'The text was saved in a new version while you were away. You can put yours back (it replaces the shared text).',
+    restoreMine: 'Put my text back',
     connecting: 'Connecting to the shared text…',
     editing: '{name} is editing',
     viewing: '{name} is viewing',
