@@ -1,0 +1,40 @@
+import { CMS_ROLES, eq } from '@my-cms/core'
+import { z } from 'zod'
+
+// POST /api/cms/_users — invite someone. Creates the account (status "invited"),
+// emails a one-time link, and returns the link too so an administrator can pass it
+// on another way if the email gets lost. Administrators only.
+const body = z.object({
+  email: emailSchema,
+  name: z.string().trim().max(120).optional().default(''),
+  role: z.enum(CMS_ROLES),
+})
+
+export default defineEventHandler(async (event) => {
+  assertBuiltinAuth()
+  const me = requireCmsAdmin(event)
+  const data = parseOr422(body, await readBody(event))
+  const { db, reg } = useCms()
+
+  const [existing] = await db.select({ id: reg.cmsUsers.id }).from(reg.cmsUsers).where(eq(reg.cmsUsers.email, data.email))
+  if (existing) {
+    throw createError({ statusCode: 409, statusMessage: 'This person already has access', data: [{ path: ['email'], code: 'unique', message: 'Already has access' }] })
+  }
+
+  const [user] = await db.insert(reg.cmsUsers).values({ email: data.email, name: data.name, role: data.role, status: 'invited' }).returning()
+  if (!user) throw createError({ statusCode: 500, statusMessage: 'Could not create the account' })
+  const secret = await issueToken(db, reg, { userId: user.id, kind: 'invite', ttlMs: INVITE_TTL_MS, createdBy: me.id })
+  const inviteUrl = adminLink(event, `/admin/invite/${secret}`)
+
+  let emailed = true
+  try {
+    await sendCmsMail(inviteEmail({ to: user.email, inviter: me.name || me.email || 'An administrator', url: inviteUrl, locale: me.locale }))
+  }
+  catch (err) {
+    emailed = false
+    console.error('[cms] could not send the invitation email', err)
+  }
+  await audit(event, 'user.invite', { recordId: user.id, meta: { email: user.email, role: user.role, emailed } })
+  setResponseStatus(event, 201)
+  return { user: { id: user.id, email: user.email, name: user.name, role: user.role, status: user.status }, inviteUrl, emailed }
+})

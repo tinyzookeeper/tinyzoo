@@ -23,11 +23,13 @@ export default defineEventHandler(async (event) => {
     for (const c of mediaCols) oldMedia[c] = existing?.[c] ?? null
 
     let current: any
+    values.updatedBy = user.id
     if (existing) {
       values.updatedAt = new Date()
       ;[current] = await tx.update(e.table).set(values).where(both(eq(e.table.id, existing.id), rowFilter)).returning()
       if (!current) throw createError({ statusCode: 403, statusMessage: 'Not permitted' })
     } else {
+      values.createdBy = user.id
       ;[current] = await tx.insert(e.table).values(values).returning()
     }
     await writeM2M(tx, reg, e, current.id, m2m, true)
@@ -42,6 +44,7 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  await audit(event, 'settings.update', { entity: e.name, recordId: row.id })
   await hydrateRowForForm(db, reg, e, row)
   return { row }
 })

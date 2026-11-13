@@ -3,7 +3,7 @@ import { eq } from '@my-cms/core'
 // PATCH /api/cms/_media/:id — update editable media metadata (alt text). Alt text is
 // the accessibility/SEO description; it's the only user-editable field on a blob.
 export default defineEventHandler(async (event) => {
-  requireCmsUser(event)
+  const user = requireCmsUser(event)
   const { db, reg } = useCms()
   const id = getIdParam(event)
 
@@ -11,6 +11,10 @@ export default defineEventHandler(async (event) => {
   // Normalize: trim, cap length, empty → null.
   const raw = typeof body.alt === 'string' ? body.alt.trim().slice(0, 1000) : ''
   const alt = raw.length ? raw : null
+
+  const [existing] = await db.select().from(reg.cmsMedia).where(eq(reg.cmsMedia.id, id))
+  if (!existing) throw createError({ statusCode: 404, statusMessage: 'Media not found' })
+  assertMediaOwner(user, existing)
 
   const [media] = await db
     .update(reg.cmsMedia)

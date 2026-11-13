@@ -13,6 +13,7 @@ export default defineEventHandler((event) => {
           create: accessWhere(e, 'create', user).allowed,
           update: accessWhere(e, 'update', user).allowed,
           delete: accessWhere(e, 'delete', user).allowed,
+          publish: canPublish(user),
         },
       }
     })

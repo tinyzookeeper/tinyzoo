@@ -84,12 +84,76 @@ export function parseOr422(schema: any, body: unknown) {
 export function accessWhere(
   e: CmsEntity, op: 'read' | 'create' | 'update' | 'delete', user: CmsUser,
 ): { allowed: boolean; where: any } {
+  // 1. The built-in role decides first …
+  const byRole = roleAccess(e, op, user)
+  if (!byRole.allowed) return byRole
+  // 2. … then the entity's own `access` rule narrows it further (AND).
   const rule = (e.access as any)?.[op]
-  if (!rule) return { allowed: true, where: undefined }
+  if (!rule) return byRole
   const res = rule({ user, table: e.table })
-  if (res === true) return { allowed: true, where: undefined }
-  if (!res) return { allowed: false, where: undefined }
-  return { allowed: true, where: res }
+  if (res === false || res === null || res === undefined) return { allowed: false, where: undefined }
+  return { allowed: true, where: both(byRole.where, res === true ? undefined : res) }
+}
+
+/**
+ * Built-in roles (cms_users.role):
+ *  - admin, editor: everything (admins also manage people — see requireCmsAdmin)
+ *  - author: reads everything, creates entries, changes and deletes only entries
+ *    they created, never touches settings (singletons), cannot publish
+ * Any other role (e.g. from an external auth provider) is left to the entities'
+ * own `access` rules, as before roles existed.
+ */
+export function roleAccess(e: CmsEntity, op: 'read' | 'create' | 'update' | 'delete', user: CmsUser): { allowed: boolean; where: any } {
+  if (user.role !== 'author') return { allowed: true, where: undefined }
+  if (op === 'read') return { allowed: true, where: undefined }
+  if (e.singleton) return { allowed: false, where: undefined }
+  if (op === 'create') return { allowed: true, where: undefined }
+  return { allowed: true, where: eq(e.table.createdBy, user.id) }
+}
+
+/** May this person publish (or unpublish) entries? Authors write drafts only. */
+export function canPublish(user: CmsUser): boolean {
+  return user.role !== 'author'
+}
+
+/**
+ * Refuse a write that would change publication state for someone who may not
+ * publish: setting the publish field to its published value, or editing an entry
+ * that is already live (their change would go straight to the website).
+ */
+export function assertPublishAllowed(e: CmsEntity, user: CmsUser, values: Record<string, any>, current?: Record<string, any> | null) {
+  const p = e.publish
+  if (!p || canPublish(user)) return
+  const field = propOf(p.field, e.fields[p.field]!)
+  const live = (v: unknown) => v === p.publishedValue
+  if (live(values[field]) || (current && live(current[field]))) {
+    throw createError({ statusCode: 403, statusMessage: 'Your role can write drafts but not publish' })
+  }
+}
+
+/** 'entry.publish' / 'entry.unpublish' when a write changed publication state, else null. */
+export function publishAction(e: CmsEntity, before: Record<string, any> | null, after: Record<string, any>): string | null {
+  const p = e.publish
+  if (!p) return null
+  const field = propOf(p.field, e.fields[p.field]!)
+  const was = before?.[field] === p.publishedValue
+  const is = after[field] === p.publishedValue
+  if (was === is) return null
+  return is ? 'entry.publish' : 'entry.unpublish'
+}
+
+/** Authors may change or delete only files they uploaded themselves. */
+export function assertMediaOwner(user: CmsUser, media: { uploadedBy?: string | null }) {
+  if (user.role === 'author' && media.uploadedBy !== user.id) {
+    throw createError({ statusCode: 403, statusMessage: 'You can only change files you uploaded' })
+  }
+}
+
+/** Admin-only endpoints (people management, audit log). */
+export function requireCmsAdmin(event: any): CmsUser {
+  const user = requireCmsUser(event)
+  if (user.role !== 'admin') throw createError({ statusCode: 403, statusMessage: 'Administrators only' })
+  return user
 }
 
 /** Throw 403 if not allowed; return the row-level filter (or undefined). */

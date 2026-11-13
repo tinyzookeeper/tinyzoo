@@ -101,6 +101,7 @@ export default defineEventHandler(async (event) => {
     })
     .returning()
 
+  await audit(event, 'media.upload', { recordId: media?.id, meta: { mime, size: stored.size } })
   setResponseStatus(event, 201)
   return media
 })

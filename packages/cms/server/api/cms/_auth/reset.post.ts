@@ -1,0 +1,31 @@
+import { eq, sql } from '@my-cms/core'
+import { z } from 'zod'
+
+// POST /api/cms/_auth/reset — set a new password with a reset link. Every other
+// session of the account is signed out (session version bump); this browser is
+// signed in with the new one.
+const body = z.object({ token: z.string().min(1).max(200), password: passwordSchema })
+
+export default defineEventHandler(async (event) => {
+  assertBuiltinAuth()
+  if (!rateLimitOk(`reset:ip:${clientIp(event)}`, 20, 15 * 60_000)) throw createError({ statusCode: 429, statusMessage: 'Too many attempts — try again later' })
+  const data = parseOr422(body, await readBody(event))
+  const { db, reg } = useCms()
+  const found = await findToken(db, reg, data.token, 'reset')
+  if (!found || found.user.status !== 'active') {
+    throw createError({ statusCode: 410, statusMessage: 'This link has expired or was already used — ask for a new one' })
+  }
+
+  const passwordHash = await hashPassword(data.password)
+  const user = await db.transaction(async (tx: any) => {
+    await tx.update(reg.cmsTokens).set({ usedAt: new Date() }).where(eq(reg.cmsTokens.id, found.token.id))
+    const [u] = await tx.update(reg.cmsUsers)
+      .set({ passwordHash, sessionVersion: sql`${reg.cmsUsers.sessionVersion} + 1`, updatedAt: new Date(), lastLoginAt: new Date() })
+      .where(eq(reg.cmsUsers.id, found.user.id)).returning()
+    return u
+  })
+
+  await startCmsSession(event, user)
+  await audit(event, 'auth.reset', { userId: user.id })
+  return { user: sessionUser(user) }
+})

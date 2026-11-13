@@ -20,16 +20,18 @@ export default defineEventHandler(async (event) => {
     .map(([k]) => k)
   const oldMedia: Record<string, string | null> = {}
   let oldEmbedded: string[] = []
-  if (changedMediaCols.length || changedRichCols.length) {
-    const [old] = await db.select().from(e.table).where(eq(e.table.id, id))
-    for (const c of changedMediaCols) oldMedia[c] = old?.[c] ?? null
-    if (old) oldEmbedded = changedRichCols.flatMap((k) => embeddedMediaIds(old[k]))
-  }
+  // The row as it is now: for media cleanup, the publish rule and the audit entry.
+  const [old] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
+  if (!old) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+  for (const c of changedMediaCols) oldMedia[c] = old[c] ?? null
+  oldEmbedded = changedRichCols.flatMap((k) => embeddedMediaIds(old[k]))
+  assertPublishAllowed(e, user, values, old)
 
   const row = await db.transaction(async (tx: any) => {
     let current: any
     if (Object.keys(values).length) {
       values.updatedAt = new Date()
+      values.updatedBy = user.id
       ;[current] = await tx.update(e.table).set(values).where(both(eq(e.table.id, id), rowFilter)).returning()
     } else {
       ;[current] = await tx.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
@@ -54,5 +56,6 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  await audit(event, publishAction(e, old, row) ?? 'entry.update', { entity: e.name, recordId: id })
   return { row }
 })

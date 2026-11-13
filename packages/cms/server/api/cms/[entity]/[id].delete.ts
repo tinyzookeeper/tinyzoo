@@ -17,5 +17,6 @@ export default defineEventHandler(async (event) => {
   for (const mediaId of mediaIdsOf(reg, e, deleted[0])) {
     await gcMediaIfOrphan(db, reg, storage, mediaId)
   }
+  await audit(event, 'entry.delete', { entity: e.name, recordId: id })
   return { ok: true }
 })

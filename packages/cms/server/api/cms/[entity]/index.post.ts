@@ -7,12 +7,17 @@ export default defineEventHandler(async (event) => {
 
   const data = parseOr422(e.insertSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
+  assertPublishAllowed(e, user, values)
+  values.createdBy = user.id
+  values.updatedBy = user.id
 
   const row = await db.transaction(async (tx: any) => {
     const [created] = await tx.insert(e.table).values(values).returning()
     await writeM2M(tx, reg, e, created.id, m2m)
     return created
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
+  await audit(event, 'entry.create', { entity: e.name, recordId: row.id })
+  if (publishAction(e, null, row) === 'entry.publish') await audit(event, 'entry.publish', { entity: e.name, recordId: row.id })
   setResponseStatus(event, 201)
   return { row }
 })
