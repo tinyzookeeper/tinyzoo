@@ -15,7 +15,8 @@ export async function translationFormRow(db: any, reg: CmsRegistry, e: CmsEntity
 /**
  * Write the translation of one entry: only `.localized()` fields, empty = fall back to
  * the default language. Same access as editing the entry (row rules, and people who
- * cannot publish cannot change a live entry). Bumps the entry's updatedAt/updatedBy.
+ * cannot publish cannot change a live entry). The entry's own version (updatedAt) stays:
+ * the translation has its own, so translating never conflicts with editing the entry.
  */
 export async function writeTranslation(event: any, e: CmsEntity, id: string, locale: string, user: CmsUser, rowFilter: any) {
   const { db, reg } = useCms()
@@ -41,7 +42,8 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
     // Touch the entry first, under the same rules as editing it — including "not
     // live" for people who cannot publish, re-checked here at write time (an editor
     // may have published it since we read it).
-    const [touched] = await tx.update(e.table).set({ updatedAt: now, updatedBy: actorId(user) })
+    // A no-op update: it locks the entry and re-checks access at write time.
+    const [touched] = await tx.update(e.table).set({ updatedAt: sql`${e.table.updatedAt}` })
       .where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning({ id: e.table.id })
     if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
     const [saved] = await tx.insert(t).values({ parentId: id, locale, ...data, updatedAt: now })
@@ -72,7 +74,7 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
   if (!base) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, base)
   const gone: any = await db.transaction(async (tx: any) => {
-    const [touched] = await tx.update(e.table).set({ updatedAt: sql`now()`, updatedBy: actorId(user) })
+    const [touched] = await tx.update(e.table).set({ updatedAt: sql`${e.table.updatedAt}` })
       .where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning({ id: e.table.id })
     if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
     const [deleted]: any[] = await tx.delete(t).where(and(eq(t.parentId, id), eq(t.locale, locale))).returning()

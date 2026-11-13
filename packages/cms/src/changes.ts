@@ -18,6 +18,8 @@ export interface CmsChange {
   paths: string[]
   /** Who made it (user id), when known. */
   by: string | null
+  /** The entry's version after the change (its updatedAt, ISO), null when deleted. */
+  version: string | null
   /** ISO timestamp. */
   at: string
 }

@@ -8,7 +8,8 @@ const { t, tl, entityLabel } = useCmsI18n()
 
 // A global never "creates" from the form's point of view (PUT upserts).
 const form = useCmsForm(computed(() => props.meta?.fields ?? []), computed(() => false))
-const { state, fieldErrors, editable, dirty, saving } = form
+const { state, fieldErrors, editable, dirty, saving, conflict } = form
+const toast = useToast()
 
 // ── content languages (as in the entry editor) ──
 const locales = computed(() => props.meta?.locales as { default: string; all: string[]; labels: Record<string, any> } | null)
@@ -20,12 +21,40 @@ const isTranslation = computed(() => !!locales.value && currentLocale.value !== 
 const localeLabel = (code?: string | null) => (code ? tl(locales.value?.labels?.[code], code.toUpperCase()) : '')
 const defaultLabel = computed(() => localeLabel(locales.value?.default))
 
-const { data } = await useFetch<{ row: Record<string, any> | null }>((): string =>
-  `/api/cms/_singleton/${props.entity}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`, { watch: [() => props.entity] })
+const rowUrl = (): string => `/api/cms/_singleton/${props.entity}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`
+const { data } = await useFetch<{ row: Record<string, any> | null }>(rowUrl, { watch: [() => props.entity] })
 form.load(data.value?.row)
 const exists = computed(() => !!data.value?.row?.id)
 const available = ref<string[]>(data.value?.row?.__locales ?? [])
 const defaults = computed<Record<string, any>>(() => data.value?.row?.__defaults ?? {})
+// The version this form edits; see the entry editor.
+const version = ref<string | null>(data.value?.row?.updatedAt ?? null)
+
+async function loadNewest() {
+  const res = await $fetch<{ row: Record<string, any> | null }>(rowUrl())
+  await form.replace(res.row)
+  data.value = res
+  version.value = res.row?.updatedAt ?? null
+  if (live) live.incoming.value = null
+}
+
+// Realtime, once the global has its row (the first save creates it).
+const rowId = data.value?.row?.id as string | undefined
+const live = rowId
+  ? useCmsEntryLive({
+      entity: props.entity,
+      id: rowId,
+      version,
+      dirty,
+      saving,
+      locale: computed(() => (isTranslation.value ? currentLocale.value : null)),
+      reload: async (c) => {
+        await loadNewest()
+        toast.add({ title: c.byName ? t('live.reloaded', { name: c.byName }) : t('live.reloadedSomeone'), icon: 'i-lucide-refresh-cw', color: 'info' })
+      },
+    })
+  : null
+const others = computed(() => live?.others.value ?? [])
 
 const title = computed(() => entityLabel(props.meta))
 const visible = computed(() => editable.value.filter((f: any) => !isTranslation.value || f.localized))
@@ -56,7 +85,7 @@ const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
   to: { query: code === locales.value?.default ? {} : { locale: code } },
 })))
 
-function save() {
+function save(force = false) {
   return form.submit(async () => {
     if (isTranslation.value) {
       const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
@@ -66,7 +95,10 @@ function save() {
       return
     }
     const url: string = `/api/cms/_singleton/${props.entity}`
-    await $fetch(url, { method: 'PUT', body: form.body() })
+    const headers: Record<string, string> = !force && version.value ? { 'x-cms-version': version.value } : {}
+    const res: any = await $fetch(url, { method: 'PUT', body: form.body(), headers })
+    version.value = res?.row?.updatedAt ?? null
+    if (live) live.incoming.value = null
   })
 }
 defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value) save() } } })
@@ -78,6 +110,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]"
   >
     <template #actions>
+      <CmsPresence :people="others" />
       <UDropdownMenu v-if="locales && exists" :items="localeItems" :content="{ align: 'end' }">
         <UButton color="neutral" variant="ghost" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
           {{ (currentLocale ?? '').toUpperCase() }}
@@ -91,6 +124,10 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       </UTooltip>
     </template>
 
+    <CmsLiveNotice
+      :conflict="isTranslation ? null : conflict" :incoming="live?.incoming.value"
+      @load="loadNewest" @save-anyway="save(true)" @dismiss="live && (live.incoming.value = null)"
+    />
     <div class="space-y-6">
       <p v-if="isTranslation" class="text-sm text-muted">
         {{ t('translation.shared') }}

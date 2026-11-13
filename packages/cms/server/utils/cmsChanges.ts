@@ -90,6 +90,7 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
       public: !!e.content?.public && live,
       paths: entryPaths(reg, e, [overlay(r.before), overlay(r.after)], locale),
       by: event?.context?.cmsUser?.id ?? null,
+      version: r.after?.updatedAt ? new Date(r.after.updatedAt).toISOString() : null,
       at: new Date().toISOString(),
     }
     applyChangeLocally(change)

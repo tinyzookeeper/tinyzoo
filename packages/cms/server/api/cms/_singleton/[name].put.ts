@@ -20,6 +20,7 @@ export default defineEventHandler(async (event) => {
 
   const data = parseOr422(e.insertSchema, await readBody(event))
   const { values, m2m } = splitPayload(e, data)
+  const base = baseVersion(event)
 
   const mediaCols = Object.entries(e.fields)
     .filter(([, f]) => (f as any).type === 'media')
@@ -30,7 +31,9 @@ export default defineEventHandler(async (event) => {
   let oldEmbedded: string[] = []
 
   const row = await db.transaction(async (tx: any) => {
-    const [existing] = await tx.select().from(e.table).orderBy(e.table.createdAt).limit(1)
+    // Locked, so a concurrent save waits and then sees this one's version.
+    const [existing] = await tx.select().from(e.table).orderBy(e.table.createdAt).limit(1).for('update')
+    await assertCurrentVersion(e, existing, base)
     for (const c of mediaCols) oldMedia[c] = existing?.[c] ?? null
     if (existing) oldEmbedded = jsonCols.flatMap((k) => jsonMediaIds(e.fields[k], existing[k]))
 

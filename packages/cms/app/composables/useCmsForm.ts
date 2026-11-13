@@ -61,6 +61,23 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload))
   onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('editor.unsavedConfirm')) : true))
 
+  /**
+   * Load a newer version over the form (someone else saved): not a user edit, so the
+   * form is clean afterwards. Fields the row no longer has are cleared.
+   */
+  async function replace(row: Record<string, any> | null | undefined) {
+    ready = false
+    for (const k of Object.keys(state)) if (!(k in (row ?? {}))) delete state[k]
+    load(row)
+    await nextTick()
+    dirty.value = false
+    conflict.value = null
+    ready = true
+  }
+
+  /** Set when a save was refused because someone saved in between (409 stale). */
+  const conflict = ref<{ version: string; updatedByName: string | null } | null>(null)
+
   const saving = ref(false)
   /**
    * Run a save. On a validation answer (422/409 with issues) the messages land on
@@ -73,10 +90,15 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     try {
       await run()
       dirty.value = false
+      conflict.value = null
       toast.add({ title: successTitle, icon: 'i-lucide-check', color: 'success' })
       return true
     }
     catch (e: any) {
+      if (e?.data?.data?.code === 'stale') {
+        conflict.value = e.data.data
+        return false
+      }
       const issueList = e?.data?.data
       if (Array.isArray(issueList) && issueList.some((i: any) => i?.path?.[0])) {
         for (const i of issueList) {
@@ -96,5 +118,5 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     }
   }
 
-  return { state, fieldErrors, issues, editable, dirty, saving, load, body, submit }
+  return { state, fieldErrors, issues, editable, dirty, saving, conflict, load, replace, body, submit }
 }

@@ -1,5 +1,3 @@
-import { eq } from '@my-cms/core'
-
 // Built-in auth: turn the sealed session cookie into `event.context.cmsUser` for API
 // requests. The account is re-read from the database every time, so a changed role,
 // a disabled account or a password change (session version bump) takes effect on
@@ -8,7 +6,6 @@ import { eq } from '@my-cms/core'
 // The CMS identity lives under its own key (session.cms.uid), so a host app that
 // also signs people in with nuxt-auth-utils (site members, OAuth ids…) never trips
 // over it: a session without a CMS identity is simply not a CMS user.
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export default defineEventHandler(async (event) => {
   if (cmsAuthMode() !== 'builtin') return
@@ -16,13 +13,9 @@ export default defineEventHandler(async (event) => {
   if (event.context.cmsUser) return
 
   const session: any = await getUserSession(event)
-  const id = session?.cms?.uid
-  if (typeof id !== 'string' || !UUID.test(id)) return
-
-  const { db, reg } = useCms()
-  const [u] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.id, id))
-  if (!u || u.status !== 'active' || u.sessionVersion !== session?.cms?.sv) {
-    await clearUserSession(event)
+  const u = await activeAccountOf(session)
+  if (!u) {
+    if (session?.cms) await clearUserSession(event)
     return
   }
   event.context.cmsUser = { id: u.id, email: u.email, name: u.name || u.email, role: u.role, locale: u.locale }

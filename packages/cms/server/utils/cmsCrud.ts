@@ -229,3 +229,36 @@ export function rethrowDbError(err: any, e: CmsEntity, op: 'write' | 'delete'): 
 export function both(a: any, b: any) {
   return b ? (a ? and(a, b) : b) : a
 }
+
+/**
+ * The version an edit is based on: the entry's `updatedAt` as the editor loaded it,
+ * sent in the `X-CMS-Version` header. Null when absent (no check: API clients and
+ * scripts that want last-write-wins simply leave it out).
+ */
+export function baseVersion(event: any): Date | null {
+  const raw = getRequestHeader(event, 'x-cms-version')
+  if (!raw) return null
+  const d = new Date(raw)
+  if (Number.isNaN(d.getTime())) throw createError({ statusCode: 400, statusMessage: 'Invalid X-CMS-Version' })
+  return d
+}
+
+/**
+ * 409 when the entry changed since the editor loaded it, saying who changed it and
+ * when, so the admin can offer to reload or to save over it.
+ */
+export async function assertCurrentVersion(e: CmsEntity, current: Record<string, any> | null | undefined, base: Date | null): Promise<void> {
+  if (!base || !current?.updatedAt) return
+  if (new Date(current.updatedAt).getTime() === base.getTime()) return
+  let byName: string | null = null
+  if (current.updatedBy) {
+    const { db, reg } = useCms()
+    const [u] = await db.select({ name: reg.cmsUsers.name, email: reg.cmsUsers.email }).from(reg.cmsUsers).where(eq(reg.cmsUsers.id, current.updatedBy))
+    byName = u ? (u.name || u.email) : null
+  }
+  throw createError({
+    statusCode: 409,
+    statusMessage: 'Changed by someone else since you opened it',
+    data: { code: 'stale', entity: e.name, version: new Date(current.updatedAt).toISOString(), updatedBy: current.updatedBy ?? null, updatedByName: byName },
+  })
+}
