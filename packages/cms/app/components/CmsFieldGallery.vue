@@ -12,8 +12,12 @@ const media = reactive<Record<string, any>>({})
 async function resolve(ids: string[]) {
   const missing = ids.filter((id) => !media[id])
   if (!missing.length) return
-  const res = await $fetch<{ items: any[] }>('/api/cms/_media', { query: { ids: missing.join(','), limit: 60 } }).catch(() => ({ items: [] }))
-  for (const m of res.items) media[m.id] = m
+  // The media list returns at most 60 at a time.
+  for (let i = 0; i < missing.length; i += 60) {
+    const ids = missing.slice(i, i + 60)
+    const res = await $fetch<{ items: any[] }>('/api/cms/_media', { query: { ids: ids.join(','), limit: 60 } }).catch(() => ({ items: [] }))
+    for (const m of res.items) media[m.id] = m
+  }
 }
 watch(() => items.value.map((i) => i.mediaId), (ids) => { void resolve(ids) }, { immediate: true })
 

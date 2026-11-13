@@ -18,6 +18,22 @@ type JsonSchema = Record<string, any>
 
 const REF = (name: string): JsonSchema => ({ $ref: `#/components/schemas/${name}` })
 
+const MEDIA_PROPERTIES: JsonSchema = {
+  id: { type: 'string', format: 'uuid' },
+  url: { type: 'string', format: 'uri' },
+  width: { type: ['integer', 'null'] },
+  height: { type: ['integer', 'null'] },
+  alt: { type: ['string', 'null'] },
+  mime: { type: 'string' },
+  focal: {
+    type: ['object', 'null'],
+    additionalProperties: false,
+    properties: { x: { type: 'integer', minimum: 0, maximum: 100 }, y: { type: 'integer', minimum: 0, maximum: 100 } },
+    required: ['x', 'y'],
+  },
+}
+const MEDIA_REQUIRED = ['id', 'url', 'width', 'height', 'alt', 'mime', 'focal']
+
 /** Wrap a schema so the value may also be JSON `null` (OpenAPI 3.1 style). */
 function nullable(schema: JsonSchema, isNullable: boolean): JsonSchema {
   if (!isNullable) return schema
@@ -157,31 +173,14 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
       required: ['type'],
       additionalProperties: true,
     },
-    CmsMedia: {
+    CmsMedia: { type: 'object', additionalProperties: false, properties: MEDIA_PROPERTIES, required: MEDIA_REQUIRED },
+    // Spelled out (not allOf CmsMedia): CmsMedia forbids extra properties, so an allOf
+    // with it would reject every item for carrying `caption`.
+    CmsGalleryItem: {
       type: 'object',
       additionalProperties: false,
-      properties: {
-        id: { type: 'string', format: 'uuid' },
-        url: { type: 'string', format: 'uri' },
-        width: { type: ['integer', 'null'] },
-        height: { type: ['integer', 'null'] },
-        alt: { type: ['string', 'null'] },
-        mime: { type: 'string' },
-        focal: {
-          type: ['object', 'null'],
-          additionalProperties: false,
-          properties: { x: { type: 'integer', minimum: 0, maximum: 100 }, y: { type: 'integer', minimum: 0, maximum: 100 } },
-          required: ['x', 'y'],
-        },
-      },
-      required: ['id', 'url', 'width', 'height', 'alt', 'mime', 'focal'],
-    },
-    CmsGalleryItem: {
-      allOf: [REF('CmsMedia'), {
-        type: 'object',
-        properties: { caption: { type: ['string', 'null'] } },
-        required: ['caption'],
-      }],
+      properties: { ...MEDIA_PROPERTIES, caption: { type: ['string', 'null'] } },
+      required: [...MEDIA_REQUIRED, 'caption'],
     },
   }
 

@@ -639,6 +639,21 @@ and mobile) in its own repository, `../triatlon-tabor-web`.
 | The CMS's rich-text styles beat the site's own | defaults are zero-specificity (`:where`) |
 | Internal links in rich text opened a new tab | only external links do |
 
+**Independent review** (separate agent, no High findings). Fixed:
+
+| Severity | Finding | Fix |
+|---|---|---|
+| Medium | Rich-text defaults were unlayered, so they still beat a Tailwind host's utilities | defaults moved to `@layer base` |
+| Medium | OpenAPI `CmsGalleryItem` was `allOf` a closed `CmsMedia` → every gallery item failed validation | spelled out as one closed object |
+| Medium | A gallery on a related (embedded) item leaked its raw `{ mediaId, caption }` list | embedded projections skip galleries, like media and blocks |
+| Low | Date filters accepted anything `Date` parses (`from=1`), extreme years gave a 500, offset-less times used the server's zone | ISO dates/times only, offset-less read as UTC, out-of-range → 400 |
+| Low | Preview of a translation whose language has no address fell back to another language's | no preview for that language |
+| Low | A gallery over 60 files showed no thumbnails past the 60th | thumbnails load in chunks of 60 |
+| Nit | Loose uuid check, `cmsFetch` bound at import, `//host` links treated as internal, `a.from.junk` accepted, `@types/node` pinned to one major | all fixed |
+
+A collection named `global`, `collection` or `openapi` is reachable only through
+`client.collection(name)` (documented behaviour, unchanged).
+
 **Noted, not changed:**
 
 - A field without `required` is still required unless `.optional()` — easy to miss

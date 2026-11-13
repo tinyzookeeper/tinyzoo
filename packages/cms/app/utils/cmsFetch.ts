@@ -4,4 +4,4 @@
  * that comparison exceeds TypeScript's depth limit and fails the host's typecheck.
  * The admin's calls are typed by their result instead.
  */
-export const cmsFetch = $fetch as unknown as <T = any>(url: string, options?: Record<string, any>) => Promise<T>
+export const cmsFetch = <T = any>(url: string, options?: Record<string, any>): Promise<T> => ($fetch as any)(url, options)

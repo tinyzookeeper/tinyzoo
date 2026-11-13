@@ -97,7 +97,7 @@ function projectScalars(target: CmsEntity, row: any) {
   const hidden = new Set(target.content?.hidden ?? [])
   const out: Record<string, any> = { id: row.id }
   for (const [key, fld] of Object.entries(target.fields)) {
-    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks') continue
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'gallery') continue
     out[key] = row[key]
   }
   return out

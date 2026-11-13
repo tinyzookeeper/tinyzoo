@@ -548,7 +548,7 @@ const settings = await cms.global('siteSettings', { locale: 'en' }) // SiteSetti
 
 Filters match text, choice and relation fields exactly, yes/no fields with `true`/`false`,
 and date fields by range — `'publishedAt.from'` / `'publishedAt.to'` (an ISO date or time;
-a bare date as `to` covers the whole day), e.g. upcoming events:
+a bare date is a whole day in UTC, a time without an offset is UTC), e.g. upcoming events:
 `cms.event.list({ filter: { 'startsAt.from': new Date() }, sort: 'startsAt', dir: 'asc' })`.
 
 Per-collection sort keys, filters and enum values are type-checked; an invalid sort key or

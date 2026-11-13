@@ -376,7 +376,9 @@ async function setPublished(next: boolean) {
 const previewUrl = computed(() => {
   // The address in the language being edited (prefix included), from the graph.
   const paths: Record<string, string> | null = meta.value?.previewPaths ?? null
-  const template = paths ? (paths[currentLocale.value ?? ''] ?? Object.values(paths)[0] ?? null) : null
+  // A language left out of a per-language map has no page: no preview then. An entry
+  // without languages of its own uses the default language's address.
+  const template = !paths ? null : currentLocale.value ? (paths[currentLocale.value] ?? null) : (paths[''] ?? Object.values(paths)[0] ?? null)
   if (!template || isNew.value) return null
   let ok = true
   const url = template.replace(/:(\w+)/g, (_m: string, k: string) => {

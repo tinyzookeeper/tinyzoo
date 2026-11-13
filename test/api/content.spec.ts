@@ -66,6 +66,11 @@ describe('collection list', () => {
     expect(await titles('publishedAt.to=2025-07-27')).toEqual(['Loni', 'Jaro', 'Léto'])
     expect(await titles('publishedAt.to=2025-07-27T18:00:00Z')).toEqual(['Loni', 'Jaro'])
     expect((await anonymous().get('/api/content/post?publishedAt.from=nope')).status).toBe(400)
+    expect((await anonymous().get('/api/content/post?publishedAt.from=1')).status).toBe(400) // not an ISO date
+    expect((await anonymous().get('/api/content/post?publishedAt.to=%2B275760-09-13')).status).toBe(400)
+    expect(await titles('publishedAt.to=2025-07-27T18:00')).toEqual(['Loni', 'Jaro']) // no offset: UTC
+    expect(await titles('publishedAt.to=2025-07-27T20:30%2B02:00')).toEqual(['Loni', 'Jaro', 'Léto'])
+    expect(await titles('publishedAt.from.x=2026-01-01')).toHaveLength(3) // not a filter
     expect(await titles('title.from=2025-01-01')).toHaveLength(3) // not a date field: ignored
   })
 

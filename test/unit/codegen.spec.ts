@@ -35,6 +35,13 @@ describe('OpenAPI document', () => {
     expect(doc.components.schemas.SiteSettings.properties).toHaveProperty('siteName')
   })
 
+  it('documents a gallery item as a whole object (an allOf with a closed schema would reject it)', () => {
+    const item = doc.components.schemas.CmsGalleryItem
+    expect(item.allOf).toBeUndefined()
+    expect(item.additionalProperties).toBe(false)
+    expect(item.required).toEqual(expect.arrayContaining(['id', 'url', 'alt', 'focal', 'caption']))
+  })
+
   it('never documents a hidden field', () => {
     expect(JSON.stringify(doc.components.schemas.Author)).not.toContain('email')
   })

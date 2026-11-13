@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
     if (mimeConds.length) conds.push(sql`(${sql.join(mimeConds, sql` or `)})`)
   }
   // ?ids=a,b — exactly these files (a gallery loading its thumbnails).
-  const ids = String(query.ids ?? '').split(',').filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 200)
+  const ids = String(query.ids ?? '').split(',').filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)).slice(0, 200)
   if (ids.length) conds.push(inArray(m.id, ids))
   const folder = typeof query.folder === 'string' ? query.folder : ''
   if (folder === 'none') conds.push(isNull(m.folder))

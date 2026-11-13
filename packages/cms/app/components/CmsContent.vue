@@ -43,7 +43,7 @@ function withMarks(text: string, marks: any[] = []): VNode | string {
     else if (m.type === 'link') {
       const href = safeHref(m.attrs?.href)
       // Links to other sites open in a new tab; the site's own pages, mail and phone do not.
-      if (href) node = h('a', /^https?:\/\//i.test(href) ? { href, rel: 'noopener noreferrer', target: '_blank' } : { href }, node)
+      if (href) node = h('a', /^(?:https?:)?\/\//i.test(href) ? { href, rel: 'noopener noreferrer', target: '_blank' } : { href }, node)
     }
   }
   return node
@@ -83,16 +83,21 @@ export default defineComponent({
 </script>
 
 <style>
-/* Defaults only: zero specificity (:where), so any style of the host site wins. */
-:where(.cms-content h2) { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
-:where(.cms-content h3) { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
-:where(.cms-content p) { margin: 0.75rem 0; line-height: 1.7; }
-:where(.cms-content ul) { list-style: disc; padding-left: 1.5rem; margin: 0.75rem 0; }
-:where(.cms-content ol) { list-style: decimal; padding-left: 1.5rem; margin: 0.75rem 0; }
-:where(.cms-content blockquote) { border-left: 3px solid currentColor; opacity: 0.85; padding-left: 1rem; margin: 0.75rem 0; }
-:where(.cms-content code) { font-family: ui-monospace, monospace; background: rgb(127 127 127 / 0.15); padding: 0.1em 0.3em; border-radius: 0.25rem; font-size: 0.9em; }
-:where(.cms-content pre) { background: rgb(127 127 127 / 0.12); padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; }
-:where(.cms-content pre code) { background: none; padding: 0; }
-:where(.cms-content a) { color: var(--ui-primary, currentColor); text-decoration: underline; }
-:where(.cms-content img) { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; }
+/*
+ * Defaults only, in the base layer: they beat the CSS reset but lose to anything
+ * the host site styles (its components, utilities and own unlayered CSS).
+ */
+@layer base {
+  .cms-content h2 { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.5rem; }
+  .cms-content h3 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+  .cms-content p { margin: 0.75rem 0; line-height: 1.7; }
+  .cms-content ul { list-style: disc; padding-left: 1.5rem; margin: 0.75rem 0; }
+  .cms-content ol { list-style: decimal; padding-left: 1.5rem; margin: 0.75rem 0; }
+  .cms-content blockquote { border-left: 3px solid currentColor; opacity: 0.85; padding-left: 1rem; margin: 0.75rem 0; }
+  .cms-content code { font-family: ui-monospace, monospace; background: rgb(127 127 127 / 0.15); padding: 0.1em 0.3em; border-radius: 0.25rem; font-size: 0.9em; }
+  .cms-content pre { background: rgb(127 127 127 / 0.12); padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; }
+  .cms-content pre code { background: none; padding: 0; }
+  .cms-content a { color: var(--ui-primary, currentColor); text-decoration: underline; }
+  .cms-content img { max-width: 100%; height: auto; border-radius: 0.5rem; margin: 1rem 0; }
+}
 </style>

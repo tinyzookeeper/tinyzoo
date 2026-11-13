@@ -40,7 +40,9 @@ export default defineEventHandler(async (event) => {
 
   // Filters by known, NON-HIDDEN fields only — values are bound parameters (injection-safe).
   for (const [param, raw] of Object.entries(query)) {
-    const [k = '', bound] = param.split('.')
+    const parts = param.split('.')
+    if (parts.length > 2) continue
+    const [k = '', bound] = parts
     if (RESERVED.has(k) || hidden.has(k) || !Object.hasOwn(e.fields, k)) continue
     const fld = e.fields[k]!
     const v = Array.isArray(raw) ? raw[0] : raw
@@ -78,13 +80,18 @@ export default defineEventHandler(async (event) => {
 })
 
 /**
- * A date-range bound: an ISO date or date-time. `to` is exclusive of the next moment:
- * a bare date ('2026-07-31') covers that whole day (UTC), a time is inclusive.
+ * A date-range bound: an ISO date (`2026-07-31`, a whole day in UTC) or date-time
+ * (`2026-07-31T18:00`, `…Z` or `…+02:00`; without an offset it is read as UTC, never
+ * in the server's own zone). `to` is inclusive: a bare date covers that whole day.
  */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?$/
 function dateBound(value: string, bound: 'from' | 'to'): Date | null {
-  if (!value || value.length > 40) return null
-  const d = new Date(value)
+  const dateOnly = ISO_DATE.test(value)
+  const m = dateOnly ? null : ISO_DATETIME.exec(value)
+  if (!dateOnly && !m) return null
+  const d = new Date(dateOnly ? `${value}T00:00:00Z` : m![1] ? value : `${value}Z`)
   if (Number.isNaN(d.getTime())) return null
-  if (bound === 'to') return new Date(d.getTime() + (/^\d{4}-\d{2}-\d{2}$/.test(value) ? 86_400_000 : 1))
-  return d
+  const out = bound === 'to' ? new Date(d.getTime() + (dateOnly ? 86_400_000 : 1)) : d
+  return Number.isNaN(out.getTime()) ? null : out
 }
