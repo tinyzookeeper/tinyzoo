@@ -104,3 +104,13 @@ describe('reserved field names', () => {
     expect(() => defineEntity('reserved_test', { label: 'R', titleField: 'name', fields: { name: f.text(), [key]: f.text() } as any })).toThrow(/reserved/)
   })
 })
+
+describe('text fields', () => {
+  it('can be several lines long and capped in length', () => {
+    const fld = f.text({ multiline: true, max: 5 })
+    expect(fld.meta).toMatchObject({ multiline: true, max: 5 })
+    expect(fld.zod('create').safeParse('a\nb').success).toBe(true)
+    expect(fld.zod('create').safeParse('too long').success).toBe(false)
+    expect(f.text().meta).toEqual({})
+  })
+})
