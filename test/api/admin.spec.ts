@@ -40,6 +40,18 @@ describe('admin home overview', () => {
   })
 })
 
+describe('admin list status tabs', () => {
+  it('filters by publication state', async () => {
+    const author = await createAuthor(admin)
+    await createPost(admin, { author: author.id, title: 'Live', status: 'published' })
+    await createPost(admin, { author: author.id, title: 'Wip' })
+    const titles = async (status?: string) => (await admin.get(`/api/cms/post${status ? `?status=${status}` : ''}`)).body.rows.map((r: any) => r.title).sort()
+    expect(await titles()).toEqual(['Live', 'Wip'])
+    expect(await titles('published')).toEqual(['Live'])
+    expect(await titles('draft')).toEqual(['Wip'])
+  })
+})
+
 describe('admin pages (server-rendered)', () => {
   const html = async (c: Client, path: string, headers: Record<string, string> = {}) => {
     const res = await c.request('GET', path, { headers: { accept: 'text/html', ...headers } })
@@ -51,14 +63,14 @@ describe('admin pages (server-rendered)', () => {
     expect(status).toBe(200)
     expect(body).toMatch(/<html[^>]*lang="cs"/)
     expect(body).toMatch(/<html[^>]*data-cms-admin/)
-    expect(body).toContain('Naposledy upravené')
+    expect(body).toContain('Pokračovat v úpravách')
     expect(body).toContain('Články') // a config label in its Czech form
   })
 
   it('renders in English when the browser asks for it', async () => {
     const { body } = await html(admin, '/admin', { 'accept-language': 'en-US,en;q=0.9' })
     expect(body).toMatch(/<html[^>]*lang="en"/)
-    expect(body).toContain('Recently edited')
+    expect(body).toContain('Continue editing')
     expect(body).toContain('Posts')
   })
 

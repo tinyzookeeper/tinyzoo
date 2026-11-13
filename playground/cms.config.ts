@@ -92,9 +92,7 @@ export const Post = defineEntity("post", {
       onDelete: "restrict",
     }).label({ en: "Author", cs: "Autor" }),
     tags: f.relation({ to: () => Tag, kind: "many-to-many" }).label({ en: "Tags", cs: "Štítky" }),
-    body: f.richtext()
-      .label({ en: "Text", cs: "Text" })
-      .help({ en: "Use the toolbar for headings, links and images.", cs: "Nadpisy, odkazy a obrázky přidáte z panelu nástrojů." }),
+    body: f.richtext().label({ en: "Text", cs: "Text" }),
     ...seo(),
   },
   // Who may do what comes from the built-in roles (admin, editor, author). An entity

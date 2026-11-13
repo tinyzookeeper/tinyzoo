@@ -96,8 +96,9 @@ export default defineEventHandler(async (event) => {
       width,
       height,
       uploadedBy: user.id,
-      // default the alt text to the original filename — editable later
-      alt: file.filename ?? null,
+      // No default description: a file name ("IMG_2041.jpg") read aloud by a screen
+      // reader is worse than none. Editors add it next to the image.
+      alt: null,
     })
     .returning()
 

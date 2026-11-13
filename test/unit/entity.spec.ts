@@ -66,6 +66,14 @@ describe('buildRegistry', () => {
     expect(field('title')).toMatchObject({ required: true, ui: { edit: 'CmsFieldText', cell: 'CmsCellText' } })
   })
 
+  it('carries editor placement and groups (seo() goes to a collapsed sidebar group)', () => {
+    const post = reg.graph.find((g: any) => g.name === 'post')
+    const meta = (k: string) => post.fields.find((x: any) => x.key === k).meta
+    expect(meta('metaTitle')).toMatchObject({ position: 'sidebar', group: { en: 'Search & sharing' } })
+    expect(meta('ogImage')).toMatchObject({ position: 'sidebar', group: { cs: 'Vyhledávače a sdílení' } })
+    expect(meta('body').position).toBeUndefined() // decided by type in the admin
+  })
+
   it('is memoised per config object', () => {
     expect(buildRegistry(config)).toBe(reg)
   })

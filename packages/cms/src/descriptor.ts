@@ -106,6 +106,15 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   label(text: LocalizedText): FieldDescriptor<K>
   /** Help text shown under the field in the admin form. */
   help(text: LocalizedText): FieldDescriptor<K>
+  /**
+   * Where the field sits in the admin editor: 'main' (the content column) or
+   * 'sidebar' (the properties panel). Unset = decided by field type: text, rich text
+   * and media go in the main column; slugs, selects, dates, switches and relations in
+   * the sidebar.
+   */
+  position(where: 'main' | 'sidebar'): FieldDescriptor<K>
+  /** Put the field in a named, collapsible group in the editor (e.g. 'Search & sharing'). */
+  group(label: LocalizedText): FieldDescriptor<K>
 }
 
 /** Any descriptor, regardless of kind. */

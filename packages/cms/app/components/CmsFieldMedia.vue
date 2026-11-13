@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Ref } from 'vue'
 // Media upload widget. `model` is the cms_media id (the FK value the form saves).
 const props = defineProps<{ field: any; entity?: string }>()
 const model = defineModel<string | null>()
@@ -27,16 +28,9 @@ async function resolveMedia(id: string | null | undefined) {
 watch(model, resolveMedia, { immediate: true })
 
 const isImage = computed(() => String(media.value?.mime ?? '').startsWith('image/'))
-const filename = computed(() => media.value?.key?.split('/').pop() || 'file')
-const dims = computed(() =>
-  media.value?.width && media.value?.height ? `${media.value.width}×${media.value.height}` : null,
-)
-const sizeLabel = computed(() => {
-  const b = Number(media.value?.size ?? 0)
-  if (b < 1024) return `${b} B`
-  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`
-  return `${(b / 1024 / 1024).toFixed(1)} MB`
-})
+// Large preview in the content column, compact in the properties panel.
+const placement = inject<Ref<'main' | 'sidebar'>>('cmsFieldPlacement', ref('main'))
+const compact = computed(() => placement.value === 'sidebar')
 
 // Alt text — edit + persist on the media record (accessibility / SEO).
 const alt = ref('')
@@ -93,52 +87,56 @@ function clear() {
     <input ref="input" type="file" class="hidden" :accept="field.meta?.accept" @change="onChange">
     <CmsMediaLibrary v-model:open="libraryOpen" :accept="field.meta?.accept" @select="onLibrarySelect" />
 
-    <!-- has media → preview card + alt editor -->
-    <div v-if="media" class="rounded-lg border border-default bg-elevated/30 p-2 space-y-2">
-      <div class="flex items-center gap-3">
-        <div class="size-16 shrink-0 overflow-hidden rounded-md bg-muted flex items-center justify-center">
-          <img
-            v-if="isImage" :src="media.url" :alt="media.alt ?? ''"
-            :width="media.width || undefined" :height="media.height || undefined"
-            loading="lazy" decoding="async" class="size-full object-cover"
-          >
-          <UIcon v-else name="i-lucide-file" class="size-6 text-dimmed" />
-        </div>
-        <div class="min-w-0 flex-1">
-          <p class="truncate text-sm font-medium">{{ filename }}</p>
-          <p class="text-xs text-muted">{{ dims ? `${dims} · ` : '' }}{{ media.mime }} · {{ sizeLabel }}</p>
-        </div>
-        <div class="flex items-center gap-1">
-          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-images" :aria-label="t('media.browse')" @click="libraryOpen = true" />
-          <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-repeat-2" :loading="uploading" @click="pick">{{ t('media.replace') }}</UButton>
-          <UButton size="xs" variant="ghost" color="error" icon="i-lucide-x" :aria-label="t('media.remove')" @click="clear" />
+    <!-- has media → the picture itself, its description, and two quiet actions -->
+    <div v-if="media" class="space-y-2">
+      <div
+        class="group relative overflow-hidden rounded-(--ui-radius) border border-default bg-muted"
+        :class="compact ? 'aspect-[1.91/1]' : 'max-h-80'"
+      >
+        <img
+          v-if="isImage" :src="media.url" :alt="media.alt ?? ''"
+          :width="media.width || undefined" :height="media.height || undefined"
+          loading="lazy" decoding="async" class="block size-full object-cover"
+          :class="compact ? '' : 'max-h-80 object-contain mx-auto'"
+        >
+        <div v-else class="flex items-center gap-2 p-3 text-sm text-muted">
+          <UIcon name="i-lucide-file" class="size-5" /> {{ media.mime }}
         </div>
       </div>
-      <UInput
-        v-if="isImage" v-model="alt" size="sm" class="w-full"
-        :placeholder="t('media.altPlaceholder')"
-        @blur="saveAlt" @keydown.enter.prevent="saveAlt"
-      />
+      <div class="flex items-center gap-1">
+        <UInput
+          v-if="isImage" v-model="alt" size="sm" class="flex-1 min-w-0" :aria-label="t('media.altLabel')"
+          :placeholder="t('media.altPlaceholder')" @blur="saveAlt" @keydown.enter.prevent="saveAlt"
+        />
+        <span v-else class="flex-1" />
+        <UDropdownMenu
+          :items="[[
+            { label: t('media.replace'), icon: 'i-lucide-upload', onSelect: pick },
+            { label: t('media.browse'), icon: 'i-lucide-images', onSelect: () => { libraryOpen = true } },
+          ], [
+            { label: t('media.remove'), icon: 'i-lucide-x', color: 'error' as const, onSelect: clear },
+          ]]"
+          :content="{ align: 'end' }"
+        >
+          <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-ellipsis" :loading="uploading" :aria-label="t('media.actions')" />
+        </UDropdownMenu>
+      </div>
     </div>
 
-    <!-- empty → upload dropzone + browse -->
-    <div v-else class="flex flex-col gap-2">
+    <!-- empty → one quiet drop target; the library is a link -->
+    <div v-else class="space-y-1.5">
       <button
         type="button"
-        class="w-full rounded-lg border border-dashed border-default px-4 py-6 flex flex-col items-center gap-1.5 text-muted transition hover:border-primary hover:bg-elevated/30 disabled:opacity-60"
-        :disabled="uploading"
-        @click="pick"
+        class="w-full rounded-(--ui-radius) border border-dashed border-accented flex items-center justify-center gap-2 text-sm text-muted transition-colors hover:border-(--ui-text-dimmed) hover:text-default disabled:opacity-60"
+        :class="compact ? 'py-4' : 'py-8'"
+        :disabled="uploading" @click="pick"
       >
-        <UIcon
-          :name="uploading ? 'i-lucide-loader-circle' : 'i-lucide-upload'"
-          :class="['size-5', uploading && 'animate-spin']"
-        />
-        <span class="text-sm">{{ uploading ? t('media.uploading') : t('media.clickToUpload') }}</span>
-        <span v-if="field.meta?.accept" class="text-xs text-dimmed">{{ field.meta.accept }}</span>
+        <UIcon :name="uploading ? 'i-lucide-loader-circle' : 'i-lucide-image-plus'" :class="['size-4', uploading && 'animate-spin']" />
+        {{ uploading ? t('media.uploading') : t('media.clickToUpload') }}
       </button>
-      <UButton variant="link" size="xs" icon="i-lucide-images" class="self-center" @click="libraryOpen = true">
-        or choose from library
-      </UButton>
+      <button type="button" class="text-xs text-muted hover:text-highlighted underline-offset-2 hover:underline" @click="libraryOpen = true">
+        {{ t('media.browse') }}
+      </button>
     </div>
 
     <p v-if="errorMsg" class="mt-1 text-sm text-error">{{ errorMsg }}</p>

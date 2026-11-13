@@ -1,4 +1,4 @@
-import { and, asc, desc, ilike, inArray, or, sql } from '@my-cms/core'
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, propOf, sql } from '@my-cms/core'
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
@@ -19,6 +19,12 @@ export default defineEventHandler(async (event) => {
   if (search) {
     const fields = e.admin?.list?.searchable?.length ? e.admin.list.searchable : [e.titleField]
     conds.push(or(...fields.map((fn) => ilike(e.table[fn], `%${search}%`))))
+  }
+  // Status tabs: ?status=published | draft (entities with a publish workflow).
+  const p = e.publish
+  if (p && (query.status === 'published' || query.status === 'draft')) {
+    const col = e.table[propOf(p.field, e.fields[p.field]!)]
+    conds.push(query.status === 'published' ? eq(col, p.publishedValue) : or(isNull(col), ne(col, p.publishedValue)))
   }
   const where = conds.length ? and(...conds) : undefined
 

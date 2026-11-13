@@ -154,6 +154,39 @@ html[data-cms-admin] .cms-page--narrow { max-width: 48rem; }
   html[data-cms-admin] .cms-page { padding: 2rem 2rem 4rem; }
 }
 
+/* Entry editor: content column + properties panel (a hairline, not a card). */
+html[data-cms-admin] .cms-editor {
+  display: grid;
+  gap: 2rem;
+}
+@media (min-width: 1024px) {
+  html[data-cms-admin] .cms-editor {
+    grid-template-columns: minmax(0, 1fr) 18rem;
+    gap: 0;
+  }
+  html[data-cms-admin] .cms-editor__main { padding-right: 2.5rem; }
+  html[data-cms-admin] .cms-editor__aside {
+    border-left: 1px solid var(--ui-border);
+    padding-left: 1.5rem;
+  }
+}
+html[data-cms-admin] .cms-editor__main { min-width: 0; max-width: 46rem; }
+
+/* The entry's title is the page heading: a large, borderless input. */
+html[data-cms-admin] .cms-title-input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  padding: 0;
+  font-size: 1.75rem;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ui-text-highlighted);
+}
+html[data-cms-admin] .cms-title-input::placeholder { color: var(--ui-text-dimmed); }
+
 /* Rich text inside the editor: comfortable reading size, same typeface. */
 html[data-cms-admin] .cms-prose {
   font-size: 0.9375rem;
