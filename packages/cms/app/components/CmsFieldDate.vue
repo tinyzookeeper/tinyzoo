@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // Date & time, edited as wall-clock time in the admin's time zone (cms.admin.timeZone)
-// and stored as an exact instant. The browser's own zone plays no part.
+// and stored as an exact instant. The browser's own zone plays no part. The zone is
+// named in the tooltip rather than as a visible label.
 defineProps<{ field: any; entity?: string }>()
 const model = defineModel<any>()
 const config = useCmsAdminConfig()
@@ -11,8 +12,5 @@ const input = computed({
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
-    <UInput v-model="input" type="datetime-local" class="w-full sm:max-w-xs" />
-    <span class="text-xs text-muted whitespace-nowrap">{{ config.timeZone }}</span>
-  </div>
+  <UInput v-model="input" type="datetime-local" class="w-full" :title="config.timeZone" />
 </template>

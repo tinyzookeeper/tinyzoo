@@ -99,6 +99,8 @@ interface Mods {
   dbDefault?: 'now' | 'random'
   label?: LocalizedText
   help?: LocalizedText
+  position?: 'main' | 'sidebar'
+  group?: LocalizedText
 }
 
 function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
@@ -138,6 +140,8 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
   const meta: Record<string, unknown> = { ...(cfg.meta ?? {}) }
   if (mods.label !== undefined) meta.label = mods.label
   if (mods.help !== undefined) meta.help = mods.help
+  if (mods.position !== undefined) meta.position = mods.position
+  if (mods.group !== undefined) meta.group = mods.group
 
   const descriptor = {
     type: cfg.type,
@@ -150,6 +154,8 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     withDefault: (value: unknown) => createField(cfg, { ...mods, default: value }),
     label: (text: LocalizedText) => createField(cfg, { ...mods, label: text }),
     help: (text: LocalizedText) => createField(cfg, { ...mods, help: text }),
+    position: (where: 'main' | 'sidebar') => createField(cfg, { ...mods, position: where }),
+    group: (label: LocalizedText) => createField(cfg, { ...mods, group: label }),
   }
   return descriptor as unknown as FieldDescriptor
 }

@@ -70,6 +70,33 @@ sign out). Every page is a `CmsPage`: a sticky top bar with breadcrumbs and the
 page's actions (always reachable), over a body with the page title and an optional
 description.
 
+## Calm screens (rules from `docs/research/admin-ux-calm.md`)
+
+The first neutral version still felt chaotic: everything had the same weight, showed
+up in more than one place and sat in its own box. The fix is subtraction.
+
+- **Say it once.** Status appears once per screen (a dot and a word, never a pill
+  next to a badge next to a toggle). Nothing on the home page repeats the sidebar.
+- **One primary action per screen.** Editor: *Publish* for drafts (with *Save draft*
+  beside it), *Update* once live, *Unpublish* behind "…". Lists: *+ New*.
+- **The title is the heading.** In the editor the title is a large borderless input,
+  not a labelled field under an H1 that repeats it.
+- **Content left, properties right.** Text, rich text and media in the main column;
+  status, URL, dates, switches and relations in an 18 rem side panel separated by a
+  hairline. Override per field with `.position('main' | 'sidebar')`; related fields go
+  in a collapsed group with `.group(label)` (`seo()` does this).
+- **Fields:** required fields carry no marker; optional ones say *Optional*. Help
+  text only where it is needed — under the control in the main column, behind an
+  info icon in the side panel. No timezone or format labels next to inputs.
+- **Lists:** title cell carries the thumbnail and the URL; columns after it are the
+  configured ones plus *Updated*; status tabs and search share one bare row; the count
+  sits next to the title; the whole row opens the entry; everything else is in one
+  "…" menu, with destructive items last and red.
+- **Images:** the picture, its description (empty by default — never the file
+  name) and a "…" menu. No file names, sizes or MIME types on screen.
+- **No box around single things.** Cards frame groups of rows (tables, lists), not
+  individual controls.
+
 ## Building blocks
 
 | Component | Use |
@@ -77,7 +104,7 @@ description.
 | `CmsPage` | Every admin page. Props `title`, `description`, `breadcrumbs`, `narrow`; slots `actions` (top bar), `badge` (next to the title), `meta` (right of the title), default |
 | `CmsSection` | A titled card. `flush` for lists (no inner padding, divider under the header) |
 | `CmsEmptyState` | `first-use` (explains what the place is for + the next step), `no-results`, `error` (with retry). The toolbar stays visible above it |
-| `CmsStatusBadge` | Draft / Published, the same everywhere |
+| `CmsStatusBadge` | Draft / Published as a dot and a word, the same everywhere |
 | `CmsTime` | Absolute date on the server, relative ("3 hours ago") after mount, full date on hover — no hydration mismatch |
 
 ## Language

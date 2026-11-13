@@ -295,10 +295,15 @@ mail until an HTTP mail provider is added.
 
 Built on the Phase 1 foundation and the Mobbin references.
 
-- **Start with a simplification pass** (review of Phase 1, 2026-11-13: the neutral
-  look is right, but the screens still feel chaotic). A fresh Mobbin study aimed at
-  calm, low-noise admin screens, then fewer elements per screen, clearer hierarchy
-  and one obvious next action, before adding the features below.
+- ✅ **Simplification pass done (2026-11-13).** A second Mobbin study
+  (`docs/research/admin-ux-calm.md`; Linear, Attio, Notion, Plane…) found the cause:
+  equal weight, duplication, boxes everywhere. Shipped: two-column editor (title as
+  heading, content left, properties right, collapsed groups), one status display and
+  one primary action, quieter list (thumbnail + URL in the title cell, status tabs,
+  *Updated*, one "…" menu), home reduced to *Continue editing* + *Create*, one field
+  convention, image field without file data, uploads no longer default alt text to
+  the file name. Rules recorded in `docs/ui-foundation.md`. Already done from the list
+  below: the editor sidebar and status tabs.
 
 - Dashboard: recent edits, my drafts, scheduled items, quick create.
 - Lists: status tabs, filters per field type, saved columns, bulk publish /

@@ -17,7 +17,7 @@ describe('upload', () => {
   it('stores the file, records dimensions and who uploaded it', async () => {
     const res = await upload(admin)
     expect(res.status).toBe(201)
-    expect(res.body).toMatchObject({ mime: 'image/png', width: 1, height: 1, alt: 'a.png', uploadedBy: expect.any(String) })
+    expect(res.body).toMatchObject({ mime: 'image/png', width: 1, height: 1, alt: null, uploadedBy: expect.any(String) })
     expect(res.body.key).toMatch(/^\d{4}\/\d{2}\/[0-9a-f-]{36}\.png$/)
     expect(existsSync(blob(res.body.key))).toBe(true)
   })

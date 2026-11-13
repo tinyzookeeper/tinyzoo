@@ -34,7 +34,7 @@ describe('collection list', () => {
     const [item] = (await anonymous().get('/api/content/post')).body.items
     expect(item.author).toEqual({ id: author.id, name: 'Carol', bio: null })
     expect(item.tags).toEqual([{ id: tag.id, name: 'News', slug: 'news' }])
-    expect(item.hero).toEqual({ id: media.id, url: media.url, width: 1, height: 1, alt: 'hero.png', mime: 'image/png' })
+    expect(item.hero).toEqual({ id: media.id, url: media.url, width: 1, height: 1, alt: null, mime: 'image/png' })
     expect(item).not.toHaveProperty('authorId')
     expect(item).not.toHaveProperty('heroId')
   })
