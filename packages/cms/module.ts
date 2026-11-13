@@ -82,6 +82,13 @@ export interface CmsModuleOptions {
     smtp?: { host?: string; port?: number; secure?: boolean; user?: string; pass?: string }
     file?: { dir?: string }
   }
+  /**
+   * Database migrations bundled into the server build and applied when it starts —
+   * for platforms that ship only the build output (Pushbase, containers).
+   *  - dir: the drizzle-kit migrations folder, relative to rootDir (default server/db/migrations)
+   *  - onStart: apply them at start (env NUXT_CMS_MIGRATIONS_ON_START=true). Default off.
+   */
+  migrations?: { dir?: string; onStart?: boolean }
   /** Public content-delivery API (`/api/content/*`). */
   content?: {
     /** If set, every content request must carry this token (x-api-key or Bearer). Default: open. */
@@ -116,7 +123,13 @@ export default defineNuxtModule<CmsModuleOptions>({
     nuxt.options.alias['#cms/config'] = configPath
     nuxt.options.alias['#cms/db'] = dbImpl
     nuxt.options.alias['#cms/mailer'] = mailImpl
+    // Bundle the host's migrations as server assets so they ship with .output.
+    const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
     nuxt.hook('nitro:config', (nitro) => {
+      if (existsSync(migrationsDir)) {
+        nitro.serverAssets = nitro.serverAssets || []
+        nitro.serverAssets.push({ baseName: 'cms-migrations', dir: migrationsDir })
+      }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
       nitro.alias['#cms/db'] = dbImpl
@@ -148,6 +161,7 @@ export {}
     // Runtime config consumed by the server DataSource (env override: NUXT_CMS_DATABASE_URL).
     nuxt.options.runtimeConfig.cms = {
       databaseUrl: options.databaseUrl || process.env.DATABASE_URL || '',
+      migrations: { onStart: options.migrations?.onStart ?? false },
       auth: {
         mode: options.auth?.mode || 'builtin',
         trustedProxies: options.auth?.trustedProxies ?? 1,

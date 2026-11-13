@@ -112,3 +112,12 @@ describe('admin pages (server-rendered)', () => {
     expect(res.headers.get('location')).toMatch(/^\/admin\/login/)
   })
 })
+
+describe('health', () => {
+  it('reports liveness and readiness (after start-up migrations)', async () => {
+    const live = await fetch(`${admin.baseURL}/api/health/live`)
+    expect(live.status).toBe(200)
+    const ready = await (await fetch(`${admin.baseURL}/api/health/ready`)).json()
+    expect(ready).toEqual({ ok: true, migrations: 'done' })
+  })
+})

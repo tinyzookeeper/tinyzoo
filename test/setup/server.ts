@@ -90,6 +90,9 @@ export default async function setup(project: TestProject) {
       NUXT_CMS_STORAGE_LOCAL_DIR: uploadsDir,
       NUXT_CMS_PUBLIC_URL: baseURL,
       NUXT_CMS_MAIL_TRANSPORT: 'file',
+      // The database was migrated by drizzle's migrator above; migrating again at
+      // start must be a no-op (same bookkeeping) — every run checks that.
+      NUXT_CMS_MIGRATIONS_ON_START: 'true',
       NUXT_CMS_MAIL_FILE_DIR: mailDir,
     },
   })
