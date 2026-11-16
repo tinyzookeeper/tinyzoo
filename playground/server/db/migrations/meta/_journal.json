@@ -127,6 +127,13 @@
       "when": 1794826891809,
       "tag": "0017_search_index",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794844547655,
+      "tag": "0018_snake_case_tables",
+      "breakpoints": true
     }
   ]
 }
