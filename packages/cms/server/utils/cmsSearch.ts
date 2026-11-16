@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { and, desc, eq, inArray, or, pathTemplateKeys, propOf, sitePath, sql, entryTexts, foldSearchText, isSearchableField, matchEntry, highlightRanges } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
+import { mergeTranslation } from './cmsLocales'
 
 /**
  * Search, typos included, on Postgres alone (the pg_trgm extension).
