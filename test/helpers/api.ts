@@ -126,14 +126,45 @@ export function testDb(): pg.Pool {
 /** Tables the seeded accounts live in — never truncated, so the shared sessions stay valid. */
 const KEEP = new Set(['cms_users', 'cms_tokens', 'cms_state'])
 
-/** Empty every content table (keeps accounts and the migrations journal). Call in beforeEach/beforeAll. */
+/**
+ * The server's background tasks run every few seconds in the test server (see
+ * test/setup/server.ts) and each holds an advisory lock for the whole of its transaction,
+ * which reads or deletes in several tables one after the other: the scheduler
+ * (`cmsScheduler.ts`, 72_011_004) and retention (`cmsRetention.ts`, 72_011_040). They only
+ * *try* for the lock, so a second runner skips its round.
+ */
+const BACKGROUND_TASK_LOCKS = [72_011_004, 72_011_040]
+
+/**
+ * Empty every content table (keeps accounts and the migrations journal). Call in beforeEach/beforeAll.
+ *
+ * TRUNCATE takes its tables' locks one at a time, in the order it is given them. A task
+ * that holds one of those tables and then reaches for another that TRUNCATE already holds
+ * is a deadlock (Postgres ends one of the two: `deadlock detected`, now and then, in
+ * whichever spec truncated at that moment — retention does the forms' table first and the
+ * audit log second). So the truncate waits for any running task first, by taking the same
+ * advisory locks the tasks use, inside the same transaction: a task that is running
+ * finishes, one that starts meanwhile finds the lock taken and skips its round.
+ */
 export async function truncateAll(pool: pg.Pool): Promise<void> {
   const { rows: all } = await pool.query<{ tablename: string }>(
-    `select tablename from pg_tables where schemaname = 'public'`,
+    `select tablename from pg_tables where schemaname = 'public' order by tablename`,
   )
   const rows = all.filter((r) => !KEEP.has(r.tablename))
   if (!rows.length) return
-  await pool.query(`truncate ${rows.map((r) => `"${r.tablename}"`).join(', ')} restart identity cascade`)
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    // One order for everybody who takes both (the tasks never wait for a lock, so none of them can be on the other end).
+    for (const lock of BACKGROUND_TASK_LOCKS) await client.query('select pg_advisory_xact_lock($1)', [lock])
+    await client.query(`truncate ${rows.map((r) => `"${r.tablename}"`).join(', ')} restart identity cascade`)
+    await client.query('commit')
+  }
+  catch (err) {
+    await client.query('rollback').catch(() => {})
+    throw err
+  }
+  finally { client.release() }
 }
 
 /** A 1×1 PNG (valid header, so image-size can read its dimensions). */

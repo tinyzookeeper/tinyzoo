@@ -831,8 +831,8 @@ SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed
 ```
 
 On a site with no administrator yet it creates the first one with these details (a deployed
-site asks for its setup code first: `SEED_SETUP_CODE`, or `--setup-code`; the server's log
-prints it). Otherwise it signs in as that administrator.
+site asks for its setup code first: `SEED_SETUP_CODE`, or `--setup-code`, which shows in the
+process list while the command runs, so prefer the variable; the server's log prints it). Otherwise it signs in as that administrator.
 
 ```ts
 // seed/index.ts
@@ -861,7 +861,7 @@ export default defineSeed(async (s) => {
 | `s.translate(entry, 'en', data)` | one language of an entry or global (only the `.localized()` fields); follows `create` / `upsert` |
 | `s.global(Entity, data, { translations?, ifMissing? })` | saves a global (settings, menus) whole; `ifMissing` leaves a saved one alone |
 | `s.upload(file, { alt, altLocales, focal, folder, name })` | a file from disk into the media library; returns its id |
-| `s.link(label, '/address' \| entry, { locale?, newTab?, sub? })` | a menu link; for an entry, its address on the website is worked out |
+| `s.link(label, '/address' \| entry, { locale?, newTab?, sub? })` | a menu link; for an entry (a page the website links to) it stores a reference, so the menu follows the page when it is renamed or moved |
 | `s.rich.doc / p / h2 / ul / quote / bold / link / image` | rich-text builders |
 
 - **Typed from `cms.config.ts`** when you pass the entity (`s.create(Post, …)`): a wrong field,
@@ -884,14 +884,20 @@ export default defineSeed(async (s) => {
 tinyzoo seed                      # seed/index.ts, http://localhost:3000, $SEED_EMAIL / $SEED_PASSWORD
 tinyzoo seed other.ts --url https://demo.example.com --email you@example.com
 tinyzoo seed --dry-run            # sign in, read, say what would be created, changed, uploaded; write nothing
-tinyzoo seed --reset              # first remove what this seed owns (found by key and file name), then seed again
+tinyzoo seed --reset              # first remove what this seed made (found by key and file name), then seed again
 tinyzoo seed --verbose            # also list what was already up to date
 ```
 
-`--reset` removes only the entries the seed declares (and its files, unless something still
-uses them, such as a global's logo: it stays and is found again), never other content; it asks
-first (`--yes` skips the question, and is needed without a terminal). Globals are not
-removed: the seed overwrites them. The password is only ever read from `SEED_PASSWORD`.
+`--reset` removes only what the seed made: an entry found by its key counts only when the account
+the seed signs in with created it (a page an editor made with the same address stays, and so does
+an entry somebody else changed after `s.create` left it alone), plus the seed's files (unless
+something still uses them, such as a global's logo: it stays and is found again). It lists every
+entry and file by name first and asks (`--yes` skips the question, and is needed without a
+terminal). Menus and settings the seed writes first lose their links to the pages that go (the
+seed writes them again afterwards), and entries are removed in an order the site accepts. If a
+delete would still be refused (a page the seed did not make links to one of its pages), it says
+which and stops before removing anything. Globals are not removed: the seed overwrites them. The
+password is only ever read from `SEED_PASSWORD`.
 
 **Why over HTTP.** The seed goes through the admin's own API, with an administrator's
 session, so every write meets the rules an editor's save does: validation, translations,

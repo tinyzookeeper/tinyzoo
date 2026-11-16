@@ -10,12 +10,16 @@
  *                    $SEED_PASSWORD only — never an argument, which would show in `ps`
  *   --name           the first administrator's name when the site has none yet ($SEED_NAME)
  *   --setup-code     the code a new production site asks for before its first account
- *                    ($SEED_SETUP_CODE; the server's log prints it, or it is
- *                    NUXT_CMS_AUTH_SETUP_TOKEN)
+ *                    (the server's log prints it, or it is NUXT_CMS_AUTH_SETUP_TOKEN).
+ *                    Prefer $SEED_SETUP_CODE: an argument shows in `ps` (the command says so)
  *   --dry-run        sign in, read, and say what would be created, changed or uploaded;
  *                    nothing is written
- *   --reset          first remove the entries and files this seed owns (found by their
- *                    key / name), then seed again; asks first (`--yes` skips the question)
+ *   --reset          first remove the entries and files this seed made (found by their
+ *                    key / name, and made by the account the seed signs in with: a page
+ *                    an editor made with the same address stays), then seed again. It
+ *                    lists every entry and file first and asks (`--yes` skips the
+ *                    question); if anything would be refused (a page another page still
+ *                    links to) it stops before removing anything
  *   --verbose        also list what was already up to date
  *   --wait <sec>     how long to wait for the site to answer (default 30)
  *
@@ -34,8 +38,8 @@ import { buildRegistry } from '../src/index'
 import { isSeed, type SeedDefinition } from '../src/seed'
 import { parseArgs } from './transfer'
 import {
-  resetDeclared, runSeed, SeedError,
-  type MediaRow, type Row, type SeedBackend, type SeedDeclared, type SeedOp,
+  describeReset, planReset, resetDeclared, runSeed, SeedError,
+  type MediaRow, type Row, type SeedBackend, type SeedOp,
 } from './seed-engine'
 
 export class HttpError extends Error {
@@ -88,6 +92,7 @@ const enc = encodeURIComponent
 /** The seed's reads and writes as calls to the admin API. */
 export function httpBackend(site: SiteClient): SeedBackend {
   return {
+    async account() { return (await site.request<{ user: { id?: string } | null }>('GET', '/api/cms/_auth/me')).user?.id ?? null },
     async list(entity) {
       const rows: Row[] = []
       for (let page = 1; ; page++) {
@@ -138,7 +143,7 @@ export function httpBackend(site: SiteClient): SeedBackend {
 export function emptyBackend(): SeedBackend {
   const refuse = () => { throw new Error('read-only run') }
   return {
-    list: async () => [], get: async () => null, getGlobal: async () => null, findMedia: async () => null,
+    account: async () => null, list: async () => [], get: async () => null, getGlobal: async () => null, findMedia: async () => null,
     create: refuse, update: refuse, remove: refuse, putGlobal: refuse, uploadMedia: refuse, patchMedia: refuse, removeMedia: refuse,
   }
 }
@@ -253,6 +258,18 @@ export function summarize(ops: SeedOp[], dryRun: boolean): string {
   return parts.length ? parts.join(', ') : 'nothing to do'
 }
 
+/** Is this the machine itself: `localhost`, `*.localhost`, 127.0.0.1, ::1? Compared as a whole name, never as the start of one (`localhost.example.com` is somebody else's). */
+export function isLocalHostname(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  return h === 'localhost' || h.endsWith('.localhost') || h === '127.0.0.1' || h === '::1'
+}
+
+/** Does this address send the password over the internet unencrypted? (http:// to anything but the machine itself.) */
+export function sendsPasswordInTheClear(base: string): boolean {
+  const url = new URL(base)
+  return url.protocol === 'http:' && !isLocalHostname(url.hostname)
+}
+
 export async function seedCommand(config: Record<string, any>, argv: string[], io: { log?: (line: string) => void; env?: NodeJS.ProcessEnv; cwd?: string } = {}): Promise<void> {
   const log = io.log ?? ((line: string) => console.log(line))
   const env = io.env ?? process.env
@@ -268,9 +285,10 @@ export async function seedCommand(config: Record<string, any>, argv: string[], i
   }
   const base = (args.values.url ?? env.SEED_URL ?? 'http://localhost:3000').replace(/\/+$/, '')
   try { new URL(base) } catch { throw new SeedError(`"${base}" is not a web address; pass --url http://localhost:3000.`) }
-  if (/^http:\/\//i.test(base) && !/^http:\/\/(localhost|127\.|\[::1\]|0\.0\.0\.0)/i.test(base)) {
+  if (sendsPasswordInTheClear(base)) {
     log(`! ${base} is not encrypted: the password travels in the clear. Use https:// for a site on the internet.`)
   }
+  if (args.values['setup-code']) log('! --setup-code shows in the process list (ps) while the command runs; set SEED_SETUP_CODE in the environment instead.')
 
   const reg = buildRegistry(config)
   const def = await loadSeed(file)
@@ -289,22 +307,31 @@ export async function seedCommand(config: Record<string, any>, argv: string[], i
   if (!connected) log('· The site has no administrator yet: a real run creates the first one. Everything below is new.')
 
   const print = (op: SeedOp) => { if (verbose || (op.action !== 'unchanged' && op.action !== 'kept')) log(formatOp(op, dryRun)) }
-  const scan = async (): Promise<SeedDeclared> => (await runSeed(def, { reg, backend, root: cwd, apply: false })).declared
 
   if (reset) {
-    const owned = await scan()
-    const count = `${owned.entries.length} ${owned.entries.length === 1 ? 'entry' : 'entries'} and ${owned.media.length} ${owned.media.length === 1 ? 'file' : 'files'}`
-    if (dryRun) log(`· --reset would first remove ${count} the seed owns.`)
-    else if (owned.entries.length || owned.media.length) {
-      log(`--reset removes ${count} this seed owns on ${base} (found by their address / file name), then seeds again. Other content stays.`)
+    const scanned = (await runSeed(def, { reg, backend, root: cwd, apply: false })).declared
+    const plan = await planReset(reg, backend, scanned)
+    const files = plan.media.length
+    const count = `${plan.entries.length} ${plan.entries.length === 1 ? 'entry' : 'entries'} and ${files} ${files === 1 ? 'file' : 'files'}`
+    if (dryRun) {
+      log(`· --reset would first remove ${count} the seed made${plan.blocked.length ? ' (but it cannot go through as things are)' : ''}.`)
+      for (const line of describeReset(plan, base)) log(line)
+    }
+    else if (plan.entries.length || plan.media.length || plan.blocked.length) {
+      log(`--reset removes ${count} this seed made on ${base}, then seeds again. Everything else stays.`)
+      for (const line of describeReset(plan, base)) log(line)
+      if (plan.blocked.length) throw new SeedError('Nothing was removed. Change what is listed above, or remove those entries by hand, and run it again.')
       if (!args.flags.has('yes')) {
         if (!process.stdin.isTTY) throw new SeedError('--reset deletes content: add --yes to confirm without a terminal.')
         if (!/^y(es)?$/i.test(await ask('Remove them? [y/N] '))) throw new SeedError('Stopped; nothing was removed.')
       }
-      const out = await resetDeclared(backend, owned, log)
+      const out = await resetDeclared(backend, plan, log)
       log(`✓ removed ${out.entries} ${out.entries === 1 ? 'entry' : 'entries'} and ${out.media} ${out.media === 1 ? 'file' : 'files'}${out.keptMedia ? ` (${out.keptMedia} still in use stay)` : ''}`)
     }
-    else log('· Nothing of this seed is on the site yet; nothing to remove.')
+    else {
+      log('· Nothing of this seed is on the site yet; nothing to remove.')
+      for (const line of describeReset(plan, base)) log(line)
+    }
   }
 
   const result = await runSeed(def, { reg, backend, root: cwd, apply: !dryRun && Boolean(connected), onOp: print })

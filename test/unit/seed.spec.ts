@@ -3,14 +3,16 @@ import { buildRegistry, defineSeed, isSeed } from 'tinyzoo'
 import * as playground from '../../playground/cms.config'
 import { Author, Navigation, Page, Post, SiteSettings, Tag } from '../../playground/cms.config'
 import {
-  changedKeys, covers, resetDeclared, runSeed, stableId, SeedError,
-  type MediaRow, type Row, type SeedBackend, type SeedOp,
+  changedKeys, covers, describeReset, planReset, resetDeclared, runSeed, stableId, SeedError,
+  type MediaRow, type ResetPlan, type Row, type SeedBackend, type SeedOp,
 } from '../../packages/cms/cli/seed-engine'
-import { formatOp, summarize } from '../../packages/cms/cli/seed'
+import { formatOp, isLocalHostname, sendsPasswordInTheClear, summarize } from '../../packages/cms/cli/seed'
 
 // The seed builder against an in-memory site. The fake does what the server does to a
-// stored value that matters here: ids and timestamps, a `v` stamped on every block,
-// relations answered as ids, translations kept apart — and counts every write.
+// stored value that matters here: ids (uuids) and who made / last changed an entry, a `v`
+// stamped on every block, relations answered as ids, translations kept apart, a delete
+// refused (409) while a link or a relation still points at the entry — and counts every
+// write. `site.as('editor')` changes who the writes are made by.
 
 const reg = buildRegistry(playground)
 
@@ -22,6 +24,7 @@ function fakeSite() {
   const gtr = new Map<string, Row>()
   const media: MediaRow[] = []
   const writes: string[] = []
+  const who = { user: 'seed-user' }
   const rowsOf = (e: string) => { if (!tables.has(e)) tables.set(e, []); return tables.get(e)! }
   const stamp = (v: any): any => {
     if (Array.isArray(v)) return v.map(stamp)
@@ -32,8 +35,24 @@ function fakeSite() {
     }
     return v
   }
-  const id = (p: string) => `${p}-${++n}`
+  const id = (_p: string) => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`
+  /** What still points at an entry (a link by reference, in any row or translation, or a relation): the reason the site refuses to delete it. */
+  const inUse = (e: string, rid: string): string | null => {
+    const ref = `cms:${e}/${rid}`
+    const others: [string, any][] = [
+      ...[...tables].flatMap(([t, rows]) => rows.filter((r) => r.id !== rid).map((r): [string, any] => [t, r])),
+      ...[...globals].map(([t, r]): [string, any] => [t, r]),
+      ...[...tr.entries()].filter(([k]) => !k.includes(`:${rid}:`)).map(([k, r]): [string, any] => [k.split(':')[0]!, r]),
+      ...[...gtr].map(([k, r]): [string, any] => [k.split(':')[0]!, r]),
+    ]
+    for (const [t, row] of others) {
+      if (JSON.stringify(row).toLowerCase().includes(ref)) return `${t} links to it`
+      if (Object.values(row).some((v) => v === rid || (Array.isArray(v) && v.includes(rid)))) return `${t} points at it`
+    }
+    return null
+  }
   const backend: SeedBackend = {
+    async account() { return who.user },
     async list(e) { return structuredClone(rowsOf(e)) },
     async get(e, rid, locale) {
       const row = rowsOf(e).find((r) => r.id === rid)
@@ -43,15 +62,20 @@ function fakeSite() {
       const ent = reg.byName.get(e)!
       return structuredClone({ ...row, ...Object.fromEntries(ent.localized.map((k) => [k, null])), ...t, __translated: !!t })
     },
-    async create(e, data) { writes.push(`create ${e}`); const row = { id: id(e), ...stamp(structuredClone(data)) }; rowsOf(e).push(row); return structuredClone(row) },
+    async create(e, data) { writes.push(`create ${e}`); const row = { id: id(e), ...stamp(structuredClone(data)), createdBy: who.user, updatedBy: who.user }; rowsOf(e).push(row); return structuredClone(row) },
     async update(e, rid, data, locale) {
       writes.push(`update ${e}${locale ? `:${locale}` : ''}`)
       if (locale) { const k = `${e}:${rid}:${locale}`; tr.set(k, { ...tr.get(k), ...stamp(structuredClone(data)) }); return {} }
       const row = rowsOf(e).find((r) => r.id === rid)!
-      Object.assign(row, stamp(structuredClone(data)))
+      Object.assign(row, stamp(structuredClone(data)), { updatedBy: who.user })
       return structuredClone(row)
     },
-    async remove(e, rid) { writes.push(`remove ${e}`); tables.set(e, rowsOf(e).filter((r) => r.id !== rid)) },
+    async remove(e, rid) {
+      const why = inUse(e, rid)
+      if (why) throw Object.assign(new Error(`409 Still in use by other content (${why})`), { status: 409 })
+      writes.push(`remove ${e}`)
+      tables.set(e, rowsOf(e).filter((r) => r.id !== rid))
+    },
     async getGlobal(e, locale) {
       const row = globals.get(e)
       if (!row) return null
@@ -89,7 +113,7 @@ function fakeSite() {
       media.splice(media.findIndex((m) => m.id === mid), 1)
     },
   }
-  return { backend, writes, tables, globals, media, tr }
+  return { backend, writes, tables, globals, media, tr, gtr, as: (user: string) => { who.user = user } }
 }
 
 const files: Record<string, Uint8Array> = {
@@ -415,17 +439,74 @@ describe('upload', () => {
 })
 
 describe('links', () => {
-  it('links an address, or an entry by its address on the website in a language', async () => {
+  const ref = (entity: string, id: string) => `cms:${entity}/${id}`
+
+  it('links an address as it is, and a page the website links to by reference, so the link follows the page', async () => {
     const site = fakeSite()
     let links: any[] = []
+    let ids: string[] = []
     await run(site, async (s) => {
       const post = await s.create(Post, { title: 'Hello', slug: 'hello', author: 'a', body: s.rich.doc() })
       const page = await s.create(Page, { title: 'O nás', slug: 'o-nas', sections: [] }, { translations: { en: { slug: 'about' } } })
+      ids = [post.id, page.id]
       links = [s.link('Home', '/'), s.link('Hello', post), s.link('O nás', page), s.link('About', page, { locale: 'en', newTab: true })]
     })
-    expect(links.map((l) => l.url)).toEqual(['/', '/blog/hello', '/o-nas', '/en/pages/about'])
+    // No address is worked out for an entry: the server resolves the reference to the address in the language asked for.
+    expect(links.map((l) => l.url)).toEqual(['/', ref('post', ids[0]!), ref('page', ids[1]!), ref('page', ids[1]!)])
     expect(links[3]).toMatchObject({ type: 'link', newTab: true, sub: false })
     expect(new Set(links.map((l) => l.id)).size).toBe(4)
+  })
+
+  it('refers to a page under another page too (its address, /o-nas/tym, is the server\'s to work out)', async () => {
+    const site = fakeSite()
+    let team: any
+    let url = ''
+    await run(site, async (s) => {
+      const about = await s.create(Page, { title: 'O nás', slug: 'o-nas', sections: [] })
+      team = await s.create(Page, { title: 'Tým', slug: 'tym', parent: about.id, sections: [] })
+      url = s.link('Tým', team).url
+    })
+    expect(url).toBe(ref('page', team.id))
+    expect(url).not.toBe('/tym')
+  })
+
+  it('stores the menu\'s links as references, and a second run (or a run after links:convert) writes nothing', async () => {
+    const site = fakeSite()
+    const seed = async (s: any) => {
+      const home = await s.upsert(Page, { title: 'Úvod', slug: 'uvod', sections: [] })
+      await s.global(Navigation, { main: [s.link('Úvod', home), s.link('Blog', '/blog')], footer: [] })
+    }
+    await run(site, seed)
+    const stored = site.globals.get('navigation')!.main
+    expect(stored[0].url).toBe(ref('page', site.tables.get('page')![0]!.id))
+    expect(stored[1].url).toBe('/blog')
+    const writes = site.writes.length
+    const again = await run(site, seed)
+    expect(site.writes.length).toBe(writes)
+    expect(count(again.ops, 'unchanged')).toBe(2)
+    // links:convert (or the server) spelling the id in capitals is still the same link.
+    stored[0].url = ref('page', site.tables.get('page')![0]!.id.toUpperCase())
+    expect(count((await run(site, seed)).ops, 'updated')).toBe(0)
+    expect(site.writes.length).toBe(writes)
+  })
+
+  it('brings a menu that an older seed filled with plain addresses over to references, once', async () => {
+    const site = fakeSite()
+    await run(site, async (s) => { await s.upsert(Page, { title: 'Úvod', slug: 'uvod', sections: [] }); await s.global(Navigation, { main: [s.link('Úvod', '/uvod')], footer: [] }) })
+    const seed = async (s: any) => { const home = await s.upsert(Page, { title: 'Úvod', slug: 'uvod', sections: [] }); await s.global(Navigation, { main: [s.link('Úvod', home)], footer: [] }) }
+    const first = await run(site, seed)
+    expect(first.ops.find((o) => o.kind === 'global')).toMatchObject({ action: 'updated', fields: ['main'] })
+    expect((await run(site, seed)).ops.every((o) => o.action === 'unchanged')).toBe(true)
+  })
+
+  it('in a dry run, where the page has no id yet, shows a readable address instead', async () => {
+    const site = fakeSite()
+    let links: any[] = []
+    await run(site, async (s) => {
+      const page = await s.create(Page, { title: 'O nás', slug: 'o-nas', sections: [] }, { translations: { en: { slug: 'about' } } })
+      links = [s.link('O nás', page), s.link('About', page, { locale: 'en' })]
+    }, false)
+    expect(links.map((l) => l.url)).toEqual(['/o-nas', '/en/pages/about'])
   })
 
   it('says when an entry has no address on the website', async () => {
@@ -433,7 +514,16 @@ describe('links', () => {
     await expect(run(site, async (s) => { const a = await s.create(Author, { name: 'J', email: 'j@example.com' }, { by: 'email' }); s.link('Jana', a) }))
       .rejects.toThrow(/author has no address on the website/)
   })
+
+  it('treats a stored reference and the seed\'s as the same link whatever the case of the id', () => {
+    const id = '0f6c1a2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b'
+    expect(covers(`cms:page/${id.toUpperCase()}`, `cms:page/${id}`)).toBe(true)
+    expect(covers(`cms:page/${id}`, 'cms:post/' + id)).toBe(false)
+    expect(covers('/o-nas', `cms:page/${id}`)).toBe(false)
+  })
 })
+
+const plan = (p: Partial<ResetPlan>): ResetPlan => ({ entries: [], media: [], clear: [], kept: [], blocked: [], ...p })
 
 describe('dry run and reset', () => {
   const seed = async (s: any) => {
@@ -448,7 +538,7 @@ describe('dry run and reset', () => {
     const r = await run(site, seed, false)
     expect(site.writes).toEqual([])
     expect(r.ops.map((o) => o.action)).toEqual(['uploaded', 'created', 'created', 'created'])
-    expect(r.declared).toEqual({ entries: [], media: [] })
+    expect(r.declared).toEqual({ entries: [], media: [], foreign: [], globals: [{ entity: 'siteSettings', label: 'siteSettings' }] })
   })
 
   it('on a seeded site a dry run reports what is up to date and what would change', async () => {
@@ -471,8 +561,10 @@ describe('dry run and reset', () => {
     expect(declared.entries.map((e) => e.label)).toEqual(['tag a', 'post p'])
     expect(declared.media).toHaveLength(1)
     const lines: string[] = []
-    const out = await resetDeclared(site.backend, declared, (l) => lines.push(l))
-    expect(out).toEqual({ entries: 2, media: 1, keptMedia: 0 })
+    const plan = await planReset(reg, site.backend, declared)
+    expect(plan.blocked).toEqual([])
+    const out = await resetDeclared(site.backend, plan, (l) => lines.push(l))
+    expect(out).toEqual({ entries: 2, media: 1, keptMedia: 0, cleared: 0 })
     expect(lines[0]).toContain('post p')
     expect(site.tables.get('tag')!.map((t) => t.slug)).toEqual(['mine'])
     expect(site.media).toHaveLength(0)
@@ -484,14 +576,221 @@ describe('dry run and reset', () => {
 
   it('leaves a file that is still in use', async () => {
     const site = fakeSite()
-    const out = await resetDeclared(site.backend, { entries: [], media: [{ id: 'used-1', label: 'a.jpg' }] })
-    expect(out).toEqual({ entries: 0, media: 0, keptMedia: 1 })
+    const out = await resetDeclared(site.backend, plan({ media: [{ id: 'used-1', label: 'a.jpg' }] }))
+    expect(out).toEqual({ entries: 0, media: 0, keptMedia: 1, cleared: 0 })
   })
 
   it('names a failure to remove an entry', async () => {
     const site = fakeSite()
     site.backend.remove = async () => { throw Object.assign(new Error('409 Still in use'), { status: 409 }) }
-    await expect(resetDeclared(site.backend, { entries: [{ entity: 'tag', id: 't1', label: 'tag a' }], media: [] })).rejects.toThrow(SeedError)
+    await expect(resetDeclared(site.backend, plan({ entries: [{ entity: 'tag', id: 't1', label: 'tag a' }] }))).rejects.toThrow(SeedError)
+  })
+})
+
+describe('--reset only removes what the seed made', () => {
+  const tag = { name: 'Training', slug: 'training' }
+  const scan = async (site: ReturnType<typeof fakeSite>, fn: Parameters<typeof defineSeed>[0]) => (await run(site, fn, false)).declared
+
+  it('leaves an entry that was there before the seed, kept by s.create, and says why', async () => {
+    const site = fakeSite()
+    site.as('editor')
+    await run(site, async (s) => { await s.create(Tag, tag); await s.create(Tag, { name: 'Other', slug: 'other' }) })
+    site.as('seed-user')
+    const seed = async (s: any) => { await s.create(Tag, tag); await s.create(Tag, { name: 'Mine', slug: 'mine' }) }
+    await run(site, seed) // makes "mine"; "training" is the editor's and is kept as it is
+    const declared = await scan(site, seed)
+    expect(declared.entries.map((e) => e.label)).toEqual(['tag mine'])
+    expect(declared.foreign).toMatchObject([{ label: 'tag training', why: expect.stringContaining('not made by the account') }])
+    const out = await resetDeclared(site.backend, await planReset(reg, site.backend, declared))
+    expect(out.entries).toBe(1)
+    expect(site.tables.get('tag')!.map((t) => t.slug).sort()).toEqual(['other', 'training'])
+  })
+
+  it('leaves a page an editor made with the slug of an s.upsert too, and an entry somebody else changed after s.create', async () => {
+    const site = fakeSite()
+    site.as('editor')
+    await run(site, async (s) => { await s.create(Page, { title: 'Hand made', slug: 'o-nas', sections: [] }) })
+    site.as('seed-user')
+    const seed = async (s: any) => {
+      await s.upsert(Page, { title: 'O nás', slug: 'o-nas', sections: [] })
+      await s.create(Tag, tag)
+    }
+    await run(site, seed)
+    site.as('editor')
+    await site.backend.update('tag', site.tables.get('tag')![0]!.id, { name: 'Renamed by an editor' })
+    site.as('seed-user')
+    const declared = await scan(site, seed)
+    expect(declared.entries).toEqual([])
+    expect(declared.foreign.map((x) => [x.label, x.why])).toEqual([
+      ['page o-nas', 'not made by the account the seed signs in with'],
+      ['tag training', 'changed by someone else since'],
+    ])
+    await resetDeclared(site.backend, await planReset(reg, site.backend, declared))
+    expect(site.writes.filter((w) => w.startsWith('remove'))).toEqual([])
+  })
+
+  it('removes the entries the seed made with s.create and s.upsert, even after the seed\'s own later saves', async () => {
+    const site = fakeSite()
+    const seed = async (s: any) => { await s.create(Tag, tag); await s.upsert(Page, { title: 'O nás', slug: 'o-nas', sections: [] }) }
+    await run(site, seed)
+    await site.backend.update('page', site.tables.get('page')![0]!.id, { title: 'Changed' }) // by the seed's account
+    const declared = await scan(site, seed)
+    expect(declared.entries.map((x) => x.label)).toEqual(['tag training', 'page o-nas'])
+    expect(declared.foreign).toEqual([])
+  })
+
+  it('owns nothing when it cannot tell who it is, or when another account made the entries', async () => {
+    const site = fakeSite()
+    const seed = async (s: any) => { await s.create(Tag, tag) }
+    await run(site, seed)
+    site.as('another-admin')
+    expect((await scan(site, seed)).entries).toEqual([])
+    site.backend.account = async () => null
+    expect((await scan(site, seed)).foreign).toHaveLength(1)
+  })
+
+  it('lists every entry and file by name before anything is asked', async () => {
+    const site = fakeSite()
+    site.as('editor')
+    await run(site, async (s) => { await s.create(Tag, { name: 'Theirs', slug: 'theirs' }) })
+    site.as('seed-user')
+    const seed = async (s: any) => {
+      await s.upload('seed/a.jpg')
+      await s.create(Tag, { name: 'Mine', slug: 'mine' })
+      await s.create(Tag, { name: 'Theirs', slug: 'theirs' })
+    }
+    await run(site, seed)
+    const lines = describeReset(await planReset(reg, site.backend, await scan(site, seed)), 'http://site').join('\n')
+    expect(lines).toContain('− tag mine')
+    expect(lines).toContain('− seed/a.jpg')
+    expect(lines).toMatch(/· tag theirs \(not made by the account/)
+    expect(lines).not.toContain('− tag theirs')
+  })
+})
+
+describe('--reset never stops half-way', () => {
+  const nav = async (s: any, pages: { id: string }[]) => s.global(Navigation, { main: pages.map((p, i) => s.link(`P${i}`, p)), footer: [] }, { translations: { en: { main: pages.map((p, i) => s.link(`E${i}`, p, { locale: 'en' })) } } })
+  const seed = async (s: any) => {
+    const home = await s.upsert(Page, { title: 'Úvod', slug: 'uvod', sections: [] })
+    const about = await s.upsert(Page, { title: 'O nás', slug: 'o-nas', sections: [] })
+    await nav(s, [home, about])
+  }
+  const removes = (site: ReturnType<typeof fakeSite>) => site.writes.filter((w) => w.startsWith('remove'))
+
+  it('empties the seed\'s own menus of links to its pages first, in every language, so no page is refused', async () => {
+    const site = fakeSite()
+    await run(site, seed)
+    // Without a plan the site refuses: the menu still links to the page (what the old reset ran into).
+    await expect(site.backend.remove('page', site.tables.get('page')![1]!.id)).rejects.toMatchObject({ status: 409 })
+    const plan = await planReset(reg, site.backend, await (async () => (await run(site, seed, false)).declared)())
+    expect(plan.blocked).toEqual([])
+    expect(plan.clear.map((c) => [c.entity, c.locale])).toEqual([['navigation', null], ['navigation', 'en']])
+    expect(plan.clear[0]!.data.main).toEqual([])
+    const out = await resetDeclared(site.backend, plan)
+    expect(out).toMatchObject({ entries: 2, cleared: 2 })
+    expect(site.tables.get('page')).toEqual([])
+    // …and the seed writes it all again, menus included.
+    await run(site, seed)
+    expect(site.globals.get('navigation')!.main).toHaveLength(2)
+    expect(site.tables.get('page')).toHaveLength(2)
+  })
+
+  it('keeps the menu items that point elsewhere, and the rest of the global', async () => {
+    const site = fakeSite()
+    const mixed = async (s: any) => {
+      const home = await s.upsert(Page, { title: 'Úvod', slug: 'uvod', sections: [] })
+      await s.global(Navigation, { main: [s.link('Úvod', home), s.link('Blog', '/blog')], footer: [s.link('Kontakt', '/kontakt')] })
+    }
+    await run(site, mixed)
+    const plan = await planReset(reg, site.backend, (await run(site, mixed, false)).declared)
+    await resetDeclared(site.backend, plan)
+    expect(site.globals.get('navigation')!.main.map((l: any) => l.url)).toEqual(['/blog'])
+    expect(site.globals.get('navigation')!.footer.map((l: any) => l.url)).toEqual(['/kontakt'])
+  })
+
+  it('refuses the whole reset, before the first delete, when a page the seed did not make still links to its page', async () => {
+    const site = fakeSite()
+    await run(site, seed)
+    const homeId = site.tables.get('page')![0]!.id
+    site.as('editor')
+    await site.backend.create('page', { title: 'News', slug: 'news', sections: [{ id: 'b1', type: 'hero', heading: 'x', buttonUrl: `cms:page/${homeId}` }] })
+    site.as('seed-user')
+    const plan = await planReset(reg, site.backend, (await run(site, seed, false)).declared)
+    expect(plan.blocked).toHaveLength(1)
+    expect(plan.blocked[0]).toMatch(/page News \(not made by the seed\) links to page uvod/)
+    const writes = site.writes.length
+    await expect(resetDeclared(site.backend, plan)).rejects.toThrow(/Nothing was removed/)
+    expect(site.writes.length).toBe(writes) // not one delete, not one menu emptied
+    expect(site.tables.get('page')).toHaveLength(3)
+    expect(site.globals.get('navigation')!.main).toHaveLength(2)
+  })
+
+  it('also sees a link in a translation of a page the seed did not make, and a child page under one of its pages', async () => {
+    const site = fakeSite()
+    await run(site, seed)
+    const [home, about] = site.tables.get('page')!
+    site.as('editor')
+    const news = await site.backend.create('page', { title: 'News', slug: 'news', sections: [] })
+    await site.backend.update('page', news.id, { sections: [{ id: 'b2', type: 'hero', heading: 'x', buttonUrl: `cms:page/${home!.id}` }] }, 'en')
+    await site.backend.create('page', { title: 'Team', slug: 'tym', parent: about!.id, sections: [] })
+    site.as('seed-user')
+    const plan = await planReset(reg, site.backend, (await run(site, seed, false)).declared)
+    expect(plan.blocked.map((b) => b.replace(/\s+/g, ' '))).toEqual(expect.arrayContaining([
+      expect.stringMatching(/page News \(not made by the seed\) links to page uvod/),
+      expect.stringMatching(/page Team \(not made by the seed\) relates \(parent\) to page o-nas/),
+    ]))
+  })
+
+  it('orders entries so the one that links to or points at another goes first, whatever order the seed declared them in', async () => {
+    const site = fakeSite()
+    await run(site, async (s) => {
+      const author = await s.create(Author, { name: 'Jana', email: 'j@example.com' }, { by: 'email' })
+      await s.create(Post, { title: 'P', slug: 'p', author: author.id, body: s.rich.doc() })
+    })
+    const authorId = site.tables.get('author')![0]!.id
+    // Declared the other way round now: a plain reverse would delete the author while the post points at it.
+    const flipped = async (s: any) => {
+      await s.create(Post, { title: 'P', slug: 'p', author: authorId, body: s.rich.doc() })
+      await s.create(Author, { name: 'Jana', email: 'j@example.com' }, { by: 'email' })
+    }
+    const plan = await planReset(reg, site.backend, (await run(site, flipped, false)).declared)
+    expect(plan.entries.map((x) => x.label)).toEqual(['post p', 'author j@example.com'])
+    expect(plan.blocked).toEqual([])
+    expect(await resetDeclared(site.backend, plan)).toMatchObject({ entries: 2 })
+  })
+
+  it('names pages that link to each other: neither can go first', async () => {
+    const site = fakeSite()
+    await run(site, async (s) => { await s.create(Page, { title: 'A', slug: 'a', sections: [] }); await s.create(Page, { title: 'B', slug: 'b', sections: [] }) })
+    const [a, b] = site.tables.get('page')!
+    a!.sections = [{ id: 'x', type: 'hero', heading: 'x', buttonUrl: `cms:page/${b!.id}` }]
+    b!.sections = [{ id: 'y', type: 'hero', heading: 'y', buttonUrl: `cms:page/${a!.id}` }]
+    const both = async (s: any) => { await s.create(Page, { title: 'A', slug: 'a', sections: [] }); await s.create(Page, { title: 'B', slug: 'b', sections: [] }) }
+    const plan = await planReset(reg, site.backend, (await run(site, both, false)).declared)
+    expect(plan.blocked[0]).toMatch(/link to or point at each other.*page a, page b|link to or point at each other.*page b, page a/)
+    await expect(resetDeclared(site.backend, plan)).rejects.toThrow(/Nothing was removed/)
+    expect(removes(site)).toEqual([])
+  })
+
+  it('says how far it got when a step is refused after all (somebody saved in between)', async () => {
+    const site = fakeSite()
+    await run(site, async (s) => { await s.create(Tag, { name: 'A', slug: 'a' }); await s.create(Tag, { name: 'B', slug: 'b' }) })
+    const plan = await planReset(reg, site.backend, (await run(site, async (s) => { await s.create(Tag, { name: 'A', slug: 'a' }); await s.create(Tag, { name: 'B', slug: 'b' }) }, false)).declared)
+    const real = site.backend.remove
+    let n = 0
+    site.backend.remove = async (e, id) => { if (++n === 2) throw Object.assign(new Error('409 Still in use'), { status: 409 }); return real(e, id) }
+    await expect(resetDeclared(site.backend, plan)).rejects.toThrow(/tag a: could not be removed.*Stopped part-way \(0 menus cleared, 1 entries removed\); run the seed again/)
+  })
+})
+
+describe('the address of the site', () => {
+  it('only the machine itself is local: the name is compared whole', () => {
+    for (const h of ['localhost', 'LOCALHOST', 'app.localhost', '127.0.0.1', '[::1]', '::1']) expect(isLocalHostname(h), h).toBe(true)
+    for (const h of ['localhost.example.com', '127.0.0.1.example.com', '127.attacker.example', 'notlocalhost', 'example.com', '10.0.0.5', '127.0.0.2', 'localhost.']) expect(isLocalHostname(h), h).toBe(false)
+  })
+  it('warns about http:// to anywhere else, whatever the name starts with', () => {
+    for (const u of ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://[::1]:3000', 'http://demo.localhost:3000', 'https://example.com']) expect(sendsPasswordInTheClear(u), u).toBe(false)
+    for (const u of ['http://localhost.example.com', 'http://127.attacker.example', 'http://127.0.0.1.nip.io', 'http://example.com', 'http://localhost@example.com']) expect(sendsPasswordInTheClear(u), u).toBe(true)
   })
 })
 

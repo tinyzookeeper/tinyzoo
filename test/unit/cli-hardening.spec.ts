@@ -132,7 +132,11 @@ describe('tar reader limits', () => {
       const entries = {
         *[Symbol.iterator]() {
           yield { name: 'a.txt', data: Buffer.from('hello') }
-          // Pulled while the archive is being written: look at the file now.
+          // Pulled while the archive is being written. The file is created by a worker thread
+          // (the stream's open), which may not have run yet when the next entry is asked for
+          // (under load it often has not): wait for it to appear, then look at it at once.
+          const until = Date.now() + 5000
+          while (!existsSync(out) && Date.now() < until) { /* the open does not need this thread */ }
           seen = (statSync(out).mode & 0o777).toString(8)
           yield { name: 'b.txt', data: Buffer.from('world') }
         },
