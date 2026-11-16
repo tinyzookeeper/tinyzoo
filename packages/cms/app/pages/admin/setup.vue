@@ -49,7 +49,7 @@ async function submit() {
 </script>
 
 <template>
-  <form class="space-y-5" novalidate @submit.prevent="submit">
+  <form method="post" class="space-y-5" novalidate @submit.prevent="submit">
     <div class="text-center">
       <!-- First run: the whole family says hello. -->
       <div class="-mt-1 mb-5 flex items-end justify-center gap-2" aria-hidden="true">

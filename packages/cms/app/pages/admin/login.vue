@@ -40,7 +40,7 @@ async function submit() {
 </script>
 
 <template>
-  <form class="space-y-5" novalidate @submit.prevent="submit">
+  <form method="post" class="space-y-5" novalidate @submit.prevent="submit">
     <div class="text-center">
       <h1 class="cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.signInTitle') }}</h1>
       <p class="mt-1 text-sm text-muted">{{ t('auth.signInSubtitle', { site: productName }) }}</p>

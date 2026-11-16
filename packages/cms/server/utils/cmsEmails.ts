@@ -10,7 +10,7 @@ type Locale = 'cs' | 'en' | 'de'
 const copy = {
   en: {
     inviteSubject: (site: string) => `You're invited to ${site}`,
-    inviteIntro: (inviter: string, site: string) => `${inviter} invited you to manage the content of ${site}.`,
+    inviteIntro: (inviter: string, site: string, role: string) => `${inviter} invited you to manage the content of ${site} as ${role}.`,
     inviteAction: 'Accept the invitation',
     inviteExpiry: (days: number) => `The link works for ${days} days. If you weren't expecting this, you can ignore it.`,
     resetSubject: (site: string) => `Reset your password for ${site}`,
@@ -21,7 +21,7 @@ const copy = {
   },
   cs: {
     inviteSubject: (site: string) => `Pozvánka: ${site}`,
-    inviteIntro: (inviter: string, site: string) => `${inviter} vás zve ke správě obsahu webu ${site}.`,
+    inviteIntro: (inviter: string, site: string, role: string) => `${inviter} vás zve ke správě obsahu webu ${site} jako ${role}.`,
     inviteAction: 'Přijmout pozvánku',
     inviteExpiry: (days: number) => `Odkaz platí ${days} dní. Pokud jste pozvánku nečekali, můžete ji ignorovat.`,
     resetSubject: (site: string) => `Obnovení hesla: ${site}`,
@@ -32,7 +32,7 @@ const copy = {
   },
   de: {
     inviteSubject: (site: string) => `Einladung zu ${site}`,
-    inviteIntro: (inviter: string, site: string) => `${inviter} lädt Sie ein, die Inhalte von ${site} zu verwalten.`,
+    inviteIntro: (inviter: string, site: string, role: string) => `${inviter} lädt Sie ein, die Inhalte von ${site} als ${role} zu verwalten.`,
     inviteAction: 'Einladung annehmen',
     inviteExpiry: (days: number) => `Der Link ist ${days} Tage gültig. Wenn Sie keine Einladung erwartet haben, können Sie diese E-Mail ignorieren.`,
     resetSubject: (site: string) => `Passwort für ${site} zurücksetzen`,
@@ -43,7 +43,43 @@ const copy = {
   },
 } satisfies Record<Locale, Record<string, unknown>>
 
+/** The role as the invitation names it, in the sentence's language (the admin's own names: Administrátor, Editor, Autor). */
+const roleNames: Record<Locale, Record<string, string>> = {
+  en: { admin: 'an administrator', editor: 'an editor', author: 'an author' },
+  cs: { admin: 'administrátor', editor: 'editor', author: 'autor' },
+  de: { admin: 'Administrator', editor: 'Redakteur', author: 'Autor' },
+}
+
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]!))
+
+const SUPPORTED: Locale[] = ['cs', 'en', 'de']
+
+/**
+ * The language of the person whose request this is: the language they chose in the admin
+ * (the `cms_admin_locale` cookie), else the first of their browser's languages we write
+ * in (Accept-Language, by weight). Null when neither says. Used when the recipient has no
+ * saved language: a reset link goes to whoever asked, in their language, and an
+ * invitation in the inviting administrator's.
+ */
+export function requestLocale(event: any): Locale | null {
+  const pick = (code: string): Locale | null => {
+    const base = code.trim().toLowerCase().split('-')[0] as Locale
+    return SUPPORTED.includes(base) ? base : null
+  }
+  const chosen = pick(String(getCookie(event, 'cms_admin_locale') ?? ''))
+  if (chosen) return chosen
+  const header = String(getRequestHeader(event, 'accept-language') ?? '')
+  const ranked = header.split(',').map((part, i) => {
+    const [code, ...params] = part.split(';')
+    const q = Number(/q=([\d.]+)/.exec(params.join(';'))?.[1] ?? 1)
+    return { code: (code ?? '').trim(), q: Number.isFinite(q) ? q : 0, i }
+  }).filter((x) => x.code && x.q > 0).sort((a, b) => b.q - a.q || a.i - b.i)
+  for (const { code } of ranked) {
+    const found = pick(code)
+    if (found) return found
+  }
+  return null
+}
 
 /** The admin's settings that emails need: product name and default language. */
 export function emailContext(locale?: string | null): { locale: Locale; site: string } {
@@ -67,14 +103,14 @@ function layout(opts: { intro: string; action: string; url: string; footer: stri
   return { html, text }
 }
 
-export function inviteEmail(opts: { to: string; inviter: string; url: string; locale?: string | null }) {
+export function inviteEmail(opts: { to: string; inviter: string; url: string; role?: string; locale?: string | null }) {
   const { locale, site } = emailContext(opts.locale)
   const c = copy[locale]
   const days = Math.round(INVITE_TTL_MS / 86_400_000)
   return {
     to: opts.to,
     subject: c.inviteSubject(site),
-    ...layout({ intro: c.inviteIntro(opts.inviter, site), action: c.inviteAction, url: opts.url, footer: c.inviteExpiry(days), fallback: c.fallback }),
+    ...layout({ intro: c.inviteIntro(opts.inviter, site, roleNames[locale][opts.role ?? ''] ?? roleNames[locale].editor!), action: c.inviteAction, url: opts.url, footer: c.inviteExpiry(days), fallback: c.fallback }),
   }
 }
 

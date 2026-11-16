@@ -35,7 +35,7 @@ async function submit() {
     </div>
     <UButton to="/admin/login" color="neutral" variant="outline" block>{{ t('auth.backToSignIn') }}</UButton>
   </div>
-  <form v-else class="space-y-5" novalidate @submit.prevent="submit">
+  <form v-else method="post" class="space-y-5" novalidate @submit.prevent="submit">
     <div class="text-center">
       <h1 class="cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.forgotTitle') }}</h1>
       <p class="mt-1 text-sm text-muted">{{ t('auth.forgotSubtitle') }}</p>

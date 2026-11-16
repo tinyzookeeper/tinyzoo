@@ -26,13 +26,13 @@ Přihlášení vydrží zhruba dva týdny. Pak se vás správa zeptá znovu.
 
 > **Tip:** Přidejte si stránku `/admin` do záložek prohlížeče.
 
-Když zadáte špatné heslo, ukáže se **Nesprávný e-mail nebo heslo.** Pokud to zkusíte víckrát za sebou, objeví se **Příliš mnoho pokusů. Počkejte pár minut a zkuste to znovu.** Opravdu stačí chvíli počkat, nic se nerozbilo. Je to ochrana proti hádání hesel.
+Když zadáte špatné heslo, ukáže se **Nesprávný e-mail nebo heslo.** Pokud to zkusíte víckrát za sebou, objeví se **Příliš mnoho pokusů. Počkejte pár minut a zkuste to znovu.** Opravdu stačí chvíli počkat (asi čtvrt hodiny), nic se nerozbilo. Je to ochrana proti hádání hesel. Počítají se jen **neúspěšné** pokusy: když se přihlásíte správně, nic se vám nepřičítá.
 
 ## Zapomenuté heslo
 
 1. Na přihlašovací stránce klikněte na **Zapomenuté heslo?**
 2. Napište svůj e-mail a klikněte na **Poslat odkaz**.
-3. Do e-mailu vám přijde odkaz. Platí **hodinu**. Když nic nepřichází, podívejte se do spamu.
+3. Do e-mailu vám přijde odkaz, v jazyce, který máte uložený v účtu, jinak v jazyce vašeho prohlížeče. Platí **hodinu**. Když nic nepřichází, podívejte se do spamu.
 4. Klikněte na odkaz, napište nové heslo a potvrďte tlačítkem **Uložit heslo a přihlásit se**.
 
 Pokud odkaz mezitím vypršel, ukáže se **Tento odkaz už nefunguje**. Klikněte na **Poslat nový odkaz** a zkuste to znovu.
@@ -59,7 +59,7 @@ Každý člověk má jednu roli. Kdo vás pozval, vybral ji. Roli změní jen ad
 |---|---|
 | **Administrátor** | Všechno, včetně lidí (část **Tým**) a části **Soukromí**. |
 | **Editor** | Vytváří, upravuje, zveřejňuje a maže veškerý obsah. Upravuje **Nastavení webu**. Nespravuje lidi. |
-| **Autor** | Píše koncepty a upravuje a maže jen to, co sám vytvořil. Nezveřejňuje. Nemůže měnit nastavení webu ani obsah, který se na web dostává hned po uložení (třeba **Přesměrování**). Soubory mění a maže jen ty, které sám nahrál. |
+| **Autor** | Píše koncepty a upravuje a maže jen to, co sám vytvořil. Nezveřejňuje. Nemůže měnit nastavení webu ani obsah, který se na web dostává hned po uložení (třeba **Přesměrování**). Soubory mění a maže jen ty, které sám nahrál. Nevidí **zprávy z formulářů** (jsou v nich osobní údaje návštěvníků) ani seznam příjemců těchto zpráv. |
 
 Kdo je **Autor**, u položky vidí místo tlačítka **Zveřejnit** poznámku **Zveřejní ho editor**. Co dělat, když potřebujete něco, na co nemáte oprávnění, je v kapitole [Co dělat, když něco nefunguje](kdyz-neco-nefunguje.md).
 
@@ -70,7 +70,7 @@ Kdo je **Autor**, u položky vidí místo tlačítka **Zveřejnit** poznámku **
 3. Napište e-mail, volitelně jméno, a vyberte **Roli**.
 4. Klikněte na **Poslat pozvánku**.
 
-Kolegovi přijde e-mail. Pokud se e-mail nepodaří odeslat, správa to napíše a ukáže **Odkaz s pozvánkou**. Klikněte na **Kopírovat odkaz** a pošlete ho sami, ale jen tomu jednomu člověku. Kdokoli s odkazem se totiž může připojit.
+Kolegovi přijde e-mail, který říká, kdo ho zve a **jako kdo** (v jaké roli). Je ve vašem jazyce rozhraní (nebo v jazyce vašeho prohlížeče, pokud jste si žádný neuložili). Pokud se e-mail nepodaří odeslat, správa to napíše a ukáže **Odkaz s pozvánkou**. Klikněte na **Kopírovat odkaz** a pošlete ho sami, ale jen tomu jednomu člověku. Kdokoli s odkazem se totiž může připojit.
 
 V seznamu **Tým** vidíte u každého stav (**Aktivní**, **Pozvánka odeslána**, **Přístup zablokován**) a kdy byl člověk **Naposledy aktivní**. U jména je nabídka s těmito volbami:
 

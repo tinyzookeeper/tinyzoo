@@ -42,7 +42,7 @@ async function submit() {
     <h1 class="text-center cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.inviteExpiredTitle') }}</h1>
     <p class="text-sm text-muted">{{ t('auth.inviteExpired') }}</p>
   </div>
-  <form v-else class="space-y-5" novalidate @submit.prevent="submit">
+  <form v-else method="post" class="space-y-5" novalidate @submit.prevent="submit">
     <div class="text-center">
       <h1 class="cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.inviteTitle', { site: productName }) }}</h1>
       <p class="mt-1 text-sm text-muted">

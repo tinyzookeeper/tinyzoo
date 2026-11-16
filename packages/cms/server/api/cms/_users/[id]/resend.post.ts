@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   const inviteUrl = adminLink(event, `/admin/invite/${secret}`)
   let emailed = true
   try {
-    await sendCmsMail(inviteEmail({ to: user.email, inviter: me.name || me.email || 'An administrator', url: inviteUrl, locale: me.locale }))
+    await sendCmsMail(inviteEmail({ to: user.email, inviter: me.name || me.email || 'An administrator', url: inviteUrl, role: user.role, locale: me.locale || requestLocale(event) }))
   }
   catch (err) {
     emailed = false
