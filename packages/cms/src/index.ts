@@ -27,6 +27,7 @@ export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSe
 export { searchTerms, foldSearchText, entryTexts, richTextPlain, isSearchableField, matchEntry, excerptOf, highlightRanges, wordMatch, editDistance, allowedTypos, SEARCH_MAX_QUERY, type SearchMatch } from './search'
 export { richTextSchema, sanitizeRichText, emptyDoc, type RichTextDoc } from './richtext'
 export type * from './descriptor'
+export { cmsDeprecated, cmsDeprecations, resetCmsDeprecations, type CmsDeprecation, type CmsDeprecatedOptions } from './deprecate'
 
 // Re-export drizzle query helpers so host access rules can use them
 // (e.g. `update: ({ user }) => eq(Post.table.authorId, user.id)`).
