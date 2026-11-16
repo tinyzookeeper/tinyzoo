@@ -190,10 +190,14 @@ tinyzoo links:convert --dry-run   # what it would convert, and what it could not
 tinyzoo links:convert             # do it (run it from the site's folder; DATABASE_URL set)
 ```
 
-An address is converted only when it is exactly the current address of **one** entry (in
-any language, with the website's fallbacks). Addresses no entry has, addresses two
-entries share and addresses with a `#anchor` or `?query` are listed and left as they
-are: pick those pages again in the link picker. External links, `mailto:` and `tel:` are
+An address is converted only when it is exactly the current address of **one published**
+entry **in the language the link is served in** (with the website's fallbacks): an entry's
+own row and its default-language content count as the default language, a translation as
+its language. A reference is served as the target's address in the language asked for, so
+any other match would change what visitors get. Addresses no entry has, another language's
+address of an entry, addresses of entries not published yet, addresses two entries share
+and addresses with a `#anchor` or `?query` are listed and left as typed: pick those
+pages again in the link picker. External links, `mailto:` and `tel:` are
 not touched; neither are saved versions (History) or `updatedAt`. If it reports blocks
 stored at an older version, run `tinyzoo content:migrate` first. Afterwards purge the
 website's cache (the content API answers changed), and make sure whatever consumes the

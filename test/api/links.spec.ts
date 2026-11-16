@@ -212,6 +212,70 @@ describe('a redirect to a page', () => {
     expect(res.status).toBe(422)
     expect(res.body.data[0].code).toBe('redirect_loop')
   })
+
+  const redirectRows = async () => (await db.query('select "from", "to" from redirect order by "from"')).rows.map((r) => [r.from, r.to])
+
+  it('does not loop when the page takes over the redirect’s own address: the redirect goes, and a leftover one is skipped', async () => {
+    // A live page renamed to the old address (a move leaves redirects of its own: the one from there goes).
+    const kontakt = await page('Kontakt', 'kontakt')
+    expect((await admin.post('/api/cms/redirect', { from: '/stara-adresa', to: linkRef('page', kontakt.id) })).status).toBe(201)
+    expect((await raw('/stara-adresa')).headers.get('location')).toBe('/kontakt')
+    expect((await admin.patch(`/api/cms/page/${kontakt.id}`, { slug: 'stara-adresa' })).status).toBe(200)
+    expect((await redirectRows()).filter(([from]) => from === '/stara-adresa')).toEqual([])
+    expect((await raw('/stara-adresa')).headers.get('location')).toBeNull()
+
+    // A draft renamed to the old address, then published: nothing moved while it was live, so only the cleanup on publish removes it.
+    const cenik = await page('Ceník', 'cenik', { status: 'draft' })
+    expect((await admin.post('/api/cms/redirect', { from: '/stary-cenik', to: linkRef('page', cenik.id) })).status).toBe(201)
+    expect((await admin.patch(`/api/cms/page/${cenik.id}`, { slug: 'stary-cenik' })).status).toBe(200)
+    expect((await admin.patch(`/api/cms/page/${cenik.id}`, { status: 'published' })).status).toBe(200)
+    expect((await redirectRows()).filter(([from]) => from === '/stary-cenik')).toEqual([])
+    expect((await raw('/stary-cenik')).headers.get('location')).toBeNull()
+
+    // A redirect that is still there (written behind the API's back) must not send visitors round and round either.
+    await db.query(`insert into redirect ("from", "to", permanent) values ('/stary-cenik', $1, true)`, [linkRef('page', cenik.id)])
+    expect((await admin.post('/api/cms/redirect', { from: '/jina', to: '/nekam' })).status).toBe(201) // (a change: the cache is read again)
+    const again = await raw('/stary-cenik')
+    expect(again.status).not.toBe(301)
+    expect(again.headers.get('location')).toBeNull()
+  })
+
+  it('goes when any entry goes live at its address: a post published, a page translated', async () => {
+    const author = await createAuthor(admin)
+    await admin.post('/api/cms/redirect', { from: '/blog/novinka', to: '/blog/jina' })
+    await admin.post('/api/cms/redirect', { from: '/blog/nic', to: '/blog/jina' })
+    const post = await createPost(admin, { author: author.id, status: 'draft', slug: 'novinka' })
+    expect(await redirectRows()).toEqual([['/blog/nic', '/blog/jina'], ['/blog/novinka', '/blog/jina']]) // a draft hides nothing
+    expect((await admin.patch(`/api/cms/post/${post.id}`, { status: 'published' })).status).toBe(200)
+    expect(await redirectRows()).toEqual([['/blog/nic', '/blog/jina']])
+    expect((await raw('/blog/novinka')).status).not.toBe(301)
+
+    const about = await page('O nás', 'o-nas')
+    await admin.post('/api/cms/redirect', { from: '/en/pages/about', to: '/ven' })
+    expect((await translatePage(about.id, { title: 'About', slug: 'about' })).status).toBe(200)
+    expect(await redirectRows()).toEqual([['/blog/nic', '/blog/jina']])
+  })
+
+  it('leads to the page in the language of the old address', async () => {
+    const about = await page('O nás', 'o-nas')
+    await translatePage(about.id, { title: 'About', slug: 'about' })
+    const ref = linkRef('page', about.id)
+    await admin.post('/api/cms/redirect', { from: '/stary', to: ref })
+    await admin.post('/api/cms/redirect', { from: '/en/old', to: ref })
+    expect((await raw('/stary')).headers.get('location')).toBe('/o-nas')
+    expect((await raw('/en/old')).headers.get('location')).toBe('/en/pages/about')
+  })
+
+  it('is judged for loops in the language of its old address too', async () => {
+    const about = await page('O nás', 'o-nas')
+    await translatePage(about.id, { title: 'About', slug: 'about' })
+    // The English page is at /en/pages/about: an English old address of the same name would lead back to itself.
+    const res = await admin.post('/api/cms/redirect', { from: '/en/pages/about', to: linkRef('page', about.id) })
+    expect(res.status).toBe(422)
+    expect(res.body.data[0].code).toBe('redirect_loop')
+    // …while the Czech address of the same page is no loop for it.
+    expect((await admin.post('/api/cms/redirect', { from: '/en/pages/stary', to: linkRef('page', about.id) })).status).toBe(201)
+  })
 })
 
 describe('deleting something that is linked to', () => {
@@ -267,6 +331,60 @@ describe('deleting something that is linked to', () => {
   })
 })
 
+describe('what a reader may not see', () => {
+  const draftPost = async (title: string) => createPost(admin, { author: (await createAuthor(admin)).id, status: 'draft', title, slug: title.toLowerCase().replace(/\W+/g, '-') })
+
+  it('does not tell a draft the person may not read from one that does not exist', async () => {
+    const secret = await draftPost('Tajný koncept') // an author reads published posts and their own drafts (playground rule)
+    const author = await signIn('author')
+    const ask = async (client: Client, id: string) => (await client.post('/api/cms/_links/resolve', { refs: [linkRef('post', id)] })).body.items[linkRef('post', id)]
+    const unreadable = await ask(author, secret.id)
+    const absent = await ask(author, '00000000-0000-4000-8000-00000000dead')
+    expect(unreadable).toEqual({ entity: 'post', id: secret.id, title: '', path: null, state: 'missing' })
+    expect(absent).toEqual({ entity: 'post', id: '00000000-0000-4000-8000-00000000dead', title: '', path: null, state: 'missing' })
+    // Whoever may read it sees it.
+    expect(await ask(admin, secret.id)).toMatchObject({ title: 'Tajný koncept', state: 'draft' })
+  })
+
+  it('names, when a delete is refused, only the entries the person may read, and counts the rest', async () => {
+    const author = await signIn('author')
+    const mine = (await author.post('/api/cms/page', { title: 'Moje stránka', slug: 'moje', status: 'draft', sections: [] })).body.row
+    const secret = await draftPost('Tajný koncept')
+    await admin.patch(`/api/cms/post/${secret.id}`, { body: para('moje', linkRef('page', mine.id)) })
+    await saveMenu([link('Moje', linkRef('page', mine.id))]) // a menu: the author may read it
+
+    const refused = await author.delete(`/api/cms/page/${mine.id}`)
+    expect(refused.status).toBe(409)
+    expect(refused.body.data.code).toBe('in_use')
+    expect(refused.body.data.usedBy).toEqual([expect.objectContaining({ entity: 'navigation', singleton: true })])
+    expect(refused.body.data.hidden).toBe(1)
+    expect(JSON.stringify(refused.body)).not.toContain('Tajný koncept')
+    // Someone who may read everything is told everything.
+    const adminRefused = await admin.delete(`/api/cms/page/${mine.id}`)
+    expect(adminRefused.body.data.usedBy).toEqual(expect.arrayContaining([expect.objectContaining({ entity: 'post', title: 'Tajný koncept' })]))
+    expect(adminRefused.body.data.hidden).toBeUndefined()
+  })
+})
+
+describe('a preview and the previewer’s access', () => {
+  it('resolves a link to a draft only for someone who may read it', async () => {
+    const author = await signIn('author')
+    const secret = await createPost(admin, { author: (await createAuthor(admin)).id, status: 'draft', slug: 'tajne' })
+    const own = (await author.post('/api/cms/post', { title: 'Moje', slug: 'moje-nove', author: (await createAuthor(admin)).id, body: para('x'), status: 'draft' })).body.row
+    const live = await createPost(admin, { author: (await createAuthor(admin)).id, status: 'published', slug: 'zverejnene' })
+    const home = await page('Domů', 'domu', { sections: [
+      { id: 'a', type: 'hero', heading: 'Tajné', buttonUrl: linkRef('post', secret.id) },
+      { id: 'b', type: 'hero', heading: 'Moje', buttonUrl: linkRef('post', own.id) },
+      { id: 'c', type: 'hero', heading: 'Živé', buttonUrl: linkRef('post', live.id) },
+    ] })
+    const buttons = async (client: Client, query = '') => (await client.get(`/api/content/page/${home.slug}${query}`)).body.item.sections.map((s: any) => s.buttonUrl)
+
+    expect(await buttons(admin, '?preview')).toEqual(['/blog/tajne', '/blog/moje-nove', '/blog/zverejnene']) // may read every draft
+    expect(await buttons(author, '?preview')).toEqual([null, '/blog/moje-nove', '/blog/zverejnene']) // not someone else's
+    expect(await buttons(anonymous())).toEqual([null, null, '/blog/zverejnene']) // visitors: only what is live
+  })
+})
+
 describe('the link picker', () => {
   it('offers pages with the reference to store, and resolves what is stored in the language being edited', async () => {
     const about = await page('O nás', 'o-nas')
@@ -303,6 +421,27 @@ describe('what a site should purge', () => {
     const change = hooks.find((x) => x.json.id === target.id)!.json
     expect(change.paths.sort()).toEqual(['/cil', '/novy-cil', '/odkazuje'].sort())
     expect(change.globals).toEqual(['navigation'])
+    expect(linking.id).toBeTruthy()
+  })
+
+  it('names what links to the pages below a page that was renamed, moved or unpublished', async () => {
+    const about = await page('O nás', 'o-nas')
+    const team = await page('Tým', 'tym', { parent: about.id })
+    const linking = await page('Odkazuje', 'odkazuje', { sections: [{ id: 'h', type: 'hero', heading: 'Hej', buttonUrl: linkRef('page', team.id) }] })
+    await saveMenu([link('Tým', linkRef('page', team.id))]) // only the subpage is linked: nothing links to "about" itself
+    const changeOf = async (id: string, act: () => Promise<unknown>) => {
+      const mark = hooksMark()
+      await act()
+      return (await waitForHooks(mark, (h) => h.some((x) => x.json.id === id))).find((x) => x.json.id === id)!.json
+    }
+
+    const renamed = await changeOf(about.id, () => admin.patch(`/api/cms/page/${about.id}`, { slug: 'nas' }))
+    expect(renamed.globals).toEqual(['navigation'])
+    expect(renamed.paths).toEqual(expect.arrayContaining(['/o-nas/tym', '/nas/tym', '/odkazuje']))
+
+    const unpublished = await changeOf(about.id, () => admin.patch(`/api/cms/page/${about.id}`, { status: 'draft' }))
+    expect(unpublished.globals).toEqual(['navigation'])
+    expect(unpublished.paths).toEqual(expect.arrayContaining(['/nas/tym', '/odkazuje']))
     expect(linking.id).toBeTruthy()
   })
 
@@ -365,18 +504,42 @@ describe('tinyzoo links:convert', () => {
     expect(formatConvertReport(again).join('\n')).toContain('nothing to convert')
   })
 
+  it('converts only what is served in the same language, and only for published entries; reports the rest', async () => {
+    const uvod = await page('Úvod', 'uvod')
+    await translatePage(uvod.id, { title: 'Home', slug: 'home' })
+    const draft = await page('Rozpracovaná', 'rozpracovana', { status: 'draft' })
+    await saveMenu([link('English', '/en/pages/home'), link('Úvod', '/uvod'), link('Koncept', '/rozpracovana')])
+    await saveMenu([link('Home', '/en/pages/home'), link('Úvod', '/uvod')], 'en')
+    const served = { cs: urls(await menu()), en: urls(await menu('?locale=en')) }
+    expect(served).toEqual({ cs: ['/en/pages/home', '/uvod', '/rozpracovana'], en: ['/en/pages/home', '/uvod'] })
+
+    const report = await convertLinks(orm(), reg)
+    // Only the Czech menu's /uvod and the English menu's /en/pages/home are the address of a published entry in their own language.
+    expect(report.linksConverted).toBe(2)
+    expect((await navRow()).map((l) => l.url)).toEqual(['/en/pages/home', linkRef('page', uvod.id), '/rozpracovana'])
+    expect(((await db.query('select main from navigation_locales')).rows[0].main as any[]).map((l) => l.url)).toEqual([linkRef('page', uvod.id), '/uvod'])
+    expect(report.unmatched.map((u) => [u.value, u.reason]).sort()).toEqual([['/en/pages/home', 'other-language'], ['/rozpracovana', 'draft'], ['/uvod', 'other-language']])
+    expect(report.unmatched.find((u) => u.reason === 'draft')!.candidates).toEqual([linkRef('page', draft.id)])
+    const text = formatConvertReport(report).join('\n')
+    expect(text).toMatch(/\/rozpracovana — the entry is not published/)
+    expect(text).toMatch(/\/uvod — this is an entry’s address in another language/)
+
+    // What visitors get did not change, in either language (the draft's typed address is still served as typed).
+    expect({ cs: urls(await menu()), en: urls(await menu('?locale=en')) }).toEqual(served)
+  })
+
   it('leaves an address two entries share', async () => {
     // `a` has no English version, so it is served at /en/pages/a (its own address, in English);
     // `b` is translated to the slug "a": the same address.
     await page('Stejná', 'a')
     const b = await page('Druhá', 'b')
     await translatePage(b.id, { slug: 'a', title: 'A' })
-    await saveMenu([link('Sdílená', '/en/pages/a')])
+    await saveMenu([link('Shared', '/en/pages/a')], 'en') // an English menu: served in the language both addresses are in
     const report = await convertLinks(orm(), reg)
     const shared = report.unmatched.find((u) => u.value === '/en/pages/a')
     expect(shared).toMatchObject({ reason: 'several-pages', count: 1 })
     expect(shared!.candidates).toHaveLength(2)
-    expect((await navRow())[0].url).toBe('/en/pages/a') // left as it was
+    expect(((await db.query('select main from navigation_locales')).rows[0].main as any[])[0].url).toBe('/en/pages/a') // left as it was
     expect(formatConvertReport(report).join('\n')).toMatch(/more than one entry has this address/)
   })
 

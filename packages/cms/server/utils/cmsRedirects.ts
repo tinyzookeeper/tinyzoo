@@ -1,5 +1,5 @@
-import { looksLikeLinkRef } from 'tinyzoo'
-import type { CmsRegistry } from 'tinyzoo'
+import { inArray, looksLikeLinkRef, sitePrefix } from 'tinyzoo'
+import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 
 // Redirects defined with defineRedirects(), served by the cms-redirects middleware.
 // Loaded into memory and refreshed every 30 s (other replicas) or right after a
@@ -39,6 +39,43 @@ export function locationHeader(to: string): string {
   }
 }
 
+/**
+ * The language a redirect's old address is in, by the site's prefix rule
+ * (`defineLocales({ prefix })`): '/en/old' is English, '/old' the default language. A site
+ * with no prefix for its languages cannot tell, and gets the default language.
+ */
+export function redirectLocale(reg: CmsRegistry, from: string): string | null {
+  const locales = reg.locales
+  if (!locales) return null
+  const path = normalizePath(from)
+  for (const l of locales.locales) {
+    const prefix = sitePrefix(locales, l)
+    if (prefix && (path === prefix || path.startsWith(`${prefix}/`))) return l
+  }
+  return locales.default
+}
+
+/**
+ * Where each redirect leads, as a visitor would be sent: a target stored as a reference
+ * to a page is that page's current address in the language of the old address (`/en/old`
+ * leads to the English page); one whose page is gone or not published leads nowhere (null).
+ * Addresses are returned as stored. Aligned with `rows`.
+ */
+async function redirectTargets(db: any, reg: CmsRegistry, rows: { from: string; to: unknown }[]): Promise<(string | null)[]> {
+  const wanted = new Map<string | null, Set<string>>()
+  for (const r of rows) {
+    if (typeof r.to !== 'string' || !looksLikeLinkRef(r.to)) continue
+    const locale = redirectLocale(reg, r.from)
+    wanted.set(locale, (wanted.get(locale) ?? new Set()).add(r.to))
+  }
+  const resolved = new Map<string | null, Map<string, string | null>>()
+  for (const [locale, refs] of wanted) resolved.set(locale, await resolveLinkRefs(db, reg, refs, { locale }))
+  return rows.map((r) => {
+    if (typeof r.to !== 'string' || !r.to) return null
+    return looksLikeLinkRef(r.to) ? resolved.get(redirectLocale(reg, r.from))?.get(r.to) ?? null : r.to
+  })
+}
+
 export async function findRedirect(path: string): Promise<Target | null> {
   const { db, reg } = useCms()
   const e = redirectEntity(reg)
@@ -46,15 +83,44 @@ export async function findRedirect(path: string): Promise<Target | null> {
   if (!cache || Date.now() - cache.at > TTL_MS) {
     const rows: any[] = await db.select({ from: e.table.from, to: e.table.to, permanent: e.table.permanent }).from(e.table)
     // A target picked from the site's pages is stored as a reference and follows the page
-    // (in the default language); one whose page is gone or not published sends nobody anywhere.
-    const refs = rows.map((r) => r.to).filter(looksLikeLinkRef)
-    const resolved = refs.length ? await resolveLinkRefs(db, reg, refs, { locale: reg.locales?.default ?? null }) : new Map<string, string | null>()
-    const usable = rows
-      .map((r) => ({ ...r, to: looksLikeLinkRef(r.to) ? resolved.get(r.to) ?? null : r.to }))
-      .filter((r): r is typeof r & { to: string } => typeof r.to === 'string' && !!r.to)
-    cache = { at: Date.now(), map: new Map(usable.map((r) => [normalizePath(r.from), { to: r.to, status: r.permanent === false ? 302 : 301 }])) }
+    // (in the language of the old address); one whose page is gone or not published sends nobody anywhere.
+    const targets = await redirectTargets(db, reg, rows)
+    const map = new Map<string, Target>()
+    rows.forEach((r, i) => {
+      const to = targets[i]
+      // A page that has taken over the old address answers there itself: a redirect that
+      // leads to its own address would only send the visitor round and round.
+      if (!to || normalizePath(to) === normalizePath(r.from)) return
+      map.set(normalizePath(r.from), { to, status: r.permanent === false ? 302 : 301 })
+    })
+    cache = { at: Date.now(), map }
   }
   return cache.map.get(normalizePath(path)) ?? null
+}
+
+/**
+ * An entry went live at (or moved to) these addresses: redirects away from them are
+ * removed, or they would hide the entry. Run in the transaction of the write (`tx`),
+ * so the entry and the removal land together. Returns the redirects removed.
+ */
+export async function dropRedirectsFrom(tx: any, reg: CmsRegistry, addresses: string[]): Promise<number> {
+  const re = redirectEntity(reg)
+  const from = [...new Set(addresses.filter(Boolean))]
+  if (!re || !from.length) return 0
+  const gone: any[] = await tx.delete(re.table).where(inArray(re.table.from, from)).returning({ id: re.table.id })
+  if (gone.length) invalidateRedirects()
+  return gone.length
+}
+
+/**
+ * After a write to a linkable entry (any collection with an address, not only a page
+ * tree): drop the redirects away from the addresses it is live at now, in every language.
+ * `redirects.from` is unique, so a page that takes over an old address answers there.
+ */
+export async function dropRedirectsFromLiveAddresses(tx: any, reg: CmsRegistry, e: CmsEntity, id: string): Promise<number> {
+  if (!redirectEntity(reg) || e.singleton || !e.content?.path) return 0
+  const now = await changeSnapshot(e, id, tx)
+  return now.live ? dropRedirectsFrom(tx, reg, now.paths.map((p) => p.path)) : 0
 }
 
 /**
@@ -70,16 +136,15 @@ export async function assertNoRedirectLoop(e: any, values: Record<string, any>, 
   const start = normalizePath(from)
   const sitePath = (v: string) => (v.startsWith('/') && !v.startsWith('//') ? normalizePath(v) : null)
   const { db, reg } = useCms()
-  // Targets that are references to pages count as the pages' addresses (as served).
+  // Targets that are references to pages count as the pages' addresses (as served, in the language of each old address).
   const rows: any[] = await db.select({ id: e.table.id, from: e.table.from, to: e.table.to }).from(e.table)
-  const refs = [to, ...rows.map((r) => r.to)].filter(looksLikeLinkRef)
-  const resolved = refs.length ? await resolveLinkRefs(db, reg, refs, { locale: reg.locales?.default ?? null }) : new Map<string, string | null>()
-  const address = (v: string) => (looksLikeLinkRef(v) ? resolved.get(v) ?? '' : v)
-  to = address(to)
+  const others = rows.filter((r) => r.id !== old?.id)
+  const targets = await redirectTargets(db, reg, [{ from, to }, ...others])
+  to = targets[0] ?? ''
   let next = sitePath(to)
   if (next === null) return
   const map = new Map<string, string>()
-  for (const r of rows) if (r.id !== old?.id) map.set(normalizePath(r.from), address(r.to))
+  others.forEach((r, i) => map.set(normalizePath(r.from), targets[i + 1] ?? ''))
   for (let hops = 0; next !== null && hops < 20; hops++) {
     if (next === start) {
       // Straight back to itself, or round through other redirects (A → B → A).

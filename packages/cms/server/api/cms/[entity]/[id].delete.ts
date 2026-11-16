@@ -1,5 +1,14 @@
 import { eq } from 'tinyzoo'
 
+/**
+ * The refusal for an entry that is still used: it names what uses it, but only what this
+ * person may read (a row-level `access.read` rule can hide an entry); the rest is a count.
+ */
+async function inUse(db: any, reg: any, user: any, used: { entity: string; id: string }[]) {
+  const { visible, hidden } = await splitReadable(db, reg, user, used)
+  return createError({ statusCode: 409, statusMessage: 'Still in use by other content', data: { code: 'in_use', usedBy: visible, ...(hidden ? { hidden } : {}) } })
+}
+
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
   const user = requireCmsUser(event)
@@ -19,17 +28,13 @@ export default defineEventHandler(async (event) => {
   if (e.tree) await assertNoChildren(db, e, id)
   // Menus and links that point at this entry (by reference) would go dead: refused, saying which.
   const linked = await linksTo(db, reg, e, id)
-  if (linked.length) {
-    throw createError({ statusCode: 409, statusMessage: 'Still in use by other content', data: { code: 'in_use', usedBy: [...await usedBy(db, reg, e, id), ...linked.map((l) => ({ ...l, via: 'link' }))] } })
-  }
+  if (linked.length) throw await inUse(db, reg, user, [...await usedBy(db, reg, e, id), ...linked.map((l) => ({ ...l, via: 'link' }))])
   const translatedMedia = await translationMediaIds(db, e, id)
   const seenBefore = await changeSnapshot(e, id)
   const deleted: any[] = await (db as any).delete(e.table).where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning()
     .catch(async (err: any) => {
       // Still used by other content: say by what, so the editor can go and change it.
-      if ((err?.code ?? err?.cause?.code) === '23503') {
-        throw createError({ statusCode: 409, statusMessage: 'Still in use by other content', data: { code: 'in_use', usedBy: await usedBy(db, reg, e, id) } })
-      }
+      if ((err?.code ?? err?.cause?.code) === '23503') throw await inUse(db, reg, user, await usedBy(db, reg, e, id))
       return rethrowDbError(err, e, 'delete')
     })
   if (!deleted.length) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })

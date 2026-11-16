@@ -1,5 +1,6 @@
-import { alias, and, eq, inArray, isNull, lte, or, propOf, snake, sql } from 'tinyzoo'
+import { and, inArray, or, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
+import { publishedCond } from './cmsPublished'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
 
@@ -18,52 +19,6 @@ export function getPublicEntity(reg: CmsRegistry, name: string | undefined): Cms
     throw createError({ statusCode: 404, statusMessage: `No public content collection: ${name}` })
   }
   return e
-}
-
-/**
- * The "is live" Drizzle condition for an entity (undefined = everything is public):
- * `content.published` — or, without one, the publish workflow's status — and, for
- * scheduled entries, a publish date that has come. In a page tree every ancestor must
- * be live too: a page under a draft is not on the website. Everything that decides what
- * visitors see goes through here: the content API, populated references, the sitemap,
- * webhooks.
- */
-export function publishedCond(e: CmsEntity): any {
-  return both(ownPublishedCond(e), ancestorsLiveCond(e))
-}
-
-/** The entry's own "is live" condition, against `t` (its table, or an alias of it). */
-export function ownPublishedCond(e: CmsEntity, t: any = e.table): any {
-  const p = e.publish
-  const status = p ? eq(t[propOf(p.field, e.fields[p.field]!)], p.publishedValue) : undefined
-  const base = e.content?.published ? e.content.published(t) : status
-  return both(base, scheduleCond(e, t))
-}
-
-/** "Its publish date has come" (or it has none), for entities whose publishing is scheduled. */
-export function scheduleCond(e: CmsEntity, t: any = e.table): any {
-  const p = e.publish
-  if (!p?.dateField || p.schedule === false) return undefined
-  const col = t[propOf(p.dateField, e.fields[p.dateField]!)]
-  return or(isNull(col), lte(col, sql`now()`))
-}
-
-/**
- * Page tree: every ancestor is live too. One nested `exists` per level the tree may have
- * (`tree.maxDepth - 1`), each stopping at a top-level page, so a query pays for the
- * depth a page actually has. (Lowering `maxDepth` later does not move pages that are
- * already deeper; such a page is judged by its nearest ancestors only.)
- */
-export function ancestorsLiveCond(e: CmsEntity): any {
-  if (!e.tree) return undefined
-  const parentProp = `${e.tree.parent}Id`
-  const level = (t: any, depth: number): any => {
-    if (depth <= 0) return undefined
-    const a: any = alias(e.table, `${snake(e.name)}_up${depth}`)
-    const inner = both(both(eq(a.id, t[parentProp]), ownPublishedCond(e, a)), level(a, depth - 1))
-    return or(isNull(t[parentProp]), sql`exists (select 1 from ${e.table} ${a} where ${inner})`)
-  }
-  return level(e.table, e.tree.maxDepth - 1)
 }
 
 /** Optional API-token gate. No-op unless `cms.content.token` is configured. */
@@ -154,11 +109,12 @@ function populatableKeys(e: CmsEntity): string[] {
  * Resolve media + relations on `rows` IN PLACE (batched, depth 1). Nested targets
  * get a safe projection; non-listed fields are left as raw FK ids for projectItem to drop.
  */
-export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null, opts: { preview?: boolean } = {}) {
+export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null, opts: { preview?: boolean; user?: any } = {}) {
   if (!rows.length) return
   // Links to entries (`cms:<entity>/<id>`) become their current addresses, here and in
   // every populated target below: nothing leaves with a `cms:` in it.
-  const linkScope = { locale, preview: !!opts.preview }
+  // In a preview a link reaches drafts, but only ones the signed-in previewer may read.
+  const linkScope = { locale, preview: !!opts.preview, user: opts.user ?? null }
   // Stored JSON of an older shape is brought up to date before anything reads it.
   for (const r of rows) upgradeStoredJson(e, r)
   await resolveContentLinks(db, reg, e, rows, linkScope)

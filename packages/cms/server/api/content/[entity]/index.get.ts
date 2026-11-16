@@ -74,7 +74,7 @@ export default defineEventHandler(async (event) => {
   await overlayTranslations(db, reg, e, rows, locale)
   // An editor's unsaved values, while they type (live preview).
   applyPreviewDrafts(event, reg, e, rows, locale)
-  await populateItems(db, reg, e, rows, e.content?.populate, locale, { preview: isPreviewAuthorized(event) })
+  await populateItems(db, reg, e, rows, e.content?.populate, locale, { preview: isPreviewAuthorized(event), user: event.context?.cmsUser })
   const items = rows.map((r) => projectItem(e, r))
   await attachLocaleInfo(db, reg, e, rows, items, locale)
   await attachTreeInfo(db, reg, e, rows, items, locale)

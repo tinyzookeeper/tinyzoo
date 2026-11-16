@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
   await overlayTranslations(db, reg, e, [row], locale)
   // The editor's unsaved values, while they type (live preview).
   applyPreviewDrafts(event, reg, e, [row], locale)
-  await populateItems(db, reg, e, [row], e.content?.populate, locale, { preview })
+  await populateItems(db, reg, e, [row], e.content?.populate, locale, { preview, user: event.context?.cmsUser })
   // Never let a draft preview be cached by a shared/browser cache.
   if (preview) setResponseHeader(event, 'Cache-Control', 'private, no-store')
   else setContentCache(event)

@@ -4,7 +4,7 @@ import { isLinkRef } from '../../src/linkref'
  * What a stored link reference (`cms:<entity>/<id>`) points at, for the admin: the
  * target's title and address in the language being edited, and whether visitors can
  * follow it (`live`), it waits for the entry to be published (`draft`), the entry is
- * gone (`missing`) or this person may not open it (`restricted`).
+ * gone or not readable by this person (`missing`: the two are not told apart).
  *
  * Asked for in batches (one request per tick, whatever number of links are on the
  * screen) and kept per language for the visit; picking a page puts it here directly.
@@ -14,7 +14,7 @@ export interface CmsLinkTarget {
   id: string
   title: string
   path: string | null
-  state: 'live' | 'draft' | 'missing' | 'restricted'
+  state: 'live' | 'draft' | 'missing'
 }
 
 const cacheKey = (locale: string | null, ref: string) => `${locale ?? ''}|${ref}`

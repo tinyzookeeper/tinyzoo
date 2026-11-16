@@ -75,7 +75,10 @@ export function cmsDeleteFailure(err: any, t: T, name?: (label: unknown) => stri
     // A global (a menu, the site settings) has no title: it is named by its collection.
     const named = (u: any) => (u.title ? `„${short(String(u.title))}“` : u.singleton && name ? name(u.label) : '')
     const titles: string[] = used.map(named).filter(Boolean)
-    const items = titles.length ? [...new Set(titles)].slice(0, 5).join(', ') + (titles.length > 5 ? '…' : '') : '—'
+    const shown = titles.length ? [...new Set(titles)].slice(0, 5).join(', ') + (titles.length > 5 ? '…' : '') : ''
+    // What this person may not read is not named, only counted.
+    const hidden = Number(data.hidden ?? 0)
+    const items = [shown, hidden > 0 ? t('list.inUseHidden', { count: hidden }) : ''].filter(Boolean).join(', ') || '—'
     // Links to a page by reference (a menu, a button) have their own wording: remove the links.
     const onlyLinks = used.length > 0 && used.every((u) => u.via === 'link')
     return { title: t('list.inUseTitle'), description: t(onlyLinks ? 'list.inUseLinkBody' : 'list.inUseBody', { items }) }

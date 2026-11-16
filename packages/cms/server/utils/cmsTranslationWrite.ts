@@ -77,6 +77,8 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
       .onConflictDoUpdate({ target: [t.parentId, t.locale], set: { ...data, updatedAt: now } })
       .returning()
     const effect = writeTree ? await treeEffect(tx, reg, e, writeTree.nodes, writeTree.next, id, wasLive, actorId(user)) : null
+    // A translated address part (or a first translation) may put the entry where a redirect leaves from: that one goes, in this transaction.
+    if (e.content?.path && (!current || pathKeys(e.content.path).some((k) => k in data))) await dropRedirectsFromLiveAddresses(tx, reg, e, id)
     return { row: saved, effect }
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
 

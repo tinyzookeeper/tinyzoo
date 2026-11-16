@@ -1100,9 +1100,11 @@ menus' link block, a block's button), rich-text links and redirect targets stay 
   An entry linking to itself does not count.
 - **Existing links** are not converted for you. `tinyzoo links:convert [--dry-run]` turns
   a stored address into a reference when it is exactly the current address of **one**
-  entry (in any language) — links in fields, lists, blocks, groups and rich text,
-  translations included. It reports what it could not match (no entry has that address,
-  two entries share it, or it has a `#anchor`/`?query`), leaves those as they are, does not
+  published entry **in the language the link is served in** (an entry's own row: the default
+  language; a translation: its language) — links in fields, lists, blocks, groups and rich
+  text, translations included. It reports what it could not match (no entry has that
+  address, it is another language's address, the entry is not published, two entries share
+  it, or it has a `#anchor`/`?query`), leaves those as typed, does not
   touch `updatedAt` or saved versions, and can be run again. Run `content:migrate` first
   if the report says some blocks are at an older version.
 - **Caches.** A browser's `ETag` follows the resolved answer, so a rename shows at once. A
