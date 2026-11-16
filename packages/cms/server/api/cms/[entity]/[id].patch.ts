@@ -39,8 +39,26 @@ export default defineEventHandler(async (event) => {
   stampPublishDate(e, values, old)
   // What visitors could see before this save (for the change report / webhooks).
   const seenBefore = await changeSnapshot(e, id)
+  // A page tree: a new parent or address part changes the address of the page and every page below it.
+  const treeKeys = e.tree ? treeProps(e) : null
+  const treeTouched = !!treeKeys && (treeKeys.parent in values || treeKeys.slug in values)
 
-  const row = await db.transaction(async (tx: any) => {
+  const { row, effect } = await db.transaction(async (tx: any) => {
+    let writeTree: Awaited<ReturnType<typeof beginTreeWrite>> | null = null
+    let wasLive = new Set<string>()
+    if (treeTouched && treeKeys) {
+      writeTree = await beginTreeWrite(tx, reg, e, {
+        id,
+        parentId: treeKeys.parent in values ? values[treeKeys.parent] ?? null : old[treeKeys.parent] ?? null,
+        slug: String(treeKeys.slug in values ? values[treeKeys.slug] : old[treeKeys.slug]),
+        title: String(old[treeKeys.title] ?? ''),
+      })
+      wasLive = await liveAmong(tx, e, subtreeIds(writeTree.nodes, id))
+      // Under a new parent a page goes last among its new siblings.
+      if (treeKeys.parent in values && (values[treeKeys.parent] ?? null) !== (old[treeKeys.parent] ?? null) && !(e.tree!.order in values)) {
+        values[e.tree!.order] = nextPosition(writeTree.nodes, values[treeKeys.parent] ?? null)
+      }
+    }
     // Every save is a new version, relation-only ones included.
     values.updatedAt = nextVersion(e.table.updatedAt)
     values.updatedBy = actorId(user)
@@ -55,7 +73,9 @@ export default defineEventHandler(async (event) => {
     }
     if (!current) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
     await writeM2M(tx, reg, e, id, m2m, true)
-    return current
+    // The page and everything below it may have new addresses: redirects from the old ones, in the same transaction.
+    const effect = writeTree ? await treeEffect(tx, reg, e, writeTree.nodes, writeTree.next, id, wasLive, actorId(user)) : null
+    return { row: current, effect }
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
 
   // GC each replaced/cleared media blob after commit (skip if unchanged or reused).
@@ -75,10 +95,11 @@ export default defineEventHandler(async (event) => {
 
   await noteCollabSave(event, { entity: e, id, locale: null }, row.updatedAt)
   const action = publishAction(e, old, row)
-  await audit(event, action ?? 'entry.update', { entity: e.name, recordId: id })
+  await audit(event, action ?? 'entry.update', { entity: e.name, recordId: id, ...(effect?.moved.length ? { meta: { moved: effect.moved.length, redirects: effect.redirects.length } } : {}) })
   await reportChange(event, {
     type: action === 'entry.publish' ? 'entry.published' : action === 'entry.unpublish' ? 'entry.unpublished' : 'entry.updated',
-    entity: e, id, before: seenBefore, after: row,
+    entity: e, id, before: seenBefore, after: row, moved: effect?.moved,
   })
+  if (effect) await reportTreeRedirects(event, reg, effect.redirects)
   return { row }
 })

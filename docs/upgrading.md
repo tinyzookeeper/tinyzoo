@@ -281,6 +281,29 @@ values that do not convert fail the whole migration.
   (`UPDATE "post" SET "n_new" = "n"::integer;`), switch the site over; in N+1 drop
   the old one.
 
+### Turning on the page tree
+
+`definePages({ tree: true })` is opt-in and the migration is safe on existing data, but it
+changes a constraint, so know what it does:
+
+1. Add `tree: true`, run `tinyzoo generate`. The migration **drops** `page_slug_unique` and
+   `page_locales_slug_unique` (the address part is only unique under a parent now; the whole
+   address is checked by the server instead) and adds `parent_id` and `position` (default 0).
+   Dropping a constraint is not flagged by the guard, so it needs no `--allow-drop`.
+2. `tinyzoo up`. Existing pages stay at the top level at the same addresses.
+3. Add `defineRedirects()` if the site has none: moving a page or renaming its address part
+   moves every page below it, and the redirects from the old addresses are what keeps old
+   links and search results working. Without it the change report (`cms:change`, the webhooks:
+   `moved`, `paths`) still lists every address that changed, so the site can purge its cache.
+4. A website that fetches a page by its address sends the whole address as one path segment,
+   slashes escaped (`/api/content/page/o-nas%2Ftym`; `@tinyzoo/client` does it).
+5. Turning it **off** again is a two-step change like any other removal of a column (see the
+   two-step rule): move every page to the top level first, and mind that the address part must
+   then be unique again.
+
+Lowering `maxDepth` later does not move pages that are already deeper; it only refuses new
+nesting.
+
 ### Removing a block type
 
 The blocks of a page are stored as JSON inside the entry, so a migration neither

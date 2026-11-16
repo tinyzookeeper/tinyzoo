@@ -63,7 +63,9 @@ if (!isNew.value) {
   adopt(data.value?.row)
 }
 else {
-  form.load({})
+  // "Add a subpage" opens a new page with its parent chosen.
+  const parent = meta.value?.tree && typeof route.query.parent === 'string' ? route.query.parent : null
+  form.load(parent ? { [meta.value.tree.parent]: parent } : {})
 }
 
 const fetchRow = async () => (await $fetch<{ row: Record<string, any> }>(rowUrl())).row
@@ -621,7 +623,19 @@ async function publishFromReview(when: 'now' | 'schedule') {
   moment.value = kind
 }
 
+// A page tree: the address runs through the ancestors, so it comes from the server (the saved
+// parent and address parts), refreshed after each save.
+const treeRows = meta.value?.tree && !isNew.value
+  ? await useFetch<{ rows: { id: string; paths: Record<string, string> }[] }>(() => `/api/cms/${entity.value}/_tree`, { key: `cms-tree-address:${entity.value}:${id.value}` })
+  : null
+watch(savedAt, () => treeRows?.refresh())
+const treeAddress = computed(() => treeRows?.data.value?.rows.find((r) => r.id === id.value)?.paths?.[currentLocale.value ?? ''] ?? null)
+
 const previewUrl = computed(() => {
+  if (meta.value?.tree) {
+    if (isNew.value || !treeAddress.value) return null
+    return `${treeAddress.value}?preview${isTranslation.value ? `&locale=${currentLocale.value}` : ''}`
+  }
   // The address in the language being edited (prefix included), from the graph.
   const paths: Record<string, string> | null = meta.value?.previewPaths ?? null
   // A language left out of a per-language map has no page: no preview then. An entry

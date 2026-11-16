@@ -15,6 +15,8 @@ export default defineEventHandler(async (event) => {
   const [current] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
   if (!current) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, current)
+  // A page tree: pages below this one would lose their place (and their address): move or delete them first.
+  if (e.tree) await assertNoChildren(db, e, id)
   // Menus and links that point at this entry (by reference) would go dead: refused, saying which.
   const linked = await linksTo(db, reg, e, id)
   if (linked.length) {

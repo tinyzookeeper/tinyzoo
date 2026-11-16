@@ -1,5 +1,6 @@
-import { and, eq, inArray, pathTemplateKeys, sitePath } from 'tinyzoo'
+import { and, eq, indexTree, inArray, pathTemplateKeys, sitePath } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
+import { loadTreeNodes, treePathIn } from './cmsTree'
 
 // Explicit imports only (no Nitro auto-imports): `tinyzoo links:convert` uses this too.
 
@@ -21,6 +22,12 @@ const filled = (v: unknown) => v !== null && v !== undefined && v !== ''
 export async function entryAddresses(db: any, reg: CmsRegistry, e: CmsEntity, rows: Record<string, any>[], locale: string | null): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>()
   if (!rows.length || !e.content?.path) return out
+  // A page tree: the address is the ancestors' parts plus its own (/o-nas/tym), per language.
+  if (e.tree) {
+    const index = indexTree(await loadTreeNodes(db, reg, e))
+    for (const row of rows) out.set(row.id, index.has(row.id) ? treePathIn(reg, e, index, row.id, locale) : null)
+    return out
+  }
   const keys = addressKeys(e)
   const def = reg.locales?.default ?? null
   const translated = new Map<string, Record<string, any>>()

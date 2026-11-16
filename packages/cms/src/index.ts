@@ -6,6 +6,11 @@ export { seo, linkBlock, definePages, defineNavigation, defineRedirects, defineF
 export { defineBlock, blocksSchema, mediaIdsInBlocks, mediaIdsInFields, blockMediaKeys, BLOCK_FIELD_TYPES, blockVersion, storedBlockVersion, upgradeBlock, upgradeBlocks, upgradeListItems, upgradeStoredRow, logUpgradeFailure, UPGRADE_FAILED_KEY, UNKNOWN_BLOCK_TYPE, type UpgradeIssue, type UpgradeOptions, type BlockDef, type BlockValue, type BlocksValue, type GroupValue, type CmsBlock } from './blocks'
 export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'
+export {
+  TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, indexTree, existsIn, slugIn, titleIn, chainOf, depthOf, childrenMap, sortSiblings, descendantsOf, heightOf,
+  slugChain, treeAddress, applyChange, checkTreeChange, movedPaths,
+  type TreeConfig, type TreeNode, type TreeIndex, type TreeChange, type TreeProblem, type TreeCheckOptions, type MovedPath,
+} from './tree'
 export { sitePrefix, pathTemplateFor, pathTemplateKeys, fillPathTemplate, sitePath, prefixedTemplates, type PathTemplate } from './paths'
 export {
   applyMigrations, runUpgrade, inspectMigrations, classifyMigrations, MigrationOrderError, ORDER_FIX, sqlWithParams, isConnectionError,
@@ -32,7 +37,7 @@ export {
   type FilterParam,
 } from './content-shape'
 export { cmsMedia } from './media'
-export type { CmsChange, CmsChangeType } from './changes'
+export type { CmsChange, CmsChangeType, CmsSitemapEntry } from './changes'
 export type { CmsErrorReport } from './errorReport'
 export { generateSetupCode, normalizeSetupCode } from './setupCode'
 export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, CMS_ROLES, type CmsRole } from './system'
@@ -45,4 +50,5 @@ export { cmsDeprecated, cmsDeprecations, resetCmsDeprecations, type CmsDeprecati
 
 // Re-export drizzle query helpers so host access rules can use them
 // (e.g. `update: ({ user }) => eq(Post.table.authorId, user.id)`).
+export { alias } from 'drizzle-orm/pg-core'
 export { eq, ne, gt, gte, lt, lte, and, or, not, ilike, inArray, notInArray, isNull, isNotNull, sql, desc, asc } from 'drizzle-orm'

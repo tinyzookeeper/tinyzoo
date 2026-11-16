@@ -4,7 +4,8 @@ import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
-import { pathTemplateProblem, prefixedTemplates, type PathTemplate } from './paths'
+import { pathTemplateProblem, pathTemplateKeys, prefixedTemplates, type PathTemplate } from './paths'
+import { TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, type TreeConfig } from './tree'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
 import { collectPlugins, pluginEntities, type CmsPlugin, type CmsPluginRequirement } from './plugin'
@@ -161,6 +162,15 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
   access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
   content?: ContentConfig<F>
   publish?: PublishConfig<F>
+  /**
+   * Entries that sit under each other (a page tree): `parent` is a many-to-one relation to
+   * the entity itself, `order` a whole-number field with the position among siblings. The
+   * website address becomes the chain of address parts (`content.slug`) from the top down
+   * ('/o-nas/tym'), unique per language; moving an entry moves everything below it and
+   * leaves redirects; deleting an entry that has children is refused. `definePages({ tree:
+   * true })` sets all of this up.
+   */
+  tree?: { parent: keyof F & string; order: keyof F & string; maxDepth?: number }
 }
 
 /** A titled group of fields in the admin form (see `admin.sections`). */
@@ -177,8 +187,8 @@ export interface CmsFormSection<K extends string = string> {
 
 /** The editor's arrangement: one calm writing column, a form with a properties panel, or the form beside the live page. */
 export type CmsEditorLayout = 'write' | 'form' | 'preview'
-/** The list's look: rows, picture cards, or Upcoming / Past by date. */
-export type CmsListLayout = 'table' | 'grid' | 'dated'
+/** The list's look: rows, picture cards, Upcoming / Past by date, or an indented tree. */
+export type CmsListLayout = 'table' | 'grid' | 'dated' | 'tree'
 
 /** The precisely-typed entity returned by defineEntity. */
 export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<string, AnyFieldDescriptor>> {
@@ -203,6 +213,8 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   access?: EntityDef<F>['access']
   content?: EntityDef<F>['content']
   publish?: EntityDef<F>['publish']
+  /** Set when the entries form a tree (see `EntityDef.tree`); `maxDepth` is filled in. */
+  tree?: TreeConfig
 }
 
 /** Public data-shape helpers — `Row<typeof Post>`, `Insert<typeof Post>`, `Update<typeof Post>`. */
@@ -246,6 +258,7 @@ export interface CmsEntity {
   }
   publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: PathTemplate }
   live?: boolean
+  tree?: TreeConfig
   /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
   preset?: string
   /** Set by a plugin's helpers (`defineForm`): the plugin this entity cannot work without. */
@@ -299,6 +312,20 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
       if (sectioned.has(key)) throw new Error(`admin.sections of "${name}" lists "${key}" twice.`)
       sectioned.add(key)
     }
+  }
+
+  let tree: TreeConfig | undefined
+  if (def.tree) {
+    const { parent, order } = def.tree as { parent: string; order: string; maxDepth?: number }
+    const maxDepth = def.tree.maxDepth ?? TREE_DEFAULT_MAX_DEPTH
+    if (fields[parent]?.relation?.kind !== 'many-to-one') throw new Error(`tree.parent of "${name}" must be a many-to-one relation ("${parent}" is not).`)
+    if (fields[order]?.type !== 'number' || fields[order]?.spec?.base.kind !== 'integer') throw new Error(`tree.order of "${name}" must be a whole-number field ("${order}" is not).`)
+    if (!Number.isInteger(maxDepth) || maxDepth < 2 || maxDepth > TREE_MAX_DEPTH_LIMIT) throw new Error(`tree.maxDepth of "${name}" must be a whole number from 2 to ${TREE_MAX_DEPTH_LIMIT}.`)
+    const slug = def.content?.slug as string | undefined
+    if (!slug || fields[slug]?.type !== 'slug') throw new Error(`"${name}" is a tree, so content.slug must name a slug field.`)
+    if (fields[slug]!.isUnique) throw new Error(`The slug of "${name}" is part of a nested address, so it cannot be unique on its own: leave out unique (the address is checked instead).`)
+    if (!def.content?.path || !pathTemplateKeys(def.content.path).includes(slug)) throw new Error(`"${name}" is a tree, so content.path must contain :${slug}.`)
+    tree = { parent, order, maxDepth }
   }
 
   // 1) pgEnums for select fields
@@ -370,7 +397,7 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
     name, label: def.label, titleField: def.titleField, localesTable, localized,
     labelSingular: def.labelSingular, description: def.description, icon: def.icon,
     table, admin: def.admin, access: def.access, content: def.content, fields: def.fields,
-    singleton: def.singleton, publish: def.publish, live: def.live,
+    singleton: def.singleton, publish: def.publish, live: def.live, tree,
     enums,
     insertSchema: z.object(createShape),
     updateSchema: z.object(updateShape),
@@ -480,6 +507,12 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   }
 
   for (const e of entities) {
+    if (e.tree && (e.fields[e.tree.parent]!.relation!.to() as CmsEntity).name !== e.name) {
+      throw new Error(`tree.parent of "${e.name}" must point at "${e.name}" itself.`)
+    }
+  }
+
+  for (const e of entities) {
     for (const [what, t] of [['content.path', e.content?.path], ['publish.preview', e.publish?.preview], ['admin.preview', e.admin?.preview]] as const) {
       const problem = pathTemplateProblem(t, locales)
       if (problem) throw new Error(`${what} of "${e.name}" ${problem}.`)
@@ -514,6 +547,7 @@ export function editorLayout(e: CmsEntity): CmsEditorLayout {
 /** The list's look, from what the content is (or `admin.list.layout`). */
 export function listLayout(e: CmsEntity): CmsListLayout {
   if (e.admin?.list?.layout) return e.admin.list.layout
+  if (e.tree) return 'tree'
   const columns = e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4)
   // The picture is the content (albums, logos): it leads the list and there is no text body.
   const hasBody = Object.values(e.fields).some((f) => f.type === 'richtext' && !f.meta?.group)
@@ -559,6 +593,8 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     listColumns: e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4),
     searchable: e.admin?.list?.searchable ?? [],
     orderField: e.admin?.list?.orderField ?? null,
+    // Entries under each other (a page tree): which fields hold the parent and the position.
+    tree: e.tree ?? null,
     tabs: e.admin?.tabs ?? null,
     sections: e.admin?.sections ?? null,
     fields: Object.entries(e.fields).map(([key, fld]) => ({

@@ -271,7 +271,7 @@ addresses, searches in the language, translates related items, and adds `locale`
 **Site presets:**
 
 ```ts
-export const Page = definePages({ blocks: { hero, text, cta }, localized: true }) // title, address, status, blocks, SEO, preview
+export const Page = definePages({ blocks: { hero, text, cta }, localized: true }) // title, address, status, blocks, SEO, preview (+ `tree: true`: pages under pages)
 export const Navigation = defineNavigation({ localized: true })                  // main + footer menus as lists of links
 export const Redirect = defineRedirects()                                         // old address → new, applied to every page request
 ```
@@ -290,6 +290,103 @@ content: { public: true, slug: 'slug', path: { cs: '/aktuality/:slug', en: '/new
 ```
 
 A language left out of the map has no page for that collection.
+
+### Pages under pages: the page tree
+
+`definePages({ …, tree: true })` (opt-in: a site that does not set it keeps its flat pages)
+lets pages sit under each other. Every page gets a **parent** (a relation to the page
+collection itself) and a **position** among its siblings, and its address is its
+ancestors' address parts and its own, joined: `/o-nas/tym`, `/o-nas/tym/vedeni`.
+
+```ts
+export const Page = definePages({ blocks: { hero, text, cta }, localized: true, tree: true })
+// tree: { maxDepth: 6 } for a deeper tree: 4 levels by default, up to 10 (a top-level page is level 1)
+```
+
+- **Addresses per language.** Each language uses its own translated address parts and
+  falls back to the default language's, part by part, as a single slug already does:
+  `/en/pages/about/team` with the English template `{ en: '/pages/:slug' }`, whatever
+  the Czech parts are. A page not translated into a language is still served there at the
+  address it falls back to (the tree and the item's `path` give it).
+- **One address, once.** The address part is unique under its parent (not globally any more:
+  `tym` may exist under `o-nas` and under `kontakt`); the *whole* address must be unique
+  per language, checked on every write (a new page, a move, a changed or translated part)
+  with a 409 that names the page that has it (`code: 'unique'`, `address`, `otherTitle`).
+  A page cannot go under itself or its own subpages (422 `tree_cycle`, naming the loop:
+  `A → B → C → A`), and the tree cannot get deeper than `maxDepth` counting what the page
+  carries along (422 `tree_depth`). **Deleting a page that has subpages is refused** (409
+  `has_children`, listing a few of them): nothing below it disappears by accident.
+- **Moving or renaming.** When a page's parent or address part changes, the address of the
+  page and of **every page below it changes, in every language**. The server writes
+  redirects old → new (301) for each of them in the same transaction, through
+  `defineRedirects()` (a site without redirects gets none: the change report still lists
+  every address that moved, and the admin says so; add `defineRedirects` to your config). Pages
+  that were not on the website (drafts, or under a draft) get none, redirects that already
+  led to an old address are pointed at the new one (no chains), and a redirect *from* an
+  address a page is back at is removed. Reordering moves no address.
+- **The change report names every address.** The `entry.updated` change of a move, the
+  `cms:change` hook and the publish webhook carry `moved: [{ id, locale, from, to }]` for
+  each address that changed, and `paths` lists every old and new address of the page and
+  its subpages (live ones), so a site can purge exactly those from its cache. An unpublish
+  covers the subpages too: they go offline with their parent.
+- **A page under an unpublished page is not reachable.** Its address runs through the
+  parent, which answers 404, so the whole branch goes offline with it: the content API
+  (item, list, tree), the sitemap, the search and the webhooks follow. Everything comes back
+  when the parent is published again. An editor's `?preview` still reads it, with the
+  trail the draft is in.
+
+On the website:
+
+```
+GET /api/content/page/o-nas%2Ftym?locale=en   # a page by its whole address: the parts from the top down as one path segment (slashes escaped); or its id
+GET /api/content/_tree/page?locale=en       # { items: [{ id, title, path, children: [...] }] } — live pages, in editors' order, for navigation
+```
+
+Every page item carries **`parent`** (the parent's id or `null`), **`position`**, **`path`**
+(its address in the language served, language prefix included) and **`breadcrumbs`**
+(`[{ title, path }]` from the top of the tree down to the page itself, in the language
+served; live pages only, drafts included in an editor's preview), and `paths` per language
+as for any translated collection. `GET /api/content/page?parent=<id>` lists a page's
+children. In `@tinyzoo/client`: `cms.page.get('o-nas/tym', { locale })` and
+`cms.page.tree({ locale })` (typed: `tree()` exists on a tree collection only). The starter's
+`[...slug].vue` resolves nested addresses and shows the breadcrumbs.
+
+**In the admin** the pages list is a tree: indented rows with fold / unfold, the whole
+address under each title, "hidden" when a page above is a draft. Drag a page onto another
+(its middle puts it *under* that page, its top or bottom edge before or after), or use
+**Move…** in the row menu: a dialog with the parent (the page and its own subpages are
+not offered) and the place among its subpages. "Move up / Move down" and "Add a subpage"
+are in the menu too; phones and touch screens have no drag handle and use the menu. The
+parent picker in the editor leaves out the page itself and everything below it.
+
+**Turning it on for an existing site:** add `tree: true`, run `tinyzoo generate` (the
+migration drops the unique constraints on the page address part, adds `parent_id` and
+`position`; it needs neither `--allow-drop` nor `--allow-risky`) and `tinyzoo up`.
+Existing pages stay at the top level, at the same addresses. See [docs/upgrading.md](docs/upgrading.md).
+
+**Sitemap: pages that are not entries.** `/sitemap.xml` lists entries with a `content.path`.
+For addresses that are not entries (`/aktuality`, `/kontakt`) there are two ways, both
+feeding `/sitemap.xml` and `/api/content/_sitemap`:
+
+```ts
+// nuxt.config.ts — fixed pages: a full address (language prefix included), or one object per page with
+// its address in each language, which makes them hreflang alternates of each other
+cms: { sitemap: { paths: ['/kontakt', { cs: '/aktuality', en: '/en/news' }] } },
+```
+
+```ts
+// server/plugins/sitemap.ts — addresses that come from data: the `cms:sitemap` Nitro hook gets the
+// entries and may push more (it runs when the sitemap is built, at most once a minute per instance)
+export default defineNitroPlugin((nitro) => {
+  nitro.hooks.hook('cms:sitemap', async (entries) => {
+    entries.push({ loc: '/shop/sale', locale: null, lastmod: null, alternates: [] })
+  })
+})
+```
+
+The option is for what never changes and is validated at build time; the hook is for what is
+computed. An address in both, or already an entry's, is listed once. `lastmod` may be `null`
+(the tag is then left out).
 
 ## Admin look & language
 
@@ -611,7 +708,8 @@ export const Author = defineEntity('author', {
 
 ```
 GET /api/content/:entity         # published list — ?page= ?limit= ?sort= ?dir= ?q= ?<field>=
-GET /api/content/:entity/:slug   # single published item by slug (or id)
+GET /api/content/:entity/:slug   # single published item by slug (or id); in a page tree by its whole address (o-nas%2Ftym)
+GET /api/content/_tree/:entity   # a page tree's published pages, nested, for navigation
 GET /api/content/_search?q=      # the website search — ?locale= ?limit= ?entity=page,news
 ```
 

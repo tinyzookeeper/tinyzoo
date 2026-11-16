@@ -81,8 +81,11 @@ const contact = defineBlock({
   fields: { heading: f.text().label({ en: 'Heading', cs: 'Nadpis' }) },
 })
 
-// Pages built from blocks: title, address, status, blocks, SEO, preview.
-export const Page = definePages({ blocks: { hero, text, image, cta, contact }, localized: true })
+// Pages built from blocks: title, address, status, blocks, SEO, preview. `tree: true` lets
+// pages sit under pages (/o-nas/tym): editors arrange them as a tree, moving a page leaves
+// redirects (Redirect below), and the website gets breadcrumbs and the tree for navigation.
+// Leave it out for flat pages (/o-nas).
+export const Page = definePages({ blocks: { hero, text, image, cta, contact }, localized: true, tree: true })
 
 // ── news ──
 export const News = defineEntity('news', {

@@ -5,7 +5,8 @@ export default defineEventHandler(async (event) => {
   if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use PUT /api/cms/_singleton/:name' })
   authorize(e, 'create', user)
 
-  const data = parseOr422(writeSchema(e, 'create'), await readBody(event))
+  const body = await readBody(event)
+  const data = parseOr422(writeSchema(e, 'create'), body)
   const { values, m2m } = splitPayload(e, data)
   assertPublishAllowed(e, user, values)
   await assertNoRedirectLoop(e, values)
@@ -14,6 +15,14 @@ export default defineEventHandler(async (event) => {
   values.updatedBy = actorId(user)
 
   const row = await db.transaction(async (tx: any) => {
+    // A page tree: the address under its parent must be free, the tree no deeper than allowed;
+    // a new page goes last among its siblings unless a position was asked for.
+    if (e.tree) {
+      const p = treeProps(e)
+      values.id = crypto.randomUUID()
+      const { nodes } = await beginTreeWrite(tx, reg, e, { id: values.id, parentId: values[p.parent] ?? null, slug: String(values[p.slug] ?? ''), title: String(values[p.title] ?? '') })
+      if (!body || typeof body !== 'object' || !(e.tree.order in body)) values[p.order] = nextPosition(nodes, values[p.parent] ?? null)
+    }
     const [created] = await tx.insert(e.table).values(values).returning()
     await writeM2M(tx, reg, e, created.id, m2m)
     return created

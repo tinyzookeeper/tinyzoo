@@ -44,7 +44,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   const oldMedia = jsonKeys.flatMap((k) => jsonMediaIds(e.fields[k], before?.[k]))
 
   const baseTr = baseVersion(event)
-  const row = await db.transaction(async (tx: any) => {
+  const { row, effect } = await db.transaction(async (tx: any) => {
     // Touch the entry first, under the same rules as editing it — including "not
     // live" for people who cannot publish, re-checked here at write time (an editor
     // may have published it since we read it).
@@ -55,12 +55,29 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
     // The entry is locked now, so this is the translation as it stands.
     const [current] = await tx.select({ updatedAt: t.updatedAt }).from(t).where(and(eq(t.parentId, id), eq(t.locale, locale)))
     if (current) await assertCurrentVersion(e, { updatedAt: current.updatedAt, updatedBy: null }, baseTr)
+    // A page tree: a translated address part (or a first translation) changes the address of the
+    // page in this language and of every page below it.
+    let writeTree: Awaited<ReturnType<typeof beginTreeWrite>> | null = null
+    let wasLive = new Set<string>()
+    const tp = e.tree ? treeProps(e) : null
+    if (tp && (!current || (e.localized.includes(tp.slug) && tp.slug in data))) {
+      writeTree = await beginTreeWrite(tx, reg, e, (nodes) => {
+        const node = nodes.find((n) => n.id === id)
+        return {
+          id, parentId: base[tp.parent] ?? null, slug: String(base[tp.slug] ?? ''), title: String(base[tp.title] ?? ''),
+          slugs: { [locale]: e.localized.includes(tp.slug) ? (data[tp.slug] as string | null | undefined) ?? null : null },
+          locales: [...new Set([...(node?.locales ?? []), locale])],
+        }
+      })
+      wasLive = await liveAmong(tx, e, subtreeIds(writeTree.nodes, id))
+    }
     // A new version, never equal to the last one (clocks may differ between replicas).
     const now = new Date(Math.max(Date.now(), current ? new Date(current.updatedAt).getTime() + 1 : 0))
     const [saved] = await tx.insert(t).values({ parentId: id, locale, ...data, updatedAt: now })
       .onConflictDoUpdate({ target: [t.parentId, t.locale], set: { ...data, updatedAt: now } })
       .returning()
-    return saved
+    const effect = writeTree ? await treeEffect(tx, reg, e, writeTree.nodes, writeTree.next, id, wasLive, actorId(user)) : null
+    return { row: saved, effect }
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
 
   if (oldMedia.length) {
@@ -72,7 +89,8 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   await noteCollabSave(event, { entity: e, id, locale }, row.updatedAt)
 
   const [fresh] = await db.select().from(e.table).where(eq(e.table.id, id))
-  await reportChange(event, { type: 'translation.updated', entity: e, id, locale, before: seenBefore, after: { updatedAt: row.updatedAt } })
+  await reportChange(event, { type: 'translation.updated', entity: e, id, locale, before: seenBefore, after: { updatedAt: row.updatedAt }, moved: effect?.moved })
+  if (effect) await reportTreeRedirects(event, reg, effect.redirects)
   await hydrateRowForForm(db, reg, e, fresh)
   return translationFormRow(db, reg, e, fresh, locale)
 }
@@ -86,13 +104,27 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
   if (!base) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, base)
   const seenBefore = await changeSnapshot(e, id)
-  const gone: any = await db.transaction(async (tx: any) => {
+  const { gone, effect } = await db.transaction(async (tx: any) => {
     const [touched] = await tx.update(e.table).set({ updatedAt: sql`${e.table.updatedAt}` })
       .where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning({ id: e.table.id })
     if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+    // A page tree: without its translation the page falls back to the default language's address
+    // part, and so does every page below it.
+    const tp = e.tree ? treeProps(e) : null
+    let writeTree: Awaited<ReturnType<typeof beginTreeWrite>> | null = null
+    let wasLive = new Set<string>()
+    if (tp) {
+      writeTree = await beginTreeWrite(tx, reg, e, (nodes) => ({
+        id, parentId: base[tp.parent] ?? null, slug: String(base[tp.slug] ?? ''), title: String(base[tp.title] ?? ''),
+        slugs: { [locale]: null },
+        locales: (nodes.find((n) => n.id === id)?.locales ?? []).filter((l) => l !== locale),
+      }))
+      wasLive = await liveAmong(tx, e, subtreeIds(writeTree.nodes, id))
+    }
     const [deleted]: any[] = await tx.delete(t).where(and(eq(t.parentId, id), eq(t.locale, locale))).returning()
     if (!deleted) throw createError({ statusCode: 404, statusMessage: 'No translation in this language' })
-    return deleted
+    const effect = writeTree ? await treeEffect(tx, reg, e, writeTree.nodes, writeTree.next, id, wasLive, actorId(user)) : null
+    return { gone: deleted, effect }
   })
   const storage = useCmsStorage()
   for (const k of e.localized) {
@@ -101,7 +133,8 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
   await audit(event, 'entry.translation_delete', { entity: e.name, recordId: id, meta: { locale } })
   await dropCollabDocuments(e.name, id, locale)
   await dropTranslationRevisions(e, id, locale)
-  await reportChange(event, { type: 'translation.deleted', entity: e, id, locale, before: seenBefore, after: null })
+  await reportChange(event, { type: 'translation.deleted', entity: e, id, locale, before: seenBefore, after: null, moved: effect?.moved })
+  if (effect) await reportTreeRedirects(event, reg, effect.redirects)
   return { ok: true }
 }
 

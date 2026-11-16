@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, linkRef, sitePath, sql } from 'tinyzoo'
+import { and, desc, eq, indexTree, inArray, linkRef, sitePath, sql } from 'tinyzoo'
 
 // GET /api/cms/_links?q=&locale= — what an editor can link to: entries of every
 // collection that has an address on the website (`content.path`), by title, with
@@ -52,11 +52,13 @@ export default defineEventHandler(async (event) => {
       const trs: any[] = await db.select(tcols).from(t).where(and(inArray(t.parentId, rows.map((r) => r.id)), eq(t.locale, locale!)))
       for (const r of trs) tr.set(r.parentId, r)
     }
+    // A page tree: the address runs through the ancestors.
+    const treeIndex = e.tree ? indexTree(await loadTreeNodes(db, reg, e)) : null
     for (const row of rows) {
       const merged = { ...row }
       const t = tr.get(row.id)
       if (t) for (const [k, v] of Object.entries(t)) if (k !== 'parentId' && v !== null && v !== undefined && v !== '') merged[k] = v
-      const path = sitePath(reg.locales, e.content!.path, locale, merged)
+      const path = treeIndex ? treePathIn(reg, e, treeIndex, row.id, locale) : sitePath(reg.locales, e.content!.path, locale, merged)
       if (!path) continue
       out.push({ entity: e.name, id: row.id, ref: linkRef(e.name, row.id), title: String(merged[e.titleField] ?? ''), path, published: !!row.live })
     }

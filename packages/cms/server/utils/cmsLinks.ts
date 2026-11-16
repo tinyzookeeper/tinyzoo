@@ -1,6 +1,7 @@
-import { and, eq, inArray, linkFieldsOf, looksLikeLinkRef, linkRef, linkRefsOf, mapRowLinks, ne, or, parseLinkRef, sql } from 'tinyzoo'
+import { and, chainOf, eq, indexTree, inArray, linkFieldsOf, looksLikeLinkRef, linkRef, linkRefsOf, mapRowLinks, ne, or, parseLinkRef, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 import { addressKeys, entryAddresses, isLinkable } from './cmsLinkAddress'
+import { loadTreeNodes } from './cmsTree'
 
 /**
  * Links that follow their target (see src/links.ts for the format).
@@ -54,6 +55,19 @@ export async function resolveLinkRefs(db: any, reg: CmsRegistry, refs: Iterable<
     const idCond = inArray(e.table.id, [...ids.keys()])
     const rows: any[] = await db.select(cols).from(e.table).where(live ? and(live, idCond) : idCond)
     const addresses = await entryAddresses(db, reg, e, rows, scope.locale)
+    // A page under an unpublished page is not reachable on the website (page tree rule),
+    // so a visitor's link to it goes nowhere, like a link to a draft.
+    if (e.tree && live) {
+      const index = indexTree(await loadTreeNodes(db, reg, e))
+      const ancestors = new Set<string>()
+      for (const id of addresses.keys()) for (const n of chainOf(index, id)) if (n.id !== id) ancestors.add(n.id)
+      const liveAncestors = ancestors.size
+        ? new Set<string>((await db.select({ id: e.table.id }).from(e.table).where(and(live, inArray(e.table.id, [...ancestors]))) as any[]).map((r) => r.id))
+        : new Set<string>()
+      for (const id of addresses.keys()) {
+        if (chainOf(index, id).some((n) => n.id !== id && !liveAncestors.has(n.id))) addresses.set(id, null)
+      }
+    }
     for (const [id, list] of ids) for (const ref of list) out.set(ref, addresses.get(id) ?? null)
   }
   return out

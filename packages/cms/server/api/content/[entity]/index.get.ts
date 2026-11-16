@@ -77,6 +77,7 @@ export default defineEventHandler(async (event) => {
   await populateItems(db, reg, e, rows, e.content?.populate, locale, { preview: isPreviewAuthorized(event) })
   const items = rows.map((r) => projectItem(e, r))
   await attachLocaleInfo(db, reg, e, rows, items, locale)
+  await attachTreeInfo(db, reg, e, rows, items, locale)
   setContentCache(event)
   return { items, total: count, page, limit }
 })

@@ -54,6 +54,8 @@ export function buildColumn(spec: ColumnSpec, colName: string, ctx: BuildCtx = {
 export interface SerializeCtx {
   enumVar?: string
   refTargetVar?: string
+  /** The column points at its own table (a page's parent): TypeScript needs the return type spelled out. */
+  selfReference?: boolean
 }
 
 export function serializeColumn(spec: ColumnSpec, colName: string, ctx: SerializeCtx = {}): string {
@@ -74,7 +76,7 @@ export function serializeColumn(spec: ColumnSpec, colName: string, ctx: Serializ
   if (spec.default?.kind === 'now') s += '.defaultNow()'
   else if (spec.default?.kind === 'random') s += '.defaultRandom()'
   else if (spec.default?.kind === 'value') s += `.default(${JSON.stringify(spec.default.value)})`
-  if (spec.reference) s += `.references(() => ${ctx.refTargetVar}.id, { onDelete: '${spec.reference.onDelete}' })`
+  if (spec.reference) s += `.references(${ctx.selfReference ? '(): AnyPgColumn' : '()'} => ${ctx.refTargetVar}.id, { onDelete: '${spec.reference.onDelete}' })`
   return s
 }
 

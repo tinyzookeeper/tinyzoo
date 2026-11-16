@@ -57,6 +57,8 @@ export interface ContentShape {
   locales: string[] | null
   /** With `locales`: items also carry `paths`, their address in each language. */
   paths?: boolean
+  /** A page tree: items also carry `path` and `breadcrumbs`, and `GET /api/content/_tree/<name>` exists. */
+  tree?: boolean
 }
 
 /** Scalar-only projection of a PUBLIC entity when populated as another's relation. */
@@ -98,7 +100,7 @@ function hiddenSet(e: CmsEntity): Set<string> {
 /** media + to-one + m2m — the keys that CAN be populated (cmsContent.populatableKeys). */
 function populatableKeys(e: CmsEntity): string[] {
   return Object.entries(e.fields)
-    .filter(([, f]) => f.type === 'media' || f.relation?.kind === 'many-to-one' || f.relation?.kind === 'many-to-many')
+    .filter(([k, f]) => k !== e.tree?.parent && (f.type === 'media' || f.relation?.kind === 'many-to-one' || f.relation?.kind === 'many-to-many'))
     .map(([k]) => k)
 }
 
@@ -191,6 +193,11 @@ function topLevelFields(reg: CmsRegistry, e: CmsEntity): ContentField[] {
   for (const [key, fld] of Object.entries(e.fields)) {
     if (hidden.has(key)) continue
     if (fld.relation?.kind === 'one-to-many') continue // virtual
+    // A page tree's parent is delivered as the parent's id.
+    if (key === e.tree?.parent) {
+      out.push({ key, type: { kind: 'scalar', scalar: 'string' }, nullable: true })
+      continue
+    }
     if (fld.relation || fld.type === 'media') {
       if (!populate.has(key)) continue // not populated → dropped from the response
       const f = relationField(reg, key, fld)
@@ -297,6 +304,7 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
     filters: filters(e),
     locales: reg.locales && e.localized.length ? reg.locales.locales : null,
     paths: !!(reg.locales && e.localized.length && e.content?.path),
+    ...(e.tree ? { tree: true } : {}),
   }))
 
   // Collect every relation target reachable through a populated field.

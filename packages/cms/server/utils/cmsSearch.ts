@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { and, desc, eq, inArray, or, pathTemplateKeys, propOf, sitePath, sql, entryTexts, foldSearchText, isSearchableField, matchEntry, highlightRanges } from 'tinyzoo'
+import { and, desc, eq, indexTree, inArray, or, pathTemplateKeys, propOf, sitePath, sql, entryTexts, foldSearchText, isSearchableField, matchEntry, highlightRanges } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 import { mergeTranslation } from './cmsLocales'
 // Explicit (not Nitro's auto-import): the CLI's import rebuilds the index outside Nitro.
@@ -74,13 +74,16 @@ function indexRows(reg: CmsRegistry, e: CmsEntity, row: Record<string, any>, tra
       path, updatedAt: new Date(),
     })
   }
+  // A page tree's address depends on its ancestors, who can change without this entry
+  // being saved: it is worked out when searching, not stored.
+  const pathOf = (locale: string | null, values: Record<string, any>) => (e.tree ? null : sitePath(reg.locales, e.content?.path, locale, values))
   if (reg.locales && e.localized.length) {
     const def = reg.locales.default
-    add(def, row, sitePath(reg.locales, e.content?.path, def, row))
+    add(def, row, pathOf(def, row))
     for (const tr of translations) {
       if (tr.locale === def || !reg.locales.locales.includes(tr.locale)) continue
       const merged = mergeTranslation(e, { ...row }, tr)
-      add(tr.locale, merged, sitePath(reg.locales, e.content?.path, tr.locale, merged))
+      add(tr.locale, merged, pathOf(tr.locale, merged))
     }
   }
   else add('', row, null)
@@ -140,7 +143,7 @@ export function searchIndexSignature(reg: CmsRegistry): string {
   const shape = reg.entities.filter(indexable).map((e) => ({
     name: e.name, title: e.titleField, localized: e.localized, fields: fieldShape(e.fields),
     hidden: e.content?.hidden ?? [], search: e.content?.search ?? null, searchable: e.admin?.list?.searchable ?? [],
-    path: e.content?.path ?? null,
+    path: e.content?.path ?? null, tree: e.tree ?? null,
   }))
   return createHash('sha256').update(JSON.stringify({ v: INDEX_VERSION, locales: reg.locales, shape })).digest('hex')
 }
@@ -259,6 +262,7 @@ export async function searchPublic(db: any, reg: CmsRegistry, terms: string[], q
       const rows: any[] = await tx.select({ id: s.recordId, title: s.title, body: s.body, path: s.path, updatedAt: e.table.updatedAt, rank: score, ...pathCols })
         .from(s).innerJoin(e.table, eq(e.table.id, s.recordId))
         .where(and(...conds.filter(Boolean))).orderBy(desc(score)).limit(CANDIDATES)
+      const treeIndex = e.tree && rows.length ? indexTree(await loadTreeNodes(tx, reg, e)) : null
       for (const r of rows) {
         const match = matchEntry(r.title, [r.body], terms, query)
         if (!match) continue
@@ -269,7 +273,7 @@ export async function searchPublic(db: any, reg: CmsRegistry, terms: string[], q
           titleHighlights: highlightRanges(r.title, terms),
           excerpt: match.excerpt,
           highlights: match.highlights,
-          path: r.path ?? sitePath(reg.locales, e.content!.path, locale ?? reg.locales?.default ?? null, r),
+          path: treeIndex ? treePathIn(reg, e, treeIndex, r.id, locale) : r.path ?? sitePath(reg.locales, e.content!.path, locale ?? reg.locales?.default ?? null, r),
           locale,
           updatedAt: new Date(r.updatedAt).toISOString(),
           score: match.score,

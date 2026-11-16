@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, lte, or, propOf, sql } from 'tinyzoo'
+import { alias, and, eq, inArray, isNull, lte, or, propOf, snake, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
@@ -23,23 +23,47 @@ export function getPublicEntity(reg: CmsRegistry, name: string | undefined): Cms
 /**
  * The "is live" Drizzle condition for an entity (undefined = everything is public):
  * `content.published` — or, without one, the publish workflow's status — and, for
- * scheduled entries, a publish date that has come. Everything that decides what
- * visitors see goes through here: the content API, populated references, the
- * sitemap, webhooks.
+ * scheduled entries, a publish date that has come. In a page tree every ancestor must
+ * be live too: a page under a draft is not on the website. Everything that decides what
+ * visitors see goes through here: the content API, populated references, the sitemap,
+ * webhooks.
  */
 export function publishedCond(e: CmsEntity): any {
+  return both(ownPublishedCond(e), ancestorsLiveCond(e))
+}
+
+/** The entry's own "is live" condition, against `t` (its table, or an alias of it). */
+export function ownPublishedCond(e: CmsEntity, t: any = e.table): any {
   const p = e.publish
-  const status = p ? eq(e.table[propOf(p.field, e.fields[p.field]!)], p.publishedValue) : undefined
-  const base = e.content?.published ? e.content.published(e.table) : status
-  return both(base, scheduleCond(e))
+  const status = p ? eq(t[propOf(p.field, e.fields[p.field]!)], p.publishedValue) : undefined
+  const base = e.content?.published ? e.content.published(t) : status
+  return both(base, scheduleCond(e, t))
 }
 
 /** "Its publish date has come" (or it has none), for entities whose publishing is scheduled. */
-export function scheduleCond(e: CmsEntity): any {
+export function scheduleCond(e: CmsEntity, t: any = e.table): any {
   const p = e.publish
   if (!p?.dateField || p.schedule === false) return undefined
-  const col = e.table[propOf(p.dateField, e.fields[p.dateField]!)]
+  const col = t[propOf(p.dateField, e.fields[p.dateField]!)]
   return or(isNull(col), lte(col, sql`now()`))
+}
+
+/**
+ * Page tree: every ancestor is live too. One nested `exists` per level the tree may have
+ * (`tree.maxDepth - 1`), each stopping at a top-level page, so a query pays for the
+ * depth a page actually has. (Lowering `maxDepth` later does not move pages that are
+ * already deeper; such a page is judged by its nearest ancestors only.)
+ */
+export function ancestorsLiveCond(e: CmsEntity): any {
+  if (!e.tree) return undefined
+  const parentProp = `${e.tree.parent}Id`
+  const level = (t: any, depth: number): any => {
+    if (depth <= 0) return undefined
+    const a: any = alias(e.table, `${snake(e.name)}_up${depth}`)
+    const inner = both(both(eq(a.id, t[parentProp]), ownPublishedCond(e, a)), level(a, depth - 1))
+    return or(isNull(t[parentProp]), sql`exists (select 1 from ${e.table} ${a} where ${inner})`)
+  }
+  return level(e.table, e.tree.maxDepth - 1)
 }
 
 /** Optional API-token gate. No-op unless `cms.content.token` is configured. */
@@ -122,7 +146,7 @@ function publicProjection(target: CmsEntity, row: any) {
 /** Field keys that can be populated (media + to-one + m2m). */
 function populatableKeys(e: CmsEntity): string[] {
   return Object.entries(e.fields)
-    .filter(([, f]) => f.type === 'media' || f.relation?.kind === 'many-to-one' || f.relation?.kind === 'many-to-many')
+    .filter(([k, f]) => k !== e.tree?.parent && (f.type === 'media' || f.relation?.kind === 'many-to-one' || f.relation?.kind === 'many-to-many'))
     .map(([k]) => k)
 }
 
@@ -143,7 +167,8 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
   const keys = populate ?? populatableKeys(e)
   for (const key of keys) {
     const fld = e.fields[key]
-    if (!fld) continue
+    // A page tree's parent is delivered as the parent's id, not populated.
+    if (!fld || key === e.tree?.parent) continue
 
     if (fld.type === 'media') {
       const ids = unique(rows.map((r) => r[`${key}Id`]).filter(Boolean))
@@ -274,6 +299,11 @@ export function projectItem(e: CmsEntity, row: any) {
   for (const [key, fld] of Object.entries(e.fields)) {
     if (hidden.has(key)) continue
     if (fld.relation?.kind === 'one-to-many') continue // virtual
+    // A page tree's parent: the parent's id (the tree and the breadcrumbs say the rest).
+    if (key === e.tree?.parent) {
+      out[key] = row[`${key}Id`] ?? null
+      continue
+    }
     if (fld.relation || fld.type === 'media') {
       if (key in row) out[key] = row[key] // populated; otherwise dropped
       continue
