@@ -1,9 +1,0 @@
----
-'tinyzoo': patch
----
-
-`s.link(label, entry)` in a seed now stores a reference to the entry (`cms:<entity>/<id>`), as the admin's link picker does, instead of an address worked out when the seed ran. A menu made by the seed follows its page when the page is renamed or moved under another, a page under a page gets its real address (`/o-nas/tym`), and running the seed again after `tinyzoo links:convert` no longer writes plain addresses back over the references. The comparison that keeps a second run quiet treats a stored reference and the seed's as the same link. A dry run still shows a readable address for a page that does not exist yet. A seed that ran before this stores addresses in its menus: the next run brings them over to references once.
-
-`tinyzoo seed --reset` only removes entries the seed made: it needs proof (the entry was created by the account the seed signs in with, and after `s.create` not changed by anybody else), so a page an editor made with the same slug, or one that existed before the seed, stays. It lists every entry and file by name before it asks. It no longer stops half-way: menus and settings the seed writes lose their links to the pages that go first, entries are removed in an order the site accepts (an entry that links to or points at another goes first), and when something would still be refused, such as a page you made by hand that links to one of the seed's pages, it says which and removes nothing.
-
-`tinyzoo seed` warns about an `http://` address only when it really is not the machine itself: the hostname is compared whole (`localhost`, `*.localhost`, `127.0.0.1`, `::1`), so `http://localhost.example.com` and `http://127.attacker.example` are no longer taken for local. Passing the setup code as `--setup-code` prints a line saying it shows in the process list; `SEED_SETUP_CODE` is the way to give it.
