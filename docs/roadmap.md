@@ -446,10 +446,12 @@ the password never shows in `ps`) and `media/<key>` for every `cms_media` row, r
 the local folder or from the bucket with aws4fetch (path-style, as the app's S3 driver).
 Resized copies (`_w/…`) are left out; missing files are listed in the manifest. The
 archive is mode 0600. Restore validates the archive (manifest, every media path inside
-the folder, every listed file present) before touching anything, refuses a database with
-accounts unless `--force`, asks you to type the database name unless `--yes`, runs
-`pg_restore --clean --if-exists --no-owner --no-acl --no-comments`, then writes the
-media. `TINYZOO_PG_DUMP` / `TINYZOO_PG_RESTORE` select other binaries (used to run the
+the folder, every listed file present) before touching anything, refuses a non-empty
+database (any table, or any applied migration) unless `--force`, asks you to type the
+database name unless `--yes`, then drops and recreates the `public` and `drizzle`
+schemas and runs `pg_restore --single-transaction --exit-on-error --no-owner --no-acl
+--no-comments` (changed after the wave review: `--clean` alone left an upgraded
+database half-restored), then writes the media. `TINYZOO_PG_DUMP` / `TINYZOO_PG_RESTORE` select other binaries (used to run the
 tests through Docker here; also a documented escape hatch). `docs/deploying.md` has the
 "Backups and restore" section with the responsibility table and the restore drill.
 *Deviation:* no `NUXT_CMS_BACKUP_BEFORE_MIGRATE`. A dump from inside the server needs
