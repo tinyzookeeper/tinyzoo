@@ -5,6 +5,10 @@
  *   tinyzoo up                → `drizzle-kit migrate`
  *   tinyzoo client [out]      → emit the typed @tinyzoo/client bindings (default cms-content.ts; --stdout)
  *   tinyzoo openapi [out]     → emit the OpenAPI 3.1 document (default openapi.json; --stdout)
+ *   tinyzoo export <file>     → the site's content (entries, translations, links, globals, media files)
+ *                               in one .tar.gz archive (--only a,b  --no-media  --with-revisions …)
+ *   tinyzoo import <file>     → put such an archive into this site (empty target; --replace, --merge,
+ *                               --allow-mismatch, --dry-run). Both are described in cli/export.ts / import.ts
  *   tinyzoo init <dir>        → a new website with the CMS inside (the starter: pages, news,
  *                               menus, a contact form, cs/en), ready for `pnpm install`
  * Run from the host app root (cwd = host). Designed to run under tsx.
@@ -14,6 +18,9 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, w
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { buildOpenApiDocument, emitContentTypes, emitSchema } from '../src/index'
+import { runExport } from './export'
+import { runImport } from './import'
+import { reportFailure } from './transfer'
 
 const cmd = process.argv[2]
 const cwd = process.cwd()
@@ -108,7 +115,11 @@ switch (cmd) {
   case 'up': drizzleKit('migrate'); break
   case 'client': await client(); break
   case 'openapi': await openapi(); break
+  case 'export': await runExport(process.argv.slice(3)).catch(reportFailure); break
+  case 'import': await runImport(process.argv.slice(3)).then(() => {}, reportFailure); break
   default:
-    console.error('usage: tinyzoo <init|generate|up|client|openapi> [out] [--stdout]')
+    console.error('usage: tinyzoo <init|generate|up|client|openapi|export|import> [out] [--stdout]\n'
+      + '       tinyzoo export <file.tar.gz> [--only a,b] [--no-media] [--with-revisions] [--with-submissions] [--force]\n'
+      + '       tinyzoo import <file.tar.gz> [--replace [--yes] | --merge] [--allow-mismatch] [--dry-run]')
     process.exit(1)
 }
