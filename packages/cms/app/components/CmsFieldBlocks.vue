@@ -303,7 +303,7 @@ const choices = computed(() => {
           </p>
           <p v-if="!defs[b.type]" class="text-sm text-muted">{{ b.type }}</p>
           <CmsField
-            v-for="f in defs[b.type]?.fields ?? []" :key="f.key"
+            v-for="f in (defs[b.type]?.fields ?? []).filter((x: any) => !(i === 0 && x.meta?.needsPrevious))" :key="f.key"
             :model-value="b[f.key]" :field="f.type === 'blocks' || f.type === 'group' ? nested(f, i) : f" :entity="entity" :id-prefix="`${field.key}-${b.id}-`"
             :error="form?.issues?.[`${field.key}.${i}.${f.key}`]"
             @update:model-value="(v: unknown) => setField(i, f.key, v)"

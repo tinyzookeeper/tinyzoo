@@ -2,23 +2,48 @@
  * Small helpers for showing what changed between two versions of a field.
  */
 
-/** Plain text of a rich-text document (paragraphs on their own lines). */
+/**
+ * Plain text of a rich-text document, one line per paragraph, heading or list item
+ * (bullets and numbers kept, nested items indented), so a list reads as a list and
+ * its items never run together when two versions are compared.
+ */
 export function richTextToPlain(doc: any): string {
   if (!doc || typeof doc !== 'object') return ''
-  const blocks: string[] = []
-  const walk = (node: any, out: string[]) => {
+  const inline = (node: any): string => {
+    if (!node) return ''
+    if (node.type === 'text') return node.text ?? ''
+    if (node.type === 'hardBreak') return '\n'
+    if (node.type === 'image') return '[image]'
+    return (node.content ?? []).map(inline).join('')
+  }
+  const lines: string[] = []
+  const block = (node: any, indent: string, first: string) => {
     if (!node) return
-    if (node.type === 'text') out.push(node.text ?? '')
-    else if (node.type === 'hardBreak') out.push('\n')
-    else if (node.type === 'image') out.push('[image]')
-    for (const child of node.content ?? []) walk(child, out)
+    if (node.type === 'bulletList' || node.type === 'orderedList') {
+      ;(node.content ?? []).forEach((item: any, i: number) => {
+        const bullet = node.type === 'orderedList' ? `${(Number(node.attrs?.start) || 1) + i}. ` : '• '
+        listItem(item, indent, bullet)
+      })
+    }
+    else if (node.type === 'blockquote') {
+      for (const child of node.content ?? []) block(child, indent, indent)
+    }
+    else lines.push(first + inline(node))
   }
-  for (const block of doc.content ?? []) {
-    const out: string[] = []
-    walk(block, out)
-    blocks.push(out.join(''))
+  const listItem = (item: any, indent: string, bullet: string) => {
+    const pad = indent + ' '.repeat(bullet.length)
+    let used = false
+    for (const child of item?.content ?? []) {
+      if (child?.type === 'bulletList' || child?.type === 'orderedList') block(child, pad, pad)
+      else {
+        block(child, pad, used ? pad : indent + bullet)
+        used = true
+      }
+    }
+    if (!used) lines.push(indent + bullet.trimEnd())
   }
-  return blocks.join('\n').trim()
+  for (const node of doc.content ?? []) block(node, '', '')
+  return lines.join('\n').trim()
 }
 
 export interface DiffPart { text: string; kind: 'same' | 'added' | 'removed' }

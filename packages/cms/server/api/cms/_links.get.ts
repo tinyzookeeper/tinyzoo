@@ -1,4 +1,4 @@
-import { and, desc, eq, indexTree, inArray, linkRef, sitePath, sql } from 'tinyzoo'
+import { and, desc, eq, indexTree, inArray, linkRef, or, sitePath, sql } from 'tinyzoo'
 
 // GET /api/cms/_links?q=&locale= — what an editor can link to: entries of every
 // collection that has an address on the website (`content.path`), by title, with
@@ -35,11 +35,25 @@ export default defineEventHandler(async (event) => {
     const conds: any[] = []
     if (where) conds.push(where)
     if (search) {
-      const esc = foldAccents(search).replace(/[\\%_]/g, (c) => '\\' + c)
-      conds.push(sql`${foldedColumn(titleCol)} like ${'%' + esc + '%'}`)
+      // By title or by address, in the language being edited as well as the default one
+      // (an editor may remember either): a translated title or address is searched too.
+      const like = '%' + foldAccents(search.replace(/^\/+/, '')).replace(/[\\%_]/g, (c) => '\\' + c) + '%'
+      const t = !isDefault ? e.localesTable : null
+      const inLocale = t
+        ? [e.titleField, ...keys].filter((k, i, all) => all.indexOf(k) === i && e.localized.includes(k) && t[k]).map((k) => sql`${foldedColumn(t[k])} like ${like}`)
+        : []
+      const matches = [
+        sql`${foldedColumn(titleCol)} like ${like}`,
+        ...keys.map((k: string) => sql`${foldedColumn(e.table[k])} like ${like}`),
+        ...(t && inLocale.length ? [sql`exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${t.locale} = ${locale} and (${sql.join(inLocale, sql` or `)}))`] : []),
+      ]
+      conds.push(or(...matches))
     }
+    // The title that is exactly what was typed first, then one that starts with it, then the newest.
+    const typed = foldAccents(search)
+    const best = search ? sql`case when ${foldedColumn(titleCol)} = ${typed} then 0 when ${foldedColumn(titleCol)} like ${typed.replace(/[\\%_]/g, (c) => '\\' + c) + '%'} then 1 else 2 end` : null
     const rows: any[] = await db.select(cols).from(e.table).where(conds.length ? and(...conds) : undefined)
-      .orderBy(desc(e.table.updatedAt)).limit(PER_COLLECTION)
+      .orderBy(...(best ? [best] : []), desc(e.table.updatedAt)).limit(PER_COLLECTION)
     if (!rows.length) continue
 
     // A translated address (or title) comes from the translation; untranslated parts

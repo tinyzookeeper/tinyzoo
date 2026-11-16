@@ -12,6 +12,9 @@ export function cmsIssueMessage(issue: any, field: any, t: T): string {
     case 'invalid_type':
       if (empty) return field?.type === 'datetime' || field?.type === 'date' ? t('validation.pickDate') : t('validation.required')
       if (issue.expected === 'date') return t('validation.pickDate')
+      // A decimal in a whole-number field (a count, a position).
+      if (issue.expected === 'int' || issue.expected === 'integer') return t('validation.wholeNumber')
+      if (issue.expected === 'number') return t('validation.number')
       return t('validation.invalid')
     case 'too_small':
       if (issue.origin === 'string') return issue.minimum <= 1 ? t('validation.required') : t('validation.minLength', { n: issue.minimum })
@@ -109,5 +112,9 @@ export function cmsRequestError(err: any, t: T, extra: { maxMb?: number } = {}):
   if (status === 415) return t('errors.fileType')
   if (status === 429) return t('errors.tooMany')
   if (status >= 500) return t('errors.server')
-  return err?.data?.statusMessage ?? err?.message ?? t('errors.server')
+  // The server's own sentence is English: an editor gets one in their language, by the kind of refusal.
+  if (status === 404) return t('errors.notFound')
+  if (status === 409) return err?.data?.statusMessage === 'Save the default language first' ? t('errors.saveDefaultFirst') : t('errors.conflict')
+  if (status === 400 || status === 422) return t('errors.invalid')
+  return t('errors.refused')
 }

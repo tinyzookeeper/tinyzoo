@@ -33,6 +33,29 @@ describe('who created and changed what', () => {
   })
 })
 
+describe('telling the form whether this person may save', () => {
+  it("says no for someone else's entry, a live one, and settings — and yes where a save would work", async () => {
+    const mine = await draftBy(author)
+    const theirs = await draftBy(editor)
+    const can = async (c: Client, id: string) => (await c.get(`/api/cms/post/${id}`)).body.can
+    expect(await can(author, mine.id)).toEqual({ update: true })
+    expect(await can(author, theirs.id)).toEqual({ update: false, why: 'owner' })
+    await editor.patch(`/api/cms/post/${mine.id}`, { status: 'published' })
+    expect(await can(author, mine.id)).toEqual({ update: false, why: 'published' })
+    // Editors may change anything, live or not.
+    expect(await can(editor, mine.id)).toEqual({ update: true })
+    // A translation answers the same.
+    expect((await author.get(`/api/cms/post/${theirs.id}?locale=en`)).body.can).toMatchObject({ update: false })
+
+    // The refusal a save would give is the one the form was told about.
+    expect((await author.patch(`/api/cms/post/${theirs.id}`, { title: 'x' })).status).toBe(404)
+
+    // Settings: authors read them, editors change them.
+    expect((await author.get('/api/cms/_singleton/siteSettings')).body.can).toEqual({ update: false, why: 'role' })
+    expect((await editor.get('/api/cms/_singleton/siteSettings')).body.can).toEqual({ update: true })
+  })
+})
+
 describe('author', () => {
   it('creates drafts and edits their own', async () => {
     const post = await draftBy(author)

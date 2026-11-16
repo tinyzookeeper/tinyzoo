@@ -31,11 +31,64 @@ async function pick(rev: string) {
 }
 
 const byKey = computed(() => new Map(props.fields.map((f: any) => [f.key, f])))
+
+// ── files and related entries: shown by name (and a thumbnail), never by id ──
+type Ref = { label: string; thumb: string | null } | null
+const names = ref<Record<string, Ref>>({})
+const isRefField = (f: any) => f?.type === 'media' || f?.type === 'gallery' || f?.relation?.kind === 'many-to-one' || f?.relation?.kind === 'many-to-many'
+const refKey = (f: any, id: string) => (f.type === 'media' || f.type === 'gallery' ? `media:${id}` : `${f.relation.to}:${id}`)
+function refIds(f: any, v: any): string[] {
+  if (v === null || v === undefined || v === '') return []
+  if (f.type === 'media') return typeof v === 'string' ? [v] : []
+  if (f.type === 'gallery') return Array.isArray(v) ? v.map((x: any) => x?.mediaId).filter(Boolean) : []
+  if (f.relation?.kind === 'many-to-one') return typeof v === 'string' ? [v] : []
+  return Array.isArray(v) ? v.filter((x: any) => typeof x === 'string') : []
+}
+const mediaRef = (m: any): Ref => (m ? { label: String(m.name || m.alt || String(m.key ?? '').split('/').pop() || ''), thumb: String(m.mime ?? '').startsWith('image/') ? m.url ?? null : null } : null)
+/** Look up the names of every file and related entry in the picked version and in the form. */
+async function resolveNames() {
+  const wanted = new Map<string, { f: any; id: string }>()
+  const sources = [selected.value?.data, props.current]
+  for (const f of props.fields) {
+    if (!isRefField(f)) continue
+    for (const src of sources) {
+      if (!src) continue
+      for (const id of refIds(f, src[f.key])) {
+        const k = refKey(f, id)
+        if (k in names.value) continue
+        // The record that came with the version, when it is the one.
+        const known = f.type === 'media' && src[`${f.key}__media`]?.id === id ? mediaRef(src[`${f.key}__media`]) : undefined
+        if (known) names.value = { ...names.value, [k]: known }
+        else wanted.set(k, { f, id })
+      }
+    }
+  }
+  if (!wanted.size) return
+  const next: Record<string, Ref> = {}
+  const byEntity = new Map<string, string[]>()
+  await Promise.all([...wanted].map(async ([k, { f, id }]) => {
+    if (f.type === 'media' || f.type === 'gallery') {
+      next[k] = mediaRef(await cmsFetch(`/api/cms/_media/${id}`).catch(() => null))
+    }
+    else byEntity.set(f.relation.to, [...(byEntity.get(f.relation.to) ?? []), id])
+  }))
+  await Promise.all([...byEntity].map(async ([to, ids]) => {
+    const found = await cmsFetch<{ id: string; label: string }[]>(`/api/cms/${to}/options`, { query: { selected: ids.join(',') } }).catch(() => [])
+    for (const id of ids) {
+      const hit = found.find((x) => x.id === id)
+      next[`${to}:${id}`] = hit ? { label: String(hit.label ?? ''), thumb: null } : null
+    }
+  }))
+  names.value = { ...names.value, ...next }
+}
+watch([selected, () => open.value], () => { if (open.value && selected.value) void resolveNames() })
+const refParts = (f: any, v: any) => refIds(f, v).map((id) => names.value[refKey(f, id)] ?? undefined).map((r) => (r === undefined ? { label: '…', thumb: null } : r ?? { label: t('revisions.gone'), thumb: null }))
 const textOf = (f: any, v: any): string => {
   if (v === null || v === undefined || v === '') return ''
   if (f?.type === 'richtext') return richTextToPlain(v)
   if (f?.type === 'boolean') return v ? t('fields.yes') : t('fields.no')
   if (f?.type === 'datetime') return formatDate(v)
+  if (isRefField(f)) return refParts(f, v).map((p) => p.label).join(', ')
   if (Array.isArray(v)) return t('revisions.items', { count: v.length })
   if (typeof v === 'object') return JSON.stringify(v)
   return String(v)
@@ -50,7 +103,8 @@ const differences = computed(() => {
       const then = textOf(f, data[k])
       const now = textOf(f, props.current[k])
       const textual = ['text', 'slug', 'richtext', 'number', 'select'].includes(f?.type)
-      return { key: k, label: fieldLabel(f), then, now, parts: textual ? wordDiff(now, then) : null }
+      const refs = isRefField(f) ? { then: refParts(f, data[k]), now: refParts(f, props.current[k]) } : null
+      return { key: k, label: fieldLabel(f), then, now, refs, parts: textual ? wordDiff(now, then) : null }
     })
 })
 
@@ -82,6 +136,11 @@ function restore() {
               {{ t('revisions.versionOf', { date: formatDate(selected.createdAt) }) }}
             </p>
             <p v-if="!differences.length" class="text-sm text-muted">{{ t('revisions.same') }}</p>
+            <!-- what the marks in the text mean (they are the only thing that tells added from removed) -->
+            <p v-else-if="differences.some((d) => d.parts)" class="text-xs text-muted">
+              <ins class="no-underline rounded-sm bg-success/15 px-0.5 text-highlighted">{{ t('revisions.legendAddedMark') }}</ins> {{ t('revisions.legendAdded') }}
+              · <del class="rounded-sm bg-error/10 px-0.5 text-muted">{{ t('revisions.legendRemovedMark') }}</del> {{ t('revisions.legendRemoved') }}
+            </p>
             <div v-for="d in differences" :key="d.key" class="rounded-lg border border-default p-3 space-y-1.5">
               <p class="text-xs font-medium text-muted">{{ d.label }}</p>
               <p v-if="d.parts" class="text-sm whitespace-pre-wrap leading-relaxed">
@@ -91,6 +150,18 @@ function restore() {
                   <del v-else class="rounded-sm bg-error/10 text-muted">{{ p.text }}</del>
                 </template>
               </p>
+              <div v-else-if="d.refs" class="grid grid-cols-2 gap-3 text-sm">
+                <div v-for="side in (['then', 'now'] as const)" :key="side" class="min-w-0">
+                  <span class="block text-xs text-dimmed">{{ t(`revisions.${side}`) }}</span>
+                  <span v-if="!d.refs[side].length">—</span>
+                  <ul v-else class="space-y-1.5">
+                    <li v-for="(r, i) in d.refs[side]" :key="i" class="flex items-center gap-2 min-w-0">
+                      <img v-if="r.thumb" :src="r.thumb" alt="" class="size-9 shrink-0 rounded object-cover border border-default" loading="lazy">
+                      <span class="truncate">{{ r.label }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
               <div v-else class="grid grid-cols-2 gap-3 text-sm">
                 <div><span class="block text-xs text-dimmed">{{ t('revisions.then') }}</span>{{ d.then || '—' }}</div>
                 <div><span class="block text-xs text-dimmed">{{ t('revisions.now') }}</span>{{ d.now || '—' }}</div>

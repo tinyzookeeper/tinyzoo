@@ -401,6 +401,29 @@ describe('the link picker', () => {
     expect((await admin.post('/api/cms/_links/resolve', { refs: ['cms:x', '/o-nas', 3, null] })).body.items).toEqual({})
   })
 
+  it('searches the titles of the language being edited, and addresses', async () => {
+    const bakers = await page('Pekaři', 'pekari')
+    await translatePage(bakers.id, { title: 'Bakers', slug: 'bakers-guild' })
+    await page('Jiná stránka', 'jina')
+    const titles = async (q: string, locale?: string) => (await admin.get(`/api/cms/_links?q=${encodeURIComponent(q)}${locale ? `&locale=${locale}` : ''}`)).body.items.map((i: any) => i.title)
+    // Editing English: the English title is found (and shown), and so is the Czech one.
+    expect(await titles('Bakers', 'en')).toEqual(['Bakers'])
+    expect(await titles('pekari', 'en')).toEqual(['Bakers'])
+    // Editing Czech does not find what exists only in English.
+    expect(await titles('Bakers', 'cs')).toEqual([])
+    // An address, with or without the slash, in either language.
+    expect(await titles('/bakers-guild', 'en')).toEqual(['Bakers'])
+    expect(await titles('guild', 'en')).toEqual(['Bakers'])
+    expect(await titles('/pekari', 'cs')).toEqual(['Pekaři'])
+  })
+
+  it('puts the title that is exactly what was typed first', async () => {
+    await page('Tým a kancelář', 'tym-a-kancelar')
+    await page('Tým', 'tym')
+    await page('Náš tým', 'nas-tym')
+    expect((await admin.get('/api/cms/_links?q=tym')).body.items.map((i: any) => i.title)).toEqual(['Tým', 'Tým a kancelář', 'Náš tým'])
+  })
+
   it('answers authors too: they may read every entry', async () => {
     const about = await page('O nás', 'o-nas')
     const ref = linkRef('page', about.id)

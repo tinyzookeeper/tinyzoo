@@ -16,5 +16,6 @@ export default defineEventHandler(async (event) => {
   const locale = requestedLocale(event, reg)
   if (isTranslationLocale(reg, locale) && e.localized.length) await translationFormRow(db, reg, e, row, locale)
   if (reg.locales && e.localized.length) row.__locales = (await availableLocales(db, reg, e, [id])).get(id)
-  return { row }
+  // Whether this person may save here (the form opens read-only when not).
+  return { row, can: await updateVerdict(db, e, user, id) }
 })

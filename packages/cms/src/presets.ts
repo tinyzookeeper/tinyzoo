@@ -45,7 +45,7 @@ export function linkBlock() {
       url: f.text({ required: true, format: 'link' }).label({ en: 'Address', cs: 'Adresa', de: 'Adresse' })
         .help({ en: 'A page on this site (/contact) or a full address (https://…).', cs: 'Stránka tohoto webu (/kontakt) nebo celá adresa (https://…).', de: 'Eine Seite dieser Website (/kontakt) oder eine vollständige Adresse (https://…).' }),
       newTab: f.boolean().label({ en: 'Open in a new tab', cs: 'Otevřít v nové záložce', de: 'In neuem Tab öffnen' }),
-      sub: f.boolean().label({ en: 'Under the link above', cs: 'Pod odkazem nad ním', de: 'Unter dem vorherigen Link' })
+      sub: f.boolean({ needsPrevious: true }).label({ en: 'Under the link above', cs: 'Pod odkazem nad ním', de: 'Unter dem vorherigen Link' })
         .help({ en: 'Shows in the dropdown of the link above it.', cs: 'Zobrazí se v rozbalovacím menu odkazu nad ním.', de: 'Erscheint im Untermenü des vorherigen Links.' }),
     },
   })

@@ -40,6 +40,32 @@ describe('writing translations (admin)', () => {
     expect((await admin.get(`/api/cms/post/${post.id}?locale=en`)).body.row.title).toBeNull()
   })
 
+  it('does not count a language as translated when the save has nothing in it', async () => {
+    const post = await live()
+    const saved = await translate(post.id, { title: '', slug: '', body: { type: 'doc', content: [{ type: 'paragraph' }] } })
+    expect(saved.status).toBe(200)
+    expect(saved.body.row).toMatchObject({ __translated: false, title: null })
+    // No empty row: the list still says it is missing, and the language is not "translated".
+    expect((await db.query(`select count(*)::int as n from post_locales`)).rows[0].n).toBe(0)
+    expect((await admin.get(`/api/cms/post/${post.id}`)).body.row.__locales).toEqual(['cs'])
+    expect((await admin.get('/api/cms/post')).body.rows[0].__locales).toEqual(['cs'])
+  })
+
+  it('removes a translation that is saved with everything emptied', async () => {
+    const post = await live()
+    const first = await translate(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })
+    expect(first.body.row.__translated).toBe(true)
+    const cleared = await admin.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { title: null, slug: null, body: null }, headers: { 'x-cms-version': first.body.row.__version } })
+    expect(cleared.status).toBe(200)
+    expect(cleared.body.row.__translated).toBe(false)
+    expect((await admin.get(`/api/cms/post/${post.id}`)).body.row.__locales).toEqual(['cs'])
+    // A save that was made from an older version is still refused, not turned into a deletion.
+    await translate(post.id, { title: 'Again' })
+    const stale = await admin.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { title: null, slug: null, body: null }, headers: { 'x-cms-version': first.body.row.__version } })
+    expect(stale.status).toBe(409)
+    expect((await admin.get(`/api/cms/post/${post.id}`)).body.row.__locales).toEqual(['cs', 'en'])
+  })
+
   it('refuses a language the site does not have', async () => {
     const post = await live()
     expect((await admin.request('PATCH', `/api/cms/post/${post.id}?locale=de`, { json: { title: 'x' } })).status).toBe(400)

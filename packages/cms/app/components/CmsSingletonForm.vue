@@ -6,7 +6,7 @@ import type { LiveChange } from '../composables/useCmsLive'
 
 const props = defineProps<{ entity: string, meta: any }>()
 const route = useRoute()
-const { t, tl, entityLabel } = useCmsI18n()
+const { t, tl, languageName, entityLabel } = useCmsI18n()
 
 // A global never "creates" from the form's point of view (PUT upserts).
 const form = useCmsForm(computed(() => props.meta?.fields ?? []), computed(() => false))
@@ -21,10 +21,17 @@ const currentLocale = computed(() => {
 })
 const isTranslation = computed(() => !!locales.value && currentLocale.value !== locales.value.default)
 const localeLabel = (code?: string | null) => (code ? tl(locales.value?.labels?.[code], code.toUpperCase()) : '')
-const defaultLabel = computed(() => localeLabel(locales.value?.default))
+const defaultLabel = computed(() => {
+  const code = locales.value?.default
+  return languageName(code, code ? locales.value?.labels?.[code] : null)
+})
 
 const rowUrl = (): string => `/api/cms/_singleton/${props.entity}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`
-const { data } = await useFetch<{ row: Record<string, any> | null }>(rowUrl, { watch: [() => props.entity] })
+const { data } = await useFetch<{ row: Record<string, any> | null; can?: { update: boolean; why?: string } }>(rowUrl, { watch: [() => props.entity] })
+// A person who may not change this (settings are for editors and administrators) can
+// read the form and nothing more: said, not a save that fails.
+const readOnly = computed(() => data.value?.can?.update === false || props.meta?.can?.update === false)
+provide('cmsReadOnly', readOnly)
 form.load(data.value?.row)
 const exists = computed(() => !!data.value?.row?.id)
 const available = ref<string[]>(data.value?.row?.__locales ?? [])
@@ -197,21 +204,27 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           {{ (currentLocale ?? '').toUpperCase() }}
         </UButton>
       </UDropdownMenu>
-      <span v-if="dirty" class="max-md:hidden text-sm cms-unsaved mr-1">{{ t('editor.unsaved') }}</span>
+      <span v-if="readOnly" class="inline-flex items-center gap-1 text-sm text-muted mr-1"><UIcon name="i-lucide-lock" class="size-3.5" />{{ t('readOnly.badge') }}</span>
+      <span v-else-if="dirty" class="max-md:hidden text-sm cms-unsaved mr-1">{{ t('editor.unsaved') }}</span>
       <UButton
         v-if="previewUrl" color="neutral" variant="outline" icon="i-lucide-eye"
         :class="split ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="split" :aria-label="t('editor.preview')" @click="togglePreview"
       ><span class="max-sm:hidden">{{ t('editor.preview') }}</span></UButton>
-      <UTooltip :text="t('editor.shortcutSave')">
-        <UButton :loading="saving" :disabled="meta?.can?.update === false" @click="save()">
+      <UTooltip v-if="!readOnly" :text="t('editor.shortcutSave')">
+        <UButton :loading="saving" @click="save()">
           {{ isTranslation ? t('translation.save') : t('common.save') }}
         </UButton>
       </UTooltip>
     </template>
 
     <div class="cms-editor cms-editor--no-aside" :class="split ? 'cms-editor--split' : ''">
+      <fieldset class="cms-fieldset contents" :disabled="readOnly">
       <div class="cms-editor__main">
         <div class="cms-editor__column">
+          <UAlert
+            v-if="readOnly" color="neutral" variant="subtle" icon="i-lucide-lock" class="mb-6" role="status"
+            :title="t('readOnly.role')" :description="t('readOnly.body')"
+          />
           <CmsUnsavedText :collab="collab" @keep="keepUnsaved" />
           <CmsLiveNotice
             :conflict="conflict" :incoming="live?.incoming.value"
@@ -227,7 +240,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <p class="mt-3 text-sm text-muted flex items-center gap-1.5">
                 <UIcon name="i-lucide-globe" class="size-3.5 shrink-0" />{{ t('editor.liveOnSave') }}
               </p>
-              <p v-if="isTranslation" class="mt-2 text-sm text-muted">
+              <p v-if="isTranslation && (meta?.fields ?? []).some((f: any) => !f.localized)" class="mt-2 text-sm text-muted">
                 {{ t('translation.shared') }}
                 <NuxtLink :to="{ query: {} }" class="underline underline-offset-2 hover:text-highlighted">{{ t('translation.editShared', { lang: defaultLabel }) }}</NuxtLink>
               </p>
@@ -243,6 +256,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           </CmsFormSections>
         </div>
       </div>
+      </fieldset>
       <div v-if="split && previewUrl && rowId" class="cms-editor__preview">
         <CmsPreviewPanel
           :url="previewUrl" :entity="entity" :id="rowId"
@@ -261,3 +275,9 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     </UModal>
   </CmsPage>
 </template>
+
+<style scoped>
+/* Read-only: still easy to read (the browser dims disabled controls a lot). */
+.cms-fieldset:disabled :is(input, textarea, select, button):disabled { opacity: 0.85; cursor: default; }
+.cms-fieldset:disabled :deep(.cms-rte__toolbar) { display: none; }
+</style>

@@ -184,7 +184,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
     </div>
 
     <!-- Invite -->
-    <UModal v-model:open="inviteOpen" :title="created ? t('team.inviteSent', { email: created.email }) : t('team.inviteTitle')">
+    <UModal v-model:open="inviteOpen" :title="created ? t(created.emailed ? 'team.inviteSent' : 'team.inviteCreated', { email: created.email }) : t('team.inviteTitle')">
       <template #body>
         <div v-if="created" class="space-y-4">
           <UAlert v-if="!created.emailed" color="warning" variant="subtle" icon="i-lucide-mail-warning" :title="t('team.inviteNotEmailed')" />
@@ -226,7 +226,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
     </UModal>
 
     <!-- A resent invitation: show the new link too -->
-    <UModal :open="!!resent" :title="resent ? t('team.inviteSent', { email: resent.email }) : ''" @update:open="(v: boolean) => { if (!v) resent = null }">
+    <UModal :open="!!resent" :title="resent ? t(resent.emailed ? 'team.inviteSent' : 'team.inviteCreated', { email: resent.email }) : ''" @update:open="(v: boolean) => { if (!v) resent = null }">
       <template #body>
         <div v-if="resent" class="space-y-4">
           <UAlert v-if="!resent.emailed" color="warning" variant="subtle" icon="i-lucide-mail-warning" :title="t('team.inviteNotEmailed')" />

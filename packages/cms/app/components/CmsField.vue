@@ -29,6 +29,11 @@ const override = computed(() => ((appConfig.cms as any)?.fields?.[props.field.ty
 const component = computed(() => resolveComponent(override.value || props.field.ui?.edit || 'CmsFieldText'))
 
 const { t, fieldLabel, fieldHelp } = useCmsI18n()
+// A field that holds fields (a group, a list, blocks) shows its problems where they are, on
+// the field inside: the same message over the whole thing too would be said twice.
+const form = inject<{ issues?: Record<string, string> } | null>('cmsForm', null)
+const nestedIssue = computed(() => !!form?.issues && Object.keys(form.issues).some((p) => p.startsWith(`${props.field.key}.`)))
+const shownError = computed(() => (nestedIssue.value ? undefined : props.error))
 const label = computed(() => fieldLabel(props.field))
 const help = computed(() => fieldHelp(props.field))
 const compact = computed(() => props.placement === 'sidebar')
@@ -47,7 +52,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
 
 <template>
   <!-- a switch: one row, the sentence says what it does -->
-  <UFormField v-if="isSwitch" :name="field.key" :error="error" :ui="{ error: 'text-error' }">
+  <UFormField v-if="isSwitch" :name="field.key" :error="shownError" :ui="{ error: 'text-error' }">
     <div
       class="flex items-center justify-between gap-4"
       :class="compact ? '' : 'rounded-(--ui-radius) border border-default bg-default px-3.5 py-3'"
@@ -71,7 +76,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
         <UIcon name="i-lucide-info" class="size-3.5 inline-block" />
       </button>
     </label>
-    <UFormField :name="field.key" :error="error" :help="showHelp ? help : undefined" :ui="{ help: 'text-muted text-xs', error: 'text-error text-xs' }" class="min-w-0">
+    <UFormField :name="field.key" :error="shownError" :help="showHelp ? help : undefined" :ui="{ help: 'text-muted text-xs', error: 'text-error text-xs' }" class="min-w-0">
       <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" />
     </UFormField>
   </div>
@@ -94,7 +99,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
       <span v-if="field.optional && !hideOptional" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
     </div>
     <UFormField
-      :name="field.key" :error="error" :help="compact ? (showHelp ? help : undefined) : help"
+      :name="field.key" :error="shownError" :help="compact ? (showHelp ? help : undefined) : help"
       :ui="{ help: 'text-muted', error: 'text-error' }"
     >
       <component

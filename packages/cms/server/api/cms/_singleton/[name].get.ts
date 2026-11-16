@@ -15,5 +15,5 @@ export default defineEventHandler(async (event) => {
     if (isTranslationLocale(reg, locale) && e.localized.length) await translationFormRow(db, reg, e, row, locale)
     if (reg.locales && e.localized.length) row.__locales = (await availableLocales(db, reg, e, [row.id])).get(row.id)
   }
-  return { row: row ?? null }
+  return { row: row ?? null, can: await updateVerdict(db, e, user, null) }
 })

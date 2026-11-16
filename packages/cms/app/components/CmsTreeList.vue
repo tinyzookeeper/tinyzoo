@@ -255,8 +255,10 @@ async function confirmMove() {
 async function setPublished(r: Row, next: boolean) {
   const p = publish.value
   if (!p) return
+  // The pages under this one that are on the website go off it with this one.
+  const below = next ? 0 : [...descendants(r.id)].filter((id) => rows.value.find((x) => x.id === id)?.onSite).length
   if (!next && !await confirm({
-    title: t('list.unpublishTitle', { count: 1 }), description: kids(r.id).length ? t('tree.unpublishBranch') : t('list.unpublishBody', { count: 1 }),
+    title: t('list.unpublishTitle', { count: 1 }), description: below ? t('tree.unpublishBranchCount', { count: below }) : t('list.unpublishBody', { count: 1 }),
     icon: 'i-lucide-eye-off', confirmLabel: t('editor.unpublish'), color: 'warning',
   })) return
   try {

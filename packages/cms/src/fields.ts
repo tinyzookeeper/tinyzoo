@@ -253,10 +253,15 @@ export const f = {
       },
     })),
 
-  boolean: (o: { default?: boolean } = {}) =>
+  /**
+   * A yes/no switch. `needsPrevious` is for a switch in a list of blocks that is about
+   * the item before it ("under the link above"): the first item does not show it.
+   */
+  boolean: (o: { default?: boolean; needsPrevious?: boolean } = {}) =>
     as<ScalarKind<boolean, boolean, true>>(createField({
       type: 'boolean', ui: { edit: 'CmsFieldBoolean', cell: 'CmsCellBoolean' },
       base: { kind: 'boolean' }, zod: () => z.boolean(),
+      meta: o.needsPrevious ? { needsPrevious: true } : undefined,
     }, { default: o.default ?? false })),
 
   /**

@@ -15,6 +15,18 @@ export async function translationFormRow(db: any, reg: CmsRegistry, e: CmsEntity
   return row
 }
 
+/** Nothing written: no text, no list items, no blocks (an emptied field means "use the default language"). */
+function emptyTranslationValue(v: unknown): boolean {
+  if (v === null || v === undefined || v === '') return true
+  if (Array.isArray(v)) return v.length === 0
+  if (typeof v === 'object') {
+    const o = v as any
+    if (o.type === 'doc') return !(o.content ?? []).some((n: any) => n?.type !== 'paragraph' || n.content?.length)
+    return Object.keys(o).length === 0
+  }
+  return false
+}
+
 /**
  * Write the translation of one entry: only `.localized()` fields, empty = fall back to
  * the default language. Same access as editing the entry (row rules, and people who
@@ -44,6 +56,19 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   const oldMedia = jsonKeys.flatMap((k) => jsonMediaIds(e.fields[k], before?.[k]))
 
   const baseTr = baseVersion(event)
+  // Saving with nothing written is not translating: no empty row that would make the
+  // language count as translated ("Missing: EN" and the publish warning must stay). An
+  // existing translation emptied entirely is gone, as if removed.
+  const merged: Record<string, unknown> = { ...(before ?? {}), ...data }
+  if (e.localized.every((k) => emptyTranslationValue(merged[k]))) {
+    if (before) {
+      await assertCurrentVersion(e, { updatedAt: before.updatedAt, updatedBy: null }, baseTr)
+      await deleteTranslation(event, e, id, locale, user, rowFilter)
+    }
+    const [bare] = await db.select().from(e.table).where(eq(e.table.id, id))
+    await hydrateRowForForm(db, reg, e, bare)
+    return translationFormRow(db, reg, e, bare, locale)
+  }
   const { row, effect } = await db.transaction(async (tx: any) => {
     // A page tree: the tree lock before any row lock, in the order every tree write takes
     // them (moves and page saves lock the tree, then rows), or two writes can deadlock.
@@ -99,7 +124,10 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   await reportChange(event, { type: 'translation.updated', entity: e, id, locale, before: seenBefore, after: { updatedAt: row.updatedAt }, moved: effect?.moved })
   if (effect) await reportTreeRedirects(event, reg, effect.redirects)
   await hydrateRowForForm(db, reg, e, fresh)
-  return translationFormRow(db, reg, e, fresh, locale)
+  const result = await translationFormRow(db, reg, e, fresh, locale)
+  // Old addresses that now lead to the new one (a translated address part changed): told, so the editor knows.
+  if (effect?.redirects.length) result.__redirects = effect.redirects.length
+  return result
 }
 
 /** Remove one entry's translation (falls back to the default language again). */
