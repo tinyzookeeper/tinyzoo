@@ -138,6 +138,9 @@ importers:
       ioredis:
         specifier: ^5.11.1
         version: 5.11.1
+      jiti:
+        specifier: ^2.6.0
+        version: 2.7.0
       nodemailer:
         specifier: ^7.0.13
         version: 7.0.13

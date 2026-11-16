@@ -25,6 +25,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./forms": "./forms/index.ts",
     "./layer": "./nuxt.config.ts",
     "./module": "./module.ts",
     "./package.json": "./package.json"
@@ -35,6 +36,7 @@
     "app",
     "app.config.ts",
     "cli",
+    "forms",
     "module.ts",
     "nuxt.config.ts",
     "server",
@@ -66,6 +68,7 @@
     "drizzle-orm": "^0.44.0",
     "image-size": "^2.0.2",
     "ioredis": "^5.11.1",
+    "jiti": "^2.6.0",
     "nodemailer": "^7.0.13",
     "pg": "^8.16.3",
     "sharp": "^0.34.5",

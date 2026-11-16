@@ -1,3 +1,5 @@
+import { formEntity, formSchema } from './forms'
+
 // GET /api/content/_form/:name?locale= — what the website needs to draw a form
 // (defineForm): its fields with labels, help and choices in one language, the button
 // and the thank-you message. <CmsForm> reads it; a custom form can too.

@@ -135,6 +135,18 @@ export const contactForm = pgTable('contact_form', {
   updatedBy: uuid('updated_by'),
 })
 
+export const events = pgTable('events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  startsAt: timestamp('starts_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull(),
+  place: text('place'),
+  capacity: integer('capacity'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+})
+
 export const formSettings = pgTable('form_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   notifyTo: jsonb('notify_to').$type<CmsBlock[]>().notNull().default([]),

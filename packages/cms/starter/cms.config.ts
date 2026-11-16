@@ -1,7 +1,8 @@
 import {
-  defineBlock, defineEntity, defineForm, defineFormSettings, defineLocales, defineNavigation,
+  defineBlock, defineEntity, defineLocales, defineNavigation,
   definePages, defineRedirects, defineSingleton, eq, f, seo,
 } from 'tinyzoo'
+import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 
 // The content model of the website: what editors can write and change. Change it
 // here, then `pnpm db:generate` (review the SQL) and `pnpm db:migrate`.
@@ -116,6 +117,9 @@ export const News = defineEntity('news', {
 // ── menus, redirects, forms ──
 export const Navigation = defineNavigation({ localized: true })
 export const Redirect = defineRedirects()
+
+// Plugins add features with their own admin pages, routes and tables: Forms here.
+export const plugins = [formsPlugin()]
 
 export const ContactForm = defineForm('contactForm', {
   label: { en: 'Contact form', cs: 'Kontaktní formulář' },

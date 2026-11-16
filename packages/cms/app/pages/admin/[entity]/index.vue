@@ -111,7 +111,7 @@ const rows = computed(() => data.value?.rows ?? [])
 const total = computed(() => data.value?.total ?? 0)
 const pages = computed(() => Math.max(1, Math.ceil(total.value / limit)))
 // Form submissions come from visitors: nothing to create here.
-const canCreate = computed(() => meta.value?.can?.create !== false && meta.value?.preset !== 'form')
+const canCreate = computed(() => meta.value?.can?.create !== false && meta.value?.adminCreate !== false)
 const canDelete = computed(() => meta.value?.can?.delete !== false)
 const canPublish = computed(() => !!publish.value && meta.value?.can?.publish !== false)
 const narrowed = computed(() => !!q.value || status.value !== 'all' || Object.keys(filters.value).length > 0)
@@ -687,10 +687,10 @@ const tabs = computed(() => [
       </div>
     </div>
 
-    <!-- a form's messages are deleted after a while (defineForm retentionDays) -->
-    <p v-if="meta?.preset === 'form' && meta?.retentionDays" class="mt-3 flex items-center gap-1.5 text-xs text-muted">
-      <UIcon name="i-lucide-clock" class="size-3.5 shrink-0" aria-hidden="true" />
-      {{ t('list.retention', { count: meta.retentionDays }) }}
+    <!-- notes a plugin adds under the list (the forms plugin: messages are deleted after a while) -->
+    <p v-for="(note, i) in meta?.notices ?? []" :key="i" class="mt-3 flex items-center gap-1.5 text-xs text-muted">
+      <UIcon :name="note.icon || 'i-lucide-info'" class="size-3.5 shrink-0" aria-hidden="true" />
+      {{ t(note.key, note.params) }}
     </p>
 
     <UModal :open="confirmBulkDelete" :title="t('list.bulkDeleteTitle', { count: selected.size })" @update:open="(v: boolean) => { confirmBulkDelete = v }">

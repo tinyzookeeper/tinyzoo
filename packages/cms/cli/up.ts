@@ -3,15 +3,16 @@
  * DATABASE_URL — the same runner (and the same bookkeeping) as the app's start-up
  * migrations, so either can take over from the other.
  */
-import { CORE_UPGRADE_STEPS, MigrationOrderError, runUpgrade } from '../src/index'
-import { databaseUrl, describeDatabase, diskSource, errorText, withDatabase } from './db'
+import { MigrationOrderError, runUpgrade } from '../src/index'
+import { databaseUrl, describeDatabase, diskSource, errorText, siteUpgradeSteps, withDatabase } from './db'
 
 /** Returns the process exit code. */
 export async function up(cwd: string): Promise<number> {
   try {
     const url = databaseUrl(cwd)
     const source = diskSource(cwd)
-    const result = await withDatabase(url, ({ transaction }) => runUpgrade(source, transaction, CORE_UPGRADE_STEPS))
+    const steps = await siteUpgradeSteps(cwd)
+    const result = await withDatabase(url, ({ transaction }) => runUpgrade(source, transaction, steps))
     const ran = result.steps.filter((s) => s.ran).map((s) => s.id)
     if (ran.length) console.log(`✓ ran upgrade steps: ${ran.join(', ')}`)
     console.log(result.migrations.length

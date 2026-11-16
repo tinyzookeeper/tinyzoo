@@ -1,5 +1,5 @@
 import type { CmsEntity } from 'tinyzoo'
-import { upgradedCopy } from './cmsBlocks'
+import { upgradedCopy } from '../../server/utils/cmsBlocks'
 
 /**
  * The addresses listed in the Forms settings row (`notifyTo`, a list of `{ email }`),

@@ -29,6 +29,11 @@ function interpolate(text: string, params?: Params): string {
   return text.replace(/\{(\w+)\}/g, (m, name: string) => (name in params ? String(params[name]) : m))
 }
 
+/** A plugin's own texts (`defineCmsPlugin({ i18n })`), by plugin and language; the build puts them in the public runtime config. */
+function pluginMessages(): Record<string, Record<string, unknown>> {
+  return ((useRuntimeConfig().public.cmsPlugins as any)?.messages ?? {}) as Record<string, Record<string, unknown>>
+}
+
 export function useCmsAdminConfig() {
   const appConfig = useAppConfig()
   return computed(() => {
@@ -47,6 +52,8 @@ export function useCmsAdminConfig() {
 
 export function useCmsI18n() {
   const config = useCmsAdminConfig()
+  // Read now, in the component's setup: `t()` is also called later (a page title getter, a handler).
+  const plugins = pluginMessages()
   const cookie = useCookie<string | null>('cms_admin_locale', { maxAge: 60 * 60 * 24 * 365, sameSite: 'lax', path: '/' })
   const acceptLanguage = import.meta.server ? useRequestHeaders(['accept-language'])['accept-language'] : undefined
 
@@ -67,9 +74,20 @@ export function useCmsI18n() {
     locale.value = next
   }
 
-  /** Translate an interface message. Falls back to English, then to the key itself. */
-  function t(key: MessageKey, params?: Params): string {
-    const msg = lookup(catalogs[locale.value], key) ?? lookup(en, key)
+  /** A message of a plugin (`plugins.<name>.<key>`) in a language. */
+  function fromPlugin(lang: string, key: string) {
+    const [, name, ...rest] = key.split('.')
+    return lookup((plugins[name!] as any)?.[lang], rest.join('.'))
+  }
+
+  /**
+   * Translate an interface message. Falls back to English, then to the key itself.
+   * A plugin's texts are `plugins.<plugin>.<key>` (see `defineCmsPlugin({ i18n })`).
+   */
+  function t(key: MessageKey | `plugins.${string}`, params?: Params): string {
+    const msg = key.startsWith('plugins.')
+      ? (fromPlugin(locale.value, key) ?? fromPlugin('en', key))
+      : (lookup(catalogs[locale.value], key) ?? lookup(en, key))
     if (msg === undefined) return key
     if (typeof msg === 'string') return interpolate(msg, params)
     const count = Number(params?.count ?? 0)

@@ -137,7 +137,6 @@ export default {
     filterClear: 'Filter zurücksetzen',
     filterRemove: 'Filter {name} entfernen',
     columns: 'Spalten',
-    retention: { one: 'Nachrichten werden nach {count} Tag automatisch gelöscht.', other: 'Nachrichten werden nach {count} Tagen automatisch gelöscht.' },
     selectAll: 'Alle auf dieser Seite auswählen',
     selectItem: '{name} auswählen',
     selected: { one: '{count} ausgewählt', other: '{count} ausgewählt' },

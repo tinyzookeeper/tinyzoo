@@ -7,6 +7,7 @@ import type { LocalesDef } from './locales'
 import { pathTemplateProblem, prefixedTemplates, type PathTemplate } from './paths'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
+import { collectPlugins, pluginEntities, type CmsPlugin, type CmsPluginRequirement } from './plugin'
 
 // ── type-level inference helpers ────────────────────────────────────────────────
 type Prettify<T> = { [K in keyof T]: T[K] } & {}
@@ -247,6 +248,8 @@ export interface CmsEntity {
   live?: boolean
   /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
   preset?: string
+  /** Set by a plugin's helpers (`defineForm`): the plugin this entity cannot work without. */
+  requiresPlugin?: CmsPluginRequirement
 }
 
 interface EntityEnum { key: string; varName: string; enumName: string; values: readonly string[] }
@@ -265,7 +268,7 @@ export function propOf(key: string, fld: FieldDescriptor): string {
 const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales'])
 
 /** Entity names the CMS uses internally; user entities may not take them. */
-const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'styleguide', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account'])
+const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'styleguide', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
 
 export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
@@ -413,6 +416,10 @@ export interface CmsRegistry {
   cmsRevisions: typeof cmsRevisions
   cmsState: typeof cmsState
   cmsSearch: typeof cmsSearch
+  /** Registered plugins (`export const plugins = [...]`), in order. */
+  plugins: CmsPlugin[]
+  /** Entity name → the plugin that owns it (only entities a plugin brought). */
+  pluginOf: Map<string, string>
 }
 
 const _regCache = new WeakMap<object, CmsRegistry>()
@@ -429,7 +436,16 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   // Sorted by name: a module namespace's key order depends on who loaded it (Node
   // sorts exports alphabetically, Vite/Rollup may keep declaration order), and
   // every generated artifact (schema.ts, typed client, OpenAPI) must not.
-  const entities = Object.values(config).filter(isEntity).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+  const plugins = collectPlugins(config)
+  const siteEntities = Object.values(config).filter(isEntity)
+  const pluginOf = new Map<string, string>()
+  for (const p of plugins) for (const e of pluginEntities([p])) pluginOf.set(e.name, p.name)
+  const taken = new Set(siteEntities.map((e) => e.name))
+  for (const e of pluginEntities(plugins)) {
+    if (taken.has(e.name)) throw new Error(`The entity "${e.name}" of the plugin "${pluginOf.get(e.name)}" is also defined by the site (or another plugin).`)
+    taken.add(e.name)
+  }
+  const entities = [...siteEntities, ...pluginEntities(plugins)].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
   const byName = new Map(entities.map((e) => [e.name, e]))
 
   const junctions: Junction[] = []
@@ -475,8 +491,8 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
   for (const j of junctions) schema[j.name] = j.table
 
-  const graph = entities.map((e) => entityGraph(e, locales))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch }
+  const graph = entities.map((e) => withPlugins(entityGraph(e, locales), e, plugins, pluginOf))
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf }
   _regCache.set(config, reg)
   return reg
 }
@@ -506,6 +522,18 @@ export function listLayout(e: CmsEntity): CmsListLayout {
   return 'table'
 }
 
+/** The graph entry with what plugins add to it (their `graph` functions) and the owner, if a plugin brought it. */
+function withPlugins<G extends { adminCreate: boolean; notices: any[]; plugin: string | null }>(g: G, e: CmsEntity, plugins: CmsPlugin[], pluginOf: Map<string, string>): G {
+  const out = { ...g, plugin: pluginOf.get(e.name) ?? null }
+  for (const p of plugins) {
+    const ext = p.graph?.(e)
+    if (!ext) continue
+    if (ext.create === false) out.adminCreate = false
+    if (ext.notices?.length) out.notices = [...out.notices, ...ext.notices]
+  }
+  return out
+}
+
 function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
   return {
     name: e.name,
@@ -518,8 +546,10 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     titleField: e.titleField,
     // A ready-made kind (pages, redirects, form…) the admin may treat specially.
     preset: (e as any).preset ?? null,
-    // Forms: submissions are deleted after this many days (null = kept).
-    retentionDays: ((e as any).form?.retentionDays as number | null | undefined) ?? null,
+    // Plugins can turn the "New …" button off and add notes under the list (see `graph` of a plugin).
+    adminCreate: true,
+    notices: [] as { icon?: string; key: string; params?: Record<string, string | number> }[],
+    plugin: null as string | null,
     singleton: !!e.singleton,
     publish: e.publish,
     // The preview address per language, prefix included ({ cs: '/aktuality/:slug', en: '/en/news/:slug' }).

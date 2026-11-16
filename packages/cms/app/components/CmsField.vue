@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Edit-field dispatcher. Resolves the renderer component for this field from the
 // registry, with precedence:
-//   app.config `cms.fields[type].edit`  (host override, by type)
+//   app.config `cms.fields[type].edit`  (host override, by type), then a plugin's renderer for the type
 //     → field.ui.edit                   (built-in default, from the descriptor)
 //       → CmsFieldText                   (last-resort fallback)
 // Host apps add custom field renderers by registering a component name here and
@@ -24,7 +24,8 @@ const props = defineProps<{
 const model = defineModel<any>()
 
 const appConfig = useAppConfig()
-const override = computed(() => (appConfig.cms as any)?.fields?.[props.field.type]?.edit as string | undefined)
+const pluginFields = (useRuntimeConfig().public.cmsPlugins as any)?.fields as Record<string, { edit?: string }> | undefined
+const override = computed(() => ((appConfig.cms as any)?.fields?.[props.field.type]?.edit ?? pluginFields?.[props.field.type]?.edit) as string | undefined)
 const component = computed(() => resolveComponent(override.value || props.field.ui?.edit || 'CmsFieldText'))
 
 const { t, fieldLabel, fieldHelp } = useCmsI18n()

@@ -7,7 +7,7 @@ import {
   defineEntity, defineSingleton, blocksSchema, defineBlock, f, mediaIdsInBlocks, richTextUpgrades, storedBlockVersion, upgradeBlocks, upgradeListItems, upgradeStoredRow, UPGRADE_FAILED_KEY, UNKNOWN_BLOCK_TYPE,
 } from 'tinyzoo'
 import { writeSchema } from '../../packages/cms/server/utils/cmsBlocks'
-import { listedRecipients } from '../../packages/cms/server/utils/cmsFormSettings'
+import { listedRecipients } from '../../packages/cms/forms/server/formSettings'
 
 // A hero that was renamed twice: v1 { heading } → v2 { title } → v3 { title, subtitle required-ish, `lead` folded in }.
 const hero = defineBlock({

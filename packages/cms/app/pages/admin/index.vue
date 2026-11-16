@@ -29,7 +29,7 @@ const coming = computed(() => [
 // gets published (articles, pages) leads, the rest (authors, tags) follows in
 // sidebar order; the first one is the main button.
 const createItems = computed(() => (graph.value ?? [])
-  .filter((e) => !e.singleton && e.can?.create !== false && e.preset !== 'form' && e.preset !== 'redirects')
+  .filter((e) => !e.singleton && e.can?.create !== false && e.adminCreate !== false && e.preset !== 'redirects')
   .map((e, i) => ({ name: e.name, label: entitySingular(e), icon: e.icon, rank: (e.publish ? 0 : 1) * 1000 + i }))
   .sort((a, b) => a.rank - b.rank))
 const quick = computed(() => createItems.value.slice(0, 3))
