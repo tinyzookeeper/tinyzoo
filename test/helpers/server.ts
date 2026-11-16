@@ -3,6 +3,7 @@ import { createServer } from 'node:net'
 import { join } from 'node:path'
 import pg from 'pg'
 import { prepareTestDatabase, repoRoot, testDatabaseUrl } from '../setup/database'
+import { TEST_TIMERS } from '../setup/timers'
 
 /** The production build of the playground the API suites share (made by the global setup). */
 export const builtServer = join(repoRoot, 'node_modules/.cache/cms-test/output/server/index.mjs')
@@ -58,6 +59,7 @@ export async function startServer(databaseUrl: string, env: Record<string, strin
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...parentEnv,
+      ...TEST_TIMERS,
       NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(port),
       DATABASE_URL: databaseUrl, NUXT_CMS_DATABASE_URL: databaseUrl,
       NUXT_SESSION_PASSWORD: 'test-session-password-at-least-32-characters-long',

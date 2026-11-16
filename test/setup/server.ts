@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TestProject } from 'vitest/node'
 import { playgroundDir, prepareTestDatabase, repoRoot, testDatabaseUrl } from './database'
+import { BUILD_CRON, TEST_TIMERS } from './timers'
 
 /**
  * Global setup for the API suites.
@@ -13,7 +14,7 @@ import { playgroundDir, prepareTestDatabase, repoRoot, testDatabaseUrl } from '.
  *  1. Fresh `<db>_test` database, migrated from the playground's migrations.
  *  2. A production build of the playground into node_modules/.cache/cms-test
  *     (skipped with CMS_TEST_REUSE_BUILD=1 when one exists — handy while iterating
- *     on specs; never in CI).
+ *     on specs; CI sets it only when its cache holds the build of exactly these files).
  *  3. The built Nitro server started on a free port, pointed at the test database
  *     and a throwaway upload directory. Specs talk to it over real HTTP.
  *
@@ -71,8 +72,8 @@ export default async function setup(project: TestProject) {
       cwd: playgroundDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
-      // Scheduled entries are checked every 2 s in tests (every minute by default), retention every 3 s (daily).
-      env: { ...process.env, NODE_ENV: 'production', CMS_SCHEDULER_CRON: '*/2 * * * * *', CMS_RETENTION_CRON: '*/3 * * * * *' },
+      // Scheduled entries are checked every second in tests (every minute by default), retention every 3 s (daily).
+      env: { ...process.env, NODE_ENV: 'production', ...BUILD_CRON },
     })
     if (res.status !== 0) {
       throw new Error(`Playground build failed:\n${res.stdout}\n${res.stderr}`)
@@ -95,6 +96,8 @@ export default async function setup(project: TestProject) {
     env: {
       ...parentEnv,
       NODE_ENV: 'production',
+      // Presence, shared-editing and webhook-retry timers on a short leash (the build is the same).
+      ...TEST_TIMERS,
       HOST: '127.0.0.1',
       PORT: String(port),
       DATABASE_URL: databaseUrl,
