@@ -1,8 +1,8 @@
 // Public API of tinyzoo (consumed by host cms.config.ts and by the runtime).
-export { defineEntity, defineSingleton, buildRegistry, propOf } from './entity'
-export type { CmsEntity, CmsRegistry, ContentConfig, PublishConfig, EntityDef, Entity, Junction, Row, Insert, Update } from './entity'
-export { f, snake, camel, pascal, buildColumn, serializeColumn, type CmsGalleryValue } from './fields'
-export { seo, linkBlock, definePages, defineNavigation, defineRedirects } from './presets'
+export { defineEntity, defineSingleton, buildRegistry, propOf, editorLayout, listLayout } from './entity'
+export type { CmsEntity, CmsRegistry, ContentConfig, PublishConfig, EntityDef, Entity, Junction, Row, Insert, Update, CmsEditorLayout, CmsListLayout, CmsFormSection } from './entity'
+export { f, snake, camel, pascal, buildColumn, serializeColumn, type CmsGalleryValue, type CmsListValue } from './fields'
+export { seo, linkBlock, definePages, defineNavigation, defineRedirects, defineForm, defineFormSettings, FORM_FIELD_TYPES, type FormOptions } from './presets'
 export { defineBlock, blocksSchema, mediaIdsInBlocks, blockMediaKeys, BLOCK_FIELD_TYPES, type BlockDef, type BlockValue, type BlocksValue, type CmsBlock } from './blocks'
 export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'

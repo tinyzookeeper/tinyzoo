@@ -1,6 +1,6 @@
 import type { LocalizedText } from './i18n'
 import { isSafeLink } from './richtext'
-import { type BlockDef, type BlocksValue, blocksGraph, blocksSchema } from './blocks'
+import { type BlockDef, type BlockValue, type BlocksValue, blocksGraph, blocksSchema, defineBlock } from './blocks'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
   type PgColumnBuilder,
@@ -8,7 +8,7 @@ import {
 import { z, type ZodTypeAny } from 'zod'
 import { richTextSchema, type RichTextDoc } from './richtext'
 import type {
-  ColumnBase, ColumnSpec, FieldDescriptor, FieldKind, OnDelete, RelationKind, RelationSpec, ValidationMode,
+  AnyFieldDescriptor, ColumnBase, ColumnSpec, FieldDescriptor, FieldKind, OnDelete, RelationKind, RelationSpec, ValidationMode,
 } from './descriptor'
 
 // ── naming helpers ───────────────────────────────────────────────────────────
@@ -84,6 +84,9 @@ export function serializeColumn(spec: ColumnSpec, colName: string, ctx: Serializ
  */
 export const LOCALIZABLE_TYPES = new Set(['text', 'slug', 'richtext', 'blocks'])
 
+/** The stored value of a list field: its items, each with a stable id. */
+export type CmsListValue<F, K extends string = 'item'> = Array<BlockValue<K, F>>
+
 /** The stored value of a gallery field. */
 export type CmsGalleryValue = { mediaId: string; caption?: string | null }[]
 
@@ -116,6 +119,7 @@ interface Mods {
   help?: LocalizedText
   position?: 'main' | 'sidebar'
   group?: LocalizedText
+  icon?: string
 }
 
 function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
@@ -157,6 +161,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
   if (mods.help !== undefined) meta.help = mods.help
   if (mods.position !== undefined) meta.position = mods.position
   if (mods.group !== undefined) meta.group = mods.group
+  if (mods.icon !== undefined) meta.icon = mods.icon
 
   const descriptor = {
     type: cfg.type,
@@ -177,6 +182,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     help: (text: LocalizedText) => createField(cfg, { ...mods, help: text }),
     position: (where: 'main' | 'sidebar') => createField(cfg, { ...mods, position: where }),
     group: (label: LocalizedText) => createField(cfg, { ...mods, group: label }),
+    icon: (name: string) => createField(cfg, { ...mods, icon: name }),
   }
   return descriptor as unknown as FieldDescriptor
 }
@@ -201,18 +207,23 @@ export const f = {
     as<ScalarKind<string>>(createField({
       type: 'text', ui: { edit: 'CmsFieldText', cell: 'CmsCellText' },
       base: { kind: 'text' },
-      meta: o.multiline || o.max ? { ...(o.multiline ? { multiline: true } : {}), ...(o.max ? { max: o.max } : {}) } : undefined,
+      meta: o.multiline || o.max || o.format
+        ? { ...(o.multiline ? { multiline: true } : {}), ...(o.max ? { max: o.max } : {}), ...(o.format ? { format: o.format } : {}) }
+        : undefined,
       zod: () => {
-        let s: ZodTypeAny = o.format === 'email' ? z.email() : o.format === 'url' ? z.url()
-          // An address on this site: starts with one slash; no spaces, query, fragment
-          // or trailing slash (so each address has exactly one spelling).
-          : o.format === 'path' ? z.string().max(2000).regex(/^\/(?!\/)(?:[^\s\\?#]*[^\s\\?#/])?$/, 'Start with / (e.g. /old-page), without ? or # or a trailing /')
-          // A link: a site path, #anchor, or http(s) / mailto / tel — never javascript: or data:.
-          : o.format === 'link' ? z.string().max(2000).refine(isSafeLink, 'Use /page, https://…, mailto: or tel:')
-          : z.string()
-        if (o.max) s = (s as any).max(o.max)
-        if (o.required) s = (s as any).min(1, 'Required')
-        return s
+        // Spaces around a value are never meant (a pasted "/kontakt ", a title typed
+        // after a space): trimmed before checking. Multi-line text keeps its layout.
+        let s: any = o.multiline ? z.string() : z.string().trim()
+        if (o.max) s = s.max(o.max)
+        if (o.required) s = s.min(1, 'Required')
+        if (o.format === 'email') return s.pipe(z.email())
+        if (o.format === 'url') return s.pipe(z.url())
+        // An address on this site: starts with one slash; no spaces, query, fragment
+        // or trailing slash (so each address has exactly one spelling).
+        if (o.format === 'path') return s.max(2000).regex(/^\/(?!\/)(?:[^\s\\?#]*[^\s\\?#/])?$/, 'Start with / (e.g. /old-page), without ? or # or a trailing /')
+        // A link: a site path, #anchor, or http(s) / mailto / tel — never javascript: or data:.
+        if (o.format === 'link') return s.max(2000).refine(isSafeLink, 'Use /page, https://…, mailto: or tel:')
+        return s as ZodTypeAny
       },
     }, { isRequired: o.required })),
 
@@ -242,10 +253,15 @@ export const f = {
       base: { kind: 'boolean' }, zod: () => z.boolean(),
     }, { default: o.default ?? false })),
 
-  datetime: (o: { default?: 'now' } = {}) =>
+  /**
+   * A date and time, edited as wall-clock time in the admin's time zone. `allDay`
+   * adds an "All day" switch to the editor: an all-day value is stored at 0:00.
+   */
+  datetime: (o: { default?: 'now'; allDay?: boolean } = {}) =>
     as<ScalarKind<Date, Date | string>>(createField({
       type: 'datetime', ui: { edit: 'CmsFieldDate', cell: 'CmsCellDate' },
       base: { kind: 'timestamp' }, zod: () => z.coerce.date(),
+      meta: o.allDay ? { allDay: true } : undefined,
     }, { dbDefault: o.default === 'now' ? 'now' : undefined })),
 
   select: <const T extends readonly [string, ...string[]], D extends T[number] | undefined = undefined>(
@@ -254,13 +270,15 @@ export const f = {
       default?: D
       /** How each option reads in the admin, e.g. `{ draft: { en: 'Draft', cs: 'Koncept' } }`. Defaults to the value. */
       labels?: Partial<Record<T[number], LocalizedText>>
+      /** An icon per option (any Iconify name, e.g. `i-lucide-trophy`), shown on the choice buttons. */
+      icons?: Partial<Record<T[number], string>>
     },
   ) =>
     as<ScalarKind<T[number], T[number], undefined extends D ? false : true>>(createField({
       type: 'select', ui: { edit: 'CmsFieldSelect', cell: 'CmsCellBadge' },
       base: { kind: 'enum', values: o.options },
       tsType: o.options.map((v) => `'${v}'`).join(' | '),
-      meta: { options: o.options, ...(o.labels ? { labels: o.labels } : {}) },
+      meta: { options: o.options, ...(o.labels ? { labels: o.labels } : {}), ...(o.icons ? { icons: o.icons } : {}) },
       zod: () => z.enum([...o.options] as [string, ...string[]]),
     }, { default: o.default })),
 
@@ -285,6 +303,54 @@ export const f = {
       createDefault: [],
       blocks: blocks as Record<string, BlockDef>,
     }, { default: [] })),
+
+  /**
+   * A repeating group of fields: opening hours, team members, FAQ, a price list.
+   * Editors add, reorder (drag), duplicate and remove items. Stored as jsonb like
+   * blocks with one item type, so each item has a stable `id` (a good `:key`):
+   *
+   *   team: f.list({ fields: { name: f.text({ required: true }), role: f.text() }, max: 30 })
+   *   // → [{ id: 'k3j…', type: 'item', name: 'Jana', role: 'Trenérka' }, …]
+   *
+   * Item fields: text, slug, number, boolean, datetime, select, rich text, media.
+   * Can be `.localized()`.
+   */
+  list: <const F extends Record<string, AnyFieldDescriptor>, const K extends string = 'item'>(o: {
+    fields: F; max?: number; itemLabel?: LocalizedText
+    /** The stored `type` of every item (default 'item'); lets an existing one-type blocks field become a list. */
+    itemType?: K
+  }) => {
+    const blocks = { [o.itemType ?? 'item']: defineBlock({ label: o.itemLabel ?? { en: 'Item', cs: 'Položka', de: 'Eintrag' }, icon: 'i-lucide-list', fields: o.fields }) } as Record<string, BlockDef>
+    return as<ScalarKind<CmsListValue<F, K>, CmsListValue<F, K>, true>>(createField({
+      type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
+      base: { kind: 'jsonb' }, tsType: 'CmsBlock[]',
+      meta: { blocks: blocksGraph(blocks), list: { max: o.max ?? null, itemLabel: o.itemLabel ?? null } },
+      zod: () => blocksSchema(blocks, o.max ?? 500),
+      createDefault: [],
+      blocks,
+    }, { default: [] }))
+  },
+
+  /**
+   * A file to download (a price list, rules, a menu as PDF): picked from the media
+   * library or uploaded. Same storage and API shape as `f.media`, with a file row
+   * (name, size, open) instead of a picture.
+   */
+  file: (o: { accept?: string } = {}) =>
+    as<FkKind>(createField({
+      type: 'media', ui: { edit: 'CmsFieldMedia', cell: 'CmsCellThumb' },
+      base: { kind: 'uuid' }, meta: { accept: o.accept ?? 'application/pdf', file: true }, nameSuffix: '_id',
+      reference: { target: 'media', onDeleteRequired: 'restrict', onDeleteOptional: 'set null' },
+      zod: () => z.uuid(),
+    })),
+
+  /** A colour as #rrggbb (a category's colour, a page's accent). */
+  color: (o: { required?: boolean } = {}) =>
+    as<ScalarKind<string>>(createField({
+      type: 'text', ui: { edit: 'CmsFieldColor', cell: 'CmsCellColor' },
+      base: { kind: 'text' }, meta: { format: 'color' },
+      zod: () => z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'Use a colour like #1f6feb'),
+    }, { isRequired: o.required })),
 
   /**
    * Several files in order, each with an optional caption (a photo gallery, an album).

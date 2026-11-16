@@ -1,6 +1,7 @@
 import { resolveText, type LocalizedText } from '../../src/i18n'
 import en from '../i18n/en'
 import cs from '../i18n/cs'
+import de from '../i18n/de'
 import type { AdminMessages, MessageKey, PluralMessage } from '../i18n/types'
 
 /**
@@ -12,8 +13,8 @@ import type { AdminMessages, MessageKey, PluralMessage } from '../i18n/types'
  * Locale: the `cms_admin_locale` cookie → the browser's Accept-Language →
  * `cms.admin.defaultLocale` (app.config) → the first available locale.
  */
-const catalogs: Record<string, AdminMessages> = { en, cs }
-export const CMS_ADMIN_LOCALES: Record<string, string> = { cs: 'Čeština', en: 'English' }
+const catalogs: Record<string, AdminMessages> = { en, cs, de }
+export const CMS_ADMIN_LOCALES: Record<string, string> = { cs: 'Čeština', en: 'English', de: 'Deutsch' }
 
 type Params = Record<string, string | number>
 
@@ -100,6 +101,14 @@ export function useCmsI18n() {
     }).format(d)
   }
 
+  /** Any part of a date (`{ month: 'short' }`, `{ timeStyle: 'short' }`…) in the admin's time zone. */
+  function formatDateWith(value: string | number | Date | null | undefined, options: Intl.DateTimeFormatOptions): string {
+    if (value === null || value === undefined || value === '') return ''
+    const d = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(d.getTime())) return ''
+    return new Intl.DateTimeFormat(locale.value, { ...options, timeZone: config.value.timeZone }).format(d)
+  }
+
   /** "3 hours ago" / "před 3 hodinami". Only call on the client (depends on now). */
   function formatRelative(value: string | number | Date): string {
     const d = value instanceof Date ? value : new Date(value)
@@ -126,7 +135,7 @@ export function useCmsI18n() {
 
   return {
     locale: readonly(locale), locales: computed(() => config.value.locales), setLocale,
-    t, tl, formatNumber, formatDate, formatRelative,
+    t, tl, formatNumber, formatDate, formatDateWith, formatRelative,
     fieldLabel, fieldHelp, entityLabel, entitySingular,
   }
 }

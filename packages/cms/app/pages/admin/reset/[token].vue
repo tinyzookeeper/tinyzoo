@@ -29,14 +29,14 @@ async function submit() {
 
 <template>
   <div v-if="expired" class="space-y-5">
-    <div>
-      <h1 class="text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.linkExpiredTitle') }}</h1>
+    <div class="text-center">
+      <h1 class="cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.linkExpiredTitle') }}</h1>
       <p class="mt-1 text-sm text-muted">{{ t('auth.linkExpired') }}</p>
     </div>
     <UButton to="/admin/forgot" block>{{ t('auth.requestNewLink') }}</UButton>
   </div>
   <form v-else class="space-y-5" novalidate @submit.prevent="submit">
-    <h1 class="text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.resetTitle') }}</h1>
+    <h1 class="text-center cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.resetTitle') }}</h1>
     <UFormField :label="t('auth.newPassword')" name="password" :description="t('auth.passwordHint')" :error="error || undefined">
       <CmsPasswordInput v-model="password" autocomplete="new-password" autofocus />
     </UFormField>

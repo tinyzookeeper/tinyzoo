@@ -18,7 +18,7 @@ const animal = computed(() => (props.variant === 'first-use' && !props.plain ? c
 
 <template>
   <div class="flex flex-col items-center text-center px-6 py-14 sm:py-16" :role="variant === 'error' ? 'alert' : undefined">
-    <img v-if="animal" :src="animal.url" alt="" class="h-14 w-auto mb-5 select-none" draggable="false" :data-character="animal.name">
+    <img v-if="animal" :src="animal.url" alt="" class="h-20 w-auto mb-5 select-none" draggable="false" :data-character="animal.name">
     <div
       v-else
       class="size-10 rounded-md flex items-center justify-center mb-4"
@@ -26,7 +26,7 @@ const animal = computed(() => (props.variant === 'first-use' && !props.plain ? c
     >
       <UIcon :name="variant === 'error' ? 'i-lucide-triangle-alert' : variant === 'no-results' ? 'i-lucide-search-x' : icon" class="size-5" />
     </div>
-    <h3 class="text-sm font-semibold text-highlighted">{{ title }}</h3>
+    <h3 :class="animal ? 'cms-display text-lg text-highlighted' : 'text-sm font-semibold text-highlighted'">{{ title }}</h3>
     <p v-if="description" class="mt-1 text-sm text-muted max-w-sm text-pretty">{{ description }}</p>
     <div v-if="$slots.actions" class="mt-5 flex items-center gap-2">
       <slot name="actions" />

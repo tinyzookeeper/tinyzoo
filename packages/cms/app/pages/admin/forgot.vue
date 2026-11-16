@@ -29,21 +29,21 @@ async function submit() {
     <div class="size-10 rounded-md border border-default grid place-items-center text-muted">
       <UIcon name="i-lucide-mail-check" class="size-5" />
     </div>
-    <div>
-      <h1 class="text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.forgotSentTitle') }}</h1>
+    <div class="text-center">
+      <h1 class="cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.forgotSentTitle') }}</h1>
       <p class="mt-1 text-sm text-muted">{{ t('auth.forgotSent', { email }) }}</p>
     </div>
     <UButton to="/admin/login" color="neutral" variant="outline" block>{{ t('auth.backToSignIn') }}</UButton>
   </div>
   <form v-else class="space-y-5" novalidate @submit.prevent="submit">
-    <div>
-      <h1 class="text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.forgotTitle') }}</h1>
+    <div class="text-center">
+      <h1 class="cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.forgotTitle') }}</h1>
       <p class="mt-1 text-sm text-muted">{{ t('auth.forgotSubtitle') }}</p>
     </div>
     <UFormField :label="t('auth.email')" name="email">
       <UInput v-model="email" type="email" autocomplete="email" autofocus class="w-full" />
     </UFormField>
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
+    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" role="alert" />
     <UButton type="submit" block :loading="pending">{{ t('auth.sendLink') }}</UButton>
     <UButton to="/admin/login" color="neutral" variant="ghost" block>{{ t('auth.backToSignIn') }}</UButton>
   </form>

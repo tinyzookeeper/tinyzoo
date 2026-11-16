@@ -12,7 +12,7 @@ definePageMeta({ layout: 'admin', key: (route) => route.fullPath })
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { t, tl, entityLabel, entitySingular, fieldLabel, formatDate } = useCmsI18n()
+const { t, tl, entityLabel, entitySingular, fieldLabel, formatDate, fieldHelp } = useCmsI18n()
 const entity = computed(() => route.params.entity as string)
 const id = computed(() => route.params.id as string)
 const isNew = computed(() => id.value === 'new')
@@ -40,20 +40,25 @@ const defaults = ref<Record<string, any>>({})
 const translated = ref(false)
 
 const savedAt = ref<string | null>(null)
+const createdAt = ref<string | null>(null)
 // The version this tab edits (the entry's updatedAt): sent with every save, so saving
 // over someone else's newer version is refused unless the editor chooses to.
 const version = ref<string | null>(null)
 const rowUrl = (): string => `/api/cms/${entity.value}/${id.value}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`
 function adopt(row: Record<string, any> | null | undefined) {
   savedAt.value = row?.updatedAt ?? null
+  createdAt.value = row?.createdAt ?? null
   // A translation has its own version.
   version.value = (isTranslation.value ? row?.__version : row?.updatedAt) ?? null
   available.value = row?.__locales ?? []
   defaults.value = row?.__defaults ?? {}
   translated.value = !!row?.__translated
 }
+// An address of an entry that does not exist (deleted, mistyped): say so, never a blank editor.
+const missing = ref(false)
 if (!isNew.value) {
-  const { data } = await useFetch<{ row: Record<string, any> }>(rowUrl)
+  const { data, error: rowError } = await useFetch<{ row: Record<string, any> }>(rowUrl)
+  missing.value = rowError.value?.statusCode === 404 || rowError.value?.statusCode === 400
   form.load(data.value?.row)
   adopt(data.value?.row)
 }
@@ -122,10 +127,13 @@ const live = isNew.value
 const others = computed(() => live?.others.value ?? [])
 
 // ── shared editing of the rich-text fields (this entry, in this language) ──
-const collab = isNew.value ? null : useCmsCollab({ entity: entity.value, id: id.value, locale: isTranslation.value ? currentLocale.value : null })
+// Only when there is text to write together (a rich-text field).
+const hasRichText = (meta.value?.fields ?? []).some((f: any) => f.type === 'richtext')
+const collab = isNew.value || !hasRichText ? null : useCmsCollab({ entity: entity.value, id: id.value, locale: isTranslation.value ? currentLocale.value : null })
 // Shared on this page right now: a shared editor is mounted for it (not, say, a
 // field in a collapsed group, which then merges like any other field).
 const sharedFields = computed(() => (collab?.status.value === 'ready' ? collab.mounted.value : new Set<string>()))
+form.setSharedText({ fields: () => sharedFields.value, othersHere: () => others.value.length > 0, reset: (key, value) => { collab?.set(key, value) } })
 /**
  * Saves made from the shared document say so (it then matches the saved version) —
  * only when every shared field is on the page, so the save really holds the shared text.
@@ -137,20 +145,72 @@ const collabHeaders = (): Record<string, string> => {
 }
 
 // ── the "…" menu: whatever applies here ──
+const draftActions = computed(() => !!publish.value && canPublish.value && !isPublished.value && !isTranslation.value)
+const menuGroups = computed(() => {
+  const groups: any[][] = []
+  if (narrow.value) {
+    const g: any[] = []
+    if (draftActions.value) g.push({ label: t('editor.saveDraft'), icon: 'i-lucide-save', onSelect: () => save() })
+    if (previewUrl.value) g.push({ label: t('editor.preview'), icon: 'i-lucide-eye', onSelect: togglePreview })
+    if (!isNew.value) g.push({ label: t('revisions.open'), icon: 'i-lucide-history', onSelect: () => { historyOpen.value = true } })
+    if (locales.value && !isNew.value) g.push({ label: t('translation.language'), icon: 'i-lucide-languages', children: localeItems.value })
+    if (g.length) groups.push(g)
+  }
+  if (moreItems.value.length) groups.push(moreItems.value)
+  if (entryItems.value.length) groups.push(entryItems.value)
+  return groups
+})
 const moreItems = computed(() => {
   const items: any[] = []
   if (!isNew.value && dirty.value) items.push({ label: t('editor.discard'), icon: 'i-lucide-undo-2', onSelect: discardChanges })
   if (!isNew.value && !isTranslation.value && publish.value && canPublish.value && isPublished.value) {
-    items.push({ label: t('editor.unpublish'), icon: 'i-lucide-eye-off', onSelect: () => setPublished(false) })
+    items.push({ label: t('editor.unpublish'), icon: 'i-lucide-eye-off', onSelect: confirmUnpublish })
   }
   if (isTranslation.value && translated.value) items.push({ label: t('translation.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: removeTranslation })
   return items
 })
+// The entry itself: see it live, copy it, delete it (never from a translation).
+const entryItems = computed(() => {
+  const items: any[] = []
+  if (isNew.value || isTranslation.value) return items
+  if (isPublished.value && publicPath.value) items.push({ label: t('editor.viewOnSite'), icon: 'i-lucide-arrow-up-right', to: publicPath.value, target: '_blank' })
+  if (meta.value?.can?.create !== false) items.push({ label: t('editor.duplicate'), icon: 'i-lucide-copy', onSelect: duplicateEntry })
+  if (meta.value?.can?.delete !== false) items.push({ label: t('editor.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: deleteEntry })
+  return items
+})
+const entryActions = useCmsEntryActions()
+async function duplicateEntry() {
+  if (dirty.value && !await confirm({ title: t('editor.duplicateDirtyTitle'), description: t('editor.duplicateDirtyBody'), icon: 'i-lucide-copy', confirmLabel: t('editor.duplicateAnyway'), cancelLabel: t('common.cancel'), color: 'warning' })) return
+  const copy = await entryActions.duplicate(entity.value, meta.value, id.value)
+  if (copy) {
+    dirty.value = false
+    await router.push(`/admin/${entity.value}/${copy}`)
+  }
+}
+async function deleteEntry() {
+  if (await entryActions.remove(entity.value, meta.value, id.value, titleField.value ? state[titleField.value.key] : null)) {
+    dirty.value = false
+    await router.push(`/admin/${entity.value}`)
+  }
+}
 
+const confirm = useCmsConfirm()
+/** Taking it off the website is one click away from "Discard changes": ask first. */
+async function confirmUnpublish() {
+  const ok = await confirm({
+    title: t('editor.unpublishTitle'), description: t('editor.unpublishBody'), icon: 'i-lucide-eye-off',
+    confirmLabel: t('editor.unpublish'),
+  })
+  if (ok) await setPublished(false)
+}
 /** Back to the saved version. Shared text goes back for everyone editing it, so ask first. */
 async function discardChanges() {
   const others = (live?.others.value ?? []).length > 0 && sharedFields.value.size > 0
-  if (!window.confirm(others ? t('editor.discardSharedConfirm') : t('editor.discardConfirm'))) return
+  const ok = await confirm({
+    title: t('editor.discardTitle'), description: others ? t('editor.discardSharedConfirm') : t('editor.discardConfirm'),
+    icon: 'i-lucide-undo-2', cancelLabel: t('editor.keepEditing'), confirmLabel: t('editor.discard'), color: 'warning',
+  })
+  if (!ok) return
   await loadNewest()
 }
 
@@ -242,6 +302,9 @@ function copyDefault(key: string) {
 const publish = computed(() => meta.value?.publish)
 const titleKey = computed(() => meta.value?.titleField as string | undefined)
 const titleField = computed(() => editable.value.find((f: any) => f.key === titleKey.value))
+// A title that is an address (redirects): labelled, "/…" as the hint, set in mono.
+const titleIsAddress = computed(() => ['path', 'url', 'link'].includes(titleField.value?.meta?.format))
+const titlePlaceholder = computed(() => (titleIsAddress.value ? '/…' : t('editor.titlePlaceholder')))
 const MAIN_TYPES = new Set(['text', 'richtext', 'media', 'blocks', 'gallery'])
 const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TYPES.has(f.type) ? 'main' : 'sidebar')
 // The publish field is changed by the Publish action, not edited as a field. In a
@@ -249,26 +312,58 @@ const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TY
 const formFields = computed(() => editable.value.filter((f: any) =>
   f.key !== titleKey.value && f.key !== publish.value?.field && f.key !== meta.value?.orderField && (!isTranslation.value || f.localized)))
 const mainFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'main'))
-// Tabs for long forms (admin.tabs): fields in no tab go into the first. All tabs stay
-// mounted, so shared text and field state survive switching.
-const tabItems = computed(() => {
-  const tabs = (meta.value?.tabs ?? []) as { label: any; fields: string[] }[]
-  if (!tabs.length) return []
-  const assigned = new Set(tabs.flatMap((tab) => tab.fields))
-  return tabs.map((tab, i) => {
-    const fields = mainFields.value.filter((f: any) => tab.fields.includes(f.key) || (i === 0 && !assigned.has(f.key)))
-    const hasError = fields.some((f: any) => fieldErrors[f.key])
-    return { label: tl(tab.label), value: String(i), fields, icon: hasError ? 'i-lucide-circle-alert' : undefined }
-  }).filter((tab) => tab.fields.length)
+// ── arrangement: chosen from the content (graph `editor`, see editorLayout) ──
+// write: one calm, centred writing column, details on demand · form: fields and a
+// properties panel · preview: the form beside the live page. Same parts, same top bar.
+const arrangement = computed<'write' | 'form' | 'preview'>(() => meta.value?.editor ?? 'form')
+const wide = ref(false) // ≥ 1024px: panels side by side
+const roomy = ref(false) // ≥ 1280px: the Write arrangement shows details by default
+const narrow = ref(false) // < 768px: secondary actions move into "…"
+const previewOpen = ref(arrangement.value === 'preview')
+const previewSheet = ref(false)
+const detailsOpen = ref(true)
+const previewKey = computed(() => `cms-preview:${entity.value}`)
+onMounted(() => {
+  const mq = (q: string, set: (v: boolean) => void) => {
+    const m = window.matchMedia(q)
+    set(m.matches)
+    m.addEventListener('change', (e) => set(e.matches))
+  }
+  mq('(min-width: 1024px)', (v) => { wide.value = v })
+  mq('(min-width: 1280px)', (v) => { roomy.value = v })
+  mq('(max-width: 767px)', (v) => { narrow.value = v })
+  detailsOpen.value = arrangement.value !== 'write' || roomy.value
+  try {
+    const pref = localStorage.getItem(previewKey.value)
+    if (pref) previewOpen.value = pref === '1'
+  }
+  catch { /* storage blocked: the arrangement's default */ }
 })
-
-// ── live preview beside the form: opened on demand (it loads the site's page, with
-// whatever the entry contains, so only when someone asks for it) ──
-const previewOpen = ref(false)
+// The live page loads the site with whatever the entry contains: beside the form on
+// wide screens (remembered per collection), as a full-screen sheet on small ones.
 function togglePreview() {
+  if (!wide.value) {
+    previewSheet.value = true
+    return
+  }
   previewOpen.value = !previewOpen.value
+  try {
+    localStorage.setItem(previewKey.value, previewOpen.value ? '1' : '0')
+  }
+  catch { /* storage blocked: for this visit only */ }
 }
-const sideFields = computed(() => formFields.value.filter((f: any) => !f.meta?.group && placementOf(f) === 'sidebar'))
+const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value)
+// Form and preview show every field in titled sections (admin.sections; tabs read as
+// sections there) with a details column; write keeps the text apart from the details.
+const sectioned = computed(() => arrangement.value !== 'write')
+const formSectionConfig = computed(() => {
+  if (meta.value?.sections?.length) return meta.value.sections
+  const tabs = (meta.value?.tabs ?? []) as { label: any; fields: string[] }[]
+  return tabs.length ? tabs.map((tab) => ({ label: tab.label, fields: tab.fields })) : null
+})
+const showAside = computed(() => !wide.value || arrangement.value !== 'write' || detailsOpen.value || split.value)
+// The sidebar folds to icons while writing or looking at the page.
+useCmsFocus(computed(() => wide.value && (arrangement.value !== 'form' || split.value)))
 const groups = computed(() => {
   const out = new Map<string, { label: string; fields: any[] }>()
   for (const f of formFields.value) {
@@ -279,10 +374,45 @@ const groups = computed(() => {
   }
   return [...out.values()]
 })
+
+// ── write: the column holds the cover photo, the title, the summary and the text, as
+// the reader meets them; everything else is in the details beside it ──
+const isImageMedia = (f: any) => f.type === 'media' && (!f.meta?.accept || String(f.meta.accept).startsWith('image'))
+const writeCover = computed(() => mainFields.value.find(isImageMedia))
+const writeLead = computed(() => mainFields.value.find((f: any) => f.type === 'text' && f.meta?.multiline))
+const writeBody = computed(() => mainFields.value.find((f: any) => f.type === 'richtext'))
+const inColumn = computed(() => new Set([writeCover.value?.key, writeLead.value?.key, writeBody.value?.key].filter(Boolean) as string[]))
+// Further text bodies and lists of blocks stay in the column, under their labels.
+const writeMore = computed(() => mainFields.value.filter((f: any) => !inColumn.value.has(f.key) && (f.type === 'richtext' || f.type === 'blocks')))
+// admin.tabs after the first become folded groups in the details ("Photos & video"),
+// as do .group() fields; the rest are rows.
+const writeGroups = computed(() => {
+  const tabs = (meta.value?.tabs ?? []) as { label: any; fields: string[] }[]
+  const taken = new Set([...inColumn.value, ...writeMore.value.map((f: any) => f.key as string)])
+  const out: { id: string; label: string; fields: any[] }[] = []
+  tabs.forEach((tab, i) => {
+    if (i === 0) return
+    const fields = formFields.value.filter((f: any) => !f.meta?.group && tab.fields.includes(f.key) && !taken.has(f.key))
+    fields.forEach((f: any) => taken.add(f.key))
+    if (fields.length) out.push({ id: `tab-${i}`, label: tl(tab.label), fields })
+  })
+  for (const g of groups.value) out.push({ id: `group-${g.label}`, label: g.label, fields: g.fields })
+  return out
+})
+const writeRows = computed(() => {
+  const elsewhere = new Set([...inColumn.value, ...writeMore.value.map((f: any) => f.key as string), ...writeGroups.value.flatMap((g) => g.fields.map((f: any) => f.key as string))])
+  const rows = formFields.value.filter((f: any) => !f.meta?.group && !elsewhere.has(f.key))
+  // The address last: it follows from the title.
+  return [...rows.filter((f: any) => f.type !== 'slug'), ...rows.filter((f: any) => f.type === 'slug')]
+})
+const groupSummary = (g: { fields: any[] }) => {
+  const filled = g.fields.filter((f: any) => !cmsIsEmpty(state[f.key]) && !(f.type === 'boolean' && !state[f.key])).length
+  return filled ? t('sections.filled', { n: filled, total: g.fields.length }) : t('sections.empty')
+}
 const openGroups = reactive<Record<string, boolean>>({})
 // A group with an error inside opens itself.
 watch(() => ({ ...fieldErrors }), (errs) => {
-  for (const g of groups.value) if (g.fields.some((f: any) => errs[f.key])) openGroups[g.label] = true
+  for (const g of writeGroups.value) if (g.fields.some((f: any) => errs[f.key])) openGroups[g.id] = true
 })
 
 // ── titles ──
@@ -302,14 +432,16 @@ const publishedOn = computed(() => (publish.value?.dateField ? state[publish.val
 const futureDate = computed(() => !!publishedOn.value && new Date(publishedOn.value).getTime() > Date.now())
 const isScheduled = computed(() => isPublished.value && futureDate.value)
 
-async function save(successTitle?: string) {
+async function save(successTitle?: string | null) {
   if (isTranslation.value) return saveTranslation()
   return form.submit(async () => {
     if (isNew.value) {
       const url: string = `/api/cms/${entity.value}`
       const res: any = await $fetch(url, { method: 'POST', body: form.body() })
       dirty.value = false // before the redirect, so the leave-guard does not fire
-      await router.push(`/admin/${entity.value}/${res.row.id}`)
+      handedOver.value = momentAfterCreate.value
+      // Replace: Back then goes to where they came from, not to a blank "new" form.
+      await router.replace(`/admin/${entity.value}/${res.row.id}`)
     }
     else {
       const url: string = `/api/cms/${entity.value}/${id.value}`
@@ -317,12 +449,13 @@ async function save(successTitle?: string) {
       const res: any = await $fetch(url, { method: 'PATCH', body: form.body(), headers })
       savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
       version.value = res?.row?.updatedAt ?? null
-      // The publish date may have been stamped by the server: show what was stored.
+      // The publish date may have been stamped by the server: show what was stored —
+      // quietly, it is the saved value, not an edit made during the save.
       const dateKey = publish.value?.dateField
-      if (dateKey && res?.row && dateKey in res.row) state[dateKey] = res.row[dateKey]
+      if (dateKey && res?.row && dateKey in res.row) form.quiet(() => { state[dateKey] = res.row[dateKey] })
       if (live) live.incoming.value = null
     }
-  }, successTitle ?? (isNew.value ? t('editor.created') : t('editor.saved')))
+  }, successTitle === undefined ? (isNew.value ? t('editor.created') : t('editor.saved')) : successTitle)
 }
 
 async function saveTranslation() {
@@ -340,6 +473,8 @@ async function saveTranslation() {
 }
 
 async function removeTranslation() {
+  const lang = localeLabel(currentLocale.value)
+  if (!await confirm({ title: t('translation.removeTitle', { lang }), description: t('translation.removeBody', { lang }), icon: 'i-lucide-languages', confirmLabel: t('translation.remove'), cancelLabel: t('common.cancel'), color: 'error' })) return
   try {
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
     await $fetch(url, { method: 'DELETE' })
@@ -359,18 +494,119 @@ const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
   to: { query: code === locales.value?.default ? {} : { locale: code } },
 })))
 
-async function setPublished(next: boolean) {
+async function setPublished(next: boolean, quiet = false): Promise<boolean> {
   const p = publish.value
-  if (!p) return
+  if (!p) return false
   const before = { status: state[p.field], date: p.dateField ? state[p.dateField] : undefined }
   state[p.field] = next ? p.publishedValue : p.draftValue
   // The server stamps the publish date when there is none (its clock, not ours).
-  const ok = await save(next ? (futureDate.value ? t('editor.scheduledToast', { date: formatDate(publishedOn.value) }) : t('editor.publishedToast')) : t('editor.unpublishedToast'))
+  const ok = await save(quiet ? null : next ? (futureDate.value ? t('editor.scheduledToast', { date: formatDate(publishedOn.value) }) : t('editor.publishedToast')) : t('editor.unpublishedToast'))
   if (!ok) {
     // Never show "Published" for something the server did not accept.
     state[p.field] = before.status
     if (p.dateField) state[p.dateField] = before.date
   }
+  return !!ok
+}
+
+// ── the review step before going live, and the moment after ──
+const reviewOpen = ref(false)
+const publicPath = computed(() => previewUrl.value?.split('?')[0] ?? null)
+const dateFieldDesc = computed(() => (publish.value?.dateField ? editable.value.find((f: any) => f.key === publish.value.dateField) : undefined))
+const hasContent = (f: any, v: any) => {
+  if (v === null || v === undefined || v === '') return false
+  if (Array.isArray(v)) return v.length > 0
+  if (f.type === 'richtext') return /"text":"[^"]|"type":"image"/.test(JSON.stringify(v))
+  return true
+}
+function toDetails() {
+  document.querySelector('.cms-editor__aside')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+/** Close the review and bring the field into view (its tab first). */
+async function goToField(key: string) {
+  reviewOpen.value = false
+  const group = writeGroups.value.find((g) => g.fields.some((f: any) => f.key === key))
+  if (group) {
+    detailsOpen.value = true
+    openGroups[group.id] = true
+  }
+  await nextTick()
+  const el = document.getElementById(`cms-field-${key}`)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  // Show where: focus it and flash a ring around it for a moment.
+  setTimeout(() => (el as HTMLElement).focus?.({ preventScroll: true }), 350)
+  el.classList.remove('cms-flash')
+  void el.offsetWidth
+  el.classList.add('cms-flash')
+  setTimeout(() => el.classList.remove('cms-flash'), 2000)
+}
+const reviewChecks = computed(() => {
+  const out: { ok: boolean; blocking?: boolean; title: string; description?: string; action?: { label: string; onClick: () => void } }[] = []
+  const tf = titleField.value
+  if (tf) {
+    const v = state[tf.key]
+    out.push(v
+      ? { ok: true, title: fieldLabel(tf), description: String(v) }
+      // A required title blocks like any other required field, in the same words.
+      : { ok: false, blocking: !tf.optional, title: t('review.missing', { field: fieldLabel(tf) }), description: tf.optional ? t('review.titleMissingBody') : t('review.requiredBody'), action: { label: t('review.fix'), onClick: () => goToField(tf.key) } })
+  }
+  // Required fields left empty: the save would be refused, so these come first and
+  // block publishing. A translation only checks what it translates.
+  for (const f of (meta.value?.fields ?? []) as any[]) {
+    if (f === tf || f.key === meta.value?.orderField) continue
+    if (!(f.required || f.relation?.required)) continue
+    if (isTranslation.value && !f.localized) continue
+    if (hasContent(f, state[f.key])) continue
+    out.unshift({ ok: false, blocking: true, title: t('review.missing', { field: fieldLabel(f) }), description: t('review.requiredBody'), action: { label: t('review.fix'), onClick: () => goToField(f.key) } })
+  }
+  // The content itself: the text body and the main picture. Galleries, files and
+  // other extras are optional by nature and are not worth a warning.
+  const mainPicture = mainFields.value.find((f: any) => f.type === 'media' && (!f.meta?.accept || String(f.meta.accept).startsWith('image')))
+  for (const f of mainFields.value) {
+    if (f.type !== 'richtext' && f !== mainPicture) continue
+    out.push(hasContent(f, state[f.key])
+      ? { ok: true, title: fieldLabel(f) }
+      : { ok: false, title: t('review.missing', { field: fieldLabel(f) }), description: t('review.missingBody'), action: { label: t('review.add'), onClick: () => goToField(f.key) } })
+  }
+  if (publicPath.value) out.push({ ok: true, title: t('review.address'), description: publicPath.value })
+  // Translations not written yet (the page then shows the default language).
+  if (locales.value && !isNew.value && !isTranslation.value) {
+    for (const code of locales.value.all) {
+      if (code === locales.value.default || available.value.includes(code)) continue
+      out.push({
+        ok: false, title: t('review.translationMissing', { lang: localeLabel(code) }), description: t('review.translationMissingBody', { lang: defaultLabel.value }),
+        action: { label: t('review.translate'), onClick: () => { reviewOpen.value = false; router.push({ query: { locale: code } }) } },
+      })
+    }
+  }
+  return out
+})
+const moment = ref<null | 'published' | 'scheduled'>(null)
+const momentOpen = computed({ get: () => !!moment.value, set: (v: boolean) => { if (!v) moment.value = null } })
+// A new entry published from the review is saved first, then opened at its own
+// address (a new page): the moment is handed over in app state and shown there.
+const momentAfterCreate = ref<null | 'published' | 'scheduled'>(null)
+const handedOver = useState<null | 'published' | 'scheduled'>('cms-moment', () => null)
+onMounted(() => {
+  if (handedOver.value) {
+    moment.value = handedOver.value
+    handedOver.value = null
+  }
+})
+async function publishFromReview(when: 'now' | 'schedule') {
+  const dk = publish.value?.dateField
+  if (when === 'now' && dk && futureDate.value) state[dk] = null
+  const kind = when === 'schedule' ? 'scheduled' : 'published'
+  momentAfterCreate.value = kind
+  const ok = await setPublished(true, true)
+  momentAfterCreate.value = null
+  if (!ok) {
+    reviewOpen.value = false
+    return
+  }
+  reviewOpen.value = false
+  moment.value = kind
 }
 
 const previewUrl = computed(() => {
@@ -393,86 +629,181 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 </script>
 
 <template>
-  <CmsPage :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: listLabel, to: `/admin/${entity}` }, { label: heading }]">
+  <CmsPage v-if="graph && (!meta || missing)" :title="t('nav.notFoundTitle')">
+    <CmsEmptyState variant="no-results" icon="i-lucide-map-pin-off" :title="t('nav.notFoundTitle')" :description="missing ? t('nav.missingEntryBody') : t('nav.notFoundBody')">
+      <template #actions>
+        <UButton to="/admin" color="neutral" variant="outline" icon="i-lucide-house">{{ t('nav.home') }}</UButton>
+      </template>
+    </CmsEmptyState>
+  </CmsPage>
+  <CmsPage v-else :back="{ label: listLabel, to: `/admin/${entity}` }" flush>
+    <!-- one top bar for every arrangement: ‹ back · status · saved | language, history, details, preview, the primary action, … -->
+    <template #status>
+      <!-- phones: one thing — unsaved changes while there are any, else the status -->
+      <CmsStatusBadge v-if="publish && !isNew" :published="isPublished" :scheduled-for="publishedOn" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''" />
+      <span v-else-if="isNew" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''">{{ t('editor.newEntry') }}</span>
+      <span v-if="((publish && !isNew) || isNew) && (saving || dirty || savedAt)" class="text-dimmed max-md:hidden" aria-hidden="true">·</span>
+      <span class="truncate" :class="[dirty ? 'cms-unsaved' : '', saving || dirty ? '' : 'max-md:hidden']">
+        <template v-if="saving">{{ t('editor.saving') }}</template>
+        <template v-else-if="dirty"><span class="md:hidden">{{ t('editor.unsavedShort') }}</span><span class="max-md:hidden">{{ t('editor.unsaved') }}</span></template>
+        <template v-else-if="savedAt">{{ t('editor.savedAgo', { time: '' }) }}<CmsTime :value="savedAt" relative /></template>
+      </span>
+    </template>
     <template #actions>
       <CmsPresence :people="others" />
       <UDropdownMenu v-if="locales && !isNew" :items="localeItems" :content="{ align: 'end' }">
-        <UButton color="neutral" variant="ghost" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
+        <UButton color="neutral" variant="ghost" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')" class="max-md:hidden">
           {{ (currentLocale ?? '').toUpperCase() }}
         </UButton>
       </UDropdownMenu>
-      <span class="hidden md:inline text-sm mr-1" :class="dirty ? 'text-warning' : 'text-dimmed'">
-        <template v-if="dirty">{{ t('editor.unsaved') }}</template>
-        <template v-else-if="savedAt">{{ t('editor.savedAgo', { time: '' }) }}<CmsTime :value="savedAt" relative /></template>
-      </span>
       <UTooltip v-if="!isNew" :text="t('revisions.open')">
-        <UButton variant="ghost" color="neutral" icon="i-lucide-history" :aria-label="t('revisions.open')" @click="historyOpen = true" />
+        <UButton variant="ghost" color="neutral" icon="i-lucide-history" :aria-label="t('revisions.open')" class="max-md:hidden" @click="historyOpen = true" />
       </UTooltip>
-      <UTooltip v-if="previewUrl" :text="t('editor.previewPanel')">
-        <UButton
-          variant="ghost" :color="previewOpen ? 'primary' : 'neutral'" icon="i-lucide-panel-right"
-          :aria-label="t('editor.previewPanel')" :aria-pressed="previewOpen" @click="togglePreview"
-        />
-      </UTooltip>
+      <UButton
+        v-if="arrangement === 'write' && wide && !split" color="neutral" variant="outline" icon="i-lucide-sliders-horizontal"
+        :class="detailsOpen ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="detailsOpen" @click="detailsOpen = !detailsOpen"
+      >{{ t('editor.details') }}</UButton>
+      <!-- phones: the details sit under the text; this says they exist and goes there -->
+      <UButton
+        v-if="!wide && showAside" color="neutral" variant="ghost" icon="i-lucide-sliders-horizontal"
+        :aria-label="t('editor.details')" @click="toDetails"
+      />
+      <UButton
+        v-if="previewUrl" color="neutral" variant="outline" icon="i-lucide-eye" class="max-md:hidden"
+        :class="split ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="split" @click="togglePreview"
+      >{{ t('editor.preview') }}</UButton>
 
       <!-- one primary action -->
-      <template v-if="isTranslation">
-        <UButton :loading="saving" @click="save()">{{ t('translation.save') }}</UButton>
-      </template>
-      <UButton v-else-if="isNew" :loading="saving" @click="save()">{{ t('common.create') }}</UButton>
+      <UButton v-if="isTranslation" :loading="saving" @click="save()">{{ t('translation.save') }}</UButton>
       <template v-else-if="publish && canPublish">
-        <template v-if="isPublished">
-          <UButton :loading="saving" @click="save()">{{ t('editor.update') }}</UButton>
-        </template>
+        <UButton v-if="isPublished && !isNew" :loading="saving" @click="save()">{{ futureDate ? t('editor.saveChanges') : t('editor.update') }}</UButton>
         <template v-else>
-          <UButton color="neutral" variant="outline" :loading="saving" @click="save()">{{ t('editor.saveDraft') }}</UButton>
-          <UButton :loading="saving" :icon="futureDate ? 'i-lucide-clock' : undefined" @click="setPublished(true)">{{ futureDate ? t('editor.schedule') : t('editor.publish') }}</UButton>
+          <UButton color="neutral" variant="outline" :loading="saving" class="max-md:hidden" @click="save()">{{ t('editor.saveDraft') }}</UButton>
+          <UButton :disabled="saving" @click="reviewOpen = true">{{ t('editor.publishEllipsis') }}</UButton>
         </template>
       </template>
+      <UButton v-else-if="isNew" :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.create') }}</UButton>
       <UButton v-else :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.save') }}</UButton>
-      <UDropdownMenu v-if="moreItems.length" :items="[moreItems]" :content="{ align: 'end' }">
+      <UDropdownMenu v-if="menuGroups.length" :items="menuGroups" :content="{ align: 'end' }">
         <UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('editor.moreActions')" />
       </UDropdownMenu>
     </template>
-    <UAlert
-      v-if="lostText" color="warning" variant="subtle" icon="i-lucide-cloud-off" class="mb-6" role="alert"
-      :title="t('live.offlineLost')" :description="t('live.offlineLostBody')"
-      :actions="[{ label: t('live.restoreMine'), color: 'neutral', variant: 'outline', onClick: restoreLost }]"
-      close @update:open="(open: boolean) => { if (!open) lostText = null }"
-    />
 
     <CmsRevisions
       v-if="!isNew" v-model:open="historyOpen" :entity="entity" :id="id"
       :locale="isTranslation ? currentLocale : null" :fields="editable.filter((f: any) => !workflowFields.has(f.key))" :current="state" @restore="restoreRevision"
     />
-    <CmsLiveNotice
-      :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
-      :list-to="`/admin/${entity}`"
-      @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
-    />
-    <div :class="previewOpen && previewUrl ? 'cms-with-preview' : ''">
-    <div class="cms-editor">
-      <div class="cms-editor__main space-y-8">
-        <!-- the title is the page heading -->
-        <div v-if="titleField">
-          <input
-            v-model="state[titleField.key]" class="cms-title-input"
-            :placeholder="isTranslation ? (defaults[titleField.key] || t('editor.titlePlaceholder')) : t('editor.titlePlaceholder')"
-            :disabled="isTranslation && !titleField.localized"
-            :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" autocomplete="off"
-          >
-          <p v-if="fieldErrors[titleField.key]" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
-          <CmsTranslationRef
-            v-if="isTranslation && titleField.localized" :field="titleField" :value="defaults[titleField.key]"
-            :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
+
+    <div
+      class="cms-editor"
+      :class="[arrangement === 'write' && !split ? 'cms-editor--write' : '', split ? 'cms-editor--split' : '', !showAside ? 'cms-editor--no-aside' : '']"
+    >
+      <div class="cms-editor__main">
+        <div class="cms-editor__column">
+          <UAlert
+            v-if="lostText" color="warning" variant="subtle" icon="i-lucide-cloud-off" class="mb-6" role="alert"
+            :title="t('live.offlineLost')" :description="t('live.offlineLostBody')"
+            :actions="[{ label: t('live.restoreMine'), color: 'neutral', variant: 'outline', onClick: restoreLost }]"
+            close @update:open="(open: boolean) => { if (!open) lostText = null }"
           />
-        </div>
-        <UTabs
-          v-if="tabItems.length" :items="tabItems" :unmount-on-hide="false" variant="link"
-          :ui="{ list: 'border-b border-default gap-4', trigger: 'px-0', content: 'pt-6 space-y-8' }"
-        >
-          <template #content="{ item }">
-            <div v-for="f in (item as any).fields" :key="f.key">
+          <CmsLiveNotice
+            :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
+            :list-to="`/admin/${entity}`"
+            @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
+          />
+
+          <!-- form and preview: every field in titled sections -->
+          <CmsFormSections
+            v-if="sectioned" :fields="formFields" :sections="formSectionConfig" :state="state" :errors="fieldErrors"
+            :disclose="!isTranslation" :menu="!split"
+          >
+            <template #top>
+              <!-- the title is the page heading; the address it will have sits under it -->
+              <div v-if="titleField">
+              <label v-if="titleIsAddress" :for="`cms-field-${titleField.key}`" class="block mb-1 text-sm font-medium text-highlighted">{{ fieldLabel(titleField) }}</label>
+                <textarea
+                  :id="`cms-field-${titleField.key}`" v-model="state[titleField.key]" rows="1" class="cms-title-input resize-none field-sizing-content" :class="titleIsAddress ? 'cms-title-input--address' : ''"
+                  :placeholder="titlePlaceholder"
+                  :disabled="isTranslation && !titleField.localized"
+                  :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" autocomplete="off"
+                  @keydown.enter.prevent
+                />
+                <p v-if="fieldErrors[titleField.key]" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
+              <p v-else-if="titleIsAddress && fieldHelp(titleField)" class="mt-1.5 text-sm text-muted">{{ fieldHelp(titleField) }}</p>
+                <p v-else-if="publicPath" class="mt-1.5 font-mono text-xs text-muted truncate">
+                  <a v-if="isPublished" :href="publicPath" target="_blank" rel="noopener" class="hover:text-highlighted">{{ publicPath }} <UIcon name="i-lucide-arrow-up-right" class="size-3 align-[-1px]" /></a>
+                  <template v-else>{{ publicPath }}</template>
+                </p>
+                <CmsTranslationRef
+                  v-if="isTranslation && titleField.localized" :field="titleField" :value="defaults[titleField.key]"
+                  :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
+                />
+              </div>
+            </template>
+            <template #field="{ field: f }">
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" hide-optional />
+              <CmsTranslationRef
+                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+                @copy="copyDefault(f.key)"
+              />
+            </template>
+          </CmsFormSections>
+
+          <!-- write: the cover photo, the title, the summary, the text — as the reader meets them -->
+          <div v-else class="space-y-6">
+            <CmsFieldMedia
+              v-if="writeCover" :id="`cms-field-${writeCover.key}`" v-model="state[writeCover.key]" :field="writeCover" :entity="entity"
+              variant="cover" class="mb-2"
+            />
+            <!-- the title is the page heading; the address it will have sits under it -->
+            <div v-if="titleField">
+              <label v-if="titleIsAddress" :for="`cms-field-${titleField.key}`" class="block mb-1 text-sm font-medium text-highlighted">{{ fieldLabel(titleField) }}</label>
+              <textarea
+                :id="`cms-field-${titleField.key}`" v-model="state[titleField.key]" rows="1" class="cms-title-input resize-none field-sizing-content" :class="titleIsAddress ? 'cms-title-input--address' : ''"
+                :placeholder="titlePlaceholder"
+                :disabled="isTranslation && !titleField.localized"
+                :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" autocomplete="off"
+                @keydown.enter.prevent
+              />
+              <p v-if="fieldErrors[titleField.key]" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
+              <p v-else-if="titleIsAddress && fieldHelp(titleField)" class="mt-1.5 text-sm text-muted">{{ fieldHelp(titleField) }}</p>
+              <p v-else-if="publicPath" class="mt-1.5 font-mono text-xs text-muted truncate">
+                <a v-if="isPublished" :href="publicPath" target="_blank" rel="noopener" class="hover:text-highlighted">{{ publicPath }} <UIcon name="i-lucide-arrow-up-right" class="size-3 align-[-1px]" /></a>
+                <template v-else>{{ publicPath }}</template>
+              </p>
+              <CmsTranslationRef
+                v-if="isTranslation && titleField.localized" :field="titleField" :value="defaults[titleField.key]"
+                :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
+              />
+            </div>
+            <!-- the summary: large, unboxed, right under the title -->
+            <div v-if="writeLead">
+              <textarea
+                :id="`cms-field-${writeLead.key}`" v-model="state[writeLead.key]" rows="2"
+                class="cms-lead-input resize-none field-sizing-content" :maxlength="writeLead.meta?.max"
+                :placeholder="fieldHelp(writeLead) || fieldLabel(writeLead)"
+                :aria-label="fieldLabel(writeLead)" :aria-invalid="!!fieldErrors[writeLead.key]"
+              />
+              <p v-if="fieldErrors[writeLead.key]" class="mt-1 text-sm text-error">{{ fieldErrors[writeLead.key] }}</p>
+              <p v-else-if="writeLead.meta?.max && (state[writeLead.key]?.length ?? 0) > writeLead.meta.max * 0.8" class="mt-1 text-xs text-muted tabular-nums">
+                {{ state[writeLead.key]?.length ?? 0 }} / {{ writeLead.meta.max }}
+              </p>
+              <CmsTranslationRef
+                v-if="isTranslation" :field="writeLead" :value="defaults[writeLead.key]" :lang="defaultLabel"
+                :empty="!state[writeLead.key]" @copy="copyDefault(writeLead.key)"
+              />
+            </div>
+            <!-- the text: no box, the toolbar a quiet line above it -->
+            <div v-if="writeBody" :id="`cms-field-${writeBody.key}`" class="cms-write-body" :aria-label="fieldLabel(writeBody)" role="group">
+              <CmsFieldRichText v-model="state[writeBody.key]" :field="writeBody" />
+              <p v-if="fieldErrors[writeBody.key]" class="mt-1 text-sm text-error">{{ fieldErrors[writeBody.key] }}</p>
+              <CmsTranslationRef
+                v-if="isTranslation" :field="writeBody" :value="defaults[writeBody.key]" :lang="defaultLabel"
+                :empty="state[writeBody.key] == null" @copy="copyDefault(writeBody.key)"
+              />
+            </div>
+            <div v-for="f in writeMore" :key="f.key">
               <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
               <CmsTranslationRef
                 v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
@@ -480,67 +811,134 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                 @copy="copyDefault(f.key)"
               />
             </div>
-          </template>
-        </UTabs>
-        <template v-else>
-          <div v-for="f in mainFields" :key="f.key">
-            <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
-            <CmsTranslationRef
-              v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
-              :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
-              @copy="copyDefault(f.key)"
-            />
           </div>
-        </template>
+        </div>
       </div>
 
-      <aside class="cms-editor__aside space-y-5" :aria-label="t('editor.status')">
-        <div v-if="publish && !isNew" class="space-y-1">
-          <p class="text-xs font-medium text-muted">{{ t('editor.status') }}</p>
-          <CmsStatusBadge :published="isPublished" :scheduled-for="publishedOn" />
-          <p class="text-xs text-dimmed">
-            <template v-if="isScheduled">{{ t('editor.goesLive', { date: formatDate(publishedOn) }) }}</template>
-            <template v-else-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
-            <template v-else-if="!isPublished">{{ canPublish ? t('editor.notPublished') : t('editor.cannotPublish') }}</template>
-          </p>
-          <p v-if="isTranslation" class="text-xs text-dimmed">{{ t('translation.publishingShared') }}</p>
-        </div>
+      <aside v-if="showAside" class="cms-editor__aside" :aria-label="t('editor.details')">
+        <div class="cms-editor__aside-inner space-y-5">
+          <!-- the status itself is in the top bar; here only what it does not say -->
+          <div v-if="publish && !isNew && (isScheduled || !isPublished || publishedOn)" class="flex items-start gap-2 text-sm text-muted">
+            <UIcon :name="isScheduled ? 'i-lucide-clock' : isPublished ? 'i-lucide-globe' : 'i-lucide-pencil-line'" class="size-4 shrink-0 mt-0.5" />
+            <div>
+              <p>
+                <template v-if="isScheduled">{{ t('editor.goesLive', { date: formatDate(publishedOn) }) }}</template>
+                <template v-else-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
+                <template v-else-if="!isPublished">{{ canPublish ? t('editor.notPublished') : t('editor.cannotPublish') }}</template>
+              </p>
+              <p v-if="isTranslation" class="text-xs">{{ t('translation.publishingShared') }}</p>
+            </div>
+          </div>
 
-        <div v-for="f in sideFields" :key="f.key">
-          <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar" />
-          <CmsTranslationRef
-            v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel" :empty="!state[f.key]"
-            @copy="state[f.key] = defaults[f.key]"
-          />
-        </div>
-        <p v-if="isTranslation" class="text-xs text-muted border-t border-default pt-4">
-          {{ t('translation.shared') }}
-          <NuxtLink :to="{ query: {} }" class="underline underline-offset-2 hover:text-highlighted">{{ t('translation.editShared', { lang: defaultLabel }) }}</NuxtLink>
-        </p>
+          <!-- form and preview: what the fields do not say — where it is, when it was saved -->
+          <dl v-if="sectioned" class="space-y-3 text-sm">
+            <div v-if="isNew" class="flex items-start gap-2 text-muted">
+              <dt class="sr-only">{{ t('editor.newEntry') }}</dt>
+              <UIcon name="i-lucide-sparkles" class="size-4 shrink-0 mt-0.5" />
+              <dd>{{ t('editor.newEntryHint') }}</dd>
+            </div>
+            <div v-if="publicPath && isPublished" class="flex items-start gap-2 min-w-0">
+              <dt class="sr-only">{{ t('editor.onWebsite') }}</dt>
+              <UIcon name="i-lucide-link" class="size-4 shrink-0 mt-0.5 text-muted" />
+              <dd class="min-w-0"><a :href="publicPath" target="_blank" rel="noopener" class="text-highlighted hover:underline underline-offset-2 break-all">{{ publicPath }}</a></dd>
+            </div>
+            <div v-if="createdAt && !isNew" class="flex items-start gap-2 text-muted">
+              <dt class="sr-only">{{ t('editor.created') }}</dt>
+              <UIcon name="i-lucide-calendar-plus" class="size-4 shrink-0 mt-0.5" />
+              <dd>{{ t('editor.createdOn', { date: formatDate(createdAt, { time: false }) }) }}</dd>
+            </div>
+            <div v-if="locales && !isNew" class="flex items-start gap-2">
+              <dt class="sr-only">{{ t('translation.languages') }}</dt>
+              <UIcon name="i-lucide-languages" class="size-4 shrink-0 mt-0.5 text-muted" />
+              <dd class="min-w-0 flex-1">
+                <ul class="space-y-1.5">
+                  <li v-for="code in locales.all" :key="code" class="flex items-center justify-between gap-2">
+                    <NuxtLink
+                      :to="{ query: code === locales.default ? {} : { locale: code } }"
+                      class="hover:underline underline-offset-2" :class="code === currentLocale ? 'font-medium text-highlighted' : 'text-default'"
+                    >{{ localeLabel(code) }}</NuxtLink>
+                    <span class="text-xs" :class="code === locales.default || available.includes(code) ? 'text-muted' : 'cms-unsaved'">
+                      {{ code === locales.default ? t('translation.default') : available.includes(code) ? t('translation.translated') : t('translation.notTranslated') }}
+                    </span>
+                  </li>
+                </ul>
+              </dd>
+            </div>
+          </dl>
 
-        <UCollapsible
-          v-for="g in groups" :key="g.label" v-model:open="openGroups[g.label]"
-          class="border-t border-default pt-4"
-        >
-          <button type="button" class="group w-full flex items-center justify-between text-xs font-medium text-muted hover:text-highlighted">
-            {{ g.label }}
-            <UIcon name="i-lucide-chevron-down" class="size-4 transition-transform group-data-[state=open]:rotate-180" />
-          </button>
-          <template #content>
-            <div class="space-y-5 pt-4">
-              <CmsField
-                v-for="f in g.fields" :key="f.key"
-                v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar"
+          <!-- write: the details beside the text, as quiet rows -->
+          <div v-else class="space-y-1">
+            <div v-for="f in writeRows" :key="f.key">
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar" row />
+              <CmsTranslationRef
+                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel" :empty="!state[f.key]"
+                @copy="state[f.key] = defaults[f.key]"
               />
             </div>
-          </template>
-        </UCollapsible>
+          </div>
+          <p v-if="isTranslation" class="text-xs text-muted border-t border-default pt-4">
+            {{ t('translation.shared') }}
+            <NuxtLink :to="{ query: {} }" class="underline underline-offset-2 hover:text-highlighted">{{ t('translation.editShared', { lang: defaultLabel }) }}</NuxtLink>
+          </p>
+
+          <!-- write: photos, race facts, search… folded, each saying what is filled in -->
+          <div v-if="!sectioned" class="border-t border-default">
+            <UCollapsible v-for="g in writeGroups" :key="g.id" v-model:open="openGroups[g.id]" class="border-b border-default">
+              <button type="button" class="group w-full flex items-center justify-between gap-3 py-3.5 text-left">
+                <span class="text-sm font-medium text-highlighted">{{ g.label }}</span>
+                <span class="flex items-center gap-2 text-xs text-muted">
+                  {{ groupSummary(g) }}
+                  <UIcon name="i-lucide-chevron-down" class="size-4 text-dimmed transition-transform group-data-[state=open]:rotate-180" />
+                </span>
+              </button>
+              <template #content>
+                <div class="space-y-5 pb-5">
+                  <div v-for="f in g.fields" :key="f.key">
+                    <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar" hide-optional />
+                    <CmsTranslationRef
+                      v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+                      :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+                      @copy="copyDefault(f.key)"
+                    />
+                  </div>
+                </div>
+              </template>
+            </UCollapsible>
+          </div>
+        </div>
       </aside>
+      <div v-if="split && previewUrl" class="cms-editor__preview">
+        <CmsPreviewPanel
+          :url="previewUrl" :entity="entity" :id="id"
+          :locale="isTranslation ? currentLocale : null" :data="form.body()" :version="version" @close="togglePreview"
+        />
+      </div>
     </div>
-    <CmsPreviewPanel
-      v-if="previewOpen && previewUrl" :url="previewUrl" :entity="entity" :id="id"
-      :locale="isTranslation ? currentLocale : null" :data="form.body()" :version="version" @close="togglePreview"
+
+    <!-- small screens: the page as a full-screen sheet -->
+    <UModal v-if="previewUrl" v-model:open="previewSheet" fullscreen :title="t('editor.preview')" :ui="{ header: 'hidden', body: 'p-3 sm:p-4 flex flex-col' }">
+      <template #body>
+        <CmsPreviewPanel
+          :url="previewUrl" :entity="entity" :id="id" sheet
+          :locale="isTranslation ? currentLocale : null" :data="form.body()" :version="version" @close="previewSheet = false"
+        />
+      </template>
+    </UModal>
+
+    <CmsPublishReview
+      v-if="publish && canPublish" v-model:open="reviewOpen"
+      :checks="reviewChecks" :entity="entity" :busy="saving"
+      :date-field="dateFieldDesc" :date="publish.dateField ? state[publish.dateField] : undefined"
+      @update:date="(v: any) => { if (publish?.dateField) state[publish.dateField] = v }"
+      @publish="publishFromReview"
     />
-    </div>
+    <CmsMoment
+      v-model:open="momentOpen" :animal="moment === 'scheduled' ? 'turtle' : 'whale'"
+      :title="moment === 'scheduled' ? t('moment.scheduledTitle') : t('moment.liveTitle')"
+      :description="moment === 'scheduled' ? t('moment.scheduledBody', { date: formatDate(publishedOn) }) : t('moment.liveBody')"
+    >
+      <UButton v-if="moment === 'published' && publicPath" :to="publicPath" target="_blank" size="sm" color="neutral" variant="outline" icon="i-lucide-arrow-up-right">{{ t('moment.view') }}</UButton>
+      <UButton :to="`/admin/${entity}`" size="sm" color="neutral" variant="ghost">{{ t('moment.backTo', { list: listLabel }) }}</UButton>
+    </CmsMoment>
   </CmsPage>
 </template>

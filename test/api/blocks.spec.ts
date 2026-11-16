@@ -42,6 +42,33 @@ describe('blocks on the public content API', () => {
   })
 })
 
+describe('a list inside a block', () => {
+  it('stores the items, returns them on the content API with media resolved, and an empty list as []', async () => {
+    const m = await upload()
+    const p = await page([
+      { id: 'c', type: 'cards', heading: 'Proč my', items: [{ id: 'k1', type: 'item', title: 'Rychle', image: m.id }, { id: 'k2', type: 'item', title: 'Levně' }] },
+      { id: 'e', type: 'cards', heading: 'Prázdné' },
+    ])
+    const item = (await anonymous().get(`/api/content/page/${p.slug}`)).body.item
+    expect(item.sections[0].items).toEqual([
+      { id: 'k1', type: 'item', title: 'Rychle', text: null, image: { id: m.id, url: m.url, width: 1, height: 1, alt: null, mime: 'image/png', focal: null } },
+      { id: 'k2', type: 'item', title: 'Levně', text: null, image: null },
+    ])
+    expect(item.sections[1].items).toEqual([])
+  })
+
+  it('points a validation error at the item, and keeps or cleans up media inside the list', async () => {
+    const bad = await admin.post('/api/cms/page', { title: 'X', slug: 'x', sections: [{ id: 'c', type: 'cards', items: [{ id: 'k', type: 'item', title: '' }] }] })
+    expect(bad.status).toBe(422)
+    expect(bad.body.data[0].path).toEqual(['sections', 0, 'items', 0, 'title'])
+    const m = await upload()
+    const p = await page([{ id: 'c', type: 'cards', items: [{ id: 'k', type: 'item', title: 'S fotkou', image: m.id }] }])
+    expect((await admin.delete(`/api/cms/_media/${m.id}`)).status).toBe(409)
+    await admin.patch(`/api/cms/page/${p.id}`, { sections: [{ id: 'c', type: 'cards', items: [] }] })
+    expect(await mediaExists(m.id)).toBe(false)
+  })
+})
+
 describe('media used in blocks', () => {
   it('is protected from manual deletion and cleaned up when the block is removed', async () => {
     const m = await upload()

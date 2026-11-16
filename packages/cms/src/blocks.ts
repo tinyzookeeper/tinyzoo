@@ -11,13 +11,14 @@ import type { LocalizedText } from './i18n'
  *   [{ id: 'k3j…', type: 'hero', heading: 'Vítejte', image: '<media id>' }, …]
  *
  * Block fields use the regular field catalog, minus relations (v1): text, slug,
- * number, boolean, datetime, select, rich text and media. Rich text is sanitised on
- * write like everywhere else; media ids are resolved by the content API and counted
- * by media cleanup.
+ * number, boolean, datetime, select, rich text, media, and one level of lists
+ * (`f.list()`: FAQ questions, feature cards, price rows inside one block). Rich text
+ * is sanitised on write like everywhere else; media ids (also inside a block's
+ * lists) are resolved by the content API and counted by media cleanup.
  */
 
-/** Field types allowed inside a block. */
-export const BLOCK_FIELD_TYPES = new Set(['text', 'slug', 'number', 'boolean', 'datetime', 'select', 'richtext', 'media'])
+/** Field types allowed inside a block ('blocks' = a list, one level deep). */
+export const BLOCK_FIELD_TYPES = new Set(['text', 'slug', 'number', 'boolean', 'datetime', 'select', 'richtext', 'media', 'blocks'])
 
 export interface BlockDef<F extends Record<string, AnyFieldDescriptor> = Record<string, AnyFieldDescriptor>> {
   /** Name in the block picker ("Hero", { cs: 'Úvod', en: 'Hero' }). */
@@ -34,6 +35,14 @@ export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: B
     if (key === 'id' || key === 'type') throw new Error(`Block field "${key}" is reserved (every block has an id and a type).`)
     if (!BLOCK_FIELD_TYPES.has(fld.type)) {
       throw new Error(`Block field "${key}" has type "${fld.type}", which blocks do not support (allowed: ${[...BLOCK_FIELD_TYPES].join(', ')}).`)
+    }
+    // A list inside a block is one level: its items hold plain fields, not more lists.
+    if (fld.type === 'blocks') {
+      for (const inner of Object.values(fld.blocks ?? {})) {
+        for (const [innerKey, innerFld] of Object.entries(inner.fields) as [string, FieldDescriptor][]) {
+          if (innerFld.type === 'blocks') throw new Error(`Block field "${key}" is a list whose items have a list ("${innerKey}"). Lists inside a block are one level deep.`)
+        }
+      }
     }
   }
   return def
@@ -54,7 +63,7 @@ export type BlocksValue<B extends Record<string, BlockDef<any>>> = Array<{ [K in
 export interface CmsBlock { id: string; type: string; [field: string]: unknown }
 
 /** Zod for a blocks array: each block validated against its own type's fields. */
-export function blocksSchema(blocks: Record<string, BlockDef>): ZodTypeAny {
+export function blocksSchema(blocks: Record<string, BlockDef>, max = 500): ZodTypeAny {
   const variants = Object.entries(blocks).map(([type, def]) => {
     const shape: Record<string, ZodTypeAny> = {
       id: z.string().min(1).max(64),
@@ -71,7 +80,7 @@ export function blocksSchema(blocks: Record<string, BlockDef>): ZodTypeAny {
   })
   if (!variants.length) return z.array(z.never()).max(0)
   const union = variants.length === 1 ? variants[0]! : z.discriminatedUnion('type', variants as any)
-  return z.array(union).max(500).superRefine((list, ctx) => {
+  return z.array(union).max(max).superRefine((list, ctx) => {
     const seen = new Set<string>()
     list.forEach((b: any, i: number) => {
       if (seen.has(b.id)) ctx.addIssue({ code: 'custom', path: [i, 'id'], message: 'Duplicate block id' })
@@ -106,20 +115,18 @@ export function blockMediaKeys(blocks: Record<string, BlockDef>): Map<string, st
   ]))
 }
 
-/** Every media id referenced by a stored blocks array (media fields + images in rich text). */
+/** Every media id referenced by a stored blocks array (media fields, images in rich text, and both inside a block's lists). */
 export function mediaIdsInBlocks(value: unknown, blocks: Record<string, BlockDef>, out: string[] = []): string[] {
   if (!Array.isArray(value)) return out
-  const mediaKeys = blockMediaKeys(blocks)
   for (const block of value as CmsBlock[]) {
     if (!block || typeof block !== 'object') continue
-    for (const key of (Object.hasOwn(blocks, block.type) ? mediaKeys.get(block.type) : undefined) ?? []) {
-      const v = block[key]
-      if (typeof v === 'string' && v) out.push(v)
-    }
     const def = Object.hasOwn(blocks, block.type) ? blocks[block.type] : undefined
     if (!def) continue
     for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
-      if (fld.type === 'richtext') collectEmbedded(block[key], out)
+      const v = block[key]
+      if (fld.type === 'media' && typeof v === 'string' && v) out.push(v)
+      else if (fld.type === 'richtext') collectEmbedded(v, out)
+      else if (fld.type === 'blocks' && fld.blocks) mediaIdsInBlocks(v, fld.blocks, out)
     }
   }
   return out

@@ -52,6 +52,34 @@ export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<Sitemap
   return out
 }
 
+/**
+ * Each item's address in every language it exists in ({ cs: '/srovnani', en: '/en/comparison' }),
+ * from the default-language row and its translations, so a website can link to
+ * the same item in another language (a language switcher, hreflang links).
+ */
+export async function localePaths(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[]): Promise<Map<string, Record<string, string>>> {
+  const out = new Map<string, Record<string, string>>()
+  if (!reg.locales || !e.content?.path || !ids.length) return out
+  const keys = pathKeys(e.content.path).filter((k) => e.table[k])
+  const cols: Record<string, any> = { id: e.table.id }
+  for (const k of keys) cols[k] = e.table[k]
+  const rows: any[] = await db.select(cols).from(e.table).where(inArray(e.table.id, ids))
+  const translations = await translationsByParent(db, reg, e, ids, keys)
+  for (const row of rows) {
+    const paths: Record<string, string> = {}
+    const base = sitePath(reg.locales, e.content.path, reg.locales.default, row)
+    if (base) paths[reg.locales.default] = base
+    for (const tr of translations.get(row.id) ?? []) {
+      const merged = { ...row }
+      for (const k of keys) if (tr[k] !== null && tr[k] !== undefined && tr[k] !== '') merged[k] = tr[k]
+      const loc = sitePath(reg.locales, e.content.path, tr.locale, merged)
+      if (loc) paths[tr.locale] = loc
+    }
+    out.set(row.id, paths)
+  }
+  return out
+}
+
 async function translationsByParent(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[], keys: string[]): Promise<Map<string, any[]>> {
   const out = new Map<string, any[]>()
   if (!e.localesTable || !ids.length || !reg.locales) return out

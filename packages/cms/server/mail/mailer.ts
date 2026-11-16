@@ -19,7 +19,7 @@ export async function deliverMail(msg: CmsMailMessage, cfg: CmsMailConfig): Prom
       })
       transporterKey = key
     }
-    await transporter.sendMail({ from: cfg.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html })
+    await transporter.sendMail({ from: cfg.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html, ...(msg.replyTo ? { replyTo: msg.replyTo } : {}) })
     return
   }
   if (cfg.transport === 'file') {

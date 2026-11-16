@@ -12,6 +12,31 @@ describe('defineBlock', () => {
     expect(() => defineBlock({ label: 'X', fields: { tag: f.relation({ to: () => Tag, kind: 'many-to-one' }) } })).toThrow(/do not support/)
     expect(() => defineBlock({ label: 'X', fields: { type: f.text() } })).toThrow(/reserved/)
   })
+
+  it('allows a list inside a block, one level deep', () => {
+    const faq = f.list({ fields: { q: f.text({ required: true }), a: f.text() } })
+    expect(() => defineBlock({ label: 'FAQ', fields: { items: faq } })).not.toThrow()
+    const deeper = f.list({ fields: { group: f.text(), items: faq } })
+    expect(() => defineBlock({ label: 'X', fields: { groups: deeper } })).toThrow(/one level/)
+  })
+})
+
+describe('a list inside a block', () => {
+  const card = (id: string, over: Record<string, unknown> = {}) => ({ id, type: 'item', title: `Karta ${id}`, text: null, image: null, ...over })
+
+  it('validates each item and points an error at block, list and item', () => {
+    expect(schema.safeParse([{ id: 'c', type: 'cards', heading: 'Proč my', items: [card('1'), card('2', { image: M })] }]).success).toBe(true)
+    expect(schema.safeParse([{ id: 'c', type: 'cards', heading: null }]).success).toBe(true) // the list may be left empty
+    const r = schema.safeParse([{ id: 'c', type: 'cards', items: [card('1'), card('2', { title: '' })] }])
+    expect(r.success).toBe(false)
+    expect(r.error!.issues[0]!.path).toEqual([0, 'items', 1, 'title'])
+  })
+
+  it('finds media inside the list (for cleanup and the content API)', () => {
+    const M2 = '00000000-0000-4000-8000-0000000000bb'
+    const ids = mediaIdsInBlocks([{ id: 'h', type: 'hero', heading: 'X', image: M }, { id: 'c', type: 'cards', items: [card('1', { image: M2 }), card('2')] }], defs)
+    expect(ids).toEqual([M, M2])
+  })
 })
 
 describe('blocks validation', () => {

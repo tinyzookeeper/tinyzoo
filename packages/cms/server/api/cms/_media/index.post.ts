@@ -70,13 +70,16 @@ export default defineEventHandler(async (event) => {
   // Dimensions for images (best-effort, pure JS).
   let width: number | null = null
   let height: number | null = null
+  if (!file.data.length) throw createError({ statusCode: 400, statusMessage: 'The file is empty' })
   if (mime.startsWith('image/')) {
     try {
       const dim = imageSize(new Uint8Array(file.data))
       width = dim.width ?? null
       height = dim.height ?? null
     } catch {
-      /* unreadable header — leave dimensions null */
+      // Called a picture but isn't one (a renamed text file, a broken download): it
+      // would only show as a broken image everywhere.
+      throw createError({ statusCode: 415, statusMessage: 'Not a readable image' })
     }
   }
 
@@ -98,6 +101,8 @@ export default defineEventHandler(async (event) => {
       uploadedBy: user.id,
       name: displayFileName(file.filename),
       folder: cleanFolder(parts?.find((p) => p.name === 'folder')?.data?.toString('utf8')),
+      // Uploaded in the library (its page or picker): kept there even when no entry uses it.
+      inLibrary: parts?.find((p) => p.name === 'library')?.data?.toString('utf8') === '1',
       // No default description: a file name ("IMG_2041.jpg") read aloud by a screen
       // reader is worse than none. Editors add it next to the image.
       alt: null,

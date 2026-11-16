@@ -125,3 +125,46 @@ describe('cleanup of unused files', () => {
     expect(existsSync(blob(a.key))).toBe(false)
   })
 })
+
+describe('serving files in byte ranges (video playback, Safari)', () => {
+  it('answers a range with 206 and the right bytes, and a bad range with 416', async () => {
+    const m = (await upload(admin)).body
+    const url = admin.baseURL + m.url
+    const whole = new Uint8Array(await (await fetch(url)).arrayBuffer())
+    const first = await fetch(url, { headers: { range: 'bytes=0-9' } })
+    expect(first.status).toBe(206)
+    expect(first.headers.get('content-range')).toBe(`bytes 0-9/${whole.length}`)
+    expect([...new Uint8Array(await first.arrayBuffer())]).toEqual([...whole.slice(0, 10)])
+    const tail = await fetch(url, { headers: { range: 'bytes=-5' } })
+    expect([...new Uint8Array(await tail.arrayBuffer())]).toEqual([...whole.slice(-5)])
+    expect((await fetch(url, { headers: { range: `bytes=${whole.length + 10}-` } })).status).toBe(416)
+    expect((await fetch(url)).headers.get('accept-ranges')).toBe('bytes')
+  })
+})
+
+describe('smaller copies of pictures (srcset)', () => {
+  it('makes a WebP at an allowed width once, refuses other widths, and removes the copies with the file', async () => {
+    const { createRequire } = await import('node:module')
+    const sharp = createRequire(join(process.cwd(), 'packages/cms/package.json'))('sharp')
+    const big = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: '#fe9b76' } }).jpeg().toBuffer()
+    const m = (await upload(admin, 'big.jpg', 'image/jpeg', new Uint8Array(big))).body
+    const url = (w: number | string) => `${admin.baseURL}/api/cms/_media/img/${m.id}/${w}.webp`
+    const res = await fetch(url(640))
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/webp')
+    expect(res.headers.get('cache-control')).toContain('immutable')
+    const meta = await sharp(Buffer.from(await res.arrayBuffer())).metadata()
+    expect([meta.format, meta.width, meta.height]).toEqual(['webp', 640, 320])
+    expect(existsSync(blob(`_w/640/${m.key}.webp`))).toBe(true) // kept for the next visitor
+    expect((await fetch(url(500))).status).toBe(404) // only the listed widths
+    expect((await fetch(`${admin.baseURL}/api/cms/_media/img/00000000-0000-4000-8000-000000000000/640.webp`)).status).toBe(404)
+    expect((await admin.delete(`/api/cms/_media/${m.id}`)).status).toBeLessThan(300)
+    expect(existsSync(blob(`_w/640/${m.key}.webp`))).toBe(false)
+  })
+
+  it('does not resize files that are not photos', async () => {
+    const pdf = new TextEncoder().encode('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n')
+    const m = (await upload(admin, 'a.pdf', 'application/pdf', pdf)).body
+    expect((await fetch(`${admin.baseURL}/api/cms/_media/img/${m.id}/640.webp`)).status).toBe(404)
+  })
+})

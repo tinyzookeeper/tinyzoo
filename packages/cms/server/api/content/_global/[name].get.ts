@@ -8,9 +8,14 @@ export default defineEventHandler(async (event) => {
 
   const locale = requestedLocale(event, reg)
   const [row] = await db.select().from(e.table).orderBy(e.table.createdAt).limit(1)
-  setContentCache(event)
-  if (!row) return { item: null }
+  if (!row) {
+    setContentCache(event)
+    return { item: null }
+  }
   await overlayTranslations(db, reg, e, [row], locale)
+  // The editor's unsaved values, while they type (live preview).
+  applyPreviewDrafts(event, reg, e, [row], locale)
+  setContentCache(event)
   await populateItems(db, reg, e, [row], e.content?.populate, locale)
   const item = projectItem(e, row)
   await attachLocaleInfo(db, reg, e, [row], [item], locale)

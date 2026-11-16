@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* Tailwind must also scan the CMS's own components (the admin, <CmsForm>…). */
+@source "../../../node_modules/tinyzoo/app";
+
+/* The website's look: change freely. The admin keeps its own. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Long words and addresses wrap instead of pushing the page wider on phones. */
+@layer base {
+  h1, h2, h3, p, li, dd, figcaption { overflow-wrap: anywhere; }
+}

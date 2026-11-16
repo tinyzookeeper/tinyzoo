@@ -19,7 +19,11 @@
     "nuxt.config.ts",
     "server",
     "shared",
-    "src"
+    "src",
+    "starter",
+    "!starter/node_modules",
+    "!starter/.nuxt",
+    "!starter/.output"
   ],
   "dependencies": {
     "@hocuspocus/extension-redis": "^3.4.4",
@@ -44,6 +48,7 @@
     "ioredis": "^5.11.1",
     "nodemailer": "^7.0.13",
     "pg": "^8.16.3",
+    "sharp": "^0.34.5",
     "tsx": "^4.19.0",
     "yjs": "^13.6.31",
     "zod": "^4.0.0"
@@ -53,6 +58,7 @@
     "typescript": "^5.7.0"
   },
   "peerDependencies": {
+    "@internationalized/date": "^3.12.2",
     "@nuxt/ui": "^4.0.0",
     "nuxt": "^4.0.0",
     "nuxt-auth-utils": "^0.5.0"

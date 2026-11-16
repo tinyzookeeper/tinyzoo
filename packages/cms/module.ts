@@ -101,6 +101,22 @@ export interface CmsModuleOptions {
    */
   webhooks?: { urls?: string | string[]; secret?: string }
   /**
+   * Website forms (defineForm):
+   *  - notifyTo: fallback recipients of new submissions, comma separated (env NUXT_CMS_FORMS_NOTIFY_TO)
+   *  - turnstileSecret: Cloudflare Turnstile secret; when set, every submission must
+   *    pass it (env NUXT_CMS_FORMS_TURNSTILE_SECRET). The site key goes to
+   *    `public.cmsTurnstileSiteKey` (env NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY).
+   */
+  forms?: { notifyTo?: string; turnstileSecret?: string; turnstileSiteKey?: string }
+  /**
+   * A public demo admin: the sign-in page shows these details, the account is created
+   * (as an editor) the first time someone signs in with them, and it cannot change
+   * its name or password or ask for a reset link. Both are public on purpose
+   * (env NUXT_PUBLIC_CMS_DEMO_EMAIL, NUXT_PUBLIC_CMS_DEMO_PASSWORD). Leave empty on
+   * real sites.
+   */
+  demo?: { email?: string; password?: string }
+  /**
    * Database migrations bundled into the server build and applied when it starts —
    * for platforms that ship only the build output (Pushbase, containers).
    *  - dir: the drizzle-kit migrations folder, relative to rootDir (default server/db/migrations)
@@ -230,6 +246,11 @@ export {}
         maxBytesPerUser: options.storage?.maxBytesPerUser ?? 0,
         uploadRatePerMin: options.storage?.uploadRatePerMin ?? 60,
       },
+      // Empty defaults so NUXT_CMS_FORMS_* bind at runtime.
+      forms: {
+        notifyTo: options.forms?.notifyTo || '',
+        turnstileSecret: options.forms?.turnstileSecret || '',
+      },
       content: {
         // Empty so NUXT_CMS_CONTENT_TOKEN can bind at runtime; '' = open API.
         token: options.content?.token || '',
@@ -238,5 +259,9 @@ export {}
       },
       ...(nuxt.options.runtimeConfig.cms as Record<string, unknown> | undefined),
     }
+    // The Turnstile site key is public (it goes into the website's form).
+    nuxt.options.runtimeConfig.public.cmsTurnstileSiteKey ||= options.forms?.turnstileSiteKey || ''
+    // The demo admin's sign-in details are public (they are printed on the sign-in page).
+    nuxt.options.runtimeConfig.public.cmsDemo ||= { email: options.demo?.email || '', password: options.demo?.password || '' }
   },
 })

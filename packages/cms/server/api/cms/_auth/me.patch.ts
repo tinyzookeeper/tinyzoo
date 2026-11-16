@@ -16,6 +16,8 @@ export default defineEventHandler(async (event) => {
   const me = requireCmsUser(event)
   if (!(await rateLimit(`me:${me.id}`, 60, 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many requests' })
   const data = parseOr422(body, await readBody(event))
+  // The shared demo account keeps its name (everyone signs in as it); the language may change.
+  if (data.name !== undefined && isDemoAccount(me.email)) throw createError({ statusCode: 403, statusMessage: 'The demo account keeps its name', data: { code: 'demo_account' } })
   const { db, reg } = useCms()
   const [u] = await db.update(reg.cmsUsers).set({ ...data, updatedAt: new Date() })
     .where(and(eq(reg.cmsUsers.id, me.id), eq(reg.cmsUsers.sessionVersion, event.context.cmsSessionVersion)))

@@ -3,6 +3,8 @@
 import { pgTable, pgEnum, uuid, text, integer, numeric, boolean, timestamp, jsonb, primaryKey, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import type { CmsBlock, RichTextDoc, CmsGalleryValue } from 'tinyzoo'
 
+export const contactFormTopic = pgEnum('contactForm_topic', ["question","race","other"])
+export const contactFormStatus = pgEnum('contactForm_status', ["new","read","done"])
 export const pageStatus = pgEnum('page_status', ["draft","published"])
 export const postStatus = pgEnum('post_status', ["draft","published"])
 
@@ -21,6 +23,7 @@ export const cmsMedia = pgTable('cms_media', {
   focalX: integer('focal_x'),
   focalY: integer('focal_y'),
   uploadedBy: uuid('uploaded_by'),
+  inLibrary: boolean('in_library').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })
 
@@ -99,6 +102,29 @@ export const author = pgTable('author', {
   updatedBy: uuid('updated_by'),
 })
 
+export const contactForm = pgTable('contactForm', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  topic: contactFormTopic('topic').$type<'question' | 'race' | 'other'>(),
+  message: text('message').notNull(),
+  consent: boolean('consent').notNull().default(false),
+  status: contactFormStatus('status').$type<'new' | 'read' | 'done'>().notNull().default("new"),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+})
+
+export const formSettings = pgTable('formSettings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  notifyTo: jsonb('notify_to').$type<CmsBlock[]>().notNull().default([]),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+})
+
 export const navigation = pgTable('navigation', {
   id: uuid('id').primaryKey().defaultRandom(),
   main: jsonb('main').$type<CmsBlock[]>().notNull().default([]),
@@ -141,6 +167,8 @@ export const pageLocales = pgTable('page_locales', {
   title: text('title'),
   slug: text('slug'),
   sections: jsonb('sections').$type<CmsBlock[]>(),
+  metaTitle: text('meta_title'),
+  metaDescription: text('meta_description'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('page_locales_parent_locale_unique').on(t.parentId, t.locale), uniqueIndex('page_locales_slug_unique').on(t.locale, t.slug)])
@@ -191,6 +219,9 @@ export const siteSettings = pgTable('siteSettings', {
   siteName: text('site_name').notNull(),
   tagline: text('tagline'),
   logoId: uuid('logo_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
+  brandColor: text('brand_color'),
+  openingHours: jsonb('opening_hours').$type<CmsBlock[]>().notNull().default([]),
+  rulesId: uuid('rules_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   metaTitle: text('meta_title'),
   metaDescription: text('meta_description'),
   ogImageId: uuid('og_image_id').references(() => cmsMedia.id, { onDelete: 'set null' }),

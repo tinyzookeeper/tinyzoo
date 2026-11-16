@@ -49,12 +49,13 @@ function fieldLine(f: ContentField): string {
   return `  ${f.key}: ${value}`
 }
 
-function objectInterface(name: string, fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null }): string {
+function objectInterface(name: string, fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null; paths?: boolean }): string {
   const lines = ['  id: string', ...fields.map(fieldLine)]
   if (opts.timestamps) lines.push('  createdAt: string', '  updatedAt: string')
   if (opts.locales) {
     const union = opts.locales.map((l) => `'${l}'`).join(' | ')
     lines.push(`  /** The language this item is served in. */\n  locale: ${union}`, `  /** Languages this item exists in (the default and every translation). */\n  locales: Array<${union}>`)
+    if (opts.paths) lines.push(`  /** The item's address in each language it exists in. */\n  paths: Partial<Record<${union}, string>>`)
   }
   return `export interface ${name} {\n${lines.join('\n')}\n}`
 }
@@ -121,7 +122,7 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
 
   // Top-level collection items.
   out.push('// ── collection items ────────────────────────────────────────────────────────────')
-  for (const e of model.entities) out.push(objectInterface(e.pascal, e.fields, { timestamps: true, locales: e.locales }))
+  for (const e of model.entities) out.push(objectInterface(e.pascal, e.fields, { timestamps: true, locales: e.locales, paths: e.paths }))
   out.push('')
 
   // Globals (singletons).

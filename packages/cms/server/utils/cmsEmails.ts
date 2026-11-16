@@ -2,10 +2,10 @@ import { INVITE_TTL_MS } from './cmsAuth'
 import { resolveText } from 'tinyzoo'
 
 // The emails the CMS sends: an invitation and a password-reset link. Plain, neutral
-// HTML that survives every mail client, with a text version. Czech and English,
+// HTML that survives every mail client, with a text version. Czech, English and German,
 // chosen by the recipient's interface language (or the admin's default).
 
-type Locale = 'cs' | 'en'
+type Locale = 'cs' | 'en' | 'de'
 
 const copy = {
   en: {
@@ -30,6 +30,17 @@ const copy = {
     resetExpiry: 'Odkaz platí 1 hodinu. Pokud jste o obnovení nežádali, e-mail ignorujte — vaše heslo zůstává stejné.',
     fallback: 'Pokud tlačítko nefunguje, zkopírujte tuto adresu do prohlížeče:',
   },
+  de: {
+    inviteSubject: (site: string) => `Einladung zu ${site}`,
+    inviteIntro: (inviter: string, site: string) => `${inviter} lädt Sie ein, die Inhalte von ${site} zu verwalten.`,
+    inviteAction: 'Einladung annehmen',
+    inviteExpiry: (days: number) => `Der Link ist ${days} Tage gültig. Wenn Sie keine Einladung erwartet haben, können Sie diese E-Mail ignorieren.`,
+    resetSubject: (site: string) => `Passwort für ${site} zurücksetzen`,
+    resetIntro: 'Für diese E-Mail-Adresse wurde ein neues Passwort angefordert. Über den Link unten können Sie ein neues Passwort festlegen.',
+    resetAction: 'Neues Passwort festlegen',
+    resetExpiry: 'Der Link ist 1 Stunde gültig. Wenn Sie das nicht angefordert haben, ignorieren Sie diese E-Mail. Ihr Passwort bleibt unverändert.',
+    fallback: 'Falls die Schaltfläche nicht funktioniert, kopieren Sie diese Adresse in Ihren Browser:',
+  },
 } satisfies Record<Locale, Record<string, unknown>>
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]!))
@@ -38,7 +49,8 @@ const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', 
 export function emailContext(locale?: string | null): { locale: Locale; site: string } {
   const admin = ((useAppConfig() as any)?.cms?.admin ?? {}) as Record<string, any>
   const wanted = (locale || admin.defaultLocale || 'en') as string
-  const lang: Locale = wanted.startsWith('cs') ? 'cs' : 'en'
+  const base = wanted.toLowerCase().split('-')[0]
+  const lang: Locale = base === 'cs' || base === 'de' ? base : 'en'
   return { locale: lang, site: resolveText(admin.name, lang, ['en']) || 'CMS' }
 }
 

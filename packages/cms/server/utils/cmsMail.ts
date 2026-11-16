@@ -1,6 +1,6 @@
 import { deliverMail } from '../mail/mailer'
 
-export interface CmsMailMessage { to: string; subject: string; text: string; html: string }
+export interface CmsMailMessage { to: string; subject: string; text: string; html: string; /** Where replies go (a form's sender). */ replyTo?: string }
 export interface CmsMailConfig {
   transport: 'smtp' | 'file' | 'log'
   from: string

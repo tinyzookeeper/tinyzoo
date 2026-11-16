@@ -12,7 +12,9 @@ export function useCmsSignedIn() {
     if (user?.locale) setLocale(user.locale)
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : ''
     const safe = redirect.startsWith('/admin') && !redirect.startsWith('//') ? redirect : '/admin'
-    await navigateTo(safe)
+    // A full page load, not an in-app jump: the first admin page then arrives rendered
+    // by the server, icons from cms.config.ts included (in-app they would pop in late).
+    await navigateTo(safe, { external: true })
   }
 }
 

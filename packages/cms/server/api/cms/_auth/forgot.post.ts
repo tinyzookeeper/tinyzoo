@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const work = (async () => {
-    if (!linkBase) return
+    if (!linkBase || isDemoAccount(email)) return // the demo account's password is public
     const { db, reg } = useCms()
     const [user] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.email, email))
     if (!user || user.status !== 'active') return

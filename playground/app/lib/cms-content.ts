@@ -60,7 +60,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'hero'; heading: string; lead: string | null; image: CmsMedia | null; buttonLabel: string | null; buttonUrl: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'image'; image: CmsMedia | null; caption: string | null } | { id: string; type: 'cta'; text: string; buttonLabel: string | null; buttonUrl: string | null; highlighted: boolean | null }>
+  sections: Array<{ id: string; type: 'hero'; heading: string; lead: string | null; image: CmsMedia | null; buttonLabel: string | null; buttonUrl: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'image'; image: CmsMedia | null; caption: string | null } | { id: string; type: 'cta'; text: string; buttonLabel: string | null; buttonUrl: string | null; highlighted: boolean | null } | { id: string; type: 'cards'; heading: string | null; items: Array<{ id: string; type: 'item'; title: string; text: string | null; image: CmsMedia | null }> }>
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null
@@ -70,6 +70,8 @@ export interface Page {
   locale: 'cs' | 'en'
   /** Languages this item exists in (the default and every translation). */
   locales: Array<'cs' | 'en'>
+  /** The item's address in each language it exists in. */
+  paths: Partial<Record<'cs' | 'en', string>>
 }
 export interface Post {
   id: string
@@ -91,6 +93,8 @@ export interface Post {
   locale: 'cs' | 'en'
   /** Languages this item exists in (the default and every translation). */
   locales: Array<'cs' | 'en'>
+  /** The item's address in each language it exists in. */
+  paths: Partial<Record<'cs' | 'en', string>>
 }
 export interface Tag {
   id: string
@@ -107,8 +111,8 @@ export interface Tag {
 // ── globals ─────────────────────────────────────────────────────────────────────
 export interface Navigation {
   id: string
-  main: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null }>
-  footer: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null }>
+  main: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null; sub: boolean | null }>
+  footer: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null; sub: boolean | null }>
   createdAt: string
   updatedAt: string
   /** The language this item is served in. */
@@ -121,6 +125,9 @@ export interface SiteSettings {
   siteName: string
   tagline: string | null
   logo: CmsMedia | null
+  brandColor: string | null
+  openingHours: Array<{ id: string; type: 'item'; days: string; hours: string | null }>
+  rules: CmsMedia | null
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null

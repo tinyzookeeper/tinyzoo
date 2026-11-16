@@ -1,7 +1,13 @@
 /*
- * Admin design tokens — modern and neutral. See docs/ui-foundation.md.
+ * Admin design tokens — tinyzoo's look. See docs/ui-foundation.md.
  *
- * Everything is scoped to html[data-cms-admin], which the admin layout sets on
+ * Light: a white workspace with true greys and ink text; charcoal for the one primary
+ * action; cream only for the brand's moments (the sign-in, the home welcome, empty
+ * states, the current page in the sidebar). Dark ("charcoal night"): every grey is
+ * tinted toward the mascot's charcoal, text is cream, and the primary flips to a
+ * cream button with ink text — the reversed logo, as an interface.
+ *
+ * Everything is scoped to html[data-cms-admin], which the admin layouts set on
  * <html> while an admin page is shown. That keeps the admin's look independent of
  * the host website's theme (the CMS runs inside the client's app), and covers
  * everything Nuxt UI teleports to <body> (modals, menus, toasts).
@@ -11,12 +17,18 @@
  * html[data-cms-admin] (specificity 0,1,1) beats Nuxt UI's :root (0,1,0).
  *
  * Re-skin for a client: set `cms.admin.accent` in app.config.ts to one of the
- * built-in accents (mono — the default —, indigo, blue, violet, emerald), or
- * override the variables below in the host's CSS under `html[data-cms-admin]`.
+ * built-in accents (mono — tinyzoo's charcoal, the default —, indigo, blue, violet,
+ * emerald), or override the variables below in the host's CSS under html[data-cms-admin].
  */
 
-/* ── Neutral: a true grey (no tint). ── */
+/* ── Light ── */
 html[data-cms-admin] {
+  /* tinyzoo's brand (docs/brand/brand-guide.md) */
+  --tz-ink: #131313;
+  --tz-charcoal: #2E3035;
+  --tz-cream: #F9F5EF;
+
+  /* A true grey (no tint) — the workspace stays neutral; the brand is in the moments. */
   --ui-color-neutral-50: oklch(98.5% 0 0);
   --ui-color-neutral-100: oklch(96.7% 0 0);
   --ui-color-neutral-200: oklch(92.2% 0 0);
@@ -29,52 +41,88 @@ html[data-cms-admin] {
   --ui-color-neutral-900: oklch(20.5% 0 0);
   --ui-color-neutral-950: oklch(14.5% 0 0);
 
-  /* One typeface for everything. */
-  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Type: Inter for everything you operate, Manrope (the wordmark's face) for titles,
+     greetings and moments, Geist Mono for addresses. */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cms-font-display: 'Manrope', 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* tinyzoo brand (docs/brand/brand-guide.md; colour is still a working draft). */
-  --tz-charcoal: #2E3035;
-  --tz-ink: #131313;
-  --tz-cream: #F9F5EF;
-  --cms-auth-bg: var(--tz-cream);
-
-  /* Shape & chrome */
-  --ui-radius: 0.375rem;
-  --ui-header-height: 3.5rem;
-  --cms-page-bg: var(--ui-bg);
-  --cms-sidebar-bg: var(--ui-color-neutral-50);
-  --cms-content-max: 72rem;
-
-  /* Roles, light. */
+  /* Roles */
   --ui-text-dimmed: var(--ui-color-neutral-400);
   --ui-text-muted: var(--ui-color-neutral-500);
   --ui-text-toned: var(--ui-color-neutral-600);
-  --ui-text: var(--ui-color-neutral-700);
-  --ui-text-highlighted: var(--ui-color-neutral-950);
+  --ui-text: oklch(30% 0 0);
+  --ui-text-highlighted: var(--tz-ink);
   --ui-border: var(--ui-color-neutral-200);
   --ui-border-muted: var(--ui-color-neutral-100);
   --ui-bg-elevated: var(--ui-color-neutral-100);
+
+  /* Surfaces */
+  --cms-page-bg: #fff;
+  --cms-surface: #fff;             /* cards, tables */
+  --cms-sunken: oklch(98.5% 0.002 85); /* behind a preview, under a page of cards */
+  --cms-sidebar-bg: #fff;
+
+  /* Cream: the brand's moments. */
+  --cms-moment-bg: var(--tz-cream);
+  --cms-moment-strong: #F1EADF;
+  --cms-moment-line: #E7DDCD;
+  --cms-moment-text: #6E675D;
+  --cms-nav-active: var(--tz-cream);
+  --cms-auth-bg: var(--tz-cream);
+
+  /* Shape & chrome */
+  --ui-radius: 0.5rem;
+  --ui-header-height: 3.5rem;
+  --cms-content-max: 72rem;
 }
 
+/* ── Dark: charcoal night ── */
 html[data-cms-admin].dark {
-  --cms-auth-bg: var(--ui-color-neutral-900);
-  --cms-page-bg: var(--ui-color-neutral-950);
-  --cms-sidebar-bg: oklch(17.5% 0 0);
-  --ui-text-dimmed: var(--ui-color-neutral-500);
-  --ui-text-muted: var(--ui-color-neutral-400);
-  --ui-text-toned: var(--ui-color-neutral-300);
-  --ui-text: var(--ui-color-neutral-200);
-  --ui-text-highlighted: #fff;
-  --ui-bg: var(--ui-color-neutral-950);
-  --ui-bg-muted: var(--ui-color-neutral-900);
-  --ui-bg-elevated: var(--ui-color-neutral-800);
-  --ui-border: var(--ui-color-neutral-800);
-  --ui-border-muted: var(--ui-color-neutral-900);
+  /* The grey ramp turns toward the mascot's charcoal at the dark end and toward cream
+     at the light end, so text is warm and surfaces are the brand's charcoal. */
+  --ui-color-neutral-50: #F9F5EF;
+  --ui-color-neutral-100: #EEEAE4;
+  --ui-color-neutral-200: #D8D4CD;
+  --ui-color-neutral-300: #C2BEB7;
+  --ui-color-neutral-400: #A09D97;
+  --ui-color-neutral-500: #77756F;
+  --ui-color-neutral-600: #4A4C52;
+  --ui-color-neutral-700: #3A3C42;
+  --ui-color-neutral-800: #2E3035;
+  --ui-color-neutral-900: #1E1F23;
+  --ui-color-neutral-950: #18191C;
+
+  --ui-text-dimmed: #77756F;
+  --ui-text-muted: #A09D97;
+  --ui-text-toned: #C2BEB7;
+  --ui-text: #D8D4CD;
+  --ui-text-highlighted: var(--tz-cream);
+  --ui-text-inverted: var(--tz-ink);
+  --ui-bg: #18191C;
+  --ui-bg-muted: #1B1C1F;
+  --ui-bg-elevated: #26282C;
+  --ui-bg-accented: #2E3035;
+  --ui-bg-inverted: var(--tz-cream);
+  --ui-border: #2D2F34;
+  --ui-border-muted: #25272B;
+  --ui-border-accented: #3A3C42;
+
+  --cms-page-bg: #18191C;
+  --cms-surface: #1E1F23;
+  --cms-sunken: #1B1C1F;
+  --cms-sidebar-bg: #18191C;
+
+  --cms-moment-bg: var(--tz-charcoal);
+  --cms-moment-strong: #383B41;
+  --cms-moment-line: #43464D;
+  --cms-moment-text: #B2AEA7;
+  --cms-nav-active: var(--tz-charcoal);
+  --cms-auth-bg: var(--tz-charcoal);
 }
 
-/* ── Accent. Default "mono": black in light mode, white in dark — the neutral look.
-   Status colours (green published, red errors…) are then the only colour on screen. ── */
+/* ── Accent. Default "mono": tinyzoo's charcoal in light mode, cream in dark. Status
+   colours (green published, blue scheduled, red errors…) are then the only colour. ── */
 html[data-cms-admin] {
   --ui-color-primary-50: var(--ui-color-neutral-50);
   --ui-color-primary-100: var(--ui-color-neutral-100);
@@ -87,9 +135,9 @@ html[data-cms-admin] {
   --ui-color-primary-800: var(--ui-color-neutral-800);
   --ui-color-primary-900: var(--ui-color-neutral-900);
   --ui-color-primary-950: var(--ui-color-neutral-950);
-  --ui-primary: var(--ui-color-neutral-900);
+  --ui-primary: var(--tz-charcoal);
 }
-html[data-cms-admin].dark { --ui-primary: #fff; }
+html[data-cms-admin].dark { --ui-primary: var(--tz-cream); }
 
 /* Optional colour accents (cms.admin.accent). Solid buttons keep AA with white text. */
 html[data-cms-admin][data-cms-accent='indigo'] {
@@ -128,25 +176,51 @@ html[data-cms-admin][data-cms-accent='emerald'] {
   --ui-color-primary-950: oklch(26.2% 0.051 173);
   --ui-primary: var(--ui-color-primary-700);
 }
-html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono']) { --ui-primary: var(--ui-color-primary-400); }
+html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono']) { --ui-primary: var(--ui-color-primary-400); --ui-text-inverted: #fff; }
 
 /* ── Base ── */
 html[data-cms-admin] body {
   font-family: var(--font-sans);
   background: var(--cms-page-bg);
+  color: var(--ui-text);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
 }
 
-/* Page titles: the same typeface, just heavier and tighter. */
+/* Titles, greetings and moments: Manrope, heavier and tighter. */
 html[data-cms-admin] .cms-display {
+  font-family: var(--cms-font-display);
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 /* The one frame: a hairline border, no shadow. Never nested. */
 html[data-cms-admin] .cms-card {
-  background: var(--ui-bg);
+  background: var(--cms-surface);
   border: 1px solid var(--ui-border);
   border-radius: calc(var(--ui-radius) * 1.5);
+}
+
+/* A brand moment: cream in light mode, charcoal in dark (welcome, empty states, hints). */
+html[data-cms-admin] .cms-moment {
+  background: var(--cms-moment-bg);
+  border-radius: calc(var(--ui-radius) * 2);
+  color: var(--ui-text);
+}
+html[data-cms-admin] .cms-moment .cms-moment__muted { color: var(--cms-moment-text); }
+
+/* Small uppercase-free section label ("Waiting for you", "Recently edited"). */
+html[data-cms-admin] .cms-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ui-text-highlighted);
+}
+
+/* The sidebar: the current page sits on cream (charcoal in dark). Nuxt UI's
+   navigation paints its active/hover pill with --ui-bg-elevated, so it is
+   re-pointed for the sidebar only. */
+html[data-cms-admin] .cms-sidebar {
+  --ui-bg-elevated: var(--cms-nav-active);
 }
 
 /* Page content column (pages add no outer padding of their own). */
@@ -154,51 +228,235 @@ html[data-cms-admin] .cms-page {
   width: 100%;
   max-width: var(--cms-content-max);
   margin-inline: auto;
-  padding: 1.5rem 1rem 3rem;
+  padding: 1.25rem 1rem 3rem;
 }
 html[data-cms-admin] .cms-page--narrow { max-width: 48rem; }
+html[data-cms-admin] .cms-page--flush { max-width: none; padding: 0; }
+html[data-cms-admin] .cms-page--wide { max-width: none; }
 @media (min-width: 640px) {
   html[data-cms-admin] .cms-page { padding: 2rem 2rem 4rem; }
+  html[data-cms-admin] .cms-page--flush { padding: 0; }
 }
 
-/* Entry editor: content column + properties panel (a hairline, not a card). */
+/* ── Editors ──
+   One set of parts (title, fields, details), three arrangements, laid out on one
+   full-height grid so the details column's divider runs from the top bar to the
+   bottom of the window:
+   .cms-editor              form — sectioned fields, a details column on the right
+   .cms-editor--write       write — one calm, centred writing column; details on demand
+   .cms-editor--split       preview — the form (and details) beside the live page */
+html[data-cms-admin] .cms-page--flush { flex: 1 0 auto; display: flex; flex-direction: column; }
 html[data-cms-admin] .cms-editor {
+  flex: 1 0 auto;
   display: grid;
-  gap: 2rem;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+html[data-cms-admin] .cms-editor__main { min-width: 0; padding: 1.25rem 1rem 2.5rem; }
+html[data-cms-admin] .cms-editor__column { width: 100%; max-width: 40rem; margin-inline: auto; }
+html[data-cms-admin] .cms-editor__aside { min-width: 0; padding: 1.5rem 1rem 2.5rem; border-top: 1px solid var(--ui-border); }
+html[data-cms-admin] .cms-editor__preview { display: none; }
+@media (min-width: 640px) {
+  html[data-cms-admin] .cms-editor__main { padding: 2rem 2rem 4rem; }
+  html[data-cms-admin] .cms-editor__aside { padding: 1.5rem 2rem 3rem; }
 }
 @media (min-width: 1024px) {
-  html[data-cms-admin] .cms-editor {
-    grid-template-columns: minmax(0, 1fr) 18rem;
-    gap: 0;
+  html[data-cms-admin] .cms-editor { grid-template-columns: minmax(0, 1fr) 19rem; align-content: stretch; }
+  html[data-cms-admin] .cms-editor__main { padding: 2.25rem 2.5rem 5rem; }
+  html[data-cms-admin] .cms-editor__aside { border-top: 0; border-left: 1px solid var(--ui-border); padding: 2rem 1.5rem 3rem; }
+  html[data-cms-admin] .cms-editor__aside-inner { position: sticky; top: 2rem; }
+  html[data-cms-admin] .cms-editor--no-aside { grid-template-columns: minmax(0, 1fr); }
+
+  /* Preview: form and details on the left, the live page filling the rest. */
+  html[data-cms-admin] .cms-editor--split {
+    grid-template-columns: minmax(22rem, 30rem) minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    align-content: stretch;
   }
-  html[data-cms-admin] .cms-editor__main { padding-right: 2.5rem; }
-  html[data-cms-admin] .cms-editor__aside {
-    border-left: 1px solid var(--ui-border);
-    padding-left: 1.5rem;
+  html[data-cms-admin] .cms-editor--split .cms-editor__main { grid-column: 1; grid-row: 1; padding: 1.75rem 1.5rem 2rem 2rem; }
+  html[data-cms-admin] .cms-editor--split .cms-editor__aside { grid-column: 1; grid-row: 2; border-left: 0; border-top: 1px solid var(--ui-border); padding: 1.5rem 1.5rem 3rem 2rem; }
+  html[data-cms-admin] .cms-editor--split .cms-editor__aside-inner { position: static; }
+  html[data-cms-admin] .cms-editor--split .cms-editor__column { max-width: none; }
+  html[data-cms-admin] .cms-editor--split .cms-editor__preview { display: block; grid-column: 2; grid-row: 1 / span 2; min-width: 0; padding: 1.25rem 1.5rem 1.5rem 0; }
+}
+@media (min-width: 1536px) {
+  html[data-cms-admin] .cms-editor--split { grid-template-columns: minmax(24rem, 34rem) minmax(0, 1fr); }
+}
+
+/* Write: the text gets the room, in a slightly wider centred column. */
+html[data-cms-admin] .cms-editor--write .cms-editor__column { max-width: 42rem; }
+html[data-cms-admin] .cms-editor--write .cms-title-input { font-size: 2.25rem; }
+html[data-cms-admin] .cms-editor--write .cms-prose { font-size: 1rem; line-height: 1.75; }
+
+/* The summary under the title: large, muted, no box. */
+html[data-cms-admin] .cms-lead-input {
+  width: 100%; border: 0; outline: none; background: transparent; padding: 0;
+  font-size: 1.1875rem; line-height: 1.55; color: var(--ui-text-muted);
+}
+html[data-cms-admin] .cms-lead-input::placeholder { color: var(--ui-text-dimmed); }
+html[data-cms-admin] .cms-lead-input:focus { color: var(--ui-text); }
+
+/* The text in the writing column: no box; the toolbar is a quiet line that stays in
+   view while writing. */
+html[data-cms-admin] .cms-write-body .cms-rte { border: 0; border-radius: 0; background: transparent; overflow: visible; }
+html[data-cms-admin] .cms-write-body .cms-rte__toolbar {
+  position: sticky; top: 0; z-index: 2;
+  background: var(--cms-page-bg); padding: 0.375rem 0;
+  border-top: 1px solid var(--ui-border); border-bottom: 1px solid var(--ui-border);
+}
+html[data-cms-admin] .cms-write-body .ProseMirror { padding: 1.25rem 0 2rem; min-height: 18rem; }
+
+/* Details rows (the writing editor): label | quiet control. */
+html[data-cms-admin] .cms-field-row {
+  display: grid; grid-template-columns: 6.25rem minmax(0, 1fr); column-gap: 0.5rem; align-items: start;
+}
+html[data-cms-admin] .cms-field-row__label { padding-top: 0.4375rem; font-size: 0.875rem; color: var(--ui-text-muted); line-height: 1.3; overflow-wrap: break-word; hyphens: auto; }
+
+/* ── Forms: sections ──
+   A form reads as a few titled sections, each a question with a cream icon tile.
+   Long forms get a section menu on the left (wide screens). */
+html[data-cms-admin] .cms-form { width: 100%; }
+html[data-cms-admin] .cms-form__menu { display: none; }
+/* The menu needs room beside the column: it shows when the editor's main area is wide enough. */
+html[data-cms-admin] .cms-editor__main:has(.cms-form--menu) { container-type: inline-size; }
+@container (min-width: 58rem) {
+  html[data-cms-admin] .cms-editor__column:has(> .cms-form--menu) { max-width: 53.5rem; }
+  html[data-cms-admin] .cms-form--menu {
+    display: grid;
+    grid-template-columns: 11rem minmax(0, 40rem);
+    column-gap: 2.5rem;
+  }
+  html[data-cms-admin] .cms-form--menu .cms-form__menu {
+    display: block;
+    position: sticky;
+    top: 2rem;
+    align-self: start;
+    padding-top: 0.25rem;
   }
 }
-html[data-cms-admin] .cms-editor__main { min-width: 0; max-width: 46rem; }
+html[data-cms-admin] .cms-form__menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+html[data-cms-admin] .cms-form__menu-item {
+  display: flex; align-items: flex-start; gap: 0.5rem; width: 100%;
+  padding: 0.4375rem 0.625rem; border-radius: var(--ui-radius);
+  font-size: 0.875rem; color: var(--ui-text-muted); text-align: left;
+}
+html[data-cms-admin] .cms-form__menu-item:hover { color: var(--ui-text-highlighted); background: var(--ui-bg-elevated); }
+html[data-cms-admin] .cms-form__menu-item[aria-current] { color: var(--ui-text-highlighted); background: var(--cms-nav-active); font-weight: 500; }
+html[data-cms-admin] .cms-section {
+  padding-block: 1.75rem;
+  border-top: 1px solid var(--ui-border);
+  scroll-margin-top: 1.5rem;
+}
+html[data-cms-admin] .cms-form__body > .cms-section:first-child,
+html[data-cms-admin] .cms-form__top + .cms-section { border-top: 0; padding-top: 1.5rem; }
+html[data-cms-admin] .cms-form__top + .cms-section:not(:has(.cms-section__head)) { padding-top: 1.75rem; }
+html[data-cms-admin] .cms-section__head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.125rem; }
+html[data-cms-admin] .cms-section--folded .cms-section__head { margin-bottom: 0; cursor: pointer; }
+html[data-cms-admin] .cms-section__tile {
+  width: 2rem; height: 2rem; flex: none;
+  border-radius: 0.5625rem;
+  background: var(--cms-moment-bg);
+  color: var(--ui-text-highlighted);
+  display: grid; place-items: center;
+}
+html[data-cms-admin] .cms-section__title {
+  margin: 0;
+  font-family: var(--cms-font-display);
+  font-weight: 700;
+  font-size: 1.0625rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--ui-text-highlighted);
+}
+html[data-cms-admin] .cms-section__fields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.375rem; }
+html[data-cms-admin] .cms-section__fields > * { min-width: 0; }
+@media (min-width: 640px) {
+  html[data-cms-admin] .cms-section__fields--2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 1rem; }
+  html[data-cms-admin] .cms-section__wide { grid-column: 1 / -1; }
+}
+html[data-cms-admin] .cms-section__add { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1.125rem; }
+html[data-cms-admin] .cms-section__fields:empty + .cms-section__add { margin-top: 0; }
 
-/* The entry's title is the page heading: a large, borderless input. */
+/* The entry's title is the page heading: a large, borderless input in Manrope. */
 html[data-cms-admin] .cms-title-input {
+  overflow: hidden; /* grows with its text (field-sizing), so never a scrollbar */
   width: 100%;
   border: 0;
   outline: none;
   background: transparent;
   padding: 0;
-  font-size: 1.75rem;
-  line-height: 1.25;
-  font-weight: 600;
+  font-family: var(--cms-font-display);
+  font-size: 1.875rem;
+  line-height: 1.2;
+  font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ui-text-highlighted);
 }
 html[data-cms-admin] .cms-title-input::placeholder { color: var(--ui-text-dimmed); }
+html[data-cms-admin] .cms-title-input--address {
+  font-family: var(--font-mono); font-size: 1.0625rem; font-weight: 500; letter-spacing: 0;
+  padding: 0.5rem 0.75rem; border-radius: var(--ui-radius);
+  box-shadow: inset 0 0 0 1px var(--ui-border-accented); background: var(--ui-bg);
+}
+html[data-cms-admin] .cms-title-input--address:focus { box-shadow: inset 0 0 0 1px var(--ui-primary), 0 0 0 3px color-mix(in oklab, var(--ui-primary) 20%, transparent); }
+@media (max-width: 639px) {
+  html[data-cms-admin] .cms-title-input,
+  html[data-cms-admin] .cms-editor--write .cms-title-input { font-size: 1.625rem; }
+}
 
 /* Rich text inside the editor: comfortable reading size, same typeface. */
 html[data-cms-admin] .cms-prose {
   font-size: 0.9375rem;
   line-height: 1.7;
 }
+
+/* Properties as quiet label/value rows (status, address…). */
+html[data-cms-admin] .cms-props {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.75rem;
+  font-size: 0.875rem;
+  align-items: baseline;
+}
+html[data-cms-admin] .cms-props dt { color: var(--ui-text-muted); }
+html[data-cms-admin] .cms-props dd { margin: 0; color: var(--ui-text-highlighted); min-width: 0; }
+
+html[data-cms-admin] .cms-preview {
+  /* sticky inside the page body, which scrolls under the top bar */
+  position: sticky;
+  top: 1.25rem;
+  height: calc(100dvh - var(--ui-header-height) - 2.5rem);
+  display: flex;
+  flex-direction: column;
+}
+html[data-cms-admin] .cms-preview--sheet { position: static; height: 100%; }
+html[data-cms-admin] .cms-preview__stage {
+  flex: 1;
+  min-height: 20rem;
+  display: flex;
+  justify-content: center;
+  border: 1px solid var(--ui-border);
+  border-radius: calc(var(--ui-radius) * 1.5);
+  background: var(--cms-sunken);
+  overflow: hidden;
+}
+html[data-cms-admin] .cms-preview__frame { width: 100%; height: 100%; border: 0; background: white; }
+html[data-cms-admin] .cms-preview__frame--phone { width: 390px; max-width: 100%; border-left: 1px solid var(--ui-border); border-right: 1px solid var(--ui-border); }
+
+/* A date as a small calendar leaf (dated lists, "coming soon"). */
+html[data-cms-admin] .cms-date {
+  width: 2.875rem;
+  flex: none;
+  text-align: center;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  padding: 0.1875rem 0;
+  line-height: 1.15;
+  background: var(--cms-surface);
+}
+html[data-cms-admin] .cms-date b { display: block; font: 700 1.0625rem var(--cms-font-display); color: var(--ui-text-highlighted); }
+html[data-cms-admin] .cms-date span { font-size: 0.65625rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ui-text-muted); }
 
 /* Colour ramps on the styleguide (fixed 11 columns; no dynamic class names). */
 html[data-cms-admin] .cms-ramp {
@@ -214,35 +472,71 @@ html[data-cms-admin] .cms-ramp {
   }
 }
 
-/* Live preview beside the editor (wide screens): the form keeps its column, the
-   site's preview fills the rest and stays in view while scrolling. */
-@media (min-width: 1280px) {
-  html[data-cms-admin] .cms-with-preview {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 2rem;
-    align-items: start;
+/* A moment that arrives (the success card): a short rise, nothing bouncy. */
+@keyframes cms-rise { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+html[data-cms-admin] .cms-rise { animation: cms-rise 220ms ease-out both; }
+
+/* The time box has its own clock icon; the browser's picker button would repeat it
+   (typing works, and phones open their wheel on tap). */
+html[data-cms-admin] .cms-time-input::-webkit-calendar-picker-indicator { display: none; }
+
+/* ── Peek: an item open beside its list (the media library) ──
+   Docked, not over the page: the list stays usable and another click switches the
+   panel. Phones show the panel as a page of its own. */
+html[data-cms-admin] .cms-media-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); }
+html[data-cms-admin] .cms-editor__aside.cms-peek { padding: 0; border-top: 0; }
+html[data-cms-admin] .cms-peek__inner { display: flex; flex-direction: column; min-height: calc(100dvh - var(--ui-header-height)); }
+html[data-cms-admin] .cms-peek__head {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.625rem 0.75rem 0.625rem 1.25rem; border-bottom: 1px solid var(--ui-border); background: var(--cms-page-bg);
+}
+html[data-cms-admin] .cms-peek__body { flex: 1; padding: 1.25rem; }
+html[data-cms-admin] .cms-peek__foot {
+  position: sticky; bottom: 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0.75rem 1.25rem; border-top: 1px solid var(--ui-border); background: var(--cms-page-bg);
+}
+/* Toasts while the media panel is open: beside it, or above its buttons on phones. */
+html[data-cms-admin]:has(.cms-peek) ol[data-slot="viewport"] { right: var(--cms-toast-right, 1rem); }
+@media (max-width: 1023px) {
+  html[data-cms-admin]:has(.cms-peek) ol[data-slot="viewport"] { bottom: 4.75rem; }
+}
+@media (min-width: 1024px) {
+  html[data-cms-admin] .cms-editor--peek { grid-template-columns: minmax(0, 1fr) var(--cms-peek-w, 26rem); }
+  html[data-cms-admin] .cms-peek { position: relative; }
+  /* The panel's edge: a wide grab area over the divider, a line while dragging. */
+  html[data-cms-admin] .cms-peek__resize {
+    position: absolute; top: 0; bottom: 0; left: -4px; width: 8px; z-index: 5;
+    cursor: col-resize; touch-action: none;
   }
-  html[data-cms-admin] .cms-with-preview .cms-editor { grid-template-columns: minmax(0, 1fr); }
-  html[data-cms-admin] .cms-with-preview .cms-editor__main { padding-right: 0; }
-  html[data-cms-admin] .cms-with-preview .cms-editor__aside { border-left: 0; padding-left: 0; border-top: 1px solid var(--ui-border); padding-top: 1.5rem; }
+  html[data-cms-admin] .cms-peek__resize::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px;
+    background: transparent; transition: background-color .15s;
+  }
+  html[data-cms-admin] .cms-peek__resize:hover::after,
+  html[data-cms-admin] .cms-peek__resize:focus-visible::after,
+  html[data-cms-admin].cms-resizing .cms-peek__resize::after { background: var(--ui-border-accented); }
+  html[data-cms-admin] .cms-peek__resize:focus-visible { outline: none; }
+  html[data-cms-admin].cms-resizing, html[data-cms-admin].cms-resizing * { cursor: col-resize !important; user-select: none; }
+  html[data-cms-admin] .cms-editor--peek .cms-editor__aside { padding: 0; }
+  html[data-cms-admin] .cms-peek__inner {
+    position: sticky; top: 0;
+    height: calc(100dvh - var(--ui-header-height)); min-height: 0;
+    overflow-y: auto;
+  }
 }
-html[data-cms-admin] .cms-preview {
-  position: sticky;
-  top: calc(var(--ui-header-height) + 1rem);
-  height: calc(100vh - var(--ui-header-height) - 3rem);
-  display: flex;
-  flex-direction: column;
-}
-html[data-cms-admin] .cms-preview__stage {
-  flex: 1;
-  min-height: 24rem;
-  display: flex;
-  justify-content: center;
-  border: 1px solid var(--ui-border);
-  border-radius: var(--ui-radius);
-  background: var(--ui-bg-muted);
-  overflow: hidden;
-}
-html[data-cms-admin] .cms-preview__frame { width: 100%; height: 100%; border: 0; background: white; }
-html[data-cms-admin] .cms-preview__frame--phone { width: 390px; max-width: 100%; border-left: 1px solid var(--ui-border); border-right: 1px solid var(--ui-border); }
+
+/* A row that may scroll sideways on a phone (list tabs): no scrollbar drawn, and no
+   vertical scroll from a tab indicator that sits a pixel low. */
+html[data-cms-admin] .cms-scroll-x { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+html[data-cms-admin] .cms-scroll-x::-webkit-scrollbar { display: none; }
+
+/* "Unsaved changes": the warning hue, dark enough to read on white (AA) and light
+   enough on charcoal night. */
+html[data-cms-admin] .cms-unsaved { color: color-mix(in oklab, var(--ui-warning) 62%, #000); }
+html[data-cms-admin].dark .cms-unsaved { color: color-mix(in oklab, var(--ui-warning) 70%, #fff); }
+
+/* "Take me to the field" (publish review → Fix): a ring that fades. */
+@keyframes cms-flash { 0%, 60% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--ui-error) 45%, transparent); } 100% { box-shadow: 0 0 0 3px transparent; } }
+html[data-cms-admin] .cms-flash { animation: cms-flash 2s ease-out; border-radius: var(--ui-radius); }

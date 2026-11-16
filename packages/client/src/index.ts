@@ -159,3 +159,25 @@ export function createCmsClient<S extends AnyContentSchema, G extends object = R
     },
   }) as unknown as CmsClient<S>
 }
+
+/** A menu link as the content API returns it (defineNavigation). */
+export interface CmsMenuLink { id: string; label: string; url: string; newTab?: boolean | null; sub?: boolean | null }
+/** A top-level menu link with the links of its dropdown. */
+export type CmsMenuItem<L extends CmsMenuLink = CmsMenuLink> = L & { children: L[] }
+
+/**
+ * Nest a menu: a link marked `sub` ("under the link above") goes into the dropdown of
+ * the nearest top-level link before it; a `sub` link with nothing above stays on top.
+ *
+ *   const nav = await cms.global('navigation')
+ *   const main = cmsMenuTree(nav.main) // [{ label: 'O nás', url: '/o-nas', children: [{ label: 'Tým', … }] }, …]
+ */
+export function cmsMenuTree<L extends CmsMenuLink>(links: readonly L[] | null | undefined): CmsMenuItem<L>[] {
+  const out: CmsMenuItem<L>[] = []
+  for (const link of links ?? []) {
+    const parent = out[out.length - 1]
+    if (link.sub && parent) parent.children.push(link)
+    else out.push({ ...link, children: [] })
+  }
+  return out
+}

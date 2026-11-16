@@ -90,7 +90,7 @@ function pascalRef(name: string): string {
 }
 
 /** An object schema for a list of projected fields, with id + optional timestamps. */
-function objectSchema(fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null }): JsonSchema {
+function objectSchema(fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null; paths?: boolean }): JsonSchema {
   const properties: JsonSchema = { id: { type: 'string', format: 'uuid' } }
   const required = ['id']
   for (const f of fields) {
@@ -106,6 +106,10 @@ function objectSchema(fields: ContentField[], opts: { timestamps: boolean; local
     properties.locale = { type: 'string', enum: [...opts.locales], description: 'The language this item is served in.' }
     properties.locales = { type: 'array', items: { type: 'string', enum: [...opts.locales] }, description: 'Languages this item exists in.' }
     required.push('locale', 'locales')
+    if (opts.paths) {
+      properties.paths = { type: 'object', additionalProperties: { type: 'string' }, description: "The item's address in each language it exists in." }
+      required.push('paths')
+    }
   }
   return { type: 'object', additionalProperties: false, properties, required }
 }
@@ -201,7 +205,7 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
   const paths: JsonSchema = {}
   const tag = (name: string) => name
   for (const shape of model.entities) {
-    schemas[shape.pascal] = objectSchema(shape.fields, { timestamps: true, locales: shape.locales })
+    schemas[shape.pascal] = objectSchema(shape.fields, { timestamps: true, locales: shape.locales, paths: shape.paths })
     schemas[`${shape.pascal}List`] = {
       type: 'object',
       additionalProperties: false,

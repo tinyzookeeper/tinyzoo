@@ -118,6 +118,21 @@ describe('reading translations (public content API)', () => {
     expect(en.sections[0].heading).toBe('Welcome')
     expect((await anonymous().get('/api/content/page/domu')).body.item.sections[0].heading).toBe('Vítejte')
   })
+
+  it("gives each item's address in every language it exists in (for a language switcher)", async () => {
+    const post = await live()
+    const before = (await anonymous().get('/api/content/post/vanocni-cukrovi')).body.item
+    expect(before.paths).toEqual({ cs: '/blog/vanocni-cukrovi' })
+    await translate(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })
+    const expected = { cs: '/blog/vanocni-cukrovi', en: '/en/blog/christmas-cookies' }
+    // The same in either language, in a list and for one item.
+    expect((await anonymous().get('/api/content/post/christmas-cookies?locale=en')).body.item.paths).toEqual(expected)
+    expect((await anonymous().get('/api/content/post')).body.items[0].paths).toEqual(expected)
+    // A translation without its own address uses the default one; templates can differ per language.
+    const page = (await admin.post('/api/cms/page', { title: 'O nás', slug: 'o-nas', status: 'published', sections: [] })).body.row
+    await admin.request('PATCH', `/api/cms/page/${page.id}?locale=en`, { json: { title: 'About' } })
+    expect((await anonymous().get('/api/content/page/o-nas')).body.item.paths).toEqual({ cs: '/o-nas', en: '/en/pages/o-nas' })
+  })
 })
 
 describe('media in translations', () => {

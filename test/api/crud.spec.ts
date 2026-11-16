@@ -57,6 +57,30 @@ describe('read', () => {
     expect(search.body.rows.map((r: any) => r.title)).toEqual(['Gamma'])
   })
 
+  it('searches without caring about accents or case', async () => {
+    const author = await createAuthor(admin)
+    await createPost(admin, { author: author.id, title: 'Zimní příprava v bazénu' })
+    for (const q of ['zimni', 'PRIPRAVA', 'bazénu', 'Příp']) {
+      const res = await admin.get(`/api/cms/post?q=${encodeURIComponent(q)}`)
+      expect(res.body.rows.map((r: any) => r.title), q).toContain('Zimní příprava v bazénu')
+    }
+    expect((await admin.get('/api/cms/post?q=%25')).body.rows.map((r: any) => r.title)).not.toContain('Zimní příprava v bazénu')
+  })
+
+  it('sorts text in the language\'s own order (Č after C, ch after h)', async () => {
+    const author = await createAuthor(admin)
+    for (const w of ['Zelí', 'Chleba', 'Čaj', 'Hora', 'Cukr']) await createPost(admin, { author: author.id, title: `Řazení ${w}` })
+    const prev = admin.cookie
+    admin.cookie += '; cms_admin_locale=cs'
+    try {
+      const res = await admin.get(`/api/cms/post?q=razeni&sort=title&dir=asc`)
+      expect(res.body.rows.map((r: any) => r.title)).toEqual(['Řazení Cukr', 'Řazení Čaj', 'Řazení Hora', 'Řazení Chleba', 'Řazení Zelí'])
+    }
+    finally {
+      admin.cookie = prev
+    }
+  })
+
   it('shapes a single row for the edit form (FK aliases, m2m id lists)', async () => {
     const author = await createAuthor(admin)
     const tag = await createTag(admin)

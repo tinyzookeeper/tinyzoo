@@ -60,7 +60,7 @@ async function upload(files: FileList | null) {
       add(await $fetch('/api/cms/_media', { method: 'POST', body: form }))
     }
     catch (err: any) {
-      toast.add({ title: t('media.uploadFailed'), description: `${file.name}: ${err?.data?.statusMessage ?? ''}`, color: 'error', icon: 'i-lucide-x' })
+      toast.add({ title: t('media.uploadFailed'), description: `${file.name}: ${cmsRequestError(err, t as any)}`, color: 'error', icon: 'i-lucide-x' })
     }
     finally {
       uploading.value--

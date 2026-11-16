@@ -45,13 +45,13 @@ async function submit() {
 
 <template>
   <form class="space-y-5" novalidate @submit.prevent="submit">
-    <div>
+    <div class="text-center">
       <!-- First run: the whole family says hello. -->
-      <div class="-mt-1 mb-5 flex items-end gap-1.5" aria-hidden="true">
-        <img v-for="c in cmsCharacters.bright" :key="c.name" :src="c.url" alt="" class="h-7 w-auto" draggable="false">
+      <div class="-mt-1 mb-5 flex items-end justify-center gap-2" aria-hidden="true">
+        <img v-for="c in cmsCharacters.bright" :key="c.name" :src="c.url" alt="" class="h-9 w-auto" draggable="false">
       </div>
       <p class="text-xs font-medium text-muted">{{ t('auth.setupWelcome') }}</p>
-      <h1 class="mt-1 text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.setupTitle') }}</h1>
+      <h1 class="mt-1 cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.setupTitle') }}</h1>
       <p class="mt-1 text-sm text-muted">{{ t('auth.setupSubtitle', { site: productName }) }}</p>
     </div>
     <UFormField v-if="askToken" :label="t('auth.setupToken')" name="token" :description="t('auth.setupTokenHint')" :error="errors.token">
@@ -66,7 +66,7 @@ async function submit() {
     <UFormField :label="t('auth.password')" name="password" :description="t('auth.passwordHint')" :error="errors.password">
       <CmsPasswordInput v-model="form.password" autocomplete="new-password" />
     </UFormField>
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" />
+    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" role="alert" />
     <UButton type="submit" block :loading="pending">{{ t('auth.createAccount') }}</UButton>
   </form>
 </template>
