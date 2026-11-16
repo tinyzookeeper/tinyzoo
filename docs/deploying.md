@@ -29,9 +29,9 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 
 | Variable | Required | |
 |---|---|---|
-| `DATABASE_URL` | yes | Postgres connection (`NUXT_CMS_DATABASE_URL` overrides) |
-| `NUXT_SESSION_PASSWORD` | yes | seals the sign-in cookie, ≥ 32 characters. Changing it signs everyone out |
-| `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails |
+| `DATABASE_URL` | yes | Postgres connection (`NUXT_CMS_DATABASE_URL` overrides). The server refuses to start without one |
+| `NUXT_SESSION_PASSWORD` | yes | seals the sign-in cookie, ≥ 32 characters. Changing it signs everyone out. **The server refuses to start** without it (or with a shorter one) and says so in the log |
+| `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails and `/sitemap.xml`. Without it the server starts but logs one warning saying what is missing |
 | `NUXT_CMS_MIGRATIONS_ON_START` | recommended | `true`: apply bundled migrations at start (below) |
 | `REDIS_URL` | with > 1 replica | `NUXT_CMS_REDIS_URL` overrides |
 | `NUXT_CMS_REDIS_PREFIX` | optional | namespace for keys and channels; default `cms:<database name>`, so environments sharing one Redis stay apart |
@@ -42,12 +42,42 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | `NUXT_CMS_MAIL_TRANSPORT` | yes | `smtp` in production (`log` prints emails to the console) |
 | `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASS` | with smtp | |
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (below) |
-| `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API |
+| `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API (`x-api-key` or `Authorization: Bearer`). The website's own server-side requests need none, see [Content API token](#content-api-token) |
+| `NUXT_CMS_CONTENT_DOCS` | optional | `true` publishes the interactive API reference at `/api/openapi` (off in production by default, see [Content API token](#content-api-token)) |
 | `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). Without it the server makes a one-time code and prints it in the log — see [First run](#first-run-the-setup-code) |
 | `NUXT_CMS_RETENTION_AUDIT_DAYS` | optional | delete audit-log entries older than this many days (default 365, `0` = keep). See [Privacy](#privacy-gdpr) |
 | `NUXT_CMS_AUTH_TRUSTED_PROXIES` | optional | proxy hops in front of the app (default 1 — Pushbase's ingress). Too few and rate limits count the proxy instead of visitors; too many (e.g. 1 with no proxy at all) and visitors can fake their address in `X-Forwarded-For` to dodge limits. Set `0` when the app is reached directly |
 
 `playground/.env.example` lists them with local-development values.
+
+## Content API token
+
+`NUXT_CMS_CONTENT_TOKEN` closes `/api/content/*` (and `/api/openapi.json`) to everyone who
+comes from outside without the token (`x-api-key: <token>` or `Authorization: Bearer <token>`).
+
+- **The website itself needs no token.** Its pages fetch the content API *inside the
+  server* while they render (`useFetch('/api/content/…')`, `$fetch`, `event.$fetch`):
+  Nitro answers those in-process, with no network hop, and they are the site, not a
+  visitor, so they are let through. The token never reaches a browser or the page's HTML.
+  An outside request cannot pass for one of these whatever headers it sends.
+- **A browser cannot call the API itself**: on client-side navigation a `useFetch` runs in
+  the browser, which has no token (and must not get one). With a token, render content on
+  the server, or put a route of the site's own in between that asks for it server-side.
+- A separate site or a script (`createClient({ token })`, a build step, a cache purge)
+  sends the token itself, from its server.
+- Drafts (`?preview`) stay behind the token or an admin session; rendering a page in-process
+  does not unlock them.
+- Requests refused for a missing or wrong token are counted and logged as one line at most once a
+  minute (`[cms] 3 content API requests refused: …`), so a site that cannot read its own content
+  does not fail in silence.
+
+The interactive reference at `/api/openapi` (Scalar, loaded from jsDelivr, public on the
+admin's origin) is **off in production** unless `cms.content.docs: true`
+(`NUXT_CMS_CONTENT_DOCS=true`); in development it is on, and with a token it is always off
+(a browser cannot send the key). It loads one pinned version of the script, checked by its
+hash. `/api/openapi.json`, the document that code generators read
+(`openapi-typescript https://…/api/openapi.json`), is **not** behind that switch: it describes
+only what the public content API returns, and a token closes it.
 
 ## First run: the setup code
 

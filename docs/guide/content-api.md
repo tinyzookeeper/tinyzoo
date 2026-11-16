@@ -62,7 +62,10 @@ collapses to `{ id, title }`). Drafts are never served (list excludes them; sing
 Responses are CDN-cacheable (`Cache-Control`: a CDN may keep them 5 minutes; browsers
 check back every time and get a quick `304` via `ETag` while nothing changed, so a
 published change shows at once), or lock the whole API behind a token with
-`cms.content.token` / `NUXT_CMS_CONTENT_TOKEN`.
+`cms.content.token` / `NUXT_CMS_CONTENT_TOKEN` (the website's own server-side requests are let
+through, a browser's are not: [Content API token](../deploying.md#content-api-token)).
+`?locale=` takes the closest language the site has: `en-US` and `EN` both give `en`; a
+language the site does not have is a `400`.
 
 Render stored rich text on the frontend with the shipped `<CmsContent :doc="post.body" />`
 (safe — builds VNodes from the structured doc, no `v-html`). The playground's `/blog` and
@@ -83,7 +86,7 @@ never appear; nullability, enums and populated-relation shapes are all precise.
 
 ```
 GET /api/openapi.json    # the document
-GET /api/openapi         # interactive reference (Scalar)
+GET /api/openapi         # interactive reference (Scalar) — development, or cms.content.docs: true
 ```
 ```bash
 npx openapi-typescript https://cms.example.com/api/openapi.json -o cms.d.ts

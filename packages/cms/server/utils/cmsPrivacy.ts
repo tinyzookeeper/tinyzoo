@@ -19,13 +19,15 @@ import { formEntities, purgeSubmissions } from '../../forms/retention'
  * the site's content, not personal data about a visitor), and copies in backups.
  */
 
-export const privacyBody = z.object({ email: emailSchema.pipe(z.string().max(254)) })
+// The same rules as emailSchema (cmsAuth.ts), written out: this runs while the module loads, and the
+// server utils are bundled in an order that does not promise cmsAuth is ready by then.
+export const privacyBody = z.object({ email: z.string().trim().toLowerCase().pipe(z.email()).pipe(z.string().max(254)) })
 
 /** Rate limit per signed-in administrator (and per address of the client), so a stolen session cannot scrape quickly. */
 export async function privacyRateLimit(event: any, userId: string, kind: 'read' | 'delete'): Promise<void> {
   const [max, windowMs] = kind === 'delete' ? [10, 10 * 60_000] : [60, 10 * 60_000]
   const ok = (await rateLimit(`privacy:${kind}:${userId}`, max, windowMs)) && (await rateLimit(`privacy-ip:${kind}:${clientIp(event)}`, max * 2, windowMs))
-  if (!ok) throw createError({ statusCode: 429, statusMessage: 'Too many requests; try again in a few minutes' })
+  if (!ok) throw tooManyRequests(event, 'Too many requests; try again in a few minutes', windowMs)
 }
 
 /** The text fields of a form that hold an email address. */
