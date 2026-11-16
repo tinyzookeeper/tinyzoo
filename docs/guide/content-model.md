@@ -80,13 +80,13 @@ these are all the types.
 | `f.text(opts)` | a line of text (or a growing box with `multiline: true`) | `text` | names, titles, short texts. `max` caps the length. `format: 'email'`, `'url'` (a full `https://…` address), `'path'` (an address on this site, `/old-page`) or `'link'` (a page, `https://…`, `mailto:`, `tel:` or an anchor; the only one that can hold a [reference to a page](#links-that-follow-their-page)) checks the value. Spaces around it are trimmed |
 | `f.slug({ from, unique })` | a lowercase-and-dashes address part, filled in from the `from` field until edited | `text` | the part of a web address (`/blog/:slug`). `unique: true` adds a unique index. Can be `.localized()` |
 | `f.number({ int, min, max })` | a number box | `integer` (`int: false`: `numeric(12,2)`) | counts, positions, prices |
-| `f.boolean({ default })` | a switch | `boolean`, never null (default `false`) | "Show on the home page", "Open in a new tab" |
+| `f.boolean({ default, mustBeTrue })` | a switch | `boolean`, never null (default `false`) | "Show on the home page", "Open in a new tab". `mustBeTrue: true` refuses `false`: a consent on a [website form](recipes.md#1-a-contact-form) that must be ticked (the form marks it required and tells the visitor, in their language, to tick it) |
 | `f.datetime({ default: 'now', allDay })` | a date and time picker in the admin's time zone; `allDay: true` adds an "All day" switch (stored at 0:00) | `timestamptz` | when something happens or goes live |
 | `f.select({ options, default, labels, icons })` | a choice | a Postgres enum | status, kind, category. `options` must be `as const`; `labels` give each option a name per admin language, `icons` an icon |
 | `f.richtext()` | a rich-text editor: headings, bold, lists, quotes, links, inline pictures | `jsonb` (a TipTap document, sanitised on write and at render) | articles and text that needs formatting. Draw it with `<CmsContent :doc="…" />` |
 | `f.color()` | a colour picker and a `#rrggbb` box | `text` | a category's colour, an accent |
-| `f.media({ accept })` | a picture from the media library, or an upload | a foreign key to the library | one picture (`accept: 'image/*'`). The API returns `{ id, url, width, height, alt, mime, focal }` |
-| `f.file({ accept })` | a file from the library (PDF by default) | a foreign key to the library | a document to download |
+| `f.media({ accept })` | a picture from the media library, or an upload | a foreign key to the library | one picture (`accept: 'image/*'`). The API returns `{ id, url, width, height, alt, mime, focal }`, or `null` when there is none: **the generated type is `… \| null` also for a required field**, so write `d.photo?.url` |
+| `f.file({ accept })` | a file from the library (PDF by default) | a foreign key to the library | a document to download. Typed `… \| null` like `f.media`: `d.file?.url` |
 | `f.gallery({ accept, max })` | several pictures, in order, each with a caption | `jsonb` `[{ mediaId, caption }]` (up to 200) | albums, photo series |
 | `f.relation({ to, kind, … })` | a picker for entries of another collection | a foreign key, or a junction table | author of a post, tags of a post |
 | `f.list({ fields, max })` | rows of the same few fields: add, drag, duplicate, remove | `jsonb` | opening hours, a price list, FAQ items |
@@ -236,6 +236,15 @@ const hero = defineBlock({
   API, the admin's form, search, history and restore, translations. Writes always
   store the current version, so nothing has to be run on deploy. A missing `v` on a
   write means "the current version" (what the content API returns has none).
+- **Update the website's component too.** `upgrade` keeps the *stored* data working; the
+  website still reads the *new* names. The starter types each block component from the
+  generated client (`defineProps<{ block: Extract<Page['sections'][number], { type: 'hero' }> }>()`
+  with `Page` imported from `~/lib/cms-content`), so after you rename a field in
+  `cms.config.ts` and run `pnpm cms:client`, `pnpm typecheck` fails in every component that
+  still uses the old name. Without the typed props nothing fails: the old name is simply
+  `undefined`, and the heading is missing from a live page. Components written with
+  hand-typed props (`block: { heading: string }`) do not get this check: switch them to the
+  generated type when you change a block.
 - A forgotten rename is loud, not silent: a block that went through `upgrade` is
   checked strictly against the current fields on save (an unrecognised key is a
   validation error), and in development a stored block with keys the definition
@@ -447,9 +456,12 @@ export const FormSettings = defineFormSettings() // editors set who gets the ema
 > deprecated and removed in 0.4: import them from `tinyzoo/forms` and add `formsPlugin()`.
 > No migration is needed.
 
-On a page: `<CmsForm name="contactForm" />` (plain HTML, zero-specificity default
-styles, errors per field in the visitor's language). Or post JSON to
-`POST /api/content/_form/contactForm`; `GET` on the same address describes the form.
+On a page: `<CmsForm name="contactForm" />` (plain HTML; default styles in the lowest CSS
+layer that follow the text colour, so any class of yours wins; errors per field in the
+visitor's language). A `f.select` with a `default` opens on it, a consent is
+`f.boolean({ mustBeTrue: true })`. Or post JSON to `POST /api/content/_form/contactForm`
+(send `_locale: 'cs'` for the refused fields' messages in that language; they come back in
+`data[].message`); `GET` on the same address describes the form.
 Each submission becomes an entry (state New / Read / Done) and the people in Forms
 settings get an email (fallback: `notify.to` in code, then `NUXT_CMS_FORMS_NOTIFY_TO`).
 Spam protection: a hidden field, a minimum fill-in time, a rate limit per visitor,

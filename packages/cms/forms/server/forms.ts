@@ -19,6 +19,11 @@ const FORM_DEFAULTS: Record<string, { submit: string; success: string }> = {
   de: { submit: 'Senden', success: 'Vielen Dank, Ihre Nachricht ist angekommen.' },
 }
 
+/** The language a form is answered in: the one the website says (`locale`), else the site's default. */
+export function formLocale(reg: CmsRegistry, wanted: unknown): string {
+  return typeof wanted === 'string' && reg.locales?.locales.includes(wanted) ? wanted : (reg.locales?.default ?? 'en')
+}
+
 /** The visitor-facing description of a form, in one language: what to draw. */
 export function formSchema(e: CmsEntity, locale: string): Record<string, any> {
   const form = (e as any).form as { fields: string[]; submitLabel: any; successMessage: any }
@@ -39,8 +44,10 @@ export function formSchema(e: CmsEntity, locale: string): Record<string, any> {
         type: fld.type,
         label: text(meta.label, key),
         help: text(meta.help) || null,
-        // A choice with no default that is not .optional() must be made, so say so.
-        required: !!fld.isRequired || (fld.type === 'select' && !fld.isOptional && fld.default === undefined),
+        // A choice with no default that is not .optional() must be made, a consent must be ticked: say so.
+        required: !!fld.isRequired || !!meta.mustBeTrue || (fld.type === 'select' && !fld.isOptional && fld.default === undefined),
+        // What a choice starts on (its default), so the form opens with it selected.
+        default: fld.type === 'select' && typeof fld.default === 'string' ? fld.default : null,
         format: meta.format ?? null,
         multiline: !!meta.multiline,
         max: meta.max ?? null,

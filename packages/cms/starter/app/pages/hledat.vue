@@ -23,7 +23,6 @@ function onInput() {
 }
 onBeforeUnmount(() => clearTimeout(timer))
 
-const homeOf = (p: string) => p.replace(/\/home$/, '') || '/'
 useHead({
   title: () => `${en.value ? 'Search' : 'Hledání'} · ${settings.value?.siteName ?? ''}`,
   meta: [{ name: 'robots', content: 'noindex, follow' }],
@@ -49,7 +48,7 @@ useHead({
       <p class="mt-6 text-sm text-muted" aria-live="polite">{{ en ? `Results: ${total}` : `Výsledků: ${total}` }}</p>
       <ol class="mt-4 space-y-3">
         <li v-for="r in items" :key="`${r.entity}:${r.id}`">
-          <NuxtLink v-if="r.path" :to="homeOf(r.path)" class="block rounded-lg border border-default p-4 hover:bg-elevated">
+          <NuxtLink v-if="r.path" :to="siteHref(r.path)" class="block rounded-lg border border-default p-4 hover:bg-elevated">
             <span class="font-semibold"><CmsHighlight :text="r.title" :ranges="r.titleHighlights" /></span>
             <p v-if="r.excerpt" class="mt-1 text-sm text-muted"><CmsHighlight :text="r.excerpt" :ranges="r.highlights" /></p>
           </NuxtLink>

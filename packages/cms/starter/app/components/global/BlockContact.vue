@@ -1,6 +1,9 @@
 <script setup lang="ts">
 // Block "Contact form": the ContactForm from cms.config.ts; messages arrive in the admin.
-defineProps<{ block: { heading?: string | null } }>()
+// Typed from the generated client (see BlockHero.vue).
+import type { Page } from '~/lib/cms-content'
+
+defineProps<{ block: Extract<Page['sections'][number], { type: 'contact' }> }>()
 const locale = useSiteLocale()
 </script>
 

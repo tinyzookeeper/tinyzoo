@@ -7,7 +7,7 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "preview": "nuxt preview",
-    "typecheck": "nuxt typecheck",
+    "typecheck": "node scripts/typecheck.mjs",
     "db:generate": "tsx node_modules/tinyzoo/cli/index.ts generate",
     "db:migrate": "tsx node_modules/tinyzoo/cli/index.ts up",
     "seed": "tsx node_modules/tinyzoo/cli/index.ts seed",
@@ -30,7 +30,7 @@
     "drizzle-kit": "^0.31.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
-    "vue-tsc": "^2.2.0"
+    "vue-tsc": "^3.3.14"
   },
   "engines": {
     "node": ">=22"

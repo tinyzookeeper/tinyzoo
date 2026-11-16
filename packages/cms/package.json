@@ -33,6 +33,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "files": [
+    "README.md",
+    "LICENSE",
     "app",
     "app.config.ts",
     "cli",

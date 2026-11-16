@@ -43,7 +43,11 @@ Everything editors can write is in `cms.config.ts`. After a change:
 ```bash
 pnpm db:generate            # writes the SQL for the change (review it)
 pnpm db:migrate             # applies it
+pnpm cms:client             # the typed client (app/lib/cms-content.ts)
 ```
+
+The block components are typed from that client: rename a block's field and `pnpm typecheck`
+points at every component that still uses the old name.
 
 ## Where things are
 
@@ -52,7 +56,9 @@ pnpm db:migrate             # applies it
 | `cms.config.ts` | content model: settings, pages and their blocks, news, menus, forms |
 | `app/components/global/Block*.vue` | how each block looks (`hero` → `BlockHero.vue`) |
 | `app/pages/[...slug].vue` | pages, the news list and news items, in Czech and English |
-| `app/layouts/default.vue` | header with the menu, footer with contacts and opening hours |
+| `app/layouts/default.vue` | header with the menu and the language switcher, footer with contacts and opening hours |
+| `app/composables/useSite.ts` | the visitor's language, the site settings and menus, the page being shown, the language switcher |
+| `server/plugins/sitemap.ts`, `server/routes/robots.txt.get.ts` | the home page as `/` in the sitemap; `robots.txt` |
 | `seed/index.ts`, `seed/media/` | the demo content and its pictures (`pnpm seed`) |
 
 Components from the CMS you can use anywhere: `<CmsBlocks>`, `<CmsImage>`,

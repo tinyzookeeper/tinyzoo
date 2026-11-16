@@ -22,7 +22,7 @@ async function formTable(): Promise<string> {
 
 let n = 0
 async function submit(email: string, message = 'Kdy je další závod?') {
-  const res = await anonymous().post('/api/content/_form/contactForm', { name: `Visitor ${++n}`, email, message, _t: 5000 })
+  const res = await anonymous().post('/api/content/_form/contactForm', { name: `Visitor ${++n}`, email, message, consent: true, _t: 5000 })
   expect(res.status).toBe(201)
   const { rows } = await db.query(`select id from ${await formTable()} order by created_at desc limit 1`)
   return rows[0].id as string

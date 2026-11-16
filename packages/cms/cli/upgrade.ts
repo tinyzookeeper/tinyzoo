@@ -3,6 +3,7 @@
  * against what this tinyzoo wants, generate the migration (with the breaking-statement
  * guard), regenerate the typed client, and show what the database still has to apply.
  */
+import { docsUrl } from '../src/docs'
 import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -54,6 +55,6 @@ export async function upgrade(cwd: string, pkgDir: string, deps: UpgradeDeps): P
   1. Read the new migration in server/db/migrations — that is the change your database will get.
   2. pnpm typecheck, then commit the migration, schema.ts and the typed client together with the package update.
   3. Deploy. The app migrates itself at start (NUXT_CMS_MIGRATIONS_ON_START=true), or run \`tinyzoo up\` yourself.
-  Details: docs/upgrading.md`)
+  Details: ${docsUrl('upgrading')}`)
   return 0
 }

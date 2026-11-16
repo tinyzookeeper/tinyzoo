@@ -82,6 +82,9 @@ try {
   // Tarballs instead of version ranges, and one copy of the editor stack (as in the workspace).
   const pkgPath = join(site, 'package.json')
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+  // `tinyzoo init` writes the package's own version as the range (a released 0.2.0 writes ^0.2.0).
+  const packed = JSON.parse(readFileSync(join(root, 'packages/cms/package.json'), 'utf8')).version
+  ok(pkg.dependencies.tinyzoo === `^${packed}` && pkg.dependencies['@tinyzoo/client'] === `^${packed}`, `tinyzoo init should write ^${packed} for tinyzoo and @tinyzoo/client, got ${pkg.dependencies.tinyzoo} and ${pkg.dependencies['@tinyzoo/client']}`)
   pkg.dependencies.tinyzoo = `file:${tgz('tinyzoo-0')}`
   pkg.dependencies['@tinyzoo/client'] = `file:${tgz('tinyzoo-client-')}`
   pkg.pnpm = { overrides: { '@tiptap/core': '3.34.0', '@tiptap/pm': '3.34.0', 'prosemirror-model': '^1.25.13', 'prosemirror-state': '^1.4.4', 'prosemirror-view': '^1.41.0' } }
@@ -96,6 +99,9 @@ try {
   dbCreated = true
   const env = { DATABASE_URL: dbUrl, NUXT_SESSION_PASSWORD: 'starter-check-session-password-32-characters', NUXT_CMS_STORAGE_LOCAL_DIR: uploads, NUXT_CMS_MAIL_TRANSPORT: 'log' }
   run('pnpm', ['db:migrate'], site, env)
+
+  // The site's own files type-check as shipped, templates included (the blocks are typed from the generated client).
+  run('pnpm', ['typecheck'], site, env)
 
   run('pnpm', ['exec', 'nuxi', 'build'], site, { ...env, NODE_ENV: 'production' })
   const port = await freePort()
@@ -157,6 +163,8 @@ try {
   ok((await json('/api/content/news?locale=en')).items.every((n) => /^[A-Z]/.test(n.title) && n.locale === 'en'), 'the English news are missing')
   const settings = (await json('/api/content/_global/siteSettings')).item
   ok(settings.siteName === 'Pekárna Na Růžku' && settings.openingHours.length === 3 && settings.logo?.width === 192, 'site settings are off')
+  const hoursEn = (await json('/api/content/_global/siteSettings?locale=en')).item.openingHours
+  ok(settings.openingHours[0].days === 'Po–Pá' && hoursEn[0].days === 'Mon–Fri', `opening hours should be in each language: ${settings.openingHours[0].days} / ${hoursEn[0].days}`)
   const nav = (await json('/api/content/_global/navigation')).item
   ok(nav.main.map((l) => l.url).join() === '/,/aktuality,/o-nas,/kontakt', `menu: ${nav.main.map((l) => l.url)}`)
   ok((await json('/api/content/_global/navigation?locale=en')).item.main.map((l) => l.url).join() === '/en,/en/news,/en/about,/en/contact', 'the English menu is off')
@@ -170,6 +178,33 @@ try {
     const { res, text: html } = await get(path)
     ok(res.status === 200 && html.includes(text), `${path}: ${res.status}, expected the page to say "${text}"`)
   }
+  // the head: canonical, the other language, a language switcher; the hero picture's slot size
+  const about = (await get('/o-nas')).text
+  ok(about.includes(`<link rel="canonical" href="${base}/o-nas">`) && about.includes(`hreflang="en" href="${base}/en/about"`) && about.includes(`hreflang="x-default" href="${base}/o-nas"`), '/o-nas has no canonical / hreflang links')
+  ok(about.includes(`<meta property="og:url" content="${base}/o-nas">`) && about.includes('og:locale" content="cs_CZ"'), '/o-nas has no og:url / og:locale')
+  ok(/aria-label="Jazyk"[\s\S]*href="\/en\/about"/.test(about), 'the Czech page has no language switcher to /en/about')
+  const aboutEn = (await get('/en/about')).text
+  ok(aboutEn.includes(`<link rel="canonical" href="${base}/en/about">`) && /aria-label="Language"[\s\S]*href="\/o-nas"/.test(aboutEn), '/en/about has no canonical or no switcher back to /o-nas')
+  const homeHtml = (await get('/')).text
+  ok(homeHtml.includes(`<link rel="canonical" href="${base}/">`) && homeHtml.includes(`hreflang="en" href="${base}/en"`), 'the home page should be / (and /en) in its canonical and hreflang links')
+  ok(homeHtml.includes('sizes="(min-width: 768px) 30rem, 100vw"'), 'the hero picture should say how wide it shows (sizes)')
+  const draftHome = await get('/home?preview')
+  ok(draftHome.res.status === 301 && draftHome.res.headers.get('location') === '/?preview', `/home?preview should keep ?preview: ${draftHome.res.status} ${draftHome.res.headers.get('location')}`)
+
+  // the sitemap lists the addresses the website serves, and robots.txt points at it
+  const sitemap = (await get('/sitemap.xml')).text
+  const locs = [...sitemap.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1].replace(base, ''))
+  for (const want of ['/', '/en', '/aktuality', '/en/news', '/o-nas', '/en/about', '/kontakt']) ok(locs.includes(want), `the sitemap misses ${want}: ${locs}`)
+  ok(!locs.some((l) => /\/home$/.test(l)), `the sitemap lists a /home address: ${locs}`)
+  const robots = (await get('/robots.txt')).text
+  ok(/Disallow: \/admin/.test(robots) && robots.includes(`Sitemap: ${base}/sitemap.xml`), `robots.txt: ${robots}`)
+
+  // what a CDN is told (docs/deploying.md, "Caching")
+  const cc = async (path) => (await get(path)).res.headers.get('cache-control')
+  ok(await cc('/api/content/page') === 'public, max-age=0, must-revalidate, s-maxage=300', `content API Cache-Control: ${await cc('/api/content/page')}`)
+  ok(await cc('/sitemap.xml') === 'public, max-age=3600' && await cc('/robots.txt') === 'public, max-age=3600', 'sitemap and robots.txt should be cached for an hour')
+  console.log('Cache-Control of a server-rendered page:', await cc('/o-nas'))
+
   const moved = await get('/pekarna')
   ok(moved.res.status === 301 && moved.res.headers.get('location') === '/o-nas', `/pekarna should send visitors to /o-nas, got ${moved.res.status} ${moved.res.headers.get('location')}`)
 
@@ -209,6 +244,41 @@ try {
   ok(await mainMenu('?locale=en') === '/en,/en/news,/en/about,/en/contact', 'the English menu changed with the Czech page name')
   await rename(aboutId, 'o-nas')
   ok(await mainMenu() === '/,/aktuality,/o-nas,/kontakt', `the menu did not follow the page back: ${await mainMenu()}`)
+
+  // ── only .output ships (docs/deploying.md, "A client site on any container host") ──
+  // A copy of .output alone, started from an empty folder against an empty database with
+  // NUXT_CMS_MIGRATIONS_ON_START=true: the bundled migrations create the tables.
+  const runDb = `${dbName}_run`
+  const runUrl = (() => { const u = new URL(dbUrl); u.pathname = `/${runDb}`; return u.toString() })()
+  await withAdmin(async (c) => { await c.query(`drop database if exists "${runDb}" with (force)`); await c.query(`create database "${runDb}"`) })
+  const runtime = join(work, 'runtime')
+  mkdirSync(runtime)
+  cpSync(join(site, '.output'), join(runtime, '.output'), { recursive: true })
+  const runPort = await freePort()
+  const lone = spawn(process.execPath, ['.output/server/index.mjs'], {
+    cwd: runtime, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { PATH: process.env.PATH, NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(runPort), DATABASE_URL: runUrl, NUXT_SESSION_PASSWORD: env.NUXT_SESSION_PASSWORD, NUXT_CMS_PUBLIC_URL: `http://127.0.0.1:${runPort}`, NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_STORAGE_LOCAL_DIR: join(work, 'runtime-uploads') },
+  })
+  const loneLogs = []
+  lone.stdout.on('data', (d) => loneLogs.push(String(d)))
+  lone.stderr.on('data', (d) => loneLogs.push(String(d)))
+  try {
+    for (let i = 0; ; i++) {
+      if (lone.exitCode !== null) fail(`.output alone exited with ${lone.exitCode}:\n${loneLogs.join('')}`)
+      try { if ((await fetch(`http://127.0.0.1:${runPort}/api/health/ready`)).ok) break } catch { /* not up yet */ }
+      if (i > 240) fail(`.output alone did not become ready:\n${loneLogs.join('')}`)
+      await new Promise((r) => setTimeout(r, 250))
+    }
+    const c = new pg.Client({ connectionString: runUrl })
+    await c.connect()
+    const tables = (await c.query(`select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name in ('page', 'news', 'site_settings')`)).rows[0].n
+    await c.end()
+    ok(tables === 3, '.output alone, with NUXT_CMS_MIGRATIONS_ON_START=true, did not create the tables')
+  }
+  finally {
+    if (lone.exitCode === null) { lone.kill('SIGTERM'); await new Promise((r) => lone.once('exit', r)) }
+    await withAdmin((c) => c.query(`drop database if exists "${runDb}" with (force)`)).catch(() => {})
+  }
 
   console.log('✓ starter initialised from the packed package, seeded twice (second run changed nothing), served the demo content, its menus follow renamed pages, and a reset goes through')
 }

@@ -25,7 +25,8 @@ pnpm install
 cp .env.example .env
 docker compose up -d && pnpm db:migrate
 pnpm dev                                                     # the site, and /admin
-SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed   # demo content + your first admin
+# in a second terminal, while `pnpm dev` runs: the demo content and your first administrator
+SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed
 ```
 
 That is a small bakery's website in Czech and English, with pages built from blocks, news,

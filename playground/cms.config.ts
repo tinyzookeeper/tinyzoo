@@ -286,7 +286,7 @@ export const ContactForm = defineForm("contactForm", {
     topic: f.select({ options: ["question", "race", "other"] as const, labels: { question: { en: "A question", cs: "Dotaz" }, race: { en: "A race", cs: "Závod" }, other: { en: "Something else", cs: "Něco jiného" } } })
       .optional().label({ en: "Topic", cs: "Téma" }),
     message: f.text({ required: true, multiline: true, max: 5000 }).label({ en: "Message", cs: "Zpráva" }),
-    consent: f.boolean().label({ en: "I agree to the processing of my details", cs: "Souhlasím se zpracováním údajů" }),
+    consent: f.boolean({ mustBeTrue: true }).label({ en: "I agree to the processing of my details", cs: "Souhlasím se zpracováním údajů" }),
   },
   successMessage: { en: "Thank you, we will reply soon.", cs: "Děkujeme, brzy se ozveme." },
   // Messages are deleted after half a year (shown under the list; a daily task does it).

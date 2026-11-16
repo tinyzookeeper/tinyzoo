@@ -59,9 +59,9 @@ it is gone or not published.
 Responses resolve relations + media into nested objects, drop raw FK ids, and omit
 `hidden` fields — on the item **and** on populated relations (a non-public relation target
 collapses to `{ id, title }`). Drafts are never served (list excludes them; single → 404).
-Responses are CDN-cacheable (`Cache-Control`: a CDN may keep them 5 minutes; browsers
-check back every time and get a quick `304` via `ETag` while nothing changed, so a
-published change shows at once), or lock the whole API behind a token with
+Responses are CDN-cacheable (`Cache-Control: public, max-age=0, must-revalidate, s-maxage=300`:
+a CDN may keep them 5 minutes; browsers check back every time and get a quick `304` via
+`ETag` while nothing changed, so a published change shows at once; [Caching](../deploying.md#caching)), or lock the whole API behind a token with
 `cms.content.token` / `NUXT_CMS_CONTENT_TOKEN`.
 
 Render stored rich text on the frontend with the shipped `<CmsContent :doc="post.body" />`
@@ -160,6 +160,6 @@ computed. An address in both, or already an entry's, is listed once. `lastmod` m
 | `<CmsContent :doc="post.body" />` | rich text, sanitised |
 | `<CmsNav :links="nav.main" />` | a menu with dropdowns, as nested lists |
 | `<CmsForm name="contactForm" />` | a website form (needs `formsPlugin()`) |
-| `useCmsSeo(() => item)` | title, description, sharing image from the `seo()` fields |
+| `useCmsSeo(() => item, { siteName, defaultLocale })` | title, description, sharing image from the `seo()` fields, and the page's `canonical`, `hreflang` alternates (+ `x-default`), `og:url` and `og:locale` from the item's `paths` (absolute: they need `NUXT_CMS_PUBLIC_URL`; `path` option rewrites addresses such as the home page's `/home` → `/`) |
 | `useCmsSearch(() => route.query.q, { locale })` | the website search: results with address and snippet |
 | `<CmsHighlight :text="r.excerpt" :ranges="r.highlights" />` | text with the searched words in `<mark>` |

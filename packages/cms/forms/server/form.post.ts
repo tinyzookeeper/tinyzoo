@@ -1,4 +1,5 @@
-import { formEntity, formRecipients, submissionEmail, turnstileOk } from './forms'
+import { localizeFormIssues } from '../messages'
+import { formEntity, formLocale, formRecipients, submissionEmail, turnstileOk } from './forms'
 
 // POST /api/content/_form/:name — a visitor sends a website form (defineForm).
 // The submission is validated against the form's fields and stored as a new entry
@@ -54,10 +55,19 @@ export default defineEventHandler(async (event) => {
       else if (fld.type === 'number') v = Number(v)
       else if (fld.type === 'boolean') v = v === 'true' || v === 'on' || v === '1'
     }
+    // An unchosen choice (null) is "not given": its default applies, or it is asked for.
+    if (v === null && !fld.isOptional) v = undefined
     if (v === undefined && fld.type === 'boolean') v = false
     if (v !== undefined) input[key] = v
   }
-  const values = parseOr422(e.insertSchema, input)
+  // Refused fields come back with a message in the visitor's language (`_locale`, what the website says).
+  const parsed = e.insertSchema.safeParse(input)
+  if (!parsed.success) {
+    const wanted = typeof body._locale === 'string' && /^[a-z]{2,3}([-_][A-Za-z0-9]+)?$/.test(body._locale) ? body._locale : formLocale(reg, undefined)
+    const issues = localizeFormIssues(parsed.error.issues as any[], e.fields as any, wanted)
+    throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: issues })
+  }
+  const values = parsed.data as Record<string, any>
   values.status = 'new'
   // Sent faster than a person fills a form in (<CmsForm> never sends that early): a
   // robot posting directly. Checked after validation, so a real empty form still gets

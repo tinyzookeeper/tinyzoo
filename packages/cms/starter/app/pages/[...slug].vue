@@ -5,25 +5,13 @@
 // ('o-nas/tym', slashes escaped as one path segment) and returns `breadcrumbs` for it.
 const route = useRoute()
 const locale = useSiteLocale()
-const parts = computed(() => {
-  const all = ([] as string[]).concat(route.params.slug ?? []).filter(Boolean)
-  return locale.value === 'en' ? all.slice(1) : all
-})
-// The home page has one address: / (or /en).
-if (parts.value.length === 1 && parts.value[0] === 'home') await navigateTo(locale.value === 'en' ? '/en' : '/', { redirectCode: 301 })
-const newsBase = computed(() => (locale.value === 'en' ? 'news' : 'aktuality'))
-const kind = computed(() => (parts.value[0] === newsBase.value ? (parts.value[1] ? 'article' : 'news') : 'page'))
-const query = computed(() => ({ locale: locale.value, ...('preview' in route.query ? { preview: '' } : {}) }))
-
-const { data, error } = await useFetch<any>(() => kind.value === 'news'
-  ? '/api/content/news'
-  : kind.value === 'article' ? `/api/content/news/${parts.value[1]}` : `/api/content/page/${encodeURIComponent(parts.value.join('/') || 'home')}`,
-{ query: computed(() => (kind.value === 'news' ? { ...query.value, sort: 'publishedAt', limit: 20 } : query.value)), key: computed(() => `site:${route.fullPath}`) })
+// The home page has one address: / (or /en). The query stays (?preview shows a draft).
+if (/^(\/en)?\/home\/?$/.test(route.path)) await navigateTo({ path: locale.value === 'en' ? '/en' : '/', query: route.query }, { redirectCode: 301 })
+const { kind, data, error, item } = await useSitePage()
 if (error.value?.statusCode === 404) throw createError({ statusCode: 404, message: locale.value === 'en' ? 'Page not found' : 'Stránka nenalezena', fatal: true })
 
-const item = computed(() => (kind.value === 'news' ? null : data.value?.item ?? null))
 const { settings } = await useSite()
-useCmsSeo(item, { siteName: settings.value?.siteName, descriptionField: 'perex', imageField: 'cover' })
+useCmsSeo(item, { siteName: settings.value?.siteName, descriptionField: 'perex', imageField: 'cover', defaultLocale: 'cs', path: siteHref })
 if (kind.value === 'news') useHead({ title: () => `${locale.value === 'en' ? 'News' : 'Aktuality'} · ${settings.value?.siteName ?? ''}` })
 // "Draft preview" only for what is not on the website yet.
 const isDraft = computed(() => !!data.value?.preview && item.value?.status !== 'published')
@@ -42,7 +30,7 @@ const date = (d: string) => new Intl.DateTimeFormat(locale.value === 'en' ? 'en-
           <li v-for="(b, i) in item.breadcrumbs" :key="b.path" class="flex items-center gap-2">
             <span v-if="i" aria-hidden="true">/</span>
             <span v-if="i === item.breadcrumbs.length - 1" aria-current="page" class="text-default">{{ b.title }}</span>
-            <NuxtLink v-else :to="b.path" class="hover:underline">{{ b.title }}</NuxtLink>
+            <NuxtLink v-else :to="siteHref(b.path)" class="hover:underline">{{ b.title }}</NuxtLink>
           </li>
         </ol>
       </nav>
@@ -55,7 +43,7 @@ const date = (d: string) => new Intl.DateTimeFormat(locale.value === 'en' ? 'en-
       <ul class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <li v-for="n in data?.items ?? []" :key="n.id">
           <NuxtLink :to="prefix + n.slug" class="group block">
-            <CmsImage v-if="n.cover" :media="n.cover" class="aspect-[3/2] w-full rounded-lg object-cover" />
+            <CmsImage v-if="n.cover" :media="n.cover" sizes="(min-width: 1024px) 20rem, (min-width: 640px) 50vw, 100vw" class="aspect-[3/2] w-full rounded-lg object-cover" />
             <p v-if="n.publishedAt" class="mt-3 text-sm text-muted">{{ date(n.publishedAt) }}</p>
             <h2 class="mt-1 text-lg font-semibold group-hover:underline">{{ n.title }}</h2>
             <p v-if="n.perex" class="mt-1 text-muted line-clamp-3">{{ n.perex }}</p>
@@ -71,7 +59,7 @@ const date = (d: string) => new Intl.DateTimeFormat(locale.value === 'en' ? 'en-
       <h1 class="mt-4 text-4xl font-bold leading-tight">{{ item.title }}</h1>
       <p v-if="item.publishedAt" class="mt-2 text-muted">{{ date(item.publishedAt) }}</p>
       <p v-if="item.perex" class="mt-6 text-lg text-muted">{{ item.perex }}</p>
-      <CmsImage v-if="item.cover" :media="item.cover" eager class="mt-8 w-full rounded-xl" />
+      <CmsImage v-if="item.cover" :media="item.cover" eager sizes="(min-width: 768px) 46rem, 100vw" class="mt-8 w-full rounded-xl" />
       <CmsContent :doc="item.body" class="prose mt-8 max-w-none" />
     </article>
   </div>
