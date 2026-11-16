@@ -62,7 +62,7 @@ export async function recordRevision(event: any, e: CmsEntity, id: string, local
     }
   }
   catch (err) {
-    console.error('[cms] could not record a revision', (err as Error)?.message ?? err)
+    console.error('[cms] could not record a revision', safeErrorMessage(err))
   }
 }
 
@@ -73,7 +73,7 @@ export async function dropRevisions(e: CmsEntity, id: string): Promise<void> {
     await db.delete(reg.cmsRevisions).where(and(eq(reg.cmsRevisions.entity, e.name), eq(reg.cmsRevisions.recordId, id)))
   }
   catch (err) {
-    console.error('[cms] could not drop revisions', (err as Error)?.message ?? err)
+    console.error('[cms] could not drop revisions', safeErrorMessage(err))
   }
 }
 
@@ -98,6 +98,6 @@ export async function dropTranslationRevisions(e: CmsEntity, id: string, locale:
     await db.delete(r).where(and(eq(r.entity, e.name), eq(r.recordId, id), eq(r.locale, locale)))
   }
   catch (err) {
-    console.error('[cms] could not drop revisions', (err as Error)?.message ?? err)
+    console.error('[cms] could not drop revisions', safeErrorMessage(err))
   }
 }

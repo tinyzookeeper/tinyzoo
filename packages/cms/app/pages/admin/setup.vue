@@ -14,6 +14,8 @@ const linkToken = typeof route.query.token === 'string' ? route.query.token : ''
 const form = reactive({ name: '', email: '', password: '', token: linkToken })
 // Shown whenever one is needed (prefilled from the link), so a wrong code can be corrected.
 const askToken = computed(() => !!status.value?.needsToken)
+// The code comes first, so it gets the cursor when it is asked for and not yet filled in.
+const focusToken = askToken.value && !linkToken
 const tokenHint = computed(() => t(status.value?.codeIn === 'log' ? 'auth.setupTokenHintLog' : 'auth.setupTokenHint'))
 const errors = reactive<Record<string, string>>({})
 const error = ref('')
@@ -30,7 +32,8 @@ async function submit() {
   catch (err: any) {
     const issues = err?.data?.data
     if (Array.isArray(issues)) {
-      for (const i of issues) if (i.path?.[0]) errors[i.path[0]] = i.message
+      // In the page's language ("At least 10 characters"), not the validator's English.
+      for (const i of issues) if (i.path?.[0]) errors[i.path[0]] = cmsIssueMessage(i, null, t as any)
     }
     else if (err?.data?.data?.code === 'setup_token') {
       errors.token = t('auth.setupTokenWrong')
@@ -57,16 +60,23 @@ async function submit() {
       <p class="mt-1 text-sm text-muted">{{ t('auth.setupSubtitle', { site: productName }) }}</p>
     </div>
     <UFormField v-if="askToken" :label="t('auth.setupToken')" name="token" :description="tokenHint" :error="errors.token">
-      <UInput v-model="form.token" autocomplete="off" autocapitalize="characters" spellcheck="false" class="w-full font-mono" />
+      <UInput
+        v-model="form.token" autocomplete="off" autocapitalize="characters" spellcheck="false" class="w-full font-mono"
+        :autofocus="focusToken" :placeholder="status?.codeIn === 'log' ? 'XXXX-XXXX-XXXX-XXXX' : undefined"
+      />
+      <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
     </UFormField>
     <UFormField :label="t('auth.name')" name="name" :error="errors.name">
-      <UInput v-model="form.name" autocomplete="name" autofocus class="w-full" />
+      <UInput v-model="form.name" autocomplete="name" :autofocus="!focusToken" class="w-full" />
+      <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
     </UFormField>
     <UFormField :label="t('auth.email')" name="email" :error="errors.email">
       <UInput v-model="form.email" type="email" autocomplete="email" class="w-full" />
+      <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
     </UFormField>
     <UFormField :label="t('auth.password')" name="password" :description="t('auth.passwordHint')" :error="errors.password">
       <CmsPasswordInput v-model="form.password" autocomplete="new-password" />
+      <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
     </UFormField>
     <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="error" role="alert" />
     <UButton type="submit" block :loading="pending">{{ t('auth.createAccount') }}</UButton>

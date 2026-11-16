@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   }
   catch (err) {
     emailed = false
-    console.error('[cms] could not send the invitation email', err)
+    console.error('[cms] could not send the invitation email', redactEmails(safeErrorMessage(err)))
   }
   await audit(event, 'user.resend', { recordId: id, meta: { emailed } })
   return { inviteUrl, emailed }

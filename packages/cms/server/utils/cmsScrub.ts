@@ -38,6 +38,46 @@ export function scrubError(err: unknown, depth = 0): Error {
 }
 
 /**
+ * A mail server's refusal often names the address ("550 5.1.1 <jana@example.com>: Recipient
+ * address rejected"): for the logs, anything that looks like an email becomes `<email>`.
+ */
+export function redactEmails(text: string): string {
+  return text.replace(/[^\s<>"'(),;:@]+@[^\s<>"'(),;:@]+\.[^\s<>"'(),;:@]+/g, '<email>')
+}
+
+/** A copy of an error with everything it has (message, stack, causes, payload), taken before `hushError` changes the original. */
+export function snapshotError<T>(err: T): T {
+  if (!err || typeof err !== 'object') return err
+  return Object.create(Object.getPrototypeOf(err), Object.getOwnPropertyDescriptors(err))
+}
+
+/**
+ * Make an unhandled error safe for what prints it without us: Nitro writes
+ * "[request error] [unhandled] [GET] <url>" and then the error itself (message, stack,
+ * `cause` with a failed query's `params`) to stderr, and h3 has copied the failed query's
+ * text, values included, into the message.
+ *
+ * Changed on the error itself, because that object is what gets printed (and what other
+ * `error` hooks see afterwards): the message is the fixed "Server Error" — the same words
+ * the client already gets for an unhandled error, so responses do not change —, the
+ * causes are scrubbed copies (`scrubError`: driver message and frames, no values), `data`
+ * is dropped, and the error is no longer marked `unhandled`/`fatal`, which is the only
+ * thing that makes Nitro and h3 print it. The one line that is written is tinyzoo's own
+ * JSON line (`cms-errors.ts`). Take a `snapshotError` first if the original is needed.
+ */
+export function hushError(err: any): void {
+  if (!err || typeof err !== 'object') return
+  const safe = scrubError(err)
+  const set = (key: string, value: unknown) => { try { err[key] = value } catch { /* frozen: nothing more to do */ } }
+  set('message', 'Server Error')
+  set('stack', safe.stack?.replace(/^[^\n]*/, `${safe.name}: Server Error`))
+  set('cause', safe.cause)
+  set('data', undefined)
+  set('unhandled', false)
+  set('fatal', false)
+}
+
+/**
  * A webhook address for logs and the `cms:error` hook: the origin and a short hash of the
  * path — no credentials, no query, and no path, because Slack, Discord and similar
  * services keep their secret in it (`/services/T000/B000/XXXX`). The hash still tells two

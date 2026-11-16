@@ -160,11 +160,11 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
         <UNavigationMenu
           v-for="(group, i) in navigation" :key="i"
           :items="group" orientation="vertical" :collapsed="collapsed" tooltip
-          :ui="{ label: 'text-xs font-medium text-dimmed pt-4', link: 'text-sm py-1.5 data-active:font-medium' }"
+          :ui="{ label: 'text-xs font-medium text-muted pt-4', link: 'text-sm py-1.5 data-active:font-medium' }"
         />
         <div class="mt-auto">
           <UNavigationMenu
-            :items="[{ label: t('nav.viewSite'), icon: 'i-lucide-globe', to: config.siteUrl, target: '_blank' }]"
+            :items="[{ label: t('nav.viewSite'), icon: 'i-lucide-globe', to: config.siteUrl, target: '_blank', 'aria-label': t('nav.viewSite') }]"
             orientation="vertical" :collapsed="collapsed" tooltip :ui="{ link: 'text-sm py-1.5 text-muted' }"
           />
         </div>

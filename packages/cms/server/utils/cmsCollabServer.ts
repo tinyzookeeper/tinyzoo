@@ -299,7 +299,7 @@ async function beat() {
         }
       }
       catch (err) {
-        console.error('[cms] collab re-check failed', (err as Error)?.message ?? err)
+        console.error('[cms] collab re-check failed', safeErrorMessage(err))
       }
       if (!conn.readOnly) writers++
     }
@@ -313,7 +313,7 @@ async function beat() {
     }
   }
   catch (err) {
-    console.error('[cms] collab heartbeat failed', (err as Error)?.message ?? err)
+    console.error('[cms] collab heartbeat failed', safeErrorMessage(err))
   }
 }
 
@@ -334,7 +334,7 @@ export async function dropCollabDocuments(entity: string, id: string, locale?: s
     for (const n of names) instance?.closeConnections(n)
   }
   catch (err) {
-    console.error('[cms] collab: could not drop documents of', name, (err as Error)?.message ?? err)
+    console.error('[cms] collab: could not drop documents of', name, safeErrorMessage(err))
   }
 }
 

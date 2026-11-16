@@ -124,7 +124,7 @@ export function seedDocument(values: Record<string, any>): Y.Doc {
     catch (err) {
       // Content the editor's schema does not know (written by an API client): start
       // that field empty rather than refuse the whole document.
-      console.error(`[cms] collab: could not load ${key}`, (err as Error)?.message ?? err)
+      console.error(`[cms] collab: could not load ${key}`, safeErrorMessage(err))
     }
   }
   return doc
@@ -178,6 +178,6 @@ export async function noteCollabSave(event: any, t: { entity: CmsEntity; id: str
       .where(and(eq(c.name, collabName(t.entity.name, t.id, t.locale)), eq(c.epoch, epoch)))
   }
   catch (err) {
-    console.error('[cms] collab: could not record the save', err)
+    console.error('[cms] collab: could not record the save', scrubError(err))
   }
 }

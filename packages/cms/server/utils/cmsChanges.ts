@@ -161,23 +161,23 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     }
     // The search index follows every write (its own failure never stops the rest).
     if (r.type !== 'global.updated') {
-      await syncSearchIndex(e, r.id, r.type).catch((err) => console.error('[cms] could not update the search index', err))
+      await syncSearchIndex(e, r.id, r.type).catch((err) => console.error('[cms] could not update the search index', scrubError(err)))
     }
     applyChangeLocally(change)
     notifyChangeListeners(change)
     // Neither the other replicas nor the host's hooks hold up the response.
     const background: Promise<unknown>[] = [
       useCmsStore().then((store) => store.publish(CHANGES_CHANNEL, JSON.stringify({ origin: instanceId(), change })))
-        .catch((err) => console.error('[cms] could not publish change', err)),
+        .catch((err) => console.error('[cms] could not publish change', scrubError(err))),
       Promise.resolve(useNitroApp().hooks.callHook('cms:change', change))
-        .catch((err: unknown) => console.error('[cms] cms:change hook failed', err)),
+        .catch((err: unknown) => console.error('[cms] cms:change hook failed', scrubError(err))),
     ]
     if (change.public) background.push(sendWebhooks(change))
     const all = Promise.all(background)
     if (typeof event?.waitUntil === 'function') event.waitUntil(all)
   }
   catch (err) {
-    console.error('[cms] reporting a change failed', err)
+    console.error('[cms] reporting a change failed', scrubError(err))
   }
 }
 
@@ -208,7 +208,7 @@ export function notifyChangeListeners(change: CmsChange): void {
       fn(change)
     }
     catch (err) {
-      console.error('[cms] change listener failed', err)
+      console.error('[cms] change listener failed', scrubError(err))
     }
   }
 }

@@ -24,6 +24,6 @@ export async function audit(
     })
   }
   catch (err) {
-    console.error('[cms] audit write failed', action, err)
+    console.error('[cms] audit write failed', action, scrubError(err))
   }
 }

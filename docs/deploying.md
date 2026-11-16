@@ -199,9 +199,40 @@ export default defineNitroPlugin((nitro) => {
 
 Server errors (5xx) are written to stderr as one JSON line each, with the request
 id the browser got in `X-Request-Id` (an incoming `X-Request-Id` from the proxy is
-kept) and without query parameters (no emails or content in logs). Expected
+kept). The line has the path without its query string, the signed-in person's id (not
+their email) and the error without the bound values of a failed database query. Expected
 errors (validation, permissions) are not logged; sign-ins, invitations and
 content changes are in the audit log instead.
+
+**That line is the only way a server error reaches the log.** Nitro would also print every
+unhandled error itself (`[request error] [unhandled] [GET] <url>` and the error with its
+causes), and for a failed query that dump carries the bound values — emails, text from a
+form, password hashes — and the request URL with its query string. In production tinyzoo
+hushes the error before Nitro sees it (the message becomes the plain "Server Error" the
+visitor gets anyway, the causes are replaced by scrubbed copies, and the error is no
+longer marked unhandled, which is what makes Nitro print it), so nothing but the JSON line
+is written. The answer to the client does not change. In `nuxt dev` Nitro's own output
+stays, because a developer wants it. If your site has its own Nitro `error` hook, whether it
+sees the hushed error or the original depends on which plugin registered first; use
+`cms:error` (below) when you need the original.
+
+What can still appear in a log, and what to do about it:
+
+- **A driver message that names a value.** The message is kept because it says what went
+  wrong (`Query failed: relation "post" does not exist (42P01)`), and in rare cases the
+  database includes a value in it (`invalid input syntax for type uuid: "…"`). A line
+  like that can hold what a visitor typed into an address; treat the log as a place where
+  a few such details may land.
+- **A mail server's refusal** names the address; tinyzoo replaces anything that looks like
+  an email with `<email>` in the lines it logs about failed mail.
+- **`cms.mail.transport: "log"`** writes the receiver's address (and, outside production,
+  the whole message with its one-time link) to the log by design: it is for trying things
+  out, not for a live site.
+- **Your own code**: a `console.error(err)` in a site's plugin or route prints what it is
+  given. Pass `scrubError`-style copies (`report.error` from `cms:error`) or log the message only.
+- **The platform's own access logs** (the reverse proxy, Pushbase) record request lines
+  with their query strings. The Privacy lookup sends the address in the request body for
+  that reason, but a search term typed into the admin's search (`?q=`) is in the proxy's log.
 
 ### Error reporting
 
@@ -234,7 +265,7 @@ The hook gets a `CmsErrorReport` (typed through `NitroRuntimeHooks`; exported fr
 |---|---|
 | `source` | `request` (a 5xx answer), `task` (a scheduled task threw: `cms:scheduled`, `cms:retention`, `cms:search-reindex`) or `webhook` (a publish webhook gave up after its retries) |
 | `error`, `message` | `error` is an `Error` that is safe to send: its message is `message` (a failed database query is reduced to what the driver said, without the query's bound values), its stack frames are kept, and its causes are scrubbed the same way. `message` is the same text |
-| `rawError` | the error exactly as thrown. **May contain personal data** (a failed query's message carries emails, form text, password hashes) — use it inside the process, for instance to read a status code, and never send it to a third party |
+| `rawError` | the error as thrown (a copy taken before the server hushed the original, see Logs). **May contain personal data** (a failed query's message carries emails, form text, password hashes) — use it inside the process, for instance to read a status code, and never send it to a third party |
 | `status`, `requestId`, `method`, `path`, `userId` | for requests: the status, the `X-Request-Id` the browser got, the path **without its query string**, the signed-in person's id; `null` otherwise |
 | `task` / `webhook` | the task name / `{ url, type, delivery }` — `url` is the webhook's origin and a short hash of its path (`https://hooks.slack.com/…#3f9a1c20`), never the path or query, since Slack, Discord and similar services keep their secret there; the hash tells two hooks on one host apart |
 
@@ -388,7 +419,7 @@ privacy policy; it is not legal advice.
 | Notification emails | a message to the people in Forms settings, through the SMTP provider you configured | the provider's retention |
 | Rate limits | visitors' IP addresses counted for minutes (memory or Redis) | the window (10–15 minutes) |
 | Uploaded media | files, the uploader's account id | until deleted |
-| Server log | request id, path without query, account id, error text — never emails or form content | the platform's log retention |
+| Server log | request id, path without query, account id, error text without a failed query's values (a driver message can still name one, see [Logs](#logs)) | the platform's log retention |
 | Cloudflare Turnstile, if on | Cloudflare sees the visitor's IP and a browser check | Cloudflare's terms |
 
 Backups hold all of the above until they are rotated: say how long backups live.

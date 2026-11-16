@@ -12,7 +12,7 @@ export default defineEventHandler(async () => {
   const configured = !!setupToken()
   const generated = needsSetup && setupCodeApplies()
   // The start-up step may have missed (database not ready); make sure there is a code.
-  if (generated) await ensureSetupCode().catch((err) => console.error('[cms] could not prepare the setup code', (err as Error)?.message ?? err))
+  if (generated) await ensureSetupCode().catch((err) => console.error('[cms] could not prepare the setup code', safeErrorMessage(err)))
   const codeIn = configured ? 'config' : generated ? 'log' : null
   return { mode: 'builtin', needsSetup, needsToken: needsSetup && (configured || generated), ...(needsSetup && codeIn ? { codeIn } : {}) }
 })

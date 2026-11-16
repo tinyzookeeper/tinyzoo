@@ -244,7 +244,20 @@ sheet, the welcome animal shrinks into the corner.
 
 ## Accessibility
 
-- AA contrast for text roles in both modes. Focus rings from Nuxt UI.
+- AA contrast for text roles in both modes, on white **and on cream**: muted text is 54 % grey in
+  light (4.5:1 on cream; 55.6 % was 4.37:1), error text is red-700 in light (6.5:1 on white,
+  5.5:1 on the soft red tint; red-500 was 3.8:1). `text-dimmed` is for placeholders and icons,
+  never for text someone has to read (sidebar group labels, counts).
+- Touch screens (`pointer: coarse`): controls where a thumb does the work are 44 px tall — `.cms-touch`
+  on a form or page (sign-in and setup, Privacy), `pointer-coarse:min-h-11` on a single button
+  (a block card's Remove and "…"). Desktop keeps the denser 32 px controls.
+- A field with no error passes `undefined`, never `''`, to `UFormField`'s `error` (an empty string
+  still marks the field invalid: red ring, `aria-invalid="true"`). Messages that should be read out
+  get `role="alert"` (`#error` slot, `v-if` the message).
+- A page that needs the layout's data reads it with `useNuxtData('cms-graph')`; a second
+  `useFetch` under the same key made the form's generated ids differ after hydration (label `for`
+  ≠ input `id`: an unlabelled field).
+- Focus rings from Nuxt UI.
 - Icon-only buttons carry translated `aria-label`s; toggles (Details, Preview) carry
   `aria-pressed`; sortable headers are buttons with `aria-sort` on the column.
 - The review's "when" choice is a `radiogroup`; the success card is `role="status"`.

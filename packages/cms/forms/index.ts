@@ -168,9 +168,9 @@ export function formsPlugin(): CmsPlugin {
       }
     },
     i18n: {
-      en: { retention: { one: 'Messages are deleted automatically after {count} day.', other: 'Messages are deleted automatically after {count} days.' } },
-      cs: { retention: { one: 'Zprávy se automaticky mažou po {count} dni.', few: 'Zprávy se automaticky mažou po {count} dnech.', other: 'Zprávy se automaticky mažou po {count} dnech.' } },
-      de: { retention: { one: 'Nachrichten werden nach {count} Tag automatisch gelöscht.', other: 'Nachrichten werden nach {count} Tagen automatisch gelöscht.' } },
+      en: { retention: { one: 'Messages are deleted automatically {count} day after they arrive.', other: 'Messages are deleted automatically {count} days after they arrive.' } },
+      cs: { retention: { one: 'Zprávy se automaticky mažou {count} den po přijetí.', few: 'Zprávy se automaticky mažou {count} dny po přijetí.', other: 'Zprávy se automaticky mažou {count} dní po přijetí.' } },
+      de: { retention: { one: 'Nachrichten werden {count} Tag nach Eingang automatisch gelöscht.', other: 'Nachrichten werden {count} Tage nach Eingang automatisch gelöscht.' } },
     },
   })
 }

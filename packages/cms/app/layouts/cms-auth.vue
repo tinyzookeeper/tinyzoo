@@ -14,7 +14,7 @@ const initials = computed(() => productName.value.split(/\s+/).filter(Boolean).m
 <template>
   <div class="min-h-dvh flex flex-col items-center px-4 bg-(--cms-auth-bg)">
     <!-- anchored from the top, so a message appearing below never shifts the card -->
-    <main class="w-full max-w-[22rem] flex-1 flex flex-col justify-start pt-[12dvh] pb-10 sm:pt-[16dvh]">
+    <main class="cms-touch w-full max-w-[22rem] flex-1 flex flex-col justify-start pt-[12dvh] pb-10 sm:pt-[16dvh]">
       <img v-if="animal" :src="animal.url" alt="" class="mx-auto mb-6 h-20 sm:h-24 w-auto select-none" draggable="false">
       <div class="flex items-center justify-center gap-2 mb-6">
         <CmsMascot v-if="unbranded" class="h-6 w-auto" />

@@ -84,7 +84,7 @@ function start(): void {
   if (started) return
   timer = setInterval(() => { void heartbeat() }, HEARTBEAT_MS)
   ;(timer as any).unref?.()
-  stopChanges = onCmsChange((change) => { void deliverChange(change).catch((err) => console.error('[cms] realtime delivery failed', err)) })
+  stopChanges = onCmsChange((change) => { void deliverChange(change).catch((err) => console.error('[cms] realtime delivery failed', scrubError(err))) })
   started = (async () => {
     const store = await useCmsStore()
     await store.subscribe(LIVE_CHANNEL, (raw) => {
@@ -93,7 +93,7 @@ function start(): void {
       }
       catch { /* not ours */ }
     })
-  })().catch((err) => console.error('[cms] realtime cannot hear other instances', err))
+  })().catch((err) => console.error('[cms] realtime cannot hear other instances', scrubError(err)))
 }
 
 /** Stop timers and listeners (server shutdown, dev reload). */
@@ -144,7 +144,7 @@ export function liveMessage(socket: LiveSocket, text: string): Promise<void> {
     liveClose(socket)
     return Promise.resolve()
   }
-  p.queue = p.queue.then(() => handle(p, text)).catch((err) => console.error('[cms] realtime message failed', err))
+  p.queue = p.queue.then(() => handle(p, text)).catch((err) => console.error('[cms] realtime message failed', scrubError(err)))
   return p.queue
 }
 
@@ -254,7 +254,7 @@ async function announce(topic: string, peerId: string, person: Person | null): P
     // One line a minute is enough while Redis is down.
     if (Date.now() - lastAnnounceError > 60_000) {
       lastAnnounceError = Date.now()
-      console.error('[cms] realtime announce failed', (err as Error)?.message ?? err)
+      console.error('[cms] realtime announce failed', safeErrorMessage(err))
     }
   }
 }
@@ -304,8 +304,8 @@ async function heartbeat(): Promise<void> {
     if (!map.size) remote.delete(topic)
     if (changed) broadcastPresence(topic)
   }
-  await recheckAccounts().catch((err) => console.error('[cms] realtime account check failed', err))
-  await recheckRowWatches().catch((err) => console.error('[cms] realtime access check failed', err))
+  await recheckAccounts().catch((err) => console.error('[cms] realtime account check failed', scrubError(err)))
+  await recheckRowWatches().catch((err) => console.error('[cms] realtime access check failed', scrubError(err)))
 }
 
 /** Entry watches under a row rule (authors' own entries): still allowed? */

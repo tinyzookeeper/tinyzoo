@@ -6,7 +6,7 @@ import type { CmsChange } from 'tinyzoo'
 export default defineNitroPlugin((nitroApp) => {
   // The shared-editing engine starts with the server, so a first connection after a
   // boot finds it ready (its messages would otherwise arrive before it listens).
-  useCollabServer().catch((err) => console.error('[cms] collab could not start', err))
+  useCollabServer().catch((err) => console.error('[cms] collab could not start', scrubError(err)))
   nitroApp.hooks.hook('close', async () => {
     stopLive()
     await stopCollabServer()
@@ -28,7 +28,7 @@ export default defineNitroPlugin((nitroApp) => {
       })
     }
     catch (err) {
-      console.error('[cms] could not listen for changes from other instances', err)
+      console.error('[cms] could not listen for changes from other instances', scrubError(err))
     }
   })()
 })

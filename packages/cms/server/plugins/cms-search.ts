@@ -5,5 +5,5 @@ export default defineNitroPlugin(() => {
   if (import.meta.prerender) return
   cmsMigrationsReady()
     .then(() => ensureSearchIndex())
-    .catch((err) => console.error('[cms] could not build the search index', err))
+    .catch((err) => console.error('[cms] could not build the search index', scrubError(err)))
 })

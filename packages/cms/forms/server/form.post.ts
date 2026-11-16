@@ -79,7 +79,7 @@ export default defineEventHandler(async (event) => {
     const adminUrl = base + '/admin/' + e.name + '/' + row.id
     for (const addr of to) {
       await sendCmsMail(submissionEmail({ to: addr, e, row, adminUrl })).catch((err: any) => {
-        console.error('[cms] form notification failed:', err?.message ?? err)
+        console.error('[cms] form notification failed:', redactEmails(safeErrorMessage(err)))
       })
     }
   }

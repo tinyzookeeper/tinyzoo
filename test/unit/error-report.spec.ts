@@ -1,5 +1,6 @@
+import { inspect } from 'node:util'
 import { describe, expect, it } from 'vitest'
-import { safeErrorMessage, safeUrl, scrubError } from '../../packages/cms/server/utils/cmsScrub'
+import { hushError, redactEmails, safeErrorMessage, safeUrl, scrubError, snapshotError } from '../../packages/cms/server/utils/cmsScrub'
 
 /** What drizzle throws for a failed insert, and what h3 makes of it. */
 function failedQuery() {
@@ -75,5 +76,65 @@ describe('safeUrl (webhook address in logs and the error hook)', () => {
   it('has no hash for a bare origin, and copes with garbage', () => {
     expect(safeUrl('http://127.0.0.1:8080/')).toBe('http://127.0.0.1:8080')
     expect(safeUrl('not a url')).toBe('(invalid url)')
+  })
+})
+
+describe('hushError', () => {
+  /** The error h3 hands to Nitro: an H3Error for a failed query, flagged unhandled. */
+  const unhandled = () => {
+    const { h3 } = failedQuery()
+    return Object.assign(h3, { unhandled: true, fatal: false, statusCode: 500 })
+  }
+  const printed = (e: any) => inspect(e, { depth: 8 })
+
+  it('leaves nothing a console.error of the error would print', () => {
+    const e = unhandled()
+    hushError(e)
+    expect(printed(e)).not.toMatch(/ana@example|hunter2|diary|Failed query|params:/)
+    expect(e.message).toBe('Server Error')
+  })
+
+  it('stops Nitro and h3 from printing it (they only print unhandled or fatal errors), and keeps the client\'s answer', () => {
+    const e = unhandled()
+    hushError(e)
+    expect(e.unhandled).toBe(false)
+    expect(e.fatal).toBe(false)
+    expect(e.statusCode).toBe(500)
+    expect(e.data).toBeUndefined()
+  })
+
+  it('keeps what a developer needs: the driver message and the frames, in the causes', () => {
+    const e = unhandled()
+    hushError(e)
+    expect(chain(e).map((x) => x.message)).toContain('relation "post" does not exist')
+    expect((e.cause as Error).message).toBe('Query failed: relation "post" does not exist (42P01)')
+    expect(e.stack).toMatch(/^H3Error: Server Error\n\s+at /)
+  })
+
+  it('snapshotError keeps the original for the cms:error report', () => {
+    const e = unhandled()
+    const raw = snapshotError(e)
+    hushError(e)
+    expect(raw).toBeInstanceOf(Error)
+    expect(raw.message).toMatch(/^Failed query/)
+    expect(raw.unhandled).toBe(true)
+    expect((raw as any).data).toEqual({ email: 'ana@example.test' })
+    expect(raw.cause).toBeInstanceOf(Error)
+    expect((raw.cause as Error).message).toMatch(/params:/)
+  })
+
+  it('copes with things that are not errors and with frozen ones', () => {
+    expect(() => hushError(undefined)).not.toThrow()
+    expect(() => hushError('boom')).not.toThrow()
+    expect(() => hushError(Object.freeze(new Error('x')))).not.toThrow()
+    expect(snapshotError('boom')).toBe('boom')
+  })
+})
+
+describe('redactEmails', () => {
+  it('hides addresses a mail server repeats back', () => {
+    expect(redactEmails('550 5.1.1 <jana.novakova+x@mail.example.com>: Recipient address rejected')).toBe('550 5.1.1 <<email>>: Recipient address rejected')
+    expect(redactEmails('Invalid recipients: a@b.co, c@d.org')).toBe('Invalid recipients: <email>, <email>')
+    expect(redactEmails('connect ECONNREFUSED 127.0.0.1:587')).toBe('connect ECONNREFUSED 127.0.0.1:587')
   })
 })

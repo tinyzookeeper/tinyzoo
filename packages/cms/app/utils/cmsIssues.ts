@@ -30,6 +30,9 @@ export function cmsIssueMessage(issue: any, field: any, t: T): string {
       return t('validation.invalid')
     case 'invalid_value':
       return t('validation.pickOption')
+    case 'unrecognized_keys':
+      // A block that went through `upgrade` is checked strictly: a key the definition does not know.
+      return t('validation.blockUnknownFields', { keys: Array.isArray(issue.keys) ? issue.keys.join(', ') : '' })
     case 'unique':
       // A page tree: the whole address is taken, not just the part.
       if (issue.address) return t('validation.addressTaken', { address: issue.address, title: issue.otherTitle ?? '' })

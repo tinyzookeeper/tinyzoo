@@ -150,6 +150,9 @@ describe('the cms:error hook', () => {
     })
     expect(report.message).toContain('missing config')
     expect(JSON.stringify(report)).not.toContain('hunter2')
+    // Nitro's own line for an unhandled error carries the whole URL, query string included: it is not written.
+    await srv.waitForLog(/"level":"error"/)
+    expect(srv.logs.join('')).not.toContain('hunter2')
     // 4xx are not errors worth reporting.
     expect((await admin.get('/api/cms/_users/not-a-uuid')).status).toBe(404) // an expected error
     await new Promise((r) => setTimeout(r, 300))
@@ -180,10 +183,51 @@ describe('the cms:error hook', () => {
     expect(JSON.stringify(report)).not.toContain('leak-slug-42')
     expect(report.rawErrorKept).toBe(true) // the raw error is still handed over, under its own name
     await srv.waitForLog(/"level":"error"/)
-    // tinyzoo's own JSON line (Nitro's built-in "[request error]" dump of an unhandled error is a separate matter)
     const jsonLines = srv.logs.join('').split('\n').filter((l) => l.startsWith('{"level":"error"'))
     expect(jsonLines.length).toBeGreaterThan(0)
     expect(jsonLines.join('\n')).not.toContain('leak-me-42')
+  })
+
+  it('the server\'s whole output has no personal data when a query fails: Nitro\'s own error log is hushed, the answer is unchanged', async () => {
+    await scratchDatabase('errors')
+    sink = join(dir, 'whole-log.jsonl')
+    writeFileSync(sink, '')
+    const srv = await start(db.url, { NUXT_CMS_AUTH_SETUP_TOKEN: 't', CMS_ERROR_SINK_FILE: sink })
+    const admin = new Client(srv.baseURL)
+    expect((await admin.post('/api/cms/_auth/setup', { ...person, token: 't' })).status).toBe(201)
+    await sql(db.url, 'drop table tag cascade')
+
+    // The same failed insert as above, with an email in the bound values, and an email in the query string too.
+    const email = 'wholelog.leak.7731@example.test'
+    const res = await admin.post(`/api/cms/tag?who=${email}`, { name: email, slug: 'wholelog-slug-7731' })
+    expect(res.status).toBe(500)
+    // What the client gets is what it got before: a plain "Server Error", no details.
+    expect(res.body).toMatchObject({ error: true, statusCode: 500, statusMessage: 'Server Error', message: 'Server Error' })
+    expect(res.body.data).toBeUndefined()
+    expect(res.body.stack).toBeUndefined()
+
+    // A browser asking for a page gets the host's error page (Nuxt renders error.vue, or its own), not JSON: the other way Nitro prints it.
+    const page = await admin.get(`/api/cms/tag?who=${email}`, { accept: 'text/html' })
+    expect(page.status).toBe(500)
+    expect(page.headers.get('content-type')).toMatch(/text\/html/)
+    expect(String(page.body)).toMatch(/<html/i)
+    // (The page echoes the address the visitor asked for, as Nuxt always does; nothing from the failed query.)
+    expect(String(page.body)).toContain('Server Error')
+    expect(String(page.body)).not.toMatch(/Failed query|relation|params:|select |insert /i)
+
+    await waitForReport((r) => r.source === 'request' && r.path === '/api/cms/tag')
+    await srv.waitForLog(/"level":"error"/)
+    await new Promise((r) => setTimeout(r, 300))
+
+    const output = srv.logs.join('')
+    for (const needle of [email, 'wholelog.leak', 'wholelog-slug-7731', 'Failed query', 'params:']) expect(output).not.toContain(needle)
+    // Nitro's and h3's own dumps of an unhandled error are not written; tinyzoo's JSON line is (with the driver's reason).
+    expect(output).not.toMatch(/\[request error\]|\[unhandled\]|\[h3\]/)
+    const line = output.split('\n').find((l) => l.startsWith('{"level":"error"') && l.includes('/api/cms/tag'))
+    expect(JSON.parse(line!)).toMatchObject({ level: 'error', status: 500, method: 'POST', path: '/api/cms/tag', error: expect.stringContaining('relation "tag" does not exist') })
+    expect(line).toMatch(/\\n\s*at |\\n {4}at /)
+    // The hook still gets the thrown error, intact, for code inside the process.
+    expect((await waitForReport((r) => r.path === '/api/cms/tag')).rawErrorKept).toBe(true)
   })
 
   it('a failing hook never breaks the request', async () => {
