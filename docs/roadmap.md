@@ -630,3 +630,71 @@ it (network, two installs).
   may need a `differences.mjs` clean-up (rules every baseline already has are dead weight).
 - When a slice changes the schema for existing sites (F, G, H), this check is where its Upgrade
   steps are first exercised: expect its first run to say something.
+### 0.2 I — Seeding
+
+Branch `feat/0.2-seed`. `pnpm check` green: 57 test files passed, 2 skipped; 676 tests passed, 16 skipped
+(46 of them new). Guide: README, *Seeding: content a site starts with*; deploy notes in
+`docs/deploying.md` (*Seeding a deployed site*).
+
+- **API.** `defineSeed(async (s) => …)` in `seed/index.ts` (`src/seed.ts`, exported from `tinyzoo`).
+  `s.create` (make when the key is new, otherwise leave exactly as it is), `s.upsert` (make, or bring
+  up to the seed; fields left out are not touched), `s.translate(entry, locale, data)` and a
+  `translations: { en: {…} }` option on both, `s.global` (saved whole; `ifMissing`), `s.upload(file, { alt,
+  altLocales, focal, folder, name })` → media id, `s.link(label, address | entry, { locale, newTab, sub })`
+  (an entry's address comes from its `content.path` and its translated slug), and `s.rich` (doc, p, h2, ul,
+  quote, bold, link, image). Passing the entity object (`s.create(Post, …)`) types the data from
+  `cms.config.ts` (`SeedInsert<E>`: blocks and list items need no `id`, a one-type list no `type`); a name
+  string works untyped. Deviation: `by` and `translations` are a third argument, not part of the data
+  (`s.upsert(Page, data, { by: 'slug' })`), so a field can never collide with an option.
+- **How it writes: over HTTP, option (a).** The command signs in to the running site with an administrator
+  and uses the admin's own endpoints (`POST/PATCH /api/cms/<entity>`, `?locale=` for translations,
+  `PUT /_singleton`, `/_media`). That is the only way to get *identical* behaviour with the admin for free:
+  Zod schemas, translations writer, media pipeline, search index, saved versions, webhooks, publish rules,
+  audit. Running the server utils in-process (option b) would mean standing up `useCms()`, the storage
+  driver, h3 events and the change hooks outside Nitro, and would diverge as they change. It also works
+  for the deploy flow, where the database of a Pushbase site is not reachable from a laptop. First run on
+  a fresh database: the command creates the first administrator through the setup endpoint
+  (`SEED_EMAIL`, `SEED_PASSWORD`, `--name`) and honours slice D's setup code (`--setup-code`,
+  `SEED_SETUP_CODE`, or asked for in a terminal; without one it says where the code is, in the log or in
+  `NUXT_CMS_AUTH_SETUP_TOKEN`). The password is read from the environment only.
+- **Idempotency.** An entry's key is `by` (default `content.slug`, else the entity's only `f.slug()`);
+  files are found by name, folder, size and type. Before an update the stored value is read and compared
+  (`covers`: only keys the seed gives, extras such as a block's `v` ignored, dates by the instant, id lists
+  of many-to-many as sets); an equal value is not written, so a second run makes no save, no revision, no
+  upload, no audit entry beyond the sign-in. Blocks and list items get ids made from where they sit, so
+  they are the same on every run. The same file asked for twice in one run is uploaded once.
+- **`tinyzoo seed [file] [--url --email --name --setup-code --dry-run --reset --yes --verbose --wait]`**
+  (`cli/seed.ts`, the engine in `cli/seed-engine.ts` against a `SeedBackend` interface; `cli/index.ts` got
+  one `case` and a usage line). `--dry-run` reads and reports (also on a site with no account yet).
+  `--reset` first removes the entries and files the seed owns (found by key and file name), last declared
+  first, then seeds; it asks, `--yes` for no terminal. A file still used (a global's logo) stays and is found
+  again; other content is never touched; globals are overwritten, not deleted. Uploads wait and retry
+  when the 60-a-minute limit is hit; the sign-in limits (10 per address per 15 minutes) are not waited
+  out.
+- **Starter.** `packages/cms/starter/seed/index.ts`: a small bakery in Czech and English: three pages
+  (home, about, contact) with hero/text/picture/cta/contact blocks, four news items (three published, one
+  draft), both menus, site settings with logo and opening hours, the form recipients, one redirect; five
+  generated pictures (`seed/media`, 68 kB, drawn by `scripts/make-starter-media.mjs`). `pnpm seed` script;
+  `tinyzoo init` prints it. Not seeded: form submissions (personal data).
+- **Tests.** `test/unit/seed.spec.ts` (37: keys, idempotency, relations, blocks, translations, globals,
+  upload, links, dry run, reset, report) against an in-memory site; `test/api/seed.spec.ts` (9): a built
+  playground on its own database started like a deploy (production, setup code), first-run setup with a
+  wrong/right code, content API in both languages, picture sizes, search index, revisions, a second run
+  that leaves rows, `updated_at`, files and the audit log untouched, `--dry-run`, `create` vs `upsert`
+  after an editor's change, `--reset` (other content stays, the file in use is reused), error messages,
+  and the real CLI process. `pnpm check:starter` (`scripts/starter-check.mjs`, not part of `pnpm check`:
+  it installs and builds an app, about two minutes): `tinyzoo init` out of the **packed** package,
+  installed from the tarballs, migrated, built, started, seeded twice, content API and rendered pages
+  checked. Root `tsconfig` now typechecks the starter's `cms.config.ts` and `seed/`.
+- **The website's seed was not ported.** `site/scripts/seed.mjs` stays. The site's image ships `scripts/`
+  and `seed/` as plain Node with no dependencies so the demo resets itself every night
+  (`node scripts/reset.mjs`), and a `defineSeed` file is TypeScript that needs `tinyzoo` and `tsx`. Porting
+  needs a bundling step (esbuild is only reachable through tsx under pnpm) and Dockerfile changes I could
+  not build here; breaking the nightly reset or the image build was not worth it. The port itself is
+  mechanical (the helpers map to `s.rich`; `item`/`link` ids come from the runner; `pages` → `upsert`,
+  `news` → `create`, since their dates are relative to the first run). To do it: bundle `seed/index.ts`
+  with the CLI runner into one `.mjs` at build time, copy it next to `seed/media`, and let `reset.mjs` call
+  it. Deploy step 5 ("seed the website") works from a laptop with either script.
+
+Left: no admin screen for seeding; `s.upsert` cannot clear a field the seed leaves out (give `null`);
+the entry list of each entity is read once per run (fine for demo-sized content, not for thousands).

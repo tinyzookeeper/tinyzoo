@@ -32,6 +32,7 @@ export { generateSetupCode, normalizeSetupCode } from './setupCode'
 export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, CMS_ROLES, type CmsRole } from './system'
 export { searchTerms, foldSearchText, entryTexts, richTextPlain, isSearchableField, matchEntry, excerptOf, highlightRanges, wordMatch, editDistance, allowedTypos, SEARCH_MAX_QUERY, type SearchMatch } from './search'
 export { richTextSchema, sanitizeRichText, emptyDoc, richTextUpgrades, upgradeRichText, type RichTextDoc, type RichTextUpgrade } from './richtext'
+export { defineSeed, isSeed, type SeedContext, type SeedDefinition, type SeedEntry, type SeedInsert, type SeedWriteOptions, type SeedGlobalOptions, type SeedUploadOptions, type SeedLinkOptions, type SeedLink, type SeedRich, type SeedRichNode } from './seed'
 export type * from './descriptor'
 export { cmsDeprecated, cmsDeprecations, resetCmsDeprecations, type CmsDeprecation, type CmsDeprecatedOptions } from './deprecate'
 

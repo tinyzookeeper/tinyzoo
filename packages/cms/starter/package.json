@@ -10,6 +10,7 @@
     "typecheck": "nuxt typecheck",
     "db:generate": "tsx node_modules/tinyzoo/cli/index.ts generate",
     "db:migrate": "tsx node_modules/tinyzoo/cli/index.ts up",
+    "seed": "tsx node_modules/tinyzoo/cli/index.ts seed",
     "cms:client": "tsx node_modules/tinyzoo/cli/index.ts client app/lib/cms-content.ts"
   },
   "dependencies": {

@@ -24,6 +24,8 @@
     "playground/cms.config.ts",
     "playground/cms.types-check.ts",
     "playground/app/lib/cms-content.ts",
+    "packages/cms/starter/cms.config.ts",
+    "packages/cms/starter/seed/**/*.ts",
     "test/**/*.ts",
     "vitest.config.ts"
   ],

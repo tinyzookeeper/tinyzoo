@@ -78,6 +78,22 @@ visitor) and written to the audit log (`auth.setup_failed`).
 Development (`nuxt dev`, `NODE_ENV=development` or `test`) needs no code. Anything else
 counts as production, so an unset `NODE_ENV` does not leave a deploy open.
 
+### Seeding a deployed site
+
+`tinyzoo seed` (see the README, *Seeding*) works against a deployed site from your own
+machine: it needs only the site's address and an administrator, never the database.
+Use the setup code to create the first account from the seed itself:
+
+```sh
+SEED_URL=https://www.example.cz SEED_EMAIL=you@example.cz SEED_PASSWORD='…' \
+SEED_SETUP_CODE=K7QM-2XVD-R9TE-HC4Y   pnpm seed            # a new site: creates the account, then seeds
+SEED_URL=https://www.example.cz SEED_EMAIL=you@example.cz SEED_PASSWORD='…'   pnpm seed --dry-run   # an existing one: what would change
+```
+
+Use `https://` (the command warns when the password would travel unencrypted), and send
+only what belongs on a live site: `s.upsert` brings pages up to the seed, `s.create` leaves
+what editors have written alone.
+
 ## Migrations
 
 The platform has no release step, so the app migrates itself: with
