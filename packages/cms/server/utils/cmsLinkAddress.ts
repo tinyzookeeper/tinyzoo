@@ -1,6 +1,6 @@
 import { and, eq, indexTree, inArray, pathTemplateKeys, sitePath } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
-import { loadTreeNodes, treePathIn } from './cmsTree'
+import { loadTreeNodes, treePathIn } from './cmsTreeAddress'
 
 // Explicit imports only (no Nitro auto-imports): `tinyzoo links:convert` uses this too.
 

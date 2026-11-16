@@ -1,7 +1,7 @@
 import { and, chainOf, eq, indexTree, inArray, linkFieldsOf, looksLikeLinkRef, linkRef, linkRefsOf, mapRowLinks, ne, or, parseLinkRef, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 import { addressKeys, entryAddresses, isLinkable } from './cmsLinkAddress'
-import { loadTreeNodes } from './cmsTree'
+import { loadTreeNodes } from './cmsTreeAddress'
 
 /**
  * Links that follow their target (see src/links.ts for the format).
