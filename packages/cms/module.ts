@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { addTypeTemplate, defineNuxtModule } from '@nuxt/kit'
+import { addComponentsDir, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
+import { createJiti } from 'jiti'
+import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
 
@@ -146,10 +148,27 @@ export interface CmsModuleOptions {
   }
 }
 
+/**
+ * The plugins of the host's `cms.config.ts` (`export const plugins = [...]`, plus the
+ * ones an entity registers by itself, see `collectPlugins`). The config is read at build
+ * time with jiti, exactly as the CLI reads it, because the admin pages, server routes
+ * and components a plugin brings have to be registered before the build starts.
+ */
+async function loadPlugins(configPath: string, alias: Record<string, string>): Promise<CmsPlugin[]> {
+  if (!existsSync(configPath)) return []
+  try {
+    const jiti = createJiti(configPath, { alias, interopDefault: true, moduleCache: false, fsCache: false })
+    return collectPlugins(await jiti.import<Record<string, any>>(configPath))
+  }
+  catch (err: any) {
+    throw new Error(`[tinyzoo] could not read the plugins from ${configPath}: ${err?.message ?? err}`, { cause: err })
+  }
+}
+
 export default defineNuxtModule<CmsModuleOptions>({
   meta: { name: 'tinyzoo', configKey: 'cms' },
   defaults: { config: 'cms.config.ts' },
-  setup(options, nuxt) {
+  async setup(options, nuxt) {
     const configPath = resolve(nuxt.options.rootDir, options.config || 'cms.config.ts')
     if (!existsSync(configPath)) {
       console.warn(`[tinyzoo] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
@@ -205,6 +224,27 @@ export {}
 `,
     }, { nitro: true, nuxt: true })
 
+    // Plugins (defineCmsPlugin): their admin pages, server routes, Nitro plugins, components,
+    // field renderers and admin texts, registered here; their entities, hooks and upgrade
+    // steps reach the server through the registry (src/entity.ts, buildRegistry).
+    const plugins = await loadPlugins(configPath, nuxt.options.alias as Record<string, string>)
+    const plan = planPlugins(plugins, { exists: existsSync })
+    if (plan.pages.length) {
+      extendPages((pages) => {
+        for (const page of plan.pages) pages.push({ name: page.name, path: page.path, file: page.file })
+      })
+    }
+    for (const h of plan.handlers) addServerHandler({ method: h.method, route: h.route, handler: h.handler })
+    for (const file of plan.serverPlugins) addServerPlugin(file)
+    for (const path of plan.componentDirs) addComponentsDir({ path, pathPrefix: false, global: true })
+    // What the admin needs to know about plugins: the sidebar entries, the field renderers and
+    // the texts (public runtime config: nothing secret in it).
+    nuxt.options.runtimeConfig.public.cmsPlugins = {
+      plugins: plan.plugins,
+      navItems: plan.navItems,
+      fields: plan.fields,
+      messages: plan.messages,
+    } as any
     // Runtime config consumed by the server DataSource (env override: NUXT_CMS_DATABASE_URL).
     nuxt.options.runtimeConfig.cms = {
       // Never read DATABASE_URL here: this runs at BUILD time and would bake the build

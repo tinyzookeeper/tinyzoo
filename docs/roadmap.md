@@ -545,3 +545,101 @@ upgrades). Fixed on three branches (`fix/0.2-blocks`, `fix/0.2-cli`,
 
 Open: Nitro's own unhandled-error log on stderr still prints failed queries with their
 parameters (Wave 2, slice V).
+
+### 0.2 H — Plugin API
+
+Branch `feat/0.2-plugins`. Guide: [plugins.md](plugins.md). Schema change: one migration in the playground
+(`0019_events_plugin`, the example plugin's table); the forms move needs none (same tables, same names), checked by
+`tinyzoo generate` in the starter and the website ("No schema changes").
+
+**The API** (`packages/cms/src/plugin.ts`). `defineCmsPlugin({ name, version, entities, singletons, fields, components,
+adminPages, navItems, serverHandlers, serverPlugins, hooks, i18n, upgrades, graph })` validates everything it can and
+throws `Plugin "<name>": …`. Registered in `cms.config.ts` as `export const plugins = [...]` (also any plugin exported
+by itself); `collectPlugins(config)` is the one reader, used by the registry, the module and the CLI. Paths in a
+definition are absolute (`pluginFile(import.meta.url, './x.ts')`), so a plugin is the same in a site's folder and in
+`node_modules`.
+
+**Two halves, one definition.** Runtime parts go through the registry like the site's own: `buildRegistry` adds the
+plugin's entities and singletons (schema, graph, content API, typed client and OpenAPI follow; `tinyzoo generate` puts
+the tables into the site's migration), keeps `reg.plugins` and `reg.pluginOf`, and merges what a plugin's `graph(entity)`
+returns (`adminCreate`, `notices`). Build-time parts: `module.ts` reads `cms.config.ts` with jiti (new dependency,
+as the CLI reads it) and `planPlugins()` (pure, unit-tested) says what to register: `pages:extend` for admin pages,
+`addServerHandler`, `addServerPlugin`, `addComponentsDir` (global), and `runtimeConfig.public.cmsPlugins` with the sidebar
+entries, field renderers and texts. The sidebar (`admin.vue`), `CmsField`/`CmsCell` (host `app.config` → plugin → built-in)
+and `useCmsI18n` (`t('plugins.<name>.<key>')`, English fallback, plurals) read it.
+
+**Names and collisions.** Entities are `<name>` or `<name>_…` (checked when the plugin is defined, plus a collision
+check against the site in `buildRegistry`), routes `/api/cms/_p/<name>/…`, pages `/admin/p/<name>/…`, texts
+`plugins.<name>.…`, upgrade steps `<name>:<id>`. Reserved plugin names (`cms`, `core`, `tinyzoo`, `admin`, `api`,
+`content`, `media`, `plugins`, `p`, `auth`, `system`) and the entity name `p` are refused; duplicates (two plugins with
+one name, one route, one admin page, one field type, one public address), missing files and an entity whose plugin is not
+registered stop the build with a message naming the plugin. A Nitro plugin (`cms-plugins.ts`) builds the registry at
+start so a misconfiguration stops a production start instead of answering 500 to the first request.
+
+**Access.** Routes under `/api/cms/_p/…` are checked by the middleware `cms-z-plugin-access` *before* the handler:
+`user` (default), `admin` or `public`; an address no handler declares is `user` (never open by accident). (The
+middleware is named so it sorts after `cms-session`; Nitro orders by file name.) The CSRF rule of `/api/cms/**` applies.
+`contentPath` mounts a handler on the public content API (`/api/content/_x/…`, first segment `_…`, not `_global`,
+`_search`, `_sitemap`); those are open and the handler guards itself.
+
+**Upgrade steps from plugins.** `pluginUpgradeSteps(plugins)` namespaces ids as `<plugin>:<id>` and takes the plugin's
+version for `since`; `allUpgradeSteps(plugins)` is tinyzoo's list plus theirs. The start-up migration (`useCms().reg.plugins`),
+`tinyzoo up` and `tinyzoo status` (new `siteUpgradeSteps(cwd)` loads the site's config; no config means tinyzoo's steps
+only) all pass the whole list to the runner from slice A; `status` prints the owner and its version
+(`events:backfill-place (events 0.1.0)`). `assertValidSteps` accepts the namespaced form.
+
+**Forms as the first plugin** (`tinyzoo/forms`, `packages/cms/forms/`, listed in `files` and `exports`). Moved with
+`git mv`: the two endpoints (`forms/server/form.get.ts`, `form.post.ts`), `forms.ts` (schema, recipients, email,
+Turnstile), `formSettings.ts` and `<CmsForm>` (`forms/components/`). `defineForm`, `defineFormSettings` and
+`FORM_FIELD_TYPES` live in `forms/index.ts`; `formsPlugin()` brings the endpoints (`contentPath: '_form/:name'`, so the
+address is the one sites already use; no `/api/cms/_p/forms/*` was added), the components directory, the retention hook
+(`forms/retention.ts`: `retainForms`, `purgeSubmissions`; `runRetention` now calls every plugin's `hooks.retention`
+and still writes `meta.forms`, plus `meta.plugins` for others) and the admin bits through `graph` + `i18n` (no "New"
+button; the retention note under the list is now `plugins.forms.retention`, the `list.retention` message left the core
+catalogues). `defineForm` and `defineFormSettings` from `tinyzoo` are deprecated re-exports (`cmsDeprecated`, once per
+helper, removed in 0.4.0) that mark their entities with a `requiresPlugin` carrying `create: formsPlugin`, so
+`collectPlugins` registers the plugin by itself (module and registry both); the new helpers refuse to work without the
+plugin and say how to register it. The playground, the starter and the website moved to `tinyzoo/forms` +
+`export const plugins = [formsPlugin()]`.
+
+**The second plugin, in the playground** (`playground/cms-plugins/events/`): the `events` collection, an admin page
+(`/admin/p/events`) with a sidebar entry, three routes (`summary` for signed-in people, `clear-past` for administrators,
+`next` for anyone, also at `/api/content/_events/next`), a Nitro plugin (marks its routes with `x-cms-plugin`), texts in
+cs/en/de and the upgrade step `backfill-place`. No file
+of tinyzoo knows about it. The entity is not public, so the contract snapshots did not change.
+
+**Tests.** `pnpm check` green: 57 test files passed, 2 skipped; 715 tests passed, 16 skipped (the skips were already there). New: `test/unit/plugins.spec.ts` (71): validation of every option, namespacing of entities and steps, collisions,
+`collectPlugins` (explicit, implicit, duplicates, missing plugin), the deprecated path (works, warns once per helper,
+same entity, same build plan as the explicit plugin), registry and graph extension, `planPlugins`, route access,
+step runner (recorded under the namespaced id, skipped on a fresh install), CLI steps, `status` wording.
+`test/api/plugins.spec.ts` (14): the plugin's entity through the CMS API, its three routes with their three accesses
+(and that unknown addresses stay closed, a wrong method too, CSRF), the admin page served with the plugin's texts in
+all languages, the step run, effective and recorded as `events:backfill-place`. The existing forms, privacy and upgrade specs
+run unchanged through the plugin path (two assertions changed: the admin graph carries `notices` and `adminCreate`
+instead of `retentionDays`; the entity list in `entity.spec.ts` has `events`). `scripts/consumer-check.mjs` copies the
+example plugin: the packed tarballs build, and the built server answered `GET /api/content/_form/contactForm` and
+the events routes (forms handlers load from `node_modules/tinyzoo/forms`, with Nitro's auto-imports).
+
+**Deviations and what to know.**
+- The forms and their settings stay **the site's own entities** (`contactForm`, `formSettings`, named by the site),
+  not namespaced: they are site content that the plugin serves, and their names are the tables sites already have.
+  The `<name>` / `<name>_…` rule is for entities a plugin brings itself.
+- `hooks` has one hook today, `retention`. `privacy` was not made a hook: the Privacy screen's lookup/export/erase
+  still finds forms through the entity tag (`preset: 'form'`, helpers imported from `forms/retention.ts`), because a
+  generic version changes the response shape of `/api/cms/_privacy/*` that the screen and its spec use. `cli/export.ts`
+  still tags forms by `preset` for the `--with-submissions` rule.
+- The plugin list is read at build time, and `nuxt dev` needs a restart after adding or removing a plugin (a watcher I
+  wrote for this was removed: `cms.config.ts` is outside the directories Nuxt watches, and the path it reports is
+  relative to the source directory, so it would never have fired).
+- Texts, sidebar entries and field renderers travel in the **public** runtime config: every page's payload carries
+  every language of every plugin's texts. Fine for admin strings; a plugin must not put anything private in `i18n`.
+- Core graph change (internal, not a contract): `retentionDays` became `adminCreate` + `notices`, and `plugin` names the
+  owner. Entity name `p` is reserved.
+- A plugin's handler files are bundled by Nitro like the layer's own; I did not check whether the hosts' `nuxt typecheck`
+  sees them (`nuxt typecheck` passed with the events and forms handlers present).
+
+**Left.** No browser check of the events page and the sidebar entry (the API spec only proves the server renders the
+page and its texts); no test that `CmsField`/`CmsCell` pick a plugin's renderer (the plan and the config are tested,
+the dispatch is three lines); no test of a plugin installed from the registry into `node_modules` (the forms plugin
+is the covered case); the dev-server restart on a changed plugin list; the privacy hook above; more hooks (`change`,
+`startup`) when a plugin needs them.

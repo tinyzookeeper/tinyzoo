@@ -17,6 +17,7 @@
  * step. (Do not use `drizzle-kit push` on a site: it would propose dropping it.)
  */
 import type { SqlRunner } from './migrate'
+import { pluginUpgradeSteps } from './plugin'
 
 export interface UpgradeContext {
   /** Runs SQL inside the migration transaction (and under its advisory lock). */
@@ -31,9 +32,9 @@ export interface UpgradeContext {
 }
 
 export interface UpgradeStep {
-  /** Stable and unique, kebab-case. Never change it once released: it is what gets recorded. */
+  /** Stable and unique, kebab-case (`<plugin>:<id>` for a plugin's step). Never change it once released: it is what gets recorded. */
   id: string
-  /** The tinyzoo version that introduced the step. */
+  /** The version that introduced the step: tinyzoo's, or the plugin's own for a plugin's step. */
   since: string
   /** One line, plain language: what the step does and why. */
   description: string
@@ -64,7 +65,8 @@ export interface StepOutcome {
 /** Package-owned bookkeeping table; see the header comment. */
 export const UPGRADES_TABLE_SQL = 'CREATE TABLE IF NOT EXISTS "cms_upgrades" ("id" text PRIMARY KEY, "since" text, "applied_at" timestamptz DEFAULT now())'
 
-const STEP_ID = /^[a-z0-9][a-z0-9-]*$/
+// tinyzoo's own steps are `kebab-case`; a plugin's are `<plugin>:<kebab-case>` (see plugin.ts).
+const STEP_ID = /^([a-z][a-z0-9]*(-[a-z0-9]+)*:)?[a-z0-9][a-z0-9-]*$/
 
 /** Throws on a malformed or duplicated step; plugins hand in their own lists. */
 export function assertValidSteps(steps: UpgradeStep[]): void {
@@ -110,8 +112,9 @@ export async function runUpgradeSteps(
 }
 
 /**
- * The steps tinyzoo itself ships. Plugins contribute theirs next to these; the runner
- * takes the whole list as a parameter.
+ * The steps tinyzoo itself ships. Plugins contribute theirs next to these (namespaced
+ * `<plugin>:<id>`, see `pluginUpgradeSteps`; `allUpgradeSteps` is the whole list); the
+ * runner takes it as a parameter.
  */
 export const CORE_UPGRADE_STEPS: UpgradeStep[] = [
   {
@@ -127,3 +130,8 @@ export const CORE_UPGRADE_STEPS: UpgradeStep[] = [
     run: async ({ run }) => { await run('CREATE EXTENSION IF NOT EXISTS pg_trgm') },
   },
 ]
+
+/** tinyzoo's steps and those of the plugins, in that order (plugins in registration order). */
+export function allUpgradeSteps(plugins: readonly import('./plugin').CmsPlugin[] = []): UpgradeStep[] {
+  return [...CORE_UPGRADE_STEPS, ...pluginUpgradeSteps(plugins)]
+}

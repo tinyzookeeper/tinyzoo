@@ -18,7 +18,7 @@
  * rather than staying up and answering 503 forever.
  */
 
-import { CORE_UPGRADE_STEPS, isConnectionError, runUpgrade, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
+import { allUpgradeSteps, isConnectionError, runUpgrade, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
 
 let ready: Promise<void> = Promise.resolve()
 let state: 'idle' | 'running' | 'done' | 'failed' = 'idle'
@@ -71,13 +71,13 @@ async function migrateOnce(): Promise<void> {
       return typeof raw === 'string' ? raw : new TextDecoder().decode(raw as Uint8Array)
     },
   }
-  const { db } = useCms()
-  // Upgrade steps run in the same transaction and lock; plugins will add theirs here.
+  const { db, reg } = useCms()
+  // Upgrade steps (tinyzoo's and the plugins') run in the same transaction and lock.
   const result = await runUpgrade(source, (fn) => (db as any).transaction((tx: any) =>
     fn(async (text, params = []) => {
       const res: any = await tx.execute(sqlWithParams(text, params))
       return res.rows ?? res
-    })), CORE_UPGRADE_STEPS)
+    })), allUpgradeSteps(reg.plugins))
   const ranSteps = result.steps.filter((s) => s.ran).map((s) => s.id)
   if (ranSteps.length) console.info(`[cms] ran upgrade steps: ${ranSteps.join(', ')}`)
   console.info(result.migrations.length ? `[cms] applied migrations: ${result.migrations.join(', ')}` : '[cms] database is up to date')

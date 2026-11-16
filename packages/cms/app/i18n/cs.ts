@@ -137,7 +137,6 @@ export default {
     filterClear: 'Zrušit filtry',
     filterRemove: 'Odebrat filtr {name}',
     columns: 'Sloupce',
-    retention: { one: 'Zprávy se automaticky mažou po {count} dni.', few: 'Zprávy se automaticky mažou po {count} dnech.', other: 'Zprávy se automaticky mažou po {count} dnech.' },
     selectAll: 'Vybrat vše na této stránce',
     selectItem: 'Vybrat {name}',
     selected: { one: '{count} vybraná', few: '{count} vybrané', other: '{count} vybraných' },

@@ -22,6 +22,8 @@ try {
 
   cpSync(join(root, 'test/consumer'), app, { recursive: true })
   cpSync(join(root, 'playground/cms.config.ts'), join(app, 'cms.config.ts'))
+  // The config registers the example plugin: its handlers and page are built from the app's own folder.
+  cpSync(join(root, 'playground/cms-plugins'), join(app, 'cms-plugins'), { recursive: true })
   mkdirSync(join(app, 'server/db'), { recursive: true })
   cpSync(join(root, 'playground/drizzle.config.ts'), join(app, 'drizzle.config.ts'))
   const pg = JSON.parse(readFileSync(join(root, 'playground/package.json'), 'utf8'))

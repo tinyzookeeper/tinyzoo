@@ -1,7 +1,8 @@
 /** Connecting to the host's database from the command line (`up`, `status`, `upgrade`). */
 import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import type { MigrationSource, SqlRunner } from '../src/index'
+import { pathToFileURL } from 'node:url'
+import { allUpgradeSteps, collectPlugins, type MigrationSource, type SqlRunner, type UpgradeStep } from '../src/index'
 
 /** `NUXT_CMS_DATABASE_URL` / `DATABASE_URL` from the environment, else from the host's `.env`. */
 export function databaseUrl(cwd: string): string {
@@ -72,4 +73,14 @@ export function errorText(err: unknown): string {
   const e = err as any
   const parts = [e?.message, e?.code && `(${e.code})`, ...(Array.isArray(e?.errors) ? e.errors.map((x: any) => x?.message) : [])].filter(Boolean)
   return parts.join(' ') || String(err)
+}
+
+/**
+ * tinyzoo's upgrade steps plus those of the plugins registered in the site's
+ * `cms.config.ts` (no config, or none with plugins: tinyzoo's alone).
+ */
+export async function siteUpgradeSteps(cwd: string): Promise<UpgradeStep[]> {
+  const file = resolve(cwd, 'cms.config.ts')
+  if (!existsSync(file)) return allUpgradeSteps([])
+  return allUpgradeSteps(collectPlugins(await import(pathToFileURL(file).href)))
 }

@@ -89,7 +89,8 @@ type NewPost = Insert<typeof Post>
 
 ```
 packages/cms/          tinyzoo — the Layer + Module
-  src/                 field engine, defineEntity, registry, emitters (schema / openapi / sdk)
+  src/                 field engine, defineEntity, registry, emitters (schema / openapi / sdk), the plugin API (plugin.ts)
+  forms/               the forms plugin (`tinyzoo/forms`): defineForm, endpoints, <CmsForm>, retention
   cli/                 tinyzoo generate|up|status|upgrade|client|openapi|content:migrate (wraps drizzle-kit + codegen)
   module.ts            build-time wiring (#cms/config alias, runtimeConfig)
   nuxt.config.ts       layer root
@@ -97,7 +98,8 @@ packages/cms/          tinyzoo — the Layer + Module
   app/                 /admin pages + CmsField renderer
 packages/client/       @tinyzoo/client — tiny strictly-typed content-API client (publishable)
 playground/            demo host app: `extends: ['../packages/cms']`
-  cms.config.ts        Post + Author + Tag (the source of truth)
+  cms.config.ts        Post + Author + Tag (the source of truth), plugins: forms and events
+  cms-plugins/events/  the example plugin (collection, admin page, routes, upgrade step)
   app/lib/             generated cms-content.ts (typed client bindings)
   server/db/           generated schema.ts + migrations
 compose.yaml           local dev deps: Postgres, + MinIO behind the `s3` profile
@@ -418,8 +420,9 @@ Every field renders through a tiny dispatcher (`CmsField` for the edit form,
 
 ```
 app.config  cms.fields[type].edit   (host override, by field type)
-  → field.ui.edit                   (built-in default, from the descriptor)
-    → CmsFieldText                   (fallback)
+  → a plugin's `fields[type].edit`  (see Plugins below)
+    → field.ui.edit                 (built-in default, from the descriptor)
+      → CmsFieldText                 (fallback)
 ```
 
 So a host adds or replaces a renderer **without touching the package** — ship a
@@ -842,9 +845,42 @@ brandColor: f.color().optional(),   // #rrggbb, colour picker + hex
 the dropdown of the one before it — `cmsMenuTree(nav.main)` from `@tinyzoo/client`
 nests them, `<CmsNav>` draws them.
 
-## Website forms
+## Plugins
+
+A plugin adds a feature to a site without changing tinyzoo: collections, admin pages
+and sidebar entries, server routes, field editors, admin texts, scheduled clean-up and
+upgrade steps. Register it next to your entities:
 
 ```ts
+// cms.config.ts
+import { formsPlugin } from 'tinyzoo/forms'
+import { eventsPlugin } from './cms-plugins/events'
+
+export const plugins = [formsPlugin(), eventsPlugin()]
+```
+
+A plugin is `defineCmsPlugin({ name, version, entities, singletons, fields, adminPages,
+navItems, serverHandlers, serverPlugins, hooks, i18n, upgrades })`, and everything it
+adds lives under its own name: collections `events` / `events_…`, routes
+`/api/cms/_p/events/…` (open to signed-in people unless the handler says `admin` or
+`public`), admin pages `/admin/p/events/…`, upgrade steps `events:<id>`. A taken or
+reserved name, a missing file, two plugins on one route: the build or the start stops
+with a message that names the plugin. The plugin's collections become tables in your
+next `tinyzoo generate`, and its upgrade steps run with tinyzoo's.
+
+`playground/cms-plugins/events/` is a complete small plugin (a collection, an admin
+page, three routes, an upgrade step); how to write one, and to ship one as an npm
+package: **[`docs/plugins.md`](docs/plugins.md)**.
+
+## Website forms
+
+Forms are the first plugin (`tinyzoo/forms`): register `formsPlugin()` and define forms
+as entities.
+
+```ts
+import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
+
+export const plugins = [formsPlugin()]
 export const ContactForm = defineForm('contactForm', {
   label: { en: 'Contact form', cs: 'Kontaktní formulář' },
   fields: {
@@ -855,6 +891,11 @@ export const ContactForm = defineForm('contactForm', {
 })
 export const FormSettings = defineFormSettings() // editors set who gets the emails
 ```
+
+> `defineForm` and `defineFormSettings` imported from `tinyzoo` still work (same tables,
+> same endpoints, same `<CmsForm>`) and register the plugin by themselves, but are
+> deprecated and removed in 0.4: import them from `tinyzoo/forms` and add `formsPlugin()`.
+> No migration is needed.
 
 On a page: `<CmsForm name="contactForm" />` (plain HTML, zero-specificity default
 styles, errors per field in the visitor's language). Or post JSON to
@@ -876,7 +917,7 @@ same-site Origin, and Cloudflare Turnstile when `NUXT_CMS_FORMS_TURNSTILE_SECRET
 - **Error reporting:** server errors, failed scheduled tasks and webhooks that gave up
   run the `cms:error` Nitro hook; send them to Sentry or anything else from a server
   plugin of the site. No vendor in the package.
-- **Privacy (GDPR):** `defineForm(name, { retentionDays })` and `cms.retention.auditDays`
+- **Privacy (GDPR):** a form's `retentionDays` and `cms.retention.auditDays`
   (default 365) are enforced by a daily task; Settings → Privacy (administrators) finds
   everything stored about an email address, exports it as JSON, or erases it (messages
   deleted, account anonymised, log entries stripped of personal fields).
@@ -892,14 +933,14 @@ Details, the privacy-policy checklist and the restore drill:
 | `<CmsImage :media="post.hero" />` | alt text, real size, lazy loading, the editor's focal point |
 | `<CmsContent :doc="post.body" />` | rich text, sanitised |
 | `<CmsNav :links="nav.main" />` | a menu with dropdowns, as nested lists |
-| `<CmsForm name="contactForm" />` | a website form |
+| `<CmsForm name="contactForm" />` | a website form (needs `formsPlugin()`) |
 | `useCmsSeo(() => item)` | title, description, sharing image from the `seo()` fields |
 | `useCmsSearch(() => route.query.q, { locale })` | the website search: results with address and snippet |
 | `<CmsHighlight :text="r.excerpt" :ranges="r.highlights" />` | text with the searched words in `<mark>` |
 
 ## Not yet built (next slices, in rough order)
 
-- **Plugin API** (forms is a first-party preset today) and **`f.group`** (an object of fields).
+- **`f.group`** (an object of fields).
 - **Links that follow their target** (today a picked page is stored as its address).
 
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`)

@@ -3,8 +3,11 @@
  * Exit code 0: nothing pending. 1: something is pending or out of order (usable in CI and
  * deploy scripts). 2: the database could not be read.
  */
-import { CORE_UPGRADE_STEPS, inspectMigrations, ORDER_FIX, type MigrationStatus } from '../src/index'
-import { databaseUrl, describeDatabase, diskSource, errorText, withDatabase } from './db'
+import { inspectMigrations, ORDER_FIX, type MigrationStatus } from '../src/index'
+import { databaseUrl, describeDatabase, diskSource, errorText, siteUpgradeSteps, withDatabase } from './db'
+
+/** Whose step it is: tinyzoo's own, or the plugin named in front of the id. */
+const stepOwner = (id: string) => (id.includes(':') ? id.slice(0, id.indexOf(':')) : 'tinyzoo')
 
 /** The report as text, and whether everything is up to date. */
 export function formatStatus(status: MigrationStatus): { text: string; clean: boolean } {
@@ -14,7 +17,7 @@ export function formatStatus(status: MigrationStatus): { text: string; clean: bo
   lines.push(`Migrations: ${status.applied.length} applied, ${status.pending.length} pending${status.freshInstall ? ' (empty database)' : ''}`)
   for (const tag of status.pending) lines.push(`  pending  ${tag}`)
   lines.push(`Upgrade steps: ${appliedSteps.length} applied, ${pendingSteps.length} pending`)
-  for (const s of pendingSteps) lines.push(`  pending  ${s.id} (tinyzoo ${s.since}) — ${s.description}${status.freshInstall ? ' [recorded without running on an empty database]' : ''}`)
+  for (const s of pendingSteps) lines.push(`  pending  ${s.id} (${stepOwner(s.id)} ${s.since}) — ${s.description}${status.freshInstall ? ' [recorded without running on an empty database]' : ''}`)
   if (status.outOfOrder.length) {
     lines.push('', 'Out of order — these migrations were never applied, yet a newer one was, so they would be skipped:')
     for (const tag of status.outOfOrder) lines.push(`  ✗ ${tag}.sql`)
@@ -32,7 +35,8 @@ export async function status(cwd: string): Promise<number> {
   try {
     const url = databaseUrl(cwd)
     const source = diskSource(cwd)
-    const result = await withDatabase(url, ({ run }) => inspectMigrations(source, run, CORE_UPGRADE_STEPS))
+    const steps = await siteUpgradeSteps(cwd)
+    const result = await withDatabase(url, ({ run }) => inspectMigrations(source, run, steps))
     const { text, clean } = formatStatus(result)
     console.log(`Database: ${describeDatabase(url)}\n${text}`)
     return clean ? 0 : 1

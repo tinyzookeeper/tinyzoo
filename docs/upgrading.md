@@ -289,6 +289,20 @@ Upgrade steps: 1 applied, 0 pending
 ✗ not up to date — run `tinyzoo up`, or start the app with NUXT_CMS_MIGRATIONS_ON_START=true
 ```
 
+**Plugins** (see [plugins.md](plugins.md)) bring their own steps. They run in the same
+pass, in the same transaction and lock, and show in `status` with the plugin's name
+and its own version, not tinyzoo's:
+
+```
+Upgrade steps: 2 applied, 1 pending
+  pending  events:backfill-place (events 0.1.0) — Events saved without a place get "To be announced"
+```
+
+Updating a plugin is the same routine as updating tinyzoo: read its changelog, run
+`tinyzoo generate` (its collections may have changed), and `tinyzoo up`. The plugin's
+steps are recorded as `<plugin>:<id>`; never rename a plugin, or its steps would run
+again.
+
 The exit code is `0` when nothing is pending, `1` when a migration or step is
 pending or out of order, and `2` when the database could not be reached — so a
 deploy script can use it. It needs `DATABASE_URL` (from the environment or the
@@ -355,8 +369,8 @@ tables — those are the site's to name; steps may only touch `cms_*` tables.
 
 ### Writing one
 
-Add it to `CORE_UPGRADE_STEPS` in `packages/cms/src/upgrades.ts` (plugins pass theirs
-to the runner as well):
+Add it to `CORE_UPGRADE_STEPS` in `packages/cms/src/upgrades.ts`. (A plugin lists its
+own in `upgrades` of `defineCmsPlugin`: [plugins.md](plugins.md#upgrade-steps).)
 
 ```ts
 {

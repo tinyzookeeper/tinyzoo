@@ -138,7 +138,6 @@ export default {
     filterClear: 'Clear filters',
     filterRemove: 'Remove filter {name}',
     columns: 'Columns',
-    retention: { one: 'Messages are deleted automatically after {count} day.', other: 'Messages are deleted automatically after {count} days.' },
     selectAll: 'Select all on this page',
     selectItem: 'Select {name}',
     selected: { one: '{count} selected', other: '{count} selected' },

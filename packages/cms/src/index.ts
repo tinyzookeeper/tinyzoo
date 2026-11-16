@@ -11,7 +11,13 @@ export {
   applyMigrations, runUpgrade, inspectMigrations, classifyMigrations, MigrationOrderError, ORDER_FIX, sqlWithParams, isConnectionError,
   type MigrationJournal, type MigrationSource, type SqlRunner, type JournalEntry, type UpgradeResult, type MigrationStatus, type StepStatus, type MigrationClassification,
 } from './migrate'
-export { CORE_UPGRADE_STEPS, type UpgradeStep, type UpgradeContext, type StepOutcome } from './upgrades'
+export { CORE_UPGRADE_STEPS, allUpgradeSteps, type UpgradeStep, type UpgradeContext, type StepOutcome } from './upgrades'
+export {
+  defineCmsPlugin, collectPlugins, planPlugins, pluginFile, pluginUpgradeSteps, pluginStepId, pluginEntities, pluginRouteAccess, matchRoute, isCmsPlugin,
+  pluginApiBase, pluginAdminBase, pluginEntityPrefix,
+  type CmsPlugin, type CmsPluginDef, type CmsPluginHandler, type CmsPluginAdminPage, type CmsPluginNavItem, type CmsPluginHooks, type CmsPluginUpgradeStep,
+  type CmsPluginRequirement, type CmsFieldRenderer, type CmsGraphExtension, type CmsRetentionContext, type CmsRouteAccess, type CmsHttpMethod, type PluginPlan,
+} from './plugin'
 export { emitSchema } from './emitter'
 export { buildOpenApiDocument, type OpenApiOptions } from './openapi'
 export { emitContentTypes, type SdkOptions } from './sdk'

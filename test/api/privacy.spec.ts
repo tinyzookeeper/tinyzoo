@@ -202,10 +202,13 @@ describe('one person’s data', () => {
 })
 
 describe('retention', () => {
-  it('shows a form’s retention in the admin graph', async () => {
+  it('shows a form’s retention in the admin graph (a note the forms plugin adds)', async () => {
     const graph = (await admin.get('/api/cms/_graph')).body as any[]
-    expect(graph.find((g) => g.name === 'contactForm')).toMatchObject({ preset: 'form', retentionDays: 180 })
-    expect(graph.find((g) => g.name === 'post').retentionDays).toBeNull()
+    expect(graph.find((g) => g.name === 'contactForm')).toMatchObject({
+      preset: 'form', plugin: null, adminCreate: false,
+      notices: [{ icon: 'i-lucide-clock', key: 'plugins.forms.retention', params: { count: 180 } }],
+    })
+    expect(graph.find((g) => g.name === 'post')).toMatchObject({ adminCreate: true, notices: [] })
   })
 
   it('deletes submissions past their form’s retention and old audit entries, and audits the counts', async () => {

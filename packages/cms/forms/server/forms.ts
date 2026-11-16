@@ -1,6 +1,6 @@
 import { resolveText } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
-import { listedRecipients } from './cmsFormSettings'
+import { listedRecipients } from './formSettings'
 
 // Website forms (defineForm): what the website needs to draw one, who hears about a
 // submission, and the email they get.

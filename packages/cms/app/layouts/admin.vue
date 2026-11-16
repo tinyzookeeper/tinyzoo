@@ -7,7 +7,7 @@ const route = useRoute()
 const colorMode = useColorMode()
 useCmsUiLocale()
 const config = useCmsAdminConfig()
-const { t, locale, locales, setLocale, entityLabel } = useCmsI18n()
+const { t, tl, locale, locales, setLocale, entityLabel } = useCmsI18n()
 
 // The admin's own look (cms-admin.css) applies while this layout is mounted.
 const { productName, unbranded } = useCmsAdminHead()
@@ -60,14 +60,21 @@ watch(graphError, (err) => {
 
 // Every link carries its name, also when the sidebar is folded to icons.
 const toNav = (e: any): NavigationMenuItem => ({ label: entityLabel(e), icon: e.icon, to: `/admin/${e.name}`, 'aria-label': entityLabel(e) } as NavigationMenuItem)
+// Entries plugins add to the sidebar (defineCmsPlugin `navItems`), by where they go.
+type PluginNavItem = { label: any; icon?: string; to: string; group: 'content' | 'settings'; adminOnly: boolean }
+const pluginNavItems = ((useRuntimeConfig().public.cmsPlugins as any)?.navItems ?? []) as PluginNavItem[]
+const pluginNav = (group: PluginNavItem['group']): NavigationMenuItem[] => pluginNavItems
+  .filter((i) => i.group === group && (!i.adminOnly || user.value?.role === 'admin'))
+  .map((i) => ({ label: tl(i.label), icon: i.icon, to: i.to, 'aria-label': tl(i.label) } as NavigationMenuItem))
 const navigation = computed<NavigationMenuItem[][]>(() => {
   const all = graph.value ?? []
   const collections = all.filter((e) => !e.singleton)
   // Settings someone may not change (an author and the site settings) stay out of their way.
   const settings = all.filter((e) => e.singleton && e.can?.update !== false)
   const groups: NavigationMenuItem[][] = [[{ label: t('nav.home'), icon: 'i-lucide-house', to: '/admin', exact: true, 'aria-label': t('nav.home') } as NavigationMenuItem]]
-  if (collections.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav), { label: t('media.libraryTitle'), icon: 'i-lucide-images', to: '/admin/media', 'aria-label': t('media.libraryTitle') } as NavigationMenuItem])
-  const settingsGroup: NavigationMenuItem[] = settings.map(toNav)
+  const contentExtra = pluginNav('content')
+  if (collections.length || contentExtra.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav), ...contentExtra, { label: t('media.libraryTitle'), icon: 'i-lucide-images', to: '/admin/media', 'aria-label': t('media.libraryTitle') } as NavigationMenuItem])
+  const settingsGroup: NavigationMenuItem[] = [...settings.map(toNav), ...pluginNav('settings')]
   if (user.value?.role === 'admin') {
     settingsGroup.push({ label: t('nav.team'), icon: 'i-lucide-users-round', to: '/admin/team', 'aria-label': t('nav.team') } as NavigationMenuItem)
     settingsGroup.push({ label: t('nav.privacy'), icon: 'i-lucide-shield-check', to: '/admin/privacy', 'aria-label': t('nav.privacy') } as NavigationMenuItem)

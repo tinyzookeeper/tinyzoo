@@ -42,8 +42,9 @@ describe('defineForm retentionDays', () => {
     const reg = buildRegistry({ kept, limited })
     expect((limited as any).form.retentionDays).toBe(90)
     expect((kept as any).form.retentionDays).toBeNull()
-    expect(reg.graph.find((g) => g.name === 'limitedForm')!.retentionDays).toBe(90)
-    expect(reg.graph.find((g) => g.name === 'keptForm')!.retentionDays).toBeNull()
+    // The forms plugin (registered by itself here: the deprecated defineForm) adds the note to the graph.
+    expect(reg.graph.find((g) => g.name === 'limitedForm')!.notices).toEqual([{ icon: 'i-lucide-clock', key: 'plugins.forms.retention', params: { count: 90 } }])
+    expect(reg.graph.find((g) => g.name === 'keptForm')!.notices).toEqual([])
   })
 
   it('rejects a number of days that cannot be meant', () => {

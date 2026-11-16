@@ -1,4 +1,6 @@
-import { defineBlock, defineEntity, defineForm, defineFormSettings, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from "tinyzoo"
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from "tinyzoo"
+import { defineForm, defineFormSettings, formsPlugin } from "tinyzoo/forms"
+import { eventsPlugin } from "./cms-plugins/events"
 
 // Content languages: Czech is the default (each entry's own row), English is a
 // translation of the fields marked .localized(), falling back to Czech when missing.
@@ -224,6 +226,10 @@ export const Navigation = defineNavigation({ localized: true })
 
 // Old address → new address, applied by the server to every page request.
 export const Redirect = defineRedirects()
+
+// Plugins (forms here, and the example "events" plugin): each adds entities, admin pages,
+// routes or upgrade steps under its own name.
+export const plugins = [formsPlugin(), eventsPlugin()]
 
 // A form on the website: each message lands here as an entry, and the people in
 // Forms settings get an email. On a page: <CmsForm name="contactForm" />.

@@ -1,7 +1,8 @@
 import {
-  defineBlock, defineEntity, defineForm, defineFormSettings, defineLocales, defineNavigation,
+  defineBlock, defineEntity, defineLocales, defineNavigation,
   definePages, defineRedirects, defineSingleton, eq, f, seo,
 } from 'tinyzoo'
+import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 
 // The tinyzoo website: what it is, how it compares with October CMS, and the way
 // into the demo. Built with tinyzoo itself, from the starter. Change the model here,
@@ -270,6 +271,9 @@ export const News = defineEntity('news', {
 // ── menus, redirects, the feedback form ──
 export const Navigation = defineNavigation({ localized: true })
 export const Redirect = defineRedirects()
+
+// Plugins add features with their own admin pages, routes and tables: Forms here.
+export const plugins = [formsPlugin()]
 
 export const Feedback = defineForm('feedback', {
   label: { en: 'Pilot feedback', cs: 'Zpětná vazba', de: 'Feedback zum Pilotprojekt' },
