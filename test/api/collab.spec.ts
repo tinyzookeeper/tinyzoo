@@ -159,8 +159,8 @@ describe('shared editing', () => {
       const next = (await session(admin, 'post', post.id)).body
       expect(next.epoch).not.toBe(first.epoch)
       expect(next.unsaved).toMatchObject({ by: 'Eda Editor' })
-      expect(JSON.stringify(next.unsaved.values.body)).toContain('Rozepsáno a zapomenuto')
-      expect(Date.now() - new Date(next.unsaved.at).getTime()).toBeLessThan(60_000)
+      expect(JSON.stringify(next.unsaved!.values.body)).toContain('Rozepsáno a zapomenuto')
+      expect(Date.now() - new Date(next.unsaved!.at).getTime()).toBeLessThan(60_000)
       // The shared document is the saved entry again, not the abandoned text.
       const ada = await join(admin, next)
       expect(ada.text()).toContain('Uloženo')

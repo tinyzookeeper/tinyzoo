@@ -137,7 +137,7 @@ function restore() {
             </p>
             <p v-if="!differences.length" class="text-sm text-muted">{{ t('revisions.same') }}</p>
             <!-- what the marks in the text mean (they are the only thing that tells added from removed) -->
-            <p v-else-if="differences.some((d) => d.parts)" class="text-xs text-muted">
+            <p v-else-if="differences.some((d: any) => d.parts)" class="text-xs text-muted">
               <ins class="no-underline rounded-sm bg-success/15 px-0.5 text-highlighted">{{ t('revisions.legendAddedMark') }}</ins> {{ t('revisions.legendAdded') }}
               · <del class="rounded-sm bg-error/10 px-0.5 text-muted">{{ t('revisions.legendRemovedMark') }}</del> {{ t('revisions.legendRemoved') }}
             </p>
