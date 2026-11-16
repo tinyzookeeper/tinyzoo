@@ -218,7 +218,7 @@ export function defineForm<F extends Record<string, any>>(name: string, opts: im
  * @deprecated Import `defineFormSettings` from `tinyzoo/forms` and register `formsPlugin()`.
  * Still works (it registers the plugin by itself). Removed in 0.4.
  */
-export function defineFormSettings(opts: { name?: string } = {}) {
+export function defineFormSettings(opts: Parameters<typeof formsDefineFormSettings>[0] = {}) {
   cmsDeprecated(
     'defineFormSettings',
     '`defineFormSettings()` from "tinyzoo" is replaced by `defineFormSettings()` from "tinyzoo/forms" with `export const plugins = [formsPlugin()]` in cms.config.ts.',

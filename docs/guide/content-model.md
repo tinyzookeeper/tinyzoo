@@ -454,8 +454,30 @@ Each submission becomes an entry (state New / Read / Done) and the people in For
 settings get an email (fallback: `notify.to` in code, then `NUXT_CMS_FORMS_NOTIFY_TO`).
 Spam protection: a hidden field, a minimum fill-in time, a rate limit per visitor,
 same-site Origin, and Cloudflare Turnstile when `NUXT_CMS_FORMS_TURNSTILE_SECRET` and
-`NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` are set. Every list can be exported as CSV
-(`/api/cms/:entity/_export`, the Export button).
+`NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` are set. Robots get the same `201` as a real
+message for a post that is thrown away. `_t` (milliseconds the form was open) is optional on
+purpose: a form without JavaScript or a script cannot send it, and dropping their
+messages in silence would lose real ones — `<CmsForm>` always sends it. Every list can be
+exported as CSV (`/api/cms/:entity/_export`, the Export button; a cell that starts like a
+formula gets a leading apostrophe, phone numbers like `+420 777 123 456` stay as they are).
+
+**Who reads the messages.** They are personal data of people who are not users of the site, so
+by default only **administrators and editors** can open, list, search and export them — and
+see the form's place in the menu; **authors** cannot. The recipients in the Forms settings
+(`defineFormSettings`) are protected the same way. A form's `access` widens or narrows that,
+with the rules entities have everywhere (`read`, `update`, `delete`; a `read` of yours
+replaces the default):
+
+```ts
+export const ContactForm = defineForm('contactForm', {
+  // …
+  access: { read: ({ user }) => user.role !== 'author' || user.id === '…' }, // e.g. let one author in
+})
+export const FormSettings = defineFormSettings({ access: { read: ({ user }) => user.role === 'admin' } })
+```
+
+A custom role from an external sign-in gets no access by default either, until a `read`
+rule names it.
 
 Plugins in general (collections, admin pages, routes, field editors, upgrade steps; the forms
 plugin is one): [Plugins](../plugins.md).

@@ -19,6 +19,12 @@ Správa k tomu říká: *Všem zde přijde e-mail, když někdo odešle formulá
 
 > **Tip:** Posílejte zprávy na adresu, kterou někdo opravdu čte. Nejlépe sdílenou schránku, ne osobní e-mail jednoho člověka.
 
+## Kdo zprávy vidí
+
+Zprávy obsahují jména, e-maily a texty lidí, kteří vám psali: jsou to osobní údaje. Proto je ve správě vidí jen **administrátoři a editoři**. **Autor** formulář v menu vůbec nemá a když zná jeho adresu, správa mu ukáže, že na to nemá oprávnění. Totéž platí pro seznam příjemců v nastavení **Formuláře**. Platí to i pro **Export CSV** a vyhledávání.
+
+Potřebuje-li zprávy vidět i autor (třeba správce komunity), vývojář to může u jednoho formuláře povolit. Zeptejte se ho. Kdo smí co obecně, je v kapitole [Přihlášení a váš účet](prihlaseni-a-ucet.md).
+
 ## Kde zprávy najdete
 
 Otevřete **Kontaktní formulář** (v menu v části **Obsah**). V seznamu jsou všechny zprávy. U každé vidíte jméno, e-mail, začátek textu a **Stav**:
@@ -41,7 +47,7 @@ Zprávu **nemůžete vytvořit sami** (tlačítko **+** pro přidání tu není)
 
 Chcete zprávy mít v Excelu? V seznamu klikněte na **Export CSV**. Stáhne se tabulka se všemi zprávami (správa to vysvětluje větou *Stáhnout vše jako tabulku (CSV) pro Excel nebo Tabulky Google*).
 
-> **Pozor:** Soubor obsahuje jména a e-maily lidí. Je to osobní údaj. Uložte ho jen tam, kam patří, a nerozesílejte ho dál. Po použití ho smažte.
+> **Pozor:** Soubor obsahuje jména a e-maily lidí. Je to osobní údaj. Uložte ho jen tam, kam patří, a nerozesílejte ho dál. Po použití ho smažte. Export vidí jen administrátoři a editoři.
 
 ## Automatické mazání
 

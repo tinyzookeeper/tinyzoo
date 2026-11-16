@@ -19,12 +19,21 @@
  * `defineForm` and `defineFormSettings` are also exported from `tinyzoo`, deprecated:
  * they still work, register this plugin by themselves and say so once.
  */
-import { defineEntity, defineSingleton } from '../src/entity'
+import { defineEntity, defineSingleton, type EntityDef } from '../src/entity'
 import { f } from '../src/fields'
 import type { LocalizedText } from '../src/i18n'
 import { defineCmsPlugin, pluginFile, type CmsPlugin, type CmsPluginRequirement } from '../src/plugin'
 import pkg from '../package.json'
 import { retainForms } from './retention'
+
+/**
+ * Who may read a form's messages (list, open, export, search) and the recipients in the
+ * Forms settings, unless the site says otherwise with `defineForm({ access })`: administrators
+ * and editors. Messages are personal data of people who are not users of the site — an
+ * author, who writes posts, has no business reading them. (A custom role of an external
+ * sign-in gets no access either, until the form's `access.read` names it.)
+ */
+export const formsReadAccess: NonNullable<EntityDef<any>['access']>['read'] = ({ user }) => user?.role === 'admin' || user?.role === 'editor'
 
 /** Field types a visitor can fill in on a website form. */
 export const FORM_FIELD_TYPES = new Set(['text', 'number', 'boolean', 'select', 'datetime'])
@@ -54,6 +63,18 @@ export interface FormOptions<F extends Record<string, any>> {
    * Set it to what the site's privacy policy promises.
    */
   retentionDays?: number
+  /**
+   * Who may read, change and delete the messages. By default only administrators and
+   * editors read them (authors do not, whatever else they may do): write a rule to widen
+   * or narrow that, the same rules entities have everywhere:
+   *
+   *   access: { read: ({ user }) => user.role !== 'author' || user.id === '…' }
+   *
+   * A rule given here for `read` replaces the default; `update` and `delete` narrow what the
+   * roles allow, as always. It decides the list, a message, the CSV export, search and the
+   * form's place in the admin menu.
+   */
+  access?: EntityDef<F>['access']
 }
 
 /** What an entity made by this plugin's helpers says about the plugin it needs. */
@@ -108,6 +129,7 @@ export function defineForm<F extends Record<string, any>>(name: string, opts: Fo
       }).position('sidebar').label({ en: 'State', cs: 'Stav', de: 'Status' }),
     },
     admin: { list: { columns: [...keys.slice(0, 3), 'status'] as any, searchable: keys.filter((k) => (opts.fields as any)[k].type === 'text') as any } },
+    access: { read: formsReadAccess, ...opts.access },
   } as any)
   ;(e as any).preset = 'form'
   ;(e as any).requiresPlugin = FORMS_REQUIREMENT
@@ -125,7 +147,7 @@ export function defineForm<F extends Record<string, any>>(name: string, opts: Fo
  * Settings for every website form: who gets an email about new submissions. Optional;
  * without it, each form's `notify.to` (code) or `cms.forms.notifyTo` (env) is used.
  */
-export function defineFormSettings(opts: { name?: string } = {}) {
+export function defineFormSettings(opts: { name?: string; access?: EntityDef<any>['access'] } = {}) {
   const e = defineSingleton(opts.name ?? 'formSettings', {
     label: { en: 'Forms', cs: 'Formuláře', de: 'Formulare' },
     description: { en: 'Who is told about new messages from the website.', cs: 'Komu přijde e-mail o nových zprávách z webu.', de: 'Wer über neue Nachrichten von der Website informiert wird.' },
@@ -138,6 +160,8 @@ export function defineFormSettings(opts: { name?: string } = {}) {
       }).label({ en: 'Send new messages to', cs: 'Nové zprávy posílat na', de: 'Neue Nachrichten senden an' })
         .help({ en: 'Everyone here gets an email when someone sends a form on the website.', cs: 'Všem zde přijde e-mail, když někdo odešle formulář na webu.', de: 'Alle hier erhalten eine E-Mail, wenn jemand ein Formular auf der Website absendet.' }),
     },
+    // The recipients are people's addresses, and the settings of messages authors do not read.
+    access: { read: formsReadAccess, ...opts.access },
   } as any)
   ;(e as any).preset = 'formSettings'
   ;(e as any).requiresPlugin = FORMS_REQUIREMENT
