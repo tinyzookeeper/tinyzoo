@@ -335,7 +335,7 @@ describe('what a reader may not see', () => {
   const draftPost = async (title: string) => createPost(admin, { author: (await createAuthor(admin)).id, status: 'draft', title, slug: title.toLowerCase().replace(/\W+/g, '-') })
 
   it('does not tell a draft the person may not read from one that does not exist', async () => {
-    const secret = await draftPost('Tajný koncept') // an author reads published posts and their own drafts (playground rule)
+    const secret = await draftPost('Interní koncept') // authors may not read posts titled "Interní…" (playground rule)
     const author = await signIn('author')
     const ask = async (client: Client, id: string) => (await client.post('/api/cms/_links/resolve', { refs: [linkRef('post', id)] })).body.items[linkRef('post', id)]
     const unreadable = await ask(author, secret.id)
@@ -343,13 +343,13 @@ describe('what a reader may not see', () => {
     expect(unreadable).toEqual({ entity: 'post', id: secret.id, title: '', path: null, state: 'missing' })
     expect(absent).toEqual({ entity: 'post', id: '00000000-0000-4000-8000-00000000dead', title: '', path: null, state: 'missing' })
     // Whoever may read it sees it.
-    expect(await ask(admin, secret.id)).toMatchObject({ title: 'Tajný koncept', state: 'draft' })
+    expect(await ask(admin, secret.id)).toMatchObject({ title: 'Interní koncept', state: 'draft' })
   })
 
   it('names, when a delete is refused, only the entries the person may read, and counts the rest', async () => {
     const author = await signIn('author')
     const mine = (await author.post('/api/cms/page', { title: 'Moje stránka', slug: 'moje', status: 'draft', sections: [] })).body.row
-    const secret = await draftPost('Tajný koncept')
+    const secret = await draftPost('Interní koncept')
     await admin.patch(`/api/cms/post/${secret.id}`, { body: para('moje', linkRef('page', mine.id)) })
     await saveMenu([link('Moje', linkRef('page', mine.id))]) // a menu: the author may read it
 
@@ -358,10 +358,10 @@ describe('what a reader may not see', () => {
     expect(refused.body.data.code).toBe('in_use')
     expect(refused.body.data.usedBy).toEqual([expect.objectContaining({ entity: 'navigation', singleton: true })])
     expect(refused.body.data.hidden).toBe(1)
-    expect(JSON.stringify(refused.body)).not.toContain('Tajný koncept')
+    expect(JSON.stringify(refused.body)).not.toContain('Interní koncept')
     // Someone who may read everything is told everything.
     const adminRefused = await admin.delete(`/api/cms/page/${mine.id}`)
-    expect(adminRefused.body.data.usedBy).toEqual(expect.arrayContaining([expect.objectContaining({ entity: 'post', title: 'Tajný koncept' })]))
+    expect(adminRefused.body.data.usedBy).toEqual(expect.arrayContaining([expect.objectContaining({ entity: 'post', title: 'Interní koncept' })]))
     expect(adminRefused.body.data.hidden).toBeUndefined()
   })
 })
@@ -369,18 +369,19 @@ describe('what a reader may not see', () => {
 describe('a preview and the previewer’s access', () => {
   it('resolves a link to a draft only for someone who may read it', async () => {
     const author = await signIn('author')
-    const secret = await createPost(admin, { author: (await createAuthor(admin)).id, status: 'draft', slug: 'tajne' })
-    const own = (await author.post('/api/cms/post', { title: 'Moje', slug: 'moje-nove', author: (await createAuthor(admin)).id, body: para('x'), status: 'draft' })).body.row
-    const live = await createPost(admin, { author: (await createAuthor(admin)).id, status: 'published', slug: 'zverejnene' })
+    const writer = (await createAuthor(admin)).id
+    const secret = await createPost(admin, { author: writer, status: 'draft', title: 'Interní plán', slug: 'interni-plan' }) // authors may not read it
+    const open = await createPost(admin, { author: writer, status: 'draft', title: 'Koncept', slug: 'koncept' })
+    const live = await createPost(admin, { author: writer, status: 'published', title: 'Zveřejněné', slug: 'zverejnene' })
     const home = await page('Domů', 'domu', { sections: [
-      { id: 'a', type: 'hero', heading: 'Tajné', buttonUrl: linkRef('post', secret.id) },
-      { id: 'b', type: 'hero', heading: 'Moje', buttonUrl: linkRef('post', own.id) },
+      { id: 'a', type: 'hero', heading: 'Interní', buttonUrl: linkRef('post', secret.id) },
+      { id: 'b', type: 'hero', heading: 'Koncept', buttonUrl: linkRef('post', open.id) },
       { id: 'c', type: 'hero', heading: 'Živé', buttonUrl: linkRef('post', live.id) },
     ] })
     const buttons = async (client: Client, query = '') => (await client.get(`/api/content/page/${home.slug}${query}`)).body.item.sections.map((s: any) => s.buttonUrl)
 
-    expect(await buttons(admin, '?preview')).toEqual(['/blog/tajne', '/blog/moje-nove', '/blog/zverejnene']) // may read every draft
-    expect(await buttons(author, '?preview')).toEqual([null, '/blog/moje-nove', '/blog/zverejnene']) // not someone else's
+    expect(await buttons(admin, '?preview')).toEqual(['/blog/interni-plan', '/blog/koncept', '/blog/zverejnene']) // may read every draft
+    expect(await buttons(author, '?preview')).toEqual([null, '/blog/koncept', '/blog/zverejnene']) // not the internal one
     expect(await buttons(anonymous())).toEqual([null, null, '/blog/zverejnene']) // visitors: only what is live
   })
 })
@@ -534,6 +535,7 @@ describe('tinyzoo links:convert', () => {
     await page('Stejná', 'a')
     const b = await page('Druhá', 'b')
     await translatePage(b.id, { slug: 'a', title: 'A' })
+    await saveMenu([])
     await saveMenu([link('Shared', '/en/pages/a')], 'en') // an English menu: served in the language both addresses are in
     const report = await convertLinks(orm(), reg)
     const shared = report.unmatched.find((u) => u.value === '/en/pages/a')
