@@ -984,3 +984,61 @@ main green after (975 tests, starter check, upgrade check from `2506403`).
 | Low | tree writes read before the lock; the unpublished-ancestor rule stopped at `maxDepth-1`; titles/existence of unreadable pages in link details, tree labels, refusals; preview resolving drafts the previewer can't read; redirects to refs always in the default language; webhooks missing links to subpages; seed reset stopping half-way; seed's "local address" check; two raw error logs; a draft's translated part hiding a live page; plugin steps on an existing site (docs) | each fixed |
 | Found while merging | link resolution used flat addresses for tree pages; a translation of a tree page locked the row before the tree (deadlock in the test log) | tree-aware resolution (nested address, unpublished ancestor → no link); tree lock first everywhere |
 | Flaky tests | archive-permission test (raced the stream's open); `truncateAll` deadlocking with the retention task | test waits for the file; cleanup takes the tasks' advisory locks first |
+
+### 0.2 J — Documentation
+
+Branch `docs/0.2-guide`. Docs for the people who build a site, for the people who fill it, and
+a map. Start at [docs/README.md](README.md). `pnpm check` green: 69 test files passed, 2 skipped; 1003 tests passed, 16 skipped (the backup specs skip without `pg_dump` as before).
+
+**The tree**
+
+| Where | What |
+|---|---|
+| `README.md` | 104 lines: what tinyzoo is, a five-command try-out, a checked 20-line example, the doc map, development. The 1,240-line reference it used to be moved into the guide |
+| `docs/README.md` | the doc map: site developers / editors / people working on tinyzoo (roadmap, production and pilot plans, research, brand) |
+| `docs/guide/getting-started.md` | `tinyzoo init` → install → database → migrate → seed → first sign-in → a collection of your own (Team members: photo, role, order) → generate and migrate → the typed client on a page → what to commit → the going-live checklist |
+| `docs/guide/content-model.md` | the `cms.config.ts` reference: every field type and modifier, relations, lists, groups, blocks and versions, globals, presets (pages, page tree, menus, redirects, SEO, forms), languages, links that follow, publishing, scheduling, access rules, reading content |
+| `docs/guide/recipes.md` | ten recipes (contact form, news, team page, FAQ, opening hours, photo gallery, downloads, partners, events, menus with dropdowns): config, website part, admin note, gotchas |
+| `docs/guide/{content-api,media,admin,seeding,content-transfer}.md` | the rest of the old README, by topic |
+| `docs/development.md` | repository layout, the playground, tests and CI, decisions that shaped the code (also moved out of the README) |
+| `docs/editors/cs/` | the editors' manual in Czech: 10 pages and a table of contents, button names checked against `cs.ts`, a `<!-- screenshot: … -->` marker where a picture helps (9 of them, for Wave 5) |
+| `docs/upgrading.md` | corrected and extended (below) |
+
+**Guards so the docs cannot rot** (both run in `pnpm check`)
+- `pnpm docs:check` (inside `pnpm typecheck`): code blocks marked `<!-- check: group/path -->` in `docs/guide/*.md` and the README are written out as small sites. Each group's `cms.config.ts` is **loaded** (`buildRegistry`, `emitSchema`, `emitContentTypes`) and the typed client is generated from it, then `tsc` checks everything (`.vue` blocks: the script part). 30 blocks in 14 groups, 1 s. Details: `test/docs/README.md`, CONTRIBUTING.md. It caught `defineEntity('team')` (reserved) and a missing stub while the recipes were written.
+- `test/unit/doc-links.spec.ts`: every relative link and `#anchor` in README, CONTRIBUTING and `docs/**` resolves.
+
+**Upgrade guide, followed for real** (`scripts/upgrade-check.mjs --from 2506403 --keep`, then by hand in the kept site: `tinyzoo upgrade`, `tree: true`, `generate`, `up`, `links:convert`, the forms move, a nested page, the site started). The check itself passed (79 s). What reality said that the doc did not:
+- `pnpm up tinyzoo @tinyzoo/client` never leaves `^0.x`'s minor, which is where breaking changes live → `--latest`, with the reason. (From pnpm's documented behaviour; not tried against the registry, 0.2 is not on it.)
+- A 0.1-era site logs two deprecation lines (`defineForm`, `defineFormSettings`) and the doc said nothing → a new section **From 0.1 to 0.2** (the changesets' steps in order: update, snake_case renames with the drizzle-kit questions, search and `pg_trgm`, apply and stop old instances, forms to the plugin, regenerate the client and `string | null` links, the optional features, "the starter's files are yours: diff a fresh `tinyzoo init`").
+- **`tree: true` with the old starter's page route: every nested page 404s on the website** (API: `page/kontakt/tym` 404, `page/kontakt%2Ftym` 200). The doc said "pass the whole address"; it now shows the one-word change in `[...slug].vue`. The migration is five statements (one constraint and one index dropped, not "two constraints"), passes the guard without flags (confirmed); the doc shows the SQL.
+- `tinyzoo links:convert` and `content:migrate` said "DATABASE_URL is not set" on a site whose database address is in `.env`, while `up`/`status`/`upgrade` read it → **code fix** (below). The doc now names `.env`, and says fixed pages (`/`, `/aktuality`) are never converted: they are not entries.
+- Not exercised: the interactive snake_case rename (the baseline starts after it, and there is no terminal here; the steps are the changeset's, rewritten after real drizzle-kit runs in the wave review).
+
+**Getting started, followed literally** in a temporary folder outside the repo, as a newcomer: `pnpm --package=file:<tarball> dlx tinyzoo init my-site` (the packed `tinyzoo` 0.1.0; 0.2 is not on npm, so the only deviation is that the site's two dependencies point at the tarballs), `pnpm install`, `cp .env.example .env`, `docker compose up -d`, `pnpm db:migrate`, `pnpm dev`, `pnpm seed`, the Team members collection exactly as the doc gives it (`db:generate` → migration with `team_member` and `team_member_locales` → `db:migrate`), `pnpm cms:client`, `app/pages/tym.vue` extracted from the doc, two members with photos and an English role (through the admin API), the menu link, `pnpm typecheck` (green), the commit list (`git add -n`: no `.env`, `.cms-uploads`, `.nuxt`). `/tym` and `/en/team` render the members in order, in both languages. Snags, and what each changed:
+
+| Snag | Fixed in |
+|---|---|
+| `docker compose up -d`: `port is already allocated` (5433 was taken) | doc: the `SITE_PG_PORT` route, and `.env` must match |
+| `nuxt dev` moved to 3003 because 3000 was taken; **`pnpm seed` defaults to `localhost:3000`, which was another project's server** (it would sign in there, or create an administrator on an empty one) | doc: pass `SEED_URL` ("do not skip this"); `seeding.md` "Which site?". Left as is in code |
+| `defineEntity('team')` throws: `team` is reserved (the admin's Team page) | doc uses `teamMember` and explains; the error message names the list already |
+| between saving the new collection and `pnpm db:migrate` the dev server printed `could not build the search index … relation "team_member" does not exist` | **code fix**: the line now says a table is missing and what to run (`missingTableHint`), plus doc note |
+| `Ignored build scripts: esbuild, sharp…` after `pnpm dlx` / `pnpm install` | doc: harmless (uploads with `sharp` worked) |
+| the sidebar groups, "Create the first one" / "+ Team member" | doc corrected from `admin.vue` and `en.ts` |
+
+Not clicked in a browser (none was available): the admin steps (Arrange, the language switcher, the Navigation form) were done through the same API and read from the components.
+
+**Code changes, small, each with a test that fails before the fix**
+1. `links:convert` and `content:migrate` read `DATABASE_URL` from the site's `.env` (they used the environment only and a different precedence than `up`): `test/api/links.spec.ts`, `test/api/block-versions.spec.ts` (run from a folder whose only setting is its `.env`), helper `test/helpers/siteFolder.ts`.
+2. `missingTableHint` (`server/utils/cmsScrub.ts`) in the search plugin's failure line: `test/unit/error-report.spec.ts`.
+3. Changeset `cli-env-and-search-hint` (patch).
+
+**Found, not changed**
+- The starter's home page `<title>` repeats the site name ("Pekárna Na Růžku · čerstvé pečivo z Dolní Lhoty · Pekárna Na Růžku").
+- Admin strings: "Aspoň {n} znaků" (validation) vs "Alespoň 10 znaků." (password hint); the setup-code hint shows editors the variable name `NUXT_CMS_AUTH_SETUP_TOKEN`; `editor.newTitle` lowercases the entity name ("Nová položka: aktualita"); `common.new` looks unused (the create button is `+` and the singular name); `list.bulkFailed` has one text for every plural form; **Další akce** holds unpublish, duplicate, delete and discard, which people may not find.
+- `docs/pilot-plan.md` and `docs/production-plan.md` still compare tinyzoo with other CMSs (internal plans, untouched).
+
+**Left**
+- Screenshots for the editors' manual and the guide (Wave 5); an English edition of the editors' manual; the guide on the website (Wave 5, slice Q).
+- `pnpm dlx tinyzoo init` and `pnpm up … --latest` against the registry once 0.2.0 is published (slice K): the doc says what they should do.
+- The recipes' templates are not type-checked (only scripts and configs), and the stubs for Nuxt's auto-imports are hand-written.

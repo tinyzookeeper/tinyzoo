@@ -199,7 +199,7 @@ defineCmsPlugin({
 
 Every `.vue` file in `components` is registered globally under its file name; `fields`
 maps a **field type** to the components that edit it in the form (`edit`) and show it
-in lists (`cell`). It is the field registry of the README (`cms.fields`) fed by a
+in lists (`cell`). It is the field registry of [the admin guide](guide/admin.md#extensibility--the-field--view-registry) (`cms.fields`) fed by a
 plugin: the site's own `app.config.ts` entry for a type still wins, then the plugin's,
 then the built-in one. Two plugins cannot both register one type.
 

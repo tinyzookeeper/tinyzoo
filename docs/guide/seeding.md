@@ -1,0 +1,91 @@
+# Seeding: content a site starts with
+
+`seed/index.ts` holds the content a new site starts with (demo pages, the first menus, its
+settings), written in code, and `tinyzoo seed` puts it into a running site. The starter has
+one (a small bakery in Czech and English, with pictures): after `pnpm dev` is running,
+
+```bash
+SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed
+```
+
+On a site with no administrator yet it creates the first one with these details (a deployed
+site asks for its setup code first: `SEED_SETUP_CODE`, or `--setup-code`, which shows in the
+process list while the command runs, so prefer the variable; the server's log prints it). Otherwise it signs in as that administrator.
+
+```ts
+// seed/index.ts
+import { defineSeed } from 'tinyzoo'
+import { Author, Navigation, Page, Post, SiteSettings } from '../cms.config'
+
+export default defineSeed(async (s) => {
+  const hero = await s.upload('seed/media/hero.jpg', { alt: 'The shop front', altLocales: { en: 'The shop front' } })
+
+  const jana = await s.create(Author, { name: 'Jana', email: 'jana@example.com' }, { by: 'email' })
+  const home = await s.upsert(Page, {
+    title: 'Úvod', slug: 'home', status: 'published',
+    sections: [{ type: 'hero', heading: 'Vítejte', text: '…', image: hero, buttonLabel: '', buttonUrl: '/' }],
+  }, { translations: { en: { title: 'Home', sections: [/* … */] } } })
+  await s.create(Post, { title: 'První', slug: 'prvni', author: jana.id, body: s.rich.doc(s.rich.p('Text.')) })
+
+  await s.global(Navigation, { main: [s.link('Úvod', home), s.link('Blog', '/blog')], footer: [] })
+  await s.global(SiteSettings, { siteName: 'Můj web', logo: hero })
+})
+```
+
+| In the seed | What it does |
+|---|---|
+| `s.create(Entity, data, { by?, translations? })` | makes the entry when nothing has its key yet; otherwise leaves it **exactly as it is** (editors' changes stay) |
+| `s.upsert(Entity, data, { by?, translations? })` | makes it, or brings an existing one up to the seed (only the fields you give) |
+| `s.translate(entry, 'en', data)` | one language of an entry or global (only the `.localized()` fields); follows `create` / `upsert` |
+| `s.global(Entity, data, { translations?, ifMissing? })` | saves a global (settings, menus) whole; `ifMissing` leaves a saved one alone |
+| `s.upload(file, { alt, altLocales, focal, folder, name })` | a file from disk into the media library; returns its id |
+| `s.link(label, '/address' \| entry, { locale?, newTab?, sub? })` | a menu link; for an entry (a page the website links to) it stores a reference, so the menu follows the page when it is renamed or moved |
+| `s.rich.doc / p / h2 / ul / quote / bold / link / image` | rich-text builders |
+
+- **Typed from `cms.config.ts`** when you pass the entity (`s.create(Post, …)`): a wrong field,
+  a missing required one or a wrong choice is a type error. A name (`s.create('post', …)`) works
+  too, without the types.
+- **Running it twice changes nothing.** An entry is recognised by its **key**: `by`, which
+  defaults to the entity's address field (`content.slug`, else its only `f.slug()`); an entity
+  without one needs `by: 'email'` (or several fields). A file is recognised by its name, folder
+  and size. Before an update the stored values are read and compared with the seed's, and only a
+  real difference is written, so a second run makes no save, no new saved version and no
+  upload. Blocks and list items need no `id` and no `type` when there is one: the runner makes
+  stable ids, so the same seed gives the same ones every time. Write dates as fixed values
+  (`'2026-03-01T09:00:00Z'`), not "now".
+- **Fields you leave out are left alone** by `s.upsert` (it cannot clear a field: give `null`).
+  A global is saved whole, so give every required field.
+- Relations take the id a call returned (`author: jana.id`); a seed that goes through
+  `s.upsert` can be changed and run again to update a live site's pages.
+
+```bash
+tinyzoo seed                      # seed/index.ts, http://localhost:3000, $SEED_EMAIL / $SEED_PASSWORD (or --url / $SEED_URL)
+tinyzoo seed other.ts --url https://demo.example.com --email you@example.com
+tinyzoo seed --dry-run            # sign in, read, say what would be created, changed, uploaded; write nothing
+tinyzoo seed --reset              # first remove what this seed made (found by key and file name), then seed again
+tinyzoo seed --verbose            # also list what was already up to date
+```
+
+**Which site?** Without `--url` / `SEED_URL` the command talks to `http://localhost:3000`, whatever
+answers there. `nuxt dev` moves to another port when 3000 is taken (it says so when it starts):
+give the address it printed, or you would sign in to, and with an empty database create the first
+administrator of, some other project.
+
+`--reset` removes only what the seed made: an entry found by its key counts only when the account
+the seed signs in with created it (a page an editor made with the same address stays, and so does
+an entry somebody else changed after `s.create` left it alone), plus the seed's files (unless
+something still uses them, such as a global's logo: it stays and is found again). It lists every
+entry and file by name first and asks (`--yes` skips the question, and is needed without a
+terminal). Menus and settings the seed writes first lose their links to the pages that go (the
+seed writes them again afterwards), and entries are removed in an order the site accepts. If a
+delete would still be refused (a page the seed did not make links to one of its pages), it says
+which and stops before removing anything. Globals are not removed: the seed overwrites them. The
+password is only ever read from `SEED_PASSWORD`.
+
+**Why over HTTP.** The seed goes through the admin's own API, with an administrator's
+session, so every write meets the rules an editor's save does: validation, translations,
+the media pipeline (sizes, the library), the search index, saved versions, webhooks and
+access. A seeded site cannot differ from one an editor filled in, and it works against a
+deployed site, where the database is not reachable from your laptop. The cost: the site has
+to be running, and sign-in limits apply (ten tries per address per fifteen minutes; uploads
+wait when the minute's limit of 60 is reached).
