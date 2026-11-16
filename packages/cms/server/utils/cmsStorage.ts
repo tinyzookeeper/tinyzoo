@@ -275,7 +275,7 @@ class S3Driver implements StorageDriver {
     fetch(this.url(key), { method: 'HEAD' }).then((res) => {
       if (res.status === 401 || res.status === 403) {
         console.warn(`[cms] storage delivery is 'public', but a file just uploaded answers ${res.status} to an anonymous request: the bucket is private. `
-          + "Set NUXT_CMS_STORAGE_S3_DELIVERY=proxy (or 'redirect'), see docs/deploying.md.")
+          + "Set NUXT_CMS_STORAGE_S3_DELIVERY=proxy (or 'redirect'), see https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/deploying.md#media")
       }
     }).catch(() => { /* the public address is not reachable from here (a CDN in front, a firewall): nothing to say */ })
   }
@@ -419,7 +419,7 @@ export function useCmsStorage(): StorageDriver {
     const publicBase = cfg.local?.publicBase || DEFAULT_MEDIA_BASE
     if (process.env.NODE_ENV === 'production') {
       console.warn(`[cms] media are stored on this server's disk (${dir}). Containers lose it on every deploy — `
-        + 'use object storage in production (NUXT_CMS_STORAGE_DRIVER=s3, see docs/deploying.md).')
+        + 'use object storage in production (NUXT_CMS_STORAGE_DRIVER=s3, see https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/deploying.md#media).')
     }
     _driver = new LocalDriver(dir, publicBase)
   } else if (driver === 's3' || driver === 'r2') {

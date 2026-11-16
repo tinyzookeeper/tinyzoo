@@ -30,6 +30,7 @@
  * NUXT_CMS_STORAGE_* (from the environment, `.env` in the app folder, then the
  * `cms:` options of nuxt.config), so run it from the site's folder.
  */
+import { docsUrl } from '../src/docs'
 import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -174,7 +175,7 @@ const missingToolHelp = (tool: PgTool, databaseUrl: string) => `${tool} was not 
   and keep it with a copy of the media`
     : `Restore the dump inside the database's own container (empty the schemas first):
     docker exec -i <container> pg_restore --single-transaction --exit-on-error --no-owner --no-acl -U <user> -d ${databaseName(databaseUrl) || '<database>'} < database.dump
-  and copy the media back`} (docs/deploying.md, "Backups and restore").`
+  and copy the media back`} (${docsUrl('backups')}).`
 
 const MAX_CAPTURE = 64 * 1024
 /** Collect a stream as text, keeping the first part of a very long one. */

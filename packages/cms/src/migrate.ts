@@ -6,6 +6,7 @@
  * (upgrades.ts) run in the same transaction and lock: `before` steps ahead of the
  * pending migrations, `after` steps behind them.
  */
+import { docsUrl } from './docs'
 import { sql, type SQL } from 'drizzle-orm'
 import { assertValidSteps, runUpgradeSteps, stepIsDue, UPGRADES_TABLE_SQL, type StepOutcome, type UpgradeContext, type UpgradeStep } from './upgrades'
 
@@ -80,7 +81,7 @@ function orderMessage(entries: JournalEntry[]): string {
   const files = entries.map((e) => `${e.tag}.sql`).join(', ')
   return `Migration${entries.length > 1 ? 's' : ''} ${files} ${entries.length > 1 ? 'were' : 'was'} never applied to this database, but a newer migration already was — `
     + 'usually two branches each generated one. Drizzle would skip it for good, so nothing is applied until this is fixed. '
-    + `${ORDER_FIX.regenerate(files)} ${ORDER_FIX.appliedElsewhere} (See docs/upgrading.md, "Migration … was never applied".)`
+    + `${ORDER_FIX.regenerate(files)} ${ORDER_FIX.appliedElsewhere} (More: ${docsUrl('neverApplied')})`
 }
 
 interface ReadMigration extends JournalEntry { hash: string; statements: string[] }

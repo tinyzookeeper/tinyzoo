@@ -234,7 +234,7 @@ export async function convertLinks(db: any, reg: CmsRegistry, opts: ConvertOptio
 }
 
 const REASONS: Record<UnmatchedReason, string> = {
-  'no-page': 'no entry has this address (left as it is)',
+  'no-page': 'no entry has this address (left as it is: a fixed page of the site — the home page, a list — is not an entry and stays as typed)',
   'several-pages': 'more than one entry has this address (left as it is)',
   'other-language': 'this is an entry’s address in another language than the one this link is served in (left as it is: a reference would serve the address of the language asked for)',
   'draft': 'the entry is not published (left as it is: a reference to it serves nothing until it is)',
@@ -256,7 +256,7 @@ export function formatConvertReport(r: ConvertReport): string[] {
       for (const p of u.places) lines.push(`      ${p}`)
       if (u.candidates) lines.push(`      ${u.reason === 'several-pages' ? 'could be' : 'is the address of'}: ${u.candidates.join(', ')}`)
     }
-    lines.push('', 'Pick those pages again in the link picker (or give the entries different addresses) to make the links follow their pages. A link to another language’s address, or to an entry that is not published yet, is left as typed on purpose: pick the page once it can be reached.')
+    lines.push('', 'Fixed pages of the site (the home page, a list, a page the website draws by itself) are not entries: there is nothing for a link to follow, so those addresses can stay as typed. For a link that should follow an entry, pick the entry again in the link picker (or give the entries different addresses). A link to another language’s address, or to an entry that is not published yet, is left as typed on purpose: pick the page once it can be reached.')
   }
   if (r.skippedStaleBlocks) lines.push('', `${r.skippedStaleBlocks} block${r.skippedStaleBlocks === 1 ? ' is' : 's are'} stored at an older version than the code: left alone. Run \`tinyzoo content:migrate\` first, then this command again.`)
   lines.push('', `${r.rowsScanned} rows read, ${r.linksConverted} link${r.linksConverted === 1 ? '' : 's'} ${r.dryRun ? 'would be converted (dry run: nothing was written)' : `converted in ${r.rowsChanged} row${r.rowsChanged === 1 ? '' : 's'}`}.`)

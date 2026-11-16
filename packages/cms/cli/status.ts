@@ -3,6 +3,7 @@
  * Exit code 0: nothing pending. 1: something is pending or out of order (usable in CI and
  * deploy scripts). 2: the database could not be read.
  */
+import { docsUrl } from '../src/docs'
 import { inspectMigrations, ORDER_FIX, type MigrationStatus } from '../src/index'
 import { databaseUrl, describeDatabase, diskSource, errorText, siteUpgradeSteps, withDatabase } from './db'
 
@@ -22,7 +23,7 @@ export function formatStatus(status: MigrationStatus): { text: string; clean: bo
     lines.push('', 'Out of order — these migrations were never applied, yet a newer one was, so they would be skipped:')
     for (const tag of status.outOfOrder) lines.push(`  ✗ ${tag}.sql`)
     const files = status.outOfOrder.map((t) => `${t}.sql`).join(', ')
-    lines.push(`  ${ORDER_FIX.regenerate(files)}`, `  ${ORDER_FIX.appliedElsewhere}`, '  See docs/upgrading.md, "Migration … was never applied".')
+    lines.push(`  ${ORDER_FIX.regenerate(files)}`, `  ${ORDER_FIX.appliedElsewhere}`, `  More: ${docsUrl('neverApplied')}`)
   }
   if (status.unknown) lines.push('', `Note: the database has ${status.unknown} migration${status.unknown > 1 ? 's' : ''} this code does not know — a newer version of the site ran here.`)
   const clean = !status.pending.length && !pendingSteps.length && !status.outOfOrder.length

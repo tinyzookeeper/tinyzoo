@@ -3,6 +3,7 @@
  * migration, enable pg_trgm in it when needed, and stop on statements that lose data or
  * may fail on existing rows (see breaking.ts) unless the person confirms them.
  */
+import { docsUrl } from '../src/docs'
 import { spawn } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -37,7 +38,7 @@ const journalTags = (dir: string): string[] => {
 
 export const NEEDS_TERMINAL_MESSAGE = `✗ drizzle-kit needs to ask whether a table or column was renamed or is new, and there is no terminal to answer in.
   Run \`tinyzoo generate\` in a terminal and answer the question, or write the rename into the migration by hand:
-  see "Renaming a field" and "Renaming an entity" in docs/upgrading.md.`
+  see "Renaming a field" (${docsUrl('renamingField')}) and "Renaming an entity" (${docsUrl('renamingEntity')}).`
 
 /** Plain-language report of what a migration would do, for the terminal. */
 export function describeBreaking(file: string, changes: BreakingChange[]): string {
@@ -49,14 +50,18 @@ export function describeBreaking(file: string, changes: BreakingChange[]): strin
       '',
       'Losing data cannot be undone, and the version of the site that is still running during a deploy breaks on a dropped or renamed column or table.',
       'Safer: spread it over two releases — first add the new column or table and write to both, drop the old one in the next release.',
-      'See docs/upgrading.md, "The two-step rule" (and "Renaming a field" if this is a rename).',
+      `See "The two-step rule": ${docsUrl('twoStepRule')} (and "Renaming a field", ${docsUrl('renamingField')}, if this is a rename).`,
     )
+    // A type change needs the values converted: the recipe has the USING cast.
+    if (destructive.some((c) => c.kind === 'change-type')) {
+      out.push(`A column that changes type usually needs its values converted: add \`USING "column"::newtype\` to the statement by hand (${docsUrl('changingType')}).`)
+    }
   }
   if (risky.length) {
     out.push(
       '',
       'The statements about required columns, unique values and checks fail on rows that already exist. The new version then cannot finish its migration at start, exits, and is restarted in a loop — the site is down until it is fixed.',
-      'Safer: give the field a default, or add it optional first, fill it, then make it required in a later release. See docs/upgrading.md, "Adding a required field".',
+      'Safer: give the field a default, or add it optional first, fill it, then make it required in a later release. See "Adding a required field": ' + docsUrl('requiredField'),
     )
   }
   return out.join('\n')
