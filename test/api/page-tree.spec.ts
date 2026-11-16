@@ -642,6 +642,28 @@ describe('a write that reads the tree before it takes the lock', () => {
     expect(res.status).toBe(409)
     expect(res.body.data[0]).toMatchObject({ code: 'unique', locale: 'en', address: '/en/pages/parent/team' })
   })
+
+  it('a translation takes the tree lock before it locks the page row (the order moves use: no deadlock)', async () => {
+    const t = await pair()
+    const c = await db.connect()
+    try {
+      await c.query('begin')
+      await c.query(treeLock)
+      const pending = admin.request('PATCH', `/api/cms/page/${t.lone.id}?locale=en`, { json: { title: 'One', slug: 'one' } })
+      for (let i = 0; ; i++) {
+        const { rows } = await c.query(`select count(*)::int as n from pg_locks where not granted`)
+        if (rows[0].n > 0) break
+        if (i > 200) throw new Error('the request never waited for the lock')
+        await new Promise((r) => setTimeout(r, 25))
+      }
+      // The request waits on the tree lock and holds no row lock yet: the page row is free.
+      const free = await db.query('select id from page where id = $1 for update nowait', [t.lone.id]).then(() => true, () => false)
+      expect(free).toBe(true)
+      await c.query('commit')
+      expect((await pending).status).toBe(200)
+    }
+    finally { c.release() }
+  })
 })
 
 describe('a page below a draft that sits deeper than the limit allows today', () => {

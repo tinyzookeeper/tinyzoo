@@ -25,7 +25,7 @@ export default defineEventHandler(async (event) => {
   if (!current) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, current)
   // A page tree: pages below this one would lose their place (and their address): move or delete them first.
-  if (e.tree) await assertNoChildren(db, e, id)
+  if (e.tree) await assertNoChildren(db, e, id, await readableTreeIds(db, e, user))
   // Menus and links that point at this entry (by reference) would go dead: refused, saying which.
   const linked = await linksTo(db, reg, e, id)
   if (linked.length) throw await inUse(db, reg, user, [...await usedBy(db, reg, e, id), ...linked.map((l) => ({ ...l, via: 'link' }))])

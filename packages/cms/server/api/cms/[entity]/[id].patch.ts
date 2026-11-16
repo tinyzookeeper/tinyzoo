@@ -82,6 +82,8 @@ export default defineEventHandler(async (event) => {
     await writeM2M(tx, reg, e, id, m2m, true)
     // The page and everything below it may have new addresses: redirects from the old ones, in the same transaction.
     const effect = writeTree ? await treeEffect(tx, reg, e, writeTree.nodes, writeTree.next, id, wasLive, actorId(user)) : null
+    // A redirect away from an address this entry is live at now would loop: gone, in the same transaction.
+    await dropRedirectsFromLiveAddresses(tx, reg, e, id)
     return { row: current, effect }
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
 

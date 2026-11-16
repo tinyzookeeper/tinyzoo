@@ -25,6 +25,8 @@ export default defineEventHandler(async (event) => {
     }
     const [created] = await tx.insert(e.table).values(values).returning()
     await writeM2M(tx, reg, e, created.id, m2m)
+    // A redirect away from the address the new entry is live at would loop: gone, in the same transaction.
+    await dropRedirectsFromLiveAddresses(tx, reg, e, created.id)
     return created
   }).catch((err: unknown) => rethrowDbError(err, e, 'write'))
   await audit(event, 'entry.create', { entity: e.name, recordId: row.id })

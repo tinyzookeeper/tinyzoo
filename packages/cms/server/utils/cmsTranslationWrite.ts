@@ -45,6 +45,9 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
 
   const baseTr = baseVersion(event)
   const { row, effect } = await db.transaction(async (tx: any) => {
+    // A page tree: the tree lock before any row lock, in the order every tree write takes
+    // them (moves and page saves lock the tree, then rows), or two writes can deadlock.
+    if (e.tree) await lockTree(tx, e)
     // Touch the entry first, under the same rules as editing it — including "not
     // live" for people who cannot publish, re-checked here at write time (an editor
     // may have published it since we read it).
@@ -109,6 +112,7 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
   assertPublishAllowed(e, user, {}, base)
   const seenBefore = await changeSnapshot(e, id)
   const { gone, effect } = await db.transaction(async (tx: any) => {
+    if (e.tree) await lockTree(tx, e) // the tree lock before the row lock, as every tree write takes them
     const [touched] = await tx.update(e.table).set({ updatedAt: sql`${e.table.updatedAt}` })
       .where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning({ id: e.table.id })
     if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
