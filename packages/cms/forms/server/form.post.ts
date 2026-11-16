@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
     const issues = localizeFormIssues(parsed.error.issues as any[], e.fields as any, wanted)
     throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: issues })
   }
-  const values = parsed.data
+  const values = parsed.data as Record<string, any>
   values.status = 'new'
   // Sent faster than a person fills a form in (<CmsForm> never sends that early): a
   // robot posting directly. Checked after validation, so a real empty form still gets
