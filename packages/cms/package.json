@@ -3,6 +3,26 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Code-first, distributable CMS for Nuxt 4 (Layer + Module).",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/tinyzoo/tinyzoo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinyzoo/tinyzoo.git",
+    "directory": "packages/cms"
+  },
+  "bugs": {
+    "url": "https://github.com/tinyzoo/tinyzoo/issues"
+  },
+  "keywords": [
+    "cms",
+    "headless-cms",
+    "nuxt",
+    "nuxt-layer",
+    "nuxt-module",
+    "drizzle",
+    "postgres",
+    "code-first"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./layer": "./nuxt.config.ts",
@@ -59,11 +79,17 @@
   },
   "peerDependencies": {
     "@internationalized/date": "^3.12.2",
-    "@nuxt/ui": "^4.0.0",
-    "nuxt": "^4.0.0",
-    "nuxt-auth-utils": "^0.5.0"
+    "@nuxt/ui": "^4.9.0",
+    "nuxt": "^4.4.0",
+    "nuxt-auth-utils": "^0.5.29"
   },
   "bin": {
     "tinyzoo": "./cli/index.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
