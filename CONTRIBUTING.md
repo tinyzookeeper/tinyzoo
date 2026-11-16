@@ -137,4 +137,4 @@ Merging to `main` makes the release workflow open (or update) a "Version
 packages" pull request that bumps both versions and writes the changelogs.
 Merging that pull request builds the packages, runs the consumer check (packed
 tarballs installed into a fresh app, then built), and publishes both packages to
-npm with provenance. Nothing is published by hand.
+npm (without provenance: the repository is private). Nothing is published by hand.

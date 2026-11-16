@@ -6,8 +6,7 @@
 //
 // Steps: skip when every package version is already on npm (every push to main runs this),
 // build @tinyzoo/client (dist), run the consumer check on the packed tarballs of both
-// packages, then `changeset publish` (pnpm publish per package, with provenance when
-// NPM_CONFIG_PROVENANCE=true, plus the git tags the release action turns into GitHub releases).
+// packages, then `changeset publish` (pnpm publish per package, plus the git tags the release action turns into GitHub releases).
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

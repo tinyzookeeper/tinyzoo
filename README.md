@@ -503,7 +503,7 @@ package adds a changeset (`pnpm changeset`; a change a site must act on has an
 `### Upgrade` section with the steps), and a changed contract snapshot
 (`test/contracts/`, `pnpm contracts:update`) means the public content API changed.
 Merging to `main` makes `.github/workflows/release.yml` open a "Version packages"
-pull request; merging that publishes both packages to npm with provenance. Details,
+pull request; merging that publishes both packages to npm. Details,
 the version policy and how deprecations work (`cmsDeprecated()`): [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Decisions locked in this MVP
