@@ -103,4 +103,8 @@ async function deliver(url: string, secret: string, type: string, delivery: stri
     }
   }
   console.error(JSON.stringify({ level: 'error', msg: 'cms webhook delivery failed', url: safeUrl(url), type, delivery, error: lastError }))
+  reportCmsError({
+    source: 'webhook', error: new Error(`Webhook delivery failed: ${lastError}`), status: null, requestId: null, method: null, path: null, userId: null,
+    webhook: { url: safeUrl(url), type, delivery },
+  })
 }

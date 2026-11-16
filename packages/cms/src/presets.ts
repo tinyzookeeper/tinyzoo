@@ -183,6 +183,12 @@ export interface FormOptions<F extends Record<string, any>> {
    * Forms settings (defineFormSettings) come first; these are the fallback.
    */
   notify?: { to?: string[] }
+  /**
+   * Delete a submission this many days after it arrived (a scheduled task does it, daily;
+   * the admin says so under the list). Default: keep them until someone deletes them.
+   * Set it to what the site's privacy policy promises.
+   */
+  retentionDays?: number
 }
 
 /**
@@ -203,6 +209,9 @@ export interface FormOptions<F extends Record<string, any>> {
  *   // or POST /api/content/_form/contactForm { name, email, message }
  */
 export function defineForm<F extends Record<string, any>>(name: string, opts: FormOptions<F>) {
+  if (opts.retentionDays !== undefined && (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1)) {
+    throw new Error(`Form "${name}": retentionDays must be a whole number of days, at least 1 (leave it out to keep submissions).`)
+  }
   for (const [key, fld] of Object.entries(opts.fields) as [string, any][]) {
     if (key === 'status' || key === 'id') throw new Error(`Form field "${key}" is reserved.`)
     if (!FORM_FIELD_TYPES.has(fld.type) || fld.relation) {
@@ -233,6 +242,7 @@ export function defineForm<F extends Record<string, any>>(name: string, opts: Fo
     submitLabel: opts.submitLabel ?? null,
     successMessage: opts.successMessage ?? null,
     notify: { to: opts.notify?.to ?? [] },
+    retentionDays: opts.retentionDays ?? null,
   }
   return e
 }

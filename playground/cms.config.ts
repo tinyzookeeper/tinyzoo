@@ -239,6 +239,8 @@ export const ContactForm = defineForm("contactForm", {
     consent: f.boolean().label({ en: "I agree to the processing of my details", cs: "Souhlasím se zpracováním údajů" }),
   },
   successMessage: { en: "Thank you, we will reply soon.", cs: "Děkujeme, brzy se ozveme." },
+  // Messages are deleted after half a year (shown under the list; a daily task does it).
+  retentionDays: 180,
 })
 
 // Who gets an email about new form messages (editable in the admin).

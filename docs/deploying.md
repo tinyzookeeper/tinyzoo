@@ -42,10 +42,41 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASS` | with smtp | |
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (below) |
 | `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API |
-| `NUXT_CMS_AUTH_SETUP_TOKEN` | recommended | first-run setup then needs this code (`/admin/setup?token=…`), so nobody else can claim a fresh deploy |
+| `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). Without it the server makes a one-time code and prints it in the log — see [First run](#first-run-the-setup-code) |
+| `NUXT_CMS_RETENTION_AUDIT_DAYS` | optional | delete audit-log entries older than this many days (default 365, `0` = keep). See [Privacy](#privacy-gdpr) |
 | `NUXT_CMS_AUTH_TRUSTED_PROXIES` | optional | proxy hops in front of the app (default 1 — Pushbase's ingress). Too few and rate limits count the proxy instead of visitors; too many (e.g. 1 with no proxy at all) and visitors can fake their address in `X-Forwarded-For` to dodge limits. Set `0` when the app is reached directly |
 
 `playground/.env.example` lists them with local-development values.
+
+## First run: the setup code
+
+A new deploy has no administrator, and `/admin/setup` is reachable by anyone who
+knows the address. So in production first-run setup always asks for a **setup
+code**:
+
+- With `NUXT_CMS_AUTH_SETUP_TOKEN` set, that is the code (open
+  `/admin/setup?token=<value>` to have it filled in).
+- Without it, the server **makes a one-time code when it starts** and prints one
+  line in its log:
+
+  ```
+  [cms] No administrator yet. Setup code: K7QM-2XVD-R9TE-HC4Y — open https://www.example.cz/admin/setup
+  ```
+
+  Open the project's log (Pushbase: the deploy/runtime log), find the line, type the
+  code into the setup page. Capitals, dashes and spaces do not matter.
+
+The code is 16 characters from an alphabet without look-alikes (80 bits). With several
+replicas it is shared: the replica that stores it first prints it, the others say it
+was issued; only its hash is kept in the database (`cms_state`, key `setup_code`). It
+is deleted in the same transaction that creates the first account. A restart while
+there is still no account prints the code again if it is older than five minutes (a
+new one replaces it, the old one stops working), and leaves a fresh one alone. Wrong
+codes are answered `403`, counted by the rate limit (10 attempts per quarter hour per
+visitor) and written to the audit log (`auth.setup_failed`).
+
+Development (`nuxt dev`, `NODE_ENV=development` or `test`) needs no code. Anything else
+counts as production, so an unset `NODE_ENV` does not leave a deploy open.
 
 ## Migrations
 
@@ -89,7 +120,8 @@ bucket, and set the `NUXT_CMS_STORAGE_S3_*` variables. Uploaded files are
 immutable (new upload = new key), so a CDN in front can cache them forever.
 
 The bucket is not covered by the platform's database backups: turn on its
-versioning or a lifecycle copy if losing an upload matters.
+versioning or a lifecycle copy if losing an upload matters (see [Backups and
+restore](#backups-and-restore)).
 
 ## Publish webhooks
 
@@ -155,6 +187,48 @@ kept) and without query parameters (no emails or content in logs). Expected
 errors (validation, permissions) are not logged; sign-ins, invitations and
 content changes are in the audit log instead.
 
+### Error reporting
+
+Besides the log line, every server error runs a Nitro runtime hook, **`cms:error`**,
+so a site can send it to an error tracker (Sentry, GlitchTip, a Slack message…). The
+package depends on no vendor: subscribe in a server plugin of the site.
+
+```ts
+// server/plugins/sentry.ts in the site
+import * as Sentry from '@sentry/node'
+
+export default defineNitroPlugin((nitroApp) => {
+  Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV })
+  nitroApp.hooks.hook('cms:error', (report) => {
+    Sentry.withScope((scope) => {
+      scope.setTag('source', report.source) // request | task | webhook
+      if (report.requestId) scope.setTag('request_id', report.requestId)
+      if (report.userId) scope.setUser({ id: report.userId }) // an id, never an email
+      scope.setContext('cms', { status: report.status, method: report.method, path: report.path, task: report.task, webhook: report.webhook })
+      Sentry.captureException(report.error instanceof Error ? report.error : new Error(report.message))
+    })
+  })
+})
+```
+
+The hook gets a `CmsErrorReport` (typed through `NitroRuntimeHooks`; exported from
+`tinyzoo`):
+
+| Field | |
+|---|---|
+| `source` | `request` (a 5xx answer), `task` (a scheduled task threw: `cms:scheduled`, `cms:retention`, `cms:search-reindex`) or `webhook` (a publish webhook gave up after its retries) |
+| `error`, `message` | the error as thrown, and its message without query values |
+| `status`, `requestId`, `method`, `path`, `userId` | for requests: the status, the `X-Request-Id` the browser got, the path **without its query string**, the signed-in person's id; `null` otherwise |
+| `task` / `webhook` | the task name / `{ url, type, delivery }` (the URL without query or credentials) |
+
+It runs after the response, never waits for your code and never breaks anything: a
+hook that throws is logged (`cms:error hook failed`) and ignored. Expected errors
+(4xx) and the 503s of a migration in progress are not reported. One thing to know:
+the message of a failed database query (`Failed query: … params: …`) carries the
+bound values, which can be emails or text from a form. `report.message` and the log
+line already leave them out; if you send `report.error` itself, scrub it (Sentry's
+`beforeSend`) or send `message` as above.
+
 ## Realtime
 
 The admin keeps one WebSocket per tab (`/api/cms/_live`, same port) for presence
@@ -176,6 +250,134 @@ meantime gets a choice instead of silently overwriting it.
   for its inline hydration script); `nuxt-security` does it well.
 - HTTPS is terminated by the platform; send HSTS from there or from the app.
 
+## Backups and restore
+
+What holds what, and who is responsible:
+
+| Data | Lives in | Backed up by |
+|---|---|---|
+| content, accounts, form messages, audit log, saved versions, the search index | Postgres | Pushbase backs up its managed Postgres. `tinyzoo backup` takes your own copy as well |
+| uploaded media | the S3 bucket | **you**: turn on the bucket's versioning or replication; `tinyzoo backup` also copies the files |
+| secrets and settings | the platform's environment | **you**: keep them in a password manager |
+
+### `tinyzoo backup` and `tinyzoo restore`
+
+Run them from the site's folder (or anywhere with the production settings in the
+environment): they read `NUXT_CMS_DATABASE_URL` / `DATABASE_URL` and
+`NUXT_CMS_STORAGE_*` the way the server does — environment first, then `.env`, then
+the `cms:` options of `nuxt.config`.
+
+```bash
+tinyzoo backup                              # tinyzoo-backup-<database>-<time>.tar here
+tinyzoo backup backups/before-0.3.tar
+tinyzoo restore backups/before-0.3.tar      # asks you to type the database's name
+tinyzoo restore backups/before-0.3.tar --yes     # no question (scripts)
+tinyzoo restore backups/before-0.3.tar --force   # the database already has accounts: replace it
+```
+
+**The archive** is one plain tar (list it with `tar -tf`): `manifest.json` (tinyzoo
+version, time, the media list), `database.dump` (`pg_dump --format=custom`) and
+`media/<key>` for every file `cms_media` refers to — read from the local upload folder,
+or downloaded from the bucket with the same signed requests the app uses (the
+resized copies under `_w/` are not included; the site makes them again). Files the
+database refers to but storage no longer has are listed as missing, not silently
+dropped. The archive holds password hashes, form messages and every upload: it is
+written readable by its owner only; keep it as private as the database.
+
+**Restore** puts the database back with `pg_restore --clean`, then writes the media
+into the configured folder or bucket. It refuses a database that has accounts
+unless you add `--force`, always asks (type the database's name) unless you add
+`--yes`, and checks the whole archive — including that no media path leaves the
+media folder — before it changes anything. The restored migration journal lets the
+site start on it as before; a newer version applies its migrations itself.
+
+**Tools.** Both commands need `pg_dump` and `pg_restore` of the server's major
+version or newer (`brew install libpq`, `apt install postgresql-client`). Point
+`TINYZOO_PG_DUMP` / `TINYZOO_PG_RESTORE` at a binary or a wrapper script to use
+another one. Without client tools, take the database part inside the database's own
+container and keep it with a copy of the bucket:
+
+```bash
+docker exec <container> pg_dump --format=custom -U <user> <database> > database.dump
+docker exec -i <container> pg_restore --clean --if-exists --no-owner -U <user> -d <database> < database.dump
+```
+
+**No automatic backup before migrations.** The server applies migrations when it
+starts, but a dump from inside it would need `pg_dump` in the container image and a
+place to write the file, and a failure there would have to decide whether to start the
+new version anyway — too much to get right silently. Take a backup before every deploy
+that changes the schema (`tinyzoo backup` takes seconds on a small site; in CI,
+before the deploy step).
+
+### Restore drill
+
+A backup nobody has restored is a hope. Do this once before launch and after big
+changes, into a scratch database and bucket — never over production:
+
+1. `tinyzoo backup` against production; note the size and the "missing media" line (it should be empty).
+2. Create an empty Postgres database and a scratch folder or bucket; point `DATABASE_URL` and `NUXT_CMS_STORAGE_*` at them.
+3. `tinyzoo restore <file>`.
+4. Start the site on them. Sign in (the accounts came with the dump), open an entry with pictures, check the page on the website, send a form.
+5. Compare counts with production: entries per collection, media, accounts.
+6. Write down how long it took and who did it, then delete the scratch database and bucket.
+
+## Privacy (GDPR)
+
+tinyzoo keeps what a CMS must, for as long as you decide, and gives administrators
+the tools to answer a person's request. What follows is what a site owner needs for the
+privacy policy; it is not legal advice.
+
+### What is stored
+
+| What | Contents | How long |
+|---|---|---|
+| Accounts (Team) | email, name, role, admin language, a scrypt hash of the password, last sign-in; hashes of invitation and reset links (7 days / 1 hour) | until the person is removed or erased |
+| Sign-in cookie | a sealed cookie holding the account id; nothing is kept on the server | until sign-out or expiry |
+| Audit log | who did what and when (sign-ins, publishing, team changes, exports); a failed sign-in keeps the **email tried and the visitor's IP address** | `cms.retention.auditDays`, default **365 days**, then deleted daily (`0` keeps it) |
+| Form messages | the fields of the form (name, email, text…) and their state; saved versions and search-index rows hold the same text | `defineForm(name, { retentionDays })`; without it, **until deleted** — set it to what the policy promises |
+| Notification emails | a message to the people in Forms settings, through the SMTP provider you configured | the provider's retention |
+| Rate limits | visitors' IP addresses counted for minutes (memory or Redis) | the window (10–15 minutes) |
+| Uploaded media | files, the uploader's account id | until deleted |
+| Server log | request id, path without query, account id, error text — never emails or form content | the platform's log retention |
+| Cloudflare Turnstile, if on | Cloudflare sees the visitor's IP and a browser check | Cloudflare's terms |
+
+Backups hold all of the above until they are rotated: say how long backups live.
+
+### Retention
+
+```ts
+export const ContactForm = defineForm('contactForm', { /* … */ retentionDays: 180 })
+```
+```bash
+NUXT_CMS_RETENTION_AUDIT_DAYS=365   # or retention: { auditDays: 365 } in nuxt.config's cms options
+```
+
+A scheduled task (`cms:retention`, daily at 03:17; `CMS_RETENTION_CRON` at build time
+changes it) deletes form messages older than their form's `retentionDays`, with their
+saved versions and search rows, and audit entries older than `auditDays`, in batches
+and on one instance at a time. It writes one audit entry, `retention.purge`, with the
+counts (never the content). The admin says it under the form's list: "Messages are
+deleted automatically after 180 days."
+
+### One person's data
+
+**Settings → Privacy** (administrators only; `/api/cms/_privacy/*`, rate limited,
+every action audited): enter an email address and see what is stored about it — form
+messages whose email fields match (any case), the account with that address, and the
+audit entries made by or about it (including failed sign-ins with that address).
+
+- **Export as JSON** — everything above in one file, without password hashes, to hand to the person (right of access).
+- **Delete this person's data** (confirmation dialog) — the messages are deleted with their saved versions and search rows; the account is **disabled and anonymised**: name and email removed (the address becomes `deleted-<id>@anonymised.invalid`), password and invitation links removed, signed out everywhere; audit entries about them lose email, name and IP address but keep who-did-what. Not your own account, never the last active administrator.
+
+Why anonymise rather than delete the account: the site's history ("saved by …",
+the audit trail, uploaded files) refers to the account by id. Deleting the row would
+leave that history pointing at nobody; anonymising removes every personal detail and
+keeps the trail intact. The audit entry of the deletion itself records counts only,
+never the address.
+
+Not covered, by design: text an editor wrote into entries and files they uploaded
+(site content, not data about a visitor) and backups (rotate them).
+
 ## Pushbase, step by step
 
 The repo's root `Dockerfile` builds the playground as a staging site; a client
@@ -191,10 +393,11 @@ gone after every deploy — give staging a bucket too.
    `NUXT_CMS_MIGRATIONS_ON_START=true`).
 4. Connect the GitHub repo (`--preset nuxt` for a site, `dockerfile` for this
    repo's staging build) or upload with `pushbase deploy`.
-5. Open `/admin/setup?token=<NUXT_CMS_AUTH_SETUP_TOKEN>`: a fresh database asks
-   for the first administrator. Without a setup code anyone who finds the address
-   first could claim it — set one.
+5. Open `/admin/setup`: a fresh database asks for the first administrator, and for
+   the setup code — the line `Setup code: …` in the deploy log, or your
+   `NUXT_CMS_AUTH_SETUP_TOKEN` if you set one ([First run](#first-run-the-setup-code)).
 6. Add the custom domain and update `NUXT_CMS_PUBLIC_URL` to match.
 
-Backups: Pushbase backs up its managed Postgres; the bucket needs its own policy
-(see Media).
+Backups: Pushbase backs up its managed Postgres; the bucket needs its own policy,
+and `tinyzoo backup` takes your own copy of both ([Backups and
+restore](#backups-and-restore)).

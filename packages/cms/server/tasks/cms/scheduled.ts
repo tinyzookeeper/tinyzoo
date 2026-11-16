@@ -4,7 +4,7 @@
 export default defineTask({
   meta: { name: 'cms:scheduled', description: 'Announce scheduled entries that went live' },
   async run() {
-    const announced = await announceScheduled()
+    const announced = await runReportedTask('cms:scheduled', () => announceScheduled())
     return { result: { announced } }
   },
 })

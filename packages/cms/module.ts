@@ -92,6 +92,14 @@ export interface CmsModuleOptions {
    * only sends the webhooks and live updates for that moment. Default every minute.
    */
   scheduler?: { cron?: string }
+  /**
+   * How long personal data is kept (GDPR). A daily scheduled task enforces it.
+   *  - auditDays: delete audit-log entries older than this (default 365, 0 = keep forever).
+   *    Env NUXT_CMS_RETENTION_AUDIT_DAYS.
+   * Form submissions have their own: `defineForm(name, { retentionDays })`.
+   * The task runs daily (build-time cron: env CMS_RETENTION_CRON, default '17 3 * * *').
+   */
+  retention?: { auditDays?: number }
   /** Revisions (history, compare, restore): how many to keep per entry and language. 0 = off. */
   revisions?: { keep?: number }
   /**
@@ -160,6 +168,9 @@ export default defineNuxtModule<CmsModuleOptions>({
       nitro.experimental = { ...(nitro.experimental || {}), tasks: true }
       const cron = options.scheduler?.cron || process.env.CMS_SCHEDULER_CRON || '* * * * *'
       nitro.scheduledTasks = { ...(nitro.scheduledTasks || {}), [cron]: [...((nitro.scheduledTasks as any)?.[cron] ?? []), 'cms:scheduled'] }
+      // Retention (GDPR): delete form submissions and audit entries past their time, daily.
+      const retentionCron = process.env.CMS_RETENTION_CRON || '17 3 * * *'
+      nitro.scheduledTasks = { ...nitro.scheduledTasks, [retentionCron]: [...((nitro.scheduledTasks as any)?.[retentionCron] ?? []), 'cms:retention'] }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
       nitro.externals = nitro.externals || {}
@@ -186,6 +197,8 @@ declare module 'nitropack/types' {
   interface NitroRuntimeHooks {
     /** A content change was saved (see CmsChange). Runs on the instance that saved it. */
     'cms:change': (change: import('tinyzoo').CmsChange) => void | Promise<void>
+    /** A server error (5xx request, failed scheduled task, webhook that gave up), after the response. See CmsErrorReport. */
+    'cms:error': (report: import('tinyzoo').CmsErrorReport) => void | Promise<void>
   }
 }
 export {}
@@ -201,6 +214,8 @@ export {}
       redis: { url: options.redis?.url || '', prefix: options.redis?.prefix || '' },
       // Revisions kept per entry and language (0 = off). Env NUXT_CMS_REVISIONS_KEEP.
       revisions: { keep: options.revisions?.keep ?? 50 },
+      // Audit entries older than this are deleted daily (0 = keep). Env NUXT_CMS_RETENTION_AUDIT_DAYS.
+      retention: { auditDays: options.retention?.auditDays ?? 365 },
       // Empty defaults so NUXT_CMS_WEBHOOKS_URLS / NUXT_CMS_WEBHOOKS_SECRET bind at runtime.
       webhooks: {
         urls: (Array.isArray(options.webhooks?.urls) ? options.webhooks.urls.join(',') : options.webhooks?.urls) || '',

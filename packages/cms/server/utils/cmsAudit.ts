@@ -2,11 +2,11 @@
  * Audit log: who did what, when. Best effort — a failed audit write is logged and
  * never fails the request that triggered it.
  *
- * Actions: auth.setup, auth.login, auth.login_failed, auth.logout, auth.reset_request,
+ * Actions: auth.setup, auth.setup_failed, auth.login, auth.login_failed, auth.logout, auth.reset_request,
  * auth.reset, auth.invite_accept, account.update, account.password, user.invite,
  * user.resend, user.role, user.disable, user.enable, user.delete, entry.create,
  * entry.update, entry.delete, entry.publish, entry.unpublish, settings.update,
- * media.upload, media.delete.
+ * media.upload, media.delete, retention.purge, privacy.export, privacy.delete.
  */
 export async function audit(
   event: any,

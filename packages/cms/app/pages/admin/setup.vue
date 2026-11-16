@@ -4,7 +4,7 @@ const { t } = useCmsI18n()
 const { productName } = useCmsAdminHead()
 useHead({ title: () => t('auth.setupTitle') })
 
-const { data: status } = await useFetch<{ needsSetup: boolean; needsToken?: boolean }>('/api/cms/_auth/status')
+const { data: status } = await useFetch<{ needsSetup: boolean; needsToken?: boolean; codeIn?: 'config' | 'log' | null }>('/api/cms/_auth/status')
 if (status.value && !status.value.needsSetup) await navigateTo('/admin/login', { replace: true })
 
 const signedIn = useCmsSignedIn()
@@ -12,7 +12,9 @@ const signedIn = useCmsSignedIn()
 const route = useRoute()
 const linkToken = typeof route.query.token === 'string' ? route.query.token : ''
 const form = reactive({ name: '', email: '', password: '', token: linkToken })
-const askToken = computed(() => !!status.value?.needsToken && !linkToken)
+// Shown whenever one is needed (prefilled from the link), so a wrong code can be corrected.
+const askToken = computed(() => !!status.value?.needsToken)
+const tokenHint = computed(() => t(status.value?.codeIn === 'log' ? 'auth.setupTokenHintLog' : 'auth.setupTokenHint'))
 const errors = reactive<Record<string, string>>({})
 const error = ref('')
 const pending = ref(false)
@@ -54,8 +56,8 @@ async function submit() {
       <h1 class="mt-1 cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.setupTitle') }}</h1>
       <p class="mt-1 text-sm text-muted">{{ t('auth.setupSubtitle', { site: productName }) }}</p>
     </div>
-    <UFormField v-if="askToken" :label="t('auth.setupToken')" name="token" :description="t('auth.setupTokenHint')" :error="errors.token">
-      <UInput v-model="form.token" autocomplete="off" class="w-full" />
+    <UFormField v-if="askToken" :label="t('auth.setupToken')" name="token" :description="tokenHint" :error="errors.token">
+      <UInput v-model="form.token" autocomplete="off" autocapitalize="characters" spellcheck="false" class="w-full font-mono" />
     </UFormField>
     <UFormField :label="t('auth.name')" name="name" :error="errors.name">
       <UInput v-model="form.name" autocomplete="name" autofocus class="w-full" />

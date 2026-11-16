@@ -71,8 +71,8 @@ export default async function setup(project: TestProject) {
       cwd: playgroundDir,
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
-      // Scheduled entries are checked every 2 s in tests (every minute by default).
-      env: { ...process.env, NODE_ENV: 'production', CMS_SCHEDULER_CRON: '*/2 * * * * *' },
+      // Scheduled entries are checked every 2 s in tests (every minute by default), retention every 3 s (daily).
+      env: { ...process.env, NODE_ENV: 'production', CMS_SCHEDULER_CRON: '*/2 * * * * *', CMS_RETENTION_CRON: '*/3 * * * * *' },
     })
     if (res.status !== 0) {
       throw new Error(`Playground build failed:\n${res.stdout}\n${res.stderr}`)

@@ -3,8 +3,10 @@
 export default defineTask({
   meta: { name: 'cms:search-reindex', description: 'Rebuild the search index' },
   async run() {
-    const { db, reg } = useCms()
-    const rows = await rebuildSearchIndex(db, reg)
+    const rows = await runReportedTask('cms:search-reindex', async () => {
+      const { db, reg } = useCms()
+      return rebuildSearchIndex(db, reg)
+    })
     return { result: { rows } }
   },
 })

@@ -13,6 +13,8 @@
  *                               in one .tar.gz archive (--only a,b  --no-media  --with-revisions …)
  *   tinyzoo import <file>     → put such an archive into this site (empty target; --replace, --merge,
  *                               --allow-mismatch, --dry-run). Both are described in cli/export.ts / import.ts
+ *   tinyzoo backup [file]     → database (pg_dump) + media in one tar archive
+ *   tinyzoo restore <file>    → put such an archive back (--yes skips the question, --force replaces a database that has accounts)
  *   tinyzoo init <dir>        → a new website with the CMS inside (the starter: pages, news,
  *                               menus, a contact form, cs/en), ready for `pnpm install`
  * Run from the host app root (cwd = host). Designed to run under tsx.
@@ -119,9 +121,12 @@ switch (cmd) {
   case 'content:migrate': await (await import('./content-migrate')).contentMigrateCommand(await loadConfig(), process.argv.slice(3)); break
   case 'export': await runExport(process.argv.slice(3)).catch(reportFailure); break
   case 'import': await runImport(process.argv.slice(3)).then(() => {}, reportFailure); break
+  case 'backup': await (await import('./backup')).backup(process.argv.slice(3)); break
+  case 'restore': await (await import('./backup')).restore(process.argv.slice(3)); break
   default:
-    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import> [out] [--stdout] [--allow-drop] [--dry-run]\n'
+    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import|backup|restore> [out] [--stdout] [--allow-drop] [--dry-run]\n'
       + '       tinyzoo export <file.tar.gz> [--only a,b] [--no-media] [--with-revisions] [--with-submissions] [--force]\n'
-      + '       tinyzoo import <file.tar.gz> [--replace [--yes] | --merge] [--allow-mismatch] [--dry-run]')
+      + '       tinyzoo import <file.tar.gz> [--replace [--yes] | --merge] [--allow-mismatch] [--dry-run]\n'
+      + '       tinyzoo backup [file]  ·  tinyzoo restore <file> [--yes] [--force]')
     process.exit(1)
 }
