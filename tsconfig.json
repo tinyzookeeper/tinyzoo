@@ -27,8 +27,11 @@
     "packages/cms/starter/cms.config.ts",
     "packages/cms/starter/seed/**/*.ts",
     "test/**/*.ts",
+    "scripts/docs-check.ts",
+    "scripts/docs-check/**/*.ts",
     "vitest.config.ts"
   ],
   // A template for an app outside the workspace (scripts/consumer-check.mjs).
-  "exclude": ["test/consumer"]
+  // test/docs is checked by its own tsconfig (pnpm docs:check): its stubs declare Nuxt globals.
+  "exclude": ["test/consumer", "test/docs"]
 }

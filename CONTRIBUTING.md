@@ -4,7 +4,7 @@
 
 ```sh
 pnpm install
-pnpm check        # typecheck, tests (needs Postgres, see README), production build
+pnpm check        # typecheck, tests (needs Postgres, see docs/development.md), production build
 ```
 
 ## Changesets: every change to a package gets one
@@ -130,6 +130,22 @@ When it fails, the message says which step and why. The usual causes:
 | A manual step a site must do (documented in the changelog) | A hook file for that baseline, `scripts/upgrade-check/<ref>.mjs` (see the README there). |
 
 It is not part of `pnpm check`: it needs the network and a real install of two sites.
+
+## The docs check
+
+The code in `docs/guide/` and the README's example is type-checked, so the examples cannot drift from the code.
+A fenced block is checked when the line above it is a marker:
+
+```md
+<!-- check: news/cms.config.ts -->
+```
+
+`<group>/<path>`: blocks of one group form a small site (`cms.config.ts`, `app/**`,
+`server/**`); the flag `+` continues a file and `append-to-starter` adds the block to a
+copy of the starter's config. `pnpm docs:check` (also part of `pnpm typecheck`) loads each
+group's config for real, generates its typed client, type-checks the lot and names the
+Markdown file and line of any error. Only the `<script setup>` of a Vue block is checked,
+not its template. Details: `test/docs/README.md`.
 
 ## Releasing
 

@@ -1,0 +1,8 @@
+{
+  // Checks the code blocks of docs/guide that carry a `<!-- check: … -->` marker, after
+  // scripts/docs-check.ts has written them to .generated/ (see README.md in this folder).
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "composite": false },
+  "include": ["nuxt-stubs.d.ts", ".generated/**/*.ts"],
+  "exclude": []
+}

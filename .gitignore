@@ -10,3 +10,6 @@ dist
 
 # verification artifacts
 .playwright-mcp
+
+# docs check output (scripts/docs-check.ts)
+test/docs/.generated
