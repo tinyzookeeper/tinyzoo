@@ -61,6 +61,8 @@ export interface Page {
   slug: string
   status: 'draft' | 'published'
   sections: Array<{ id: string; type: 'hero'; heading: string; lead: string | null; image: CmsMedia | null; buttonLabel: string | null; buttonUrl: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'image'; image: CmsMedia | null; caption: string | null } | { id: string; type: 'cta'; text: string; buttonLabel: string | null; buttonUrl: string | null; highlighted: boolean | null } | { id: string; type: 'cards'; heading: string | null; items: Array<{ id: string; type: 'item'; title: string; text: string | null; image: CmsMedia | null }> }>
+  parent: string | null
+  position: number
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null
@@ -72,6 +74,10 @@ export interface Page {
   locales: Array<'cs' | 'en'>
   /** The item's address in each language it exists in. */
   paths: Partial<Record<'cs' | 'en', string>>
+  /** The page's address in the language served: its ancestors' address parts and its own, language prefix included. */
+  path: string | null
+  /** From the top of the tree down to this page (itself last): title and address of each. */
+  breadcrumbs: Array<{ title: string; path: string }>
 }
 export interface Post {
   id: string
@@ -143,6 +149,7 @@ export interface PageFilters {
   title?: string
   slug?: string
   status?: 'draft' | 'published'
+  parent?: string
   metaTitle?: string
   metaDescription?: string
 }
@@ -166,7 +173,7 @@ export interface TagFilters {
 /** Maps each collection to its item / sort keys / filters. */
 export type ContentSchema = {
   author: { item: Author, sort: 'createdAt' | 'updatedAt' | 'name' | 'position', filters: AuthorFilters }
-  page: { item: Page, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'metaTitle' | 'metaDescription', filters: PageFilters }
+  page: { item: Page, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'position' | 'metaTitle' | 'metaDescription', filters: PageFilters, tree: true }
   post: { item: Post, sort: 'createdAt' | 'updatedAt' | 'title' | 'slug' | 'status' | 'publishedAt' | 'metaTitle' | 'metaDescription', filters: PostFilters }
   tag: { item: Tag, sort: 'createdAt' | 'updatedAt' | 'name' | 'slug', filters: TagFilters }
 }

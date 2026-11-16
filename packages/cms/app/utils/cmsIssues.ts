@@ -31,7 +31,15 @@ export function cmsIssueMessage(issue: any, field: any, t: T): string {
     case 'invalid_value':
       return t('validation.pickOption')
     case 'unique':
+      // A page tree: the whole address is taken, not just the part.
+      if (issue.address) return t('validation.addressTaken', { address: issue.address, title: issue.otherTitle ?? '' })
       return t('validation.unique')
+    case 'tree_cycle':
+      return t('validation.treeCycle', { loop: Array.isArray(issue.loop) ? issue.loop.join(' → ') : '' })
+    case 'tree_depth':
+      return t('validation.treeDepth', { max: issue.maxDepth ?? '' })
+    case 'tree_parent_missing':
+      return t('validation.treeParentMissing')
     case 'redirect_loop':
       return t('validation.redirectLoop')
     case 'redirect_circle':
@@ -63,6 +71,14 @@ export function cmsDeleteFailure(err: any, t: T): { title: string; description?:
     const titles: string[] = (data.usedBy ?? []).map((u: any) => u.title ? `„${short(String(u.title))}“` : '').filter(Boolean)
     const items = titles.length ? titles.slice(0, 5).join(', ') + (titles.length > 5 ? '…' : '') : '—'
     return { title: t('list.inUseTitle'), description: t('list.inUseBody', { items }) }
+  }
+  // A page with pages under it: say which, so they can be moved first.
+  if (data?.code === 'has_children') {
+    const short = (s: string) => (s.length > 40 ? s.slice(0, 39).trimEnd() + '…' : s)
+    const titles: string[] = (data.children ?? []).map((c: any) => (c.title ? `„${short(String(c.title))}“` : '')).filter(Boolean)
+    const more = Number(data.count ?? titles.length) - titles.length
+    const items = titles.length ? titles.join(', ') + (more > 0 ? '…' : '') : '—'
+    return { title: t('tree.hasChildrenTitle'), description: t('tree.hasChildrenBody', { items }) }
   }
   return { title: t('list.deleteFailed'), description: cmsRequestError(err, t) }
 }

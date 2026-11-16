@@ -5,7 +5,9 @@ import type { CmsChange } from 'tinyzoo'
  * website can purge its cache (`cms.webhooks.urls`, env NUXT_CMS_WEBHOOKS_URLS — comma
  * separated; `cms.webhooks.secret` / NUXT_CMS_WEBHOOKS_SECRET signs them).
  *
- * Body: { delivery, type, entity, id, locale, public, paths, version, at } as JSON.
+ * Body: { delivery, type, entity, id, locale, public, paths, moved?, version, at } as JSON.
+ * `paths` are the website addresses to purge (old and new); in a page tree `moved` lists
+ * each address that changed with the write, `[{ id, locale, from, to }]`, the page's subpages included.
  * `delivery` is unique per change and the same on every retry: deduplicate on it
  * (it is inside the signed body, so a replay cannot pass as a new delivery).
  * Headers:

@@ -31,18 +31,30 @@ export function pathTemplateKeys(template: PathTemplate | undefined | null): str
   return [...new Set(all.flatMap((t) => [...t.matchAll(/:(\w+)/g)].map((m) => m[1]!)))]
 }
 
-/** A template filled in from a row ('/blog/:slug' → '/blog/hello'), or null when a part is empty. */
+/**
+ * A template filled in from a row ('/blog/:slug' → '/blog/hello'), or null when a part is
+ * empty. A part can be a list of address parts (a page tree: ['o-nas', 'tym']): each is
+ * escaped and they are joined with '/' ('/o-nas/tym').
+ */
 export function fillPathTemplate(template: string, row: Record<string, any>): string | null {
   let ok = true
   const out = template.replace(/:(\w+)/g, (_m, key: string) => {
     const v = row[key]
+    if (Array.isArray(v)) {
+      if (!v.length || v.some((x) => x === null || x === undefined || x === '')) ok = false
+      return v.map((x) => encodeURIComponent(String(x ?? ''))).join('/')
+    }
     if (v === null || v === undefined || v === '') ok = false
     return encodeURIComponent(String(v ?? ''))
   })
   return ok ? out : null
 }
 
-/** The full address of a row in one language (prefix included), or null. */
+/**
+ * The full address of a row in one language (prefix included), or null. This is the one
+ * place addresses are put together: a page tree passes its address parts as a list
+ * (`{ slug: ['o-nas', 'tym'] }`, see src/tree.ts) and gets the nested address.
+ */
 export function sitePath(locales: LocalesDef | null, template: PathTemplate | undefined | null, locale: string | null, row: Record<string, any>): string | null {
   const t = pathTemplateFor(template, locale, locales)
   const filled = t ? fillPathTemplate(t, row) : null

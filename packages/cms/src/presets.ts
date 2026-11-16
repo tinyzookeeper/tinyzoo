@@ -4,6 +4,7 @@ import { defineEntity, defineSingleton } from './entity'
 import { f } from './fields'
 import type { LocalizedText } from './i18n'
 import type { PathTemplate } from './paths'
+import { TREE_DEFAULT_MAX_DEPTH } from './tree'
 
 const SEO_GROUP = { en: 'Search & sharing', cs: 'Vyhledávače a sdílení', de: 'Suche & Teilen' }
 
@@ -57,8 +58,16 @@ export function linkBlock() {
  * `localized: true` makes the title, address and blocks translatable (needs
  * `defineLocales`). `path` is the page's address on the website (default '/:slug'),
  * or one per language: { cs: '/:slug', en: '/pages/:slug' }.
+ *
+ * `tree: true` lets pages sit under each other: every page gets a `parent` and a
+ * `position` among its siblings, and its address is its ancestors' address parts and its
+ * own ('/o-nas/tym', in each language its own translated parts). Moving a page moves
+ * everything below it and leaves redirects (through `defineRedirects`); deleting a page
+ * that has subpages is refused. Pages can be nested 4 levels deep, or `{ maxDepth }`
+ * (up to 10). Opt-in: a site that does not set it keeps its flat pages; turning it on
+ * later needs one migration (`tinyzoo generate`).
  */
-export function definePages<const B extends Record<string, BlockDef<any>>>(opts: {
+export function definePages<const B extends Record<string, BlockDef<any>>, const T extends boolean | { maxDepth?: number } | undefined = undefined>(opts: {
   blocks: B
   name?: string
   label?: LocalizedText
@@ -66,35 +75,55 @@ export function definePages<const B extends Record<string, BlockDef<any>>>(opts:
   description?: LocalizedText
   localized?: boolean
   path?: PathTemplate
+  tree?: T
 }) {
   const loc = <T extends { localized: () => any }>(d: T): T => (opts.localized ? d.localized() : d)
   const path = opts.path ?? '/:slug'
-  return defineEntity(opts.name ?? 'page', {
+  const tree = opts.tree ? { maxDepth: typeof opts.tree === 'object' ? opts.tree.maxDepth ?? TREE_DEFAULT_MAX_DEPTH : TREE_DEFAULT_MAX_DEPTH } : null
+  // The page tree's own fields (a page points at its parent: itself, so a forward reference).
+  const self: { entity: any } = { entity: null }
+  const treeFields = (tree ? treePageFields(() => self.entity) : {}) as [T] extends [false | undefined] ? {} : ReturnType<typeof treePageFields>
+  const entity = defineEntity(opts.name ?? 'page', {
     label: opts.label ?? { en: 'Pages', cs: 'Stránky', de: 'Seiten' },
     labelSingular: opts.labelSingular ?? { en: 'Page', cs: 'Stránka', de: 'Seite' },
     description: opts.description ?? { en: 'Pages of the website, built from blocks.', cs: 'Stránky webu poskládané z bloků.', de: 'Die Seiten der Website, aus Blöcken aufgebaut.' },
     icon: 'i-lucide-file',
     titleField: 'title',
-    admin: { list: { columns: ['title', 'status'] } },
+    admin: { list: { columns: ['title', 'status'], ...(tree ? { orderField: 'position' as any } : {}) } },
     fields: {
       title: loc(f.text({ required: true })).label({ en: 'Title', cs: 'Název', de: 'Titel' }),
-      slug: loc(f.slug({ from: 'title', unique: true })).label({ en: 'URL address', cs: 'Adresa (URL)', de: 'Adresse (URL)' }),
+      // In a tree the address part only has to be unique under its parent: the whole address is checked instead.
+      slug: loc(f.slug({ from: 'title', unique: !tree })).label({ en: 'URL address', cs: 'Adresa (URL)', de: 'Adresse (URL)' }),
       status: f.select({
         options: ['draft', 'published'] as const,
         default: 'draft',
         labels: { draft: { en: 'Draft', cs: 'Koncept', de: 'Entwurf' }, published: { en: 'Published', cs: 'Zveřejněno', de: 'Veröffentlicht' } },
       }),
       sections: loc(f.blocks(opts.blocks)).label({ en: 'Content', cs: 'Obsah', de: 'Inhalte' }),
+      ...treeFields,
       ...seo({ localized: opts.localized }),
     },
     publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', preview: path },
     content: {
       public: true,
-      published: (t) => eq(t.status, 'published'),
+      published: (t: any) => eq(t.status, 'published'),
       slug: 'slug',
       path,
     },
+    ...((tree ? { tree: { parent: 'parent', order: 'position', maxDepth: tree.maxDepth } } : {}) as {}),
   })
+  self.entity = entity
+  return entity
+}
+
+/** `parent` and `position`, the fields `definePages({ tree: true })` adds. */
+function treePageFields(entity: () => any) {
+  return {
+    parent: f.relation({ to: entity, kind: 'many-to-one', onDelete: 'restrict' }).position('sidebar')
+      .label({ en: 'Parent page', cs: 'Nadřazená stránka', de: 'Übergeordnete Seite' })
+      .help({ en: 'The page this one sits under. Its address continues the parent’s: /about/team.', cs: 'Stránka, pod kterou tato leží. Adresa pokračuje za adresou nadřazené: /o-nas/tym.', de: 'Die Seite, unter der diese liegt. Die Adresse setzt die der übergeordneten fort: /ueber-uns/team.' }),
+    position: f.number().withDefault(0).label({ en: 'Position', cs: 'Pořadí', de: 'Reihenfolge' }),
+  }
 }
 
 /**

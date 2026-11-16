@@ -109,6 +109,17 @@ export interface CmsModuleOptions {
    */
   webhooks?: { urls?: string | string[]; secret?: string }
   /**
+   * Addresses on the website that are not entries (the news list, the contact page) so
+   * they belong in /sitemap.xml: full addresses (language prefix included), or one object
+   * per page with its address in each language, which makes them hreflang alternates:
+   *
+   *   sitemap: { paths: ['/kontakt', { cs: '/aktuality', en: '/en/news' }] }
+   *
+   * For addresses that come from data, use the `cms:sitemap` Nitro hook instead (it can
+   * push entries). Both end up in /sitemap.xml and /api/content/_sitemap.
+   */
+  sitemap?: { paths?: (string | Record<string, string>)[] }
+  /**
    * Website forms (defineForm):
    *  - notifyTo: fallback recipients of new submissions, comma separated (env NUXT_CMS_FORMS_NOTIFY_TO)
    *  - turnstileSecret: Cloudflare Turnstile secret; when set, every submission must
@@ -144,6 +155,16 @@ export interface CmsModuleOptions {
      */
     publicUrl?: string
   }
+}
+
+/** `cms.sitemap.paths` checked at build time: each is an address starting with one "/" (or a map of them per language). */
+function sitemapPaths(paths: (string | Record<string, string>)[] | undefined): (string | Record<string, string>)[] {
+  const ok = (p: unknown) => typeof p === 'string' && /^\/(?!\/)[^\s?#]*$/.test(p)
+  for (const p of paths ?? []) {
+    const all = typeof p === 'string' ? [p] : Object.values(p ?? {})
+    if (!all.length || !all.every(ok)) throw new Error(`[tinyzoo] sitemap.paths: ${JSON.stringify(p)} must be an address starting with "/" (no query or fragment), or an object of them per language.`)
+  }
+  return paths ?? []
 }
 
 export default defineNuxtModule<CmsModuleOptions>({
@@ -197,6 +218,8 @@ declare module 'nitropack/types' {
   interface NitroRuntimeHooks {
     /** A content change was saved (see CmsChange). Runs on the instance that saved it. */
     'cms:change': (change: import('tinyzoo').CmsChange) => void | Promise<void>
+    /** The sitemap is being built: push entries for addresses that are not entries (see CmsSitemapEntry). Runs at most once a minute. */
+    'cms:sitemap': (entries: import('tinyzoo').CmsSitemapEntry[]) => void | Promise<void>
     /** A server error (5xx request, failed scheduled task, webhook that gave up), after the response. See CmsErrorReport. */
     'cms:error': (report: import('tinyzoo').CmsErrorReport) => void | Promise<void>
   }
@@ -221,6 +244,7 @@ export {}
         urls: (Array.isArray(options.webhooks?.urls) ? options.webhooks.urls.join(',') : options.webhooks?.urls) || '',
         secret: options.webhooks?.secret || '',
       },
+      sitemap: { paths: sitemapPaths(options.sitemap?.paths) },
       auth: {
         mode: options.auth?.mode || 'builtin',
         trustedProxies: options.auth?.trustedProxies ?? 1,

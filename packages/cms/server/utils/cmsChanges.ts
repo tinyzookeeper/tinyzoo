@@ -1,4 +1,4 @@
-import { and, eq, fillPathTemplate, inArray, pathTemplateKeys, sitePath, sitePrefix, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from 'tinyzoo'
+import { and, eq, fillPathTemplate, indexTree, inArray, pathTemplateKeys, sitePath, sitePrefix, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 
 /**
  * One place every content write reports to. A change:
@@ -39,12 +39,33 @@ export const pathKeys = pathTemplateKeys
  * collection, and its `content.published` rule holds — the same rule the content
  * API applies, scheduling included) and its addresses in every language.
  */
-export interface ChangeSnapshot { live: boolean; paths: { locale: string | null; path: string }[] }
+export interface ChangeSnapshot {
+  live: boolean
+  paths: { locale: string | null; path: string }[]
+  /** Page tree: which of the entry and everything below it are live (the entry's own pages' addresses are in `paths`). */
+  liveIds?: string[]
+}
 
-export async function changeSnapshot(e: CmsEntity, id: string): Promise<ChangeSnapshot> {
+/**
+ * In a page tree an entry's reach is its whole subtree: unpublishing, moving or renaming
+ * it changes what visitors see of every page below it, so `paths` lists theirs too.
+ */
+async function treeSnapshot(db: any, e: CmsEntity, id: string): Promise<ChangeSnapshot> {
+  const { reg } = useCms()
+  const nodes = await loadTreeNodes(db, reg, e)
+  const ids = subtreeIds(nodes, id)
+  const live = await liveAmong(db, e, ids)
+  const index = indexTree(nodes)
+  const paths = ids.filter((i) => live.has(i)).flatMap((i) => treeVersions(reg, e, index, i).map((v) => ({ locale: v.locale, path: v.loc })))
+  return { live: live.has(id), paths, liveIds: [...live] }
+}
+
+export async function changeSnapshot(e: CmsEntity, id: string, tx?: any): Promise<ChangeSnapshot> {
   const none: ChangeSnapshot = { live: false, paths: [] }
   if (!e.content?.public) return none
-  const { db, reg } = useCms()
+  const { db: appDb, reg } = useCms()
+  const db = tx ?? appDb
+  if (e.tree) return treeSnapshot(db, e, id)
   const keys = !e.singleton ? pathKeys(e.content.path).filter((k) => e.table[k]) : []
   const cols: Record<string, any> = { id: e.table.id }
   for (const k of keys) cols[k] = e.table[k]
@@ -82,6 +103,8 @@ export interface ReportChange {
   after?: Record<string, any> | null
   /** The language a translation change is about. */
   locale?: string | null
+  /** Page tree: addresses that moved with this write (see `CmsChange.moved`). */
+  moved?: { id: string; locale: string | null; from: string; to: string }[]
   /** Nothing was saved (a scheduled entry went live): no revision. */
   noRevision?: boolean
 }
@@ -106,6 +129,7 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
       locale,
       public: before.live || after.live,
       paths: [...paths],
+      ...(r.moved?.length ? { moved: r.moved } : {}),
       by: event?.context?.cmsUser?.id ?? null,
       version: r.after?.updatedAt ? new Date(r.after.updatedAt).toISOString() : null,
       at: new Date().toISOString(),

@@ -8,6 +8,8 @@ beforeAll(async () => { admin = await signIn('admin') })
 beforeEach(() => truncateAll(db))
 afterAll(() => db.end())
 
+// What the playground adds to every sitemap: cms.sitemap.paths and the cms:sitemap hook (page-tree.spec.ts tests them).
+const FIXED = new Set(['/kontakt', '/aktuality', '/en/news', '/z-hooku'])
 const raw = (path: string) => fetch(anonymous().baseURL + path, { redirect: 'manual' })
 
 describe('redirects', () => {
@@ -41,7 +43,7 @@ describe('sitemap', () => {
     await admin.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { slug: 'sourdough-bread' } })
     await createPost(admin, { author: author.id, slug: 'koncept' }) // draft: not listed
 
-    const json = (await anonymous().get('/api/content/_sitemap')).body.entries
+    const json = (await anonymous().get('/api/content/_sitemap')).body.entries.filter((e: any) => !FIXED.has(e.loc))
     expect(json.map((e: any) => e.loc).sort()).toEqual(['/blog/kvaskovy-chleb', '/en/blog/sourdough-bread'])
     expect(json[0].alternates).toHaveLength(2)
 
@@ -57,7 +59,7 @@ describe('sitemap', () => {
     // Pages: { cs: '/:slug', en: '/pages/:slug' } in the playground.
     const page = (await admin.post('/api/cms/page', { title: 'O nás', slug: 'o-nas', status: 'published', sections: [] })).body.row
     await admin.request('PATCH', `/api/cms/page/${page.id}?locale=en`, { json: { title: 'About', slug: 'about' } })
-    const entries = (await anonymous().get('/api/content/_sitemap')).body.entries
+    const entries = (await anonymous().get('/api/content/_sitemap')).body.entries.filter((e: any) => !FIXED.has(e.loc))
     expect(entries.map((e: any) => e.loc).sort()).toEqual(['/en/pages/about', '/o-nas'])
   })
 })

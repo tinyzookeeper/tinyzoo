@@ -1,12 +1,12 @@
-import { and, inArray, sitePath } from 'tinyzoo'
-import type { CmsEntity, CmsRegistry } from 'tinyzoo'
+import { and, indexTree, inArray, sitePath } from 'tinyzoo'
+import type { CmsEntity, CmsRegistry, CmsSitemapEntry } from 'tinyzoo'
 
 /**
  * Sitemap entries for every public collection with `content.path` (e.g.
  * '/blog/:slug'): published items only, one entry per language the item exists in,
  * each listing its language alternates (for hreflang).
  */
-export interface SitemapEntry { loc: string; locale: string | null; lastmod: string; alternates: { locale: string; loc: string }[] }
+export type SitemapEntry = CmsSitemapEntry
 
 const MEMO_MS = 60_000
 let memo: { at: number; entries: SitemapEntry[] } | null = null
@@ -33,37 +33,105 @@ export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<Sitemap
     const rows: any[] = await db.select(cols).from(e.table).where(publishedCond(e)).limit(50_000)
     if (!rows.length) continue
     const translations = await translationsByParent(db, reg, e, rows.map((r) => r.id), keys)
+    // A page tree: addresses are the chain of ancestors' address parts (live pages only: publishedCond checks the ancestors).
+    const treeIndex = e.tree ? indexTree(await loadTreeNodes(db, reg, e)) : null
     for (const row of rows) {
       const versions: { locale: string | null; loc: string; lastmod: Date }[] = []
-      const defaultLoc = sitePath(reg.locales, e.content.path, reg.locales?.default ?? null, row)
-      if (defaultLoc) versions.push({ locale: reg.locales?.default ?? null, loc: defaultLoc, lastmod: row.updatedAt })
-      for (const tr of translations.get(row.id) ?? []) {
-        // Untranslated fields (e.g. the slug) fall back to the default language.
-        const merged = { ...row }
-        for (const k of keys) if (tr[k] !== null && tr[k] !== undefined && tr[k] !== '') merged[k] = tr[k]
-        const loc = sitePath(reg.locales, e.content.path, tr.locale, merged)
-        if (loc) versions.push({ locale: tr.locale, loc, lastmod: tr.updatedAt > row.updatedAt ? tr.updatedAt : row.updatedAt })
+      if (treeIndex) {
+        const lastmods = new Map<string | null, Date>([[reg.locales?.default ?? null, row.updatedAt]])
+        for (const tr of translations.get(row.id) ?? []) lastmods.set(tr.locale, tr.updatedAt > row.updatedAt ? tr.updatedAt : row.updatedAt)
+        for (const v of treeVersions(reg, e, treeIndex, row.id)) versions.push({ locale: v.locale, loc: v.loc, lastmod: lastmods.get(v.locale) ?? row.updatedAt })
+      }
+      else {
+        const defaultLoc = sitePath(reg.locales, e.content.path, reg.locales?.default ?? null, row)
+        if (defaultLoc) versions.push({ locale: reg.locales?.default ?? null, loc: defaultLoc, lastmod: row.updatedAt })
+        for (const tr of translations.get(row.id) ?? []) {
+          // Untranslated fields (e.g. the slug) fall back to the default language.
+          const merged = { ...row }
+          for (const k of keys) if (tr[k] !== null && tr[k] !== undefined && tr[k] !== '') merged[k] = tr[k]
+          const loc = sitePath(reg.locales, e.content.path, tr.locale, merged)
+          if (loc) versions.push({ locale: tr.locale, loc, lastmod: tr.updatedAt > row.updatedAt ? tr.updatedAt : row.updatedAt })
+        }
       }
       const alternates = reg.locales ? versions.map((v) => ({ locale: v.locale!, loc: v.loc })) : []
       for (const v of versions) out.push({ loc: v.loc, locale: v.locale, lastmod: new Date(v.lastmod).toISOString(), alternates })
     }
   }
-  memo = { at: Date.now(), entries: out }
+  out.push(...fixedPathEntries(reg))
+  // A site adds addresses of its own (the news list, pages that come from data): they are
+  // kept with the rest for the minute the sitemap is memoised.
+  try {
+    await useNitroApp().hooks.callHook('cms:sitemap', out)
+  }
+  catch (err) {
+    console.error('[cms] cms:sitemap hook failed', err)
+  }
+  const checked = cleanSitemap(out)
+  memo = { at: Date.now(), entries: checked }
+  return checked
+}
+
+/** `cms.sitemap.paths`: fixed addresses; an object lists one page in several languages (hreflang alternates). */
+function fixedPathEntries(reg: CmsRegistry): SitemapEntry[] {
+  const configured: (string | Record<string, string>)[] = (useRuntimeConfig().cms as any)?.sitemap?.paths ?? []
+  const out: SitemapEntry[] = []
+  for (const p of configured) {
+    if (typeof p === 'string') {
+      out.push({ loc: p, locale: null, lastmod: null, alternates: [] })
+      continue
+    }
+    const versions = Object.entries(p).filter(([l]) => !reg.locales || reg.locales.locales.includes(l))
+    const alternates = versions.map(([locale, loc]) => ({ locale, loc }))
+    for (const [locale, loc] of versions) out.push({ loc, locale, lastmod: null, alternates })
+  }
+  return out
+}
+
+/** Entries from the hook are trusted no further than needed: an address on this site, once. */
+function cleanSitemap(entries: SitemapEntry[]): SitemapEntry[] {
+  const seen = new Set<string>()
+  const out: SitemapEntry[] = []
+  for (const x of entries) {
+    if (!x || typeof x.loc !== 'string' || !/^\/(?!\/)[^\s?#]*$/.test(x.loc) || seen.has(x.loc)) continue
+    seen.add(x.loc)
+    out.push({ loc: x.loc, locale: x.locale ?? null, lastmod: x.lastmod ? new Date(x.lastmod).toISOString() : null, alternates: Array.isArray(x.alternates) ? x.alternates : [] })
+  }
   return out
 }
 
 /**
- * Each item's address in every language it exists in ({ cs: '/srovnani', en: '/en/comparison' }),
- * from the default-language row and its translations, so a website can link to
- * the same item in another language (a language switcher, hreflang links).
+ * THE function that says where an entry is on the website: its current address in every
+ * language it exists in ({ cs: '/o-nas/tym', en: '/en/about/team' }), from the
+ * default-language row and its translations. A page tree gives the nested address (its
+ * ancestors' address parts, each language's own, falling back to the default). For a
+ * site without languages the one address is under the key ''. Used by the item
+ * `paths` of the content API, so a website can link to the same item in another language
+ * (a language switcher, hreflang links), and by links that follow their target.
+ * Entries that are not at an address are left out.
  */
 export async function localePaths(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[]): Promise<Map<string, Record<string, string>>> {
   const out = new Map<string, Record<string, string>>()
-  if (!reg.locales || !e.content?.path || !ids.length) return out
+  if (!e.content?.path || !ids.length) return out
+  if (e.tree) {
+    const index = indexTree(await loadTreeNodes(db, reg, e))
+    for (const id of ids) {
+      const paths: Record<string, string> = {}
+      for (const v of treeVersions(reg, e, index, id)) paths[v.locale ?? ''] = v.loc
+      if (index.has(id)) out.set(id, paths)
+    }
+    return out
+  }
   const keys = pathKeys(e.content.path).filter((k) => e.table[k])
   const cols: Record<string, any> = { id: e.table.id }
   for (const k of keys) cols[k] = e.table[k]
   const rows: any[] = await db.select(cols).from(e.table).where(inArray(e.table.id, ids))
+  if (!reg.locales) {
+    for (const row of rows) {
+      const base = sitePath(null, e.content.path, null, row)
+      out.set(row.id, base ? { '': base } : {})
+    }
+    return out
+  }
   const translations = await translationsByParent(db, reg, e, ids, keys)
   for (const row of rows) {
     const paths: Record<string, string> = {}

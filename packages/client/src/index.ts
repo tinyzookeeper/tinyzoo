@@ -72,8 +72,24 @@ export interface SearchItem {
 
 export interface SearchResponse { query: string; items: SearchItem[]; total: number }
 
+/** One page of the published page tree (`cms.page.tree()`): a navigation entry with the pages below it. */
+export interface CmsTreeNode {
+  id: string
+  title: string
+  /** Its address in the language asked for (language prefix included). */
+  path: string | null
+  children: CmsTreeNode[]
+}
+
+export interface TreeOptions {
+  /** Language to serve. Pages not translated into it show the default language's title and address. */
+  locale?: string
+}
+
 export interface CollectionSpec {
   item: unknown
+  /** Set (by the generated types) for a page tree: the collection then has `tree()`. */
+  tree?: boolean
   sort?: string
   // `object` (not Record<string, unknown>) so a generated `interface XFilters`
   // still satisfies it — interfaces don't satisfy index-signature constraints.
@@ -81,12 +97,21 @@ export interface CollectionSpec {
 }
 export type AnyContentSchema = Record<string, CollectionSpec>
 
-export interface Collection<C extends CollectionSpec> {
+export type Collection<C extends CollectionSpec> = {
   /** List published items, paginated, filtered and sorted. */
   list: (params?: ListParams<Extract<C['sort'], string>, C['filters']>) => Promise<ListResponse<C['item']>>
-  /** Fetch a single published item by slug (falling back to id). Throws CmsError on 404. */
+  /**
+   * Fetch a single published item by slug (falling back to id). Throws CmsError on 404.
+   * In a page tree pass the address, from the top down: `get('o-nas/tym')` (or `'/o-nas/tym'`
+   * without the language prefix); the item then carries `path` and `breadcrumbs`.
+   */
   get: (slugOrId: string, options?: GetOptions) => Promise<C['item']>
-}
+} & (C extends { tree: true }
+  ? {
+      /** The published page tree for navigation: top level first, each page with its children. */
+      tree: (options?: TreeOptions) => Promise<CmsTreeNode[]>
+    }
+  : unknown)
 
 export type CmsClient<S extends AnyContentSchema, G extends object = Record<string, unknown>> =
   & { readonly [K in keyof S]: Collection<S[K]> }
@@ -162,10 +187,15 @@ export function createCmsClient<S extends AnyContentSchema, G extends object = R
       return request(`/api/content/${seg}`, { ...((filter as Record<string, unknown>) ?? {}), ...rest })
     }
     const get = async (slugOrId: string, opts: GetOptions = {}) => {
+      // A page tree's address has slashes: sent as one escaped segment (%2F), which the server reads as the chain.
       const res = await request<{ item: unknown }>(`/api/content/${seg}/${encodeURIComponent(slugOrId)}`, { locale: opts.locale })
       return res.item
     }
-    return { list, get } as unknown as Collection<CollectionSpec>
+    const tree = async (opts: TreeOptions = {}) => {
+      const res = await request<{ items: CmsTreeNode[] }>(`/api/content/_tree/${seg}`, { locale: opts.locale })
+      return res.items
+    }
+    return { list, get, tree } as unknown as Collection<CollectionSpec>
   }
 
   const global = async (name: string, opts: GetOptions = {}) => {

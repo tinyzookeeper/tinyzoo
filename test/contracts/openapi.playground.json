@@ -177,6 +177,7 @@
                 "title",
                 "slug",
                 "status",
+                "position",
                 "metaTitle",
                 "metaDescription"
               ],
@@ -245,6 +246,14 @@
             }
           },
           {
+            "name": "parent",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "metaTitle",
             "in": "query",
             "description": "Exact-match filter.",
@@ -281,7 +290,8 @@
         "tags": [
           "page"
         ],
-        "summary": "Get one page by `slug` (falling back to id)",
+        "summary": "Get one page by its address (the chain of address parts, o-nas/tym) or id",
+        "description": "The key is the chain of address parts from the top of the tree down, as one path segment with the slashes escaped (`o-nas%2Ftym`), looked up in the language asked for and then in the default one. A page under an unpublished page is not found.",
         "parameters": [
           {
             "name": "slug",
@@ -706,6 +716,55 @@
           },
           "404": {
             "description": "Not found or not published"
+          }
+        }
+      }
+    },
+    "/api/content/_tree/page": {
+      "get": {
+        "operationId": "treePage",
+        "tags": [
+          "page"
+        ],
+        "summary": "The page tree, for navigation",
+        "description": "Live pages only, top level first, each level in the order editors arranged it. A page under an unpublished page is left out with everything below it.",
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to serve. Untranslated fields fall back to the default language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ],
+              "default": "cs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CmsTreeNode"
+                      }
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
           }
         }
       }
@@ -1475,6 +1534,15 @@
               }
             }
           },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "position": {
+            "type": "integer"
+          },
           "metaTitle": {
             "type": [
               "string",
@@ -1530,6 +1598,33 @@
               "type": "string"
             },
             "description": "The item's address in each language it exists in."
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The page's address in the language served: its ancestors' address parts and its own (/o-nas/tym), language prefix included."
+          },
+          "breadcrumbs": {
+            "type": "array",
+            "description": "From the top of the tree down to this page (the page itself last): title and address of each, in the language served. Only live pages.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title",
+                "path"
+              ]
+            }
           }
         },
         "required": [
@@ -1538,6 +1633,8 @@
           "slug",
           "status",
           "sections",
+          "parent",
+          "position",
           "metaTitle",
           "metaDescription",
           "ogImage",
@@ -1545,7 +1642,9 @@
           "updatedAt",
           "locale",
           "locales",
-          "paths"
+          "paths",
+          "path",
+          "breadcrumbs"
         ]
       },
       "PageList": {
@@ -1815,6 +1914,37 @@
           "total",
           "page",
           "limit"
+        ]
+      },
+      "CmsTreeNode": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CmsTreeNode"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "path",
+          "children"
         ]
       },
       "Navigation": {

@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
     const alt = e.alternates.length > 1
       ? e.alternates.map((a) => `\n    <xhtml:link rel="alternate" hreflang="${esc(a.locale)}" href="${esc(base + a.loc)}"/>`).join('')
       : ''
-    return `  <url>\n    <loc>${esc(base + e.loc)}</loc>\n    <lastmod>${e.lastmod}</lastmod>${alt}\n  </url>`
+    return `  <url>\n    <loc>${esc(base + e.loc)}</loc>${e.lastmod ? `\n    <lastmod>${e.lastmod}</lastmod>` : ''}${alt}\n  </url>`
   })
   setResponseHeader(event, 'content-type', 'application/xml; charset=utf-8')
   setResponseHeader(event, 'cache-control', 'public, max-age=3600')

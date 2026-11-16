@@ -90,7 +90,7 @@ function pascalRef(name: string): string {
 }
 
 /** An object schema for a list of projected fields, with id + optional timestamps. */
-function objectSchema(fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null; paths?: boolean }): JsonSchema {
+function objectSchema(fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null; paths?: boolean; tree?: boolean }): JsonSchema {
   const properties: JsonSchema = { id: { type: 'string', format: 'uuid' } }
   const required = ['id']
   for (const f of fields) {
@@ -110,6 +110,15 @@ function objectSchema(fields: ContentField[], opts: { timestamps: boolean; local
       properties.paths = { type: 'object', additionalProperties: { type: 'string' }, description: "The item's address in each language it exists in." }
       required.push('paths')
     }
+  }
+  if (opts.tree) {
+    properties.path = { type: ['string', 'null'], description: "The page's address in the language served: its ancestors' address parts and its own (/o-nas/tym), language prefix included." }
+    properties.breadcrumbs = {
+      type: 'array',
+      description: 'From the top of the tree down to this page (the page itself last): title and address of each, in the language served. Only live pages.',
+      items: { type: 'object', additionalProperties: false, properties: { title: { type: 'string' }, path: { type: 'string' } }, required: ['title', 'path'] },
+    }
+    required.push('path', 'breadcrumbs')
   }
   return { type: 'object', additionalProperties: false, properties, required }
 }
@@ -205,7 +214,7 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
   const paths: JsonSchema = {}
   const tag = (name: string) => name
   for (const shape of model.entities) {
-    schemas[shape.pascal] = objectSchema(shape.fields, { timestamps: true, locales: shape.locales, paths: shape.paths })
+    schemas[shape.pascal] = objectSchema(shape.fields, { timestamps: true, locales: shape.locales, paths: shape.paths, tree: shape.tree })
     schemas[`${shape.pascal}List`] = {
       type: 'object',
       additionalProperties: false,
@@ -236,11 +245,42 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
       get: {
         operationId: `get${shape.pascal}`,
         tags: [tag(shape.name)],
-        summary: `Get one ${shape.name} by ${lookupBy}`,
+        summary: `Get one ${shape.name} by ${shape.tree ? 'its address (the chain of address parts, o-nas/tym) or id' : lookupBy}`,
+        description: shape.tree ? 'The key is the chain of address parts from the top of the tree down, as one path segment with the slashes escaped (`o-nas%2Ftym`), looked up in the language asked for and then in the default one. A page under an unpublished page is not found.' : undefined,
         parameters: [{ name: 'slug', in: 'path', required: true, schema: { type: 'string' } }, ...localeParam(shape)],
         responses: {
           200: { description: 'OK', content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { item: REF(shape.pascal) }, required: ['item'] } } } },
           404: { description: 'Not found or not published' },
+          ...(tokenAuth ? { 401: { description: 'Missing or invalid API token' } } : {}),
+        },
+      },
+    }
+  }
+
+  const treeNodes = model.entities.filter((s) => s.tree)
+  if (treeNodes.length) {
+    schemas.CmsTreeNode = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        title: { type: 'string' },
+        path: { type: ['string', 'null'] },
+        children: { type: 'array', items: REF('CmsTreeNode') },
+      },
+      required: ['id', 'title', 'path', 'children'],
+    }
+  }
+  for (const shape of treeNodes) {
+    paths[`/api/content/_tree/${shape.name}`] = {
+      get: {
+        operationId: `tree${shape.pascal}`,
+        tags: [shape.name],
+        summary: `The ${shape.name} tree, for navigation`,
+        description: 'Live pages only, top level first, each level in the order editors arranged it. A page under an unpublished page is left out with everything below it.',
+        parameters: localeParam(shape),
+        responses: {
+          200: { description: 'OK', content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { items: { type: 'array', items: REF('CmsTreeNode') } }, required: ['items'] } } } },
           ...(tokenAuth ? { 401: { description: 'Missing or invalid API token' } } : {}),
         },
       },

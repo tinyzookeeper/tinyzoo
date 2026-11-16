@@ -23,8 +23,9 @@ const publish = computed(() => meta.value?.publish)
 const orderField = computed(() => (meta.value?.orderField as string | null) ?? null)
 
 // ── how this list looks (from the content, or admin.list.layout) ──
-// table: rows · grid: picture cards (logos, albums) · dated: Upcoming / Past by date
-const layout = computed<'table' | 'grid' | 'dated'>(() => meta.value?.listLayout ?? 'table')
+// table: rows · grid: picture cards (logos, albums) · dated: Upcoming / Past by date ·
+// tree: pages under pages (CmsTreeList brings its own data, search and arranging)
+const layout = computed<'table' | 'grid' | 'dated' | 'tree'>(() => meta.value?.listLayout ?? 'table')
 const listColumns = computed<string[]>(() => meta.value?.listColumns ?? [])
 const dateKey = computed(() => (layout.value === 'dated' ? listColumns.value.find((k) => fieldOf(k)?.type === 'datetime') : undefined))
 
@@ -418,6 +419,10 @@ const tabs = computed(() => [
       </UButton>
     </template>
 
+    <!-- a page tree: indented pages, dragged or moved into place -->
+    <CmsTreeList v-if="layout === 'tree'" :entity="entity" :meta="meta" :can-create="canCreate" />
+
+    <template v-else>
     <!-- In progress: drafts and scheduled entries, what people come back for -->
     <section v-if="showProgress && !arranging" class="mb-8" :aria-label="t('list.inProgress')">
       <h2 class="cms-label mb-2">{{ t('list.inProgress') }}</h2>
@@ -686,6 +691,8 @@ const tabs = computed(() => [
         <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-right" :aria-label="t('common.next')" :disabled="page >= pages" @click="page++" />
       </div>
     </div>
+
+    </template>
 
     <!-- a form's messages are deleted after a while (defineForm retentionDays) -->
     <p v-if="meta?.preset === 'form' && meta?.retentionDays" class="mt-3 flex items-center gap-1.5 text-xs text-muted">

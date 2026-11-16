@@ -49,13 +49,19 @@ function fieldLine(f: ContentField): string {
   return `  ${f.key}: ${value}`
 }
 
-function objectInterface(name: string, fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null; paths?: boolean }): string {
+function objectInterface(name: string, fields: ContentField[], opts: { timestamps: boolean; locales?: string[] | null; paths?: boolean; tree?: boolean }): string {
   const lines = ['  id: string', ...fields.map(fieldLine)]
   if (opts.timestamps) lines.push('  createdAt: string', '  updatedAt: string')
   if (opts.locales) {
     const union = opts.locales.map((l) => `'${l}'`).join(' | ')
     lines.push(`  /** The language this item is served in. */\n  locale: ${union}`, `  /** Languages this item exists in (the default and every translation). */\n  locales: Array<${union}>`)
     if (opts.paths) lines.push(`  /** The item's address in each language it exists in. */\n  paths: Partial<Record<${union}, string>>`)
+  }
+  if (opts.tree) {
+    lines.push(
+      "  /** The page's address in the language served: its ancestors' address parts and its own, language prefix included. */\n  path: string | null",
+      '  /** From the top of the tree down to this page (itself last): title and address of each. */\n  breadcrumbs: Array<{ title: string; path: string }>',
+    )
   }
   return `export interface ${name} {\n${lines.join('\n')}\n}`
 }
@@ -122,7 +128,7 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
 
   // Top-level collection items.
   out.push('// ── collection items ────────────────────────────────────────────────────────────')
-  for (const e of model.entities) out.push(objectInterface(e.pascal, e.fields, { timestamps: true, locales: e.locales, paths: e.paths }))
+  for (const e of model.entities) out.push(objectInterface(e.pascal, e.fields, { timestamps: true, locales: e.locales, paths: e.paths, tree: e.tree }))
   out.push('')
 
   // Globals (singletons).
@@ -151,7 +157,7 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('export type ContentSchema = {')
   for (const e of model.entities) {
     const sort = e.sortKeys.map((k) => `'${k}'`).join(' | ')
-    out.push(`  ${e.name}: { item: ${e.pascal}, sort: ${sort}, filters: ${e.pascal}Filters }`)
+    out.push(`  ${e.name}: { item: ${e.pascal}, sort: ${sort}, filters: ${e.pascal}Filters${e.tree ? ', tree: true' : ''} }`)
   }
   out.push('}')
   out.push('')
