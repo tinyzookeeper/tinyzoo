@@ -4,14 +4,14 @@
   "type": "module",
   "description": "Code-first, distributable CMS for Nuxt 4 (Layer + Module).",
   "license": "UNLICENSED",
-  "homepage": "https://github.com/tinyzoo/tinyzoo#readme",
+  "homepage": "https://github.com/tinyzookeeper/tinyzoo#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tinyzoo/tinyzoo.git",
+    "url": "git+https://github.com/tinyzookeeper/tinyzoo.git",
     "directory": "packages/cms"
   },
   "bugs": {
-    "url": "https://github.com/tinyzoo/tinyzoo/issues"
+    "url": "https://github.com/tinyzookeeper/tinyzoo/issues"
   },
   "keywords": [
     "cms",

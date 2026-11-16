@@ -4,14 +4,14 @@
   "type": "module",
   "description": "Tiny, dependency-free, strictly-typed client for the tinyzoo content API.",
   "license": "UNLICENSED",
-  "homepage": "https://github.com/tinyzoo/tinyzoo/tree/main/packages/client#readme",
+  "homepage": "https://github.com/tinyzookeeper/tinyzoo/tree/main/packages/client#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tinyzoo/tinyzoo.git",
+    "url": "git+https://github.com/tinyzookeeper/tinyzoo.git",
     "directory": "packages/client"
   },
   "bugs": {
-    "url": "https://github.com/tinyzoo/tinyzoo/issues"
+    "url": "https://github.com/tinyzookeeper/tinyzoo/issues"
   },
   "keywords": [
     "cms",
