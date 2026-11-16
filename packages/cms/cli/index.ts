@@ -2,7 +2,8 @@
 /**
  * `tinyzoo` CLI — thin wrapper over drizzle-kit + the codegen sinks.
  *   tinyzoo generate          → emit host db/schema.ts from cms.config.ts, then `drizzle-kit generate`;
- *                               stops on migrations that lose data unless --allow-drop
+ *                               stops on migrations that lose data (--allow-drop keeps them) or may fail
+ *                               on existing rows (--allow-risky keeps them)
  *   tinyzoo up                → apply migrations + upgrade steps to DATABASE_URL (same runner as the app's start)
  *   tinyzoo status            → what DATABASE_URL has applied / has pending (exit 1 when something is pending)
  *   tinyzoo upgrade           → after updating tinyzoo: check versions, generate, regenerate the client, show status
@@ -57,6 +58,7 @@ async function generate(): Promise<number> {
   return generateMigration({
     migrationsDir: resolve(cwd, 'server/db/migrations'),
     allowDrop: process.argv.includes('--allow-drop'),
+    allowRisky: process.argv.includes('--allow-risky'),
     interactive,
     runDrizzleKit: drizzleKitRunner(cwd, interactive),
     confirm: askYesNo,
@@ -124,7 +126,7 @@ switch (cmd) {
   case 'backup': await (await import('./backup')).backup(process.argv.slice(3)); break
   case 'restore': await (await import('./backup')).restore(process.argv.slice(3)); break
   default:
-    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import|backup|restore> [out] [--stdout] [--allow-drop] [--dry-run]\n'
+    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import|backup|restore> [out] [--stdout] [--allow-drop] [--allow-risky] [--dry-run]\n'
       + '       tinyzoo export <file.tar.gz> [--only a,b] [--no-media] [--with-revisions] [--with-submissions] [--force]\n'
       + '       tinyzoo import <file.tar.gz> [--replace [--yes] | --merge] [--allow-mismatch] [--dry-run]\n'
       + '       tinyzoo backup [file]  ·  tinyzoo restore <file> [--yes] [--force]')
