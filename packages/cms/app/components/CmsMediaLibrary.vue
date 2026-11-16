@@ -47,7 +47,6 @@ function matches(m: any) {
   })
 }
 const visible = computed(() => items.value.filter(matches))
-const isImage = (m: any) => String(m?.mime ?? '').startsWith('image/')
 
 function choose(m: any) {
   emit('select', m)
@@ -63,7 +62,7 @@ async function onUpload(e: Event) {
     const fd = new FormData()
     fd.append('file', file)
     fd.append('library', '1')
-    const rec: any = await $fetch('/api/cms/_media', { method: 'POST', body: fd })
+    const rec: any = await cmsUploadFile(fd)
     items.value.unshift(rec)
     choose(rec)
   } catch (err: any) {
@@ -97,8 +96,7 @@ async function onUpload(e: Event) {
           @click="choose(m)"
         >
           <div class="aspect-square bg-elevated/40 flex items-center justify-center overflow-hidden">
-            <img v-if="isImage(m)" :src="m.url" :alt="m.alt ?? ''" loading="lazy" decoding="async" class="size-full object-cover">
-            <UIcon v-else name="i-lucide-file" class="size-7 text-dimmed" />
+            <CmsMediaThumb :media="m" />
           </div>
           <div class="p-1.5">
             <p class="truncate text-xs font-medium">{{ m.name || m.alt || m.key.split('/').pop() }}</p>
