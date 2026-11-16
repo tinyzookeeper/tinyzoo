@@ -1,0 +1,1 @@
+ALTER TABLE "feedback" ALTER COLUMN "role" DROP NOT NULL;

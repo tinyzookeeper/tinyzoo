@@ -13,7 +13,7 @@
     "test:unit": "vitest run --project unit",
     "test:api": "vitest run --project api",
     "test:watch": "vitest --project unit",
-    "typecheck": "tsc -p tsconfig.json && pnpm --filter playground typecheck",
+    "typecheck": "tsc -p tsconfig.json && pnpm --filter playground typecheck && pnpm --filter tinyzoo-starter typecheck && pnpm --filter tinyzoo-web typecheck",
     "build": "node scripts/build-check.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "check:consumer": "node scripts/consumer-check.mjs"

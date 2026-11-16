@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* Tailwind must also scan the CMS's own components (the admin, <CmsForm>…). */
+@source "../../../node_modules/tinyzoo/app";
+
+/* tinyzoo brand: a neutral core (charcoal, ink, cream) and the animals bring the colour. */
+@theme {
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-ink: #131313;
+  --color-charcoal: #2E3035;
+  --color-night: #18191C;
+  --color-night-2: #1E1F23;
+  --color-cream: #F9F5EF;
+  --color-cream-2: #F1EBE1;
+  --color-paper: #FFFFFF;
+  --color-mute: #6B6A66;
+
+  --color-bunny: #FE9B76;
+  --color-bird: #FEBD3B;
+  --color-fox: #FD6D61;
+  --color-frog: #73C573;
+  --color-octopus: #66CCC6;
+  --color-elephant: #67B1F9;
+}
+
+/* The website only (the admin under /admin keeps its own look and dark mode):
+   Nuxt UI's tokens follow the brand, charcoal buttons and warm greys. */
+.site {
+  --ui-primary: #2E3035;
+  --ui-bg: #FFFFFF;
+  --ui-text: #131313;
+  --ui-text-muted: #6B6A66;
+  --ui-text-highlighted: #131313;
+  --ui-border: rgb(19 19 19 / 0.1);
+  --ui-radius: 0.75rem;
+  font-family: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  background: var(--color-paper); color: var(--color-ink);
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  color-scheme: light;
+}
+.site ::selection { background: var(--color-bird); color: var(--color-ink); }
+.site :focus-visible { outline: 2px solid var(--color-ink); outline-offset: 3px; border-radius: 6px; }
+
+@layer base {
+  /* Long words and addresses wrap instead of pushing the page wider on phones. */
+  p, li, dd, figcaption, td, th { overflow-wrap: anywhere; }
+  /* Headings: hyphenate long words in the page's language (German), no lone last word. */
+  h1, h2, h3 { overflow-wrap: break-word; hyphens: auto; hyphenate-limit-chars: 10 4 4; -webkit-hyphenate-limit-before: 4; -webkit-hyphenate-limit-after: 4; text-wrap: balance; }
+}
+
+@layer components {
+  /* The page's grid: one width, generous gutters. */
+  .wrap { width: 100%; max-width: 76rem; margin-inline: auto; padding-inline: 1.25rem; }
+  @media (min-width: 640px) { .wrap { padding-inline: 2rem; } }
+
+  .display { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.035em; line-height: 1.08; --tw-leading: 1.08; text-wrap: balance; }
+  .title { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.03em; line-height: 1.4; --tw-leading: 1.4; text-wrap: balance; }
+  .lede { font-size: 1.125rem; line-height: 1.6; color: var(--color-mute); text-wrap: pretty; }
+  @media (min-width: 768px) { .lede { font-size: 1.25rem; } }
+  .eyebrow { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-mute); }
+  .eyebrow::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: currentColor; opacity: 0.5; }
+
+  .section { padding-block: 5.5rem; }
+  @media (min-width: 768px) { .section { padding-block: 8rem; } }
+
+  /* Buttons: charcoal pill, and a quiet outline one beside it. */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 3rem; padding: 0 1.375rem; border-radius: 999px; font-weight: 700; font-size: 0.975rem; transition: transform .15s ease, background-color .15s ease, box-shadow .15s ease; white-space: nowrap; }
+  /* A row of buttons: on small phones each takes the full width (no ragged stack),
+     and a long label may wrap instead of being cut off. */
+  @media (max-width: 479px) {
+    .btn-row > .btn { flex: 1 1 100%; }
+    .btn { white-space: normal; text-align: center; max-width: 100%; padding-block: 0.625rem; }
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn-dark { background: var(--color-charcoal); color: var(--color-cream); box-shadow: 0 1px 0 rgb(255 255 255 / 0.08) inset, 0 8px 20px -10px rgb(19 19 19 / 0.6); }
+  .btn-dark:hover { background: var(--color-ink); }
+  .btn-light { background: transparent; color: var(--color-ink); box-shadow: inset 0 0 0 1.5px rgb(19 19 19 / 0.16); }
+  .btn-light:hover { box-shadow: inset 0 0 0 1.5px rgb(19 19 19 / 0.45); }
+  .btn-cream { background: var(--color-cream); color: var(--color-ink); }
+  .btn-cream:hover { background: #fff; }
+  .btn-ghost-night { color: var(--color-cream); box-shadow: inset 0 0 0 1.5px rgb(249 245 239 / 0.25); }
+  .btn-ghost-night:hover { box-shadow: inset 0 0 0 1.5px rgb(249 245 239 / 0.6); }
+
+  /* A product window: the frame around videos and code. */
+  .window { border-radius: 1rem; background: var(--color-paper); box-shadow: 0 0 0 1px rgb(19 19 19 / 0.08), 0 30px 60px -30px rgb(19 19 19 / 0.35), 0 12px 24px -16px rgb(19 19 19 / 0.2); overflow: hidden; }
+  .window-bar { display: flex; align-items: center; gap: 0.4rem; height: 2.25rem; padding: 0 0.875rem; border-bottom: 1px solid rgb(19 19 19 / 0.07); background: #FBF9F6; }
+  .window-bar i { width: 0.625rem; height: 0.625rem; border-radius: 999px; background: rgb(19 19 19 / 0.12); }
+  .window-bar span { margin-left: 0.5rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-mute); }
+
+  /* Text written in the admin's rich text editor. */
+  .prose-zoo { font-size: 1.0625rem; line-height: 1.75; color: #2a2a28; }
+  .prose-zoo > * + * { margin-top: 1.1em; }
+  .prose-zoo h2 { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.02em; font-size: 1.75rem; line-height: 1.2; margin-top: 2em; color: var(--color-ink); }
+  .prose-zoo h3 { font-family: var(--font-display); font-weight: 800; font-size: 1.3rem; margin-top: 1.6em; color: var(--color-ink); }
+  .prose-zoo a { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-color: var(--color-bird); }
+  .prose-zoo ul { list-style: disc; padding-left: 1.25em; }
+  .prose-zoo ol { list-style: decimal; padding-left: 1.25em; }
+  .prose-zoo li + li { margin-top: 0.35em; }
+  .prose-zoo blockquote { border-left: 3px solid var(--color-bird); padding-left: 1em; color: var(--color-mute); }
+  .prose-zoo code { font-family: var(--font-mono); font-size: 0.9em; background: var(--color-cream); padding: 0.1em 0.35em; border-radius: 0.3em; }
+  .prose-zoo img { border-radius: 1rem; }
+}
+
+/* Arrive once, gently. Nothing moves for people who asked for less motion. */
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes peek { from { transform: translateY(40%); } to { transform: none; } }
+.rise { animation: rise .7s cubic-bezier(.2,.7,.2,1) both; }
+.rise-1 { animation-delay: .08s; } .rise-2 { animation-delay: .16s; } .rise-3 { animation-delay: .24s; } .rise-4 { animation-delay: .32s; }
+@media (prefers-reduced-motion: reduce) {
+  .rise, .peek { animation: none !important; }
+  * { scroll-behavior: auto !important; }
+}
+
+/* The website's forms (<CmsForm>): the CMS gives the structure, the site the look. */
+.site .cms-form { display: grid; gap: 1.25rem; }
+.site .cms-form__label { font-weight: 700; font-size: 0.9375rem; }
+.site .cms-form input:not([type="checkbox"]), .site .cms-form select, .site .cms-form textarea {
+  width: 100%; min-height: 3rem; padding: 0.75rem 1rem; border-radius: 0.875rem; border: 0; background: #fff;
+  box-shadow: inset 0 0 0 1.5px rgb(19 19 19 / 0.12); font: inherit; color: var(--color-ink); transition: box-shadow .15s ease;
+}
+.site .cms-form textarea { min-height: 9rem; resize: vertical; }
+.site .cms-form input:focus, .site .cms-form select:focus, .site .cms-form textarea:focus { outline: none; box-shadow: inset 0 0 0 2px var(--color-ink); }
+.site .cms-form [aria-invalid="true"] { box-shadow: inset 0 0 0 2px var(--color-fox) !important; }
+.site .cms-form__error { color: #c2412f; font-weight: 600; }
+.site .cms-form__submit { justify-self: start; min-height: 3rem; padding: 0 1.5rem; border-radius: 999px; background: var(--color-charcoal); color: var(--color-cream); font-weight: 700; }
+.site .cms-form__success { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; letter-spacing: -0.02em; }
