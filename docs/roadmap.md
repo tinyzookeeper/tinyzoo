@@ -522,3 +522,25 @@ spec without `pg_dump`/`pg_restore` (or the two env variables).
 render, and have their strings in all three languages, but I did not click through them
 in a browser. Whether CI's runner has `pg_dump`/`pg_restore` of the server's version is unchecked: if not, the backup spec skips
 itself there.
+
+### 0.2 — Wave 1 review (2026-11-16)
+
+Two independent reviewers read the merged wave (security and privacy; data safety on
+upgrades). Fixed on three branches (`fix/0.2-blocks`, `fix/0.2-cli`,
+`fix/0.2-guard-docs`), each with tests that fail before the fix; main green after
+(630 tests).
+
+| Severity | Finding | Fix |
+|---|---|---|
+| High | Restoring an older backup over an upgraded database left both old and renamed tables; the new version could not start | restore drops and recreates the schemas, then `pg_restore --single-transaction --exit-on-error`; any non-empty target needs `--force` |
+| High | `import --replace` of an `--only` archive deleted the whole media library | only the archive's own media that nothing else uses |
+| High | A block posted without `v` was taken as current: an editor tab open across a version bump lost the renamed field | the admin stamps `v` on every block; a block without `v` is upgraded from 1 or refused, never stripped |
+| Medium | A block whose `upgrade` throws was stored unvalidated (a `javascript:` link an editor then publishes) | refused unless identical to the stored block; a lower `v` only for blocks stored at it |
+| Medium | The guard missed statements that fail on existing rows (required column without default, `SET NOT NULL`, new unique) | second class, `--allow-risky`; "Adding a required field" recipe |
+| Medium | The `cms:error` Sentry example sent query parameters (emails, hashes) | `report.error` is scrubbed; the raw one is `rawError` |
+| Medium | A shared bucket let staging delete production's files | docs: one bucket per environment; import warns on the same storage |
+| Medium | The rename changeset contradicted what drizzle-kit writes | rewritten after real drizzle-kit runs |
+| Low | restore followed symlinks; archives briefly world-readable; `export --only <form>` skipped the submissions rule; pg_dump TLS weaker than the app; no tar size limits; block versions missing from the fingerprint; CLI ignored storage settings in `nuxt.config`; made-up block types passing as known ones; two reads skipping the upgrade; webhook path secrets in error reports; privacy erase scrubbing other people's details | each fixed |
+
+Open: Nitro's own unhandled-error log on stderr still prints failed queries with their
+parameters (Wave 2, slice V).
