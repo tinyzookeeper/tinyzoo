@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
+import { isLinkRef } from '../../src/linkref'
 
 // Page builder: an ordered list of typed blocks. Each block is a collapsible card —
 // its type, a one-line summary when collapsed, and a marker when something inside
@@ -25,6 +26,14 @@ const full = computed(() => !!list.value?.max && blocks.value.length >= list.val
 const defs = computed<Record<string, any>>(() => props.field.meta?.blocks ?? {})
 const blocks = computed<any[]>(() => (Array.isArray(model.value) ? model.value : []))
 const open = reactive<Record<string, boolean>>({})
+// A link to a page is stored as a reference (`cms:page/<id>`): the collapsed row says which
+// page it is (title and address), asked for in one batch like the expanded row does.
+const { request: requestTargets, find: findTarget } = useCmsLinkTargets()
+watchEffect(() => {
+  const refs: string[] = []
+  for (const b of blocks.value) for (const v of Object.values(b ?? {})) if (typeof v === 'string' && isLinkRef(v)) refs.push(v)
+  if (refs.length) requestTargets(refs)
+})
 
 const newId = () => (globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`).replace(/-/g, '').slice(0, 12)
 
@@ -154,6 +163,11 @@ function summary(b: any): string {
   for (const f of defs.value[b.type]?.fields ?? []) {
     const v = b[f.key]
     if (f.type === 'select' && typeof v === 'string' && v) parts.push(tl(f.meta?.labels?.[v], v))
+    else if (typeof v === 'string' && isLinkRef(v)) {
+      // Never the raw reference: the page's title and address once they are known.
+      const target = findTarget(v)
+      if (target) parts.push(target.state === 'missing' ? t('link.missingTitle') : [target.title, target.title && target.path ? `(${target.path})` : target.path].filter(Boolean).join(' '))
+    }
     else if (typeof v === 'string' && v.trim() && f.type !== 'media') parts.push(v.trim())
     else if (f.type === 'richtext' && v?.content) {
       const text = JSON.stringify(v).match(/"text":"([^"]{1,120})/)?.[1]

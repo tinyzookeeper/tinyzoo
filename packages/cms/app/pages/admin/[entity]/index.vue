@@ -146,6 +146,10 @@ function toggleColumn(key: string, show: boolean) {
   catch { /* storage blocked: for this visit only */ }
 }
 const otherCols = computed(() => optionalCols.value.filter((k) => !hidden.value.includes(k)))
+// On a phone the columns fold into one cell; a state-like column (a select shown as dot + word)
+// stays in it, so a row never loses whether it is new, read or done.
+const phoneState = computed(() => otherCols.value.find((k) => /^(status|state)$/i.test(k) && fieldOf(k)?.ui?.cell === 'CmsCellBadge')
+  ?? otherCols.value.find((k) => fieldOf(k)?.ui?.cell === 'CmsCellBadge'))
 const columnItems = computed<DropdownMenuItem[]>(() => [
   { type: 'label', label: t('list.columns') },
   ...optionalCols.value.map((k) => ({
@@ -411,10 +415,10 @@ const tabs = computed(() => [
       <UTooltip :text="t('list.exportHint')">
         <UButton
           :href="exportHref" download external color="neutral" variant="ghost" icon="i-lucide-download"
-          :aria-label="t('list.export')"
+          :aria-label="t('list.exportNamed', { label: title })"
         ><span class="max-md:hidden">{{ t('list.export') }}</span></UButton>
       </UTooltip>
-      <UButton v-if="canCreate" :to="`/admin/${entity}/new`" icon="i-lucide-plus">
+      <UButton v-if="canCreate" :to="`/admin/${entity}/new`" icon="i-lucide-plus" :aria-label="t('editor.newTitle', { label: entitySingular(meta).toLowerCase() })">
         <span class="max-sm:sr-only">{{ entitySingular(meta) }}</span>
       </UButton>
     </template>
@@ -424,7 +428,7 @@ const tabs = computed(() => [
 
     <template v-else>
     <!-- In progress: drafts and scheduled entries, what people come back for -->
-    <section v-if="showProgress && !arranging" class="mb-8" :aria-label="t('list.inProgress')">
+    <section v-if="showProgress && !arranging" class="mb-8 max-sm:hidden" :aria-label="t('list.inProgress')">
       <h2 class="cms-label mb-2">{{ t('list.inProgress') }}</h2>
       <ul class="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <li v-for="p in inProgress" :key="p.row.id" class="cms-card relative flex min-w-0 items-center gap-3 p-3 hover:border-accented transition-colors">
@@ -457,7 +461,7 @@ const tabs = computed(() => [
         <UButton size="sm" icon="i-lucide-check" :loading="savingOrder" :disabled="arrangeTooMany" @click="saveOrder">{{ t('list.saveOrder') }}</UButton>
       </div>
     </div>
-    <div v-else-if="selected.size" class="flex flex-wrap items-center gap-2 mb-3 min-h-8" role="toolbar" :aria-label="t('list.bulkActions')">
+    <div v-else-if="selected.size" class="sticky top-0 z-20 flex flex-wrap items-center gap-2 mb-3 min-h-8 py-2 -mt-2 bg-(--cms-page-bg) border-b border-default" role="toolbar" :aria-label="t('list.bulkActions')">
       <span class="text-sm text-highlighted tabular-nums mr-2">{{ t('list.selected', { count: selected.size }) }}</span>
       <UButton v-if="canPublish && anyDraftSelected" size="sm" color="neutral" variant="outline" icon="i-lucide-globe" :loading="bulkBusy" @click="runBulk('publish')">{{ t('editor.publish') }}</UButton>
       <UButton v-if="canPublish && anyLiveSelected" size="sm" color="neutral" variant="outline" icon="i-lucide-eye-off" :disabled="bulkBusy" @click="runBulk('unpublish')">{{ t('editor.unpublish') }}</UButton>
@@ -511,11 +515,7 @@ const tabs = computed(() => [
         </li>
         <li v-if="arrangeTooMany" class="px-4 py-2.5 text-xs text-muted">{{ t('list.arrangeTooMany') }}</li>
       </ol>
-      <CmsEmptyState v-else-if="error" variant="error" :title="t('list.loadFailed')" :description="error.statusMessage">
-        <template #actions>
-          <UButton color="neutral" variant="outline" icon="i-lucide-rotate-ccw" @click="refresh()">{{ t('list.retry') }}</UButton>
-        </template>
-      </CmsEmptyState>
+      <CmsLoadError v-else-if="error" :error="error" @retry="refresh()" />
 
       <CmsEmptyState
         v-else-if="!rows.length && fetchStatus !== 'pending' && narrowed"
@@ -650,7 +650,9 @@ const tabs = computed(() => [
                     <!-- phones: the essentials in one line under the title -->
                     <div class="sm:hidden text-xs text-muted flex items-center gap-1.5 min-w-0">
                       <CmsStatusBadge v-if="publish" :published="isLive(row)" :scheduled-for="publish.dateField ? row[publish.dateField] : null" class="!text-xs shrink-0" />
-                      <span v-if="publish" aria-hidden="true">·</span>
+                      <!-- no publishing here (form messages): the row's own state — new, read, done — still shows -->
+                      <CmsCell v-else-if="phoneState" :field="fieldOf(phoneState)" :row="row" :entity="entity" class="!text-xs shrink-0" />
+                      <span v-if="publish || (phoneState && row[phoneState])" aria-hidden="true">·</span>
                       <CmsTime :value="row.updatedAt" relative class="truncate" />
                     </div>
                   </div>

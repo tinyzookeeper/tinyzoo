@@ -15,6 +15,10 @@ import type { CmsCollab } from '../composables/useCmsCollab'
 //    everyone types into, with their cursors; the form's value only follows it.
 const props = defineProps<{
   collab?: { doc: any; provider: any; field: string; user: { name: string; color: string }; readOnly: boolean } | null
+  /** The field's name, for screen readers (the text area is a labelled textbox). */
+  label?: string
+  /** Or the id of the element that shows it. */
+  labelledby?: string
 }>()
 const model = defineModel<any>()
 const libraryOpen = ref(false)
@@ -26,6 +30,12 @@ const editor = useEditor({
   // Shared: the content comes from the shared document, never from here.
   content: props.collab ? undefined : (model.value || { type: 'doc', content: [] }),
   editable: !props.collab?.readOnly,
+  editorProps: {
+    attributes: {
+      role: 'textbox', 'aria-multiline': 'true',
+      ...(props.labelledby ? { 'aria-labelledby': props.labelledby } : props.label ? { 'aria-label': props.label } : {}),
+    },
+  },
   extensions: [
     ...richTextExtensions({ collaborative: !!props.collab }),
     ...(props.collab

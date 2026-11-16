@@ -326,11 +326,7 @@ const canMove = computed(() => props.meta?.can?.update !== false)
     </div>
 
     <div class="cms-card overflow-hidden">
-      <CmsEmptyState v-if="error" variant="error" :title="t('list.loadFailed')" :description="error.statusMessage">
-        <template #actions>
-          <UButton color="neutral" variant="outline" icon="i-lucide-rotate-ccw" @click="refresh()">{{ t('list.retry') }}</UButton>
-        </template>
-      </CmsEmptyState>
+      <CmsLoadError v-if="error" :error="error" @retry="refresh()" />
       <CmsEmptyState
         v-else-if="!rows.length" :icon="meta?.icon" :character="entity"
         :title="t('list.emptyTitle', { label: (tl(meta?.label) || entity).toLowerCase() })" :description="tl(meta?.description) || t('list.emptyDescription')"
@@ -377,9 +373,21 @@ const canMove = computed(() => props.meta?.can?.update !== false)
               {{ s.row.title || t('common.untitled') }}
             </NuxtLink>
             <p class="truncate font-mono text-xs text-muted">{{ addressOf(s.row) || '/' + s.row.slug }}</p>
+            <!-- below the wide layout the columns are gone: the state (and the missing language) sit under the address -->
+            <p v-if="publish || missingLocales(s.row).length" class="mt-1 flex items-center gap-x-3 gap-y-1 flex-wrap lg:hidden">
+              <span class="sm:hidden">
+                <span v-if="isLive(s.row) && !s.row.onSite" class="inline-flex items-center gap-1.5 text-xs text-muted">
+                  <UIcon name="i-lucide-eye-off" class="size-3.5" aria-hidden="true" />{{ t('tree.hiddenShort') }}
+                </span>
+                <CmsStatusBadge v-else-if="publish" :published="isLive(s.row)" :scheduled-for="publish.dateField ? s.row.publishAt : null" class="!text-xs" />
+              </span>
+              <span v-if="meta?.locales && missingLocales(s.row).length" class="inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium cms-unsaved">
+                {{ t('translation.missing', { lang: missingLocales(s.row).map((c: string) => c.toUpperCase()).join(', ') }) }}
+              </span>
+            </p>
           </div>
           <span v-if="s.count && !s.open" class="shrink-0 text-xs text-dimmed max-sm:hidden">{{ t('tree.subpages', { count: formatNumber(s.count) }) }}</span>
-          <span v-if="meta?.locales && missingLocales(s.row).length" class="shrink-0 inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium cms-unsaved max-lg:hidden">
+          <span v-if="meta?.locales && missingLocales(s.row).length" class="shrink-0 hidden lg:inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium cms-unsaved">
             {{ t('translation.missing', { lang: missingLocales(s.row).map((c: string) => c.toUpperCase()).join(', ') }) }}
           </span>
           <span class="shrink-0 max-sm:hidden">
@@ -406,12 +414,12 @@ const canMove = computed(() => props.meta?.can?.update !== false)
         <div v-if="dialog" class="space-y-4">
           <UFormField :label="t('tree.moveParent')">
             <USelectMenu
-              :model-value="dialog.parent ?? '__top'" :items="parentChoices" value-key="value" class="w-full" icon="i-lucide-folder-tree"
+              :model-value="dialog.parent ?? '__top'" :items="parentChoices" value-key="value" class="w-full" icon="i-lucide-folder-tree" :aria-label="t('tree.moveParent')"
               @update:model-value="(v: string) => { dialog!.parent = v === '__top' ? null : v }"
             />
           </UFormField>
           <UFormField :label="t('tree.movePosition')">
-            <USelectMenu v-model="dialog.place" :items="placeChoices" value-key="value" class="w-full" icon="i-lucide-arrow-up-down" />
+            <USelectMenu v-model="dialog.place" :items="placeChoices" value-key="value" class="w-full" icon="i-lucide-arrow-up-down" :aria-label="t('tree.movePosition')" />
           </UFormField>
           <p class="text-sm text-muted">{{ hasRedirects ? t('tree.moveRedirects') : t('tree.moveNoRedirects') }}</p>
         </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { t } = useCmsI18n()
+const { t, fieldLabel } = useCmsI18n()
 const props = defineProps<{ field: any; entity?: string; id?: string }>()
 const model = defineModel<any>()
 
@@ -38,7 +38,7 @@ const variant = computed(() => injected?.value ?? 'outline')
     <USkeleton v-if="model && !ready" class="h-8 w-full rounded-md" />
     <USelectMenu v-else
       :id="id" v-model="model" :variant="variant" :items="options" value-key="id" :loading="loading" :icon="icon"
-      :placeholder="variant === 'ghost' ? t('fields.notSet') : t('common.select')" class="w-full min-w-0" @update:open="(o: boolean) => o && load()"
+      :placeholder="variant === 'ghost' ? t('fields.notSet') : t('common.select')" :aria-label="fieldLabel(field)" class="w-full min-w-0" @update:open="(o: boolean) => o && load()"
     />
     <UButton
       v-if="model && field.optional" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('fields.clear')"

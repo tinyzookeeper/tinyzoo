@@ -22,6 +22,8 @@ const inviteOpen = ref(false)
 const invite = reactive({ email: '', name: '', role: 'editor' as typeof ROLES[number] })
 const inviteErrors = reactive<Record<string, string>>({})
 const inviting = ref(false)
+const inviteForm = ref<HTMLElement | null>(null)
+const inviteFailed = ref('')
 const created = ref<{ email: string; role: string; url: string; emailed: boolean } | null>(null)
 
 function openInvite() {
@@ -33,6 +35,7 @@ function openInvite() {
 
 async function sendInvite() {
   Object.keys(inviteErrors).forEach((k) => delete inviteErrors[k])
+  inviteFailed.value = ''
   inviting.value = true
   try {
     const res = await $fetch<{ user: any; inviteUrl: string; emailed: boolean }>('/api/cms/_users', { method: 'POST', body: invite })
@@ -42,7 +45,9 @@ async function sendInvite() {
   catch (err: any) {
     const issues = err?.data?.data
     if (Array.isArray(issues)) for (const i of issues) if (i.path?.[0]) inviteErrors[i.path[0]] = cmsIssueMessage(i, null, t as any)
-    if (!Object.keys(inviteErrors).length) toast.add({ title: t('team.actionFailed'), description: cmsErrorMessage(err, ''), color: 'error', icon: 'i-lucide-x' })
+    // Said in the dialog itself (read out, and the cursor goes there), not in a toast behind it.
+    if (!Object.keys(inviteErrors).length) inviteFailed.value = cmsRequestError(err, t as any)
+    await cmsFocusInvalid(inviteForm.value)
   }
   finally {
     inviting.value = false
@@ -92,6 +97,17 @@ async function remove(u: any) {
   if (ok) await act(() => cmsFetch(`/api/cms/_users/${u.id}`, { method: 'DELETE' }), t(invited ? 'team.inviteCancelled' : 'team.removed'))
 }
 
+// Turning someone's access off signs them out at once and takes their drafts out of reach:
+// asked first (it is undone with "Enable access", but not before they have been locked out).
+async function disable(u: any) {
+  const name = u.name || u.email
+  const ok = await confirm({
+    title: t('team.disableTitle', { name }), description: t('team.disableBody'),
+    icon: 'i-lucide-ban', color: 'error', confirmLabel: t('team.disable'), cancelLabel: t('common.cancel'),
+  })
+  if (ok) await act(() => patch(u.id, { status: 'disabled' }), t('team.disabled'))
+}
+
 function rowMenu(u: any): DropdownMenuItem[][] {
   const groups: DropdownMenuItem[][] = [[{
     label: t('team.changeRole'), icon: 'i-lucide-shield',
@@ -101,7 +117,7 @@ function rowMenu(u: any): DropdownMenuItem[][] {
     })),
   }]]
   if (u.status === 'invited') groups[0]!.push({ label: t('team.resend'), icon: 'i-lucide-send', onSelect: () => resend(u) })
-  if (u.status === 'active') groups[0]!.push({ label: t('team.disable'), icon: 'i-lucide-ban', onSelect: () => act(() => patch(u.id, { status: 'disabled' }), t('team.disabled')) })
+  if (u.status === 'active') groups[0]!.push({ label: t('team.disable'), icon: 'i-lucide-ban', onSelect: () => disable(u) })
   if (u.status === 'disabled') groups[0]!.push({ label: t('team.enable'), icon: 'i-lucide-rotate-ccw', onSelect: () => act(() => patch(u.id, { status: 'active' }), t('team.enabled')) })
   groups.push([u.status === 'invited'
     ? { label: t('team.cancelInvite'), icon: 'i-lucide-mail-x', color: 'error' as const, onSelect: () => remove(u) }
@@ -120,11 +136,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
 
     <div class="cms-card overflow-hidden">
       <CmsEmptyState v-if="!isAdmin" plain icon="i-lucide-lock" :title="t('team.adminsOnly')" />
-      <CmsEmptyState v-else-if="error" variant="error" :title="t('list.loadFailed')">
-        <template #actions>
-          <UButton color="neutral" variant="outline" icon="i-lucide-rotate-ccw" @click="refresh()">{{ t('list.retry') }}</UButton>
-        </template>
-      </CmsEmptyState>
+      <CmsLoadError v-else-if="error" :error="error" @retry="refresh()" />
       <!-- phones: each person is a small card (name, then role and status under it) -->
       <div v-else class="sm:overflow-x-auto">
         <table class="w-full text-sm max-sm:block">
@@ -195,20 +207,22 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
             </div>
           </UFormField>
         </div>
-        <form v-else id="cms-invite" class="space-y-5" novalidate @submit.prevent="sendInvite">
-          <UFormField :label="t('auth.email')" name="email" :error="inviteErrors.email" required>
+        <form v-else id="cms-invite" ref="inviteForm" class="space-y-5" novalidate @submit.prevent="sendInvite">
+          <UFormField :label="t('auth.email')" name="email" :error="inviteErrors.email || undefined" required>
             <UInput v-model="invite.email" type="email" autofocus class="w-full" />
+            <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
           </UFormField>
           <UFormField :label="t('team.inviteName')" name="name">
             <UInput v-model="invite.name" class="w-full" />
           </UFormField>
           <UFormField :label="t('team.role')" name="role">
             <URadioGroup
-              v-model="invite.role" variant="card" indicator="start"
+              v-model="invite.role" variant="card" indicator="start" :aria-label="t('team.role')"
               :ui="{ item: 'has-data-[state=checked]:bg-(--cms-moment-bg) has-data-[state=checked]:border-(--cms-moment-line)' }"
               :items="ROLES.map((r: typeof ROLES[number]) => ({ value: r, label: t(`roles.${r}.name`), description: t(`roles.${r}.description`) }))"
             />
           </UFormField>
+          <UAlert v-if="inviteFailed" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="inviteFailed" role="alert" data-cms-error-summary />
         </form>
       </template>
       <template #footer>

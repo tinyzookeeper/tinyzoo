@@ -9,6 +9,7 @@ const password = ref('')
 const error = ref('')
 const expired = ref(false)
 const pending = ref(false)
+const formEl = ref<HTMLElement | null>(null)
 
 async function submit() {
   error.value = ''
@@ -19,7 +20,12 @@ async function submit() {
   }
   catch (err: any) {
     if (err?.statusCode === 410) expired.value = true
-    else error.value = err?.data?.data?.[0]?.message ?? cmsErrorMessage(err, t('team.actionFailed'))
+    else {
+      // In the page's language, not the validator's English.
+      const issue = err?.data?.data?.[0]
+      error.value = issue?.code ? cmsIssueMessage(issue, null, t as any) : cmsErrorMessage(err, t('team.actionFailed'))
+      await cmsFocusInvalid(formEl.value)
+    }
   }
   finally {
     pending.value = false
@@ -35,10 +41,11 @@ async function submit() {
     </div>
     <UButton to="/admin/forgot" block>{{ t('auth.requestNewLink') }}</UButton>
   </div>
-  <form v-else class="space-y-5" novalidate @submit.prevent="submit">
+  <form v-else ref="formEl" class="space-y-5" novalidate @submit.prevent="submit">
     <h1 class="text-center cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.resetTitle') }}</h1>
     <UFormField :label="t('auth.newPassword')" name="password" :description="t('auth.passwordHint')" :error="error || undefined">
       <CmsPasswordInput v-model="password" autocomplete="new-password" autofocus />
+      <template #error="{ error: message }"><span v-if="message" role="alert">{{ message }}</span></template>
     </UFormField>
     <UButton type="submit" block :loading="pending">{{ t('auth.savePassword') }}</UButton>
   </form>

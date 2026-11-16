@@ -6,7 +6,7 @@ Lidé mají právo vědět, co o nich firma ukládá, a dostat to ve čitelné p
 
 ## Kde to je
 
-V menu vlevo v části **Nastavení** klikněte na **Soukromí**. Pokud ji nevidíte, nejste administrátor. Požádejte kolegu, který administrátor je. Když to zkusíte jinak, napíše se **Tuto stránku mohou používat jen správci.**
+V menu vlevo v části **Nastavení** klikněte na **Soukromí**. Pokud ji nevidíte, nejste administrátor. Požádejte kolegu, který administrátor je. Když to zkusíte jinak, napíše se **Tuto stránku mohou používat jen administrátoři.**
 
 ## Co všechno se tu najde
 

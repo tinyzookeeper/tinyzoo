@@ -656,13 +656,13 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 
 <template>
   <CmsPage v-if="graph && (!meta || missing)" :title="t('nav.notFoundTitle')">
-    <CmsEmptyState variant="no-results" icon="i-lucide-map-pin-off" :title="t('nav.notFoundTitle')" :description="missing ? t('nav.missingEntryBody') : t('nav.notFoundBody')">
+    <CmsEmptyState variant="no-results" icon="i-lucide-map-pin-off" :title="t('nav.notFoundTitle')" :description="missing && meta ? t('nav.missingEntryBody') : t('nav.notFoundBody')">
       <template #actions>
         <UButton to="/admin" color="neutral" variant="outline" icon="i-lucide-house">{{ t('nav.home') }}</UButton>
       </template>
     </CmsEmptyState>
   </CmsPage>
-  <CmsPage v-else :back="{ label: listLabel, to: `/admin/${entity}` }" flush>
+  <CmsPage v-else :back="{ label: listLabel, to: `/admin/${entity}` }" :heading="heading" flush>
     <!-- one top bar for every arrangement: ‹ back · status · saved | language, history, details, preview, the primary action, … -->
     <template #status>
       <!-- phones: one thing — unsaved changes while there are any, else the status -->
@@ -751,10 +751,10 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                   :id="`cms-field-${titleField.key}`" v-model="state[titleField.key]" rows="1" class="cms-title-input resize-none field-sizing-content" :class="titleIsAddress ? 'cms-title-input--address' : ''"
                   :placeholder="titlePlaceholder"
                   :disabled="isTranslation && !titleField.localized"
-                  :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" autocomplete="off"
+                  :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" :aria-describedby="fieldErrors[titleField.key] ? `cms-field-${titleField.key}-error` : undefined" autocomplete="off"
                   @keydown.enter.prevent
                 />
-                <p v-if="fieldErrors[titleField.key]" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
+                <p v-if="fieldErrors[titleField.key]" :id="`cms-field-${titleField.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
               <p v-else-if="titleIsAddress && fieldHelp(titleField)" class="mt-1.5 text-sm text-muted">{{ fieldHelp(titleField) }}</p>
                 <p v-else-if="publicPath" class="mt-1.5 font-mono text-xs text-muted truncate">
                   <a v-if="isPublished" :href="publicPath" target="_blank" rel="noopener" class="hover:text-highlighted">{{ publicPath }} <UIcon name="i-lucide-arrow-up-right" class="size-3 align-[-1px]" /></a>
@@ -789,10 +789,10 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                 :id="`cms-field-${titleField.key}`" v-model="state[titleField.key]" rows="1" class="cms-title-input resize-none field-sizing-content" :class="titleIsAddress ? 'cms-title-input--address' : ''"
                 :placeholder="titlePlaceholder"
                 :disabled="isTranslation && !titleField.localized"
-                :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" autocomplete="off"
+                :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" :aria-describedby="fieldErrors[titleField.key] ? `cms-field-${titleField.key}-error` : undefined" autocomplete="off"
                 @keydown.enter.prevent
               />
-              <p v-if="fieldErrors[titleField.key]" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
+              <p v-if="fieldErrors[titleField.key]" :id="`cms-field-${titleField.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
               <p v-else-if="titleIsAddress && fieldHelp(titleField)" class="mt-1.5 text-sm text-muted">{{ fieldHelp(titleField) }}</p>
               <p v-else-if="publicPath" class="mt-1.5 font-mono text-xs text-muted truncate">
                 <a v-if="isPublished" :href="publicPath" target="_blank" rel="noopener" class="hover:text-highlighted">{{ publicPath }} <UIcon name="i-lucide-arrow-up-right" class="size-3 align-[-1px]" /></a>
@@ -809,9 +809,9 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                 :id="`cms-field-${writeLead.key}`" v-model="state[writeLead.key]" rows="2"
                 class="cms-lead-input resize-none field-sizing-content" :maxlength="writeLead.meta?.max"
                 :placeholder="fieldHelp(writeLead) || fieldLabel(writeLead)"
-                :aria-label="fieldLabel(writeLead)" :aria-invalid="!!fieldErrors[writeLead.key]"
+                :aria-label="fieldLabel(writeLead)" :aria-invalid="!!fieldErrors[writeLead.key]" :aria-describedby="fieldErrors[writeLead.key] ? `cms-field-${writeLead.key}-error` : undefined"
               />
-              <p v-if="fieldErrors[writeLead.key]" class="mt-1 text-sm text-error">{{ fieldErrors[writeLead.key] }}</p>
+              <p v-if="fieldErrors[writeLead.key]" :id="`cms-field-${writeLead.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[writeLead.key] }}</p>
               <p v-else-if="writeLead.meta?.max && (state[writeLead.key]?.length ?? 0) > writeLead.meta.max * 0.8" class="mt-1 text-xs text-muted tabular-nums">
                 {{ state[writeLead.key]?.length ?? 0 }} / {{ writeLead.meta.max }}
               </p>
@@ -823,7 +823,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             <!-- the text: no box, the toolbar a quiet line above it -->
             <div v-if="writeBody" :id="`cms-field-${writeBody.key}`" class="cms-write-body" :aria-label="fieldLabel(writeBody)" role="group">
               <CmsFieldRichText v-model="state[writeBody.key]" :field="writeBody" />
-              <p v-if="fieldErrors[writeBody.key]" class="mt-1 text-sm text-error">{{ fieldErrors[writeBody.key] }}</p>
+              <p v-if="fieldErrors[writeBody.key]" :id="`cms-field-${writeBody.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[writeBody.key] }}</p>
               <CmsTranslationRef
                 v-if="isTranslation" :field="writeBody" :value="defaults[writeBody.key]" :lang="defaultLabel"
                 :empty="state[writeBody.key] == null" @copy="copyDefault(writeBody.key)"

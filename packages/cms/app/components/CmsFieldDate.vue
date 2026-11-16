@@ -8,6 +8,11 @@
 import { CalendarDate } from '@internationalized/date'
 
 const props = defineProps<{ field: any; entity?: string; id?: string }>()
+// The field's own id belongs to the date button the label points at; the other controls inside
+// would all take the form field's generated id (and each other's): one id on the page, once.
+const timeId = computed(() => (props.id ? `${props.id}-time` : undefined))
+const allDayId = computed(() => (props.id ? `${props.id}-allday` : undefined))
+const clearId = computed(() => (props.id ? `${props.id}-clear` : undefined))
 const model = defineModel<any>()
 const config = useCmsAdminConfig()
 const { t, locale, formatDateWith, fieldLabel } = useCmsI18n()
@@ -86,12 +91,12 @@ const shortShown = computed(() => {
         <UCalendar v-model="calendarValue" :locale="locale" :week-starts-on="1" weekday-format="short" :year-controls="false" :fixed-weeks="false" v-bind="calendarLabels" />
         <div class="flex flex-wrap items-center gap-2 border-t border-default mt-2 pt-3 px-1">
           <UInput
-            v-if="!allDay" v-model="timeValue" type="time" icon="i-lucide-clock" size="sm" class="w-28" :ui="{ base: 'cms-time-input' }"
+            v-if="!allDay" :id="timeId" v-model="timeValue" type="time" icon="i-lucide-clock" size="sm" class="w-28" :ui="{ base: 'cms-time-input' }"
             :disabled="!day" :aria-label="t('fields.time')"
           />
-          <UCheckbox v-if="canAllDay" :model-value="allDay" :label="t('fields.allDay')" @update:model-value="setAllDay" />
+          <UCheckbox v-if="canAllDay" :id="allDayId" :model-value="allDay" :label="t('fields.allDay')" @update:model-value="setAllDay" />
           <UButton
-            v-if="model && field.optional" class="ml-auto" size="sm" color="neutral" variant="ghost" icon="i-lucide-x"
+            v-if="model && field.optional" :id="clearId" class="ml-auto" size="sm" color="neutral" variant="ghost" icon="i-lucide-x"
             @click="model = null; open = false"
           >{{ t('fields.clear') }}</UButton>
         </div>
@@ -113,14 +118,14 @@ const shortShown = computed(() => {
         </template>
       </UPopover>
       <UInput
-        v-if="!allDay" v-model="timeValue" type="time" icon="i-lucide-clock" class="w-32" :ui="{ base: 'cms-time-input' }"
+        v-if="!allDay" :id="timeId" v-model="timeValue" type="time" icon="i-lucide-clock" class="w-32" :ui="{ base: 'cms-time-input' }"
         :disabled="!day" :aria-label="t('fields.time')" :title="tz"
       />
       <UButton
-        v-if="model && field.optional" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('fields.clear')"
+        v-if="model && field.optional" :id="clearId" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('fields.clear')"
         @click="model = null"
       />
     </div>
-    <UCheckbox v-if="canAllDay" :model-value="allDay" :label="t('fields.allDay')" class="mt-2.5" @update:model-value="setAllDay" />
+    <UCheckbox v-if="canAllDay" :id="allDayId" :model-value="allDay" :label="t('fields.allDay')" class="mt-2.5" @update:model-value="setAllDay" />
   </div>
 </template>

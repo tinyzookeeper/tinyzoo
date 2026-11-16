@@ -57,13 +57,15 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
       label: t('search.entries'),
       // Already matched (and ranked) by the server: shown as they come.
       ignoreFilter: true,
-      items: hits.value.map((h) => {
+      items: hits.value.map((h, i) => {
         const e = byName.value.get(h.entity)
+        // A snippet that only repeats the title, or one an earlier result already showed, says nothing new.
+        const excerpt = h.excerpt && h.excerpt.trim() !== h.title.trim() && !hits.value.slice(0, i).some((o) => o.excerpt === h.excerpt) ? h.excerpt : ''
         const kind = e ? entitySingular(e) : h.entity
         return {
           id: `${h.entity}:${h.id}`,
           label: h.title || t('search.untitled'),
-          description: h.excerpt || undefined,
+          description: excerpt || undefined,
           suffix: [kind, statusLabel(h.status)].filter(Boolean).join(' · '),
           icon: e?.icon ?? 'i-lucide-file',
           to: `/admin/${h.entity}/${h.id}`,

@@ -1,7 +1,15 @@
 <script setup lang="ts">
 // A tour of the admin's foundation: tokens, type, surfaces and the building blocks
 // pages are made of. Doubles as the visual regression page for the design system.
-definePageMeta({ layout: 'admin' })
+// For whoever builds the site, not for every editor: the menu entry is the administrators', and
+// anyone else who types the address is sent home.
+definePageMeta({
+  layout: 'admin',
+  middleware: () => {
+    const { user } = useUserSession()
+    if (user.value && user.value.role !== 'admin') return navigateTo('/admin')
+  },
+})
 const { t } = useCmsI18n()
 useHead({ title: () => t('styleguide.title') })
 
@@ -47,11 +55,7 @@ const brandColors = [
   { name: 'Ink', value: '#131313', use: 'Text · the wordmark' },
   { name: 'Cream', value: '#F9F5EF', use: 'Moments · dark-mode text and primary' },
 ] as const
-const toc = [
-  ['brand', 'tinyzoo'], ['color', 'Colour'], ['type', 'Typography'], ['surfaces', 'Surfaces & shape'],
-  ['moments', 'Moments'], ['editors', 'Editors & lists'],
-  ['actions', 'Actions'], ['status', 'Status'], ['forms', 'Forms'], ['states', 'Empty & error states'],
-] as const
+const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'actions', 'status', 'forms', 'states'] as const
 </script>
 
 <template>
@@ -68,13 +72,14 @@ const toc = [
       </UFieldGroup>
     </template>
 
-    <nav aria-label="Sections" class="mb-8 flex flex-wrap gap-2">
-      <UButton v-for="[id, label] in toc" :key="id" :to="`#${id}`" color="neutral" variant="soft" size="sm">{{ label }}</UButton>
+    <p class="mb-4 text-sm text-muted">{{ t('styleguide.note') }}</p>
+    <nav :aria-label="t('styleguide.sections')" class="mb-8 flex flex-wrap gap-2">
+      <UButton v-for="id in toc" :key="id" :to="`#${id}`" color="neutral" variant="soft" size="sm">{{ t(`styleguide.toc.${id}`) }}</UButton>
     </nav>
 
     <div class="space-y-10">
       <section id="brand" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">tinyzoo</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.brand') }}</h2>
         <p class="text-muted max-w-2xl">Playful, calm, simple. The client's name leads; tinyzoo signs the sidebar and the sign-in, gives the tab its icon, and sends one animal to each moment. Brand guide: docs/brand/brand-guide.md.</p>
         <div class="grid gap-3 md:grid-cols-2">
           <div class="cms-card p-8 grid place-items-center" style="background: var(--tz-cream)">
@@ -111,7 +116,7 @@ const toc = [
       </section>
 
       <section id="color" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Colour</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.color') }}</h2>
         <p class="text-muted max-w-2xl">Light: a white workspace with true greys and ink text, charcoal for the one primary action, cream only for moments. Dark ("charcoal night"): greys tinted toward the charcoal, cream text, and a cream primary. Colour otherwise appears only where it means something: status. A client's accent can replace charcoal.</p>
         <CmsSection v-for="ramp in ramps" :key="ramp" :title="ramp">
           <div class="cms-ramp gap-1.5">
@@ -133,7 +138,7 @@ const toc = [
       </section>
 
       <section id="type" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Typography</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.type') }}</h2>
         <div class="grid gap-4 lg:grid-cols-3">
           <CmsSection title="Titles & moments — Manrope bold">
             <p class="cms-display text-[1.75rem] leading-tight text-highlighted">Dobré ráno, Jano</p>
@@ -152,7 +157,7 @@ const toc = [
       </section>
 
       <section id="surfaces" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Surfaces &amp; shape</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.surfaces') }}</h2>
         <p class="text-muted max-w-2xl">Flat surfaces separated by hairline borders, no shadows (only a moment that arrives floats). One frame per group — never nested. Radius 8 px for controls, 12 px for cards, 16 px for moments.</p>
         <div class="grid gap-4 sm:grid-cols-3">
           <div class="cms-card p-5 text-sm">.cms-card</div>
@@ -162,7 +167,7 @@ const toc = [
       </section>
 
       <section id="moments" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Moments</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.moments') }}</h2>
         <p class="text-muted max-w-2xl">Where the brand speaks: a cream panel (charcoal in dark mode), one animal, a Manrope line, one sentence, at most two actions. At most one playful sentence per screen; labels, errors and confirmations stay plain.</p>
         <div class="cms-moment flex items-center justify-between gap-6 p-6">
           <div>
@@ -179,7 +184,7 @@ const toc = [
       </section>
 
       <section id="editors" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Editors &amp; lists</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.editors') }}</h2>
         <p class="text-muted max-w-2xl">One top bar (‹ back · status · saved | Preview · Publish) and one set of fields, in three arrangements picked from the content model. Developers override with <code class="font-mono text-xs">admin.editor</code> and <code class="font-mono text-xs">admin.list.layout</code>.</p>
         <div class="grid gap-3 md:grid-cols-3">
           <CmsSection title="Write">
@@ -196,7 +201,7 @@ const toc = [
       </section>
 
       <section id="actions" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Actions</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.actions') }}</h2>
         <p class="text-muted max-w-2xl">At most one solid primary button per view. Verbs on buttons ("Publish post", not "OK"). Destructive actions are red and always confirmed.</p>
         <CmsSection>
           <div class="space-y-3 overflow-x-auto">
@@ -209,7 +214,7 @@ const toc = [
       </section>
 
       <section id="status" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Status</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.status') }}</h2>
         <CmsSection>
           <div class="flex flex-wrap items-center gap-3">
             <CmsStatusBadge :published="false" />
@@ -220,7 +225,7 @@ const toc = [
       </section>
 
       <section id="forms" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Forms</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.forms') }}</h2>
         <p class="text-muted max-w-2xl">Sections named as plain questions (<code class="font-mono text-xs">admin.sections</code>), an icon in each control, a few choices as buttons, a switch with its sentence, dates from a calendar with "All day", empty optional fields behind "+ Add". Try it — this is the real component.</p>
         <div class="max-w-[40rem]">
           <CmsFormSections :fields="demoFields" :sections="demoSections" :state="demo" disclose id-prefix="sg-">
@@ -232,7 +237,7 @@ const toc = [
       </section>
 
       <section id="states" class="space-y-4 scroll-mt-20">
-        <h2 class="cms-display text-lg font-semibold text-highlighted">Empty &amp; error states</h2>
+        <h2 class="cms-display text-lg font-semibold text-highlighted">{{ t('styleguide.toc.states') }}</h2>
         <div class="grid gap-4 lg:grid-cols-3">
           <div class="cms-card">
             <CmsEmptyState icon="i-lucide-newspaper" title="No posts yet" description="Articles on the blog. Drafts stay private until you publish them.">

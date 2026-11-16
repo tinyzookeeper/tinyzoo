@@ -73,7 +73,7 @@ export function cmsDeleteFailure(err: any, t: T, name?: (label: unknown) => stri
     const short = (s: string) => (s.length > 40 ? s.slice(0, 39).trimEnd() + '…' : s)
     const used: any[] = data.usedBy ?? []
     // A global (a menu, the site settings) has no title: it is named by its collection.
-    const named = (u: any) => (u.title ? `„${short(String(u.title))}“` : u.singleton && name ? name(u.label) : '')
+    const named = (u: any) => (u.title ? t('common.quoted', { text: short(String(u.title)) }) : u.singleton && name ? name(u.label) : '')
     const titles: string[] = used.map(named).filter(Boolean)
     const shown = titles.length ? [...new Set(titles)].slice(0, 5).join(', ') + (titles.length > 5 ? '…' : '') : ''
     // What this person may not read is not named, only counted.
@@ -86,7 +86,7 @@ export function cmsDeleteFailure(err: any, t: T, name?: (label: unknown) => stri
   // A page with pages under it: say which, so they can be moved first.
   if (data?.code === 'has_children') {
     const short = (s: string) => (s.length > 40 ? s.slice(0, 39).trimEnd() + '…' : s)
-    const titles: string[] = (data.children ?? []).map((c: any) => (c.title ? `„${short(String(c.title))}“` : '')).filter(Boolean)
+    const titles: string[] = (data.children ?? []).map((c: any) => (c.title ? t('common.quoted', { text: short(String(c.title)) }) : '')).filter(Boolean)
     const more = Number(data.count ?? titles.length) - titles.length
     const items = titles.length ? titles.join(', ') + (more > 0 ? '…' : '') : '—'
     return { title: t('tree.hasChildrenTitle'), description: t('tree.hasChildrenBody', { items }) }
@@ -105,7 +105,11 @@ export function cmsRequestError(err: any, t: T, extra: { maxMb?: number } = {}):
   if (status === 400 && err?.data?.statusMessage === 'The file is empty') return t('errors.emptyFile')
   if (status === 401) return t('errors.signedOut')
   if (status === 403) return t('errors.forbidden')
-  if (status === 413) return extra.maxMb ? t('errors.tooLargeMax', { mb: extra.maxMb }) : t('errors.tooLarge')
+  if (status === 413) {
+    // "File too large (max 10MB)": the server names its limit, and so do we.
+    const mb = extra.maxMb ?? (Number(/(\d+)\s*MB/i.exec(String(err?.data?.statusMessage ?? err?.statusMessage ?? ''))?.[1]) || undefined)
+    return mb ? t('errors.tooLargeMax', { mb }) : t('errors.tooLarge')
+  }
   if (status === 415) return t('errors.fileType')
   if (status === 429) return t('errors.tooMany')
   if (status >= 500) return t('errors.server')

@@ -5,7 +5,6 @@
 // its own animals (the whole family says hello), so the layout's one stays away there.
 const { productName, unbranded } = useCmsAdminHead()
 const { t } = useCmsI18n()
-useCmsUiLocale()
 const route = useRoute()
 const animal = computed(() => (route.path.startsWith('/admin/setup') ? null : cmsCharacter('hedgehog')))
 const initials = computed(() => productName.value.split(/\s+/).filter(Boolean).map((p) => p[0]).join('').slice(0, 2).toUpperCase())

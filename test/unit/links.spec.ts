@@ -204,12 +204,12 @@ describe('the admin’s words for a page that is linked to', () => {
       { entity: 'post', id: '1', title: 'Článek s odkazem', singleton: false, via: 'link' },
       { entity: 'navigation', id: '2', title: '', singleton: true, label: { en: 'Navigation' }, via: 'link' },
     ]), t as any, name)
-    expect(out.description).toBe('Linked from „Článek s odkazem“, Navigation. Remove those links first, then delete it.')
+    expect(out.description).toBe('Linked from “Článek s odkazem”, Navigation. Remove those links first, then delete it.')
   })
 
   it('keeps the old wording for a relation, or a mix', () => {
     const t = translator(en)
-    expect(cmsDeleteFailure(refused([{ entity: 'post', id: '1', title: 'Hotovo' }]), t as any, name).description).toBe('Used in „Hotovo“. Change those first, then delete it.')
+    expect(cmsDeleteFailure(refused([{ entity: 'post', id: '1', title: 'Hotovo' }]), t as any, name).description).toBe('Used in “Hotovo”. Change those first, then delete it.')
     expect(cmsDeleteFailure(refused([{ entity: 'post', id: '1', title: 'A' }, { entity: 'page', id: '2', title: 'B', via: 'link' }]), t as any, name).description).toMatch(/^Used in /)
     expect(cmsDeleteFailure(refused([{ entity: 'navigation', singleton: true, label: { cs: 'Navigace' }, via: 'link' }]), translator(cs) as any, (l: any) => l.cs).description).toBe('Odkazuje na něj Navigace. Nejdřív ty odkazy odeberte, pak ho smažte.')
   })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Several related items (tags, authors): the chosen ones as chips that wrap, so all
 // of them stay readable in a narrow panel, and a menu to add more.
-const { t } = useCmsI18n()
+const { t, fieldLabel } = useCmsI18n()
 const props = defineProps<{ field: any; entity?: string; id?: string }>()
 const model = defineModel<any>()
 
@@ -46,7 +46,7 @@ const variant = computed(() => injected?.value ?? 'outline')
     </ul>
     <USelectMenu
       :id="id" v-model="model" multiple :items="options" value-key="id" :loading="loading" :icon="icon ?? 'i-lucide-plus'"
-      :variant="variant" class="w-full" @update:open="(o: boolean) => o && load()"
+      :variant="variant" :aria-label="fieldLabel(field)" class="w-full" @update:open="(o: boolean) => o && load()"
     >
       <span class="truncate text-muted">{{ ids.length ? t('fields.addMore') : t('common.select') }}</span>
     </USelectMenu>

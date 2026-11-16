@@ -74,6 +74,11 @@ cms: { admin: {
 } }
 ```
 
+Nuxt UI draws a few words itself ("Close", "Previous month", "Show password"). They follow the
+admin language when the site's `app/app.vue` hands it over (the starter does):
+`const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">`. On the website's own
+pages it is empty, so the site keeps its own.
+
 Labels in `cms.config.ts` take one string or one per admin language
 (`label: { en: 'Posts', cs: 'Články' }`), and entities can set `icon`,
 `labelSingular` and `description`.
