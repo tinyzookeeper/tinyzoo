@@ -1,5 +1,6 @@
 import { resolveText } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
+import { listedRecipients } from './cmsFormSettings'
 
 // Website forms (defineForm): what the website needs to draw one, who hears about a
 // submission, and the email they get.
@@ -56,7 +57,7 @@ export async function formRecipients(db: any, reg: CmsRegistry, e: CmsEntity): P
   const settings = reg.entities.find((x) => (x as any).preset === 'formSettings')
   if (settings) {
     const [row]: any[] = await db.select().from(settings.table).limit(1)
-    const listed = (Array.isArray(row?.notifyTo) ? row.notifyTo : []).map((i: any) => String(i?.email ?? '').trim()).filter(Boolean)
+    const listed = listedRecipients(settings, row)
     if (listed.length) return listed
   }
   const coded = ((e as any).form?.notify?.to ?? []) as string[]

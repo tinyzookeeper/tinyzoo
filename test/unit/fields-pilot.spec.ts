@@ -10,7 +10,10 @@ describe('f.list', () => {
     const z = team.zod('create')
     expect(z.parse([{ id: 'a1', type: 'item', name: 'Jana', role: null }])).toEqual([{ id: 'a1', type: 'item', name: 'Jana', role: null }])
     expect(z.safeParse([{ id: 'a1', type: 'item', role: 'Coach' }]).success).toBe(false) // name is required
-    expect(z.safeParse([{ id: 'a1', type: 'other', name: 'X' }]).success).toBe(true) // a type that is gone is kept, not refused
+    // a type that is gone is kept when it is stored already, and never added
+    const gone = { id: 'a1', type: 'other', name: 'X' }
+    expect(z.safeParse([gone]).success).toBe(false)
+    expect(team.zod('update', { stored: [gone] }).parse([gone])).toEqual([gone])
     expect(z.safeParse([{ id: 'a1', name: 'X' }]).success).toBe(false) // …but it still needs a type
   })
 

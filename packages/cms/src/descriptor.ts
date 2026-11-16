@@ -5,6 +5,16 @@ export type OnDelete = 'cascade' | 'restrict' | 'set null' | 'no action'
 export type RelationKind = 'many-to-one' | 'one-to-many' | 'many-to-many'
 export type ValidationMode = 'create' | 'update'
 
+/** What a write is checked against besides the payload. */
+export interface ValidationContext {
+  /**
+   * What the field holds in the row being written, as stored (nothing on create).
+   * Blocks and lists use it to tell a block that is already stored from one the
+   * client made up (see `blocksSchema`).
+   */
+  stored?: unknown
+}
+
 export interface RelationSpec {
   /**
    * Lazy thunk to the target entity. Typed `() => any` ON PURPOSE: any structural
@@ -102,7 +112,7 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   blocks?: Record<string, import('./blocks').BlockDef>
   /** null ⇒ owns no DB column (many-to-many, one-to-many). */
   spec: ColumnSpec | null
-  zod(mode?: ValidationMode): ZodTypeAny
+  zod(mode?: ValidationMode, context?: ValidationContext): ZodTypeAny
   optional(): FieldDescriptor<Nullable<K>>
   unique(): FieldDescriptor<K>
   /**

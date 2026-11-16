@@ -50,7 +50,9 @@ describe('blocks validation', () => {
 
   it('keeps a block of a type that no longer exists, and still needs it to have an id and a type', () => {
     const kept = { id: 'x', type: 'video', url: 'https://example.com/v.mp4', nested: { a: [1] } }
-    expect(schema.parse([kept])).toEqual([kept])
+    // kept when the field stores it already (see block-versions.spec for the rest); never added
+    expect(blocksSchema(defs, 500, [kept]).parse([kept])).toEqual([kept])
+    expect(schema.safeParse([kept]).success).toBe(false)
     expect(schema.safeParse([{ type: 'video' }]).success).toBe(false)
     expect(schema.safeParse([{ id: 'x' }]).success).toBe(false)
     expect(schema.safeParse(['video']).success).toBe(false)

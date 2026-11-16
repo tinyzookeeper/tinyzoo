@@ -30,16 +30,17 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   const raw = (await readBody(event)) ?? {}
   // An emptied field means "use the default language".
   const cleaned = Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k, v === '' ? null : v]))
-  const schema = z.object(Object.fromEntries(e.localized.map((k) => [k, (e.fields[k]!.zod('update') as any).nullable().optional()]))).strict()
-  const data: Record<string, unknown> = parseOr422(schema, cleaned)
 
   const [base] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
   if (!base) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, base)
   const seenBefore = await changeSnapshot(e, id)
 
-  const jsonKeys = e.localized.filter((k) => JSON_MEDIA_TYPES.has(e.fields[k]!.type) && k in data)
+  // The translation as it is now: blocks that are behind or of a type that is gone are only kept when stored already.
   const before = (await translationRows(db, e, [id], locale)).get(id)
+  const schema = z.object(Object.fromEntries(e.localized.map((k) => [k, (e.fields[k]!.zod('update', { stored: before?.[k] }) as any).nullable().optional()]))).strict()
+  const data: Record<string, unknown> = parseOr422(schema, cleaned)
+  const jsonKeys = e.localized.filter((k) => JSON_MEDIA_TYPES.has(e.fields[k]!.type) && k in data)
   const oldMedia = jsonKeys.flatMap((k) => jsonMediaIds(e.fields[k], before?.[k]))
 
   const baseTr = baseVersion(event)

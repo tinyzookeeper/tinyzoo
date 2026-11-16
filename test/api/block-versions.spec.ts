@@ -58,12 +58,13 @@ describe('a block stored at an older version', () => {
     expect((await stored(p.id)).sections).toEqual([{ ...UPGRADED_CTA, v: 2 }])
   })
 
-  it('is upgraded on write when it says it is behind, and new blocks are stored at the current version', async () => {
-    const created = await admin.post('/api/cms/page', {
-      title: 'X', slug: 'x', sections: [{ ...OLD_CTA, v: 1 }, { id: 'n', type: 'cta', text: 'Nové', buttonUrl: '/ahoj' }, { id: 't', type: 'text', heading: 'Nadpis' }],
+  it('is upgraded on write when it says it is behind and is stored that way, and new blocks are stored at the current version', async () => {
+    const p = await storedPage([OLD_CTA])
+    const res = await admin.patch(`/api/cms/page/${p.id}`, {
+      sections: [{ ...OLD_CTA, v: 1 }, { id: 'n', type: 'cta', text: 'Nové', buttonUrl: '/ahoj' }, { id: 't', type: 'text', heading: 'Nadpis' }],
     })
-    expect(created.status).toBe(201)
-    expect((await stored(created.body.row.id)).sections).toEqual([
+    expect(res.status).toBe(200)
+    expect((await stored(p.id)).sections).toEqual([
       { ...UPGRADED_CTA, v: 2 },
       { id: 'n', type: 'cta', text: 'Nové', buttonUrl: '/ahoj', highlighted: false, v: 2 },
       { id: 't', type: 'text', heading: 'Nadpis' }, // version 1: no v
@@ -138,6 +139,163 @@ describe('a block whose type no longer exists', () => {
     expect(await mediaExists(m.id)).toBe(true)
     await admin.patch(`/api/cms/page/${p.id}`, { sections: [] })
     expect(await mediaExists(m.id)).toBe(false)
+  })
+})
+
+// ── the server does not take the client's word for what it stores ──────────────
+
+describe('a block that says it is behind', () => {
+  const patch = (id: string, sections: unknown[], query = '') => admin.patch(`/api/cms/page/${id}${query}`, { sections })
+  const paths = (res: any) => (res.body.data as { path: (string | number)[] }[]).map((i) => i.path)
+  const STALE_ELSEWHERE = { id: 'x1', type: 'cta', v: 1, text: 'Zvenčí', buttonUrl: 'javascript:alert(1)' }
+
+  it('is refused on create: nothing is stored, so nothing is stored at that version', async () => {
+    const res = await admin.post('/api/cms/page', { title: 'X', slug: 'x', sections: [{ ...OLD_CTA, v: 1 }] })
+    expect(res.status).toBe(422)
+    expect(paths(res)).toEqual([['sections', 0, 'v']])
+  })
+
+  it('is accepted for a block stored at that version, and refused under another id, or when stored at another version', async () => {
+    const p = await storedPage([OLD_CTA])
+    // another id: the client's claim cannot be checked against anything stored
+    const other = await patch(p.id, [{ ...STALE_ELSEWHERE }])
+    expect(other.status).toBe(422)
+    expect(paths(other)).toEqual([['sections', 0, 'v']])
+    expect((await stored(p.id)).sections).toEqual([OLD_CTA])
+    // the block stored at version 2 is not stored "at version 1"
+    const q = await storedPage([{ ...UPGRADED_CTA, v: 2 }])
+    expect((await patch(q.id, [{ ...OLD_CTA, v: 1 }])).status).toBe(422)
+    // the stored one itself: upgraded, validated and stored at the current version
+    expect((await patch(p.id, [{ ...OLD_CTA, v: 1 }])).status).toBe(200)
+    expect((await stored(p.id)).sections).toEqual([{ ...UPGRADED_CTA, v: 2 }])
+  })
+
+  it('is checked in a translation against the translation (not the entry)', async () => {
+    const p = await storedPage([OLD_CTA])
+    // Only the default language stores c1: the English translation has no such block.
+    const res = await patch(p.id, [{ ...OLD_CTA, v: 1, text: 'Order' }], '?locale=en')
+    expect(res.status).toBe(422)
+    expect(paths(res)).toEqual([['sections', 0, 'v']])
+    // …until the translation has it, at that version
+    await patch(p.id, [{ id: 'other', type: 'cta', text: 'x' }], '?locale=en')
+    await db.query(`update "${localesTable}" set "${sectionsCol}" = $1::jsonb where parent_id = $2 and locale = 'en'`, [JSON.stringify([{ ...OLD_CTA, text: 'Order' }]), p.id])
+    expect((await patch(p.id, [{ ...OLD_CTA, v: 1, text: 'Order' }], '?locale=en')).status).toBe(200)
+    const [tr] = (await db.query(`select "${sectionsCol}" as sections from "${localesTable}" where parent_id = $1 and locale = 'en'`, [p.id])).rows
+    expect(tr.sections).toEqual([{ ...UPGRADED_CTA, text: 'Order', v: 2 }])
+  })
+})
+
+describe('a block sent without v', () => {
+  const patch = (id: string, sections: unknown[], query = '') => admin.patch(`/api/cms/page/${id}${query}`, { sections })
+
+  it('is stored when it fits the current shape, and never loses a key it does not know', async () => {
+    const p = await storedPage([])
+    expect((await patch(p.id, [{ id: 't', type: 'text', heading: 'Nadpis' }])).status).toBe(200)
+    const bad = await patch(p.id, [{ id: 't', type: 'text', heading: 'Nadpis', legacyTitle: 'Starý nadpis' }])
+    expect(bad.status).toBe(422)
+    expect(bad.body.data[0].message).toMatch(/legacyTitle/)
+    expect(bad.body.data[0].message).toMatch(/reload/)
+    expect((await stored(p.id)).sections).toEqual([{ id: 't', type: 'text', heading: 'Nadpis' }])
+    // a block of a version above 1 is taken as version 1 and upgraded when it does not fit: its extra key is a refusal, not a silent loss
+    const cta = await patch(p.id, [{ id: 'c', type: 'cta', text: 'T', legacyLabel: 'x' }])
+    expect(cta.status).toBe(422)
+  })
+
+  it('the same for the items of a list inside a block, and in a translation', async () => {
+    const p = await storedPage([])
+    const cards = (extra: object) => [{ id: 'k', type: 'cards', heading: 'H', items: [{ id: 'i', type: 'item', title: 'T', ...extra }] }]
+    expect((await patch(p.id, cards({}))).status).toBe(200)
+    const bad = await patch(p.id, cards({ legacyText: 'x' }))
+    expect(bad.status).toBe(422)
+    expect(bad.body.data[0].path).toEqual(['sections', 0, 'items', 0])
+    expect(bad.body.data[0].message).toMatch(/legacyText/)
+    const tr = await patch(p.id, [{ id: 't', type: 'text', legacyTitle: 'x' }], '?locale=en')
+    expect(tr.status).toBe(422)
+  })
+
+  it('in a global (PUT), the items of a list too', async () => {
+    const res = await admin.put('/api/cms/_singleton/formSettings', { notifyTo: [{ id: 'a', type: 'item', email: 'a@example.com', oldAddress: 'x' }] })
+    expect(res.status).toBe(422)
+    expect(res.body.data[0].message).toMatch(/oldAddress/)
+    expect((await admin.put('/api/cms/_singleton/formSettings', { notifyTo: [{ id: 'a', type: 'item', email: 'a@example.com' }] })).status).toBe(200)
+  })
+})
+
+describe('what the editor reads carries v on every block and list item', () => {
+  it('in the form, in a translation, in the list and in a saved version — also at version 1', async () => {
+    const p = await storedPage([{ id: 'h', type: 'hero', heading: 'Vítejte' }, { id: 'k', type: 'cards', heading: 'H', items: [{ id: 'i', type: 'item', title: 'T' }] }, GONE])
+    const stamped = [
+      { id: 'h', type: 'hero', heading: 'Vítejte', v: 1 },
+      { id: 'k', type: 'cards', heading: 'H', items: [{ id: 'i', type: 'item', title: 'T', v: 1 }], v: 1 },
+      GONE, // a type we cannot read is left as it is
+    ]
+    expect((await admin.get(`/api/cms/page/${p.id}`)).body.row.sections).toEqual(stamped)
+    expect((await admin.get('/api/cms/page')).body.rows.find((r: any) => r.id === p.id).sections).toEqual(stamped)
+    // What the editor sends back is stored without the stamp at version 1: the stored copy is as before.
+    const row = (await admin.get(`/api/cms/page/${p.id}`)).body.row
+    expect((await admin.patch(`/api/cms/page/${p.id}`, { title: 'Nový název', sections: row.sections })).status).toBe(200)
+    expect((await stored(p.id)).sections).toEqual([
+      { id: 'h', type: 'hero', heading: 'Vítejte' },
+      { id: 'k', type: 'cards', heading: 'H', items: [{ id: 'i', type: 'item', title: 'T' }] },
+      GONE,
+    ])
+    // A translation: the same.
+    await db.query(`insert into "${localesTable}" (parent_id, locale, "${sectionsCol}") values ($1, 'en', $2::jsonb)`, [p.id, JSON.stringify([{ id: 'h', type: 'hero', heading: 'Welcome' }])])
+    expect((await admin.get(`/api/cms/page/${p.id}?locale=en`)).body.row.sections).toEqual([{ id: 'h', type: 'hero', heading: 'Welcome', v: 1 }])
+    // A global's list.
+    await admin.put('/api/cms/_singleton/formSettings', { notifyTo: [{ id: 'a', type: 'item', email: 'a@example.com' }] })
+    expect((await admin.get('/api/cms/_singleton/formSettings')).body.row.notifyTo).toEqual([{ id: 'a', type: 'item', email: 'a@example.com', v: 1 }])
+  })
+
+  it('the list in the admin is brought up to date, like every other read (it showed the stored shape)', async () => {
+    const p = await storedPage([OLD_CTA])
+    const row = (await admin.get('/api/cms/page')).body.rows.find((r: any) => r.id === p.id)
+    expect(row.sections).toEqual([{ ...UPGRADED_CTA, v: 2 }])
+    expect((await stored(p.id)).sections).toEqual([OLD_CTA])
+  })
+})
+
+describe('an unknown block type', () => {
+  const formSettingsTable = getTableName(config.FormSettings.table as any)
+  const patch = (id: string, sections: unknown[], query = '') => admin.patch(`/api/cms/page/${id}${query}`, { sections })
+
+  it('cannot be added: only a block that is already stored may stay', async () => {
+    const p = await storedPage([GONE])
+    const res = await patch(p.id, [GONE, { id: 'new', type: 'video', url: 'javascript:alert(1)' }])
+    expect(res.status).toBe(422)
+    expect(res.body.data[0].path).toEqual(['sections', 1])
+    expect((await admin.post('/api/cms/page', { title: 'X', slug: 'x', sections: [GONE] })).status).toBe(422)
+    // a stored one cannot be changed either: it is kept as it is or removed
+    expect((await patch(p.id, [{ ...GONE, url: 'javascript:alert(1)' }])).status).toBe(422)
+    expect((await patch(p.id, [GONE])).status).toBe(200)
+    expect((await stored(p.id)).sections).toEqual([GONE])
+  })
+
+  it('cannot go by a name that is drawn as a known type', async () => {
+    const p = await storedPage([])
+    for (const type of ['Hero', '_hero', '-hero', 'hero_', 'he-ro', 'CTA']) {
+      const res = await patch(p.id, [{ id: 'g', type, anything: 1 }])
+      expect(res.status, type).toBe(422)
+      expect(res.body.data[0].path).toEqual(['sections', 0, 'type'])
+    }
+    expect((await stored(p.id)).sections).toEqual([])
+  })
+
+  it('is kept in a translation when stored there, and refused when new', async () => {
+    const p = await storedPage([])
+    await patch(p.id, [{ id: 'h', type: 'hero', heading: 'Welcome' }], '?locale=en')
+    await db.query(`update "${localesTable}" set "${sectionsCol}" = $1::jsonb where parent_id = $2 and locale = 'en'`, [JSON.stringify([GONE]), p.id])
+    expect((await patch(p.id, [GONE], '?locale=en')).status).toBe(200)
+    expect((await patch(p.id, [GONE, { ...GONE, id: 'new' }], '?locale=en')).status).toBe(422)
+  })
+
+  it('is kept in a global when stored there, and refused when new', async () => {
+    await admin.put('/api/cms/_singleton/formSettings', { notifyTo: [] })
+    const ghost = { id: 'g', type: 'person', name: 'Zmizelý' }
+    await db.query(`update "${formSettingsTable}" set "${snake('notifyTo')}" = $1::jsonb`, [JSON.stringify([ghost])])
+    expect((await admin.put('/api/cms/_singleton/formSettings', { notifyTo: [ghost] })).status).toBe(200)
+    expect((await db.query(`select "${snake('notifyTo')}" as n from "${formSettingsTable}"`)).rows[0].n).toEqual([ghost])
+    expect((await admin.put('/api/cms/_singleton/formSettings', { notifyTo: [ghost, { ...ghost, id: 'new' }] })).status).toBe(422)
   })
 })
 

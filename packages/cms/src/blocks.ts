@@ -20,7 +20,13 @@ import { upgradeRichText } from './richtext'
  * Stored JSON outlives the code that wrote it, so a block (or `f.list`) can carry a
  * `version`: stored blocks are stamped `v` (left out while it is 1) and anything
  * behind runs through `upgrade` whenever it is read (see upgradeBlocks). A block
- * whose type was removed from the config is kept as it is, not dropped or refused.
+ * whose type was removed from the config is kept as it is, not dropped or refused,
+ * for as long as it is stored (a new one of an unknown type is refused).
+ *
+ * A WRITE does not take the client's word for any of this (see `blocksSchema`): a
+ * block that says it is behind, or whose `upgrade` throws, or whose type is gone, is
+ * only kept when the same block is already stored; a block without `v` is checked
+ * against the current definition and, when it does not fit, upgraded from version 1.
  */
 
 /** Field types allowed inside a block ('blocks' = a list, one level deep). */
@@ -127,6 +133,8 @@ export interface UpgradeOptions {
   onUpgrade?: (info: { type: string; id: string | null; from: number; to: number; path: (string | number)[] }) => void
   /** Put `v` (the stored one) and `__upgradeFailed: true` on such blocks, so the admin can show them as needing attention. */
   markFailed?: boolean
+  /** Put `v` on every block that has none (version 1 included), so a client always sends it back: what the admin reads. */
+  stamp?: boolean
   /** What the value belongs to ("page 3f2a… · sections"), named in the development warnings. */
   where?: string
 }
@@ -218,6 +226,7 @@ export function upgradeBlocks<T = unknown>(value: T, defs: Record<string, BlockD
           : cur[key]
       if (next !== cur[key]) cur = { ...cur, [key]: next }
     }
+    if (opts.stamp && cur.v !== storedBlockVersion(cur)) cur = { ...cur, v: storedBlockVersion(cur) }
     warnUnknownKeys(def, cur, opts.where)
     if (cur !== b) changed = true
     return cur
@@ -250,22 +259,60 @@ export function upgradeStoredRow<R extends Record<string, any>>(
 // ── validation ───────────────────────────────────────────────────────────────
 
 /**
- * Zod for a blocks array. Each block is checked against its own type's fields, after
- * `upgrade` when it was stored at an older version (and then strictly: a key the
- * upgrade forgot to rename is an error, not silently dropped). Blocks come out
- * stamped with the current `v`. A block of a type that is no longer defined, or whose
- * `upgrade` throws, is kept exactly as it came in. On write, a missing `v` means "the
- * current version" (what the content API returns carries none).
+ * What an unknown block type (one the config no longer has) may be called: lower
+ * case, digits, `_` and `-`, starting with a letter or digit. Anything else
+ * (`Link`, `_hero`, `-hero`) could be drawn as the component of a known type.
  */
-export function blocksSchema(blocks: Record<string, BlockDef>, max = 500): ZodTypeAny {
-  const loose = new Map<string, z.ZodObject<any>>()
-  const strict = new Map<string, z.ZodObject<any>>()
+export const UNKNOWN_BLOCK_TYPE = /^[a-z0-9][a-z0-9_-]*$/
+const squash = (type: string) => type.toLowerCase().replace(/[_-]/g, '')
+
+const NOT_UP_TO_DATE = 'This block could not be brought up to date — remove it or fix it'
+const OUT_OF_DATE = 'This block is out of date — reload the page and try again'
+
+/** Structural equality of two JSON values. */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== 'object' || typeof b !== 'object' || !a || !b) return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) return a.length === (b as unknown[]).length && a.every((x, i) => deepEqual(x, (b as unknown[])[i]))
+  const ka = Object.keys(a)
+  const kb = Object.keys(b)
+  return ka.length === kb.length && ka.every((k) => Object.hasOwn(b, k) && deepEqual((a as any)[k], (b as any)[k]))
+}
+
+/** A block as it is compared with its stored copy: no failure marker, and `v` always spelled out (a missing one is 1). */
+const comparable = (block: Record<string, any>) => {
+  const { [UPGRADE_FAILED_KEY]: _marker, v: _v, ...rest } = block
+  return { ...rest, v: storedBlockVersion(block) }
+}
+const sameAsStored = (item: Record<string, any>, stored: Record<string, any> | undefined) => !!stored && deepEqual(comparable(item), comparable(stored))
+
+interface Compiled {
+  loose: z.ZodObject<any>
+  strict: z.ZodObject<any>
+  /** Fields holding a list of blocks: validated by `validateBlockList`, with their own stored values. */
+  lists: [string, FieldDescriptor][]
+}
+
+const compiled = new WeakMap<Record<string, BlockDef>, Map<string, Compiled>>()
+
+function compile(blocks: Record<string, BlockDef>): Map<string, Compiled> {
+  const known = compiled.get(blocks)
+  if (known) return known
+  const out = new Map<string, Compiled>()
   for (const [type, def] of Object.entries(blocks)) {
     const shape: Record<string, ZodTypeAny> = {
       id: z.string().min(1).max(64),
       type: z.literal(type),
     }
+    const lists: [string, FieldDescriptor][] = []
     for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
+      if (fld.type === 'blocks' && fld.blocks) {
+        // Checked on its own afterwards, against what is stored inside this block.
+        lists.push([key, fld])
+        shape[key] = z.unknown().optional()
+        continue
+      }
       // Inside a block every field may be left empty while the editor is still
       // filling it in, unless it is explicitly required.
       let s = fld.zod('create')
@@ -273,62 +320,170 @@ export function blocksSchema(blocks: Record<string, BlockDef>, max = 500): ZodTy
       shape[key] = s
     }
     const o = z.object(shape)
-    loose.set(type, o)
-    strict.set(type, o.strict())
+    out.set(type, { loose: o, strict: o.strict(), lists })
   }
-  const envelope = z.object({ id: z.string().min(1).max(64), type: z.string().min(1).max(64) })
+  compiled.set(blocks, out)
+  return out
+}
 
-  return z.array(z.any()).max(max).transform((list, ctx) => {
-    const out: unknown[] = []
-    const seen = new Set<string>()
-    let ok = true
-    const fail = (issues: readonly any[], index: number) => {
-      ok = false
-      for (const is of issues) ctx.addIssue({ ...is, path: [index, ...(is.path ?? [])] })
+type Problem = { code: string; path: (string | number)[]; message: string; [k: string]: unknown }
+const problem = (path: (string | number)[], message: string): Problem => ({ code: 'custom', path, message })
+const idOf = (b: Record<string, any>) => (typeof b.id === 'string' ? b.id : null)
+
+/** Keys of a block that are neither its fields nor its envelope. */
+const unknownKeys = (def: BlockDef, block: Record<string, any>) => Object.keys(block).filter((k) => !BLOCK_META_KEYS.has(k) && k !== UPGRADE_FAILED_KEY && !Object.hasOwn(def.fields, k))
+
+/**
+ * Check a blocks array against its definitions, for a WRITE. `stored` is what the
+ * same field holds right now (raw, as in the database), or nothing when the row is
+ * new; the schema alone cannot see it, so the handlers that have the row pass it in.
+ * It decides two things that must never be taken on the client's word:
+ *
+ *  - a block that says it is behind (`v` below the current version), or whose
+ *    `upgrade` throws, or whose type is not defined any more, is only kept when it
+ *    is a block that is already stored (same id, and for a stale one the same
+ *    version; for a failing or unknown one identical to the stored copy). Anything
+ *    else is refused: it would be stored without being checked.
+ *  - a block without `v` is not trusted to be current: it is checked against the
+ *    current definition, and only when that does not fit is it taken for version 1.
+ *
+ * Returns the checked list (blocks stamped with the current `v`), or null with the
+ * problems added to `problems`.
+ */
+function validateBlockList(
+  blocks: Record<string, BlockDef>, max: number, list: unknown, stored: unknown, base: (string | number)[], problems: Problem[],
+): unknown[] | null {
+  if (!Array.isArray(list)) {
+    problems.push({ code: 'invalid_type', path: base, message: 'Invalid input: expected array' })
+    return null
+  }
+  if (list.length > max) {
+    problems.push({ code: 'too_big', path: base, message: `Too big: expected array to have <=${max} items` })
+    return null
+  }
+  const types = compile(blocks)
+  const storedById = new Map<string, Record<string, any>>()
+  if (Array.isArray(stored)) for (const s of stored) if (isPlainObject(s) && typeof s.id === 'string' && !storedById.has(s.id)) storedById.set(s.id, s)
+  const envelope = z.object({ id: z.string().min(1).max(64), type: z.string().min(1).max(64) })
+  const squashed = Object.keys(blocks).map(squash)
+
+  const out: unknown[] = []
+  const seen = new Set<string>()
+  let ok = true
+  const fail = (path: (string | number)[], ...found: Problem[]) => {
+    ok = false
+    problems.push(...found.map((p) => ({ ...p, path: [...path, ...p.path] })))
+  }
+  const failZod = (index: number, issues: readonly any[]) => fail([...base, index], ...issues.map((is) => ({ ...is, path: is.path ?? [] })))
+  const keep = (index: number, id: string, block: unknown) => {
+    if (seen.has(id)) return fail([...base, index], problem(['id'], 'Duplicate block id'))
+    seen.add(id)
+    out.push(block)
+  }
+
+  list.forEach((item, i) => {
+    const at = [...base, i]
+    if (!isPlainObject(item)) return failZod(i, envelope.safeParse(item).error?.issues ?? [])
+    const type = typeof item.type === 'string' ? item.type : ''
+    const def = Object.hasOwn(blocks, type) ? blocks[type] : undefined
+    const env = envelope.safeParse(item)
+    const sb = typeof item.id === 'string' ? storedById.get(item.id) : undefined
+    const storedOfType = sb && sb.type === type ? sb : undefined
+
+    // ── a type the config does not have (any more) ──
+    if (!def) {
+      if (!env.success) return failZod(i, env.error.issues)
+      const { [UPGRADE_FAILED_KEY]: _marker, ...kept } = item
+      // Only a block that is already stored, exactly as it is stored, stays; it could not be checked.
+      if (sameAsStored(item, sb)) return keep(i, env.data.id, kept)
+      if (!UNKNOWN_BLOCK_TYPE.test(type) || squashed.includes(squash(type))) return fail(at, problem(['type'], 'Unknown block type'))
+      return fail(at, problem([], 'This block type does not exist (any more), so no such block can be added or changed — remove it'))
     }
-    list.forEach((item, i) => {
-      if (!isPlainObject(item)) return fail(envelope.safeParse(item).error?.issues ?? [], i)
-      const def = typeof item.type === 'string' && Object.hasOwn(blocks, item.type) ? blocks[item.type] : undefined
-      // Not a type we know (any more): kept as it is.
-      if (!def) {
-        const r = envelope.safeParse(item)
-        if (!r.success) return fail(r.error.issues, i)
-        const { [UPGRADE_FAILED_KEY]: _marker, ...kept } = item
-        if (seen.has(r.data.id)) return fail([{ code: 'custom', path: ['id'], message: 'Duplicate block id' }], i)
-        seen.add(r.data.id)
-        out.push(kept)
-        return
-      }
-      const current = blockVersion(def)
-      let from = current
-      if (item.v !== undefined && item.v !== null) {
-        if (typeof item.v !== 'number' || !Number.isInteger(item.v) || item.v < 1) return fail([{ code: 'custom', path: ['v'], message: 'The version must be a whole number from 1' }], i)
-        if (item.v > current) return fail([{ code: 'custom', path: ['v'], message: `Saved by a newer version of this site (block version ${item.v}, this one knows ${current})` }], i)
-        from = item.v
-      }
-      let data: Record<string, any> = item
-      let upgraded = false
-      if (from < current) {
-        try {
-          data = upgradeBlock(def, { ...item, v: from })
-          upgraded = true
-        }
-        catch (error) {
-          logUpgradeFailure({ type: item.type, id: typeof item.id === 'string' ? item.id : null, from, to: current, path: [i], error })
-          const { [UPGRADE_FAILED_KEY]: _marker, ...kept } = item
-          out.push(kept)
-          return
+
+    // ── a known type ──
+    const current = blockVersion(def)
+    const { v: claimed, [UPGRADE_FAILED_KEY]: _marker, ...rest } = item
+    const compiledDef = types.get(type)!
+    let from = current
+    let strictResult: ReturnType<z.ZodObject<any>['safeParse']> | null = null
+    if (claimed !== undefined && claimed !== null) {
+      if (typeof claimed !== 'number' || !Number.isInteger(claimed) || claimed < 1) return fail(at, problem(['v'], 'The version must be a whole number from 1'))
+      if (claimed > current) return fail(at, problem(['v'], `Saved by a newer version of this site (block version ${claimed}, this one knows ${current})`))
+      from = claimed
+      // A stale block is taken as stale only when it is stored that way: the client's word is not enough.
+      if (from < current && !(storedOfType && storedBlockVersion(storedOfType) === from)) return fail(at, problem(['v'], OUT_OF_DATE))
+    }
+    else {
+      // No `v`: is it a block of the current shape? Nothing may be dropped silently.
+      strictResult = compiledDef.strict.safeParse(rest)
+      if (!strictResult.success) {
+        if (current > 1) from = 1
+        else {
+          const extra = unknownKeys(def, item)
+          if (extra.length) return fail(at, problem([], `This block has fields this site does not know (${extra.join(', ')}) — the editor is out of date, reload the page`))
+          return failZod(i, strictResult.error.issues)
         }
       }
-      const { v: _v, [UPGRADE_FAILED_KEY]: _marker, ...rest } = data
-      const r = (upgraded ? strict : loose).get(item.type)!.safeParse(rest)
-      if (!r.success) return fail(r.error.issues, i)
-      const id = String(r.data.id)
-      if (seen.has(id)) return fail([{ code: 'custom', path: ['id'], message: 'Duplicate block id' }], i)
-      seen.add(id)
-      out.push(current > 1 ? { ...r.data, v: current } : r.data)
-    })
-    return ok ? out : z.NEVER
+    }
+
+    let data: Record<string, any> = rest
+    let upgraded = false
+    if (from < current) {
+      try {
+        data = upgradeBlock(def, { ...rest, v: from })
+        upgraded = true
+      }
+      catch (error) {
+        logUpgradeFailure({ type, id: idOf(item), from, to: current, path: at, error })
+        // Not brought up to date, so not checked: only the copy that is already stored may stay.
+        if (sameAsStored(item, sb) && env.success) return keep(i, env.data.id, sb)
+        return fail(at, problem([], NOT_UP_TO_DATE))
+      }
+    }
+    const { v: _v, ...fields } = data
+    const r = strictResult?.success ? strictResult : (upgraded ? compiledDef.strict : compiledDef.loose).safeParse(fields)
+    const own: Problem[] = []
+    if (!r.success) own.push(...r.error.issues.map((is: any) => ({ ...is, path: is.path ?? [] })))
+    const value: Record<string, any> = r.success ? { ...(r.data as Record<string, any>) } : {}
+    // Lists inside the block, against the same list stored inside the same block.
+    for (const [key, fld] of compiledDef.lists) {
+      const raw = fields[key]
+      if (raw === undefined || raw === null) {
+        if (fld.isRequired) own.push({ code: 'invalid_type', path: [key], message: 'Required' })
+        else if (r.success && raw === null) value[key] = null
+        continue
+      }
+      const nested: Problem[] = []
+      const checked = validateBlockList(fld.blocks!, (fld.meta?.list as { max?: number | null } | undefined)?.max ?? 500, raw, storedOfType?.[key], [key], nested)
+      own.push(...nested)
+      if (checked) value[key] = checked
+    }
+    if (own.length) return fail(at, ...own)
+    if (!env.success) return failZod(i, env.error.issues)
+    keep(i, String(value.id), current > 1 ? { ...value, v: current } : value)
+  })
+  return ok ? out : null
+}
+
+/**
+ * Zod for a blocks array. Each block is checked against its own type's fields, after
+ * `upgrade` when it was stored at an older version (and then strictly: a key the
+ * upgrade forgot to rename is an error, not silently dropped). Blocks come out
+ * stamped with the current `v`.
+ *
+ * Writing is stricter than reading, because the server must not take the client's
+ * word for what it stores (see `validateBlockList`): a block of a type that is no
+ * longer defined, a block that is behind, and a block whose `upgrade` throws are kept
+ * only when `stored` (what the field holds now) has the same block; a block without
+ * `v` is checked as the current shape, and as version 1 only when it does not fit. With
+ * no `stored` (a new row) none of those exist.
+ */
+export function blocksSchema(blocks: Record<string, BlockDef>, max = 500, stored?: unknown): ZodTypeAny {
+  return z.array(z.any()).max(max).transform((list, ctx) => {
+    const problems: Problem[] = []
+    const out = validateBlockList(blocks, max, list, stored, [], problems)
+    for (const p of problems) ctx.addIssue(p as any)
+    return out ?? z.NEVER
   })
 }
 

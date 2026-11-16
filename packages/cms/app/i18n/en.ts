@@ -97,6 +97,11 @@ export default {
     invalid: 'This doesn’t look right',
     path: 'Start with /, e.g. /old-page (no ?, # or trailing /)',
     wrongPassword: 'That’s not the right password',
+    blockStale: 'This block could not be brought up to date — remove it or fix it',
+    blockOutOfDate: 'This block is out of date — reload the page and try again',
+    blockUnknownFields: 'This block has fields the website does not know ({keys}). The editor is out of date — reload the page.',
+    blockTypeGone: 'This type of block no longer exists, so it cannot be added or changed — remove it',
+    blockNewer: 'This block was saved by a newer version of the website — reload the page.',
   },
   home: {
     scheduled: 'Going live soon',

@@ -25,6 +25,8 @@ export default defineEventHandler(async (event) => {
     .limit(limit).offset((page - 1) * limit)
   const [counted] = await db.select({ count: sql<number>`count(*)::int` }).from(e.table).where(where)
   const count = counted?.count ?? 0
+  // Blocks and lists in the shape the code knows (the list shows counts and excerpts of them).
+  for (const r of rows) upgradeStoredJson(e, r, { admin: true })
 
   // populate to-one relation labels
   for (const [key, fld] of Object.entries(e.fields)) {

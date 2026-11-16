@@ -3,7 +3,7 @@ export { defineEntity, defineSingleton, buildRegistry, propOf, editorLayout, lis
 export type { CmsEntity, CmsRegistry, ContentConfig, PublishConfig, EntityDef, Entity, Junction, Row, Insert, Update, CmsEditorLayout, CmsListLayout, CmsFormSection } from './entity'
 export { f, snake, camel, pascal, buildColumn, serializeColumn, type CmsGalleryValue, type CmsListValue } from './fields'
 export { seo, linkBlock, definePages, defineNavigation, defineRedirects, defineForm, defineFormSettings, FORM_FIELD_TYPES, type FormOptions } from './presets'
-export { defineBlock, blocksSchema, mediaIdsInBlocks, blockMediaKeys, BLOCK_FIELD_TYPES, blockVersion, storedBlockVersion, upgradeBlock, upgradeBlocks, upgradeListItems, upgradeStoredRow, logUpgradeFailure, UPGRADE_FAILED_KEY, type UpgradeIssue, type UpgradeOptions, type BlockDef, type BlockValue, type BlocksValue, type CmsBlock } from './blocks'
+export { defineBlock, blocksSchema, mediaIdsInBlocks, blockMediaKeys, BLOCK_FIELD_TYPES, blockVersion, storedBlockVersion, upgradeBlock, upgradeBlocks, upgradeListItems, upgradeStoredRow, logUpgradeFailure, UPGRADE_FAILED_KEY, UNKNOWN_BLOCK_TYPE, type UpgradeIssue, type UpgradeOptions, type BlockDef, type BlockValue, type BlocksValue, type CmsBlock } from './blocks'
 export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'
 export { sitePrefix, pathTemplateFor, pathTemplateKeys, fillPathTemplate, sitePath, prefixedTemplates, type PathTemplate } from './paths'

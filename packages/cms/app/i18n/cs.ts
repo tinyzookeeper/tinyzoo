@@ -96,6 +96,11 @@ export default {
     invalid: 'Tohle nevypadá správně',
     path: 'Začněte lomítkem, např. /stara-stranka (bez ?, # a lomítka na konci)',
     wrongPassword: 'Heslo nesedí',
+    blockStale: 'Tento blok se nepodařilo převést na aktuální podobu — odeberte ho, nebo ho opravte',
+    blockOutOfDate: 'Tento blok je zastaralý — načtěte stránku znovu a zkuste to ještě jednou',
+    blockUnknownFields: 'Blok obsahuje pole, která web nezná ({keys}). Editor je zastaralý — načtěte stránku znovu.',
+    blockTypeGone: 'Tento typ bloku už neexistuje, takže ho nejde přidat ani změnit — odeberte ho',
+    blockNewer: 'Tento blok uložila novější verze webu — načtěte stránku znovu.',
   },
   home: {
     scheduled: 'Brzy se zveřejní',

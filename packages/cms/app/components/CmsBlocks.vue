@@ -2,7 +2,9 @@
 // A page's blocks on the website, each drawn by the site's own component, by name:
 // a block of type `hero` → <BlockHero :block="…" />, `text` → <BlockText>, and so on
 // (components/blocks/Hero.vue gives BlockHero with Nuxt's default naming). A block
-// with no component yet is skipped, with a note in development.
+// with no component yet is skipped, with a note in development. Only a type spelled
+// the way a definition spells it is drawn (not `Hero`, `_hero`, `-hero`), so a stray
+// type never lands on the component of a known one.
 //
 //   <CmsBlocks :blocks="page.sections" />
 //   <CmsBlocks :blocks="page.sections" prefix="Section" />   // → <SectionHero>
@@ -11,6 +13,7 @@ import { resolveDynamicComponent } from 'vue'
 const props = withDefaults(defineProps<{ blocks: { id: string; type: string; [k: string]: unknown }[] | null | undefined; prefix?: string }>(), { prefix: 'Block' })
 const pascal = (s: string) => s.replace(/(^|[-_])(\w)/g, (_m, _s, c: string) => c.toUpperCase())
 function componentFor(type: string) {
+  if (!renderableBlockType(type)) return null
   const name = props.prefix + pascal(type)
   const c = resolveDynamicComponent(name)
   if (typeof c === 'string') {
