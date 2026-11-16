@@ -512,6 +512,8 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     titleField: e.titleField,
     // A ready-made kind (pages, redirects, form…) the admin may treat specially.
     preset: (e as any).preset ?? null,
+    // Forms: submissions are deleted after this many days (null = kept).
+    retentionDays: ((e as any).form?.retentionDays as number | null | undefined) ?? null,
     singleton: !!e.singleton,
     publish: e.publish,
     // The preview address per language, prefix included ({ cs: '/aktuality/:slug', en: '/en/news/:slug' }).

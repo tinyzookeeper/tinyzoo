@@ -687,6 +687,12 @@ const tabs = computed(() => [
       </div>
     </div>
 
+    <!-- a form's messages are deleted after a while (defineForm retentionDays) -->
+    <p v-if="meta?.preset === 'form' && meta?.retentionDays" class="mt-3 flex items-center gap-1.5 text-xs text-muted">
+      <UIcon name="i-lucide-clock" class="size-3.5 shrink-0" aria-hidden="true" />
+      {{ t('list.retention', { count: meta.retentionDays }) }}
+    </p>
+
     <UModal :open="confirmBulkDelete" :title="t('list.bulkDeleteTitle', { count: selected.size })" @update:open="(v: boolean) => { confirmBulkDelete = v }">
       <template #body>
         <p class="text-sm text-muted">{{ t('list.bulkDeleteBody') }}</p>

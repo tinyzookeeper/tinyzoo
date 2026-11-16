@@ -35,7 +35,8 @@ export async function prepareTestDatabase(url: string): Promise<void> {
   const target = new URL(url)
   const dbName = target.pathname.replace(/^\//, '')
   if (!/^[a-z0-9_]+$/i.test(dbName)) throw new Error(`Refusing odd test database name: ${dbName}`)
-  if (!dbName.endsWith('_test')) throw new Error(`Test database must end in _test, got ${dbName}`)
+  // `cms_test`, `cms_test_ops`, `x_test`: a name with a `test` word in it, never a dev database.
+  if (!/(^|_)test(_|$)/.test(dbName)) throw new Error(`Test database name must contain "test" (cms_test, cms_test_ops, …), got ${dbName}`)
 
   const admin = new URL(url)
   admin.pathname = '/postgres'
