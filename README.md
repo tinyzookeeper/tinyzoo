@@ -654,6 +654,97 @@ with opening hours, a contact form, Czech + English. Each block is drawn by
 `app/components/global/Block<Type>.vue`; one catch-all page serves pages, the news
 list and news items in both languages.
 
+## Content between environments
+
+`tinyzoo export` and `tinyzoo import` move a site's content from one environment to
+another (production → staging, a laptop → a new server) as one file, and are the
+way out when a migration goes wrong. Run them from the website's folder (where
+`cms.config.ts` is); the database comes from `DATABASE_URL` (the environment or the
+website's `.env`), media from the `NUXT_CMS_STORAGE_*` settings the server uses
+(the local `.cms-uploads` folder, or the S3 / R2 bucket).
+
+```bash
+tinyzoo export site.tar.gz                      # everything below
+tinyzoo export site.tar.gz --only post,author   # just those entries (and the media they use)
+tinyzoo export site.tar.gz --no-media           # media rows without the files (same bucket on both sides)
+
+# on the other site, whose database is migrated and empty:
+tinyzoo import site.tar.gz
+tinyzoo import site.tar.gz --replace            # delete this site's content first (asks; --yes skips the question)
+tinyzoo import site.tar.gz --merge              # add and update entries by id, delete nothing
+tinyzoo import site.tar.gz --dry-run            # check and report, write nothing
+```
+
+**What is in it.** Every collection's entries with their translations and
+many-to-many links, the globals (settings, menus, home page), and the media library
+with its files. Ids are kept, so links between entries and pictures in pages survive.
+Left out on purpose, because people and their history belong to an environment (a
+copy of production must not carry its accounts, invitation links or audit trail into
+staging): accounts and tokens, sessions, the audit log, live-editing state, and the
+search index (rebuilt from the content on import). Who created or last changed an
+entry is dropped too (it points at accounts). Saved versions come with
+`--with-revisions`; form submissions, which are personal data, with
+`--with-submissions`.
+
+**Export** reads everything in one `REPEATABLE READ` transaction, so the file is a
+consistent snapshot while editors keep saving. Tables are read in pages and written
+straight to disk, and media files one at a time: memory does not grow with the site.
+
+**Import** refuses unless the target holds no content (`--replace` deletes what the
+archive covers first, in the same transaction; `--merge` upserts by id and sets each
+many-to-many field to the archive's list). It checks the archive first:
+
+- the archive format must be one this tinyzoo reads (a newer one asks you to upgrade);
+- if the content model differs from the one the archive was exported from (the
+  *fingerprint*: entity and field names, types, choices and block definitions), it
+  lists every difference — entities and fields missing on either side, changed types,
+  other choices, added or removed blocks — and stops. `--allow-mismatch` imports what
+  fits and reports what it skipped. Another *default language* cannot be mapped and
+  always stops;
+- media files are checked against their hashes, and uploaded to the target's storage;
+  the media rows get that storage's public addresses, and pictures embedded in rich
+  text are pointed at them.
+
+Rows are inserted in dependency order (media, then entries so that a post comes after
+its author, then translations, links and saved versions). A link that cannot be
+satisfied in any order — a page's parent, two entries pointing at each other — is
+left empty first and filled in afterwards; a *required* link in a cycle cannot be
+imported. All database changes are one transaction: a failure leaves the database as
+it was (media files uploaded before it stay in storage, unreferenced). With
+`--replace`, the media files of the old content also stay in storage: they may be
+shared with another environment. Afterwards the search index is rebuilt; if that
+fails the site rebuilds it on its next start, or run `nitro task run cms:search-reindex`.
+The website's caches (CDN, pre-rendered pages) are not purged.
+
+**The archive** is one `.tar.gz` (format 1), all JSON so it can be read without
+tinyzoo:
+
+```
+manifest.json              format, tinyzoo version, exportedAt, fingerprint, the content
+                           model (entities, fields, types, blocks), languages, what is
+                           inside (rows per entity), what was left out
+content/<entity>.jsonl     one entry per line
+globals/<name>.json        the one row of a global
+media.jsonl                the media library's rows
+media/<storage key>        the files
+revisions.jsonl            only with --with-revisions
+```
+
+An entry is keyed by field names, not columns:
+
+```json
+{ "id": "…", "createdAt": "…", "updatedAt": "…",
+  "fields": { "title": "První", "author": "<id>", "hero": "<media id>", "body": { "type": "doc" } },
+  "translations": [{ "id": "…", "locale": "en", "createdAt": "…", "updatedAt": "…", "fields": { "title": "First" } }],
+  "relations": { "tags": ["<id>", "<id>"] } }
+```
+
+This is not `tinyzoo backup` (a raw database dump of everything, accounts included,
+for the same version): the archive is for content, across versions of the site that
+still agree on the content model. Block and list JSON is written as it was exported;
+once blocks are versioned, import is where older ones will be brought up to date
+(`// upgradeBlocks hook:` in `packages/cms/cli/import.ts`).
+
 ## More field types
 
 ```ts

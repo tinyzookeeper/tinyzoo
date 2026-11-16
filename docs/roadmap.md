@@ -182,3 +182,42 @@ and the audit has no open High or Medium.
 ## Progress
 
 _Write-ups land here as slices merge._
+
+### 0.2 E — Content export and import
+
+`tinyzoo export <file>` and `tinyzoo import <file>` (branch `feat/0.2-export-import`;
+`packages/cms/cli/{export,import,transfer,tar}.ts`, README section *Content between
+environments*).
+
+- **Archive (format 1):** one `.tar.gz` — `manifest.json` (format, tinyzoo version,
+  time, fingerprint, the content model's shape, languages, entities with counts, what
+  was left out), `content/<entity>.jsonl` (an entry per line, keyed by field names,
+  with translations, many-to-many ids and `createdAt`/`updatedAt`), `globals/<name>.json`,
+  `media.jsonl` + `media/<key>` (with sha256), `revisions.jsonl` on request. No
+  dependency: a small tar writer/reader (streams files; tested against system `tar`).
+  Not exported: accounts, tokens, sessions, audit, collab state, search index; who
+  created an entry is dropped; form submissions (personal data) only with
+  `--with-submissions`; revisions with `--with-revisions`.
+- **Export:** one `REPEATABLE READ`, read-only transaction; keyset-paged reads written
+  straight to disk, media read through the storage driver one file at a time;
+  `--only`, `--no-media`, `--force`; written to `<file>.partial` and renamed.
+- **Import:** strict (target must hold no content) / `--replace` (confirmation, `--yes`;
+  deletes in reverse dependency order in the same transaction) / `--merge` (upsert by id,
+  a many-to-many field takes the archive's list, a global's other rows go);
+  fingerprint/format/default-language checks with a difference list and `--allow-mismatch`;
+  dependency order with *deferred* links (self references and optional cycles are filled
+  in afterwards; a required cycle is an error); media uploaded (hash-checked) before the
+  transaction, media `url`s and pictures embedded in rich text re-pointed at the target
+  storage; search index rebuilt with the server's own `rebuildSearchIndex`;
+  `--dry-run`, `--no-search-index`. `// upgradeBlocks hook:` marks where imported
+  block/list JSON will be upgraded, and the manifest reader marks where older archive
+  formats will be.
+- **Tests:** `test/unit/transfer.spec.ts` (two real databases from the playground
+  migrations, plus a self-referencing `category` table; the CLI is spawned once).
+
+Decisions worth knowing: `--replace` leaves the old media *files* in storage (the bucket
+may be shared with another environment); a partial (`--only`) archive is compared only on
+the entities it carries and, with FKs to entities it lacks, needs `--merge` into a target
+that has them; a global counts as content once saved (its row exists), so it makes a
+target non-empty. `cmsSearch.ts` now imports `mergeTranslation` explicitly (it relied on
+Nitro's auto-import, which does not exist in the CLI).
