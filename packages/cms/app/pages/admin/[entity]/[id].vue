@@ -12,7 +12,7 @@ definePageMeta({ layout: 'admin', key: (route) => route.fullPath })
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { t, tl, entityLabel, entitySingular, fieldLabel, formatDate, fieldHelp } = useCmsI18n()
+const { t, tl, languageName, entityLabel, entitySingular, fieldLabel, formatDate, fieldHelp } = useCmsI18n()
 const entity = computed(() => route.params.entity as string)
 const id = computed(() => route.params.id as string)
 const isNew = computed(() => id.value === 'new')
@@ -33,11 +33,22 @@ const currentLocale = computed(() => {
   return typeof q === 'string' && locales.value?.all.includes(q) ? q : (locales.value?.default ?? null)
 })
 const isTranslation = computed(() => !!locales.value && !isNew.value && currentLocale.value !== locales.value.default)
+// "The other fields are shared" only when there are other fields.
+const hasSharedFields = computed(() => (meta.value?.fields ?? []).some((f: any) => !f.localized && f.relation?.kind !== 'one-to-many' && f.key !== meta.value?.orderField))
 const localeLabel = (code?: string | null) => (code ? tl(locales.value?.labels?.[code], code.toUpperCase()) : '')
-const defaultLabel = computed(() => localeLabel(locales.value?.default))
+// In a sentence a language is named in the admin's own language ("angličtina"), not spelled its own way.
+const localeName = (code?: string | null) => languageName(code, code ? locales.value?.labels?.[code] : null)
+const defaultLabel = computed(() => localeName(locales.value?.default))
 const available = ref<string[]>([])
 const defaults = ref<Record<string, any>>({})
 const translated = ref(false)
+
+// May this person save here? Told by the server with the entry (the same rules a save
+// applies); when not, the form opens read-only with the reason, not a save that fails.
+const can = ref<{ update: boolean; why?: 'role' | 'owner' | 'published' }>({ update: true })
+const cannotCreate = computed(() => isNew.value && meta.value?.can?.create === false)
+const readOnly = computed(() => cannotCreate.value || (!isNew.value && can.value.update === false))
+provide('cmsReadOnly', readOnly)
 
 const savedAt = ref<string | null>(null)
 const createdAt = ref<string | null>(null)
@@ -57,8 +68,9 @@ function adopt(row: Record<string, any> | null | undefined) {
 // An address of an entry that does not exist (deleted, mistyped): say so, never a blank editor.
 const missing = ref(false)
 if (!isNew.value) {
-  const { data, error: rowError } = await useFetch<{ row: Record<string, any> }>(rowUrl)
+  const { data, error: rowError } = await useFetch<{ row: Record<string, any>; can?: typeof can.value }>(rowUrl)
   missing.value = rowError.value?.statusCode === 404 || rowError.value?.statusCode === 400
+  if (data.value?.can) can.value = data.value.can
   form.load(data.value?.row)
   adopt(data.value?.row)
 }
@@ -68,7 +80,11 @@ else {
   form.load(parent ? { [meta.value.tree.parent]: parent } : {})
 }
 
-const fetchRow = async () => (await $fetch<{ row: Record<string, any> }>(rowUrl())).row
+const fetchRow = async () => {
+  const res = await cmsFetch<{ row: Record<string, any>; can?: typeof can.value }>(rowUrl())
+  if (res.can) can.value = res.can
+  return res.row
+}
 
 /** Replace the form with the newest saved version (discarding unsaved edits here). */
 async function loadNewest() {
@@ -85,7 +101,10 @@ async function loadNewest() {
  * Fetch first, then decide: nothing new → nothing; unsaved edits here (also ones
  * typed while fetching) → offer the newer version; otherwise show it.
  */
+// This tab has just removed the translation itself: its own change coming back is no news.
+let removedHere = false
 async function onRemoteChange(c: LiveChange) {
+  if (removedHere && c.type === 'translation.deleted') return
   const row = await fetchRow().catch(() => null)
   if (!row) return
   const newest = (isTranslation.value ? row.__version : row.updatedAt) ?? null
@@ -147,12 +166,15 @@ const collabHeaders = (): Record<string, string> => {
 }
 
 // ── the "…" menu: whatever applies here ──
+// A draft's top bar on a phone: "Save" while there is something to save (publishing moves into the menu).
+const phoneSave = computed(() => narrow.value && dirty.value && !!publish.value && canPublish.value && !isPublished.value && !isTranslation.value && !readOnly.value)
 const draftActions = computed(() => !!publish.value && canPublish.value && !isPublished.value && !isTranslation.value)
 const menuGroups = computed(() => {
   const groups: any[][] = []
   if (narrow.value) {
     const g: any[] = []
-    if (draftActions.value) g.push({ label: t('editor.saveDraft'), icon: 'i-lucide-save', onSelect: () => save() })
+    if (phoneSave.value) g.push({ label: t('editor.publishEllipsis'), icon: 'i-lucide-send', onSelect: () => { reviewOpen.value = true } })
+    else if (draftActions.value && !readOnly.value) g.push({ label: t('editor.saveDraft'), icon: 'i-lucide-save', onSelect: () => save() })
     if (previewUrl.value) g.push({ label: t('editor.preview'), icon: 'i-lucide-eye', onSelect: togglePreview })
     if (!isNew.value) g.push({ label: t('revisions.open'), icon: 'i-lucide-history', onSelect: () => { historyOpen.value = true } })
     if (locales.value && !isNew.value) g.push({ label: t('translation.language'), icon: 'i-lucide-languages', children: localeItems.value })
@@ -164,6 +186,7 @@ const menuGroups = computed(() => {
 })
 const moreItems = computed(() => {
   const items: any[] = []
+  if (readOnly.value) return items
   if (!isNew.value && dirty.value) items.push({ label: t('editor.discard'), icon: 'i-lucide-undo-2', onSelect: discardChanges })
   if (!isNew.value && !isTranslation.value && publish.value && canPublish.value && isPublished.value) {
     items.push({ label: t('editor.unpublish'), icon: 'i-lucide-eye-off', onSelect: confirmUnpublish })
@@ -177,7 +200,7 @@ const entryItems = computed(() => {
   if (isNew.value || isTranslation.value) return items
   if (isPublished.value && publicPath.value) items.push({ label: t('editor.viewOnSite'), icon: 'i-lucide-arrow-up-right', to: publicPath.value, target: '_blank' })
   if (meta.value?.can?.create !== false) items.push({ label: t('editor.duplicate'), icon: 'i-lucide-copy', onSelect: duplicateEntry })
-  if (meta.value?.can?.delete !== false) items.push({ label: t('editor.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: deleteEntry })
+  if (meta.value?.can?.delete !== false && !(readOnly.value && can.value.why !== 'published')) items.push({ label: t('editor.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: deleteEntry })
   return items
 })
 const entryActions = useCmsEntryActions()
@@ -199,8 +222,10 @@ async function deleteEntry() {
 const confirm = useCmsConfirm()
 /** Taking it off the website is one click away from "Discard changes": ask first. */
 async function confirmUnpublish() {
+  // A page tree: the pages under this one go off the website with it.
+  const below = subpagesOnSite.value
   const ok = await confirm({
-    title: t('editor.unpublishTitle'), description: t('editor.unpublishBody'), icon: 'i-lucide-eye-off',
+    title: t('editor.unpublishTitle'), description: below ? t('tree.unpublishBranchCount', { count: below }) : t('editor.unpublishBody'), icon: 'i-lucide-eye-off',
     confirmLabel: t('editor.unpublish'),
   })
   if (ok) await setPublished(false)
@@ -220,6 +245,12 @@ async function discardChanges() {
 // restarted meanwhile): offered back, never dropped silently.
 const lostText = ref<Record<string, any> | null>(null)
 if (collab) watch(collab.lost, (v) => { if (v) lostText.value = v })
+/** "Keep" on text a closed tab left behind: into the form (shared text: for everyone), as an unsaved change. */
+function keepUnsaved(values: Record<string, any>) {
+  for (const [key, value] of Object.entries(values)) {
+    if (!collab?.set(key, structuredClone(toRaw(value)))) state[key] = structuredClone(toRaw(value))
+  }
+}
 function restoreLost() {
   for (const [key, value] of Object.entries(lostText.value ?? {})) {
     if (!collab?.set(key, value)) state[key] = value
@@ -429,6 +460,35 @@ watch(() => ({ ...fieldErrors }), (errs) => {
   for (const g of writeGroups.value) if (g.fields.some((f: any) => errs[f.key])) openGroups[g.id] = true
 })
 
+// ── a redirect from the address of a page that is on the website would hide that page ──
+const shadowed = ref<{ title: string } | null>(null)
+if (meta.value?.preset === 'redirects') {
+  let seq = 0
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const check = async (from: unknown) => {
+    const my = ++seq
+    const path = typeof from === 'string' ? from.trim().split(/[?#]/)[0]!.replace(/(.)\/+$/, '$1') : ''
+    if (!path.startsWith('/') || path === '/') {
+      shadowed.value = null
+      return
+    }
+    // The page's address may be nested (/about/team): its last part is what the picker can search by.
+    const last = path.split('/').filter(Boolean).pop() ?? ''
+    const codes = locales.value?.all ?? [undefined]
+    const found = await Promise.all(codes.map((locale) => cmsFetch<{ items: { title: string; path: string; published: boolean }[] }>('/api/cms/_links', { query: { q: last, locale } }).catch(() => ({ items: [] }))))
+    if (my !== seq) return
+    const hit = found.flatMap((r) => r.items).find((i) => i.published && i.path === path)
+    shadowed.value = hit ? { title: hit.title } : null
+  }
+  onMounted(() => {
+    watch(() => state[titleKey.value ?? 'from'], (v) => {
+      clearTimeout(timer)
+      timer = setTimeout(() => check(v), 350)
+    }, { immediate: true })
+  })
+  onBeforeUnmount(() => clearTimeout(timer))
+}
+
 // ── titles ──
 const listLabel = computed(() => entityLabel(meta.value) || entity.value)
 const heading = computed(() => {
@@ -446,8 +506,12 @@ const publishedOn = computed(() => (publish.value?.dateField ? state[publish.val
 const futureDate = computed(() => !!publishedOn.value && new Date(publishedOn.value).getTime() > Date.now())
 const isScheduled = computed(() => isPublished.value && futureDate.value)
 
+// A changed address leaves redirects behind: the "Saved" says so.
+let redirectsMade = 0
+const redirectNote = () => (redirectsMade ? { successTitle: t('editor.savedRedirect', { count: redirectsMade }) } : undefined)
 async function save(successTitle?: string | null) {
   if (isTranslation.value) return saveTranslation()
+  redirectsMade = 0
   return form.submit(async () => {
     if (isNew.value) {
       const url: string = `/api/cms/${entity.value}`
@@ -461,6 +525,7 @@ async function save(successTitle?: string | null) {
       const url: string = `/api/cms/${entity.value}/${id.value}`
       const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
       const res: any = await $fetch(url, { method: 'PATCH', body: form.body(), headers })
+      redirectsMade = Number(res?.redirects) || 0
       savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
       version.value = res?.row?.updatedAt ?? null
       // The publish date may have been stamped by the server: show what was stored —
@@ -468,36 +533,44 @@ async function save(successTitle?: string | null) {
       const dateKey = publish.value?.dateField
       if (dateKey && res?.row && dateKey in res.row) form.quiet(() => { state[dateKey] = res.row[dateKey] })
       if (live) live.incoming.value = null
+      if (successTitle === undefined) return redirectNote()
     }
   }, successTitle === undefined ? (isNew.value ? t('editor.created') : t('editor.saved')) : successTitle)
 }
 
 async function saveTranslation() {
+  redirectsMade = 0
   return form.submit(async () => {
     const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
     const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
     const res: any = await $fetch(url, { method: 'PATCH', body, headers })
+    redirectsMade = Number(res?.row?.__redirects) || 0
     savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
     version.value = res?.row?.__version ?? null
     if (live) live.incoming.value = null
-    translated.value = true
-    if (currentLocale.value && !available.value.includes(currentLocale.value)) available.value = [...available.value, currentLocale.value]
+    // Saved with nothing in it, the language is not translated (the server kept no row).
+    translated.value = !!res?.row?.__translated
+    const code = currentLocale.value
+    if (code) available.value = translated.value ? [...new Set([...available.value, code])] : available.value.filter((l) => l !== code)
+    return redirectNote()
   }, t('editor.saved'))
 }
 
 async function removeTranslation() {
-  const lang = localeLabel(currentLocale.value)
+  const lang = localeName(currentLocale.value)
   if (!await confirm({ title: t('translation.removeTitle', { lang }), description: t('translation.removeBody', { lang }), icon: 'i-lucide-languages', confirmLabel: t('translation.remove'), cancelLabel: t('common.cancel'), color: 'error' })) return
   try {
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
+    removedHere = true
     await $fetch(url, { method: 'DELETE' })
     toast.add({ title: t('translation.removed'), icon: 'i-lucide-check', color: 'success' })
     dirty.value = false
     await router.push({ query: {} })
   }
   catch (e: any) {
-    toast.add({ title: t('team.actionFailed'), description: e?.data?.statusMessage, icon: 'i-lucide-x', color: 'error' })
+    removedHere = false
+    toast.add({ title: t('team.actionFailed'), description: cmsRequestError(e, t as any), icon: 'i-lucide-x', color: 'error' })
   }
 }
 
@@ -589,8 +662,26 @@ const reviewChecks = computed(() => {
     for (const code of locales.value.all) {
       if (code === locales.value.default || available.value.includes(code)) continue
       out.push({
-        ok: false, title: t('review.translationMissing', { lang: localeLabel(code) }), description: t('review.translationMissingBody', { lang: defaultLabel.value }),
+        ok: false, title: t('review.translationMissing', { lang: localeName(code) }), description: t('review.translationMissingBody', { lang: defaultLabel.value }),
         action: { label: t('review.translate'), onClick: () => { reviewOpen.value = false; router.push({ query: { locale: code } }) } },
+      })
+    }
+  }
+  // Text nobody has saved. What is in the form goes live with this publish (it is saved
+  // first) — also what others are typing right now; text a closed tab left behind waits aside, not in it.
+  if (collab && !isNew.value) {
+    const typing = others.value.filter((p) => p.editing).map((p) => p.name)
+    const unsavedShared = (editable.value as any[]).filter((f) => sharedFields.value.has(f.key) && f.key in form.changedFields())
+    if (others.value.length && unsavedShared.length) {
+      out.push({
+        ok: false, title: t('review.sharedUnsaved', { names: (typing.length ? typing : others.value.map((p) => p.name)).join(', ') }),
+        description: t('review.sharedUnsavedBody', { fields: unsavedShared.map((f) => fieldLabel(f)).join(', ') }),
+      })
+    }
+    if (collab.unsaved.value) {
+      out.push({
+        ok: false, title: t('review.unsavedLeft'), description: t('review.unsavedLeftBody'),
+        action: { label: t('review.look'), onClick: () => { reviewOpen.value = false; nextTick(() => window.scrollTo({ top: 0, behavior: 'smooth' })) } },
       })
     }
   }
@@ -626,9 +717,27 @@ async function publishFromReview(when: 'now' | 'schedule') {
 // A page tree: the address runs through the ancestors, so it comes from the server (the saved
 // parent and address parts), refreshed after each save.
 const treeRows = meta.value?.tree && !isNew.value
-  ? await useFetch<{ rows: { id: string; paths: Record<string, string> }[] }>(() => `/api/cms/${entity.value}/_tree`, { key: `cms-tree-address:${entity.value}:${id.value}` })
+  ? await useFetch<{ rows: { id: string; parentId: string | null; onSite: boolean; paths: Record<string, string> }[] }>(() => `/api/cms/${entity.value}/_tree`, { key: `cms-tree-address:${entity.value}:${id.value}` })
   : null
 watch(savedAt, () => treeRows?.refresh())
+/** How many pages under this one are on the website now (they go with it when it is taken down). */
+const subpagesOnSite = computed(() => {
+  const rows = treeRows?.data.value?.rows ?? []
+  const byParent = new Map<string | null, typeof rows>()
+  for (const r of rows) byParent.set(r.parentId, [...(byParent.get(r.parentId) ?? []), r])
+  let count = 0
+  const seen = new Set<string>()
+  const walk = (parent: string) => {
+    for (const r of byParent.get(parent) ?? []) {
+      if (seen.has(r.id)) continue
+      seen.add(r.id)
+      if (r.onSite) count++
+      walk(r.id)
+    }
+  }
+  walk(id.value)
+  return count
+})
 const treeAddress = computed(() => treeRows?.data.value?.rows.find((r) => r.id === id.value)?.paths?.[currentLocale.value ?? ''] ?? null)
 
 const previewUrl = computed(() => {
@@ -662,17 +771,26 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       </template>
     </CmsEmptyState>
   </CmsPage>
+  <!-- a person who may not add this kind of entry: said, never an editable form that cannot save -->
+  <CmsPage v-else-if="cannotCreate" :back="{ label: listLabel, to: `/admin/${entity}` }" :title="listLabel">
+    <CmsEmptyState variant="no-results" icon="i-lucide-lock" :title="t('readOnly.cannotCreateTitle')" :description="t('readOnly.cannotCreate')">
+      <template #actions>
+        <UButton :to="`/admin/${entity}`" color="neutral" variant="outline" icon="i-lucide-chevron-left">{{ t('moment.backTo', { list: listLabel }) }}</UButton>
+      </template>
+    </CmsEmptyState>
+  </CmsPage>
   <CmsPage v-else :back="{ label: listLabel, to: `/admin/${entity}` }" flush>
     <!-- one top bar for every arrangement: ‹ back · status · saved | language, history, details, preview, the primary action, … -->
     <template #status>
       <!-- phones: one thing — unsaved changes while there are any, else the status -->
       <CmsStatusBadge v-if="publish && !isNew" :published="isPublished" :scheduled-for="publishedOn" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''" />
       <span v-else-if="isNew" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''">{{ t('editor.newEntry') }}</span>
-      <span v-if="((publish && !isNew) || isNew) && (saving || dirty || savedAt)" class="text-dimmed max-md:hidden" aria-hidden="true">·</span>
-      <span class="truncate" :class="[dirty ? 'cms-unsaved' : '', saving || dirty ? '' : 'max-md:hidden']">
+      <span v-if="readOnly" class="inline-flex items-center gap-1 text-muted"><UIcon name="i-lucide-lock" class="size-3.5" />{{ t('readOnly.badge') }}</span>
+      <span v-if="!readOnly && ((publish && !isNew) || isNew) && (saving || dirty || savedAt)" class="text-dimmed max-md:hidden" aria-hidden="true">·</span>
+      <span v-if="!readOnly" class="truncate" :class="[dirty ? 'cms-unsaved' : '', saving || dirty ? '' : 'max-md:hidden']">
         <template v-if="saving">{{ t('editor.saving') }}</template>
         <template v-else-if="dirty"><span class="md:hidden">{{ t('editor.unsavedShort') }}</span><span class="max-md:hidden">{{ t('editor.unsaved') }}</span></template>
-        <template v-else-if="savedAt">{{ t('editor.savedAgo', { time: '' }) }}<CmsTime :value="savedAt" relative /></template>
+        <CmsTime v-else-if="savedAt" v-slot="{ text }" :value="savedAt" relative>{{ t('editor.savedAgo', { time: text }) }}</CmsTime>
       </span>
     </template>
     <template #actions>
@@ -699,13 +817,16 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         :class="split ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="split" @click="togglePreview"
       >{{ t('editor.preview') }}</UButton>
 
-      <!-- one primary action -->
-      <UButton v-if="isTranslation" :loading="saving" @click="save()">{{ t('translation.save') }}</UButton>
+      <!-- one primary action (none for someone who cannot save here) -->
+      <template v-if="readOnly" />
+      <UButton v-else-if="isTranslation" :loading="saving" @click="save()">{{ t('translation.save') }}</UButton>
       <template v-else-if="publish && canPublish">
         <UButton v-if="isPublished && !isNew" :loading="saving" @click="save()">{{ futureDate ? t('editor.saveChanges') : t('editor.update') }}</UButton>
         <template v-else>
           <UButton color="neutral" variant="outline" :loading="saving" class="max-md:hidden" @click="save()">{{ t('editor.saveDraft') }}</UButton>
-          <UButton :disabled="saving" @click="reviewOpen = true">{{ t('editor.publishEllipsis') }}</UButton>
+          <!-- phones: with unsaved changes the bar offers Save (Publish waits in the menu), otherwise Publish -->
+          <UButton v-if="phoneSave" class="md:hidden" :loading="saving" @click="save()">{{ t('common.save') }}</UButton>
+          <UButton :disabled="saving" :class="phoneSave ? 'max-md:hidden' : ''" @click="reviewOpen = true">{{ t('editor.publishEllipsis') }}</UButton>
         </template>
       </template>
       <UButton v-else-if="isNew" :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.create') }}</UButton>
@@ -724,6 +845,8 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       class="cms-editor"
       :class="[arrangement === 'write' && !split ? 'cms-editor--write' : '', split ? 'cms-editor--split' : '', !showAside ? 'cms-editor--no-aside' : '']"
     >
+      <!-- someone who cannot save here can read everything and change nothing -->
+      <fieldset class="cms-fieldset contents" :disabled="readOnly">
       <div class="cms-editor__main">
         <div class="cms-editor__column">
           <UAlert
@@ -732,6 +855,15 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             :actions="[{ label: t('live.restoreMine'), color: 'neutral', variant: 'outline', onClick: restoreLost }]"
             close @update:open="(open: boolean) => { if (!open) lostText = null }"
           />
+          <UAlert
+            v-if="readOnly" color="neutral" variant="subtle" icon="i-lucide-lock" class="mb-6" role="status"
+            :title="t(`readOnly.${can.why ?? 'role'}`)" :description="t('readOnly.body')"
+          />
+          <UAlert
+            v-if="shadowed" color="warning" variant="subtle" icon="i-lucide-triangle-alert" class="mb-6" role="status"
+            :title="t('redirects.shadowsTitle', { title: shadowed.title })" :description="t('redirects.shadowsBody')"
+          />
+          <CmsUnsavedText :collab="collab" @keep="keepUnsaved" />
           <CmsLiveNotice
             :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
             :list-to="`/admin/${entity}`"
@@ -902,7 +1034,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               />
             </div>
           </div>
-          <p v-if="isTranslation" class="text-xs text-muted border-t border-default pt-4">
+          <p v-if="isTranslation && hasSharedFields" class="text-xs text-muted border-t border-default pt-4">
             {{ t('translation.shared') }}
             <NuxtLink :to="{ query: {} }" class="underline underline-offset-2 hover:text-highlighted">{{ t('translation.editShared', { lang: defaultLabel }) }}</NuxtLink>
           </p>
@@ -933,6 +1065,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           </div>
         </div>
       </aside>
+      </fieldset>
       <div v-if="split && previewUrl" class="cms-editor__preview">
         <CmsPreviewPanel
           :url="previewUrl" :entity="entity" :id="id"
@@ -968,3 +1101,9 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     </CmsMoment>
   </CmsPage>
 </template>
+
+<style scoped>
+/* Read-only: still easy to read (the browser dims disabled controls a lot). */
+.cms-fieldset:disabled :is(input, textarea, select, button):disabled { opacity: 0.85; cursor: default; }
+.cms-fieldset:disabled :deep(.cms-rte__toolbar) { display: none; }
+</style>

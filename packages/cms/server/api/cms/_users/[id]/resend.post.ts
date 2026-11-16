@@ -13,12 +13,11 @@ export default defineEventHandler(async (event) => {
 
   const secret = await issueToken(db, reg, { userId: user.id, kind: 'invite', ttlMs: INVITE_TTL_MS, createdBy: me.id })
   const inviteUrl = adminLink(event, `/admin/invite/${secret}`)
-  let emailed = true
+  let emailed = false
   try {
-    await sendCmsMail(inviteEmail({ to: user.email, inviter: me.name || me.email || 'An administrator', url: inviteUrl, locale: me.locale }))
+    emailed = await sendCmsMail(inviteEmail({ to: user.email, inviter: me.name || me.email || 'An administrator', url: inviteUrl, locale: me.locale }))
   }
   catch (err) {
-    emailed = false
     console.error('[cms] could not send the invitation email', redactEmails(safeErrorMessage(err)))
   }
   await audit(event, 'user.resend', { recordId: id, meta: { emailed } })

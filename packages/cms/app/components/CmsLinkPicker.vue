@@ -28,7 +28,8 @@ async function load() {
   loading.value = true
   try {
     const locale = props.locale ?? (typeof route.query.locale === 'string' ? route.query.locale : undefined)
-    const q = looksLikeAddress(term.value) ? undefined : term.value.trim() || undefined
+    // A path ("/o-nas") is searched too (as an address of one of our pages); another address is not a search.
+    const q = term.value.trim().startsWith('/') ? term.value.trim() : looksLikeAddress(term.value) ? undefined : term.value.trim() || undefined
     const res = await cmsFetch<{ items: typeof items.value }>('/api/cms/_links', { query: { q, locale } })
     if (my === seq) items.value = res.items
   }

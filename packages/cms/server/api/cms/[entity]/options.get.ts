@@ -1,4 +1,4 @@
-import { chainOf, ilike, indexTree, inArray, notInArray, titleIn } from 'tinyzoo'
+import { chainOf, depthOf, heightOf, ilike, indexTree, inArray, notInArray, titleIn } from 'tinyzoo'
 
 // Relation-picker typeahead: GET /api/cms/:entity/options?q=&selected=id,id
 export default defineEventHandler(async (event) => {
@@ -12,12 +12,19 @@ export default defineEventHandler(async (event) => {
   const q = String(query.q ?? '').trim()
   const selected = String(query.selected ?? '').split(',').filter(Boolean)
 
-  // A page tree's parent picker: not the page itself nor anything below it (that would be a loop).
+  // A page tree's parent picker: not the page itself nor anything below it (that would be a loop),
+  // and not a page with no room left under it (the page and what it carries would be nested too deep).
+  // `exclude` is the page being edited; `placing=1` a new one.
   let excluded: string[] = []
   const exclude = String(query.exclude ?? '')
-  if (e.tree && /^[0-9a-f-]{36}$/i.test(exclude)) {
+  const placing = /^[0-9a-f-]{36}$/i.test(exclude) || query.placing === '1'
+  if (e.tree && placing) {
     const nodes = await loadTreeNodes(db, reg, e)
-    excluded = subtreeIds(nodes, exclude)
+    const index = indexTree(nodes)
+    const own = /^[0-9a-f-]{36}$/i.test(exclude) ? exclude : null
+    excluded = own ? subtreeIds(nodes, own) : []
+    const carried = own && index.has(own) ? heightOf(index, own) : 0
+    for (const n of nodes) if (depthOf(index, n.id) + 1 + carried > e.tree.maxDepth) excluded.push(n.id)
   }
   const notExcluded = excluded.length ? notInArray(e.table.id, excluded) : undefined
 

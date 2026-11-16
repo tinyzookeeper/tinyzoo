@@ -1,6 +1,9 @@
 import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, not, or, propOf, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 
+/** Trigram word similarity a longer search word needs to count as a typo of a word in the text. */
+const TYPO_SIMILARITY = 0.35
+
 /**
  * What an admin list shows, as SQL conditions: the user's row rule, the search box
  * (accents ignored), `filter.<field>` filters and the status tab. Shared by the list
@@ -12,9 +15,20 @@ export function listConditions(e: CmsEntity, reg: CmsRegistry, query: Record<str
   const search = String(query.q ?? '').trim()
   if (search) {
     const fields = e.admin?.list?.searchable?.length ? e.admin.list.searchable : [e.titleField]
-    // Accents do not matter: "zimni" finds "Zimní", "pribram" finds "Příbram".
-    const esc = foldAccents(search).replace(/[\\%_]/g, (c) => '\\' + c) // LIKE wildcards are literal
-    conds.push(or(...fields.map((fn) => sql`${foldedColumn(e.table[fn])} like ${'%' + esc + '%'}`)))
+    // Every word must be found (in any order, in any of the fields). Accents and case do
+    // not matter ("zimni" finds "Zimní", "pribram" finds "Příbram"), and a longer word
+    // may have a typo ("clenek" finds "článek"): trigram word similarity, as the admin's search.
+    const words = foldAccents(search).split(/\s+/).filter(Boolean).slice(0, 8)
+    for (const word of words) {
+      const like = '%' + word.replace(/[\\%_]/g, (c) => '\\' + c) + '%' // LIKE wildcards are literal
+      const letters = word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+      conds.push(or(...fields.flatMap((fn) => {
+        const col = foldedColumn(e.table[fn])
+        return letters.length >= 4
+          ? [sql`${col} like ${like}`, sql`word_similarity(${letters}, ${col}) >= ${TYPO_SIMILARITY}`]
+          : [sql`${col} like ${like}`]
+      })))
+    }
   }
   conds.push(...listFilters(e, reg, query))
   // Status tabs: ?status=published | scheduled | draft (entities with a publish workflow).

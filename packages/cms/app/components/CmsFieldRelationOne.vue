@@ -4,12 +4,11 @@ const props = defineProps<{ field: any; entity?: string; id?: string }>()
 const model = defineModel<any>()
 
 // A page's parent picker (a relation to its own collection) leaves out the page itself and
-// everything below it: choosing one of those would make a loop.
+// everything below it (choosing one of those would make a loop), and pages with no room
+// left under them (the server knows how deep pages may go).
 const route = useRoute()
-const selfId = computed(() => {
-  const own = props.entity && props.entity === props.field.relation.to && route.params.entity === props.entity
-  return own && typeof route.params.id === 'string' && route.params.id !== 'new' ? route.params.id : ''
-})
+const ownCollection = computed(() => !!props.entity && props.entity === props.field.relation.to && route.params.entity === props.entity)
+const selfId = computed(() => (ownCollection.value && typeof route.params.id === 'string' && route.params.id !== 'new' ? route.params.id : ''))
 const options = ref<{ id: string; label: string }[]>([])
 const loading = ref(false)
 // Until the names arrive, a chosen item shows as a placeholder bar, never its raw id.
@@ -18,7 +17,7 @@ async function load(q = '') {
   loading.value = true
   try {
     options.value = await cmsFetch(`/api/cms/${props.field.relation.to}/options`, {
-      query: { q, selected: model.value ?? '', exclude: selfId.value || undefined },
+      query: { q, selected: model.value ?? '', exclude: selfId.value || undefined, placing: ownCollection.value && !selfId.value ? '1' : undefined },
     })
   } finally {
     loading.value = false

@@ -2,7 +2,8 @@ import { eq } from 'tinyzoo'
 
 // GET /api/cms/_collab/session?entity=&id=&locale= — the shared document for one entry
 // (or one translation): its name, the epoch to present when connecting, the fields
-// edited together, and whether this person may write or only watch. See cmsCollab.ts.
+// edited together, whether this person may write or only watch, and text left behind
+// unsaved by a tab that closed (`unsaved`). See cmsCollab.ts.
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
   if (cmsAuthMode() !== 'builtin') throw createError({ statusCode: 404, statusMessage: 'Shared editing needs the built-in sign-in' })
@@ -18,10 +19,12 @@ export default defineEventHandler(async (event) => {
   const { epoch } = await ensureCollabDocument(target)
   // Stored text the editor cannot hold is edited alone, so it is never replaced.
   const saved = await savedContent(target)
+  // Text a closed tab left behind unsaved: offered to people who may write, never in the document.
+  const unsaved = access === 'write' ? await unsavedText(target, saved?.version ?? null) : null
   const fields = collabFields(target.entity, target.locale).filter((k) => fitsEditor(saved?.values[k]))
   // The name on this person's cursor, exactly as the server will check it.
   const { db } = useCms()
   const [me] = await db.select({ name: reg.cmsUsers.name, email: reg.cmsUsers.email }).from(reg.cmsUsers).where(eq(reg.cmsUsers.id, user.id))
   setResponseHeader(event, 'Cache-Control', 'no-store')
-  return { name: target.name, epoch, fields, access, you: displayName(me?.name, me?.email ?? user.email) }
+  return { name: target.name, epoch, fields, access, you: displayName(me?.name, me?.email ?? user.email), unsaved }
 })

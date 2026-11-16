@@ -126,6 +126,22 @@ export function notLiveCond(e: CmsEntity, user: CmsUser): any {
   return or(isNull(col), ne(col, p.publishedValue))
 }
 
+/**
+ * May this person change this entry (or, with no id, the entity's one global)? The same
+ * rules a save applies, told to the form beforehand so it opens read-only instead of
+ * failing on save. `why` says which rule says no: the role, somebody else's entry,
+ * or an entry that is live (people who may not publish cannot change what is live).
+ */
+export async function updateVerdict(db: any, e: CmsEntity, user: CmsUser, id?: string | null): Promise<{ update: boolean; why?: 'role' | 'owner' | 'published' }> {
+  const a = accessWhere(e, 'update', user)
+  if (!a.allowed) return { update: false, why: 'role' }
+  if (!id) return { update: true }
+  const [ok] = await db.select({ id: e.table.id }).from(e.table).where(both(both(eq(e.table.id, id), a.where), notLiveCond(e, user)))
+  if (ok) return { update: true }
+  const [mine] = await db.select({ id: e.table.id }).from(e.table).where(both(eq(e.table.id, id), a.where))
+  return { update: false, why: mine ? 'published' : 'owner' }
+}
+
 /** The id to record as createdBy/updatedBy — only a UUID fits the column (external auth may use others). */
 export function actorId(user: CmsUser): string | null {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id) ? user.id : null

@@ -15,6 +15,20 @@ describe('admin diff helpers', () => {
     ] })).toBe('Nadpis\nText tučně')
   })
 
+  it('keeps list items on their own lines', () => {
+    const item = (text: string, ...more: any[]) => ({ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }, ...more] })
+    const text = richTextToPlain({ type: 'doc', content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'Přineste:' }] },
+      { type: 'bulletList', content: [item('chleba'), item('sůl', { type: 'bulletList', content: [item('hrubá')] })] },
+      { type: 'orderedList', attrs: { start: 1 }, content: [item('upéct'), item('ochutnat')] },
+      { type: 'blockquote', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Citace' }] }] },
+    ] })
+    expect(text).toBe('Přineste:\n• chleba\n• sůl\n  • hrubá\n1. upéct\n2. ochutnat\nCitace')
+    // Two versions of a list differ item by item, not as one long word run.
+    const parts = wordDiff('• chleba\n• sůl', '• chleba\n• sůl\n• máslo')
+    expect(parts.filter((p) => p.kind === 'added').map((p) => p.text).join('')).toContain('máslo')
+  })
+
   it('gives up on huge texts instead of stalling', () => {
     const a = Array.from({ length: 1000 }, (_, i) => `a${i}`).join(' ')
     const b = Array.from({ length: 1000 }, (_, i) => `b${i}`).join(' ')

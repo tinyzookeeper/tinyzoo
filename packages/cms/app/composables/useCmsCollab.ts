@@ -19,6 +19,10 @@ export interface CmsCollab {
   epoch: Ref<string | null>
   /** Text typed here while offline that the restarted document could not take back. */
   lost: Ref<Record<string, any> | null>
+  /** Text a closed tab left behind unsaved, aside until someone keeps or discards it. */
+  unsaved: Ref<CmsUnsavedText | null>
+  /** The left-over text is dealt with: forget it (for everyone). */
+  clearUnsaved: () => Promise<void>
   /** Fields whose shared editor is on the page right now (a collapsed group has none). */
   mounted: Ref<Set<string>>
   /** Current Yjs document and provider (non-reactive on purpose). */
@@ -29,6 +33,8 @@ export interface CmsCollab {
   setters: Map<string, (value: any) => void>
   user: { name: string; color: string }
 }
+
+export interface CmsUnsavedText { by: string | null; at: string; values: Record<string, any> }
 
 const COLORS = ['#e5484d', '#f76b15', '#ffc53d', '#46a758', '#12a594', '#0090ff', '#8e4ec6', '#d6409f']
 const colorOf = (id: string) => COLORS[[...id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % COLORS.length]!
@@ -44,6 +50,11 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
     epoch: ref(null),
     mounted: ref(new Set<string>()),
     lost: ref(null),
+    unsaved: ref(null),
+    clearUnsaved: async () => {
+      collab.unsaved.value = null
+      await cmsFetch(`/api/cms/_collab/unsaved?${query()}`, { method: 'DELETE' }).catch(() => {})
+    },
     current: () => live,
     setters: new Map(),
     set: (field, value) => {
@@ -72,11 +83,12 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
     live = null
   }
 
+  const query = () => new URLSearchParams({ entity: opts.entity, id: opts.id, ...(opts.locale ? { locale: opts.locale } : {}) }).toString()
+
   async function start() {
-    const q = new URLSearchParams({ entity: opts.entity, id: opts.id, ...(opts.locale ? { locale: opts.locale } : {}) })
-    let session: { name: string; epoch: string; fields: string[]; access: 'write' | 'read'; you?: string }
+    let session: { name: string; epoch: string; fields: string[]; access: 'write' | 'read'; you?: string; unsaved?: CmsUnsavedText | null }
     try {
-      session = await cmsFetch(`/api/cms/_collab/session?${q}`)
+      session = await cmsFetch(`/api/cms/_collab/session?${query()}`)
     }
     catch {
       collab.status.value = 'off' // nothing to share, not permitted, or unavailable
@@ -85,6 +97,7 @@ export function useCmsCollab(opts: { entity: string; id: string; locale: string 
     if (disposed) return
     // The server checks the name on our cursor against the account: use its spelling.
     if (session.you) collab.user.name = session.you
+    collab.unsaved.value = session.unsaved ?? null
     const [{ HocuspocusProvider, HocuspocusProviderWebsocket }, Y] = await Promise.all([import('@hocuspocus/provider'), import('yjs')])
     if (disposed) return
     const doc = new Y.Doc()

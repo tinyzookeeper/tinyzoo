@@ -18,7 +18,7 @@ const hasValue = computed(() => {
   <div v-if="hasValue" class="mt-1.5 flex items-center gap-2 text-xs text-muted min-w-0">
     <span v-if="isText" class="truncate">{{ t('translation.reference', { lang, value: String(value) }) }}</span>
     <template v-else>
-      <span v-if="empty">{{ t('translation.fallback', { lang }) }} ·</span>
+      <span v-if="empty">{{ t('translation.fallback', { lang }) }}</span>
       <button type="button" class="underline underline-offset-2 hover:text-highlighted" @click="emit('copy')">
         {{ t('translation.copyFrom', { lang }) }}
       </button>

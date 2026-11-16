@@ -18,7 +18,11 @@ export function cmsMailConfig(): CmsMailConfig {
   }
 }
 
-/** Send an email through the configured transport. Throws on failure (callers decide). */
-export async function sendCmsMail(msg: CmsMailMessage): Promise<void> {
-  await deliverMail(msg, cmsMailConfig())
+/**
+ * Send an email through the configured transport. Throws on failure (callers decide).
+ * Returns whether it was really sent: false with the "log" transport (it is only
+ * written to the log), so an invitation can say the link has to be passed on.
+ */
+export async function sendCmsMail(msg: CmsMailMessage): Promise<boolean> {
+  return deliverMail(msg, cmsMailConfig())
 }

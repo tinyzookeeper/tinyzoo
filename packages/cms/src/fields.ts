@@ -258,14 +258,19 @@ export const f = {
   /**
    * A yes/no switch (stored `false` unless given). `mustBeTrue: true` is for a consent or
    * a confirmation ("I agree to the terms"): a value of `false` is refused, so a website
-   * form cannot be sent without it ticked.
+   * form cannot be sent without it ticked. `needsPrevious` is for a switch in a list of
+   * blocks that is about the item before it ("under the link above"): the first item does
+   * not show it.
    */
-  boolean: (o: { default?: boolean; mustBeTrue?: boolean } = {}) =>
+  boolean: (o: { default?: boolean; mustBeTrue?: boolean; needsPrevious?: boolean } = {}) =>
     as<ScalarKind<boolean, boolean, true>>(createField({
       type: 'boolean', ui: { edit: 'CmsFieldBoolean', cell: 'CmsCellBoolean' },
       base: { kind: 'boolean' },
       zod: () => (o.mustBeTrue ? z.boolean().refine((v) => v === true, { message: 'Must be ticked' }) : z.boolean()),
-      ...(o.mustBeTrue ? { meta: { mustBeTrue: true }, zodDefault: false } : {}),
+      ...(o.mustBeTrue || o.needsPrevious
+        ? { meta: { ...(o.mustBeTrue ? { mustBeTrue: true } : {}), ...(o.needsPrevious ? { needsPrevious: true } : {}) } }
+        : {}),
+      ...(o.mustBeTrue ? { zodDefault: false } : {}),
     }, { default: o.default ?? false })),
 
   /**

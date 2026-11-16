@@ -189,6 +189,16 @@ const askUnpublish = (count: number) => confirm({
   title: t('list.unpublishTitle', { count }), description: t('list.unpublishBody', { count }),
   icon: 'i-lucide-eye-off', confirmLabel: t('editor.unpublish'), color: 'warning',
 })
+/** Publishing several at once skips each one's review: say which, before they go live. */
+const askPublish = (rows: Record<string, any>[]) => confirm({
+  title: t('list.publishTitle', { count: rows.length }),
+  description: [
+    t('list.publishBody', { count: rows.length }),
+    ...rows.slice(0, 5).map((r) => `• ${rowTitle(r)}`),
+    ...(rows.length > 5 ? [t('list.andMore', { count: rows.length - 5 })] : []),
+  ].join('\n'),
+  icon: 'i-lucide-globe', confirmLabel: t('editor.publish'), cancelLabel: t('common.cancel'), color: 'warning',
+})
 async function runBulk(action: 'publish' | 'unpublish' | 'delete') {
   const p = publish.value
   // Each entry only where it changes: publishing what is live already (or taking a
@@ -196,6 +206,7 @@ async function runBulk(action: 'publish' | 'unpublish' | 'delete') {
   const targets = selectedRows.value.filter((r) => action === 'delete' || (action === 'publish' ? !isLive(r) : isLive(r)))
   if (!targets.length) return
   if (action === 'unpublish' && !await askUnpublish(targets.length)) return
+  if (action === 'publish' && !await askPublish(targets)) return
   bulkBusy.value = true
   let ok = 0
   let failed = 0
@@ -399,7 +410,8 @@ const tabs = computed(() => [
       </template>
     </CmsEmptyState>
   </CmsPage>
-  <CmsSingletonForm v-else-if="meta?.singleton" :entity="entity" :meta="meta" />
+  <!-- another language is another form (its own values, version and shared text): rebuilt, not patched -->
+  <CmsSingletonForm v-else-if="meta?.singleton" :key="`${entity}:${route.query.locale ?? ''}`" :entity="entity" :meta="meta" />
   <CmsPage
     v-else :title="title" :description="tl(meta?.description) || undefined"
     :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]"

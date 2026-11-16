@@ -459,6 +459,39 @@ describe('the admin', () => {
     expect(await picker(t.team.id)).toEqual(['Kontakt', 'O nás', 'O nás / Historie'])
   })
 
+  it('leaves out pages with no room left under them (the move would be refused on save)', async () => {
+    const a = await page('A', 'a')
+    const b = await page('B', 'b', a.id)
+    const c = await page('C', 'c', b.id)
+    const d = await page('D', 'd', c.id) // four levels deep: the most there is
+    const solo = await page('Solo', 'solo')
+    const labels = async (query: string) => (await admin.get(`/api/cms/page/options?${query}`)).body.map((o: any) => o.label).sort()
+    // A new page: anything but the deepest.
+    expect(await labels('placing=1')).toEqual(['A', 'A / B', 'A / B / C', 'Solo'].sort())
+    // An existing page without pages below it: the same (its own place is left out too).
+    expect(await labels(`exclude=${solo.id}`)).toEqual(['A', 'A / B', 'A / B / C'].sort())
+    // A page that carries one level of pages: only parents with two free levels.
+    const withKid = await page('Rodič', 'rodic')
+    await page('Dítě', 'dite', withKid.id)
+    expect(await labels(`exclude=${withKid.id}`)).toEqual(['A', 'A / B', 'Solo'].sort())
+    // The refusal a save would give is the same one.
+    expect((await admin.patch(`/api/cms/page/${solo.id}`, { parent: d.id })).status).toBe(422)
+  })
+
+  it('tells the editor how many redirects a changed address left behind', async () => {
+    const t = await site()
+    const renamed = await admin.patch(`/api/cms/page/${t.about.id}`, { slug: 'o-firme' })
+    expect(renamed.status).toBe(200)
+    const made = (await redirects()).length
+    expect(made).toBeGreaterThan(1) // the page and the pages below it
+    expect(renamed.body.redirects).toBe(made)
+    // A save that changes no address says nothing about redirects.
+    expect((await admin.patch(`/api/cms/page/${t.contact.id}`, { title: 'Kontakty' })).body.redirects).toBeUndefined()
+    // A translated address part counts too.
+    const en = await admin.request('PATCH', `/api/cms/page/${t.team.id}?locale=en`, { json: { title: 'Team', slug: 'crew' } })
+    expect(en.body.row.__redirects).toBeGreaterThan(0)
+  })
+
   it('finds a nested page in the website search, at its nested address', async () => {
     const t = await site()
     await admin.patch(`/api/cms/page/${t.lead.id}`, { title: 'Vedení firmy' })

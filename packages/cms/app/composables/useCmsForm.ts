@@ -35,7 +35,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   // The values as last loaded from the server, per field (JSON), to tell which
   // fields this tab changed — "save my changes on top" sends only those.
   let loaded: Record<string, string> = {}
-  const json = stableJson
+  const json = cmsFormJson
 
   /** Fill with a loaded row (and blanks for anything missing). Not a user edit. */
   function load(row: Record<string, any> | null | undefined) {
@@ -200,7 +200,10 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
    * Run a save. On a validation answer (422/409 with issues) the messages land on
    * their fields; anything else becomes a toast. Returns whether it succeeded.
    */
-  /** Runs a save. `successTitle: null` skips the toast (the page shows its own moment). */
+  /**
+   * Runs a save. `successTitle: null` skips the toast (the page shows its own moment).
+   * `run` may return `{ successTitle }` to say more than "Saved" (what the save also did).
+   */
   async function submit(run: () => Promise<unknown>, successTitle: string | null = t('editor.saved')): Promise<boolean> {
     saving.value = true
     Object.keys(fieldErrors).forEach((k) => delete fieldErrors[k])
@@ -210,7 +213,9 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     await nextTick()
     const startedAt = revision
     try {
-      await run()
+      const outcome = await run()
+      const said = (outcome as { successTitle?: unknown } | null | undefined)?.successTitle
+      if (successTitle && typeof said === 'string') successTitle = said
       // Edits typed while the request ran were not in it: they stay unsaved.
       await nextTick()
       dirty.value = revision !== startedAt

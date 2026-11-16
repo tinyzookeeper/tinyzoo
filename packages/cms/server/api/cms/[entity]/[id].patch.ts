@@ -110,5 +110,6 @@ export default defineEventHandler(async (event) => {
     entity: e, id, before: seenBefore, after: row, moved: effect?.moved,
   })
   if (effect) await reportTreeRedirects(event, reg, effect.redirects)
-  return { row }
+  // Old addresses that now lead to the new ones (a changed address part or a move): told, so the editor knows.
+  return { row, ...(effect?.redirects.length ? { redirects: effect.redirects.length } : {}) }
 })

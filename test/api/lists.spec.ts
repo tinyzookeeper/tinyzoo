@@ -40,6 +40,39 @@ describe('list filters', () => {
   })
 })
 
+describe('list search', () => {
+  const titles = async (q: string, path = '/api/cms/post') => (await admin.get(`${path}?q=${encodeURIComponent(q)}`)).body.rows.map((r: any) => r.title)
+
+  it('finds an entry without the accents, in any order of the words', async () => {
+    const a = await createAuthor(admin)
+    await createPost(admin, { author: a.id, title: 'Testovací článek' })
+    await createPost(admin, { author: a.id, title: 'Jiný příspěvek' })
+    expect(await titles('testovaci clanek')).toEqual(['Testovací článek'])
+    expect(await titles('TESTOVACÍ')).toEqual(['Testovací článek'])
+    expect(await titles('clanek testovaci')).toEqual(['Testovací článek'])
+    expect(await titles('clanek')).toEqual(['Testovací článek'])
+  })
+
+  it('forgives a small typo', async () => {
+    const a = await createAuthor(admin)
+    await createPost(admin, { author: a.id, title: 'Testovací článek' })
+    await createPost(admin, { author: a.id, title: 'Jiný příspěvek' })
+    expect(await titles('testovaci clenek')).toEqual(['Testovací článek'])
+    expect(await titles('testovcí článek')).toEqual(['Testovací článek'])
+    expect(await titles('zzzzzz')).toEqual([])
+  })
+
+  it('keeps filters, sort and paging working with a search', async () => {
+    const a = await createAuthor(admin)
+    const b = await createAuthor(admin)
+    for (let i = 0; i < 5; i++) await createPost(admin, { author: a.id, title: `Zahradní práce ${i}` })
+    await createPost(admin, { author: b.id, title: 'Zahradní slavnost' })
+    const res = await admin.get(`/api/cms/post?q=zahradni&filter.author=${a.id}&sort=title&dir=asc&limit=2&page=2`)
+    expect(res.body.total).toBe(5)
+    expect(res.body.rows.map((r: any) => r.title)).toEqual(['Zahradní práce 2', 'Zahradní práce 3'])
+  })
+})
+
 describe('manual order', () => {
   it('stores an order, and the website lists entries in it', async () => {
     const a = await createAuthor(admin, { name: 'Anna' })

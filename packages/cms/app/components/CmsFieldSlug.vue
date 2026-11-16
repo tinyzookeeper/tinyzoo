@@ -38,5 +38,9 @@ if (form && from) {
 </script>
 
 <template>
-  <UInput v-model="model" :variant="variant" :placeholder="t('fields.slugPlaceholder')" class="w-full" :ui="{ base: 'font-mono text-[0.8125rem]' }" />
+  <!-- an address can be long: it wraps instead of being cut off -->
+  <UTextarea
+    v-model="model" :variant="variant" :placeholder="t('fields.slugPlaceholder')" class="w-full" :rows="1" autoresize :maxrows="5"
+    :ui="{ base: 'font-mono text-[0.8125rem] resize-none [overflow-wrap:anywhere]' }" @keydown.enter.prevent
+  />
 </template>

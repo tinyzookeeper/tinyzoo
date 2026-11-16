@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import type { Ref } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import { ySyncPluginKey } from '@tiptap/y-tiptap'
 import { richTextExtensions } from '../../shared/richtext-editor'
 import { isLinkRef } from '../../src/linkref'
+import { cleanPastedHtml } from '../../shared/richtext-paste'
 import type { CmsCollab } from '../composables/useCmsCollab'
 
 // The rich-text editor itself (TipTap). The model IS the ProseMirror/TipTap JSON doc
@@ -19,13 +21,47 @@ const props = defineProps<{
 const model = defineModel<any>()
 const libraryOpen = ref(false)
 const { t } = useCmsI18n()
+const toast = useToast()
 const form = inject<{ quiet?: (fn: () => void) => void } | null>('cmsForm', null)
 const shared = props.collab ? inject<CmsCollab | null>('cmsCollab', null) : null
+// A page that opens read-only (the person may not save here) says so; typing is off.
+const readOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
+const canType = () => !props.collab?.readOnly && !readOnly?.value
+
+/**
+ * Is this the same text as that? The editor fills in attribute defaults and adds an
+ * empty paragraph after a last heading or list; text written elsewhere (an API client,
+ * an older version) lacks both. That alone is no change — the form must not turn
+ * "unsaved" just because the editor looked at the text.
+ */
+function sameDoc(ed: { schema: any }, a: unknown, b: unknown): boolean {
+  const canon = (v: any) => {
+    if (!v || typeof v !== 'object') return v
+    try {
+      return ed.schema.nodeFromJSON(v).toJSON()
+    }
+    catch {
+      return v
+    }
+  }
+  return sameRichText(canon(a), canon(b))
+}
 
 const editor = useEditor({
   // Shared: the content comes from the shared document, never from here.
   content: props.collab ? undefined : (model.value || { type: 'doc', content: [] }),
-  editable: !props.collab?.readOnly,
+  editable: canType(),
+  editorProps: {
+    // Word's lists, tables and pictures on its owner's disk: made into what was meant
+    // (real lists, a line per table row), pictures that cannot be shown left out — and said.
+    transformPastedHTML: (html: string) => {
+      const pasted = cleanPastedHtml(html)
+      if (pasted.droppedImages) {
+        toast.add({ title: t('fields.pasteImagesDropped'), description: t('fields.pasteImagesDroppedBody'), icon: 'i-lucide-image-off', color: 'warning' })
+      }
+      return pasted.html
+    },
+  },
   extensions: [
     ...richTextExtensions({ collaborative: !!props.collab }),
     ...(props.collab
@@ -39,7 +75,7 @@ const editor = useEditor({
     const next = editor.getJSON()
     // Only real changes reach the form (an identical value would still mark it
     // dirty; empty text stays "no value", so a translation keeps falling back).
-    if (sameRichText(next, model.value)) return
+    if (sameDoc(editor, next, model.value)) return
     const value = isEmptyRichText(next) && (model.value === null || model.value === undefined) ? model.value : next
     // Someone else typing: the form follows, but it is not unsaved work of this tab.
     const remote = !!(transaction.getMeta(ySyncPluginKey) as any)?.isChangeOrigin
@@ -48,6 +84,8 @@ const editor = useEditor({
   },
 })
 
+watch(() => readOnly?.value, () => editor.value?.setEditable(canType()))
+
 watch(model, (val) => {
   const ed = editor.value
   if (!ed) return
@@ -55,11 +93,11 @@ watch(model, (val) => {
     // The shared document is the truth: when the form loads another value (a newer
     // version, a merge), the form takes the shared text back instead of overwriting
     // what everyone is typing. Replacing it is an explicit choice (collab.set).
-    if (!sameRichText(val, ed.getJSON())) model.value = ed.getJSON()
+    if (!sameDoc(ed, val, ed.getJSON())) model.value = ed.getJSON()
     return
   }
   const next = val || { type: 'doc', content: [] }
-  if (!sameRichText(ed.getJSON(), next)) ed.commands.setContent(next, { emitUpdate: false })
+  if (!sameDoc(ed, ed.getJSON(), next)) ed.commands.setContent(next, { emitUpdate: false })
 })
 
 // Shared: once the editor shows the shared text, the form takes it (it may hold
@@ -69,7 +107,7 @@ if (props.collab) {
   watch(editor, (ed) => {
     if (!ed) return
     const v = ed.getJSON()
-    if (!sameRichText(v, model.value)) model.value = v
+    if (!sameDoc(ed, v, model.value)) model.value = v
     // This field is now shared on the page: merges leave it to the shared text, and
     // an explicit load or copy goes through here, to everyone.
     if (shared) {
@@ -182,7 +220,7 @@ const tools = computed<Tool[]>(() => {
       </template>
     </UModal>
     <ClientOnly>
-      <div v-if="editor && !collab?.readOnly" class="cms-rte__toolbar flex flex-wrap items-center gap-0.5 border-b border-default bg-elevated/30 p-1">
+      <div v-if="editor && canType()" class="cms-rte__toolbar flex flex-wrap items-center gap-0.5 border-b border-default bg-elevated/30 p-1">
         <UButton
           v-for="tool in tools" :key="tool.icon"
           :icon="tool.icon" size="xs" variant="ghost"

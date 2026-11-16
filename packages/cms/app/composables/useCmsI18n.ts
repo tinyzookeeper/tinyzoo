@@ -100,6 +100,26 @@ export function useCmsI18n() {
     return resolveText(text, locale.value, [config.value.defaultLocale, 'en']) ?? fallback
   }
 
+  /**
+   * A content language's name in the admin's own language, for use inside a sentence
+   * ("angličtina", "Englisch", "English") — not the language's own spelling ("English",
+   * "Čeština"), which reads as a foreign word in the middle of a sentence. A name the
+   * developer wrote for the admin's language wins.
+   */
+  function languageName(code: string | null | undefined, label?: LocalizedText | null): string {
+    if (!code) return ''
+    if (label && typeof label === 'object') {
+      const own = resolveText(label, locale.value, [])
+      if (own && (label[locale.value] || label[locale.value.split('-')[0]!])) return own
+    }
+    try {
+      const name = new Intl.DisplayNames([locale.value], { type: 'language' }).of(code)
+      if (name && name.toLowerCase() !== code.toLowerCase()) return name
+    }
+    catch { /* an odd code: its label */ }
+    return resolveText(label, locale.value, [config.value.defaultLocale, 'en']) ?? code.toUpperCase()
+  }
+
   function formatNumber(n: number): string {
     return new Intl.NumberFormat(locale.value).format(n)
   }
@@ -153,7 +173,7 @@ export function useCmsI18n() {
 
   return {
     locale: readonly(locale), locales: computed(() => config.value.locales), setLocale,
-    t, tl, formatNumber, formatDate, formatDateWith, formatRelative,
+    t, tl, languageName, formatNumber, formatDate, formatDateWith, formatRelative,
     fieldLabel, fieldHelp, entityLabel, entitySingular,
   }
 }
