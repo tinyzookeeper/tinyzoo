@@ -2,7 +2,7 @@
 const { locale, settings, nav } = await useSite()
 const languages = await useLanguageSwitch()
 // A link the editor picked from the pages leads to the page's address; the home page is / here, not /home.
-const menu = (links: { url: string | null }[] | null | undefined) => (links ?? []).map((l) => ({ ...l, url: l.url ? siteHref(l.url) : l.url }))
+const menu = <T extends { url: string | null }>(links: T[] | null | undefined): T[] => (links ?? []).map((l) => ({ ...l, url: l.url ? siteHref(l.url) : l.url }))
 const home = computed(() => (locale.value === 'en' ? '/en' : '/'))
 // A long menu (more than five links) gets a row of its own under the logo instead of squeezing the header.
 const wide = computed(() => (nav.value?.main ?? []).filter((l: any) => !l.sub).length > 5)

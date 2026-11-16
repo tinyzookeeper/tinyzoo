@@ -100,6 +100,9 @@ try {
   const env = { DATABASE_URL: dbUrl, NUXT_SESSION_PASSWORD: 'starter-check-session-password-32-characters', NUXT_CMS_STORAGE_LOCAL_DIR: uploads, NUXT_CMS_MAIL_TRANSPORT: 'log' }
   run('pnpm', ['db:migrate'], site, env)
 
+  // The site's own files type-check as shipped, templates included (the blocks are typed from the generated client).
+  run('pnpm', ['typecheck'], site, env)
+
   run('pnpm', ['exec', 'nuxi', 'build'], site, { ...env, NODE_ENV: 'production' })
   const port = await freePort()
   const base = `http://127.0.0.1:${port}`
@@ -196,6 +199,12 @@ try {
   const robots = (await get('/robots.txt')).text
   ok(/Disallow: \/admin/.test(robots) && robots.includes(`Sitemap: ${base}/sitemap.xml`), `robots.txt: ${robots}`)
 
+  // what a CDN is told (docs/deploying.md, "Caching")
+  const cc = async (path) => (await get(path)).res.headers.get('cache-control')
+  ok(await cc('/api/content/page') === 'public, max-age=0, must-revalidate, s-maxage=300', `content API Cache-Control: ${await cc('/api/content/page')}`)
+  ok(await cc('/sitemap.xml') === 'public, max-age=3600' && await cc('/robots.txt') === 'public, max-age=3600', 'sitemap and robots.txt should be cached for an hour')
+  console.log('Cache-Control of a server-rendered page:', await cc('/o-nas'))
+
   const moved = await get('/pekarna')
   ok(moved.res.status === 301 && moved.res.headers.get('location') === '/o-nas', `/pekarna should send visitors to /o-nas, got ${moved.res.status} ${moved.res.headers.get('location')}`)
 
@@ -235,6 +244,41 @@ try {
   ok(await mainMenu('?locale=en') === '/en,/en/news,/en/about,/en/contact', 'the English menu changed with the Czech page name')
   await rename(aboutId, 'o-nas')
   ok(await mainMenu() === '/,/aktuality,/o-nas,/kontakt', `the menu did not follow the page back: ${await mainMenu()}`)
+
+  // ── only .output ships (docs/deploying.md, "A client site on any container host") ──
+  // A copy of .output alone, started from an empty folder against an empty database with
+  // NUXT_CMS_MIGRATIONS_ON_START=true: the bundled migrations create the tables.
+  const runDb = `${dbName}_run`
+  const runUrl = (() => { const u = new URL(dbUrl); u.pathname = `/${runDb}`; return u.toString() })()
+  await withAdmin(async (c) => { await c.query(`drop database if exists "${runDb}" with (force)`); await c.query(`create database "${runDb}"`) })
+  const runtime = join(work, 'runtime')
+  mkdirSync(runtime)
+  cpSync(join(site, '.output'), join(runtime, '.output'), { recursive: true })
+  const runPort = await freePort()
+  const lone = spawn(process.execPath, ['.output/server/index.mjs'], {
+    cwd: runtime, stdio: ['ignore', 'pipe', 'pipe'],
+    env: { PATH: process.env.PATH, NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(runPort), DATABASE_URL: runUrl, NUXT_SESSION_PASSWORD: env.NUXT_SESSION_PASSWORD, NUXT_CMS_PUBLIC_URL: `http://127.0.0.1:${runPort}`, NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_STORAGE_LOCAL_DIR: join(work, 'runtime-uploads') },
+  })
+  const loneLogs = []
+  lone.stdout.on('data', (d) => loneLogs.push(String(d)))
+  lone.stderr.on('data', (d) => loneLogs.push(String(d)))
+  try {
+    for (let i = 0; ; i++) {
+      if (lone.exitCode !== null) fail(`.output alone exited with ${lone.exitCode}:\n${loneLogs.join('')}`)
+      try { if ((await fetch(`http://127.0.0.1:${runPort}/api/health/ready`)).ok) break } catch { /* not up yet */ }
+      if (i > 240) fail(`.output alone did not become ready:\n${loneLogs.join('')}`)
+      await new Promise((r) => setTimeout(r, 250))
+    }
+    const c = new pg.Client({ connectionString: runUrl })
+    await c.connect()
+    const tables = (await c.query(`select count(*)::int as n from information_schema.tables where table_schema = 'public' and table_name in ('page', 'news', 'site_settings')`)).rows[0].n
+    await c.end()
+    ok(tables === 3, '.output alone, with NUXT_CMS_MIGRATIONS_ON_START=true, did not create the tables')
+  }
+  finally {
+    if (lone.exitCode === null) { lone.kill('SIGTERM'); await new Promise((r) => lone.once('exit', r)) }
+    await withAdmin((c) => c.query(`drop database if exists "${runDb}" with (force)`)).catch(() => {})
+  }
 
   console.log('✓ starter initialised from the packed package, seeded twice (second run changed nothing), served the demo content, its menus follow renamed pages, and a reset goes through')
 }

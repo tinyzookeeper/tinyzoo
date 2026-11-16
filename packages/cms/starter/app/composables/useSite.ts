@@ -53,7 +53,8 @@ export async function useSitePage() {
   }))
   const { data, error } = await useAsyncData<any>(
     () => `site:${route.fullPath}`,
-    () => (reads.value ? $fetch(url.value, { query: query.value }) : Promise.resolve(null)),
+    // (the address is built from the visitor's: not one of the typed internal routes)
+    () => (reads.value ? ($fetch as (url: string, opts: { query: Record<string, unknown> }) => Promise<any>)(url.value, { query: query.value }) : Promise.resolve(null)),
   )
   return { parts, kind, data, error, reads, item: computed(() => (kind.value === 'news' ? null : data.value?.item ?? null)) }
 }
