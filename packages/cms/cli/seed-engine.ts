@@ -17,11 +17,17 @@
  *  - With `apply: false` nothing is written (a dry run, and the scan `--reset` uses to
  *    learn which entries the seed owns); entries and files that do not exist yet get
  *    placeholder ids.
+ *  - A link to an entry (`s.link`) is stored as the reference the admin's link picker
+ *    stores (`cms:<entity>/<id>`), so a menu follows its page when the page is renamed
+ *    or moved; only a placeholder id (a dry run) gets a readable address.
+ *  - The seed owns an entry only when it can show it made it: created by the account the
+ *    seed signs in with (and, for `s.create`, not changed by anybody else since), see
+ *    `ownedBySeed`. `--reset` deletes owned entries only.
  */
 import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename, extname, resolve } from 'node:path'
-import { sitePath, type CmsEntity, type CmsRegistry } from '../src/index'
+import { holdsLinks, linkFieldsOf, linkRef, linkRefsOf, mapFieldLinks, parseLinkRef, sitePath, type CmsEntity, type CmsRegistry } from '../src/index'
 import { richBuilders, type SeedContext, type SeedDefinition, type SeedEntry, type SeedLink, type SeedLinkOptions, type SeedUploadOptions } from '../src/seed'
 
 export type Row = Record<string, any>
@@ -49,6 +55,8 @@ export interface UploadRequest {
 
 /** What the engine needs from a site. Reads give the shapes the admin gets (relations as ids). */
 export interface SeedBackend {
+  /** The id of the account the seed signs in as (null: unknown, so no entry can be shown to be the seed's own). */
+  account(): Promise<string | null>
   /** Every entry of a collection (its own columns, `id` included). */
   list(entity: string): Promise<Row[]>
   /** One entry as the editor form gets it; in a translation language, its translated values (`__translated` says whether there are any). */
@@ -78,10 +86,18 @@ export interface SeedOp {
   fields?: string[]
 }
 
-/** What the seed owns on the site: entries found by key and files found by name, in the order the seed declared them (a global is not listed: it cannot be deleted, the seed overwrites it). */
+/**
+ * What the seed owns on the site, in the order the seed declared it: entries found by key
+ * that the seed made (see `ownedBySeed`), and files found by name. Entries found by key
+ * that the seed did not make are `foreign`: `--reset` leaves them alone. A global cannot
+ * be deleted, the seed overwrites it; the ones it writes are `globals` (a menu of the seed
+ * is emptied of links to pages that are about to go).
+ */
 export interface SeedDeclared {
   entries: { entity: string; id: string; label: string }[]
   media: { id: string; label: string }[]
+  foreign: { entity: string; id: string; label: string; why: string }[]
+  globals: { entity: string; label: string }[]
 }
 
 export interface SeedRunOptions {
@@ -147,7 +163,13 @@ export function covers(stored: unknown, wanted: unknown): boolean {
     if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return false
     return Object.entries(wanted as Row).every(([k, v]) => covers((stored as Row)[k], v))
   }
-  if (typeof wanted === 'string' && typeof stored === 'string') return stored === wanted || stored === wanted.trim()
+  if (typeof wanted === 'string' && typeof stored === 'string') {
+    // A reference to an entry is the same wherever it is spelled (the id's case).
+    const a = parseLinkRef(stored)
+    const b = parseLinkRef(wanted)
+    if (a && b) return a.entity === b.entity && a.id === b.id
+    return stored === wanted || stored === wanted.trim()
+  }
   return stored === wanted
 }
 
@@ -200,6 +222,9 @@ function withBlockIds(fld: any, value: unknown, scope: string): unknown {
   })
 }
 
+/** Can a link point at an entry of this collection? (The server's rule: public, with an address on the website.) */
+const isLinkable = (e: CmsEntity) => !e.singleton && !!e.content?.public && !!e.content?.path
+
 const describe = (key: Record<string, string>) => Object.values(key).join(' / ')
 
 export class SeedError extends Error {}
@@ -209,7 +234,7 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
   const { reg, backend, apply } = o
   const read = o.readFile ?? (async (p: string) => new Uint8Array(await readFile(p)))
   const ops: SeedOp[] = []
-  const declared: SeedDeclared = { entries: [], media: [] }
+  const declared: SeedDeclared = { entries: [], media: [], foreign: [], globals: [] }
   const lists = new Map<string, Promise<Row[]>>()
   const handled = new Map<string, SeedEntry>()
   const modes = new WeakMap<SeedEntry, 'create' | 'upsert'>()
@@ -218,6 +243,22 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
   let placeholders = 0
 
   const note = (op: SeedOp) => { ops.push(op); o.onOp?.(op) }
+  let account: Promise<string | null> | undefined
+  const me = () => (account ??= backend.account().catch(() => null))
+
+  /**
+   * Did the seed make this entry (so `--reset` may delete it)? Only an entry the seed's own
+   * account created counts: a page an editor made with the same slug is not the seed's, and
+   * neither is an entry made before the seed ran. After `s.create` the entry must also be
+   * untouched by anybody else (an editor's change is theirs, `create` leaves it alone);
+   * `s.upsert` takes the entry over, so later edits do not matter. Null: it is the seed's.
+   */
+  async function notOwned(row: Row, mode: 'create' | 'upsert'): Promise<string | null> {
+    const user = await me()
+    if (!user || !row.createdBy || row.createdBy !== user) return 'not made by the account the seed signs in with'
+    if (mode === 'create' && row.updatedBy && row.updatedBy !== user) return 'changed by someone else since'
+    return null
+  }
   const locales = reg.locales
   const defaultLocale = locales?.default ?? null
 
@@ -316,7 +357,11 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
         note({ action: 'created', kind: 'entry', entity: e.name, label })
         return { kind: 'entry', entity: e.name, id: row.id, key, existed: false, data: { ...wanted }, translations: {} }
       }
-      declared.entries.push({ entity: e.name, id: existing.id, label })
+      if (!isPlaceholder(existing.id)) {
+        const why = await notOwned(existing, mode)
+        if (why) declared.foreign.push({ entity: e.name, id: existing.id, label, why })
+        else declared.entries.push({ entity: e.name, id: existing.id, label })
+      }
       if (mode === 'create') {
         note({ action: 'kept', kind: 'entry', entity: e.name, label })
         return { kind: 'entry', entity: e.name, id: existing.id, key, existed: true, data: { ...existing, ...wanted }, translations: {} }
@@ -372,6 +417,7 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
     const label = `${e.name}`
     if (handled.has(e.name)) throw new SeedError(`${label} is in the seed twice.`)
     const wanted = prepare(e, data, e.name, label)
+    if (!opts.ifMissing) declared.globals.push({ entity: e.name, label })
     const entry = await doing(label, async (): Promise<SeedEntry> => {
       const stored = await backend.getGlobal(e.name)
       const id = stored?.id ?? (apply ? '' : planId(e.name))
@@ -446,11 +492,20 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
     if (typeof to === 'string') url = to
     else {
       const e = entityOf(to.entity)
-      const locale = opts.locale ?? defaultLocale
-      const values = { ...to.data, ...(locale && locale !== defaultLocale ? to.translations[locale] : {}) }
-      const address = sitePath(locales, e.content?.path, locale, values)
-      if (!address) throw new SeedError(`s.link(${JSON.stringify(label)}): ${e.name} has no address on the website${locale ? ` in ${locale}` : ''} (content.path in cms.config.ts, and a value for each :placeholder); pass an address instead.`)
-      url = address
+      if (!e.content?.path) throw new SeedError(`s.link(${JSON.stringify(label)}): ${e.name} has no address on the website (content.path in cms.config.ts); pass an address instead.`)
+      // A page the website can link to is stored as a reference, as the admin's link picker
+      // does: the link follows the page (renamed, moved under another page, translated).
+      const ref = linkRef(e.name, to.id)
+      if (isLinkable(e) && !isPlaceholder(to.id) && parseLinkRef(ref)) url = ref
+      else {
+        // Nothing to refer to yet (a dry run plans an entry without an id), or an entity the
+        // website does not link to: a readable address, worked out here.
+        const locale = opts.locale ?? defaultLocale
+        const values = { ...to.data, ...(locale && locale !== defaultLocale ? to.translations[locale] : {}) }
+        const address = sitePath(locales, e.content.path, locale, values)
+        if (!address) throw new SeedError(`s.link(${JSON.stringify(label)}): ${e.name} has no address on the website${locale ? ` in ${locale}` : ''} (a value for each :placeholder of content.path); pass an address instead.`)
+        url = address
+      }
     }
     return { id: stableId(`link/${label}/${url}`), type: 'link', label, url, newTab: opts.newTab ?? false, sub: opts.sub ?? false }
   }
@@ -469,25 +524,176 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
   return { ops, declared }
 }
 
-export interface ResetResult { entries: number; media: number; keptMedia: number }
+// ── --reset ─────────────────────────────────────────────────────────────────────
+
+export interface ResetPlan {
+  /** What goes, in the order to delete it: an entry that links to or points at another goes before it. */
+  entries: { entity: string; id: string; label: string }[]
+  media: { id: string; label: string }[]
+  /** Globals of the seed that link to entries about to go: saved first without those links (the seed writes them again afterwards). */
+  clear: { entity: string; label: string; locale: string | null; data: Row }[]
+  /** Found by the seed's keys but not made by the seed: they stay. */
+  kept: { label: string; why: string }[]
+  /** Why a delete would be refused. While there is any, nothing at all is removed. */
+  blocked: string[]
+}
+
+export interface ResetResult { entries: number; media: number; keptMedia: number; cleared: number }
+
+const refKey = (entity: string, id: string) => `${entity}/${id.toLowerCase()}`
 
 /**
- * Remove what a scan found the seed to own, last declared first (so an entry that points
- * at another goes before it). Entries that cannot go are an error; files still in use
- * stay (the seed finds and reuses them).
+ * Work out a reset before touching anything: which entries go and in which order, which
+ * globals first lose their links to them, and whether anything would be refused. The site
+ * refuses to delete an entry that a menu, a page or a relation still points at (409), and
+ * a reset over HTTP has no transaction to undo a half-way stop, so every reason is looked
+ * for here: a link in a global or entry (translations included), a relation (the tree's
+ * parent too). Whatever the seed owns itself is ordered or cleared; anything else is a
+ * blocker, reported with what to change.
  */
-export async function resetDeclared(backend: SeedBackend, declared: SeedDeclared, log: (line: string) => void = () => {}): Promise<ResetResult> {
-  const out: ResetResult = { entries: 0, media: 0, keptMedia: 0 }
-  for (const x of [...declared.entries].reverse()) {
+export async function planReset(reg: CmsRegistry, backend: SeedBackend, declared: SeedDeclared): Promise<ResetPlan> {
+  const plan: ResetPlan = {
+    entries: [], media: [...declared.media].reverse(), clear: [],
+    kept: declared.foreign.map((x) => ({ label: x.label, why: x.why })), blocked: [],
+  }
+  const owned = new Map(declared.entries.filter((x) => !isPlaceholder(x.id)).map((x) => [refKey(x.entity, x.id), x]))
+  if (!owned.size) return plan
+  const ownedEntities = new Set([...owned.values()].map((x) => x.entity))
+  const before = new Map<string, Set<string>>() // entry → the owned entries that must go before it
+  const isOwnedRef = (v: string) => { const r = parseLinkRef(v); return !!r && owned.has(refKey(r.entity, r.id)) }
+  const dropped = (v: string) => (isOwnedRef(v) ? null : undefined)
+  const visitor = { field: dropped, mark: dropped }
+  const localesList = reg.locales ? reg.locales.locales.filter((l) => l !== reg.locales!.default) : []
+
+  for (const e of reg.entities) {
+    const linkKeys = linkFieldsOf(e.fields as any).map(([k]) => k)
+    const relations = Object.entries(e.fields).filter(([, f]) => (f.relation?.kind === 'many-to-one' || f.relation?.kind === 'many-to-many') && ownedEntities.has(f.relation.to().name))
+    if (!linkKeys.length && !relations.length) continue
+
+    if (e.singleton) {
+      for (const [k] of relations) plan.blocked.push(`${e.name} has a relation (${k}) to content the seed would remove; empty it first.`)
+      if (!linkKeys.length) continue
+      const mine = declared.globals.some((g) => g.entity === e.name)
+      for (const locale of [null, ...localesList]) {
+        const keys = locale ? linkKeys.filter((k) => e.localized.includes(k)) : linkKeys
+        if (!keys.length) continue
+        const row = await backend.getGlobal(e.name, locale ?? undefined)
+        if (!row || (locale && !row.__translated)) continue
+        const fields = Object.fromEntries(keys.map((k) => [k, e.fields[k]!]))
+        const hits = [...linkRefsOf(fields as any, row)].filter(isOwnedRef)
+        if (!hits.length) continue
+        const label = `${e.name}${locale ? ` (${locale})` : ''}`
+        if (!mine) { plan.blocked.push(`${label} links to ${hits.map((h) => owned.get(refKey(parseLinkRef(h)!.entity, parseLinkRef(h)!.id))!.label).join(', ')}, which the seed would remove, and the seed does not write it (it is left as it is: ifMissing); take those links out first.`); continue }
+        // Saved as the seed saves it: the whole global (the translated fields only, in a translation), without the links.
+        const sendKeys = locale ? e.localized : Object.keys(e.fields)
+        const data: Row = {}
+        for (const k of sendKeys) {
+          if (row[k] === undefined) continue
+          const fld = e.fields[k] as any
+          data[k] = holdsLinks(fld) ? withoutOwnedLinks(fld, row[k], visitor, isOwnedRef) : row[k]
+        }
+        plan.clear.push({ entity: e.name, label, locale, data })
+      }
+      continue
+    }
+
+    const rows = await backend.list(e.name)
+    const translatedLinks = !!localesList.length && linkKeys.some((k) => e.localized.includes(k))
+    for (const row of rows) {
+      const self = refKey(e.name, row.id)
+      const mine = owned.has(self)
+      const found = (target: string, how: string) => {
+        if (target === self) return
+        if (mine) { if (!before.has(target)) before.set(target, new Set()); before.get(target)!.add(self) }
+        else plan.blocked.push(`${e.name} ${row[e.titleField] ?? row.id} (not made by the seed) ${how} ${owned.get(target)!.label}, which the seed would remove; change that first.`)
+      }
+      const refs = linkRefsOf(Object.fromEntries(linkKeys.map((k) => [k, e.fields[k]!])) as any, row)
+      if (translatedLinks) {
+        const keys = linkKeys.filter((k) => e.localized.includes(k))
+        for (const locale of localesList) {
+          const tr = await backend.get(e.name, row.id, locale)
+          if (tr?.__translated) linkRefsOf(Object.fromEntries(keys.map((k) => [k, e.fields[k]!])) as any, tr, refs)
+        }
+      }
+      for (const ref of refs) {
+        const r = parseLinkRef(ref)
+        if (r && owned.has(refKey(r.entity, r.id))) found(refKey(r.entity, r.id), 'links to')
+      }
+      let form: Row | null | undefined
+      for (const [k, f] of relations) {
+        let v = row[k] ?? row[`${k}Id`]
+        if (v === undefined && f.relation!.kind === 'many-to-many') v = (form ??= await backend.get(e.name, row.id))?.[k]
+        const target = f.relation!.to().name
+        for (const id of ([] as unknown[]).concat(v ?? [])) {
+          if (typeof id === 'string' && owned.has(refKey(target, id))) found(refKey(target, id), `relates (${k}) to`)
+        }
+      }
+    }
+  }
+
+  // Entries that point at others go first; otherwise last declared goes first (as before).
+  const left = [...declared.entries].reverse().filter((x) => owned.has(refKey(x.entity, x.id)))
+  const gone = new Set<string>()
+  while (left.length) {
+    const i = left.findIndex((x) => [...(before.get(refKey(x.entity, x.id)) ?? [])].every((k) => gone.has(k)))
+    if (i < 0) {
+      plan.blocked.push(`These link to or point at each other, so none can go first: ${left.map((x) => x.label).join(', ')}.`)
+      break
+    }
+    const [x] = left.splice(i, 1)
+    gone.add(refKey(x!.entity, x!.id))
+    plan.entries.push(x!)
+  }
+  return plan
+}
+
+/** A field's value without the links to owned entries: a list item that holds one is dropped, a lone link is emptied, a rich-text link keeps its words. */
+function withoutOwnedLinks(fld: any, value: unknown, visitor: { field: (v: string) => null | undefined; mark: (v: string) => null | undefined }, isOwnedRef: (v: string) => boolean): unknown {
+  if (fld.type === 'blocks' && fld.blocks && Array.isArray(value)) {
+    return value.filter((b: any) => {
+      const def = fld.blocks[b?.type]
+      return !def || ![...linkRefsOf(def.fields, b)].some(isOwnedRef)
+    })
+  }
+  return mapFieldLinks(fld, value, visitor)
+}
+
+/** What a plan says goes, as lines a person can read before agreeing to it. */
+export function describeReset(plan: ResetPlan, where: string): string[] {
+  const out: string[] = []
+  if (plan.entries.length) out.push(`  ${plan.entries.length === 1 ? 'Entry' : 'Entries'} that would be removed from ${where}, in this order:`, ...plan.entries.map((x) => `    − ${x.label}`))
+  if (plan.media.length) out.push('  Files (a file still in use stays):', ...plan.media.map((m) => `    − ${m.label}`))
+  if (plan.clear.length) out.push('  Menus and settings first lose their links to those entries (the seed writes them again):', ...plan.clear.map((c) => `    ~ ${c.label}`))
+  if (plan.kept.length) out.push('  Found by the seed\'s keys but not made by the seed, so they stay:', ...plan.kept.map((k) => `    · ${k.label} (${k.why})`))
+  if (plan.blocked.length) out.push('  Cannot be removed as things are:', ...plan.blocked.map((b) => `    ! ${b}`))
+  return out
+}
+
+/**
+ * Carry out a plan (see `planReset`). A plan with anything blocked is refused before the
+ * first write. Over HTTP there is no transaction: if a step still fails (somebody saved
+ * something in between), it stops there and says what was already done; the seed puts
+ * the rest back on its next run. Files still in use stay (the seed finds and reuses them).
+ */
+export async function resetDeclared(backend: SeedBackend, plan: ResetPlan, log: (line: string) => void = () => {}): Promise<ResetResult> {
+  if (plan.blocked.length) throw new SeedError(`Nothing was removed. --reset cannot go through:\n${plan.blocked.map((b) => `  ! ${b}`).join('\n')}`)
+  const out: ResetResult = { entries: 0, media: 0, keptMedia: 0, cleared: 0 }
+  const partway = () => (out.entries || out.cleared ? ` Stopped part-way (${out.cleared} menus cleared, ${out.entries} entries removed); run the seed again to put it all back.` : ' Nothing was removed.')
+  for (const c of plan.clear) {
+    try { await backend.putGlobal(c.entity, c.data, c.locale ?? undefined); out.cleared++ }
+    catch (err) { throw new SeedError(`${c.label}: could not take the links out (${err instanceof Error ? err.message : String(err)}).${partway()}`) }
+    log(`  ~ ${c.label}: links to removed entries taken out`)
+  }
+  for (const x of plan.entries) {
     if (isPlaceholder(x.id)) continue
     try { await backend.remove(x.entity, x.id); out.entries++ }
     catch (err) {
       if ((err as any)?.status === 404) continue
-      throw new SeedError(`${x.label}: could not be removed (${err instanceof Error ? err.message : String(err)}).`)
+      throw new SeedError(`${x.label}: could not be removed (${err instanceof Error ? err.message : String(err)}).${partway()}`)
     }
     log(`  − ${x.label}`)
   }
-  for (const m of [...declared.media].reverse()) {
+  for (const m of plan.media) {
     try { await backend.removeMedia(m.id); out.media++; log(`  − ${m.label}`) }
     catch (err) {
       if ((err as any)?.status === 404) continue

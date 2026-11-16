@@ -1,7 +1,8 @@
 // The starter as a new site gets it: `tinyzoo init` from the PACKED package into a fresh
 // folder, installed from the tarballs (no workspace links), migrated, built, started, then
 // seeded twice with `pnpm seed`. Checks that the demo content arrives once, in both
-// languages, and that the website serves it.
+// languages, that the website serves it, that the menus follow their pages (a page renamed
+// in the admin changes the menu), and that `pnpm seed --reset` goes through.
 //
 //   STARTER_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5434/cms_starter_scratch node scripts/starter-check.mjs
 //
@@ -171,7 +172,45 @@ try {
   }
   const moved = await get('/pekarna')
   ok(moved.res.status === 301 && moved.res.headers.get('location') === '/o-nas', `/pekarna should send visitors to /o-nas, got ${moved.res.status} ${moved.res.headers.get('location')}`)
-  console.log('✓ starter initialised from the packed package, seeded twice (second run changed nothing), and served the demo content')
+
+  const mainMenu = async (query = '') => (await json(`/api/content/_global/navigation${query}`)).item.main.map((l) => l.url).join()
+
+  // ── a reset goes through (the menus link to the pages it removes) ──
+  // (before the renames below: a renamed page leaves a redirect behind)
+  const reset = spawnSync('pnpm', ['seed', '--reset', '--yes'], { cwd: site, encoding: 'utf8', env: { ...process.env, ...seedEnv } })
+  process.stdout.write(reset.stdout)
+  ok(reset.status === 0, `the reset seed failed:\n${reset.stdout}${reset.stderr}`)
+  ok(/− page o-nas/.test(reset.stdout) && /~ navigation/.test(reset.stdout), `the reset should list what it removes, menus included:\n${reset.stdout}`)
+  const afterReset = await snapshot()
+  ok(afterReset.page === 3 && afterReset.news === 4 && afterReset.media === 5 && afterReset.redirect === 1, `unexpected content after the reset: ${JSON.stringify(afterReset)}`)
+  ok(await mainMenu() === '/,/aktuality,/o-nas,/kontakt', `the menu is off after the reset: ${await mainMenu()}`)
+  const third = seedRun()
+  ok(third.status === 0 && !/✓ (created|updated|uploaded)/.test(third.stdout), `a seed after the reset changed something:\n${third.stdout}${third.stderr}`)
+
+  // ── the menus follow their pages ──
+  // The seed stores a link to a page as a reference, so the menu shows the page's address
+  // as it is now: rename the page in the admin and the menu changes with it.
+  const pageId = async (slug) => (await query(`select id from page where slug = '${slug}'`))[0].id
+  const [aboutId, contactId] = [await pageId('o-nas'), await pageId('kontakt')]
+  const storedMenu = (await query('select main, footer from navigation'))[0]
+  ok(storedMenu.main.map((l) => l.url).join() === `/,/aktuality,cms:page/${aboutId},cms:page/${contactId}`, `the menu should hold references to its pages: ${JSON.stringify(storedMenu.main.map((l) => l.url))}`)
+  ok(storedMenu.footer[0].url === `cms:page/${contactId}`, `the footer menu should hold a reference: ${storedMenu.footer[0].url}`)
+
+  const admin = { email: seedEnv.SEED_EMAIL, password: seedEnv.SEED_PASSWORD }
+  const login = await fetch(`${base}/api/cms/_auth/login`, { method: 'POST', headers: { 'content-type': 'application/json', origin: base }, body: JSON.stringify(admin) })
+  ok(login.ok, `could not sign in as the seeded administrator: ${login.status}`)
+  const cookie = login.headers.getSetCookie().map((c) => c.split(';')[0]).join('; ')
+  const rename = async (id, slug) => {
+    const res = await fetch(`${base}/api/cms/page/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json', origin: base, cookie }, body: JSON.stringify({ slug }) })
+    ok(res.ok, `renaming the page to ${slug}: ${res.status} ${await res.text()}`)
+  }
+  await rename(aboutId, 'o-nas-nove')
+  ok(await mainMenu() === '/,/aktuality,/o-nas-nove,/kontakt', `the menu did not follow the renamed page: ${await mainMenu()}`)
+  ok(await mainMenu('?locale=en') === '/en,/en/news,/en/about,/en/contact', 'the English menu changed with the Czech page name')
+  await rename(aboutId, 'o-nas')
+  ok(await mainMenu() === '/,/aktuality,/o-nas,/kontakt', `the menu did not follow the page back: ${await mainMenu()}`)
+
+  console.log('✓ starter initialised from the packed package, seeded twice (second run changed nothing), served the demo content, its menus follow renamed pages, and a reset goes through')
 }
 finally {
   if (server && server.exitCode === null) { server.kill('SIGTERM'); await new Promise((r) => server.once('exit', r)) }

@@ -78,6 +78,9 @@ describe('tinyzoo seed', () => {
 
     const wrong = await seed(['--setup-code', 'AAAA-BBBB-CCCC-DDDD'])
     expect(wrong.error?.message).toMatch(/setup code is missing or wrong/)
+    // The code as an argument shows in `ps`: the command says so, and points at the environment.
+    expect(wrong.out).toMatch(/! --setup-code shows in the process list.*SEED_SETUP_CODE/)
+    expect(refused.out).not.toMatch(/--setup-code shows/)
 
     const first = await seed([], { SEED_SETUP_CODE: code })
     expect(first.error).toBeNull()
@@ -86,7 +89,7 @@ describe('tinyzoo seed', () => {
     expect(first.out).toMatch(/Seeded .*: .*created/)
     expect((await sql('select role from cms_users'))[0].role).toBe('admin')
 
-    expect(await counts()).toMatchObject({ post: 1, tag: 2, author: 1, page: 1, cms_media: 2 })
+    expect(await counts()).toMatchObject({ post: 1, tag: 2, author: 1, page: 2, cms_media: 2 })
   })
 
   it('wrote through the admin\'s own paths: validated, translated, indexed, versioned, sized', async () => {
@@ -107,10 +110,21 @@ describe('tinyzoo seed', () => {
     expect(page.sections.every((b: any) => b.id)).toBe(true)
     expect(page.sections[0].image).toMatchObject({ width: 64 })
     const nav = (await visitor.get('/api/content/_global/navigation')).body.item
-    expect(nav.main.map((l: any) => l.url)).toEqual(['/uvod', '/blog'])
+    // …the menu holds references to its pages, which the content API turns into their addresses (a page under a page included).
+    expect(nav.main.map((l: any) => l.url)).toEqual(['/uvod', '/uvod/tym', '/blog'])
     expect(nav.footer[0]).toMatchObject({ url: '/kontakt', newTab: true })
-    expect((await visitor.get('/api/content/_global/navigation?locale=en')).body.item.main.map((l: any) => l.url)).toEqual(['/en/pages/home', '/en/blog'])
+    expect((await visitor.get('/api/content/_global/navigation?locale=en')).body.item.main.map((l: any) => l.url)).toEqual(['/en/pages/home', '/en/pages/home/team', '/en/blog'])
+    const stored = (await sql('select main from navigation'))[0].main as { url: string }[]
+    const ids = Object.fromEntries((await sql('select id, slug from page')).map((r) => [r.slug, r.id]))
+    expect(stored.map((l) => l.url)).toEqual([`cms:page/${ids.uvod}`, `cms:page/${ids.tym}`, '/blog'])
     expect((await visitor.get('/api/content/_global/siteSettings')).body.item).toMatchObject({ siteName: 'Seed site', logo: { width: 64 } })
+
+    // A menu that follows its pages: rename one in the admin and the menu shows its new address.
+    const renamer = await signedIn()
+    expect((await renamer.patch(`/api/cms/page/${ids.uvod}`, { slug: 'novy-uvod' })).status).toBe(200)
+    expect((await visitor.get('/api/content/_global/navigation')).body.item.main.map((l: any) => l.url)).toEqual(['/novy-uvod', '/novy-uvod/tym', '/blog'])
+    expect((await renamer.patch(`/api/cms/page/${ids.uvod}`, { slug: 'uvod' })).status).toBe(200)
+    expect((await visitor.get('/api/content/_global/navigation')).body.item.main.map((l: any) => l.url)).toEqual(['/uvod', '/uvod/tym', '/blog'])
 
     // The search index and the saved versions exist: the seed did not bypass them.
     const found = (await visitor.get('/api/content/_search?q=zebra')).body
@@ -133,7 +147,7 @@ describe('tinyzoo seed', () => {
 
     const again = await seed()
     expect(again.error).toBeNull()
-    expect(again.out).toMatch(/Seeded .*: 9 already up to date, 5 left as they are\./)
+    expect(again.out).toMatch(/Seeded .*: \d+ already up to date, 5 left as they are\./)
     expect(again.out).not.toMatch(/kept|unchanged/) // quiet unless --verbose
     expect(again.out).not.toMatch(/✓ (created|updated|uploaded)/)
 
@@ -148,7 +162,7 @@ describe('tinyzoo seed', () => {
   it('--dry-run says what would happen and writes nothing', async () => {
     await restart()
     const c = await signedIn()
-    const page = (await c.get('/api/cms/page?limit=1')).body.rows[0]
+    const page = (await c.get('/api/cms/page?limit=5')).body.rows.find((r: any) => r.slug === 'uvod')
     expect((await c.patch(`/api/cms/page/${page.id}`, { title: 'Změněno editorem' })).status).toBe(200)
     const before = await counts()
     const audit = (await sql('select count(*)::int as n from cms_audit'))[0].n
@@ -160,7 +174,7 @@ describe('tinyzoo seed', () => {
     expect(await counts()).toEqual(before)
     // (an update was made by the test itself; the dry run added a sign-in only)
     expect((await sql('select count(*)::int as n from cms_audit'))[0].n).toBe(audit + 1)
-    expect((await sql(`select title from page`))[0].title).toBe('Změněno editorem')
+    expect((await sql(`select title from page where slug = 'uvod'`))[0].title).toBe('Změněno editorem')
   })
 
   it('upsert brings an edited entry back, create leaves editors\' changes alone', async () => {
@@ -174,25 +188,50 @@ describe('tinyzoo seed', () => {
     expect(run.out).toMatch(/✓ updated\s+page uvod \(title\)/) // upsert: back to the seed
     expect(run.out).not.toMatch(/updated\s+tag/)
     expect((await sql(`select name from tag where slug = 'trenink'`))[0].name).toBe('Přejmenováno') // create: the editor's name stays
-    expect((await sql(`select title from page`))[0].title).toBe('Úvod')
+    expect((await sql(`select title from page where slug = 'uvod'`))[0].title).toBe('Úvod')
     // the edited tag was not touched, so a further run is quiet again
     expect((await seed()).out).not.toMatch(/✓ (created|updated)/)
   })
 
-  it('--reset removes what the seed owns (and only that), then seeds again, uploading each file once', async () => {
+  it('--reset lists what it removes, takes nothing the seed did not make, and stops before the first delete when something would be refused', async () => {
+    await restart()
+    const c = await signedIn()
+    const uvod = (await sql(`select id from page where slug = 'uvod'`))[0].id
+    const before = await counts()
+    // A page the seed did not make links to one of its pages: that page cannot be deleted.
+    const news = await c.post('/api/cms/page', { title: 'Novinky', slug: 'novinky-stranka', status: 'draft', sections: [{ id: 'blk1', type: 'hero', heading: 'x', buttonUrl: `cms:page/${uvod}` }] })
+    expect(news.status, JSON.stringify(news.body)).toBe(201)
+
+    const blocked = await seed(['--reset', '--yes'])
+    expect(blocked.error?.message).toMatch(/Nothing was removed/)
+    expect(blocked.out).toMatch(/− page uvod/) // every entry is listed by name, before anything happens
+    expect(blocked.out).toMatch(/! page Novinky \(not made by the seed\) links to page uvod/)
+    expect(await counts()).toMatchObject({ post: before.post, tag: before.tag, author: before.author, cms_media: before.cms_media, page: before.page + 1 })
+    expect((await sql('select main from navigation'))[0].main).toHaveLength(3) // the menu was not emptied either
+    expect((await c.delete(`/api/cms/page/${news.body.row.id}`)).status).toBe(200)
+  })
+
+  it('--reset removes what the seed made (and only that): menus first, then entries, then again, uploading each file once', async () => {
     await restart()
     const c = await signedIn()
     expect((await c.post('/api/cms/tag', { name: 'Moje', slug: 'moje' })).status).toBe(201)
+    // "novinky" was there before the seed (no author recorded): the seed keeps it and a reset must leave it.
+    await sql(`update tag set created_by = null where slug = 'novinky'`)
     const oldPost = (await sql('select id from post'))[0].id
     const oldMedia = await sql('select id, name from cms_media order by name')
 
     const refused = await seed(['--reset'])
     expect(refused.error?.message).toMatch(/--yes/) // no terminal, no confirmation: nothing deleted
     expect((await sql('select id from post'))[0].id).toBe(oldPost)
+    expect(refused.out).toMatch(/− post prvni-clanek/)
+    expect(refused.out).toMatch(/− page tym/)
+    expect(refused.out).toMatch(/· tag novinky \(not made by the account the seed signs in with\)/)
+    expect(refused.out).toMatch(/~ navigation/)
 
     const reset = await seed(['--reset', '--yes'])
     expect(reset.error).toBeNull()
-    expect(reset.out).toMatch(/removes \d+ entries and 2 files this seed owns/)
+    expect(reset.out).toMatch(/removes 5 entries and 2 files this seed made/)
+    expect(reset.out).toMatch(/~ navigation: links to removed entries taken out/)
     // The logo of the site settings still uses wide.png, so that file stays and is found again.
     expect(reset.out).toMatch(/wide\.png stays \(.*409/)
     expect(reset.out).toMatch(/✓ removed 5 entries and 1 file \(1 still in use stay\)/)
@@ -202,10 +241,14 @@ describe('tinyzoo seed', () => {
 
     expect((await sql('select id from post'))[0].id).not.toBe(oldPost)
     expect((await sql(`select slug from tag order by slug`)).map((t) => t.slug)).toEqual(['moje', 'novinky', 'trenink'])
+    expect((await sql(`select id from tag where slug = 'novinky'`))).toHaveLength(1)
     const media = await sql('select id, name from cms_media order by name')
     expect(media).toHaveLength(2)
     expect(media[0]).not.toEqual(oldMedia[0]) // tall.png: removed with the seed's own entries, uploaded once more
     expect(media[1]).toEqual(oldMedia[1]) // wide.png: kept, found again
+    // The menus are back, following the new pages.
+    const nav = (await new Client(srv.baseURL).get('/api/content/_global/navigation')).body.item
+    expect(nav.main.map((l: any) => l.url)).toEqual(['/uvod', '/uvod/tym', '/blog'])
     expect((await seed()).out).not.toMatch(/✓ (created|updated|uploaded)/)
   })
 

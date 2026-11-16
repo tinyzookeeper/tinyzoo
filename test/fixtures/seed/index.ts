@@ -31,10 +31,13 @@ export default defineSeed(async (s) => {
     translations: { en: { title: 'Home', slug: 'home', sections: [{ type: 'hero', heading: 'Welcome', lead: 'Sample', image: wide, buttonLabel: 'Read', buttonUrl: '/en/blog/prvni-clanek' }] } },
   })
 
+  // A page under a page: its address is /uvod/tym, which only the server can work out.
+  const team = await s.upsert(Page, { title: 'Tým', slug: 'tym', status: 'published', parent: home.id, sections: [] }, { translations: { en: { title: 'Team', slug: 'team' } } })
+
   await s.global(Navigation, {
-    main: [s.link('Úvod', home), s.link('Články', '/blog')],
+    main: [s.link('Úvod', home), s.link('Tým', team, { sub: true }), s.link('Články', '/blog')],
     footer: [s.link('Kontakt', '/kontakt', { newTab: true })],
-  }, { translations: { en: { main: [s.link('Home', home, { locale: 'en' }), s.link('Posts', '/en/blog')] } } })
+  }, { translations: { en: { main: [s.link('Home', home, { locale: 'en' }), s.link('Team', team, { locale: 'en', sub: true }), s.link('Posts', '/en/blog')] } } })
 
   await s.global(SiteSettings, {
     siteName: 'Seed site', tagline: 'Hello', logo: wide,
