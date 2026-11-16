@@ -18,6 +18,7 @@ import {
   type Manifest, type TransferStorage,
 } from '../../packages/cms/cli/transfer'
 import { playgroundDir, repoRoot, testDatabaseUrl } from '../setup/database'
+import { startFakeS3 } from '../helpers/fakeS3'
 
 vi.setConfig({ testTimeout: 60_000, hookTimeout: 120_000 })
 
@@ -923,6 +924,54 @@ describe('files shared between environments', () => {
       .toBe(storageFromSettings({ driver: 'r2', localDir: '', s3: { endpoint: 'https://s3.example.com', region: 'y', bucket: 'b', accessKeyId: 'other', secretAccessKey: 'other' } }).identity)
     expect(storageFromSettings({ driver: 's3', localDir: '', s3: { endpoint: 'https://s3.example.com', region: 'x', bucket: 'b2', accessKeyId: 'k', secretAccessKey: 's' } }).identity)
       .not.toBe(storageFromSettings({ driver: 's3', localDir: '', s3: { endpoint: 'https://s3.example.com', region: 'x', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' } }).identity)
+  })
+})
+
+// ── a private bucket as the target or the source ────────────────────────────────
+
+describe('private bucket (S3 with delivery proxy or redirect)', () => {
+  const settings = (s3: Awaited<ReturnType<typeof startFakeS3>>, extra: Record<string, string> = {}) => ({
+    driver: 's3' as const, localDir: '',
+    s3: { endpoint: s3.endpoint, region: s3.region, bucket: s3.bucket, accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey, ...extra },
+  })
+
+  it('an import writes the files into the bucket (signed) and the app path as every address, in rows and in rich text', async () => {
+    const s3 = await startFakeS3()
+    try {
+      await exportAll('private.tar.gz')
+      await wipe(B.db)
+      const target = storageFromSettings(settings(s3)) // no public address: proxy
+      const report = await importContent({ reg, databaseUrl: urlB, storage: target, file: archive('private.tar.gz') })
+      expect(report.media).toEqual({ rows: 8, files: 8, missingFiles: 0 })
+      expect(s3.objects.size).toBe(8)
+      expect(s3.requests.filter((r) => !r.ok)).toEqual([])
+      const rows: any[] = await B.db.select().from(reg.cmsMedia)
+      for (const m of rows) expect(m.url).toBe(`/api/cms/_media/raw/${m.key}`)
+      const [post]: any[] = await B.db.select().from(entity('post').table).where(sql`${entity('post').table.id} = ${ids.posts[0]}`)
+      expect(JSON.stringify(post.body)).toContain('/api/cms/_media/raw/')
+      expect(JSON.stringify(post.body)).not.toContain(s3.endpoint)
+
+      // …and an export reads them back through the same signed requests: the archive holds keys, not addresses.
+      const out = await exportContent({ reg, databaseUrl: urlB, storage: target, file: archive('private-out.tar.gz') })
+      expect(out.manifest.media).toMatchObject({ rows: 8, included: true, files: 8, missing: 0 })
+      const dir = mkdtempSync(join(work, 'peek-'))
+      const names = await extractTarGz(archive('private-out.tar.gz'), dir)
+      expect(names.filter((n) => n.startsWith('media/')).sort()).toEqual([...blobs.keys()].map((k) => `media/${k}`).sort())
+      expect(readFileSync(join(dir, 'media.jsonl'), 'utf8')).not.toMatch(/"url"|127\.0\.0\.1|X-Amz/)
+    }
+    finally { await s3.close() }
+  })
+
+  it('under public delivery the same import stores the bucket\'s own address', async () => {
+    const s3 = await startFakeS3()
+    try {
+      await wipe(B.db)
+      const target = storageFromSettings(settings(s3, { publicBaseUrl: 'https://cdn.example.com/m', delivery: 'public' }))
+      await importContent({ reg, databaseUrl: urlB, storage: target, file: archive('private.tar.gz') })
+      const rows: any[] = await B.db.select().from(reg.cmsMedia)
+      for (const m of rows) expect(m.url).toBe(`https://cdn.example.com/m/${m.key}`)
+    }
+    finally { await s3.close() }
   })
 })
 

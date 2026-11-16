@@ -37,6 +37,15 @@ export interface CmsModuleOptions {
       secretAccessKey?: string
       /** Public URL prefix for serving (CDN / r2.dev / custom domain). */
       publicBaseUrl?: string
+      /**
+       * How browsers get the files. `'public'`: straight from a public bucket or CDN
+       * (the stored address is the bucket's). `'proxy'`: for a private bucket — the app
+       * streams each file (`/api/cms/_media/raw/<key>`, with byte ranges). `'redirect'`:
+       * private bucket, the app answers with a five-minute signed address; the stored
+       * address is the same app path, so it never expires. Default: `'public'` when
+       * `publicBaseUrl` is set, otherwise `'proxy'`. Env: NUXT_CMS_STORAGE_S3_DELIVERY.
+       */
+      delivery?: 'public' | 'proxy' | 'redirect'
     }
     /** Max upload size in MB (per file). Default 10. */
     maxSizeMb?: number
@@ -320,6 +329,8 @@ export {}
           accessKeyId: options.storage?.s3?.accessKeyId || '',
           secretAccessKey: options.storage?.s3?.secretAccessKey || '',
           publicBaseUrl: options.storage?.s3?.publicBaseUrl || '',
+          // '' = the default (public with a publicBaseUrl, otherwise proxy), resolved where it is used.
+          delivery: options.storage?.s3?.delivery || '',
         },
         maxSizeMb: options.storage?.maxSizeMb ?? 10,
         maxBytesPerUser: options.storage?.maxBytesPerUser ?? 0,

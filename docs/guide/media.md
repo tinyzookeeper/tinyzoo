@@ -9,8 +9,9 @@ file → POST /api/cms/_media → StorageDriver.put → cms_media row → FK on 
 ```
 
 - **`StorageDriver`** seam (`server/utils/cmsStorage.ts`): `LocalDriver` writes to disk and
-  serves through a Nitro route; `S3Driver` targets any S3-compatible store (AWS S3,
-  Cloudflare R2, MinIO). Selected via `cms.storage.driver`; size cap via `cms.storage.maxSizeMb`.
+  serves through a Nitro route (a stream, with byte ranges); `S3Driver` targets any
+  S3-compatible store (AWS S3, Cloudflare R2, MinIO, Pushbase Storage) — public or private
+  bucket, see below. Selected via `cms.storage.driver`; size cap via `cms.storage.maxSizeMb`.
 - Upload widget with thumbnail preview, replace/remove, and list-cell thumbnails.
 - **Image dimensions** captured on upload (`width`/`height` via `image-size`) and used
   for intrinsic sizing + lazy loading in the admin.
@@ -28,8 +29,23 @@ file → POST /api/cms/_media → StorageDriver.put → cms_media row → FK on 
 ### S3 / Cloudflare R2
 
 The S3 driver signs requests with SigV4 via [`aws4fetch`](https://github.com/mhart/aws4fetch)
-(`fetch` + Web Crypto). Objects are
-served straight from a public bucket / CDN URL (`publicBaseUrl`), never proxied through the app.
+(`fetch` + Web Crypto), with path-style addresses (`endpoint/bucket/key`). How browsers get
+the files is `cms.storage.s3.delivery` (env `NUXT_CMS_STORAGE_S3_DELIVERY`):
+
+| `delivery` | Bucket | The stored address (`cms_media.url`) | The bytes |
+|---|---|---|---|
+| `public` — the default when `publicBaseUrl` is set | public read, or a CDN in front | `<publicBaseUrl>/<key>` (or `<endpoint>/<bucket>/<key>`) | straight from the bucket / CDN, never through the app |
+| `proxy` — the default without `publicBaseUrl` | **private** (no bucket policy) | `/api/cms/_media/raw/<key>` | the app streams them: `Range`/`206` (Safari plays video), `ETag`/`304`, never held in memory |
+| `redirect` | **private** | `/api/cms/_media/raw/<key>` | the app answers `302` to a signed address valid 5 minutes (`Cache-Control: private, max-age=240`) |
+
+A stored address never expires: under `proxy` and `redirect` it is the app's own path (the
+local driver's, so switching from local disk keeps old rows working), and a signed address is
+made per request — never in the database, an API response or cached HTML. Picture sizes
+(`<CmsImage>`) are always `/api/cms/_media/img/<id>/<width>.webp`. `tinyzoo export` / `import`,
+`backup` / `restore` and the seed work in every mode. Pushbase Storage is a private bucket:
+[`docs/deploying.md`](../deploying.md#pushbase--private-buckets) has the setup and says
+when to pick `redirect`. (Before 0.2 an S3 store without `publicBaseUrl` stored the bucket's
+own address; set `delivery: 'public'` to keep that.)
 
 Configure with env vars (secrets stay server-side — never commit them):
 
@@ -40,8 +56,13 @@ NUXT_CMS_STORAGE_S3_REGION=auto            # 'auto' for R2; e.g. 'us-east-1' for
 NUXT_CMS_STORAGE_S3_BUCKET=my-bucket
 NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID=...
 NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY=...
-NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL=https://cdn.example.com   # public bucket / custom domain
+NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL=https://cdn.example.com   # public bucket / custom domain (→ delivery 'public')
+NUXT_CMS_STORAGE_S3_DELIVERY=proxy         # 'public' | 'proxy' | 'redirect' — leave out for the default
+# NUXT_CMS_STORAGE_S3_FORCE_PATH_STYLE is accepted and ignored: addresses are always path-style
 ```
+
+For a private bucket leave `PUBLIC_BASE_URL` out (or set `delivery: 'proxy'` / `'redirect'` in
+`cms.storage.s3` of `nuxt.config`).
 
 Verified end-to-end against MinIO (an S3-compatible store you can run locally). It ships in
 `compose.yaml` behind the `s3` profile, together with a one-shot job that creates a
@@ -80,4 +101,6 @@ backend). Each `cms_media` row exposes everything an image component needs — `
 ```
 
 Point `@nuxt/image` at an `ipx`/CDN provider for the `local` driver, or your R2/S3 public
-domain for the cloud driver.
+domain for `delivery: 'public'`. With `proxy` and `redirect` the `url` is the app's own path
+(`/api/cms/_media/raw/<key>`, the same as the local driver's), so configure it the way you
+would for `local` — or use `<CmsImage>`, which needs no provider.

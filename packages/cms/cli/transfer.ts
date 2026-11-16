@@ -43,6 +43,7 @@ import pg from 'pg'
 import { mediaIdsInBlocks, mediaIdsInFields, propOf, type CmsEntity, type CmsRegistry, type Junction } from '../src/index'
 import { blockVersion, storedBlockVersion } from '../src/blocks'
 import { loadSettings, settingsFrom, type StorageSettings } from './backup'
+import { encodeStorageKey, resolveS3Delivery, storedMediaUrl } from '../shared/storage-delivery'
 
 export const ARCHIVE_FORMAT = 1
 
@@ -571,10 +572,10 @@ export function storageFromSettings(storage: StorageSettings, override: { dir?: 
     return localStorageAt(dir, (storage.localPublicBase || '/api/cms/_media/raw').replace(/\/$/, ''))
   }
   if (driver === 's3' || driver === 'r2') {
-    const s = { ...storage.s3, publicBaseUrl: storage.s3.publicBaseUrl || undefined }
+    const s = { ...storage.s3, publicBaseUrl: storage.s3.publicBaseUrl || undefined, appBase: storage.localPublicBase }
     const missing = (['endpoint', 'bucket', 'accessKeyId', 'secretAccessKey'] as const).filter((k) => !s[k])
     if (missing.length) throw new Error(`Storage driver '${driver}' is missing ${missing.join(', ')} (set NUXT_CMS_STORAGE_S3_* in the environment, the host's .env, or cms.storage.s3 in nuxt.config).`)
-    return s3Storage(s)
+    return s3Storage({ ...s, delivery: resolveS3Delivery(s.delivery, s.publicBaseUrl) })
   }
   throw new Error(`Unknown storage driver '${driver}' (NUXT_CMS_STORAGE_DRIVER is 'local', 's3' or 'r2').`)
 }
@@ -608,7 +609,7 @@ export function localStorageAt(dir: string, publicBase = '/api/cms/_media/raw'):
   }
 }
 
-function s3Storage(cfg: { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string }): TransferStorage {
+function s3Storage(cfg: { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string; delivery: 'public' | 'proxy' | 'redirect'; appBase?: string }): TransferStorage {
   let client: any
   const getClient = async () => {
     if (!client) {
@@ -617,7 +618,7 @@ function s3Storage(cfg: { endpoint: string; region: string; bucket: string; acce
     }
     return client
   }
-  const encode = (key: string) => key.split('/').map(encodeURIComponent).join('/')
+  const encode = encodeStorageKey
   const objectUrl = (key: string) => `${cfg.endpoint.replace(/\/$/, '')}/${cfg.bucket}/${encode(key)}`
   return {
     describe: `the bucket ${cfg.bucket}`,
@@ -632,7 +633,8 @@ function s3Storage(cfg: { endpoint: string; region: string; bucket: string; acce
       const res = await (await getClient()).fetch(objectUrl(key), { method: 'PUT', body: new Uint8Array(body), headers: { 'content-type': contentType } })
       if (!res.ok) throw new Error(`Could not write ${key} to the bucket (${res.status} ${res.statusText})`)
     },
-    url: (key) => `${(cfg.publicBaseUrl?.replace(/\/$/, '') || `${cfg.endpoint.replace(/\/$/, '')}/${cfg.bucket}`)}/${encode(key)}`,
+    // What the running app stores for a new upload: the bucket's own address under `public`, the app's path otherwise.
+    url: (key) => storedMediaUrl(cfg, key),
   }
 }
 

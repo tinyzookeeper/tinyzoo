@@ -37,7 +37,8 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | `NUXT_CMS_REDIS_PREFIX` | optional | namespace for keys and channels; default `cms:<database name>`, so environments sharing one Redis stay apart |
 | `NUXT_CMS_STORAGE_DRIVER` | yes | `s3` (or `r2`) in production; `local` is for development |
 | `NUXT_CMS_STORAGE_S3_ENDPOINT`, `_REGION`, `_BUCKET`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY` | with s3 | bucket credentials |
-| `NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL` | with s3 | where browsers load media from (bucket's public URL or a CDN in front) |
+| `NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL` | public bucket | where browsers load media from (the bucket's public URL or a CDN in front). Setting it makes `delivery` default to `public` |
+| `NUXT_CMS_STORAGE_S3_DELIVERY` | optional | `public`, `proxy` or `redirect` — how browsers get the files, see [Pushbase / private buckets](#pushbase--private-buckets). Default: `public` with a public base URL, otherwise `proxy` |
 | `NUXT_CMS_MAIL_TRANSPORT` | yes | `smtp` in production (`log` prints emails to the console) |
 | `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASS` | with smtp | |
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (below) |
@@ -131,9 +132,16 @@ To restore after a failed upgrade, restore the database backup taken before it.
 
 Production media belong in object storage in the EU (GDPR): Hetzner Object
 Storage (Falkenstein/Nuremberg/Helsinki) or Cloudflare R2 with the EU
-jurisdiction. Create a bucket with public read for objects, a key limited to that
-bucket, and set the `NUXT_CMS_STORAGE_S3_*` variables. Uploaded files are
-immutable (new upload = new key), so a CDN in front can cache them forever.
+jurisdiction. Create a bucket and a key limited to that bucket, and set the
+`NUXT_CMS_STORAGE_S3_*` variables. Two ways to serve the files:
+
+- **A public bucket** (public read for objects), or a CDN in front of it: set
+  `NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL`. Browsers load files straight from there.
+  Uploaded files are immutable (new upload = new key), so a CDN can cache them forever.
+- **A private bucket** (no public read, no bucket policy — what Pushbase Storage is):
+  leave `PUBLIC_BASE_URL` out. The app serves the files itself (`proxy`, the default)
+  or sends browsers to a short-lived signed address (`redirect`). See
+  [Pushbase / private buckets](#pushbase--private-buckets).
 
 The bucket is not covered by the platform's database backups: turn on its
 versioning or a lifecycle copy if losing an upload matters (see [Backups and
@@ -482,3 +490,78 @@ gone after every deploy — give staging a bucket too.
 Backups: Pushbase backs up its managed Postgres; the bucket needs its own policy,
 and `tinyzoo backup` takes your own copy of both ([Backups and
 restore](#backups-and-restore)).
+
+## Pushbase / private buckets
+
+Pushbase Storage is S3-compatible and **private**: there is no public bucket and no
+bucket policy, so a file's own address in the bucket answers 403 to a browser. tinyzoo
+serves the files itself, or signs a short-lived address for them — the setting is
+`cms.storage.s3.delivery` (`NUXT_CMS_STORAGE_S3_DELIVERY`).
+
+### Set it up
+
+1. Provision a Storage resource and link it to the environment, renaming the variables
+   it injects to tinyzoo's: `--key NUXT_CMS_STORAGE_S3`.
+
+   ```
+   provision <project> media --type storage
+   link <project> media --key NUXT_CMS_STORAGE_S3
+   ```
+
+   | Pushbase injects | tinyzoo reads |
+   |---|---|
+   | `S3_ENDPOINT` | `NUXT_CMS_STORAGE_S3_ENDPOINT` |
+   | `S3_BUCKET` | `NUXT_CMS_STORAGE_S3_BUCKET` |
+   | `S3_REGION` (`us-east-1`) | `NUXT_CMS_STORAGE_S3_REGION` |
+   | `S3_ACCESS_KEY_ID` | `NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID` |
+   | `S3_SECRET_ACCESS_KEY` | `NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY` |
+   | `S3_FORCE_PATH_STYLE` (`true`) | `NUXT_CMS_STORAGE_S3_FORCE_PATH_STYLE` — accepted and ignored: the driver always uses path-style addresses (`endpoint/bucket/key`) |
+
+2. Switch the driver on: `NUXT_CMS_STORAGE_DRIVER=s3`. Leave
+   `NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL` unset — with no public address the delivery is
+   `proxy`. Nothing else is needed; the first upload in the admin proves it.
+
+### Which delivery
+
+| `delivery` | The bucket | What browsers load | Choose it for |
+|---|---|---|---|
+| `proxy` (default without a public base URL) | private | `/api/cms/_media/raw/<key>`, streamed by the app | most sites: nothing to configure, the same origin, ranges for video, the safety headers (`nosniff`, a sandboxing CSP) |
+| `redirect` | private | the same address answers `302` to a signed bucket address that lives 5 minutes | a lot of video or large files: the bytes no longer pass through the app |
+| `public` (default with a public base URL) | public read, or a CDN in front | the bucket's or CDN's address, never touching the app | a public bucket with a CDN: the fastest, and what tinyzoo did before 0.2 |
+
+What `proxy` costs: every file is read from the bucket by the app and handed on. It is
+streamed (never held in memory, a file larger than the pod's memory is fine) and honours
+`Range`, `If-None-Match` and a visitor who leaves, but a busy site spends the app's
+bandwidth and CPU on it, and Node lets the short-lived buffers of a fast transfer pile
+up a hundred megabytes or so before it collects them — on a small pod a few large videos
+at once are what to watch. Files are immutable and sent with `Cache-Control: public,
+max-age=31536000, immutable`, so a CDN or the browser's cache absorbs repeat visits.
+Put a CDN in front of the site, or switch to `redirect` when video traffic is heavy.
+
+What `redirect` costs: the file comes from the storage's own address, not from yours —
+a different origin, so the app's `nosniff` and sandbox headers do not reach it (the
+upload allowlist is what keeps hostile files out), a script on your site that reads the
+file with `fetch()` needs the bucket's CORS (an `<img>`/`<video>` does not), and the
+signed address is visible in the browser for five minutes. The redirect itself is cached
+by the browser for four.
+
+**The stored address never expires.** Under `proxy` and `redirect` the database holds
+the app path `/api/cms/_media/raw/<key>` — the one the local driver uses, so moving from
+local disk to S3 keeps old rows working — and so does everything built from it: the
+content API's media objects, rich-text images, the smaller copies of pictures
+(`/api/cms/_media/img/<id>/<width>.webp`), `tinyzoo export` / `import` (the archive holds
+keys; an import writes the target's own address). A signed address is made per request
+and is never stored, returned by an API or put in cached HTML. The address is relative to
+the app: a frontend on another origin prefixes the CMS's address, as it already does with
+the local driver.
+
+Switching delivery changes the address of **new** files only: rows made under `public`
+keep the bucket's address (they work for as long as the bucket is readable), rows made
+under `proxy`/`redirect` keep the app path, and `proxy` ⇄ `redirect` is a free switch.
+
+Under `public` with a bucket that is in fact private, the first upload logs one line
+saying that anonymous reads answer 403 and which setting to change.
+
+`tinyzoo backup` / `restore`, `export` / `import` and the seed read and write the bucket
+with signed requests (or through the API), so they work on a private bucket in every mode.
+
