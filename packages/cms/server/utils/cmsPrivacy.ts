@@ -89,7 +89,9 @@ export async function findAuditEntries(db: any, reg: CmsRegistry, email: string,
  * Erase one person: their form submissions go (with the saved versions and search
  * rows), the account is disabled and anonymised, and the audit entries about them lose
  * their personal fields (email, address, name) but keep who-did-what: the account id
- * stays on them, now pointing at an account with no name or address.
+ * stays on them, now pointing at an account with no name or address. Only the erased
+ * person's own details go: an administrator's `user.invite` entries keep the invitees'
+ * addresses (see `scrubAudit`).
  *
  * Why anonymise instead of delete the account: the history of the site ("saved by …",
  * entries' authors, uploaded files) refers to the account by id; deleting it would
@@ -108,12 +110,9 @@ export async function erasePerson(db: any, reg: CmsRegistry, email: string, acto
     let submissions = 0
     for (const { form, ids } of groupByForm(await findSubmissions(tx, reg, email))) submissions += await purgeSubmissions(tx, reg, form, ids)
 
-    // The audit entries lose what identifies the person; computed before the account's email changes.
-    const a = reg.cmsAudit
-    const scrubbed: any = await tx.execute(sql`
-      update ${a} set meta = nullif(${a.meta} - 'email' - 'ip' - 'name', '{}'::jsonb)
-      where ${auditCondition(reg, email, account?.id ?? null)} and ${a.meta} is not null and jsonb_typeof(${a.meta}) = 'object'`)
-    const auditEntries = Number(scrubbed?.rowCount ?? 0)
+    // The audit entries lose what identifies the person — and only that; computed before the
+    // account's email changes.
+    const auditEntries = await scrubAudit(tx, reg, email, account)
 
     if (account) {
       const u = reg.cmsUsers
@@ -126,6 +125,40 @@ export async function erasePerson(db: any, reg: CmsRegistry, email: string, acto
     }
     return { submissions, account: !!account, auditEntries }
   })
+}
+
+/**
+ * Take the erased person's own details out of the audit log, and nobody else's:
+ *  - entries that name their address (`meta.email`, any case, whitespace trimmed: a failed
+ *    sign-in with it, their invitation, their deletion) and entries about their account
+ *    (`user.*` on their id) lose email, IP address and name;
+ *  - entries they made themselves lose their IP address and their name — but not an
+ *    `email` that is someone else's: the `user.invite` entries of an administrator hold
+ *    the invitees' addresses, which belong to the invitees.
+ * Returns how many entries were changed.
+ */
+async function scrubAudit(tx: any, reg: CmsRegistry, email: string, account: { id: string; name: string } | null): Promise<number> {
+  const a = reg.cmsAudit
+  const isObject = sql`${a.meta} is not null and jsonb_typeof(${a.meta}) = 'object'`
+  const touched = new Set<string>()
+  const run = async (set: ReturnType<typeof sql>, where: ReturnType<typeof sql>) => {
+    const res: any = await tx.execute(sql`update ${a} set meta = nullif(${set}, '{}'::jsonb) where ${isObject} and (${where}) returning ${a.id}`)
+    for (const row of res?.rows ?? []) touched.add(String(row.id))
+  }
+  const strip = sql`${a.meta} - 'email' - 'ip' - 'name'`
+  // Naming the address: a sign-in attempt (its IP address went with the attempt) or an entry by somebody
+  // else about this person (the actor's own details are not ours to take).
+  await run(sql`case when ${a.action} like 'auth.%' then ${strip} else ${a.meta} - 'email' end`, sql`lower(btrim(${a.meta}->>'email')) = ${email}`)
+  if (account) {
+    await run(strip, sql`${a.recordId} = ${account.id} and ${a.action} like 'user.%' and ${a.meta} ?| array['email', 'ip', 'name']`)
+    // Their own entries: their client address, and their name if it is the one on the entry.
+    const name = (account.name ?? '').trim().toLowerCase()
+    await run(
+      sql`case when ${name}::text <> '' and lower(btrim(${a.meta}->>'name')) = ${name} then ${a.meta} - 'ip' - 'name' else ${a.meta} - 'ip' end`,
+      sql`${a.userId} = ${account.id} and (${a.meta} ? 'ip' or (${name}::text <> '' and lower(btrim(${a.meta}->>'name')) = ${name}))`,
+    )
+  }
+  return touched.size
 }
 
 function groupByForm(found: FoundSubmission[]): { form: CmsEntity; ids: string[] }[] {

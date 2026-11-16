@@ -124,6 +124,59 @@ describe('one person’s data', () => {
     expect((await admin.post('/api/cms/_privacy/lookup', { email: person.email })).body).toMatchObject({ submissions: [], account: null })
   })
 
+  describe('erasing leaves other people\'s details on the audit entries alone', () => {
+    const audit = (userId: string | null, action: string, meta: Record<string, unknown> | null, recordId: string | null = null) =>
+      db.query(`insert into cms_audit (user_id, action, record_id, meta) values ($1, $2, $3, $4) returning id`, [userId, action, recordId, meta]).then((r) => r.rows[0].id as string)
+    const metaOf = async (id: string) => (await db.query('select meta from cms_audit where id = $1', [id])).rows[0].meta
+
+    it('an administrator who invited people keeps their addresses when the administrator is erased', async () => {
+      const a = await newAccount('admin')
+      const { rows: [{ name }] } = await db.query('select name from cms_users where id = $1', [a.id])
+      const invitee = await audit(a.id, 'user.invite', { email: 'invitee@example.test', role: 'editor', emailed: true }, 'b0b0b0b0-0000-4000-8000-000000000001')
+      const withIp = await audit(a.id, 'test.action', { ip: '203.0.113.7', name, note: 'keep me' })
+      const foreignName = await audit(a.id, 'test.action', { ip: '203.0.113.8', name: 'Somebody Else' })
+      const plain = await audit(a.id, 'entry.update', null)
+
+      expect((await admin.post('/api/cms/_privacy/delete', { email: a.email })).status).toBe(200)
+
+      // Somebody else's address and everything not about the erased person stays.
+      expect(await metaOf(invitee)).toEqual({ email: 'invitee@example.test', role: 'editor', emailed: true })
+      // Their own client address and their own name go; a different name on the entry does not.
+      expect(await metaOf(withIp)).toEqual({ note: 'keep me' })
+      expect(await metaOf(foreignName)).toEqual({ name: 'Somebody Else' })
+      expect(await metaOf(plain)).toBeNull()
+      // They are still the author of the entries (who-did-what), and nothing names them any more.
+      expect((await db.query('select user_id from cms_audit where id = $1', [invitee])).rows[0].user_id).toBe(a.id)
+      expect((await db.query(`select 1 from cms_audit where meta::text ilike $1 or meta::text ilike $2`, [`%${a.email}%`, `%${name}%`])).rowCount).toBe(0)
+    })
+
+    it('an invitee\'s address goes from the entries that name it, and the inviter\'s other details stay', async () => {
+      const b = await newAccount('editor')
+      const inviter = await newAccount('admin')
+      const invite = await audit(inviter.id, 'user.invite', { email: b.email, role: 'editor', emailed: false }, b.id)
+      const other = await audit(inviter.id, 'user.invite', { email: 'someone-else@example.test', role: 'author', emailed: true }, 'b0b0b0b0-0000-4000-8000-000000000002')
+      const failed = await audit(b.id, 'auth.login_failed', { email: b.email, ip: '198.51.100.4' })
+      const strangerAttempt = await audit(null, 'auth.login_failed', { email: `  ${b.email.toUpperCase()} `, ip: '198.51.100.5' })
+
+      expect((await admin.post('/api/cms/_privacy/delete', { email: b.email })).status).toBe(200)
+
+      expect(await metaOf(invite)).toEqual({ role: 'editor', emailed: false })
+      expect(await metaOf(failed)).toBeNull()
+      expect(await metaOf(strangerAttempt)).toBeNull() // matched whatever the case and padding
+      expect(await metaOf(other)).toEqual({ email: 'someone-else@example.test', role: 'author', emailed: true })
+      expect((await db.query('select user_id, record_id from cms_audit where id = $1', [invite])).rows[0]).toEqual({ user_id: inviter.id, record_id: b.id })
+    })
+
+    it('counts only the entries it changed', async () => {
+      const b = await newAccount('author')
+      await audit(b.id, 'entry.update', null)
+      await audit(b.id, 'entry.update', { fields: ['title'] })
+      const res = await admin.post('/api/cms/_privacy/delete', { email: b.email })
+      // the invitation (it names the address) — the author's own entries held nothing personal
+      expect(res.body.auditEntries).toBe(1)
+    })
+  })
+
   it('refuses to erase your own account', async () => {
     const me = await newAccount('admin')
     const res = await me.client.post('/api/cms/_privacy/delete', { email: me.email })

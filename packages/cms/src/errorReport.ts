@@ -11,10 +11,18 @@ export interface CmsErrorReport {
   /** Where it happened: a request (5xx), a scheduled task, or a webhook delivery that gave up. */
   source: 'request' | 'task' | 'webhook'
   /**
-   * The error as thrown. Careful: a failed database query's message carries the query's
-   * bound values (emails, content) — report `message` when in doubt, or scrub it.
+   * The error to send to a tracker: an `Error` whose message is `message` (without query
+   * values), with the original stack frames and its causes scrubbed the same way. Safe to
+   * pass to `Sentry.captureException`.
    */
-  error: unknown
+  error: Error
+  /**
+   * The error exactly as thrown. **May contain personal data**: a failed database
+   * query's message carries the bound values (emails, form text, password hashes), and
+   * so can the driver's error objects. Do not send it to a third party; it is here for
+   * code that inspects the error (its `statusCode`, its class) inside the process.
+   */
+  rawError: unknown
   /** The error's message without query values — safe to log and to send away. */
   message: string
   /** HTTP status of the failed request (5xx); null for tasks and webhooks. */
@@ -28,6 +36,6 @@ export interface CmsErrorReport {
   userId: string | null
   /** The task name (`cms:scheduled`), when `source` is 'task'. */
   task?: string
-  /** The webhook that failed, when `source` is 'webhook': its address (without query) and the change. */
+  /** The webhook that failed, when `source` is 'webhook': its address (origin and a short hash of the path, never the path itself: services like Slack keep their secret there) and the change. */
   webhook?: { url: string; type: string; delivery: string }
 }

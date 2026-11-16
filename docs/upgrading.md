@@ -26,6 +26,17 @@ git commit                           # 5. package update, migration, schema.ts a
 git push                             # 6. deploy
 ```
 
+**Before you deploy, look at production.** Run `pnpm exec tinyzoo status` with
+`DATABASE_URL` pointing at the production database (or at a restored copy of it).
+It only reads. If it reports a migration under **Out of order**, the new version
+would refuse to start there: a migration that drizzle once skipped silently (two
+branches had each generated one, and the older one was merged second) is now
+stopped instead of ignored. Fix it first —
+["Migration … was never applied"](#migration--was-never-applied-but-a-newer-one-was)
+below says how, and why deleting the migration is the wrong fix once it has run
+anywhere. Also read the new migration for statements the guard flagged (see
+[the guard](#the-guard-in-tinyzoo-generate)).
+
 `tinyzoo upgrade` does five things, and stops at the first that fails:
 
 1. checks that your `nuxt`, `@nuxt/ui`, `drizzle-orm` and `zod` fit what this
@@ -46,6 +57,13 @@ if the migration changes data.
 **Rollback** is restoring the backup you took before the deploy (see the backups
 notes in [deploying.md](deploying.md#pushbase-step-by-step)) and deploying the previous version.
 Migrations only go forward; there are no "down" migrations.
+
+**Do not use `drizzle-kit push`** on a tinyzoo site. It compares the database with
+your `schema.ts` and makes them equal — and tinyzoo's own bookkeeping table,
+`cms_upgrades`, is deliberately not in `schema.ts`, so `push` proposes to drop it
+(the next start would then re-run every upgrade step). It also skips the migration
+history, the guard and the order check. Change the schema with `tinyzoo generate`
+and apply it with `tinyzoo up` or at start, as above.
 
 ## The two-step rule
 
@@ -72,26 +90,82 @@ question); tinyzoo never makes it for you.
 
 ### The guard in `tinyzoo generate`
 
-After drizzle-kit has written a migration, tinyzoo reads it and stops on anything
-that loses data or breaks the running version: `DROP TABLE`, `DROP COLUMN`,
-`DROP TYPE`, a column type change and a rename of a table, column or type. It says
-what each one does:
+After drizzle-kit has written a migration, tinyzoo reads it and stops on two kinds
+of statements, each in plain words.
+
+**Statements that lose data or break the running version** — `DROP TABLE`,
+`DROP COLUMN`, `DROP TYPE`, a column type change and a rename of a table, column
+or type:
 
 ```
 ⚠ 0018_blushing_white_queen.sql would:
   • drops column `tagline` of `site_settings` — its content is lost
 ```
 
+**Statements that may fail on rows that already exist** — a required column
+without a default, `SET NOT NULL` on a column, a new unique constraint or unique
+index, a new `CHECK`:
+
+```
+⚠ 0019_quick_thing.sql would:
+  • adds required column `summary` to `post` without a default — fails if `post` has rows; give the field a default, or add it optional first, fill it, then make it required
+```
+
+These do not lose anything, but when the new version starts and applies the
+migration, Postgres refuses it on the rows that are there; the process exits,
+the platform restarts it, and it fails again — the site is down (with one
+replica, completely) until someone fixes the migration. Statements on a table the
+same migration creates are not flagged: it is empty. See
+[Adding a required field](#adding-a-required-field).
+
 - In a terminal it asks **Keep the migration anyway? [y/N]**.
 - Without a terminal (CI) or on **N** it deletes the new migration, its snapshot
   and its journal entry, and exits with code 1. Nothing was applied.
-- `tinyzoo generate --allow-drop` keeps it without asking.
+- `tinyzoo generate --allow-drop` keeps a migration whose statements lose data
+  without asking; `tinyzoo generate --allow-risky` does the same for the second
+  kind. One flag never covers the other: a migration with both needs both.
 
 The question drizzle-kit itself asks about renames ("is this column created or
 renamed from another column?") needs a terminal. Without one `tinyzoo generate`
 fails and points here, instead of waiting for an answer that cannot come.
 
 ## Recipes
+
+### Adding a required field
+
+A field is required unless you write `.optional()`. Adding one to a collection that
+already has entries makes drizzle-kit write
+`ALTER TABLE "post" ADD COLUMN "summary" text NOT NULL;` — and Postgres cannot add a
+column without a value to rows that exist. The guard stops on it
+("adds required column `summary` to `post` without a default"). Pick one:
+
+- **The field has a sensible value for old entries** — give it a default and
+  generate again. The column is added as `DEFAULT '' NOT NULL` and every existing row
+  gets the default:
+
+  ```ts
+  summary: f.text().withDefault(''),   // required; old entries start empty
+  ```
+
+  New entries may still leave it empty, since `''` is a value; if you want editors
+  to be forced to write one, use the next option.
+- **Old entries must be filled in first** — three releases, no gap:
+  1. Add it **optional**: `summary: f.text().optional()`. Generate, deploy. The column
+     is added as nullable; nothing can fail.
+  2. Fill it: write the text in the admin for every entry, or set it with one SQL
+     statement (`UPDATE "post" SET "summary" = "title" WHERE "summary" IS NULL;`,
+     a statement in the next migration, or by hand against the database). Check that
+     nothing is left: `SELECT count(*) FROM "post" WHERE "summary" IS NULL;`.
+  3. Remove `.optional()`. Generate: the migration is `ALTER COLUMN "summary" SET NOT NULL`,
+     which the guard flags too. Now you know no row is empty, so answer `y` (or use
+     `--allow-risky`).
+
+The same goes for **a new unique field** or a unique index (`SELECT "slug", count(*) FROM
+"post" GROUP BY 1 HAVING count(*) > 1;` shows what would collide) and for turning an
+optional field required.
+
+On a site with no entries yet (a new site, a staging copy) there is nothing to
+fail, and `--allow-risky` is fine.
 
 ### Renaming a field
 
@@ -225,11 +299,39 @@ site's `.env`).
 The app refuses to start, and `tinyzoo status` lists the file under **Out of order**.
 Two branches each generated a migration; one was merged and applied first, and the
 other has an older timestamp. drizzle-kit would skip it for good, silently — so
-tinyzoo stops instead. Fix it on the branch that was merged second:
+tinyzoo stops instead. (This check is new: a site where drizzle *had* silently skipped
+a migration in the past will now refuse to start. Run `tinyzoo status` against
+production before you deploy a tinyzoo version that has it, as the
+[checklist](#on-every-upgrade) says.)
+
+What to do depends on whether the migration ever ran on another database.
+
+**It ran nowhere else** (only the branch that was merged second has it):
 
 1. Delete the migration's `.sql` file, its snapshot (`meta/<number>_snapshot.json`)
    and its entry in `meta/_journal.json`.
-2. Run `tinyzoo generate` again; it makes one migration on top of the newest one.
+2. Run `tinyzoo generate` again. It writes one migration on top of the newest one,
+   dated now, so it sorts after the others.
+
+**It ran somewhere** — production applied it before the second branch was merged, or
+you found it with `tinyzoo status` against production, or a colleague's database has
+it. Deleting it and regenerating is **wrong on its own**: that database recorded the
+old migration under its old date, so the regenerated one is a new migration to it, and
+it would run the same `ADD COLUMN` / `CREATE TABLE` a second time and fail — the
+deploy is stuck exactly as it was. Give the migration a later date *and* make its SQL
+safe to run twice:
+
+1. Do the same two steps as above, so the migration is regenerated with a date that sorts
+   after the others (and a correct snapshot). Copy anything you had written by hand in
+   the old file into the new one.
+2. Edit the new `.sql` so it can run on a database that already has its changes:
+   `ADD COLUMN IF NOT EXISTS`, `CREATE TABLE IF NOT EXISTS`, `CREATE [UNIQUE] INDEX IF NOT EXISTS`,
+   `DROP … IF EXISTS`, and for a constraint `DROP CONSTRAINT IF EXISTS "name";` right before
+   `ADD CONSTRAINT "name" …`. Data fixes (`UPDATE`) need a `WHERE` that matches nothing the second time.
+3. Try it on a copy of production: `tinyzoo status`, then `tinyzoo up`.
+
+The database that ran the old one keeps its record of it; `tinyzoo status` then
+notes that it has a migration this code does not know. That is harmless.
 
 Editing a migration that was already applied is not an error (it is matched by when
 it was generated, not by its text) — but it does not change databases that applied it.

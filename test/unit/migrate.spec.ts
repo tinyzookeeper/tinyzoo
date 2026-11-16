@@ -116,9 +116,15 @@ describe('order guard', () => {
     const err = await applyMigrations(withLate, inTransaction, []).catch((e) => e)
     expect(err).toBeInstanceOf(MigrationOrderError)
     expect(err.message).toContain('0002_late.sql')
-    expect(err.message).toContain('meta/0002_snapshot.json')
+    expect(err.message).toContain('meta/<number>_snapshot.json')
     expect(err.message).toContain('meta/_journal.json')
     expect(err.message).toContain('tinyzoo generate')
+    // Deleting and regenerating is not enough for a migration that already ran somewhere.
+    expect(err.message).toContain('sorts after the others')
+    expect(err.message).toContain('already ran on another database')
+    expect(err.message).toContain('can run twice')
+    expect(err.message).toContain('IF NOT EXISTS')
+    expect(err.message).toContain('Deleting and regenerating without that breaks the deploy')
     expect(await exists(async (t, p) => (await pool.query(t, p as any[])).rows, 't_late')).toBe(false)
   })
 

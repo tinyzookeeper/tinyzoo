@@ -8,7 +8,7 @@ export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'
 export { sitePrefix, pathTemplateFor, pathTemplateKeys, fillPathTemplate, sitePath, prefixedTemplates, type PathTemplate } from './paths'
 export {
-  applyMigrations, runUpgrade, inspectMigrations, classifyMigrations, MigrationOrderError, sqlWithParams, isConnectionError,
+  applyMigrations, runUpgrade, inspectMigrations, classifyMigrations, MigrationOrderError, ORDER_FIX, sqlWithParams, isConnectionError,
   type MigrationJournal, type MigrationSource, type SqlRunner, type JournalEntry, type UpgradeResult, type MigrationStatus, type StepStatus, type MigrationClassification,
 } from './migrate'
 export { CORE_UPGRADE_STEPS, type UpgradeStep, type UpgradeContext, type StepOutcome } from './upgrades'

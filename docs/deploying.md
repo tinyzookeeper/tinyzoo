@@ -143,7 +143,7 @@ every retry — deduplicate on it; it is inside the signed body. Each request
 carries `X-CMS-Event`, `X-CMS-Delivery` and `X-CMS-Signature: t=<unix>,v1=<hex>`, an
 HMAC-SHA256 of `` `${t}.${rawBody}` `` with `NUXT_CMS_WEBHOOKS_SECRET`. In production
 nothing is sent without a secret. Up to three attempts (the second 1 s after the
-first fails, the third 5 s later); failures are logged.
+first fails, the third 5 s later); failures are logged (and reported through the `cms:error` hook, see [Error reporting](#error-reporting)) with the address shortened to its origin and a hash of the path, because a webhook's secret often sits in the path.
 
 Not reported (yet): media edits (alt text, deletion), and changes that show on
 a page only through a relation (renaming an author shown on their posts) — purge
@@ -205,7 +205,7 @@ export default defineNitroPlugin((nitroApp) => {
       if (report.requestId) scope.setTag('request_id', report.requestId)
       if (report.userId) scope.setUser({ id: report.userId }) // an id, never an email
       scope.setContext('cms', { status: report.status, method: report.method, path: report.path, task: report.task, webhook: report.webhook })
-      Sentry.captureException(report.error instanceof Error ? report.error : new Error(report.message))
+      Sentry.captureException(report.error) // already scrubbed; never send report.rawError
     })
   })
 })
@@ -217,17 +217,22 @@ The hook gets a `CmsErrorReport` (typed through `NitroRuntimeHooks`; exported fr
 | Field | |
 |---|---|
 | `source` | `request` (a 5xx answer), `task` (a scheduled task threw: `cms:scheduled`, `cms:retention`, `cms:search-reindex`) or `webhook` (a publish webhook gave up after its retries) |
-| `error`, `message` | the error as thrown, and its message without query values |
+| `error`, `message` | `error` is an `Error` that is safe to send: its message is `message` (a failed database query is reduced to what the driver said, without the query's bound values), its stack frames are kept, and its causes are scrubbed the same way. `message` is the same text |
+| `rawError` | the error exactly as thrown. **May contain personal data** (a failed query's message carries emails, form text, password hashes) — use it inside the process, for instance to read a status code, and never send it to a third party |
 | `status`, `requestId`, `method`, `path`, `userId` | for requests: the status, the `X-Request-Id` the browser got, the path **without its query string**, the signed-in person's id; `null` otherwise |
-| `task` / `webhook` | the task name / `{ url, type, delivery }` (the URL without query or credentials) |
+| `task` / `webhook` | the task name / `{ url, type, delivery }` — `url` is the webhook's origin and a short hash of its path (`https://hooks.slack.com/…#3f9a1c20`), never the path or query, since Slack, Discord and similar services keep their secret there; the hash tells two hooks on one host apart |
 
 It runs after the response, never waits for your code and never breaks anything: a
 hook that throws is logged (`cms:error hook failed`) and ignored. Expected errors
-(4xx) and the 503s of a migration in progress are not reported. One thing to know:
-the message of a failed database query (`Failed query: … params: …`) carries the
-bound values, which can be emails or text from a form. `report.message` and the log
-line already leave them out; if you send `report.error` itself, scrub it (Sentry's
-`beforeSend`) or send `message` as above.
+(4xx) and the 503s of a migration in progress are not reported.
+
+Why `error` is a copy: the message of a failed database query (`Failed query: …
+params: …`) carries the bound values, which can be emails or text from a form, and
+the web framework copies that message into the error it throws. `report.error`,
+`report.message` and the log line leave them out. The driver's own message is kept
+(`Query failed: relation "post" does not exist (42P01)`); in rare cases such a
+message names a value too (`invalid input syntax for type uuid: "…"`), so treat
+your tracker as a place where a few such details can land, and keep `rawError` out.
 
 ## Realtime
 

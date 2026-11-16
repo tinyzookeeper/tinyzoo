@@ -7,22 +7,11 @@ import type { CmsErrorReport } from 'tinyzoo'
  * to finish before the response is gone, and a failing hook is only logged.
  */
 
-/**
- * The message without query parameters: drizzle's "Failed query: … params: …" would
- * put emails, password hashes or draft text in the log. The driver's own error (the
- * cause) says what went wrong without them.
- */
-export function safeErrorMessage(err: any): string {
-  const msg = String(err?.message || err?.statusMessage || 'unknown')
-  if (!msg.startsWith('Failed query')) return msg
-  const inner = err?.cause
-  if (!inner?.message) return 'Query failed'
-  return 'Query failed: ' + inner.message + (inner.code ? ' (' + inner.code + ')' : '')
-}
-
 /** Run the `cms:error` hook for one report, in the background. Never rejects. */
-export function reportCmsError(report: Omit<CmsErrorReport, 'message'> & { message?: string }, event?: any): void {
-  const full: CmsErrorReport = { ...report, message: report.message ?? safeErrorMessage(report.error) }
+export function reportCmsError(report: Omit<CmsErrorReport, 'message' | 'error' | 'rawError'> & { error: unknown; message?: string }, event?: any): void {
+  const { error: raw, ...rest } = report
+  const error = scrubError(raw)
+  const full: CmsErrorReport = { ...rest, error, rawError: raw, message: report.message ?? error.message }
   const run = async () => {
     try {
       await useNitroApp().hooks.callHook('cms:error', full)
