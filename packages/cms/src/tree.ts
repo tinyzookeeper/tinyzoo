@@ -102,6 +102,47 @@ export function sortSiblings(list: TreeNode[]): TreeNode[] {
   return [...list].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || (a.title ?? '').localeCompare(b.title ?? '') || (a.id < b.id ? -1 : 1))
 }
 
+/**
+ * Gap between neighbouring positions. Positions are left sparse so that putting a page
+ * between two others only writes that page; the siblings are renumbered (`placeAmong`) only
+ * when two neighbours have no whole number between them.
+ */
+export const TREE_POSITION_STEP = 1024
+/** Positions stay well inside a 32-bit integer column. */
+const TREE_POSITION_LIMIT = 1_000_000_000
+
+/**
+ * Where a page goes among its (new) siblings. `siblings` are the other pages under the
+ * parent in their order (the page itself is not among them); `index` is the place asked
+ * for (0 = first, past the end = last); `keep` is the page's position now, kept when it
+ * already fits between the neighbours.
+ *
+ * Returns the page's position and, only when no whole number fits between the
+ * neighbours (or the numbers have grown too large), `renumbered`: new positions for every
+ * page under the parent (the page included) so the caller can rewrite them in one go.
+ * Otherwise `renumbered` is empty and only the page itself is written.
+ */
+export function placeAmong(siblings: TreeNode[], id: string, index: number | undefined, keep: number | null): { position: number; renumbered: Map<string, number> } {
+  const at = Math.min(Math.max(index ?? siblings.length, 0), siblings.length)
+  const prev = siblings[at - 1]
+  const next = siblings[at]
+  const lo = prev ? prev.position ?? 0 : null
+  const hi = next ? next.position ?? 0 : null
+  let position: number | null = null
+  if (keep !== null && (lo === null || keep > lo) && (hi === null || keep < hi)) position = keep
+  else if (lo === null && hi === null) position = 0
+  else if (lo === null) position = hi! - TREE_POSITION_STEP
+  else if (hi === null) position = lo + TREE_POSITION_STEP
+  else {
+    const mid = Math.floor((lo + hi) / 2)
+    if (mid > lo && mid < hi) position = mid
+  }
+  if (position !== null && Math.abs(position) <= TREE_POSITION_LIMIT) return { position, renumbered: new Map() }
+  const order = [...siblings.slice(0, at).map((n) => n.id), id, ...siblings.slice(at).map((n) => n.id)]
+  const renumbered = new Map(order.map((sid, i) => [sid, i * TREE_POSITION_STEP]))
+  return { position: renumbered.get(id)!, renumbered }
+}
+
 /** Everything below a node (not the node), parents before children, siblings in order. */
 export function descendantsOf(index: TreeIndex, id: string, children = childrenMap(index.values())): TreeNode[] {
   const out: TreeNode[] = []
@@ -193,6 +234,11 @@ export interface TreeCheckOptions {
   /** The collection's address template, to compare complete addresses. */
   template: PathTemplate | undefined | null
   key: string
+  /**
+   * Who may see which page: titles of pages this returns false for are left out of the
+   * messages (a person who may not read a page is not told its title). Omit to show all.
+   */
+  visible?: (id: string) => boolean
 }
 
 /**
@@ -203,7 +249,7 @@ export interface TreeCheckOptions {
  * only the entry and what is below it are compared, and only against others.
  */
 export function checkTreeChange(nodes: TreeNode[], change: TreeChange, opts: TreeCheckOptions): TreeProblem | null {
-  const titleOf = (n: TreeNode | undefined) => n?.title || '…'
+  const titleOf = (n: TreeNode | undefined) => (n && opts.visible && !opts.visible(n.id) ? '…' : n?.title || '…')
   const after = indexTree(applyChange(nodes, change))
 
   if (change.parentId) {
@@ -289,4 +335,87 @@ export function movedPaths(
     }
   }
   return out
+}
+
+/** A problem found in a whole tree (see `checkTree`); `ids` are the pages it involves. */
+export type TreeIssue =
+  | { code: 'tree_cycle'; message: string; ids: string[]; loop: string[] }
+  | { code: 'tree_depth'; message: string; ids: string[]; depth: number; maxDepth: number }
+  | { code: 'tree_parent_missing'; message: string; ids: string[] }
+  | { code: 'tree_address_taken'; message: string; ids: string[]; locale: string | null; path: string }
+
+/**
+ * Check a whole tree, with the same rules `checkTreeChange` applies to one change: no page
+ * is its own ancestor, nothing is deeper than `maxDepth`, every page has an address of
+ * its own in each language. For data that did not come through the API (an import).
+ * Lists up to `limit` problems; each says which pages it involves.
+ */
+export function checkTree(nodes: TreeNode[], opts: TreeCheckOptions, limit = 50): TreeIssue[] {
+  const issues: TreeIssue[] = []
+  const index = indexTree(nodes)
+  const title = (n: TreeNode | undefined) => n?.title || n?.slug || '…'
+  const full = () => issues.length >= limit
+
+  // Pages that reach the top: the others hang below a loop or below a page that is not there.
+  const rooted = new Set<string>()
+  const state = new Map<string, 'open' | 'done'>()
+  for (const start of nodes) {
+    if (state.has(start.id)) continue
+    const path: TreeNode[] = []
+    let cur: TreeNode | undefined = start
+    let reachesTop = false
+    while (cur) {
+      const s = state.get(cur.id)
+      if (s === 'done') { reachesTop = rooted.has(cur.id); break }
+      if (s === 'open') {
+        const loopNodes = path.slice(path.findIndex((n) => n.id === cur!.id))
+        if (!full()) {
+          const loop = [...loopNodes, loopNodes[0]!].map(title)
+          issues.push({ code: 'tree_cycle', message: `A loop: ${loop.join(' → ')}`, ids: loopNodes.map((n) => n.id), loop })
+        }
+        break
+      }
+      state.set(cur.id, 'open')
+      path.push(cur)
+      if (!cur.parentId) { reachesTop = true; break }
+      const parent = index.get(cur.parentId)
+      if (!parent) {
+        if (!full()) issues.push({ code: 'tree_parent_missing', message: `“${title(cur)}” sits under a page that does not exist`, ids: [cur.id] })
+        break
+      }
+      cur = parent
+    }
+    for (const n of path) { state.set(n.id, 'done'); if (reachesTop) rooted.add(n.id) }
+  }
+
+  const sound = nodes.filter((n) => rooted.has(n.id))
+  const children = childrenMap(sound)
+  for (const n of sound) {
+    if (full()) break
+    // The first page too deep names the problem; what is below it only repeats it.
+    if (depthOf(index, n.id) !== opts.maxDepth + 1) continue
+    const depth = depthOf(index, n.id) + heightOf(index, n.id, children)
+    issues.push({
+      code: 'tree_depth', ids: chainOf(index, n.id).map((x) => x.id), depth, maxDepth: opts.maxDepth,
+      message: `“${title(n)}” and what is below it go ${depth} levels deep (at most ${opts.maxDepth})`,
+    })
+  }
+
+  const def = opts.locales?.default ?? null
+  for (const locale of opts.locales ? opts.locales.locales : [null]) {
+    const byPath = new Map<string, string[]>()
+    for (const n of sound) {
+      if (!existsIn(n, locale, def)) continue
+      const path = treeAddress(opts.locales, opts.template, opts.key, index, n.id, locale)
+      if (path !== null) byPath.set(path, [...(byPath.get(path) ?? []), n.id])
+    }
+    for (const [path, ids] of byPath) {
+      if (ids.length < 2 || full()) continue
+      issues.push({
+        code: 'tree_address_taken', locale, path, ids,
+        message: `${ids.length} pages share the address ${path}${locale ? ` (${locale})` : ''}: ${ids.slice(0, 4).map((id) => `“${title(index.get(id))}”`).join(', ')}${ids.length > 4 ? ', …' : ''}`,
+      })
+    }
+  }
+  return issues
 }

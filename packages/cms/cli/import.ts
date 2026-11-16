@@ -25,6 +25,14 @@
  *
  * Blocks stored at a version newer than this site's definition are refused (the
  * content model section of the report), like any other difference in the model.
+ *
+ * A page tree (`definePages({ tree: true })`) is checked as a whole once it is written, in
+ * the same transaction, with the checks the server applies to every edit (no loops, not
+ * deeper than allowed, one page per address in each language): the database itself does not
+ * enforce them, and an archive (or `--merge` onto what is already there) can break them.
+ * A tree that is not valid refuses the import, with the pages named, and nothing is
+ * changed. With `--merge`, only problems that involve a page of the archive count, so an
+ * old problem in the target does not stop an unrelated import.
  */
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -33,8 +41,10 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { getTableColumns, getTableName, inArray, ne, sql } from 'drizzle-orm'
-import type { CmsEntity, CmsRegistry } from '../src/index'
+import { checkTree, type CmsEntity, type CmsRegistry } from '../src/index'
 import { logUpgradeFailure, upgradeStoredRow } from '../src/blocks'
+// The page tree's own loader and settings (explicit imports only, so the CLI can load them).
+import { loadTreeNodes, treeOptions } from '../server/utils/cmsTreeAddress'
 import { extractTarGz, safeArchivePath } from './tar'
 import { loadRegistry } from './export'
 import {
@@ -223,6 +233,14 @@ function explain(err: any, doing: string): Error {
   if (code === '23502') return invalid(`${doing}: a required value is missing — ${message}. Was the archive exported from a different version of the content model?`)
   if (code === '23505') return invalid(`${doing}: ${detail || message}. Something with the same unique value is already there (use --merge to update it by id, or --replace).`)
   return new Error(`${doing}: ${message}`)
+}
+
+/** The refusal for a page tree that would not be valid: what is wrong, and what to do. */
+function treeReport(entity: string, problems: string[], mode: ImportMode): string {
+  const shown = problems.slice(0, 10).map((m) => `  - ${m}`)
+  if (problems.length > shown.length) shown.push(`  - … and ${problems.length - shown.length} more`)
+  return `The page tree of ${entity} would not be valid after this import, so nothing was imported:\n${shown.join('\n')}\n`
+    + `Fix the parent or the address part of these pages (in the site the archive was made from${mode === 'merge' ? ', or in the pages already here' : ''}), then export and import again.`
 }
 
 async function countRows(db: any, table: any): Promise<number> {
@@ -434,6 +452,8 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
 
       // entries
       const fixes: { e: CmsEntity; edge: FkEdge; rows: { id: string; v: string }[] }[] = []
+      // Which pages of each tree the archive wrote (for the check of the tree afterwards).
+      const writtenTree = new Map<string, Set<string>>()
       for (const e of order) {
         const layout = layoutOf(reg, e)
         const counts = (report.entries[e.name] = { rows: 0, translations: 0 })
@@ -455,6 +475,7 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
         try {
           for await (const entry of entries) {
             const d = decodeEntry(plan, layout, entry)
+            if (e.tree) writtenTree.set(e.name, (writtenTree.get(e.name) ?? new Set()).add(entry.id))
             // A global has one row: the archive's replaces whatever the target has.
             if (e.singleton && mode === 'merge') await tx.delete(e.table).where(ne(e.table.id, entry.id))
             rows.push(d.row)
@@ -478,6 +499,18 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
           }
         }
         catch (err) { throw explain(err, `Could not link ${e.name}.${edge.key}`) }
+      }
+
+      // page trees: parents are in place now; the tree as a whole has to be valid
+      for (const e of order) {
+        const written = writtenTree.get(e.name)
+        if (!e.tree || !written?.size) continue
+        let issues
+        try {
+          issues = checkTree(await loadTreeNodes(tx, reg, e), treeOptions(reg, e), 1000).filter((i) => i.ids.some((id) => written.has(id)))
+        }
+        catch (err) { throw explain(err, `Could not check the page tree of ${e.name}`) }
+        if (issues.length) throw invalid(treeReport(e.name, issues.map((i) => i.message), mode))
       }
 
       // many-to-many links: read again, now that every entry exists

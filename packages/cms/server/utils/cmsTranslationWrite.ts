@@ -61,14 +61,16 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
     let wasLive = new Set<string>()
     const tp = e.tree ? treeProps(e) : null
     if (tp && (!current || (e.localized.includes(tp.slug) && tp.slug in data))) {
+      // The parent and address part come from the tree under the lock, not from `base` (read before it).
       writeTree = await beginTreeWrite(tx, reg, e, (nodes) => {
         const node = nodes.find((n) => n.id === id)
+        if (!node) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
         return {
-          id, parentId: base[tp.parent] ?? null, slug: String(base[tp.slug] ?? ''), title: String(base[tp.title] ?? ''),
+          id, parentId: node.parentId, slug: node.slug, title: node.title ?? '',
           slugs: { [locale]: e.localized.includes(tp.slug) ? (data[tp.slug] as string | null | undefined) ?? null : null },
-          locales: [...new Set([...(node?.locales ?? []), locale])],
+          locales: [...new Set([...(node.locales ?? []), locale])],
         }
-      })
+      }, user)
       wasLive = await liveAmong(tx, e, subtreeIds(writeTree.nodes, id))
     }
     // A new version, never equal to the last one (clocks may differ between replicas).
@@ -116,11 +118,15 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
     let writeTree: Awaited<ReturnType<typeof beginTreeWrite>> | null = null
     let wasLive = new Set<string>()
     if (tp) {
-      writeTree = await beginTreeWrite(tx, reg, e, (nodes) => ({
-        id, parentId: base[tp.parent] ?? null, slug: String(base[tp.slug] ?? ''), title: String(base[tp.title] ?? ''),
-        slugs: { [locale]: null },
-        locales: (nodes.find((n) => n.id === id)?.locales ?? []).filter((l) => l !== locale),
-      }))
+      writeTree = await beginTreeWrite(tx, reg, e, (nodes) => {
+        const node = nodes.find((n) => n.id === id)
+        if (!node) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+        return {
+          id, parentId: node.parentId, slug: node.slug, title: node.title ?? '',
+          slugs: { [locale]: null },
+          locales: (node.locales ?? []).filter((l) => l !== locale),
+        }
+      }, user)
       wasLive = await liveAmong(tx, e, subtreeIds(writeTree.nodes, id))
     }
     const [deleted]: any[] = await tx.delete(t).where(and(eq(t.parentId, id), eq(t.locale, locale))).returning()

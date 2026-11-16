@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
     if (e.tree) {
       const p = treeProps(e)
       values.id = crypto.randomUUID()
-      const { nodes } = await beginTreeWrite(tx, reg, e, { id: values.id, parentId: values[p.parent] ?? null, slug: String(values[p.slug] ?? ''), title: String(values[p.title] ?? '') })
+      const { nodes } = await beginTreeWrite(tx, reg, e, { id: values.id, parentId: values[p.parent] ?? null, slug: String(values[p.slug] ?? ''), title: String(values[p.title] ?? '') }, user)
       if (!body || typeof body !== 'object' || !(e.tree.order in body)) values[p.order] = nextPosition(nodes, values[p.parent] ?? null)
     }
     const [created] = await tx.insert(e.table).values(values).returning()

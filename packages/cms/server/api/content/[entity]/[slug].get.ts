@@ -25,11 +25,14 @@ export default defineEventHandler(async (event) => {
   const previewRows = preview && event.context?.cmsUser ? accessWhere(e, 'read', event.context.cmsUser) : null
   const published = !preview ? publishedCond(e) : previewRows ? (previewRows.allowed ? previewRows.where : publishedCond(e)) : undefined
   const guard = (col: any, val: string) => (published ? and(published, eq(col, val)) : eq(col, val))
+  // Whether this reader sees drafts (an editor's preview) or live pages only.
+  const drafts = preview && (previewRows ? previewRows.allowed : true)
 
   let row: any
   const slugField = e.content?.slug
   if (e.tree && !UUID.test(key)) {
-    const node = findByChain(reg, indexTree(await loadTreeNodes(db, reg, e)), key, locale)
+    // Visitors match live pages only: a draft's translated address part must not shadow the live page at that address.
+    const node = findByChain(reg, indexTree(await loadTreeNodes(db, reg, e)), key, locale, drafts ? undefined : await liveTreeIds(db, e))
     if (node) [row] = await db.select().from(e.table).where(guard(e.table.id, node.id))
   }
   // A translated URL address first (e.g. /en/christmas-cookies), then the default one.
@@ -55,7 +58,7 @@ export default defineEventHandler(async (event) => {
   else setContentCache(event)
   const item = projectItem(e, row)
   await attachLocaleInfo(db, reg, e, [row], [item], locale)
-  await attachTreeInfo(db, reg, e, [row], [item], locale)
+  await attachTreeInfo(db, reg, e, [row], [item], locale, { drafts })
   return { item, ...(preview ? { preview: true } : {}) }
 })
 

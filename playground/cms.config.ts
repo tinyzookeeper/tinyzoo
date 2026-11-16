@@ -172,6 +172,8 @@ export const Page = definePages({
   localized: true,
   // Pages under pages: /o-nas/tym in Czech, /en/pages/about/team in English.
   tree: true,
+  // A row-level rule on top of the roles: authors do not see internal pages (address "interni…").
+  access: { read: ({ user, table }) => (user.role === "author" ? not(ilike(table.slug, "interni%")) : true) },
   // The address differs per language: /o-nas in Czech, /en/pages/about in English.
   path: { cs: "/:slug", en: "/pages/:slug" },
   blocks: {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  applyChange, buildRegistry, chainOf, checkTreeChange, defineBlock, defineLocales, definePages, depthOf, descendantsOf, f, fillPathTemplate, heightOf,
-  indexTree, listLayout, movedPaths, sitePath, slugChain, treeAddress, type TreeNode,
+  TREE_POSITION_STEP, applyChange, buildRegistry, chainOf, checkTree, checkTreeChange, defineBlock, defineLocales, definePages, depthOf, descendantsOf, f, fillPathTemplate, heightOf,
+  indexTree, listLayout, movedPaths, placeAmong, sitePath, slugChain, treeAddress, type TreeNode,
 } from 'tinyzoo'
 
 const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
@@ -124,6 +124,118 @@ describe('checking a change', () => {
     const next = applyChange(nodes, { id: 'history', parentId: 'contact', slug: 'archiv' })
     expect(next.find((n) => n.id === 'history')).toMatchObject({ parentId: 'contact', slug: 'archiv', title: 'historie' })
     expect(nodes.find((n) => n.id === 'history')).toMatchObject({ parentId: 'about', slug: 'historie' })
+  })
+})
+
+describe('titles of pages a person may not read', () => {
+  const secret = [node('top', null, 'top'), node('hidden', 'top', 'hidden', { title: 'Internal plan' }), node('open', 'hidden', 'open', { title: 'Public' })]
+  const see = (id: string) => id !== 'hidden'
+
+  it('are left out of a loop refusal', () => {
+    const change = { id: 'top', parentId: 'open', slug: 'top' }
+    const all = checkTreeChange(secret, change, opts)
+    expect(all).toMatchObject({ code: 'tree_cycle', loop: ['top', 'Internal plan', 'Public', 'top'] })
+    const seen = checkTreeChange(secret, change, { ...opts, visible: see })
+    expect(seen).toMatchObject({ code: 'tree_cycle', loop: ['top', '…', 'Public', 'top'] })
+    expect(JSON.stringify(seen)).not.toContain('Internal plan')
+  })
+
+  it('are left out of an address that is taken', () => {
+    const t = [node('a', null, 'taken', { title: 'Internal plan' }), node('b', null, 'free')]
+    const change = { id: 'b', parentId: null, slug: 'taken' }
+    expect(checkTreeChange(t, change, opts)).toMatchObject({ code: 'tree_address_taken', otherTitle: 'Internal plan' })
+    const seen = checkTreeChange(t, change, { ...opts, visible: (id) => id !== 'a' })
+    expect(seen).toMatchObject({ code: 'tree_address_taken', otherId: 'a', otherTitle: '…' })
+    expect(JSON.stringify(seen)).not.toContain('Internal plan')
+  })
+})
+
+describe('positions among siblings', () => {
+  const sib = (...positions: number[]): TreeNode[] => positions.map((position, i) => node(`s${i}`, null, `s${i}`, { position }))
+
+  it('puts a page between two neighbours without touching them', () => {
+    const r = placeAmong(sib(0, 1024, 2048), 'x', 1, null)
+    expect(r.position).toBe(512)
+    expect(r.renumbered.size).toBe(0)
+    expect(placeAmong(sib(0, 1024), 'x', 0, null).position).toBe(-TREE_POSITION_STEP)
+    expect(placeAmong(sib(0, 1024), 'x', undefined, null).position).toBe(1024 + TREE_POSITION_STEP)
+    expect(placeAmong(sib(0, 1024), 'x', 99, null).position).toBe(1024 + TREE_POSITION_STEP)
+    expect(placeAmong([], 'x', 0, 7).position).toBe(7)
+    expect(placeAmong([], 'x', 0, null).position).toBe(0)
+  })
+
+  it('keeps the number a page has when it already fits', () => {
+    expect(placeAmong(sib(0, 100), 'x', 1, 40)).toEqual({ position: 40, renumbered: new Map() })
+    // not when it does not: 0 is not between 0 and 100
+    expect(placeAmong(sib(0, 100), 'x', 1, 0).position).toBe(50)
+  })
+
+  it('renumbers every sibling only when no whole number fits between the neighbours', () => {
+    // contiguous numbers (older data): nothing fits between 1 and 2
+    const r = placeAmong(sib(0, 1, 2), 'x', 2, null)
+    expect([...r.renumbered]).toEqual([['s0', 0], ['s1', 1024], ['x', 2048], ['s2', 3072]])
+    expect(r.position).toBe(2048)
+    // equal numbers, in an order the titles decide
+    expect(placeAmong(sib(5, 5), 'x', 1, null).renumbered.size).toBe(3)
+    // and later moves in the spaced numbers write the one page again
+    expect(placeAmong(sib(0, 1024, 2048, 3072), 'x', 2, null).renumbered.size).toBe(0)
+  })
+
+  it('renumbers before the numbers outgrow a 32-bit column', () => {
+    const r = placeAmong(sib(1_000_000_000), 'x', 1, null)
+    expect(r.renumbered.size).toBe(2)
+    expect(r.position).toBe(TREE_POSITION_STEP)
+  })
+})
+
+describe('checking a whole tree', () => {
+  const messages = (t: TreeNode[], o = opts) => checkTree(t, o).map((i) => i.message)
+
+  it('finds nothing wrong with a sound tree', () => {
+    expect(checkTree(nodes, opts)).toEqual([])
+  })
+
+  it('finds a loop, and does not take what hangs below it for addresses', () => {
+    const t = [node('a', 'c', 'a'), node('b', 'a', 'b'), node('c', 'b', 'c'), node('d', 'c', 'd')]
+    const issues = checkTree(t, opts)
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatchObject({ code: 'tree_cycle', loop: ['a', 'c', 'b', 'a'] })
+    expect(new Set(issues[0]!.ids)).toEqual(new Set(['a', 'b', 'c']))
+    expect(checkTree([node('self', 'self', 's')], opts)[0]).toMatchObject({ code: 'tree_cycle', ids: ['self'] })
+  })
+
+  it('finds a parent that is not there', () => {
+    expect(checkTree([node('a', 'ghost', 'a')], opts)).toMatchObject([{ code: 'tree_parent_missing', ids: ['a'] }])
+  })
+
+  it('finds a tree deeper than allowed, naming the first page too deep once', () => {
+    const t = [node('1', null, 'a'), node('2', '1', 'b'), node('3', '2', 'c'), node('4', '3', 'd'), node('5', '4', 'e'), node('6', '5', 'f')]
+    const issues = checkTree(t, opts)
+    expect(issues).toHaveLength(1)
+    expect(issues[0]).toMatchObject({ code: 'tree_depth', depth: 6, maxDepth: 4, ids: ['1', '2', '3', '4', '5'] })
+    expect(checkTree(t, { ...opts, maxDepth: 6 })).toEqual([])
+  })
+
+  it('finds two pages at one address, per language, with the fallbacks counted', () => {
+    const t = [node('a', null, 'same'), node('b', null, 'same'), node('c', null, 'other', { slugs: { en: 'x' }, locales: ['en'] }), node('d', null, 'x2', { slugs: { en: 'x' }, locales: ['en'] })]
+    const issues = checkTree(t, opts)
+    expect(issues.map((i) => [i.code, (i as any).locale, (i as any).path, i.ids])).toEqual([
+      ['tree_address_taken', 'cs', '/same', ['a', 'b']],
+      ['tree_address_taken', 'en', '/en/pages/x', ['c', 'd']],
+    ])
+    // under different parents the same part is fine
+    expect(messages([node('p', null, 'p'), node('q', null, 'q'), node('a', 'p', 'same'), node('b', 'q', 'same')])).toEqual([])
+  })
+
+  it('agrees with checkTreeChange on what a change would break', () => {
+    const next = applyChange(nodes, { id: 'history', parentId: 'about', slug: 'tym' })
+    expect(checkTreeChange(nodes, { id: 'history', parentId: 'about', slug: 'tym' }, opts)).toMatchObject({ code: 'tree_address_taken', path: '/o-nas/tym' })
+    expect(checkTree(next, opts)).toMatchObject([{ code: 'tree_address_taken', path: '/o-nas/tym', ids: ['team', 'history'] }])
+  })
+
+  it('stops at the limit', () => {
+    const many = Array.from({ length: 30 }, (_, i) => node(`n${i}`, `n${i}`, `n${i}`))
+    expect(checkTree(many, opts, 5)).toHaveLength(5)
   })
 })
 

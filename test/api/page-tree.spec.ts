@@ -1,14 +1,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { anonymous, type Client, hooksMark, signIn, testDb, truncateAll, waitForHooks } from '../helpers/api'
+import { accounts, anonymous, type Client, hooksMark, signIn, testDb, truncateAll, waitForHooks } from '../helpers/api'
 
 // Pages under pages (definePages({ tree: true }) in the playground, cs + en, the English
 // address template '/pages/:slug'): nested addresses, lookup by address, breadcrumbs, the
 // tree, moving a subtree with redirects, refusals, the sitemap.
 const db = testDb()
 let admin: Client
+let editor: Client
 let author: Client
 beforeAll(async () => {
   admin = await signIn('admin')
+  editor = await signIn('editor')
   author = await signIn('author')
 })
 beforeEach(() => truncateAll(db))
@@ -40,6 +42,9 @@ async function site() {
 
 // A page by its whole address: the parts as one path segment, slashes escaped (what the client sends).
 const item = async (path: string, locale = '') => (await visitor.get(`/api/content/page/${encodeURIComponent(path)}${locale ? `?locale=${locale}` : ''}`))
+/** Every page's position, version and last editor, straight from the database. */
+const pageRows = async () => Object.fromEntries((await db.query('select id, position, updated_at, updated_by from page')).rows.map((r) => [r.id, r]))
+const revisionCount = async (id: string) => (await db.query('select count(*)::int as n from cms_revisions where record_id = $1', [id])).rows[0].n
 const redirects = async () => (await db.query('select "from", "to", permanent from redirect order by "from"')).rows.map((r) => [r.from, r.to, r.permanent])
 
 describe('nested addresses', () => {
@@ -249,11 +254,17 @@ describe('refusals', () => {
     expect((await visitor.post('/api/cms/page/_move', { id: t.history.id, parent: null })).status).toBe(401)
     // someone else's page is not theirs to move
     expect((await author.post('/api/cms/page/_move', { id: t.history.id, parent: null })).status).toBe(404)
-    // their own draft is: last under a live page it stays a draft; but putting it first among live pages
-    // would renumber those, which an author may not do
+    // their own draft is: under a live page it stays a draft; first among live pages it is the draft that
+    // gets a place, the live pages keep theirs (nothing of theirs is written)
     const draft = (await author.post('/api/cms/page', { title: 'Návrh', slug: 'navrh', sections: [] })).body.row
     expect((await author.post('/api/cms/page/_move', { id: draft.id, parent: t.contact.id })).status).toBe(200)
-    expect((await author.post('/api/cms/page/_move', { id: draft.id, parent: null, index: 0 })).status).toBe(403)
+    const live = await pageRows()
+    expect((await author.post('/api/cms/page/_move', { id: draft.id, parent: null, index: 0 })).status).toBe(200)
+    const after = await pageRows()
+    for (const page of [t.about, t.contact]) expect(after[page.id]).toEqual(live[page.id])
+    // …but a live page is not theirs to move
+    const liveMove = await author.post('/api/cms/page/_move', { id: t.contact.id, parent: null, index: 0 })
+    expect(liveMove.status).toBe(404)
     expect((await visitor.get('/api/cms/page/_tree')).status).toBe(401)
   })
 })
@@ -492,5 +503,288 @@ describe('links to pages in the tree', () => {
     expect(await menuUrls()).toEqual(['/o-nas/tym/vedeni'])
     await admin.request('PATCH', `/api/cms/page/${t.about.id}`, { json: { status: 'draft' } })
     expect(await menuUrls()).toEqual([null])
+  })
+})
+
+describe('putting a page in its place', () => {
+  // An editor's draft page with two draft pages under it, and an author's draft that goes in among them.
+  async function arrange() {
+    const draftBy = async (who: Client, title: string, slug: string, parent: string | null = null) =>
+      (await who.post('/api/cms/page', { title, slug, parent, sections: [] })).body.row as { id: string }
+    const top = await draftBy(editor, 'Redaktorova', 'redaktorova')
+    const one = await draftBy(editor, 'První', 'prvni', top.id)
+    const two = await draftBy(editor, 'Druhá', 'druha', top.id)
+    const mine = await draftBy(author, 'Autorova', 'autorova')
+    return { top, one, two, mine }
+  }
+
+  it('writes only the moved page: an author moving their draft in among an editor\'s leaves those untouched', async () => {
+    const t = await arrange()
+    const before = await pageRows()
+    const move = await author.post('/api/cms/page/_move', { id: t.mine.id, parent: t.top.id, index: 0 })
+    expect(move.status).toBe(200)
+    const after = await pageRows()
+    // the editor's pages: same number, same version, still last edited by the editor
+    for (const page of [t.top, t.one, t.two]) expect(after[page.id]).toEqual(before[page.id])
+    expect(after[t.one.id].updated_by).toBe(accounts().editor.id)
+    // …and the moved page is first among them
+    expect(after[t.mine.id].position).toBeLessThan(after[t.one.id].position)
+    const kids = (await admin.get('/api/cms/page/_tree')).body.rows.filter((r: any) => r.parentId === t.top.id).sort((a: any, b: any) => a.position - b.position)
+    expect(kids.map((r: any) => r.id)).toEqual([t.mine.id, t.one.id, t.two.id])
+  })
+
+  it('renumbers the siblings only when no number fits between two, and then without stamping them', async () => {
+    const t = await arrange()
+    // numbers with no room between them (older data)
+    await db.query('update page set position = 0 where id = $1', [t.one.id])
+    await db.query('update page set position = 1 where id = $1', [t.two.id])
+    const before = await pageRows()
+    const revisions = await revisionCount(t.two.id)
+    const move = await author.post('/api/cms/page/_move', { id: t.mine.id, parent: t.top.id, index: 1 })
+    expect(move.status).toBe(200)
+    const after = await pageRows()
+    // the order is right, with room again
+    const order = Object.values(after).filter((r: any) => [t.one.id, t.mine.id, t.two.id].includes(r.id)).sort((a: any, b: any) => a.position - b.position).map((r: any) => r.id)
+    expect(order).toEqual([t.one.id, t.mine.id, t.two.id])
+    expect(after[t.two.id].position).not.toBe(before[t.two.id].position)
+    // but a renumbered page keeps its version, its last editor and its history
+    for (const page of [t.top, t.one, t.two]) {
+      expect(after[page.id].updated_at).toEqual(before[page.id].updated_at)
+      expect(after[page.id].updated_by).toBe(before[page.id].updated_by)
+    }
+    expect(await revisionCount(t.two.id)).toBe(revisions)
+    // so an editor who has it open can still save it
+    const stale = await editor.request('PATCH', `/api/cms/page/${t.two.id}`, { json: { title: 'Druhá, upravená' }, headers: { 'x-cms-version': new Date(before[t.two.id].updated_at).toISOString() } })
+    expect(stale.status).toBe(200)
+  })
+
+  it('keeps pages in the order they were put in through many moves', async () => {
+    const t = await arrange()
+    const order = async () => (await admin.get('/api/cms/page/_tree')).body.rows.filter((r: any) => r.parentId === t.top.id).sort((a: any, b: any) => a.position - b.position).map((r: any) => r.title)
+    for (let i = 0; i < 12; i++) await admin.post('/api/cms/page/_move', { id: t.mine.id, parent: t.top.id, index: 1 })
+    expect(await order()).toEqual(['První', 'Autorova', 'Druhá'])
+    // always to the front: the numbers keep going down, the order stays right
+    for (const id of [t.two.id, t.one.id, t.mine.id]) await admin.post('/api/cms/page/_move', { id, parent: t.top.id, index: 0 })
+    expect(await order()).toEqual(['Autorova', 'První', 'Druhá'])
+  })
+})
+
+describe('a write that reads the tree before it takes the lock', () => {
+  const treeLock = `select pg_advisory_xact_lock(72011050, hashtext('page'))`
+  /**
+   * Holds a lock in a transaction of the test (by default the tree's own), starts `request` (which reads what it needs,
+   * then waits for the lock), changes the database under it, and lets go.
+   */
+  async function whileLocked<T>(request: () => Promise<T>, change: string, params: unknown[], lock = treeLock): Promise<T> {
+    const c = await db.connect()
+    try {
+      await c.query('begin')
+      await c.query(lock)
+      const pending = request()
+      for (let i = 0; ; i++) {
+        const { rows } = await c.query(`select count(*)::int as n from pg_locks where not granted`)
+        if (rows[0].n > 0) break
+        if (i > 200) throw new Error('the request never waited for the lock')
+        await new Promise((r) => setTimeout(r, 25))
+      }
+      await c.query(change, params)
+      await c.query('commit')
+      return await pending
+    }
+    catch (err) {
+      await c.query('rollback').catch(() => {})
+      throw err
+    }
+    finally { c.release() }
+  }
+
+  async function pair() {
+    const parent = await page('Rodič', 'rodic')
+    await page('Dvojka', 'dvojka', parent.id)
+    const lone = await page('Jedna', 'jedna')
+    return { parent, lone }
+  }
+
+  it('a move uses the address part the page has under the lock, not the one it had when the request came', async () => {
+    const t = await pair()
+    // the page is renamed (a concurrent edit) to the part its new neighbour has, after the move read it
+    const res = await whileLocked(() => admin.post('/api/cms/page/_move', { id: t.lone.id, parent: t.parent.id }), 'update page set slug = $1 where id = $2', ['dvojka', t.lone.id])
+    expect(res.status).toBe(409)
+    expect(res.body.data[0]).toMatchObject({ code: 'unique', address: '/rodic/dvojka' })
+    expect((await db.query('select parent_id from page where id = $1', [t.lone.id])).rows[0].parent_id).toBeNull()
+  })
+
+  it('a new parent through the form uses the address part the page has under the lock', async () => {
+    const t = await pair()
+    const res = await whileLocked(() => admin.patch(`/api/cms/page/${t.lone.id}`, { parent: t.parent.id }), 'update page set slug = $1 where id = $2', ['dvojka', t.lone.id])
+    expect(res.status).toBe(409)
+    expect(res.body.data[0]).toMatchObject({ code: 'unique', address: '/rodic/dvojka' })
+  })
+
+  it('a rename through the form uses the parent the page has under the lock', async () => {
+    const t = await pair()
+    // the page is moved under the parent (a concurrent move) after the rename read it
+    const res = await whileLocked(() => admin.patch(`/api/cms/page/${t.lone.id}`, { slug: 'dvojka' }), 'update page set parent_id = $1 where id = $2', [t.parent.id, t.lone.id])
+    expect(res.status).toBe(409)
+    expect(res.body.data[0]).toMatchObject({ code: 'unique', address: '/rodic/dvojka' })
+  })
+
+  it('a translation uses the parent the page has under the lock', async () => {
+    const parent = await page('Rodič', 'rodic', null, { title: 'Parent', slug: 'parent' })
+    await page('Tým', 'tym', parent.id, { title: 'Team', slug: 'team' })
+    const lone = await page('Jedna', 'jedna')
+    // the page itself is what is held here: the translation reads it, then waits to write to it
+    const res = await whileLocked(
+      () => admin.request('PATCH', `/api/cms/page/${lone.id}?locale=en`, { json: { title: 'One', slug: 'team' } }),
+      'update page set parent_id = $1 where id = $2', [parent.id, lone.id],
+      `select 1 from page where id = '${lone.id}' for update`,
+    )
+    expect(res.status).toBe(409)
+    expect(res.body.data[0]).toMatchObject({ code: 'unique', locale: 'en', address: '/en/pages/parent/team' })
+  })
+})
+
+describe('a page below a draft that sits deeper than the limit allows today', () => {
+  // The limit was lowered after the page was made: it hangs at level 5 (the API refuses that now).
+  async function deep() {
+    const t = await site()
+    const fourth = await page('Čtvrtá', 'ctvrta', t.lead.id)
+    const fifth = await page('Pátá', 'pata', t.contact.id)
+    await db.query('update page set parent_id = $1 where id = $2', [fourth.id, fifth.id])
+    return { ...t, fourth, fifth }
+  }
+  const address = 'o-nas/tym/vedeni/ctvrta/pata'
+
+  it('is served while every page above is live', async () => {
+    const t = await deep()
+    const res = await item(address)
+    expect(res.status).toBe(200)
+    expect(res.body.item.id).toBe(t.fifth.id)
+    expect(res.body.item.breadcrumbs.map((b: any) => b.title)).toEqual(['O nás', 'Tým', 'Vedení', 'Čtvrtá', 'Pátá'])
+  })
+
+  it('is not served, listed, in the tree or in the sitemap once the top page is a draft, and its trail never names the draft', async () => {
+    const t = await deep()
+    expect((await admin.patch(`/api/cms/page/${t.about.id}`, { status: 'draft' })).status).toBe(200)
+    expect((await item(address)).status).toBe(404)
+    expect((await item(t.fifth.id)).status).toBe(404)
+    expect((await visitor.get('/api/content/page?limit=50')).body.items.map((i: any) => i.slug)).toEqual(['kontakt'])
+    expect((await visitor.get('/api/content/_tree/page')).body.items.map((n: any) => n.title)).toEqual(['Kontakt'])
+    const sitemap = (await visitor.get('/api/content/_sitemap')).body.entries.map((e: any) => e.loc)
+    expect(sitemap.filter((l: string) => l.startsWith('/o-nas'))).toEqual([])
+    // the editor's preview still reads it, with the real trail
+    const preview = await admin.get(`/api/content/page/${encodeURIComponent(address)}?preview`)
+    expect(preview.status).toBe(200)
+    expect(preview.body.item.breadcrumbs.map((b: any) => b.title)).toEqual(['O nás', 'Tým', 'Vedení', 'Čtvrtá', 'Pátá'])
+    // published again, it is back
+    await admin.patch(`/api/cms/page/${t.about.id}`, { status: 'published' })
+    expect((await item(address)).status).toBe(200)
+  })
+
+  it('is not served when a page in the middle is a draft', async () => {
+    const t = await deep()
+    await admin.patch(`/api/cms/page/${t.team.id}`, { status: 'draft' })
+    expect((await item(address)).status).toBe(404)
+    expect((await item('o-nas/historie')).status).toBe(200)
+  })
+})
+
+describe('pages a person may not read', () => {
+  // The playground hides pages whose address starts with "interni" from authors (a row-level read rule).
+  async function secret() {
+    const mine = (await author.post('/api/cms/page', { title: 'Moje', slug: 'moje', sections: [] })).body.row
+    const hidden = await page('Interní plán', 'interni', mine.id, null, { status: 'draft' })
+    const open = await page('Veřejná', 'verejna', hidden.id)
+    const top = await page('Otevřená', 'otevrena')
+    return { mine, hidden, open, top }
+  }
+
+  it('control: the author really cannot read the internal page', async () => {
+    const t = await secret()
+    expect((await author.get(`/api/cms/page/${t.hidden.id}`)).status).toBe(404)
+    expect((await author.get(`/api/cms/page/${t.open.id}`)).status).toBe(200)
+  })
+
+  it('keeps their titles out of the parent picker\'s trail', async () => {
+    const t = await secret()
+    const labels = async (who: Client) => (await who.get('/api/cms/page/options?q=' + encodeURIComponent('Veřejná'))).body.map((o: any) => o.label)
+    expect(await labels(admin)).toEqual(['Moje / Interní plán / Veřejná'])
+    expect(await labels(author)).toEqual(['Moje / … / Veřejná'])
+    expect(t.open.id).toBeTruthy()
+  })
+
+  it('keeps their address parts out of the admin tree', async () => {
+    const t = await secret()
+    const rows = async (who: Client) => (await who.get('/api/cms/page/_tree')).body.rows as any[]
+    expect((await rows(admin)).find((r) => r.id === t.open.id).paths).toEqual({ cs: '/moje/interni/verejna' })
+    const seen = await rows(author)
+    expect(seen.find((r) => r.id === t.open.id).paths).toEqual({})
+    expect(seen.find((r) => r.id === t.top.id).paths).toEqual({ cs: '/otevrena' })
+    expect(JSON.stringify(seen)).not.toContain('interni')
+  })
+
+  it('keeps their titles out of the refusal for a taken address', async () => {
+    const t = await secret()
+    // the hidden page sits under the author's "Moje"; a new page there with the same part takes its address
+    const clash = { title: 'Můj plán', slug: 'interni', parent: t.mine.id, sections: [] }
+    const asAdmin = await admin.post('/api/cms/page', clash)
+    expect(asAdmin.status).toBe(409)
+    expect(asAdmin.body.data[0].otherTitle).toBe('Interní plán')
+    const asAuthor = await author.post('/api/cms/page', clash)
+    expect(asAuthor.status).toBe(409)
+    expect(asAuthor.body.data[0]).toMatchObject({ code: 'unique', address: '/moje/interni', otherTitle: '…' })
+    expect(JSON.stringify(asAuthor.body)).not.toContain('Interní plán')
+  })
+
+  it('keeps their titles out of the refusal for a loop', async () => {
+    const t = await secret()
+    // moje → interní plán → veřejná → moje
+    const asAdmin = await admin.post('/api/cms/page/_move', { id: t.mine.id, parent: t.open.id })
+    expect(asAdmin.status).toBe(422)
+    expect(asAdmin.body.data[0].loop).toEqual(['Moje', 'Interní plán', 'Veřejná', 'Moje'])
+    const asAuthor = await author.post('/api/cms/page/_move', { id: t.mine.id, parent: t.open.id })
+    expect(asAuthor.status).toBe(422)
+    expect(asAuthor.body.data[0]).toMatchObject({ code: 'tree_cycle', loop: ['Moje', '…', 'Veřejná', 'Moje'] })
+    expect(JSON.stringify(asAuthor.body)).not.toContain('Interní plán')
+  })
+
+  it('cannot be a new parent, as far as they can tell the page does not exist', async () => {
+    const t = await secret()
+    const draft = (await author.post('/api/cms/page', { title: 'Návrh', slug: 'navrh', sections: [] })).body.row
+    expect((await author.post('/api/cms/page/_move', { id: draft.id, parent: t.hidden.id })).status).toBe(422)
+    expect((await author.patch(`/api/cms/page/${draft.id}`, { parent: t.hidden.id })).status).toBe(422)
+    expect((await author.post('/api/cms/page', { title: 'Nový', slug: 'novy', parent: t.hidden.id, sections: [] })).status).toBe(422)
+    expect((await db.query('select parent_id from page where id = $1', [draft.id])).rows[0].parent_id).toBeNull()
+    // a page they can read is fine
+    expect((await author.post('/api/cms/page/_move', { id: draft.id, parent: t.top.id })).status).toBe(200)
+    expect((await author.patch(`/api/cms/page/${draft.id}`, { parent: t.open.id })).status).toBe(200)
+    // an editor reads everything
+    expect((await editor.post('/api/cms/page/_move', { id: draft.id, parent: t.hidden.id })).status).toBe(200)
+  })
+
+  it('may stay where they are: a page under a parent they cannot read can still be edited', async () => {
+    const t = await secret()
+    const child = (await author.post('/api/cms/page', { title: 'Dítě', slug: 'dite', sections: [] })).body.row
+    // put under the internal page by someone who may read it
+    expect((await admin.post('/api/cms/page/_move', { id: child.id, parent: t.hidden.id })).status).toBe(200)
+    // saving it again with the parent it has is not a new parent
+    expect((await author.patch(`/api/cms/page/${child.id}`, { title: 'Dítě, upravené', parent: t.hidden.id })).status).toBe(200)
+    expect((await author.patch(`/api/cms/page/${child.id}`, { title: 'Dítě, podruhé' })).status).toBe(200)
+  })
+})
+
+describe('an address that a draft translates', () => {
+  it('does not hide the live page that falls back to that address from visitors', async () => {
+    // "Zde" is live and not translated: in English it is at /en/pages/about (its Czech part falls back).
+    const live = await page('Zde', 'about')
+    // a draft with the same English part
+    const draft = await page('Jiná', 'jina', null, { title: 'Other', slug: 'about' }, { status: 'draft' })
+    const res = await item('about', 'en')
+    expect(res.status).toBe(200)
+    expect(res.body.item).toMatchObject({ id: live.id, path: '/en/pages/about' })
+    // an editor previewing meets the draft first (its own translated address)
+    const preview = await admin.get('/api/content/page/about?locale=en&preview')
+    expect(preview.status).toBe(200)
+    expect(preview.body.item.id).toBe(draft.id)
   })
 })
