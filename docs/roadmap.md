@@ -1069,3 +1069,24 @@ Branch `fix/0.2-restore-pg-versions`. **Cause** (reproduced here with `pg_dump`/
 - **CI:** local action `.github/actions/pg-client` installs `postgresql-client-N` from the PostgreSQL apt repository, sets `TINYZOO_PG_*` and prints the versions (runner PATH, the ones used, the server). The `test` job uses 17; a `backup-clients` job runs the backup spec with 16, 17 and 18 against the 16 server. *Not run here* (needs GitHub): the apt steps are the PostgreSQL project's documented ones.
 - **Tests.** Backup spec 13 → 18 (the all-or-nothing test now expects an unchanged database; new: half-written script, script the server rejects, a setting the server does not know, newer dump than pg_restore (two ways), missing psql), `test/unit/restore-preamble.spec.ts` (9: filter incl. 1-byte chunks, CRLF, non-UTF-8 data, forms of SET; version parsing).
 - **Result.** `TEST_DATABASE_URL=…/cms_pgver_test TINYZOO_PG_DUMP/RESTORE/PSQL=<docker wrappers> pnpm check` green for client tools 17 → server 16 and 18 → server 16: 73 files passed, 2 skipped; 1078 tests passed, 8 skipped (the backup spec runs: 18/18); backup spec alone also 18/18 with 16 → 16. One earlier full run reported an unhandled websocket 401 from `test/api/collab.spec.ts` (not touched here; passes alone, twice, and in both later full runs).
+
+### 0.2 — Final audit: admin shell, accessibility, phone, media library
+
+Branch `fix/0.2-audit-shell` (F3 of the audit fixes; reports in the audit's `accounts`, `media`, `pages`, `editing` folders). Rules are in `docs/ui-foundation.md` (Accessibility, First frame, When the account stops working); the changeset is `audit-shell-a11y-phone-media`. Measured on a production build of the playground (Chromium headless; 16 admin screens × desktop light, desktop dark, phone light, Czech):
+
+| What | Before | After |
+|---|---|---|
+| Screens with a `<main>` | 0 / 48 | 48 / 48 |
+| Screens with exactly one `<h1>` | 6 / 48 (the breadcrumb was an h1; editors had only the status bar) | 48 / 48 |
+| Unnamed `nav` landmarks | 4 per screen | 0 |
+| Screens with text under AA (4.5:1) | 18 / 48 (`text-dimmed` 2.58:1 light, 3.82:1 dark; styleguide buttons 1.78–2.02:1) | 0 / 48 |
+| Phone screens with a control under 44 px | 16 / 16 | 0 / 16 |
+| Hydration warnings, 120 loads of editor, lists, media, settings (cs, en, phone) | 13 in 36 loads of the editor and page list | 0 |
+| English accessible names in a Czech admin | "Breadcrumb", "Notifications (F8)", "Show popup", Nuxt UI's close/next | none (checked: breadcrumb, notifications, selects, password toggle) |
+
+- **Language.** The site's `<UApp :locale="useCmsUiLocale()">` (the starter and playground have it; `docs/upgrading.md` step 9): Nuxt UI keeps one language and takes it from the first component that asks (the toaster inside `UApp`), so the old plugin and the layout's provider were never read. The notifications area's name is not part of Nuxt UI's locale and is set by the admin layout. The invitation page, the account page and the reset page speak the page's language through `cmsIssueMessage`; the account page marks the field instead of a "Validation failed" toast; the design system page is admins-only (a typed address goes home), its chrome is translated, its prose stays English with a note saying so.
+- **Cause of the hydration warnings:** `UDashboardGroup storage="local"` — the sidebar's width and fold were read from localStorage in the first client frame (the server cannot); it is a cookie now. Relative times were already absolute in the first frame (`CmsTime`).
+- **Touch:** one `@media (pointer: coarse)` block instead of `pointer-coarse:` classes per button (the sidebar's slide-over rows, which are not buttons, use the Tailwind variant). The page tree's fold and menu, the list rows' menus, the editor toolbar (a swipeable row of 44 px buttons), the account fields, Team's Edit are all covered by it.
+- **Signed out under an open admin** (`plugins/cmsSignedOut.client.ts`): a 401 on a read of `/api/cms/*` sends the person to sign-in with "You were signed out" and back afterwards (tried: disable the editor while the editor's tab is open, click "Articles"). Saves are left to the editor (it keeps the text). A 403 on a list says "You don't have permission for this" with no retry (`CmsLoadError`).
+- **Not done / for later.** The admin search palette still shows nested pages without their address (needs the address in `/api/cms/_search`); a Playwright run of the admin is not part of `pnpm check` (only the contrast test is): the surveys above were scripts. The "Notifications (F8)" name is a DOM attribute set after mount (Nuxt UI does not pass the label to its viewport). The audit's phone-editor Save button, the read-only forms and the history/translation items belong to the editor batch.
+

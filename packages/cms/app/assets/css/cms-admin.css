@@ -600,6 +600,7 @@ html[data-cms-admin] .cms-skip-link {
   padding: 0.5rem 0.875rem; border-radius: var(--ui-radius);
   background: var(--ui-bg-inverted); color: var(--ui-text-inverted);
   font-size: 0.875rem; font-weight: 500;
+  display: inline-flex; align-items: center; min-height: 2.75rem;
 }
 html[data-cms-admin] .cms-skip-link:focus { transform: none; }
 /* <main> takes the focus when the skip link jumps to it; no ring around the whole page. */
