@@ -7,7 +7,7 @@ import {
   defineEntity, defineSingleton, blocksSchema, defineBlock, f, mediaIdsInBlocks, richTextUpgrades, storedBlockVersion, upgradeBlocks, upgradeListItems, upgradeStoredRow, UPGRADE_FAILED_KEY, UNKNOWN_BLOCK_TYPE,
 } from 'tinyzoo'
 import { writeSchema } from '../../packages/cms/server/utils/cmsBlocks'
-import { formRecipients } from '../../packages/cms/server/utils/cmsForms'
+import { listedRecipients } from '../../packages/cms/server/utils/cmsFormSettings'
 
 // A hero that was renamed twice: v1 { heading } → v2 { title } → v3 { title, subtitle required-ish, `lead` folded in }.
 const hero = defineBlock({
@@ -493,12 +493,11 @@ describe('who is told about a form submission', () => {
     label: 'Forms', titleField: 'notifyTo',
     fields: { notifyTo: f.list({ version: 2, fields: { email: f.text() }, upgrade: ({ address, ...rest }) => ({ ...rest, email: address }) }) },
   } as any), { preset: 'formSettings' })
-  const dbWith = (row: any) => ({ select: () => ({ from: () => ({ limit: async () => [row] }) }) })
-
-  it('reads the recipients through the upgrade, so a bump of the list version does not end the emails', async () => {
+  it('reads the recipients through the upgrade, so a bump of the list version does not end the emails', () => {
     const row = { notifyTo: [{ id: 'a', type: 'item', address: 'old@example.com' }, { id: 'b', type: 'item', v: 2, email: 'new@example.com' }] }
-    expect(await formRecipients(dbWith(row), { entities: [settings] } as any, {} as any)).toEqual(['old@example.com', 'new@example.com'])
+    expect(listedRecipients(settings, row)).toEqual(['old@example.com', 'new@example.com'])
     expect(row.notifyTo[0]).toEqual({ id: 'a', type: 'item', address: 'old@example.com' }) // the stored row is as it was
+    expect(listedRecipients(settings, undefined)).toEqual([]) // no settings row yet
   })
 })
 
