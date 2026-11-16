@@ -12,6 +12,7 @@ export default defineConfig({
           name: 'unit',
           include: ['test/unit/**/*.spec.ts'],
           environment: 'node',
+          globalSetup: ['test/setup/prepare-starter.ts'],
         },
       },
       {
