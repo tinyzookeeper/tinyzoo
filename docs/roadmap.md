@@ -315,7 +315,10 @@ Branch `feat/0.2-upgrades`. Guide for site developers: [upgrading.md](upgrading.
   `pg`, `DATABASE_URL` from the environment or `.env`; no longer `drizzle-kit migrate`).
 - **Order guard:** an unapplied journal entry whose `when` is older than the newest
   applied `created_at` stops the run with `MigrationOrderError` (file, snapshot and
-  journal entry to delete, then `tinyzoo generate` again). Matched by `created_at`,
+  journal entry to delete, then `tinyzoo generate` again; the message also says that a
+  migration that already ran elsewhere needs its regenerated SQL made idempotent, and
+  upgrading.md has the checklist step "run `tinyzoo status` against production first").
+  Matched by `created_at`,
   not hash.
 - **Breaking-statement guard** in `tinyzoo generate` (`cli/breaking.ts`,
   `cli/generate.ts`): `DROP TABLE/COLUMN/TYPE`, type changes and table, column and type
@@ -334,11 +337,18 @@ Branch `feat/0.2-upgrades`. Guide for site developers: [upgrading.md](upgrading.
   transaction and lock, rollback, a database migrated by drizzle's own migrator picking
   up the bookkeeping), order guard, status, statement scanner, generate guard, version
   ranges, and an API spec that the server's first start adds `cms_upgrades`.
-- **Not done / left:** `ALTER COLUMN … SET NOT NULL` and `ADD COLUMN … NOT NULL`
-  without a default (fail on existing rows) are not flagged; the changelog **Upgrade**
-  sections arrive with slice B; the backups link in upgrading.md waits for slice D's
-  recipe. The migrations folder is fixed at `server/db/migrations` for the CLI, as it
-  was for `generate`.
+- **Second class, "may fail on existing rows"** (review fix): `ADD COLUMN … NOT NULL`
+  without a default (a default, an identity or a serial counts as one), `SET NOT NULL`,
+  a new `UNIQUE` constraint or unique index, a new `CHECK`; tables the same migration
+  creates are skipped, and a unique index re-created under a renamed table's new name
+  (the snake_case upgrade) is not flagged. Kept with `--allow-risky`, separate from
+  `--allow-drop` (a migration with both needs both). Tests copy the SQL drizzle-kit
+  0.31.10 wrote; upgrading.md has "Adding a required field", the `drizzle-kit push`
+  warning and the rewritten out-of-order section.
+- **Not done / left:** the changelog **Upgrade** sections arrive with slice B; the
+  backups link in upgrading.md waits for slice D's recipe. The migrations folder is
+  fixed at `server/db/migrations` for the CLI, as it was for `generate`.
+
 ### 0.2 C — Versioned JSON content
 
 Branch `feat/0.2-json-versions`. No schema change: everything lives inside jsonb.
@@ -460,10 +470,13 @@ deploy that changes the schema.
 **Error reporting.** `cms:error` (typed in `NitroRuntimeHooks`, `CmsErrorReport` exported
 from `tinyzoo`) fires for the same 5xx the JSON log line covers, for scheduled tasks that
 threw (`cms:scheduled`, `cms:retention`, `cms:search-reindex`, with `source: 'task'`) and
-for webhook deliveries that gave up (`source: 'webhook'`, URL without query). It runs on
+for webhook deliveries that gave up (`source: 'webhook'`, URL as origin plus a short hash of the path: Slack and Discord keep their secret in the path). It runs on
 the next tick, never awaited by the request, and a throwing hook is logged only. Reports
 carry `message` without query values (drizzle's "Failed query" text includes bound
-values); the docs say so and show a Sentry plugin. The playground has a test-only sink
+values, and h3 copies it into the error it throws). `report.error` is a scrubbed copy
+(`scrubError` in `cmsErrors.ts`: safe message, stack frames kept, causes copied to depth 5);
+the thrown error is `report.rawError`, documented as possibly holding personal data. The
+docs show a Sentry plugin that sends only `report.error`. The playground has a test-only sink
 plugin (`CMS_ERROR_SINK_FILE`) the specs read.
 
 **Retention.** `defineForm(name, { retentionDays })` (positive integer; default keep),
@@ -484,7 +497,11 @@ JSON download without password hashes. Delete removes the submissions (with vers
 search rows), **anonymises** the account (address becomes
 `deleted-<id>@anonymised.invalid`, name/language/last sign-in/password cleared, role
 `author`, disabled, sessions revoked, invitation and reset links deleted) and strips
-`email`, `ip` and `name` from the audit entries touching the person. Why anonymise
+the person's own details from the audit entries touching them: `email`, `ip` and `name`
+from entries naming the address (case-insensitive, trimmed) and from `user.*` entries on
+their id; `ip` and their own `name` from entries they made — never an `email` that is
+someone else's (an administrator's `user.invite` entries keep the invitees' addresses).
+Why anonymise
 instead of delete: entries, revisions, uploads and the audit trail refer to the account
 by id; deleting the row would orphan that history, anonymising removes every personal
 detail and keeps who-did-what. It refuses your own account (409) and goes through the same
