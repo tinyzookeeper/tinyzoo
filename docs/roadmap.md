@@ -964,3 +964,23 @@ placeholders are `text-dimmed` (2.6:1): a token for "quiet but readable" would b
 decision. The editor's top bar "More actions" button is 32 px on phones. The Czech minimum-length
 message ("Aspoň 10 znaků") and the hint under it ("Alespoň 10 znaků.") use two spellings. The
 `[request error]` suppression exists only in a production build, by design; `nuxt dev` keeps Nitro's output.
+
+### 0.2 — Wave 2 review (2026-11-16)
+
+Two independent reviewers (security; correctness and upgrades — the latter upgraded a
+real site from before the wave). Fixed on `fix/0.2-w2-links`, `fix/0.2-w2-tree`,
+`fix/0.2-w2-seed` plus direct fixes on main, each with tests that fail before the fix;
+main green after (975 tests, starter check, upgrade check from `2506403`).
+
+| Severity | Finding | Fix |
+|---|---|---|
+| High | A trailing slash got any signed-in person past `access: 'admin'` on plugin routes (reproduced: an editor deleted events) | the access check reads the address the way the router does; `**` routes; an undeclared address gets the plugin's strictest rule |
+| High | A redirect to a page reference looped forever once the page took over the redirect's address | such redirects are skipped and removed when an entry goes live at that address, in the save's transaction |
+| Medium | Moving a page renumbered siblings the mover may not edit (and stamped them as edited by the mover) | positions spaced 1024 apart; renumbering only as a system write that touches no version or editor |
+| Medium | `seed --reset` could delete pages an editor made | only what the seed's account created and nobody changed; the plan is listed before asking |
+| Medium | `links:convert` switched links to another language and dropped links to drafts | converts only same-language, live, unambiguous matches; reports the rest |
+| Medium | The seed stored addresses instead of references (menus didn't follow, tree links wrong) | `s.link` stores `cms:` refs |
+| Medium | `import --merge` skipped page-tree checks (the tree dropped the unique slug constraints) | the whole tree is validated in the import transaction |
+| Low | tree writes read before the lock; the unpublished-ancestor rule stopped at `maxDepth-1`; titles/existence of unreadable pages in link details, tree labels, refusals; preview resolving drafts the previewer can't read; redirects to refs always in the default language; webhooks missing links to subpages; seed reset stopping half-way; seed's "local address" check; two raw error logs; a draft's translated part hiding a live page; plugin steps on an existing site (docs) | each fixed |
+| Found while merging | link resolution used flat addresses for tree pages; a translation of a tree page locked the row before the tree (deadlock in the test log) | tree-aware resolution (nested address, unpublished ancestor → no link); tree lock first everywhere |
+| Flaky tests | archive-permission test (raced the stream's open); `truncateAll` deadlocking with the retention task | test waits for the file; cleanup takes the tasks' advisory locks first |
