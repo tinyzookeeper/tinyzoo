@@ -17,6 +17,7 @@
     "build": "node scripts/build-check.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "check:consumer": "node scripts/consumer-check.mjs",
+    "check:starter": "node scripts/starter-check.mjs",
     "contracts:update": "UPDATE_CONTRACTS=1 vitest run --project unit test/unit/contracts.spec.ts",
     "changeset": "changeset",
     "build:packages": "pnpm --filter @tinyzoo/client build",

@@ -16,6 +16,8 @@
  *                               --allow-mismatch, --dry-run). Both are described in cli/export.ts / import.ts
  *   tinyzoo backup [file]     → database (pg_dump) + media in one tar archive
  *   tinyzoo restore <file>    → put such an archive back (--yes skips the question, --force replaces a database that has accounts)
+ *   tinyzoo seed [file]       → put the site's seed content (seed/index.ts, `defineSeed`) into a running site
+ *                               through the admin API (--url --email, password in $SEED_PASSWORD; --dry-run, --reset)
  *   tinyzoo init <dir>        → a new website with the CMS inside (the starter: pages, news,
  *                               menus, a contact form, cs/en), ready for `pnpm install`
  * Run from the host app root (cwd = host). Designed to run under tsx.
@@ -109,7 +111,7 @@ function init() {
     for (const [name, v] of Object.entries(deps ?? {})) if (String(v).startsWith('workspace:')) deps[name] = `^${version}`
   }
   writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
-  console.log(`✓ created ${dest}\n\n  cd ${target}\n  pnpm install\n  cp .env.example .env\n  docker compose up -d\n  pnpm db:migrate\n  pnpm dev   → http://localhost:3000/admin\n`)
+  console.log(`✓ created ${dest}\n\n  cd ${target}\n  pnpm install\n  cp .env.example .env\n  docker compose up -d\n  pnpm db:migrate\n  pnpm dev   → http://localhost:3000/admin\n\n  Demo content (Czech and English), while \`pnpm dev\` runs in another terminal:\n  SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed\n  (creates the first administrator with those details; run it again any time, it changes nothing twice)\n`)
 }
 
 switch (cmd) {
@@ -123,12 +125,14 @@ switch (cmd) {
   case 'content:migrate': await (await import('./content-migrate')).contentMigrateCommand(await loadConfig(), process.argv.slice(3)); break
   case 'export': await runExport(process.argv.slice(3)).catch(reportFailure); break
   case 'import': await runImport(process.argv.slice(3)).then(() => {}, reportFailure); break
+  case 'seed': await (await import('./seed')).seedCommand(await loadConfig(), process.argv.slice(3)).catch(reportFailure); break
   case 'backup': await (await import('./backup')).backup(process.argv.slice(3)); break
   case 'restore': await (await import('./backup')).restore(process.argv.slice(3)); break
   default:
-    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import|backup|restore> [out] [--stdout] [--allow-drop] [--allow-risky] [--dry-run]\n'
+    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import|seed|backup|restore> [out] [--stdout] [--allow-drop] [--allow-risky] [--dry-run]\n'
       + '       tinyzoo export <file.tar.gz> [--only a,b] [--no-media] [--with-revisions] [--with-submissions] [--force]\n'
       + '       tinyzoo import <file.tar.gz> [--replace [--yes] | --merge] [--allow-mismatch] [--dry-run]\n'
+      + '       tinyzoo seed [file] [--url u] [--email e] [--dry-run] [--reset [--yes]]   (password: $SEED_PASSWORD)\n'
       + '       tinyzoo backup [file]  ·  tinyzoo restore <file> [--yes] [--force]')
     process.exit(1)
 }
