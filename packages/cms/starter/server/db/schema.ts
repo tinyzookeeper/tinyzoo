@@ -245,6 +245,7 @@ export const siteSettingsLocales = pgTable('site_settings_locales', {
   parentId: uuid('parent_id').notNull().references(() => siteSettings.id, { onDelete: 'cascade' }),
   locale: text('locale').notNull(),
   tagline: text('tagline'),
+  openingHours: jsonb('opening_hours').$type<CmsBlock[]>(),
   metaTitle: text('meta_title'),
   metaDescription: text('meta_description'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),

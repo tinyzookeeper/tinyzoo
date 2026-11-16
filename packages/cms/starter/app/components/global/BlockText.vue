@@ -1,6 +1,8 @@
 <script setup lang="ts">
-// Block "Text": rich text written in the admin.
-defineProps<{ block: { body?: any } }>()
+// Block "Text": rich text written in the admin. Typed from the generated client (see BlockHero.vue).
+import type { Page } from '~/lib/cms-content'
+
+defineProps<{ block: Extract<Page['sections'][number], { type: 'text' }> }>()
 </script>
 
 <template>

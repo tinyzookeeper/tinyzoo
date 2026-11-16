@@ -1,11 +1,8 @@
 <script setup lang="ts">
 // The home page: the page whose address is "home" (create it in the admin under Pages).
-const route = useRoute()
-const preview = computed(() => ('preview' in route.query ? { preview: '' } : {}))
-const { data } = await useFetch<{ item: any; preview?: boolean }>('/api/content/page/home', { query: preview, key: 'home' })
-const page = computed(() => data.value?.item ?? null)
+const { data, item: page } = await useSitePage()
 const { settings } = await useSite()
-useCmsSeo(page, { siteName: settings.value?.siteName })
+useCmsSeo(page, { siteName: settings.value?.siteName, defaultLocale: 'cs', path: siteHref })
 </script>
 
 <template>

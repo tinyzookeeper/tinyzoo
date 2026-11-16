@@ -1,4 +1,4 @@
-import { defineSeed } from 'tinyzoo'
+import { defineSeed, type SeedEntry } from 'tinyzoo'
 import { FormSettings, Navigation, News, Page, Redirect, SiteSettings } from '../cms.config'
 
 // Demo content for the starter, in Czech and English: a small neighbourhood bakery.
@@ -33,97 +33,14 @@ export default defineSeed(async (s) => {
   const logo = await s.upload('seed/media/logo.png', { alt: 'Logo pekárny', altLocales: { en: 'Bakery logo' } })
 
   // ── pages ──
-  await s.upsert(Page, {
-    title: 'Úvod', slug: 'home', status: 'published',
-    metaTitle: 'Pekárna Na Růžku · čerstvé pečivo z Dolní Lhoty',
-    metaDescription: 'Pečeme chleba na kvásku, rohlíky a sladké koláče každý den od půl šesté. Zastavte se na rohu u kostela.',
-    ogImage: hero,
-    sections: [
-      {
-        type: 'hero', heading: 'Chléb, který voní po ránu.',
-        text: 'Pečeme z české mouky a na vlastním kvásku. Každé ráno od půl šesté čerstvé pečivo na rohu u kostela.',
-        image: hero, buttonLabel: 'Co je nového', buttonUrl: '/aktuality',
-      },
-      {
-        type: 'text',
-        body: doc(
-          h2('Pečeme po staru, v malém'),
-          p('Těsto necháváme přes noc kynout a pečeme v kamenné peci. Proto máme každý den jen tolik, kolik za ráno vyprodáme.'),
-          ul('chléb na kvásku, pšeničný i žitný', 'rohlíky, housky a vánočky', 'koláče a štrúdly podle sezóny'),
-          p('Něco chybí? ', bold('Napište nám'), ' a upečeme to na zakázku.'),
-        ),
-      },
-      { type: 'image', image: about, caption: 'Okna naší pekárny, každé ráno od půl šesté.' },
-      { type: 'cta', heading: 'Objednejte si na víkend', buttonLabel: 'Napsat nám', buttonUrl: '/kontakt' },
-    ],
-  }, {
-    translations: {
-      en: {
-        title: 'Home', slug: 'home',
-        metaTitle: 'Corner Bakery · fresh bread from Dolní Lhota',
-        metaDescription: 'Sourdough bread, rolls and sweet pastries baked every day from half past five. Find us on the corner by the church.',
-        sections: [
-          {
-            type: 'hero', heading: 'Bread that smells like morning.',
-            text: 'We bake with Czech flour and our own sourdough. Fresh bread every morning from half past five, on the corner by the church.',
-            image: hero, buttonLabel: 'What is new', buttonUrl: '/en/news',
-          },
-          {
-            type: 'text',
-            body: doc(
-              h2('Baked the old way, in small batches'),
-              p('The dough rises overnight and goes into a stone oven. That is why we only have as much each day as we sell by lunchtime.'),
-              ul('sourdough bread, wheat and rye', 'rolls, buns and plaited loaves', 'pastries and strudels by the season'),
-              p('Missing something? ', bold('Write to us'), ' and we will bake it to order.'),
-            ),
-          },
-          { type: 'image', image: about, caption: 'The windows of our bakery, open from half past five.' },
-          { type: 'cta', heading: 'Order for the weekend', buttonLabel: 'Write to us', buttonUrl: '/en/contact' },
-        ],
-      },
-    },
-  })
-
-  const aboutPage = await s.upsert(Page, {
-    title: 'O nás', slug: 'o-nas', status: 'published',
-    metaDescription: 'Rodinná pekárna z Dolní Lhoty. Kdo pečeme, z čeho a proč to děláme v malém.',
-    sections: [
-      {
-        type: 'text',
-        body: doc(
-          h2('Rodinná pekárna z Dolní Lhoty'),
-          p('Pekárnu Na Růžku jsme otevřeli v roce 2014 v bývalé trafice. Dnes v ní pečou čtyři lidé a pec zná každý z nich zpaměti.'),
-          quote('Dobrý chléb se nedá uspěchat. Stačí mu dát čas a dobrou mouku.', 'Marie Kovářová, zakladatelka'),
-          p('Mouku bereme z mlýna o dvě vsi dál, mléko od místního statkáře. Co zbyde, odvážíme večer do chráněného bydlení v sousední obci.'),
-        ),
-      },
-      { type: 'image', image: bread, caption: 'Bochník těsně před pecí.' },
-      { type: 'cta', heading: 'Přijďte ochutnat', buttonLabel: 'Kde nás najdete', buttonUrl: '/kontakt' },
-    ],
-  }, {
-    translations: {
-      en: {
-        title: 'About us', slug: 'about',
-        metaDescription: 'A family bakery from Dolní Lhota: who bakes, with what, and why we keep it small.',
-        sections: [
-          {
-            type: 'text',
-            body: doc(
-              h2('A family bakery from Dolní Lhota'),
-              p('We opened Corner Bakery in 2014, in a former tobacconist\'s. Four people bake in it today, and every one of them knows the oven by heart.'),
-              quote('Good bread cannot be rushed. It just needs time and good flour.', 'Marie Kovářová, founder'),
-              p('Our flour comes from a mill two villages away and our milk from a local farmer. What is left over goes in the evening to a sheltered home in the next village.'),
-            ),
-          },
-          { type: 'image', image: bread, caption: 'A loaf just before the oven.' },
-          { type: 'cta', heading: 'Come and taste', buttonLabel: 'Where to find us', buttonUrl: '/en/contact' },
-        ],
-      },
-    },
-  })
-
+  // A button that leads to a page of this seed is a reference to it (what the admin's link picker
+  // stores), so it follows the page when it is renamed or moved, in each language. The seed writes
+  // the same reference every run: a typed address ('/kontakt') would be written back over a link
+  // converted by `tinyzoo links:convert`. Pages the website draws itself (/aktuality) stay typed.
+  const refTo = (entry: SeedEntry) => s.link('', entry).url
+  // (`position` is the order in the page tree: the pages are written contact first, so say it.)
   const contact = await s.upsert(Page, {
-    title: 'Kontakt', slug: 'kontakt', status: 'published',
+    title: 'Kontakt', slug: 'kontakt', status: 'published', position: 2,
     metaDescription: 'Adresa, otevírací doba a kontaktní formulář pekárny Na Růžku.',
     sections: [
       {
@@ -149,6 +66,95 @@ export default defineSeed(async (s) => {
             ),
           },
           { type: 'contact', heading: 'Write to us' },
+        ],
+      },
+    },
+  })
+
+  const aboutPage = await s.upsert(Page, {
+    title: 'O nás', slug: 'o-nas', status: 'published', position: 1,
+    metaDescription: 'Rodinná pekárna z Dolní Lhoty. Kdo pečeme, z čeho a proč to děláme v malém.',
+    sections: [
+      {
+        type: 'text',
+        body: doc(
+          h2('Rodinná pekárna z Dolní Lhoty'),
+          p('Pekárnu Na Růžku jsme otevřeli v roce 2014 v bývalé trafice. Dnes v ní pečou čtyři lidé a pec zná každý z nich zpaměti.'),
+          quote('Dobrý chléb se nedá uspěchat. Stačí mu dát čas a dobrou mouku.', 'Marie Kovářová, zakladatelka'),
+          p('Mouku bereme z mlýna o dvě vsi dál, mléko od místního statkáře. Co zbyde, odvážíme večer do chráněného bydlení v sousední obci.'),
+        ),
+      },
+      { type: 'image', image: bread, caption: 'Bochník těsně před pecí.' },
+      { type: 'cta', heading: 'Přijďte ochutnat', buttonLabel: 'Kde nás najdete', buttonUrl: refTo(contact) },
+    ],
+  }, {
+    translations: {
+      en: {
+        title: 'About us', slug: 'about',
+        metaDescription: 'A family bakery from Dolní Lhota: who bakes, with what, and why we keep it small.',
+        sections: [
+          {
+            type: 'text',
+            body: doc(
+              h2('A family bakery from Dolní Lhota'),
+              p('We opened Corner Bakery in 2014, in a former tobacconist\'s. Four people bake in it today, and every one of them knows the oven by heart.'),
+              quote('Good bread cannot be rushed. It just needs time and good flour.', 'Marie Kovářová, founder'),
+              p('Our flour comes from a mill two villages away and our milk from a local farmer. What is left over goes in the evening to a sheltered home in the next village.'),
+            ),
+          },
+          { type: 'image', image: bread, caption: 'A loaf just before the oven.' },
+          { type: 'cta', heading: 'Come and taste', buttonLabel: 'Where to find us', buttonUrl: refTo(contact) },
+        ],
+      },
+    },
+  })
+
+  await s.upsert(Page, {
+    title: 'Úvod', slug: 'home', status: 'published', position: 0,
+    metaTitle: 'Pekárna Na Růžku · čerstvé pečivo z Dolní Lhoty',
+    metaDescription: 'Pečeme chleba na kvásku, rohlíky a sladké koláče každý den od půl šesté. Zastavte se na rohu u kostela.',
+    ogImage: hero,
+    sections: [
+      {
+        type: 'hero', heading: 'Chléb, který voní po ránu.',
+        text: 'Pečeme z české mouky a na vlastním kvásku. Každé ráno od půl šesté čerstvé pečivo na rohu u kostela.',
+        image: hero, buttonLabel: 'Co je nového', buttonUrl: '/aktuality',
+      },
+      {
+        type: 'text',
+        body: doc(
+          h2('Pečeme po staru, v malém'),
+          p('Těsto necháváme přes noc kynout a pečeme v kamenné peci. Proto máme každý den jen tolik, kolik za ráno vyprodáme.'),
+          ul('chléb na kvásku, pšeničný i žitný', 'rohlíky, housky a vánočky', 'koláče a štrúdly podle sezóny'),
+          p('Něco chybí? ', bold('Napište nám'), ' a upečeme to na zakázku.'),
+        ),
+      },
+      { type: 'image', image: about, caption: 'Okna naší pekárny, každé ráno od půl šesté.' },
+      { type: 'cta', heading: 'Objednejte si na víkend', buttonLabel: 'Napsat nám', buttonUrl: refTo(contact) },
+    ],
+  }, {
+    translations: {
+      en: {
+        title: 'Home', slug: 'home',
+        metaTitle: 'Corner Bakery · fresh bread from Dolní Lhota',
+        metaDescription: 'Sourdough bread, rolls and sweet pastries baked every day from half past five. Find us on the corner by the church.',
+        sections: [
+          {
+            type: 'hero', heading: 'Bread that smells like morning.',
+            text: 'We bake with Czech flour and our own sourdough. Fresh bread every morning from half past five, on the corner by the church.',
+            image: hero, buttonLabel: 'What is new', buttonUrl: '/en/news',
+          },
+          {
+            type: 'text',
+            body: doc(
+              h2('Baked the old way, in small batches'),
+              p('The dough rises overnight and goes into a stone oven. That is why we only have as much each day as we sell by lunchtime.'),
+              ul('sourdough bread, wheat and rye', 'rolls, buns and plaited loaves', 'pastries and strudels by the season'),
+              p('Missing something? ', bold('Write to us'), ' and we will bake it to order.'),
+            ),
+          },
+          { type: 'image', image: about, caption: 'The windows of our bakery, open from half past five.' },
+          { type: 'cta', heading: 'Order for the weekend', buttonLabel: 'Write to us', buttonUrl: refTo(contact) },
         ],
       },
     },
@@ -261,9 +267,9 @@ export default defineSeed(async (s) => {
     phone: '+420 600 000 000',
     address: 'Pekárna Na Růžku\nU kostela 12\n123 45 Dolní Lhota',
     openingHours: [
-      { days: 'Po–Pá · Mon–Fri', hours: '5:30–17:00' },
-      { days: 'So · Sat', hours: '6:00–12:00' },
-      { days: 'Ne · Sun', hours: '7:00–10:00' },
+      { days: 'Po–Pá', hours: '5:30–17:00' },
+      { days: 'So', hours: '6:00–12:00' },
+      { days: 'Ne', hours: '7:00–10:00' },
     ],
     metaTitle: 'Pekárna Na Růžku',
     metaDescription: 'Rodinná pekárna z Dolní Lhoty: chléb na kvásku, rohlíky a koláče každý den od půl šesté.',
@@ -272,6 +278,11 @@ export default defineSeed(async (s) => {
     translations: {
       en: {
         tagline: 'Fresh bread every day from half past five.',
+        openingHours: [
+          { days: 'Mon–Fri', hours: '5:30–17:00' },
+          { days: 'Sat', hours: '6:00–12:00' },
+          { days: 'Sun', hours: '7:00–10:00' },
+        ],
         metaTitle: 'Corner Bakery',
         metaDescription: 'A family bakery from Dolní Lhota: sourdough bread, rolls and pastries every day from half past five.',
       },

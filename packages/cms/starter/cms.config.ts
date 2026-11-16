@@ -30,7 +30,7 @@ export const SiteSettings = defineSingleton('siteSettings', {
       },
       max: 14,
       itemLabel: { en: 'Opening hours', cs: 'Otevírací doba' },
-    }).label({ en: 'Opening hours', cs: 'Otevírací doba' }),
+    }).localized().label({ en: 'Opening hours', cs: 'Otevírací doba' }),
     ...seo({ localized: true }),
   },
   content: { public: true, populate: ['logo', 'ogImage'] },

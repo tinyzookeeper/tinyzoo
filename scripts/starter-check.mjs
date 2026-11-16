@@ -82,6 +82,9 @@ try {
   // Tarballs instead of version ranges, and one copy of the editor stack (as in the workspace).
   const pkgPath = join(site, 'package.json')
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+  // `tinyzoo init` writes the package's own version as the range (a released 0.2.0 writes ^0.2.0).
+  const packed = JSON.parse(readFileSync(join(root, 'packages/cms/package.json'), 'utf8')).version
+  ok(pkg.dependencies.tinyzoo === `^${packed}` && pkg.dependencies['@tinyzoo/client'] === `^${packed}`, `tinyzoo init should write ^${packed} for tinyzoo and @tinyzoo/client, got ${pkg.dependencies.tinyzoo} and ${pkg.dependencies['@tinyzoo/client']}`)
   pkg.dependencies.tinyzoo = `file:${tgz('tinyzoo-0')}`
   pkg.dependencies['@tinyzoo/client'] = `file:${tgz('tinyzoo-client-')}`
   pkg.pnpm = { overrides: { '@tiptap/core': '3.34.0', '@tiptap/pm': '3.34.0', 'prosemirror-model': '^1.25.13', 'prosemirror-state': '^1.4.4', 'prosemirror-view': '^1.41.0' } }
@@ -157,6 +160,8 @@ try {
   ok((await json('/api/content/news?locale=en')).items.every((n) => /^[A-Z]/.test(n.title) && n.locale === 'en'), 'the English news are missing')
   const settings = (await json('/api/content/_global/siteSettings')).item
   ok(settings.siteName === 'Pekárna Na Růžku' && settings.openingHours.length === 3 && settings.logo?.width === 192, 'site settings are off')
+  const hoursEn = (await json('/api/content/_global/siteSettings?locale=en')).item.openingHours
+  ok(settings.openingHours[0].days === 'Po–Pá' && hoursEn[0].days === 'Mon–Fri', `opening hours should be in each language: ${settings.openingHours[0].days} / ${hoursEn[0].days}`)
   const nav = (await json('/api/content/_global/navigation')).item
   ok(nav.main.map((l) => l.url).join() === '/,/aktuality,/o-nas,/kontakt', `menu: ${nav.main.map((l) => l.url)}`)
   ok((await json('/api/content/_global/navigation?locale=en')).item.main.map((l) => l.url).join() === '/en,/en/news,/en/about,/en/contact', 'the English menu is off')
@@ -170,6 +175,27 @@ try {
     const { res, text: html } = await get(path)
     ok(res.status === 200 && html.includes(text), `${path}: ${res.status}, expected the page to say "${text}"`)
   }
+  // the head: canonical, the other language, a language switcher; the hero picture's slot size
+  const about = (await get('/o-nas')).text
+  ok(about.includes(`<link rel="canonical" href="${base}/o-nas">`) && about.includes(`hreflang="en" href="${base}/en/about"`) && about.includes(`hreflang="x-default" href="${base}/o-nas"`), '/o-nas has no canonical / hreflang links')
+  ok(about.includes(`<meta property="og:url" content="${base}/o-nas">`) && about.includes('og:locale" content="cs_CZ"'), '/o-nas has no og:url / og:locale')
+  ok(/aria-label="Jazyk"[\s\S]*href="\/en\/about"/.test(about), 'the Czech page has no language switcher to /en/about')
+  const aboutEn = (await get('/en/about')).text
+  ok(aboutEn.includes(`<link rel="canonical" href="${base}/en/about">`) && /aria-label="Language"[\s\S]*href="\/o-nas"/.test(aboutEn), '/en/about has no canonical or no switcher back to /o-nas')
+  const homeHtml = (await get('/')).text
+  ok(homeHtml.includes(`<link rel="canonical" href="${base}/">`) && homeHtml.includes(`hreflang="en" href="${base}/en"`), 'the home page should be / (and /en) in its canonical and hreflang links')
+  ok(homeHtml.includes('sizes="(min-width: 768px) 30rem, 100vw"'), 'the hero picture should say how wide it shows (sizes)')
+  const draftHome = await get('/home?preview')
+  ok(draftHome.res.status === 301 && draftHome.res.headers.get('location') === '/?preview', `/home?preview should keep ?preview: ${draftHome.res.status} ${draftHome.res.headers.get('location')}`)
+
+  // the sitemap lists the addresses the website serves, and robots.txt points at it
+  const sitemap = (await get('/sitemap.xml')).text
+  const locs = [...sitemap.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1].replace(base, ''))
+  for (const want of ['/', '/en', '/aktuality', '/en/news', '/o-nas', '/en/about', '/kontakt']) ok(locs.includes(want), `the sitemap misses ${want}: ${locs}`)
+  ok(!locs.some((l) => /\/home$/.test(l)), `the sitemap lists a /home address: ${locs}`)
+  const robots = (await get('/robots.txt')).text
+  ok(/Disallow: \/admin/.test(robots) && robots.includes(`Sitemap: ${base}/sitemap.xml`), `robots.txt: ${robots}`)
+
   const moved = await get('/pekarna')
   ok(moved.res.status === 301 && moved.res.headers.get('location') === '/o-nas', `/pekarna should send visitors to /o-nas, got ${moved.res.status} ${moved.res.headers.get('location')}`)
 
