@@ -339,6 +339,16 @@ Add a new migration instead.
 
 ## For tinyzoo maintainers
 
+### The upgrade test
+
+Every pull request runs a real upgrade: a site made on an older tinyzoo is moved to the
+code in the pull request with the steps this guide gives (`tinyzoo upgrade`, then start with
+migrations on start), and its content is compared before and after. If it fails, a site on
+that version would have failed too: fix the change, or give it the steps and the changeset
+**Upgrade** section it needs. What it checks, which versions it starts from and how to add a
+hook for a documented manual step: CONTRIBUTING.md ("The upgrade test") and
+`scripts/upgrade-check/README.md`.
+
 ### When a change needs an upgrade step
 
 Whenever existing sites need something done that `tinyzoo generate` cannot write:
