@@ -303,9 +303,10 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   const enumInstances: Record<string, any> = {}
   for (const [key, fld] of Object.entries(fields)) {
     if (fld.spec?.base.kind === 'enum') {
-      const enumName = `${name}_${snake(key)}`
+      // SQL name snake_case; the TS variable name stays camelCase of the entity name.
+      const enumName = `${snake(name)}_${snake(key)}`
       enumInstances[key] = pgEnum(enumName, [...fld.spec.base.values] as [string, ...string[]])
-      enums.push({ key, varName: camel(enumName), enumName, values: fld.spec.base.values })
+      enums.push({ key, varName: camel(`${name}_${snake(key)}`), enumName, values: fld.spec.base.values })
     }
   }
 
@@ -326,7 +327,7 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   // Who created / last changed the row (a CMS user id; no FK so external auth works too).
   columns.createdBy = uuid('created_by')
   columns.updatedBy = uuid('updated_by')
-  const table = pgTable(name, columns)
+  const table = pgTable(snake(name), columns)
 
   // Translations: one row per (entry, language) holding the localized fields.
   // Nullable — an empty translation falls back to the default language.
@@ -345,9 +346,10 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
     lcols.createdAt = timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
     lcols.updatedAt = timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
     const uniqueLocalized = localized.filter((k) => fields[k]!.isUnique)
-    localesTable = pgTable(`${name}_locales`, lcols, (t: any) => [
-      uniqueIndex(`${name}_locales_parent_locale_unique`).on(t.parentId, t.locale),
-      ...uniqueLocalized.map((k) => uniqueIndex(`${name}_locales_${snake(k)}_unique`).on(t.locale, t[k])),
+    const localesName = `${snake(name)}_locales`
+    localesTable = pgTable(localesName, lcols, (t: any) => [
+      uniqueIndex(`${localesName}_parent_locale_unique`).on(t.parentId, t.locale),
+      ...uniqueLocalized.map((k) => uniqueIndex(`${localesName}_${snake(k)}_unique`).on(t.locale, t[k])),
     ])
   }
 
@@ -382,7 +384,10 @@ export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(
 
 // ── registry: junctions + serializable graph, memoized per config module ────────
 export interface Junction {
+  /** Schema key and TS export name (camelCase entity names); not the SQL table name. */
   name: string
+  /** The SQL table name: snake_case, or the relation's `through` exactly as given. */
+  tableName: string
   table: any
   ownerEntity: string
   targetEntity: string
@@ -435,17 +440,18 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
       const target = fld.relation.to() as CmsEntity
       const pair = [e.name, target.name].sort()
       const jname = fld.relation.through ?? `${pair[0]}_to_${pair[1]}`
+      const jtableName = fld.relation.through ?? `${snake(pair[0]!)}_to_${snake(pair[1]!)}`
       const ownerCol = `${e.name}Id`
       const targetCol = `${target.name}Id`
-      let jtable = _junctionCache.get(jname)
+      let jtable = _junctionCache.get(jtableName)
       if (!jtable) {
-        jtable = pgTable(jname, {
+        jtable = pgTable(jtableName, {
           [ownerCol]: uuid(`${snake(e.name)}_id`).notNull().references(() => e.table.id, { onDelete: 'cascade' }),
           [targetCol]: uuid(`${snake(target.name)}_id`).notNull().references(() => target.table.id, { onDelete: 'cascade' }),
         }, (t: any) => [primaryKey({ columns: [t[ownerCol], t[targetCol]] })])
-        _junctionCache.set(jname, jtable)
+        _junctionCache.set(jtableName, jtable)
       }
-      const j: Junction = { name: jname, table: jtable, ownerEntity: e.name, targetEntity: target.name, ownerCol, targetCol, fieldKey: key }
+      const j: Junction = { name: jname, tableName: jtableName, table: jtable, ownerEntity: e.name, targetEntity: target.name, ownerCol, targetCol, fieldKey: key }
       junctions.push(j)
       junctionByOwnerField.set(`${e.name}.${key}`, j)
     }

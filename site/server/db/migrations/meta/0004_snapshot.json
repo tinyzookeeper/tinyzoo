@@ -1,6 +1,6 @@
 {
-  "id": "2acfafd3-4a13-4df3-b09d-afb35872710f",
-  "prevId": "855e2b90-1c6d-4545-9d5a-1499f51180d2",
+  "id": "4c06832f-c2dd-46be-8776-6ed071437f15",
+  "prevId": "a202ddbb-6e3c-47de-a4b5-87319e69e4ef",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -735,8 +735,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.contactForm": {
-      "name": "contactForm",
+    "public.feedback": {
+      "name": "feedback",
       "schema": "",
       "columns": {
         "id": {
@@ -758,6 +758,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "role": {
+          "name": "role",
+          "type": "feedback_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
         "message": {
           "name": "message",
           "type": "text",
@@ -766,7 +773,7 @@
         },
         "status": {
           "name": "status",
-          "type": "contactForm_status",
+          "type": "feedback_status",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
@@ -807,8 +814,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.formSettings": {
-      "name": "formSettings",
+    "public.form_settings": {
+      "name": "form_settings",
       "schema": "",
       "columns": {
         "id": {
@@ -1044,6 +1051,14 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'draft'"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "news_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'feature'"
         },
         "published_at": {
           "name": "published_at",
@@ -1615,8 +1630,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.siteSettings": {
-      "name": "siteSettings",
+    "public.site_settings": {
+      "name": "site_settings",
       "schema": "",
       "columns": {
         "id": {
@@ -1638,9 +1653,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "logo_id": {
-          "name": "logo_id",
-          "type": "uuid",
+        "footer_note": {
+          "name": "footer_note",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -1649,25 +1664,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "phone": {
-          "name": "phone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "address": {
-          "name": "address",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "opening_hours": {
-          "name": "opening_hours",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
         },
         "meta_title": {
           "name": "meta_title",
@@ -1716,22 +1712,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "siteSettings_logo_id_cms_media_id_fk": {
-          "name": "siteSettings_logo_id_cms_media_id_fk",
-          "tableFrom": "siteSettings",
-          "tableTo": "cms_media",
-          "columnsFrom": [
-            "logo_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "siteSettings_og_image_id_cms_media_id_fk": {
-          "name": "siteSettings_og_image_id_cms_media_id_fk",
-          "tableFrom": "siteSettings",
+        "site_settings_og_image_id_cms_media_id_fk": {
+          "name": "site_settings_og_image_id_cms_media_id_fk",
+          "tableFrom": "site_settings",
           "tableTo": "cms_media",
           "columnsFrom": [
             "og_image_id"
@@ -1749,8 +1732,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.siteSettings_locales": {
-      "name": "siteSettings_locales",
+    "public.site_settings_locales": {
+      "name": "site_settings_locales",
       "schema": "",
       "columns": {
         "id": {
@@ -1774,6 +1757,12 @@
         },
         "tagline": {
           "name": "tagline",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "footer_note": {
+          "name": "footer_note",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1806,8 +1795,8 @@
         }
       },
       "indexes": {
-        "siteSettings_locales_parent_locale_unique": {
-          "name": "siteSettings_locales_parent_locale_unique",
+        "site_settings_locales_parent_locale_unique": {
+          "name": "site_settings_locales_parent_locale_unique",
           "columns": [
             {
               "expression": "parent_id",
@@ -1829,10 +1818,10 @@
         }
       },
       "foreignKeys": {
-        "siteSettings_locales_parent_id_siteSettings_id_fk": {
-          "name": "siteSettings_locales_parent_id_siteSettings_id_fk",
-          "tableFrom": "siteSettings_locales",
-          "tableTo": "siteSettings",
+        "site_settings_locales_parent_id_site_settings_id_fk": {
+          "name": "site_settings_locales_parent_id_site_settings_id_fk",
+          "tableFrom": "site_settings_locales",
+          "tableTo": "site_settings",
           "columnsFrom": [
             "parent_id"
           ],
@@ -1851,13 +1840,32 @@
     }
   },
   "enums": {
-    "public.contactForm_status": {
-      "name": "contactForm_status",
+    "public.feedback_role": {
+      "name": "feedback_role",
+      "schema": "public",
+      "values": [
+        "developer",
+        "project",
+        "sales",
+        "other"
+      ]
+    },
+    "public.feedback_status": {
+      "name": "feedback_status",
       "schema": "public",
       "values": [
         "new",
         "read",
         "done"
+      ]
+    },
+    "public.news_kind": {
+      "name": "news_kind",
+      "schema": "public",
+      "values": [
+        "feature",
+        "improvement",
+        "fix"
       ]
     },
     "public.news_status": {

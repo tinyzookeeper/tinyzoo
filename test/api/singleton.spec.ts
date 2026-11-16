@@ -17,7 +17,7 @@ describe('globals (singletons)', () => {
     const second = await admin.put('/api/cms/_singleton/siteSettings', { siteName: 'Renamed', tagline: 'Hi' })
     expect(second.body.row.id).toBe(first.body.row.id)
 
-    const { rows } = await db.query('select site_name, tagline from "siteSettings"')
+    const { rows } = await db.query('select site_name, tagline from site_settings')
     expect(rows).toEqual([{ site_name: 'Renamed', tagline: 'Hi' }])
   })
 

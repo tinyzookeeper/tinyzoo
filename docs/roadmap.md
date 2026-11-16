@@ -182,3 +182,50 @@ and the audit has no open High or Medium.
 ## Progress
 
 _Write-ups land here as slices merge._
+
+### 0.2 — snake_case table names
+
+Every SQL identifier the CMS derives from an entity name is now `snake(name)`:
+the table (`site_settings`), its translations table and that table's index names
+(`site_settings_locales`, `site_settings_locales_parent_locale_unique`,
+`…_<field>_unique`), generated junctions (`blog_post_to_post_tag`) and pg enums
+(`contact_form_status`). A relation's `through` name is used exactly as given.
+Everything that is not SQL keeps the entity name: API paths, the graph, the
+`entity` column of `cms_search` / `cms_revisions` / `cms_audit`, the schema keys and
+the camelCase TS export names in the emitted `schema.ts` (`export const siteSettings
+= pgTable('site_settings', …)`). The `Junction` descriptor gained `tableName`
+(`name` stays the schema key). `cmsCrud`'s unique-violation mapping matches the new
+constraint names. `engines: { node: ">=22" }` is set on `tinyzoo`, `@tinyzoo/client`
+and the starter.
+
+Migrations (renames only, no row is touched; each has a snapshot generated from a
+fresh migration of the new schema, so `drizzle-kit generate` reports no changes):
+
+| Host | Migration | Renames |
+|---|---|---|
+| playground | `0018_snake_case_tables` | 3 tables, 2 enums, 3 primary keys, 3 foreign keys |
+| site | `0004_snake_case_tables` | 3 tables, 3 primary keys, 1 foreign key, 1 index |
+| starter | squashed to one `0000_init` (with `CREATE EXTENSION pg_trgm`) | – |
+| Tábor site | none needed | every entity name is already lowercase |
+
+Verified against Postgres: the old migrations (playground 0000–0017, site 0000–0003)
+applied to a scratch database, rows inserted into every renamed table (including a
+translation row, a junction row and enum values), the new migration applied, and all
+rows, foreign keys, enum values and unique indexes were intact. The catalog of
+table, index, constraint and enum names after the migration equalled that of a
+database built from a fresh migration of the new schema.
+
+Traded off / to know:
+- The Tábor site (`feat/snake-case-tables` in its repo) only gets the repacked
+  packages. Its schema has no camelCase names, so nothing is renamed; its next
+  `tinyzoo generate` will still offer the unrelated migration for `cms_search`
+  (the search work), as any upgrade does.
+- A site that has camelCase entities and a relation without `through` gets its
+  junction renamed (`blogPost_to_tag` → `blog_post_to_tag`) by its own generated
+  migration; the two hosts here have none, so that path is covered by a unit test
+  of the names (`test/unit/table-names.spec.ts`), not by a database run.
+- drizzle-kit would turn such a rename into a drop and create. Hand-write the
+  `ALTER … RENAME` statements as in `0018_snake_case_tables.sql`; the future
+  upgrade machinery (Wave 1 A) should do this for the site.
+- The test database name must end in `_test` (`TEST_DATABASE_URL=…/cms_tables_test`).
+

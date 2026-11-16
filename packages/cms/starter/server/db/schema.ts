@@ -3,7 +3,7 @@
 import { pgTable, pgEnum, uuid, text, integer, numeric, boolean, timestamp, jsonb, primaryKey, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import type { CmsBlock, RichTextDoc } from 'tinyzoo'
 
-export const contactFormStatus = pgEnum('contactForm_status', ["new","read","done"])
+export const contactFormStatus = pgEnum('contact_form_status', ["new","read","done"])
 export const newsStatus = pgEnum('news_status', ["draft","published"])
 export const pageStatus = pgEnum('page_status', ["draft","published"])
 
@@ -108,7 +108,7 @@ export const cmsSearch = pgTable('cms_search', {
   index('cms_search_extra_trgm').using('gin', t.extraFolded.op('gin_trgm_ops')),
 ])
 
-export const contactForm = pgTable('contactForm', {
+export const contactForm = pgTable('contact_form', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   email: text('email').notNull(),
@@ -120,7 +120,7 @@ export const contactForm = pgTable('contactForm', {
   updatedBy: uuid('updated_by'),
 })
 
-export const formSettings = pgTable('formSettings', {
+export const formSettings = pgTable('form_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   notifyTo: jsonb('notify_to').$type<CmsBlock[]>().notNull().default([]),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
@@ -220,7 +220,7 @@ export const redirect = pgTable('redirect', {
   updatedBy: uuid('updated_by'),
 })
 
-export const siteSettings = pgTable('siteSettings', {
+export const siteSettings = pgTable('site_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   siteName: text('site_name').notNull(),
   tagline: text('tagline'),
@@ -238,7 +238,7 @@ export const siteSettings = pgTable('siteSettings', {
   updatedBy: uuid('updated_by'),
 })
 
-export const siteSettingsLocales = pgTable('siteSettings_locales', {
+export const siteSettingsLocales = pgTable('site_settings_locales', {
   id: uuid('id').primaryKey().defaultRandom(),
   parentId: uuid('parent_id').notNull().references(() => siteSettings.id, { onDelete: 'cascade' }),
   locale: text('locale').notNull(),
@@ -247,4 +247,4 @@ export const siteSettingsLocales = pgTable('siteSettings_locales', {
   metaDescription: text('meta_description'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
-}, (t) => [uniqueIndex('siteSettings_locales_parent_locale_unique').on(t.parentId, t.locale)])
+}, (t) => [uniqueIndex('site_settings_locales_parent_locale_unique').on(t.parentId, t.locale)])

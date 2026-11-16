@@ -46,7 +46,7 @@ roles, audit log), entity- and **row-level** access enforcement, a polished side
 | Piece | What it does |
 |---|---|
 | `f.*` field factories | each returns a `FieldDescriptor` carrying a **column IR**, a Zod validator, a default, and a UI renderer name |
-| `defineEntity(name, def)` | builds the live Drizzle `pgTable` (the type-inference anchor) + Zod create/update schemas |
+| `defineEntity(name, def)` | builds the live Drizzle `pgTable` (the type-inference anchor; SQL name `snake_case(name)`) + Zod create/update schemas |
 | `buildRegistry(config)` | two-phase: resolves relation thunks, creates m2m junctions, builds the serializable UI graph |
 | `emitSchema(config)` | serializes the **same IR** to `db/schema.ts` source → **one IR, two sinks, zero drift** |
 | `cms` CLI | `generate` (emit schema + `drizzle-kit generate`) / `up` (`drizzle-kit migrate`) |
@@ -207,7 +207,8 @@ title: f.text({ required: true }).localized()
 ```
 
 Text, URL addresses, rich text and blocks can be `.localized()`. The entry's row
-holds the default language; translations live in `<entity>_locales` (typed columns,
+holds the default language; translations live in `<entity>_locales` (the entity name in
+snake_case, like every table: `siteSettings` → `site_settings_locales`; typed columns,
 URL addresses unique per language) and fall back per field to the default. The
 admin edits a translation with the language switcher (default text shown as
 reference). The content API takes `?locale=en`, finds items by translated URL

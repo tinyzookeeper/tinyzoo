@@ -59,11 +59,11 @@ function emitEntityTable(e: CmsEntity): string {
   lines.push(`  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
   lines.push(`  createdBy: uuid('created_by'),`)
   lines.push(`  updatedBy: uuid('updated_by'),`)
-  return `export const ${camel(e.name)} = pgTable('${e.name}', {\n${lines.join('\n')}\n})`
+  return `export const ${camel(e.name)} = pgTable('${snake(e.name)}', {\n${lines.join('\n')}\n})`
 }
 
 function emitJunction(j: Junction): string {
-  return `export const ${camel(j.name)} = pgTable('${j.name}', {
+  return `export const ${camel(j.name)} = pgTable('${j.tableName}', {
   ${j.ownerCol}: uuid('${snake(j.ownerEntity)}_id').notNull().references(() => ${camel(j.ownerEntity)}.id, { onDelete: 'cascade' }),
   ${j.targetCol}: uuid('${snake(j.targetEntity)}_id').notNull().references(() => ${camel(j.targetEntity)}.id, { onDelete: 'cascade' }),
 }, (t) => [primaryKey({ columns: [t.${j.ownerCol}, t.${j.targetCol}] })])`
@@ -82,9 +82,10 @@ function emitLocalesTable(e: CmsEntity): string {
   }
   lines.push(`  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
   lines.push(`  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
-  const idx = [`uniqueIndex('${e.name}_locales_parent_locale_unique').on(t.parentId, t.locale)`]
+  const lname = `${snake(e.name)}_locales`
+  const idx = [`uniqueIndex('${lname}_parent_locale_unique').on(t.parentId, t.locale)`]
   for (const key of e.localized) {
-    if (e.fields[key]!.isUnique) idx.push(`uniqueIndex('${e.name}_locales_${snake(key)}_unique').on(t.locale, t.${key})`)
+    if (e.fields[key]!.isUnique) idx.push(`uniqueIndex('${lname}_${snake(key)}_unique').on(t.locale, t.${key})`)
   }
-  return `export const ${v}Locales = pgTable('${e.name}_locales', {\n${lines.join('\n')}\n}, (t) => [${idx.join(', ')}])`
+  return `export const ${v}Locales = pgTable('${lname}', {\n${lines.join('\n')}\n}, (t) => [${idx.join(', ')}])`
 }

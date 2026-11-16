@@ -123,7 +123,7 @@ export const feedback = pgTable('feedback', {
   updatedBy: uuid('updated_by'),
 })
 
-export const formSettings = pgTable('formSettings', {
+export const formSettings = pgTable('form_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   notifyTo: jsonb('notify_to').$type<CmsBlock[]>().notNull().default([]),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
@@ -224,7 +224,7 @@ export const redirect = pgTable('redirect', {
   updatedBy: uuid('updated_by'),
 })
 
-export const siteSettings = pgTable('siteSettings', {
+export const siteSettings = pgTable('site_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   siteName: text('site_name').notNull(),
   tagline: text('tagline'),
@@ -239,7 +239,7 @@ export const siteSettings = pgTable('siteSettings', {
   updatedBy: uuid('updated_by'),
 })
 
-export const siteSettingsLocales = pgTable('siteSettings_locales', {
+export const siteSettingsLocales = pgTable('site_settings_locales', {
   id: uuid('id').primaryKey().defaultRandom(),
   parentId: uuid('parent_id').notNull().references(() => siteSettings.id, { onDelete: 'cascade' }),
   locale: text('locale').notNull(),
@@ -249,4 +249,4 @@ export const siteSettingsLocales = pgTable('siteSettings_locales', {
   metaDescription: text('meta_description'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
-}, (t) => [uniqueIndex('siteSettings_locales_parent_locale_unique').on(t.parentId, t.locale)])
+}, (t) => [uniqueIndex('site_settings_locales_parent_locale_unique').on(t.parentId, t.locale)])

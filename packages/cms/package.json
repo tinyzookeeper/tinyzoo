@@ -65,5 +65,8 @@
   },
   "bin": {
     "tinyzoo": "./cli/index.ts"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

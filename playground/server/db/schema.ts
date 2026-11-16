@@ -3,8 +3,8 @@
 import { pgTable, pgEnum, uuid, text, integer, numeric, boolean, timestamp, jsonb, primaryKey, index, uniqueIndex } from 'drizzle-orm/pg-core'
 import type { CmsBlock, RichTextDoc, CmsGalleryValue } from 'tinyzoo'
 
-export const contactFormTopic = pgEnum('contactForm_topic', ["question","race","other"])
-export const contactFormStatus = pgEnum('contactForm_status', ["new","read","done"])
+export const contactFormTopic = pgEnum('contact_form_topic', ["question","race","other"])
+export const contactFormStatus = pgEnum('contact_form_status', ["new","read","done"])
 export const pageStatus = pgEnum('page_status', ["draft","published"])
 export const postStatus = pgEnum('post_status', ["draft","published"])
 
@@ -121,7 +121,7 @@ export const author = pgTable('author', {
   updatedBy: uuid('updated_by'),
 })
 
-export const contactForm = pgTable('contactForm', {
+export const contactForm = pgTable('contact_form', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   email: text('email').notNull(),
@@ -135,7 +135,7 @@ export const contactForm = pgTable('contactForm', {
   updatedBy: uuid('updated_by'),
 })
 
-export const formSettings = pgTable('formSettings', {
+export const formSettings = pgTable('form_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   notifyTo: jsonb('notify_to').$type<CmsBlock[]>().notNull().default([]),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
@@ -233,7 +233,7 @@ export const redirect = pgTable('redirect', {
   updatedBy: uuid('updated_by'),
 })
 
-export const siteSettings = pgTable('siteSettings', {
+export const siteSettings = pgTable('site_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   siteName: text('site_name').notNull(),
   tagline: text('tagline'),

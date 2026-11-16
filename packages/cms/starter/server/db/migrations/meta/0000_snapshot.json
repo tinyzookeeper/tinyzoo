@@ -1,5 +1,5 @@
 {
-  "id": "f469b251-4ab0-4ee8-99ec-185d30afd5ad",
+  "id": "e98c4f08-9e1a-4960-8bfa-1c122a0e8b32",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -348,6 +348,151 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.cms_search": {
+      "name": "cms_search",
+      "schema": "",
+      "columns": {
+        "entity": {
+          "name": "entity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "record_id": {
+          "name": "record_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "locale": {
+          "name": "locale",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "extra": {
+          "name": "extra",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "title_folded": {
+          "name": "title_folded",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "body_folded": {
+          "name": "body_folded",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "extra_folded": {
+          "name": "extra_folded",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "cms_search_title_trgm": {
+          "name": "cms_search_title_trgm",
+          "columns": [
+            {
+              "expression": "title_folded",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "cms_search_body_trgm": {
+          "name": "cms_search_body_trgm",
+          "columns": [
+            {
+              "expression": "body_folded",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        },
+        "cms_search_extra_trgm": {
+          "name": "cms_search_extra_trgm",
+          "columns": [
+            {
+              "expression": "extra_folded",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last",
+              "opclass": "gin_trgm_ops"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "cms_search_pk": {
+          "name": "cms_search_pk",
+          "columns": [
+            "entity",
+            "record_id",
+            "locale"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.cms_state": {
       "name": "cms_state",
       "schema": "",
@@ -590,8 +735,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.contactForm": {
-      "name": "contactForm",
+    "public.contact_form": {
+      "name": "contact_form",
       "schema": "",
       "columns": {
         "id": {
@@ -621,7 +766,7 @@
         },
         "status": {
           "name": "status",
-          "type": "contactForm_status",
+          "type": "contact_form_status",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true,
@@ -662,8 +807,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.formSettings": {
-      "name": "formSettings",
+    "public.form_settings": {
+      "name": "form_settings",
       "schema": "",
       "columns": {
         "id": {
@@ -1059,6 +1204,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "meta_title": {
+          "name": "meta_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meta_description": {
+          "name": "meta_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp (3) with time zone",
@@ -1293,6 +1450,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "meta_title": {
+          "name": "meta_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meta_description": {
+          "name": "meta_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp (3) with time zone",
@@ -1446,8 +1615,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.siteSettings": {
-      "name": "siteSettings",
+    "public.site_settings": {
+      "name": "site_settings",
       "schema": "",
       "columns": {
         "id": {
@@ -1547,9 +1716,9 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "siteSettings_logo_id_cms_media_id_fk": {
-          "name": "siteSettings_logo_id_cms_media_id_fk",
-          "tableFrom": "siteSettings",
+        "site_settings_logo_id_cms_media_id_fk": {
+          "name": "site_settings_logo_id_cms_media_id_fk",
+          "tableFrom": "site_settings",
           "tableTo": "cms_media",
           "columnsFrom": [
             "logo_id"
@@ -1560,9 +1729,9 @@
           "onDelete": "set null",
           "onUpdate": "no action"
         },
-        "siteSettings_og_image_id_cms_media_id_fk": {
-          "name": "siteSettings_og_image_id_cms_media_id_fk",
-          "tableFrom": "siteSettings",
+        "site_settings_og_image_id_cms_media_id_fk": {
+          "name": "site_settings_og_image_id_cms_media_id_fk",
+          "tableFrom": "site_settings",
           "tableTo": "cms_media",
           "columnsFrom": [
             "og_image_id"
@@ -1580,8 +1749,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.siteSettings_locales": {
-      "name": "siteSettings_locales",
+    "public.site_settings_locales": {
+      "name": "site_settings_locales",
       "schema": "",
       "columns": {
         "id": {
@@ -1609,6 +1778,18 @@
           "primaryKey": false,
           "notNull": false
         },
+        "meta_title": {
+          "name": "meta_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "meta_description": {
+          "name": "meta_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp (3) with time zone",
@@ -1625,8 +1806,8 @@
         }
       },
       "indexes": {
-        "siteSettings_locales_parent_locale_unique": {
-          "name": "siteSettings_locales_parent_locale_unique",
+        "site_settings_locales_parent_locale_unique": {
+          "name": "site_settings_locales_parent_locale_unique",
           "columns": [
             {
               "expression": "parent_id",
@@ -1648,10 +1829,10 @@
         }
       },
       "foreignKeys": {
-        "siteSettings_locales_parent_id_siteSettings_id_fk": {
-          "name": "siteSettings_locales_parent_id_siteSettings_id_fk",
-          "tableFrom": "siteSettings_locales",
-          "tableTo": "siteSettings",
+        "site_settings_locales_parent_id_site_settings_id_fk": {
+          "name": "site_settings_locales_parent_id_site_settings_id_fk",
+          "tableFrom": "site_settings_locales",
+          "tableTo": "site_settings",
           "columnsFrom": [
             "parent_id"
           ],
@@ -1670,8 +1851,8 @@
     }
   },
   "enums": {
-    "public.contactForm_status": {
-      "name": "contactForm_status",
+    "public.contact_form_status": {
+      "name": "contact_form_status",
       "schema": "public",
       "values": [
         "new",

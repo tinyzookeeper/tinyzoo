@@ -25,7 +25,7 @@ describe('website forms', () => {
   it('accepts an optional choice left unchosen (sent as null, as the form does)', async () => {
     expect((await anonymous().get('/api/content/_form/contactForm')).body.fields.find((f: any) => f.key === 'topic').required).toBe(false)
     expect((await send(anonymous(), { ...good, topic: null })).status).toBe(201)
-    const { rows } = await db.query('select topic from "contactForm"')
+    const { rows } = await db.query('select topic from contact_form')
     expect(rows).toEqual([{ topic: null }])
   })
 
@@ -33,7 +33,7 @@ describe('website forms', () => {
     await admin.put('/api/cms/_singleton/formSettings', { notifyTo: [{ id: 'a', type: 'item', email: 'office@example.com' }] })
     const res = await send(anonymous(), { ...good, topic: 'race', status: 'done' })
     expect(res.status).toBe(201)
-    const { rows } = await db.query('select name, email, topic, status from "contactForm"')
+    const { rows } = await db.query('select name, email, topic, status from contact_form')
     expect(rows).toEqual([{ name: 'Jana', email: 'jana@example.com', topic: 'race', status: 'new' }]) // a visitor cannot set the state
     const mail = await waitForMail('office@example.com')
     expect(mail.text).toContain('Kdy je další závod?')
@@ -45,7 +45,7 @@ describe('website forms', () => {
   it('answers robots like a success but stores nothing', async () => {
     expect((await send(anonymous(), { ...good, _hp: 'http://spam.example' })).status).toBe(200)
     expect((await send(anonymous(), { ...good, _t: 300 })).status).toBe(200)
-    const { rows } = await db.query('select count(*)::int as n from "contactForm"')
+    const { rows } = await db.query('select count(*)::int as n from contact_form')
     expect(rows[0].n).toBe(0)
   })
 
