@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
     linkBase = adminLink(event, '/admin/reset/')
   }
   catch (err) {
-    console.error('[cms] password reset links need cms.publicUrl', err)
+    console.error('[cms] password reset links need cms.publicUrl', redactEmails(safeErrorMessage(err)))
   }
 
   const work = (async () => {
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
     const secret = await issueToken(db, reg, { userId: user.id, kind: 'reset', ttlMs: RESET_TTL_MS })
     await sendCmsMail(resetEmail({ to: user.email, url: linkBase + secret, locale: user.locale }))
     await audit(event, 'auth.reset_request', { userId: user.id })
-  })().catch((err) => console.error('[cms] could not send the password reset email', err))
+  })().catch((err) => console.error('[cms] could not send the password reset email', redactEmails(safeErrorMessage(err))))
 
   event.waitUntil(work)
   return { ok: true }

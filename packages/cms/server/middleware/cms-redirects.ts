@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
     target = await findRedirect(path)
   }
   catch (err) {
-    console.error('[cms] redirect lookup failed', err)
+    console.error('[cms] redirect lookup failed', scrubError(err))
     return
   }
   if (!target) return

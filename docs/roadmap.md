@@ -544,4 +544,89 @@ upgrades). Fixed on three branches (`fix/0.2-blocks`, `fix/0.2-cli`,
 | Low | restore followed symlinks; archives briefly world-readable; `export --only <form>` skipped the submissions rule; pg_dump TLS weaker than the app; no tar size limits; block versions missing from the fingerprint; CLI ignored storage settings in `nuxt.config`; made-up block types passing as known ones; two reads skipping the upgrade; webhook path secrets in error reports; privacy erase scrubbing other people's details | each fixed |
 
 Open: Nitro's own unhandled-error log on stderr still prints failed queries with their
-parameters (Wave 2, slice V).
+parameters (Wave 2, slice V — done, see below).
+
+### 0.2 V — Visual pass and log privacy
+
+Branch `fix/0.2-visual`. `pnpm check` green: 55 test files passed, 2 skipped; 637 tests
+passed, 16 skipped (the backup specs skip without `pg_dump`/`pg_restore`, as before). New:
+6 unit tests (`hushError`, `snapshotError`, `redactEmails`) and one API test, plus assertions in
+two others (`test/api/ops-server.spec.ts`). The API test fails on the old plugin (the email
+is in the log) and passes on the new one.
+
+**How it was looked at.** A production build of the playground (cache dir, own database and
+port), Playwright scripts with a headless Chromium (no shared browser), at 1440 px and 390 px
+(touch emulation), light and dark, Czech and English: 8 combinations per screen. The states
+were put in the database by hand: a page with an unknown block type, a block whose `upgrade`
+throws (a temporary change to the playground's `cta`, reverted before committing), an old
+`cta`, a list inside a block; form messages for one address, an invited account and an audit
+entry for it; a fresh database without a token for the setup page. Each screen got an
+automatic audit (overflow, 44 px targets, WCAG contrast of every text node, unnamed controls,
+raw keys) and was read by eye. Screenshots, before and after, are in
+`docs/screenshots/0.2/` (cropped, 19 files, about 750 KB).
+
+**Found and changed**
+
+| Where | Seen at | What was wrong | Change |
+|---|---|---|---|
+| Block cards (page editor) | all 8 | "could not be brought up to date" named the block by its stored key (`(cta)`), also in Czech | names it by its label (`Výzva k akci`) |
+| Block cards | all 8 | neither card said what the block held, so with several unknown blocks an editor cannot tell which to remove | a line "Obsah: …" from its first stored texts |
+| Block cards | screen reader | three buttons all named "Odebrat" | `aria-label` "Odebrat blok {name}", the card is a labelled group, the icon is hidden |
+| Block cards | light, all sizes | "Odebrat" in red-500: 3.8:1 | error text is red-700 in light (6.5:1); dark was fine |
+| Block cards | phone | Remove and "…" 28 px | 44 px on touch screens |
+| Remove a block of an unknown type | all | no question, only an "Undo" toast, and the type can never be added again | the admin's confirm dialog ("Odebrat blok „testimonials“?", the safe answer has the focus) |
+| The editor's refusals of a whole block (newer version, unknown fields, unknown type, not up to date) | all | the message had no field, so it only showed under the whole list, off screen on a long page, while the block said "Needs attention" without a reason | shown on the block itself (`role="alert"`), also in the locked cards |
+| Same refusals | cs, en | a strict-validation refusal read "Tohle nevypadá správně" / "This doesn't look right" | "Blok obsahuje pole, která web nezná (legacyLabel)…" |
+| List field | all | an item without a type read "…no longer exists ()" | falls back to "Položka" |
+| Setup page | cs, all sizes | validation errors in English ("Invalid email address", "At least 10 characters") | the page's language (`cmsIssueMessage`) |
+| Setup page | all | the cursor was on the name, not on the code; no hint of its shape | the code field has the cursor and the placeholder `XXXX-XXXX-XXXX-XXXX` (when the code is in the log); errors are `role="alert"` |
+| Setup, sign-in, reset, invitation | light, all | muted text on cream 4.37:1 (hints, the line under the title, the footer) | muted is 54 % grey: 4.5:1 on cream, 4.9:1 on white |
+| Setup, sign-in, reset, invitation | phone | fields and buttons 32 px (and a text size that makes iOS zoom — checked: 16 px already) | 44 px on touch (`.cms-touch` on the auth layout) |
+| Privacy | all | the email field was red with `aria-invalid="true"` from the first render (an empty string passed as the error) | no error is `undefined` |
+| Privacy | all | the delete question was a general paragraph ("síťová adresa") that did not say what this lookup would delete | one line per thing found: "2 zprávy z formulářů se smažou i s uloženými verzemi", the account, "V záznamu aktivity (1 záznam)…", "Nejde to vrátit zpět"; "IP adresa" |
+| Privacy | all | messages were listed with raw option keys ("race") and the address that was searched for | the form's labels ("Závod"), no address |
+| Privacy | all | after an erase the heading said "Uloženo k adrese …" above "nothing is stored" | "Smazáno. K adrese … už není nic uloženo." and the note about backups |
+| Privacy | light / dark | the soft red delete button 3.3:1, the counts 2.6:1 (light) and 3.6:1 (dark) | red-700 / muted |
+| Privacy | phone | the two actions wrapped into narrow columns ("Smazat data této osoby" on two lines), the search button 32 px | stacked, full width, 44 px |
+| Retention line (forms list) | all | fine at every size and theme (12 px muted, no overflow); "po 180 dnech" did not say from when | "180 dní po přijetí" (it counts from `created_at`) |
+| Every admin screen | all | the sidebar's group labels (Obsah, Nastavení) in `text-dimmed`: 2.6:1 light, 3.8:1 dark | muted |
+| Folded sidebar | all | the "View website" link had no accessible name | `aria-label` |
+| Confirm dialog | — | a description could only be one paragraph | one short statement per line |
+
+Found by the audit on my own first attempt and fixed before the commit: a second `useFetch`
+with the layout's key (`cms-graph`) made the Privacy form's generated ids differ after
+hydration (label `for` ≠ input `id`, an unlabelled field); the page now reads the layout's
+data with `useNuxtData`. `docs/ui-foundation.md` has the rules that came out of it.
+
+Checked and fine: the Privacy flow end to end (lookup → invalid address → export, a
+`personal-data.json` download → the confirm dialog with the focus on "Zrušit" → delete → the
+result; the account becomes `deleted-<id>@anonymised.invalid`, disabled), keyboard order on
+setup (code → name → email → password → Enter), Esc on the dialogs keeps the data, the
+retention line, no horizontal overflow anywhere, no console errors.
+
+**Log privacy.** Nitro prints every unhandled error itself (`[request error] [unhandled]
+[GET] <url>` and the error with its `cause`); h3 has copied a failed query's message
+(`Failed query: … params: …`) into it. In h3 1.15 / nitropack 2.13 the `error` hook runs
+before the error handler, so `server/plugins/cms-errors.ts` now changes the error there, in
+production: `hushError` (`server/utils/cmsScrub.ts`) sets its message to "Server Error" (what
+the client got already), replaces its causes with the scrubbed copies, drops `data`, and
+clears `unhandled`/`fatal`, the only thing that makes Nitro and h3 print it. The one line
+written is tinyzoo's JSON line. A copy of the original (`snapshotError`) goes to `cms:error` as
+`rawError`. The client's answer does not change (the API test compares the JSON body; a browser
+request gets Nuxt's error page, checked with `Accept: text/html`). This also keeps the request
+URL's query string (`?q=jana@…`) out of the log, which a scrubbed message alone would not.
+Alternatives rejected: a custom Nitro error handler (it has to render for JSON and HTML and for
+a host's own `error.vue`, so it would copy Nuxt's logic), and only scrubbing the message (the
+URL line stays). In `nuxt dev` Nitro's output stays (a developer wants it).
+The package's other `console.error(…, err)` calls (revisions, search, collab, audit, redirects,
+realtime, the setup code) now print `scrubError(err)` or `safeErrorMessage(err)`, and the
+failed-mail lines pass through `redactEmails` (a mail server's refusal repeats the address).
+`docs/deploying.md` ("Logs") is rewritten to say what is true, with the remaining cases: a
+driver message that names a value (an invalid uuid), `cms.mail.transport: "log"`, a site's own
+`console.error`, and the platform's access log (query strings).
+
+**Not done / for later.** The count next to a list's title ("Kontaktní formulář 3", 28 px) and
+placeholders are `text-dimmed` (2.6:1): a token for "quiet but readable" would be a design
+decision. The editor's top bar "More actions" button is 32 px on phones. The Czech minimum-length
+message ("Aspoň 10 znaků") and the hint under it ("Alespoň 10 znaků.") use two spellings. The
+`[request error]` suppression exists only in a production build, by design; `nuxt dev` keeps Nitro's output.

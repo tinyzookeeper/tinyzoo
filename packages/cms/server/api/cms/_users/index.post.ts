@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   }
   catch (err) {
     emailed = false
-    console.error('[cms] could not send the invitation email', err)
+    console.error('[cms] could not send the invitation email', redactEmails(safeErrorMessage(err)))
   }
   await audit(event, 'user.invite', { recordId: user.id, meta: { email: user.email, role: user.role, emailed } })
   setResponseStatus(event, 201)

@@ -9,7 +9,7 @@ export default defineNitroPlugin(() => {
     }
     catch (err) {
       // Not fatal: the status endpoint tries again when someone opens /admin/setup.
-      console.error('[cms] could not prepare the setup code', (err as Error)?.message ?? err)
+      console.error('[cms] could not prepare the setup code', safeErrorMessage(err))
     }
   })()
 })
