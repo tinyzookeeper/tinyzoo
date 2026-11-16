@@ -125,6 +125,7 @@ Found while checking how a site moves from one tinyzoo version to the next
 | H | **Plugin API**: `defineCmsPlugin({ entities, singletons, adminPages, navItems, fields, serverHooks, i18n, upgrades })`, Forms moved onto it as the first plugin, plugin upgrade steps through A | L |
 | I | **Seeding**: `tinyzoo seed` from a typed seed file (the way the Tábor site seeds through the API today); the starter gets demo content | M |
 | U | **Upgrade test in CI**: start from the starter at a given git ref, seed it, then install the current build, `tinyzoo upgrade`, migrate, and run the API smoke tests. Runs on every pull request against the last release tag | M |
+| V | **Visual pass and log privacy**: the Wave 1 screens nobody has looked at (block cards, the editor's refusals, Privacy, retention line, setup code) at phone and desktop, light and dark, cs/en; Nitro's own error log without query parameters | S |
 
 ### Wave 3: ship 0.2
 
