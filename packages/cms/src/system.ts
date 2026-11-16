@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 
 /**
  * The CMS's own tables besides cms_media: people who use the admin, the one-time
@@ -107,6 +107,34 @@ export const cmsState = pgTable('cms_state', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
 })
 
+/**
+ * The search index: what each entry says, as plain text, one row per entry and
+ * language ('' = an entry of a collection without translations, the same in every
+ * language). `*_folded` is lowercased without accents, with trigram indexes
+ * (pg_trgm) for typo-tolerant matching. `body` is what visitors may read; `extra` is
+ * only for the admin's search (hidden fields, the list's searchable fields). Kept up
+ * to date on every change and rebuilt when the search configuration changes.
+ */
+export const cmsSearch = pgTable('cms_search', {
+  entity: text('entity').notNull(),
+  recordId: uuid('record_id').notNull(),
+  locale: text('locale').notNull().default(''),
+  title: text('title').notNull().default(''),
+  body: text('body').notNull().default(''),
+  extra: text('extra').notNull().default(''),
+  titleFolded: text('title_folded').notNull().default(''),
+  bodyFolded: text('body_folded').notNull().default(''),
+  extraFolded: text('extra_folded').notNull().default(''),
+  // The entry's website address in this language (collections with translations).
+  path: text('path'),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ name: 'cms_search_pk', columns: [t.entity, t.recordId, t.locale] }),
+  index('cms_search_title_trgm').using('gin', t.titleFolded.op('gin_trgm_ops')),
+  index('cms_search_body_trgm').using('gin', t.bodyFolded.op('gin_trgm_ops')),
+  index('cms_search_extra_trgm').using('gin', t.extraFolded.op('gin_trgm_ops')),
+])
+
 /** Source emitted verbatim into db/schema.ts (imports provided by the emitter). */
 export const CMS_SYSTEM_SOURCE = `export const cmsUsers = pgTable('cms_users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -169,4 +197,23 @@ export const cmsState = pgTable('cms_state', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
-})`
+})
+
+export const cmsSearch = pgTable('cms_search', {
+  entity: text('entity').notNull(),
+  recordId: uuid('record_id').notNull(),
+  locale: text('locale').notNull().default(''),
+  title: text('title').notNull().default(''),
+  body: text('body').notNull().default(''),
+  extra: text('extra').notNull().default(''),
+  titleFolded: text('title_folded').notNull().default(''),
+  bodyFolded: text('body_folded').notNull().default(''),
+  extraFolded: text('extra_folded').notNull().default(''),
+  path: text('path'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ name: 'cms_search_pk', columns: [t.entity, t.recordId, t.locale] }),
+  index('cms_search_title_trgm').using('gin', t.titleFolded.op('gin_trgm_ops')),
+  index('cms_search_body_trgm').using('gin', t.bodyFolded.op('gin_trgm_ops')),
+  index('cms_search_extra_trgm').using('gin', t.extraFolded.op('gin_trgm_ops')),
+])`

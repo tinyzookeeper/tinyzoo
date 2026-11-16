@@ -21,6 +21,13 @@
  * emerald), or override the variables below in the host's CSS under html[data-cms-admin].
  */
 
+/* Tailwind resets buttons to the arrow cursor; in the admin anything you can click
+   shows the hand (disabled controls keep their own cursor). In the base layer, so
+   specific cursors (resize handles, drag grips) still win. */
+@layer base {
+  html[data-cms-admin] :is(button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary) { cursor: pointer; }
+}
+
 /* ── Light ── */
 html[data-cms-admin] {
   /* tinyzoo's brand (docs/brand/brand-guide.md) */

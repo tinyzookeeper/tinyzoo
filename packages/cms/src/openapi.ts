@@ -263,6 +263,49 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
     }
   }
 
+  // The website search, when some collection lives at an address.
+  if (model.search.collections.length) {
+    const ranges = { type: 'array', items: { type: 'array', items: { type: 'integer' }, minItems: 2, maxItems: 2 }, description: '[start, end) character ranges of the words found' }
+    schemas.CmsSearchItem = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        entity: { type: 'string', enum: model.search.collections },
+        id: { type: 'string', format: 'uuid' },
+        title: { type: 'string' },
+        titleHighlights: ranges,
+        excerpt: { type: 'string', description: 'Text around the first word found; empty when only the title matched' },
+        highlights: ranges,
+        path: { type: ['string', 'null'], description: 'The entry\'s address on the website, in the searched language' },
+        locale: { type: ['string', 'null'] },
+        updatedAt: { type: 'string', format: 'date-time' },
+      },
+      required: ['entity', 'id', 'title', 'titleHighlights', 'excerpt', 'highlights', 'path', 'locale', 'updatedAt'],
+    }
+    paths['/api/content/_search'] = {
+      get: {
+        operationId: 'search',
+        tags: ['search'],
+        summary: 'Search the website',
+        description: `Published entries of ${model.search.collections.join(', ')}, best matches first. Every word must appear (in any order, accents and case ignored); fewer than two letters return nothing.`,
+        parameters: [
+          { name: 'q', in: 'query', required: true, schema: { type: 'string', maxLength: 100 } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 50, default: 10 } },
+          { name: 'entity', in: 'query', description: 'Only these collections (comma-separated)', schema: { type: 'string' } },
+          ...(model.search.locales ? [{ name: 'locale', in: 'query', description: 'Language to search in: only entries translated into it.', schema: { type: 'string', enum: model.search.locales } }] : []),
+        ],
+        responses: {
+          200: {
+            description: 'OK',
+            content: { 'application/json': { schema: { type: 'object', additionalProperties: false, properties: { query: { type: 'string' }, items: { type: 'array', items: REF('CmsSearchItem') }, total: { type: 'integer' } }, required: ['query', 'items', 'total'] } } },
+          },
+          429: { description: 'Too many searches from this visitor' },
+          ...(tokenAuth ? { 401: { description: 'Missing or invalid API token' } } : {}),
+        },
+      },
+    }
+  }
+
   const doc: JsonSchema = {
     openapi: '3.1.0',
     info: {

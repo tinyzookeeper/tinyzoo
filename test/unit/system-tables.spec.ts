@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/pg-core'
-import { cmsAudit, cmsMedia, cmsTokens, cmsUsers } from 'tinyzoo'
+import { cmsAudit, cmsMedia, cmsSearch, cmsTokens, cmsUsers } from 'tinyzoo'
 import * as emitted from '../../playground/server/db/schema'
 
 // The CMS's own tables exist twice: as runtime Drizzle tables and as source
@@ -23,6 +23,7 @@ describe('system tables: runtime definition = emitted schema', () => {
     ['cms_users', cmsUsers, emitted.cmsUsers],
     ['cms_tokens', cmsTokens, emitted.cmsTokens],
     ['cms_audit', cmsAudit, emitted.cmsAudit],
+    ['cms_search', cmsSearch, emitted.cmsSearch],
   ])('%s', (_, runtime, source) => {
     expect(shape(source)).toEqual(shape(runtime))
   })

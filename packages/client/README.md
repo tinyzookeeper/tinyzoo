@@ -50,6 +50,7 @@ It carries no knowledge of your specific schema — all types come from a genera
 - `client.<collection>.list(params?)` → `{ items, total, page, limit }`.
 - `client.<collection>.get(slugOrId)` → the item (throws `CmsError` on 404).
 - `client.collection(name)` — same, with a runtime name.
+- `client.search(query, { locale?, limit?, collections? })` — the website search: published entries of every collection with an address, best first, each with its `path`, an `excerpt` and highlight ranges.
 - `client.openapi()` — fetch the OpenAPI 3.1 document.
 
 Non-2xx responses throw `CmsError` (`.status`, `.statusText`, `.url`, `.body`).

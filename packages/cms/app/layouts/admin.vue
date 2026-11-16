@@ -73,6 +73,12 @@ const navigation = computed<NavigationMenuItem[][]>(() => {
   return groups
 })
 
+// The search's "Go to" list: every place in the menu, plus the account.
+const places = computed(() => [
+  ...navigation.value.flat().filter((i) => i.type !== 'label').map((i) => ({ label: String(i.label), icon: i.icon as string, to: i.to as string })),
+  { label: t('nav.account'), icon: 'i-lucide-user-round', to: '/admin/account' },
+])
+
 const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((p) => p[0]).join('').slice(0, 2).toUpperCase() || '?'
 const initials = computed(() => initialsOf(user.value?.name ?? '?'))
 const roleLabel = computed(() => {
@@ -137,6 +143,10 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
       </template>
 
       <template #default="{ collapsed }">
+        <UDashboardSearchButton
+          :collapsed="collapsed" :label="t('search.button')" :tooltip="collapsed ? { text: t('search.button') } : false"
+          variant="outline" class="ring-default bg-default" :class="collapsed ? '' : 'w-full'"
+        />
         <UNavigationMenu
           v-for="(group, i) in navigation" :key="i"
           :items="group" orientation="vertical" :collapsed="collapsed" tooltip
@@ -174,6 +184,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
     </UDashboardSidebar>
 
     <slot />
+    <CmsSearch :graph="graph ?? []" :places="places" />
     <CmsConfirmDialog />
   </UDashboardGroup>
 </template>

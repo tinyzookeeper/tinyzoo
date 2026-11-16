@@ -44,6 +44,34 @@ export interface GetOptions {
   locale?: string
 }
 
+export interface SearchParams {
+  /** Language to search in (sites with translations): only entries translated into it. */
+  locale?: string
+  /** Most results (1–50, default 10). */
+  limit?: number
+  /** Only these collections. */
+  collections?: string[]
+}
+
+/** One website search result: the entry's address and a snippet around the words found. */
+export interface SearchItem {
+  /** The collection it is in. */
+  entity: string
+  id: string
+  title: string
+  /** Where the words are in the title, as [start, end) character ranges. */
+  titleHighlights: [number, number][]
+  /** A sentence or two of its text around the first word found ('' when only the title matched). */
+  excerpt: string
+  highlights: [number, number][]
+  /** Its address on the website, in the searched language. */
+  path: string | null
+  locale: string | null
+  updatedAt: string
+}
+
+export interface SearchResponse { query: string; items: SearchItem[]; total: number }
+
 export interface CollectionSpec {
   item: unknown
   sort?: string
@@ -69,6 +97,12 @@ export type CmsClient<S extends AnyContentSchema, G extends object = Record<stri
     global: <K extends keyof G & string>(name: K, options?: GetOptions) => Promise<G[K] | null>
     /** Fetch the OpenAPI 3.1 document for this CMS. */
     openapi: () => Promise<unknown>
+    /**
+     * The website search: published entries of every public collection with an address,
+     * best matches first (accents and case do not matter; every word must appear).
+     * A collection named `search` is reached with `client.collection('search')`.
+     */
+    search: (query: string, params?: SearchParams) => Promise<SearchResponse>
   }
 
 /** Thrown for any non-2xx content API response. */
@@ -143,6 +177,12 @@ export function createCmsClient<S extends AnyContentSchema, G extends object = R
     collection,
     global,
     openapi: () => request('/api/openapi.json'),
+    search: (query: string, params: SearchParams = {}) => request<SearchResponse>('/api/content/_search', {
+      q: query,
+      locale: params.locale,
+      limit: params.limit,
+      entity: params.collections?.length ? params.collections.join(',') : undefined,
+    }),
   }
 
   // Access-only proxy: the runtime is schema-agnostic, so collections are resolved

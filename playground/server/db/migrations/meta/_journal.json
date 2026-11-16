@@ -120,6 +120,13 @@
       "when": 1794816422272,
       "tag": "0016_page_seo_translations",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1794826891809,
+      "tag": "0017_search_index",
+      "breakpoints": true
     }
   ]
 }
