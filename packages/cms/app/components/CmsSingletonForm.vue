@@ -91,6 +91,12 @@ const collabHeaders = (): Record<string, string> => {
   for (const k of collab.fields.value) if (!collab.mounted.value.has(k)) return {}
   return { 'x-cms-collab': collab.epoch.value }
 }
+/** "Keep" on text a closed tab left behind: into the form (shared text: for everyone), as an unsaved change. */
+function keepUnsaved(values: Record<string, any>) {
+  for (const [key, value] of Object.entries(values)) {
+    if (!collab?.set(key, structuredClone(toRaw(value)))) state[key] = structuredClone(toRaw(value))
+  }
+}
 function copyDefault(key: string) {
   const value = structuredClone(toRaw(defaults.value[key]))
   if (sharedFields.value.has(key) && collab?.set(key, value)) return
@@ -206,6 +212,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     <div class="cms-editor cms-editor--no-aside" :class="split ? 'cms-editor--split' : ''">
       <div class="cms-editor__main">
         <div class="cms-editor__column">
+          <CmsUnsavedText :collab="collab" @keep="keepUnsaved" />
           <CmsLiveNotice
             :conflict="conflict" :incoming="live?.incoming.value"
             @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"

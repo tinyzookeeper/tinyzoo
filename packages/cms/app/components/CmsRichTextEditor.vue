@@ -22,6 +22,25 @@ const { t } = useCmsI18n()
 const form = inject<{ quiet?: (fn: () => void) => void } | null>('cmsForm', null)
 const shared = props.collab ? inject<CmsCollab | null>('cmsCollab', null) : null
 
+/**
+ * Is this the same text as that? The editor fills in attribute defaults and adds an
+ * empty paragraph after a last heading or list; text written elsewhere (an API client,
+ * an older version) lacks both. That alone is no change — the form must not turn
+ * "unsaved" just because the editor looked at the text.
+ */
+function sameDoc(ed: { schema: any }, a: unknown, b: unknown): boolean {
+  const canon = (v: any) => {
+    if (!v || typeof v !== 'object') return v
+    try {
+      return ed.schema.nodeFromJSON(v).toJSON()
+    }
+    catch {
+      return v
+    }
+  }
+  return sameRichText(canon(a), canon(b))
+}
+
 const editor = useEditor({
   // Shared: the content comes from the shared document, never from here.
   content: props.collab ? undefined : (model.value || { type: 'doc', content: [] }),
@@ -39,7 +58,7 @@ const editor = useEditor({
     const next = editor.getJSON()
     // Only real changes reach the form (an identical value would still mark it
     // dirty; empty text stays "no value", so a translation keeps falling back).
-    if (sameRichText(next, model.value)) return
+    if (sameDoc(editor, next, model.value)) return
     const value = isEmptyRichText(next) && (model.value === null || model.value === undefined) ? model.value : next
     // Someone else typing: the form follows, but it is not unsaved work of this tab.
     const remote = !!(transaction.getMeta(ySyncPluginKey) as any)?.isChangeOrigin
@@ -55,11 +74,11 @@ watch(model, (val) => {
     // The shared document is the truth: when the form loads another value (a newer
     // version, a merge), the form takes the shared text back instead of overwriting
     // what everyone is typing. Replacing it is an explicit choice (collab.set).
-    if (!sameRichText(val, ed.getJSON())) model.value = ed.getJSON()
+    if (!sameDoc(ed, val, ed.getJSON())) model.value = ed.getJSON()
     return
   }
   const next = val || { type: 'doc', content: [] }
-  if (!sameRichText(ed.getJSON(), next)) ed.commands.setContent(next, { emitUpdate: false })
+  if (!sameDoc(ed, ed.getJSON(), next)) ed.commands.setContent(next, { emitUpdate: false })
 })
 
 // Shared: once the editor shows the shared text, the form takes it (it may hold
@@ -69,7 +88,7 @@ if (props.collab) {
   watch(editor, (ed) => {
     if (!ed) return
     const v = ed.getJSON()
-    if (!sameRichText(v, model.value)) model.value = v
+    if (!sameDoc(ed, v, model.value)) model.value = v
     // This field is now shared on the page: merges leave it to the shared text, and
     // an explicit load or copy goes through here, to everyone.
     if (shared) {

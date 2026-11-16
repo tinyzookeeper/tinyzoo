@@ -44,7 +44,7 @@ const textOf = (f: any, v: any): string => {
 const differences = computed(() => {
   const data = selected.value?.data ?? {}
   return Object.keys(data)
-    .filter((k) => !k.endsWith('__media') && byKey.value.has(k) && stableJson(data[k]) !== stableJson(props.current[k]))
+    .filter((k) => !k.endsWith('__media') && byKey.value.has(k) && cmsFormJson(data[k]) !== cmsFormJson(props.current[k]))
     .map((k) => {
       const f = byKey.value.get(k)
       const then = textOf(f, data[k])

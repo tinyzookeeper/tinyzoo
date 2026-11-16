@@ -35,7 +35,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   // The values as last loaded from the server, per field (JSON), to tell which
   // fields this tab changed — "save my changes on top" sends only those.
   let loaded: Record<string, string> = {}
-  const json = stableJson
+  const json = cmsFormJson
 
   /** Fill with a loaded row (and blanks for anything missing). Not a user edit. */
   function load(row: Record<string, any> | null | undefined) {

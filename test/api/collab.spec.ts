@@ -16,7 +16,7 @@ beforeAll(async () => {
 beforeEach(() => truncateAll(db))
 afterAll(() => db.end())
 
-interface Session { name: string; epoch: string; fields: string[]; access: 'write' | 'read'; you?: string }
+interface Session { name: string; epoch: string; fields: string[]; access: 'write' | 'read'; you?: string; unsaved?: { by: string | null; at: string; values: Record<string, any> } | null }
 
 /** A browser tab joining a shared document, as the admin does. */
 class Collaborator {
@@ -103,14 +103,14 @@ describe('shared editing', () => {
 
   it('keeps one history: the same epoch while it is open, and after a save made from it', async () => {
     const a = await createAuthor(admin)
-    const post = await createPost(admin, { author: a.id })
+    const post = await createPost(admin, { author: a.id, body: doc('Uloženo') })
     const first = (await session(editor, 'post', post.id)).body
     const tab = await join(editor, first)
     tab.type('Rozepsáno')
     expect((await session(admin, 'post', post.id)).body.epoch).toBe(first.epoch)
 
-    // A save from the shared document (it says so) keeps the history current.
-    const saved = await editor.request('PATCH', `/api/cms/post/${post.id}`, { json: { title: 'Nový' }, headers: { 'x-cms-collab': first.epoch } })
+    // A save from the shared document (it says so, and holds its text) keeps the history current.
+    const saved = await editor.request('PATCH', `/api/cms/post/${post.id}`, { json: { title: 'Nový', body: { type: 'doc', content: [...doc('Uloženo').content, ...doc('Rozepsáno').content] } }, headers: { 'x-cms-collab': first.epoch } })
     expect(saved.status).toBe(200)
     tab.close()
     await db.query(`update cms_collab set active_at = null`)
@@ -131,6 +131,91 @@ describe('shared editing', () => {
     const stale = new Collaborator(editor, first)
     tabs.push(stale)
     await expect(stale.synced()).rejects.toThrow('refused')
+  })
+
+  describe('text left behind by a tab that closed without saving', () => {
+    /** The document is idle: its last tab left and its text was stored (with who typed it). */
+    const settle = async (name: string) => {
+      const deadline = Date.now() + 8000
+      for (;;) {
+        const { rows } = await db.query(`select active_at is null as idle from cms_collab where name = $1`, [name])
+        const by = await db.query(`select 1 from cms_collab where name = $1`, [`${name}~by`])
+        if (rows[0]?.idle && by.rowCount) return
+        if (Date.now() > deadline) throw new Error('the document did not settle')
+        await new Promise((r) => setTimeout(r, 50))
+      }
+    }
+
+    it('starts the next editor from the saved text and offers the left-over text aside', async () => {
+      const a = await createAuthor(admin)
+      const post = await createPost(admin, { author: a.id, body: doc('Uloženo') })
+      const first = (await session(editor, 'post', post.id)).body
+      expect(first.unsaved).toBeNull()
+      const tab = await join(editor, first)
+      tab.type('Rozepsáno a zapomenuto')
+      tab.close() // closed without saving
+      await settle(first.name)
+
+      const next = (await session(admin, 'post', post.id)).body
+      expect(next.epoch).not.toBe(first.epoch)
+      expect(next.unsaved).toMatchObject({ by: 'Eda Editor' })
+      expect(JSON.stringify(next.unsaved.values.body)).toContain('Rozepsáno a zapomenuto')
+      expect(Date.now() - new Date(next.unsaved.at).getTime()).toBeLessThan(60_000)
+      // The shared document is the saved entry again, not the abandoned text.
+      const ada = await join(admin, next)
+      expect(ada.text()).toContain('Uloženo')
+      expect(ada.text()).not.toContain('Rozepsáno')
+      // The offer stays until somebody decides (a reload keeps it), then it is gone.
+      ada.close()
+      await settle(first.name)
+      expect((await session(editor, 'post', post.id)).body.unsaved).toMatchObject({ by: 'Eda Editor' })
+      expect((await editor.request('DELETE', `/api/cms/_collab/unsaved?entity=post&id=${post.id}`)).status).toBe(200)
+      expect((await session(editor, 'post', post.id)).body.unsaved).toBeNull()
+    })
+
+    it('leaves the document alone while somebody else still has it open', async () => {
+      const a = await createAuthor(admin)
+      const post = await createPost(admin, { author: a.id, body: doc('Uloženo') })
+      const s = (await session(editor, 'post', post.id)).body
+      const tab = await join(editor, s)
+      tab.type('Píšu právě teď')
+      const other = (await session(admin, 'post', post.id)).body
+      expect(other.epoch).toBe(s.epoch)
+      expect(other.unsaved).toBeNull()
+    })
+
+    it('does not mistake saved text, or the editor\'s own tidying of it, for left-over text', async () => {
+      const a = await createAuthor(admin)
+      // Written through the API the way a script might: minimal attributes, ends with a heading.
+      const body = { type: 'doc', content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Odkaz', marks: [{ type: 'link', attrs: { href: 'https://example.com' } }] }] },
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Konec' }] },
+      ] }
+      const post = await createPost(admin, { author: a.id, body })
+      const first = (await session(editor, 'post', post.id)).body
+      const tab = await join(editor, first)
+      tab.close()
+      await new Promise((r) => setTimeout(r, 300))
+      await db.query(`update cms_collab set active_at = null`)
+      const again = (await session(admin, 'post', post.id)).body
+      expect(again.epoch).toBe(first.epoch)
+      expect(again.unsaved).toBeNull()
+    })
+
+    it('does not offer text that was saved from the shared document', async () => {
+      const a = await createAuthor(admin)
+      const post = await createPost(admin, { author: a.id, body: doc('Uloženo') })
+      const first = (await session(editor, 'post', post.id)).body
+      const tab = await join(editor, first)
+      tab.type('Tohle uložím')
+      const saved = await editor.request('PATCH', `/api/cms/post/${post.id}`, { json: { body: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Uloženo' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'Tohle uložím' }] }] } }, headers: { 'x-cms-collab': first.epoch } })
+      expect(saved.status).toBe(200)
+      tab.close()
+      await settle(first.name)
+      const next = (await session(admin, 'post', post.id)).body
+      expect(next.epoch).toBe(first.epoch)
+      expect(next.unsaved).toBeNull()
+    })
   })
 
   it('lets people who may only read watch, but not write', async () => {

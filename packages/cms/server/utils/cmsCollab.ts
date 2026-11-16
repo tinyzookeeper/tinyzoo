@@ -1,7 +1,9 @@
 import { and, eq, sql, type CmsEntity } from 'tinyzoo'
 import * as Y from 'yjs'
-import { prosemirrorJSONToYXmlFragment } from '@tiptap/y-tiptap'
+import { prosemirrorJSONToYXmlFragment, yXmlFragmentToProsemirrorJSON } from '@tiptap/y-tiptap'
 import { editorSchema } from '../../shared/richtext-editor'
+import { stableJson } from '../../shared/json'
+import { withoutTrailingEmpty } from '../../shared/richtext-normalize'
 import type { CmsUser } from './cmsSession'
 
 /**
@@ -19,6 +21,14 @@ import type { CmsUser } from './cmsSession'
  * entry was saved some other way since, or after a week of inactivity. A browser
  * presents its epoch when it connects (the token); one holding an older history is
  * refused and starts over instead of merging stale text back in.
+ *
+ * Text typed in a tab that was closed (or crashed) without saving stays in the
+ * document. The next person to open the entry with nobody else there does not get it
+ * as their own unsaved work: the document starts afresh from the saved entry, and
+ * the left-over text waits in a side row (`<name>~unsaved`, with who typed it and
+ * when) for them to keep or discard. `<name>~by` records who typed last. Both are
+ * ordinary rows of `cms_collab` under names no browser can open as a document, so
+ * they need no table of their own and are purged and dropped with it.
  */
 
 export interface CollabTarget { entity: CmsEntity; id: string; locale: string | null; name: string }
@@ -31,6 +41,41 @@ const STALE_AFTER_S = 7 * 24 * 60 * 60
 
 export function collabName(entity: string, id: string, locale: string | null): string {
   return locale ? `${entity}/${id}/${locale}` : `${entity}/${id}`
+}
+
+const unsavedName = (name: string) => `${name}~unsaved`
+const byName = (name: string) => `${name}~by`
+
+/** The text of one field as one comparable string: schema defaults filled in, trailing empty paragraphs ignored, empty = ''. */
+function comparableText(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  let v: any = value
+  try {
+    v = editorSchema().nodeFromJSON(value).toJSON()
+  }
+  catch { /* text the editor cannot hold is compared as stored */ }
+  v = withoutTrailingEmpty(v)
+  if (v?.type === 'doc' && !(v.content ?? []).length) return ''
+  return stableJson(v)
+}
+
+/** What a stored document holds for each field, as editor JSON. */
+export function documentValues(state: string, keys: string[]): Record<string, any> {
+  const doc = new Y.Doc()
+  try {
+    Y.applyUpdate(doc, decodeState(state))
+    return Object.fromEntries(keys.map((k) => [k, yXmlFragmentToProsemirrorJSON(doc.getXmlFragment(k))]))
+  }
+  finally {
+    doc.destroy()
+  }
+}
+
+/** The fields (with their text) where the shared document is ahead of the saved entry. */
+export function leftoverText(state: string, saved: Record<string, any>): Record<string, any> {
+  const keys = Object.keys(saved)
+  const mine = documentValues(state, keys)
+  return Object.fromEntries(keys.filter((k) => comparableText(mine[k]) !== comparableText(saved[k])).map((k) => [k, mine[k]]))
 }
 
 /** The document a name points at, or null for a made-up one. */
@@ -148,20 +193,78 @@ export async function ensureCollabDocument(t: CollabTarget): Promise<{ epoch: st
     // Times compared on the database's clock (replicas' clocks may differ).
     const [row] = await tx.select({
       epoch: c.epoch,
+      state: c.state,
       baseVersion: c.baseVersion,
+      updatedAt: c.updatedAt,
       active: sql<boolean>`coalesce(${c.activeAt} > now() - make_interval(secs => ${ACTIVE_WINDOW_S}), false)`,
       fresh: sql<boolean>`${c.updatedAt} > now() - make_interval(secs => ${STALE_AFTER_S})`,
     }).from(c).where(eq(c.name, t.name))
     const saved = await savedContent(t, tx)
     if (!saved) throw createError({ statusCode: 404, statusMessage: 'Not found' })
     const sameBase = row && (row.baseVersion?.getTime() ?? null) === (saved.version?.getTime() ?? null)
-    if (row && (row.active || (sameBase && row.fresh))) return { epoch: row.epoch }
+    if (row?.active) return { epoch: row.epoch }
+    if (row && sameBase && row.fresh) {
+      // Nobody has it open. Text in it that was never saved (a tab closed or crashed)
+      // is not this person's work: it waits aside, and they start from the saved entry.
+      // (A document stored before the entry's last save is behind it, not ahead: the
+      // save came from here and the rest of its text is still on its way in.)
+      if (saved.version && row.updatedAt.getTime() < saved.version.getTime()) return { epoch: row.epoch }
+      const left = leftoverText(row.state, saved.values)
+      if (!Object.keys(left).length) return { epoch: row.epoch }
+      const [who] = await tx.select({ name: c.state }).from(c).where(eq(c.name, byName(t.name)))
+      await putSideRow(tx, unsavedName(t.name), JSON.stringify({ by: who?.name ?? null, at: row.updatedAt.toISOString(), values: left }), saved.version)
+    }
     const epoch = crypto.randomUUID()
     const state = encodeState(seedDocument(saved.values))
     await tx.insert(c).values({ name: t.name, epoch, state, baseVersion: saved.version, updatedAt: sql`now()`, activeAt: null })
       .onConflictDoUpdate({ target: c.name, set: { epoch, state, baseVersion: saved.version, updatedAt: sql`now()`, activeAt: null } })
     return { epoch }
   })
+}
+
+/** A side row (see the top of this file): a note kept next to the document. */
+async function putSideRow(db: any, name: string, note: string, version: Date | null) {
+  const c = useCms().reg.cmsCollab
+  await db.insert(c).values({ name, epoch: crypto.randomUUID(), state: note, baseVersion: version, updatedAt: sql`now()`, activeAt: null })
+    .onConflictDoUpdate({ target: c.name, set: { state: note, baseVersion: version, updatedAt: sql`now()` } })
+}
+
+/** Remember who typed last in a document (called as typing is stored). */
+export async function noteCollabEditor(documentName: string, name: string): Promise<void> {
+  const { db } = useCms()
+  await putSideRow(db, byName(documentName), name, null)
+}
+
+export interface UnsavedText { by: string | null; at: string; values: Record<string, any> }
+
+/**
+ * Text left in the document by a tab that closed without saving, for this entry as
+ * it is saved now (a later save makes it obsolete: gone), or null.
+ */
+export async function unsavedText(t: CollabTarget, savedVersion: Date | null): Promise<UnsavedText | null> {
+  const { db, reg } = useCms()
+  const c = reg.cmsCollab
+  const [row] = await db.select({ state: c.state, baseVersion: c.baseVersion }).from(c).where(eq(c.name, unsavedName(t.name)))
+  if (!row) return null
+  if ((row.baseVersion?.getTime() ?? null) !== (savedVersion?.getTime() ?? null)) {
+    await db.delete(c).where(eq(c.name, unsavedName(t.name)))
+    return null
+  }
+  try {
+    const note = JSON.parse(row.state)
+    const keys = new Set(collabFields(t.entity, t.locale))
+    const values = Object.fromEntries(Object.entries(note.values ?? {}).filter(([k]) => keys.has(k)))
+    return Object.keys(values).length ? { by: note.by ?? null, at: String(note.at), values } : null
+  }
+  catch {
+    return null
+  }
+}
+
+/** Forget the left-over text (kept or discarded). */
+export async function dropUnsavedText(t: CollabTarget): Promise<void> {
+  const { db, reg } = useCms()
+  await db.delete(reg.cmsCollab).where(eq(reg.cmsCollab.name, unsavedName(t.name)))
 }
 
 /**

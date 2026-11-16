@@ -584,6 +584,11 @@ export default {
     translationMissing: 'Chybí verze: {lang}',
     translationMissingBody: 'Návštěvníci v tom jazyce uvidí verzi „{lang}“.',
     translate: 'Přeložit',
+    sharedUnsaved: 'Zveřejní se i neuložený text: {names}',
+    sharedUnsavedBody: 'Změny v poli {fields} se uloží a zveřejní spolu se vším ostatním.',
+    unsavedLeft: 'Neuložený text, o kterém jste ještě nerozhodli',
+    unsavedLeftBody: 'Zveřejní se uložená verze. Ten text zůstane stranou, dokud ho neponecháte nebo nezahodíte.',
+    look: 'Zobrazit',
   },
   moment: {
     liveTitle: 'A je to na webu.',
@@ -637,6 +642,11 @@ export default {
     backToList: 'Zpět na seznam',
     reloaded: 'Načteny změny: {name}',
     reloadedSomeone: 'Načteny nejnovější změny',
+    unsavedLeft: 'Neuložený text z {time} od {name}',
+    unsavedLeftAnon: 'Neuložený text z {time}',
+    unsavedLeftBody: 'Někdo tuhle stránku zavřel dřív, než text uložil. Zatím je otevřená uložená verze. Ponechat vloží ten text do formuláře (uložíte ho sami), Zahodit ho smaže.',
+    unsavedKeep: 'Ponechat',
+    unsavedDiscard: 'Zahodit',
   },
   revisions: {
     filesGone: { one: '{count} soubor z té verze byl mezitím smazán a vynechá se.', few: '{count} soubory z té verze byly mezitím smazány a vynechají se.', other: '{count} souborů z té verze bylo mezitím smazáno a vynechá se.' },

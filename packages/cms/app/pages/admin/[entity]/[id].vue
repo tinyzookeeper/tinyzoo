@@ -220,6 +220,12 @@ async function discardChanges() {
 // restarted meanwhile): offered back, never dropped silently.
 const lostText = ref<Record<string, any> | null>(null)
 if (collab) watch(collab.lost, (v) => { if (v) lostText.value = v })
+/** "Keep" on text a closed tab left behind: into the form (shared text: for everyone), as an unsaved change. */
+function keepUnsaved(values: Record<string, any>) {
+  for (const [key, value] of Object.entries(values)) {
+    if (!collab?.set(key, structuredClone(toRaw(value)))) state[key] = structuredClone(toRaw(value))
+  }
+}
 function restoreLost() {
   for (const [key, value] of Object.entries(lostText.value ?? {})) {
     if (!collab?.set(key, value)) state[key] = value
@@ -594,6 +600,24 @@ const reviewChecks = computed(() => {
       })
     }
   }
+  // Text nobody has saved. What is in the form goes live with this publish (it is saved
+  // first) — also what others are typing right now; text a closed tab left behind waits aside, not in it.
+  if (collab && !isNew.value) {
+    const typing = others.value.filter((p) => p.editing).map((p) => p.name)
+    const unsavedShared = (editable.value as any[]).filter((f) => sharedFields.value.has(f.key) && f.key in form.changedFields())
+    if (others.value.length && unsavedShared.length) {
+      out.push({
+        ok: false, title: t('review.sharedUnsaved', { names: (typing.length ? typing : others.value.map((p) => p.name)).join(', ') }),
+        description: t('review.sharedUnsavedBody', { fields: unsavedShared.map((f) => fieldLabel(f)).join(', ') }),
+      })
+    }
+    if (collab.unsaved.value) {
+      out.push({
+        ok: false, title: t('review.unsavedLeft'), description: t('review.unsavedLeftBody'),
+        action: { label: t('review.look'), onClick: () => { reviewOpen.value = false; nextTick(() => window.scrollTo({ top: 0, behavior: 'smooth' })) } },
+      })
+    }
+  }
   return out
 })
 const moment = ref<null | 'published' | 'scheduled'>(null)
@@ -732,6 +756,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             :actions="[{ label: t('live.restoreMine'), color: 'neutral', variant: 'outline', onClick: restoreLost }]"
             close @update:open="(open: boolean) => { if (!open) lostText = null }"
           />
+          <CmsUnsavedText :collab="collab" @keep="keepUnsaved" />
           <CmsLiveNotice
             :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
             :list-to="`/admin/${entity}`"

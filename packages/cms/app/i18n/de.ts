@@ -605,6 +605,11 @@ export default {
     translationMissing: 'Version in {lang} fehlt',
     translationMissingBody: 'Besucher mit dieser Sprache sehen stattdessen die Version in {lang}.',
     translate: 'Übersetzen',
+    sharedUnsaved: 'Veröffentlicht auch nicht gespeicherten Text von {names}',
+    sharedUnsavedBody: 'Änderungen in {fields} werden zusammen mit allem anderen gespeichert und veröffentlicht.',
+    unsavedLeft: 'Nicht gespeicherter Text, über den noch nicht entschieden ist',
+    unsavedLeftBody: 'Die gespeicherte Fassung wird veröffentlicht. Der Text bleibt beiseite, bis Sie ihn behalten oder verwerfen.',
+    look: 'Anzeigen',
   },
   moment: {
     liveTitle: 'Jetzt auf der Website.',
@@ -637,6 +642,11 @@ export default {
     backToList: 'Zurück zur Liste',
     reloaded: 'Mit den Änderungen von {name} aktualisiert',
     reloadedSomeone: 'Mit den neuesten Änderungen aktualisiert',
+    unsavedLeft: 'Nicht gespeicherter Text von {name}, {time}',
+    unsavedLeftAnon: 'Nicht gespeicherter Text von {time}',
+    unsavedLeftBody: 'Jemand hat diese Seite geschlossen, ohne den Text zu speichern. Vorerst ist die gespeicherte Fassung geöffnet. „Behalten“ übernimmt den Text ins Formular (Sie speichern ihn selbst), „Verwerfen“ löscht ihn.',
+    unsavedKeep: 'Behalten',
+    unsavedDiscard: 'Verwerfen',
   },
   revisions: {
     filesGone: { one: '{count} Datei dieser Version wurde inzwischen gelöscht und wird ausgelassen.', other: '{count} Dateien dieser Version wurden inzwischen gelöscht und werden ausgelassen.' },

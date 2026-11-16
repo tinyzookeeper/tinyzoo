@@ -154,6 +154,9 @@ async function startCollabServer(): Promise<Hocuspocus> {
     extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { maxRetriesPerRequest: null }) as any, prefix: `${cmsStorePrefix()}:collab` } as any))
   }
 
+  // With one instance, "nobody has it open" is known the moment the last tab leaves;
+  // with several (Redis) only the 90 s activity window says so.
+  const localOnly = !redisUrl
   const server: Hocuspocus = new Hocuspocus({
     name: 'cms',
     extensions,
@@ -207,7 +210,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
       return document
     },
 
-    async onStoreDocument({ documentName, document }) {
+    async onStoreDocument({ documentName, document, context }) {
       const epoch = loadedEpoch.get(documentName)
       if (!epoch) return
       const state = encodeState(document)
@@ -220,8 +223,13 @@ async function startCollabServer(): Promise<Hocuspocus> {
       const c = reg.cmsCollab
       // Only into the history it came from: a document restarted meanwhile is not overwritten.
       // An error is thrown on: Hocuspocus keeps the document loaded and tries again.
-      const stored: any[] = await db.update(c).set({ state, updatedAt: sql`now()`, activeAt: sql`now()` })
+      // Active while someone has it open; the last save after everyone left does not make it so.
+      const active = !localOnly || document.getConnectionsCount() > 0
+      const stored: any[] = await db.update(c).set({ state, updatedAt: sql`now()`, activeAt: active ? sql`now()` : null })
         .where(and(eq(c.name, documentName), eq(c.epoch, epoch))).returning({ name: c.name })
+      // Who typed last: shown with text that is left behind unsaved.
+      const typist = (context as CollabContext | undefined)?.displayName
+      if (stored.length && typist) await noteCollabEditor(documentName, typist).catch(() => {})
       if (!stored.length) {
         // Restarted (or deleted) meanwhile: what is loaded here is an old history.
         console.warn(`[cms] collab: ${documentName} was restarted elsewhere; closing its old copy here`)
@@ -233,10 +241,15 @@ async function startCollabServer(): Promise<Hocuspocus> {
       loadedEpoch.delete(documentName)
     },
 
-    async onDisconnect({ socketId, documentName }) {
+    async onDisconnect({ socketId, documentName, clientsCount }) {
       const docs = docsBySocket.get(socketId)
       docs?.delete(documentName)
       if (docs && !docs.size) docsBySocket.delete(socketId)
+      // The last one left: nobody has it open now (not for another minute and a half).
+      if (localOnly && clientsCount === 0) {
+        const { db, reg } = useCms()
+        await db.update(reg.cmsCollab).set({ activeAt: null }).where(eq(reg.cmsCollab.name, documentName)).catch(() => {})
+      }
     },
 
     async beforeHandleMessage({ context, update, connection, document }) {
@@ -326,9 +339,10 @@ export async function dropCollabDocuments(entity: string, id: string, locale?: s
   try {
     const { db, reg } = useCms()
     const c = reg.cmsCollab
+    // The document, its side rows (left-over text, last typist), and a translation's own.
     const names: string[] = locale
-      ? [name]
-      : (await db.select({ name: c.name }).from(c).where(sql`${c.name} = ${name} or starts_with(${c.name}, ${name + '/'})`)).map((r: any) => r.name)
+      ? [name, `${name}~unsaved`, `${name}~by`]
+      : (await db.select({ name: c.name }).from(c).where(sql`${c.name} = ${name} or starts_with(${c.name}, ${name + '/'}) or starts_with(${c.name}, ${name + '~'})`)).map((r: any) => r.name)
     if (!names.length) return
     await db.delete(c).where(inArray(c.name, names))
     for (const n of names) instance?.closeConnections(n)

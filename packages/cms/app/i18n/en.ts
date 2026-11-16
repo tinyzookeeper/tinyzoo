@@ -606,6 +606,11 @@ export default {
     translationMissing: '{lang} version missing',
     translationMissingBody: 'Visitors in that language will see the {lang} version instead.',
     translate: 'Translate',
+    sharedUnsaved: 'This also publishes unsaved text from {names}',
+    sharedUnsavedBody: 'Changes in {fields} are saved and published along with everything else.',
+    unsavedLeft: 'Unsaved text you haven’t decided about',
+    unsavedLeftBody: 'The saved version is published. That text stays aside until you keep or discard it.',
+    look: 'Show me',
   },
   moment: {
     liveTitle: 'It’s on the website.',
@@ -638,6 +643,11 @@ export default {
     backToList: 'Back to the list',
     reloaded: 'Updated with {name}’s changes',
     reloadedSomeone: 'Updated with the latest changes',
+    unsavedLeft: 'Unsaved text from {time} by {name}',
+    unsavedLeftAnon: 'Unsaved text from {time}',
+    unsavedLeftBody: 'Someone closed this page before saving that text. The saved version is open for now. Keep puts the text into the form (you save it yourself); Discard deletes it.',
+    unsavedKeep: 'Keep',
+    unsavedDiscard: 'Discard',
   },
   revisions: {
     filesGone: { one: '{count} file from that version was deleted since and is left out.', other: '{count} files from that version were deleted since and are left out.' },
