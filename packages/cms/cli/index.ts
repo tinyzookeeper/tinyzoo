@@ -5,6 +5,8 @@
  *   tinyzoo up                → `drizzle-kit migrate`
  *   tinyzoo client [out]      → emit the typed @tinyzoo/client bindings (default cms-content.ts; --stdout)
  *   tinyzoo openapi [out]     → emit the OpenAPI 3.1 document (default openapi.json; --stdout)
+ *   tinyzoo backup [file]     → database (pg_dump) + media in one tar archive
+ *   tinyzoo restore <file>    → put such an archive back (--yes skips the question, --force replaces a database that has accounts)
  *   tinyzoo init <dir>        → a new website with the CMS inside (the starter: pages, news,
  *                               menus, a contact form, cs/en), ready for `pnpm install`
  * Run from the host app root (cwd = host). Designed to run under tsx.
@@ -108,7 +110,9 @@ switch (cmd) {
   case 'up': drizzleKit('migrate'); break
   case 'client': await client(); break
   case 'openapi': await openapi(); break
+  case 'backup': await (await import('./backup')).backup(process.argv.slice(3)); break
+  case 'restore': await (await import('./backup')).restore(process.argv.slice(3)); break
   default:
-    console.error('usage: tinyzoo <init|generate|up|client|openapi> [out] [--stdout]')
+    console.error('usage: tinyzoo <init|generate|up|client|openapi|backup|restore> [out] [--stdout]')
     process.exit(1)
 }
