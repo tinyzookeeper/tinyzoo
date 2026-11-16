@@ -134,6 +134,18 @@ Found while checking how a site moves from one tinyzoo version to the next
 | K | Release 0.2.0 to npm; the Tábor site on the registry version; a staging site on Pushbase with a backup **and a tried restore**; upgrade test against the 0.2.0 tag from then on | M |
 | L | Final audit (Track C of the pilot plan): six auditors, a verify pass, all High and Medium fixed, failed scenarios re-run | M |
 
+**Deploy order once the 0.2 work is merged** (set by Vojtěch, 2026-11-16; this is
+slice K's staging part):
+
+1. The private-file change in tinyzoo.
+2. Provision storage (buckets) for both Pushbase projects: the tinyzoo website
+   and the demo.
+3. Link the storage and set the driver (`NUXT_CMS_STORAGE_DRIVER=s3` and the
+   bucket variables, see `docs/deploying.md`).
+4. Deploy both from `main`.
+5. Seed the website (its admin account already exists), then set up and seed
+   the demo.
+
 **0.2 is done when:** the pilot can be built from the docs alone, the staging site
 survived an upgrade and a restore, and the audit has no open High or Medium.
 
