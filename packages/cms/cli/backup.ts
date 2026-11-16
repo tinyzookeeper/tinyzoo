@@ -37,7 +37,7 @@ import { extractTar } from './tar'
 
 // ── settings ───────────────────────────────────────────────────────────────────
 
-export interface S3Settings { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string }
+export interface S3Settings { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string; delivery?: string }
 export interface StorageSettings {
   driver: 'local' | 's3' | 'r2'
   localDir: string
@@ -78,6 +78,7 @@ export function settingsFrom(cwd: string, env: NodeJS.ProcessEnv, cms: any): Bac
         accessKeyId: env.NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID || s3.accessKeyId || '',
         secretAccessKey: env.NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY || s3.secretAccessKey || '',
         publicBaseUrl: env.NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL || s3.publicBaseUrl || '',
+        delivery: env.NUXT_CMS_STORAGE_S3_DELIVERY || s3.delivery || '',
       },
     },
   }

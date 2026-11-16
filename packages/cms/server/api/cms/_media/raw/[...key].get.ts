@@ -1,11 +1,41 @@
-// GET /api/cms/_media/raw/** — serve a blob from the LocalDriver. Public on
-// purpose: media behave like CDN assets (the frontend renders them in <img>).
-// Cloud drivers (S3/R2) hand out their own URLs and never hit this route.
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+
+// GET /api/cms/_media/raw/** — serve an uploaded file. Public on purpose: media behave
+// like CDN assets (the frontend renders them in <img>).
+//
+//  - local driver: streams the file from disk;
+//  - S3 with delivery 'proxy' (the default for a private bucket): streams the object from
+//    the bucket — never held in memory, so a video larger than the pod's RAM is fine;
+//  - S3 with delivery 'redirect': 302 to a signed address that lives five minutes (made
+//    per request, never stored);
+//  - S3 with delivery 'public': new files are stored under the bucket's own address and
+//    this route is not used for them; it still serves the app paths of rows made before
+//    a switch (a site that moved from the local driver).
 export default defineEventHandler(async (event) => {
   const key = getRouterParam(event, 'key')
   if (!key) throw createError({ statusCode: 400, statusMessage: 'Missing key' })
 
-  const obj = await useCmsStorage().get(key)
+  const storage = useCmsStorage()
+
+  if (storage.delivery === 'redirect' && storage.presign) {
+    let address: string
+    try {
+      address = await storage.presign(key, PRESIGN_SECONDS)
+    }
+    catch (err: any) {
+      if (err?.statusCode) throw err
+      throw createError({ statusCode: 502, statusMessage: 'Media storage is not available', cause: new Error('Could not sign an address') })
+    }
+    // The browser may keep the redirect for less time than the address lives.
+    setResponseHeader(event, 'Cache-Control', 'private, max-age=' + REDIRECT_CACHE_SECONDS)
+    return sendRedirect(event, address, 302)
+  }
+
+  const obj = await storage.read(key, {
+    range: String(getRequestHeader(event, 'range') ?? '') || undefined,
+    ifNoneMatch: String(getRequestHeader(event, 'if-none-match') ?? '') || undefined,
+  })
   if (!obj) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
   setResponseHeader(event, 'Content-Type', obj.contentType)
@@ -14,25 +44,34 @@ export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'X-Content-Type-Options', 'nosniff')
   setResponseHeader(event, 'Content-Security-Policy', "default-src 'none'; sandbox")
   setResponseHeader(event, 'Content-Disposition', 'inline')
-  setResponseHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
   // Byte ranges: Safari will not play a video without them, and every browser seeks
   // and resumes with them. One range only (bytes=a-b, a-, -n); others get the whole file.
   setResponseHeader(event, 'Accept-Ranges', 'bytes')
-  const size = obj.body.length
-  const range = /^bytes=(\d*)-(\d*)$/.exec(String(getRequestHeader(event, 'range') ?? '').trim())
-  if (range && (range[1] || range[2])) {
-    let start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]))
-    let end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1
-    if (!range[1]) end = size - 1
-    if (start >= size || start > end) {
-      setResponseHeader(event, 'Content-Range', `bytes */${size}`)
-      throw createError({ statusCode: 416, statusMessage: 'Range not satisfiable' })
-    }
-    start = Math.max(0, start)
-    setResponseStatus(event, 206)
-    setResponseHeader(event, 'Content-Range', `bytes ${start}-${end}/${size}`)
-    setResponseHeader(event, 'Content-Length', end - start + 1)
-    return obj.body.subarray(start, end + 1)
+  if (obj.etag) setResponseHeader(event, 'ETag', obj.etag)
+  if (obj.lastModified) setResponseHeader(event, 'Last-Modified', obj.lastModified)
+
+  if (obj.status === 416) {
+    if (obj.contentRange) setResponseHeader(event, 'Content-Range', obj.contentRange)
+    throw createError({ statusCode: 416, statusMessage: 'Range not satisfiable' })
   }
-  return obj.body
+  setResponseHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
+  setResponseStatus(event, obj.status)
+  if (obj.status === 304 || !obj.body) return null
+  if (obj.status === 206 && obj.contentRange) setResponseHeader(event, 'Content-Range', obj.contentRange)
+  if (obj.contentLength !== undefined) setResponseHeader(event, 'Content-Length', obj.contentLength)
+  if (event.method === 'HEAD') {
+    await obj.body.cancel().catch(() => {})
+    return ''
+  }
+
+  // A Node pipeline, not h3's stream helper: it waits for the socket to drain (a slow
+  // phone does not make the pod buffer the video) and, when the visitor leaves, cancels
+  // the read from the bucket or the disk.
+  try {
+    await pipeline(Readable.fromWeb(obj.body as any), event.node.res)
+  }
+  catch (err: any) {
+    // A visitor who closes the tab ends the pipeline early: not an error.
+    if (err?.code !== 'ERR_STREAM_PREMATURE_CLOSE') console.error('[cms] a file could not be streamed', scrubError(err))
+  }
 })

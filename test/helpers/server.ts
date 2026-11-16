@@ -35,6 +35,8 @@ const freePort = () => new Promise<number>((resolve, reject) => {
 
 export interface SpawnedServer {
   baseURL: string
+  /** The process id, for measuring its memory. */
+  pid: number
   logs: string[]
   /** Resolves with the first match of `pattern` in the server's output (already printed or to come). */
   waitForLog(pattern: RegExp, timeoutMs?: number): Promise<RegExpExecArray>
@@ -77,7 +79,7 @@ export async function startServer(databaseUrl: string, env: Record<string, strin
     await new Promise((r) => setTimeout(r, 150))
   }
   return {
-    baseURL, logs,
+    baseURL, logs, pid: child.pid!,
     async waitForLog(pattern, timeoutMs = 10_000) {
       const until = Date.now() + timeoutMs
       for (;;) {
