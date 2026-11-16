@@ -78,7 +78,8 @@ export function useCmsSeo(
     htmlAttrs: { lang: () => locale.value },
     link: () => {
       if (!base.value) return []
-      const links: { rel: string; href: string; hreflang?: string }[] = []
+      // Each shape spelled out: unhead's link types are a union keyed on `rel`, which a loose { rel: string } does not satisfy.
+      const links: ({ rel: 'canonical'; href: string } | { rel: 'alternate'; hreflang: string; href: string })[] = []
       if (canonical.value) links.push({ rel: 'canonical', href: canonical.value })
       // The versions point at each other (itself included); one version alone has nothing to say.
       if (versions.value.length > 1) {
