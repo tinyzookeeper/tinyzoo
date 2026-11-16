@@ -7,8 +7,11 @@
  *   --only a,b           only these entities (and the media they use)
  *   --no-media           media rows without the files (the target already has them)
  *   --with-revisions     saved versions too
- *   --with-submissions   form submissions too (personal data: left out by default)
+ *   --with-submissions   form submissions too (personal data: left out by default, and
+ *                        refused by name in --only without this flag)
  *   --force              overwrite an existing file
+ *
+ * The file is created readable by its owner only (0600), from the first byte.
  *
  * Everything is read in ONE `REPEATABLE READ` read-only transaction, so the archive is
  * a consistent snapshot even while editors keep saving. Tables are read in pages
@@ -25,8 +28,8 @@ import { asc, getTableColumns, gt, inArray } from 'drizzle-orm'
 import { buildRegistry, type CmsEntity, type CmsRegistry } from '../src/index'
 import { type TarEntry, writeTarGz } from './tar'
 import {
-  ARCHIVE_FILES, ARCHIVE_FORMAT, BATCH, JsonlWriter, connectDb, databaseUrlFromEnv, dependencyOrder, describeSchema,
-  encodeEntry, fingerprintOf, iso, layoutOf, loadDotEnv, mediaIdsOfEntry, parseArgs, storageFromEnv, tinyzooVersion,
+  ARCHIVE_FILES, ARCHIVE_FORMAT, BATCH, JsonlWriter, connectDb, dependencyOrder, describeSchema,
+  encodeEntry, fingerprintOf, hostSettings, iso, layoutOf, mediaIdsOfEntry, parseArgs, storageFingerprint, storageFromSettings, tinyzooVersion,
   type Manifest, type ManifestEntity, type TransferStorage,
 } from './transfer'
 
@@ -41,6 +44,12 @@ export interface ExportOptions {
   media?: boolean
   withRevisions?: boolean
   withSubmissions?: boolean
+  /**
+   * Identifies the storage the files normally live in (`TransferStorage.identity`),
+   * recorded as a fingerprint so an import into the same storage can warn. Defaults to
+   * `storage.identity`; pass it with `--no-media`, where there is no storage to read.
+   */
+  storageIdentity?: string | null
   force?: boolean
   log?: (message: string) => void
 }
@@ -80,6 +89,11 @@ export async function exportContent(opts: ExportOptions): Promise<ExportResult> 
     const unknown = only.filter((n) => !reg.byName.has(n))
     if (unknown.length) throw new Error(`Unknown content in --only: ${unknown.join(', ')} (this site has: ${reg.entities.map((e) => e.name).join(', ')})`)
     selected = only.map((n) => reg.byName.get(n)!)
+    // Asking for a form by name is not asking for its visitors' messages: say so.
+    const forms = selected.filter((e) => excludedByDefault(e))
+    if (forms.length && !opts.withSubmissions) {
+      throw new Error(`${forms.map((e) => e.name).join(', ')} hold${forms.length === 1 ? 's' : ''} form submissions (personal data): add --with-submissions to export them, or leave ${forms.length === 1 ? 'it' : 'them'} out of --only.`)
+    }
   }
   else {
     selected = []
@@ -99,7 +113,8 @@ export async function exportContent(opts: ExportOptions): Promise<ExportResult> 
     const manifestEntities: ManifestEntity[] = []
     const usedMedia = new Set<string>()
     const mediaFiles: string[] = []
-    const media: Manifest['media'] = { rows: 0, included: withMedia, files: 0, missing: 0 }
+    const identity = opts.storageIdentity !== undefined ? opts.storageIdentity : opts.storage?.identity ?? null
+    const media: Manifest['media'] = { rows: 0, included: withMedia, files: 0, missing: 0, storage: identity ? storageFingerprint(identity) : null }
     let revisionRows = 0
 
     await db.transaction(async (tx: any) => {
@@ -264,7 +279,7 @@ export async function exportContent(opts: ExportOptions): Promise<ExportResult> 
     await mkdir(dirname(file), { recursive: true })
     const partial = `${file}.partial`
     try {
-      await writeTarGz(partial, entries)
+      await writeTarGz(partial, entries) // created 0600
       await rename(partial, file)
     }
     catch (err) {
@@ -294,16 +309,21 @@ export async function runExport(argv: string[], cwd = process.cwd()): Promise<vo
   const args = parseArgs(argv, ['only', 'database-url', 'uploads'], ['no-media', 'with-revisions', 'with-submissions', 'force'])
   const file = args.positional[0]
   if (!file || args.positional.length > 1) throw new Error(EXPORT_USAGE)
-  loadDotEnv(cwd)
-  const databaseUrl = args.values['database-url'] ?? databaseUrlFromEnv()
+  // The same settings the running app uses: environment, .env, then nuxt.config.
+  const settings = await hostSettings(cwd)
+  const databaseUrl = args.values['database-url'] ?? (settings.databaseUrl || null)
   if (!databaseUrl) throw new Error('No database: set DATABASE_URL in the environment or the website\'s .env')
   const reg = await loadRegistry(cwd)
   const noMedia = args.flags.has('no-media')
-  const storage = noMedia ? null : storageFromEnv(cwd, process.env, { dir: args.values.uploads })
+  const override = { dir: args.values.uploads, cwd }
+  const storage = noMedia ? null : storageFromSettings(settings.storage, override)
+  // With --no-media there is nothing to read, but the archive still says where the files live.
+  let storageIdentity: string | null = storage?.identity ?? null
+  if (noMedia) { try { storageIdentity = storageFromSettings(settings.storage, override).identity } catch { storageIdentity = null } }
   console.log(`Exporting to ${resolve(cwd, file)}${storage ? ` (media from ${storage.describe})` : ''}`)
   const started = Date.now()
   const { manifest, bytes, file: written } = await exportContent({
-    reg, databaseUrl, storage, file: resolve(cwd, file),
+    reg, databaseUrl, storage, storageIdentity, file: resolve(cwd, file),
     only: args.values.only ? args.values.only.split(',').map((s) => s.trim()).filter(Boolean) : null,
     media: !noMedia,
     withRevisions: args.flags.has('with-revisions'),

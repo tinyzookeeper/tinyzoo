@@ -10,7 +10,13 @@
  *
  * A plain tar (the system's `tar`), so it can be listed and unpacked without tinyzoo.
  * It holds password hashes, form messages and every upload: keep it as private as the
- * database (the file is written readable by its owner only).
+ * database (the file is created readable by its owner only, before the first byte).
+ *
+ * Restore puts the archive into a CLEAN database: the `public` and `drizzle` schemas
+ * are dropped and recreated in one transaction, then `pg_restore --single-transaction`
+ * fills them (it is all or nothing: a failed restore leaves the database empty, never
+ * half old and half new), then the media are written. Restoring over a database that
+ * has tables needs `--force`.
  *
  * Needs `pg_dump` / `pg_restore` of the server's major version or newer. Set
  * TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE to use a particular binary or a wrapper script
@@ -21,17 +27,24 @@
  * `cms:` options of nuxt.config), so run it from the site's folder.
  */
 import { spawn, spawnSync } from 'node:child_process'
-import { chmodSync, closeSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
+import { extractTar } from './tar'
 
 // ── settings ───────────────────────────────────────────────────────────────────
 
-export interface S3Settings { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string }
-export interface StorageSettings { driver: 'local' | 's3' | 'r2'; localDir: string; s3: S3Settings }
+export interface S3Settings { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string }
+export interface StorageSettings {
+  driver: 'local' | 's3' | 'r2'
+  localDir: string
+  /** Where the local folder is served from (`/api/cms/_media/raw`). */
+  localPublicBase?: string
+  s3: S3Settings
+}
 export interface BackupSettings { databaseUrl: string; storage: StorageSettings }
 
 /** The database and media settings the app itself would use, read from the site's folder. */
@@ -57,12 +70,14 @@ export function settingsFrom(cwd: string, env: NodeJS.ProcessEnv, cms: any): Bac
     storage: {
       driver,
       localDir: resolve(cwd, env.NUXT_CMS_STORAGE_LOCAL_DIR || s.local?.dir || '.cms-uploads'),
+      localPublicBase: env.NUXT_CMS_STORAGE_LOCAL_PUBLIC_BASE || s.local?.publicBase || '/api/cms/_media/raw',
       s3: {
         endpoint: env.NUXT_CMS_STORAGE_S3_ENDPOINT || s3.endpoint || '',
         region: env.NUXT_CMS_STORAGE_S3_REGION || s3.region || (driver === 'r2' ? 'auto' : 'us-east-1'),
         bucket: env.NUXT_CMS_STORAGE_S3_BUCKET || s3.bucket || '',
         accessKeyId: env.NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID || s3.accessKeyId || '',
         secretAccessKey: env.NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY || s3.secretAccessKey || '',
+        publicBaseUrl: env.NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL || s3.publicBaseUrl || '',
       },
     },
   }
@@ -73,22 +88,57 @@ const fail = (message: string): never => { throw new CliError(message) }
 
 // ── Postgres tools ─────────────────────────────────────────────────────────────
 
+/**
+ * How a connection string's TLS settings become libpq's — the same protection the app
+ * gets from node-postgres (pg-connection-string 2.x, which `new pg.Client` uses):
+ *
+ *   sslmode=disable                          no TLS
+ *   sslmode=prefer|require|verify-ca|verify-full,
+ *   ssl=true|1, or any of sslrootcert / sslcert / sslkey
+ *                                            TLS, certificate AND host name verified
+ *                                            → libpq `verify-full` (libpq's own `require`
+ *                                            would accept any certificate)
+ *   sslmode=no-verify                        TLS, certificate not checked → `require`
+ *   uselibpqcompat=true                      libpq's own meanings, passed through
+ *
+ * `sslrootcert`, `sslcert` and `sslkey` are passed on as PGSSLROOTCERT / PGSSLCERT /
+ * PGSSLKEY, and PGSSL* variables of the shell stay (node-postgres reads PGSSLMODE too).
+ * Nothing in the URL means whatever the environment says, as for the app.
+ */
+export function sslEnv(u: URL): Record<string, string> {
+  const q = (k: string) => u.searchParams.get(k)
+  const out: Record<string, string> = {}
+  const mode = q('sslmode')
+  const flag = q('ssl')
+  const files = { sslrootcert: 'PGSSLROOTCERT', sslcert: 'PGSSLCERT', sslkey: 'PGSSLKEY' } as const
+  for (const [param, name] of Object.entries(files)) if (q(param)) out[name] = q(param)!
+  const hasFiles = Object.keys(out).length > 0
+  if (q('uselibpqcompat') === 'true') {
+    if (mode) out.PGSSLMODE = mode === 'no-verify' ? 'require' : mode
+    else if (flag === 'true' || flag === '1' || hasFiles) out.PGSSLMODE = 'verify-full'
+    return out
+  }
+  if (mode === 'disable' || (!mode && flag === '0')) out.PGSSLMODE = 'disable'
+  else if (mode === 'no-verify') out.PGSSLMODE = 'require'
+  else if (mode || flag === 'true' || flag === '1' || hasFiles) out.PGSSLMODE = 'verify-full'
+  return out
+}
+
 /** libpq environment for a connection string: the password never appears in the process list. */
-export function pgEnv(databaseUrl: string): NodeJS.ProcessEnv {
+export function pgEnv(databaseUrl: string, inherited: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   let u: URL
   try { u = new URL(databaseUrl) }
   catch { return fail('DATABASE_URL is not a valid connection string (postgres://user:password@host:5432/database).') }
-  const env: NodeJS.ProcessEnv = { ...process.env }
-  // A stray PG* variable of the shell must not send the dump to another database.
-  for (const k of Object.keys(env)) if (k.startsWith('PG') && k !== 'PGSSLROOTCERT') delete env[k]
+  const env: NodeJS.ProcessEnv = { ...inherited }
+  // A stray PG* variable of the shell must not send the dump to another database
+  // (but its TLS settings, PGSSL*, keep protecting the connection).
+  for (const k of Object.keys(env)) if (k.startsWith('PG') && !k.startsWith('PGSSL')) delete env[k]
   env.PGHOST = decodeURIComponent(u.hostname) || 'localhost'
   if (u.port) env.PGPORT = u.port
   if (u.username) env.PGUSER = decodeURIComponent(u.username)
   if (u.password) env.PGPASSWORD = decodeURIComponent(u.password)
   env.PGDATABASE = decodeURIComponent(u.pathname.replace(/^\//, ''))
-  const ssl = u.searchParams.get('sslmode') ?? (u.searchParams.get('ssl') === 'true' ? 'require' : null)
-  // node-postgres' "no-verify" is libpq's "require" (encrypted, certificate not checked).
-  if (ssl) env.PGSSLMODE = ssl === 'no-verify' ? 'require' : ssl
+  Object.assign(env, sslEnv(u))
   return env
 }
 
@@ -251,6 +301,11 @@ export async function runBackup(settings: BackupSettings, outFile: string, io: R
   const env = pgEnv(settings.databaseUrl)
   const store = mediaStore(settings.storage)
   const staging = mkdtempSync(join(tmpdir(), 'tinyzoo-backup-'))
+  // Created readable by its owner only BEFORE anything is written to it (tar keeps the
+  // mode of a file it overwrites); `wx` also refuses to follow a link someone left there.
+  mkdirSync(dirname(resolve(outFile)), { recursive: true })
+  try { closeSync(openSync(outFile, 'wx', 0o600)) }
+  catch (err) { rmSync(staging, { recursive: true, force: true }); return fail((err as NodeJS.ErrnoException).code === 'EEXIST' ? `${outFile} already exists; choose another name.` : `Cannot create ${outFile}: ${(err as Error).message}`) }
   try {
     io.log(`Database ${targetLabel(settings.databaseUrl)}: dumping…`)
     await runTool('pg_dump', ['--format=custom'], env, { stdout: join(staging, 'database.dump') }, settings.databaseUrl)
@@ -277,7 +332,6 @@ export async function runBackup(settings: BackupSettings, outFile: string, io: R
     manifest.missingMedia.sort()
     writeFileSync(join(staging, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')
 
-    mkdirSync(dirname(resolve(outFile)), { recursive: true })
     tar(['-cf', resolve(outFile), '-C', staging, 'manifest.json', 'database.dump', ...(manifest.media.length ? ['media'] : [])])
     chmodSync(outFile, 0o600)
     const mb = (statSync(outFile).size / 1024 / 1024).toFixed(1)
@@ -297,7 +351,7 @@ export async function runBackup(settings: BackupSettings, outFile: string, io: R
 export interface RestoreOptions {
   /** Skip the question (scripts). */
   yes?: boolean
-  /** Restore over a database that already has accounts. */
+  /** Restore over a database that already has tables (everything in it is replaced). */
   force?: boolean
   /** Ask a yes/no question; the default reads the terminal. */
   confirm?: (question: string, expected: string) => Promise<boolean>
@@ -310,15 +364,61 @@ async function askInTerminal(question: string, expected: string): Promise<boolea
   finally { rl.close() }
 }
 
-/** Put an archive back: database first, then the media. */
+/** What the target database already holds: tables, applied migrations, accounts. */
+export interface TargetState { tables: number; migrations: number; accounts: number }
+
+export async function inspectTarget(databaseUrl: string): Promise<TargetState> {
+  return withClient(databaseUrl, async (c) => {
+    const one = async (text: string) => Number((await c.query(text)).rows[0]?.n ?? 0)
+    // Any table, view or materialized view in `public` (the extension's own functions do not count).
+    const tables = await one(`select count(*)::int as n from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind in ('r', 'p', 'v', 'm', 'f')`)
+    const migrations = (await c.query(`select to_regclass('drizzle.__drizzle_migrations') as t`)).rows[0]?.t
+      ? await one('select count(*)::int as n from drizzle.__drizzle_migrations') : 0
+    const accounts = (await c.query(`select to_regclass('public.cms_users') as t`)).rows[0]?.t
+      ? await one('select count(*)::int as n from public.cms_users') : 0
+    return { tables, migrations, accounts }
+  })
+}
+
+/**
+ * Empty the database of tinyzoo's schemas in ONE transaction: `drizzle` (the migration
+ * journal) and `public` go, `public` is created again (pg_dump never writes the
+ * CREATE of `public`, so the restore needs it to be there). Extensions that live in `public` (pg_trgm) go with it and come back with the
+ * dump, which carries `CREATE EXTENSION`. Dropping everything — and not just what the
+ * dump contains — is what makes a restore over a newer database come out exactly as the
+ * backup was, instead of leaving the newer tables and journal beside the old ones.
+ */
+async function resetSchemas(databaseUrl: string): Promise<void> {
+  await withClient(databaseUrl, async (c) => {
+    try {
+      await c.query('begin')
+      await c.query(`set local lock_timeout = '15s'`)
+      await c.query('drop schema if exists drizzle cascade')
+      await c.query('drop schema if exists public cascade')
+      await c.query('create schema public')
+      await c.query('grant usage on schema public to public')
+      await c.query('commit')
+    }
+    catch (err) {
+      await c.query('rollback').catch(() => {})
+      const e = err as { message?: string; code?: string }
+      fail(`Could not empty ${targetLabel(databaseUrl)} before restoring (nothing was changed): ${e.message}${e.code === '55P03' ? '\n  Something is still using the database: stop the site first.' : ''}`)
+    }
+  })
+}
+
+/** Put an archive back: the database (replaced as a whole), then the media. */
 export async function runRestore(settings: BackupSettings, file: string, opts: RestoreOptions = {}, io: RunIo = { log: console.log }): Promise<BackupManifest> {
   if (!settings.databaseUrl) fail('No database: set DATABASE_URL (or NUXT_CMS_DATABASE_URL), here or in .env.')
   if (!existsSync(file)) fail(`${file} does not exist.`)
-  const listing = tar(['-tf', resolve(file)]).split('\n').map((l) => l.trim().replace(/^\.\//, ''))
-  if (!listing.includes('manifest.json') || !listing.includes('database.dump')) fail(`${file} is not a tinyzoo backup (no manifest.json and database.dump).`)
   const staging = mkdtempSync(join(tmpdir(), 'tinyzoo-restore-'))
   try {
-    tar(['-xf', resolve(file), '-C', staging])
+    // tinyzoo's own reader: plain files only. A link in the archive is refused (a link
+    // to ~/.ssh/id_rsa would otherwise be copied into the public media folder), sizes
+    // are checked against a cap before anything is written.
+    try { await extractTar(resolve(file), staging, { strict: true }) }
+    catch (err) { return fail(`${file} cannot be read as a tinyzoo backup: ${(err as Error).message}`) }
+    if (!existsSync(join(staging, 'manifest.json')) || !existsSync(join(staging, 'database.dump'))) fail(`${file} is not a tinyzoo backup (no manifest.json and database.dump).`)
     let manifest: BackupManifest
     try { manifest = JSON.parse(readFileSync(join(staging, 'manifest.json'), 'utf8')) }
     catch { return fail('manifest.json in the archive is unreadable.') }
@@ -327,27 +427,36 @@ export async function runRestore(settings: BackupSettings, file: string, opts: R
     const mediaDir = join(staging, 'media')
     for (const m of manifest.media ?? []) {
       if (!safeKey(m.key)) fail(`The archive lists the unsafe storage key "${m.key}"; nothing was changed.`)
-      if (!existsSync(insideDir(mediaDir, m.key))) fail(`The archive lists ${m.key} but does not contain it; nothing was changed.`)
+      const abs = insideDir(mediaDir, m.key)
+      if (!existsSync(abs)) fail(`The archive lists ${m.key} but does not contain it; nothing was changed.`)
+      if (!lstatSync(abs).isFile()) fail(`${m.key} in the archive is not a plain file; nothing was changed.`)
     }
+    // The dump must be readable before the database is touched.
+    await runTool('pg_restore', ['--list'], pgEnv(settings.databaseUrl), { stdin: join(staging, 'database.dump') }, settings.databaseUrl)
+      .catch((err) => { throw err instanceof CliError && !/was not found|could not start/.test(err.message) ? new CliError(`database.dump in the archive is not a readable pg_dump archive; nothing was changed.\n${err.message}`) : err })
 
-    const accounts = await withClient(settings.databaseUrl, async (c) => {
-      const exists = (await c.query(`select to_regclass('public.cms_users') as t`)).rows[0]?.t
-      return exists ? Number((await c.query('select count(*)::int as n from cms_users')).rows[0].n) : 0
-    })
-    if (accounts > 0 && !opts.force) {
-      fail(`${targetLabel(settings.databaseUrl)} already has ${accounts} account(s). A restore replaces everything in it: restore into an empty database, or add --force if that is what you want.`)
+    const state = await inspectTarget(settings.databaseUrl)
+    if ((state.tables > 0 || state.migrations > 0) && !opts.force) {
+      const parts = [`${state.tables} table(s)`, state.migrations ? `${state.migrations} applied migration(s)` : '', state.accounts ? `${state.accounts} account(s)` : ''].filter(Boolean)
+      fail(`${targetLabel(settings.databaseUrl)} is not empty (${parts.join(', ')}). A restore REPLACES everything in it: restore into an empty database, or add --force if that is what you want.`)
     }
     io.log(`Backup of ${manifest.database} from ${manifest.createdAt} (tinyzoo ${manifest.tinyzooVersion}): database and ${manifest.media.length} media file(s).`)
     if (!opts.yes) {
-      const ok = await (opts.confirm ?? askInTerminal)(`This REPLACES the data in ${targetLabel(settings.databaseUrl)} (and writes the media into ${settings.storage.driver === 'local' ? settings.storage.localDir : 'the bucket ' + settings.storage.s3.bucket}).`, databaseName(settings.databaseUrl))
+      const ok = await (opts.confirm ?? askInTerminal)(`This REPLACES the data in ${targetLabel(settings.databaseUrl)}: its public and drizzle schemas are dropped and recreated from the backup (and the media are written into ${settings.storage.driver === 'local' ? settings.storage.localDir : 'the bucket ' + settings.storage.s3.bucket}).`, databaseName(settings.databaseUrl))
       if (!ok) fail('Not confirmed; nothing was changed.')
     }
 
     // Open the media first (a bad bucket config must not come after the database is replaced).
     const store = mediaStore(settings.storage)
     io.log('Restoring the database…')
-    await runTool('pg_restore', ['--clean', '--if-exists', '--no-owner', '--no-acl', '--no-comments', '--dbname', databaseName(settings.databaseUrl)], pgEnv(settings.databaseUrl), { stdin: join(staging, 'database.dump') }, settings.databaseUrl)
-      .then((warnings) => { if (warnings.trim()) io.log(warnings.trim()) })
+    await resetSchemas(settings.databaseUrl)
+    try {
+      const warnings = await runTool('pg_restore', ['--single-transaction', '--exit-on-error', '--no-owner', '--no-acl', '--no-comments', '--dbname', databaseName(settings.databaseUrl)], pgEnv(settings.databaseUrl), { stdin: join(staging, 'database.dump') }, settings.databaseUrl)
+      if (warnings.trim()) io.log(warnings.trim())
+    }
+    catch (err) {
+      throw new CliError(`${(err as Error).message}\n  The restore is all or nothing, and the database was emptied first: ${targetLabel(settings.databaseUrl)} is now EMPTY (nothing is half restored). Fix the cause above and run the restore again; the archive is unchanged.`)
+    }
 
     io.log(`Restoring ${manifest.media.length} media file(s)…`)
     await pool(manifest.media, 4, async (m) => {

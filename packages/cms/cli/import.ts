@@ -15,6 +15,16 @@
  * database as it was. Media files are uploaded before it (checked against their
  * hashes); a failed import can leave files in storage that nothing points to, which
  * is harmless. The search index is rebuilt afterwards.
+ *
+ * `--replace` deletes the content the archive carries. Of the media library it deletes
+ * ALL of it for a full archive (the archive brings the whole library back), but for an
+ * `--only` archive just the media rows the archive lists that no other content uses
+ * (links and pictures inside rich text and blocks are checked, as the server's own
+ * clean-up does): the rest of the library — a site logo, pictures of pages that are not
+ * in the archive — is never touched. The question asked first says exactly this.
+ *
+ * Blocks stored at a version newer than this site's definition are refused (the
+ * content model section of the report), like any other difference in the model.
  */
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -22,14 +32,15 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
-import { getTableColumns, inArray, ne, sql } from 'drizzle-orm'
+import { getTableColumns, getTableName, inArray, ne, sql } from 'drizzle-orm'
 import type { CmsEntity, CmsRegistry } from '../src/index'
 import { logUpgradeFailure, upgradeStoredRow } from '../src/blocks'
 import { extractTarGz, safeArchivePath } from './tar'
 import { loadRegistry } from './export'
 import {
-  ARCHIVE_FILES, ARCHIVE_FORMAT, BATCH, SAFE_NAME, connectDb, databaseName, databaseUrlFromEnv, dependencyOrder, describeDatabase,
-  describeSchema, diffSchemas, formatDifferences, layoutOf, loadDotEnv, parseArgs, readJsonl, storageFromEnv,
+  ARCHIVE_FILES, ARCHIVE_FORMAT, BATCH, SAFE_NAME, connectDb, databaseName, dependencyOrder, describeDatabase,
+  describeSchema, diffSchemas, formatDifferences, hostSettings, layoutOf, newerStoredBlocks, parseArgs, readJsonl, storageFingerprint, storageFromSettings,
+  usedMediaIds,
   type Difference, type Entry, type EntityLayout, type FkEdge, type LayoutField, type Manifest, type TransferStorage,
 } from './transfer'
 
@@ -64,6 +75,8 @@ export interface ImportReport {
   skipped: { entities: string[]; fields: string[]; translations: number }
   differences: Difference[]
   searchIndex: 'rebuilt' | 'busy' | 'failed' | 'skipped'
+  /** Things the person should read even though the import went ahead. */
+  warnings: string[]
 }
 
 export class ImportRefused extends Error {
@@ -138,6 +151,13 @@ function decodeValue(plan: Plan, e: CmsEntity, f: LayoutField, raw: unknown, id:
     // written is what this site's code expects. A block whose upgrade throws is
     // logged and imported as it was; the admin shows it as needing attention.
     const where = `${e.name} ${id}`
+    // Blocks written by a NEWER version of the site cannot be read or saved here.
+    if (f.fld.type === 'blocks' && f.fld.blocks) {
+      const newer = newerStoredBlocks(raw, f.fld.blocks, [f.key])
+      if (newer.length) {
+        throw new ImportRefused('mismatch', `${where}: ${newer.slice(0, 3).join('; ')}${newer.length > 3 ? `; and ${newer.length - 3} more` : ''}. The archive comes from a newer version of the content model: update this site first.`)
+      }
+    }
     raw = upgradeStoredRow({ [f.key]: f.fld }, { [f.key]: raw }, { where, onError: (issue) => logUpgradeFailure(issue, where) })[f.key]
     rewriteImages(raw, plan.urls)
   }
@@ -259,26 +279,51 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
     }
     const skipEntities = new Set(differences.filter((d) => d.scope === 'entity' && d.skip).map((d) => d.entity!))
     const skipFields = new Map<string, Set<string>>()
-    for (const d of differences) if (d.scope === 'field' && d.skip) skipFields.set(d.entity!, (skipFields.get(d.entity!) ?? new Set()).add(d.field!))
+    for (const d of differences) if ((d.scope === 'field' || d.scope === 'blocks') && d.skip) skipFields.set(d.entity!, (skipFields.get(d.entity!) ?? new Set()).add(d.field!))
 
     const planned = manifest.entities.filter((x) => !skipEntities.has(x.name) && reg.byName.has(x.name))
     const included = planned.map((x) => reg.byName.get(x.name)!)
     const { order, deferred } = dependencyOrder(reg, included)
     const mediaFile = join(tmp, ARCHIVE_FILES.media)
-    const hasMediaFile = existsSync(mediaFile)
-    // A full archive owns the whole media library; an --only one just the files it carries.
-    const mediaScope = manifest.only === null || manifest.media.rows > 0
+    const mediaEntries: Record<string, any>[] = []
+    if (existsSync(mediaFile)) for await (const m of readJsonl<Record<string, any>>(mediaFile)) mediaEntries.push(m)
+    // A full archive owns the whole media library. An --only archive owns just the files
+    // it lists: the rest of the library belongs to content that is not in the archive.
+    const fullMedia = manifest.only === null
+    const listedMedia = !fullMedia && mediaEntries.length > 0
 
     const report: ImportReport = {
       mode, dryRun: !!opts.dryRun, entries: {}, media: { rows: 0, files: 0, missingFiles: 0 }, relations: 0, revisions: 0, deleted: {},
-      skipped: { entities: [...skipEntities].sort(), fields: [], translations: 0 }, differences, searchIndex: 'skipped',
+      skipped: { entities: [...skipEntities].sort(), fields: [], translations: 0 }, differences, searchIndex: 'skipped', warnings: [],
+    }
+
+    // The files may be the very ones another environment serves: say so.
+    if (manifest.media.storage && manifest.media.storage === storageFingerprint(storage.identity)) {
+      const warning = `The archive's files come from the SAME storage this site writes to (${storage.describe}). Two environments must not share a bucket or folder: deleting a file in one deletes it in the other. Give each environment its own (or its own prefix) and import with the files, or only use --no-media if the target really has its own copy of every file.`
+      report.warnings.push(warning)
+      log(`\n  !! ${warning}\n`)
     }
 
     // ── what is in the target ─────────────────────────────────────────────────
     const present: Record<string, number> = {}
+    const replacedTables = new Set(order.flatMap((e) => [getTableName(e.table), ...(e.localesTable ? [getTableName(e.localesTable)] : [])]))
+    let existingListed: { id: string; key: string }[] = []
+    let freeToDelete: string[] = []
     try {
       for (const e of order) present[e.name] = await countRows(db, e.table)
-      if (mediaScope) present.media = await countRows(db, reg.cmsMedia)
+      if (fullMedia) present.media = await countRows(db, reg.cmsMedia)
+      else if (listedMedia) {
+        const ids = mediaEntries.map((m) => m.id as string)
+        for (let at = 0; at < ids.length; at += 1000) {
+          existingListed.push(...(await db.select({ id: reg.cmsMedia.id, key: reg.cmsMedia.key }).from(reg.cmsMedia).where(inArray(reg.cmsMedia.id, ids.slice(at, at + 1000)))))
+        }
+        present.media = existingListed.length
+        // With --replace: of those, the ones nothing outside the replaced content uses.
+        if (mode === 'replace') {
+          const used = await usedMediaIds(db, reg, existingListed, replacedTables)
+          freeToDelete = existingListed.filter((m) => !used.has(m.id)).map((m) => m.id)
+        }
+      }
     }
     catch (err) { throw explain(err, 'Could not read the target') }
     const occupied = Object.entries(present).filter(([, n]) => n > 0)
@@ -289,13 +334,26 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
         `The target is not empty: ${label(occupied)}.\n`
         + 'Import into an empty database, or use --replace (deletes that content first) or --merge (adds and updates entries by id).')
     }
-    if (mode === 'replace' && occupied.length && opts.confirm && !opts.dryRun) {
-      const ok = await opts.confirm(`This deletes ${label(occupied)} from ${describeDatabase(opts.databaseUrl)}`
-        + `${present.media ? ' (the media files stay in storage)' : ''}, then imports ${planned.reduce((n, x) => n + x.rows, 0)} entries`
+    // What --replace deletes, said exactly: the entries of the archive's content, and of the
+    // media library either all of it (a full archive) or only what the archive lists.
+    const contentOccupied = occupied.filter(([k]) => k !== 'media')
+    const mediaDeleteText = fullMedia
+      ? (present.media ? `, and the whole media library (${present.media} rows; the media files stay in storage)` : '')
+      : listedMedia
+        ? `, and of the media library only the ${freeToDelete.length} row(s) the archive lists that nothing else uses`
+          + `${existingListed.length - freeToDelete.length ? ` (${existingListed.length - freeToDelete.length} more it lists are used by other content and are updated in place)` : ''}; the rest of the library is not touched; the media files stay in storage`
+        : ''
+    if (mode === 'replace' && (contentOccupied.length || present.media) && opts.confirm && !opts.dryRun) {
+      const ok = await opts.confirm(`This deletes ${contentOccupied.length ? label(contentOccupied) : 'no entries'} from ${describeDatabase(opts.databaseUrl)}${mediaDeleteText}, `
+        + `then imports ${planned.reduce((n, x) => n + x.rows, 0)} entries`
         + `${manifest.media.rows ? ` and ${manifest.media.rows} media` : ''} from the archive.`)
       if (!ok) throw new ImportRefused('aborted', 'Stopped — nothing was changed.')
     }
-    if (mode === 'replace') report.deleted = Object.fromEntries(occupied)
+    if (mode === 'replace') {
+      report.deleted = Object.fromEntries(contentOccupied)
+      if (fullMedia && present.media) report.deleted.media = present.media
+      else if (listedMedia && freeToDelete.length) report.deleted.media = freeToDelete.length
+    }
 
     for (const d of differences) log(`  ! ${d.message}`)
     if (opts.dryRun) {
@@ -306,8 +364,6 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
 
     // ── media files (before the transaction) ──────────────────────────────────
     const urls = new Map<string, string>()
-    const mediaEntries: Record<string, any>[] = []
-    if (hasMediaFile) for await (const m of readJsonl<Record<string, any>>(mediaFile)) mediaEntries.push(m)
     for (const m of mediaEntries) urls.set(m.id, storage.url(m.key))
     if (manifest.media.included) {
       let next = 0
@@ -327,6 +383,8 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
 
     const plan: Plan = { reg, manifest, urls, skipFields, skippedFields: new Set(), locales, deferred }
     const write: Write = mode === 'merge' ? 'upsert' : 'insert'
+    // Replacing with an --only archive keeps the media that other content still uses: those rows are updated, not re-created.
+    const mediaWrite: Write = mode === 'merge' || (mode === 'replace' && !fullMedia) ? 'upsert' : 'insert'
 
     // ── one transaction ───────────────────────────────────────────────────────
     await db.transaction(async (tx: any) => {
@@ -342,7 +400,17 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
             // Live-editing state of deleted entries would otherwise outlive them.
             for (const n of names) await tx.delete(reg.cmsCollab).where(sql`starts_with(${reg.cmsCollab.name}, ${n + '/'})`)
           }
-          if (mediaScope) { doing = 'Could not delete the media library'; await tx.delete(reg.cmsMedia) }
+          if (fullMedia) { doing = 'Could not delete the media library'; await tx.delete(reg.cmsMedia) }
+          else if (listedMedia && existingListed.length) {
+            // Only what the archive lists, and only what nothing uses now that the replaced content is gone
+            // (checked here, inside the transaction, on the real state).
+            doing = 'Could not delete the media the archive replaces'
+            const used = await usedMediaIds(tx, reg, existingListed)
+            const free = existingListed.filter((m) => !used.has(m.id)).map((m) => m.id)
+            for (let at = 0; at < free.length; at += 1000) await tx.delete(reg.cmsMedia).where(inArray(reg.cmsMedia.id, free.slice(at, at + 1000)))
+            if (free.length) report.deleted.media = free.length
+            else delete report.deleted.media
+          }
         }
         catch (err) { throw explain(err, doing) }
       }
@@ -358,7 +426,7 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
           }
           return row
         })
-        await writeRows(tx, reg.cmsMedia, rows, write)
+        await writeRows(tx, reg.cmsMedia, rows, mediaWrite)
         report.media.rows = rows.length
         if (rows.length) log(`  media: ${rows.length} rows${report.media.files ? `, ${report.media.files} files uploaded` : ''}`)
       }
@@ -515,11 +583,12 @@ export async function runImport(argv: string[], cwd = process.cwd()): Promise<Im
   const file = args.positional[0]
   if (!file || args.positional.length > 1) throw new Error(IMPORT_USAGE)
   if (args.flags.has('replace') && args.flags.has('merge')) throw new Error('Choose --replace or --merge, not both.')
-  loadDotEnv(cwd)
-  const databaseUrl = args.values['database-url'] ?? databaseUrlFromEnv()
+  // The same settings the running app uses: environment, .env, then nuxt.config.
+  const settings = await hostSettings(cwd)
+  const databaseUrl = args.values['database-url'] ?? (settings.databaseUrl || null)
   if (!databaseUrl) throw new Error('No database: set DATABASE_URL in the environment or the website\'s .env')
   const reg = await loadRegistry(cwd)
-  const storage = storageFromEnv(cwd, process.env, { dir: args.values.uploads })
+  const storage = storageFromSettings(settings.storage, { dir: args.values.uploads, cwd })
   const mode: ImportMode = args.flags.has('replace') ? 'replace' : args.flags.has('merge') ? 'merge' : 'strict'
   console.log(`Importing ${resolve(cwd, file)} into ${describeDatabase(databaseUrl)} (media to ${storage.describe})`)
   const started = Date.now()

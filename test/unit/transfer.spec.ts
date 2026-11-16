@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -14,7 +14,7 @@ import { exportContent } from '../../packages/cms/cli/export'
 import { ImportRefused, importContent, type ImportMode } from '../../packages/cms/cli/import'
 import { extractTarGz, safeArchivePath, writeTarGz } from '../../packages/cms/cli/tar'
 import {
-  ARCHIVE_FILES, canonicalJson, connectDb, dependencyOrder, describeSchema, diffSchemas, fingerprintOf, localStorageAt, parseArgs, readJsonl,
+  ARCHIVE_FILES, canonicalJson, connectDb, dependencyOrder, describeSchema, diffSchemas, fingerprintOf, localStorageAt, parseArgs, readJsonl, storageFromSettings,
   type Manifest, type TransferStorage,
 } from '../../packages/cms/cli/transfer'
 import { playgroundDir, repoRoot, testDatabaseUrl } from '../setup/database'
@@ -596,6 +596,25 @@ describe('options', () => {
     expect(readdirSync(work).filter((n) => n.endsWith('.partial'))).toEqual([])
   })
 
+  it('--only with a form needs --with-submissions, like a full export does', async () => {
+    await expect(exportAll('forms-only.tar.gz', { only: ['contactForm'] })).rejects.toThrow(/contactForm holds form submissions \(personal data\): add --with-submissions/)
+    await expect(exportAll('forms-mixed.tar.gz', { only: ['post', 'contactForm'] })).rejects.toThrow(/--with-submissions/)
+    expect(existsSync(archive('forms-only.tar.gz'))).toBe(false)
+    const { manifest } = await exportAll('forms-only.tar.gz', { only: ['contactForm'], withSubmissions: true })
+    expect(manifest.entities).toMatchObject([{ name: 'contactForm', rows: 1 }])
+  })
+
+  it('creates the archive readable by its owner only, also over a stale .partial and with --force', async () => {
+    const file = archive('mine.tar.gz')
+    writeFileSync(`${file}.partial`, 'stale', { mode: 0o644 })
+    await exportAll('mine.tar.gz')
+    expect(statSync(file).mode & 0o777).toBe(0o600)
+    writeFileSync(file, 'wide open', { mode: 0o644 })
+    await exportAll('mine.tar.gz', { force: true })
+    expect(statSync(file).mode & 0o777).toBe(0o600)
+    expect(existsSync(`${file}.partial`)).toBe(false)
+  })
+
   it('a consistent snapshot: edits made while exporting do not leak in', async () => {
     // Read the posts, then change them from another connection before the export reaches media.
     const slowStorage: TransferStorage = {
@@ -768,6 +787,239 @@ describe('checks on import', () => {
     const report = await importInto(full, { searchIndex: false })
     expect(report.searchIndex).toBe('skipped')
     expect(await B.db.select().from(reg.cmsSearch)).toHaveLength(0)
+  })
+})
+
+// ── --replace with an --only archive ────────────────────────────────────────────
+
+describe('--replace with an --only archive', () => {
+  const extraMedia = async (db: any) => {
+    const id = randomUUID()
+    await db.insert(reg.cmsMedia).values({ id, url: '/files-b/2026/03/extra.png', key: '2026/03/extra.png', mime: 'image/png', size: 5, uploadedBy: null, createdAt: T0 })
+    return id
+  }
+
+  it('deletes only the media the archive lists and nothing else uses; the rest of the library stays', async () => {
+    await exportAll('full-for-replace.tar.gz')
+    await exportAll('post-for-replace.tar.gz', { only: ['post'] })
+    await wipe(B.db)
+    await importInto(archive('full-for-replace.tar.gz'))
+    const extra = await extraMedia(B.db) // belongs to nothing in the archive
+    const [before]: any[] = await B.db.select().from(entity('siteSettings').table)
+    expect(before.logoId).toBe(ids['media.logo'])
+
+    let asked = ''
+    const report = await importInto(archive('post-for-replace.tar.gz'), { mode: 'replace' as ImportMode, confirm: async (q: string) => { asked = q; return true } })
+    // The question says exactly what goes: the posts, and of the library only what the archive lists and nobody else uses.
+    expect(asked).toMatch(/deletes post \(3\)/)
+    expect(asked).toMatch(/of the media library only the 2 row\(s\) the archive lists that nothing else uses/)
+    expect(asked).toMatch(/3 more it lists are used by other content and are updated in place/)
+    expect(asked).toMatch(/rest of the library is not touched; the media files stay in storage/)
+    expect(asked).not.toMatch(/whole media library/)
+    // Posts used g1 and g2 alone. The hero and the inline picture are also on the page, the sharing image is the site's.
+    expect(report.deleted).toEqual({ post: 3, media: 2 })
+
+    // Nothing else was touched: the logo is still the site's logo, the page's pictures still exist, the unrelated file too.
+    const [after]: any[] = await B.db.select().from(entity('siteSettings').table)
+    expect(after.logoId).toBe(ids['media.logo'])
+    expect(after.rulesId).toBe(ids['media.rules'])
+    const have = new Set((await B.db.select().from(reg.cmsMedia)).map((m: any) => m.id))
+    expect(have.has(extra)).toBe(true)
+    expect(have.size).toBe(9)
+    const [page]: any[] = await B.db.select().from(entity('page').table).where(sql`${entity('page').table.slug} = 'o-nas'`)
+    expect(have.has(page.sections[0].image)).toBe(true)
+    expect(have.has(page.sections[2].items[0].image)).toBe(true)
+
+    // And the posts are the archive's again, galleries and pictures included.
+    await B.db.execute(sql`delete from ${reg.cmsMedia} where id = ${extra}`)
+    expect(await snapshot(B.db, ['contactForm'])).toEqual(asServedByB(await snapshot(A.db, ['contactForm'])))
+  })
+
+  it('an --only archive with media is not "a target that is not empty" because of unrelated media', async () => {
+    await exportAll('page-only.tar.gz', { only: ['page'] })
+    await wipe(B.db)
+    const extra = await extraMedia(B.db)
+    const report = await importInto(archive('page-only.tar.gz')) // strict
+    expect(report.entries.page!.rows).toBe(2)
+    expect((await B.db.select().from(reg.cmsMedia)).map((m: any) => m.id)).toContain(extra)
+    // …but a listed file already there is "in the way": use --merge or --replace.
+    const err = await importInto(archive('page-only.tar.gz')).catch((e) => e)
+    expect(err.code).toBe('not-empty')
+    expect(err.message).toMatch(/media \(3\)/)
+  })
+
+  it('a full archive replaces the whole library, and says so', async () => {
+    await wipe(B.db)
+    await importInto(archive('full-for-replace.tar.gz'))
+    const extra = await extraMedia(B.db)
+    let asked = ''
+    const report = await importInto(archive('full-for-replace.tar.gz'), { mode: 'replace' as ImportMode, confirm: async (q: string) => { asked = q; return true } })
+    expect(asked).toMatch(/and the whole media library \(9 rows; the media files stay in storage\)/)
+    expect(report.deleted.media).toBe(9)
+    expect((await B.db.select().from(reg.cmsMedia)).map((m: any) => m.id)).not.toContain(extra)
+  })
+
+  it('finds a picture by its address when its id was lost (as the server\'s own clean-up does)', async () => {
+    await wipe(B.db)
+    await importInto(archive('full-for-replace.tar.gz'))
+    const keyOnly = await extraMedia(B.db)
+    const key = '2026/03/extra.png'
+    // A page that embeds the picture with no mediaId, only its src.
+    await B.db.execute(sql`update ${entity('page').table} set sections = ${JSON.stringify([{ id: 'x1', type: 'text', heading: 'h', body: { type: 'doc', content: [{ type: 'image', attrs: { src: `/files-b/${key}` } }] } }])}::jsonb where slug = 'kontakt'`)
+    // An archive that lists that media row.
+    const dir = mkdtempSync(join(work, 'listed-'))
+    await extractTarGz(archive('post-for-replace.tar.gz'), dir)
+    const mediaFile = join(dir, 'media.jsonl')
+    const lines = readFileSync(mediaFile, 'utf8').trim().split('\n').map((l) => JSON.parse(l))
+    lines.push({ ...lines[0], id: keyOnly, key, url: undefined, blob: null })
+    writeFileSync(mediaFile, lines.map((l) => JSON.stringify(l)).join('\n') + '\n')
+    const mf = join(dir, 'manifest.json')
+    const m: Manifest = JSON.parse(readFileSync(mf, 'utf8'))
+    m.media.rows += 1
+    writeFileSync(mf, JSON.stringify(m))
+    const names = await extractTarGz(archive('post-for-replace.tar.gz'), mkdtempSync(join(work, 'names-')))
+    await writeTarGz(archive('listed.tar.gz'), names.map((name) => ({ name, path: join(dir, name) })))
+    const report = await importInto(archive('listed.tar.gz'), { mode: 'replace' as ImportMode })
+    expect(report.deleted.media).toBe(2) // g1 and g2 — the one used by address stays
+    expect((await B.db.select().from(reg.cmsMedia)).map((x: any) => x.id)).toContain(keyOnly)
+  })
+})
+
+// ── two environments, one bucket ────────────────────────────────────────────────
+
+describe('files shared between environments', () => {
+  it('the archive names the storage by a fingerprint only, and an import into the same storage warns loudly', async () => {
+    const { manifest } = await exportAll('shared.tar.gz')
+    expect(manifest.media.storage).toMatch(/^[0-9a-f]{32}$/)
+    expect(JSON.stringify(manifest)).not.toContain(dirs.a) // no path in the archive
+    await wipe(B.db)
+    const lines: string[] = []
+    const same = await importContent({ reg, databaseUrl: urlB, storage: storageA, file: archive('shared.tar.gz'), log: (l) => lines.push(l) })
+    expect(same.warnings).toHaveLength(1)
+    expect(same.warnings[0]).toMatch(/SAME storage.*Two environments must not share a bucket or folder.*deleting a file in one deletes it in the other/)
+    expect(lines.join('\n')).toMatch(/!! The archive's files come from the SAME storage/)
+
+    await wipe(B.db)
+    expect((await importInto(archive('shared.tar.gz'))).warnings).toEqual([]) // another folder
+  })
+
+  it('--no-media still records where the files live, so a target on the same bucket is told', async () => {
+    const { manifest } = await exportAll('shared-nomedia.tar.gz', { media: false, storage: null, storageIdentity: storageA.identity })
+    expect(manifest.media).toMatchObject({ included: false, files: 0 })
+    await wipe(B.db)
+    expect((await importContent({ reg, databaseUrl: urlB, storage: storageA, file: archive('shared-nomedia.tar.gz') })).warnings).toHaveLength(1)
+    await wipe(B.db)
+    expect((await importContent({ reg, databaseUrl: urlB, storage: storageB, file: archive('shared-nomedia.tar.gz') })).warnings).toEqual([])
+    // An archive that says nothing (an older one, or an export that could not name its storage) never warns.
+    await exportAll('unnamed.tar.gz', { media: false, storage: null })
+    await wipe(B.db)
+    expect((await importContent({ reg, databaseUrl: urlB, storage: storageA, file: archive('unnamed.tar.gz') })).warnings).toEqual([])
+  })
+
+  it('"the same storage" means the same folder on this machine, or the same endpoint and bucket', () => {
+    expect(localStorageAt(dirs.a).identity).toBe(storageA.identity)
+    expect(localStorageAt(dirs.b).identity).not.toBe(storageA.identity)
+    expect(storageFromSettings({ driver: 's3', localDir: '', s3: { endpoint: 'https://S3.example.com/', region: 'x', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' } }).identity)
+      .toBe(storageFromSettings({ driver: 'r2', localDir: '', s3: { endpoint: 'https://s3.example.com', region: 'y', bucket: 'b', accessKeyId: 'other', secretAccessKey: 'other' } }).identity)
+    expect(storageFromSettings({ driver: 's3', localDir: '', s3: { endpoint: 'https://s3.example.com', region: 'x', bucket: 'b2', accessKeyId: 'k', secretAccessKey: 's' } }).identity)
+      .not.toBe(storageFromSettings({ driver: 's3', localDir: '', s3: { endpoint: 'https://s3.example.com', region: 'x', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's' } }).identity)
+  })
+})
+
+// ── block versions ──────────────────────────────────────────────────────────────
+
+describe('block versions in the content model', () => {
+  it('are in the shape and the fingerprint (left out at version 1)', () => {
+    const shape = describeSchema(reg)
+    expect(shape.entities.page!.fields.sections!.blockVersions).toEqual({ cta: 2 })
+    expect(shape.entities.post!.fields.body!.blockVersions).toBeUndefined()
+    const bumped = JSON.parse(JSON.stringify(shape)) as typeof shape
+    bumped.entities.page!.fields.sections!.blockVersions!.cta = 3
+    expect(fingerprintOf(bumped)).not.toBe(fingerprintOf(shape))
+  })
+
+  it('an archive with newer blocks than this site knows is a mismatch (older or unversioned ones are not)', () => {
+    const target = describeSchema(reg)
+    const copy = () => JSON.parse(JSON.stringify(target)) as typeof target
+    const newer = copy()
+    newer.entities.page!.fields.sections!.blockVersions!.cta = 3
+    const diff = diffSchemas(newer, target)
+    expect(diff).toEqual([expect.objectContaining({ scope: 'blocks', entity: 'page', field: 'sections', skip: true, message: expect.stringContaining('"cta" is at version 3 in the archive but this site\'s definition is at 2') })])
+
+    const older = copy()
+    older.entities.page!.fields.sections!.blockVersions!.cta = 1
+    expect(diffSchemas(older, target)).toEqual([])
+    const unversioned = copy()
+    delete unversioned.entities.page!.fields.sections!.blockVersions
+    expect(diffSchemas(unversioned, target)).toEqual([])
+    // …and the other way round (this site is the older one) is the same mismatch.
+    expect(diffSchemas(target, newer)).toEqual([])
+  })
+
+  it('is checked at every depth (a list inside a block)', () => {
+    const target = describeSchema(reg)
+    const nested = JSON.parse(JSON.stringify(target)) as typeof target
+    const cards = nested.entities.page!.fields.sections!.blocks!.cards!.items!
+    expect(cards.blocks).toBeTruthy()
+    cards.blockVersions = { item: 4 }
+    expect(diffSchemas(nested, target).map((d) => d.message)).toEqual([expect.stringContaining('"item" is at version 4 in the archive but this site\'s definition is at 1')])
+  })
+})
+
+describe('importing blocks stored at a newer version', () => {
+  let full: string
+  beforeAll(async () => { full = archive('versions.tar.gz'); await exportAll('versions.tar.gz') })
+
+  it('refuses an archive whose model says its blocks are newer, and --allow-mismatch leaves that field out', async () => {
+    const newer = archive('newer-model.tar.gz')
+    await repack(full, newer, (dir) => {
+      const path = join(dir, ARCHIVE_FILES.manifest)
+      const m: Manifest = JSON.parse(readFileSync(path, 'utf8'))
+      m.schema.entities.page!.fields.sections!.blockVersions = { cta: 3 }
+      m.fingerprint = fingerprintOf(m.schema)
+      writeFileSync(path, JSON.stringify(m))
+    })
+    await wipe(B.db)
+    const err: ImportRefused = await importInto(newer).catch((e) => e)
+    expect(err.code).toBe('mismatch')
+    expect(err.message).toContain('page.sections: "cta" is at version 3 in the archive but this site\'s definition is at 2')
+    expect(err.message).toContain('left out with --allow-mismatch')
+    expect(await B.db.select().from(entity('page').table)).toHaveLength(0)
+
+    const report = await importInto(newer, { allowMismatch: true })
+    expect(report.skipped.fields).toContain('page.sections')
+    expect(await B.db.select().from(entity('page').table)).toHaveLength(2)
+  })
+
+  it('refuses a block stored newer than the definition even when the model says nothing, and changes nothing', async () => {
+    const sneaky = archive('sneaky-blocks.tar.gz')
+    await repack(full, sneaky, (dir) => {
+      const pages = join(dir, ARCHIVE_FILES.content('page'))
+      writeFileSync(pages, readFileSync(pages, 'utf8').trim().split('\n').map((l) => {
+        const e = JSON.parse(l)
+        for (const t of e.translations) t.fields.sections = (t.fields.sections ?? []).map((b: any) => (b.type === 'cta' ? { ...b, v: 9 } : b))
+        return JSON.stringify(e)
+      }).join('\n') + '\n')
+    })
+    await wipe(B.db)
+    const err: ImportRefused = await importInto(sneaky).catch((e) => e)
+    expect(err).toBeInstanceOf(ImportRefused)
+    expect(err.code).toBe('mismatch')
+    expect(err.message).toMatch(/the "cta" block b1 at sections\.0 is stored at version 9, this site's definition is at 2.*update this site first/)
+    expect(await B.db.select().from(entity('page').table)).toHaveLength(0)
+    expect(await B.db.select().from(reg.cmsMedia)).toHaveLength(0)
+  })
+
+  it('still brings older blocks up (an archive that predates versions in the model)', async () => {
+    const old = archive('unversioned-model.tar.gz')
+    await repack(full, old, (dir) => {
+      const path = join(dir, ARCHIVE_FILES.manifest)
+      const m: Manifest = JSON.parse(readFileSync(path, 'utf8'))
+      delete m.schema.entities.page!.fields.sections!.blockVersions
+      writeFileSync(path, JSON.stringify(m))
+    })
+    await wipe(B.db)
+    expect((await importInto(old)).differences).toEqual([])
   })
 })
 
