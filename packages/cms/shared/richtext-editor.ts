@@ -43,7 +43,8 @@ export function richTextExtensions(opts: { collaborative?: boolean } = {}): AnyE
     // StarterKit v3 bundles Link (configured below) and an undo history, which shared
     // editing replaces with its own (per person, not per document).
     StarterKit.configure({ link: false, ...(opts.collaborative ? { undoRedo: false } : {}) }),
-    SafeLink.configure({ openOnClick: false, autolink: true }),
+    // `cms:<entity>/<id>` is a link to one of the site's pages (see src/links.ts): an allowed scheme here.
+    SafeLink.configure({ openOnClick: false, autolink: true, protocols: [{ scheme: 'cms', optionalSlashes: true }] }),
     MediaImage.configure({ HTMLAttributes: { class: 'cms-embed-img' } }),
   ]
 }

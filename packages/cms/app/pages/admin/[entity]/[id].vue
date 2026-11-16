@@ -256,6 +256,16 @@ function mediaIdsIn(data: Record<string, any>): string[] {
     if (typeof v.attrs?.mediaId === 'string') ids.push(v.attrs.mediaId)
     for (const x of Object.values(v)) walk(x)
   }
+  // A group's media fields (and, inside it, rich text, lists and more groups).
+  const groupMedia = (g: any, v: any) => {
+    if (!v || typeof v !== 'object') return
+    for (const gf of g.meta?.fields ?? []) {
+      const x = v[gf.key]
+      if (gf.type === 'media' && typeof x === 'string') ids.push(x)
+      else if (gf.type === 'group') groupMedia(gf, x)
+      else walk(x)
+    }
+  }
   for (const f of editable.value) {
     const v = data[f.key]
     if (f.type === 'media' && typeof v === 'string') ids.push(v)
@@ -265,9 +275,11 @@ function mediaIdsIn(data: Record<string, any>): string[] {
       for (const b of v) for (const [k, x] of Object.entries(b ?? {})) {
         const bf = f.meta?.blocks?.[b?.type]?.fields?.find((y: any) => y.key === k)
         if (bf?.type === 'media' && typeof x === 'string') ids.push(x)
+        else if (bf?.type === 'group') groupMedia(bf, x)
         else walk(x)
       }
     }
+    else if (f.type === 'group') groupMedia(f, v)
   }
   return [...new Set(ids.filter((id) => /^[0-9a-f-]{36}$/i.test(id)))]
 }
@@ -305,7 +317,7 @@ const titleField = computed(() => editable.value.find((f: any) => f.key === titl
 // A title that is an address (redirects): labelled, "/…" as the hint, set in mono.
 const titleIsAddress = computed(() => ['path', 'url', 'link'].includes(titleField.value?.meta?.format))
 const titlePlaceholder = computed(() => (titleIsAddress.value ? '/…' : t('editor.titlePlaceholder')))
-const MAIN_TYPES = new Set(['text', 'richtext', 'media', 'blocks', 'gallery'])
+const MAIN_TYPES = new Set(['text', 'richtext', 'media', 'blocks', 'gallery', 'group'])
 const placementOf = (f: any): 'main' | 'sidebar' => f.meta?.position ?? (MAIN_TYPES.has(f.type) ? 'main' : 'sidebar')
 // The publish field is changed by the Publish action, not edited as a field. In a
 // translation only the translatable fields are shown.

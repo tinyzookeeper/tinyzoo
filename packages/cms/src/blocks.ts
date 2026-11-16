@@ -29,8 +29,11 @@ import { upgradeRichText } from './richtext'
  * against the current definition and, when it does not fit, upgraded from version 1.
  */
 
-/** Field types allowed inside a block ('blocks' = a list, one level deep). */
-export const BLOCK_FIELD_TYPES = new Set(['text', 'slug', 'number', 'boolean', 'datetime', 'select', 'richtext', 'media', 'blocks'])
+/**
+ * Field types allowed inside a block, a list item or a group ('blocks' = a list, one
+ * level deep; 'group' = a named object of fields).
+ */
+export const BLOCK_FIELD_TYPES = new Set(['text', 'slug', 'number', 'boolean', 'datetime', 'select', 'richtext', 'media', 'blocks', 'group'])
 
 export interface BlockDef<F extends Record<string, AnyFieldDescriptor> = Record<string, AnyFieldDescriptor>> {
   /** Name in the block picker ("Hero", { cs: 'Úvod', en: 'Hero' }). */
@@ -64,21 +67,41 @@ export const blockVersion = (def: Pick<BlockDef, 'version'>): number => def.vers
 
 export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: BlockDef<F>): BlockDef<F> {
   checkVersioning('Block', def)
-  for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
-    if (key === 'id' || key === 'type' || key === 'v') throw new Error(`Block field "${key}" is reserved (every block has an id, a type and a version).`)
+  checkContainedFields('Block', def.fields)
+  return def
+}
+
+/** Does a set of fields hold a list (`f.list`, `f.blocks`), directly or inside a group? */
+export function holdsList(fields: Record<string, AnyFieldDescriptor>): boolean {
+  return (Object.values(fields) as FieldDescriptor[]).some((fld) => fld.type === 'blocks' || (fld.type === 'group' && holdsList(fld.fields ?? {})))
+}
+
+/**
+ * The rules for fields that sit inside something else (a block, a list item, a group):
+ * only the field types blocks support; a list inside is one level (its items hold
+ * plain fields and groups, not more lists); a group inside a block or a list holds no
+ * list (only a group straight on an entry may).
+ */
+export function checkContainedFields(what: string, fields: Record<string, AnyFieldDescriptor>, opts: { reserved?: boolean } = { reserved: true }) {
+  for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
+    if (opts.reserved && (key === 'id' || key === 'type' || key === 'v')) throw new Error(`${what} field "${key}" is reserved (every block has an id, a type and a version).`)
     if (!BLOCK_FIELD_TYPES.has(fld.type)) {
-      throw new Error(`Block field "${key}" has type "${fld.type}", which blocks do not support (allowed: ${[...BLOCK_FIELD_TYPES].join(', ')}).`)
+      throw new Error(`${what} field "${key}" has type "${fld.type}", which blocks, lists and groups do not support (allowed: ${[...BLOCK_FIELD_TYPES].join(', ')}).`)
     }
     // A list inside a block is one level: its items hold plain fields, not more lists.
     if (fld.type === 'blocks') {
       for (const inner of Object.values(fld.blocks ?? {})) {
         for (const [innerKey, innerFld] of Object.entries(inner.fields) as [string, FieldDescriptor][]) {
-          if (innerFld.type === 'blocks') throw new Error(`Block field "${key}" is a list whose items have a list ("${innerKey}"). Lists inside a block are one level deep.`)
+          if (innerFld.type === 'blocks' || (innerFld.type === 'group' && holdsList(innerFld.fields ?? {}))) {
+            throw new Error(`${what} field "${key}" is a list whose items have a list ("${innerKey}"). Lists inside a block are one level deep.`)
+          }
         }
       }
     }
+    if (fld.type === 'group' && holdsList(fld.fields ?? {})) {
+      throw new Error(`${what} field "${key}" is a group with a list inside. Inside a block or a list a group holds plain fields only (a group straight on an entry may hold a list).`)
+    }
   }
-  return def
 }
 
 /** A version must be a whole number from 1, and from 2 on says how to get there. */
@@ -98,6 +121,13 @@ export type BlockValue<K extends string, F> = Prettify<
   & { [P in keyof F & string as KindOf<F[P]>['optionalIn'] extends true ? never : P]: KindOf<F[P]>['out'] }
   & { [P in keyof F & string as KindOf<F[P]>['optionalIn'] extends true ? P : never]?: KindOf<F[P]>['out'] | null }
 >
+/**
+ * The stored value of a group: an object of its fields, each typed by its own kind
+ * (media fields hold a media id). Every key is optional and may be null: which fields
+ * must be filled in is a runtime rule (`required: true`) the types cannot see, and a
+ * group is saved with the empty ones left out.
+ */
+export type GroupValue<F> = Prettify<{ [P in keyof F & string]?: KindOf<F[P]>['out'] | null }>
 /** The value of a blocks field: an array of any of its block types. */
 export type BlocksValue<B extends Record<string, BlockDef<any>>> = Array<{ [K in keyof B & string]: BlockValue<K, B[K]['fields']> }[keyof B & string]>
 
@@ -194,6 +224,26 @@ function warnUnknownKeys(def: BlockDef, block: Record<string, any>, where?: stri
 }
 
 /**
+ * One stored field value brought to the current shape: a list's items run through
+ * `upgrade`, rich text through `richTextUpgrades`, a group's fields one by one.
+ * The same value when nothing changed.
+ */
+function upgradeFieldValue(fld: FieldDescriptor, value: unknown, opts: UpgradeOptions, path: (string | number)[]): unknown {
+  if (fld.type === 'blocks' && fld.blocks) return upgradeBlocks(value, fld.blocks, opts, path)
+  if (fld.type === 'richtext') return upgradeRichText(value)
+  if (fld.type === 'group' && fld.fields && isPlainObject(value)) {
+    let cur: Record<string, any> = value
+    for (const [key, inner] of Object.entries(fld.fields) as [string, FieldDescriptor][]) {
+      if (!(key in cur)) continue
+      const next = upgradeFieldValue(inner, cur[key], opts, [...path, key])
+      if (next !== cur[key]) cur = { ...cur, [key]: next }
+    }
+    return cur
+  }
+  return value
+}
+
+/**
  * Bring a stored blocks array (or list) to the versions in `defs`: every block that
  * is behind runs through its definition's `upgrade`, step by step, and is stamped
  * `v`; the lists inside blocks (and rich text, see `richTextUpgrades`) too.
@@ -221,9 +271,7 @@ export function upgradeBlocks<T = unknown>(value: T, defs: Record<string, BlockD
     }
     for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
       if (!(key in cur)) continue
-      const next = fld.type === 'blocks' && fld.blocks ? upgradeBlocks(cur[key], fld.blocks, opts, [...path, i, key])
-        : fld.type === 'richtext' ? upgradeRichText(cur[key])
-          : cur[key]
+      const next = upgradeFieldValue(fld, cur[key], opts, [...path, i, key])
       if (next !== cur[key]) cur = { ...cur, [key]: next }
     }
     if (opts.stamp && cur.v !== storedBlockVersion(cur)) cur = { ...cur, v: storedBlockVersion(cur) }
@@ -243,14 +291,12 @@ export const upgradeListItems = upgradeBlocks
  * translation holds only the localized ones) are left alone.
  */
 export function upgradeStoredRow<R extends Record<string, any>>(
-  fields: Record<string, { type: string; blocks?: Record<string, BlockDef> }>, row: R, opts: UpgradeOptions = {},
+  fields: Record<string, { type: string; blocks?: Record<string, BlockDef>; fields?: Record<string, any> }>, row: R, opts: UpgradeOptions = {},
 ): R {
   for (const [key, fld] of Object.entries(fields)) {
     if (!(key in row) || row[key] == null) continue
     const was = row[key]
-    const next = fld.type === 'blocks' && fld.blocks ? upgradeBlocks(was, fld.blocks, { ...opts, where: opts.where ? `${opts.where} · ${key}` : key }, [key])
-      : fld.type === 'richtext' ? upgradeRichText(was)
-        : was
+    const next = upgradeFieldValue(fld as FieldDescriptor, was, { ...opts, where: opts.where ? `${opts.where} · ${key}` : key }, [key])
     if (next !== was) (row as Record<string, any>)[key] = next
   }
   return row
@@ -487,22 +533,32 @@ export function blocksSchema(blocks: Record<string, BlockDef>, max = 500, stored
   })
 }
 
+/** The admin graph's description of one field inside a block, list item or group. */
+export function innerFieldGraph(key: string, fld: FieldDescriptor) {
+  return {
+    key,
+    type: fld.type,
+    optional: !fld.isRequired,
+    required: fld.isRequired,
+    unique: false,
+    ui: fld.ui,
+    meta: fld.meta,
+  }
+}
+
 /** Serializable description of the block types for the admin graph. */
 export function blocksGraph(blocks: Record<string, BlockDef>) {
   return Object.fromEntries(Object.entries(blocks).map(([type, def]) => [type, {
     label: def.label,
     description: def.description ?? null,
     icon: def.icon ?? 'i-lucide-square',
-    fields: (Object.entries(def.fields) as [string, FieldDescriptor][]).map(([key, fld]) => ({
-      key,
-      type: fld.type,
-      optional: !fld.isRequired,
-      required: fld.isRequired,
-      unique: false,
-      ui: fld.ui,
-      meta: fld.meta,
-    })),
+    fields: (Object.entries(def.fields) as [string, FieldDescriptor][]).map(([key, fld]) => innerFieldGraph(key, fld)),
   }]))
+}
+
+/** The fields of a group for the admin graph (a group's own `meta.fields`). */
+export function groupGraph(fields: Record<string, AnyFieldDescriptor>) {
+  return (Object.entries(fields) as [string, FieldDescriptor][]).map(([key, fld]) => innerFieldGraph(key, fld))
 }
 
 /** For each block type, the keys of its media fields (for population and cleanup). */
@@ -525,12 +581,19 @@ export function mediaIdsInBlocks(value: unknown, blocks: Record<string, BlockDef
       collectAnyMedia(block, out, true)
       continue
     }
-    for (const [key, fld] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
-      const v = block[key]
-      if (fld.type === 'media' && typeof v === 'string' && v) out.push(v)
-      else if (fld.type === 'richtext') collectEmbedded(v, out)
-      else if (fld.type === 'blocks' && fld.blocks) mediaIdsInBlocks(v, fld.blocks, out)
-    }
+    mediaIdsInFields(def.fields, block, out)
+  }
+  return out
+}
+
+/** Every media id in the values of a set of fields (a block's, or a group's): media fields, images in rich text, lists and groups inside. */
+export function mediaIdsInFields(fields: Record<string, AnyFieldDescriptor>, values: Record<string, any>, out: string[] = []): string[] {
+  for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
+    const v = values[key]
+    if (fld.type === 'media' && typeof v === 'string' && v) out.push(v)
+    else if (fld.type === 'richtext') collectEmbedded(v, out)
+    else if (fld.type === 'blocks' && fld.blocks) mediaIdsInBlocks(v, fld.blocks, out)
+    else if (fld.type === 'group' && fld.fields && isPlainObject(v)) mediaIdsInFields(fld.fields, v, out)
   }
   return out
 }

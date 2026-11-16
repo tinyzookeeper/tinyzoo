@@ -795,3 +795,69 @@ page and its texts); no test that `CmsField`/`CmsCell` pick a plugin's renderer 
 the dispatch is three lines); no test of a plugin installed from the registry into `node_modules` (the forms plugin
 is the covered case); the dev-server restart on a changed plugin list; the privacy hook above; more hooks (`change`,
 `startup`) when a plugin needs them.
+### 0.2 F — Groups and links that follow
+
+Branch `feat/0.2-links`. README: "Groups: `f.group`" and "Links that follow their page";
+upgrade steps in `docs/upgrading.md` and the changeset. `pnpm check` green: 59 test files
+passed, 2 skipped; 698 tests passed, 16 skipped (68 new: `test/unit/groups.spec.ts`,
+`links.spec.ts`, `test/api/groups.spec.ts`, `links.spec.ts`).
+
+**`f.group({ fields })`.** One jsonb column (`type: 'group'`, `Record<string, unknown>` in the
+emitted schema), validated per field with the rule blocks use (`required: true` must be
+filled in, the rest may be empty, unknown keys dropped), `.optional()` (null) and
+`.localized()` (a whole group per language; an empty or untranslated group falls back, see
+`isEmpty` in `cmsLocales.ts`). Allowed inside: `BLOCK_FIELD_TYPES`, which now includes `group`
+(so groups nest and sit in blocks and list items). Row/Insert type each field by its kind, every
+key optional/nullable (`GroupValue`): which fields are required is a runtime rule the types
+cannot see. Content API/OpenAPI/client: `{ kind: 'group' }`, an object with every field
+present (null when empty, media resolved), nullable only when the group is optional.
+Wired through: media (cleanup, usage, translations), search (text read, index signature only
+changes for entities with a group), `upgradeStoredRow` (lists and rich text inside),
+`content:migrate`, export/import (media, upgrade, fingerprint), the admin (`CmsFieldGroup`
+fieldset, `CmsCellGroup`, form defaults, error paths `contact.address.city`, restore of
+missing media). Playground: `siteSettings.contact` (nested group + media), `post.location`
+(optional, localized), a `contact` block with a group; migration `0019_group_fields`
+(three nullable columns).
+
+**Links that follow.** `cms:<entity>/<id>` (`src/linkref.ts`, strict: a well-formed uuid, nothing
+else), accepted by `isSafeLink`, link fields and rich-text link marks (the editor's link
+extension gets the `cms` scheme); not by `format: 'url'`/`'path'`. `src/links.ts` is the pure
+walk (`mapRowLinks`, `linkRefsOf`: fields, lists, blocks, groups, rich text; copy-on-write, a
+dropped rich-text link keeps its words). `server/utils/cmsLinks.ts`: `resolveContentLinks`
+(called from `populateItems`, so lists, items, globals and populated targets are all covered;
+`?preview` resolves drafts), `describeLinkRefs` (admin: title, address, `live | draft |
+missing | restricted`, new `POST /api/cms/_links/resolve`), `linksTo`. Addresses come from
+`cmsLinkAddress.ts`: the picker's computation (translated parts from the translation, the rest
+from the default language); a collection with no address for the language links to the default
+language's page. Linkable = public, with `content.path`; the picker now offers only those
+and returns `ref`. Delete: 409 `in_use` also when something links to the entry (text search of
+the stored JSON, so unknown blocks count; self-links do not; entries, globals and
+translations are named). Redirects: a `to` that is a reference is resolved when the cache
+loads and in the loop check; page changes now clear the redirect cache. Webhooks: when an
+entry's address or reachability changes, `paths` also holds the entries that link to it and the
+optional `globals` names the public globals that do (`CmsChange.globals`). `tinyzoo
+links:convert [--dry-run] [--batch n]` (`cli/links-convert.ts`, one `case` in `cli/index.ts`).
+Admin: picker emits references, `CmsLinkTarget` + `useCmsLinkTargets` (batched, per language)
+show the target in link fields, the rich-text popover and lists, with warnings.
+
+**Contract.** Required link fields are `string | null` in the content API types and OpenAPI
+(menus' `url`; optional ones already were); `CmsMenuLink.url` is `string | null`;
+`cmsMenuTree`/`<CmsNav>` skip links without an address. Same JSON on the wire for a site that
+stores no references. Golden files regenerated (`pnpm contracts:update`), changeset says it is
+a type-level break.
+
+Deviations and limits:
+- Links do not carry an `#anchor` or `?query`; `links:convert` reports such addresses and
+  leaves them.
+- `links:convert` skips blocks stored at an older version (it reports them; run
+  `content:migrate` first) and does not rewrite History.
+- A list may sit only directly in a group on an entry (not in a group inside a block, a list
+  item or another group): keeps the one-level rule of lists without walking nested stored
+  versions.
+- Groups have no `version`/`upgrade` of their own (their lists and rich text do).
+- Unpublishing a linked page is not blocked or warned about at the moment of unpublishing;
+  the link is just hidden and the admin warns on the link.
+- Not checked in a browser (the shared one was in use): the new admin pieces type-check,
+  render in the build and have strings in cs/en/de, but nobody has clicked through them.
+- Two unrelated flakes showed up in full runs and passed on rerun: the tar writer's permission
+  test in `cli-hardening.spec.ts` (ENOENT) and a `truncate` deadlock in `crud.spec.ts`.

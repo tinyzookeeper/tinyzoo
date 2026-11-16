@@ -110,6 +110,8 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   relation?: RelationSpec
   /** Block type definitions (blocks fields only). */
   blocks?: Record<string, import('./blocks').BlockDef>
+  /** The fields a group holds (group fields only). */
+  fields?: Record<string, FieldDescriptor>
   /** null ⇒ owns no DB column (many-to-many, one-to-many). */
   spec: ColumnSpec | null
   zod(mode?: ValidationMode, context?: ValidationContext): ZodTypeAny

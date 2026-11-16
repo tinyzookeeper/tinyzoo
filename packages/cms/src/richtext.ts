@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { isLinkRef } from './linkref'
 
 /**
  * Minimal ProseMirror/TipTap-style document. Stored as jsonb. Sanitized on WRITE
@@ -24,18 +25,22 @@ function schemeAllowed(u: unknown, allowed: Set<string>): boolean {
   }
 }
 
-/** Safe as a link target: a site path, #anchor, or http(s)/mailto/tel. No control chars or spaces. */
+/**
+ * Safe as a link target: a site path, #anchor, http(s)/mailto/tel, or a reference to
+ * an entry of this site (`cms:<entity>/<id>`, which the content API turns into the
+ * entry's address — see links.ts). No control chars or spaces.
+ */
 export function isSafeLink(u: unknown): boolean {
   const s = String(u ?? '')
   if (!s || /\s/.test(s)) return false
-  return schemeAllowed(s, SAFE_LINK_SCHEMES)
+  return isLinkRef(s) || schemeAllowed(s, SAFE_LINK_SCHEMES)
 }
 
 function sanitizeNode(node: any): void {
   if (!node || typeof node !== 'object') return
   // Drop link marks with an unsafe href (javascript:/data:/… → keep the text, lose the link).
   if (Array.isArray(node.marks)) {
-    node.marks = node.marks.filter((m: any) => !(m?.type === 'link' && !schemeAllowed(m?.attrs?.href, SAFE_LINK_SCHEMES)))
+    node.marks = node.marks.filter((m: any) => !(m?.type === 'link' && !(isLinkRef(m?.attrs?.href) || schemeAllowed(m?.attrs?.href, SAFE_LINK_SCHEMES))))
   }
   // Blank an unsafe image src (CmsContent then renders nothing for it).
   if (node.type === 'image' && node.attrs && !schemeAllowed(node.attrs.src, SAFE_IMG_SCHEMES)) {

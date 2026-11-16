@@ -1,10 +1,10 @@
-import { eq, mediaIdsInBlocks, sql } from 'tinyzoo'
+import { eq, mediaIdsInBlocks, mediaIdsInFields, sql } from 'tinyzoo'
 import { deleteImageVariants } from './cmsImageSizes'
 import type { CmsRegistry } from 'tinyzoo'
 import type { StorageDriver } from './cmsStorage'
 
 /** Field types storing JSON that can hold media ids (rich text images, blocks, galleries). */
-export const JSON_MEDIA_TYPES = new Set(['richtext', 'blocks', 'gallery'])
+export const JSON_MEDIA_TYPES = new Set(['richtext', 'blocks', 'gallery', 'group'])
 
 /** Every (table, column) pair that holds a media FK, across all entities. */
 function mediaColumns(reg: CmsRegistry): { table: any; col: any }[] {
@@ -38,6 +38,7 @@ function richTextColumns(reg: CmsRegistry): { table: any; col: any }[] {
 /** Media ids referenced by one jsonb value of a field (rich text or blocks). */
 export function jsonMediaIds(fld: any, value: unknown): string[] {
   if (fld?.type === 'blocks') return mediaIdsInBlocks(value, fld.blocks ?? {})
+  if (fld?.type === 'group') return value && typeof value === 'object' ? mediaIdsInFields(fld.fields ?? {}, value as Record<string, any>) : []
   if (fld?.type === 'gallery') return Array.isArray(value) ? value.map((x: any) => x?.mediaId).filter((id: unknown): id is string => typeof id === 'string') : []
   return embeddedMediaIds(value)
 }
@@ -79,7 +80,7 @@ export function mediaIdsOf(reg: CmsRegistry, e: any, row: Record<string, any>): 
   for (const [key, fld] of Object.entries(e.fields)) {
     if ((fld as any).type === 'media' && row[`${key}Id`]) ids.push(row[`${key}Id`])
     else if ((fld as any).type === 'richtext' && row[key]) embeddedMediaIds(row[key], ids)
-    else if (((fld as any).type === 'blocks' || (fld as any).type === 'gallery') && row[key]) ids.push(...jsonMediaIds(fld, row[key]))
+    else if (((fld as any).type === 'blocks' || (fld as any).type === 'gallery' || (fld as any).type === 'group') && row[key]) ids.push(...jsonMediaIds(fld, row[key]))
   }
   return ids
 }

@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   // arbitrary keys (proto/Drizzle methods) and never a hidden-column ordering oracle.
   const sortable = new Set<string>(['createdAt', 'updatedAt'])
   for (const [k, fld] of Object.entries(e.fields)) {
-    if (!hidden.has(k) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks' && fld.type !== 'gallery') sortable.add(k)
+    if (!hidden.has(k) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks' && fld.type !== 'group' && fld.type !== 'gallery') sortable.add(k)
   }
   const sortKey = sortable.has(String(query.sort)) ? String(query.sort) : (orderField && sortable.has(orderField) ? orderField : 'createdAt')
   const dir = query.dir === 'asc' || (!query.dir && !query.sort && sortKey === orderField) ? asc : desc
@@ -74,7 +74,7 @@ export default defineEventHandler(async (event) => {
   await overlayTranslations(db, reg, e, rows, locale)
   // An editor's unsaved values, while they type (live preview).
   applyPreviewDrafts(event, reg, e, rows, locale)
-  await populateItems(db, reg, e, rows, e.content?.populate, locale)
+  await populateItems(db, reg, e, rows, e.content?.populate, locale, { preview: isPreviewAuthorized(event) })
   const items = rows.map((r) => projectItem(e, r))
   await attachLocaleInfo(db, reg, e, rows, items, locale)
   setContentCache(event)

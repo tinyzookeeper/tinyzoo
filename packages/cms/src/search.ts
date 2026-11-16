@@ -38,7 +38,7 @@ const NOT_PROSE = new Set(['email', 'url', 'path', 'link', 'color'])
 export function isSearchableField(fld: FieldDescriptor): boolean {
   if (fld.relation) return false
   if (fld.type === 'text') return !NOT_PROSE.has(String((fld.meta as any)?.format ?? ''))
-  return fld.type === 'richtext' || fld.type === 'blocks'
+  return fld.type === 'richtext' || fld.type === 'blocks' || fld.type === 'group'
 }
 
 /** The words of a rich-text document, one line per paragraph, heading or list item. */
@@ -95,6 +95,11 @@ function collect(fld: FieldDescriptor, value: unknown, out: string[]) {
       for (const [key, inner] of Object.entries(def.fields) as [string, FieldDescriptor][]) {
         if (isSearchableField(inner)) collect(inner, block[key], out)
       }
+    }
+  }
+  else if (fld.type === 'group' && typeof value === 'object' && !Array.isArray(value)) {
+    for (const [key, inner] of Object.entries(fld.fields ?? {}) as [string, FieldDescriptor][]) {
+      if (isSearchableField(inner)) collect(inner, (value as Record<string, unknown>)[key], out)
     }
   }
 }

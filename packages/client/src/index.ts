@@ -200,14 +200,22 @@ export function createCmsClient<S extends AnyContentSchema, G extends object = R
   }) as unknown as CmsClient<S>
 }
 
-/** A menu link as the content API returns it (defineNavigation). */
-export interface CmsMenuLink { id: string; label: string; url: string; newTab?: boolean | null; sub?: boolean | null }
+/**
+ * A menu link as the content API returns it (defineNavigation). `url` is null when the
+ * link points at a page that is gone or not published (links follow their target, so a
+ * renamed page keeps working, and a missing one has no address).
+ */
+export interface CmsMenuLink { id: string; label: string; url: string | null; newTab?: boolean | null; sub?: boolean | null }
 /** A top-level menu link with the links of its dropdown. */
 export type CmsMenuItem<L extends CmsMenuLink = CmsMenuLink> = L & { children: L[] }
 
 /**
  * Nest a menu: a link marked `sub` ("under the link above") goes into the dropdown of
  * the nearest top-level link before it; a `sub` link with nothing above stays on top.
+ *
+ * A link without an address (its page is gone or not published) is left out, together
+ * with its dropdown links, unless it has dropdown links of its own that still work: it
+ * then stays as a heading without a `url`, so the dropdown does not vanish.
  *
  *   const nav = await cms.global('navigation')
  *   const main = cmsMenuTree(nav.main) // [{ label: 'O nás', url: '/o-nas', children: [{ label: 'Tým', … }] }, …]
@@ -219,5 +227,8 @@ export function cmsMenuTree<L extends CmsMenuLink>(links: readonly L[] | null | 
     if (link.sub && parent) parent.children.push(link)
     else out.push({ ...link, children: [] })
   }
+  // Dropdown links that lead nowhere go; a top link that leads nowhere goes unless a dropdown link remains.
   return out
+    .map((item) => ({ ...item, children: item.children.filter((c) => !!c.url) }))
+    .filter((item) => !!item.url || item.children.length > 0)
 }

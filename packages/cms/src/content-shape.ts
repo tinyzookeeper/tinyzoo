@@ -22,6 +22,7 @@ export type ContentFieldType =
   | { kind: 'relation-one'; target: string; public: boolean }
   | { kind: 'relation-many'; target: string; public: boolean }
   | { kind: 'blocks'; blocks: { type: string; fields: ContentField[] }[] }
+  | { kind: 'group'; fields: ContentField[] }
 
 export interface ContentField {
   key: string
@@ -106,6 +107,13 @@ function populateSet(e: CmsEntity): Set<string> {
   return new Set(e.content?.populate ?? populatableKeys(e))
 }
 
+/**
+ * A link field can come back null whatever its `required`: it may hold a reference to
+ * an entry (`cms:<entity>/<id>`) that the content API resolves to an address, or to null
+ * when the entry is gone, not published or not public (see links.ts).
+ */
+const isLink = (fld: FieldDescriptor) => fld.type === 'text' && fld.meta?.format === 'link'
+
 function scalarType(fld: FieldDescriptor): ContentFieldType {
   switch (fld.type) {
     case 'text': return { kind: 'scalar', scalar: 'string' }
@@ -126,21 +134,32 @@ function scalarType(fld: FieldDescriptor): ContentFieldType {
 }
 
 /**
+ * A field inside a block or a group as the API returns it (mirror
+ * cmsContent.projectFieldValue): media resolved to the public media object, a list an
+ * array (never null), a group an object of its fields (null when empty).
+ */
+function innerField(key: string, bf: FieldDescriptor): ContentField {
+  if (bf.type === 'media') return { key, type: { kind: 'media' }, nullable: true }
+  if (bf.type === 'blocks') return { key, type: blocksType(bf), nullable: false } // a list inside a block: always an array
+  if (bf.type === 'group') return { key, type: groupType(bf), nullable: true }
+  return { key, type: scalarType(bf), nullable: !bf.isRequired || isLink(bf) }
+}
+
+/**
  * A blocks field as the API returns it (mirror cmsContent.projectBlocks): every block
- * carries id, type and each of its type's fields (null when empty); media resolved
- * to the public media object.
+ * carries id, type and each of its type's fields (null when empty).
  */
 function blocksType(fld: FieldDescriptor): ContentFieldType {
   const blocks = Object.entries(fld.blocks ?? {}).map(([type, def]) => ({
     type,
-    fields: (Object.entries(def.fields) as [string, FieldDescriptor][]).map(([key, bf]): ContentField =>
-      bf.type === 'media'
-        ? { key, type: { kind: 'media' }, nullable: true }
-        : bf.type === 'blocks'
-          ? { key, type: blocksType(bf), nullable: false } // a list inside a block: always an array
-          : { key, type: scalarType(bf), nullable: !bf.isRequired }),
+    fields: (Object.entries(def.fields) as [string, FieldDescriptor][]).map(([key, bf]) => innerField(key, bf)),
   }))
   return { kind: 'blocks', blocks }
+}
+
+/** A group field as the API returns it: an object with each of its fields (null when empty). */
+function groupType(fld: FieldDescriptor): ContentFieldType {
+  return { kind: 'group', fields: (Object.entries(fld.fields ?? {}) as [string, FieldDescriptor][]).map(([key, gf]) => innerField(key, gf)) }
 }
 
 /** Is a projected to-one relation possibly null? (optional FK, or target is publish-gated.) */
@@ -182,12 +201,17 @@ function topLevelFields(reg: CmsRegistry, e: CmsEntity): ContentField[] {
       out.push({ key, type: blocksType(fld), nullable: false })
       continue
     }
+    // A group is one object (null only when the group is optional).
+    if (fld.type === 'group') {
+      out.push({ key, type: groupType(fld), nullable: fld.isOptional })
+      continue
+    }
     // Galleries are always resolved (like blocks): an array of media + caption.
     if (fld.type === 'gallery') {
       out.push({ key, type: { kind: 'gallery' }, nullable: false })
       continue
     }
-    out.push({ key, type: scalarType(fld), nullable: fld.isOptional })
+    out.push({ key, type: scalarType(fld), nullable: fld.isOptional || isLink(fld) })
   }
   return out
 }
@@ -198,8 +222,8 @@ function embeddedFields(e: CmsEntity): ContentField[] {
   const out: ContentField[] = []
   for (const [key, fld] of Object.entries(e.fields)) {
     // Blocks are not embedded in related items (they can hold media to resolve).
-    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'gallery') continue
-    out.push({ key, type: scalarType(fld), nullable: fld.isOptional })
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'group' || fld.type === 'gallery') continue
+    out.push({ key, type: scalarType(fld), nullable: fld.isOptional || isLink(fld) })
   }
   return out
 }
@@ -209,7 +233,7 @@ function sortKeys(e: CmsEntity): string[] {
   const hidden = hiddenSet(e)
   const keys = ['createdAt', 'updatedAt']
   for (const [key, fld] of Object.entries(e.fields)) {
-    if (!hidden.has(key) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks' && fld.type !== 'gallery') keys.push(key)
+    if (!hidden.has(key) && !fld.relation && fld.type !== 'media' && fld.type !== 'richtext' && fld.type !== 'blocks' && fld.type !== 'group' && fld.type !== 'gallery') keys.push(key)
   }
   return keys
 }

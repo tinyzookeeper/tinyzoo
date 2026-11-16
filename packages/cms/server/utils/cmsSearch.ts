@@ -134,6 +134,8 @@ export function searchIndexSignature(reg: CmsRegistry): string {
   const fieldShape = (fields: Record<string, any>): any => Object.entries(fields).map(([k, f]) => [
     k, f.type, f.meta?.format ?? null,
     f.blocks ? Object.fromEntries(Object.entries(f.blocks as Record<string, any>).map(([t, b]) => [t, fieldShape(b.fields)])) : null,
+    // Only groups add an element: the signature of a site without one stays what it was.
+    ...(f.fields ? [fieldShape(f.fields)] : []),
   ])
   const shape = reg.entities.filter(indexable).map((e) => ({
     name: e.name, title: e.titleField, localized: e.localized, fields: fieldShape(e.fields),

@@ -56,13 +56,18 @@ export function cmsIssueMessage(issue: any, field: any, t: T): string {
  * Toast text for a refused delete: "still in use" names where (up to five titles),
  * anything else gives the server's reason.
  */
-export function cmsDeleteFailure(err: any, t: T): { title: string; description?: string } {
+export function cmsDeleteFailure(err: any, t: T, name?: (label: unknown) => string): { title: string; description?: string } {
   const data = err?.data?.data
   if (data?.code === 'in_use') {
     const short = (s: string) => (s.length > 40 ? s.slice(0, 39).trimEnd() + '…' : s)
-    const titles: string[] = (data.usedBy ?? []).map((u: any) => u.title ? `„${short(String(u.title))}“` : '').filter(Boolean)
-    const items = titles.length ? titles.slice(0, 5).join(', ') + (titles.length > 5 ? '…' : '') : '—'
-    return { title: t('list.inUseTitle'), description: t('list.inUseBody', { items }) }
+    const used: any[] = data.usedBy ?? []
+    // A global (a menu, the site settings) has no title: it is named by its collection.
+    const named = (u: any) => (u.title ? `„${short(String(u.title))}“` : u.singleton && name ? name(u.label) : '')
+    const titles: string[] = used.map(named).filter(Boolean)
+    const items = titles.length ? [...new Set(titles)].slice(0, 5).join(', ') + (titles.length > 5 ? '…' : '') : '—'
+    // Links to a page by reference (a menu, a button) have their own wording: remove the links.
+    const onlyLinks = used.length > 0 && used.every((u) => u.via === 'link')
+    return { title: t('list.inUseTitle'), description: t(onlyLinks ? 'list.inUseLinkBody' : 'list.inUseBody', { items }) }
   }
   return { title: t('list.deleteFailed'), description: cmsRequestError(err, t) }
 }

@@ -80,6 +80,11 @@ function fieldSchema(t: ContentFieldType): JsonSchema {
       })
       return { type: 'array', items: variants.length === 1 ? variants[0] : { oneOf: variants, discriminator: { propertyName: 'type' } } }
     }
+    case 'group': {
+      const properties: JsonSchema = {}
+      for (const f of t.fields) properties[f.key] = nullable(fieldSchema(f.type), f.nullable)
+      return { type: 'object', properties, required: t.fields.map((f) => f.key), additionalProperties: false }
+    }
   }
 }
 

@@ -66,7 +66,7 @@ export function useCmsEntryActions() {
       return true
     }
     catch (err: any) {
-      toast.add({ ...cmsDeleteFailure(err, t as any), icon: 'i-lucide-x', color: 'error' })
+      toast.add({ ...cmsDeleteFailure(err, t as any, (label) => tl(label as any)), icon: 'i-lucide-x', color: 'error' })
       return false
     }
   }

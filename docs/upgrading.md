@@ -167,6 +167,38 @@ optional field required.
 On a site with no entries yet (a new site, a staging copy) there is nothing to
 fail, and `--allow-risky` is fine.
 
+### Adding a group
+
+`f.group({ fields })` is one jsonb column. On an existing entity add it `.optional()`:
+the migration is a nullable `ADD COLUMN`, which is safe on rows that already exist (the
+same goes for a `.localized()` group, whose column is added to the translations table).
+A required group is a `NOT NULL` column and needs a default first — see "Adding a
+required field" above. Changing the fields inside a group later is a change to stored
+JSON, not to the schema: no migration is generated. Adding an optional field is free, and
+a field that was renamed or removed has no `version` / `upgrade` hook yet (groups are
+not versioned): keep both names readable for one release, or move the data in a script.
+
+### Converting links to follow their page
+
+Links picked in the admin before this version were stored as the page's address, so
+renaming the page broke them. Links picked now are stored as `cms:<entity>/<id>` and
+follow the page; the old ones keep working as the addresses they are until you convert
+them:
+
+```bash
+tinyzoo links:convert --dry-run   # what it would convert, and what it could not match
+tinyzoo links:convert             # do it (run it from the site's folder; DATABASE_URL set)
+```
+
+An address is converted only when it is exactly the current address of **one** entry (in
+any language, with the website's fallbacks). Addresses no entry has, addresses two
+entries share and addresses with a `#anchor` or `?query` are listed and left as they
+are: pick those pages again in the link picker. External links, `mailto:` and `tel:` are
+not touched; neither are saved versions (History) or `updatedAt`. If it reports blocks
+stored at an older version, run `tinyzoo content:migrate` first. Afterwards purge the
+website's cache (the content API answers changed), and make sure whatever consumes the
+API handles a link field that is `null` (the target is gone or not published).
+
 ### Renaming a field
 
 Renaming `title` to `headline` in `cms.config.ts`; the database column follows.

@@ -35,7 +35,7 @@ const compact = computed(() => props.placement === 'sidebar')
 const showHelp = ref(false)
 const inputId = computed(() => `cms-field-${props.idPrefix ?? ''}${props.field.key}`)
 // Composite fields (rich text, images, blocks, choice buttons) have no single control to focus.
-const composite = computed(() => ['richtext', 'media', 'blocks', 'gallery'].includes(props.field.type)
+const composite = computed(() => ['richtext', 'media', 'blocks', 'gallery', 'group'].includes(props.field.type)
   || (!override.value && cmsSelectAsButtons(props.field, props.placement ?? 'main')))
 const isSwitch = computed(() => props.field.type === 'boolean' && !override.value)
 // Field widgets that adapt to where they sit (e.g. the image field) read this; in a

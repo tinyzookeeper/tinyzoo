@@ -60,7 +60,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'hero'; heading: string; lead: string | null; image: CmsMedia | null; buttonLabel: string | null; buttonUrl: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'image'; image: CmsMedia | null; caption: string | null } | { id: string; type: 'cta'; text: string; buttonLabel: string | null; buttonUrl: string | null; highlighted: boolean | null } | { id: string; type: 'cards'; heading: string | null; items: Array<{ id: string; type: 'item'; title: string; text: string | null; image: CmsMedia | null }> }>
+  sections: Array<{ id: string; type: 'hero'; heading: string; lead: string | null; image: CmsMedia | null; buttonLabel: string | null; buttonUrl: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'image'; image: CmsMedia | null; caption: string | null } | { id: string; type: 'cta'; text: string; buttonLabel: string | null; buttonUrl: string | null; highlighted: boolean | null } | { id: string; type: 'contact'; heading: string | null; address: { street: string; city: string | null; photo: CmsMedia | null } | null } | { id: string; type: 'cards'; heading: string | null; items: Array<{ id: string; type: 'item'; title: string; text: string | null; image: CmsMedia | null }> }>
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null
@@ -83,6 +83,7 @@ export interface Post {
   author: AuthorEmbedded
   tags: TagEmbedded[]
   body: RichTextDoc
+  location: { place: string; note: string | null } | null
   gallery: CmsGalleryItem[]
   metaTitle: string | null
   metaDescription: string | null
@@ -111,8 +112,8 @@ export interface Tag {
 // ── globals ─────────────────────────────────────────────────────────────────────
 export interface Navigation {
   id: string
-  main: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null; sub: boolean | null }>
-  footer: Array<{ id: string; type: 'link'; label: string; url: string; newTab: boolean | null; sub: boolean | null }>
+  main: Array<{ id: string; type: 'link'; label: string; url: string | null; newTab: boolean | null; sub: boolean | null }>
+  footer: Array<{ id: string; type: 'link'; label: string; url: string | null; newTab: boolean | null; sub: boolean | null }>
   createdAt: string
   updatedAt: string
   /** The language this item is served in. */
@@ -128,6 +129,7 @@ export interface SiteSettings {
   brandColor: string | null
   openingHours: Array<{ id: string; type: 'item'; days: string; hours: string | null }>
   rules: CmsMedia | null
+  contact: { phone: string | null; email: string | null; address: { street: string; city: string; zip: string | null } | null; photo: CmsMedia | null } | null
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null

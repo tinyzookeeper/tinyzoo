@@ -1,16 +1,22 @@
 <script setup lang="ts">
+import { isLinkRef } from '../../src/linkref'
 // Pick what a link points to: a page or entry of this website (found by its title,
 // with its address in the language being edited), or an address typed or pasted
 // into the box. An inline panel: rich text, menus and link fields put it in their
-// own popover. Emits the address and, for a picked entry, its title.
-const props = defineProps<{ initial?: string | null; locale?: string | null }>()
+// own popover. A picked entry is emitted as a reference (`cms:<entity>/<id>`), so the
+// link follows the page when its address changes, together with its title; with
+// `refs` off (an address field, not a link) as its address. A typed address is
+// emitted as typed.
+const props = withDefaults(defineProps<{ initial?: string | null; locale?: string | null; refs?: boolean }>(), { refs: true })
 const emit = defineEmits<{ pick: [href: string, title?: string] }>()
 const { t, entityLabel } = useCmsI18n()
 const route = useRoute()
+const { seed } = useCmsLinkTargets()
 const graph = useNuxtData<any[]>('cms-graph').data
 
-const term = ref(props.initial ?? '')
-const items = ref<{ entity: string; id: string; title: string; path: string; published: boolean }[]>([])
+// A stored reference is not something to search for.
+const term = ref(props.initial && !isLinkRef(props.initial) ? props.initial : '')
+const items = ref<{ entity: string; id: string; ref: string; title: string; path: string; published: boolean }[]>([])
 const loading = ref(false)
 const active = ref(0)
 const input = ref<any>(null)
@@ -55,7 +61,7 @@ const typed = computed(() => {
   return /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(s) && !s.includes('@') ? `https://${s}` : s
 })
 
-type Option = { key: string; label: string; hint?: string; badge?: string; icon: string; href: string; title?: string }
+type Option = { key: string; label: string; hint?: string; badge?: string; icon: string; href: string; title?: string; picked?: { ref: string; entity: string; id: string; path: string; published: boolean } }
 const options = computed<Option[]>(() => {
   const out: Option[] = []
   if (typed.value) out.push({ key: 'typed', label: t('link.typed', { url: typed.value }), icon: 'i-lucide-corner-down-left', href: typed.value })
@@ -63,14 +69,18 @@ const options = computed<Option[]>(() => {
     const meta = graph.value?.find((e: any) => e.name === it.entity)
     out.push({
       key: `${it.entity}:${it.id}`, label: it.title || it.path, hint: `${meta ? entityLabel(meta) : it.entity} · ${it.path}`,
-      badge: it.published ? undefined : t('link.draft'), icon: meta?.icon ?? 'i-lucide-file', href: it.path, title: it.title,
+      badge: it.published ? undefined : t('link.draft'), icon: meta?.icon ?? 'i-lucide-file', href: props.refs ? it.ref : it.path, title: it.title,
+      picked: { ref: it.ref, entity: it.entity, id: it.id, path: it.path, published: it.published },
     })
   }
   return out
 })
 
 function choose(o: Option | undefined) {
-  if (o) emit('pick', o.href, o.title)
+  if (!o) return
+  // The editor sees this page's title and address next to the link straight away.
+  if (props.refs && o.picked) seed(o.picked.ref, { entity: o.picked.entity, id: o.picked.id, title: o.title ?? '', path: o.picked.path, state: o.picked.published ? 'live' : 'draft' }, props.locale ?? (typeof route.query.locale === 'string' ? route.query.locale : null))
+  emit('pick', o.href, o.title)
 }
 function onKey(e: KeyboardEvent) {
   const n = options.value.length

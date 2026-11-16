@@ -1,7 +1,7 @@
 // Type-level assertions for the inferred entity types. `tsc --noEmit` must pass.
 // (Each @ts-expect-error must actually error, or tsc fails — so this verifies precision.)
 import type { Insert, Row } from "tinyzoo"
-import { Post } from "./cms.config"
+import { Post, SiteSettings } from "./cms.config"
 
 type PostRow = Row<typeof Post>
 type PostInsert = Insert<typeof Post>
@@ -17,6 +17,7 @@ const row: PostRow = {
   authorId: "a", // required FK
   body: { type: "doc" },
   gallery: [{ mediaId: "m", caption: "Cíl" }], // gallery: ordered files with captions
+  location: { place: "Tábor", note: null }, // optional group: its fields typed, or null (the whole group may be null)
   metaTitle: null, // seo() preset: nullable text …
   metaDescription: null,
   ogImageId: null, // … and a nullable media FK
@@ -62,3 +63,14 @@ void okFull
 // @ts-expect-error missing required 'author'
 const missingAuthor: PostInsert = { title: "t", slug: "s", body: { type: "doc" } }
 void missingAuthor
+
+// ── group: the whole object is typed, each field by its own kind ────────────────
+type SettingsRow = Row<typeof SiteSettings>
+const contact: SettingsRow["contact"] = { phone: "1", email: null, address: { street: "s", city: "c" }, photo: null }
+void contact
+// @ts-expect-error a group's field has its own type (city is text)
+const badCity: SettingsRow["contact"] = { phone: "1", address: { street: "s", city: 3 } }
+void badCity
+// an optional group may be absent
+const noContact: SettingsRow["contact"] = null
+void noContact

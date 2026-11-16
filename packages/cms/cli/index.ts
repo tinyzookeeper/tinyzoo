@@ -10,6 +10,7 @@
  *   tinyzoo client [out]      → emit the typed @tinyzoo/client bindings (default cms-content.ts; --stdout)
  *   tinyzoo openapi [out]     → emit the OpenAPI 3.1 document (default openapi.json; --stdout)
  *   tinyzoo content:migrate   → rewrite stored blocks/lists/rich text to their current versions (--dry-run reports only)
+ *   tinyzoo links:convert     → turn stored page addresses into links that follow their page (--dry-run reports only)
  *   tinyzoo export <file>     → the site's content (entries, translations, links, globals, media files)
  *                               in one .tar.gz archive (--only a,b  --no-media  --with-revisions …)
  *   tinyzoo import <file>     → put such an archive into this site (empty target; --replace, --merge,
@@ -123,13 +124,14 @@ switch (cmd) {
   case 'client': await client(); break
   case 'openapi': await openapi(); break
   case 'content:migrate': await (await import('./content-migrate')).contentMigrateCommand(await loadConfig(), process.argv.slice(3)); break
+  case 'links:convert': await (await import('./links-convert')).linksConvertCommand(await loadConfig(), process.argv.slice(3)); break
   case 'export': await runExport(process.argv.slice(3)).catch(reportFailure); break
   case 'import': await runImport(process.argv.slice(3)).then(() => {}, reportFailure); break
   case 'seed': await (await import('./seed')).seedCommand(await loadConfig(), process.argv.slice(3)).catch(reportFailure); break
   case 'backup': await (await import('./backup')).backup(process.argv.slice(3)); break
   case 'restore': await (await import('./backup')).restore(process.argv.slice(3)); break
   default:
-    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import|seed|backup|restore> [out] [--stdout] [--allow-drop] [--allow-risky] [--dry-run]\n'
+    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import|seed|links:convert|backup|restore> [out] [--stdout] [--allow-drop] [--allow-risky] [--dry-run]\n'
       + '       tinyzoo export <file.tar.gz> [--only a,b] [--no-media] [--with-revisions] [--with-submissions] [--force]\n'
       + '       tinyzoo import <file.tar.gz> [--replace [--yes] | --merge] [--allow-mismatch] [--dry-run]\n'
       + '       tinyzoo seed [file] [--url u] [--email e] [--dry-run] [--reset [--yes]]   (password: $SEED_PASSWORD)\n'

@@ -1410,6 +1410,64 @@
                     },
                     "type": {
                       "type": "string",
+                      "const": "contact"
+                    },
+                    "heading": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "address": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "properties": {
+                        "street": {
+                          "type": "string"
+                        },
+                        "city": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "photo": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/CmsMedia"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "street",
+                        "city",
+                        "photo"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "heading",
+                    "address"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
                       "const": "cards"
                     },
                     "heading": {
@@ -1626,6 +1684,28 @@
           "body": {
             "$ref": "#/components/schemas/RichTextDoc"
           },
+          "location": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "place": {
+                "type": "string"
+              },
+              "note": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "place",
+              "note"
+            ],
+            "additionalProperties": false
+          },
           "gallery": {
             "type": "array",
             "items": {
@@ -1699,6 +1779,7 @@
           "author",
           "tags",
           "body",
+          "location",
           "gallery",
           "metaTitle",
           "metaDescription",
@@ -1841,7 +1922,10 @@
                   "type": "string"
                 },
                 "url": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "newTab": {
                   "type": [
@@ -1883,7 +1967,10 @@
                   "type": "string"
                 },
                 "url": {
-                  "type": "string"
+                  "type": [
+                    "string",
+                    "null"
+                  ]
                 },
                 "newTab": {
                   "type": [
@@ -2021,6 +2108,69 @@
               }
             ]
           },
+          "contact": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "phone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "address": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "street": {
+                    "type": "string"
+                  },
+                  "city": {
+                    "type": "string"
+                  },
+                  "zip": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "street",
+                  "city",
+                  "zip"
+                ],
+                "additionalProperties": false
+              },
+              "photo": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CmsMedia"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "phone",
+              "email",
+              "address",
+              "photo"
+            ],
+            "additionalProperties": false
+          },
           "metaTitle": {
             "type": [
               "string",
@@ -2060,6 +2210,7 @@
           "brandColor",
           "openingHours",
           "rules",
+          "contact",
           "metaTitle",
           "metaDescription",
           "ogImage",

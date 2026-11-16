@@ -72,6 +72,12 @@ export async function changeSnapshot(e: CmsEntity, id: string): Promise<ChangeSn
   return out
 }
 
+/** Did what visitors could reach change: live or not, or the address in some language? */
+export function addressesDiffer(before: ChangeSnapshot, after: ChangeSnapshot): boolean {
+  const key = (s: ChangeSnapshot) => JSON.stringify(s.live ? [...s.paths].map((p) => `${p.locale ?? ''}=${p.path}`).sort() : null)
+  return key(before) !== key(after)
+}
+
 export interface ReportChange {
   type: CmsChangeType
   entity: CmsEntity
@@ -99,6 +105,20 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
       if (!snap.live) continue
       for (const p of snap.paths) if (!locale || p.locale === locale) paths.add(p.path)
     }
+    // Links follow their target: when this entry's address (or whether it can be reached at
+    // all) changed, everything that links to it reads differently now. Those pages go in
+    // `paths`, and the public globals (menus, settings) that link to it are named in `globals`:
+    // whatever shows them — usually every page — is stale too.
+    const globals = new Set<string>()
+    const { db, reg } = useCms()
+    if (!deleted && e.content?.path && !e.singleton && addressesDiffer(before, after) && hasLinkFields(reg)) {
+      for (const dep of await linksTo(db, reg, e, r.id, 50).catch(() => [])) {
+        const target = reg.byName.get(dep.entity)
+        if (!target?.content?.public || (dep.locale && locale && dep.locale !== locale)) continue
+        if (target.singleton) globals.add(target.name)
+        else for (const p of (await changeSnapshot(target, dep.id)).paths) if (!locale || p.locale === locale) paths.add(p.path)
+      }
+    }
     const change: CmsChange = {
       type: r.type,
       entity: e.name,
@@ -106,6 +126,7 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
       locale,
       public: before.live || after.live,
       paths: [...paths],
+      ...(globals.size ? { globals: [...globals] } : {}),
       by: event?.context?.cmsUser?.id ?? null,
       version: r.after?.updatedAt ? new Date(r.after.updatedAt).toISOString() : null,
       at: new Date().toISOString(),
@@ -142,7 +163,11 @@ export function applyChangeLocally(change: Pick<CmsChange, 'entity'>): void {
   const e = reg.byName.get(change.entity)
   if (!e) return
   if ((e as any).preset === 'redirects') invalidateRedirects()
-  if (e.content?.path) invalidateSitemap()
+  // A page's address moved or it went away: redirects to it (stored as a reference) point somewhere else now.
+  if (e.content?.path) {
+    invalidateSitemap()
+    invalidateRedirects()
+  }
 }
 
 const listeners = new Set<(change: CmsChange) => void>()

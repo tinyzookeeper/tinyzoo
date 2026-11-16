@@ -213,6 +213,7 @@ export const post = pgTable('post', {
   heroId: uuid('hero_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
   authorId: uuid('author_id').notNull().references(() => author.id, { onDelete: 'restrict' }),
   body: jsonb('body').$type<RichTextDoc>().notNull(),
+  location: jsonb('location').$type<Record<string, unknown>>(),
   gallery: jsonb('gallery').$type<CmsGalleryValue>().notNull().default([]),
   metaTitle: text('meta_title'),
   metaDescription: text('meta_description'),
@@ -230,6 +231,7 @@ export const postLocales = pgTable('post_locales', {
   title: text('title'),
   slug: text('slug'),
   body: jsonb('body').$type<RichTextDoc>(),
+  location: jsonb('location').$type<Record<string, unknown>>(),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('post_locales_parent_locale_unique').on(t.parentId, t.locale), uniqueIndex('post_locales_slug_unique').on(t.locale, t.slug)])
@@ -253,6 +255,7 @@ export const siteSettings = pgTable('site_settings', {
   brandColor: text('brand_color'),
   openingHours: jsonb('opening_hours').$type<CmsBlock[]>().notNull().default([]),
   rulesId: uuid('rules_id').references(() => cmsMedia.id, { onDelete: 'set null' }),
+  contact: jsonb('contact').$type<Record<string, unknown>>(),
   metaTitle: text('meta_title'),
   metaDescription: text('meta_description'),
   ogImageId: uuid('og_image_id').references(() => cmsMedia.id, { onDelete: 'set null' }),

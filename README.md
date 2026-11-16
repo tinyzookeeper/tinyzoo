@@ -204,7 +204,7 @@ sections: f.blocks({ hero, text, gallery })
 Each block is validated against its own type; rich text inside is sanitised; media
 inside is resolved by the content API and protected by media cleanup. The typed
 client gets an exact union per block type. Block fields: text, slug, number,
-boolean, datetime, select, rich text, media.
+boolean, datetime, select, rich text, media, groups, and one level of lists.
 
 **Changing a block later: `version` and `upgrade`** — stored blocks (and `f.list`
 items) outlive the code that wrote them. A renamed field, a removed one or a new
@@ -638,6 +638,10 @@ an existing site: `pnpm db:generate` writes the migration for the table (startin
 `CREATE EXTENSION IF NOT EXISTS pg_trgm`), then `pnpm db:migrate`; the index fills
 itself on the next start.
 
+Links to other pages (`cms:…` references, see "Links that follow their page") are replaced
+by the page's current address in the requested language — or `null` / an unlinked text when
+it is gone or not published.
+
 Responses resolve relations + media into nested objects, drop raw FK ids, and omit
 `hidden` fields — on the item **and** on populated relations (a non-public relation target
 collapses to `{ id, title }`). Drafts are never served (list excludes them; single → 404).
@@ -927,6 +931,93 @@ brandColor: f.color().optional(),   // #rrggbb, colour picker + hex
 the dropdown of the one before it — `cmsMenuTree(nav.main)` from `@tinyzoo/client`
 nests them, `<CmsNav>` draws them.
 
+### Groups: `f.group`
+
+A named object of fields kept together — an address, a contact, a "where":
+
+```ts
+contact: f.group({
+  fields: {
+    phone: f.text(),
+    email: f.text({ format: 'email' }).optional(),
+    address: f.group({ fields: { street: f.text({ required: true }), city: f.text({ required: true }), zip: f.text() } }),
+    photo: f.media({ accept: 'image/*' }).optional(),
+  },
+}).optional(),
+// stored: one jsonb column      → { phone: '+420 123', address: { street: 'Dlouhá 1', city: 'Tábor' } }
+// content API / client: object  → { phone, email: null, address: { street, city, zip: null }, photo: <media> | null }
+// Row / Insert: contact: { phone?: string | null; … address?: { street?: …; city?: … } | null } | null
+```
+
+- **Stored together** in a single jsonb column (not a column per field) and delivered as
+  one object: every field is present, `null` when empty, media resolved to the public
+  media object. Drizzle's `Row` and the generated client type each field by its own kind.
+- **Checked per field**, like a block's: `required: true` fields must be filled in, the
+  rest may be empty; an unknown key is dropped; each field keeps its own rule (media is a
+  file, rich text is sanitised, `format: 'link'` is a safe link). An error points at the
+  field (`['contact', 'address', 'city']`) and the admin marks it inside the fieldset.
+- **`.optional()`** lets the whole group be absent (`null`, and the admin stores nothing
+  while it is left empty); **`.localized()`** gives each language its own whole group
+  (untranslated, or an empty one, falls back to the default language).
+- **Inside:** the field types a block holds (text, slug, number, boolean, datetime,
+  select, rich text, media), more groups, and a list — a list only directly in a group
+  on an entry, not in a group inside a block, a list item or another group.
+- **Where:** on an entry or a global, and inside blocks and list items (`f.group` as a
+  block field). The admin draws a fieldset; the list shows the first filled-in values.
+- Media inside a group is protected by media cleanup, text inside is found by the search,
+  a link inside follows its page (below), and `content:migrate` / export / import walk it.
+- Adding one to an existing entity: make it `.optional()` (the new column is nullable, so
+  the migration is safe on existing rows); a required group needs a default first (see
+  "Adding a required field" in docs/upgrading.md).
+
+## Links that follow their page
+
+A link an editor picks from the site's pages is stored as a **reference**,
+`cms:<entity>/<id>` (`cms:page/2f6c…`), not as the page's address — so renaming a page,
+changing its address or translating it never breaks a menu, a button or a link in a
+text. Nothing changes in the schema: link fields (`f.text({ format: 'link' })`, the
+menus' link block, a block's button), rich-text links and redirect targets stay text.
+
+- **Visitors never see a reference.** On read, the content API (lists, single items,
+  globals and menus, entries populated into other entries, rich text inside entries, blocks,
+  lists and groups) turns each one into the target's **current address in the language
+  asked for** — with the same fallback as the website: a translated address comes from the
+  translation, an untranslated part from the default language, and a collection with no
+  address for that language links to the default language's page. When the target is
+  **gone, not published (or scheduled for later) or not public**, a link field is `null`
+  and a rich-text link is taken off its words (the text stays). `?preview` (an editor with
+  a session, or the content token) resolves drafts too.
+  Addresses typed by hand (`/path`, `https://…`, `mailto:`, `tel:`) are stored and served
+  as typed.
+- **Contract.** Link fields stay strings in the API, but any of them can now be `null`
+  (the target may be gone), so the generated types and OpenAPI mark every
+  `format: 'link'` field nullable — see the changeset. `cmsMenuTree` and `<CmsNav>` leave
+  out links with no address (a heading whose dropdown still works stays, without a link).
+- **In the admin** the link picker stores the reference; a link field and the rich-text
+  link popover then show the page's **title and address** (in the language being edited)
+  instead of the reference, with a warning when visitors will not get there ("not published
+  yet", "this page no longer exists"). Lists show the page too.
+- **A page that is linked to cannot be deleted**: the delete answers 409 `in_use` and the
+  admin names what links to it (a menu, an entry, a block, rich text, a translation).
+  An entry linking to itself does not count.
+- **Existing links** are not converted for you. `tinyzoo links:convert [--dry-run]` turns
+  a stored address into a reference when it is exactly the current address of **one**
+  entry (in any language) — links in fields, lists, blocks, groups and rich text,
+  translations included. It reports what it could not match (no entry has that address,
+  two entries share it, or it has a `#anchor`/`?query`), leaves those as they are, does not
+  touch `updatedAt` or saved versions, and can be run again. Run `content:migrate` first
+  if the report says some blocks are at an older version.
+- **Caches.** A browser's `ETag` follows the resolved answer, so a rename shows at once. A
+  CDN keeps an answer for five minutes unless it is purged: when the address of an entry
+  changes (or it stops being reachable) the **publish webhook** lists, in `paths`, the
+  entry's old and new addresses **and the addresses of the entries that link to it**, and
+  names the public **globals** that link to it in `globals` (`["navigation"]`) — a menu
+  appears on every page, so purge everything that renders it. Nothing extra is sent when
+  the address did not change. A redirect whose target is a page follows it within seconds.
+- **Search** indexes the words of a link, never where it points.
+
+## Website forms
+
 ## Plugins
 
 A plugin adds a feature to a site without changing tinyzoo: collections, admin pages
@@ -1021,9 +1112,6 @@ Details, the privacy-policy checklist and the restore drill:
 | `<CmsHighlight :text="r.excerpt" :ranges="r.highlights" />` | text with the searched words in `<mark>` |
 
 ## Not yet built (next slices, in rough order)
-
-- **`f.group`** (an object of fields).
-- **Links that follow their target** (today a picked page is stored as its address).
 
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`)
 - **Per-field permissions** (`fieldMode`) and custom roles beyond admin / editor / author.

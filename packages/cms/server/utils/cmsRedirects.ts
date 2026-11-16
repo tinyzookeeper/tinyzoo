@@ -1,3 +1,4 @@
+import { looksLikeLinkRef } from 'tinyzoo'
 import type { CmsRegistry } from 'tinyzoo'
 
 // Redirects defined with defineRedirects(), served by the cms-redirects middleware.
@@ -44,7 +45,14 @@ export async function findRedirect(path: string): Promise<Target | null> {
   if (!e) return null
   if (!cache || Date.now() - cache.at > TTL_MS) {
     const rows: any[] = await db.select({ from: e.table.from, to: e.table.to, permanent: e.table.permanent }).from(e.table)
-    cache = { at: Date.now(), map: new Map(rows.map((r) => [normalizePath(r.from), { to: r.to, status: r.permanent === false ? 302 : 301 }])) }
+    // A target picked from the site's pages is stored as a reference and follows the page
+    // (in the default language); one whose page is gone or not published sends nobody anywhere.
+    const refs = rows.map((r) => r.to).filter(looksLikeLinkRef)
+    const resolved = refs.length ? await resolveLinkRefs(db, reg, refs, { locale: reg.locales?.default ?? null }) : new Map<string, string | null>()
+    const usable = rows
+      .map((r) => ({ ...r, to: looksLikeLinkRef(r.to) ? resolved.get(r.to) ?? null : r.to }))
+      .filter((r): r is typeof r & { to: string } => typeof r.to === 'string' && !!r.to)
+    cache = { at: Date.now(), map: new Map(usable.map((r) => [normalizePath(r.from), { to: r.to, status: r.permanent === false ? 302 : 301 }])) }
   }
   return cache.map.get(normalizePath(path)) ?? null
 }
@@ -57,16 +65,21 @@ export async function findRedirect(path: string): Promise<Target | null> {
 export async function assertNoRedirectLoop(e: any, values: Record<string, any>, old?: Record<string, any> | null): Promise<void> {
   if (e?.preset !== 'redirects') return
   const from = values.from ?? old?.from
-  const to = values.to ?? old?.to
+  let to = values.to ?? old?.to
   if (typeof from !== 'string' || typeof to !== 'string') return
   const start = normalizePath(from)
   const sitePath = (v: string) => (v.startsWith('/') && !v.startsWith('//') ? normalizePath(v) : null)
+  const { db, reg } = useCms()
+  // Targets that are references to pages count as the pages' addresses (as served).
+  const rows: any[] = await db.select({ id: e.table.id, from: e.table.from, to: e.table.to }).from(e.table)
+  const refs = [to, ...rows.map((r) => r.to)].filter(looksLikeLinkRef)
+  const resolved = refs.length ? await resolveLinkRefs(db, reg, refs, { locale: reg.locales?.default ?? null }) : new Map<string, string | null>()
+  const address = (v: string) => (looksLikeLinkRef(v) ? resolved.get(v) ?? '' : v)
+  to = address(to)
   let next = sitePath(to)
   if (next === null) return
-  const { db } = useCms()
-  const rows: any[] = await db.select({ id: e.table.id, from: e.table.from, to: e.table.to }).from(e.table)
   const map = new Map<string, string>()
-  for (const r of rows) if (r.id !== old?.id) map.set(normalizePath(r.from), r.to)
+  for (const r of rows) if (r.id !== old?.id) map.set(normalizePath(r.from), address(r.to))
   for (let hops = 0; next !== null && hops < 20; hops++) {
     if (next === start) {
       // Straight back to itself, or round through other redirects (A → B → A).
