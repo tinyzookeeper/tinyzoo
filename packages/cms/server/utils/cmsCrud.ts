@@ -1,5 +1,5 @@
 import { and, eq, isNull, ne, or, sql } from 'tinyzoo'
-import { propOf, type CmsEntity, type CmsRegistry } from 'tinyzoo'
+import { propOf, snake, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 import type { CmsUser } from './cmsSession'
 
 export function getEntity(reg: CmsRegistry, name: string | undefined): CmsEntity {
@@ -193,7 +193,7 @@ function fieldOfConstraint(e: CmsEntity, constraint: string | undefined): string
   if (!constraint) return undefined
   for (const [key, fld] of Object.entries(e.fields)) {
     const col = (e.table as any)[propOf(key, fld)]
-    if (col?.name && (constraint === `${e.name}_${col.name}_unique` || constraint === `${e.name}_locales_${col.name}_unique`)) return key
+    if (col?.name && (constraint === `${snake(e.name)}_${col.name}_unique` || constraint === `${snake(e.name)}_locales_${col.name}_unique`)) return key
   }
   return undefined
 }
