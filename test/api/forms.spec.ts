@@ -8,7 +8,7 @@ beforeAll(async () => { admin = await signIn('admin') })
 beforeEach(() => truncateAll(db))
 afterAll(() => db.end())
 
-const good = { name: 'Jana', email: 'jana@example.com', message: 'Kdy je další závod?', _t: 5000 }
+const good = { name: 'Jana', email: 'jana@example.com', message: 'Kdy je další závod?', consent: true, _t: 5000 }
 const send = (c: Client, body: Record<string, unknown>) => c.post('/api/content/_form/contactForm', body)
 
 describe('website forms', () => {
@@ -58,6 +58,33 @@ describe('website forms', () => {
     expect(res.status).toBe(422)
     const paths = res.body.data.map((i: any) => i.path[0])
     expect(paths).toEqual(expect.arrayContaining(['email', 'message']))
+  })
+
+  it('words every refused field in the visitor\'s language, not the validator\'s', async () => {
+    const cs = await send(anonymous(), { name: 'Jana', email: 'not-an-email', topic: 'nonsense', _locale: 'cs', _t: 5000 })
+    expect(cs.status).toBe(422)
+    const byField = (res: any) => Object.fromEntries(res.body.data.map((i: any) => [i.path[0], i.message]))
+    expect(byField(cs)).toMatchObject({
+      email: 'Zadejte prosím platný e-mail.',
+      topic: 'Vyberte jednu z možností.',
+      message: 'Vyplňte prosím.',
+      consent: 'Pro odeslání je potřeba toto políčko zaškrtnout.',
+    })
+    const en = await send(anonymous(), { name: 'Jana', email: 'not-an-email', _locale: 'en', _t: 5000 })
+    expect(byField(en)).toMatchObject({ email: 'Please enter a valid email.', message: 'Please fill this in.', consent: 'Please tick this box to send the form.' })
+    const tooLong = await send(anonymous(), { ...good, message: 'x'.repeat(5001), _locale: 'en' })
+    expect(byField(tooLong).message).toBe('This is too long (at most 5000 characters).')
+    // no language given: the site's own (Czech)
+    expect(byField(await send(anonymous(), { name: 'Jana', _t: 5000 })).email).toBe('Vyplňte prosím.')
+  })
+
+  it('a consent that must be ticked is refused unticked, accepted ticked', async () => {
+    const schema = (await anonymous().get('/api/content/_form/contactForm')).body
+    expect(schema.fields.find((f: any) => f.key === 'consent').required).toBe(true)
+    expect((await send(anonymous(), { ...good, consent: false })).status).toBe(422)
+    expect((await send(anonymous(), { ...good, consent: undefined })).status).toBe(422)
+    expect((await send(anonymous(), { ...good, consent: 'on' })).status).toBe(201) // form data sends text
+    expect((await send(anonymous(), good)).status).toBe(201)
   })
 
   it('refuses submissions sent from another site', async () => {

@@ -4,9 +4,11 @@
 //   <CmsForm name="contactForm" />                 // fields, labels and messages from cms.config
 //   <CmsForm name="contactForm" locale="en" class="my-form" />
 //
-// Plain HTML (label, input, textarea, select, a button) with zero-specificity default
-// styles, so the site's own CSS wins without fighting. Errors show per field, in the
-// visitor's language; the thank-you message replaces the form (slot `success`).
+// Plain HTML (label, input, textarea, select, a button) with default styles in the base
+// layer that follow the text colour (light or dark page), so the site's own CSS wins without
+// fighting. Required fields carry a *, a choice with a default starts on it. Errors show per
+// field, in the visitor's language (the server words them); the thank-you message replaces
+// the form (slot `success`).
 // Spam: a hidden field, the time the form was open, and Cloudflare Turnstile when the
 // site key is configured.
 const props = defineProps<{ name: string; locale?: string }>()
@@ -19,6 +21,10 @@ const { data: schema, error: loadError } = await useFetch<any>(() => `/api/conte
 })
 
 const values = reactive<Record<string, any>>({})
+// A choice with a default starts on it (and has no empty option to go back to).
+watch(schema, (s) => {
+  for (const f of s?.fields ?? []) if (f.default != null && values[f.key] === undefined) values[f.key] = f.default
+}, { immediate: true })
 const errors = reactive<Record<string, string>>({})
 const sending = ref(false)
 const sent = ref(false)
@@ -39,17 +45,18 @@ onMounted(() => {
 })
 
 // The form's own messages in the website's language (Czech, English or German; English otherwise).
+// What is wrong with a field comes from the server, already in the visitor's language.
 const MESSAGES = {
   cs: {
-    required: 'Vyplňte prosím.', invalid: 'Zkontrolujte prosím tuto hodnotu.', email: 'Zadejte prosím platný e-mail.',
+    invalid: 'Zkontrolujte prosím tuto hodnotu.',
     failed: 'Odeslání se nepovedlo. Zkuste to prosím znovu.', tooMany: 'Odeslali jste toho hodně najednou. Zkuste to prosím za pár minut.',
   },
   en: {
-    required: 'Please fill this in.', invalid: 'Please check this value.', email: 'Please enter a valid email.',
+    invalid: 'Please check this value.',
     failed: 'Sending failed. Please try again.', tooMany: 'That was a lot at once. Please try again in a few minutes.',
   },
   de: {
-    required: 'Bitte ausfüllen.', invalid: 'Bitte prüfen Sie diesen Wert.', email: 'Bitte geben Sie eine gültige E-Mail-Adresse ein.',
+    invalid: 'Bitte prüfen Sie diesen Wert.',
     failed: 'Das Senden hat nicht geklappt. Bitte versuchen Sie es noch einmal.', tooMany: 'Das war viel auf einmal. Bitte versuchen Sie es in ein paar Minuten noch einmal.',
   },
 }
@@ -62,7 +69,7 @@ async function submit() {
   if (sending.value || !schema.value) return
   failure.value = ''
   for (const k of Object.keys(errors)) delete errors[k]
-  const body: Record<string, any> = { _t: Date.now() - openedAt.value, _hp: (formEl.value?.elements.namedItem('website') as HTMLInputElement | null)?.value ?? '' }
+  const body: Record<string, any> = { _locale: lang.value, _t: Date.now() - openedAt.value, _hp: (formEl.value?.elements.namedItem('website') as HTMLInputElement | null)?.value ?? '' }
   for (const f of schema.value.fields) {
     const v = values[f.key]
     // An unchosen option is "nothing", not an empty text (which no option matches).
@@ -85,8 +92,7 @@ async function submit() {
     for (const i of issues) {
       const key = String(i?.path?.[0] ?? '')
       if (!key) continue
-      const empty = /received (undefined|null)/.test(String(i?.message ?? '')) || i?.code === 'too_small'
-      errors[key] = empty ? msg('required') : i?.format === 'email' ? msg('email') : msg('invalid')
+      errors[key] = typeof i?.message === 'string' && i.message ? i.message : msg('invalid')
     }
     if (!issues.length) failure.value = err?.statusCode === 429 ? msg('tooMany') : msg('failed')
     nextTick(() => formEl.value?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
@@ -108,7 +114,7 @@ async function submit() {
       <div v-for="f in schema.fields" :key="f.key" class="cms-form__field" :class="`cms-form__field--${f.type}`">
         <template v-if="f.type === 'boolean'">
           <label class="cms-form__check">
-            <input :id="fid(f.key)" v-model="values[f.key]" type="checkbox" :name="f.key" :aria-invalid="!!errors[f.key]" :aria-describedby="errors[f.key] ? `${fid(f.key)}-error` : undefined">
+            <input :id="fid(f.key)" v-model="values[f.key]" type="checkbox" :name="f.key" :required="f.required" :aria-required="f.required || undefined" :aria-invalid="!!errors[f.key]" :aria-describedby="errors[f.key] ? `${fid(f.key)}-error` : undefined">
             <span>{{ f.label }}<span v-if="f.required" aria-hidden="true"> *</span></span>
           </label>
         </template>
@@ -122,7 +128,8 @@ async function submit() {
             v-else-if="f.type === 'select'" :id="fid(f.key)" v-model="values[f.key]" :name="f.key" :required="f.required"
             :aria-invalid="!!errors[f.key]" :aria-describedby="errors[f.key] ? `${fid(f.key)}-error` : f.help ? `${fid(f.key)}-help` : undefined"
           >
-            <option value="" disabled :selected="!values[f.key]">—</option>
+            <!-- a choice with a default has no empty option; a required one has an empty one nobody can send; an optional one may stay empty -->
+            <option v-if="f.default == null" value="" :disabled="f.required" :selected="!values[f.key]">—</option>
             <option v-for="o in f.options" :key="o.value" :value="o.value">{{ o.label }}</option>
           </select>
           <input
@@ -149,24 +156,30 @@ async function submit() {
 
 <style>
 /* Defaults only, in the base layer: they beat the browser's and Tailwind's resets (one
-   class), and any class or utility of the site's own wins over them. */
+   class), and any class, utility or unlayered CSS of the site's own wins over them. Colours
+   follow the text colour (currentColor), so the form reads on a light and on a dark page. */
 @layer base {
   .cms-form form { display: grid; gap: 1rem; }
   .cms-form__field { display: grid; gap: 0.375rem; }
   .cms-form__label { font-weight: 500; }
   .cms-form input:not([type='checkbox']), .cms-form textarea, .cms-form select {
-    width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #c9c9cf; border-radius: 0.375rem; font: inherit; background: #fff; color: #1f2023;
+    width: 100%; padding: 0.5rem 0.75rem; border: 1px solid color-mix(in srgb, currentColor 35%, transparent); border-radius: 0.375rem;
+    font: inherit; background: transparent; color: inherit;
   }
-  .cms-form [aria-invalid='true'] { border-color: #c0392b; }
+  .cms-form option { background: Canvas; color: CanvasText; }
+  .cms-form :is(input, textarea, select):focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+  /* More specific than the field rule above (which also matches an input), so a refused field is red. */
+  .cms-form .cms-form__field [aria-invalid='true'] { border-color: var(--cms-form-error, color-mix(in srgb, #d93025 75%, currentColor)); }
+  .cms-form .cms-form__field input[type='checkbox'][aria-invalid='true'] { outline: 2px solid var(--cms-form-error, color-mix(in srgb, #d93025 75%, currentColor)); outline-offset: 2px; }
   .cms-form__check { display: flex; gap: 0.5rem; align-items: flex-start; }
   .cms-form__help { font-size: 0.875em; opacity: 0.75; }
-  .cms-form__error { font-size: 0.875em; color: #c0392b; }
+  .cms-form__error { font-size: 0.875em; color: var(--cms-form-error, color-mix(in srgb, #d93025 75%, currentColor)); }
   .cms-form__submit {
-    justify-self: start; padding: 0.625rem 1.25rem; border: 1px solid #1f2023; border-radius: 0.375rem;
-    background: #1f2023; color: #fff; font: inherit; font-weight: 500; cursor: pointer;
+    justify-self: start; padding: 0.625rem 1.25rem; border: 1.5px solid currentColor; border-radius: 0.375rem;
+    background: color-mix(in srgb, currentColor 8%, transparent); color: inherit; font: inherit; font-weight: 600; cursor: pointer;
   }
-  .cms-form__submit:hover { background: #3a3c42; }
-  .cms-form__submit:focus-visible { outline: 2px solid #1f2023; outline-offset: 2px; }
+  .cms-form__submit:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
+  .cms-form__submit:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
   .cms-form__submit[disabled] { opacity: 0.6; cursor: progress; }
   .cms-form__hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 }

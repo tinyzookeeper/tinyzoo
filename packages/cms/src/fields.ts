@@ -107,6 +107,8 @@ interface FieldConfig {
   defaultDbDefault?: 'now' | 'random'
   /** Payload default applied ONLY on create (e.g. [] for m2m). Never on update. */
   createDefault?: unknown
+  /** false: the default fills the column (the database) but is never put into a payload, so a value that must be given cannot be skipped (a consent that must be ticked). */
+  zodDefault?: boolean
   /** Block type definitions (blocks fields only). */
   blocks?: Record<string, BlockDef>
   /** The fields a group holds (group fields only). */
@@ -154,7 +156,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     // Defaults apply ONLY on create. On update, omitted keys must stay omitted
     // (a fired default would silently overwrite — e.g. clear m2m / reset enum).
     const createDefault = mods.default !== undefined ? mods.default : cfg.createDefault
-    if (mode === 'create' && createDefault !== undefined) s = (s as any).default(createDefault)
+    if (mode === 'create' && createDefault !== undefined && cfg.zodDefault !== false) s = (s as any).default(createDefault)
     if (isOptional) s = s.nullish() as ZodTypeAny
     else if (mode === 'update') s = s.optional() as ZodTypeAny
     return s
@@ -253,10 +255,17 @@ export const f = {
       },
     })),
 
-  boolean: (o: { default?: boolean } = {}) =>
+  /**
+   * A yes/no switch (stored `false` unless given). `mustBeTrue: true` is for a consent or
+   * a confirmation ("I agree to the terms"): a value of `false` is refused, so a website
+   * form cannot be sent without it ticked.
+   */
+  boolean: (o: { default?: boolean; mustBeTrue?: boolean } = {}) =>
     as<ScalarKind<boolean, boolean, true>>(createField({
       type: 'boolean', ui: { edit: 'CmsFieldBoolean', cell: 'CmsCellBoolean' },
-      base: { kind: 'boolean' }, zod: () => z.boolean(),
+      base: { kind: 'boolean' },
+      zod: () => (o.mustBeTrue ? z.boolean().refine((v) => v === true, { message: 'Must be ticked' }) : z.boolean()),
+      ...(o.mustBeTrue ? { meta: { mustBeTrue: true }, zodDefault: false } : {}),
     }, { default: o.default ?? false })),
 
   /**
