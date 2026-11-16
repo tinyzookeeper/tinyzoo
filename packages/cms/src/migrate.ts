@@ -2,9 +2,12 @@
  * Applying drizzle-kit migrations with drizzle's own bookkeeping — the same
  * `drizzle.__drizzle_migrations` table, hashes and ordering as `drizzle-kit migrate`,
  * so either tool can take over from the other. Web Crypto only.
- * A Postgres advisory lock makes concurrent starts take turns.
+ * A Postgres advisory lock makes concurrent starts take turns. Upgrade steps
+ * (upgrades.ts) run in the same transaction and lock: `before` steps ahead of the
+ * pending migrations, `after` steps behind them.
  */
 import { sql, type SQL } from 'drizzle-orm'
+import { assertValidSteps, runUpgradeSteps, stepIsDue, UPGRADES_TABLE_SQL, type StepOutcome, type UpgradeContext, type UpgradeStep } from './upgrades'
 
 export interface MigrationJournal { entries: { idx: number; when: number; tag: string }[] }
 export interface MigrationSource {
@@ -13,6 +16,7 @@ export interface MigrationSource {
 }
 /** Runs one SQL text with optional params; returns rows. */
 export type SqlRunner = (text: string, params?: unknown[]) => Promise<any[]>
+export type JournalEntry = MigrationJournal['entries'][number]
 
 const LOCK = 72_011_003
 
@@ -21,41 +25,172 @@ async function sha256Hex(text: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+export interface MigrationClassification<T extends { idx: number; when: number }> {
+  applied: T[]
+  /** Newer than everything applied: will run. */
+  pending: T[]
+  /** Never applied, yet older than one that was: drizzle would skip it. */
+  outOfOrder: T[]
+  /** Applied in the database but absent from the journal (a newer version ran here). */
+  unknown: number
+}
+
 /**
- * Apply every migration newer than the last one recorded. `transaction` must run the
- * callback in one transaction (so a failed migration leaves nothing half-applied).
- * Returns the tags applied.
+ * Sort the journal against what the database has recorded. Drizzle applies "everything
+ * newer than the last applied migration", so a migration that is older than the newest
+ * applied one and was never applied (two branches each generated one) would be skipped
+ * for good. Entries are matched by `created_at` (the journal's `when`), not by hash: a
+ * migration edited after it was applied must not look unapplied.
  */
-export async function applyMigrations(
-  source: MigrationSource,
-  transaction: <T>(fn: (run: SqlRunner) => Promise<T>) => Promise<T>,
-): Promise<string[]> {
-  const migrations: { tag: string; folderMillis: number; hash: string; statements: string[] }[] = []
+export function classifyMigrations<T extends { idx: number; when: number }>(entries: T[], appliedMillis: number[]): MigrationClassification<T> {
+  const have = new Set(appliedMillis)
+  const newest = appliedMillis.length ? Math.max(...appliedMillis) : null
+  const out: MigrationClassification<T> = { applied: [], pending: [], outOfOrder: [], unknown: 0 }
+  const known = new Set<number>()
+  for (const e of [...entries].sort((a, b) => a.idx - b.idx)) {
+    known.add(e.when)
+    if (have.has(e.when)) out.applied.push(e)
+    else if (newest !== null && e.when <= newest) out.outOfOrder.push(e)
+    else out.pending.push(e)
+  }
+  out.unknown = [...have].filter((ms) => !known.has(ms)).length
+  return out
+}
+
+/** An unapplied migration older than the newest applied one: stopped instead of skipped. */
+export class MigrationOrderError extends Error {
+  constructor(public readonly entries: JournalEntry[]) {
+    super(orderMessage(entries))
+    this.name = 'MigrationOrderError'
+  }
+}
+
+function orderMessage(entries: JournalEntry[]): string {
+  const files = entries.map((e) => `${e.tag}.sql`).join(', ')
+  const parts = entries.map((e) => {
+    const prefix = /^(\d+)_/.exec(e.tag)?.[1] ?? String(e.idx).padStart(4, '0')
+    return `${e.tag}.sql, meta/${prefix}_snapshot.json and its entry in meta/_journal.json`
+  })
+  return `Migration${entries.length > 1 ? 's' : ''} ${files} ${entries.length > 1 ? 'were' : 'was'} never applied to this database, but a newer migration already was — `
+    + 'usually two branches each generated a migration. Drizzle would skip it for good, so nothing is applied until this is fixed. '
+    + `Fix: in your migrations folder (server/db/migrations by default) delete ${parts.join('; ')}, `
+    + 'then run `tinyzoo generate` again on top of the newest migration. (See docs/upgrading.md.)'
+}
+
+interface ReadMigration extends JournalEntry { hash: string; statements: string[] }
+
+async function readMigrations(source: MigrationSource): Promise<ReadMigration[]> {
+  const out: ReadMigration[] = []
   for (const entry of [...source.journal.entries].sort((a, b) => a.idx - b.idx)) {
     const query = await source.readSql(entry.tag)
-    migrations.push({ tag: entry.tag, folderMillis: entry.when, hash: await sha256Hex(query), statements: query.split('--> statement-breakpoint') })
+    out.push({ ...entry, hash: await sha256Hex(query), statements: query.split('--> statement-breakpoint') })
   }
+  return out
+}
+
+const statementsOf = (migrations: ReadMigration[]) => migrations.flatMap((m) => m.statements).map((s) => s.trim()).filter(Boolean)
+
+export interface UpgradeResult {
+  /** Tags of the migrations applied. */
+  migrations: string[]
+  /** Upgrade steps that ran or were recorded, in order. */
+  steps: StepOutcome[]
+  /** The database had no applied migration before this run. */
+  freshInstall: boolean
+}
+
+/**
+ * Apply the pending migrations and upgrade steps. `transaction` must run the callback in
+ * one transaction (so a failed migration or step leaves nothing half-applied). Throws
+ * `MigrationOrderError` instead of skipping an out-of-order migration.
+ */
+export async function runUpgrade(
+  source: MigrationSource,
+  transaction: <T>(fn: (run: SqlRunner) => Promise<T>) => Promise<T>,
+  steps: UpgradeStep[],
+): Promise<UpgradeResult> {
+  assertValidSteps(steps)
+  const migrations = await readMigrations(source)
 
   return transaction(async (run) => {
     await run('select pg_advisory_xact_lock($1)', [LOCK])
     await run('CREATE SCHEMA IF NOT EXISTS "drizzle"')
     await run('CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)')
-    const [last] = await run('select id, hash, created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1')
-    const applied: string[] = []
-    const pending = migrations.filter((m) => !(last && Number(last.created_at) >= m.folderMillis))
-    // Trigram indexes (the search index) need pg_trgm: a trusted extension the database
-    // owner may enable, shipped with standard Postgres images (CloudNativePG included).
-    if (pending.some((m) => m.statements.some((s) => s.includes('gin_trgm_ops')))) {
-      await run('CREATE EXTENSION IF NOT EXISTS pg_trgm')
-    }
-    for (const m of migrations) {
-      if (last && Number(last.created_at) >= m.folderMillis) continue
+    await run(UPGRADES_TABLE_SQL)
+    const rows = await run('select created_at from "drizzle"."__drizzle_migrations"')
+    const { pending, outOfOrder } = classifyMigrations(migrations, rows.map((r) => Number(r.created_at)))
+    if (outOfOrder.length) throw new MigrationOrderError(outOfOrder)
+
+    const done = new Set<string>((await run('select id from "cms_upgrades"')).map((r) => String(r.id)))
+    const ctx: UpgradeContext = { run, pendingStatements: statementsOf(pending), freshInstall: rows.length === 0 }
+    const outcomes = await runUpgradeSteps('before', steps, ctx, done)
+    for (const m of pending) {
       for (const stmt of m.statements) if (stmt.trim()) await run(stmt)
-      await run('insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values ($1, $2)', [m.hash, m.folderMillis])
-      applied.push(m.tag)
+      await run('insert into "drizzle"."__drizzle_migrations" ("hash", "created_at") values ($1, $2)', [m.hash, m.when])
     }
-    return applied
+    outcomes.push(...await runUpgradeSteps('after', steps, ctx, done))
+    return { migrations: pending.map((m) => m.tag), steps: outcomes, freshInstall: ctx.freshInstall }
   })
+}
+
+/**
+ * Apply every migration newer than the last one recorded, with the upgrade steps.
+ * Returns the tags applied (see `runUpgrade` for the steps too).
+ */
+export async function applyMigrations(
+  source: MigrationSource,
+  transaction: <T>(fn: (run: SqlRunner) => Promise<T>) => Promise<T>,
+  steps: UpgradeStep[],
+): Promise<string[]> {
+  return (await runUpgrade(source, transaction, steps)).migrations
+}
+
+export interface StepStatus {
+  id: string
+  since: string
+  description: string
+  phase: UpgradeStep['phase']
+  /** applied: recorded. pending: due now. idle: has a `when` that does not hold right now. */
+  state: 'applied' | 'pending' | 'idle'
+}
+export interface MigrationStatus {
+  /** No migration applied yet. */
+  freshInstall: boolean
+  applied: string[]
+  pending: string[]
+  outOfOrder: string[]
+  /** Migrations the database has that this code's journal does not. */
+  unknown: number
+  steps: StepStatus[]
+}
+
+/**
+ * What the database has and has not applied, without changing anything (`tinyzoo status`).
+ * Missing bookkeeping tables read as "nothing applied yet".
+ */
+export async function inspectMigrations(source: MigrationSource, run: SqlRunner, steps: UpgradeStep[]): Promise<MigrationStatus> {
+  assertValidSteps(steps)
+  const [{ migrations_table: hasMigrations, upgrades_table: hasUpgrades }] = await run(
+    `select to_regclass('drizzle.__drizzle_migrations') is not null as migrations_table, to_regclass('cms_upgrades') is not null as upgrades_table`)
+  const rows = hasMigrations ? await run('select created_at from "drizzle"."__drizzle_migrations"') : []
+  const done = new Set<string>(hasUpgrades ? (await run('select id from "cms_upgrades"')).map((r) => String(r.id)) : [])
+  const migrations = await readMigrations(source)
+  const c = classifyMigrations(migrations, rows.map((r) => Number(r.created_at)))
+  const ctx: UpgradeContext = { run, pendingStatements: statementsOf(c.pending), freshInstall: rows.length === 0 }
+  const stepStatus: StepStatus[] = []
+  for (const s of steps) {
+    const state = s.when ? ((await stepIsDue(s, ctx, done)) ? 'pending' : done.has(s.id) ? 'applied' : 'idle')
+      : done.has(s.id) ? 'applied' : 'pending'
+    stepStatus.push({ id: s.id, since: s.since, description: s.description, phase: s.phase, state })
+  }
+  return {
+    freshInstall: rows.length === 0,
+    applied: c.applied.map((m) => m.tag),
+    pending: c.pending.map((m) => m.tag),
+    outOfOrder: c.outOfOrder.map((m) => m.tag),
+    unknown: c.unknown,
+    steps: stepStatus,
+  }
 }
 
 
