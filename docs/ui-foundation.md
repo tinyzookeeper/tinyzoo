@@ -88,8 +88,8 @@ sentence per screen; labels, errors and delete confirmations stay plain.
 `UDashboardGroup` + `UDashboardSidebar` (16 rem, resizable, collapsible to icons, a
 slide-over menu on phones). The client's name leads at the top; the current page sits
 on cream; **tinyzoo signs** under the account button. Groups: Home, Content,
-Settings, then View website and the account menu (appearance, language, design
-system, sign out).
+Settings, then View website and the account menu (appearance, language, sign out;
+the design system — this page's live reference — is the administrators' entry only).
 
 The Write and Preview editors **fold the sidebar to icons** (`useCmsFocus`); leaving
 them restores what the person chose (kept apart in `localStorage`).
@@ -208,6 +208,8 @@ sheet, the welcome animal shrinks into the corner.
 | `CmsEmptyState` | `first-use` (with its animal), `no-results`, `error` (with retry) |
 | `CmsStatusBadge` | Draft / On the website / Scheduled as a dot and a word |
 | `CmsTime` | Absolute on the server, relative after mount, full date on hover |
+| `CmsLoadError` | A list or page that did not load: a refusal (403) says so and offers no retry |
+| `CmsMediaThumb` / `CmsMediaPreview` | A library file small (its smaller copy, or an icon for a video/sound/document) / opened (a picture, a `<video controls>`, an `<audio controls>`, a file card) |
 | `CmsPublishReview` | The step before going live (checks, now or scheduled) |
 | `CmsMoment` | A small success card with an animal, in the corner |
 | `CmsPreviewPanel` | The live page beside the form (`sheet` on phones) |
@@ -216,13 +218,17 @@ sheet, the welcome animal shrinks into the corner.
 
 ## Language
 
-- **Admin interface languages** (not content localization): Czech and English at
-  launch. `useCmsI18n()` — `t(key, params)` with Intl plural rules (Czech has
+- **Admin interface languages** (not content localization): Czech, English and German. `useCmsI18n()` — `t(key, params)` with Intl plural rules (Czech has
   1 / 2–4 / 5+ forms), `tl(text)` for labels written in `cms.config.ts`,
   `formatDate`/`formatRelative`/`formatNumber`.
 - Locale: the `cms_admin_locale` cookie → the browser's `Accept-Language` →
   `cms.admin.defaultLocale`. Switchable from the account menu.
 - Not `@nuxtjs/i18n`, so the CMS cannot collide with the website's own i18n.
+- Nuxt UI's built-in words follow the same language, **if the site's `app.vue` passes it**:
+  `const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">` (the starter and the playground do).
+  It is `undefined` on the website's own pages, so the site's choice holds there. It has to be `UApp`'s
+  prop: Nuxt UI keeps one language for all its components and takes it from the first one that asks (the
+  notifications area inside `UApp`), so a provider set in a layout is never read.
 - Anything a developer writes in `cms.config.ts` that the admin shows (entity
   `label`, `labelSingular`, `description`, field `.label()`/`.help()`, select
   option `labels`) takes one string or a per-locale map:
@@ -236,30 +242,70 @@ sheet, the welcome animal shrinks into the corner.
 
 ## Accessibility
 
-- AA contrast for text roles (see Colour). Focus rings from Nuxt UI.
-- Icon-only buttons carry translated `aria-label`s; the toolbar's toggles carry
-  `aria-pressed`; sortable headers are buttons with `aria-sort` on the column.
-- Breadcrumbs are a labelled `nav` with `aria-current` on the last item.
-- `prefers-reduced-motion` turns transitions off.
+**Contrast.** Every text role is AA (4.5:1) in both themes, on white **and on cream** (the sign-in, the
+current page in the sidebar, hints) and on the hover grey. Light: `text-dimmed` 54 % grey (5.0:1 on white,
+4.6:1 on cream), `text-muted` 50 %, toned 43.9 %, text 30 %; dark: dimmed `#A09D97`, muted `#B2AEA7`
+(4.9:1 and 6:1 on charcoal, the current page). **`text-dimmed` is the quietest *text*, not a decoration:**
+placeholders, "Optional", counts, the date placeholder. Words are never lighter than that; a hairline or an
+icon with no words beside it may use the neutral ramp directly. Error text is red-700 in light (6.5:1 on
+white), the other status colours (green, amber, blue) are one or two shades deeper in light mode than
+Nuxt UI's default 500 (1.8–3:1) so they read as text, on their own 10 % tint and under a solid button's
+white text. `test/unit/admin-contrast.spec.ts` reads `cms-admin.css` and fails when a token pair drops
+under 4.5:1 — change a token, run it.
 
-## Accessibility
+**Landmarks and headings.** Every admin screen is one `<main id="cms-main">` (`CmsPage` renders it) with
+a "Skip to content" link as the first stop of the keyboard (the admin layout), so the sidebar's links are
+not 18 tab stops on every page. One `<h1>` per page: the page's title — or, where the screen draws its own
+big title (the editors' title field, the media library), a screen-reader-only `heading` on `CmsPage`.
+The top bar is not a heading: the breadcrumb is a labelled `nav` (`aria-current` on the last item).
+Every `nav` has a name (the sidebar "Main menu", the breadcrumb, the form's sections); a `radiogroup`
+has a name; a rich-text field's text box is a labelled `textbox` (the field's label).
 
-- AA contrast for text roles in both modes, on white **and on cream**: muted text is 54 % grey in
-  light (4.5:1 on cream; 55.6 % was 4.37:1), error text is red-700 in light (6.5:1 on white,
-  5.5:1 on the soft red tint; red-500 was 3.8:1). `text-dimmed` is for placeholders and icons,
-  never for text someone has to read (sidebar group labels, counts).
-- Touch screens (`pointer: coarse`): controls where a thumb does the work are 44 px tall — `.cms-touch`
-  on a form or page (sign-in and setup, Privacy), `pointer-coarse:min-h-11` on a single button
-  (a block card's Remove and "…"). Desktop keeps the denser 32 px controls.
-- A field with no error passes `undefined`, never `''`, to `UFormField`'s `error` (an empty string
-  still marks the field invalid: red ring, `aria-invalid="true"`). Messages that should be read out
-  get `role="alert"` (`#error` slot, `v-if` the message).
-- A page that needs the layout's data reads it with `useNuxtData('cms-graph')`; a second
-  `useFetch` under the same key made the form's generated ids differ after hydration (label `for`
-  ≠ input `id`: an unlabelled field).
-- Focus rings from Nuxt UI.
-- Icon-only buttons carry translated `aria-label`s; toggles (Details, Preview) carry
-  `aria-pressed`; sortable headers are buttons with `aria-sort` on the column.
+**Errors are read out and found.** A field's message is `role="alert"` (`#error` slot, `v-if` the message);
+a form-wide message is a `UAlert` with `role="alert"` (or an always-present live region of fixed height, as
+the sign-in's, so a wrong password does not push the button down). After a failed submit the cursor goes to
+the first invalid field (`cmsFocusInvalid(form)`: `aria-invalid="true"`, else the error summary), and a field
+whose message sits elsewhere (the title input, the redirect "From") points at it with `aria-describedby`.
+A validation error is never a bare "Validation failed" toast: it marks the field and says what is wrong in
+the page's language (`cmsIssueMessage`).
+
+**Touch targets.** On `pointer: coarse` every control is at least **44 px**: one block in `cms-admin.css`
+(`@media (pointer: coarse)`) raises buttons, link-buttons, tabs, menu items, options, summaries and fields
+to a 44 px minimum, and an icon-only button (it has an `aria-label`) to a 44 px square. A desktop keeps its
+28–32 px controls. Opt a control out with `.cms-dense` only when it sits inside a line of text or a chip, and
+then widen its tap area with `.cms-hit` (an invisible 44 px square). A list row's title is a stretched
+link over the row, not a 20 px line. The sidebar's slide-over rows use `pointer-coarse:py-3`
+(Tailwind's variant, the same media query) because they are not buttons. Components never add a size for
+touch by hand — if a control comes out smaller than 44 px on a phone, the rule has a gap; fix the rule.
+`.cms-touch` (sign-in, setup) is the same rule scoped to one form and stays for those pages.
+
+- A field with no error passes `undefined`, never `''`, to `UFormField`'s `error` (an empty string still
+  marks the field invalid: red ring, `aria-invalid="true"`).
+- A page that needs the layout's data reads it with `useNuxtData('cms-graph')`; a second `useFetch` under the
+  same key made the form's generated ids differ after hydration (label `for` ≠ input `id`: an unlabelled
+  field).
+- Focus rings from Nuxt UI. `prefers-reduced-motion` turns transitions and the moment's rise off.
+- Icon-only buttons carry translated, full `aria-label`s ("Export CSV", "New post" — not "Post"); toggles
+  (Details, Preview) carry `aria-pressed`; sortable headers are buttons with `aria-sort` on the column.
 - The review's "when" choice is a `radiogroup`; the success card is `role="status"`.
-- Breadcrumbs are a labelled `nav` with `aria-current` on the last item.
-- `prefers-reduced-motion` turns transitions and the moment's rise off.
+- **Nuxt UI's own words** ("Close", "Notifications", "Previous month", "Show password") follow the admin
+  language: the site's `<UApp>` gets `:locale="useCmsUiLocale()"` (see Language). What Nuxt UI hard-codes
+  is overridden by the admin: Reka's "Show popup" on a select (the field's label) and the notifications
+  area's name "Notifications (F8)" (set by the admin layout).
+
+## First frame: the server and the browser draw the same
+
+A hydration mismatch is a bug (the console says so, and the page can flash or break). Rules: nothing that
+differs between the server and the browser in the **first** frame — no `localStorage`, `window.matchMedia`,
+`Date.now()` or locale-dependent text read while rendering. The sidebar's width and fold are kept by Nuxt UI
+in a **cookie** (`UDashboardGroup storage="cookie"`), which the server reads too; times render absolute
+(`CmsTime`: the admin's time zone) and turn relative after mount; anything that only the browser knows
+(a phone's pointer, a stored width) is applied in `onMounted`.
+
+## When the account stops working under an open admin
+
+A disabled, removed or password-changed account, or an expired session, gets a 401 on the next read.
+`plugins/cmsSignedOut.client.ts` sends the person to sign-in with "You were signed out" and, after signing in,
+back to the page they were on. Only reads of the admin's own API are taken over — a refused save keeps the
+page (the editor holds the unsaved text) and says so. A refusal (403) says "You don't have permission for this"
+(`CmsLoadError`) and offers no "Try again", which could not change the answer.
