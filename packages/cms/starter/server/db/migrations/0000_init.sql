@@ -1,4 +1,5 @@
-CREATE TYPE "public"."contactForm_status" AS ENUM('new', 'read', 'done');--> statement-breakpoint
+CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint
+CREATE TYPE "public"."contact_form_status" AS ENUM('new', 'read', 'done');--> statement-breakpoint
 CREATE TYPE "public"."news_status" AS ENUM('draft', 'published');--> statement-breakpoint
 CREATE TYPE "public"."page_status" AS ENUM('draft', 'published');--> statement-breakpoint
 CREATE TABLE "cms_audit" (
@@ -52,6 +53,21 @@ CREATE TABLE "cms_revisions" (
 	"created_at" timestamp (3) with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "cms_search" (
+	"entity" text NOT NULL,
+	"record_id" uuid NOT NULL,
+	"locale" text DEFAULT '' NOT NULL,
+	"title" text DEFAULT '' NOT NULL,
+	"body" text DEFAULT '' NOT NULL,
+	"extra" text DEFAULT '' NOT NULL,
+	"title_folded" text DEFAULT '' NOT NULL,
+	"body_folded" text DEFAULT '' NOT NULL,
+	"extra_folded" text DEFAULT '' NOT NULL,
+	"path" text,
+	"updated_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "cms_search_pk" PRIMARY KEY("entity","record_id","locale")
+);
+--> statement-breakpoint
 CREATE TABLE "cms_state" (
 	"key" text PRIMARY KEY NOT NULL,
 	"value" jsonb NOT NULL,
@@ -83,19 +99,19 @@ CREATE TABLE "cms_users" (
 	"updated_at" timestamp (3) with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "contactForm" (
+CREATE TABLE "contact_form" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"name" text NOT NULL,
 	"email" text NOT NULL,
 	"message" text NOT NULL,
-	"status" "contactForm_status" DEFAULT 'new' NOT NULL,
+	"status" "contact_form_status" DEFAULT 'new' NOT NULL,
 	"created_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
 	"created_by" uuid,
 	"updated_by" uuid
 );
 --> statement-breakpoint
-CREATE TABLE "formSettings" (
+CREATE TABLE "form_settings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"notify_to" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"created_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
@@ -151,6 +167,8 @@ CREATE TABLE "news_locales" (
 	"slug" text,
 	"perex" text,
 	"body" jsonb,
+	"meta_title" text,
+	"meta_description" text,
 	"created_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp (3) with time zone DEFAULT now() NOT NULL
 );
@@ -178,6 +196,8 @@ CREATE TABLE "page_locales" (
 	"title" text,
 	"slug" text,
 	"sections" jsonb,
+	"meta_title" text,
+	"meta_description" text,
 	"created_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp (3) with time zone DEFAULT now() NOT NULL
 );
@@ -194,7 +214,7 @@ CREATE TABLE "redirect" (
 	CONSTRAINT "redirect_from_unique" UNIQUE("from")
 );
 --> statement-breakpoint
-CREATE TABLE "siteSettings" (
+CREATE TABLE "site_settings" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"site_name" text NOT NULL,
 	"tagline" text,
@@ -212,11 +232,13 @@ CREATE TABLE "siteSettings" (
 	"updated_by" uuid
 );
 --> statement-breakpoint
-CREATE TABLE "siteSettings_locales" (
+CREATE TABLE "site_settings_locales" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"parent_id" uuid NOT NULL,
 	"locale" text NOT NULL,
 	"tagline" text,
+	"meta_title" text,
+	"meta_description" text,
 	"created_at" timestamp (3) with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp (3) with time zone DEFAULT now() NOT NULL
 );
@@ -228,11 +250,14 @@ ALTER TABLE "news" ADD CONSTRAINT "news_og_image_id_cms_media_id_fk" FOREIGN KEY
 ALTER TABLE "news_locales" ADD CONSTRAINT "news_locales_parent_id_news_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."news"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "page" ADD CONSTRAINT "page_og_image_id_cms_media_id_fk" FOREIGN KEY ("og_image_id") REFERENCES "public"."cms_media"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "page_locales" ADD CONSTRAINT "page_locales_parent_id_page_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."page"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "siteSettings" ADD CONSTRAINT "siteSettings_logo_id_cms_media_id_fk" FOREIGN KEY ("logo_id") REFERENCES "public"."cms_media"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "siteSettings" ADD CONSTRAINT "siteSettings_og_image_id_cms_media_id_fk" FOREIGN KEY ("og_image_id") REFERENCES "public"."cms_media"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "siteSettings_locales" ADD CONSTRAINT "siteSettings_locales_parent_id_siteSettings_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."siteSettings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_settings" ADD CONSTRAINT "site_settings_logo_id_cms_media_id_fk" FOREIGN KEY ("logo_id") REFERENCES "public"."cms_media"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_settings" ADD CONSTRAINT "site_settings_og_image_id_cms_media_id_fk" FOREIGN KEY ("og_image_id") REFERENCES "public"."cms_media"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "site_settings_locales" ADD CONSTRAINT "site_settings_locales_parent_id_site_settings_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."site_settings"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "cms_audit_created_idx" ON "cms_audit" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "cms_revisions_record_idx" ON "cms_revisions" USING btree ("entity","record_id","locale","created_at");--> statement-breakpoint
+CREATE INDEX "cms_search_title_trgm" ON "cms_search" USING gin ("title_folded" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "cms_search_body_trgm" ON "cms_search" USING gin ("body_folded" gin_trgm_ops);--> statement-breakpoint
+CREATE INDEX "cms_search_extra_trgm" ON "cms_search" USING gin ("extra_folded" gin_trgm_ops);--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_tokens_hash_unique" ON "cms_tokens" USING btree ("token_hash");--> statement-breakpoint
 CREATE INDEX "cms_tokens_user_idx" ON "cms_tokens" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "cms_users_email_unique" ON "cms_users" USING btree ("email");--> statement-breakpoint
@@ -241,4 +266,4 @@ CREATE UNIQUE INDEX "news_locales_parent_locale_unique" ON "news_locales" USING 
 CREATE UNIQUE INDEX "news_locales_slug_unique" ON "news_locales" USING btree ("locale","slug");--> statement-breakpoint
 CREATE UNIQUE INDEX "page_locales_parent_locale_unique" ON "page_locales" USING btree ("parent_id","locale");--> statement-breakpoint
 CREATE UNIQUE INDEX "page_locales_slug_unique" ON "page_locales" USING btree ("locale","slug");--> statement-breakpoint
-CREATE UNIQUE INDEX "siteSettings_locales_parent_locale_unique" ON "siteSettings_locales" USING btree ("parent_id","locale");
+CREATE UNIQUE INDEX "site_settings_locales_parent_locale_unique" ON "site_settings_locales" USING btree ("parent_id","locale");
