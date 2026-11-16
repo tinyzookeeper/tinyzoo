@@ -1,5 +1,6 @@
 import { and, indexTree, inArray, sitePath } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry, CmsSitemapEntry } from 'tinyzoo'
+import { scrubError } from './cmsScrub'
 
 /**
  * Sitemap entries for every public collection with `content.path` (e.g.
@@ -64,7 +65,7 @@ export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<Sitemap
     await useNitroApp().hooks.callHook('cms:sitemap', out)
   }
   catch (err) {
-    console.error('[cms] cms:sitemap hook failed', err)
+    console.error('[cms] cms:sitemap hook failed', scrubError(err))
   }
   const checked = cleanSitemap(out)
   memo = { at: Date.now(), entries: checked }

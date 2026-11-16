@@ -272,6 +272,12 @@ It is the same step as in [`docs/upgrading.md`](upgrading.md#writing-one) (idemp
   tables; a plugin's collections are tables of the *site's* database, and the plugin
   owns them.)
 
+**Adding a plugin to a site that already runs** is not a fresh install, so every step
+the plugin has ever shipped runs once on that site, and `phase: 'before'` steps run
+before the migration that creates the plugin's tables. Write each step so it does
+nothing harmful on tables that are empty or don't exist yet (check with `to_regclass`
+in a `when`, or use `phase: 'after'`).
+
 Schema changes of a plugin's collections need no step: they arrive as the site's next
 `tinyzoo generate` migration, like any change. Say in the plugin's changelog what a
 site must do after updating it.

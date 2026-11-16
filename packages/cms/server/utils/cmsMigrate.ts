@@ -19,6 +19,7 @@
  */
 
 import { allUpgradeSteps, isConnectionError, runUpgrade, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
+import { scrubError } from './cmsScrub'
 
 let ready: Promise<void> = Promise.resolve()
 let state: 'idle' | 'running' | 'done' | 'failed' = 'idle'
@@ -49,7 +50,7 @@ export function startCmsMigrations(): void {
     }
   })().catch((err) => {
     state = 'failed'
-    console.error('[cms] migrations failed — the app will not serve API requests', err)
+    console.error('[cms] migrations failed — the app will not serve API requests', scrubError(err))
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production' && typeof process.exit === 'function') {
       // Let the platform restart the instance (after the log line is written).
       setTimeout(() => process.exit(1), 100)
