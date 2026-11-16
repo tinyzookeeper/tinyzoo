@@ -549,7 +549,31 @@ export const Author = defineEntity('author', {
 ```
 GET /api/content/:entity         # published list — ?page= ?limit= ?sort= ?dir= ?q= ?<field>=
 GET /api/content/:entity/:slug   # single published item by slug (or id)
+GET /api/content/_search?q=      # the website search — ?locale= ?limit= ?entity=page,news
 ```
+
+**Search.** `/api/content/_search` searches every public collection with a `path`:
+published entries only, in the requested language (entries translated into it), never
+`hidden` fields. It reads what a visitor reads — titles, text, rich text and the text
+inside blocks and lists, not addresses, choices or block types — ignores accents and
+case, needs every word and **forgives typos**: one in a word of 4–7 letters, two from
+8, swapped letters counting as one, the first letter kept ("bazne" and "baezn" find
+"bazénu", "sousterdeni" finds "soustředění"); other endings of a word match too
+("zima" finds "zimní"). Title matches rank first; each result has its address, a
+snippet and the [start, end) ranges of the words found. Leave a collection out with
+`content: { search: false }`, or narrow it with `search: { fields: ['title', 'body'] }`.
+The admin has its own search (⌘K) over everything the signed-in person may read,
+drafts, hidden fields and every language included.
+
+How it works: Postgres only, with the **pg_trgm** extension (in every standard
+Postgres image, CloudNativePG's included; the migration enables it, which the
+database owner may do). The `cms_search` table holds each entry's text per language,
+updated on every save and rebuilt on start whenever the search configuration changes
+(or by hand: `cms:search-reindex` task). Trigram indexes find the candidates; the
+server then checks each word by edit distance, ranks and cuts the snippet. Upgrading
+an existing site: `pnpm db:generate` writes the migration for the table (starting with
+`CREATE EXTENSION IF NOT EXISTS pg_trgm`), then `pnpm db:migrate`; the index fills
+itself on the next start.
 
 Responses resolve relations + media into nested objects, drop raw FK ids, and omit
 `hidden` fields — on the item **and** on populated relations (a non-public relation target
@@ -678,6 +702,8 @@ same-site Origin, and Cloudflare Turnstile when `NUXT_CMS_FORMS_TURNSTILE_SECRET
 | `<CmsNav :links="nav.main" />` | a menu with dropdowns, as nested lists |
 | `<CmsForm name="contactForm" />` | a website form |
 | `useCmsSeo(() => item)` | title, description, sharing image from the `seo()` fields |
+| `useCmsSearch(() => route.query.q, { locale })` | the website search: results with address and snippet |
+| `<CmsHighlight :text="r.excerpt" :ranges="r.highlights" />` | text with the searched words in `<mark>` |
 
 ## Not yet built (next slices, in rough order)
 

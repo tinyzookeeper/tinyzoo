@@ -114,6 +114,10 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     if (!r.noRevision && r.type !== 'entry.deleted' && r.type !== 'translation.deleted') {
       await recordRevision(event, e, r.id, r.type === 'translation.updated' ? locale : null, r.type)
     }
+    // The search index follows every write (its own failure never stops the rest).
+    if (r.type !== 'global.updated') {
+      await syncSearchIndex(e, r.id, r.type).catch((err) => console.error('[cms] could not update the search index', err))
+    }
     applyChangeLocally(change)
     notifyChangeListeners(change)
     // Neither the other replicas nor the host's hooks hold up the response.

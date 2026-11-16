@@ -93,6 +93,11 @@ describe('isConnectionError', () => {
     expect(isConnectionError(new Error('wrapped', { cause: { code: '57P03' } }))).toBe(true)
     expect(isConnectionError(Object.assign(new AggregateError([{ code: 'ECONNREFUSED' }]), {}))).toBe(true)
   })
+  it('recognises node-postgres timeouts and dropped sockets, which carry no code', () => {
+    expect(isConnectionError(new Error('Connection terminated due to connection timeout', { cause: new Error('Connection terminated unexpectedly') }))).toBe(true)
+    expect(isConnectionError(new Error('wrapped', { cause: new Error('Connection terminated unexpectedly') }))).toBe(true)
+    expect(isConnectionError(new Error('relation "x" does not exist'))).toBe(false)
+  })
   it('does not retry a failing statement', () => {
     expect(isConnectionError(Object.assign(new Error('syntax'), { code: '42601' }))).toBe(false)
   })

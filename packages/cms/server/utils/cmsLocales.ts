@@ -50,9 +50,14 @@ export async function overlayTranslations(db: any, reg: CmsRegistry, e: CmsEntit
   const byParent = await translationRows(db, e, rows.map((r) => r.id), locale)
   for (const row of rows) {
     const tr = byParent.get(row.id)
-    if (!tr) continue
-    for (const key of e.localized) if (!isEmpty(tr[key])) row[key] = tr[key]
+    if (tr) mergeTranslation(e, row, tr)
   }
+}
+
+/** Put a translation row's non-empty values on `row` (in place): per-field fallback. */
+export function mergeTranslation(e: CmsEntity, row: Record<string, any>, tr: Record<string, any>): Record<string, any> {
+  for (const key of e.localized) if (!isEmpty(tr[key])) row[key] = tr[key]
+  return row
 }
 
 /** For each id, the languages it is available in: the default plus every translation. */

@@ -40,7 +40,19 @@ async function generate() {
   mkdirSync(dirname(schemaOut), { recursive: true })
   writeFileSync(schemaOut, src)
   console.log(`✓ emitted ${schemaOut}`)
+  const migrationsDir = resolve(cwd, 'server/db/migrations')
+  const sqlFiles = () => (existsSync(migrationsDir) ? readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')) : [])
+  const before = new Set(sqlFiles())
   drizzleKit('generate')
+  // Trigram indexes (the search index) need pg_trgm, which drizzle-kit does not enable.
+  for (const f of sqlFiles().filter((x) => !before.has(x))) {
+    const file = join(migrationsDir, f)
+    const sql = readFileSync(file, 'utf8')
+    if (sql.includes('gin_trgm_ops') && !sql.includes('CREATE EXTENSION IF NOT EXISTS pg_trgm')) {
+      writeFileSync(file, 'CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint\n' + sql)
+      console.log(`✓ ${f}: enables pg_trgm (for the search index)`)
+    }
+  }
 }
 
 async function client() {

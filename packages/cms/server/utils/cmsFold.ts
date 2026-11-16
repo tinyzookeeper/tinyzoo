@@ -1,13 +1,14 @@
-import { sql } from 'tinyzoo'
+import { foldSearchText, sql } from 'tinyzoo'
 
 // Search that ignores letter case and accents ("zimni" finds "Zimní"), without a
 // database extension: both sides lowercased, accented letters replaced by plain ones.
-const ACCENTED = 'áàâäãåčćçďéèêëěíìîïľĺłňńñóòôöõőřŕšśťúùûüůűýÿžźż'
-const PLAIN = 'aaaaaacccdeeeeeiiiilllnnnoooooorrsstuuuuuuyyzzz'
+// (Czech, Slovak, German, Polish, Hungarian, Romanian, Croatian and the like.)
+const ACCENTED = 'áàâäãåčćçďéèêëěíìîïľĺłňńñóòôöõőřŕšśťúùûüůűýÿžźżąęășşțţđ'
+const PLAIN = 'aaaaaacccdeeeeeiiiilllnnnoooooorrsstuuuuuuyyzzzaeassttd'
 
 /** The search text, folded the same way as the column. */
 export function foldAccents(text: string): string {
-  return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l')
+  return foldSearchText(text)
 }
 
 /** A text column, lowercased and without accents (for `like`). */

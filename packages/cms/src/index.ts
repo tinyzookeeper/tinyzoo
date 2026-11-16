@@ -23,7 +23,8 @@ export {
 } from './content-shape'
 export { cmsMedia } from './media'
 export type { CmsChange, CmsChangeType } from './changes'
-export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, CMS_ROLES, type CmsRole } from './system'
+export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, CMS_ROLES, type CmsRole } from './system'
+export { searchTerms, foldSearchText, entryTexts, richTextPlain, isSearchableField, matchEntry, excerptOf, highlightRanges, wordMatch, editDistance, allowedTypos, SEARCH_MAX_QUERY, type SearchMatch } from './search'
 export { richTextSchema, sanitizeRichText, emptyDoc, type RichTextDoc } from './richtext'
 export type * from './descriptor'
 

@@ -2,7 +2,7 @@ import { type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueInde
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
-import { cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsTokens, cmsUsers } from './system'
+import { cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
 import { pathTemplateProblem, prefixedTemplates, type PathTemplate } from './paths'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
@@ -63,6 +63,12 @@ export interface ContentConfig<F extends Record<string, AnyFieldDescriptor>> {
    * publicly-readable/populatable entity must be listed here.
    */
   hidden?: (keyof F & string)[]
+  /**
+   * The website search (`/api/content/_search`) covers every public collection with a
+   * `path`: its title, text, rich text and the text inside blocks. `false` leaves the
+   * collection out; `{ fields }` matches only those fields (and the title).
+   */
+  search?: false | { fields?: (keyof F & string)[] }
 }
 
 /** Drives the admin publish/unpublish workflow + draft preview. */
@@ -235,6 +241,7 @@ export interface CmsEntity {
     path?: PathTemplate
     populate?: string[]
     hidden?: string[]
+    search?: false | { fields?: string[] }
   }
   publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: PathTemplate }
   live?: boolean
@@ -400,6 +407,7 @@ export interface CmsRegistry {
   cmsCollab: typeof cmsCollab
   cmsRevisions: typeof cmsRevisions
   cmsState: typeof cmsState
+  cmsSearch: typeof cmsSearch
 }
 
 const _regCache = new WeakMap<object, CmsRegistry>()
@@ -456,13 +464,13 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     }
   }
 
-  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState }
+  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch }
   for (const e of entities) schema[e.name] = e.table
   for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
   for (const j of junctions) schema[j.name] = j.table
 
   const graph = entities.map((e) => entityGraph(e, locales))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch }
   _regCache.set(config, reg)
   return reg
 }

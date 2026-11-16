@@ -81,6 +81,11 @@ export interface ContentModel {
   globals: ContentShape[]
   embedded: EmbeddedShape[]
   refs: RefShape[]
+  /**
+   * The website search (/api/content/_search): the collections it covers (public, with
+   * an address, not `content.search: false`) and the languages it takes. Empty: no search.
+   */
+  search: { collections: string[]; locales: string[] | null }
 }
 
 // ── projection helpers — mirror cmsContent.ts byte for byte ─────────────────────
@@ -296,5 +301,8 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
     }
   }
 
-  return { entities, globals, embedded: [...embeddedByName.values()], refs: [...refByName.values()] }
+  // Mirrors publicSearchEntities (server/utils/cmsSearch.ts).
+  const searchable = publicEntities.filter((e) => e.content?.path && e.content.search !== false).map((e) => e.name)
+  const search = { collections: searchable, locales: searchable.length && reg.locales ? reg.locales.locales : null }
+  return { entities, globals, embedded: [...embeddedByName.values()], refs: [...refByName.values()], search }
 }

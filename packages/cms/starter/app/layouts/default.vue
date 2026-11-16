@@ -16,6 +16,9 @@ useHead({ htmlAttrs: { lang: locale } })
           <CmsImage v-if="settings?.logo" :media="settings.logo" class="h-8 w-auto" eager />
           <span>{{ settings?.siteName ?? 'Web' }}</span>
         </NuxtLink>
+        <NuxtLink :to="locale === 'en' ? '/en/search' : '/hledat'" class="ml-auto grid size-11 place-items-center sm:order-last sm:ml-0" :aria-label="locale === 'en' ? 'Search' : 'Hledat'">
+          <UIcon name="i-lucide-search" class="size-5" />
+        </NuxtLink>
         <button
           type="button" class="site-menu-button sm:hidden" :aria-expanded="menuOpen" aria-controls="site-nav"
           @click="menuOpen = !menuOpen"
@@ -23,7 +26,7 @@ useHead({ htmlAttrs: { lang: locale } })
           <UIcon :name="menuOpen ? 'i-lucide-x' : 'i-lucide-menu'" class="size-6" />
           <span class="sr-only">{{ locale === 'en' ? 'Menu' : 'Menu' }}</span>
         </button>
-        <CmsNav id="site-nav" :links="nav?.main" class="site-nav" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="locale === 'en' ? 'Main menu' : 'Hlavní menu'" />
+        <CmsNav id="site-nav" :links="nav?.main" class="site-nav sm:ml-auto" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="locale === 'en' ? 'Main menu' : 'Hlavní menu'" />
       </div>
     </header>
     <main class="flex-1">

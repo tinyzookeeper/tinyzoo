@@ -22,6 +22,17 @@ export default {
     account: 'Your account',
     collapse: 'Collapse sidebar',
   },
+  search: {
+    button: 'Search',
+    title: 'Search',
+    description: 'Find an entry by any word in it, or go to a part of the admin.',
+    placeholder: 'Search entries, or go to…',
+    entries: 'Entries',
+    places: 'Go to',
+    untitled: 'Untitled',
+    typeMore: 'Type at least two letters to search the entries.',
+    nothing: 'Nothing found for “{query}”.',
+  },
   user: {
     account: 'Account',
     appearance: 'Appearance',

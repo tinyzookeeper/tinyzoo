@@ -38,7 +38,8 @@ const doc = (...content) => ({ type: 'doc', content })
 // ── sign in (or set up the first administrator) ──
 for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/admin/login`)).ok) break } catch {} await new Promise((r) => setTimeout(r, 500)) }
 const status = await req('GET', '/api/cms/_auth/status').catch(() => null)
-if (status?.needsSetup) await req('POST', '/api/cms/_auth/setup', { name: 'tinyzoo', email, password })
+// A production site asks for its setup code (NUXT_CMS_AUTH_SETUP_TOKEN) before the first account.
+if (status?.needsSetup) await req('POST', '/api/cms/_auth/setup', { name: 'tinyzoo', email, password, token: process.env.SEED_SETUP_TOKEN || undefined })
 else await req('POST', '/api/cms/_auth/login', { email, password })
 
 async function upload(file, mime) {
@@ -59,7 +60,7 @@ for (const lang of ['en', 'de']) {
 }
 // Illustrations (generated for tinyzoo, no client data): covers, pictures in text, sharing.
 const img = {}
-for (const i of ['blocks', 'forms', 'links', 'testing', 'collab', 'preview', 'schedule', 'desk']) img[i] = await upload(`${i}.jpg`, 'image/jpeg')
+for (const i of ['blocks', 'forms', 'links', 'testing', 'collab', 'preview', 'schedule', 'desk', 'search']) img[i] = await upload(`${i}.jpg`, 'image/jpeg')
 const picture = (m, alt) => ({ type: 'image', attrs: { src: m.url, mediaId: m.id, alt } })
 
 // ── pages ──
@@ -127,6 +128,7 @@ await page('Úvod', 'home', [
       item({ question: 'Můžu při zkoušení něco pokazit?', answer: 'Ukázková administrace je tu na zkoušení. Každou noc ji vrátíme do výchozího stavu, takže nic nemůžete trvale pokazit. Ani vaše úpravy v ní nezůstanou. Na vlastním webu si rozepsaný obsah můžete nejdřív prohlédnout v náhledu.' }),
       item({ question: 'Co když stejný článek upravujeme dva?', answer: 'Můžete v něm psát současně. Každý vidí, kde právě píše druhý, a změny se navzájem nepřepíšou.' }),
       item({ question: 'Můžu se vrátit ke starší verzi?', answer: 'Ano. V historii verzí se můžete vrátit k dřívější podobě obsahu.' }),
+      item({ question: 'Jak rychle najdu starší článek?', answer: 'Stiskněte ⌘K (ve Windows Ctrl+K) nebo klikněte na Hledat a napište kterékoli slovo z článku. Vyhledávání najde i koncepty a poradí si s překlepem.' }),
       item({ question: 'Funguje administrace na telefonu?', answer: 'Ano, obsah můžete upravovat i na telefonu. Náhled stránky navíc přepnete na zobrazení pro telefon, abyste viděli, jak bude vypadat návštěvníkům. Do budoucna plánujeme i samostatnou mobilní aplikaci.' }),
       item({ question: 'Je tinyzoo hotové? Můžu ho už zkusit?', answer: 'Ukázka je otevřená všem a každou noc se obnovuje. tinyzoo je nové. Má přes 350 automatických testů a před pilotem jsme v něm podrobně prošli všechny běžné úkoly editora. Nalezené chyby jsme opravili. Klienti ho při své práci zatím nepoužívali, to teprve ověříme v pilotu. O další vývoj i opravy se staráme sami.' }),
       item({ question: 'Co když potřebuji něco navíc?', answer: 'Řekněte nám, co potřebujete na webu dělat. Katalog hotových doplňků nemáme. Další možnosti připravujeme pro konkrétní web.' }),
@@ -142,8 +144,8 @@ await page('Plány', 'plany', [
     items: [
       item({ title: 'Pilot na prvním klientském webu', text: 'Chystáme pilot na prvním klientském webu. Chceme poznat, jak skuteční editoři pracují s vlastním obsahem a kde potřebují pomoc.', stage: 'now', animal: 'bunny' }),
       item({ title: 'Úpravy podle postřehů z ukázky', text: 'Sbíráme postřehy, které nám posíláte z ukázky. Podle nich chceme dál upravovat administraci, aby se vám v ní dobře pracovalo.', stage: 'now', animal: 'bird' }),
-      item({ title: 'Vyhledávání na webu', text: 'Plánujeme vyhledávání, které návštěvníkům pomůže najít obsah na vašem webu.', stage: 'next', animal: 'fox' }),
       item({ title: 'Doplňkové moduly', text: 'Chceme připravit doplňkové moduly, se kterými by váš web mohl růst podle nových potřeb.', stage: 'next', animal: 'frog' }),
+      item({ title: 'Role a oprávnění na míru', text: 'Chceme umožnit vlastní role a určit, kdo smí měnit které části obsahu. Pomůže to větším týmům a webům s více editory.', stage: 'next', animal: 'fox' }),
       item({ title: 'Mobilní aplikace pro správu obsahu', text: 'Stále víc lidí chce spravovat obsah rovnou z telefonu. Plánujeme aplikaci, ve které byste mohli napsat novinku, přidat fotky přímo z telefonu a zveřejnit ji odkudkoli.', stage: 'later', animal: 'octopus' }),
       item({ title: 'Přenos obsahu ze stávajícího webu', text: 'Chceme usnadnit přenos textů a obrázků z vašeho stávajícího webu do tinyzoo.', stage: 'later', animal: 'elephant' }),
     ],
@@ -234,7 +236,7 @@ await page('Pro vývojáře', 'pro-vyvojare', [
   {
     id: id(), type: 'faq', heading: 'Otázky vývojářů',
     items: [
-      item({ question: 'Co už je součástí tinyzoo?', answer: 'Stránky z bloků, seznamy uvnitř bloků a formuláře. Dále menu s podpoložkami, přesměrování, SEO pole a překlady. Knihovna médií připravuje obrázky v potřebných velikostech na vyžádání. Při úpravách je k dispozici živý náhled, společné psaní v reálném čase, plánování zveřejnění a historie verzí.' }),
+      item({ question: 'Co už je součástí tinyzoo?', answer: 'Stránky z bloků, seznamy uvnitř bloků a formuláře. Dále menu s podpoložkami, přesměrování, SEO pole a překlady. Knihovna médií připravuje obrázky v potřebných velikostech na vyžádání. Při úpravách je k dispozici živý náhled, společné psaní v reálném čase, plánování zveřejnění a historie verzí. Návštěvníci webu i editoři mohou obsah prohledávat a vyhledávání si poradí i s překlepy.' }),
       item({ question: 'Co když potřebujeme něco navíc?', answer: 'Další možnosti píšeme jako vlastní moduly v kódu. Řekněte nám, co váš web potřebuje. Společně projdeme, jak ho rozšířit.' }),
       item({ question: 'Jak se dostaneme k obsahu?', answer: 'Obsah je uložený v běžných tabulkách Postgresu. K dispozici je také obsahové API popsané v OpenAPI. Ve Vue šablonách pracujete s typy z generovaného klientského souboru.' }),
       item({ question: 'Kdo se stará o údržbu?', answer: 'Vývoj i opravy zajišťujeme sami. Napříč weby aktualizujeme jeden balíček. tinyzoo je mladé. Přes 350 automatických testů a podrobná zkouška všech běžných úkolů editora nám pomáhají ověřovat jeho fungování. Zkušenosti z dalšího používání budeme sbírat postupně.' }),
@@ -249,7 +251,7 @@ await page('Pro vývojáře', 'pro-vyvojare', [
 
 // ── what's new ──
 const days = (n) => new Date(Date.now() - n * 86400000).toISOString()
-const covers = { 'seznamy-v-blocich': 'blocks', 'formulare': 'forms', 'odkazy-vyberem-stranky': 'links', 'opravy-z-testu': 'testing', 'spolecne-psani': 'collab', 'nahled-vedle-editoru': 'preview', 'planovani': 'schedule' }
+const covers = { 'seznamy-v-blocich': 'blocks', 'formulare': 'forms', 'odkazy-vyberem-stranky': 'links', 'opravy-z-testu': 'testing', 'spolecne-psani': 'collab', 'nahled-vedle-editoru': 'preview', 'planovani': 'schedule', 'vyhledavani': 'search' }
 const update = async (title, slug, kind, ago, perex, body, extra = {}) => {
   const res = await req('POST', '/api/cms/news', {
     title, slug, kind, status: 'published', publishedAt: days(ago), perex, body, cover: img[covers[slug]]?.id ?? null, ...extra,
@@ -260,6 +262,10 @@ await update('Karty a otázky na jedné stránce', 'seznamy-v-blocich', 'featur
   'Do stránky nově poskládáte karty nebo otázky a odpovědi. Jejich pořadí změníte přetažením.',
   doc(p('Stránku můžete sestavit z hotových částí, třeba z karet nebo otázek a odpovědí. Doplňte vlastní texty a seřaďte části přetažením.'),
     p('I tento web jsme poskládali stejným způsobem.')))
+await update('Vyhledávání na webu i v administraci', 'vyhledavani', 'feature', 0,
+  'Návštěvníci najdou obsah vašeho webu podle kteréhokoli slova. V administraci najdete jakýkoli záznam přes ⌘K.',
+  doc(p('Vyhledávání prochází nadpisy, texty i obsah bloků. Nezáleží na diakritice ani na velikosti písmen a poradí si i s překlepem, takže „zimni pripava“ najde „Zimní příprava“.'),
+    p('V administraci otevřete hledání tlačítkem v postranním panelu nebo zkratkou ⌘K (Ctrl+K). Najdete v něm i koncepty a texty v ostatních jazycích.')))
 await update('Zprávy z formulářů v administraci', 'formulare', 'feature', 2,
   'Nové zprávy z webu najdete pohromadě. Na každou vás upozorní e-mail.',
   doc(p('Zprávy z webových formulářů se ukládají do administrace. Na novou zprávu vás upozorní e-mail. Pro další práci si je stáhnete jako tabulku pro Excel.'),

@@ -45,6 +45,8 @@
 .site :focus-visible { outline: 2px solid var(--color-ink); outline-offset: 3px; border-radius: 6px; }
 
 @layer base {
+  /* Tailwind resets buttons to the arrow cursor; anything you can click shows the hand. */
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary { cursor: pointer; }
   /* Long words and addresses wrap instead of pushing the page wider on phones. */
   p, li, dd, figcaption, td, th { overflow-wrap: anywhere; }
   /* Headings: hyphenate long words in the page's language (German), no lone last word. */

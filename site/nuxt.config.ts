@@ -27,7 +27,8 @@ export default defineNuxtConfig({
     ],
   },
   // Speed: built JS/CSS ship pre-compressed; the brand pictures are cached for a week.
-  nitro: { compressPublicAssets: true },
+  // The demo deployment resets itself at 3:00 UTC (server/tasks/site/demo-reset.ts; off unless SITE_DEMO_RESET=true).
+  nitro: { compressPublicAssets: true, experimental: { tasks: true }, scheduledTasks: { '0 3 * * *': ['site:demo-reset'] } },
   routeRules: {
     '/animals/**': { headers: { 'cache-control': 'public, max-age=604800, stale-while-revalidate=86400' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800, stale-while-revalidate=86400' } },

@@ -21,6 +21,17 @@ export default {
     account: 'Váš účet',
     collapse: 'Sbalit postranní panel',
   },
+  search: {
+    button: 'Hledat',
+    title: 'Hledat',
+    description: 'Najděte záznam podle kteréhokoli slova v něm, nebo přejděte do části administrace.',
+    placeholder: 'Hledat v obsahu, nebo přejít na…',
+    entries: 'Záznamy',
+    places: 'Přejít na',
+    untitled: 'Bez názvu',
+    typeMore: 'Pro hledání v záznamech napište aspoň dvě písmena.',
+    nothing: 'Na „{query}“ jsme nic nenašli.',
+  },
   user: {
     account: 'Účet',
     appearance: 'Vzhled',

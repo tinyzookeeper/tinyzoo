@@ -64,6 +64,7 @@ export default (h) => {
               item({ question: 'Can I break anything while trying it?', answer: 'The demo admin area is there for you to experiment. We reset it every night, so you cannot break anything permanently. Your changes will not stay there either. On your own website, you can preview unfinished content before publishing.' }),
               item({ question: 'What if two of us edit the same article?', answer: 'You can write in it at the same time. Each of you can see where the other is typing, and your changes will not overwrite each other.' }),
               item({ question: 'Can I go back to an earlier version?', answer: 'Yes. Version history lets you restore an earlier version of your content.' }),
+              item({ question: 'How do I quickly find an older article?', answer: 'Press ⌘K (Ctrl+K on Windows) or click Search and type any word from the article. Search finds drafts too and copes with typos.' }),
               item({ question: 'Does the admin area work on a phone?', answer: 'Yes, you can edit content on your phone too. You can also switch the page preview to a phone view to see how it will look to visitors. We also plan a separate mobile app.' }),
               item({ question: 'Is tinyzoo finished? Can I try it yet?', answer: 'The demo is open to everyone and resets every night. tinyzoo is new. It has over 350 automated tests, and before the pilot we went through all the usual editing tasks in detail. We fixed the issues we found. Clients have not used it in their everyday work yet. That is what we will test in the pilot. We look after development and fixes ourselves.' }),
               item({ question: 'What if I need something extra?', answer: 'Tell us what you need to do on your website. We do not have a catalogue of ready-made add-ons. We build extra features for individual websites.' }),
@@ -82,8 +83,8 @@ export default (h) => {
             items: [
               item({ title: 'Pilot on our first client website', text: 'We are preparing a pilot on our first client website. We want to learn how real editors work with their own content and where they need help.', stage: 'now', animal: 'bunny' }),
               item({ title: 'Improvements from demo feedback', text: 'We are gathering the thoughts you send us from the demo. We want to use them to make the admin area easier to work in.', stage: 'now', animal: 'bird' }),
-              item({ title: 'Website search', text: 'We plan to add search to help visitors find content on your website.', stage: 'next', animal: 'fox' }),
               item({ title: 'Add-on modules', text: 'We plan to build add-on modules so your website can grow as your needs change.', stage: 'next', animal: 'frog' }),
+              item({ title: 'Custom roles and permissions', text: 'We want to let you create your own roles and decide who may change which parts of the content. This helps larger teams and websites with several editors.', stage: 'next', animal: 'fox' }),
               item({ title: 'A mobile app for managing content', text: 'More people expect to manage content straight from their phone. We plan an app where you could write a news post, add photos directly from your phone and publish from anywhere.', stage: 'later', animal: 'octopus' }),
               item({ title: 'Moving content from your existing website', text: 'We want to make it easier to bring text and pictures from your existing website into tinyzoo.', stage: 'later', animal: 'elephant' }),
             ],
@@ -152,7 +153,7 @@ export default (h) => {
           {
             id: id(), type: 'faq', heading: 'Developer questions',
             items: [
-              item({ question: 'What does tinyzoo already include?', answer: 'Pages built from blocks, lists within blocks and forms. Also menus with subitems, redirects, SEO fields and translations. The media library generates images in the sizes you need on demand. Editing includes a live preview, real-time collaborative writing, scheduled publishing and version history.' }),
+              item({ question: 'What does tinyzoo already include?', answer: 'Pages built from blocks, lists within blocks and forms. Also menus with subitems, redirects, SEO fields and translations. The media library generates images in the sizes you need on demand. Editing includes a live preview, real-time collaborative writing, scheduled publishing and version history. Visitors and editors can search the content, and search copes with typos.' }),
               item({ question: 'What if we need something extra?', answer: 'We write extra features as custom modules in code. Tell us what your website needs. Together we can work out how to extend it.' }),
               item({ question: 'How do we access the content?', answer: 'Content is stored in standard Postgres tables. There is also a content API described in OpenAPI. In Vue templates, you work with types from the generated client file.' }),
               item({ question: 'Who handles maintenance?', answer: 'We handle development and fixes ourselves. We update one package across our websites. tinyzoo is young. Over 350 automated tests and a detailed check of all the usual editing tasks help us verify how it works. We will gather more experience as people use it.' }),
@@ -168,6 +169,12 @@ export default (h) => {
       },
     },
     news: {
+      vyhledavani: {
+        title: 'Search on your website and in the admin area', slug: 'search',
+        perex: 'Visitors find your content by any word in it. In the admin area, press ⌘K to find any entry.',
+        body: doc(p('Search looks through headings, text and the content of blocks. Accents and capital letters do not matter, and it copes with typos: “preveiw” finds “preview”.'),
+          p('In the admin area, open search with the button in the sidebar or with ⌘K (Ctrl+K). It finds drafts and text in other languages too.')),
+      },
       'seznamy-v-blocich': {
         title: 'Cards and questions on one page', slug: 'lists-in-blocks',
         perex: 'You can now build a page with cards or questions and answers. Drag them into the order you need.',

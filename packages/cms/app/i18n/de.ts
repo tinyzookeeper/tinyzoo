@@ -21,6 +21,17 @@ export default {
     account: 'Ihr Konto',
     collapse: 'Seitenleiste einklappen',
   },
+  search: {
+    button: 'Suchen',
+    title: 'Suchen',
+    description: 'Finden Sie einen Eintrag über ein beliebiges Wort darin, oder wechseln Sie in einen Bereich der Verwaltung.',
+    placeholder: 'Einträge durchsuchen oder wechseln zu …',
+    entries: 'Einträge',
+    places: 'Wechseln zu',
+    untitled: 'Ohne Titel',
+    typeMore: 'Geben Sie mindestens zwei Buchstaben ein, um die Einträge zu durchsuchen.',
+    nothing: 'Keine Treffer für „{query}“.',
+  },
   user: {
     account: 'Konto',
     appearance: 'Darstellung',

@@ -91,6 +91,25 @@ export const cmsState = pgTable('cms_state', {
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })
 
+export const cmsSearch = pgTable('cms_search', {
+  entity: text('entity').notNull(),
+  recordId: uuid('record_id').notNull(),
+  locale: text('locale').notNull().default(''),
+  title: text('title').notNull().default(''),
+  body: text('body').notNull().default(''),
+  extra: text('extra').notNull().default(''),
+  titleFolded: text('title_folded').notNull().default(''),
+  bodyFolded: text('body_folded').notNull().default(''),
+  extraFolded: text('extra_folded').notNull().default(''),
+  path: text('path'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ name: 'cms_search_pk', columns: [t.entity, t.recordId, t.locale] }),
+  index('cms_search_title_trgm').using('gin', t.titleFolded.op('gin_trgm_ops')),
+  index('cms_search_body_trgm').using('gin', t.bodyFolded.op('gin_trgm_ops')),
+  index('cms_search_extra_trgm').using('gin', t.extraFolded.op('gin_trgm_ops')),
+])
+
 export const feedback = pgTable('feedback', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

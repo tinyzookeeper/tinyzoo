@@ -42,6 +42,12 @@ export async function applyMigrations(
     await run('CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)')
     const [last] = await run('select id, hash, created_at from "drizzle"."__drizzle_migrations" order by created_at desc limit 1')
     const applied: string[] = []
+    const pending = migrations.filter((m) => !(last && Number(last.created_at) >= m.folderMillis))
+    // Trigram indexes (the search index) need pg_trgm: a trusted extension the database
+    // owner may enable, shipped with standard Postgres images (CloudNativePG included).
+    if (pending.some((m) => m.statements.some((s) => s.includes('gin_trgm_ops')))) {
+      await run('CREATE EXTENSION IF NOT EXISTS pg_trgm')
+    }
     for (const m of migrations) {
       if (last && Number(last.created_at) >= m.folderMillis) continue
       for (const stmt of m.statements) if (stmt.trim()) await run(stmt)
@@ -74,11 +80,15 @@ export function sqlWithParams(text: string, params: unknown[] = []): SQL {
 
 const CONNECTION_ERRORS = new Set(['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'EHOSTUNREACH', '57P03', '08000', '08001', '08003', '08006'])
 
+const CONNECTION_MESSAGES = /^(Connection terminated (due to connection timeout|unexpectedly)|timeout expired)$/
+
 /** Could not reach the database (worth retrying), as opposed to a statement that failed. */
 export function isConnectionError(err: any): boolean {
   for (let e = err, depth = 0; e && depth < 4; e = e.cause, depth++) {
     if (CONNECTION_ERRORS.has(e.code)) return true
     if (Array.isArray(e.errors) && e.errors.some((x: any) => CONNECTION_ERRORS.has(x?.code))) return true
+    // node-postgres reports a pool timeout and a dropped socket without a code.
+    if (typeof e.message === 'string' && CONNECTION_MESSAGES.test(e.message)) return true
   }
   return false
 }
