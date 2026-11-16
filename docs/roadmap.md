@@ -182,3 +182,59 @@ and the audit has no open High or Medium.
 ## Progress
 
 _Write-ups land here as slices merge._
+
+### 0.2 B — Releases and contracts
+
+Branch `feat/0.2-release`. What landed:
+
+- **Changesets** (`@changesets/cli` 3) for `tinyzoo` and `@tinyzoo/client`, versioned
+  together (`fixed`); `playground`, `tinyzoo-web` and `tinyzoo-starter` are ignored.
+  The changelog format (`.changeset/changelog.cjs`) keeps Changesets' grouping by
+  bump (Major / Minor / Patch) and turns a changeset's `### Upgrade` section into
+  a bold **Upgrade** block under its entry. Both packages have a seeded
+  `CHANGELOG.md` (0.1.0), and two changesets for what is already merged: search,
+  and the snake_case table rename (an Upgrade note that describes the companion
+  slice; the file says so in a comment and must be checked against what that slice
+  generates, or deleted). `pnpm changeset version` was run on a copy of the tree:
+  both packages go to 0.2.0, the lockfile stays valid (`--frozen-lockfile`).
+- **Convention** in `CONTRIBUTING.md`: a changeset for every change to a package,
+  `### Upgrade` with exact steps when a site must act, a breaking change is a minor
+  bump on 0.x (major from 1.0), the deprecation policy, the contract rule, and the
+  release flow. CI has a `changeset` job that fails a pull request that changes a
+  package without one (skipped for the release pull request).
+- **Release workflow** (`.github/workflows/release.yml`): on push to `main`,
+  `changesets/action` opens or updates the "Version packages" pull request; when it
+  is merged, `pnpm release` (`scripts/release.mjs`) skips when both versions are
+  already on npm, otherwise builds `@tinyzoo/client` (`dist` by unbuild), runs the
+  consumer check on the packed tarballs of both packages, and publishes with
+  `changeset publish` (pnpm per package, provenance through
+  `NPM_CONFIG_PROVENANCE=true` and `id-token: write`, token from the `NPM_TOKEN`
+  secret, git tags and GitHub releases from the action). `tinyzoo` needs no build
+  step: it ships TypeScript source, the Nuxt layer and the CLI (run by `tsx`).
+  `pnpm release:dry-run` does the same steps with `pnpm publish -r --dry-run`.
+- **Package metadata**: `license`, `repository` (with `directory`), `homepage`,
+  `bugs`, `keywords`, `publishConfig.access: public`, `engines.node >=22` on
+  `tinyzoo`; peer ranges raised to what the lockfile and CI test (`nuxt ^4.4`,
+  `@nuxt/ui ^4.9`, `nuxt-auth-utils ^0.5.29`, `@internationalized/date ^3.12.2`).
+- **Deprecations**: `cmsDeprecated(id, message, { removeIn })` in
+  `packages/cms/src/deprecate.ts`, exported from `tinyzoo` with `cmsDeprecations()`
+  and `resetCmsDeprecations()`. One `[tinyzoo] deprecated: …` per id and process;
+  silent under `NODE_ENV=test` unless `TINYZOO_DEPRECATIONS=1` (`0` silences it
+  always); always recorded.
+- **Contract snapshots** in `test/contracts/`: `openapi.playground.json` and
+  `client-types.playground.ts`. `test/unit/contracts.spec.ts` fails with the
+  differing lines and `pnpm contracts:update` (same test, `UPDATE_CONTRACTS=1`).
+  The admin graph is internal and has no snapshot.
+
+Tarballs (`pnpm pack`, 0.1.0 as it stands):
+
+| Package | Files | Size | Contents |
+|---|---|---|---|
+| `@tinyzoo/client` | 6 | 6 kB | `package.json` (with `publishConfig` exports applied: `dist` entries), `README.md`, `dist/index.mjs`, `dist/index.d.ts`, `dist/index.d.mts`, `src/index.ts` |
+| `tinyzoo` | 304 | 369 kB | `package.json`, `module.ts`, `nuxt.config.ts`, `cli/index.ts`, `src/` (20), `shared/` (2), `server/` (108), `app/` (139: components, pages, composables, layouts, i18n, assets, brand SVGs), `starter/` (31: the site template with its migrations, `gitignore.txt`, `.env.example`; no `node_modules`, `.nuxt` or `.output`) |
+
+No tests, `node_modules`, `.nuxt`, `.output`, source maps or `.DS_Store` are in either.
+
+Left for the owner (see the hand-off): the npm organisation and token, the GitHub
+repository and its settings, the licence, and switching the Tábor site from
+`vendor/*.tgz` to a version range (Wave 3).
