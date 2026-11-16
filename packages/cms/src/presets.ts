@@ -78,6 +78,8 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
   localized?: boolean
   path?: PathTemplate
   tree?: T
+  /** Row-level rules on top of the roles (as `defineEntity({ access })`): who may read, create, change or delete which pages. */
+  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: any }) => unknown>>
 }) {
   const loc = <T extends { localized: () => any }>(d: T): T => (opts.localized ? d.localized() : d)
   const path = opts.path ?? '/:slug'
@@ -106,6 +108,7 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
       ...seo({ localized: opts.localized }),
     },
     publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', preview: path },
+    ...(opts.access ? { access: opts.access as {} } : {}),
     content: {
       public: true,
       published: (t: any) => eq(t.status, 'published'),

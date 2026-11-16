@@ -1,4 +1,4 @@
-import { chainOf, ilike, indexTree, inArray, notInArray, or, titleIn } from 'tinyzoo'
+import { chainOf, ilike, indexTree, inArray, notInArray, titleIn } from 'tinyzoo'
 
 // Relation-picker typeahead: GET /api/cms/:entity/options?q=&selected=id,id
 export default defineEventHandler(async (event) => {
@@ -34,10 +34,15 @@ export default defineEventHandler(async (event) => {
     found.push(...extra)
   }
   // A page tree: a page is named by its trail ("About us / Team"), so two pages called alike can be told apart.
+  // A page above it that this person may not read is "…", not its title.
   if (e.tree) {
     const index = indexTree(await loadTreeNodes(db, reg, e))
+    const readable = await readableTreeIds(db, e, user)
     const def = reg.locales?.default ?? null
-    return found.map((r) => ({ id: r.id, label: chainOf(index, r.id).map((n) => titleIn(n, null, def) || r[e.titleField]).join(' / ') || r[e.titleField] }))
+    return found.map((r) => ({
+      id: r.id,
+      label: chainOf(index, r.id).map((n) => (n.id === r.id ? titleIn(n, null, def) || r[e.titleField] : readable && !readable.has(n.id) ? '…' : titleIn(n, null, def) || '…')).join(' / ') || r[e.titleField],
+    }))
   }
   return found.map((r) => ({ id: r.id, label: r[e.titleField] }))
 })

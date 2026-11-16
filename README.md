@@ -316,6 +316,11 @@ export const Page = definePages({ blocks: { hero, text, cta }, localized: true, 
   `A → B → C → A`), and the tree cannot get deeper than `maxDepth` counting what the page
   carries along (422 `tree_depth`). **Deleting a page that has subpages is refused** (409
   `has_children`, listing a few of them): nothing below it disappears by accident.
+- **Pages a person may not read.** With a row-level read rule (`definePages({ access: { read: … } })`),
+  the admin does not tell them the titles of pages they cannot read: the parent picker's trail shows
+  `…` for such a page, the refusals for a taken address or a loop leave its title out, the tree list gives
+  no address for pages below it, and a page cannot be put under a parent they may not read (as far as
+  they can tell it does not exist).
 - **Moving or renaming.** When a page's parent or address part changes, the address of the
   page and of **every page below it changes, in every language**. The server writes
   redirects old → new (301) for each of them in the same transaction, through
@@ -323,7 +328,12 @@ export const Page = definePages({ blocks: { hero, text, cta }, localized: true, 
   every address that moved, and the admin says so; add `defineRedirects` to your config). Pages
   that were not on the website (drafts, or under a draft) get none, redirects that already
   led to an old address are pointed at the new one (no chains), and a redirect *from* an
-  address a page is back at is removed. Reordering moves no address.
+  address a page is back at is removed. Reordering moves no address. A move writes the
+  moved page only: positions are spaced 1024 apart, so a page put between two others gets a
+  number between theirs and the siblings (which may be other people's pages) are not
+  touched. Only when two neighbours have no number between them are the siblings
+  renumbered, and then just their order: their version, last editor and saved versions stay
+  as they were, so nobody who has one open is told it changed.
 - **The change report names every address.** The `entry.updated` change of a move, the
   `cms:change` hook and the publish webhook carry `moved: [{ id, locale, from, to }]` for
   each address that changed, and `paths` lists every old and new address of the page and
@@ -975,6 +985,16 @@ checks the archive first:
 - the archive is read with a cap on what it may unpack to (20 GiB; set
   `TINYZOO_MAX_ARCHIVE_BYTES` to change it), only plain files are written, and a path
   that leaves the folder is refused.
+
+A **page tree** is checked as a whole once its pages are written, inside the same
+transaction, with the rules the server applies to every edit: no page is its own ancestor,
+nothing is deeper than `maxDepth`, and every page has an address of its own in each language.
+The database does not enforce these, so an archive (or a `--merge` onto pages that are
+already there) could break them. A tree that fails refuses the import, naming the pages,
+and nothing is changed. With `--merge` only problems that involve a page of the archive
+count, so an old problem in the target does not stop an unrelated import. (`--dry-run`
+checks the archive's files and content model, not the tree.) No redirects are left for
+addresses an import changes.
 
 Rows are inserted in dependency order (media, then entries so that a post comes after
 its author, then translations, links and saved versions). A link that cannot be

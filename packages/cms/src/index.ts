@@ -8,8 +8,8 @@ export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'
 export {
   TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, indexTree, existsIn, slugIn, titleIn, chainOf, depthOf, childrenMap, sortSiblings, descendantsOf, heightOf,
-  slugChain, treeAddress, applyChange, checkTreeChange, movedPaths,
-  type TreeConfig, type TreeNode, type TreeIndex, type TreeChange, type TreeProblem, type TreeCheckOptions, type MovedPath,
+  slugChain, treeAddress, applyChange, checkTreeChange, checkTree, placeAmong, TREE_POSITION_STEP, movedPaths,
+  type TreeConfig, type TreeNode, type TreeIndex, type TreeChange, type TreeProblem, type TreeIssue, type TreeCheckOptions, type MovedPath,
 } from './tree'
 export { sitePrefix, pathTemplateFor, pathTemplateKeys, fillPathTemplate, sitePath, prefixedTemplates, type PathTemplate } from './paths'
 export {

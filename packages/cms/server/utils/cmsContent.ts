@@ -49,21 +49,26 @@ export function scheduleCond(e: CmsEntity, t: any = e.table): any {
 }
 
 /**
- * Page tree: every ancestor is live too. One nested `exists` per level the tree may have
- * (`tree.maxDepth - 1`), each stopping at a top-level page, so a query pays for the
- * depth a page actually has. (Lowering `maxDepth` later does not move pages that are
- * already deeper; such a page is judged by its nearest ancestors only.)
+ * Page tree: every ancestor is live too. The whole chain up to the top is walked (a
+ * recursive query, so a page that sits deeper than `tree.maxDepth` allows today — the
+ * limit was lowered after it was made — is judged by all of its ancestors, not only by the
+ * nearest ones). Stops at a top-level page; a page without a parent pays nothing.
  */
 export function ancestorsLiveCond(e: CmsEntity): any {
   if (!e.tree) return undefined
   const parentProp = `${e.tree.parent}Id`
-  const level = (t: any, depth: number): any => {
-    if (depth <= 0) return undefined
-    const a: any = alias(e.table, `${snake(e.name)}_up${depth}`)
-    const inner = both(both(eq(a.id, t[parentProp]), ownPublishedCond(e, a)), level(a, depth - 1))
-    return or(isNull(t[parentProp]), sql`exists (select 1 from ${e.table} ${a} where ${inner})`)
-  }
-  return level(e.table, e.tree.maxDepth - 1)
+  const base = snake(e.name)
+  const first: any = alias(e.table, `${base}_up`)
+  const step: any = alias(e.table, `${base}_upn`)
+  const live = (t: any) => sql`coalesce(${ownPublishedCond(e, t) ?? sql`true`}, false)`
+  // `union` (not `union all`) drops a row it has seen, so a loop in stored data ends the walk.
+  return or(isNull(e.table[parentProp]), sql`not exists (
+    with recursive up(id, parent_id, live) as (
+      select ${first.id}, ${first[parentProp]}, ${live(first)} from ${e.table} ${first} where ${first.id} = ${e.table[parentProp]}
+      union
+      select ${step.id}, ${step[parentProp]}, ${live(step)} from ${e.table} ${step} join up on ${step.id} = up.parent_id
+    ) select 1 from up where not up.live
+  )`)
 }
 
 /** Optional API-token gate. No-op unless `cms.content.token` is configured. */

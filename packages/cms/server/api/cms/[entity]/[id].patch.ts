@@ -1,4 +1,4 @@
-import { eq } from 'tinyzoo'
+import { eq, type TreeNode } from 'tinyzoo'
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
@@ -47,15 +47,22 @@ export default defineEventHandler(async (event) => {
     let writeTree: Awaited<ReturnType<typeof beginTreeWrite>> | null = null
     let wasLive = new Set<string>()
     if (treeTouched && treeKeys) {
-      writeTree = await beginTreeWrite(tx, reg, e, {
-        id,
-        parentId: treeKeys.parent in values ? values[treeKeys.parent] ?? null : old[treeKeys.parent] ?? null,
-        slug: String(treeKeys.slug in values ? values[treeKeys.slug] : old[treeKeys.slug]),
-        title: String(old[treeKeys.title] ?? ''),
-      })
+      // What the request does not set (the other of parent and address part) is read under the lock,
+      // from the tree as it is now: a rename or move that landed since `old` was read must count.
+      let before: TreeNode | undefined
+      writeTree = await beginTreeWrite(tx, reg, e, (nodes) => {
+        before = nodes.find((n) => n.id === id)
+        if (!before) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+        return {
+          id,
+          parentId: treeKeys.parent in values ? values[treeKeys.parent] ?? null : before.parentId,
+          slug: treeKeys.slug in values ? String(values[treeKeys.slug]) : before.slug,
+          title: treeKeys.title in values ? String(values[treeKeys.title] ?? '') : before.title,
+        }
+      }, user)
       wasLive = await liveAmong(tx, e, subtreeIds(writeTree.nodes, id))
       // Under a new parent a page goes last among its new siblings.
-      if (treeKeys.parent in values && (values[treeKeys.parent] ?? null) !== (old[treeKeys.parent] ?? null) && !(e.tree!.order in values)) {
+      if (treeKeys.parent in values && (values[treeKeys.parent] ?? null) !== (before!.parentId ?? null) && !(e.tree!.order in values)) {
         values[e.tree!.order] = nextPosition(writeTree.nodes, values[treeKeys.parent] ?? null)
       }
     }

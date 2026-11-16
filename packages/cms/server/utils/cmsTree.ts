@@ -2,9 +2,10 @@ import { eq, inArray, sql } from 'tinyzoo'
 // Address helpers live apart, without Nitro auto-imports: the CLI (links:convert) uses them too.
 import { loadTreeNodes, treeOptions, treePathIn, treeProps, treeVersions } from './cmsTreeAddress'
 import {
-  applyChange, checkTreeChange, childrenMap, chainOf, descendantsOf, existsIn, indexTree, movedPaths, slugChain, titleIn, treeAddress,
+  TREE_POSITION_STEP, applyChange, checkTreeChange, childrenMap, chainOf, descendantsOf, existsIn, indexTree, movedPaths, slugChain, titleIn, treeAddress,
   type CmsEntity, type CmsRegistry, type MovedPath, type TreeChange, type TreeIndex, type TreeNode, type TreeProblem,
 } from 'tinyzoo'
+import type { CmsUser } from './cmsSession'
 
 /**
  * The page tree on the server (`definePages({ tree: true })`; the rules themselves are
@@ -41,8 +42,11 @@ export function treeBreadcrumbs(reg: CmsRegistry, e: CmsEntity, index: TreeIndex
  * parts it has in that language (the default ones where it is not translated: the address
  * the tree and `paths` give for it); any page by its default-language parts (served in the
  * language asked for, its untranslated texts falling back as for any other collection).
+ *
+ * With `live` (visitors) only pages in that set can match: a draft's translated part must
+ * not hide the live page that falls back to the same address.
  */
-export function findByChain(reg: CmsRegistry, index: TreeIndex, chain: string, locale: string | null): TreeNode | null {
+export function findByChain(reg: CmsRegistry, index: TreeIndex, chain: string, locale: string | null, live?: Set<string>): TreeNode | null {
   const def = reg.locales?.default ?? null
   const want = chain.split('/').filter(Boolean).join('/')
   if (!want) return null
@@ -50,11 +54,31 @@ export function findByChain(reg: CmsRegistry, index: TreeIndex, chain: string, l
   const tries: { lang: string | null; onlyTranslated: boolean }[] = [...(l ? [{ lang: l, onlyTranslated: true }, { lang: l, onlyTranslated: false }] : []), { lang: def, onlyTranslated: false }]
   for (const { lang, onlyTranslated } of tries) {
     for (const n of index.values()) {
+      if (live && !live.has(n.id)) continue
       if (onlyTranslated && !existsIn(n, lang, def)) continue
       if (slugChain(index, n.id, lang, def).join('/') === want) return n
     }
   }
   return null
+}
+
+/**
+ * Which entries this person may read, as ids (null: all of them, no row rule). Titles of
+ * the others stay out of every answer that names pages next to the ones asked for: a
+ * trail, a conflict, a loop, a list of subpages.
+ */
+export async function readableTreeIds(db: any, e: CmsEntity, user: CmsUser): Promise<Set<string> | null> {
+  const { allowed, where } = accessWhere(e, 'read', user)
+  if (!allowed) return new Set()
+  if (!where) return null
+  const rows: any[] = await db.select({ id: e.table.id }).from(e.table).where(where)
+  return new Set(rows.map((r) => r.id))
+}
+
+/** Ids of the live entries (published, every ancestor too, scheduling included). */
+export async function liveTreeIds(db: any, e: CmsEntity): Promise<Set<string>> {
+  const rows: any[] = await db.select({ id: e.table.id }).from(e.table).where(publishedCond(e))
+  return new Set(rows.map((r) => r.id))
 }
 
 /**
@@ -84,15 +108,15 @@ export function treeError(p: TreeProblem) {
 }
 
 /** The tree as it stands, checked against a change (throws the matching 409/422). */
-export function assertTreeChange(nodes: TreeNode[], reg: CmsRegistry, e: CmsEntity, change: TreeChange): void {
-  const problem = checkTreeChange(nodes, change, treeOptions(reg, e))
+export function assertTreeChange(nodes: TreeNode[], reg: CmsRegistry, e: CmsEntity, change: TreeChange, readable?: Set<string> | null): void {
+  const problem = checkTreeChange(nodes, change, { ...treeOptions(reg, e), visible: readable ? (id) => readable.has(id) : undefined })
   if (problem) throw treeError(problem)
 }
 
-/** Position after the last sibling under a parent (for a new page). */
+/** Position after the last sibling under a parent (for a new page). Positions are sparse (see `placeAmong`). */
 export function nextPosition(nodes: TreeNode[], parentId: string | null): number {
   const sib = nodes.filter((n) => n.parentId === parentId)
-  return sib.length ? Math.max(...sib.map((n) => n.position ?? 0)) + 1 : 0
+  return sib.length ? Math.max(...sib.map((n) => n.position ?? 0)) + TREE_POSITION_STEP : 0
 }
 
 /** What a tree write did to addresses and to what visitors can see: for redirects and the change report. */
@@ -144,12 +168,23 @@ export async function reportTreeRedirects(event: any, reg: CmsRegistry, redirect
  * it, refuse what is wrong (a loop, too deep, an address taken), and — after the caller
  * wrote the change — list what moved. Pass the proposed change; call `after()` once the
  * row is saved, in the same transaction.
+ *
+ * Anything the request does not set (the address part, the parent) has to come from the
+ * nodes loaded under the lock, not from a row read earlier: pass a function of the nodes.
+ *
+ * With `user`, pages they may not read are not named in a refusal, and a page cannot be
+ * put under a parent they may not read (as far as they can tell it does not exist).
  */
-export async function beginTreeWrite(tx: any, reg: CmsRegistry, e: CmsEntity, change: TreeChange | ((nodes: TreeNode[]) => TreeChange)) {
+export async function beginTreeWrite(tx: any, reg: CmsRegistry, e: CmsEntity, change: TreeChange | ((nodes: TreeNode[]) => TreeChange), user?: CmsUser) {
   await lockTree(tx, e)
   const nodes = await loadTreeNodes(tx, reg, e)
   const c = typeof change === 'function' ? change(nodes) : change
-  assertTreeChange(nodes, reg, e, c)
+  const readable = user ? await readableTreeIds(tx, e, user) : null
+  // Only a NEW parent has to be readable: a page may stay where it is.
+  if (c.parentId && readable && !readable.has(c.parentId) && nodes.find((n) => n.id === c.id)?.parentId !== c.parentId) {
+    throw treeError({ code: 'tree_parent_missing', message: 'The page above does not exist' })
+  }
+  assertTreeChange(nodes, reg, e, c, readable)
   const next = applyChange(nodes, c)
   return { nodes, next, change: c }
 }
@@ -185,23 +220,32 @@ export async function treeEffect(tx: any, reg: CmsRegistry, e: CmsEntity, before
  * Visitors only get live pages and so only live ancestors; with `drafts` (an editor's
  * preview) the trail is the real one, drafts included.
  */
-export async function attachTreeInfo(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], items: any[], locale: string | null): Promise<void> {
+export async function attachTreeInfo(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], items: any[], locale: string | null, opts: { drafts?: boolean } = {}): Promise<void> {
   if (!e.tree || !rows.length) return
   const index = indexTree(await loadTreeNodes(db, reg, e))
+  // A visitor's trail names live pages only, whatever the stored data looks like.
+  const live = opts.drafts ? undefined : await liveTreeIds(db, e)
   rows.forEach((row, i) => {
     items[i].path = treePathIn(reg, e, index, row.id, locale)
-    items[i].breadcrumbs = treeBreadcrumbs(reg, e, index, row.id, locale)
+    items[i].breadcrumbs = treeBreadcrumbs(reg, e, index, row.id, locale, live)
   })
 }
 
-/** Refuse to delete an entry that has pages under it (409, listing a few of them). No cascade: nothing below disappears by accident. */
-export async function assertNoChildren(db: any, e: CmsEntity, id: string): Promise<void> {
+/**
+ * Refuse to delete an entry that has pages under it (409, listing a few of them). No cascade:
+ * nothing below disappears by accident. `readable` (from `readableTreeIds`): the titles of
+ * subpages the person may not read are left out; the count stays.
+ */
+export async function assertNoChildren(db: any, e: CmsEntity, id: string, readable?: Set<string> | null): Promise<void> {
   const p = treeProps(e)
   const kids: any[] = await db.select({ id: e.table.id, title: e.table[p.title] }).from(e.table).where(eq(e.table[p.parent], id)).limit(6)
   if (!kids.length) return
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(e.table).where(eq(e.table[p.parent], id))
   throw createError({
     statusCode: 409, statusMessage: 'This page has pages under it; move or delete them first',
-    data: { code: 'has_children', count, children: kids.slice(0, 5).map((k) => ({ id: k.id, title: k.title == null ? '' : String(k.title) })) },
+    data: {
+      code: 'has_children', count,
+      children: kids.slice(0, 5).map((k) => (readable && !readable.has(k.id) ? { id: k.id, title: '' } : { id: k.id, title: k.title == null ? '' : String(k.title) })),
+    },
   })
 }

@@ -1023,6 +1023,116 @@ describe('importing blocks stored at a newer version', () => {
   })
 })
 
+// ── page trees ──────────────────────────────────────────────────────────────────
+
+describe('a page tree on import', () => {
+  let full: string
+  let template: any
+  beforeAll(async () => {
+    full = archive('tree.tar.gz')
+    await exportAll('tree.tar.gz')
+    const dir = mkdtempSync(join(work, 'tree-peek-'))
+    await extractTarGz(full, dir)
+    for await (const p of readJsonl(join(dir, 'content/page.jsonl'))) { template = p; break }
+  })
+
+  const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+  const entry = (n: number, slug: string, parent: number | string | null = null, title = slug) => ({
+    ...template, id: uuid(n), translations: [], relations: {},
+    fields: { ...template.fields, title, slug, parent: parent === null ? null : typeof parent === 'string' ? parent : uuid(parent), position: n, status: 'published', sections: [] },
+  })
+  /** The full archive with its pages replaced by these. */
+  async function withPages(name: string, pages: any[]): Promise<string> {
+    const out = archive(name)
+    await repack(full, out, (dir) => writeFileSync(join(dir, 'content/page.jsonl'), pages.map((p) => JSON.stringify(p)).join('\n') + '\n'))
+    return out
+  }
+  const pageSlugs = async (db: any) => (await db.select().from(entity('page').table)).map((r: any) => r.slug).sort()
+
+  it('takes a tree whose parents come after their children, with the same part under different parents', async () => {
+    // 1 is the parent of 2 and 3 (listed first on purpose: parents are linked afterwards)
+    const file = await withPages('tree-ok.tar.gz', [entry(3, 'tym', 1), entry(2, 'tym', 4), entry(1, 'o-nas'), entry(4, 'kontakt')])
+    await wipe(B.db)
+    const report = await importInto(file)
+    expect(report.entries.page).toEqual({ rows: 4, translations: 0 })
+    expect(await pageSlugs(B.db)).toEqual(['kontakt', 'o-nas', 'tym', 'tym'])
+  })
+
+  it('refuses two pages at one address, naming them, and changes nothing', async () => {
+    const file = await withPages('tree-clash.tar.gz', [entry(1, 'o-nas', null, 'O nás'), entry(2, 'o-nas', null, 'O nás 2'), entry(3, 'tym', 1)])
+    await wipe(B.db)
+    const err: ImportRefused = await importInto(file).catch((e) => e)
+    expect(err).toBeInstanceOf(ImportRefused)
+    expect(err.code).toBe('invalid')
+    expect(err.message).toContain('page tree of page would not be valid')
+    expect(err.message).toContain('2 pages share the address /o-nas')
+    expect(err.message).toContain('“O nás”')
+    expect(err.message).toContain('“O nás 2”')
+    // all or nothing: not even the other content of the archive
+    expect(await B.db.select().from(entity('page').table)).toHaveLength(0)
+    expect(await B.db.select().from(entity('post').table)).toHaveLength(0)
+    expect(await B.db.select().from(reg.cmsMedia)).toHaveLength(0)
+  })
+
+  it('refuses a page that is its own ancestor', async () => {
+    const file = await withPages('tree-loop.tar.gz', [entry(1, 'a', 3, 'Alfa'), entry(2, 'b', 1, 'Beta'), entry(3, 'c', 2, 'Gama'), entry(4, 'd', null, 'Delta')])
+    await wipe(B.db)
+    const err: ImportRefused = await importInto(file).catch((e) => e)
+    expect(err.code).toBe('invalid')
+    expect(err.message).toMatch(/A loop: .*Alfa.*Beta.*Gama.*Alfa|A loop: .*Alfa/)
+    expect(await B.db.select().from(entity('page').table)).toHaveLength(0)
+  })
+
+  it('refuses a tree deeper than this site allows', async () => {
+    // the playground's pages go four levels deep
+    const file = await withPages('tree-deep.tar.gz', [entry(1, 'a'), entry(2, 'b', 1), entry(3, 'c', 2), entry(4, 'd', 3), entry(5, 'e', 4)])
+    await wipe(B.db)
+    const err: ImportRefused = await importInto(file).catch((e) => e)
+    expect(err.code).toBe('invalid')
+    expect(err.message).toMatch(/“e”.*5 levels deep \(at most 4\)/)
+    expect(await B.db.select().from(entity('page').table)).toHaveLength(0)
+  })
+
+  it('checks --replace too, and leaves the target as it was', async () => {
+    await wipe(B.db)
+    await importInto(full)
+    const before = await snapshot(B.db)
+    const file = await withPages('tree-replace.tar.gz', [entry(1, 'same'), entry(2, 'same')])
+    const err: ImportRefused = await importInto(file, { mode: 'replace' as ImportMode }).catch((e) => e)
+    expect(err.code).toBe('invalid')
+    expect(err.message).toContain('share the address /same')
+    expect(await snapshot(B.db)).toEqual(before)
+  })
+
+  it('checks --merge against the pages already there', async () => {
+    await wipe(B.db)
+    await importInto(full)
+    // the target has /o-nas; the archive brings another page under the same address
+    const file = await withPages('tree-merge.tar.gz', [entry(1, 'o-nas', null, 'Druhé o nás')])
+    const before = await snapshot(B.db)
+    const err: ImportRefused = await importInto(file, { mode: 'merge' as ImportMode }).catch((e) => e)
+    expect(err.code).toBe('invalid')
+    expect(err.message).toContain('share the address /o-nas')
+    expect(err.message).toContain('“Druhé o nás”')
+    expect(await snapshot(B.db)).toEqual(before)
+    // ... and a page of the archive that fits is merged in
+    const fine = await withPages('tree-merge-ok.tar.gz', [entry(1, 'novinky', ids.page, 'Novinky')])
+    await importInto(fine, { mode: 'merge' as ImportMode })
+    expect(await pageSlugs(B.db)).toEqual(['kontakt', 'novinky', 'o-nas'])
+  })
+
+  it('does not let an old problem in the target stop a merge that does not touch it', async () => {
+    await wipe(B.db)
+    await importInto(full)
+    // two pages at one address that were there before (an older import, a hand edit)
+    await put(B.db, entity('page'), { title: 'Starý', slug: 'dup', status: 'draft', sections: [] })
+    await put(B.db, entity('page'), { title: 'Starší', slug: 'dup', status: 'draft', sections: [] })
+    const file = await withPages('tree-merge-old.tar.gz', [entry(1, 'nova')])
+    await importInto(file, { mode: 'merge' as ImportMode })
+    expect(await pageSlugs(B.db)).toContain('nova')
+  })
+})
+
 // ── the command line, as a host app runs it ─────────────────────────────────────
 
 describe('tinyzoo export / import (command line)', () => {
