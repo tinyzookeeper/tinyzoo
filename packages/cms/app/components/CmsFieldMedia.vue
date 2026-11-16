@@ -34,7 +34,8 @@ watch(model, resolveMedia, { immediate: true })
 // A chosen file whose details have not arrived yet: a placeholder, not "add a photo".
 const resolving = computed(() => !!model.value && media.value?.id !== model.value && triedId.value !== model.value && !uploading.value)
 
-const isImage = computed(() => String(media.value?.mime ?? '').startsWith('image/'))
+const isImage = computed(() => cmsMediaKind(media.value) === 'image')
+const isPlayable = computed(() => ['video', 'audio'].includes(cmsMediaKind(media.value)))
 // A document (f.file): its kind and size, the way people talk about files.
 const fileKind = computed(() => {
   const m = String(media.value?.mime ?? '')
@@ -163,9 +164,11 @@ function clear() {
           loading="lazy" decoding="async" class="block size-full object-cover"
           :class="compact ? '' : 'max-h-56 object-contain mx-auto'"
         >
+        <!-- a video or a sound plays right here -->
+        <CmsMediaPreview v-else-if="isPlayable" :media="media" />
         <a v-else :href="media.url" target="_blank" rel="noopener" class="flex items-center gap-3 p-3 hover:bg-elevated/60">
           <span class="grid size-9 shrink-0 place-items-center rounded-md bg-default border border-default">
-            <UIcon :name="media.mime === 'application/pdf' ? 'i-lucide-file-text' : 'i-lucide-file'" class="size-5 text-muted" />
+            <UIcon :name="cmsMediaIcon(media)" class="size-5 text-muted" />
           </span>
           <span class="min-w-0">
             <span class="block truncate text-sm font-medium text-highlighted">{{ media.name || media.key?.split('/').pop() }}</span>

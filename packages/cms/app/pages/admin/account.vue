@@ -11,7 +11,10 @@ const profile = reactive({ name: user.value?.name ?? '', locale: user.value?.loc
 const demo = useRuntimeConfig().public.cmsDemo as { email?: string } | undefined
 const isDemo = computed(() => !!demo?.email && user.value?.email?.toLowerCase() === demo.email.trim().toLowerCase())
 const savingProfile = ref(false)
+const profileErrors = reactive<Record<string, string>>({})
+const profileForm = ref<HTMLElement | null>(null)
 async function saveProfile() {
+  Object.keys(profileErrors).forEach((k) => delete profileErrors[k])
   savingProfile.value = true
   try {
     await $fetch('/api/cms/_auth/me', { method: 'PATCH', body: isDemo.value ? { locale: profile.locale } : profile })
@@ -20,7 +23,11 @@ async function saveProfile() {
     toast.add({ title: t('account.saved'), icon: 'i-lucide-check', color: 'success' })
   }
   catch (err: any) {
-    toast.add({ title: t('team.actionFailed'), description: cmsErrorMessage(err, ''), color: 'error', icon: 'i-lucide-x' })
+    // A field that is wrong is marked and read out ("Please fill this in"), not a bare "Validation failed" toast.
+    const issues = err?.data?.data
+    if (Array.isArray(issues)) for (const i of issues) if (i.path?.[0]) profileErrors[i.path[0]] = cmsIssueMessage(i, null, t as any)
+    if (Object.keys(profileErrors).length) await cmsFocusInvalid(profileForm.value)
+    else toast.add({ title: t('team.actionFailed'), description: cmsRequestError(err, t as any), color: 'error', icon: 'i-lucide-x' })
   }
   finally {
     savingProfile.value = false
@@ -29,6 +36,7 @@ async function saveProfile() {
 
 const pw = reactive({ current: '', password: '' })
 const pwErrors = reactive<Record<string, string>>({})
+const pwForm = ref<HTMLElement | null>(null)
 const savingPw = ref(false)
 async function changePassword() {
   Object.keys(pwErrors).forEach((k) => delete pwErrors[k])
@@ -41,7 +49,8 @@ async function changePassword() {
   catch (err: any) {
     const issues = err?.data?.data
     if (Array.isArray(issues)) for (const i of issues) if (i.path?.[0]) pwErrors[i.path[0]] = cmsIssueMessage(i, null, t as any)
-    if (!Object.keys(pwErrors).length) toast.add({ title: t('team.actionFailed'), description: cmsErrorMessage(err, ''), color: 'error', icon: 'i-lucide-x' })
+    if (Object.keys(pwErrors).length) await cmsFocusInvalid(pwForm.value)
+    else toast.add({ title: t('team.actionFailed'), description: cmsRequestError(err, t as any), color: 'error', icon: 'i-lucide-x' })
   }
   finally {
     savingPw.value = false
@@ -62,9 +71,10 @@ async function changePassword() {
               <p class="text-sm text-muted text-pretty">{{ t('account.profileDescription') }}</p>
             </div>
           </header>
-          <form method="post" class="cms-section__fields" @submit.prevent="saveProfile">
-            <UFormField :label="t('auth.name')" name="name">
+          <form method="post" ref="profileForm" class="cms-section__fields" novalidate @submit.prevent="saveProfile">
+            <UFormField :label="t('auth.name')" name="name" :error="profileErrors.name || undefined">
               <UInput v-model="profile.name" autocomplete="name" :disabled="isDemo" class="w-full" />
+              <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
             </UFormField>
             <UFormField :label="t('auth.email')" name="email">
               <UInput :model-value="user?.email" disabled icon="i-lucide-mail" class="w-full" />
@@ -87,12 +97,14 @@ async function changePassword() {
             </div>
           </header>
           <UAlert v-if="isDemo" color="neutral" variant="subtle" icon="i-lucide-info" :title="t('account.demoTitle')" :description="t('account.demoBody')" />
-          <form v-else method="post" class="cms-section__fields" @submit.prevent="changePassword">
-            <UFormField :label="t('account.currentPassword')" name="current" :error="pwErrors.current">
+          <form v-else method="post" ref="pwForm" class="cms-section__fields" novalidate @submit.prevent="changePassword">
+            <UFormField :label="t('account.currentPassword')" name="current" :error="pwErrors.current || undefined">
               <CmsPasswordInput v-model="pw.current" autocomplete="current-password" />
+              <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
             </UFormField>
-            <UFormField :label="t('account.newPassword')" name="password" :help="t('auth.passwordHint')" :error="pwErrors.password">
+            <UFormField :label="t('account.newPassword')" name="password" :help="t('auth.passwordHint')" :error="pwErrors.password || undefined">
               <CmsPasswordInput v-model="pw.password" autocomplete="new-password" />
+              <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
             </UFormField>
             <div>
               <UButton type="submit" color="neutral" variant="outline" :loading="savingPw">{{ t('account.changePassword') }}</UButton>

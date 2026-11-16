@@ -27,7 +27,18 @@ function add(m: any) {
   if (items.value.some((i) => i.mediaId === m.id)) return
   set([...items.value, { mediaId: m.id, caption: null }])
 }
-const remove = (i: number) => set(items.value.filter((_, j) => j !== i))
+// Taking a photo out is one tap on a small target; "Undo" in the message puts it back where it was.
+function remove(i: number) {
+  const before = items.value
+  const gone = before[i]
+  if (!gone) return
+  const name = media[gone.mediaId]?.name || media[gone.mediaId]?.alt || ''
+  set(before.filter((_, j) => j !== i))
+  toast.add({
+    title: t('fields.galleryRemoved', { name }), icon: 'i-lucide-trash-2', color: 'neutral',
+    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => set(before) }],
+  })
+}
 function move(i: number, d: number) {
   const j = i + d
   if (j < 0 || j >= items.value.length) return
@@ -57,7 +68,7 @@ async function upload(files: FileList | null) {
     try {
       const form = new FormData()
       form.append('file', file)
-      add(await $fetch('/api/cms/_media', { method: 'POST', body: form }))
+      add(await cmsUploadFile(form))
     }
     catch (err: any) {
       toast.add({ title: t('media.uploadFailed'), description: `${file.name}: ${cmsRequestError(err, t as any)}`, color: 'error', icon: 'i-lucide-x' })
@@ -67,7 +78,6 @@ async function upload(files: FileList | null) {
     }
   }
 }
-const isImage = (m: any) => String(m?.mime ?? '').startsWith('image/')
 </script>
 
 <template>
@@ -81,9 +91,9 @@ const isImage = (m: any) => String(m?.mime ?? '').startsWith('image/')
         @dragstart="dragFrom = i" @dragover.prevent="onDragOver(i)" @dragend="dragFrom = null" @drop.prevent="dragFrom = null"
       >
         <div class="relative aspect-[4/3] overflow-hidden rounded-(--ui-radius) border border-default bg-elevated cursor-grab">
-          <img v-if="isImage(media[it.mediaId])" :src="media[it.mediaId].url" :alt="media[it.mediaId].alt ?? ''" class="size-full object-cover" loading="lazy">
-          <span v-else class="grid size-full place-items-center text-dimmed"><UIcon name="i-lucide-file" class="size-6" /></span>
-          <div class="absolute right-1 top-1 flex gap-0.5 rounded-md bg-default/90 p-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <CmsMediaThumb v-if="media[it.mediaId]" :media="media[it.mediaId]" />
+          <!-- always there: a phone has no hover to show them (and a tap on an invisible x removed a photo) -->
+          <div class="absolute right-1 top-1 flex gap-0.5 rounded-md bg-default/90 p-0.5 shadow-sm ring-1 ring-(--ui-border)">
             <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-left" :disabled="i === 0" :aria-label="t('fields.galleryEarlier')" @click="move(i, -1)" />
             <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-right" :disabled="i === items.length - 1" :aria-label="t('fields.galleryLater')" @click="move(i, 1)" />
             <UButton size="xs" color="error" variant="ghost" icon="i-lucide-x" :aria-label="t('media.remove')" @click="remove(i)" />

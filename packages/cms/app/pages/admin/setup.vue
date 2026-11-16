@@ -20,6 +20,7 @@ const tokenHint = computed(() => t(status.value?.codeIn === 'log' ? 'auth.setupT
 const errors = reactive<Record<string, string>>({})
 const error = ref('')
 const pending = ref(false)
+const formEl = ref<HTMLElement | null>(null)
 
 async function submit() {
   error.value = ''
@@ -41,6 +42,8 @@ async function submit() {
     else {
       error.value = cmsErrorMessage(err, t('team.actionFailed'))
     }
+    // The cursor goes to the first field that is wrong (or to the message).
+    await cmsFocusInvalid(formEl.value)
   }
   finally {
     pending.value = false
@@ -49,7 +52,7 @@ async function submit() {
 </script>
 
 <template>
-  <form method="post" class="space-y-5" novalidate @submit.prevent="submit">
+  <form method="post" ref="formEl" class="space-y-5" novalidate @submit.prevent="submit">
     <div class="text-center">
       <!-- First run: the whole family says hello. -->
       <div class="-mt-1 mb-5 flex items-end justify-center gap-2" aria-hidden="true">

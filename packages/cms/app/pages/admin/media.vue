@@ -22,7 +22,7 @@ const langLabel = (code: string) => tl(locales.value?.labels?.[code], code.toUpp
 
 const q = ref('')
 const folder = ref<string>('all')
-const kind = ref<'all' | 'image/*' | 'application/pdf'>('all')
+const kind = ref<'all' | 'image/*' | 'video/*' | 'audio/*' | 'application/pdf'>('all')
 const limit = 48
 const page = ref(1)
 const items = ref<any[]>([])
@@ -58,8 +58,10 @@ const folderTabs = computed(() => [
   ...folders.value.map((f) => ({ value: f, label: f })),
 ])
 
-const isImage = (m: any) => String(m?.mime ?? '').startsWith('image/')
-const focalStyle = (m: any) => (m?.focalX != null ? { objectPosition: `${m.focalX}% ${m.focalY}%` } : {})
+const isImage = (m: any) => cmsMediaKind(m) === 'image'
+// A phone has no mouse to drag files with: its empty library says "Upload", not "Drag".
+const coarse = ref(false)
+onMounted(() => { coarse.value = window.matchMedia('(pointer: coarse)').matches })
 const sizeLabel = (bytes: number) => (bytes >= 1024 * 1024 ? `${formatNumber(Math.round(bytes / 104857.6) / 10)} MB` : `${formatNumber(Math.max(1, Math.round(bytes / 1024)))} kB`)
 
 // ── upload: the button, or files dropped on the page ──
@@ -70,22 +72,39 @@ async function upload(files: FileList | File[]) {
   const list = [...files]
   if (!list.length) return
   uploading.value = list.length
-  let failed = 0
+  const failures: string[] = []
+  let waited = false
   for (const file of list) {
     const form = new FormData()
     form.append('file', file)
     form.append('library', '1')
     if (folder.value !== 'all' && folder.value !== 'none') form.append('folder', folder.value)
     try {
-      await $fetch('/api/cms/_media', { method: 'POST', body: form })
+      // Files go one after another; when the server asks for a pause the rest wait for it
+      // (one message, not one error per file).
+      await cmsUploadFile(form, {
+        onWait: () => {
+          if (waited) return
+          waited = true
+          toast.add({ id: 'cms-upload-wait', title: t('media.uploadWaiting'), icon: 'i-lucide-clock', color: 'neutral' })
+        },
+      })
     }
     catch (err: any) {
-      failed++
-      toast.add({ title: t('media.uploadFailed'), description: `${file.name}: ${cmsRequestError(err, t as any)}`, color: 'error', icon: 'i-lucide-x' })
+      failures.push(`${file.name}: ${cmsRequestError(err, t as any)}`)
     }
     uploading.value--
   }
-  if (list.length - failed) toast.add({ title: t('media.uploaded', { count: list.length - failed }), color: 'success', icon: 'i-lucide-check' })
+  // One summary for every file that did not make it (60 wrong files are one message).
+  if (failures.length) {
+    const shown = failures.slice(0, 3).join('\n')
+    toast.add({
+      title: failures.length === list.length && list.length === 1 ? t('media.uploadFailed') : t('media.uploadSomeFailed', { count: failures.length }),
+      description: failures.length > 3 ? `${shown}\n${t('list.andMore', { count: failures.length - 3 })}` : shown,
+      color: 'error', icon: 'i-lucide-x', duration: 10000,
+    })
+  }
+  if (list.length - failures.length) toast.add({ title: t('media.uploaded', { count: list.length - failures.length }), color: 'success', icon: 'i-lucide-check' })
   load()
 }
 function onDrop(e: DragEvent) {
@@ -217,6 +236,20 @@ watchEffect(() => {
   else root.removeProperty('--cms-toast-right')
 })
 onBeforeUnmount(() => document.documentElement.style.removeProperty('--cms-toast-right'))
+/** Arrow keys move the focal point (5 %, with Shift 1 %); Enter or Space puts it in the middle; Backspace clears it. */
+function focalKey(e: KeyboardEvent) {
+  const step = e.shiftKey ? 1 : 5
+  const at = draft.focal ?? { x: 50, y: 50 }
+  const clamp = (n: number) => Math.min(100, Math.max(0, n))
+  if (e.key === 'ArrowLeft') draft.focal = { x: clamp(at.x - step), y: at.y }
+  else if (e.key === 'ArrowRight') draft.focal = { x: clamp(at.x + step), y: at.y }
+  else if (e.key === 'ArrowUp') draft.focal = { x: at.x, y: clamp(at.y - step) }
+  else if (e.key === 'ArrowDown') draft.focal = { x: at.x, y: clamp(at.y + step) }
+  else if ((e.key === 'Enter' || e.key === ' ') && !draft.focal) draft.focal = { x: 50, y: 50 }
+  else if (e.key === 'Backspace' || e.key === 'Delete') draft.focal = null
+  else return
+  e.preventDefault()
+}
 function setFocal(e: MouseEvent) {
   const box = (e.currentTarget as HTMLElement).getBoundingClientRect()
   draft.focal = { x: Math.round(((e.clientX - box.left) / box.width) * 100), y: Math.round(((e.clientY - box.top) / box.height) * 100) }
@@ -308,7 +341,8 @@ async function copyUrl() {
           <div class="flex items-center gap-2 w-full sm:w-auto">
             <USelect
               v-model="kind" size="sm" variant="ghost" class="w-36"
-              :items="[{ label: t('media.kindAll'), value: 'all' }, { label: t('media.kindImages'), value: 'image/*' }, { label: t('media.kindPdf'), value: 'application/pdf' }]"
+              :items="[{ label: t('media.kindAll'), value: 'all' }, { label: t('media.kindImages'), value: 'image/*' }, { label: t('media.kindVideo'), value: 'video/*' }, { label: t('media.kindAudio'), value: 'audio/*' }, { label: t('media.kindPdf'), value: 'application/pdf' }]"
+              :aria-label="t('media.kindAll')"
             />
             <UInput v-model="q" icon="i-lucide-search" size="sm" variant="ghost" class="w-full sm:w-56" :placeholder="t('media.searchPlaceholder')" :aria-label="t('media.searchPlaceholder')" />
           </div>
@@ -328,7 +362,7 @@ async function copyUrl() {
           v-else-if="!items.length && !loading" icon="i-lucide-images" character="media"
           :variant="q || folder !== 'all' || kind !== 'all' ? 'no-results' : 'first-use'"
           :title="q || folder !== 'all' || kind !== 'all' ? t('media.noMatches') : t('media.empty')"
-          :description="q || folder !== 'all' || kind !== 'all' ? t('media.noMatchesHint') : t('media.dropHint')"
+          :description="q || folder !== 'all' || kind !== 'all' ? t('media.noMatchesHint') : coarse ? t('media.dropTouchHint') : t('media.dropHint')"
         >
           <template v-if="q || folder !== 'all' || kind !== 'all'" #actions>
             <UButton color="neutral" variant="outline" icon="i-lucide-x" @click="q = ''; folder = 'all'; kind = 'all'">{{ t('media.clearFilters') }}</UButton>
@@ -344,8 +378,7 @@ async function copyUrl() {
                 class="block aspect-square overflow-hidden rounded-(--ui-radius) border bg-elevated transition-shadow"
                 :class="current?.id === m.id ? 'border-transparent ring-2 ring-(--ui-primary) ring-offset-2 ring-offset-(--ui-bg)' : 'border-default'"
               >
-                <img v-if="isImage(m)" :src="m.url" :alt="m.alt ?? ''" loading="lazy" decoding="async" class="size-full object-cover transition-transform group-hover:scale-[1.02]" :style="focalStyle(m)">
-                <span v-else class="grid size-full place-items-center text-dimmed"><UIcon name="i-lucide-file" class="size-8" /></span>
+                <CmsMediaThumb :media="m" class="transition-transform group-hover:scale-[1.02]" />
               </span>
               <span class="mt-1.5 block truncate text-xs" :class="current?.id === m.id ? 'text-highlighted font-medium' : 'text-default'">{{ m.name || m.key.split('/').pop() }}</span>
               <span class="block truncate text-xs text-dimmed">{{ m.folder || '' }}<template v-if="m.folder && !m.alt"> · </template><template v-if="!m.alt && isImage(m)">{{ t('media.noAlt') }}</template></span>
@@ -387,20 +420,27 @@ async function copyUrl() {
           <div class="cms-peek__body space-y-6">
             <h2 v-if="!wide" class="cms-display text-xl text-highlighted break-words">{{ current.name || t('media.file') }}</h2>
             <div v-if="isImage(current)" class="space-y-1.5">
-              <div class="relative cursor-crosshair overflow-hidden rounded-(--ui-radius) border border-default bg-elevated" @click="setFocal">
-                <img :src="current.url" :alt="current.alt ?? ''" class="block w-full max-h-[22rem] object-contain mx-auto">
+              <!-- the focal point: click or tap the picture, or focus it and use the arrow keys -->
+              <div
+                class="relative cursor-crosshair overflow-hidden rounded-(--ui-radius) border border-default bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--ui-primary)"
+                role="group" tabindex="0" :aria-label="t('media.focalLabel')" aria-describedby="cms-focal-help"
+                @click="setFocal" @keydown="focalKey"
+              >
+                <img :src="cmsThumbUrl(current, 960)" :alt="current.alt ?? ''" class="block w-full max-h-[22rem] object-contain mx-auto" @error="(e: Event) => cmsThumbFallback(e, current.url)">
                 <span
                   v-if="draft.focal" class="pointer-events-none absolute size-6 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow ring-2 ring-black/40"
-                  :style="{ left: `${draft.focal.x}%`, top: `${draft.focal.y}%` }"
+                  :style="{ left: `${draft.focal.x}%`, top: `${draft.focal.y}%` }" aria-hidden="true"
                 />
               </div>
-              <p class="text-xs text-muted">
+              <p id="cms-focal-help" class="text-xs text-muted" aria-live="polite">
                 {{ draft.focal ? t('media.focalSet', { x: draft.focal.x, y: draft.focal.y }) : t('media.focalHint') }}
+                <span class="max-sm:hidden"> {{ t('media.focalKeys') }}</span>
                 <UButton v-if="draft.focal" color="neutral" variant="link" size="xs" class="px-1" @click="draft.focal = null">{{ t('media.focalClear') }}</UButton>
               </p>
             </div>
-            <div v-else class="grid place-items-center rounded-(--ui-radius) border border-default bg-elevated py-10 text-dimmed">
-              <UIcon name="i-lucide-file" class="size-10" />
+            <!-- a video or a sound: played right here -->
+            <div v-else class="overflow-hidden rounded-(--ui-radius) border border-default bg-elevated">
+              <CmsMediaPreview :media="current" />
             </div>
 
             <section v-if="isImage(current)" class="space-y-4">

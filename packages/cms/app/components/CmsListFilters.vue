@@ -83,7 +83,7 @@ const setDate = (param: string, v: string, part: 'from' | 'to') => {
             />
             <USelectMenu
               v-else-if="f.relation" :model-value="model[`filter.${f.key}`] || undefined" class="w-full" size="sm"
-              :items="relationOptions[f.key] ?? []" value-key="id" :placeholder="t('list.filterAny')"
+              :items="relationOptions[f.key] ?? []" value-key="id" :placeholder="t('list.filterAny')" :aria-label="fieldLabel(f)"
               @update:open="(o: boolean) => o && loadRelation(f)" @update:model-value="(v: any) => set(`filter.${f.key}`, v)"
             />
             <div v-else-if="f.type === 'datetime'" class="grid grid-cols-2 gap-2">

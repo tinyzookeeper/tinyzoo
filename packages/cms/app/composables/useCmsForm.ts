@@ -242,6 +242,8 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
           issues[i.path.join('.')] = message
         }
         toast.add({ title: t('editor.fixFields'), icon: 'i-lucide-triangle-alert', color: 'error' })
+        // The cursor goes to the first field that is wrong, not back to <body>.
+        void cmsFocusInvalid(document.querySelector('.cms-editor'), `cms-field-${Object.keys(fieldErrors)[0]}`)
       }
       else {
         toast.add({ title: t('editor.saveFailed'), description: cmsRequestError(e, t as any), icon: 'i-lucide-x', color: 'error' })

@@ -66,6 +66,18 @@ database: [deploying.md](deploying.md#backups-and-restore)).
    a seed file (`pnpm seed` in the new starter). The starter's own files
    (`cms.config.ts`, `app/pages/[...slug].vue`, `package.json`'s `seed` script, `seed/`) changed
    too: they are yours, so copy what you want from a fresh `tinyzoo init`.
+9. **Nuxt UI's own words in the admin language** (optional, one line). Without it, the
+   labels Nuxt UI draws itself ("Close", "Previous month", "Show password") stay English in
+   a Czech or German admin. In `app/app.vue`:
+
+   ```vue
+   <script setup lang="ts">
+   const uiLocale = useCmsUiLocale()   // the admin's language on /admin pages, nothing elsewhere
+   </script>
+   <template>
+     <UApp :locale="uiLocale"> … </UApp>
+   </template>
+   ```
 
 ## On every upgrade
 

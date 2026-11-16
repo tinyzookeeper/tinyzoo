@@ -10,6 +10,24 @@ export interface ApiResponse<T = any> {
 }
 
 /**
+ * What a browser's cookie jar does with a response's `Set-Cookie` lines: a cookie of the same
+ * name is replaced, one that is emptied or expired (Max-Age=0) is dropped, the others stay.
+ * (An admin page also sets the sidebar's cookie; that must not cost the client its session.)
+ */
+function mergeCookies(jar: string, setCookie: string[]): string {
+  const cookies = new Map(jar.split('; ').filter(Boolean).map((c) => [c.slice(0, c.indexOf('=')), c] as const))
+  for (const line of setCookie) {
+    const [pair, ...attrs] = line.split(';').map((p) => p.trim())
+    const name = pair!.slice(0, pair!.indexOf('='))
+    const value = pair!.slice(pair!.indexOf('=') + 1)
+    const gone = !value || attrs.some((a) => /^max-age=0$/i.test(a) || (/^expires=/i.test(a) && Date.parse(a.slice(8)) < Date.now()))
+    if (gone) cookies.delete(name)
+    else cookies.set(name, pair!)
+  }
+  return [...cookies.values()].join('; ')
+}
+
+/**
  * A tiny HTTP client for the test server that keeps a session cookie, so one
  * instance = one signed-in (or anonymous) browser.
  */
@@ -35,7 +53,7 @@ export class Client {
     }
     const res = await fetch(this.baseURL + path, { method, headers, body, redirect: 'manual' })
     const setCookie = res.headers.getSetCookie()
-    if (setCookie.length) this.cookie = setCookie.map((c) => c.split(';')[0]).join('; ')
+    if (setCookie.length) this.cookie = mergeCookies(this.cookie, setCookie)
     const text = await res.text()
     let parsed: any = text
     try { parsed = text ? JSON.parse(text) : null }

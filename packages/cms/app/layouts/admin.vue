@@ -5,7 +5,6 @@ const { data: graph, error: graphError } = await useFetch<any[]>('/api/cms/_grap
 const { user, clear } = useUserSession()
 const route = useRoute()
 const colorMode = useColorMode()
-useCmsUiLocale()
 const config = useCmsAdminConfig()
 const { t, tl, locale, locales, setLocale, entityLabel } = useCmsI18n()
 
@@ -50,7 +49,7 @@ onMounted(() => {
 // see cms-session); awaiting anything first would lose the page's context.
 watch(graphError, (err) => {
   if (err?.statusCode !== 401) return
-  const to = { path: '/admin/login', query: { redirect: route.fullPath } }
+  const to = { path: '/admin/login', query: { redirect: route.fullPath, reason: 'signedOut' } }
   if (import.meta.server) {
     void navigateTo(to)
     return
@@ -96,6 +95,26 @@ const roleLabel = computed(() => {
   return role === 'admin' || role === 'editor' || role === 'author' ? t(`roles.${role}.name`) : role
 })
 
+// Nuxt UI names the notifications area "Notifications (F8)" in English whatever its locale
+// (the label is not part of it): the admin names it in its own language.
+onMounted(() => {
+  const name = () => t('app.notifications', { hotkey: 'F8' })
+  const apply = () => document.querySelector('[role="region"]:has(> ol[data-slot="viewport"])')?.setAttribute('aria-label', name())
+  // The area is teleported to <body> when Nuxt UI mounts its toaster; name it as soon as it exists,
+  // and again when the language changes.
+  const watcher = new MutationObserver(apply)
+  watcher.observe(document.body, { childList: true })
+  watch(locale, apply, { immediate: true })
+  onBeforeUnmount(() => watcher.disconnect())
+})
+
+/** The skip link: focus the page's <main> (a plain #hash would also push a route). */
+function focusMain() {
+  const main = document.getElementById('cms-main')
+  main?.focus({ preventScroll: false })
+  main?.scrollIntoView?.({ block: 'start' })
+}
+
 async function logout() {
   await $fetch('/api/cms/_auth/logout', { method: 'POST' })
   await clear()
@@ -135,7 +154,12 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
 </script>
 
 <template>
-  <UDashboardGroup unit="rem" storage="local" storage-key="cms-admin">
+  <!-- the sidebar's width and fold are kept in a cookie, not localStorage: the server reads it too, so both draw the same first frame -->
+  <UDashboardGroup unit="rem" storage="cookie" storage-key="cms-admin">
+    <!-- the first stop for the keyboard: past the sidebar's links, to the page -->
+    <a
+      href="#cms-main" class="cms-skip-link" @click.prevent="focusMain"
+    >{{ t('app.skipToContent') }}</a>
     <UDashboardSidebar
       v-model:collapsed="collapsed"
       collapsible resizable :default-size="16" :min-size="14" :max-size="20" :collapsed-size="4.25"
@@ -157,15 +181,15 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
           :collapsed="collapsed" :label="t('search.button')" :tooltip="collapsed ? { text: t('search.button') } : false"
           variant="outline" class="ring-default bg-default" :class="collapsed ? '' : 'w-full'"
         />
+        <!-- one landmark, named; the groups are its lists -->
         <UNavigationMenu
-          v-for="(group, i) in navigation" :key="i"
-          :items="group" orientation="vertical" :collapsed="collapsed" tooltip
-          :ui="{ label: 'text-xs font-medium text-muted pt-4', link: 'text-sm py-1.5 data-active:font-medium' }"
+          :items="navigation" orientation="vertical" :collapsed="collapsed" tooltip :aria-label="t('nav.mainMenu')"
+          :ui="{ label: 'text-xs font-medium text-muted pt-4', link: 'text-sm py-1.5 pointer-coarse:py-3 data-active:font-medium' }"
         />
         <div class="mt-auto">
           <UNavigationMenu
             :items="[{ label: t('nav.viewSite'), icon: 'i-lucide-globe', to: config.siteUrl, target: '_blank', 'aria-label': t('nav.viewSite') }]"
-            orientation="vertical" :collapsed="collapsed" tooltip :ui="{ link: 'text-sm py-1.5 text-muted' }"
+            orientation="vertical" :collapsed="collapsed" tooltip :aria-label="t('nav.viewSite')" :ui="{ link: 'text-sm py-1.5 pointer-coarse:py-3 text-muted' }"
           />
         </div>
       </template>

@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'tinyzoo'
 
 // GET /api/cms/_media — paginated media library (newest first). Optional ?q= search
-// over name/alt/key/mime, ?accept= (e.g. "image/*") to filter by MIME so a typed
+// over name/alt (in every language)/key/mime, ?accept= (e.g. "image/*") to filter by MIME so a typed
 // picker's count + items match, and ?folder= (a folder's name, or "none"). Returns
 // the library's folders too. Powers the media page and the picker.
 export default defineEventHandler(async (event) => {
@@ -20,7 +20,8 @@ export default defineEventHandler(async (event) => {
   if (q) {
     // Escape LIKE wildcards so a literal % / _ in the query can't widen the match.
     const esc = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`
-    conds.push(sql`(${m.name} ilike ${esc} or ${m.alt} ilike ${esc} or ${m.key} ilike ${esc} or ${m.mime} ilike ${esc})`)
+    // Descriptions are per content language (alt_locales): a search finds a file by what it says in any of them.
+    conds.push(sql`(${m.name} ilike ${esc} or ${m.alt} ilike ${esc} or exists (select 1 from jsonb_each_text(coalesce(${m.altLocales}, '{}'::jsonb)) as alt(lang, text) where alt.text ilike ${esc}) or ${m.key} ilike ${esc} or ${m.mime} ilike ${esc})`)
   }
   if (accept && accept !== '*') {
     const parts = accept.split(',').map((s) => s.trim()).filter(Boolean)
