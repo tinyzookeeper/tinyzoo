@@ -1,7 +1,7 @@
 # @tinyzoo/client
 
 A tiny (~2 kB), dependency-free, **strictly-typed** client for the public content
-API of a [tinyzoo](../cms) instance. Works in any framework or runtime with
+API of a [tinyzoo](https://github.com/tinyzookeeper/tinyzoo) instance. Works in any framework or runtime with
 `fetch` (browser, Node 18+, Workers, Deno, Bun).
 
 It carries no knowledge of your specific schema — all types come from a generated
@@ -60,3 +60,9 @@ Non-2xx responses throw `CmsError` (`.status`, `.statusText`, `.url`, `.body`).
 Every CMS also serves an OpenAPI 3.1 document at `/api/openapi.json` (docs UI at
 `/api/openapi`). Generate a client in any language from it — e.g.
 `npx openapi-typescript https://cms.example.com/api/openapi.json -o cms.d.ts`.
+
+## Documentation and licence
+
+The docs are on GitHub, not in the package: [Getting started](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/getting-started.md) and
+[the content API](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-api.md).
+Proprietary, all rights reserved (see `LICENSE`).
