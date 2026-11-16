@@ -182,3 +182,48 @@ and the audit has no open High or Medium.
 ## Progress
 
 _Write-ups land here as slices merge._
+
+### 0.2 C — Versioned JSON content
+
+Branch `feat/0.2-json-versions`. No schema change: everything lives inside jsonb.
+
+- **Versions and upgrades.** `defineBlock({ version, upgrade })` and `f.list({ version, upgrade })`.
+  `upgrade(data, fromVersion)` moves a stored block one version up and is called once
+  per step (1 → 2 → 3). Stored blocks carry `v`, left out at version 1, so existing data
+  needs no rewrite. `upgradeBlocks` / `upgradeListItems` / `upgradeStoredRow` (`src/blocks.ts`)
+  are pure; `upgradeStoredJson` (`server/utils/cmsBlocks.ts`) is the one wrapper every read
+  goes through: the content API (`populateItems`, incl. populated relation targets), the admin's
+  `hydrateRowForForm`, translation rows for the form, the search index (`documentOf`), revision
+  recording, comparison and restore (`revisions/[rev].get`), and singletons (same two paths).
+  Writes upgrade a block that says it is behind, validate it, and stamp the current `v`.
+  On a write a missing `v` means "the current version" (the content API output carries none);
+  a `v` newer than the code is a 422.
+- **Failures are contained.** An `upgrade` that throws is logged once (entity, record, block id),
+  the content API serves the block as stored, the admin gets it flagged (`__upgradeFailed`) and
+  shows a "could not be brought up to date" card with Remove; a save keeps it untouched.
+- **Unknown block types are kept.** `blocksSchema` passes a block with an unknown `type` through
+  (it still needs a string `id` and `type`); the editor shows "This block no longer exists (type)"
+  with Remove (cs/en/de); the content API and the search leave it out. `mediaIdsInBlocks` scans every
+  id inside such a block (and inside blocks stored at an older shape), so files are neither deleted
+  under it nor leaked once it is removed. Lists have no types, so nothing special there.
+- **Unknown keys.** Editor values keep Zod's stripping. A block that went through `upgrade` is
+  validated strictly (a forgotten rename is a 422 / a failing test). In development a stored block with
+  keys the definition does not know logs a warning naming the block and keys and pointing at
+  `version`/`upgrade` (once per type and keys; silent in production).
+- **`tinyzoo content:migrate [--dry-run] [--batch n]`** (`cli/content-migrate.ts`, one `case` in
+  `cli/index.ts`): walks every entity's blocks/list/rich-text columns through the registry (entries,
+  `_locales` tables, `cms_revisions.data`), keyset-paged, one transaction per batch with row locks,
+  `updatedAt` untouched, reports rows and blocks per entity/field and every block it could not upgrade
+  (left as stored; exit 1). Core is `migrateContent(db, reg, opts)`, exported for tests.
+- **Rich text.** `richTextUpgrades` / `upgradeRichText` in `src/richtext.ts`: an empty list of idempotent
+  steps applied on read and by `content:migrate`.
+- **Playground.** The `cta` block is at version 2 (tidies a stored button label and link), with the same
+  public shape, so no migration, contract or client change.
+- **Tests.** `test/unit/block-versions.spec.ts` (chains, absent `v`, purity, unknown types, throwing
+  upgrade, strict validation, lists, rich text, dev warning, server wrapper) and
+  `test/api/block-versions.spec.ts` (content API, admin, write path, history, translation, search, unknown
+  blocks and their media, `content:migrate` dry run / real run / failure report / the real command).
+  Two existing assertions changed: an unknown block type used to be rejected, now it is kept.
+- **Not done / for later.** No admin visual check of the two new cards (the shared browser was busy);
+  a `version` bump does not by itself invalidate the search index (it reads upgraded data anyway);
+  `content:migrate` does not take a lock against concurrent deploys (row locks per batch only).

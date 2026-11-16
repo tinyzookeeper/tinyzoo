@@ -88,6 +88,11 @@ function itemLabel(b: any, index: number): string {
   return list.value ? `${tl(list.value.itemLabel ?? defs.value[b.type]?.label, t('blocks.item'))} ${index + 1}` : tl(defs.value[b.type]?.label, b.type)
 }
 const indented = (b: any) => !!list.value && b?.sub === true
+// A block of a type the site no longer has, or one whose old shape could not be
+// upgraded: kept as stored, shown as a card of its own (not editable), removable.
+const isGone = (b: any) => !defs.value[b?.type]
+const isStale = (b: any) => !isGone(b) && b?.__upgradeFailed === true
+const isLocked = (b: any) => isGone(b) || isStale(b)
 
 // Drag by the handle (the rest of the card stays clickable and selectable).
 const armed = ref<string | null>(null)
@@ -139,7 +144,7 @@ function menu(index: number): DropdownMenuItem[][] {
     [
       { label: t('blocks.moveUp'), icon: 'i-lucide-arrow-up', disabled: index === 0, onSelect: () => move(index, -1) },
       { label: t('blocks.moveDown'), icon: 'i-lucide-arrow-down', disabled: index === blocks.value.length - 1, onSelect: () => move(index, 1) },
-      { label: t('blocks.duplicate'), icon: 'i-lucide-copy', onSelect: () => duplicate(index) },
+      ...(isLocked(blocks.value[index]) ? [] : [{ label: t('blocks.duplicate'), icon: 'i-lucide-copy', onSelect: () => duplicate(index) }]),
     ],
     [{ label: t('blocks.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => remove(index) }],
   ]
@@ -194,8 +199,20 @@ const choices = computed(() => {
         <span class="absolute inset-x-0 top-1/2 h-px bg-transparent group-hover:bg-(--ui-border)" aria-hidden="true" />
       </div>
 
+      <!-- a block the site no longer knows (or could not bring up to date): kept, not editable -->
       <div
-        class="cms-card transition-[margin,box-shadow]"
+        v-if="isLocked(b)" class="cms-card flex items-start gap-3 px-3 py-3 border-warning/60" :class="indented(b) ? 'ml-6' : ''"
+        data-cms-block-locked
+      >
+        <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning shrink-0 mt-0.5" />
+        <div class="min-w-0 flex-1">
+          <p class="text-sm font-medium text-highlighted">{{ t(isGone(b) ? 'blocks.gone' : 'blocks.stale', { type: b.type }) }}</p>
+          <p class="text-xs text-muted">{{ t(isGone(b) ? 'blocks.goneHelp' : 'blocks.staleHelp') }}</p>
+        </div>
+        <UButton color="error" variant="ghost" size="sm" icon="i-lucide-trash-2" @click="remove(i)">{{ t('blocks.remove') }}</UButton>
+      </div>
+      <div
+        v-else class="cms-card transition-[margin,box-shadow]"
         :class="[hasIssue(i) ? 'border-error' : '', indented(b) ? 'ml-6' : '', dragOver === i && dragFrom !== i ? 'ring-2 ring-(--ui-primary)/40' : '', dragFrom === i ? 'opacity-50' : '']"
         :draggable="armed === b.id"
         @dragstart.stop="(e: DragEvent) => { dragFrom = i; e.dataTransfer?.setData('text/plain', b.id) }"

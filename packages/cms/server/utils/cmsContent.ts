@@ -132,6 +132,8 @@ function populatableKeys(e: CmsEntity): string[] {
  */
 export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null) {
   if (!rows.length) return
+  // Stored JSON of an older shape is brought up to date before anything reads it.
+  for (const r of rows) upgradeStoredJson(e, r)
   await populateBlocks(db, reg, e, rows, locale)
   await populateGalleries(db, reg, e, rows, locale)
   const keys = populate ?? populatableKeys(e)
@@ -155,7 +157,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       if (ids.length) {
         const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, ids)))
         await overlayTranslations(db, reg, target, targets, locale)
-        for (const t of targets) byId.set(t.id, publicProjection(target, t))
+        for (const t of targets) byId.set(t.id, publicProjection(target, upgradeStoredJson(target, t)))
       }
       for (const r of rows) r[key] = byId.get(r[`${key}Id`]) ?? null
     }

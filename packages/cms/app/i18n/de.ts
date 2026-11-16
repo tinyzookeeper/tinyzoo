@@ -489,6 +489,10 @@ export default {
     addItem: 'Eintrag hinzufügen',
     item: 'Eintrag',
     drag: 'Zum Verschieben ziehen',
+    gone: 'Diesen Block gibt es nicht mehr ({type})',
+    goneHelp: 'Besucher sehen ihn nicht mehr. Er bleibt hier, bis Sie ihn entfernen.',
+    stale: 'Dieser Block konnte nicht aktualisiert werden ({type})',
+    staleHelp: 'Er wurde in einer älteren Form gespeichert. Sein Inhalt bleibt unverändert; entfernen Sie ihn oder wenden Sie sich an Ihre Entwicklung.',
     count: { one: '{count} Block', other: '{count} Blöcke' },
   },
   translation: {

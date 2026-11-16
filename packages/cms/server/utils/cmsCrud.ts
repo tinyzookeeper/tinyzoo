@@ -26,10 +26,14 @@ export function splitPayload(e: CmsEntity, data: Record<string, any>) {
 
 /**
  * Shape a DB row for the admin edit form: m2m → id arrays, owned FKs (media +
- * to-one) aliased from `${key}Id` back to the field key, and the media record
- * attached as `${key}__media` for the preview. Mutates + returns the row.
+ * to-one) aliased from `${key}Id` back to the field key, the media record
+ * attached as `${key}__media` for the preview, and blocks upgraded to their current
+ * versions. Mutates + returns the row.
  */
-export async function hydrateRowForForm(db: any, reg: CmsRegistry, e: CmsEntity, row: any) {
+export async function hydrateRowForForm(db: any, reg: CmsRegistry, e: CmsEntity, row: any, opts: { markFailed?: boolean } = {}) {
+  // Blocks and lists stored at an older version are upgraded (and stamped) for the editor;
+  // one whose upgrade failed is flagged (`__upgradeFailed`) and kept as stored.
+  upgradeStoredJson(e, row, { admin: opts.markFailed !== false })
   for (const [key, fld] of Object.entries(e.fields)) {
     if (fld.relation?.kind !== 'many-to-many') continue
     const j = reg.junctionByOwnerField.get(`${e.name}.${key}`)!

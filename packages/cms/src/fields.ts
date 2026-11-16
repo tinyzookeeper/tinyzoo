@@ -313,14 +313,18 @@ export const f = {
    *   // → [{ id: 'k3j…', type: 'item', name: 'Jana', role: 'Trenérka' }, …]
    *
    * Item fields: text, slug, number, boolean, datetime, select, rich text, media.
-   * Can be `.localized()`.
+   * Can be `.localized()`. Items carry a `v` once `version` is above 1 (see `defineBlock`).
    */
   list: <const F extends Record<string, AnyFieldDescriptor>, const K extends string = 'item'>(o: {
     fields: F; max?: number; itemLabel?: LocalizedText
     /** The stored `type` of every item (default 'item'); lets an existing one-type blocks field become a list. */
     itemType?: K
+    /** The items' shape version (1 when left out), as for `defineBlock`: raise it when stored items need changing… */
+    version?: number
+    /** …and bring an item stored at `fromVersion` to `fromVersion + 1` here (called once per step). */
+    upgrade?: BlockDef['upgrade']
   }) => {
-    const blocks = { [o.itemType ?? 'item']: defineBlock({ label: o.itemLabel ?? { en: 'Item', cs: 'Položka', de: 'Eintrag' }, icon: 'i-lucide-list', fields: o.fields }) } as Record<string, BlockDef>
+    const blocks = { [o.itemType ?? 'item']: defineBlock({ label: o.itemLabel ?? { en: 'Item', cs: 'Položka', de: 'Eintrag' }, icon: 'i-lucide-list', fields: o.fields, version: o.version, upgrade: o.upgrade }) } as Record<string, BlockDef>
     return as<ScalarKind<CmsListValue<F, K>, CmsListValue<F, K>, true>>(createField({
       type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
       base: { kind: 'jsonb' }, tsType: 'CmsBlock[]',

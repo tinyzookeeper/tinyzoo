@@ -61,3 +61,23 @@ export const richTextSchema = z.object({
 }).transform(sanitizeRichText) as unknown as z.ZodType<RichTextDoc>
 
 export const emptyDoc: RichTextDoc = { type: 'doc', content: [] }
+
+/**
+ * Changes to the stored shape of a rich-text document, for when a TipTap upgrade
+ * renames a node or an attribute. Each step takes a document and returns it in the
+ * new shape; steps run in order on every read (content API, admin, search) and in
+ * `tinyzoo content:migrate`, so they must be idempotent (renaming `oldNode` to
+ * `newNode` is; "wrap every list" is not). Empty today.
+ *
+ *   richTextUpgrades.push({ id: 'tiptap-3-rename-callout', upgrade: (doc) => renameNodes(doc, 'callout', 'note') })
+ */
+export interface RichTextUpgrade { id: string; upgrade: (doc: RichTextDoc) => RichTextDoc }
+export const richTextUpgrades: RichTextUpgrade[] = []
+
+/** A stored document in the current shape. The same object when there are no steps (or it is not a document). */
+export function upgradeRichText<T>(doc: T): T {
+  if (!richTextUpgrades.length || !doc || typeof doc !== 'object' || (doc as any).type !== 'doc') return doc
+  let out = structuredClone(doc) as unknown as RichTextDoc
+  for (const step of richTextUpgrades) out = step.upgrade(out)
+  return out as unknown as T
+}

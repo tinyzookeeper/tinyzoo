@@ -37,10 +37,11 @@ export async function recordRevision(event: any, e: CmsEntity, id: string, local
     const r = reg.cmsRevisions
     const [row] = await db.select().from(e.table).where(eq(e.table.id, id))
     if (!row) return
-    await hydrateRowForForm(db, reg, e, row)
+    await hydrateRowForForm(db, reg, e, row, { markFailed: false })
     let version = row.updatedAt ?? null
     if (locale) {
-      const tr = (await translationRows(db, e, [id], locale)).get(id)
+      const found = (await translationRows(db, e, [id], locale)).get(id)
+      const tr = found ? upgradedCopy(e, found, { recordId: id }) : found
       for (const k of e.localized) row[k] = tr?.[k] ?? null
       version = tr?.updatedAt ?? null
     }
@@ -49,6 +50,8 @@ export async function recordRevision(event: any, e: CmsEntity, id: string, local
     const [prev]: any[] = await db.select({ data: r.data }).from(r)
       .where(and(eq(r.entity, e.name), eq(r.recordId, id), sameLocale)).orderBy(desc(r.createdAt)).limit(1)
     // The first one has nothing to compare with: it changed nothing in particular.
+    // An older snapshot is compared in the current shape: an upgrade alone is not a change.
+    if (prev?.data && typeof prev.data === 'object') upgradeStoredJson(e, prev.data, { recordId: id })
     const changed = prev ? Object.keys(data).filter((k) => !k.endsWith('__media') && stableJson(data[k]) !== stableJson(prev.data?.[k])) : []
     await db.insert(r).values({ entity: e.name, recordId: id, locale, action, version, data, changed, userId: event?.context?.cmsUser ? actorId(event.context.cmsUser) : null })
     // Keep the newest `keep`.

@@ -48,8 +48,15 @@ describe('blocks validation', () => {
     expect(r.success).toBe(true)
   })
 
-  it('rejects an unknown type and points at the missing required field', () => {
-    expect(schema.safeParse([{ id: 'x', type: 'video' }]).success).toBe(false)
+  it('keeps a block of a type that no longer exists, and still needs it to have an id and a type', () => {
+    const kept = { id: 'x', type: 'video', url: 'https://example.com/v.mp4', nested: { a: [1] } }
+    expect(schema.parse([kept])).toEqual([kept])
+    expect(schema.safeParse([{ type: 'video' }]).success).toBe(false)
+    expect(schema.safeParse([{ id: 'x' }]).success).toBe(false)
+    expect(schema.safeParse(['video']).success).toBe(false)
+  })
+
+  it('points at the missing required field', () => {
     const r = schema.safeParse([{ id: 'ok', type: 'text' }, { id: 'h', type: 'hero', heading: '' }])
     expect(r.success).toBe(false)
     expect(r.error!.issues[0]!.path).toEqual([1, 'heading'])
@@ -64,8 +71,18 @@ describe('blocks validation', () => {
     const ids = mediaIdsInBlocks([
       { id: '1', type: 'hero', heading: 'H', image: 'm-hero' },
       { id: '2', type: 'text', body: { type: 'doc', content: [{ type: 'image', attrs: { mediaId: 'm-inline' } }] } },
-      { id: '3', type: 'gone', image: 'not-counted' },
+      { id: '3', type: 'gone', image: 'not-a-uuid' },
     ], defs)
     expect(ids.sort()).toEqual(['m-hero', 'm-inline'])
+  })
+})
+
+describe('media inside a block whose type is gone', () => {
+  const M3 = '00000000-0000-4000-8000-0000000000cc'
+  it('still counts, so its files are not deleted', () => {
+    const ids = mediaIdsInBlocks([
+      { id: 'u', type: 'video', poster: M3, nested: { list: [{ file: M }, { body: { type: 'doc', content: [{ type: 'image', attrs: { mediaId: 'm-inline' } }] } }] } },
+    ], defs)
+    expect(ids).toEqual([M3, M, 'm-inline'])
   })
 })

@@ -5,7 +5,8 @@ import type { CmsUser } from './cmsSession'
 
 /** The admin's view of one entry in a translation language (GET/PATCH response shape). */
 export async function translationFormRow(db: any, reg: CmsRegistry, e: CmsEntity, row: any, locale: string) {
-  const tr = (await translationRows(db, e, [row.id], locale)).get(row.id)
+  const found = (await translationRows(db, e, [row.id], locale)).get(row.id)
+  const tr = found ? upgradedCopy(e, found, { admin: true, recordId: row.id }) : found
   row.__defaults = Object.fromEntries(e.localized.map((k) => [k, row[k]]))
   for (const k of e.localized) row[k] = tr?.[k] ?? null
   row.__translated = !!tr

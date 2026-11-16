@@ -489,6 +489,10 @@ export default {
     addItem: 'Přidat položku',
     item: 'Položka',
     drag: 'Přetáhněte pro přesun',
+    gone: 'Tento blok už neexistuje ({type})',
+    goneHelp: 'Návštěvníci ho už nevidí. Zůstane tady, dokud ho neodeberete.',
+    stale: 'Tento blok se nepodařilo aktualizovat ({type})',
+    staleHelp: 'Byl uložen ve starším tvaru. Jeho obsah zůstává beze změny; odeberte ho, nebo se obraťte na vývojáře.',
     count: { one: '{count} blok', few: '{count} bloky', many: '{count} bloku', other: '{count} bloků' },
   },
   sections: {

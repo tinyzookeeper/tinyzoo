@@ -13,5 +13,7 @@ export default defineEventHandler(async (event) => {
   const r = reg.cmsRevisions
   const [found] = await db.select().from(r).where(and(eq(r.id, rev), eq(r.entity, e.name), eq(r.recordId, id)))
   if (!found) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  // A snapshot made at an older shape is shown in the current one (restore loads it into the form).
+  if (found.data && typeof found.data === 'object') upgradeStoredJson(e, found.data, { admin: true, recordId: id })
   return { revision: found }
 })
