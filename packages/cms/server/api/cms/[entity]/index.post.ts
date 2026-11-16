@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Use PUT /api/cms/_singleton/:name' })
   authorize(e, 'create', user)
 
-  const data = parseOr422(e.insertSchema, await readBody(event))
+  const data = parseOr422(writeSchema(e, 'create'), await readBody(event))
   const { values, m2m } = splitPayload(e, data)
   assertPublishAllowed(e, user, values)
   await assertNoRedirectLoop(e, values)

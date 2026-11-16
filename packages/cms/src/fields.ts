@@ -8,7 +8,7 @@ import {
 import { z, type ZodTypeAny } from 'zod'
 import { richTextSchema, type RichTextDoc } from './richtext'
 import type {
-  AnyFieldDescriptor, ColumnBase, ColumnSpec, FieldDescriptor, FieldKind, OnDelete, RelationKind, RelationSpec, ValidationMode,
+  AnyFieldDescriptor, ColumnBase, ColumnSpec, FieldDescriptor, FieldKind, OnDelete, RelationKind, RelationSpec, ValidationContext, ValidationMode,
 } from './descriptor'
 
 // ── naming helpers ───────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ interface FieldConfig {
   type: string
   ui: { edit: string; cell: string }
   base: ColumnBase | null            // null ⇒ owns no column
-  zod: () => ZodTypeAny
+  zod: (context?: ValidationContext) => ZodTypeAny
   meta?: Record<string, unknown>
   relation?: RelationSpec
   tsType?: string
@@ -144,8 +144,8 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
       : undefined,
   }
 
-  const zod = (mode: ValidationMode = 'create'): ZodTypeAny => {
-    let s = cfg.zod()
+  const zod = (mode: ValidationMode = 'create', context?: ValidationContext): ZodTypeAny => {
+    let s = cfg.zod(context)
     // Defaults apply ONLY on create. On update, omitted keys must stay omitted
     // (a fired default would silently overwrite — e.g. clear m2m / reset enum).
     const createDefault = mods.default !== undefined ? mods.default : cfg.createDefault
@@ -299,7 +299,7 @@ export const f = {
       type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
       base: { kind: 'jsonb' }, tsType: 'CmsBlock[]',
       meta: { blocks: blocksGraph(blocks as Record<string, BlockDef>) },
-      zod: () => blocksSchema(blocks as Record<string, BlockDef>),
+      zod: (ctx) => blocksSchema(blocks as Record<string, BlockDef>, 500, ctx?.stored),
       createDefault: [],
       blocks: blocks as Record<string, BlockDef>,
     }, { default: [] })),
@@ -329,7 +329,7 @@ export const f = {
       type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
       base: { kind: 'jsonb' }, tsType: 'CmsBlock[]',
       meta: { blocks: blocksGraph(blocks), list: { max: o.max ?? null, itemLabel: o.itemLabel ?? null } },
-      zod: () => blocksSchema(blocks, o.max ?? 500),
+      zod: (ctx) => blocksSchema(blocks, o.max ?? 500, ctx?.stored),
       createDefault: [],
       blocks,
     }, { default: [] }))

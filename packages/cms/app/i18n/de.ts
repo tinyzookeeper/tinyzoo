@@ -96,6 +96,11 @@ export default {
     invalid: 'Das scheint nicht richtig zu sein',
     path: 'Beginnen Sie mit /, z. B. /alte-seite (ohne ?, # oder / am Ende)',
     wrongPassword: 'Das Passwort stimmt nicht',
+    blockStale: 'Dieser Block konnte nicht auf den aktuellen Stand gebracht werden – entfernen oder korrigieren Sie ihn',
+    blockOutOfDate: 'Dieser Block ist veraltet – laden Sie die Seite neu und versuchen Sie es erneut',
+    blockUnknownFields: 'Dieser Block hat Felder, die die Website nicht kennt ({keys}). Der Editor ist veraltet – laden Sie die Seite neu.',
+    blockTypeGone: 'Diesen Blocktyp gibt es nicht mehr, daher kann er nicht hinzugefügt oder geändert werden – entfernen Sie ihn',
+    blockNewer: 'Dieser Block wurde von einer neueren Version der Website gespeichert – laden Sie die Seite neu.',
   },
   home: {
     scheduled: 'Bald veröffentlicht',

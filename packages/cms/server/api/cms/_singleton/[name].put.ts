@@ -18,10 +18,11 @@ export default defineEventHandler(async (event) => {
     return { row: await writeTranslation(event, e, existing.id, locale, user, rowFilter) }
   }
 
-  const data = parseOr422(e.insertSchema, await readBody(event))
+  // The row as it is now: blocks that are behind or of a type that is gone are only kept when stored already.
+  const [prior] = await db.select().from(e.table).orderBy(e.table.createdAt).limit(1)
+  const data = parseOr422(writeSchema(e, 'create', prior), await readBody(event))
   const { values, m2m } = splitPayload(e, data)
   const base = baseVersion(event)
-  const [prior] = await db.select({ id: e.table.id }).from(e.table).orderBy(e.table.createdAt).limit(1)
   const seenBefore = prior ? await changeSnapshot(e, prior.id) : null
 
   const mediaCols = Object.entries(e.fields)

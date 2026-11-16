@@ -10,7 +10,17 @@ export default defineEventHandler(async (event) => {
   // ?locale=<translation>: write that language's translation only.
   const locale = requestedLocale(event, reg)
   if (isTranslationLocale(reg, locale)) return { row: await writeTranslation(event, e, id, locale, user, rowFilter) }
-  const data = parseOr422(e.updateSchema, await readBody(event))
+  const body = await readBody(event)
+
+  // The row as it is now: for media cleanup, the publish rule, the audit entry and the check of its blocks.
+  const [old] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
+  if (!old) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+  // Saving over someone else's newer version needs the editor's say-so (409 otherwise): said
+  // before the body is judged, so an editor that is behind is told so, not that its blocks are.
+  const base = baseVersion(event)
+  await assertCurrentVersion(e, old, base)
+  // Checked against what is stored: a block that is behind, or of a type that is gone, stays only if it is stored already.
+  const data = parseOr422(writeSchema(e, 'update', old), body)
   const { values, m2m } = splitPayload(e, data)
 
   // Capture OLD media references for any media FK or rich-text field being changed,
@@ -22,18 +32,11 @@ export default defineEventHandler(async (event) => {
     .filter(([k, f]) => JSON_MEDIA_TYPES.has((f as any).type) && k in values)
     .map(([k]) => k)
   const oldMedia: Record<string, string | null> = {}
-  let oldEmbedded: string[] = []
-  // The row as it is now: for media cleanup, the publish rule and the audit entry.
-  const [old] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
-  if (!old) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   for (const c of changedMediaCols) oldMedia[c] = old[c] ?? null
-  oldEmbedded = changedRichCols.flatMap((k) => jsonMediaIds(e.fields[k], old[k]))
+  const oldEmbedded: string[] = changedRichCols.flatMap((k) => jsonMediaIds(e.fields[k], old[k]))
   assertPublishAllowed(e, user, values, old)
   await assertNoRedirectLoop(e, values, old)
   stampPublishDate(e, values, old)
-  // Saving over someone else's newer version needs the editor's say-so (409 otherwise).
-  const base = baseVersion(event)
-  await assertCurrentVersion(e, old, base)
   // What visitors could see before this save (for the change report / webhooks).
   const seenBefore = await changeSnapshot(e, id)
 

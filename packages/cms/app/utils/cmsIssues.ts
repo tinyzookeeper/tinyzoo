@@ -38,7 +38,14 @@ export function cmsIssueMessage(issue: any, field: any, t: T): string {
       return t('validation.redirectCircle')
     case 'custom':
       // The developer's own words ("Use /page, https://…") — known ones translated.
-      return msg.startsWith('Use /page') ? t('validation.link') : msg
+      if (msg.startsWith('Use /page')) return t('validation.link')
+      // The server's words about a block (see blocksSchema), in the editor's language.
+      if (msg.startsWith('This block could not be brought up to date')) return t('validation.blockStale')
+      if (msg.startsWith('This block is out of date')) return t('validation.blockOutOfDate')
+      if (msg.startsWith('This block has fields this site does not know')) return t('validation.blockUnknownFields', { keys: /\(([^)]*)\)/.exec(msg)?.[1] ?? '' })
+      if (msg === 'Unknown block type' || msg.startsWith('This block type does not exist')) return t('validation.blockTypeGone')
+      if (msg.startsWith('Saved by a newer version of this site')) return t('validation.blockNewer')
+      return msg
     default:
       if (msg === 'Wrong password') return t('validation.wrongPassword')
       return t('validation.invalid')
