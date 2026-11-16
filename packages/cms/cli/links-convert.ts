@@ -8,8 +8,13 @@
  * command walks every link field and every link in rich text (entries, their
  * translations, globals, menus; lists, blocks and groups inside them) and turns a
  * stored address into a reference when it is exactly the current address of ONE entry
- * (in any language, as the website serves it). Everything else is left as it is and
- * reported: addresses no entry has, addresses two entries share, addresses with a
+ * that is live now, in the language the link is served in (the entry's own row, and the
+ * fields of its default-language content, are served in the default language; a
+ * translation, in its language). A reference is served as the target's address in the
+ * language asked for, so converting any other match would change what visitors get.
+ * Everything else is left as typed and reported: addresses no entry has, addresses that
+ * are another language's address of an entry, addresses of entries not published (a
+ * reference to a draft serves nothing), addresses two entries share, addresses with a
  * `?query` or `#anchor`. External links, `mailto:`, `tel:` and references are not
  * touched. Saved versions in History are not rewritten.
  *
@@ -19,14 +24,15 @@
  * Entries' `updatedAt` is not touched (this is not an edit), so a cache that keys on
  * it, and the website's, must be purged by hand once the command has run.
  */
-import { and, asc, eq, gt, or } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, or } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
 import { buildRegistry, linkFieldsOf, linkRef, mapRowLinks, propOf, type CmsEntity, type CmsRegistry } from '../src/index'
 import { entryAddresses, addressKeys, isLinkable } from '../server/utils/cmsLinkAddress'
+import { publishedCond } from '../server/utils/cmsPublished'
 
 export type LinkSource = 'entries' | 'translations'
-export type UnmatchedReason = 'no-page' | 'several-pages' | 'anchor-or-query'
+export type UnmatchedReason = 'no-page' | 'several-pages' | 'anchor-or-query' | 'other-language' | 'draft'
 
 export interface ConvertFieldReport {
   entity: string
@@ -46,7 +52,7 @@ export interface UnmatchedLink {
   count: number
   /** Where, for the first few: `page 3f2a… · sections.0.url`. */
   places: string[]
-  /** For `several-pages`: the entries that have this address. */
+  /** For `several-pages`: the entries that have this address. For `other-language`: the entries and the languages it is an address in. */
   candidates?: string[]
 }
 
@@ -73,23 +79,37 @@ export function normalizeAddress(address: string): string {
   return p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p
 }
 
-/** The entries of every linkable collection by their addresses, in every language: `normalized address → entity/id`. */
-export async function addressIndex(db: any, reg: CmsRegistry, batch = 500): Promise<Map<string, Set<string>>> {
-  const index = new Map<string, Set<string>>()
+/** An entry's address in one language. */
+export interface AddressHit {
+  /** `cms:<entity>/<id>`. */
+  ref: string
+  /** The language this is the address in (null: the site has no languages). */
+  locale: string | null
+  /** Can visitors reach the entry now (published, scheduling and a page tree's ancestors included)? */
+  live: boolean
+}
+
+/** The entries of every linkable collection by their addresses, per language: `normalized address → who has it, in which language`. */
+export async function addressIndex(db: any, reg: CmsRegistry, batch = 500): Promise<Map<string, AddressHit[]>> {
+  const index = new Map<string, AddressHit[]>()
   for (const e of reg.entities) {
     if (!isLinkable(e)) continue
     const cols: Record<string, any> = { id: e.table.id }
     for (const k of addressKeys(e)) cols[k] = (e.table as any)[k]
+    const published = publishedCond(e)
     for (let after: string | null = null; ;) {
       const rows: any[] = await db.select(cols).from(e.table).where(after ? gt(e.table.id, after) : undefined).orderBy(asc(e.table.id)).limit(batch)
       if (!rows.length) break
+      const live = published
+        ? new Set<string>((await db.select({ id: e.table.id }).from(e.table).where(and(inArray(e.table.id, rows.map((r) => r.id)), published)) as any[]).map((r) => r.id))
+        : null
       for (const locale of reg.locales?.locales ?? [null]) {
         for (const [id, address] of await entryAddresses(db, reg, e, rows, locale)) {
           if (!address) continue
           const key = normalizeAddress(address)
-          const set = index.get(key) ?? new Set<string>()
-          set.add(linkRef(e.name, id))
-          index.set(key, set)
+          const hits = index.get(key) ?? []
+          hits.push({ ref: linkRef(e.name, id), locale, live: !live || live.has(id) })
+          index.set(key, hits)
         }
       }
       after = rows[rows.length - 1].id
@@ -125,6 +145,8 @@ export async function convertLinks(db: any, reg: CmsRegistry, opts: ConvertOptio
       c.scanned++
     }
     let current = ''
+    // The language this row's links are served in: a translation's own, the default language for an entry's own row.
+    const served = locale ?? reg.locales?.default ?? null
     const convert = (stored: string): string | undefined => {
       if (!isSiteAddress(stored)) return undefined
       const note = (reason: UnmatchedReason, candidates?: string[]) => {
@@ -135,14 +157,19 @@ export async function convertLinks(db: any, reg: CmsRegistry, opts: ConvertOptio
         return undefined
       }
       if (/[?#]/.test(stored)) return note('anchor-or-query')
-      const found = index.get(normalizeAddress(stored))
-      if (!found?.size) return note('no-page')
-      if (found.size > 1) return note('several-pages', [...found].sort())
-      const ref = [...found][0]!
+      const hits = index.get(normalizeAddress(stored))
+      if (!hits?.length) return note('no-page')
+      // Served in this language: a reference gives the target's address in the language asked for.
+      const here = hits.filter((h) => h.locale === served)
+      if (!here.length) return note('other-language', [...new Set(hits.map((h) => `${h.ref}${h.locale ? ` [${h.locale}]` : ''}`))].sort())
+      const refs = [...new Set(here.map((h) => h.ref))].sort()
+      if (refs.length > 1) return note('several-pages', refs)
+      // A reference to an entry that is not published serves nothing: the address typed now keeps working.
+      if (!here.some((h) => h.live)) return note('draft', refs)
       report.linksConverted++
       const c = counters.get(`${e.name}\u0000${source}\u0000${current}`)
       if (c) c.converted++
-      return ref
+      return refs[0]
     }
     const changed: Record<string, any> = {}
     for (const key of Object.keys(fields)) {
@@ -208,6 +235,8 @@ export async function convertLinks(db: any, reg: CmsRegistry, opts: ConvertOptio
 const REASONS: Record<UnmatchedReason, string> = {
   'no-page': 'no entry has this address (left as it is)',
   'several-pages': 'more than one entry has this address (left as it is)',
+  'other-language': 'this is an entry’s address in another language than the one this link is served in (left as it is: a reference would serve the address of the language asked for)',
+  'draft': 'the entry is not published (left as it is: a reference to it serves nothing until it is)',
   'anchor-or-query': 'has a #anchor or ?query, which a reference cannot carry (left as it is)',
 }
 
@@ -224,9 +253,9 @@ export function formatConvertReport(r: ConvertReport): string[] {
     for (const u of r.unmatched) {
       lines.push(`  ${u.value} — ${REASONS[u.reason]}${u.count > 1 ? `, stored ${u.count} times` : ''}`)
       for (const p of u.places) lines.push(`      ${p}`)
-      if (u.candidates) lines.push(`      could be: ${u.candidates.join(', ')}`)
+      if (u.candidates) lines.push(`      ${u.reason === 'several-pages' ? 'could be' : 'is the address of'}: ${u.candidates.join(', ')}`)
     }
-    lines.push('', 'Pick those pages again in the link picker (or give the entries different addresses) to make the links follow their pages.')
+    lines.push('', 'Pick those pages again in the link picker (or give the entries different addresses) to make the links follow their pages. A link to another language’s address, or to an entry that is not published yet, is left as typed on purpose: pick the page once it can be reached.')
   }
   if (r.skippedStaleBlocks) lines.push('', `${r.skippedStaleBlocks} block${r.skippedStaleBlocks === 1 ? ' is' : 's are'} stored at an older version than the code: left alone. Run \`tinyzoo content:migrate\` first, then this command again.`)
   lines.push('', `${r.rowsScanned} rows read, ${r.linksConverted} link${r.linksConverted === 1 ? '' : 's'} ${r.dryRun ? 'would be converted (dry run: nothing was written)' : `converted in ${r.rowsChanged} row${r.rowsChanged === 1 ? '' : 's'}`}.`)

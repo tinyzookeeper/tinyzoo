@@ -22,7 +22,6 @@ const warning = computed(() => {
       <span class="block truncate text-sm" :class="target?.state === 'missing' ? 'text-error' : 'text-highlighted'">
         <template v-if="!target">…</template>
         <template v-else-if="target.state === 'missing'">{{ t('link.missingTitle') }}</template>
-        <template v-else-if="target.state === 'restricted'">{{ t('link.restricted') }}</template>
         <template v-else>{{ target.title || target.path }}</template>
       </span>
       <span v-if="target && target.path && target.state !== 'missing'" class="block truncate font-mono text-xs text-muted">

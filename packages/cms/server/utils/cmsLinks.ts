@@ -21,6 +21,8 @@ export interface LinkScope {
   locale: string | null
   /** An editor's preview (admin session or content token + `?preview`): drafts count as targets. */
   preview?: boolean
+  /** The signed-in previewer: a draft only resolves when this person may read it (a content token has no user and sees every draft). */
+  user?: any
 }
 
 /** Does any collection or global hold a field a link can be stored in? */
@@ -51,18 +53,28 @@ export async function resolveLinkRefs(db: any, reg: CmsRegistry, refs: Iterable<
     const e = reg.byName.get(name)!
     const cols: Record<string, any> = { id: e.table.id }
     for (const k of addressKeys(e)) cols[k] = (e.table as any)[k]
-    const live = scope.preview ? undefined : publishedCond(e)
+    // Visitors reach what is live. A signed-in previewer also reaches the drafts they may read
+    // (never one a row-level `access.read` rule keeps from them); a content token (no user) reaches every draft.
+    const published = publishedCond(e)
+    let live = published
+    if (scope.preview) {
+      live = undefined
+      if (scope.user && published) {
+        const read = accessWhere(e, 'read', scope.user)
+        live = !read.allowed ? published : read.where ? or(published, read.where) : undefined
+      }
+    }
     const idCond = inArray(e.table.id, [...ids.keys()])
     const rows: any[] = await db.select(cols).from(e.table).where(live ? and(live, idCond) : idCond)
     const addresses = await entryAddresses(db, reg, e, rows, scope.locale)
     // A page under an unpublished page is not reachable on the website (page tree rule),
     // so a visitor's link to it goes nowhere, like a link to a draft.
-    if (e.tree && live) {
+    if (e.tree && !scope.preview && published) {
       const index = indexTree(await loadTreeNodes(db, reg, e))
       const ancestors = new Set<string>()
       for (const id of addresses.keys()) for (const n of chainOf(index, id)) if (n.id !== id) ancestors.add(n.id)
       const liveAncestors = ancestors.size
-        ? new Set<string>((await db.select({ id: e.table.id }).from(e.table).where(and(live, inArray(e.table.id, [...ancestors]))) as any[]).map((r) => r.id))
+        ? new Set<string>((await db.select({ id: e.table.id }).from(e.table).where(and(published, inArray(e.table.id, [...ancestors]))) as any[]).map((r) => r.id))
         : new Set<string>()
       for (const id of addresses.keys()) {
         if (chainOf(index, id).some((n) => n.id !== id && !liveAncestors.has(n.id))) addresses.set(id, null)
@@ -88,7 +100,7 @@ export async function resolveContentLinks(db: any, reg: CmsRegistry, e: CmsEntit
   for (const r of rows) Object.assign(r, mapRowLinks(e.fields as any, r, { field: follow, mark: follow }))
 }
 
-export type LinkTargetState = 'live' | 'draft' | 'missing' | 'restricted'
+export type LinkTargetState = 'live' | 'draft' | 'missing'
 export interface LinkTargetInfo {
   entity: string
   id: string
@@ -102,7 +114,8 @@ export interface LinkTargetInfo {
 /**
  * What the admin shows for a stored link reference: the target's title and address, and
  * whether visitors can follow it (`live`), it waits for the entry to be published
- * (`draft`), the entry is gone (`missing`), or this person may not read it (`restricted`).
+ * (`draft`) or the entry is gone (`missing`). An entry this person may not read is
+ * `missing` too: telling "not yours" from "not there" would say which ids exist.
  */
 export async function describeLinkRefs(db: any, reg: CmsRegistry, user: any, refs: string[], locale: string | null): Promise<Record<string, LinkTargetInfo>> {
   const out: Record<string, LinkTargetInfo> = {}
@@ -122,9 +135,8 @@ export async function describeLinkRefs(db: any, reg: CmsRegistry, user: any, ref
   for (const [name, ids] of wanted) {
     const e = reg.byName.get(name)!
     const { allowed, where } = accessWhere(e, 'read', user)
-    const asRestricted = (ref: string, id: string): LinkTargetInfo => ({ entity: name, id, title: '', path: null, state: 'restricted' })
     if (!allowed) {
-      for (const [id, list] of ids) for (const ref of list) out[ref] = asRestricted(ref, id)
+      for (const [id, list] of ids) for (const ref of list) out[ref] = gone(ref, name, id)
       continue
     }
     const liveCond = publishedCond(e)
@@ -142,12 +154,10 @@ export async function describeLinkRefs(db: any, reg: CmsRegistry, user: any, ref
       for (const r of trs) if (r.title) titles.set(r.parentId, String(r.title))
     }
     const found = new Map(rows.map((r) => [r.id, r]))
-    // Rows this person may not read still exist: tell "gone" from "not yours".
-    const hidden = where ? new Set<string>((await db.select({ id: e.table.id }).from(e.table).where(idCond) as any[]).map((r) => r.id)) : new Set<string>()
     for (const [id, list] of ids) {
       for (const ref of list) {
         const row = found.get(id)
-        if (!row) out[ref] = hidden.has(id) ? asRestricted(ref, id) : gone(ref, name, id)
+        if (!row) out[ref] = gone(ref, name, id)
         else out[ref] = { entity: name, id, title: titles.get(id) ?? '', path: addresses.get(id) ?? null, state: row.live ? 'live' : 'draft' }
       }
     }
@@ -171,18 +181,24 @@ export interface LinkedFrom {
  * Everything that links to an entry by reference: entries and globals whose link
  * fields or rich text hold `cms:<entity>/<id>`, translations included. Found by text
  * search on the stored JSON, so a link inside a block the config no longer knows
- * still counts. An entry's link to itself does not. At most `perEntity` of each.
+ * still counts. For one entry, its link to itself does not count. At most `perEntity` of each.
+ *
+ * Given several ids (a page and the pages below it), finds what links to any of them, in
+ * one query per collection (and one for its translations); nothing is left out as "itself".
  */
-export async function linksTo(db: any, reg: CmsRegistry, target: CmsEntity, id: string, perEntity = 5): Promise<LinkedFrom[]> {
-  const ref = linkRef(target.name, id).toLowerCase()
-  const has = (col: any) => sql`strpos(lower(cast(${col} as text)), ${ref}) > 0`
+export async function linksTo(db: any, reg: CmsRegistry, target: CmsEntity, idOrIds: string | string[], perEntity = 5): Promise<LinkedFrom[]> {
+  const targets = Array.isArray(idOrIds) ? idOrIds : [idOrIds]
+  const id = targets.length === 1 ? targets[0]! : null
+  if (!targets.length) return []
+  const refs = targets.map((t) => linkRef(target.name, t).toLowerCase())
+  const has = (col: any) => or(...refs.map((ref) => sql`strpos(lower(cast(${col} as text)), ${ref}) > 0`))
   const out: LinkedFrom[] = []
   for (const e of reg.entities) {
     const keys = linkFieldsOf(e.fields as any).map(([k]) => k)
     if (!keys.length) continue
     const own = (e.table as any)
     const titleCol = own[e.titleField] ?? own.id
-    const notSelf = e.name === target.name ? ne(own.id, id) : undefined
+    const notSelf = id !== null && e.name === target.name ? ne(own.id, id) : undefined
     const direct = or(...keys.map((k) => has(own[k])))
     const found = new Map<string, LinkedFrom>()
     const add = (r: { id: string; title: unknown }, locale: string | null) => {
@@ -196,7 +212,7 @@ export async function linksTo(db: any, reg: CmsRegistry, target: CmsEntity, id: 
     if (t && tkeys.length && found.size < perEntity) {
       const hits: any[] = await db.select({ parentId: t.parentId, locale: t.locale }).from(t).where(or(...tkeys.map((k) => has(t[k])))).limit(perEntity)
       for (const h of hits) {
-        if (e.name === target.name && h.parentId === id) continue
+        if (id !== null && e.name === target.name && h.parentId === id) continue
         const [parent] = await db.select({ id: own.id, title: titleCol }).from(own).where(eq(own.id, h.parentId))
         if (parent) add(parent, h.locale)
       }
@@ -204,4 +220,29 @@ export async function linksTo(db: any, reg: CmsRegistry, target: CmsEntity, id: 
     out.push(...found.values())
   }
   return out
+}
+
+/**
+ * Split entries (`{ entity, id }`) into those this person may read and a count of the
+ * rest, so a refusal can name what is in the way without telling anyone the titles of
+ * entries a row-level `access.read` rule keeps from them. Globals follow their collection's rule.
+ */
+export async function splitReadable<T extends { entity: string; id: string }>(db: any, reg: CmsRegistry, user: any, items: T[]): Promise<{ visible: T[]; hidden: number }> {
+  const byEntity = new Map<string, T[]>()
+  for (const it of items) byEntity.set(it.entity, [...(byEntity.get(it.entity) ?? []), it])
+  const readable = new Set<string>()
+  for (const [name, list] of byEntity) {
+    const e = reg.byName.get(name)
+    if (!e) continue
+    const { allowed, where } = accessWhere(e, 'read', user)
+    if (!allowed) continue
+    if (!where) {
+      for (const it of list) readable.add(`${name}\u0000${it.id}`)
+      continue
+    }
+    const rows: any[] = await db.select({ id: e.table.id }).from(e.table).where(and(inArray(e.table.id, [...new Set(list.map((it) => it.id))]), where))
+    for (const r of rows) readable.add(`${name}\u0000${r.id}`)
+  }
+  const visible = items.filter((it) => readable.has(`${it.entity}\u0000${it.id}`))
+  return { visible, hidden: items.length - visible.length }
 }

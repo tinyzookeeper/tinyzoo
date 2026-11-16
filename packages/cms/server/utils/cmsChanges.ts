@@ -134,8 +134,16 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     // whatever shows them — usually every page — is stale too.
     const globals = new Set<string>()
     const { db, reg } = useCms()
-    if (!deleted && e.content?.path && !e.singleton && addressesDiffer(before, after) && hasLinkFields(reg)) {
-      for (const dep of await linksTo(db, reg, e, r.id, 50).catch(() => [])) {
+    const addressChanged = !deleted && !!e.content?.path && !e.singleton && addressesDiffer(before, after)
+    // An entry that went live at an address a redirect leaves from would be hidden by it: the redirect goes.
+    // (Writes that can do it in their own transaction have done so already; this catches every other path.)
+    if (addressChanged && after.live) {
+      await dropRedirectsFrom(db, reg, after.paths.map((p) => p.path)).catch((err) => console.error('[cms] could not remove redirects from the new addresses', scrubError(err)))
+    }
+    if (addressChanged && hasLinkFields(reg)) {
+      // In a page tree the whole subtree changed address (or went away) with the entry: what links to any of those pages reads differently too.
+      const ids = new Set([r.id, ...(r.moved ?? []).map((m) => m.id), ...(before.liveIds ?? []), ...(after.liveIds ?? [])])
+      for (const dep of await linksTo(db, reg, e, [...ids], 50).catch(() => [])) {
         const target = reg.byName.get(dep.entity)
         if (!target?.content?.public || (dep.locale && locale && dep.locale !== locale)) continue
         if (target.singleton) globals.add(target.name)

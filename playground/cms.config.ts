@@ -1,4 +1,4 @@
-import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from "tinyzoo"
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
 import { defineForm, defineFormSettings, formsPlugin } from "tinyzoo/forms"
 import { eventsPlugin } from "./cms-plugins/events"
 
@@ -145,6 +145,8 @@ export const Post = defineEntity("post", {
   // Who may do what comes from the built-in roles (admin, editor, author). An entity
   // can narrow it further with `access`, e.g. a row-level rule that is AND-ed in:
   //   access: { update: ({ user, table }) => eq(table.authorId, user.id) }
+  // Here: authors read every post except the internal ones (a title starting with "Interní").
+  access: { read: ({ user, table }) => (user.role === "author" ? not(ilike(table.title, "Interní%")) : true) },
   // First-class publish workflow: publish/unpublish toggles `status`, stamps
   // `publishedAt`, and the Preview button opens the draft at /blog/:slug?preview.
   publish: {
