@@ -345,18 +345,20 @@ dropped. The archive holds password hashes, form messages and every upload: it i
 created readable by its owner only (before the first byte is written); keep it as
 private as the database.
 
-**Restore** replaces the whole database with the backup's. In one transaction it
-drops and recreates the `public` and `drizzle` schemas (the tables, the migration
-journal and the `pg_trgm` extension go with them and come back from the dump), then runs
-`pg_restore --single-transaction --exit-on-error --no-owner`, then writes the media into
-the configured folder or bucket. Dropping everything, and not just what the dump
+**Restore** replaces the whole database with the backup's. It turns the dump into SQL
+(`pg_restore -f -`), leaves out of its first lines any session setting your server does not
+know (see *Tools*), and runs the result through `psql` in **one transaction** that first
+drops and recreates the `public` and `drizzle` schemas (the tables, the migration journal
+and the `pg_trgm` extension go with them and come back from the dump). Then it writes the
+media into the configured folder or bucket. Dropping everything, and not just what the dump
 contains, is what makes an **older backup over a database that was upgraded since**
 come out exactly as the backup was (no renamed tables beside the old ones, no newer
 journal): the restored journal lets the site start on it, and a newer version applies
-its migrations itself. The restore is all or nothing: if `pg_restore` fails, the
-database is empty — never half old, half new — and the message says so; fix the cause
-and run it again. Stop the site first (a connection that holds a lock stops the
-drop with a clear message).
+its migrations itself. The restore is all or nothing, and the emptying is part of the
+same transaction: if anything fails, the transaction is rolled back and the database is
+**exactly as it was before** — not empty, not half old and half new — and the message says
+so; fix the cause and run it again. Stop the site first (a connection that holds a lock
+stops the drop after 15 seconds with a clear message).
 
 It refuses a database that is not empty — any table in `public`, or applied migrations
 in `drizzle.__drizzle_migrations` (so an external-sign-in site with no accounts is
@@ -378,11 +380,32 @@ certificate); `sslmode=no-verify` is encrypted without checking (libpq `require`
 `PGSSLROOTCERT`, `PGSSLCERT`, `PGSSLKEY` of the shell are kept when the URL says
 nothing. With `uselibpqcompat=true` in the URL, libpq's own meanings are used.
 
-**Tools.** Both commands need `pg_dump` and `pg_restore` of the server's major
-version or newer (`brew install libpq`, `apt install postgresql-client`). Point
-`TINYZOO_PG_DUMP` / `TINYZOO_PG_RESTORE` at a binary or a wrapper script to use
-another one. Without client tools, take the database part inside the database's own
-container and keep it with a copy of the bucket:
+**Tools.** The commands need `pg_dump`, `pg_restore` and `psql` (`brew install libpq`,
+`apt install postgresql-client`). Which version works with which:
+
+| Tool | Version it needs | Why |
+|---|---|---|
+| `pg_dump` (backup) | the server's major version **or newer** | `pg_dump` refuses a server newer than itself |
+| `pg_restore` (restore) | **at least as new as the `pg_dump` that made the backup** | it cannot read a newer archive format |
+| `psql` (restore) | any current version | it only runs SQL; use the one that came with `pg_restore` |
+
+Client tools **newer than the server are fine** — that is what a laptop usually has
+against an older managed database. A backup made by `pg_dump` 17 or 18 starts with
+settings a PostgreSQL 16 server has never heard of (`SET transaction_timeout`, new in 17),
+which a plain `pg_restore` onto it stops at; `tinyzoo restore` leaves those lines out
+(and prints which) and everything else is restored as dumped. A backup whose SQL really
+needs a newer server than yours (it was taken from a newer server by a newer `pg_dump`
+and uses something your server lacks) fails inside the transaction: nothing is changed,
+and the message says to take the backup with a `pg_dump` of your server's version.
+What is **refused up front, before anything is touched**, is a backup made by a newer
+`pg_dump` than the `pg_restore` you have (restoring a 17 backup with `pg_restore` 16):
+install the newer client tools, or point the variables below at them. A missing `psql` is
+reported before anything is emptied too.
+
+`TINYZOO_PG_DUMP`, `TINYZOO_PG_RESTORE` and `TINYZOO_PSQL` point at a binary or a wrapper
+script to use another one (for example one that runs the tool inside a Docker container
+of the version you want). Without client tools, take the database part inside the
+database's own container and keep it with a copy of the bucket:
 
 ```bash
 docker exec <container> pg_dump --format=custom -U <user> <database> > database.dump
@@ -390,6 +413,10 @@ docker exec <container> pg_dump --format=custom -U <user> <database> > database.
 docker exec <container> psql -U <user> -d <database> -c 'drop schema if exists drizzle cascade; drop schema if exists public cascade; create schema public;'
 docker exec -i <container> pg_restore --single-transaction --exit-on-error --no-owner --no-acl -U <user> -d <database> < database.dump
 ```
+
+(By hand the schemas are emptied first and the restore second, so a failure in between
+leaves the database empty — one more reason to use `tinyzoo restore`. The container's own
+`pg_restore` is the server's version, so the settings problem does not arise there.)
 
 **No automatic backup before migrations.** The server applies migrations when it
 starts, but a dump from inside it would need `pg_dump` in the container image and a

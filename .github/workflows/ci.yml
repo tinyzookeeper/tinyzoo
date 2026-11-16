@@ -56,6 +56,12 @@ jobs:
           docker run -d --name minio -p 9190:9000 -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
             bitnamilegacy/minio:2025.7.23
           for i in $(seq 1 30); do curl -sf http://localhost:9190/minio/health/ready && break; sleep 1; done
+      # The backup spec runs pg_dump / pg_restore / psql: newer than the 16 server, as an
+      # operator's laptop is, and named here instead of whatever the runner image has.
+      - uses: ./.github/actions/pg-client
+        with:
+          version: 17
+          database-url: postgres://cms:cms@localhost:5432/cms
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -63,6 +69,45 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+
+  # `tinyzoo restore` with client tools of each major version against the 16 server: the same
+  # version (what the compose file runs), and newer, which writes settings 16 does not know
+  # (`SET transaction_timeout`, pg_dump 17+). Only the backup spec: the full suite runs above.
+  backup-clients:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [16, 17, 18]
+    name: backup (client tools ${{ matrix.client }}, server 16)
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: cms
+          POSTGRES_DB: cms
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cms -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/pg-client
+        with:
+          version: ${{ matrix.client }}
+          database-url: postgres://cms:cms@localhost:5432/cms
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run --project api test/api/backup.spec.ts
 
   build:
     runs-on: ubuntu-latest
