@@ -52,6 +52,8 @@ export async function ensureSetupCode(opts: { reissue?: boolean } = {}): Promise
     await db.delete(s).where(eq(s.key, SETUP_CODE_KEY)) // a leftover of an earlier run
     return 'not-needed'
   }
+  // The status endpoint asks on every visit: when a code exists there is nothing to write.
+  if (!opts.reissue && (await db.select({ key: s.key }).from(s).where(eq(s.key, SETUP_CODE_KEY))).length) return 'exists'
   const code = generateSetupCode()
   const value = { hash: await sha256Hex(normalizeSetupCode(code)), at: new Date().toISOString() }
   const insert = db.insert(s).values({ key: SETUP_CODE_KEY, value })

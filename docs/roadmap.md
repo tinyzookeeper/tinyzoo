@@ -182,3 +182,86 @@ and the audit has no open High or Medium.
 ## Progress
 
 _Write-ups land here as slices merge._
+
+### 0.2 D — Operations and privacy
+
+Branch `feat/0.2-ops`. `pnpm check` green: 46 test files passed, 1 skipped; 416 tests
+passed, 3 skipped (the skips were already there).
+
+**Setup code.** In production without `NUXT_CMS_AUTH_SETUP_TOKEN`, first-run setup needs
+a generated code: 16 characters from a 32-letter alphabet without look-alikes (80 bits,
+`XXXX-XXXX-XXXX-XXXX`). It is stored as a SHA-256 hash in `cms_state` (key `setup_code`),
+written insert-if-absent so replicas share it; only the instance that wrote it prints
+`No administrator yet. Setup code: … — open <publicUrl>/admin/setup`. A start with no
+account and a code older than five minutes replaces it and prints the new one (a younger
+one is left alone, so a rolling deploy does not invalidate the printed code). The code is
+deleted in the setup transaction. A wrong code gives 403 and an `auth.setup_failed`
+audit entry; once an account exists setup answers 409. The status endpoint tells the page
+where to look (`codeIn: 'config' | 'log'`, present only while setup is open), and the
+setup page always shows the field and explains it. A configured token still wins.
+"Production" means a built server unless `NODE_ENV` is `development`/`test`, so an unset
+`NODE_ENV` does not leave a deploy open (slightly wider than "NODE_ENV=production").
+
+**Backup and restore** (`cli/backup.ts`). One tar: `manifest.json`, `database.dump`
+(`pg_dump --format=custom`, written from stdout, connection through `PG*` variables so
+the password never shows in `ps`) and `media/<key>` for every `cms_media` row, read from
+the local folder or from the bucket with aws4fetch (path-style, as the app's S3 driver).
+Resized copies (`_w/…`) are left out; missing files are listed in the manifest. The
+archive is mode 0600. Restore validates the archive (manifest, every media path inside
+the folder, every listed file present) before touching anything, refuses a database with
+accounts unless `--force`, asks you to type the database name unless `--yes`, runs
+`pg_restore --clean --if-exists --no-owner --no-acl --no-comments`, then writes the
+media. `TINYZOO_PG_DUMP` / `TINYZOO_PG_RESTORE` select other binaries (used to run the
+tests through Docker here; also a documented escape hatch). `docs/deploying.md` has the
+"Backups and restore" section with the responsibility table and the restore drill.
+*Deviation:* no `NUXT_CMS_BACKUP_BEFORE_MIGRATE`. A dump from inside the server needs
+`pg_dump` in the image and somewhere to write, and a failure would force a decision
+about starting the new version anyway; the docs say to run `tinyzoo backup` before a
+deploy that changes the schema.
+
+**Error reporting.** `cms:error` (typed in `NitroRuntimeHooks`, `CmsErrorReport` exported
+from `tinyzoo`) fires for the same 5xx the JSON log line covers, for scheduled tasks that
+threw (`cms:scheduled`, `cms:retention`, `cms:search-reindex`, with `source: 'task'`) and
+for webhook deliveries that gave up (`source: 'webhook'`, URL without query). It runs on
+the next tick, never awaited by the request, and a throwing hook is logged only. Reports
+carry `message` without query values (drizzle's "Failed query" text includes bound
+values); the docs say so and show a Sentry plugin. The playground has a test-only sink
+plugin (`CMS_ERROR_SINK_FILE`) the specs read.
+
+**Retention.** `defineForm(name, { retentionDays })` (positive integer; default keep),
+`cms.retention.auditDays` (365, 0 = keep; env `NUXT_CMS_RETENTION_AUDIT_DAYS`). Task
+`cms:retention`, daily 03:17 (`CMS_RETENTION_CRON` at build time), one instance at a time
+(advisory lock 72011040), batches of 500, deletes submissions together with their saved
+versions, search rows and shared-editing documents, and writes `retention.purge` with
+counts only. The admin shows "Messages are deleted automatically after N days" under the
+form's list (cs/en/de). The playground's contact form uses 180 days.
+
+**One person's data.** Settings → Privacy (admin only), `POST /api/cms/_privacy/{lookup,
+export,delete}` (email in the body, not the URL; rate limited per administrator and per
+IP: 60 reads / 10 deletes per 10 minutes; `privacy.export` / `privacy.delete` audited
+with counts, never the address). Matching: form text fields with `format: 'email'`,
+lower-cased and trimmed, exact; the account with that email; audit entries made by the
+account, about it (`user.*` on its id) or whose `meta.email` is the address. Export is a
+JSON download without password hashes. Delete removes the submissions (with versions,
+search rows), **anonymises** the account (address becomes
+`deleted-<id>@anonymised.invalid`, name/language/last sign-in/password cleared, role
+`author`, disabled, sessions revoked, invitation and reset links deleted) and strips
+`email`, `ip` and `name` from the audit entries touching the person. Why anonymise
+instead of delete: entries, revisions, uploads and the audit trail refer to the account
+by id; deleting the row would orphan that history, anonymising removes every personal
+detail and keeps who-did-what. It refuses your own account (409) and goes through the same
+last-administrator guard as Team; because the asker is always another active
+administrator, that guard cannot be tripped through the API, so it is not tested
+separately. Not covered, and said so in the docs: text editors wrote into entries, their
+uploads, and backups. `docs/deploying.md` lists what a privacy policy should say.
+
+**Other changes.** `test/setup/database.ts` accepts test database names with a `test`
+word anywhere (`cms_test_ops`; it required a `_test` suffix). `test/helpers/server.ts`
+starts extra instances of the built playground on scratch databases (setup-code and
+error-hook specs). Lock numbers 72011040 (retention). The API specs do not run the backup
+spec without `pg_dump`/`pg_restore` (or the two env variables).
+
+**Left.** The admin pages (Privacy, the retention line, the setup hint) type-check,
+render, and have their strings in all three languages, but I did not click through them
+in a browser. Whether CI's runner has `pg_dump`/`pg_restore` of the server's version is unchecked: if not, the backup spec skips
+itself there.

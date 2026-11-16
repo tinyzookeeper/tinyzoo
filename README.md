@@ -137,7 +137,10 @@ The CMS owns its users (`cms_users`). A fresh install shows **first-run setup** 
 `/admin`, which creates the first administrator; everyone else is **invited** from
 Settings → Team (email with a one-time link, plus a copyable link if the email gets
 lost). People reset forgotten passwords themselves; links expire (invites 7 days,
-resets 1 hour) and only a hash of each is stored.
+resets 1 hour) and only a hash of each is stored. In production setup always asks for
+a **setup code** — your `NUXT_CMS_AUTH_SETUP_TOKEN`, or one the server prints in its
+log (`Setup code: XXXX-XXXX-XXXX-XXXX`) when none is set — so a fresh deploy cannot be
+claimed by whoever opens the page first.
 
 | Role | Can |
 |---|---|
@@ -317,7 +320,7 @@ pnpm build         # production build (Pushbase, Docker, any VM)
 pnpm check         # all of the above, what CI runs
 ```
 
-The API suites run against **their own database**, `<dev db>_test` (e.g. `cms_test`),
+The API suites run against **their own database**, `<dev db>_test` (e.g. `cms_test`; any name with a `test` word in it, such as `cms_test_ops`, is accepted),
 which the global setup creates, wipes and migrates from the playground's migrations
 on every run — never the development database. Set `TEST_DATABASE_URL` to point
 elsewhere. The setup then production-builds the playground into
@@ -691,6 +694,22 @@ Spam protection: a hidden field, a minimum fill-in time, a rate limit per visito
 same-site Origin, and Cloudflare Turnstile when `NUXT_CMS_FORMS_TURNSTILE_SECRET` and
 `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` are set. Every list can be exported as CSV
 (`/api/cms/:entity/_export`, the Export button).
+
+## Operations and privacy
+
+- **Backups:** `tinyzoo backup [file]` writes one tar with a `pg_dump` and the media the
+  database refers to (local folder or S3); `tinyzoo restore <file>` puts it back, asking
+  first and refusing a database that already has accounts unless `--force`.
+- **Error reporting:** server errors, failed scheduled tasks and webhooks that gave up
+  run the `cms:error` Nitro hook; send them to Sentry or anything else from a server
+  plugin of the site. No vendor in the package.
+- **Privacy (GDPR):** `defineForm(name, { retentionDays })` and `cms.retention.auditDays`
+  (default 365) are enforced by a daily task; Settings → Privacy (administrators) finds
+  everything stored about an email address, exports it as JSON, or erases it (messages
+  deleted, account anonymised, log entries stripped of personal fields).
+
+Details, the privacy-policy checklist and the restore drill:
+[`docs/deploying.md`](docs/deploying.md).
 
 ## Frontend kit (for the website's pages)
 

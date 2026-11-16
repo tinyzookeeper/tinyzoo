@@ -101,7 +101,7 @@ describe('setup code in production', () => {
   it('development needs no code', async () => {
     await scratchDatabase('setup')
     const srv = await start(db.url, { NODE_ENV: 'development' })
-    expect((await new Client(srv.baseURL).get('/api/cms/_auth/status')).body).toMatchObject({ needsSetup: true, needsToken: false, codeIn: null })
+    expect((await new Client(srv.baseURL).get('/api/cms/_auth/status')).body).toEqual({ mode: 'builtin', needsSetup: true, needsToken: false })
     expect(srv.logs.join('')).not.toContain('Setup code:')
     expect((await new Client(srv.baseURL).post('/api/cms/_auth/setup', person)).status).toBe(201)
   })
