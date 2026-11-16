@@ -360,8 +360,8 @@ export {}
         token: options.content?.token || '',
         cacheControl: options.content?.cacheControl || '',
         publicUrl: options.content?.publicUrl || '',
-        // '' = the default (on in development, off in production); NUXT_CMS_CONTENT_DOCS binds at runtime.
-        docs: options.content?.docs ?? '',
+        // '' = the default (on in development, off in production); NUXT_CMS_CONTENT_DOCS binds at runtime (as a string, like every env value).
+        docs: options.content?.docs === undefined ? '' : String(options.content.docs),
       },
       ...(nuxt.options.runtimeConfig.cms as Record<string, unknown> | undefined),
     }

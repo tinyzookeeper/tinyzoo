@@ -15,7 +15,9 @@ import * as Y from 'yjs'
  * browser reconnects and is authorised afresh — or not.
  *
  * Several replicas share documents through Redis (when configured) and all store
- * into the same `cms_collab` row.
+ * into the same `cms_collab` row. Who has a document open is then known per replica
+ * only, so each replica also lists its open documents in Redis (see `Presence`), and
+ * "the last one left" means: no connection here and none listed by another replica.
  */
 
 interface CollabContext {
@@ -43,6 +45,48 @@ const AWARENESS = 1
 // …and ones this admin never sends.
 const STATELESS = 5
 const BROADCAST_STATELESS = 6
+
+/** Who is in a document, across replicas: this replica's entries in a Redis sorted set per document. */
+const PRESENCE_TTL_MS = 90_000
+/** This replica, as the presence lists name it. */
+const REPLICA_ID = crypto.randomUUID()
+
+interface Presence {
+  /** This replica has a connection in the document (refreshed every heartbeat; expires if the replica dies). */
+  here(documentName: string): Promise<void>
+  /** This replica has no connection left in the document. */
+  left(documentName: string): Promise<void>
+  /** Does another replica list a connection in the document? Throws when Redis cannot say. */
+  othersHere(documentName: string): Promise<boolean>
+  close(): Promise<void>
+}
+
+async function createPresence(redisUrl: string, prefix: string): Promise<Presence> {
+  const { default: IORedis } = await import('ioredis')
+  // Like the shared store: never wait on a Redis that is down (callers fall back to the 90 s window).
+  const redis = new IORedis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false, commandTimeout: 500, connectTimeout: 2_000 })
+  redis.on('error', (err) => console.error('[cms] collab presence', err.message))
+  const key = (name: string) => `${prefix}:presence:${name}`
+  return {
+    async here(name) {
+      await redis.multi().zadd(key(name), Date.now() + PRESENCE_TTL_MS, REPLICA_ID).pexpire(key(name), PRESENCE_TTL_MS * 2).exec()
+    },
+    async left(name) {
+      await redis.zrem(key(name), REPLICA_ID)
+    },
+    async othersHere(name) {
+      const res = await redis.multi().zremrangebyscore(key(name), '-inf', Date.now()).zrange(key(name), 0, -1).exec()
+      const [err, members] = res?.[1] ?? [new Error('empty transaction result'), null]
+      if (err || !Array.isArray(members)) throw err ?? new Error('presence list missing')
+      return members.some((m) => m !== REPLICA_ID)
+    },
+    async close() {
+      await redis.quit().catch(() => redis.disconnect())
+    },
+  }
+}
+
+let presence: Presence | null = null
 
 let instance: Hocuspocus | null = null
 let starting: Promise<Hocuspocus> | null = null
@@ -154,9 +198,26 @@ async function startCollabServer(): Promise<Hocuspocus> {
     extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { maxRetriesPerRequest: null }) as any, prefix: `${cmsStorePrefix()}:collab` } as any))
   }
 
-  // With one instance, "nobody has it open" is known the moment the last tab leaves;
-  // with several (Redis) only the 90 s activity window says so.
-  const localOnly = !redisUrl
+  // "Nobody has it open" is known the moment the last tab leaves: with one instance
+  // from its own connections, with several (Redis) from the replicas' presence lists.
+  // If Redis cannot say, only the 90 s activity window does.
+  presence = redisUrl ? await createPresence(redisUrl, `${cmsStorePrefix()}:collab`).catch((err) => {
+    console.error('[cms] collab presence unavailable', safeErrorMessage(err))
+    return null
+  }) : null
+  const redisPresence = presence
+  /** Does anyone have the document open (here, or on another replica)? A guess of yes when unsure. */
+  const occupied = async (document: { name: string; getConnectionsCount(): number }): Promise<boolean> => {
+    if (document.getConnectionsCount() > 0) return true
+    if (redisUrl && !redisPresence) return true
+    if (!redisPresence) return false
+    try {
+      return await redisPresence.othersHere(document.name)
+    }
+    catch {
+      return true
+    }
+  }
   const server: Hocuspocus = new Hocuspocus({
     name: 'cms',
     extensions,
@@ -184,13 +245,19 @@ async function startCollabServer(): Promise<Hocuspocus> {
       // An older history (or none): the browser starts over with a fresh session.
       if (!row || row.epoch !== token) throw new Error('Stale document')
       // Loaded here from an older history (restarted meanwhile): unload it first, so
-      // this connection gets the current one when it comes back.
+      // this connection gets the current one.
       const loaded = loadedEpoch.get(documentName)
       if (loaded && loaded !== row.epoch) {
         const doc = server.documents.get(documentName)
-        server.closeConnections(documentName)
-        if (doc) await server.unloadDocument(doc)
-        throw new Error('Stale document')
+        // Nobody is in it: it only waits to be unloaded (with Redis, a second after the last
+        // tab left). Unload it now and let this connection load the current history.
+        if (doc && doc.getConnectionsCount() === 0) await server.unloadDocument(doc)
+        if (loadedEpoch.get(documentName) === loaded) {
+          // Still in use by others: they are sent away, and this connection comes back for the current one.
+          server.closeConnections(documentName)
+          if (doc) await server.unloadDocument(doc)
+          throw new Error('Stale document')
+        }
       }
       docs.add(documentName)
       docsBySocket.set(socketId, docs)
@@ -224,7 +291,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
       // Only into the history it came from: a document restarted meanwhile is not overwritten.
       // An error is thrown on: Hocuspocus keeps the document loaded and tries again.
       // Active while someone has it open; the last save after everyone left does not make it so.
-      const active = !localOnly || document.getConnectionsCount() > 0
+      const active = await occupied(document)
       const stored: any[] = await db.update(c).set({ state, updatedAt: sql`now()`, activeAt: active ? sql`now()` : null })
         .where(and(eq(c.name, documentName), eq(c.epoch, epoch))).returning({ name: c.name })
       // Who typed last: shown with text that is left behind unsaved.
@@ -237,6 +304,10 @@ async function startCollabServer(): Promise<Hocuspocus> {
       }
     },
 
+    async connected({ documentName }) {
+      await redisPresence?.here(documentName).catch(() => {})
+    },
+
     async afterUnloadDocument({ documentName }) {
       loadedEpoch.delete(documentName)
     },
@@ -246,7 +317,13 @@ async function startCollabServer(): Promise<Hocuspocus> {
       docs?.delete(documentName)
       if (docs && !docs.size) docsBySocket.delete(socketId)
       // The last one left: nobody has it open now (not for another minute and a half).
-      if (localOnly && clientsCount === 0) {
+      if (clientsCount === 0) {
+        if (redisPresence) {
+          // Leave the list first: of two replicas losing their last tab at once, the later one sees it empty.
+          await redisPresence.left(documentName).catch(() => {})
+          if (await redisPresence.othersHere(documentName).catch(() => true)) return
+        }
+        else if (redisUrl) return
         const { db, reg } = useCms()
         await db.update(reg.cmsCollab).set({ activeAt: null }).where(eq(reg.cmsCollab.name, documentName)).catch(() => {})
       }
@@ -317,6 +394,8 @@ async function beat() {
       if (!conn.readOnly) writers++
     }
     if (writers) editing.push(doc.name)
+    // Keep this replica's place in the document's presence list from expiring.
+    if (presence && doc.getConnectionsCount() > 0) await presence.here(doc.name).catch(() => {})
   }
   try {
     if (editing.length) await db.update(reg.cmsCollab).set({ activeAt: sql`now()` }).where(inArray(reg.cmsCollab.name, editing))
@@ -358,9 +437,15 @@ export async function stopCollabServer(): Promise<void> {
   const server = instance
   instance = null
   starting = null
-  if (!server) return
+  const p = presence
+  presence = null
+  if (!server) {
+    await p?.close()
+    return
+  }
   server.closeConnections()
   // Store what is still pending, then let extensions (Redis) close their clients.
   await Promise.allSettled([...server.documents.values()].map((d) => server.storeDocumentHooks(d, { clientsCount: 0, context: {}, document: d, documentName: d.name, instance: server, requestHeaders: {}, requestParameters: new URLSearchParams(), socketId: 'shutdown' } as any, true)))
   await Promise.resolve(server.hooks('onDestroy', { instance: server } as any)).catch(() => {})
+  await p?.close()
 }
