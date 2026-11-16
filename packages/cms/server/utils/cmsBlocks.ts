@@ -41,7 +41,7 @@ export function writeSchema(e: CmsEntity, mode: 'create' | 'update', stored?: Re
   const base: any = mode === 'create' ? e.insertSchema : e.updateSchema
   const own: Record<string, ZodTypeAny> = {}
   for (const [key, fld] of Object.entries(e.fields)) {
-    if (fld.type === 'blocks') own[key] = fld.zod(mode, { stored: stored?.[key] })
+    if (fld.type === 'blocks' || fld.type === 'group') own[key] = fld.zod(mode, { stored: stored?.[key] })
   }
   return Object.keys(own).length ? base.extend(own) : base
 }

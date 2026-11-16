@@ -92,7 +92,7 @@ describe('content languages', () => {
   })
 
   it('builds a translations table for entities with localized fields only', () => {
-    expect(config.Post.localized).toEqual(['title', 'slug', 'body'])
+    expect(config.Post.localized).toEqual(['title', 'slug', 'body', 'location'])
     expect(config.Post.localesTable).toBeTruthy()
     expect(config.Author.localesTable).toBeUndefined()
     expect(buildRegistry(config).locales).toMatchObject({ default: 'cs', locales: ['cs', 'en'] })

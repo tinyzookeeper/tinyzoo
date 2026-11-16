@@ -66,7 +66,7 @@ export interface MigrateOptions {
 
 /** The fields of an entity that hold versioned JSON. */
 const jsonFields = (fields: CmsEntity['fields'], only?: readonly string[]) =>
-  Object.fromEntries(Object.entries(fields).filter(([k, f]) => (!only || only.includes(k)) && (((f as any).type === 'blocks' && (f as any).blocks) || (f as any).type === 'richtext'))) as CmsEntity['fields']
+  Object.fromEntries(Object.entries(fields).filter(([k, f]) => (!only || only.includes(k)) && (((f as any).type === 'blocks' && (f as any).blocks) || ((f as any).type === 'group' && (f as any).fields) || (f as any).type === 'richtext'))) as CmsEntity['fields']
 
 /**
  * Walk everything and bring stored JSON to the current versions. `db` is a drizzle

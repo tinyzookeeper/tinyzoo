@@ -39,6 +39,10 @@ function tsType(t: ContentFieldType): string {
       })
       return `Array<${variants.length ? variants.join(' | ') : 'never'}>`
     }
+    case 'group': {
+      const fields = t.fields.map((f) => `${f.key}: ${tsType(f.type)}${f.nullable ? ' | null' : ''}`)
+      return `{ ${fields.join('; ')} }`
+    }
   }
 }
 

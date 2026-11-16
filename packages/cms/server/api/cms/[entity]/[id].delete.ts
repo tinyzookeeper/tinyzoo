@@ -15,6 +15,11 @@ export default defineEventHandler(async (event) => {
   const [current] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
   if (!current) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, current)
+  // Menus and links that point at this entry (by reference) would go dead: refused, saying which.
+  const linked = await linksTo(db, reg, e, id)
+  if (linked.length) {
+    throw createError({ statusCode: 409, statusMessage: 'Still in use by other content', data: { code: 'in_use', usedBy: [...await usedBy(db, reg, e, id), ...linked.map((l) => ({ ...l, via: 'link' }))] } })
+  }
   const translatedMedia = await translationMediaIds(db, e, id)
   const seenBefore = await changeSnapshot(e, id)
   const deleted: any[] = await (db as any).delete(e.table).where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning()

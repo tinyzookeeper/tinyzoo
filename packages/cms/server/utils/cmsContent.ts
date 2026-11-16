@@ -103,7 +103,7 @@ function projectScalars(target: CmsEntity, row: any) {
   const hidden = new Set(target.content?.hidden ?? [])
   const out: Record<string, any> = { id: row.id }
   for (const [key, fld] of Object.entries(target.fields)) {
-    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'gallery') continue
+    if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'group' || fld.type === 'gallery') continue
     out[key] = row[key]
   }
   return out
@@ -130,10 +130,14 @@ function populatableKeys(e: CmsEntity): string[] {
  * Resolve media + relations on `rows` IN PLACE (batched, depth 1). Nested targets
  * get a safe projection; non-listed fields are left as raw FK ids for projectItem to drop.
  */
-export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null) {
+export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], populate?: string[], locale: string | null = null, opts: { preview?: boolean } = {}) {
   if (!rows.length) return
+  // Links to entries (`cms:<entity>/<id>`) become their current addresses, here and in
+  // every populated target below: nothing leaves with a `cms:` in it.
+  const linkScope = { locale, preview: !!opts.preview }
   // Stored JSON of an older shape is brought up to date before anything reads it.
   for (const r of rows) upgradeStoredJson(e, r)
+  await resolveContentLinks(db, reg, e, rows, linkScope)
   await populateBlocks(db, reg, e, rows, locale)
   await populateGalleries(db, reg, e, rows, locale)
   const keys = populate ?? populatableKeys(e)
@@ -157,7 +161,9 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       if (ids.length) {
         const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, ids)))
         await overlayTranslations(db, reg, target, targets, locale)
-        for (const t of targets) byId.set(t.id, publicProjection(target, upgradeStoredJson(target, t)))
+        for (const t of targets) upgradeStoredJson(target, t)
+        await resolveContentLinks(db, reg, target, targets, linkScope)
+        for (const t of targets) byId.set(t.id, publicProjection(target, t))
       }
       for (const r of rows) r[key] = byId.get(r[`${key}Id`]) ?? null
     }
@@ -171,6 +177,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       if (targetIds.length) {
         const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, targetIds)))
         await overlayTranslations(db, reg, target, targets, locale)
+        await resolveContentLinks(db, reg, target, targets, linkScope)
         for (const t of targets) tById.set(t.id, publicProjection(target, t))
       }
       const byOwner = new Map<string, any[]>()
@@ -191,31 +198,59 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
  * empty); media ids replaced by the public media object (batched across rows).
  */
 async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], locale: string | null = null) {
-  const blockFields = Object.entries(e.fields).filter(([, f]) => f.type === 'blocks' && f.blocks)
-  if (!blockFields.length) return
-  // Media ids from every block and from the lists inside blocks, one query for all.
+  const jsonFields = Object.entries(e.fields).filter(([, f]) => (f.type === 'blocks' && f.blocks) || (f.type === 'group' && f.fields))
+  if (!jsonFields.length) return
+  // Media ids from every block, group and the lists inside them, one query for all.
   const ids = new Set<string>()
-  for (const [key, fld] of blockFields) {
-    for (const r of rows) collectBlockMedia(r[key], fld.blocks!, ids)
+  for (const [key, fld] of jsonFields) {
+    for (const r of rows) collectFieldMedia(fld, r[key], ids)
   }
   const byId = new Map<string, any>()
   if (ids.size) {
     const media: any[] = await db.select().from(reg.cmsMedia).where(inArray(reg.cmsMedia.id, [...ids]))
     for (const m of media) byId.set(m.id, mediaProjection(m, locale))
   }
-  for (const [key, fld] of blockFields) {
-    for (const r of rows) r[key] = projectBlocks(r[key], fld.blocks!, byId)
+  for (const [key, fld] of jsonFields) {
+    for (const r of rows) r[key] = projectFieldValue(fld, r[key], byId)
+  }
+}
+
+const isObject = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
+
+/** Media ids inside one field value: a media field, a list's blocks, a group's fields. */
+function collectFieldMedia(fld: any, value: unknown, ids: Set<string>) {
+  if (fld.type === 'media') {
+    if (typeof value === 'string' && value) ids.add(value)
+  }
+  else if (fld.type === 'blocks' && fld.blocks) collectBlockMedia(value, fld.blocks, ids)
+  else if (fld.type === 'group' && fld.fields && isObject(value)) {
+    for (const [k, inner] of Object.entries(fld.fields)) collectFieldMedia(inner, value[k], ids)
   }
 }
 
 function collectBlockMedia(value: unknown, defs: Record<string, any>, ids: Set<string>) {
   for (const b of Array.isArray(value) ? value : []) {
     if (!b || typeof b.type !== 'string' || !Object.hasOwn(defs, b.type)) continue
-    for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) {
-      if (bf.type === 'media' && typeof b[fk] === 'string' && b[fk]) ids.add(b[fk])
-      else if (bf.type === 'blocks' && bf.blocks) collectBlockMedia(b[fk], bf.blocks, ids)
-    }
+    for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) collectFieldMedia(bf, b[fk], ids)
   }
+}
+
+/**
+ * One field inside a block or group as the API returns it: a media id becomes the
+ * public media object, a list its projected items, a group an object with each of its
+ * fields (null when empty), anything else as stored.
+ */
+function projectFieldValue(bf: any, raw: unknown, byId: Map<string, any>): any {
+  const v = raw ?? null
+  if (bf.type === 'media') return v ? byId.get(v as string) ?? null : null
+  if (bf.type === 'blocks' && bf.blocks) return projectBlocks(v, bf.blocks, byId)
+  if (bf.type === 'group' && bf.fields) {
+    if (!isObject(v)) return null
+    const out: Record<string, any> = {}
+    for (const [gk, inner] of Object.entries(bf.fields)) out[gk] = projectFieldValue(inner, v[gk], byId)
+    return out
+  }
+  return v
 }
 
 /** Known block types only; each field present (null when empty, a list inside a block: []). */
@@ -224,12 +259,7 @@ function projectBlocks(value: unknown, defs: Record<string, any>, byId: Map<stri
     .filter((b: any) => b && typeof b === 'object' && typeof b.type === 'string' && Object.hasOwn(defs, b.type))
     .map((b: any) => {
       const out: Record<string, any> = { id: String(b.id), type: b.type }
-      for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) {
-        const v = b[fk] ?? null
-        out[fk] = bf.type === 'media' ? (v ? byId.get(v) ?? null : null)
-          : bf.type === 'blocks' && bf.blocks ? projectBlocks(v, bf.blocks, byId)
-            : v
-      }
+      for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) out[fk] = projectFieldValue(bf, b[fk], byId)
       return out
     })
 }

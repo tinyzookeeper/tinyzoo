@@ -1,6 +1,7 @@
 import type { LocalizedText } from './i18n'
 import { isSafeLink } from './richtext'
-import { type BlockDef, type BlockValue, type BlocksValue, blocksGraph, blocksSchema, defineBlock } from './blocks'
+import { looksLikeLinkRef } from './linkref'
+import { type BlockDef, type BlockValue, type BlocksValue, type GroupValue, blocksGraph, blocksSchema, checkContainedFields, defineBlock, groupGraph } from './blocks'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
   type PgColumnBuilder,
@@ -80,9 +81,9 @@ export function serializeColumn(spec: ColumnSpec, colName: string, ctx: Serializ
 /**
  * Field types whose value can differ per language. Media, relations, numbers, dates
  * and switches are the same in every language (translate the text around them).
- * Blocks are translated as a whole list per language.
+ * Blocks are translated as a whole list per language, a group as a whole group.
  */
-export const LOCALIZABLE_TYPES = new Set(['text', 'slug', 'richtext', 'blocks'])
+export const LOCALIZABLE_TYPES = new Set(['text', 'slug', 'richtext', 'blocks', 'group'])
 
 /** The stored value of a list field: its items, each with a stable id. */
 export type CmsListValue<F, K extends string = 'item'> = Array<BlockValue<K, F>>
@@ -106,6 +107,8 @@ interface FieldConfig {
   createDefault?: unknown
   /** Block type definitions (blocks fields only). */
   blocks?: Record<string, BlockDef>
+  /** The fields a group holds (group fields only). */
+  groupFields?: Record<string, AnyFieldDescriptor>
 }
 
 interface Mods {
@@ -167,7 +170,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     type: cfg.type,
     isRequired, isUnique, isOptional, isLocalized: !!mods.isLocalized,
     default: mods.default, dbDefault,
-    ui: cfg.ui, meta, relation: cfg.relation, blocks: cfg.blocks,
+    ui: cfg.ui, meta, relation: cfg.relation, blocks: cfg.blocks, fields: cfg.groupFields,
     spec, zod,
     optional: () => createField(cfg, { ...mods, isOptional: true, isRequired: false }),
     unique: () => createField(cfg, { ...mods, isUnique: true }),
@@ -217,7 +220,8 @@ export const f = {
         if (o.max) s = s.max(o.max)
         if (o.required) s = s.min(1, 'Required')
         if (o.format === 'email') return s.pipe(z.email())
-        if (o.format === 'url') return s.pipe(z.url())
+        // (A `cms:` address is an internal link reference: only link fields hold, and resolve, those.)
+        if (o.format === 'url') return s.pipe(z.url()).refine((v: string) => !looksLikeLinkRef(v), 'Use a full address (https://…)')
         // An address on this site: starts with one slash; no spaces, query, fragment
         // or trailing slash (so each address has exactly one spelling).
         if (o.format === 'path') return s.max(2000).regex(/^\/(?!\/)(?:[^\s\\?#]*[^\s\\?#/])?$/, 'Start with / (e.g. /old-page), without ? or # or a trailing /')
@@ -333,6 +337,49 @@ export const f = {
       createDefault: [],
       blocks,
     }, { default: [] }))
+  },
+
+  /**
+   * A named object of fields kept together: an address, a contact, an opening-hours
+   * summary. Stored as one jsonb column (not one column per field), shown in the admin
+   * as a fieldset and delivered as one object by the content API. Each field is checked
+   * on its own, like a block's: `required: true` fields must be filled in, the rest may
+   * be empty. `.optional()` lets the whole group be absent (null); `.localized()` gives
+   * each language its own whole group.
+   *
+   *   address: f.group({ fields: {
+   *     street: f.text({ required: true }),
+   *     city: f.text({ required: true }),
+   *     zip: f.text(),
+   *     map: f.text({ format: 'url' }).optional(),
+   *   } })
+   *   // → { street: 'Dlouhá 1', city: 'Tábor', zip: '390 01', map: null }
+   *
+   * Inside: text, slug, number, boolean, datetime, select, rich text, media, groups, and
+   * a list (only directly in a group on an entry, not in one inside a block, a list or
+   * another group). A group is usable inside blocks and list items as well, holding
+   * plain fields there.
+   */
+  group: <const F extends Record<string, AnyFieldDescriptor>>(o: { fields: F }) => {
+    checkContainedFields('Group', o.fields, { reserved: false })
+    const inner = o.fields as unknown as Record<string, FieldDescriptor>
+    return as<ScalarKind<GroupValue<F>, GroupValue<F>>>(createField({
+      type: 'group', ui: { edit: 'CmsFieldGroup', cell: 'CmsCellGroup' },
+      base: { kind: 'jsonb' }, tsType: 'Record<string, unknown>',
+      meta: { fields: groupGraph(o.fields) },
+      groupFields: o.fields,
+      zod: (ctx) => {
+        // What the same group holds now (lists inside tell stored items from invented ones).
+        const stored = ctx?.stored && typeof ctx.stored === 'object' && !Array.isArray(ctx.stored) ? ctx.stored as Record<string, unknown> : undefined
+        const shape: Record<string, ZodTypeAny> = {}
+        for (const [key, fld] of Object.entries(inner)) {
+          // Like inside a block: a field may be left empty unless it is explicitly required.
+          const s = fld.zod('create', { stored: stored?.[key] })
+          shape[key] = fld.isRequired ? s : s.nullish()
+        }
+        return z.object(shape)
+      },
+    }))
   },
 
   /**

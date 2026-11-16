@@ -1,11 +1,13 @@
-import { and, desc, eq, inArray, sitePath, sql } from 'tinyzoo'
+import { and, desc, eq, inArray, linkRef, sitePath, sql } from 'tinyzoo'
 
 // GET /api/cms/_links?q=&locale= — what an editor can link to: entries of every
 // collection that has an address on the website (`content.path`), by title, with
 // that address in the language being edited. Feeds the link picker (rich text,
 // menus, link fields), so editors pick a page instead of typing its address.
 // Only what the signed-in user may read; drafts are included and marked, because
-// a menu is often prepared before the page goes live.
+// a menu is often prepared before the page goes live. Only collections a link can
+// follow (public, with an address) are offered. Each item carries `ref`, what a link
+// stores (`cms:<entity>/<id>`): the link then follows the entry when its address changes.
 const PER_COLLECTION = 8
 const TOTAL = 24
 
@@ -18,14 +20,14 @@ export default defineEventHandler(async (event) => {
   const locale = reg.locales ? (wanted && reg.locales.locales.includes(wanted) ? wanted : reg.locales.default) : null
   const isDefault = !reg.locales || locale === reg.locales.default
 
-  type Link = { entity: string; id: string; title: string; path: string; published: boolean }
+  type Link = { entity: string; id: string; ref: string; title: string; path: string; published: boolean }
   const out: Link[] = []
   for (const e of reg.entities) {
     if (out.length >= TOTAL) break
-    if (e.singleton || !e.content?.path) continue
+    if (!isLinkable(e)) continue
     const { allowed, where } = accessWhere(e, 'read', user)
     if (!allowed) continue
-    const keys = pathKeys(e.content.path).filter((k: string) => e.table[k])
+    const keys = pathKeys(e.content!.path).filter((k: string) => e.table[k])
     const titleCol = e.table[e.titleField]
     const liveCond = publishedCond(e)
     const cols: Record<string, any> = { id: e.table.id, title: titleCol, live: liveCond ? sql<boolean>`${liveCond}` : sql<boolean>`true` }
@@ -54,9 +56,9 @@ export default defineEventHandler(async (event) => {
       const merged = { ...row }
       const t = tr.get(row.id)
       if (t) for (const [k, v] of Object.entries(t)) if (k !== 'parentId' && v !== null && v !== undefined && v !== '') merged[k] = v
-      const path = sitePath(reg.locales, e.content.path, locale, merged)
+      const path = sitePath(reg.locales, e.content!.path, locale, merged)
       if (!path) continue
-      out.push({ entity: e.name, id: row.id, title: String(merged[e.titleField] ?? ''), path, published: !!row.live })
+      out.push({ entity: e.name, id: row.id, ref: linkRef(e.name, row.id), title: String(merged[e.titleField] ?? ''), path, published: !!row.live })
     }
   }
   return { locale, items: out.slice(0, TOTAL) }

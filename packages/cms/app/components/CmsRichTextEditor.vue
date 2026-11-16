@@ -4,6 +4,7 @@ import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import { ySyncPluginKey } from '@tiptap/y-tiptap'
 import { richTextExtensions } from '../../shared/richtext-editor'
+import { isLinkRef } from '../../src/linkref'
 import type { CmsCollab } from '../composables/useCmsCollab'
 
 // The rich-text editor itself (TipTap). The model IS the ProseMirror/TipTap JSON doc
@@ -195,7 +196,8 @@ const tools = computed<Tool[]>(() => {
           />
           <template #content>
             <div v-if="linkHref" class="flex items-center gap-2 border-b border-default px-3 py-2">
-              <span class="min-w-0 flex-1 truncate font-mono text-xs text-muted">{{ linkHref }}</span>
+              <CmsLinkTarget v-if="isLinkRef(linkHref)" :value="linkHref" class="flex-1" />
+              <span v-else class="min-w-0 flex-1 truncate font-mono text-xs text-muted">{{ linkHref }}</span>
               <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-unlink" @click="removeLink">{{ t('link.remove') }}</UButton>
             </div>
             <CmsLinkPicker :initial="linkHref" @pick="applyLink" />

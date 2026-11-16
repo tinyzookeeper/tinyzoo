@@ -111,7 +111,7 @@ async function readManifest(dir: string): Promise<Manifest> {
 
 // ── decoding ────────────────────────────────────────────────────────────────────
 
-const JSON_TYPES = new Set(['richtext', 'blocks'])
+const JSON_TYPES = new Set(['richtext', 'blocks', 'group'])
 
 /** Point every embedded picture at the file's address in THIS storage. */
 function rewriteImages(node: any, urls: Map<string, string>): void {

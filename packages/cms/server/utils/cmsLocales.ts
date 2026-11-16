@@ -28,11 +28,13 @@ export function requestedLocale(event: any, reg: CmsRegistry): string | null {
   return locale
 }
 
-const isEmpty = (v: unknown) => v === null || v === undefined || v === ''
+const isEmpty = (v: unknown): boolean => v === null || v === undefined || v === ''
   || (Array.isArray(v) && v.length === 0)
   || (typeof v === 'object' && v !== null && (v as any).type === 'doc'
     // An empty editor saves one empty paragraph: still nothing written.
     && !((v as any).content ?? []).some((n: any) => n?.type !== 'paragraph' || n.content?.length))
+  // A group with nothing filled in (an object whose values are all empty): untranslated.
+  || (typeof v === 'object' && v !== null && !Array.isArray(v) && (v as any).type !== 'doc' && Object.values(v).every((x) => typeof x !== 'boolean' && isEmpty(x)))
 
 /** The translation rows of `ids` in `locale`, by parent id. */
 export async function translationRows(db: any, e: CmsEntity, ids: string[], locale: string): Promise<Map<string, any>> {

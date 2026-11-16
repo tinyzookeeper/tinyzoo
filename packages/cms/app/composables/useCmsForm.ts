@@ -27,6 +27,8 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     if (f.relation?.kind === 'many-to-many') return []
     if (f.type === 'richtext') return { type: 'doc', content: [] }
     if (f.type === 'blocks') return []
+    // A group: an object of its fields (an optional one stays empty until something is typed).
+    if (f.type === 'group') return f.optional ? null : {}
     return undefined
   }
 

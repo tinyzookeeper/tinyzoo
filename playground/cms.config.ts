@@ -27,6 +27,21 @@ export const SiteSettings = defineSingleton("siteSettings", {
       itemLabel: { en: "Opening hours", cs: "Otevírací doba" },
     }).label({ en: "Opening hours", cs: "Otevírací doba" }),
     rules: f.file().optional().label({ en: "Rules (PDF)", cs: "Pravidla (PDF)" }),
+    // A group: the address and contact kept together (one column, one object in the API).
+    contact: f.group({
+      fields: {
+        phone: f.text().label({ en: "Phone", cs: "Telefon" }),
+        email: f.text({ format: "email" }).optional().label({ en: "Email", cs: "E-mail" }),
+        address: f.group({
+          fields: {
+            street: f.text({ required: true }).label({ en: "Street", cs: "Ulice" }),
+            city: f.text({ required: true }).label({ en: "City", cs: "Město" }),
+            zip: f.text().label({ en: "Postcode", cs: "PSČ" }),
+          },
+        }).label({ en: "Address", cs: "Adresa" }),
+        photo: f.media({ accept: "image/*" }).optional().label({ en: "Photo of the entrance", cs: "Fotka vchodu" }),
+      },
+    }).optional().label({ en: "Contact", cs: "Kontakt" }),
     ...seo(),
   },
   content: { public: true, populate: ["logo", "rules", "ogImage"] },
@@ -114,6 +129,13 @@ export const Post = defineEntity("post", {
     }).label({ en: "Author", cs: "Autor" }),
     tags: f.relation({ to: () => Tag, kind: "many-to-many" }).label({ en: "Tags", cs: "Štítky" }),
     body: f.richtext().localized().label({ en: "Text", cs: "Text" }),
+    // A translatable group: each language has its own whole "where" note.
+    location: f.group({
+      fields: {
+        place: f.text({ required: true }).label({ en: "Place", cs: "Místo" }),
+        note: f.text().label({ en: "Note", cs: "Poznámka" }),
+      },
+    }).optional().localized().label({ en: "Location", cs: "Místo konání" }),
     gallery: f.gallery().label({ en: "Photos", cs: "Fotky" })
       .help({ en: "Shown under the text, in this order.", cs: "Zobrazí se pod textem, v tomto pořadí." }),
     ...seo(),
@@ -196,6 +218,22 @@ export const Page = definePages({
         buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
         buttonUrl: f.text({ format: "link" }).label({ en: "Button link", cs: "Odkaz tlačítka" }),
         highlighted: f.boolean().label({ en: "Highlighted", cs: "Zvýrazněné" }),
+      },
+    }),
+    // A block with a group inside: the group is a named object of fields.
+    contact: defineBlock({
+      label: { en: "Contact", cs: "Kontakt" },
+      description: { en: "A heading and an address.", cs: "Nadpis a adresa." },
+      icon: "i-lucide-map-pin",
+      fields: {
+        heading: f.text().label({ en: "Heading", cs: "Nadpis" }),
+        address: f.group({
+          fields: {
+            street: f.text({ required: true }).label({ en: "Street", cs: "Ulice" }),
+            city: f.text().label({ en: "City", cs: "Město" }),
+            photo: f.media({ accept: "image/*" }).label({ en: "Photo", cs: "Fotka" }),
+          },
+        }).label({ en: "Address", cs: "Adresa" }),
       },
     }),
     // A block with a list inside: cards (services, team, advantages), each with a picture.

@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   // The editor's unsaved values, while they type (live preview).
   applyPreviewDrafts(event, reg, e, [row], locale)
   setContentCache(event)
-  await populateItems(db, reg, e, [row], e.content?.populate, locale)
+  await populateItems(db, reg, e, [row], e.content?.populate, locale, { preview: isPreviewAuthorized(event) })
   const item = projectItem(e, row)
   await attachLocaleInfo(db, reg, e, [row], [item], locale)
   return { item }

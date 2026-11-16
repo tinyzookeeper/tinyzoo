@@ -40,7 +40,7 @@ import { createInterface } from 'node:readline'
 import { getTableColumns, getTableName, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
-import { mediaIdsInBlocks, propOf, type CmsEntity, type CmsRegistry, type Junction } from '../src/index'
+import { mediaIdsInBlocks, mediaIdsInFields, propOf, type CmsEntity, type CmsRegistry, type Junction } from '../src/index'
 import { blockVersion, storedBlockVersion } from '../src/blocks'
 import { loadSettings, settingsFrom, type StorageSettings } from './backup'
 
@@ -102,6 +102,8 @@ export interface FieldShape {
   relation?: { to: string; kind: string }
   values?: string[]
   blocks?: Record<string, Record<string, FieldShape>>
+  /** A group's own fields. */
+  fields?: Record<string, FieldShape>
   /** Block types (or list items) whose definition is at a version above 1. */
   blockVersions?: Record<string, number>
 }
@@ -126,6 +128,7 @@ function fieldShape(fld: any): FieldShape {
     const versions = Object.fromEntries(Object.entries(defs).filter(([, def]) => blockVersion(def) > 1).map(([type, def]) => [type, blockVersion(def)]))
     if (Object.keys(versions).length) shape.blockVersions = versions
   }
+  if (fld.type === 'group' && fld.fields) shape.fields = Object.fromEntries(Object.entries(fld.fields as Record<string, any>).map(([k, f]) => [k, fieldShape(f)]))
   return shape
 }
 
@@ -335,6 +338,7 @@ export function mediaIdsOfValue(fld: any, value: unknown, out: string[] = []): s
   if (fld.type === 'media') { if (typeof value === 'string') out.push(value) }
   else if (fld.type === 'gallery') { if (Array.isArray(value)) for (const g of value) if (typeof g?.mediaId === 'string') out.push(g.mediaId) }
   else if (fld.type === 'blocks') mediaIdsInBlocks(value, fld.blocks ?? {}, out)
+  else if (fld.type === 'group') { if (typeof value === 'object') mediaIdsInFields(fld.fields ?? {}, value as Record<string, any>, out) }
   else if (fld.type === 'richtext') embeddedIds(value, out)
   return out
 }
@@ -350,7 +354,7 @@ export function mediaIdsOfEntry(layout: EntityLayout, entry: Entry): string[] {
 // ── who uses a media file ───────────────────────────────────────────────────────
 
 /** Field types whose JSON can hold media ids (rich text images, blocks, galleries). */
-const JSON_MEDIA_TYPES = new Set(['richtext', 'blocks', 'gallery'])
+const JSON_MEDIA_TYPES = new Set(['richtext', 'blocks', 'gallery', 'group'])
 
 const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`)
 
