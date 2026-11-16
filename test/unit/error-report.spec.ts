@@ -1,6 +1,6 @@
 import { inspect } from 'node:util'
 import { describe, expect, it } from 'vitest'
-import { hushError, redactEmails, safeErrorMessage, safeUrl, scrubError, snapshotError } from '../../packages/cms/server/utils/cmsScrub'
+import { hushError, missingTableHint, redactEmails, safeErrorMessage, safeUrl, scrubError, snapshotError } from '../../packages/cms/server/utils/cmsScrub'
 
 /** What drizzle throws for a failed insert, and what h3 makes of it. */
 function failedQuery() {
@@ -136,5 +136,19 @@ describe('redactEmails', () => {
     expect(redactEmails('550 5.1.1 <jana.novakova+x@mail.example.com>: Recipient address rejected')).toBe('550 5.1.1 <<email>>: Recipient address rejected')
     expect(redactEmails('Invalid recipients: a@b.co, c@d.org')).toBe('Invalid recipients: <email>, <email>')
     expect(redactEmails('connect ECONNREFUSED 127.0.0.1:587')).toBe('connect ECONNREFUSED 127.0.0.1:587')
+  })
+})
+
+describe('missingTableHint', () => {
+  it('says what to do when a table does not exist yet, however deep the driver error sits', () => {
+    const { driver, query, h3 } = failedQuery()
+    for (const err of [driver, query, h3]) expect(missingTableHint(err)).toMatch(/a table is missing.*pnpm db:migrate.*restart/)
+  })
+
+  it('stays quiet for every other error', () => {
+    expect(missingTableHint(new Error('boom'))).toBeNull()
+    expect(missingTableHint(Object.assign(new Error('x'), { code: '23505' }))).toBeNull()
+    expect(missingTableHint('42P01')).toBeNull()
+    expect(missingTableHint(undefined)).toBeNull()
   })
 })

@@ -80,7 +80,7 @@ counts as production, so an unset `NODE_ENV` does not leave a deploy open.
 
 ### Seeding a deployed site
 
-`tinyzoo seed` (see the README, *Seeding*) works against a deployed site from your own
+`tinyzoo seed` (see [Seeding](guide/seeding.md)) works against a deployed site from your own
 machine: it needs only the site's address and an administrator, never the database.
 Use the setup code to create the first account from the seed itself:
 

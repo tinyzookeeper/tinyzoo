@@ -7,6 +7,7 @@ import { buildRegistry, snake } from 'tinyzoo'
 import * as config from '../../playground/cms.config'
 import { formatReport, migrateContent } from '../../packages/cms/cli/content-migrate'
 import { anonymous, type Client, PNG_1x1, signIn, testDb, truncateAll } from '../helpers/api'
+import { envWithout, siteFolderWithEnvFile } from '../helpers/siteFolder'
 
 // Stored JSON outlives the code that wrote it: a block saved at an older version is
 // brought up to date wherever it is read (the playground's `cta` block is at version 2:
@@ -376,5 +377,17 @@ describe('tinyzoo content:migrate', () => {
     expect(out).toMatch(/page\.sections\s+entries\s+1 of\s+1 would be rewritten/)
     expect(out).toMatch(/dry run: nothing was written/)
     expect((await stored(p.id)).sections).toEqual([OLD_CTA])
+  })
+
+  it('finds DATABASE_URL in the site\'s .env, as `tinyzoo up` does', async () => {
+    await storedPage([OLD_CTA])
+    const site = siteFolderWithEnvFile(inject('databaseUrl'))
+    try {
+      const out = execFileSync(join(import.meta.dirname, '../../playground/node_modules/.bin/tsx'), [join(import.meta.dirname, '../../packages/cms/cli/index.ts'), 'content:migrate', '--dry-run'], {
+        cwd: site.dir, env: envWithout(), encoding: 'utf8',
+      })
+      expect(out).toMatch(/page\.sections\s+entries\s+1 of\s+1 would be rewritten/)
+    }
+    finally { site.remove() }
   })
 })

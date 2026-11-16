@@ -15,16 +15,82 @@ who work on tinyzoo itself.
   only break in a new major version, and anything that goes away is marked
   deprecated for at least one minor version first.
 
+## From 0.1 to 0.2
+
+Everything below is also in the changelog of 0.2.0. Do it in this order, on a copy of
+the production database first (`tinyzoo backup`, then `tinyzoo restore` into a scratch
+database: [deploying.md](deploying.md#backups-and-restore)).
+
+1. **Update** both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+2. **Table names are `snake_case` now** (breaking). A site whose entities have a
+   camelCase name (every site made from the 0.1.0 starter: `siteSettings`, `contactForm`,
+   `formSettings`) has tables that change name. Entities named with one lowercase word
+   (`post`, `page`, `news`) keep theirs. Run `pnpm exec tinyzoo generate` **in a terminal**.
+   For every table and enum that changes, drizzle-kit asks whether it was *renamed* from
+   another one or is new. Answer **renamed** every time, and pick the old table whose name
+   matches the new one (`siteSettings` → `site_settings`, `siteSettings_locales` →
+   `site_settings_locales`, `contactForm_status` → `contact_form_status`). The first entry,
+   *create*, is highlighted: use the arrow keys. *Created* would drop the old table and its
+   content, and the wrong source would move one table's rows into another.
+3. **Read the migration.** It must hold only renames (`ALTER TABLE "siteSettings" RENAME TO
+   "site_settings"`, `ALTER TYPE … RENAME TO …`) and, for tables with foreign keys or unique
+   indexes, a constraint or index dropped and added again under the new name. It must
+   **not** hold `DROP TABLE`, `CREATE TABLE` for one of your tables or `DROP COLUMN`: if it
+   does, delete the migration (its `.sql`, `meta/<number>_snapshot.json` and its entry in
+   `meta/_journal.json`) and start again from step 2. `tinyzoo generate` lists the renames
+   and asks to keep the migration; here that is what you want, answer `y`.
+4. **Search** arrives in the same migration: the `cms_search` table and the `pg_trgm`
+   extension (the database user needs the right to `CREATE EXTENSION`, or the database
+   owner does it once). The index fills itself on the next start.
+5. **Apply it** with `pnpm exec tinyzoo up`, or at start with `NUXT_CMS_MIGRATIONS_ON_START=true`.
+   Stop the old instances first: the old version does not find the renamed tables. Search
+   your own code for raw SQL that names a table by its old camelCase name.
+6. **Forms moved to a plugin.** The old `import { defineForm } from 'tinyzoo'` still works and
+   logs one deprecation line per helper; it is removed in 0.4. Change the import to
+   `tinyzoo/forms` and register the plugin. No migration, no change in the tables:
+
+   ```ts
+   import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
+
+   export const plugins = [formsPlugin()]   // next to your entities
+   ```
+
+   Restart `nuxt dev` after adding a plugin.
+7. **Regenerate the typed client** (`pnpm cms:client`) and fix what the compiler finds: a
+   required link field (a menu link's `url`) is `string | null` now, because the page it
+   points at may be gone. Render a link only when it has an address; `cmsMenuTree` and
+   `<CmsNav>` already skip links without one.
+8. **Optional, when you want them:** the page tree ([turning it
+   on](#turning-on-the-page-tree)), links that follow their page ([converting
+   links](#converting-links-to-follow-their-page)), groups ([adding a group](#adding-a-group)),
+   a seed file (`pnpm seed` in the new starter). The starter's own files
+   (`cms.config.ts`, `app/pages/[...slug].vue`, `package.json`'s `seed` script, `seed/`) changed
+   too: they are yours, so copy what you want from a fresh `tinyzoo init`.
+
 ## On every upgrade
 
 ```bash
-pnpm up tinyzoo @tinyzoo/client      # 1. update both packages together
+pnpm up tinyzoo @tinyzoo/client --latest   # 1. update both packages together
 pnpm typecheck                       # 2. the compiler finds what changed in the config API and client types
 pnpm exec tinyzoo upgrade            # 3. versions, migration, typed client, what is pending
 git diff                             # 4. read the new migration (server/db/migrations) and the schema
 git commit                           # 5. package update, migration, schema.ts and typed client in one commit
 git push                             # 6. deploy
 ```
+
+**Why `--latest`.** `tinyzoo init` writes `^0.2.0`, and on 0.x a caret range stops at
+the next minor (`^0.2.0` means `>=0.2.0 <0.3.0`), so a plain `pnpm up` never moves a
+site from 0.2 to 0.3, which is exactly where breaking changes live. `--latest` ignores
+the range and rewrites it. Read the new version's entry in `CHANGELOG.md` (the
+**Upgrade** headings; it is in the repository and on each release, not inside the
+package) before you update. The two packages always share one version number; keep them
+on the same.
+
+**The files `tinyzoo init` made are yours.** An upgrade never rewrites your
+`cms.config.ts`, your pages or your components. When a release changes the starter
+(a new page route, a new script), the **Upgrade** notes say what to copy. To see
+the difference for yourself, make a scratch site with the new version (`pnpm dlx
+tinyzoo init ../scratch`) and compare it with yours (`diff -r app ../scratch/app`).
 
 **Before you deploy, look at production.** Run `pnpm exec tinyzoo status` with
 `DATABASE_URL` pointing at the production database (or at a restored copy of it).
@@ -187,8 +253,11 @@ them:
 
 ```bash
 tinyzoo links:convert --dry-run   # what it would convert, and what it could not match
-tinyzoo links:convert             # do it (run it from the site's folder; DATABASE_URL set)
+tinyzoo links:convert             # do it
 ```
+
+Run both from the site's folder; the database is `DATABASE_URL` from the environment or
+the site's `.env`, like `tinyzoo up`.
 
 An address is converted only when it is exactly the current address of **one published**
 entry **in the language the link is served in** (with the website's fallbacks): an entry's
@@ -197,7 +266,9 @@ its language. A reference is served as the target's address in the language aske
 any other match would change what visitors get. Addresses no entry has, another language's
 address of an entry, addresses of entries not published yet, addresses two entries share
 and addresses with a `#anchor` or `?query` are listed and left as typed: pick those
-pages again in the link picker. External links, `mailto:` and `tel:` are
+pages again in the link picker. The home page (`/`), a list page that is not an entry
+(`/aktuality`) and every other fixed page of the site are never converted: they are not
+entries, so there is nothing to follow, and they stay as typed. External links, `mailto:` and `tel:` are
 not touched; neither are saved versions (History) or `updatedAt`. If it reports blocks
 stored at an older version, run `tinyzoo content:migrate` first. Afterwards purge the
 website's cache (the content API answers changed), and make sure whatever consumes the
@@ -288,19 +359,39 @@ values that do not convert fail the whole migration.
 ### Turning on the page tree
 
 `definePages({ tree: true })` is opt-in and the migration is safe on existing data, but it
-changes a constraint, so know what it does:
+changes a constraint and your website needs one change, so know what it does:
 
-1. Add `tree: true`, run `tinyzoo generate`. The migration **drops** `page_slug_unique` and
-   `page_locales_slug_unique` (the address part is only unique under a parent now; the whole
-   address is checked by the server instead) and adds `parent_id` and `position` (default 0).
-   Dropping a constraint is not flagged by the guard, so it needs no `--allow-drop`.
+1. Add `tree: true` to `definePages({ … })`, run `tinyzoo generate`. The migration is
+   five statements (the names are for a pages collection called `page`):
+
+   ```sql
+   ALTER TABLE "page" DROP CONSTRAINT "page_slug_unique";
+   DROP INDEX "page_locales_slug_unique";
+   ALTER TABLE "page" ADD COLUMN "parent_id" uuid;
+   ALTER TABLE "page" ADD COLUMN "position" integer DEFAULT 0 NOT NULL;
+   ALTER TABLE "page" ADD CONSTRAINT "page_parent_id_page_id_fk" FOREIGN KEY ("parent_id") REFERENCES "public"."page"("id") ON DELETE restrict ON UPDATE no action;
+   ```
+
+   The address part is only unique under a parent now (the server checks the whole address
+   instead). The guard has nothing to say about it: no table or column is dropped, and the new
+   column has a default, so it needs neither `--allow-drop` nor `--allow-risky`.
 2. `tinyzoo up`. Existing pages stay at the top level at the same addresses.
-3. Add `defineRedirects()` if the site has none: moving a page or renaming its address part
+3. **Change the website's page route.** The site has to ask the content API for a page by its
+   *whole* address, with the slashes escaped, as one path segment. A route written before the
+   tree (`/api/content/page/${slug.join('/')}`) finds top-level pages as before and answers
+   **404 for every nested page**: the API sees `page/o-nas/tym` as a different address. In the
+   starter's `app/pages/[...slug].vue` it is one word:
+
+   ```ts
+   `/api/content/page/${encodeURIComponent(parts.value.join('/') || 'home')}`
+   ```
+
+   With `@tinyzoo/client`, `cms.page.get('o-nas/tym')` does the escaping for you. The new
+   starter's version of that file also draws the breadcrumbs from the page's `breadcrumbs`.
+4. Add `defineRedirects()` if the site has none: moving a page or renaming its address part
    moves every page below it, and the redirects from the old addresses are what keeps old
    links and search results working. Without it the change report (`cms:change`, the webhooks:
    `moved`, `paths`) still lists every address that changed, so the site can purge its cache.
-4. A website that fetches a page by its address sends the whole address as one path segment,
-   slashes escaped (`/api/content/page/o-nas%2Ftym`; `@tinyzoo/client` does it).
 5. Turning it **off** again is a two-step change like any other removal of a column (see the
    two-step rule): move every page to the top level first, and mind that the address part must
    then be unique again.

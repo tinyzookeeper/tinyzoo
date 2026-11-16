@@ -11,12 +11,13 @@
  *
  *   tinyzoo content:migrate [--dry-run] [--batch <n>]
  *
- * Connects with DATABASE_URL (or NUXT_CMS_DATABASE_URL). Run from the host app root.
+ * Connects with DATABASE_URL (or NUXT_CMS_DATABASE_URL) from the environment or the site's .env. Run from the host app root.
  * Entries' `updatedAt` is not touched: this is not an edit.
  */
 import { and, asc, eq, gt, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
+import { databaseUrl } from './db'
 import { buildRegistry, propOf, upgradeStoredRow, type CmsEntity, type CmsRegistry, type UpgradeIssue } from '../src/index'
 
 export type MigrateSource = 'entries' | 'translations' | 'revisions'
@@ -219,9 +220,10 @@ export async function contentMigrateCommand(config: Record<string, any>, args: s
     console.error('usage: tinyzoo content:migrate [--dry-run] [--batch <n>]')
     process.exit(1)
   }
-  const url = process.env.DATABASE_URL || process.env.NUXT_CMS_DATABASE_URL
-  if (!url) {
-    console.error('✗ DATABASE_URL is not set')
+  let url: string
+  try { url = databaseUrl(process.cwd()) }
+  catch (err) {
+    console.error(`✗ ${(err as Error).message}`)
     process.exit(1)
   }
   const reg = buildRegistry(config)
