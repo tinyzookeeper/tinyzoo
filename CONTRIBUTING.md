@@ -4,8 +4,53 @@
 
 ```sh
 pnpm install
-pnpm check        # typecheck, tests (needs Postgres, see docs/development.md), production build
+pnpm check        # typecheck + unit and API tests (needs Postgres, see docs/development.md); the API tests production-build the playground
 ```
+
+## What CI runs, and when
+
+Every pull request and every push to `main` (`.github/workflows/ci.yml`, about four minutes):
+
+| Job | What |
+|---|---|
+| `check` | `pnpm typecheck` and `pnpm test:unit` |
+| `api` | `pnpm test:api`: the built playground over HTTP against Postgres and Redis. Its production build is the build check |
+| `changeset` | pull requests only: a change to a package comes with a changeset |
+
+The slow checks (`.github/workflows/heavy.yml`) run **nightly on `main`**, **on demand**, on the
+**"Version packages" pull request** (`changeset-release/main`), and on **any other pull request only
+when it touches what they cover**:
+
+| Job | What | Runs on a pull request that changes |
+|---|---|---|
+| `upgrade` | a site made on an older tinyzoo moves to this one (below) | `packages/cms/{src,cli,server,starter}/**`, `scripts/upgrade-check*`, `.github/upgrade-baseline/**` |
+| `consumer` | the packages packed, installed into a fresh app and built | `packages/*/package.json`, `packages/cms/module.ts`, `packages/cms/nuxt.config.ts`, `scripts/consumer-check*`, `test/consumer/**`, the playground's `package.json`, `cms.config.ts` and `cms-plugins/` |
+| `backup (client tools 16 / 17 / 18, server 16)` | `tinyzoo backup` and `restore` with `pg_dump`, `pg_restore` and `psql` of each version; fails where the tools are missing | `packages/cms/cli/backup*`, `cli/tar*`, `src/migrate*`, `.github/actions/pg-client/**`, `test/api/backup.spec.ts` |
+| `s3-minio` | the S3 delivery modes against a real MinIO | `server/utils/cmsStorage*`, `server/api/cms/_media/**`, `cli/transfer*`, `test/api/s3-minio.spec.ts` |
+| `result` | green when every heavy job that ran passed (skipped ones are nothing relevant) | every pull request |
+
+Changing `heavy.yml` itself runs all of them. To run them by hand on any branch: **Actions → Heavy checks →
+Run workflow** (or `gh workflow run heavy.yml --ref <branch>`). `release.yml` still runs the consumer
+check on the packed tarballs right before it publishes.
+
+Locally, the same checks:
+
+```sh
+pnpm check:upgrade          # needs UPGRADE_CHECK_DATABASE_URL and the network, see "The upgrade test"
+pnpm check:consumer         # packs both packages and builds a fresh app from the tarballs
+pnpm build                  # a plain production build of the playground (the API tests already make one)
+# backup: needs pg_dump, pg_restore and psql (or TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE / TINYZOO_PSQL);
+# TINYZOO_REQUIRE_PG_TOOLS=1 makes missing tools a failure instead of a skip, as in CI
+pnpm exec vitest run --project api test/api/backup.spec.ts
+# MinIO: see the head of test/api/s3-minio.spec.ts for the docker command, then
+TEST_S3_ENDPOINT=http://localhost:9190 TEST_S3_ACCESS_KEY=minio TEST_S3_SECRET_KEY=minio12345 \
+  pnpm exec vitest run --project api test/api/s3-minio.spec.ts
+```
+
+The Version packages pull request is opened by the release workflow with `GITHUB_TOKEN`, and GitHub does
+not start workflows for pushes made with it: if no checks appear on that pull request, run **Heavy checks**
+on `changeset-release/main` by hand before merging (or give `changesets/action` a token of an app or a
+personal token).
 
 ## Changesets: every change to a package gets one
 
@@ -99,7 +144,7 @@ optional field or a new route: not).
 ## The upgrade test
 
 A change that is fine on its own can still strand a site that is already running. The
-`upgrade` job in CI (`scripts/upgrade-check.mjs`) tries it on a real one: it builds a
+`upgrade` job (see "What CI runs, and when"; `scripts/upgrade-check.mjs`) tries it on a real one: it builds a
 baseline version (a site made with that version's own `tinyzoo init`, set up and filled
 with pages, news, images, settings, a menu and a form message), installs this commit's
 packages into the same site, runs `tinyzoo upgrade` with no terminal, starts the site on the
@@ -129,7 +174,7 @@ When it fails, the message says which step and why. The usual causes:
 | Unexpected differences in the content API or the admin | Intended? Then the changeset says so under `### Upgrade`, and the difference goes into `scripts/upgrade-check/differences.mjs` with its reason. If not, it is a bug. |
 | A manual step a site must do (documented in the changelog) | A hook file for that baseline, `scripts/upgrade-check/<ref>.mjs` (see the README there). |
 
-It is not part of `pnpm check`: it needs the network and a real install of two sites.
+It is not part of `pnpm check`: it needs the network and a real install of two sites. In CI it runs nightly, on the release pull request and when a pull request touches the code it covers.
 
 ## The docs check
 

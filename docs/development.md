@@ -103,11 +103,11 @@ moving a site to a newer tinyzoo is described in [upgrading.md](upgrading.md).
 
 ```bash
 pnpm test          # unit + API suites (needs the compose Postgres running)
-pnpm test:unit     # pure core: descriptors, codegen drift, sanitiser, client — no DB, < 1 s
+pnpm test:unit     # core, CLI and server helpers: descriptors, codegen drift, sanitiser, client; the CLI specs use scratch databases (cms_test_*), ~15 s
 pnpm test:api      # the built playground over real HTTP against real Postgres
 pnpm typecheck     # core/client/tests (tsc) + the playground and layer (nuxt typecheck)
-pnpm build         # production build (Pushbase, Docker, any VM)
-pnpm check         # all of the above, what CI runs
+pnpm build         # a plain production build (Pushbase, Docker, any VM); the API tests make one too
+pnpm check         # typecheck + test: what CI runs on every pull request
 ```
 
 The API suites run against **their own database**, `<dev db>_test` (e.g. `cms_test`; any name with a `test` word in it, such as `cms_test_ops`, is accepted),
@@ -120,15 +120,35 @@ talk to it over HTTP. The setup creates one account per role the way a real inst
 does (first-run setup for the admin, invitations for the editor and author) and
 shares their sessions with the specs; emails land in a temp folder the specs read. Files run one at a time and truncate the
 tables they use. While iterating on specs, `CMS_TEST_REUSE_BUILD=1 pnpm test:api`
-skips the ~15 s rebuild (only when the server code did not change);
+skips the ~25 s rebuild (only when the server code did not change);
 `CMS_TEST_SERVER_LOGS=1` prints the server's output at the end.
+
+The test server waits less than a deployed one: the realtime and shared-editing heartbeats
+(20 s and 30 s in production) and the webhook retry delays (1 s, then 5 s) are shortened
+through `CMS_TEST_LIVE_HEARTBEAT_MS`, `CMS_TEST_COLLAB_HEARTBEAT_MS` and `CMS_TEST_WEBHOOK_RETRY_MS`
+(`packages/cms/server/utils/cmsTiming.ts`; the values are in `test/setup/timers.ts`), which every
+server the suites start gets, and the scheduler runs every second instead of every minute (a cron
+fixed when the test build is made, `CMS_SCHEDULER_CRON`). Production reads none of these unless it is
+told to; a spec waits for the condition (poll, don't sleep) rather than for as long as it takes.
 
 Codegen drift is a test: the committed `playground/server/db/schema.ts` and
 `playground/app/lib/cms-content.ts` must equal what the generators emit, and the
 served `/api/content-types.ts` must equal the committed file.
 
-CI (`.github/workflows/ci.yml`) runs typecheck, the tests against a Postgres service,
-and both production builds on Node 22 — the runtime Pushbase deploys on.
+**CI** (Node 22, the runtime Pushbase deploys on) is two workflows:
+
+- `.github/workflows/ci.yml`, on every pull request and push to `main`: `check` (typecheck and the
+  unit tests), `api` (the API tests against Postgres and Redis; their playground build is the build
+  check, and is cached by the content of `packages/`, `playground/`, the lockfile and `test/setup/`)
+  and, on pull requests, `changeset`. About four minutes, the two test jobs in parallel.
+- `.github/workflows/heavy.yml`, the slow ones: `upgrade`, `consumer`, `backup` with `pg_dump` 16, 17
+  and 18, and `s3-minio` (a real MinIO). Nightly on `main`, on demand (*Run workflow*), on the
+  "Version packages" pull request, and on other pull requests only when they change what the job
+  covers; `result` is the one check that says they all passed. The table of paths and how to run each
+  one locally is in [CONTRIBUTING.md](../CONTRIBUTING.md#what-ci-runs-and-when).
+
+The backup spec skips where `pg_dump` is missing (a laptop, the `api` job when the runner has none);
+the `backup` jobs set `TINYZOO_REQUIRE_PG_TOOLS=1`, so there a missing tool is a failure.
 
 **Releases.** `tinyzoo` and `@tinyzoo/client` share one version. Every change to a
 package adds a changeset (`pnpm changeset`; a change a site must act on has an

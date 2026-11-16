@@ -1,17 +1,52 @@
 name: CI
 
+# What runs on every pull request and every push to main: the fast checks, in parallel.
+#   check      typecheck + unit tests
+#   api        the API tests; their playground production build is the build check
+#   changeset  a pull request that changes a package says so (PRs only)
+#
+# The slow ones (upgrade, consumer, backup with three pg client versions, MinIO) live in
+# heavy.yml: nightly, on demand, on the release pull request, and on pull requests that
+# touch what they cover. CONTRIBUTING.md has the table.
 on:
   push:
     branches: [main]
   pull_request:
 
+# A new push to a pull request cancels the run it supersedes; a push to main never
+# cancels another (every merge keeps its own result).
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
-  typecheck:
+  check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # The unit specs that go through a real database (transfer, migrate, seed, …) make and
+    # drop their own `cms_test_*` databases on this server; the Redis one is for store.spec.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: cms
+          POSTGRES_DB: cms
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cms -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: valkey/valkey:8-alpine
+        ports: ['6379:6379']
+    env:
+      TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
+      TEST_REDIS_URL: redis://localhost:6379
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -21,9 +56,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm test:unit
 
-  test:
+  # The API specs talk to a production build of the playground (test/setup/server.ts builds it).
+  # That build is the "does it build" check: a failed build stops here with its own output.
+  api:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -45,147 +84,34 @@ jobs:
       TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
       # Shared store (rate limits, realtime) runs through Redis in CI.
       TEST_REDIS_URL: redis://localhost:6379
-      # A real S3 (MinIO, no bucket policy: private) for test/api/s3-minio.spec.ts.
-      TEST_S3_ENDPOINT: http://localhost:9190
-      TEST_S3_ACCESS_KEY: minio
-      TEST_S3_SECRET_KEY: minio12345
+      # No S3_ENDPOINT (MinIO), and the backup spec skips unless pg tools are there:
+      # both run, strictly, in heavy.yml.
     steps:
       - uses: actions/checkout@v4
-      # MinIO no longer publishes images on Docker Hub; bitnamilegacy/minio is a frozen build of it.
-      - run: |
-          docker run -d --name minio -p 9190:9000 -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
-            bitnamilegacy/minio:2025.7.23
-          for i in $(seq 1 30); do curl -sf http://localhost:9190/minio/health/ready && break; sleep 1; done
-      # The backup spec runs pg_dump / pg_restore / psql: newer than the 16 server, as an
-      # operator's laptop is, and named here instead of whatever the runner image has.
-      - uses: ./.github/actions/pg-client
-        with:
-          version: 17
-          database-url: postgres://cms:cms@localhost:5432/cms
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm test
 
-  # `tinyzoo restore` with client tools of each major version against the 16 server: the same
-  # version (what the compose file runs), and newer, which writes settings 16 does not know
-  # (`SET transaction_timeout`, pg_dump 17+). Only the backup spec: the full suite runs above.
-  backup-clients:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        client: [16, 17, 18]
-    name: backup (client tools ${{ matrix.client }}, server 16)
-    services:
-      postgres:
-        image: postgres:16-alpine
+      # An exact hit (the same packages, playground and lockfile as an earlier run) skips the
+      # build; anything else builds as always. See the action for the key.
+      - name: Playground build cache
+        id: build-cache
+        uses: ./.github/actions/playground-build-cache
+
+      - name: API tests
         env:
-          POSTGRES_USER: cms
-          POSTGRES_PASSWORD: cms
-          POSTGRES_DB: cms
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-    env:
-      TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/pg-client
-        with:
-          version: ${{ matrix.client }}
-          database-url: postgres://cms:cms@localhost:5432/cms
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm exec vitest run --project api test/api/backup.spec.ts
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-
-  # The packages as a client app gets them: packed, installed from the tarballs into
-  # a fresh app outside the workspace, CLI run from the install, production build.
-  consumer:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check:consumer
-
-  # A site made on an older tinyzoo moves to this one: scripts/upgrade-check.mjs builds each
-  # baseline in .github/upgrade-baseline (and the latest release tag), seeds a site from it,
-  # installs this commit's packages, runs `tinyzoo upgrade`, starts the site on the same
-  # database and compares what the content API and the admin return, field by field.
-  # CONTRIBUTING.md says what to do when it fails.
-  upgrade:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: cms
-          POSTGRES_PASSWORD: cms
-          POSTGRES_DB: cms
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
-          --health-timeout 3s
-          --health-retries 10
-      redis:
-        image: valkey/valkey:8-alpine
-        ports: ['6379:6379']
-    env:
-      # The check makes (and drops) its own cms_upcheck_* databases on this server.
-      UPGRADE_CHECK_DATABASE_URL: postgres://cms:cms@localhost:5432/postgres
-      UPGRADE_CHECK_REDIS_URL: redis://localhost:6379
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # the baselines are commits and tags
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm # the store also holds what the baseline and the site installs download
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check:upgrade --logs "$RUNNER_TEMP/upgrade-logs"
-      - if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: upgrade-check-logs
-          path: ${{ runner.temp }}/upgrade-logs
-          if-no-files-found: ignore
+          CMS_TEST_REUSE_BUILD: ${{ steps.build-cache.outputs.reuse }}
+        run: pnpm test:api
 
   # Every change to a published package comes with a changeset (CONTRIBUTING.md).
   # Not for the release pull request itself, which consumes them.
   changeset:
     if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
