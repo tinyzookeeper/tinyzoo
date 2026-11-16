@@ -90,7 +90,7 @@ type NewPost = Insert<typeof Post>
 ```
 packages/cms/          tinyzoo — the Layer + Module
   src/                 field engine, defineEntity, registry, emitters (schema / openapi / sdk)
-  cli/                 tinyzoo generate|up|status|upgrade|client|openapi (wraps drizzle-kit + codegen)
+  cli/                 tinyzoo generate|up|status|upgrade|client|openapi|content:migrate (wraps drizzle-kit + codegen)
   module.ts            build-time wiring (#cms/config alias, runtimeConfig)
   nuxt.config.ts       layer root
   server/              generic CRUD + content API + drizzle DataSource (useCms)
@@ -200,6 +200,52 @@ Each block is validated against its own type; rich text inside is sanitised; med
 inside is resolved by the content API and protected by media cleanup. The typed
 client gets an exact union per block type. Block fields: text, slug, number,
 boolean, datetime, select, rich text, media.
+
+**Changing a block later: `version` and `upgrade`** — stored blocks (and `f.list`
+items) outlive the code that wrote them. A renamed field, a removed one or a new
+required one would otherwise drop data on the next save or make old entries
+unsaveable. When a block's stored shape changes, raise its `version` and say how
+to get from the old one to the new:
+
+```ts
+const hero = defineBlock({
+  label: { en: 'Hero' },
+  version: 2,                                   // was 1: `heading` became `title`
+  upgrade: ({ heading, ...rest }, from) => ({ ...rest, title: heading }),
+  fields: { title: f.text({ required: true }), image: f.media() },
+})
+// the same on a list: f.list({ version: 2, upgrade, fields: { … } })
+```
+
+- `upgrade(data, fromVersion)` turns a block stored at `fromVersion` into
+  `fromVersion + 1` and is called once per step (1 → 2, then 2 → 3), so every old
+  version only needs its own step. `data` is a copy with `id`, `type` and the
+  stored fields; keep `upgrade` pure (it runs on every read of an old block).
+- Stored blocks carry `v` (left out at version 1, so existing data needs no
+  rewrite). Old ones are brought up to date **wherever they are read**: the content
+  API, the admin's form, search, history and restore, translations. Writes always
+  store the current version, so nothing has to be run on deploy. A missing `v` on a
+  write means "the current version" (what the content API returns has none).
+- A forgotten rename is loud, not silent: a block that went through `upgrade` is
+  checked strictly against the current fields on save (an unrecognised key is a
+  validation error), and in development a stored block with keys the definition
+  does not know logs a warning naming the block and the keys.
+- An `upgrade` that throws never takes a page down: it is logged once (entity,
+  record, block id), the website gets the block as stored, and the admin shows it as
+  "could not be brought up to date" with a Remove button.
+- **A block whose type was removed from the config** is kept, not fatal: the save
+  still goes through and the block stays in the data, the admin shows "This block no
+  longer exists (type)" with a Remove button, and the content API and the search
+  leave it out. Media inside it is not deleted while it stays.
+- `tinyzoo content:migrate [--dry-run] [--batch <n>]` rewrites the stored copies
+  (entries, translations and saved versions in `cms_revisions`) to the current
+  versions, in batches inside transactions, and reports per entity and field what
+  changed and what it could not upgrade (those blocks stay as stored; the command
+  exits 1). `--dry-run` only reports. It uses `DATABASE_URL`, does not touch
+  `updatedAt`, and can be run again at any time.
+- Rich text has the same hook at document level: `richTextUpgrades` (in `tinyzoo`)
+  is a list of idempotent steps applied to stored TipTap documents on read and by
+  `content:migrate`; empty today, so a future TipTap node rename is one entry.
 
 **Languages** — declare them once, mark what is translatable:
 

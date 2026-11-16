@@ -490,6 +490,10 @@ export default {
     addItem: 'Add item',
     item: 'Item',
     drag: 'Drag to move',
+    gone: 'This block no longer exists ({type})',
+    goneHelp: 'Visitors no longer see it. It stays here until you remove it.',
+    stale: 'This block could not be brought up to date ({type})',
+    staleHelp: 'It was saved in an older form. Its content is kept as it was; remove it, or ask your developer.',
     count: { one: '{count} block', other: '{count} blocks' },
   },
   translation: {

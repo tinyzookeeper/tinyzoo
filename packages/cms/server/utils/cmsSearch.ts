@@ -37,7 +37,9 @@ interface SearchDoc { title: string; body: string; extra: string }
  * `content.search.fields` when set); `extra` the rest, for the admin only —
  * hidden or left-out prose and the list's searchable fields (an email address).
  */
-function documentOf(e: CmsEntity, row: Record<string, any>): SearchDoc {
+function documentOf(e: CmsEntity, source: Record<string, any>): SearchDoc {
+  // Read blocks in their current shape (a renamed field is still found).
+  const row = upgradedCopy(e, source)
   const cfg = e.content?.search
   const picked = cfg && typeof cfg === 'object' && Array.isArray(cfg.fields) ? new Set<string>(cfg.fields) : null
   const hidden = new Set<string>(e.content?.hidden ?? [])

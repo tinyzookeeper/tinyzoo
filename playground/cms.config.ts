@@ -181,6 +181,16 @@ export const Page = definePages({
       label: { en: "Call to action", cs: "Výzva k akci" },
       description: { en: "A short message with one button.", cs: "Krátké sdělení s jedním tlačítkem." },
       icon: "i-lucide-mouse-pointer-click",
+      // Version 2: a button is a label AND a link. Stored v1 blocks may hold a label
+      // without a link or a link typed with spaces; `upgrade` tidies them when read
+      // (`tinyzoo content:migrate` rewrites the stored copies). The shape is the same.
+      version: 2,
+      upgrade: (data, from) => {
+        if (from !== 1) return data
+        const link = typeof data.buttonUrl === "string" ? data.buttonUrl.trim() : ""
+        const label = typeof data.buttonLabel === "string" ? data.buttonLabel.trim() : ""
+        return { ...data, buttonUrl: link || null, buttonLabel: label || null }
+      },
       fields: {
         text: f.text({ required: true }).label({ en: "Text", cs: "Text" }),
         buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
