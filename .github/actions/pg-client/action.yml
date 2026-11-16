@@ -1,0 +1,49 @@
+name: PostgreSQL client tools
+description: >-
+  Installs pg_dump, pg_restore and psql of one PostgreSQL major version from the PostgreSQL
+  apt repository, points TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE / TINYZOO_PSQL at them for the
+  rest of the job, and prints the versions of the tools (and of the server, when given).
+  The runner's own tools change with the runner image (a dump from pg_dump 17+ is what
+  broke `tinyzoo restore` on a 16 server), so the tests name the version they use.
+
+inputs:
+  version:
+    description: Major version of the client tools (16, 17, 18).
+    required: true
+  database-url:
+    description: A database whose server version should be printed too.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Install postgresql-client-${{ inputs.version }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends postgresql-common
+        sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+        sudo apt-get install -y --no-install-recommends "postgresql-client-${{ inputs.version }}"
+        bin="/usr/lib/postgresql/${{ inputs.version }}/bin"
+        {
+          echo "TINYZOO_PG_DUMP=$bin/pg_dump"
+          echo "TINYZOO_PG_RESTORE=$bin/pg_restore"
+          echo "TINYZOO_PSQL=$bin/psql"
+        } >> "$GITHUB_ENV"
+
+    - name: PostgreSQL versions
+      shell: bash
+      env:
+        DATABASE_URL: ${{ inputs.database-url }}
+      run: |
+        set -euo pipefail
+        echo "On the runner's PATH (not used by the tests):"
+        for t in pg_dump pg_restore psql; do command -v "$t" >/dev/null && "$t" --version || echo "$t: not on PATH"; done
+        echo "Used by the tests:"
+        for t in pg_dump pg_restore psql; do "/usr/lib/postgresql/${{ inputs.version }}/bin/$t" --version; done
+        if [ -n "$DATABASE_URL" ]; then
+          printf 'Server: '
+          "/usr/lib/postgresql/${{ inputs.version }}/bin/psql" "$DATABASE_URL" -Atc 'show server_version'
+        fi

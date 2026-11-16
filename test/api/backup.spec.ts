@@ -15,9 +15,12 @@ import { scratchDatabase } from '../helpers/server'
 
 // `tinyzoo backup` / `tinyzoo restore` against real databases (two scratch ones) and,
 // for S3, a small S3-style server in this process. Needs pg_dump and pg_restore (or
-// TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE pointing at them); skipped where they are missing.
+// TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE / TINYZOO_PSQL pointing at them); skipped where they
+// are missing, except in CI, where a runner without them must fail instead of quietly
+// skipping the whole restore story.
 const has = (cmd: string) => !spawnSync(cmd, ['--version']).error
-const tools = has(process.env.TINYZOO_PG_DUMP || 'pg_dump') && has(process.env.TINYZOO_PG_RESTORE || 'pg_restore')
+const tools = has(process.env.TINYZOO_PG_DUMP || 'pg_dump') && has(process.env.TINYZOO_PG_RESTORE || 'pg_restore') && has(process.env.TINYZOO_PSQL || 'psql')
+const skip = !tools && !process.env.CI
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
 const silent = { log: () => {} }
@@ -67,7 +70,7 @@ function s3Server() {
   }
 }
 
-describe.skipIf(!tools)('backup and restore', () => {
+describe.skipIf(skip)('backup and restore', () => {
   let src: Awaited<ReturnType<typeof scratchDatabase>>
   let dst: Awaited<ReturnType<typeof bareDatabase>>
   let dir: string
@@ -204,7 +207,7 @@ describe.skipIf(!tools)('backup and restore', () => {
 
 // ── restoring over a database that is not empty ─────────────────────────────────
 
-describe.skipIf(!tools)('restore replaces the whole database', () => {
+describe.skipIf(skip)('restore replaces the whole database', () => {
   let dir: string
   const created: { drop: () => Promise<void> }[] = []
   const local = (name: string): StorageSettings => ({ driver: 'local', localDir: join(dir, name), s3: { endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '' } })
@@ -224,9 +227,10 @@ describe.skipIf(!tools)('restore replaces the whole database', () => {
     const journal = JSON.parse(readFileSync(journalFile, 'utf8'))
     const cut = journal.entries.findIndex((e: any) => e.tag === '0018_snake_case_tables')
     if (cut < 0) throw new Error('the playground has no 0018_snake_case_tables migration any more: pick another migration to stop at')
+    const after = journal.entries.slice(cut).map((e: any) => e.tag as string)
     journal.entries = journal.entries.slice(0, cut)
     writeFileSync(journalFile, JSON.stringify(journal))
-    return { dir: to, applied: cut }
+    return { dir: to, applied: cut, after }
   }
   const fresh = async (suffix: string) => { const d = await scratchDatabase(suffix); created.push(d); return d }
   const bare = async (suffix: string) => { const d = await bareDatabase(suffix); created.push(d); return d }
@@ -257,7 +261,7 @@ describe.skipIf(!tools)('restore replaces the whole database', () => {
     const head = await fresh('rst_head')
     await query(head.url, `insert into site_settings (site_name) values ('New name')`)
     await query(head.url, `insert into cms_users (email, name, role, status) values ('newer@example.com', 'Newer', 'admin', 'active')`)
-    expect((await query(head.url, `select count(*)::int as n from drizzle.__drizzle_migrations`))[0].n).toBe(old.applied + 1)
+    expect((await query(head.url, `select count(*)::int as n from drizzle.__drizzle_migrations`))[0].n).toBe(old.applied + old.after.length)
 
     await runRestore(settings(head.url, 'head-uploads'), file, { yes: true, force: true }, silent)
 
@@ -272,7 +276,7 @@ describe.skipIf(!tools)('restore replaces the whole database', () => {
 
     // The current version's runner applies what the backup lacks (the rename) and starts cleanly.
     const result = await withDatabase(head.url, ({ transaction }) => runUpgrade(diskSource(playgroundDir), transaction, CORE_UPGRADE_STEPS))
-    expect(result.migrations).toEqual(['0018_snake_case_tables'])
+    expect(result.migrations).toEqual(old.after) // the rename and everything since
     expect((await query(head.url, `select site_name from site_settings`)).map((r) => r.site_name)).toEqual(['Old name'])
     expect((await query(head.url, `select to_regclass('public."siteSettings"') as t`))[0].t).toBeNull()
     const again = await withDatabase(head.url, ({ transaction }) => runUpgrade(diskSource(playgroundDir), transaction, CORE_UPGRADE_STEPS))
@@ -296,24 +300,123 @@ describe.skipIf(!tools)('restore replaces the whole database', () => {
     expect(await tablesIn(target.url)).toBeGreaterThan(0)
   })
 
-  it('is all or nothing: when pg_restore fails the database is empty, not half restored, and the message says so', async () => {
+  /** A pg_restore that behaves as the real one for everything but the script it writes (`-f -`), which goes through `script`. */
+  const restoreShim = (name: string, script: string) => {
+    const real = process.env.TINYZOO_PG_RESTORE || 'pg_restore'
+    const shim = join(dir, name)
+    writeFileSync(shim, `#!/bin/sh\ncase "$*" in *"-f -"*) ;; *) exec "${real}" "$@";; esac\n${script.replaceAll('REAL', `"${real}"`)}\n`)
+    chmodSync(shim, 0o755)
+    return shim
+  }
+  const snapshot = async (url: string) => ({
+    tables: await tablesIn(url),
+    users: (await query(url, 'select email from cms_users order by email')).map((r) => r.email),
+    journal: (await query(url, 'select count(*)::int as n from drizzle.__drizzle_migrations'))[0].n as number,
+  })
+
+  it('is all or nothing: when pg_restore fails the database is exactly as it was, and the message says so', async () => {
     const src = await fresh('rst_src3')
     const target = await fresh('rst_target3')
+    await query(target.url, `insert into cms_users (email, name, role, status) values ('keep@example.com', 'Keep', 'admin', 'active')`)
     const file = join(dir, 'fails.tar')
     await runBackup(settings(src.url, 'src3-uploads'), file, silent)
-    const real = process.env.TINYZOO_PG_RESTORE || 'pg_restore'
-    const shim = join(dir, 'failing-pg_restore')
-    writeFileSync(shim, `#!/bin/sh\ncase "$*" in *--list*) exec "${real}" "$@";; esac\necho "pg_restore: error: boom" >&2\nexit 1\n`)
-    chmodSync(shim, 0o755)
+    const before = await snapshot(target.url)
+    const shim = restoreShim('failing-pg_restore', 'echo "pg_restore: error: boom" >&2\nexit 1')
     await withEnv({ TINYZOO_PG_RESTORE: shim }, async () => {
-      await expect(runRestore(settings(target.url, 'target3-uploads'), file, { yes: true, force: true }, silent)).rejects.toThrow(/boom[\s\S]*is now EMPTY[\s\S]*run the restore again/)
+      await expect(runRestore(settings(target.url, 'target3-uploads'), file, { yes: true, force: true }, silent)).rejects.toThrow(/boom[\s\S]*Nothing was changed[\s\S]*exactly as it was[\s\S]*run the restore again/)
     })
-    expect(await tablesIn(target.url)).toBe(0)
-    expect((await query(target.url, `select to_regclass('drizzle.__drizzle_migrations') as t`))[0].t).toBeNull()
+    expect(await snapshot(target.url)).toEqual(before)
     expect(existsSync(join(dir, 'target3-uploads'))).toBe(false)
     // …and the same archive restores fine once the cause is gone.
-    await runRestore(settings(target.url, 'target3-uploads'), file, { yes: true }, silent)
+    await runRestore(settings(target.url, 'target3-uploads'), file, { yes: true, force: true }, silent)
+    expect((await query(target.url, 'select count(*)::int as n from cms_users'))[0].n).toBe(0)
+  })
+
+  it('never commits a script that pg_restore only half wrote', async () => {
+    const src = await fresh('rst_src8')
+    const target = await fresh('rst_target8')
+    await query(target.url, `insert into cms_users (email, name, role, status) values ('keep@example.com', 'Keep', 'admin', 'active')`)
+    const file = join(dir, 'truncated.tar')
+    await runBackup(settings(src.url, 'src8-uploads'), file, silent)
+    const before = await snapshot(target.url)
+    // A good script cut cleanly after the last CREATE, before the first row of data: every statement is
+    // whole and valid, so psql would run to the end of its input without an error — and a restore that
+    // committed at the end of its input would have the schemas dropped and recreated, empty.
+    const shim = restoreShim('dying-pg_restore', `REAL "$@" | awk '/^COPY /{exit} {print}'\nexit 1`)
+    await withEnv({ TINYZOO_PG_RESTORE: shim }, async () => {
+      await expect(runRestore(settings(target.url, 'target8-uploads'), file, { yes: true, force: true }, silent)).rejects.toThrow(/pg_restore failed[\s\S]*exactly as it was/)
+    })
+    expect(await snapshot(target.url)).toEqual(before)
+  })
+
+  it('a script the server cannot apply rolls back too: the old data stays', async () => {
+    const src = await fresh('rst_src9')
+    const target = await fresh('rst_target9')
+    const file = join(dir, 'bad-sql.tar')
+    await runBackup(settings(src.url, 'src9-uploads'), file, silent)
+    await query(target.url, `insert into cms_users (email, name, role, status) values ('keep@example.com', 'Keep', 'admin', 'active')`)
+    const before = await snapshot(target.url)
+    // A whole, valid-looking script with one statement the server rejects near the end (pg_restore itself exits 0).
+    const shim = restoreShim('bad-sql-pg_restore', 'REAL "$@"\necho "CREATE TABLE public.tinyzoo_needs_a_newer_server (a tinyzoo_no_such_type);"')
+    await withEnv({ TINYZOO_PG_RESTORE: shim }, async () => {
+      await expect(runRestore(settings(target.url, 'target9-uploads'), file, { yes: true, force: true }, silent)).rejects.toThrow(/psql failed[\s\S]*tinyzoo_no_such_type[\s\S]*exactly as it was/)
+    })
+    expect(await snapshot(target.url)).toEqual(before)
+  })
+
+  it('leaves out a setting the server does not know, and says so (a dump from a newer pg_dump than the server)', async () => {
+    const src = await fresh('rst_src10')
+    const target = await bare('rst_target10')
+    const file = join(dir, 'newer-settings.tar')
+    await runBackup(settings(src.url, 'src10-uploads'), file, silent)
+    // What pg_dump 17 does to a 16 server's dump, whichever versions this machine has.
+    const shim = restoreShim('settings-pg_restore', `REAL "$@" | awk '{ print } /^SET statement_timeout = 0;$/ { print "SET tinyzoo_future_setting = 0;" }'`)
+    const lines: string[] = []
+    await withEnv({ TINYZOO_PG_RESTORE: shim }, async () => {
+      await runRestore(settings(target.url, 'target10-uploads'), file, { yes: true }, { log: (l) => lines.push(l) })
+    })
+    expect(lines.join('\n')).toContain('Left out for this server: SET tinyzoo_future_setting')
     expect(await tablesIn(target.url)).toBeGreaterThan(0)
+  })
+
+  it('refuses a dump made by a newer pg_dump than the pg_restore, before touching anything', async () => {
+    const src = await fresh('rst_src11')
+    const target = await fresh('rst_target11')
+    const file = join(dir, 'too-new.tar')
+    await runBackup(settings(src.url, 'src11-uploads'), file, silent)
+    const before = await snapshot(target.url)
+    const real = process.env.TINYZOO_PG_RESTORE || 'pg_restore'
+
+    // 1. a pg_restore that can read the archive but is older than the pg_dump (the version it reports is what counts).
+    const old = join(dir, 'old-pg_restore')
+    writeFileSync(old, `#!/bin/sh\ncase "$*" in *--version*) echo "pg_restore (PostgreSQL) 9.6.24";; *) exec "${real}" "$@";; esac\n`)
+    chmodSync(old, 0o755)
+    await withEnv({ TINYZOO_PG_RESTORE: old }, async () => {
+      await expect(runRestore(settings(target.url, 'x'), file, { yes: true, force: true }, silent)).rejects.toThrow(/made by pg_dump \d+, newer than this pg_restore \(9\)[\s\S]*nothing was changed[\s\S]*TINYZOO_PG_RESTORE/)
+    })
+    expect(await snapshot(target.url)).toEqual(before)
+
+    // 2. a real older pg_restore cannot even open a newer archive format: it says "unsupported version".
+    const blind = join(dir, 'blind-pg_restore')
+    writeFileSync(blind, `#!/bin/sh\ncase "$*" in *--version*) exec "${real}" "$@";; *) echo "pg_restore: error: unsupported version (1.99) in file header" >&2; exit 1;; esac\n`)
+    chmodSync(blind, 0o755)
+    await withEnv({ TINYZOO_PG_RESTORE: blind }, async () => {
+      await expect(runRestore(settings(target.url, 'x'), file, { yes: true, force: true }, silent)).rejects.toThrow(/newer pg_dump \(archive format 1\.99\)[\s\S]*cannot read it; nothing was changed/)
+    })
+    expect(await snapshot(target.url)).toEqual(before)
+  })
+
+  it('reports a missing psql before it empties anything, and says what to do', async () => {
+    const src = await fresh('rst_src12')
+    const target = await fresh('rst_target12')
+    const file = join(dir, 'no-psql.tar')
+    await runBackup(settings(src.url, 'src12-uploads'), file, silent)
+    const before = await snapshot(target.url)
+    await withEnv({ TINYZOO_PSQL: '/nonexistent/psql' }, async () => {
+      await expect(runRestore(settings(target.url, 'x'), file, { yes: true, force: true }, silent)).rejects.toThrow(/psql was not found[\s\S]*TINYZOO_PSQL/)
+    })
+    expect(await snapshot(target.url)).toEqual(before)
+    expect(existsSync(join(dir, 'x'))).toBe(false)
   })
 
   it('checks the dump can be read before it empties anything', async () => {

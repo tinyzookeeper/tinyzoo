@@ -12,15 +12,19 @@
  * It holds password hashes, form messages and every upload: keep it as private as the
  * database (the file is created readable by its owner only, before the first byte).
  *
- * Restore puts the archive into a CLEAN database: the `public` and `drizzle` schemas
- * are dropped and recreated in one transaction, then `pg_restore --single-transaction`
- * fills them (it is all or nothing: a failed restore leaves the database empty, never
- * half old and half new), then the media are written. Restoring over a database that
- * has tables needs `--force`.
+ * Restore puts the archive into a CLEAN database, all or nothing: `pg_restore -f -` turns
+ * the dump into a SQL stream, a filter leaves out the session settings the target server
+ * does not know (a dump made by pg_dump 17+ starts with `SET transaction_timeout`, which a
+ * 16 server rejects), and `psql` runs it inside ONE transaction that first drops and
+ * recreates the `public` and `drizzle` schemas. A restore that fails for any reason
+ * rolls back and leaves the database as it was; it is never left empty or half old, half
+ * new. Restoring over a database that has tables needs `--force`.
  *
- * Needs `pg_dump` / `pg_restore` of the server's major version or newer. Set
- * TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE to use a particular binary or a wrapper script
- * (e.g. one that runs them inside the database's Docker container).
+ * Tool versions: `pg_dump` must be the server's major version or newer; `pg_restore` must
+ * be at least as new as the pg_dump that made the dump (checked before anything is
+ * touched); `psql` can be any current version. Set TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE /
+ * TINYZOO_PSQL to use a particular binary or a wrapper script (e.g. one that runs them
+ * inside a Docker container).
  *
  * Settings are the ones the running app uses: NUXT_CMS_DATABASE_URL / DATABASE_URL,
  * NUXT_CMS_STORAGE_* (from the environment, `.env` in the app folder, then the
@@ -31,6 +35,7 @@ import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, op
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { createInterface } from 'node:readline/promises'
+import { Transform } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
 import { extractTar } from './tar'
@@ -146,28 +151,55 @@ export function pgEnv(databaseUrl: string, inherited: NodeJS.ProcessEnv = proces
 const databaseName = (databaseUrl: string) => decodeURIComponent(new URL(databaseUrl).pathname.replace(/^\//, ''))
 const targetLabel = (databaseUrl: string) => { const u = new URL(databaseUrl); return `${databaseName(databaseUrl)} on ${u.hostname}${u.port ? ':' + u.port : ''}` }
 
-function toolCommand(tool: 'pg_dump' | 'pg_restore'): string {
-  return process.env[tool === 'pg_dump' ? 'TINYZOO_PG_DUMP' : 'TINYZOO_PG_RESTORE'] || tool
+type PgTool = 'pg_dump' | 'pg_restore' | 'psql'
+const TOOL_ENV: Record<PgTool, string> = { pg_dump: 'TINYZOO_PG_DUMP', pg_restore: 'TINYZOO_PG_RESTORE', psql: 'TINYZOO_PSQL' }
+const TOOL_VERSION_RULE: Record<PgTool, string> = {
+  pg_dump: 'the same major version as the database server, or newer',
+  pg_restore: 'at least as new as the pg_dump that made the backup',
+  psql: 'any current version',
 }
 
-const missingToolHelp = (tool: string, databaseUrl: string) => `${tool} was not found.
-  Install the PostgreSQL client tools (the same major version as the server, or newer):
+function toolCommand(tool: PgTool): string {
+  return process.env[TOOL_ENV[tool]] || tool
+}
+
+const missingToolHelp = (tool: PgTool, databaseUrl: string) => `${tool} was not found.
+  Install the PostgreSQL client tools (${tool}: ${TOOL_VERSION_RULE[tool]}):
     macOS:   brew install libpq && brew link --force libpq
     Debian:  sudo apt install postgresql-client
-  or point ${tool === 'pg_dump' ? 'TINYZOO_PG_DUMP' : 'TINYZOO_PG_RESTORE'} at a ${tool} binary or wrapper script.
-  No client tools at all? Take the database dump inside the database's own container:
+  or point ${TOOL_ENV[tool]} at a ${tool} binary or wrapper script.
+  No client tools at all? ${tool === 'pg_dump'
+    ? `Take the database dump inside the database's own container:
     docker exec <container> pg_dump --format=custom -U <user> ${databaseName(databaseUrl) || '<database>'} > database.dump
-  and keep it with a copy of the media (docs/deploying.md, "Backups and restore").`
+  and keep it with a copy of the media`
+    : `Restore the dump inside the database's own container (empty the schemas first):
+    docker exec -i <container> pg_restore --single-transaction --exit-on-error --no-owner --no-acl -U <user> -d ${databaseName(databaseUrl) || '<database>'} < database.dump
+  and copy the media back`} (docs/deploying.md, "Backups and restore").`
 
-/** Run a Postgres tool, with stdin/stdout wired to files. Returns its stderr. */
-function runTool(tool: 'pg_dump' | 'pg_restore', args: string[], env: NodeJS.ProcessEnv, io: { stdin?: string; stdout?: string }, databaseUrl: string): Promise<string> {
+const MAX_CAPTURE = 64 * 1024
+/** Collect a stream as text, keeping the first part of a very long one. */
+const collect = (stream: NodeJS.ReadableStream | null): (() => string) => {
+  let text = ''
+  stream?.on('data', (d) => { if (text.length < MAX_CAPTURE) text += String(d) })
+  return () => text
+}
+
+/** How a tool that is missing or cannot start is reported. */
+const spawnFailure = (tool: PgTool, err: NodeJS.ErrnoException, databaseUrl: string) =>
+  new CliError(err.code === 'ENOENT' ? missingToolHelp(tool, databaseUrl) : `${tool} could not start: ${err.message}`)
+
+/**
+ * Run a Postgres tool, with stdin/stdout wired to files (or stdout captured as text).
+ * Resolves with what it printed; rejects when it is missing or exits non-zero.
+ */
+function runTool(tool: PgTool, args: string[], env: NodeJS.ProcessEnv, io: { stdin?: string; stdout?: string; capture?: boolean }, databaseUrl: string): Promise<{ stdout: string; stderr: string }> {
   const cmd = toolCommand(tool)
   const inFd = io.stdin ? openSync(io.stdin, 'r') : null
   const outFd = io.stdout ? openSync(io.stdout, 'w', 0o600) : null
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(cmd, args, { env, stdio: [inFd ?? 'ignore', outFd ?? 'ignore', 'pipe'] })
-    let stderr = ''
-    child.stderr!.on('data', (d) => { stderr += String(d) })
+    const child = spawn(cmd, args, { env, stdio: [inFd ?? 'ignore', outFd ?? (io.capture ? 'pipe' : 'ignore'), 'pipe'] })
+    const stdout = collect(child.stdout)
+    const stderr = collect(child.stderr)
     let closed = false // an 'error' (tool missing) is followed by 'close': release the files once
     const close = () => {
       if (closed) return
@@ -177,14 +209,146 @@ function runTool(tool: 'pg_dump' | 'pg_restore', args: string[], env: NodeJS.Pro
     }
     child.on('error', (err: NodeJS.ErrnoException) => {
       close()
-      reject(new CliError(err.code === 'ENOENT' ? missingToolHelp(tool, databaseUrl) : `${tool} could not start: ${err.message}`))
+      reject(spawnFailure(tool, err, databaseUrl))
     })
     child.on('close', (code) => {
       close()
-      if (code === 0) return resolvePromise(stderr)
-      const mismatch = /version mismatch|server version/i.test(stderr)
+      if (code === 0) return resolvePromise({ stdout: stdout(), stderr: stderr() })
+      const mismatch = /version mismatch|server version/i.test(stderr())
         ? `\n  The ${tool} on this machine is older than the database server: install a newer PostgreSQL client.` : ''
-      reject(new CliError(`${tool} failed (exit ${code}):\n${stderr.trim()}${mismatch}`))
+      reject(new CliError(`${tool} failed (exit ${code}):\n${stderr().trim()}${mismatch}`))
+    })
+  })
+}
+
+// ── versions and the dump's preamble ───────────────────────────────────────────
+
+/** `pg_restore (PostgreSQL) 17.9 (Debian 17.9-1)` → 17 (also `18beta1`, `19devel`). */
+export function toolMajor(versionOutput: string): number | null {
+  const m = /\(PostgreSQL\)\s+(\d+)/.exec(versionOutput)
+  return m ? Number(m[1]) : null
+}
+
+/** The major version of the pg_dump that made a dump, from `pg_restore --list` (`;     Dumped by pg_dump version: 17.9`). */
+export function dumpedByMajor(listing: string): number | null {
+  const m = /^;\s*Dumped by pg_dump version:\s*(\d+)/m.exec(listing)
+  return m ? Number(m[1]) : null
+}
+
+/**
+ * Leaves out of the dump's opening lines the `SET name = …;` of a session setting the target
+ * server does not have. pg_dump 17 began its script with `SET transaction_timeout = 0;`,
+ * which a 16 server answers with "unrecognized configuration parameter": the settings are
+ * housekeeping (timeouts off, encoding, search path), so a server that lacks one loses
+ * nothing. `known` says whether the server has a setting (from its `pg_settings`).
+ *
+ * Only the preamble is touched: from the first line that is not blank, a comment, a psql
+ * `\restrict`, a `SET` or the `set_config` call, everything is passed on byte for byte, so
+ * the table data after it can never be altered, and nothing is buffered beyond one line.
+ * Settings with a dot (`app.setting`) are the extension's and always kept.
+ */
+export function preambleFilter(known: (setting: string) => boolean): Transform & { dropped: string[] } {
+  let preamble = true
+  let pending: Buffer = Buffer.alloc(0)
+  const dropped: string[] = []
+  const isPreamble = (line: string) => /^(\s*|--.*|\\restrict\s.*|SET\s.*|SELECT pg_catalog\.set_config\(.*)$/i.test(line)
+  const settingOf = (line: string) => /^SET\s+(?:SESSION\s+|LOCAL\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*(?:=|TO)\s/i.exec(line)?.[1]?.toLowerCase()
+  const filter = new Transform({
+    transform(chunk: Buffer, _enc, done) {
+      if (!preamble) return done(null, chunk)
+      pending = Buffer.concat([pending, chunk])
+      let nl: number
+      while (preamble && (nl = pending.indexOf(0x0a)) >= 0) {
+        const line = pending.subarray(0, nl + 1)
+        pending = pending.subarray(nl + 1)
+        const text = line.toString('latin1').replace(/\r?\n$/, '')
+        if (!isPreamble(text)) { preamble = false; this.push(line); break }
+        const name = settingOf(text)
+        if (name && !known(name)) dropped.push(name)
+        else this.push(line)
+      }
+      if (!preamble) { this.push(pending); pending = Buffer.alloc(0) }
+      done()
+    },
+    flush(done) { if (pending.length) this.push(pending); done() },
+  })
+  return Object.assign(filter, { dropped })
+}
+
+/** What the target server is: its major version and the settings it knows. */
+async function serverInfo(databaseUrl: string): Promise<{ major: number; settings: Set<string> }> {
+  return withClient(databaseUrl, async (c) => {
+    const num = Number((await c.query('show server_version_num')).rows[0]?.server_version_num)
+    const settings = new Set((await c.query('select name from pg_settings')).rows.map((r) => String(r.name).toLowerCase()))
+    return { major: Math.floor(num / 10000), settings }
+  })
+}
+
+/**
+ * Empty the database of tinyzoo's schemas, then the restore, in ONE transaction: `drizzle`
+ * (the migration journal) and `public` go, `public` is created again (pg_dump never writes
+ * the CREATE of `public`, so the restore needs it to be there). Extensions that live in
+ * `public` (pg_trgm) go with it and come back with the dump, which carries `CREATE
+ * EXTENSION`. Dropping everything — and not just what the dump contains — is what makes a
+ * restore over a newer database come out exactly as the backup was, instead of leaving the
+ * newer tables and journal beside the old ones. The dump's own `SET lock_timeout = 0`
+ * follows the drops, so the 15 s limit applies to waiting for the lock only.
+ */
+const RESET_SCHEMAS_SQL = `BEGIN;
+SET LOCAL lock_timeout = '15s';
+SET LOCAL client_min_messages = warning;
+DROP SCHEMA IF EXISTS drizzle CASCADE;
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT USAGE ON SCHEMA public TO PUBLIC;
+`
+
+/**
+ * `pg_restore -f -` → preamble filter → `psql`, with the reset and the dump in one
+ * transaction. Streamed: a large dump is never held in memory. The transaction is opened
+ * and committed by us (not `psql --single-transaction`): psql commits at the end of its
+ * input, so a pg_restore that died half way would have a truncated script COMMITTED. Here
+ * `COMMIT` is only written once pg_restore has exited 0; any other end of the input, or an
+ * error in psql (ON_ERROR_STOP), leaves the transaction to roll back.
+ */
+function streamRestore(dump: string, databaseUrl: string, known: Set<string>): Promise<{ dropped: string[]; notes: string }> {
+  const env = pgEnv(databaseUrl)
+  const filter = preambleFilter((name) => known.has(name))
+  const inFd = openSync(dump, 'r')
+  type Exit = { code: number | null; error?: NodeJS.ErrnoException }
+  return new Promise((resolvePromise, reject) => {
+    const rst = spawn(toolCommand('pg_restore'), ['-f', '-', '--no-owner', '--no-acl', '--no-comments'], { env, stdio: [inFd, 'pipe', 'pipe'] })
+    const sql = spawn(toolCommand('psql'), ['-X', '-q', '-v', 'ON_ERROR_STOP=1', '-f', '-'], { env, stdio: ['pipe', 'ignore', 'pipe'] })
+    closeSync(inFd) // the child has its own copy
+    const rstErr = collect(rst.stderr)
+    const sqlErr = collect(sql.stderr)
+    let rstRunning = true
+    let killedRst = false // stopped by us because psql went first: its failure is the one to report
+    const exit = (child: typeof rst) => new Promise<Exit>((r) => {
+      child.on('error', (error: NodeJS.ErrnoException) => r({ code: null, error }))
+      child.on('close', (code) => r({ code }))
+    })
+    const rstExit = exit(rst).then((x) => { rstRunning = false; return x })
+    const sqlExit = exit(sql)
+    // psql stopped early (an error): pg_restore must not wait for a reader that is gone.
+    void sqlExit.then((x) => { if (x.code !== 0 && rstRunning) { killedRst = true; rst.kill() } })
+    void rstExit.then((x) => { if (x.error) sql.kill() })
+
+    sql.stdin!.on('error', () => { /* EPIPE: psql is gone, its exit says why */ })
+    sql.stdin!.write(RESET_SCHEMAS_SQL)
+    rst.stdout!.pipe(filter).pipe(sql.stdin!, { end: false })
+    const inputDone = new Promise<void>((r) => filter.on('end', () => r()))
+    void Promise.all([inputDone, rstExit]).then(([, x]) => {
+      try { if (x.code === 0 && !x.error) sql.stdin!.end('COMMIT;\n'); else sql.stdin!.end() }
+      catch { /* psql already ended */ }
+    })
+
+    void Promise.all([rstExit, sqlExit]).then(([r, s]) => {
+      if (r.error) return reject(spawnFailure('pg_restore', r.error, databaseUrl))
+      if (s.error) return reject(spawnFailure('psql', s.error, databaseUrl))
+      if (r.code !== 0 && !killedRst) return reject(new CliError(`pg_restore failed (exit ${r.code}):\n${rstErr().trim()}`))
+      if (s.code !== 0) return reject(new CliError(`psql failed (exit ${s.code}):\n${sqlErr().trim()}`))
+      resolvePromise({ dropped: filter.dropped, notes: [rstErr(), sqlErr()].map((t) => t.trim()).filter(Boolean).join('\n') })
     })
   })
 }
@@ -382,30 +546,39 @@ export async function inspectTarget(databaseUrl: string): Promise<TargetState> {
 }
 
 /**
- * Empty the database of tinyzoo's schemas in ONE transaction: `drizzle` (the migration
- * journal) and `public` go, `public` is created again (pg_dump never writes the
- * CREATE of `public`, so the restore needs it to be there). Extensions that live in `public` (pg_trgm) go with it and come back with the
- * dump, which carries `CREATE EXTENSION`. Dropping everything — and not just what the
- * dump contains — is what makes a restore over a newer database come out exactly as the
- * backup was, instead of leaving the newer tables and journal beside the old ones.
+ * Everything about the tools that can be known without touching the database: psql is
+ * there, pg_restore is there and can read the dump, and is not older than the pg_dump that
+ * made it. Returns the major version of that pg_dump (null if the dump does not say).
  */
-async function resetSchemas(databaseUrl: string): Promise<void> {
-  await withClient(databaseUrl, async (c) => {
-    try {
-      await c.query('begin')
-      await c.query(`set local lock_timeout = '15s'`)
-      await c.query('drop schema if exists drizzle cascade')
-      await c.query('drop schema if exists public cascade')
-      await c.query('create schema public')
-      await c.query('grant usage on schema public to public')
-      await c.query('commit')
-    }
-    catch (err) {
-      await c.query('rollback').catch(() => {})
-      const e = err as { message?: string; code?: string }
-      fail(`Could not empty ${targetLabel(databaseUrl)} before restoring (nothing was changed): ${e.message}${e.code === '55P03' ? '\n  Something is still using the database: stop the site first.' : ''}`)
-    }
-  })
+async function checkRestoreTools(dump: string, databaseUrl: string): Promise<number | null> {
+  const env = pgEnv(databaseUrl)
+  await runTool('psql', ['--version'], env, { capture: true }, databaseUrl)
+  const restoreMajor = toolMajor((await runTool('pg_restore', ['--version'], env, { capture: true }, databaseUrl)).stdout)
+  let listing: string
+  try { listing = (await runTool('pg_restore', ['--list'], env, { stdin: dump, capture: true }, databaseUrl)).stdout }
+  catch (err) {
+    if (!(err instanceof CliError) || /was not found|could not start/.test(err.message)) throw err
+    // An older pg_restore does not understand a newer archive format at all.
+    const newer = /unsupported version \(([\d.]+)\) in file header/.exec(err.message)
+    if (newer) return fail(`database.dump in the archive was made by a newer pg_dump (archive format ${newer[1]}) than this pg_restore${restoreMajor ? ` (${restoreMajor})` : ''}, which cannot read it; nothing was changed.\n  Use a pg_restore of the same version as the pg_dump that made the backup, or newer: ${newerToolsHelp}`)
+    return fail(`database.dump in the archive is not a readable pg_dump archive; nothing was changed.\n${err.message}`)
+  }
+  const dumpMajor = dumpedByMajor(listing)
+  if (dumpMajor && restoreMajor && dumpMajor > restoreMajor) {
+    fail(`database.dump in the archive was made by pg_dump ${dumpMajor}, newer than this pg_restore (${restoreMajor}), which cannot restore it; nothing was changed.\n  Use a pg_restore of version ${dumpMajor} or newer: ${newerToolsHelp}`)
+  }
+  return dumpMajor
+}
+
+const newerToolsHelp = `install newer PostgreSQL client tools, or point ${TOOL_ENV.pg_restore} (and ${TOOL_ENV.psql}) at them.`
+
+/** A failed restore: what went wrong, and that the database is exactly as it was. */
+function restoreFailure(err: Error, dumpMajor: number | null, serverMajor: number, target: string): CliError {
+  const hints: string[] = []
+  if (/lock timeout/i.test(err.message)) hints.push('Something is still using the database: stop the site first.')
+  if (/invalid command \\(un)?restrict/i.test(err.message)) hints.push(`This psql is older than the pg_restore that wrote the script (it does not know \\restrict, added in the August 2025 security releases): use the psql that comes with the pg_restore, or set ${TOOL_ENV.psql}.`)
+  if (dumpMajor && dumpMajor > serverMajor && err.message.startsWith('psql failed')) hints.push(`The dump was made by pg_dump ${dumpMajor} but the server is PostgreSQL ${serverMajor}; if the cause above is syntax this server lacks, take the backup with a pg_dump of version ${serverMajor}.`)
+  return new CliError(`${err.message}${hints.map((h) => `\n  ${h}`).join('')}\n  Nothing was changed: the old schemas are dropped and the backup loaded in ONE transaction, which was rolled back, so ${target} is exactly as it was. Fix the cause above and run the restore again; the archive is unchanged.`)
 }
 
 /** Put an archive back: the database (replaced as a whole), then the media. */
@@ -432,10 +605,11 @@ export async function runRestore(settings: BackupSettings, file: string, opts: R
       if (!existsSync(abs)) fail(`The archive lists ${m.key} but does not contain it; nothing was changed.`)
       if (!lstatSync(abs).isFile()) fail(`${m.key} in the archive is not a plain file; nothing was changed.`)
     }
-    // The dump must be readable before the database is touched.
-    await runTool('pg_restore', ['--list'], pgEnv(settings.databaseUrl), { stdin: join(staging, 'database.dump') }, settings.databaseUrl)
-      .catch((err) => { throw err instanceof CliError && !/was not found|could not start/.test(err.message) ? new CliError(`database.dump in the archive is not a readable pg_dump archive; nothing was changed.\n${err.message}`) : err })
+    // The tools and the dump are checked before the database is touched: a restore that
+    // cannot work must be found out now, not after the old data is gone.
+    const dumpMajor = await checkRestoreTools(join(staging, 'database.dump'), settings.databaseUrl)
 
+    const server = await serverInfo(settings.databaseUrl)
     const state = await inspectTarget(settings.databaseUrl)
     if ((state.tables > 0 || state.migrations > 0) && !opts.force) {
       const parts = [`${state.tables} table(s)`, state.migrations ? `${state.migrations} applied migration(s)` : '', state.accounts ? `${state.accounts} account(s)` : ''].filter(Boolean)
@@ -449,14 +623,15 @@ export async function runRestore(settings: BackupSettings, file: string, opts: R
 
     // Open the media first (a bad bucket config must not come after the database is replaced).
     const store = mediaStore(settings.storage)
+    if (dumpMajor && dumpMajor > server.major) io.log(`The dump was made by pg_dump ${dumpMajor}, the server is PostgreSQL ${server.major}: settings the server does not know are left out of it.`)
     io.log('Restoring the database…')
-    await resetSchemas(settings.databaseUrl)
     try {
-      const warnings = await runTool('pg_restore', ['--single-transaction', '--exit-on-error', '--no-owner', '--no-acl', '--no-comments', '--dbname', databaseName(settings.databaseUrl)], pgEnv(settings.databaseUrl), { stdin: join(staging, 'database.dump') }, settings.databaseUrl)
-      if (warnings.trim()) io.log(warnings.trim())
+      const { dropped, notes } = await streamRestore(join(staging, 'database.dump'), settings.databaseUrl, server.settings)
+      if (dropped.length) io.log(`Left out for this server: ${[...new Set(dropped)].map((n) => `SET ${n}`).join(', ')}.`)
+      if (notes) io.log(notes)
     }
     catch (err) {
-      throw new CliError(`${(err as Error).message}\n  The restore is all or nothing, and the database was emptied first: ${targetLabel(settings.databaseUrl)} is now EMPTY (nothing is half restored). Fix the cause above and run the restore again; the archive is unchanged.`)
+      throw restoreFailure(err as Error, dumpMajor, server.major, targetLabel(settings.databaseUrl))
     }
 
     io.log(`Restoring ${manifest.media.length} media file(s)…`)
