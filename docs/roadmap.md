@@ -545,3 +545,88 @@ upgrades). Fixed on three branches (`fix/0.2-blocks`, `fix/0.2-cli`,
 
 Open: Nitro's own unhandled-error log on stderr still prints failed queries with their
 parameters (Wave 2, slice V).
+
+### 0.2 U — Upgrade test
+
+Branch `feat/0.2-upgrade-test`. `node scripts/upgrade-check.mjs [--from <ref>] [--keep] [--verbose]
+[--logs <dir>]` (`pnpm check:upgrade`), the `upgrade` job in `ci.yml`, the baseline list
+`.github/upgrade-baseline`, and `scripts/upgrade-check/` (`site.mjs`, `workspace.mjs`,
+`differences.mjs`, a README for hooks). It is described in CONTRIBUTING.md ("The upgrade
+test") and in the maintainers' section of `docs/upgrading.md`.
+
+**What a run does** (one baseline: about 70–85 s here, no cache beyond pnpm's store):
+
+1. *Old site.* The ref is checked out into a temp git worktree, installed with its own
+   lockfile, and both packages are packed. Its own `tinyzoo init` makes a site outside the
+   workspace; `tinyzoo` and `@tinyzoo/client` point at the tarballs and every other dependency
+   is pinned to what that ref's lockfile resolved for the starter (so a run does not depend
+   on whatever Nuxt published yesterday). The site is built (`nuxt build`), started in
+   production mode with `NUXT_CMS_MIGRATIONS_ON_START=true` on a free port against a fresh
+   `cms_upcheck_*` database, set up through the API (`NUXT_CMS_AUTH_SETUP_TOKEN` is set, which
+   refs before and after slice D both honour), and seeded through the API: three pages (blocks
+   of every type, one with an English translation, one a draft), two news items (cover, an image
+   inside the text, an English translation, one a draft), site settings with a logo and a list
+   (translated), the navigation (translated) and a form message. Then everything is recorded:
+   the content API for every public entity and setting in every language, the admin's view of
+   every entry and translation, the sitemap, and the SHA-256 of every file the content points
+   at. The recording walks the admin graph (`/api/cms/_graph`), not a fixed list, so what a later
+   seeder adds is compared too. The server is stopped (its PID only).
+2. *Upgrade.* The current workspace packages are packed and installed into the same site
+   (checked: the installed CLI is byte-for-byte the workspace's), then `tinyzoo upgrade` runs
+   with no terminal. Its output goes in the log; the new migration's SQL is printed. A refusal
+   fails the check with the guard's own words and where to look.
+3. *New site.* Rebuilt, started with migrations on start against the same database. Checks, in
+   order: it starts (`/api/health/ready`); `tinyzoo status` exits 0; the old account signs in;
+   the content API and admin recordings are equal field by field (differences are matched
+   against `differences.mjs` and the baseline's hook, each rule with a mandatory reason; anything
+   else fails); every recorded file is served with identical bytes, at its old address too; the
+   admin opens and saves every entry unchanged (PATCH per entry and language, PUT per setting),
+   and a third recording after the saves differs only in timestamps.
+
+**Baseline.** `.github/upgrade-baseline` lists `2506403` (merge of the snake_case table work:
+the first commit whose tables are snake_case; earlier ones need the interactive rename).
+`latest-tag` is resolved by the script and added when it is not listed, and skipped while
+there is no tag. Changesets tags a monorepo's packages `tinyzoo@0.2.0`, not `v0.2.0`, so both
+styles count (newest by version). The CI job runs every baseline, with `fetch-depth: 0`.
+
+**CI job.** Postgres 16 and Valkey 8 as services like `test`, `UPGRADE_CHECK_REDIS_URL` so
+both versions run on the shared store, Node 22, `cache: pnpm` (the store holds the baseline's and
+the sites' downloads too; nothing else is safe to cache: the sites install without a lockfile
+by design), a 30-minute limit, the failure summary in `$GITHUB_STEP_SUMMARY` and as an
+`::error` annotation, and the command logs uploaded as an artifact when it fails.
+
+**What it found.** The first run against `2506403` stopped on 29 differences: the admin now
+hands the editor `v` on every block and list item (slice C and the Wave 1 review fix). That is
+intended, the content API and stored JSON are unchanged, so it is the one rule in
+`differences.mjs`. Between `2506403` and now the starter's schema does not change:
+`tinyzoo upgrade` reports "No schema changes", so the migration and the order guard are not
+exercised by this pair. They were checked by a temporary hook on `2506403` that removed
+`siteSettings.phone`: without `--allow-drop` the check failed in `tinyzoo upgrade` with the guard's
+text (drops column `phone`, nothing applied); with it the migration ran, the site started,
+`status` was clean and the check failed on exactly the four `phone` fields as unexpected
+differences. The hook was removed again.
+
+**Tests.** `test/unit/upgrade-check.spec.ts`: comparing (added/removed/changed, ignored keys),
+documented-rule matching (kind, `**`, reason required), the PNG fixture, the lockfile and
+override readers, release-tag ordering. The run itself is the CI job; `pnpm check` does not run
+it (network, two installs).
+
+**Deviations and decisions.**
+- The check lives next to `consumer-check.mjs` as a script plus a job, not in the vitest
+  projects: it needs two real installs and builds.
+- Dependencies of the site come from the ref's lockfile (starter importer), and the new side from
+  the workspace lockfile, as `pnpm up` would give a site; transitive dependencies still float.
+- Hooks (`scripts/upgrade-check/<ref>.mjs`) can add `tinyzoo upgrade` arguments, run code
+  before and after it, add documented differences or replace the seeding; they need a
+  `description`. There are no scripted prompt answers: without a terminal `tinyzoo upgrade`
+  asks nothing (the rename question fails with a pointer, which is the behaviour tested).
+- Seeding is pluggable (`SEEDERS`, `--seed`, a hook's `seed`); only the API seeder exists, `tinyzoo
+  seed` joins when slice I is on main.
+
+**Left.**
+- The CI job has not run on GitHub (no push); the YAML parses and the script was run locally
+  against Postgres and Valkey as in the job.
+- Once 0.2.0 is tagged, `latest-tag` starts running by itself; the first run after a release
+  may need a `differences.mjs` clean-up (rules every baseline already has are dead weight).
+- When a slice changes the schema for existing sites (F, G, H), this check is where its Upgrade
+  steps are first exercised: expect its first run to say something.

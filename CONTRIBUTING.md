@@ -96,6 +96,41 @@ The reviewer reads that diff, and the changeset says whether it **breaks sites**
 (a removed or renamed field, a changed type, a stricter filter: breaking; a new
 optional field or a new route: not).
 
+## The upgrade test
+
+A change that is fine on its own can still strand a site that is already running. The
+`upgrade` job in CI (`scripts/upgrade-check.mjs`) tries it on a real one: it builds a
+baseline version (a site made with that version's own `tinyzoo init`, set up and filled
+with pages, news, images, settings, a menu and a form message), installs this commit's
+packages into the same site, runs `tinyzoo upgrade` with no terminal, starts the site on the
+same database and checks that
+
+- the migration `tinyzoo upgrade` writes passes the guard (otherwise the check fails with the
+  guard's reasons: a breaking change needs its documented steps),
+- the site starts and `tinyzoo status` has nothing pending,
+- the old account signs in,
+- the content API and the admin return the same content, field by field,
+- every file is still served, and the admin can open and save every entry unchanged.
+
+The baselines are listed in `.github/upgrade-baseline` (before the first release a commit,
+not a tag); the latest release tag is added by itself once there is one. Run it yourself
+(about a minute and a half per baseline, needs Postgres and the network):
+
+```sh
+UPGRADE_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5432/postgres pnpm check:upgrade
+node scripts/upgrade-check.mjs --from 2506403 --keep   # one baseline; keeps the site and database to look at
+```
+
+When it fails, the message says which step and why. The usual causes:
+
+| What it says | What to do |
+|---|---|
+| The guard refused the migration | The change needs the two-step route or its documented steps (`docs/upgrading.md`), and the changeset an `### Upgrade` section. Do not silence the check. |
+| Unexpected differences in the content API or the admin | Intended? Then the changeset says so under `### Upgrade`, and the difference goes into `scripts/upgrade-check/differences.mjs` with its reason. If not, it is a bug. |
+| A manual step a site must do (documented in the changelog) | A hook file for that baseline, `scripts/upgrade-check/<ref>.mjs` (see the README there). |
+
+It is not part of `pnpm check`: it needs the network and a real install of two sites.
+
 ## Releasing
 
 Merging to `main` makes the release workflow open (or update) a "Version

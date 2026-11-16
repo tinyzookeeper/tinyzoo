@@ -1,0 +1,12 @@
+# The versions the upgrade test (scripts/upgrade-check.mjs, the `upgrade` job in ci.yml)
+# moves a site FROM, one git ref per line. A site made with that version's `tinyzoo init`
+# is upgraded to the current code; the check fails when it cannot be.
+#
+# Before the first release the baseline is a commit, not a tag. Once releases exist the
+# latest release tag (v0.2.0, or tinyzoo@0.2.0 as Changesets writes it) is added
+# automatically: the script resolves the keyword `latest-tag`, so nothing is needed here.
+# Keep an older line while sites may still be on it; remove it when that stops being true.
+
+# First commit with snake_case table names (merge of the 0.2 table-name work). Earlier
+# commits need the interactive rename documented in the changeset.
+2506403
