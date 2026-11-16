@@ -14,6 +14,15 @@ export default defineEventHandler(async (event) => {
   if (!path.startsWith('/api/') && !page) return
   if (event.context.cmsUser) return
 
+  // No session cookie: nobody to look up. Reading the session anyway would create one and
+  // put a cookie on the response of every anonymous visitor (public content, pages, media).
+  if (!hasSessionCookie(event)) {
+    // nuxt-auth-utils' own route, which the website's server rendering calls on every page:
+    // an anonymous answer without opening a session either.
+    if (path.split('?')[0] === '/api/_auth/session' && event.method === 'GET') return {}
+    return
+  }
+
   const session: any = await getUserSession(event)
   // An admin page with no CMS identity in the cookie: nothing to check.
   if (page && !session?.cms) return

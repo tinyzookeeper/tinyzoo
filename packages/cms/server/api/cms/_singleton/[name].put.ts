@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
   // The row as it is now: blocks that are behind or of a type that is gone are only kept when stored already.
   const [prior] = await db.select().from(e.table).orderBy(e.table.createdAt).limit(1)
   const data = parseOr422(writeSchema(e, 'create', prior), await readBody(event))
+  await assertMediaAccepted(db, reg, e, data)
   const { values, m2m } = splitPayload(e, data)
   const base = baseVersion(event)
   const seenBefore = prior ? await changeSnapshot(e, prior.id) : null

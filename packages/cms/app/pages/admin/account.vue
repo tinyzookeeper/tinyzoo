@@ -62,7 +62,7 @@ async function changePassword() {
               <p class="text-sm text-muted text-pretty">{{ t('account.profileDescription') }}</p>
             </div>
           </header>
-          <form class="cms-section__fields" @submit.prevent="saveProfile">
+          <form method="post" class="cms-section__fields" @submit.prevent="saveProfile">
             <UFormField :label="t('auth.name')" name="name">
               <UInput v-model="profile.name" autocomplete="name" :disabled="isDemo" class="w-full" />
             </UFormField>
@@ -87,7 +87,7 @@ async function changePassword() {
             </div>
           </header>
           <UAlert v-if="isDemo" color="neutral" variant="subtle" icon="i-lucide-info" :title="t('account.demoTitle')" :description="t('account.demoBody')" />
-          <form v-else class="cms-section__fields" @submit.prevent="changePassword">
+          <form v-else method="post" class="cms-section__fields" @submit.prevent="changePassword">
             <UFormField :label="t('account.currentPassword')" name="current" :error="pwErrors.current">
               <CmsPasswordInput v-model="pw.current" autocomplete="current-password" />
             </UFormField>

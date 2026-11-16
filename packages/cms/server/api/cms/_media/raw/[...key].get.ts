@@ -2,7 +2,9 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 // GET /api/cms/_media/raw/** — serve an uploaded file. Public on purpose: media behave
-// like CDN assets (the frontend renders them in <img>).
+// like CDN assets (the frontend renders them in <img>). But only files the CMS itself
+// stored: a key without a cms_media row (an object some other tool put in a shared
+// bucket, a path that merely exists) is a 404 — see cmsMediaKeys.ts.
 //
 //  - local driver: streams the file from disk;
 //  - S3 with delivery 'proxy' (the default for a private bucket): streams the object from
@@ -16,12 +18,18 @@ export default defineEventHandler(async (event) => {
   const key = getRouterParam(event, 'key')
   if (!key) throw createError({ statusCode: 400, statusMessage: 'Missing key' })
 
+  const media = await servedMedia(key)
+  if (!media) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  // A PDF opened in the browser's viewer and saved from there should carry its name,
+  // not the uuid of its key.
+  const disposition = contentDispositionFor(media)
+
   const storage = useCmsStorage()
 
   if (storage.delivery === 'redirect' && storage.presign) {
     let address: string
     try {
-      address = await storage.presign(key, PRESIGN_SECONDS)
+      address = await storage.presign(key, PRESIGN_SECONDS, disposition)
     }
     catch (err: any) {
       if (err?.statusCode) throw err
@@ -43,7 +51,7 @@ export default defineEventHandler(async (event) => {
   // never sniff a different type, and neutralize any inline script execution.
   setResponseHeader(event, 'X-Content-Type-Options', 'nosniff')
   setResponseHeader(event, 'Content-Security-Policy', "default-src 'none'; sandbox")
-  setResponseHeader(event, 'Content-Disposition', 'inline')
+  setResponseHeader(event, 'Content-Disposition', disposition)
   // Byte ranges: Safari will not play a video without them, and every browser seeks
   // and resumes with them. One range only (bytes=a-b, a-, -n); others get the whole file.
   setResponseHeader(event, 'Accept-Ranges', 'bytes')

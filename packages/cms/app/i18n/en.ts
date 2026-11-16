@@ -72,6 +72,7 @@ export default {
     tooLarge: 'The file is too large.',
     emptyFile: 'The file is empty. Pick it again, or try another one.',
     tooLargeMax: 'The file is too large (at most {mb} MB).',
+    imagePixels: 'The picture has too many pixels (at most {mp} megapixels, about 8,900 × 8,900). Make it smaller and upload it again.',
     fileType: 'This kind of file can’t be uploaded. Use a picture (JPG, PNG, WebP, GIF, AVIF), a PDF, MP4/WebM video or MP3.',
     tooMany: 'That was a lot at once. Wait a minute and try again.',
     server: 'Something went wrong on the server. Try again in a moment.',

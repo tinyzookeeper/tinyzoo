@@ -51,6 +51,30 @@ describe('sign in', () => {
     expect(statuses[10]).toBe(429)
   })
 
+  it('counts failed attempts only: signing in successfully many times in a row never locks anyone out', async () => {
+    const person = await newAccount('editor')
+    // The limit per address is 10 in 15 minutes; fifteen good sign-ins from one place, as an office would do in a morning.
+    const same = new Client()
+    const statuses: number[] = []
+    for (let i = 0; i < 15; i++) statuses.push((await same.post('/api/cms/_auth/login', { email: person.email, password: person.password })).status)
+    expect(statuses.every((s) => s === 200)).toBe(true)
+    // …while guesses still add up: ten wrong ones still get their answer, the eleventh is refused.
+    const guesses: number[] = []
+    for (let i = 0; i < 11; i++) guesses.push((await anonymous().post('/api/cms/_auth/login', { email: person.email, password: `wrong-${i}` })).status)
+    expect(guesses.slice(0, 10).every((s) => s === 401)).toBe(true)
+    expect(guesses[10]).toBe(429)
+    // …and a good password does not get through while the address is locked.
+    expect((await anonymous().post('/api/cms/_auth/login', { email: person.email, password: person.password })).status).toBe(429)
+  })
+
+  it('tells when to come back: Retry-After on a refused sign-in (the window, in seconds)', async () => {
+    const email = `retry-${Date.now()}@test.local`
+    let last: Awaited<ReturnType<ReturnType<typeof anonymous>['post']>> | undefined
+    for (let i = 0; i < 11; i++) last = await anonymous().post('/api/cms/_auth/login', { email, password: `guess-${i}` })
+    expect(last!.status).toBe(429)
+    expect(last!.headers.get('retry-after')).toBe('900')
+  })
+
   it('signs out', async () => {
     const { client } = await newAccount('editor')
     expect((await client.post('/api/cms/_auth/logout')).status).toBe(200)

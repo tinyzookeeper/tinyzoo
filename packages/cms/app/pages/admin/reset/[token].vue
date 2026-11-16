@@ -35,7 +35,7 @@ async function submit() {
     </div>
     <UButton to="/admin/forgot" block>{{ t('auth.requestNewLink') }}</UButton>
   </div>
-  <form v-else class="space-y-5" novalidate @submit.prevent="submit">
+  <form v-else method="post" class="space-y-5" novalidate @submit.prevent="submit">
     <h1 class="text-center cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.resetTitle') }}</h1>
     <UFormField :label="t('auth.newPassword')" name="password" :description="t('auth.passwordHint')" :error="error || undefined">
       <CmsPasswordInput v-model="password" autocomplete="new-password" autofocus />

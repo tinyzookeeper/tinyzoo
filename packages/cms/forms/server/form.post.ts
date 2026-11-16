@@ -4,12 +4,22 @@ import { formEntity, formLocale, formRecipients, submissionEmail, turnstileOk } 
 // POST /api/content/_form/:name — a visitor sends a website form (defineForm).
 // The submission is validated against the form's fields and stored as a new entry
 // (state "new"); the people in the Forms settings get an email. Spam stays out:
-//  - `_hp`: a hidden field people never fill in (filled → accepted, not stored),
-//  - `_t`: milliseconds the form was open (valid but under 1.5 s → accepted, not stored),
+//  - `_hp`: a hidden field people never fill in (filled → answered 201, not stored),
+//  - `_t`: milliseconds the form was open (under 1.5 s → answered 201, not stored). It is
+//    optional ON PURPOSE: a plain HTML form without JavaScript, or a script, cannot send it,
+//    and dropping their messages in silence would lose real ones. <CmsForm> always sends it;
+//    what keeps robots that leave it out away is the hidden field, the rate limits and
+//    Turnstile (cms.forms.turnstileSecret) — switch that on for a form that robots find,
 //  - a rate limit per visitor, and Cloudflare Turnstile when configured,
 //  - only from this site's own pages (Origin), when the browser says where from.
 // Open to everyone by design: no content token (browsers send it).
 const WINDOW = 10 * 60_000
+
+/** What a robot gets for a post that is thrown away: the answer of a stored one. */
+function acceptedUnseen(event: any) {
+  setResponseStatus(event, 201)
+  return { ok: true }
+}
 
 export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
@@ -27,7 +37,7 @@ export default defineEventHandler(async (event) => {
   // Attempts are limited loosely (correcting a typo is fine); accepted messages tightly, below.
   const ip = clientIp(event)
   if (!(await rateLimit(`form-try:${e.name}:${ip}`, 30, WINDOW))) {
-    throw createError({ statusCode: 429, statusMessage: 'Too many messages; try again in a few minutes' })
+    throw tooManyRequests(event, 'Too many messages; try again in a few minutes', WINDOW)
   }
 
   // A form is a few fields: refuse anything large before reading it.
@@ -37,7 +47,8 @@ export default defineEventHandler(async (event) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw createError({ statusCode: 400, statusMessage: 'Send the form as JSON or form data' })
 
   // Robots that fill the hidden field: answered like a success, nothing stored.
-  if (typeof body._hp === 'string' && body._hp.trim()) return { ok: true }
+  // The same 201 as a stored one: a robot must not be able to tell which of its posts were thrown away.
+  if (typeof body._hp === 'string' && body._hp.trim()) return acceptedUnseen(event)
 
   if (!(await turnstileOk(body['cf-turnstile-response'], ip))) {
     throw createError({ statusCode: 400, statusMessage: 'The spam check failed; reload the page and try again' })
@@ -72,9 +83,9 @@ export default defineEventHandler(async (event) => {
   // Sent faster than a person fills a form in (<CmsForm> never sends that early): a
   // robot posting directly. Checked after validation, so a real empty form still gets
   // its errors; answered like a success, nothing stored.
-  if (body._t !== undefined && Number(body._t) < 1500) return { ok: true }
+  if (body._t !== undefined && Number(body._t) < 1500) return acceptedUnseen(event)
   if (!(await rateLimit(`form:${e.name}:${ip}`, 8, WINDOW))) {
-    throw createError({ statusCode: 429, statusMessage: 'Too many messages; try again in a few minutes' })
+    throw tooManyRequests(event, 'Too many messages; try again in a few minutes', WINDOW)
   }
 
   const [row]: any[] = await (db as any).insert(e.table).values(values).returning()

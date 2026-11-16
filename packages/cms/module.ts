@@ -165,6 +165,12 @@ export interface CmsModuleOptions {
      * the request Host (which is attacker-controlled and would poison the cached spec).
      */
     publicUrl?: string
+    /**
+     * The interactive API reference at `/api/openapi` (Scalar, loaded from a CDN, public
+     * on the admin's origin). Default: on in development, off in production; set `true`
+     * (env NUXT_CMS_CONTENT_DOCS=true) to publish it. `/api/openapi.json` is not affected.
+     */
+    docs?: boolean
   }
 }
 
@@ -209,6 +215,14 @@ export default defineNuxtModule<CmsModuleOptions>({
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
     nuxt.hook('nitro:config', (nitro) => {
+      // nuxt-auth-utils adds a Nitro plugin when WebSockets are on (the admin's live socket
+      // is one) that reads the session on EVERY request: for a visitor without one that
+      // *creates* it and sets a cookie on every response, public pages, content API and
+      // media included, so no CDN caches them. The admin socket checks the session itself
+      // (admitAdminSocket) and only when the request carries one, so that plugin goes.
+      if (Array.isArray(nitro.plugins)) {
+        nitro.plugins = nitro.plugins.filter((p) => !/nuxt-auth-utils[\\/]dist[\\/]runtime[\\/]server[\\/]plugins[\\/]ws(\.|$)/.test(String(p)))
+      }
       if (existsSync(migrationsDir)) {
         nitro.serverAssets = nitro.serverAssets || []
         nitro.serverAssets.push({ baseName: 'cms-migrations', dir: migrationsDir })
@@ -346,6 +360,8 @@ export {}
         token: options.content?.token || '',
         cacheControl: options.content?.cacheControl || '',
         publicUrl: options.content?.publicUrl || '',
+        // '' = the default (on in development, off in production); NUXT_CMS_CONTENT_DOCS binds at runtime.
+        docs: options.content?.docs ?? '',
       },
       ...(nuxt.options.runtimeConfig.cms as Record<string, unknown> | undefined),
     }

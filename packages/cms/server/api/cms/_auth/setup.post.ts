@@ -14,7 +14,7 @@ const SETUP_LOCK = 72_011_001
 
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
-  if (!(await rateLimit(`setup:${clientIp(event)}`, 10, 15 * 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many attempts; try again later' })
+  if (!(await rateLimit(`setup:${clientIp(event)}`, 10, 15 * 60_000))) throw tooManyRequests(event, 'Too many attempts; try again later', 15 * 60_000)
   const data = parseOr422(body, await readBody(event))
   const required = setupToken()
   const codeOk = required

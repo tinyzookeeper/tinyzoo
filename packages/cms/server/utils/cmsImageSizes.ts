@@ -7,6 +7,13 @@ import sharp from 'sharp'
 export const CMS_IMAGE_WIDTHS = [320, 640, 960, 1280, 1920] as const
 const RESIZABLE = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
 
+/**
+ * The most pixels a picture may have (width × height): sharp refuses more, and decoding
+ * a bigger one would also eat the server's memory. Checked at upload, so a picture that
+ * could never be shown at a smaller size is not accepted in the first place.
+ */
+export const MAX_IMAGE_PIXELS = 80_000_000
+
 export const isResizableImage = (mime: string | null | undefined) => !!mime && RESIZABLE.has(mime)
 const variantKey = (key: string, width: number) => `_w/${width}/${key}.webp`
 
@@ -24,7 +31,7 @@ export async function imageVariant(key: string, width: number): Promise<Buffer |
     job = (async () => {
       const original = await storage.get(key)
       if (!original) return null
-      const out = await sharp(original.body, { failOn: 'none', limitInputPixels: 80_000_000 })
+      const out = await sharp(original.body, { failOn: 'none', limitInputPixels: MAX_IMAGE_PIXELS })
         .rotate() // honour the camera's orientation
         .resize({ width, withoutEnlargement: true })
         .webp({ quality: 78 })

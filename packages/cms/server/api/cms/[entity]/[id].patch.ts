@@ -21,6 +21,7 @@ export default defineEventHandler(async (event) => {
   await assertCurrentVersion(e, old, base)
   // Checked against what is stored: a block that is behind, or of a type that is gone, stays only if it is stored already.
   const data = parseOr422(writeSchema(e, 'update', old), body)
+  await assertMediaAccepted(db, reg, e, data)
   const { values, m2m } = splitPayload(e, data)
 
   // Capture OLD media references for any media FK or rich-text field being changed,

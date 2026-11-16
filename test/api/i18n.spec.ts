@@ -121,6 +121,18 @@ describe('reading translations (public content API)', () => {
     expect((await anonymous().get('/api/content/post/vanocni-cukrovi?locale=xx')).status).toBe(400)
   })
 
+  it("takes a browser's language for the closest one the site has: en-US, EN, cs-CZ; still 400 for one it does not", async () => {
+    await live()
+    const localeOf = async (q: string) => (await anonymous().get(`/api/content/post/vanocni-cukrovi?locale=${q}`)).body.item?.locale
+    expect(await localeOf('en-US')).toBe('en')
+    expect(await localeOf('EN')).toBe('en')
+    expect(await localeOf('en_GB')).toBe('en')
+    expect(await localeOf('cs-CZ')).toBe('cs')
+    expect((await anonymous().get('/api/content/post?locale=EN-us')).status).toBe(200)
+    expect((await anonymous().get('/api/content/post?locale=de-AT')).status).toBe(400)
+    expect((await anonymous().get('/api/content/post?locale=x')).status).toBe(400)
+  })
+
   it('searches and filters in the requested language', async () => {
     const post = await live()
     await translate(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })

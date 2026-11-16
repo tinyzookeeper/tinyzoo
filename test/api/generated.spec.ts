@@ -17,9 +17,7 @@ describe('generated endpoints', () => {
     expect(res.body).toBe(readFileSync(join(import.meta.dirname, '../../playground/app/lib/cms-content.ts'), 'utf8'))
   })
 
-  it('serves the API reference page', async () => {
-    const res = await fetch(`${(anonymous()).baseURL}/api/openapi`)
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('text/html')
+  it('keeps the API reference page off in production unless cms.content.docs is on (openapi-docs.spec.ts serves it)', async () => {
+    expect((await fetch(`${(anonymous()).baseURL}/api/openapi`)).status).toBe(404)
   })
 })

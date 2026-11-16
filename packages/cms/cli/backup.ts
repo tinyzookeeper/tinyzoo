@@ -32,11 +32,12 @@
  */
 import { docsUrl } from '../src/docs'
 import { spawn, spawnSync } from 'node:child_process'
-import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, closeSync, copyFileSync, createWriteStream, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve, sep } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import { Transform } from 'node:stream'
+import { Readable, Transform } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { fileURLToPath } from 'node:url'
 import pg from 'pg'
 import { extractTar } from './tar'
@@ -358,6 +359,8 @@ function streamRestore(dump: string, databaseUrl: string, known: Set<string>): P
 
 export interface MediaStore {
   read(key: string): Promise<{ body: Buffer; contentType: string } | null>
+  /** Copy a file out of the store to `dest` as a stream (a video is never held in memory). Null when it is not there. */
+  readToFile(key: string, dest: string): Promise<{ size: number } | null>
   write(key: string, body: Buffer, contentType: string): Promise<void>
 }
 
@@ -378,6 +381,13 @@ export function localStore(dir: string): MediaStore {
     async read(key) {
       const abs = insideDir(dir, key)
       return existsSync(abs) && statSync(abs).isFile() ? { body: readFileSync(abs), contentType: '' } : null
+    },
+    async readToFile(key, dest) {
+      const abs = insideDir(dir, key)
+      if (!existsSync(abs) || !statSync(abs).isFile()) return null
+      mkdirSync(dirname(dest), { recursive: true })
+      copyFileSync(abs, dest)
+      return { size: statSync(dest).size }
     },
     async write(key, body) {
       const abs = insideDir(dir, key)
@@ -401,6 +411,18 @@ export function s3Store(cfg: S3Settings): MediaStore {
       if (res.status === 404) return null
       if (!res.ok) fail(`S3 download of ${key} failed (${res.status} ${res.statusText}).`)
       return { body: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get('content-type') || '' }
+    },
+    async readToFile(key, dest) {
+      if (!safeKey(key)) fail(`Refusing the unsafe storage key "${key}".`)
+      const res = await (await aws()).fetch(urlOf(key))
+      if (res.status === 404) return null
+      if (!res.ok || !res.body) fail(`S3 download of ${key} failed (${res.status} ${res.statusText}).`)
+      mkdirSync(dirname(dest), { recursive: true })
+      let size = 0
+      const count = new Transform({ transform(chunk, _enc, cb) { size += chunk.length; cb(null, chunk) } })
+      try { await pipeline(Readable.fromWeb(res.body as any), count, createWriteStream(dest)) }
+      catch (err) { rmSync(dest, { force: true }); throw err }
+      return { size }
     },
     async write(key, body, contentType) {
       if (!safeKey(key)) fail(`Refusing the unsafe storage key "${key}".`)
@@ -458,6 +480,22 @@ async function withClient<T>(databaseUrl: string, fn: (c: pg.Client) => Promise<
   finally { await client.end().catch(() => {}) }
 }
 
+/**
+ * Copy the files the database refers to into `dir` (a few at a time). Returns what was
+ * copied and the keys that were not in the store.
+ */
+export async function copyMedia(store: MediaStore, rows: { key: string; mime: string }[], dir: string): Promise<{ media: BackupManifest['media']; missing: string[] }> {
+  const media: BackupManifest['media'] = []
+  const missing: string[] = []
+  await pool(rows, 4, async (row) => {
+    if (!safeKey(row.key)) { missing.push(row.key); return }
+    const copied = await store.readToFile(row.key, insideDir(dir, row.key))
+    if (!copied) { missing.push(row.key); return }
+    media.push({ key: row.key, mime: row.mime, size: copied.size })
+  })
+  return { media, missing }
+}
+
 export interface RunIo { log: (line: string) => void }
 
 /** Make the archive. Returns the manifest. */
@@ -485,15 +523,9 @@ export async function runBackup(settings: BackupSettings, outFile: string, io: R
       database: databaseName(settings.databaseUrl), storageDriver: settings.storage.driver, media: [], missingMedia: [],
     }
     io.log(`Media (${settings.storage.driver}): ${rows.length} file(s)…`)
-    await pool(rows, 4, async (row) => {
-      if (!safeKey(row.key)) { manifest.missingMedia.push(row.key); return }
-      const obj = await store.read(row.key)
-      if (!obj) { manifest.missingMedia.push(row.key); return }
-      const dest = insideDir(join(staging, 'media'), row.key)
-      mkdirSync(dirname(dest), { recursive: true })
-      writeFileSync(dest, obj.body)
-      manifest.media.push({ key: row.key, mime: row.mime, size: obj.body.length })
-    })
+    const copied = await copyMedia(store, rows, join(staging, 'media'))
+    manifest.media.push(...copied.media)
+    manifest.missingMedia.push(...copied.missing)
     manifest.media.sort((a, b) => a.key.localeCompare(b.key))
     manifest.missingMedia.sort()
     writeFileSync(join(staging, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n')

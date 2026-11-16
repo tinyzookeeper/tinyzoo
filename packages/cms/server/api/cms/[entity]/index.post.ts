@@ -7,6 +7,7 @@ export default defineEventHandler(async (event) => {
 
   const body = await readBody(event)
   const data = parseOr422(writeSchema(e, 'create'), body)
+  await assertMediaAccepted(db, reg, e, data)
   const { values, m2m } = splitPayload(e, data)
   assertPublishAllowed(e, user, values)
   await assertNoRedirectLoop(e, values)

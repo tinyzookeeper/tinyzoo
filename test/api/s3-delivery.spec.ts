@@ -50,8 +50,8 @@ const upload = async (c: Client, name = 'a.png', type = 'image/png', data: Uint8
   }
 }
 const bytes = async (res: Response) => new Uint8Array(await res.arrayBuffer())
-/** `n` bytes where byte i is i % 251. */
-const pattern = (n: number) => Uint8Array.from({ length: n }, (_, i) => i % 251)
+/** `n` bytes where byte i is i % 251 — except the 'ftyp' that makes it an MP4 to the upload check. */
+const pattern = (n: number) => Uint8Array.from({ length: n }, (_, i) => (i >= 4 && i < 8 ? 'ftyp'.charCodeAt(i - 4) : i % 251))
 const rssMb = (pid: number) => Number(execFileSync('ps', ['-o', 'rss=', '-p', String(pid)], { encoding: 'utf8' }).trim()) / 1024
 
 beforeAll(async () => {
@@ -162,6 +162,18 @@ describe('proxy delivery (the default for a private bucket)', () => {
     expect(s3.requests.slice(before).filter((r) => !r.path.startsWith(`/${s3.bucket}/`))).toEqual([])
   })
 
+  it('serves only objects that belong to a media row: another tool\'s object in the same bucket is a 404', async () => {
+    s3.putGenerated('other-tool/customers.csv', 200, 'text/csv')
+    const before = s3.requests.length
+    for (const server of [proxy, redirect]) {
+      const res = await fetch(server.baseURL + API + 'other-tool/customers.csv', { redirect: 'manual' })
+      expect([server === proxy ? 'proxy' : 'redirect', res.status, res.headers.get('location')]).toEqual([server === proxy ? 'proxy' : 'redirect', 404, null])
+    }
+    // The app did not even ask the bucket, let alone sign an address for it.
+    expect(s3.requests.slice(before)).toEqual([])
+    s3.objects.delete('other-tool/customers.csv')
+  })
+
   it('answers 502 when the bucket fails, without its address or the credentials — in the response and in the log', async () => {
     const m = (await upload(admin)).body
     s3.failWith(500)
@@ -210,6 +222,8 @@ describe('proxy delivery (the default for a private bucket)', () => {
   it('streams a 600 MB video without holding it: memory does not follow the size, a slow reader slows the bucket down, a reader that leaves cancels the read', async () => {
     const SIZE = 600 * 1024 * 1024
     s3.putGenerated('big/film.mp4', SIZE, 'video/mp4')
+    // Served only as a media row's file (see cmsMediaKeys).
+    await pgRows(`insert into cms_media (url, key, mime, size) values ('${API}big/film.mp4', 'big/film.mp4', 'video/mp4', ${SIZE})`)
     const url = proxy.baseURL + API + 'big/film.mp4'
     // Warm up (module loading, the signing client), then measure.
     await (await fetch(proxy.baseURL + (await upload(admin)).body.url)).arrayBuffer()
@@ -282,6 +296,15 @@ describe('redirect delivery', () => {
     expect(rows[0].url).toBe(API + m.key)
   })
 
+  it('names a PDF in the signed address, so the store sends its file name', async () => {
+    const pdf = new TextEncoder().encode('%PDF-1.4\n%%EOF\n')
+    const m = (await upload(adminRedirect, 'Nabídka.pdf', 'application/pdf', pdf)).body
+    const res = await fetch(redirect.baseURL + m.url, { redirect: 'manual' })
+    const location = new URL(res.headers.get('location')!)
+    expect(location.searchParams.get('response-content-disposition')).toContain("filename*=UTF-8''Nab%C3%ADdka.pdf")
+    expect((await fetch(location)).status).toBe(200) // the signature covers it
+  })
+
   it('keeps ranges working through the redirect (the browser repeats its Range header there)', async () => {
     const data = pattern(3000)
     const m = (await upload(adminRedirect, 'clip.mp4', 'video/mp4', data)).body
@@ -325,7 +348,7 @@ describe('a bad delivery setting', () => {
     try {
       const c = new Client(srv.baseURL)
       c.cookie = admin.cookie
-      const res = await c.get('/api/cms/_media/raw/x.png')
+      const res = await upload(c)
       expect(res.status).toBe(500)
       expect(JSON.stringify(res.body)).toContain("'public', 'proxy' or 'redirect'")
     }

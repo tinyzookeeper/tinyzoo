@@ -21,15 +21,67 @@ export function getPublicEntity(reg: CmsRegistry, name: string | undefined): Cms
   return e
 }
 
-/** Optional API-token gate. No-op unless `cms.content.token` is configured. */
+/**
+ * Is the interactive API reference (/api/openapi) on? `cms.content.docs: true` / `false`
+ * (env NUXT_CMS_CONTENT_DOCS) decides; left out, it is on in development and off in production.
+ */
+export function contentDocsEnabled(): boolean {
+  const v = (useRuntimeConfig().cms as any)?.content?.docs
+  if (v === true || v === 'true' || v === 1 || v === '1') return true
+  if (v === false || v === 'false' || v === 0 || v === '0') return false
+  return import.meta.dev || process.env.NODE_ENV !== 'production'
+}
+
+/**
+ * Was this request made inside the server, by Nitro itself? The website's pages fetch
+ * `/api/content/*` while they render (`useFetch`, `$fetch`, `event.$fetch`): Nitro answers
+ * those from the same process, with no network in between, and builds the request from
+ * its own stand-in for Node's `IncomingMessage` — the one that carries `__unenv__` (h3
+ * relies on the same mark). A request that came over a socket never has it, whatever
+ * headers it sends, so an outsider cannot pass for the site.
+ */
+export function isInProcessRequest(event: any): boolean {
+  const req = event?.node?.req
+  return !!req && typeof req === 'object' && '__unenv__' in req
+}
+
+/**
+ * Optional API-token gate. No-op unless `cms.content.token` is configured. With a token the
+ * API is closed to everyone who comes from outside without it — but the website's own
+ * server-side requests (see isInProcessRequest) are the site itself, not a visitor, so
+ * its pages render without the token ever being in their code or in a browser. (A
+ * *browser* calling the API itself, e.g. on client-side navigation, is outside: it has no
+ * token and must not get one.)
+ */
 export function assertContentAuth(event: any): void {
   const token = (useRuntimeConfig().cms as any)?.content?.token
   if (!token) return
+  if (isInProcessRequest(event)) return
   const header = getHeader(event, 'authorization') || ''
   const provided = getHeader(event, 'x-api-key') || header.replace(/^Bearer\s+/i, '')
   if (!provided || !constantTimeEqual(provided, token)) {
+    noteRefusedContentRequest(event)
     throw createError({ statusCode: 401, statusMessage: 'Invalid content API token' })
   }
+}
+
+let refusedCount = 0
+let refusedLoggedAt = 0
+/**
+ * One log line when requests are refused for the token (at most one a minute, with how many
+ * there were): a site that cannot read its own content, or a script with an old token, should
+ * not fail in silence — and a scanner must not fill the log.
+ */
+function noteRefusedContentRequest(event: any): void {
+  refusedCount++
+  const now = Date.now()
+  if (refusedLoggedAt && now - refusedLoggedAt < 60_000) return
+  refusedLoggedAt = now
+  const count = refusedCount
+  refusedCount = 0
+  const path = String(event?.path ?? '').split('?')[0]
+  console.warn('[cms] ' + count + ' content API request' + (count === 1 ? '' : 's') + ' refused: no content token, or a wrong one (' + event?.method + ' ' + path + '). '
+    + "The website's own server-side requests do not need it; a separate site or script sends it as x-api-key (NUXT_CMS_CONTENT_TOKEN). Later refusals are counted and logged at most once a minute.")
 }
 
 /**

@@ -42,9 +42,13 @@ describe('website forms', () => {
     expect(mail.subject).toContain('Jana')
   })
 
-  it('answers robots like a success but stores nothing', async () => {
-    expect((await send(anonymous(), { ...good, _hp: 'http://spam.example' })).status).toBe(200)
-    expect((await send(anonymous(), { ...good, _t: 300 })).status).toBe(200)
+  it('answers robots exactly like a stored message (201, same body) but stores nothing', async () => {
+    const stored = await send(anonymous(), good)
+    await db.query('truncate contact_form')
+    const honeypot = await send(anonymous(), { ...good, _hp: 'http://spam.example' })
+    const tooFast = await send(anonymous(), { ...good, _t: 300 })
+    expect([honeypot.status, tooFast.status]).toEqual([201, 201])
+    expect([honeypot.body, tooFast.body]).toEqual([stored.body, stored.body])
     const { rows } = await db.query('select count(*)::int as n from contact_form')
     expect(rows[0].n).toBe(0)
   })
@@ -99,6 +103,13 @@ describe('website forms', () => {
     for (let i = 0; i < 9; i++) codes.push((await send(c, good)).status)
     expect(codes.slice(0, 8).every((s) => s === 201)).toBe(true)
     expect(codes[8]).toBe(429)
+    expect((await send(c, good)).headers.get('retry-after')).toBe('600') // the window: the most they wait
+  })
+
+  it('a post without the fill-in time (a form without JavaScript, a script) is accepted, not thrown away', async () => {
+    const { _t: _omit, ...withoutTime } = good
+    expect((await send(anonymous(), withoutTime)).status).toBe(201)
+    expect((await db.query('select count(*)::int as n from contact_form')).rows[0].n).toBe(1)
   })
 })
 
@@ -117,5 +128,34 @@ describe('CSV export', () => {
     expect(text).toContain('"\'=HYPERLINK(""x"")"')
     expect(text).toContain('"Řádek, s čárkou"')
     expect((await anonymous().get('/api/cms/contactForm/_export')).status).toBe(401)
+  })
+})
+
+describe('who reads the messages', () => {
+  it('administrators and editors read, export and open them; authors get 403 everywhere, and no menu entry', async () => {
+    const editor = await signIn('editor')
+    const author = await signIn('author')
+    await send(anonymous(), good)
+    const { rows } = await db.query('select id from contact_form')
+    const id = rows[0].id
+
+    for (const c of [admin, editor]) {
+      expect((await c.get('/api/cms/contactForm')).status).toBe(200)
+      expect((await c.get(`/api/cms/contactForm/${id}`)).status).toBe(200)
+      const csv = await c.get('/api/cms/contactForm/_export')
+      expect(csv.status).toBe(200)
+      expect(String(csv.body)).toContain('jana@example.com')
+      expect((await c.get('/api/cms/_singleton/formSettings')).status).toBe(200)
+    }
+    for (const path of ['/api/cms/contactForm', `/api/cms/contactForm/${id}`, '/api/cms/contactForm/_export', '/api/cms/_singleton/formSettings', `/api/cms/contactForm/${id}/revisions`]) {
+      expect((await author.get(path)).status, path).toBe(403)
+    }
+    const graph = (await author.get('/api/cms/_graph')).body
+    expect(JSON.stringify(graph)).not.toContain('contactForm')
+    expect(JSON.stringify(graph)).not.toContain('formSettings')
+    expect(JSON.stringify((await admin.get('/api/cms/_graph')).body)).toContain('contactForm')
+    // …nor does the search find a visitor's text for them.
+    const found = (await author.get('/api/cms/_search?q=Kdy%20je')).body
+    expect(JSON.stringify(found)).not.toContain('další závod')
   })
 })

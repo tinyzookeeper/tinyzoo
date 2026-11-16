@@ -8,12 +8,6 @@ import { and, desc, inArray, propOf, resolveText } from 'tinyzoo'
 const PLAIN = new Set(['text', 'slug', 'number', 'boolean', 'select', 'datetime'])
 const MAX_ROWS = 10_000
 
-function quote(s: string): string {
-  // A leading = + - @ is neutralised (spreadsheet formulas); quoted when needed.
-  const safe = /^[=+\-@]/.test(s) ? `'${s}` : s
-  return /[",\n\r;]/.test(safe) ? '"' + safe.replace(/"/g, '""') + '"' : safe
-}
-
 /** A date as Excel reads it, in the admin's time zone: 2026-11-15 10:59. */
 function localTime(d: Date, timeZone: string): string {
   const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -63,8 +57,8 @@ export default defineEventHandler(async (event) => {
     return String(v)
   }
   const label = (key: string) => resolveText((e.fields[key] as any)?.meta?.label, locale) || key
-  const header = [...cols.map((c) => label(c.key)), lang === 'cs' ? 'Vytvořeno' : lang === 'de' ? 'Erstellt' : 'Created'].map(quote).join(sep)
-  const lines = rows.map((r) => [...cols.map((c) => show(value(r, c), c)), show(r.createdAt)].map(quote).join(sep))
+  const header = [...cols.map((c) => label(c.key)), lang === 'cs' ? 'Vytvořeno' : lang === 'de' ? 'Erstellt' : 'Created'].map(csvCell).join(sep)
+  const lines = rows.map((r) => [...cols.map((c) => show(value(r, c), c)), show(r.createdAt)].map(csvCell).join(sep))
   await audit(event, 'entry.export', { entity: e.name, meta: { rows: rows.length } })
 
   const day = new Date().toISOString().slice(0, 10)

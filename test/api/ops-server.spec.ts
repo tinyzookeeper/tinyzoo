@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
-import { Client } from '../helpers/api'
+import { Client, PNG_1x1 } from '../helpers/api'
 import { scratchDatabase, type SpawnedServer, startServer } from '../helpers/server'
 
 // Behaviour that needs a server of its own: first-run setup in production without a
@@ -141,11 +141,11 @@ describe('the cms:error hook', () => {
     const setup = await admin.post('/api/cms/_auth/setup', { ...person, token: 't' })
     expect(setup.status).toBe(201)
 
-    const res = await admin.get('/api/cms/_media/raw/x.png?secret=hunter2')
+    const res = await admin.upload('/api/cms/_media?secret=hunter2', { name: 'a.png', type: 'image/png', data: PNG_1x1 })
     expect(res.status).toBe(500)
     const report = await waitForReport((r) => r.source === 'request')
     expect(report).toMatchObject({
-      source: 'request', status: 500, method: 'GET', path: '/api/cms/_media/raw/x.png',
+      source: 'request', status: 500, method: 'POST', path: '/api/cms/_media',
       requestId: res.headers.get('x-request-id'), userId: setup.body.user.id,
     })
     expect(report.message).toContain('missing config')
@@ -236,6 +236,8 @@ describe('the cms:error hook', () => {
     writeFileSync(sink, '')
     const srv = await start(db.url, { NUXT_CMS_STORAGE_DRIVER: 's3', CMS_ERROR_SINK_FILE: sink, CMS_ERROR_SINK_THROW: '1' })
     const c = new Client(srv.baseURL)
+    // The raw route serves only files with a media row; with no bucket configured, serving one fails with a real 500.
+    await sql(db.url, "insert into cms_media (url, key, mime, size) values ('/api/cms/_media/raw/x.png', 'x.png', 'image/png', 1)")
     expect((await c.get('/api/cms/_media/raw/x.png')).status).toBe(500)
     await srv.waitForLog(/cms:error hook failed/)
     expect((await c.get('/api/health/live')).status).toBe(200)

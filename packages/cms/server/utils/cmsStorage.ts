@@ -1,5 +1,8 @@
-import { dirname, extname, resolve, sep } from 'node:path'
+import { createReadStream } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, extname, join, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { DEFAULT_MEDIA_BASE, encodeStorageKey, isSafeStorageKey, resolveS3Delivery, storedMediaUrl, type S3Delivery } from '../../shared/storage-delivery'
 import { byteRange, etagMatches, singleRange } from './cmsRange'
 
@@ -18,6 +21,14 @@ export interface StoredObject {
 export interface StorageDriver {
   /** Persist `body` under `key`. Returns the public URL + byte size. */
   put(key: string, body: Buffer, contentType: string): Promise<StoredObject>
+  /**
+   * Persist the file at `path` (an upload received to disk, see cmsUpload) under `key`
+   * without reading it into memory: the local driver moves it, S3 streams it. The
+   * file is consumed on success; the caller removes it when this throws.
+   */
+  putFile(key: string, path: string, info: { size: number; sha256: string; contentType: string }): Promise<StoredObject>
+  /** Where uploads are received before they are stored: a folder on a disk, not in memory. */
+  readonly tempDir: string
   /** Read the whole file into memory. For small files (picture sizes, a resize's source); serving uses `read`. */
   get(key: string): Promise<{ body: Buffer; contentType: string } | null>
   /**
@@ -33,7 +44,7 @@ export interface StorageDriver {
    * A signed address that serves the file straight from the store for `seconds`
    * (`delivery: 'redirect'`). Never stored anywhere. Absent for drivers without one.
    */
-  presign?(key: string, seconds: number): Promise<string>
+  presign?(key: string, seconds: number, contentDisposition?: string): Promise<string>
   /** How browsers get the files (S3 only); the raw route redirects under `redirect`. */
   readonly delivery?: S3Delivery
 }
@@ -57,6 +68,40 @@ export interface StorageRead {
   lastModified?: string
   /** `null` for 304 and 416. */
   body: ReadableStream<Uint8Array> | null
+}
+
+/**
+ * A file as a web stream that reads only as fast as it is consumed. `Readable.toWeb` alone
+ * counts its queue in *chunks* for a byte stream (its high-water mark of 64 KB then means 65 536
+ * chunks, 4 GB), so the whole file is read ahead into memory as fast as the disk can: a
+ * 100 MB upload to a bucket, or a video for a slow phone, took half its size in RAM. Here the
+ * queue is counted in bytes.
+ */
+export function fileWebStream(path: string, range?: { start: number; end: number }): ReadableStream<Uint8Array> {
+  const HIGH_WATER_MARK = 256 * 1024
+  const node = createReadStream(path, { ...range, highWaterMark: HIGH_WATER_MARK })
+  return Readable.toWeb(node, { strategy: { highWaterMark: HIGH_WATER_MARK, size: (chunk: Uint8Array) => chunk.byteLength } }) as ReadableStream<Uint8Array>
+}
+
+/** PUT the file at `path` to `url` with these (signed) headers; resolves with the HTTP status. Streams from disk with backpressure. */
+async function sendFile(url: string, headers: Record<string, string>, path: string): Promise<number> {
+  const { request } = url.startsWith('https:') ? await import('node:https') : await import('node:http')
+  return new Promise<number>((resolve, reject) => {
+    let status = 0
+    // A store that refuses (403, 5xx) may answer before the whole body is sent and close the
+    // connection: its answer is what counts, not the broken pipe after it.
+    const failed = (err: Error) => (status ? resolve(status) : reject(err))
+    const req = request(url, { method: 'PUT', headers }, (res) => {
+      status = res.statusCode ?? 0
+      res.resume() // the answer is only its status
+      res.on('end', () => resolve(status))
+      res.on('close', () => resolve(status))
+      res.on('error', failed)
+    })
+    req.setTimeout(60_000, () => req.destroy(new Error('timeout')))
+    req.on('error', failed)
+    pipeline(createReadStream(path), req).catch(failed)
+  })
 }
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -104,6 +149,26 @@ class LocalDriver implements StorageDriver {
     return { key, url: this.url(key), size: body.length }
   }
 
+  /** On the storage disk itself, so moving a received upload in is a rename, never a copy. */
+  get tempDir(): string {
+    return join(this.dir, '.incoming')
+  }
+
+  async putFile(key: string, path: string, info: { size: number }): Promise<StoredObject> {
+    const { copyFile, mkdir, rename, unlink } = await import('node:fs/promises')
+    const abs = this.pathFor(key)
+    await mkdir(dirname(abs), { recursive: true })
+    try {
+      await rename(path, abs)
+    }
+    catch (err: any) {
+      if (err?.code !== 'EXDEV') throw err
+      await copyFile(path, abs)
+      await unlink(path).catch(() => {})
+    }
+    return { key, url: this.url(key), size: info.size }
+  }
+
   async get(key: string): Promise<{ body: Buffer; contentType: string } | null> {
     try {
       const { readFile } = await import('node:fs/promises')
@@ -116,7 +181,6 @@ class LocalDriver implements StorageDriver {
 
   async read(key: string, opts: StorageReadOptions = {}): Promise<StorageRead | null> {
     const { stat } = await import('node:fs/promises')
-    const { createReadStream } = await import('node:fs')
     let abs: string
     let info: Awaited<ReturnType<typeof stat>>
     try {
@@ -136,7 +200,7 @@ class LocalDriver implements StorageDriver {
     if (range === 'unsatisfiable') return { status: 416, contentType, contentRange: 'bytes */' + size, body: null }
     const [start, end] = range ? [range.start, range.end] : [0, size - 1]
     // An empty file has no byte to start from: createReadStream would read it all, which is nothing.
-    const body = size === 0 ? new ReadableStream<Uint8Array>({ start: (c) => c.close() }) : (Readable.toWeb(createReadStream(abs, { start, end })) as ReadableStream<Uint8Array>)
+    const body = size === 0 ? new ReadableStream<Uint8Array>({ start: (c) => c.close() }) : fileWebStream(abs, { start, end })
     return {
       status: range ? 206 : 200,
       contentType,
@@ -218,7 +282,10 @@ class S3Driver implements StorageDriver {
   }
 
   private async client() {
-    if (this._client) return this._client
+    return (this._client ??= await this.makeClient(2))
+  }
+
+  private async makeClient(retries: number) {
     let AwsClient: any
     try {
       ;({ AwsClient } = await import('aws4fetch'))
@@ -228,16 +295,15 @@ class S3Driver implements StorageDriver {
         statusMessage: "The 's3'/'r2' storage driver requires the 'aws4fetch' package (pnpm add aws4fetch).",
       })
     }
-    this._client = new AwsClient({
+    return new AwsClient({
       accessKeyId: this.cfg.accessKeyId,
       secretAccessKey: this.cfg.secretAccessKey,
       region: this.cfg.region,
       service: 's3',
       // aws4fetch retries 5xx and network errors ten times with growing pauses (half a
       // minute in all): far too long for a visitor waiting for a picture.
-      retries: 2,
+      retries,
     })
-    return this._client
   }
 
   // Keys are RFC3986-safe by construction (date / uuid / ext), so per-segment
@@ -278,6 +344,38 @@ class S3Driver implements StorageDriver {
           + "Set NUXT_CMS_STORAGE_S3_DELIVERY=proxy (or 'redirect'), see https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/deploying.md#media")
       }
     }).catch(() => { /* the public address is not reachable from here (a CDN in front, a firewall): nothing to say */ })
+  }
+
+  get tempDir(): string {
+    return join(tmpdir(), 'tinyzoo-uploads')
+  }
+
+  /**
+   * Streams the received file to the bucket: one PUT whose body is read from the disk as it
+   * is sent (never in memory). The payload hash was taken while the file was received and
+   * goes in the signature, so the body needs no second pass. It is sent with `node:http(s)`
+   * and a plain pipe: `fetch` (undici) reads a stream body far ahead of the socket and held
+   * most of a 300 MB file in memory. A failed attempt starts over with a new stream.
+   */
+  async putFile(key: string, path: string, info: { size: number; sha256: string; contentType: string }): Promise<StoredObject> {
+    const client = await this.makeClient(0)
+    const address = this.objectUrl(key)
+    let status = 0
+    for (let attempt = 0; attempt < 3 && (status === 0 || status >= 500); attempt++) {
+      const signed = await client.sign(address, {
+        method: 'PUT',
+        headers: { 'content-type': info.contentType, 'content-length': String(info.size), 'x-amz-content-sha256': info.sha256 },
+      })
+      status = await sendFile(signed.url, Object.fromEntries(signed.headers.entries()), path).catch(() => 0)
+    }
+    if (!status) throw createError({ statusCode: 502, statusMessage: 'S3 upload failed (no answer)' })
+    if (status < 200 || status >= 300) {
+      throw createError({ statusCode: 502, statusMessage: `S3 upload failed (${status})` })
+    }
+    const { unlink } = await import('node:fs/promises')
+    await unlink(path).catch(() => {})
+    if (this.delivery === 'public') this.checkPublic(key)
+    return { key, url: this.url(key), size: info.size }
   }
 
   async get(key: string): Promise<{ body: Buffer; contentType: string } | null> {
@@ -344,10 +442,12 @@ class S3Driver implements StorageDriver {
     }
   }
 
-  async presign(key: string, seconds: number): Promise<string> {
+  async presign(key: string, seconds: number, contentDisposition?: string): Promise<string> {
     const client = await this.client()
     const url = new URL(this.objectUrl(key))
     url.searchParams.set('X-Amz-Expires', String(seconds))
+    // The store sends this as the file's Content-Disposition (a PDF's name).
+    if (contentDisposition && contentDisposition !== 'inline') url.searchParams.set('response-content-disposition', contentDisposition)
     const signed = await client.sign(url.toString(), { method: 'GET', aws: { signQuery: true } })
     return signed.url
   }
@@ -383,7 +483,11 @@ class UnconfiguredDriver implements StorageDriver {
       statusMessage: `Storage driver '${this.name}' is not implemented yet. Set cms.storage.driver to 'local'.`,
     })
   }
+  readonly tempDir = join(tmpdir(), 'tinyzoo-uploads')
   put(): Promise<StoredObject> {
+    return this.fail()
+  }
+  putFile(): Promise<StoredObject> {
     return this.fail()
   }
   get(): Promise<{ body: Buffer; contentType: string } | null> {

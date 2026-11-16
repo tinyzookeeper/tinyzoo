@@ -295,6 +295,14 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
       + `{${[...RESERVED_ENTITY_NAMES].join(', ')}} are reserved by the CMS.`,
     )
   }
+  // The name becomes a database table, a URL address and a name in the generated schema.ts:
+  // a space or a dash there is a syntax error in that file, found only when it is compiled.
+  if (typeof name !== 'string' || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) {
+    throw new Error(
+      `Invalid entity name "${name}": use letters, digits and underscores, starting with a letter, without spaces or dashes `
+      + '(for example "blogPost" or "blog_post"). The name becomes a database table, an address in the API and a name in the generated schema; the label shown in the admin is separate.',
+    )
+  }
   const fields = def.fields as unknown as Record<string, FieldDescriptor>
   for (const key of Object.keys(fields)) {
     if (RESERVED_FIELD_NAMES.has(key)) {

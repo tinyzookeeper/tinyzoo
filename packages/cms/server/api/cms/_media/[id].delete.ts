@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
   await useCmsStorage().delete(media.key)
   await deleteImageVariants(media.key)
   await db.delete(reg.cmsMedia).where(eq(reg.cmsMedia.id, id))
+  forgetServedMedia(media.key)
 
   await audit(event, 'media.delete', { recordId: id })
   return { ok: true }

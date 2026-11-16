@@ -102,6 +102,8 @@ export default async function setup(project: TestProject) {
       NUXT_SESSION_PASSWORD: 'test-session-password-at-least-32-characters-long',
       NUXT_CMS_STORAGE_DRIVER: 'local',
       NUXT_CMS_STORAGE_LOCAL_DIR: uploadsDir,
+      // Every spec uploads as the same seeded admin: the default 60 a minute would be used up by the suites together.
+      NUXT_CMS_STORAGE_UPLOAD_RATE_PER_MIN: '1000',
       NUXT_CMS_PUBLIC_URL: baseURL,
       NUXT_CMS_MAIL_TRANSPORT: 'file',
       // The database was migrated by drizzle's migrator above; migrating again at
