@@ -65,16 +65,22 @@ export class MigrationOrderError extends Error {
   }
 }
 
+/**
+ * What to do about an out-of-order migration. Regenerating gives it a later date, which is
+ * all that is needed if it ran nowhere; if it ran on another database that is not enough.
+ */
+export const ORDER_FIX = {
+  /** The fix: take it out and let `tinyzoo generate` write it again on top of the newest one. */
+  regenerate: (files: string) => `Fix: in your migrations folder (server/db/migrations by default) delete ${files}, its snapshot (meta/<number>_snapshot.json) and its entry in meta/_journal.json, then run \`tinyzoo generate\` again — the new migration is dated now, so it sorts after the others.`,
+  /** If it already ran somewhere (production, a colleague's database), the new one would run there a second time. */
+  appliedElsewhere: 'If it already ran on another database (production, a colleague\'s), that is not enough: the regenerated migration is a new one to that database, and would repeat changes it already has. Before deploying, edit the new .sql so it can run twice (ADD COLUMN IF NOT EXISTS, CREATE TABLE / CREATE INDEX IF NOT EXISTS, DROP … IF EXISTS before ADD CONSTRAINT; keep any statements you wrote by hand). Deleting and regenerating without that breaks the deploy.',
+}
+
 function orderMessage(entries: JournalEntry[]): string {
   const files = entries.map((e) => `${e.tag}.sql`).join(', ')
-  const parts = entries.map((e) => {
-    const prefix = /^(\d+)_/.exec(e.tag)?.[1] ?? String(e.idx).padStart(4, '0')
-    return `${e.tag}.sql, meta/${prefix}_snapshot.json and its entry in meta/_journal.json`
-  })
   return `Migration${entries.length > 1 ? 's' : ''} ${files} ${entries.length > 1 ? 'were' : 'was'} never applied to this database, but a newer migration already was — `
-    + 'usually two branches each generated a migration. Drizzle would skip it for good, so nothing is applied until this is fixed. '
-    + `Fix: in your migrations folder (server/db/migrations by default) delete ${parts.join('; ')}, `
-    + 'then run `tinyzoo generate` again on top of the newest migration. (See docs/upgrading.md.)'
+    + 'usually two branches each generated one. Drizzle would skip it for good, so nothing is applied until this is fixed. '
+    + `${ORDER_FIX.regenerate(files)} ${ORDER_FIX.appliedElsewhere} (See docs/upgrading.md, "Migration … was never applied".)`
 }
 
 interface ReadMigration extends JournalEntry { hash: string; statements: string[] }
