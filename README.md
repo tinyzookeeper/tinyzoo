@@ -102,3 +102,7 @@ pnpm check                 # typecheck, tests, production build: what CI runs
 
 Layout, tests, and the decisions behind the code: [docs/development.md](docs/development.md).
 Changes to a package need a changeset: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licence
+
+Proprietary. Copyright (c) 2026 Vojtěch Moravec, all rights reserved: the code is public to read, but using it needs the author's permission. See [LICENSE](LICENSE).
