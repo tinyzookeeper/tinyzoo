@@ -28,6 +28,13 @@ The recipes that translate content use the starter's `useSiteLocale()` (in
 Replace it with your own if your site is not made from the starter. The recipes that
 show one language leave it out.
 
+**Keys.** Every `useAsyncData` / `useFetch` call has a key, and **two calls with the same
+key share one result**. The starter already uses `site-settings` and `site-nav` (in
+`useSite()`) and `site:<address>` (the page being shown), so never reuse those: a recipe's
+call that stored a different shape under `site-settings` would hand the layout something
+it cannot read and the page would answer 500. The keys in this page are named after what
+they hold (`opening-hours`, `team`, `faq`, …) for that reason; name yours the same way.
+
 **On every page you build** the client is made the same way:
 
 ```ts
@@ -78,6 +85,8 @@ export const ContactForm = defineForm('contactForm', {
       },
     }).label({ en: 'What is it about?', cs: 'O co jde?' }),
     message: f.text({ required: true, multiline: true, max: 5000 }).label({ en: 'Message', cs: 'Zpráva' }),
+    // `mustBeTrue`: the form cannot be sent without the box ticked.
+    consent: f.boolean({ mustBeTrue: true }).label({ en: 'I agree to the processing of my details', cs: 'Souhlasím se zpracováním údajů' }),
   },
   submitLabel: { en: 'Send', cs: 'Odeslat' },
   successMessage: { en: 'Thank you, we will reply soon.', cs: 'Děkujeme, brzy se ozveme.' },
@@ -107,9 +116,14 @@ const locale = useSiteLocale()
 ```
 
 `<CmsForm>` makes plain HTML (`label`, `input`, `textarea`, `select`, a button) with
-default styles that have no specificity, so your own CSS wins without a fight.
+default styles that sit in the lowest CSS layer and follow the text colour (so they read on
+a dark page too), so your own CSS wins without a fight. A choice with a `default` opens
+on it; a required field has a `*`; when the server refuses a field, the form shows its
+reason in the visitor's language (*Vyberte jednu z možností.*) under it, with a red border.
+To restyle the refused state, style `[aria-invalid='true']` or set `--cms-form-error`.
 
-**Admin note.** Messages land under *Contact form* in the sidebar. Each has a state: *New*
+**Admin note.** Messages land under *Contact form* in the sidebar; they are personal data,
+so only editors and administrators see them (authors do not). Each has a state: *New*
 (Nové), *Read* (Přečtené), *Done* (Vyřízené). **Export CSV** downloads the whole list for
 a spreadsheet. Who gets the email is set by the editor in **Forms → Send new messages to**
 (Formuláře → Nové zprávy posílat na). If nobody is set there, the addresses in
@@ -296,6 +310,13 @@ shown until it is written ([translations](content-model.md#languages)).
 
 **When:** "who we are": photo, name, role, a short bio, in an order the client chooses.
 
+This is the `teamMember` of [Getting started](getting-started.md#6-your-first-collection-team-members)
+with an email added and a longer `bio`: **if you built that one, add only `email` to it**
+(a new optional column: a safe migration) and keep `bio` as it is. Pasting a second
+definition with a different type for `bio` (rich text instead of plain text) would ask
+Postgres to change the column's type, which it cannot do without a conversion
+([Changing a field's type](../upgrading.md#changing-a-fields-type)).
+
 <!-- check: team/cms.config.ts -->
 ```ts
 import { defineEntity, defineLocales, f } from 'tinyzoo'
@@ -314,7 +335,7 @@ export const TeamMember = defineEntity('teamMember', {
     name: f.text({ required: true }).label({ en: 'Name', cs: 'Jméno' }),
     role: f.text({ required: true }).localized().label({ en: 'Role', cs: 'Funkce' }),
     photo: f.media({ accept: 'image/*' }).optional().label({ en: 'Photo', cs: 'Fotka' }),
-    bio: f.richtext().optional().localized().label({ en: 'About', cs: 'O mně' }),
+    bio: f.text({ multiline: true, max: 400 }).optional().localized().label({ en: 'A few words', cs: 'Pár slov' }),
     email: f.text({ format: 'email' }).optional().label({ en: 'Email', cs: 'E-mail' }),
     position: f.number().optional().label({ en: 'Order', cs: 'Pořadí' }),
   },
@@ -356,7 +377,7 @@ const { data: team } = await useAsyncData(
         <CmsImage v-if="person.photo" :media="person.photo" sizes="(min-width: 1024px) 20rem, 50vw" class="aspect-square w-full rounded-xl object-cover" />
         <h2 class="mt-3 text-lg font-semibold">{{ person.name }}</h2>
         <p class="text-muted">{{ person.role }}</p>
-        <CmsContent v-if="person.bio" :doc="person.bio" class="prose mt-2" />
+        <p v-if="person.bio" class="mt-2 text-sm">{{ person.bio }}</p>
         <a v-if="person.email" :href="`mailto:${person.email}`">{{ person.email }}</a>
       </li>
     </ul>
@@ -371,6 +392,12 @@ in view (the *focal point*, e.g. a face), and `<CmsImage>` keeps that spot visib
 the crop changes.
 
 **Gotchas**
+- **A longer, formatted bio** is `f.richtext()` instead of the short text, drawn with
+  `<CmsContent :doc="person.bio" class="prose" />`. On a site that already has people, that
+  is a change of the column's type (text to JSON): follow
+  [Changing a field's type](../upgrading.md#changing-a-fields-type), which has the
+  `USING` conversion the generated migration lacks, or add the rich field next to the old
+  one and move the texts over.
 - Arranging works for up to 100 entries; the admin says so when there are more.
 - Everyone you save is public at once, because the collection has no `status`. To hide
   someone without deleting them, add a `status` and `publish` as in [News](#2-news).
@@ -588,7 +615,8 @@ out by themselves.
 import { createClient } from '~/lib/cms-content'
 
 const cms = createClient({ baseUrl: useRequestURL().origin })
-const { data: settings } = await useAsyncData('site-settings', () => cms.global('siteSettings'))
+// Its own key: `site-settings` belongs to the starter's useSite() and holds another shape.
+const { data: settings } = await useAsyncData('opening-hours', () => cms.global('siteSettings'))
 
 const DAY = 86_400_000
 // All-day dates are stored at midnight (in the admin's time zone), so a closure lasts
@@ -801,7 +829,7 @@ const inCategory = (key: (typeof categories)[number]['key']) => documents.value.
         <h2 class="text-xl font-semibold">{{ c.title }}</h2>
         <ul>
           <li v-for="d in inCategory(c.key)" :key="d.id" class="py-1">
-            <a :href="d.file.url" download>{{ d.title }}</a>
+            <a :href="d.file?.url" download>{{ d.title }}</a>
             <span class="text-sm text-muted"> · PDF<template v-if="d.note"> · {{ d.note }}</template></span>
           </li>
         </ul>
@@ -1062,11 +1090,11 @@ const main = computed(() => cmsMenuTree(nav.value?.main))
   <header>
     <ul>
       <li v-for="link in main" :key="link.id">
-        <NuxtLink v-if="link.url" :to="link.url">{{ link.label }}</NuxtLink>
+        <NuxtLink v-if="link.url" :to="siteHref(link.url)">{{ link.label }}</NuxtLink>
         <span v-else>{{ link.label }}</span>
         <ul v-if="link.children.length">
           <li v-for="child in link.children" :key="child.id">
-            <NuxtLink :to="child.url!">{{ child.label }}</NuxtLink>
+            <NuxtLink :to="siteHref(child.url!)">{{ child.label }}</NuxtLink>
           </li>
         </ul>
       </li>
@@ -1074,6 +1102,14 @@ const main = computed(() => cmsMenuTree(nav.value?.main))
   </header>
 </template>
 ```
+
+`siteHref()` is the starter's (`app/composables/useSite.ts`): the page whose address is
+`home` is at `/home` in the content API, so a menu link picked from the page list comes
+out as `/home`, and the website sends the visitor on to `/` with a redirect (and `/en/home`
+to `/en`). Writing the link as `/` instead of `/home` saves the hop and keeps the menu's
+"current page" marking right; `siteHref` does it for every link, so the editor can keep
+picking the home page from the list. A site that does not come from the starter does the
+same with `url.replace(/^((?:\/[a-z]{2})?)\/home$/, '$1') || '/'`.
 
 If you do not need your own markup, `<CmsNav :links="nav?.main" />` does the same
 nesting and makes `<nav class="cms-nav"><ul><li class="cms-nav__has-children"><a>…</a><ul><li><a>…</a></li></ul></li></ul></nav>`.

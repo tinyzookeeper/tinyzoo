@@ -6,15 +6,15 @@ Web může mít víc jazyků. Jeden z nich je **výchozí**, obvykle čeština. 
 
 ## Jak přeložit stránku nebo aktualitu
 
-1. Otevřete položku, kterou chcete přeložit. Musí být nejdřív **uložená**. U úplně nové položky se napíše **Nejdřív uložte, pak přeložte**.
-2. V panelu s podrobnostmi (vpravo, nebo pod nadpisem) najdete seznam **Jazyky**. U každého jazyka je jeho stav: **výchozí**, **Přeloženo** nebo **Nepřeloženo**. Klikněte na jazyk, do kterého překládáte.
+1. Otevřete položku, kterou chcete přeložit. Musí být nejdřív **uložená**: u úplně nové položky tlačítko pro jazyk v horní liště není (a u ještě neuložených nastavení se v nabídce jazyků píše **Nejdřív uložte, pak přeložte**).
+2. V horní liště vpravo je tlačítko s ikonou jazyků a zkratkou jazyka, ve kterém právě jste (třeba **CS**). Klikněte na něj a v nabídce **Jazyk** vyberte ten, do kterého překládáte. U každého jazyka je jeho stav: **(výchozí)**, **Přeloženo** nebo **Nepřeloženo**. Na telefonu je totéž v nabídce **Další akce** (tři tečky) jako **Jazyk**. Jazyk jde přepnout i v panelu s podrobnostmi, kde je stejný seznam.
 3. Pod každým polem teď vidíte, jak zní text ve výchozím jazyce (třeba „Čeština: O nás“). Pole, která se překládají, jsou prázdná. Napište překlad.
 4. Když chcete text jen mírně upravit, klikněte u pole na **Zkopírovat z jazyka …**. Do pole se vloží výchozí text a vy ho přepíšete.
 5. Klikněte na **Uložit překlad**.
 
 <!-- screenshot: editor v angličtině: pod polem Název je šedě původní český text a odkaz Zkopírovat z jazyka čeština -->
 
-Zpátky do výchozího jazyka se vrátíte kliknutím na něj v seznamu **Jazyky**.
+Zpátky do výchozího jazyka se vrátíte stejně: tlačítkem s jazykem v horní liště a výběrem jazyka označeného **(výchozí)**.
 
 ## Co se překládá a co ne
 

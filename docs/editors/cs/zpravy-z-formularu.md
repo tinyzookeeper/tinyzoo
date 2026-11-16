@@ -29,6 +29,8 @@ Otevřete **Kontaktní formulář** (v menu v části **Obsah**). V seznamu jsou
 | **Přečtené** | Někdo ji přečetl. |
 | **Vyřízené** | Je odpovězeno nebo vyřešeno. |
 
+**Kdo je vidí.** Zprávy z formulářů jsou osobní údaje návštěvníků, proto je vidí jen **editoři a administrátoři**. Autor je v menu nemá a nemůže je otevřít ani stáhnout. Potřebuje-li je vidět někdo další, změní mu roli administrátor v **Nastavení → Tým**.
+
 Zprávu otevřete kliknutím. Stav změníte v poli **Stav** na pravé straně a uložíte. Společně se tak můžete domluvit, kdo na co odpověděl, a nové věci nezapadnou. Zprávy se dají filtrovat (**Filtr**) i prohledávat (**Hledat…**), takže najdete třeba všechna **Nové**.
 
 Zprávu **nemůžete vytvořit sami** (tlačítko **+** pro přidání tu není): zprávy přicházejí jen z webu.

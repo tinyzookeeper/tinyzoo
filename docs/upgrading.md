@@ -266,13 +266,18 @@ its language. A reference is served as the target's address in the language aske
 any other match would change what visitors get. Addresses no entry has, another language's
 address of an entry, addresses of entries not published yet, addresses two entries share
 and addresses with a `#anchor` or `?query` are listed and left as typed: pick those
-pages again in the link picker. The home page (`/`), a list page that is not an entry
+entries again in the link picker. The home page (`/`), a list page that is not an entry
 (`/aktuality`) and every other fixed page of the site are never converted: they are not
 entries, so there is nothing to follow, and they stay as typed. External links, `mailto:` and `tel:` are
 not touched; neither are saved versions (History) or `updatedAt`. If it reports blocks
 stored at an older version, run `tinyzoo content:migrate` first. Afterwards purge the
 website's cache (the content API answers changed), and make sure whatever consumes the
 API handles a link field that is `null` (the target is gone or not published).
+
+A site with a **seed** (`seed/index.ts`) that writes typed addresses with `s.upsert` would
+write them back over the converted links on its next run: have the seed write references
+(`s.link('', entry).url`, as the starter's does), or use `s.create` for those pages
+([Seeding](guide/seeding.md)).
 
 ### Renaming a field
 
@@ -351,6 +356,23 @@ values that do not convert fail the whole migration.
 - **They need converting** (text to a number, text to a date): add the conversion by
   hand — `ALTER TABLE "post" ALTER COLUMN "n" SET DATA TYPE integer USING "n"::integer;`.
   Try it on a copy of your data first.
+- **`--allow-drop` does not write the conversion for you.** The guard stops on a type
+  change, and `tinyzoo generate --allow-drop` keeps the generated migration *as it is*:
+  without `USING` Postgres refuses it (`column "bio" cannot be cast automatically to type
+  jsonb`) when `tinyzoo up` runs it. Edit the `.sql` file before you apply it. The guard's
+  message points here for that reason.
+- **Plain text to rich text** (`f.text()` → `f.richtext()`, a `text` column becoming `jsonb`)
+  is such a case: wrap each text in a one-paragraph document, and do the same for the
+  `<entity>_locales` table if the field is `.localized()`:
+
+  ```sql
+  ALTER TABLE "team_member" ALTER COLUMN "bio" SET DATA TYPE jsonb
+    USING CASE WHEN "bio" IS NULL OR "bio" = '' THEN NULL
+      ELSE jsonb_build_object('type', 'doc', 'content', jsonb_build_array(
+        jsonb_build_object('type', 'paragraph', 'content', jsonb_build_array(
+          jsonb_build_object('type', 'text', 'text', "bio"))))) END;
+  ```
+
 - **To keep the old values until you are sure**: two-step. In release N add a new
   field of the new type, fill it from the old one in the migration
   (`UPDATE "post" SET "n_new" = "n"::integer;`), switch the site over; in N+1 drop

@@ -22,6 +22,88 @@ Without Redis everything still works on **one** replica; with several, each woul
 count rate limits on its own and see other replicas' content changes only after
 its caches expire (redirects: 30 s, sitemap: 1 min).
 
+### A client site on any container host
+
+A site made with `tinyzoo init` is an ordinary Nuxt app in its own repository. Any host
+that runs a container (or a plain Node process) can run it, with this `Dockerfile` next
+to `package.json`:
+
+```dockerfile
+FROM node:22-alpine AS build
+WORKDIR /app
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 NODE_OPTIONS=--max-old-space-size=4096
+RUN corepack enable
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm build
+
+FROM node:22-alpine
+WORKDIR /app
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000
+# Only the build output ships: no node_modules, no source. The migrations are inside it.
+COPY --from=build /app/.output ./.output
+USER node
+EXPOSE 3000
+CMD ["node", ".output/server/index.mjs"]
+```
+
+- **What ships is `.output/` and nothing else.** `pnpm build` (`nuxt build`) writes it;
+  `node .output/server/index.mjs` starts it, on `HOST`:`PORT`. It does not need
+  `node_modules`, `cms.config.ts` or `server/db/` next to it.
+- **The migrations are bundled** (the site's `server/db/migrations`, taken into the build),
+  and applied when the server starts, **if** `NUXT_CMS_MIGRATIONS_ON_START=true`. The
+  build needs no database and no secrets, so one image serves every environment.
+- **Settings are read at start**, from the container's environment: `DATABASE_URL`,
+  `NUXT_SESSION_PASSWORD`, `NUXT_CMS_PUBLIC_URL`, `NUXT_CMS_MIGRATIONS_ON_START=true`,
+  the storage variables (`NUXT_CMS_STORAGE_DRIVER=s3` and `NUXT_CMS_STORAGE_S3_*`; a
+  container's own disk is gone after every deploy) and the mail ones
+  (`NUXT_CMS_MAIL_TRANSPORT=smtp`, `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_*`); the
+  [Environment](#environment) table has the rest. Without a `.env`, nothing is read from
+  files: put every value on the platform.
+- **Health.** Probe `GET /api/health/live` (is it up) and `/api/health/ready` (migrated, the
+  database answers) on the container's port.
+- **First start.** A fresh database has no administrator: read `Setup code: …` in the log
+  and finish at `/admin/setup` ([First run](#first-run-the-setup-code)).
+- **Several replicas** need `REDIS_URL` (see [What runs](#what-runs)); HTTPS and the
+  public domain are the platform's, and `NUXT_CMS_AUTH_TRUSTED_PROXIES` says how many
+  proxies are in front.
+
+Try it on your machine before the host does:
+
+```bash
+docker build -t my-site .
+docker run --rm -p 3000:3000 \
+  -e DATABASE_URL=postgres://site:site@host.docker.internal:5433/site \
+  -e NUXT_SESSION_PASSWORD="$(openssl rand -base64 32)" \
+  -e NUXT_CMS_PUBLIC_URL=http://localhost:3000 \
+  -e NUXT_CMS_MIGRATIONS_ON_START=true \
+  -e NUXT_CMS_STORAGE_LOCAL_DIR=/tmp/uploads \
+  my-site
+```
+
+(`host.docker.internal` is how a container reaches a database on your own machine from
+Docker Desktop; on Linux add `--add-host=host.docker.internal:host-gateway`.) Without a
+bucket, uploads go to the container's disk and are lost with it.
+
+## Before the site goes live
+
+[Getting started](guide/getting-started.md#going-live) has the checklist with the reasons.
+The items people forget, in one place:
+
+- **The admin's name.** In `app/app.config.ts`, `cms.admin.name` (per language) is what the
+  admin's top left, its sign-in page and its browser tab say; the starter ships "My website".
+  Set it to the client's name before anybody signs in.
+- **`robots.txt` and the sitemap.** The starter serves `/robots.txt` (the admin is
+  `Disallow`ed, the sitemap named) and `/sitemap.xml`. Open both on the live address: the
+  sitemap needs `NUXT_CMS_PUBLIC_URL` and is a `404` without it (a site whose content API is
+  behind a token has none). A site not made from the starter needs its own `robots.txt`
+  (a file in `public/`, or a `server/routes/robots.txt.get.ts`), and fixed pages that are
+  not entries (the news list, a contact page the website draws itself) go in
+  `cms.sitemap.paths` in `nuxt.config.ts`.
+- **The public address.** `NUXT_CMS_PUBLIC_URL` is also the base of the sitemap and of the
+  starter's canonical and `hreflang` links.
+
 ## Environment
 
 Generate secrets (`openssl rand -base64 32`) and set them on the platform, never in
@@ -122,11 +204,45 @@ deploy log after a schema change. Destructive changes
 using it, then drop it ([the two-step rule](upgrading.md#the-two-step-rule)).
 To restore after a failed upgrade, restore the database backup taken before it.
 
+### Exit codes
+
+For a deploy script or CI step. `0` is success everywhere; what else a command answers:
+
+| Command | Exit code |
+|---|---|
+| `tinyzoo up` | `1`: a migration failed, the migrations are out of order, or `DATABASE_URL` is missing or does not connect |
+| `tinyzoo status` | `0` up to date · `1` something is pending, or out of order · **`2` the database could not be read** (a deploy check should treat `2` as a failure of its own, not as "pending") |
+| `tinyzoo generate`, `tinyzoo upgrade` | `1`: drizzle-kit failed, it needs a terminal to ask about a rename, or the guard removed a migration that loses data or may fail on existing rows (CI always gets this unless `--allow-drop` / `--allow-risky` is given). `upgrade` also stops with `1` when its typed client step fails |
+| `tinyzoo content:migrate` | `1`: some blocks could not be upgraded (they stay as stored), the arguments are wrong, or there is no `DATABASE_URL` |
+| `tinyzoo links:convert` | `1`: wrong arguments, or no `DATABASE_URL`. Addresses it could not convert are reported, not an error: the exit code is `0` |
+| `tinyzoo seed`, `export`, `import`, `backup`, `restore` | `1`: the command failed or refused (a non-empty database without `--force`, a missing Postgres tool, a wrong password); one line says why |
+| `tinyzoo init` | `1`: no folder given, or the folder exists and is not empty |
+| anything else | an unknown command prints the usage and exits `1` |
+
 ## Health
 
 - `GET /api/health/live` — the process is up (liveness); fails when start-up
   migrations gave up.
 - `GET /api/health/ready` — migrations done and the database answers (readiness).
+
+## Caching
+
+What the app sends, so a CDN in front of it can be set up for exactly that:
+
+| Response | `Cache-Control` | Notes |
+|---|---|---|
+| Content API (`/api/content/…`) | `public, max-age=0, must-revalidate, s-maxage=300` | a **shared cache (CDN) may keep it 5 minutes** (`s-maxage`); a browser asks again every time and gets a quick `304` through the `ETag` while nothing changed, so a published change shows at once for visitors who reach the origin. Change it with `cms.content.cacheControl`. Behind a content token, and for an editor's draft preview: `private, no-store` |
+| Media files and picture sizes (`/api/cms/_media/raw/…`, `/api/cms/_media/img/…`) | `public, max-age=31536000, immutable` | a new upload has a new address, so they never change under it |
+| `/sitemap.xml` | `public, max-age=3600` | |
+| `/robots.txt` of the starter | `public, max-age=3600` | |
+| The admin and its API (`/admin`, `/api/cms/…`) | `no-store` | never cache |
+| The website's own pages | none of the CMS's | whatever your site sets (`routeRules` in `nuxt.config.ts`); Nuxt sends no `Cache-Control` for a server-rendered page |
+
+So "a CDN keeps content 5 minutes" is true of the content API, and of nothing else by
+default. To make a change visible sooner than five minutes, purge: the
+[publish webhook](#publish-webhooks) says which addresses changed. Many CDNs do not
+store a response that sets a cookie: check on the live address with
+`curl -sI https://www.example.cz/api/content/page` that the answer has no `Set-Cookie` header.
 
 ## Media
 
@@ -404,7 +520,47 @@ reported before anything is emptied too.
 
 `TINYZOO_PG_DUMP`, `TINYZOO_PG_RESTORE` and `TINYZOO_PSQL` point at a binary or a wrapper
 script to use another one (for example one that runs the tool inside a Docker container
-of the version you want). Without client tools, take the database part inside the
+of the version you want). The value is **one executable path**: it is started directly,
+not through a shell, so it cannot carry arguments; put them in a wrapper script.
+
+**What a wrapper receives.** tinyzoo calls each tool exactly like the real one, so a wrapper
+only has to pass everything through (`"$@"`, stdin, stdout, stderr, the exit code):
+
+| Tool | Arguments | stdin → stdout |
+|---|---|---|
+| `pg_dump` | `--format=custom` | nothing in → the dump out (tinyzoo writes it to a file) |
+| `pg_restore` | `--version`; `--list`; `-f - --no-owner --no-acl --no-comments` | the dump in (all three) → the listing, or the dump as SQL |
+| `psql` | `--version`; `-X -q -v ON_ERROR_STOP=1 -f -` | the SQL in → nothing out |
+
+The connection is **never in the arguments**. It is in the environment, taken from
+`DATABASE_URL`: `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` and, from the
+connection string's TLS settings, `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT`, `PGSSLKEY`.
+Every other `PG*` variable of your shell is removed before the tool starts, so a stray
+`PGDATABASE` cannot send a dump to another database. `--version` has to print the real
+tool's line (`pg_restore (PostgreSQL) 17.2`), since tinyzoo compares versions with it;
+anything else on stdout of the other calls corrupts the dump, so a wrapper prints nothing
+of its own (messages go to stderr). A non-zero exit stops the command; whatever the tool
+wrote to stderr is shown.
+
+A wrapper that runs the tool in Docker has to hand the `PG*` variables to the container
+(`-e PGHOST -e PGPORT …`, without values, takes them from the environment) and keep stdin
+open (`-i`). Inside the container `localhost` is the container itself: when the database is
+on the machine Docker runs on, the wrapper must turn `localhost` into
+`host.docker.internal` (Docker Desktop; on Linux also `--add-host=host.docker.internal:host-gateway`):
+
+```sh
+#!/bin/sh
+# pg-17: runs a PostgreSQL 17 client tool in Docker. Link it as pg_dump, pg_restore and psql,
+# and point TINYZOO_PG_DUMP, TINYZOO_PG_RESTORE and TINYZOO_PSQL at the three links.
+tool=$(basename "$0")
+case "$PGHOST" in localhost|127.0.0.1|::1) PGHOST=host.docker.internal ;; esac
+export PGHOST
+exec docker run --rm -i --add-host=host.docker.internal:host-gateway \
+  -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE -e PGSSLMODE \
+  postgres:17-alpine "$tool" "$@"
+```
+
+Without client tools, take the database part inside the
 database's own container and keep it with a copy of the bucket:
 
 ```bash

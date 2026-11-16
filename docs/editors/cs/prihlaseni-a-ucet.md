@@ -59,7 +59,7 @@ Každý člověk má jednu roli. Kdo vás pozval, vybral ji. Roli změní jen ad
 |---|---|
 | **Administrátor** | Všechno, včetně lidí (část **Tým**) a části **Soukromí**. |
 | **Editor** | Vytváří, upravuje, zveřejňuje a maže veškerý obsah. Upravuje **Nastavení webu**. Nespravuje lidi. |
-| **Autor** | Píše koncepty a upravuje a maže jen to, co sám vytvořil. Nezveřejňuje. Nemůže měnit nastavení webu ani obsah, který se na web dostává hned po uložení (třeba **Přesměrování**). Soubory mění a maže jen ty, které sám nahrál. |
+| **Autor** | Píše koncepty a upravuje a maže jen to, co sám vytvořil. Nezveřejňuje. Nemůže měnit nastavení webu ani obsah, který se na web dostává hned po uložení (třeba **Přesměrování**). Soubory mění a maže jen ty, které sám nahrál. Nevidí zprávy z formulářů (jsou to osobní údaje návštěvníků). |
 
 Kdo je **Autor**, u položky vidí místo tlačítka **Zveřejnit** poznámku **Zveřejní ho editor**. Co dělat, když potřebujete něco, na co nemáte oprávnění, je v kapitole [Co dělat, když něco nefunguje](kdyz-neco-nefunguje.md).
 

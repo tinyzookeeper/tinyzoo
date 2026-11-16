@@ -70,9 +70,11 @@ The first command starts Postgres 16 in a container (user, password and database
 ```
 
 > **`Bind for 0.0.0.0:5433 failed: port is already allocated`:** another Postgres on your
-> machine has the port. Run `docker compose down`, then pick a free one:
-> `SITE_PG_PORT=5455 docker compose up -d`, and change the port in `DATABASE_URL` in `.env`
-> to match (`postgres://site:site@localhost:5455/site`).
+> machine has the port. Run `docker compose down`, pick a free port and write it in **two
+> places** in `.env`: `SITE_PG_PORT=5455` (which port compose publishes, read by every
+> `docker compose` command: without it the next `docker compose up` or `down` falls back
+> to 5433 again) and the same port in `DATABASE_URL`
+> (`postgres://site:site@localhost:5455/site`). Then `docker compose up -d`.
 >
 > **Not using Docker?** Create an empty database on any Postgres 16+ and put its address in
 > `DATABASE_URL`. The user needs the right to run `CREATE EXTENSION` (once; search uses
@@ -204,7 +206,9 @@ pnpm cms:client
 This writes `app/lib/cms-content.ts` (generated, do not edit): a `TeamMember` type with the
 fields you defined (`photo` is a media object or `null`, `role` is already in the language
 you ask for) and a client that knows every collection. A wrong field name or sort key is
-now a compile error. Make `app/pages/tym.vue`:
+now a compile error. (The starter's block components use the same file for their props, so
+renaming a block field in `cms.config.ts` breaks `pnpm typecheck` until the component
+follows.) Make `app/pages/tym.vue`:
 
 <!-- check: getting-started/app/pages/tym.vue -->
 ```vue
@@ -246,6 +250,9 @@ Open `/tym` and `/en/team`. Things worth knowing about the code:
   on the server and in the browser. A website in its own repo uses the CMS's address.
 - `cms.teamMember.list({ locale })` returns `{ items, total, page, limit }`. Try
   `sort: 'nme'`: the compiler stops you.
+- A **required** picture or file (`f.media()`, `f.file()` without `.optional()`) is typed
+  `… | null` as well, because the API says `null` when there is no file to give. Write
+  `d.file?.url`, not `d.file.url`: the strict compiler refuses the second.
 - `<CmsImage>` comes with tinyzoo: it draws a media object with its alt text, real size,
   lazy loading and the focal point the editor chose. `<CmsNav>`, `<CmsBlocks>`,
   `<CmsContent>` and `<CmsForm>` are the others
@@ -300,6 +307,8 @@ environment (never in git). The whole list, with the reasons, is in
 | ☐ | **Redis** (`REDIS_URL`) if you run more than one instance | rate limits and live updates are shared through it |
 | ☐ | **Proxies**: `NUXT_CMS_AUTH_TRUSTED_PROXIES` equal to the number of proxies in front of the app | rate limits must see the visitor, not the proxy |
 | ☐ | **Forms**: who is told about messages (**Forms** in the admin, or `NUXT_CMS_FORMS_NOTIFY_TO`), and a `retentionDays` that matches your privacy policy | see [Privacy](../deploying.md#privacy-gdpr) |
+| ☐ | **The admin's name**: in `app/app.config.ts` set `cms.admin.name` (and `siteUrl`) to the client's name, per language | the admin's top left, its sign-in page and its tab say whose site it is; the starter says "My website" |
+| ☐ | **`robots.txt` and the sitemap**: the starter serves `/robots.txt` (keeps crawlers out of `/admin`, names `/sitemap.xml`); check both on the live address, and add the site's fixed pages to `cms.sitemap.paths` in `nuxt.config.ts` | search engines find the pages; the sitemap needs `NUXT_CMS_PUBLIC_URL` and answers 404 without it |
 | ☐ | **Real content**: replace the demo texts and pictures, or delete `seed/` | editors start from your content, not the bakery's |
 
 [deploying.md](../deploying.md#pushbase-step-by-step) walks the same list on Pushbase, and a

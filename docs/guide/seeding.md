@@ -55,6 +55,17 @@ export default defineSeed(async (s) => {
   (`'2026-03-01T09:00:00Z'`), not "now".
 - **Fields you leave out are left alone** by `s.upsert` (it cannot clear a field: give `null`).
   A global is saved whole, so give every required field.
+- **Links to your own pages: write references, not typed addresses.** A button or link field
+  that leads to a page the seed made should hold what the admin's link picker stores,
+  `cms:page/<id>`, which follows the page when it is renamed or moved and gives each
+  language its own address. In a menu `s.link(label, entry)` does that; in a block or field
+  write the same with `s.link('', entry).url`. A typed address (`buttonUrl: '/kontakt'`)
+  works, but `s.upsert` then compares it with what is stored: after `tinyzoo links:convert`
+  (or an editor picking the page in the picker) the stored value is a reference, the seed
+  sees a difference, and the next run writes the typed address back over it. Pages the
+  website draws itself (`/aktuality`, `/hledat`) are not entries and stay typed. (`s.create`
+  never touches an entry that exists, so for content editors own from the start it avoids the
+  question altogether.) The starter's seed does it this way.
 - Relations take the id a call returned (`author: jana.id`); a seed that goes through
   `s.upsert` can be changed and run again to update a live site's pages.
 
