@@ -81,6 +81,52 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:consumer
 
+  # A site made on an older tinyzoo moves to this one: scripts/upgrade-check.mjs builds each
+  # baseline in .github/upgrade-baseline (and the latest release tag), seeds a site from it,
+  # installs this commit's packages, runs `tinyzoo upgrade`, starts the site on the same
+  # database and compares what the content API and the admin return, field by field.
+  # CONTRIBUTING.md says what to do when it fails.
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: cms
+          POSTGRES_DB: cms
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cms -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: valkey/valkey:8-alpine
+        ports: ['6379:6379']
+    env:
+      # The check makes (and drops) its own cms_upcheck_* databases on this server.
+      UPGRADE_CHECK_DATABASE_URL: postgres://cms:cms@localhost:5432/postgres
+      UPGRADE_CHECK_REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the baselines are commits and tags
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm # the store also holds what the baseline and the site installs download
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:upgrade --logs "$RUNNER_TEMP/upgrade-logs"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-check-logs
+          path: ${{ runner.temp }}/upgrade-logs
+          if-no-files-found: ignore
+
   # Every change to a published package comes with a changeset (CONTRIBUTING.md).
   # Not for the release pull request itself, which consumes them.
   changeset:
