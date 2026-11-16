@@ -22,6 +22,18 @@ export function safeErrorMessage(err: any): string {
 }
 
 /**
+ * A one-line hint when a query failed because a table does not exist (Postgres 42P01):
+ * the database has not got the migrations yet, as happens for a moment when `cms.config.ts`
+ * changes before `pnpm db:migrate` has run. Null for any other error.
+ */
+export function missingTableHint(err: unknown): string | null {
+  for (let e: any = err, depth = 0; e && typeof e === 'object' && depth < 8; e = e.cause, depth++) {
+    if (e.code === '42P01') return 'a table is missing: apply the migrations (`pnpm db:migrate`, or start with NUXT_CMS_MIGRATIONS_ON_START=true) and restart the server'
+  }
+  return null
+}
+
+/**
  * A copy of the error that is safe to send away: the message is `safeErrorMessage`, the
  * stack keeps its frames (file names and line numbers, no values), and the causes are
  * copied the same way (to a depth of 5). Everything else on the original — `data`, a

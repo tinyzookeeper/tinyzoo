@@ -20,13 +20,14 @@
  *
  *   tinyzoo links:convert [--dry-run] [--batch <n>]
  *
- * Connects with DATABASE_URL (or NUXT_CMS_DATABASE_URL). Run from the host app root.
+ * Connects with DATABASE_URL (or NUXT_CMS_DATABASE_URL) from the environment or the site's .env. Run from the host app root.
  * Entries' `updatedAt` is not touched (this is not an edit), so a cache that keys on
  * it, and the website's, must be purged by hand once the command has run.
  */
 import { and, asc, eq, gt, inArray, or } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
+import { databaseUrl } from './db'
 import { buildRegistry, linkFieldsOf, linkRef, mapRowLinks, propOf, type CmsEntity, type CmsRegistry } from '../src/index'
 import { entryAddresses, addressKeys, isLinkable } from '../server/utils/cmsLinkAddress'
 import { publishedCond } from '../server/utils/cmsPublished'
@@ -272,9 +273,10 @@ export async function linksConvertCommand(config: Record<string, any>, args: str
     console.error('usage: tinyzoo links:convert [--dry-run] [--batch <n>]')
     process.exit(1)
   }
-  const url = process.env.DATABASE_URL || process.env.NUXT_CMS_DATABASE_URL
-  if (!url) {
-    console.error('✗ DATABASE_URL is not set')
+  let url: string
+  try { url = databaseUrl(process.cwd()) }
+  catch (err) {
+    console.error(`✗ ${(err as Error).message}`)
     process.exit(1)
   }
   const reg = buildRegistry(config)

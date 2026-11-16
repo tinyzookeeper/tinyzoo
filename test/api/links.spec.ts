@@ -7,6 +7,7 @@ import * as config from '../../playground/cms.config'
 import { convertLinks, formatConvertReport } from '../../packages/cms/cli/links-convert'
 import { anonymous, type Client, hooksMark, signIn, testDb, truncateAll, waitForHooks } from '../helpers/api'
 import { createAuthor, createPost } from '../helpers/fixtures'
+import { envWithout, siteFolderWithEnvFile } from '../helpers/siteFolder'
 
 // Links that follow their target: a page picked in the link picker is stored as
 // `cms:<entity>/<id>`; visitors get its current address in their language (or nothing
@@ -556,5 +557,17 @@ describe('tinyzoo links:convert', () => {
     expect(out).toMatch(/\/neni — no entry has this address/)
     expect(out).toMatch(/dry run: nothing was written/)
     expect((await navRow())[0].url).toBe('/o-nas')
+  })
+
+  it('finds DATABASE_URL in the site\'s .env, as `tinyzoo up` does', async () => {
+    await arrange()
+    const site = siteFolderWithEnvFile(inject('databaseUrl'))
+    try {
+      const out = execFileSync(join(import.meta.dirname, '../../playground/node_modules/.bin/tsx'), [join(import.meta.dirname, '../../packages/cms/cli/index.ts'), 'links:convert', '--dry-run'], {
+        cwd: site.dir, env: envWithout(), encoding: 'utf8',
+      })
+      expect(out).toMatch(/navigation\.main\s+entries\s+3 links would be converted/)
+    }
+    finally { site.remove() }
   })
 })
