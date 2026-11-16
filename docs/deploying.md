@@ -32,7 +32,7 @@ to `package.json`:
 FROM node:22-alpine AS build
 WORKDIR /app
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 NODE_OPTIONS=--max-old-space-size=4096
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10 --activate
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
@@ -48,6 +48,10 @@ EXPOSE 3000
 CMD ["node", ".output/server/index.mjs"]
 ```
 
+- **Pin pnpm** (`corepack prepare pnpm@10`, or a `"packageManager": "pnpm@10.x"` in
+  `package.json`, which `corepack enable` then follows). Without either, the image takes
+  the newest pnpm, and a newer one can refuse the install by its own rules (it did, for
+  packages published the day before).
 - **What ships is `.output/` and nothing else.** `pnpm build` (`nuxt build`) writes it;
   `node .output/server/index.mjs` starts it, on `HOST`:`PORT`. It does not need
   `node_modules`, `cms.config.ts` or `server/db/` next to it.
