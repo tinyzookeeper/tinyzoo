@@ -3,6 +3,24 @@
   "version": "0.1.0",
   "type": "module",
   "description": "Tiny, dependency-free, strictly-typed client for the tinyzoo content API.",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/tinyzoo/tinyzoo/tree/main/packages/client#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinyzoo/tinyzoo.git",
+    "directory": "packages/client"
+  },
+  "bugs": {
+    "url": "https://github.com/tinyzoo/tinyzoo/issues"
+  },
+  "keywords": [
+    "cms",
+    "headless-cms",
+    "client",
+    "typescript",
+    "fetch",
+    "tinyzoo"
+  ],
   "sideEffects": false,
   "exports": {
     ".": {
@@ -22,6 +40,7 @@
     "prepack": "unbuild"
   },
   "publishConfig": {
+    "access": "public",
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",

@@ -1,0 +1,2148 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Content API",
+    "version": "1.0.0",
+    "description": "Public, read-only content delivery API generated from cms.config.ts."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/api/content/author": {
+      "get": {
+        "operationId": "listAuthor",
+        "tags": [
+          "author"
+        ],
+        "summary": "List author items",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "updatedAt",
+                "name",
+                "position"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Substring match against `name`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthorList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content/author/{slug}": {
+      "get": {
+        "operationId": "getAuthor",
+        "tags": [
+          "author"
+        ],
+        "summary": "Get one author by id",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "item": {
+                      "$ref": "#/components/schemas/Author"
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or not published"
+          }
+        }
+      }
+    },
+    "/api/content/page": {
+      "get": {
+        "operationId": "listPage",
+        "tags": [
+          "page"
+        ],
+        "summary": "List page items",
+        "description": "Returns only published items.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "updatedAt",
+                "title",
+                "slug",
+                "status",
+                "metaTitle",
+                "metaDescription"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Substring match against `title`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to serve. Untranslated fields fall back to the default language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ],
+              "default": "cs"
+            }
+          },
+          {
+            "name": "title",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published"
+              ]
+            }
+          },
+          {
+            "name": "metaTitle",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "metaDescription",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content/page/{slug}": {
+      "get": {
+        "operationId": "getPage",
+        "tags": [
+          "page"
+        ],
+        "summary": "Get one page by `slug` (falling back to id)",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to serve. Untranslated fields fall back to the default language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ],
+              "default": "cs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "item": {
+                      "$ref": "#/components/schemas/Page"
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or not published"
+          }
+        }
+      }
+    },
+    "/api/content/post": {
+      "get": {
+        "operationId": "listPost",
+        "tags": [
+          "post"
+        ],
+        "summary": "List post items",
+        "description": "Returns only published items.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "updatedAt",
+                "title",
+                "slug",
+                "status",
+                "publishedAt",
+                "metaTitle",
+                "metaDescription"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Substring match against `title`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to serve. Untranslated fields fall back to the default language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ],
+              "default": "cs"
+            }
+          },
+          {
+            "name": "title",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "published"
+              ]
+            }
+          },
+          {
+            "name": "publishedAt.from",
+            "in": "query",
+            "description": "Only items on or after this date or time (ISO 8601).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "publishedAt.to",
+            "in": "query",
+            "description": "Only items on or before this date or time (ISO 8601; a bare date includes the whole day).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "author",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "metaTitle",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "metaDescription",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content/post/{slug}": {
+      "get": {
+        "operationId": "getPost",
+        "tags": [
+          "post"
+        ],
+        "summary": "Get one post by `slug` (falling back to id)",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to serve. Untranslated fields fall back to the default language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ],
+              "default": "cs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "item": {
+                      "$ref": "#/components/schemas/Post"
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or not published"
+          }
+        }
+      }
+    },
+    "/api/content/tag": {
+      "get": {
+        "operationId": "listTag",
+        "tags": [
+          "tag"
+        ],
+        "summary": "List tag items",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "createdAt",
+                "updatedAt",
+                "name",
+                "slug"
+              ],
+              "default": "createdAt"
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "desc"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Substring match against `name`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to serve. Untranslated fields fall back to the default language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ],
+              "default": "cs"
+            }
+          },
+          {
+            "name": "name",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "slug",
+            "in": "query",
+            "description": "Exact-match filter.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TagList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content/tag/{slug}": {
+      "get": {
+        "operationId": "getTag",
+        "tags": [
+          "tag"
+        ],
+        "summary": "Get one tag by id",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to serve. Untranslated fields fall back to the default language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ],
+              "default": "cs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "item": {
+                      "$ref": "#/components/schemas/Tag"
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found or not published"
+          }
+        }
+      }
+    },
+    "/api/content/_global/navigation": {
+      "get": {
+        "operationId": "getGlobalNavigation",
+        "tags": [
+          "globals"
+        ],
+        "summary": "Get the navigation global",
+        "parameters": [
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to serve. Untranslated fields fall back to the default language.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ],
+              "default": "cs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK (item is null until it is first saved)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "item": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Navigation"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content/_global/siteSettings": {
+      "get": {
+        "operationId": "getGlobalSiteSettings",
+        "tags": [
+          "globals"
+        ],
+        "summary": "Get the siteSettings global",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "OK (item is null until it is first saved)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "item": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/SiteSettings"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "item"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/content/_search": {
+      "get": {
+        "operationId": "search",
+        "tags": [
+          "search"
+        ],
+        "summary": "Search the website",
+        "description": "Published entries of page, post, best matches first. Every word must appear (in any order, accents and case ignored); fewer than two letters return nothing.",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          },
+          {
+            "name": "entity",
+            "in": "query",
+            "description": "Only these collections (comma-separated)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "description": "Language to search in: only entries translated into it.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CmsSearchItem"
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "query",
+                    "items",
+                    "total"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many searches from this visitor"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "RichTextNode": {
+        "type": "object",
+        "description": "A ProseMirror/TipTap node. Render with a structured renderer — never raw HTML.",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RichTextNode"
+            }
+          },
+          "marks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "attrs": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": true
+      },
+      "RichTextDoc": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "doc"
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RichTextNode"
+            }
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": true
+      },
+      "CmsMedia": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "alt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mime": {
+            "type": "string"
+          },
+          "focal": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "x": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "width",
+          "height",
+          "alt",
+          "mime",
+          "focal"
+        ]
+      },
+      "CmsGalleryItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "width": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "height": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "alt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mime": {
+            "type": "string"
+          },
+          "focal": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "x": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "y": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "x",
+              "y"
+            ]
+          },
+          "caption": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "width",
+          "height",
+          "alt",
+          "mime",
+          "focal",
+          "caption"
+        ]
+      },
+      "AuthorEmbedded": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RichTextDoc"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "position",
+          "bio"
+        ]
+      },
+      "TagEmbedded": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ]
+      },
+      "Author": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "bio": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RichTextDoc"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "position",
+          "bio",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AuthorList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Author"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ]
+      },
+      "Page": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "hero"
+                    },
+                    "heading": {
+                      "type": "string"
+                    },
+                    "lead": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "image": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/CmsMedia"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "buttonLabel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "buttonUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "heading",
+                    "lead",
+                    "image",
+                    "buttonLabel",
+                    "buttonUrl"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "text"
+                    },
+                    "heading": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "body": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/RichTextDoc"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "heading",
+                    "body"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "image"
+                    },
+                    "image": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/CmsMedia"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "caption": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "image",
+                    "caption"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "cta"
+                    },
+                    "text": {
+                      "type": "string"
+                    },
+                    "buttonLabel": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "buttonUrl": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "highlighted": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "text",
+                    "buttonLabel",
+                    "buttonUrl",
+                    "highlighted"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "const": "cards"
+                    },
+                    "heading": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "const": "item"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "image": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/components/schemas/CmsMedia"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "type",
+                          "title",
+                          "text",
+                          "image"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "type",
+                    "heading",
+                    "items"
+                  ],
+                  "additionalProperties": false
+                }
+              ],
+              "discriminator": {
+                "propertyName": "type"
+              }
+            }
+          },
+          "metaTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metaDescription": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ogImage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CmsMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "cs",
+              "en"
+            ],
+            "description": "The language this item is served in."
+          },
+          "locales": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ]
+            },
+            "description": "Languages this item exists in."
+          },
+          "paths": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The item's address in each language it exists in."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "status",
+          "sections",
+          "metaTitle",
+          "metaDescription",
+          "ogImage",
+          "createdAt",
+          "updatedAt",
+          "locale",
+          "locales",
+          "paths"
+        ]
+      },
+      "PageList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Page"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ]
+      },
+      "Post": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "published"
+            ]
+          },
+          "publishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "hero": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CmsMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "author": {
+            "$ref": "#/components/schemas/AuthorEmbedded"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TagEmbedded"
+            }
+          },
+          "body": {
+            "$ref": "#/components/schemas/RichTextDoc"
+          },
+          "gallery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CmsGalleryItem"
+            }
+          },
+          "metaTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metaDescription": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ogImage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CmsMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "cs",
+              "en"
+            ],
+            "description": "The language this item is served in."
+          },
+          "locales": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ]
+            },
+            "description": "Languages this item exists in."
+          },
+          "paths": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The item's address in each language it exists in."
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "slug",
+          "status",
+          "publishedAt",
+          "hero",
+          "author",
+          "tags",
+          "body",
+          "gallery",
+          "metaTitle",
+          "metaDescription",
+          "ogImage",
+          "createdAt",
+          "updatedAt",
+          "locale",
+          "locales",
+          "paths"
+        ]
+      },
+      "PostList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Post"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ]
+      },
+      "Tag": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "cs",
+              "en"
+            ],
+            "description": "The language this item is served in."
+          },
+          "locales": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ]
+            },
+            "description": "Languages this item exists in."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "createdAt",
+          "updatedAt",
+          "locale",
+          "locales"
+        ]
+      },
+      "TagList": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Tag"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit"
+        ]
+      },
+      "Navigation": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "main": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "link"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "newTab": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "sub": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "label",
+                "url",
+                "newTab",
+                "sub"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "footer": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "link"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "newTab": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "sub": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "label",
+                "url",
+                "newTab",
+                "sub"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "cs",
+              "en"
+            ],
+            "description": "The language this item is served in."
+          },
+          "locales": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "cs",
+                "en"
+              ]
+            },
+            "description": "Languages this item exists in."
+          }
+        },
+        "required": [
+          "id",
+          "main",
+          "footer",
+          "createdAt",
+          "updatedAt",
+          "locale",
+          "locales"
+        ]
+      },
+      "SiteSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "tagline": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CmsMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "brandColor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "openingHours": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "const": "item"
+                },
+                "days": {
+                  "type": "string"
+                },
+                "hours": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "type",
+                "days",
+                "hours"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "rules": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CmsMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metaTitle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metaDescription": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ogImage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CmsMedia"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "siteName",
+          "tagline",
+          "logo",
+          "brandColor",
+          "openingHours",
+          "rules",
+          "metaTitle",
+          "metaDescription",
+          "ogImage",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CmsSearchItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "entity": {
+            "type": "string",
+            "enum": [
+              "page",
+              "post"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "titleHighlights": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "description": "[start, end) character ranges of the words found"
+          },
+          "excerpt": {
+            "type": "string",
+            "description": "Text around the first word found; empty when only the title matched"
+          },
+          "highlights": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "integer"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "description": "[start, end) character ranges of the words found"
+          },
+          "path": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The entry's address on the website, in the searched language"
+          },
+          "locale": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "entity",
+          "id",
+          "title",
+          "titleHighlights",
+          "excerpt",
+          "highlights",
+          "path",
+          "locale",
+          "updatedAt"
+        ]
+      }
+    }
+  }
+}
