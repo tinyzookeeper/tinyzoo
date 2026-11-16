@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import { and, desc, eq, inArray, or, pathTemplateKeys, propOf, sitePath, sql, entryTexts, foldSearchText, isSearchableField, matchEntry, highlightRanges } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 import { mergeTranslation } from './cmsLocales'
+// Explicit (not Nitro's auto-import): the CLI's import rebuilds the index outside Nitro.
+import { upgradedCopy } from './cmsBlocks'
 
 /**
  * Search, typos included, on Postgres alone (the pg_trgm extension).

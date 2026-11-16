@@ -24,6 +24,7 @@ import { join, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
 import { getTableColumns, inArray, ne, sql } from 'drizzle-orm'
 import type { CmsEntity, CmsRegistry } from '../src/index'
+import { logUpgradeFailure, upgradeStoredRow } from '../src/blocks'
 import { extractTarGz, safeArchivePath } from './tar'
 import { loadRegistry } from './export'
 import {
@@ -132,10 +133,12 @@ function decodeValue(plan: Plan, e: CmsEntity, f: LayoutField, raw: unknown, id:
     throw invalid(`${e.name} ${id}: "${f.key}" is "${String(raw)}", which is not one of ${base.values.join(', ')} here. Fix the choices or the entry, then import again.`)
   }
   if (JSON_TYPES.has(f.fld.type)) {
-    // upgradeBlocks hook: block and list JSON is written exactly as it was exported.
-    // Once blocks are versioned (roadmap 0.2 C: upgradeBlocks), bring `raw` up to the
-    // current version of `f.fld.blocks` here — `plan.manifest.tinyzoo` and
-    // `plan.manifest.schema` say what it was exported from. Rich text has no versions.
+    // An archive from an older site may hold blocks, list items or rich text at older
+    // versions: bring them to the current ones (as every read does), so what is
+    // written is what this site's code expects. A block whose upgrade throws is
+    // logged and imported as it was; the admin shows it as needing attention.
+    const where = `${e.name} ${id}`
+    raw = upgradeStoredRow({ [f.key]: f.fld }, { [f.key]: raw }, { where, onError: (issue) => logUpgradeFailure(issue, where) })[f.key]
     rewriteImages(raw, plan.urls)
   }
   return raw

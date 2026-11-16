@@ -145,7 +145,7 @@ async function seed(db: any) {
     ],
   })
   await translate(db, entity('page'), pageId, 'en', {
-    title: 'About', slug: 'about', sections: [{ id: 'b1', type: 'cta', text: 'Hi', buttonLabel: null, buttonUrl: null, highlighted: true }],
+    title: 'About', slug: 'about', sections: [{ id: 'b1', type: 'cta', v: 2, text: 'Hi', buttonLabel: null, buttonUrl: null, highlighted: true }],
   })
   await put(db, entity('page'), { title: 'Kontakt', slug: 'kontakt', status: 'draft', sections: [] })
 
@@ -684,6 +684,25 @@ describe('checks on import', () => {
     const report = await importInto(other, { allowMismatch: true })
     expect(report.skipped.translations).toBe(1)
     expect(report.entries.post!.translations).toBe(0)
+  })
+
+  it('brings blocks stored at an older version up to the current one', async () => {
+    const old = archive('old-blocks.tar.gz')
+    await repack(full, old, (dir) => {
+      const pages = join(dir, ARCHIVE_FILES.content('page'))
+      writeFileSync(pages, readFileSync(pages, 'utf8').trim().split('\n').map((l) => {
+        const e = JSON.parse(l)
+        for (const t of e.translations) {
+          // The playground's cta block at version 1: no `v`, untidy button fields.
+          t.fields.sections = (t.fields.sections ?? []).map((b: any) => (b.type === 'cta' ? { id: b.id, type: 'cta', text: b.text, buttonLabel: ' ', buttonUrl: '  /kontakt  ', highlighted: b.highlighted } : b))
+        }
+        return JSON.stringify(e)
+      }).join('\n') + '\n')
+    })
+    await wipe(B.db)
+    await importInto(old)
+    const [tr]: any[] = await B.db.select().from(entity('page').localesTable).where(sql`${entity('page').localesTable.parentId} = ${ids.page}`)
+    expect(tr.sections[0]).toMatchObject({ type: 'cta', v: 2, buttonLabel: null, buttonUrl: '/kontakt' })
   })
 
   it('refuses another default language even with --allow-mismatch', async () => {
