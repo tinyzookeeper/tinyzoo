@@ -337,6 +337,14 @@ served `/api/content-types.ts` must equal the committed file.
 CI (`.github/workflows/ci.yml`) runs typecheck, the tests against a Postgres service,
 and both production builds on Node 22 — the runtime Pushbase deploys on.
 
+**Releases.** `tinyzoo` and `@tinyzoo/client` share one version. Every change to a
+package adds a changeset (`pnpm changeset`; a change a site must act on has an
+`### Upgrade` section with the steps), and a changed contract snapshot
+(`test/contracts/`, `pnpm contracts:update`) means the public content API changed.
+Merging to `main` makes `.github/workflows/release.yml` open a "Version packages"
+pull request; merging that publishes both packages to npm with provenance. Details,
+the version policy and how deprecations work (`cmsDeprecated()`): [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Decisions locked in this MVP
 
 - **Stack:** Nuxt 4, Tailwind 4, Nuxt UI v4, Zod 4, Drizzle (Postgres dialect).
@@ -713,4 +721,3 @@ same-site Origin, and Cloudflare Turnstile when `NUXT_CMS_FORMS_TURNSTILE_SECRET
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`)
 - **Per-field permissions** (`fieldMode`) and custom roles beyond admin / editor / author.
 - Precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)
-- Publish pipeline (changesets) once the name is picked

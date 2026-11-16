@@ -16,12 +16,17 @@
     "typecheck": "tsc -p tsconfig.json && pnpm --filter playground typecheck && pnpm --filter tinyzoo-starter typecheck && pnpm --filter tinyzoo-web typecheck",
     "build": "node scripts/build-check.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm build",
-    "check:consumer": "node scripts/consumer-check.mjs"
+    "check:consumer": "node scripts/consumer-check.mjs",
+    "contracts:update": "UPDATE_CONTRACTS=1 vitest run --project unit test/unit/contracts.spec.ts",
+    "changeset": "changeset",
+    "build:packages": "pnpm --filter @tinyzoo/client build",
+    "release": "node scripts/release.mjs",
+    "release:dry-run": "node scripts/release.mjs --dry-run"
   },
   "devDependencies": {
+    "@changesets/cli": "^3.0.3",
     "@hocuspocus/provider": "^3.4.4",
     "@tinyzoo/client": "workspace:*",
-    "tinyzoo": "workspace:*",
     "@tiptap/y-tiptap": "^3.3.0",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.20.0",
@@ -29,6 +34,7 @@
     "drizzle-orm": "^0.44.7",
     "ioredis": "^5.11.1",
     "pg": "^8.22.0",
+    "tinyzoo": "workspace:*",
     "typescript": "^5.9.3",
     "vitest": "^4.1.12",
     "ws": "^8.21.0",

@@ -1,0 +1,45 @@
+name: Release
+
+# Every push to main: open or update the "Version packages" pull request from the
+# changesets in .changeset/. Merging that pull request publishes both packages.
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write        # tags, GitHub releases, the version pull request's branch
+  pull-requests: write   # open and update the version pull request
+  id-token: write        # npm provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+
+      - uses: changesets/action@v1
+        with:
+          # When changesets are pending: bump the versions and write the changelogs.
+          version: pnpm changeset version
+          # When there are none: publish what npm does not have yet. `pnpm release`
+          # builds @tinyzoo/client (dist), runs the consumer check on the packed
+          # tarballs of both packages, and only then publishes.
+          publish: pnpm release
+          title: 'Version packages'
+          commit: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'true'
