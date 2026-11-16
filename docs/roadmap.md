@@ -182,3 +182,47 @@ and the audit has no open High or Medium.
 ## Progress
 
 _Write-ups land here as slices merge._
+
+### 0.2 A — Upgrade machinery
+
+Branch `feat/0.2-upgrades`. Guide for site developers: [upgrading.md](upgrading.md).
+
+- **Upgrade steps** (`packages/cms/src/upgrades.ts`): versioned, idempotent steps
+  (`id`, `since`, `description`, `phase: 'before' | 'after'`, optional `when` and
+  `freshInstall`), recorded in `cms_upgrades`. The runner creates that table itself
+  and it is *not* emitted into host schemas (it must exist before the first host
+  migration; a host dropping it would re-run every step). They run inside
+  `applyMigrations`' transaction and advisory lock (`runUpgrade` also returns which
+  steps ran); the step list is a parameter, so plugins (slice H) can add theirs. On
+  an empty database steps are recorded without running unless `freshInstall: 'run'`.
+  A step with `when` runs whenever the condition holds (idempotent), otherwise once.
+  The pg_trgm special case is now the `enable-pg-trgm` step; the CLI still prepends
+  `CREATE EXTENSION` to new migration files.
+- **Same runner everywhere:** the app's start-up migration and `tinyzoo up` (now via
+  `pg`, `DATABASE_URL` from the environment or `.env`; no longer `drizzle-kit migrate`).
+- **Order guard:** an unapplied journal entry whose `when` is older than the newest
+  applied `created_at` stops the run with `MigrationOrderError` (file, snapshot and
+  journal entry to delete, then `tinyzoo generate` again). Matched by `created_at`,
+  not hash.
+- **Breaking-statement guard** in `tinyzoo generate` (`cli/breaking.ts`,
+  `cli/generate.ts`): `DROP TABLE/COLUMN/TYPE`, type changes and table, column and type
+  renames are listed in plain words; a terminal gets a y/N question, CI (or N)
+  removes the migration, its snapshot and journal entry (journal restored byte for
+  byte) and exits 1; `--allow-drop` skips the question. Without a terminal,
+  drizzle-kit's rename question is detected (it prints "Interactive prompts require a
+  TTY" and exits 0) and `generate` fails with a pointer to the rename recipe.
+- **`tinyzoo status`** (exit 0 up to date, 1 pending or out of order, 2 unreachable)
+  and **`tinyzoo upgrade`** (versions of nuxt, @nuxt/ui, drizzle-orm, zod → generate →
+  typed client when a `cms:client` script exists → status → next steps).
+- **Docs:** `docs/upgrading.md` (version policy, every-upgrade routine, two-step
+  rule, recipes, reading `status`, writing a step); `deploying.md` and the README
+  point at it.
+- **Tests:** step runner (ordering, fresh install, idempotency, `when`, same
+  transaction and lock, rollback, a database migrated by drizzle's own migrator picking
+  up the bookkeeping), order guard, status, statement scanner, generate guard, version
+  ranges, and an API spec that the server's first start adds `cms_upgrades`.
+- **Not done / left:** `ALTER COLUMN … SET NOT NULL` and `ADD COLUMN … NOT NULL`
+  without a default (fail on existing rows) are not flagged; the changelog **Upgrade**
+  sections arrive with slice B; the backups link in upgrading.md waits for slice D's
+  recipe. The migrations folder is fixed at `server/db/migrations` for the CLI, as it
+  was for `generate`.
