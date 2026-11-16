@@ -14,7 +14,9 @@ export default defineNitroPlugin((nitroApp) => {
     const error = quiet ? snapshotError(thrown) : thrown
     if (quiet) hushError(thrown)
     const status = error?.statusCode ?? error?.status ?? 500
-    // Expected errors stay out of the log — unless Nitro's own line for an unhandled one was just silenced.
+    // Expected errors stay out of the log — except as one short info line when Nitro's own
+    // (error-looking, stack-printing) line for an unhandled one was just silenced: a 404 for
+    // a mistyped address or a probe for a route that does not exist is not an error of ours.
     const expected = status < 500 || status === 503
     if (expected && !quiet) return
     const event = ctx?.event
@@ -23,6 +25,10 @@ export default defineNitroPlugin((nitroApp) => {
     const method: string | null = event?.method ?? null
     const path: string | null = event?.path ? String(event.path).split('?')[0] ?? null : null
     const userId: string | null = event?.context?.cmsUser?.id ?? null
+    if (expected) {
+      console.info(JSON.stringify({ level: 'info', msg: error?.statusMessage || 'Request refused', status, requestId, method, path, user: userId }))
+      return
+    }
     console.error(JSON.stringify({
       level: 'error',
       msg: error?.statusMessage || (error?.message ? safeErrorMessage(error) : 'Server error'),

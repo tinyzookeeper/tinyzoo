@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   const me = requireCmsUser(event)
   if (isDemoAccount(me.email)) throw createError({ statusCode: 403, statusMessage: 'The demo account keeps its password', data: { code: 'demo_account' } })
-  if (!(await rateLimit(`password:${me.id}`, 10, 15 * 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many attempts; try again later' })
+  if (!(await rateLimit(`password:${me.id}`, 10, 15 * 60_000))) throw tooManyRequests(event, 'Too many attempts; try again later', 15 * 60_000)
   const data = parseOr422(body, await readBody(event))
   const { db, reg } = useCms()
   const [u] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.id, me.id))

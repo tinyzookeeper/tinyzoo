@@ -35,7 +35,7 @@ export default defineEventHandler(async (event) => {
 
   // Rate-limit per user before doing any work.
   if (!(await rateLimit(`upload:${user.id}`, uploadRatePerMin(), 60_000))) {
-    throw createError({ statusCode: 429, statusMessage: 'Too many uploads; slow down.' })
+    throw tooManyRequests(event, 'Too many uploads; slow down.', 60_000)
   }
 
   const max = maxUploadBytes()

@@ -71,3 +71,12 @@ export function rateLimitCount(key: string, windowMs: number): number {
   if (hits.size > MAX_KEYS) sweep(now, windowMs)
   return recent.length
 }
+
+/** Take back one hit of `key` (memory store): a sign-in that succeeded is not an attempt to guess. */
+export function rateLimitRefundMemory(key: string, windowMs: number): void {
+  const k = key.length > MAX_KEY_LENGTH ? key.slice(0, MAX_KEY_LENGTH) : key
+  const recent = (hits.get(k) ?? []).filter((t) => t > Date.now() - windowMs)
+  recent.pop()
+  if (recent.length) hits.set(k, recent)
+  else hits.delete(k)
+}

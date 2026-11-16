@@ -14,7 +14,7 @@ const body = z.object({
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   const me = requireCmsUser(event)
-  if (!(await rateLimit(`me:${me.id}`, 60, 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many requests' })
+  if (!(await rateLimit(`me:${me.id}`, 60, 60_000))) throw tooManyRequests(event, 'Too many requests', 60_000)
   const data = parseOr422(body, await readBody(event))
   // The shared demo account keeps its name (everyone signs in as it); the language may change.
   if (data.name !== undefined && isDemoAccount(me.email)) throw createError({ statusCode: 403, statusMessage: 'The demo account keeps its name', data: { code: 'demo_account' } })

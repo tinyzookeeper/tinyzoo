@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
 
   // Every search reads several collections: keep one visitor from hammering it.
   if (!(await rateLimit(`search:${clientIp(event)}`, 120, 60_000))) {
-    throw createError({ statusCode: 429, statusMessage: 'Too many searches; try again in a minute' })
+    throw tooManyRequests(event, 'Too many searches; try again in a minute', 60_000)
   }
   const found = await searchPublic(db, reg, terms, q, locale, only)
   return { query: q, items: found.slice(0, limit).map(({ score: _score, ...item }) => item), total: found.length }

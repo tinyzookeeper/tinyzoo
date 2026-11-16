@@ -14,18 +14,34 @@ export function isTranslationLocale(reg: CmsRegistry, locale: string | null | un
 }
 
 /**
+ * The configured language closest to what a caller wrote: an exact one first, then the
+ * same ignoring case ("EN"), then the same language without its region ("en-US" → "en",
+ * or "pt-BR" → "pt"); undefined when the site has no such language.
+ */
+export function closestLocale(configured: readonly string[], asked: string): string | undefined {
+  const wanted = asked.trim().replace(/_/g, '-').toLowerCase()
+  if (!wanted) return undefined
+  return configured.find((l) => l === asked)
+    ?? configured.find((l) => l.toLowerCase() === wanted)
+    ?? configured.find((l) => l.toLowerCase() === wanted.split('-')[0])
+    ?? configured.find((l) => l.toLowerCase().split('-')[0] === wanted.split('-')[0])
+}
+
+/**
  * The language a request asks for (`?locale=`): null when content is single-language,
- * the default when not given, 400 for a language the site does not have.
+ * the default when not given, the closest configured language for "en-US" or "EN" (a
+ * browser's language works as it is), 400 for a language the site does not have.
  */
 export function requestedLocale(event: any, reg: CmsRegistry): string | null {
   if (!reg.locales) return null
   const raw = getQuery(event).locale
   if (raw === undefined || raw === '') return reg.locales.default
   const locale = String(raw)
-  if (!reg.locales.locales.includes(locale)) {
+  const found = closestLocale(reg.locales.locales, locale)
+  if (!found) {
     throw createError({ statusCode: 400, statusMessage: `Unknown language "${locale.slice(0, 20)}" (available: ${reg.locales.locales.join(', ')})` })
   }
-  return locale
+  return found
 }
 
 const isEmpty = (v: unknown): boolean => v === null || v === undefined || v === ''

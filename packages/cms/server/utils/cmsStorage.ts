@@ -1,6 +1,8 @@
+import { createReadStream } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { DEFAULT_MEDIA_BASE, encodeStorageKey, isSafeStorageKey, resolveS3Delivery, storedMediaUrl, type S3Delivery } from '../../shared/storage-delivery'
 import { byteRange, etagMatches, singleRange } from './cmsRange'
 
@@ -66,6 +68,40 @@ export interface StorageRead {
   lastModified?: string
   /** `null` for 304 and 416. */
   body: ReadableStream<Uint8Array> | null
+}
+
+/**
+ * A file as a web stream that reads only as fast as it is consumed. `Readable.toWeb` alone
+ * counts its queue in *chunks* for a byte stream (its high-water mark of 64 KB then means 65 536
+ * chunks, 4 GB), so the whole file is read ahead into memory as fast as the disk can: a
+ * 100 MB upload to a bucket, or a video for a slow phone, took half its size in RAM. Here the
+ * queue is counted in bytes.
+ */
+export function fileWebStream(path: string, range?: { start: number; end: number }): ReadableStream<Uint8Array> {
+  const HIGH_WATER_MARK = 256 * 1024
+  const node = createReadStream(path, { ...range, highWaterMark: HIGH_WATER_MARK })
+  return Readable.toWeb(node, { strategy: { highWaterMark: HIGH_WATER_MARK, size: (chunk: Uint8Array) => chunk.byteLength } }) as ReadableStream<Uint8Array>
+}
+
+/** PUT the file at `path` to `url` with these (signed) headers; resolves with the HTTP status. Streams from disk with backpressure. */
+async function sendFile(url: string, headers: Record<string, string>, path: string): Promise<number> {
+  const { request } = url.startsWith('https:') ? await import('node:https') : await import('node:http')
+  return new Promise<number>((resolve, reject) => {
+    let status = 0
+    // A store that refuses (403, 5xx) may answer before the whole body is sent and close the
+    // connection: its answer is what counts, not the broken pipe after it.
+    const failed = (err: Error) => (status ? resolve(status) : reject(err))
+    const req = request(url, { method: 'PUT', headers }, (res) => {
+      status = res.statusCode ?? 0
+      res.resume() // the answer is only its status
+      res.on('end', () => resolve(status))
+      res.on('close', () => resolve(status))
+      res.on('error', failed)
+    })
+    req.setTimeout(60_000, () => req.destroy(new Error('timeout')))
+    req.on('error', failed)
+    pipeline(createReadStream(path), req).catch(failed)
+  })
 }
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -145,7 +181,6 @@ class LocalDriver implements StorageDriver {
 
   async read(key: string, opts: StorageReadOptions = {}): Promise<StorageRead | null> {
     const { stat } = await import('node:fs/promises')
-    const { createReadStream } = await import('node:fs')
     let abs: string
     let info: Awaited<ReturnType<typeof stat>>
     try {
@@ -165,7 +200,7 @@ class LocalDriver implements StorageDriver {
     if (range === 'unsatisfiable') return { status: 416, contentType, contentRange: 'bytes */' + size, body: null }
     const [start, end] = range ? [range.start, range.end] : [0, size - 1]
     // An empty file has no byte to start from: createReadStream would read it all, which is nothing.
-    const body = size === 0 ? new ReadableStream<Uint8Array>({ start: (c) => c.close() }) : (Readable.toWeb(createReadStream(abs, { start, end })) as ReadableStream<Uint8Array>)
+    const body = size === 0 ? new ReadableStream<Uint8Array>({ start: (c) => c.close() }) : fileWebStream(abs, { start, end })
     return {
       status: range ? 206 : 200,
       contentType,
@@ -316,36 +351,26 @@ class S3Driver implements StorageDriver {
   }
 
   /**
-   * Streams the received file to the bucket: one PUT whose body is read from the disk as
-   * it is sent (never in memory). The payload hash was taken while the file was received
-   * and goes in the signature, so the body needs no second pass. A failed attempt starts
-   * over with a new stream (the client's own retries cannot replay one).
+   * Streams the received file to the bucket: one PUT whose body is read from the disk as it
+   * is sent (never in memory). The payload hash was taken while the file was received and
+   * goes in the signature, so the body needs no second pass. It is sent with `node:http(s)`
+   * and a plain pipe: `fetch` (undici) reads a stream body far ahead of the socket and held
+   * most of a 300 MB file in memory. A failed attempt starts over with a new stream.
    */
   async putFile(key: string, path: string, info: { size: number; sha256: string; contentType: string }): Promise<StoredObject> {
-    const { createReadStream } = await import('node:fs')
-    // No retries of its own: a stream cannot be replayed, the loop below starts a new one.
     const client = await this.makeClient(0)
     const address = this.objectUrl(key)
-    let res: Response | undefined
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        res = await client.fetch(address, {
-          method: 'PUT',
-          body: Readable.toWeb(createReadStream(path)),
-          duplex: 'half',
-          headers: { 'content-type': info.contentType, 'content-length': String(info.size), 'x-amz-content-sha256': info.sha256 },
-        })
-      }
-      catch {
-        res = undefined
-        continue
-      }
-      if (res.status < 500) break
-      await res.body?.cancel().catch(() => {})
+    let status = 0
+    for (let attempt = 0; attempt < 3 && (status === 0 || status >= 500); attempt++) {
+      const signed = await client.sign(address, {
+        method: 'PUT',
+        headers: { 'content-type': info.contentType, 'content-length': String(info.size), 'x-amz-content-sha256': info.sha256 },
+      })
+      status = await sendFile(signed.url, Object.fromEntries(signed.headers.entries()), path).catch(() => 0)
     }
-    if (!res) throw createError({ statusCode: 502, statusMessage: 'S3 upload failed (no answer)' })
-    if (!res.ok) {
-      throw createError({ statusCode: 502, statusMessage: `S3 upload failed (${res.status} ${res.statusText})` })
+    if (!status) throw createError({ statusCode: 502, statusMessage: 'S3 upload failed (no answer)' })
+    if (status < 200 || status >= 300) {
+      throw createError({ statusCode: 502, statusMessage: `S3 upload failed (${status})` })
     }
     const { unlink } = await import('node:fs/promises')
     await unlink(path).catch(() => {})

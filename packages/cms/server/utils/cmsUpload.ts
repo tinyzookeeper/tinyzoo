@@ -142,7 +142,7 @@ export async function receiveUpload(event: any, opts: { maxBytes: number; tempDi
       })
       stream.on('limit', () => stop(tooLarge(maxBytes)))
       writing = pipeline(stream, meter, createWriteStream(tempPath)).then(() => {
-        received = { filename: info.filename, type: String(info.mimeType || '').toLowerCase(), path: tempPath, size, sha256: hash.digest('hex'), head: Buffer.concat(head) }
+        received = { filename: info.filename ?? '', type: String(info.mimeType || '').toLowerCase(), path: tempPath, size, sha256: hash.digest('hex'), head: Buffer.concat(head) }
       })
       writing.catch((err) => stop(err))
     })

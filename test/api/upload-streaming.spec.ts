@@ -151,6 +151,12 @@ describe('the size cap counts the bytes that arrive', () => {
     expect(JSON.parse(result.body).size).toBe(3 * MB)
   })
 
+  it('a file of exactly the limit is accepted', async () => {
+    const res = await upload(adminLocal, png(10 * MB))
+    expect(res.status).toBe(201)
+    expect(res.body.size).toBe(10 * MB)
+  })
+
   it('a file just over the limit is 413 and leaves nothing behind', async () => {
     const before = (await adminLocal.get('/api/cms/_media')).body.items.length
     const res = await upload(adminLocal, png(10 * MB + 1))

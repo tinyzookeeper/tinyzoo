@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const translation = isTranslationLocale(reg, locale) ? locale : null
   const target = parseCollabName(collabName(String(q.entity ?? ''), String(q.id ?? ''), translation))
   if (!target) throw createError({ statusCode: 404, statusMessage: 'Not found' })
-  if (!(await rateLimit(`collab:${user.id}`, 120, 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many requests; try again shortly' })
+  if (!(await rateLimit(`collab:${user.id}`, 120, 60_000))) throw tooManyRequests(event, 'Too many requests; try again shortly', 60_000)
   const access = await collabAccess(user, target)
   if (!access) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   const { epoch } = await ensureCollabDocument(target)

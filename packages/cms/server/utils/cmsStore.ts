@@ -17,6 +17,9 @@ function memoryStore(): SharedStore {
       // Sliding window in this process (see cmsRateLimit).
       return rateLimitCount(key, windowMs)
     },
+    async unhit(key, windowMs) {
+      rateLimitRefundMemory(key, windowMs)
+    },
     async publish(channel, message) {
       for (const h of handlers.get(channel) ?? []) h(message)
     },
@@ -92,5 +95,15 @@ export async function rateLimit(key: string, max: number, windowMs: number): Pro
   catch (err) {
     console.error('[cms] rate limit store error, counting locally:', (err as Error)?.message ?? err)
     return rateLimitOk(key, max, windowMs)
+  }
+}
+
+/** Take back the hit `rateLimit` just counted for `key` (a sign-in that worked is not an attempt to guess). */
+export async function rateLimitRefund(key: string, windowMs: number): Promise<void> {
+  try {
+    await (await useCmsStore()).unhit(key.slice(0, 200), windowMs)
+  }
+  catch {
+    // The count only stays one higher for the rest of the window.
   }
 }

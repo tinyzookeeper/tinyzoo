@@ -46,6 +46,12 @@ export async function createRedisStore(cfg: CmsStoreConfig): Promise<SharedStore
       if (err || typeof count !== 'number') throw err ?? new Error('rate limit counter missing')
       return count
     },
+    async unhit(key, windowMs) {
+      const bucket = `${prefix}:rl:${await sha256Hex(key)}:${Math.floor(Date.now() / windowMs)}`
+      // Never below zero (the window may have turned over since the hit).
+      const left = await client.decr(bucket)
+      if (left < 0) await client.incr(bucket)
+    },
     async publish(channel, message) {
       await client.publish(`${prefix}:${channel}`, message)
     },
