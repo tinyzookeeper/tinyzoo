@@ -31,7 +31,7 @@ Found while checking how a site moves from one tinyzoo version to the next
 | Gap | Example |
 |---|---|
 | Data steps of an upgrade are not shipped with the package | `cms_media.in_library` needed `UPDATE cms_media SET in_library = true`; `tinyzoo generate` produces only the `ALTER TABLE`. The backfill was typed by hand into the playground and the Tábor site. A site that forgot it would delete library files when an image is removed from rich text. |
-| Data moves the migration tool can't express | Renaming a field (drizzle-kit asks; the wrong answer drops the column), making a field `.localized()` (the old column is dropped, nothing is copied). Nothing warns before a `DROP`. |
+| Data loss the migration tool allows without a warning | Renaming a field (drizzle-kit asks; the wrong answer drops the column), removing `.localized()` (the translations column is dropped). Nothing warns before a `DROP`. (Making a field `.localized()` is safe: the default language stays in the entry's own row.) |
 | JSON inside columns has no migrations | Blocks are checked with `z.object`, which strips unknown keys: renaming a block field drops the old values on the next save; removing a block type or adding a required block field makes old entries unsaveable. Saved versions in `cms_revisions` keep old shapes. |
 | Migrations skipped silently | `applyMigrations` skips any migration older than the last applied one (drizzle's rule). Two branches → one migration never runs. |
 | Rolling deploys | Migrations run at start while the old version still serves; a dropped column breaks it during the rollout. |
@@ -62,9 +62,9 @@ Found while checking how a site moves from one tinyzoo version to the next
 - *Breaking-statement guard*: `tinyzoo generate` lists every `DROP`, `RENAME` and
   type change in the new migration and refuses to keep it without `--allow-drop`
   (or an interactive yes), naming the two-step alternative.
-- *Field moves*: `tinyzoo generate` recognises a field that became
-  `.localized()` (or stopped being) and writes the copy into the migration
-  before the drop.
+- *Non-interactive generate*: in CI (no terminal) drizzle-kit's rename question
+  can't be answered; `tinyzoo generate` says so and points at the rename recipe
+  in `docs/upgrading.md` instead of hanging.
 - `tinyzoo upgrade`: peer versions → regenerate the schema → generate the
   migration → list pending upgrade steps and migrations → regenerate the typed
   client. `tinyzoo status`: what the database has and hasn't applied.
@@ -96,8 +96,10 @@ Found while checking how a site moves from one tinyzoo version to the next
   reports what it couldn't).
 
 **D. Operations and privacy (M)**
-- *Setup token*: in production `/admin/setup` needs `NUXT_CMS_SETUP_TOKEN`
-  (deferred Phase 5 finding: a fresh deploy exposes an unclaimed setup).
+- *Setup code always on in production*: `NUXT_CMS_AUTH_SETUP_TOKEN` exists but
+  is optional, so a fresh deploy without it can be claimed by anyone. In
+  production without it, the app makes a one-time setup code and prints it in
+  the log while no account exists; `/admin/setup` asks for it.
 - *Backup and restore*: `docs/deploying.md` recipe plus `tinyzoo backup` /
   `tinyzoo restore` (pg_dump/pg_restore and the bucket), and a backup before
   migrations when `NUXT_CMS_BACKUP_BEFORE_MIGRATE` points somewhere.
