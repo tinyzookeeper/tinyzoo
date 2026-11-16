@@ -30,6 +30,9 @@ export function cmsIssueMessage(issue: any, field: any, t: T): string {
       return t('validation.invalid')
     case 'invalid_value':
       return t('validation.pickOption')
+    case 'unrecognized_keys':
+      // A block that went through `upgrade` is checked strictly: a key the definition does not know.
+      return t('validation.blockUnknownFields', { keys: Array.isArray(issue.keys) ? issue.keys.join(', ') : '' })
     case 'unique':
       return t('validation.unique')
     case 'redirect_loop':

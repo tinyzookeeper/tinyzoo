@@ -36,7 +36,10 @@ const safeFirst = computed(() => tone.value === 'error' || tone.value === 'warni
         </span>
         <div class="min-w-0 pt-1.5 space-y-1.5">
           <p class="font-semibold text-highlighted text-pretty leading-snug">{{ shown?.title }}</p>
-          <p v-if="shown?.description" class="text-sm text-muted text-pretty">{{ shown.description }}</p>
+          <!-- a description may be several short statements, one per line -->
+          <div v-if="shown?.description" class="space-y-1.5 text-sm text-muted">
+            <p v-for="(line, i) in shown.description.split('\n')" :key="i" class="text-pretty">{{ line }}</p>
+          </div>
         </div>
       </div>
     </template>

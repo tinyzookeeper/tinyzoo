@@ -17,6 +17,7 @@ provide('cmsCollab', null)
 const model = defineModel<any[] | null>()
 const { t, tl } = useCmsI18n()
 const toast = useToast()
+const confirm = useCmsConfirm()
 const form = inject<{ issues?: Record<string, string> } | null>('cmsForm', null)
 const list = computed<{ max: number | null; itemLabel: any } | null>(() => props.field.meta?.list ?? null)
 const full = computed(() => !!list.value?.max && blocks.value.length >= list.value.max)
@@ -93,6 +94,35 @@ const indented = (b: any) => !!list.value && b?.sub === true
 const isGone = (b: any) => !defs.value[b?.type]
 const isStale = (b: any) => !isGone(b) && b?.__upgradeFailed === true
 const isLocked = (b: any) => isGone(b) || isStale(b)
+/** What a locked card is called: its kind's label when the site still has it, else the stored type. */
+const lockedName = (b: any) => tl(defs.value[b?.type]?.label, String(b?.type || t('blocks.item')))
+/**
+ * What a locked block holds, so an editor can tell which one it is before removing it:
+ * its first few texts, whatever their field names are (the site no longer describes them).
+ */
+function storedText(b: any): string {
+  const parts: string[] = []
+  for (const [k, v] of Object.entries(b ?? {})) {
+    if (k === 'id' || k === 'type' || k === 'v' || k.startsWith('__')) continue
+    if (typeof v === 'string' && v.trim()) parts.push(v.trim())
+    else if (v && typeof v === 'object') {
+      const text = JSON.stringify(v).match(/"text":"([^"]{1,120})/)?.[1]
+      if (text) parts.push(text)
+    }
+    if (parts.length === 3) break
+  }
+  const joined = parts.join(' · ')
+  return joined.length > 120 ? `${joined.slice(0, 119).trimEnd()}…` : joined
+}
+/** A block the site no longer has cannot be added again: removing it asks first (the others have "Undo"). */
+async function removeLocked(index: number) {
+  const b = blocks.value[index]
+  if (isGone(b) && !(await confirm({
+    title: t('blocks.removeGoneTitle', { type: b.type }), description: t('blocks.removeGoneBody'),
+    icon: 'i-lucide-trash-2', color: 'error', confirmLabel: t('blocks.removeGoneConfirm'), cancelLabel: t('common.cancel'),
+  }))) return
+  remove(blocks.value.indexOf(b))
+}
 
 // Drag by the handle (the rest of the card stays clickable and selectable).
 const armed = ref<string | null>(null)
@@ -132,6 +162,20 @@ function summary(b: any): string {
     if (parts.length === 3) break
   }
   return parts.join(' · ')
+}
+/**
+ * The server's refusal of the block as a whole ("saved by a newer version", "this type no
+ * longer exists", fields the website does not know), shown on the block itself: those
+ * issues have no field of their own, so they would otherwise only surface under the list.
+ */
+function blockIssue(index: number): string {
+  const prefix = `${props.field.key}.${index}`
+  const known = new Set<string>((defs.value[blocks.value[index]?.type]?.fields ?? []).map((f: any) => f.key))
+  for (const [key, message] of Object.entries(form?.issues ?? {})) {
+    if (key === prefix) return message
+    if (key.startsWith(`${prefix}.`) && !known.has(key.slice(prefix.length + 1).split('.')[0]!)) return message
+  }
+  return ''
 }
 const hasIssue = (index: number) => Object.keys(form?.issues ?? {}).some((k) => k.startsWith(`${props.field.key}.${index}.`) || k === `${props.field.key}.${index}`)
 // A block with a problem opens itself.
@@ -201,15 +245,20 @@ const choices = computed(() => {
 
       <!-- a block the site no longer knows (or could not bring up to date): kept, not editable -->
       <div
-        v-if="isLocked(b)" class="cms-card flex items-start gap-3 px-3 py-3 border-warning/60" :class="indented(b) ? 'ml-6' : ''"
-        data-cms-block-locked
+        v-if="isLocked(b)" role="group" :aria-label="lockedName(b)" data-cms-block-locked
+        class="cms-card flex items-start gap-3 px-3 py-3" :class="[blockIssue(i) ? 'border-error' : 'border-warning/60', indented(b) ? 'ml-6' : '']"
       >
-        <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning shrink-0 mt-0.5" />
-        <div class="min-w-0 flex-1">
-          <p class="text-sm font-medium text-highlighted">{{ t(isGone(b) ? 'blocks.gone' : 'blocks.stale', { type: b.type }) }}</p>
+        <UIcon name="i-lucide-triangle-alert" class="size-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
+        <div class="min-w-0 flex-1 space-y-0.5">
+          <p class="text-sm font-medium text-highlighted">{{ t(isGone(b) ? 'blocks.gone' : 'blocks.stale', { type: lockedName(b) }) }}</p>
+          <p v-if="storedText(b)" class="line-clamp-2 break-words text-xs text-toned">{{ t('blocks.storedContent', { text: storedText(b) }) }}</p>
           <p class="text-xs text-muted">{{ t(isGone(b) ? 'blocks.goneHelp' : 'blocks.staleHelp') }}</p>
+          <p v-if="blockIssue(i)" role="alert" class="pt-1 text-xs font-medium text-error">{{ blockIssue(i) }}</p>
         </div>
-        <UButton color="error" variant="ghost" size="sm" icon="i-lucide-trash-2" @click="remove(i)">{{ t('blocks.remove') }}</UButton>
+        <UButton
+          color="error" variant="ghost" size="sm" icon="i-lucide-trash-2" class="shrink-0 pointer-coarse:min-h-11"
+          :aria-label="t('blocks.removeNamed', { name: lockedName(b) })" @click="removeLocked(i)"
+        >{{ t('blocks.remove') }}</UButton>
       </div>
       <div
         v-else class="cms-card transition-[margin,box-shadow]"
@@ -245,10 +294,13 @@ const choices = computed(() => {
             </span>
           </button>
           <UDropdownMenu :items="menu(i)" :content="{ align: 'end' }">
-            <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-ellipsis" :aria-label="t('blocks.actions')" />
+            <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-ellipsis" class="pointer-coarse:size-11" :aria-label="t('blocks.actions')" />
           </UDropdownMenu>
         </div>
         <div v-if="open[b.id]" class="border-t border-default px-4 py-4 space-y-5">
+          <p v-if="blockIssue(i)" role="alert" class="flex items-start gap-1.5 text-sm text-error">
+            <UIcon name="i-lucide-circle-alert" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />{{ blockIssue(i) }}
+          </p>
           <p v-if="!defs[b.type]" class="text-sm text-muted">{{ b.type }}</p>
           <CmsField
             v-for="f in defs[b.type]?.fields ?? []" :key="f.key"
