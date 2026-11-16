@@ -11,9 +11,11 @@ import { anonymous, type Client, signIn, testDb, truncateAll } from '../helpers/
 const db = testDb()
 let admin: Client
 let editor: Client
+let author: Client
 beforeAll(async () => {
   admin = await signIn('admin')
   editor = await signIn('editor')
+  author = await signIn('author')
 })
 beforeEach(() => truncateAll(db))
 afterAll(() => db.end())
@@ -64,6 +66,9 @@ describe('a plugin\'s server routes (/api/cms/_p/<plugin>/…)', () => {
     await admin.post('/api/cms/events', { title: 'Past', startsAt: inDays(-3) })
     expect((await anonymous().post('/api/cms/_p/events/clear-past', {})).status).toBe(401)
     expect((await editor.post('/api/cms/_p/events/clear-past', {})).status).toBe(403)
+    // The router reaches the same handler with a trailing slash: the rule must hold there too.
+    expect((await editor.post('/api/cms/_p/events/clear-past/', {})).status).toBe(403)
+    expect((await author.post('/api/cms/_p/events/clear-past/', {})).status).toBe(403)
     expect((await db.query('select count(*)::int as n from events')).rows[0].n).toBe(1) // nothing happened
     const done = await admin.post('/api/cms/_p/events/clear-past', {})
     expect(done.status).toBe(200)
@@ -84,7 +89,9 @@ describe('a plugin\'s server routes (/api/cms/_p/<plugin>/…)', () => {
   it('stay closed where the plugin declares nothing: an unknown address, a wrong method', async () => {
     expect((await anonymous().get('/api/cms/_p/events/secret')).status).toBe(401)
     expect((await anonymous().get('/api/cms/_p/nothing/here')).status).toBe(401)
-    expect((await editor.get('/api/cms/_p/events/secret')).status).toBe(404)
+    // The events plugin has an admin route, so an address it doesn't declare is admin-only.
+    expect((await editor.get('/api/cms/_p/events/secret')).status).toBe(403)
+    expect((await admin.get('/api/cms/_p/events/secret')).status).toBe(404)
     expect((await anonymous().get('/api/cms/_p/events/clear-past')).status).toBe(401) // declared for POST only
   })
 

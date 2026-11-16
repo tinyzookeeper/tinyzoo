@@ -391,9 +391,17 @@ export const pluginEntities = (plugins: readonly CmsPlugin[]): CmsEntity[] => pl
 /** Does `path` (no query) match a route with `:param` segments? */
 export function matchRoute(pattern: string, path: string): boolean {
   const a = pattern.split('/')
-  const b = path.split('?')[0]!.split('/')
+  const b = routePath(path).split('/')
+  const rest = a.indexOf('**')
+  if (rest !== -1) return b.length >= rest && a.slice(0, rest).every((s, i) => (s.startsWith(':') ? b[i]! !== '' : s === b[i]))
   return a.length === b.length && a.every((s, i) => (s.startsWith(':') ? b[i]! !== '' : s === b[i]))
 }
+
+/**
+ * A request path the way the router sees it: no query, no trailing slashes (`/x/` and
+ * `/x` reach the same handler, so they must get the same access rule).
+ */
+export const routePath = (path: string): string => path.split('?')[0]!.replace(/\/+$/, '') || '/'
 
 /**
  * The access rule for a request to `/api/cms/_p/…`: `null` when the path is not under
@@ -401,16 +409,21 @@ export function matchRoute(pattern: string, path: string): boolean {
  * `user` for an address no route declares (never open by accident).
  */
 export function pluginRouteAccess(plugins: readonly CmsPlugin[], method: string, path: string): CmsRouteAccess | null {
-  const clean = path.split('?')[0]!
-  if (!clean.startsWith('/api/cms/_p/')) return null
+  if (!path.split('?')[0]!.startsWith('/api/cms/_p/')) return null
+  const clean = routePath(path)
   const m = method.toLowerCase()
   for (const p of plugins) {
     const base = pluginApiBase(p.name)
     if (clean !== base && !clean.startsWith(`${base}/`)) continue
-    for (const h of p.serverHandlers ?? []) {
-      if (h.route === undefined || (h.method ?? 'get') !== m) continue
+    const handlers = (p.serverHandlers ?? []).filter((h) => h.route !== undefined)
+    for (const h of handlers) {
+      if ((h.method ?? 'get') !== m) continue
       if (matchRoute(base + h.route, clean)) return h.access ?? 'user'
     }
+    // An address in this plugin's namespace that no route declares (the router may still
+    // reach a handler by a spelling this matcher doesn't know): the strictest rule the
+    // plugin uses anywhere, never less than a signed-in person.
+    return handlers.some((h) => h.access === 'admin') ? 'admin' : 'user'
   }
   return 'user'
 }

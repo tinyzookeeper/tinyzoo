@@ -133,11 +133,14 @@ serverHandlers: [
 ]
 ```
 
-- `route` is relative to `/api/cms/_p/<plugin>`; `:param` matches one path segment.
+- `route` is relative to `/api/cms/_p/<plugin>`; `:param` matches one path segment,
+  `**` everything below. A trailing slash reaches the same handler and gets the same rule.
 - **`access`** (default `user`) is enforced **before your handler runs**: `user` a
   signed-in person of any role, `admin` an administrator, `public` anyone. An address
-  under `/api/cms/_p/<plugin>/` that no handler declares needs a signed-in person too,
-  so a typo never opens something. Inside a handler you still decide *what* the person
+  under `/api/cms/_p/<plugin>/` that no handler declares (or a declared route called
+  with another method) gets the strictest rule your plugin uses anywhere: `admin` if
+  any of your routes is admin-only, otherwise a signed-in person. A typo never opens
+  something. Inside a handler you still decide *what* the person
   may see or do (`useCms()`, `requireCmsUser(event)`, `accessWhere(entity, 'update', user)`,
   as the CMS's own handlers do).
 - State-changing requests under `/api/cms/` must carry JSON (the CMS's CSRF rule);

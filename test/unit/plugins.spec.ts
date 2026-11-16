@@ -407,11 +407,26 @@ describe('plugin route access', () => {
     expect(pluginRouteAccess([plugin], 'GET', '/api/cms/_p/shop/next')).toBe('public')
   })
 
-  it('is closed by default: an address no route declares needs a signed-in person', () => {
-    expect(pluginRouteAccess([plugin], 'GET', '/api/cms/_p/shop/secret')).toBe('user')
-    expect(pluginRouteAccess([plugin], 'GET', '/api/cms/_p/shop/orders/7/ship')).toBe('user') // wrong method
+  it('is closed by default: an address no route declares gets the plugin\'s strictest rule', () => {
+    // The shop plugin has an admin route, so anything else in its namespace is admin-only.
+    expect(pluginRouteAccess([plugin], 'GET', '/api/cms/_p/shop/secret')).toBe('admin')
+    expect(pluginRouteAccess([plugin], 'GET', '/api/cms/_p/shop/orders/7/ship')).toBe('admin') // wrong method
+    const open = defineCmsPlugin(def({ name: 'open', serverHandlers: [{ route: '/ping', handler: '/h.ts' }] }))
+    expect(pluginRouteAccess([open], 'GET', '/api/cms/_p/open/secret')).toBe('user')
     expect(pluginRouteAccess([plugin], 'GET', '/api/cms/_p/unknown/anything')).toBe('user')
     expect(pluginRouteAccess([], 'GET', '/api/cms/_p/shop/next')).toBe('user')
+  })
+
+  it('treats a trailing slash the way the router does (same handler, same rule)', () => {
+    expect(pluginRouteAccess([plugin], 'POST', '/api/cms/_p/shop/orders/7/ship/')).toBe('admin')
+    expect(pluginRouteAccess([plugin], 'POST', '/api/cms/_p/shop/orders/7/ship//?x=1')).toBe('admin')
+    expect(pluginRouteAccess([plugin], 'GET', '/api/cms/_p/shop/next/')).toBe('public')
+  })
+
+  it('matches a ** route to everything below it', () => {
+    expect(matchRoute('/files/**', '/files/a/b.png')).toBe(true)
+    expect(matchRoute('/files/**', '/files')).toBe(true)
+    expect(matchRoute('/files/**', '/other/a')).toBe(false)
   })
 
   it('has no opinion about the rest of the API', () => {
