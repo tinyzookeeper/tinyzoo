@@ -149,6 +149,5 @@ the version policy and how deprecations work (`cmsDeprecated()`): [CONTRIBUTING.
 
 The plan, with the order and the reasons, is in [roadmap.md](roadmap.md). Open items from the early slices:
 
-- **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`)
 - **Per-field permissions** (`fieldMode`) and custom roles beyond admin / editor / author.
 - Precise `table` *value*-typing in `eq()` (columns are typed `PgColumn` today — key autocomplete works, value side is loose)

@@ -6,6 +6,9 @@ import { AwsClient } from '../helpers/fakeS3'
 import { scratchDatabase, type SpawnedServer, startServer } from '../helpers/server'
 import { storageFromEnv } from '../../packages/cms/cli/transfer'
 
+/** Bytes that pass the upload's check for an MP4 ('ftyp' at offset 4). */
+const mp4Like = (a: Uint8Array) => { a.set(Buffer.from('ftyp'), 4); return a }
+
 // The same two modes against a real MinIO — what the fake S3 cannot prove: that a
 // presigned address and the signed reads are accepted by an actual S3 implementation, and
 // that a bucket without a policy (private, like Pushbase's) refuses anonymous reads.
@@ -60,7 +63,7 @@ describe.skipIf(!endpoint)('MinIO, private bucket', () => {
   })
 
   it('the bucket refuses anonymous reads, so the app has to serve (or sign) every file', async () => {
-    const video = new Uint8Array(4000).map((_, i) => i % 251)
+    const video = mp4Like(new Uint8Array(4000).map((_, i) => i % 251))
     const m = (await upload(admin, 'clip.mp4', 'video/mp4', video)).body
     expect(m.url).toBe(API + m.key)
     expect((await fetch(`${endpoint}/${bucket}/${m.key}`)).status).toBe(403)
@@ -68,7 +71,7 @@ describe.skipIf(!endpoint)('MinIO, private bucket', () => {
   })
 
   it('proxy: whole file, ranges (206 with Content-Range), 416, 304 and 404', async () => {
-    const video = new Uint8Array(4000).map((_, i) => (i * 7) % 251)
+    const video = mp4Like(new Uint8Array(4000).map((_, i) => (i * 7) % 251))
     const m = (await upload(admin, 'clip.mp4', 'video/mp4', video)).body
     const url = proxy.baseURL + m.url
     const whole = await fetch(url)
@@ -91,7 +94,7 @@ describe.skipIf(!endpoint)('MinIO, private bucket', () => {
   })
 
   it('redirect: 302 to a presigned address MinIO accepts, that expires in five minutes and serves ranges', async () => {
-    const data = new Uint8Array(3000).map((_, i) => (i * 3) % 251)
+    const data = mp4Like(new Uint8Array(3000).map((_, i) => (i * 3) % 251))
     const m = (await upload(adminRedirect, 'clip.mp4', 'video/mp4', data)).body
     expect(m.url).toBe(API + m.key)
     const res = await fetch(redirect.baseURL + m.url, { redirect: 'manual' })

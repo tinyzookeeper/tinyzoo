@@ -1,4 +1,4 @@
-import { and, eq, isNull, ne, or, sql } from 'tinyzoo'
+import { and, eq, inArray, isNull, ne, or, sql } from 'tinyzoo'
 import { propOf, snake, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 import type { CmsUser } from './cmsSession'
 
@@ -77,6 +77,40 @@ export function parseOr422(schema: any, body: unknown) {
     throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: r.error.issues })
   }
   return r.data
+}
+
+/** Does a file type match a field's `accept` ("image/*", "application/pdf", "image/png,image/jpeg")? Extensions (".pdf") are only for the browser's file dialog. */
+export function mimeAccepted(accept: string, mime: string): boolean {
+  const wanted = accept.split(',').map((a) => a.trim().toLowerCase()).filter((a) => a && !a.startsWith('.'))
+  if (!wanted.length) return true
+  const type = mime.toLowerCase()
+  return wanted.some((a) => a === '*/*' || a === type || (a.endsWith('/*') && type.startsWith(a.slice(0, -1))))
+}
+
+/**
+ * A media, file or gallery field with an `accept` only takes files of those types — the
+ * admin's picker filters by it, but the API must too (a video's id in a field that shows
+ * pictures would only be a broken image on the site). 422, like any invalid value.
+ */
+export async function assertMediaAccepted(db: any, reg: CmsRegistry, e: CmsEntity, data: Record<string, any>): Promise<void> {
+  const wanted: { key: string; accept: string; ids: string[] }[] = []
+  for (const [key, fld] of Object.entries(e.fields) as [string, any][]) {
+    const accept = fld.meta?.accept
+    if (typeof accept !== 'string' || !accept.trim() || !(key in data)) continue
+    const value = data[key]
+    if (fld.type === 'media' && typeof value === 'string') wanted.push({ key, accept, ids: [value] })
+    else if (fld.type === 'gallery' && Array.isArray(value)) wanted.push({ key, accept, ids: value.map((i: any) => i?.mediaId).filter((id: unknown) => typeof id === 'string') })
+  }
+  const ids = [...new Set(wanted.flatMap((w) => w.ids))]
+  if (!ids.length) return
+  const rows: { id: string; mime: string }[] = await db.select({ id: reg.cmsMedia.id, mime: reg.cmsMedia.mime }).from(reg.cmsMedia).where(inArray(reg.cmsMedia.id, ids))
+  const mimeOf = new Map(rows.map((r) => [r.id, r.mime]))
+  const issues: { code: string; path: string[]; message: string }[] = []
+  for (const w of wanted) {
+    const bad = w.ids.map((id) => mimeOf.get(id)).find((mime) => mime && !mimeAccepted(w.accept, mime))
+    if (bad) issues.push({ code: 'custom', path: [w.key], message: 'This field takes ' + w.accept + ', not ' + bad })
+  }
+  if (issues.length) throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: issues })
 }
 
 /**

@@ -65,6 +65,7 @@
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.11.0",
     "aws4fetch": "^1.0.20",
+    "busboy": "^1.6.0",
     "drizzle-orm": "^0.44.0",
     "image-size": "^2.0.2",
     "ioredis": "^5.11.1",
@@ -77,6 +78,7 @@
     "zod": "^4.0.0"
   },
   "devDependencies": {
+    "@types/busboy": "^1.5.5",
     "drizzle-kit": "^0.31.0",
     "typescript": "^5.7.0"
   },

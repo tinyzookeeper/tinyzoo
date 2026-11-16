@@ -102,6 +102,10 @@ export function cmsDeleteFailure(err: any, t: T, name?: (label: unknown) => stri
 export function cmsRequestError(err: any, t: T, extra: { maxMb?: number } = {}): string {
   const status = err?.statusCode ?? err?.status ?? err?.response?.status
   if (!status) return t('errors.offline')
+  // The server states the limit it applied (a picture over the pixel limit, a file over the cap).
+  const detail = err?.data?.data
+  if (detail?.code === 'image_too_many_pixels') return t('errors.imagePixels', { mp: detail.maxMegapixels })
+  if (status === 413 && !extra.maxMb && detail?.maxMb) extra = { ...extra, maxMb: detail.maxMb }
   if (status === 400 && err?.data?.statusMessage === 'The file is empty') return t('errors.emptyFile')
   if (status === 401) return t('errors.signedOut')
   if (status === 403) return t('errors.forbidden')

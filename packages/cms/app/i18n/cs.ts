@@ -71,6 +71,7 @@ export default {
     tooLarge: 'Soubor je moc velký.',
     emptyFile: 'Soubor je prázdný. Vyberte ho znovu, nebo zkuste jiný.',
     tooLargeMax: 'Soubor je moc velký (nejvýš {mb} MB).',
+    imagePixels: 'Obrázek má příliš mnoho pixelů (nejvýš {mp} megapixelů, asi 8 900 × 8 900). Zmenšete ho a nahrajte znovu.',
     fileType: 'Tenhle typ souboru nejde nahrát. Použijte obrázek (JPG, PNG, WebP, GIF, AVIF), PDF, video MP4/WebM nebo MP3.',
     tooMany: 'Bylo toho moc najednou. Počkejte minutku a zkuste to znovu.',
     server: 'Na serveru se něco pokazilo. Zkuste to za chvíli znovu.',

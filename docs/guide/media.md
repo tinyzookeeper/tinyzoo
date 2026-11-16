@@ -22,9 +22,26 @@ file → POST /api/cms/_media → StorageDriver.put → cms_media row → FK on 
   `DELETE /api/cms/_media/:id` removes a specific media (409 if still referenced).
 - **Limits:** per-file `cms.storage.maxSizeMb`, per-user `maxBytesPerUser` quota (0 = off),
   and `uploadRatePerMin` rate-limit (default 60; in-memory, single-instance).
-- **Hardened:** strict server-side MIME allowlist (no SVG/HTML → no stored-XSS),
+- **Streamed, not buffered:** an upload is parsed as it arrives and written to a temporary
+  file (next to the uploads on the local driver; `<os temp dir>/tinyzoo-uploads` with S3),
+  then moved or streamed on to the store. The server's memory stays flat whatever the file
+  size — a 100 MB video does not need 100 MB (or the 33× the old buffered upload took) of
+  RAM. The size cap counts the bytes that really arrive, so a chunked body without a
+  `Content-Length` is stopped with `413` the moment it crosses the cap. With S3 the temp
+  folder must be a real disk (not a memory-backed `/tmp`) if you raise `maxSizeMb` far.
+- **Hardened:** strict server-side MIME allowlist (no SVG/HTML → no stored-XSS); the first
+  bytes must agree with the type (a picture must be readable, a PDF starts with `%PDF-`,
+  MP4/WebM/MP3 carry their signature); pictures over **80 megapixels** are refused with a
+  message that states the limit (the resizer cannot decode more); a field's `accept` is
+  checked on save (`422` for a video in a picture field);
   `nosniff` + `Content-Security-Policy: sandbox` on served blobs, path-traversal guards,
-  and a `Content-Length` ceiling on `/api/cms/**` before any body is buffered.
+  and a `Content-Length` ceiling on `/api/cms/**` before any body is read.
+- **Only your files are served.** `/api/cms/_media/raw/<key>` answers only for keys that
+  belong to a `cms_media` row (and their resized copies); anything else in a shared bucket
+  is a `404`. PDFs are served with their file name (`Content-Disposition: inline;
+  filename=…`), so *Save as* does not offer a uuid. A picture that cannot be resized (more
+  pixels than the limit, stored before the check existed) is answered with a redirect to the
+  original instead of an error.
 
 ### S3 / Cloudflare R2
 
