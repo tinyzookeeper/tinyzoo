@@ -21,6 +21,8 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   const editable = computed(() => fields.value.filter((f: any) => f.relation?.kind !== 'one-to-many'))
 
   function blankFor(f: any) {
+    // A new entry starts with the field's default (e.g. a select's first choice).
+    if (isNew.value && f.default != null) return structuredClone(f.default)
     if (f.type === 'boolean') return false
     if (f.relation?.kind === 'many-to-many') return []
     if (f.type === 'richtext') return { type: 'doc', content: [] }
@@ -68,22 +70,64 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   // Unsaved = differs from what was last loaded or saved (editing a field back to its
   // saved value, or discarding, makes the form clean again).
   const differs = () => editable.value.some((f: any) => json(state[f.key]) !== loaded[f.key])
+  // A field's error goes away as soon as its value changes (the save checks again).
+  const erroredAt: Record<string, string> = {}
+  function clearFixedErrors() {
+    for (const k of Object.keys(fieldErrors)) {
+      if (json(state[k]) === erroredAt[k]) continue
+      delete fieldErrors[k]
+      for (const p of Object.keys(issues)) if (p === k || p.startsWith(`${k}.`)) delete issues[p]
+    }
+  }
   watch(state, () => {
+    if (Object.keys(fieldErrors).length) clearFixedErrors()
     if (!ready) return
     revision++
     dirty.value = differs()
   }, { deep: true })
+  // Shared text (rich text typed together, see useCmsCollab) is not kept in this tab
+  // but in the shared document, which outlives the visit: the page tells us about it.
+  let shared: CmsSharedText | null = null
+  /** Whether leaving now would lose unsaved work — not when the only changes are
+   *  shared text someone else is still editing (it stays with them). */
+  function leaveLoses(): boolean {
+    if (!dirty.value) return false
+    if (!shared?.othersHere()) return true
+    const fields = shared.fields()
+    return Object.keys(changedFields()).some((k) => !fields.has(k))
+  }
+  /** Leaving without saving: put the saved text back into the shared document, so it
+   *  is not waiting there next time (unless others are still typing in it). */
+  function leaveWithoutSaving() {
+    if (!shared || shared.othersHere()) return
+    for (const key of shared.fields()) {
+      if (json(state[key]) !== loaded[key]) shared.reset(key, JSON.parse(loaded[key] ?? 'null'))
+    }
+  }
   function onBeforeUnload(e: BeforeUnloadEvent) {
-    if (!dirty.value) return
+    if (!leaveLoses()) return
     e.preventDefault()
     e.returnValue = ''
   }
   onMounted(() => {
     ready = true
+    dirty.value = differs()
     window.addEventListener('beforeunload', onBeforeUnload)
   })
   onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload))
-  onBeforeRouteLeave(() => (dirty.value ? window.confirm(t('editor.unsavedConfirm')) : true))
+  const confirm = useCmsConfirm()
+  async function askToLeave() {
+    if (!leaveLoses()) return true
+    const leave = await confirm({
+      title: t('editor.leaveTitle'), description: t('editor.unsavedConfirm'), icon: 'i-lucide-file-pen-line',
+      cancelLabel: t('editor.stay'), confirmLabel: t('editor.leave'), color: 'warning',
+    })
+    if (leave) leaveWithoutSaving()
+    return leave
+  }
+  onBeforeRouteLeave(askToLeave)
+  // Another language (?locale=…) is another form on the same page: same question.
+  onBeforeRouteUpdate((to, from) => (to.path !== from.path || to.query.locale !== from.query.locale ? askToLeave() : true))
 
   /**
    * Load a newer version over the form (someone else saved): not a user edit, so the
@@ -131,14 +175,19 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   }
 
   /**
-   * Apply a change that is not this tab's edit (someone else typing in shared text):
-   * the form follows it without counting it as unsaved work here.
+   * Apply a change that is not this tab's edit (someone else typing in shared text,
+   * or text left in the shared document since the last save): it is no edit of this
+   * tab (a save still sends only what this tab changed), but the status stays
+   * honest — text that differs from the saved version is unsaved, whoever typed it.
    */
   function quiet(fn: () => void) {
     const wasReady = ready
     ready = false
     fn()
-    void nextTick(() => { ready = wasReady || ready })
+    void nextTick(() => {
+      ready = wasReady || ready
+      if (ready) dirty.value = differs()
+    })
   }
 
   /** Set when a save was refused because someone saved in between (409 stale). */
@@ -149,7 +198,8 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
    * Run a save. On a validation answer (422/409 with issues) the messages land on
    * their fields; anything else becomes a toast. Returns whether it succeeded.
    */
-  async function submit(run: () => Promise<unknown>, successTitle = t('editor.saved')): Promise<boolean> {
+  /** Runs a save. `successTitle: null` skips the toast (the page shows its own moment). */
+  async function submit(run: () => Promise<unknown>, successTitle: string | null = t('editor.saved')): Promise<boolean> {
     saving.value = true
     Object.keys(fieldErrors).forEach((k) => delete fieldErrors[k])
     Object.keys(issues).forEach((k) => delete issues[k])
@@ -164,7 +214,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
       dirty.value = revision !== startedAt
       if (!dirty.value) loaded = Object.fromEntries(editable.value.map((f: any) => [f.key, json(state[f.key])]))
       conflict.value = null
-      toast.add({ title: successTitle, icon: 'i-lucide-check', color: 'success' })
+      if (successTitle) toast.add({ title: successTitle, icon: 'i-lucide-check', color: 'success' })
       return true
     }
     catch (e: any) {
@@ -177,14 +227,17 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
       const issueList = e?.data?.data
       if (Array.isArray(issueList) && issueList.some((i: any) => i?.path?.[0])) {
         for (const i of issueList) {
-          if (!i.path?.[0]) continue
-          fieldErrors[i.path[0]] ??= i.message
-          issues[i.path.join('.')] = i.message
+          const key = i.path?.[0]
+          if (!key) continue
+          const message = cmsIssueMessage(i, editable.value.find((f: any) => f.key === key), t as any)
+          fieldErrors[key] ??= message
+          erroredAt[key] = json(state[key])
+          issues[i.path.join('.')] = message
         }
         toast.add({ title: t('editor.fixFields'), icon: 'i-lucide-triangle-alert', color: 'error' })
       }
       else {
-        toast.add({ title: t('editor.saveFailed'), description: e?.data?.statusMessage ?? e?.message, icon: 'i-lucide-x', color: 'error' })
+        toast.add({ title: t('editor.saveFailed'), description: cmsRequestError(e, t as any), icon: 'i-lucide-x', color: 'error' })
       }
       return false
     }
@@ -193,5 +246,19 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     }
   }
 
-  return { state, fieldErrors, issues, editable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields }
+  /** Tell the unsaved-changes guard which fields are shared text (see `shared` above). */
+  function setSharedText(s: CmsSharedText) {
+    shared = s
+  }
+
+  return { state, fieldErrors, issues, editable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields, setSharedText, quiet }
+}
+
+export interface CmsSharedText {
+  /** The fields typed together on this page right now. */
+  fields: () => Set<string>
+  /** Whether someone else has this entry open (and so the shared text). */
+  othersHere: () => boolean
+  /** Put a value into a shared field, for everyone. */
+  reset: (key: string, value: any) => void
 }

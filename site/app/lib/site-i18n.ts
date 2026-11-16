@@ -1,0 +1,164 @@
+// The website's languages and the few texts that live in code (everything else is
+// content in the admin). Czech is the default and has no prefix: /srovnani,
+// /en/comparison, /de/vergleich (defineLocales prefix 'except-default').
+export const LANGS = ['cs', 'en', 'de'] as const
+export type Lang = (typeof LANGS)[number]
+export const DEFAULT_LANG: Lang = 'cs'
+export const LANG_NAMES: Record<Lang, string> = { cs: 'Čeština', en: 'English', de: 'Deutsch' }
+/** BCP 47 tags for dates. */
+export const LANG_TAGS: Record<Lang, string> = { cs: 'cs-CZ', en: 'en-GB', de: 'de-DE' }
+/** The changelog's address segment in each language (News content.path). */
+export const NEWS_SEGMENT: Record<Lang, string> = { cs: 'novinky', en: 'news', de: 'neuigkeiten' }
+
+export const isLang = (v: unknown): v is Lang => typeof v === 'string' && (LANGS as readonly string[]).includes(v)
+/** '/en/comparison' → 'en'; '/srovnani' → 'cs'. */
+export function langOfPath(path: string): Lang {
+  const seg = path.split('/')[1]
+  return isLang(seg) && seg !== DEFAULT_LANG ? seg : DEFAULT_LANG
+}
+/** An address in a language: ('/demo', 'en') → '/en/demo'; ('/', 'de') → '/de'. */
+export function localePath(path: string, lang: Lang): string {
+  if (lang === DEFAULT_LANG) return path
+  return path === '/' ? `/${lang}` : `/${lang}${path}`
+}
+
+const cs = {
+  skipToContent: 'Přejít k obsahu',
+  homeLabel: 'Úvod webu tinyzoo',
+  mainMenu: 'Hlavní menu',
+  footerMenu: 'Menu v patičce',
+  menu: 'Menu',
+  tryAdmin: 'Zkusit administraci',
+  demoPath: '/demo',
+  footerNext: 'Kam dál',
+  footerThisSite: 'Tento web',
+  footerThisSiteText: 'I tento web běží na tinyzoo. Obsah skládáme z bloků v administraci, kterou si tu můžete vyzkoušet i vy.',
+  language: 'Jazyk',
+  draftBar: 'Náhled konceptu · zatím není na webu',
+  emptyHomeTitle: 'Připravme úvodní stránku.',
+  emptyHomeText: 'V administraci vytvořte úvodní stránku s adresou home.',
+  newsEyebrow: 'Vývoj během pilotu',
+  newsTitle: 'Novinky',
+  newsLede: 'Nové funkce i opravy chyb. Tady vidíte, co se v tinyzoo mění. Nejnovější změny jsou nahoře.',
+  newsEmpty: 'První novinky sem teprve přidáme.',
+  newsBack: '← Zpět na novinky',
+  kindFeature: 'Novinka',
+  kindImprovement: 'Vylepšení',
+  kindFix: 'Oprava',
+  notFoundTitle: 'Tuhle stránku jsme nenašli.',
+  notFoundText: 'Zkontrolujte adresu nebo se vraťte na úvod webu.',
+  notFoundHead: 'Stránku se nepodařilo najít',
+  errorTitle: 'Něco se nepovedlo.',
+  errorText: 'Zkuste stránku za chvíli načíst znovu.',
+  goHome: 'Přejít na úvod',
+  videoPlay: 'Přehrát video',
+  videoPause: 'Pozastavit video',
+  videoPending: 'Video se připravuje',
+  heroVideo: 'ukázka administrace',
+  roadmapNow: 'Právě teď',
+  roadmapNext: 'Brzy',
+  roadmapLater: 'Později',
+  copy: 'Kopírovat',
+  demoSignIn: 'Přihlášení do ukázky',
+  demoEmail: 'E-mail',
+  demoPassword: 'Heslo',
+  demoCopied: 'Zkopírováno',
+  demoGo: 'Přejít do administrace',
+  demoHint: 'Zkuste úpravy, náhled i publikování. Tipy vás provedou prvními kroky.',
+  demoUnavailable: 'Ukázka zatím není dostupná. Zkuste ji prosím později.',
+}
+export type SiteText = typeof cs
+
+const en: SiteText = {
+  skipToContent: 'Skip to content',
+  homeLabel: 'tinyzoo home',
+  mainMenu: 'Main menu',
+  footerMenu: 'Footer menu',
+  menu: 'Menu',
+  tryAdmin: 'Try the admin',
+  demoPath: '/demo',
+  footerNext: 'Explore',
+  footerThisSite: 'This website',
+  footerThisSiteText: 'This website runs on tinyzoo too. We put it together from blocks in the admin, which you can try here yourself.',
+  language: 'Language',
+  draftBar: 'Draft preview · not on the website yet',
+  emptyHomeTitle: "Let's set up the home page.",
+  emptyHomeText: 'Create a page with the address home in the admin.',
+  newsEyebrow: 'Changes during the pilot',
+  newsTitle: "What's new",
+  newsLede: 'New features and fixes. This is where you see what changes in tinyzoo. The newest changes are at the top.',
+  newsEmpty: 'The first updates are on their way.',
+  newsBack: "← Back to what's new",
+  kindFeature: 'New',
+  kindImprovement: 'Improved',
+  kindFix: 'Fix',
+  notFoundTitle: "We couldn't find this page.",
+  notFoundText: 'Check the address or go back to the home page.',
+  notFoundHead: 'Page not found',
+  errorTitle: 'Something went wrong.',
+  errorText: 'Please try loading the page again in a moment.',
+  goHome: 'Go to the home page',
+  videoPlay: 'Play video',
+  videoPause: 'Pause video',
+  videoPending: 'Video coming soon',
+  heroVideo: 'a look at the admin',
+  roadmapNow: 'Now',
+  roadmapNext: 'Next',
+  roadmapLater: 'Later',
+  copy: 'Copy',
+  demoSignIn: 'Sign in to the demo',
+  demoEmail: 'Email',
+  demoPassword: 'Password',
+  demoCopied: 'Copied',
+  demoGo: 'Open the admin',
+  demoHint: 'Try editing, the preview and publishing. The tips walk you through the first steps.',
+  demoUnavailable: "The demo isn't available yet. Please try again later.",
+}
+
+const de: SiteText = {
+  skipToContent: 'Zum Inhalt springen',
+  homeLabel: 'Startseite von tinyzoo',
+  mainMenu: 'Hauptmenü',
+  footerMenu: 'Menü in der Fußzeile',
+  menu: 'Menü',
+  tryAdmin: 'Admin ausprobieren',
+  demoPath: '/demo',
+  footerNext: 'Weiter',
+  footerThisSite: 'Diese Website',
+  footerThisSiteText: 'Auch diese Website läuft mit tinyzoo. Wir setzen sie aus Blöcken im Admin zusammen, den Sie hier selbst ausprobieren können.',
+  language: 'Sprache',
+  draftBar: 'Vorschau des Entwurfs · noch nicht auf der Website',
+  emptyHomeTitle: 'Richten wir die Startseite ein.',
+  emptyHomeText: 'Legen Sie im Admin eine Seite mit der Adresse home an.',
+  newsEyebrow: 'Entwicklung während des Pilotprojekts',
+  newsTitle: 'Neuigkeiten',
+  newsLede: 'Neue Funktionen und Fehlerbehebungen. Hier sehen Sie, was sich in tinyzoo ändert. Die neuesten Änderungen stehen oben.',
+  newsEmpty: 'Die ersten Neuigkeiten folgen bald.',
+  newsBack: '← Zurück zu den Neuigkeiten',
+  kindFeature: 'Neu',
+  kindImprovement: 'Verbessert',
+  kindFix: 'Behoben',
+  notFoundTitle: 'Diese Seite haben wir nicht gefunden.',
+  notFoundText: 'Prüfen Sie die Adresse oder kehren Sie zur Startseite zurück.',
+  notFoundHead: 'Seite nicht gefunden',
+  errorTitle: 'Etwas ist schiefgelaufen.',
+  errorText: 'Bitte laden Sie die Seite gleich noch einmal.',
+  goHome: 'Zur Startseite',
+  videoPlay: 'Video abspielen',
+  videoPause: 'Video anhalten',
+  videoPending: 'Video folgt in Kürze',
+  heroVideo: 'ein Blick in den Admin',
+  roadmapNow: 'Jetzt',
+  roadmapNext: 'Als Nächstes',
+  roadmapLater: 'Später',
+  copy: 'Kopieren',
+  demoSignIn: 'Anmeldung zur Demo',
+  demoEmail: 'E-Mail',
+  demoPassword: 'Passwort',
+  demoCopied: 'Kopiert',
+  demoGo: 'Zum Admin',
+  demoHint: 'Probieren Sie Bearbeiten, Vorschau und Veröffentlichen aus. Die Tipps führen Sie durch die ersten Schritte.',
+  demoUnavailable: 'Die Demo ist noch nicht verfügbar. Bitte versuchen Sie es später noch einmal.',
+}
+
+export const SITE_TEXT: Record<Lang, SiteText> = { cs, en, de }

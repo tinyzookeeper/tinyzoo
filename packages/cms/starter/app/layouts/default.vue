@@ -1,0 +1,74 @@
+<script setup lang="ts">
+const { locale, settings, nav } = await useSite()
+const home = computed(() => (locale.value === 'en' ? '/en' : '/'))
+// Phones: the menu folds behind a button; it closes again on every page change.
+const menuOpen = ref(false)
+const route = useRoute()
+watch(() => route.fullPath, () => { menuOpen.value = false })
+useHead({ htmlAttrs: { lang: locale } })
+</script>
+
+<template>
+  <div class="min-h-dvh flex flex-col">
+    <header class="border-b border-default">
+      <div class="relative mx-auto flex max-w-5xl items-center justify-between gap-6 px-4 py-4">
+        <NuxtLink :to="home" class="flex items-center gap-2 font-semibold">
+          <CmsImage v-if="settings?.logo" :media="settings.logo" class="h-8 w-auto" eager />
+          <span>{{ settings?.siteName ?? 'Web' }}</span>
+        </NuxtLink>
+        <button
+          type="button" class="site-menu-button sm:hidden" :aria-expanded="menuOpen" aria-controls="site-nav"
+          @click="menuOpen = !menuOpen"
+        >
+          <UIcon :name="menuOpen ? 'i-lucide-x' : 'i-lucide-menu'" class="size-6" />
+          <span class="sr-only">{{ locale === 'en' ? 'Menu' : 'Menu' }}</span>
+        </button>
+        <CmsNav id="site-nav" :links="nav?.main" class="site-nav" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="locale === 'en' ? 'Main menu' : 'Hlavní menu'" />
+      </div>
+    </header>
+    <main class="flex-1">
+      <slot />
+    </main>
+    <footer class="border-t border-default bg-muted/40">
+      <div class="mx-auto grid max-w-5xl gap-6 px-4 py-8 sm:grid-cols-3 text-sm">
+        <div>
+          <p class="font-semibold">{{ settings?.siteName }}</p>
+          <p v-if="settings?.tagline" class="text-muted">{{ settings.tagline }}</p>
+        </div>
+        <div v-if="settings?.email || settings?.phone || settings?.address" class="space-y-1">
+          <p v-if="settings?.address" class="whitespace-pre-line">{{ settings.address }}</p>
+          <p v-if="settings?.phone"><a :href="`tel:${settings.phone}`">{{ settings.phone }}</a></p>
+          <p v-if="settings?.email"><a :href="`mailto:${settings.email}`">{{ settings.email }}</a></p>
+        </div>
+        <dl v-if="settings?.openingHours?.length" class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+          <template v-for="h in settings.openingHours" :key="h.id">
+            <dt class="text-muted">{{ h.days }}</dt><dd>{{ h.hours }}</dd>
+          </template>
+        </dl>
+        <CmsNav :links="nav?.footer" class="site-nav-footer sm:col-span-3" :aria-label="locale === 'en' ? 'Footer menu' : 'Menu v patičce'" />
+      </div>
+    </footer>
+  </div>
+</template>
+
+<style>
+/* Desktop: links in a row, a link's dropdown opens on hover or keyboard focus. */
+.site-nav > ul { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+.site-nav li { position: relative; }
+.site-nav .cms-nav__has-children > a::after { content: ""; display: inline-block; width: 0.4em; height: 0.4em; margin-left: 0.4em; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-0.2em) rotate(45deg); }
+.site-nav li ul { display: none; position: absolute; top: 100%; right: 0; z-index: 10; min-width: 12rem; padding: 0.5rem 0; background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 0.5rem; box-shadow: 0 8px 24px rgb(0 0 0 / 0.08); }
+.site-nav li:hover > ul, .site-nav li:focus-within > ul { display: block; }
+.site-nav li ul a { display: block; padding: 0.375rem 1rem; }
+.site-nav-footer > ul { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+/* Phones: one column behind the menu button, dropdown links shown under their parent. */
+@media (max-width: 639px) {
+  .site-menu-button { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; margin: -0.5rem; }
+  .site-nav { display: none; position: absolute; top: 100%; left: 0; right: 0; z-index: 20; background: var(--ui-bg); border-bottom: 1px solid var(--ui-border); padding: 0.5rem 1rem 1rem; }
+  .site-nav--open { display: block; }
+  .site-nav > ul { flex-direction: column; gap: 0; }
+  .site-nav a { display: block; padding: 0.75rem 0; }
+  .site-nav .cms-nav__has-children > a::after { display: none; }
+  .site-nav li ul { display: block; position: static; min-width: 0; padding: 0 0 0 1rem; border: 0; box-shadow: none; background: none; }
+}
+</style>

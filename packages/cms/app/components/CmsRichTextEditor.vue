@@ -87,21 +87,64 @@ if (props.collab) {
 
 onBeforeUnmount(() => editor.value?.destroy())
 
-function setLink() {
+// Links: an in-app popover (a page of the site, or an address), never the browser's
+// prompt. With no text selected, the picked page's title becomes the link text.
+const linkOpen = ref(false)
+const linkHref = ref<string | null>(null)
+watch(linkOpen, (v) => {
+  if (v) linkHref.value = (editor.value?.getAttributes('link').href as string | undefined) ?? null
+})
+function applyLink(href: string, title?: string) {
   const ed = editor.value
+  linkOpen.value = false
   if (!ed) return
-  const prev = ed.getAttributes('link').href as string | undefined
-  const url = window.prompt(t('fields.linkPrompt'), prev ?? 'https://')
-  if (url === null) return // cancelled
-  if (url.trim() === '') {
-    ed.chain().focus().extendMarkRange('link').unsetLink().run()
+  const { empty } = ed.state.selection
+  if (empty && !ed.isActive('link')) {
+    ed.chain().focus().insertContent({ type: 'text', text: title || href, marks: [{ type: 'link', attrs: { href } }] }).run()
     return
   }
-  ed.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run()
+  ed.chain().focus().extendMarkRange('link').setLink({ href }).run()
+}
+function removeLink() {
+  linkOpen.value = false
+  editor.value?.chain().focus().extendMarkRange('link').unsetLink().run()
 }
 
+// Images go in after the selection (never over the selected text), and carry a
+// description: the file's own, or one the editor writes now.
+const altOpen = ref(false)
+const altText = ref('')
+let pending: { kind: 'insert'; media: any } | { kind: 'edit' } | null = null
+const pendingIsInsert = ref(false)
 function onImageSelect(m: any) {
-  editor.value?.chain().focus().setImage({ src: m.url, alt: m.alt ?? '', mediaId: m.id } as any).run()
+  const alt = typeof m.alt === 'string' ? m.alt.trim() : ''
+  if (alt) return insertImage(m, alt)
+  pending = { kind: 'insert', media: m }
+  pendingIsInsert.value = true
+  altText.value = ''
+  altOpen.value = true
+}
+function insertImage(m: any, alt: string) {
+  const ed = editor.value
+  if (!ed) return
+  ed.chain().focus().setTextSelection(ed.state.selection.to).setImage({ src: m.url, alt, mediaId: m.id } as any).run()
+}
+// Closing the question (Esc, ×) still inserts the picked image, without a description.
+watch(altOpen, (v) => { if (!v && pending) confirmAlt(true) })
+function editAlt() {
+  pending = { kind: 'edit' }
+  pendingIsInsert.value = false
+  altText.value = String(editor.value?.getAttributes('image').alt ?? '')
+  altOpen.value = true
+}
+function confirmAlt(skip = false) {
+  const alt = skip ? '' : altText.value.trim()
+  const p = pending
+  pending = null
+  altOpen.value = false
+  if (!p) return
+  if (p.kind === 'insert') insertImage(p.media, alt)
+  else editor.value?.chain().focus().updateAttributes('image', { alt }).run()
 }
 
 type Tool = { icon: string, label: string, run: () => void, active: () => boolean }
@@ -119,26 +162,53 @@ const tools = computed<Tool[]>(() => {
     { icon: 'i-lucide-list-ordered', label: t('fields.toolbar.orderedList'), run: () => chain().toggleOrderedList().run(), active: () => ed.isActive('orderedList') },
     { icon: 'i-lucide-quote', label: t('fields.toolbar.quote'), run: () => chain().toggleBlockquote().run(), active: () => ed.isActive('blockquote') },
     { icon: 'i-lucide-code', label: t('fields.toolbar.code'), run: () => chain().toggleCode().run(), active: () => ed.isActive('code') },
-    { icon: 'i-lucide-link', label: t('fields.toolbar.link'), run: setLink, active: () => ed.isActive('link') },
   ]
 })
 </script>
 
 <template>
-  <div class="w-full overflow-hidden rounded-lg border border-default bg-default">
+  <div class="cms-rte w-full overflow-hidden rounded-lg border border-default bg-default">
     <CmsMediaLibrary v-model:open="libraryOpen" accept="image/*" @select="onImageSelect" />
+    <UModal v-model:open="altOpen" :title="t('link.imageAlt')" :description="t('link.imageAltHint')">
+      <template #body>
+        <form class="space-y-4" @submit.prevent="confirmAlt()">
+          <UInput v-model="altText" :placeholder="t('link.imageAltPlaceholder')" class="w-full" autofocus :aria-label="t('link.imageAlt')" />
+          <div class="flex justify-end gap-2">
+            <UButton color="neutral" variant="ghost" @click="confirmAlt(true)">{{ t('link.skip') }}</UButton>
+            <UButton type="submit">{{ pendingIsInsert ? t('link.insert') : t('link.save') }}</UButton>
+          </div>
+        </form>
+      </template>
+    </UModal>
     <ClientOnly>
-      <div v-if="editor && !collab?.readOnly" class="flex flex-wrap items-center gap-0.5 border-b border-default bg-elevated/30 p-1">
+      <div v-if="editor && !collab?.readOnly" class="cms-rte__toolbar flex flex-wrap items-center gap-0.5 border-b border-default bg-elevated/30 p-1">
         <UButton
           v-for="tool in tools" :key="tool.icon"
           :icon="tool.icon" size="xs" variant="ghost"
           :color="tool.active() ? 'primary' : 'neutral'"
           :aria-label="tool.label" :aria-pressed="tool.active()" @click="tool.run()"
         />
+        <UPopover v-model:open="linkOpen" :content="{ align: 'start' }">
+          <UButton
+            icon="i-lucide-link" size="xs" variant="ghost" :color="editor.isActive('link') ? 'primary' : 'neutral'"
+            :aria-label="t('fields.toolbar.link')" :aria-pressed="editor.isActive('link')"
+          />
+          <template #content>
+            <div v-if="linkHref" class="flex items-center gap-2 border-b border-default px-3 py-2">
+              <span class="min-w-0 flex-1 truncate font-mono text-xs text-muted">{{ linkHref }}</span>
+              <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-unlink" @click="removeLink">{{ t('link.remove') }}</UButton>
+            </div>
+            <CmsLinkPicker :initial="linkHref" @pick="applyLink" />
+          </template>
+        </UPopover>
         <UButton
           icon="i-lucide-image" size="xs" variant="ghost" color="neutral"
           :aria-label="t('fields.toolbar.image')" @click="libraryOpen = true"
         />
+        <UButton
+          v-if="editor.isActive('image')" icon="i-lucide-text-quote" size="xs" variant="ghost" color="neutral"
+          :aria-label="t('fields.toolbar.imageAlt')" @click="editAlt"
+        >{{ t('fields.toolbar.imageAlt') }}</UButton>
         <div class="ml-auto flex gap-0.5">
           <UButton icon="i-lucide-undo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.undo')" @click="editor.chain().focus().undo().run()" />
           <UButton icon="i-lucide-redo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.redo')" @click="editor.chain().focus().redo().run()" />

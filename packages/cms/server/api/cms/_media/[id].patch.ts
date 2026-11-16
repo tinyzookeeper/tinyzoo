@@ -25,6 +25,8 @@ export default defineEventHandler(async (event) => {
     set.altLocales = Object.keys(clean).length ? clean : null
   }
   if ('folder' in body) set.folder = cleanFolder(body.folder)
+  // Edited on the library page (`keep`): someone cares about it, so it stays.
+  if (body.keep === true) set.inLibrary = true
   if ('focal' in body) {
     const f = body.focal as { x?: unknown; y?: unknown } | null
     const pct = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(100, Math.max(0, Math.round(v))) : null)

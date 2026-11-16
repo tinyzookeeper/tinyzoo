@@ -72,7 +72,7 @@ describe('navigation', () => {
     const cs = (await anonymous().get('/api/content/_global/navigation')).body.item
     expect(cs.main.map((l: any) => l.label)).toEqual(['O nás', 'Kontakt'])
     const en = (await anonymous().get('/api/content/_global/navigation?locale=en')).body.item
-    expect(en.main).toEqual([{ id: 'About', type: 'link', label: 'About', url: '/en/about', newTab: false }])
+    expect(en.main).toEqual([{ id: 'About', type: 'link', label: 'About', url: '/en/about', newTab: false, sub: false }])
     expect(en.footer).toEqual([])
   })
 })

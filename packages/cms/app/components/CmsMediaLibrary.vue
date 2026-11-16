@@ -23,7 +23,7 @@ async function load(reset = false) {
     items.value = reset ? res.items : [...items.value, ...res.items]
     total.value = res.total
   } catch (err: any) {
-    toast.add({ title: t('media.loadFailed'), description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
+    toast.add({ title: t('media.loadFailed'), description: cmsRequestError(err, t as any), color: 'error', icon: 'i-lucide-x' })
   } finally {
     loading.value = false
   }
@@ -62,11 +62,12 @@ async function onUpload(e: Event) {
   try {
     const fd = new FormData()
     fd.append('file', file)
+    fd.append('library', '1')
     const rec: any = await $fetch('/api/cms/_media', { method: 'POST', body: fd })
     items.value.unshift(rec)
     choose(rec)
   } catch (err: any) {
-    toast.add({ title: t('media.uploadFailed'), description: err?.data?.statusMessage, color: 'error', icon: 'i-lucide-x' })
+    toast.add({ title: t('media.uploadFailed'), description: cmsRequestError(err, t as any), color: 'error', icon: 'i-lucide-x' })
   } finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''
@@ -100,7 +101,8 @@ async function onUpload(e: Event) {
             <UIcon v-else name="i-lucide-file" class="size-7 text-dimmed" />
           </div>
           <div class="p-1.5">
-            <p class="truncate text-xs font-medium">{{ m.alt || m.key.split('/').pop() }}</p>
+            <p class="truncate text-xs font-medium">{{ m.name || m.alt || m.key.split('/').pop() }}</p>
+            <p v-if="m.name && m.alt" class="truncate text-xs text-muted">{{ m.alt }}</p>
             <p class="truncate text-[10px] text-muted">{{ m.mime }}</p>
           </div>
         </button>

@@ -117,12 +117,18 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   /** Help text shown under the field in the admin form. */
   help(text: LocalizedText): FieldDescriptor<K>
   /**
-   * Where the field sits in the admin editor: 'main' (the content column) or
-   * 'sidebar' (the properties panel). Unset = decided by field type: text, rich text
-   * and media go in the main column; slugs, selects, dates, switches and relations in
-   * the sidebar.
+   * Where the field sits in the writing editor (rich-text entries such as news):
+   * 'main' (the text column) or 'sidebar' (the details beside it). Unset = decided by
+   * field type: text, rich text and media go in the main column; slugs, selects,
+   * dates, switches and relations in the details. Form and preview editors show every
+   * field in sections (see `admin.sections`).
    */
   position(where: 'main' | 'sidebar'): FieldDescriptor<K>
+  /**
+   * The icon shown in the field's control in the admin (any Iconify name, e.g.
+   * `i-lucide-map-pin`). Unset = from the kind of field: dates, links, e-mails.
+   */
+  icon(name: string): FieldDescriptor<K>
   /** Put the field in a named, collapsible group in the editor (e.g. 'Search & sharing'). */
   group(label: LocalizedText): FieldDescriptor<K>
 }

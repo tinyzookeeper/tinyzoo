@@ -240,9 +240,10 @@ A language left out of the map has no page for that collection.
 ## Admin look & language
 
 The admin has its own design system, scoped so it never touches the host website's
-theme: modern and neutral — true greys, black primary, Geist, light and dark. It speaks
-Czech and English (cookie → browser language → default). Brand it per client in
-`app.config.ts`:
+theme: tinyzoo's look — a white workspace, charcoal actions, cream for the brand's
+moments (with one of the animals), Manrope titles and Inter text, and a "charcoal
+night" dark mode. It works on phones. It speaks Czech and English (cookie → browser
+language → default). Brand it per client in `app.config.ts`:
 
 ```ts
 cms: { admin: {
@@ -256,7 +257,53 @@ cms: { admin: {
 
 Labels in `cms.config.ts` take one string or one per admin language
 (`label: { en: 'Posts', cs: 'Články' }`), and entities can set `icon`,
-`labelSingular` and `description`. Tokens, rules and building blocks:
+`labelSingular` and `description`.
+
+Each editor and list is arranged for its content, without configuration: news (a
+rich-text body with a page) opens as a calm **writing** column, events and settings as
+a **form**, pages built from blocks beside their **live preview**; lists are tables
+(with drafts "in progress" on top), picture grids (albums, logos) or **Upcoming / Past**
+(events). Override where the guess is wrong:
+
+```ts
+defineEntity('event', { /* … */ admin: { editor: 'form', list: { columns: ['title', 'startsAt'], layout: 'table' } } })
+defineSingleton('home', { /* … */ admin: { preview: '/' } }) // edit the home page beside the live page
+```
+
+The preview beside the form follows the typing: the editor's unsaved values go to the
+server, and the preview page refetches its content, with those values laid over the
+entry for that editor's own `?preview` requests only (never cached, never public, gone
+when they close the editor). A site that loads its content through the content API with
+`?preview` (as the starter does) needs no code for it. A site rendering from somewhere
+else can listen for `{ type: 'cms:preview', entity, id, locale, data }` messages.
+
+Forms read as a few titled sections. Name them as plain questions, and give fields
+the icons and options that make them quick to fill in. Empty optional fields wait
+behind "+ Add …"; long forms get a section menu beside them:
+
+```ts
+defineEntity('event', {
+  /* … */
+  admin: { sections: [
+    { label: { cs: 'Kdy?', en: 'When?' }, icon: 'i-lucide-calendar', fields: ['startsAt', 'endsAt'] },
+    { label: { cs: 'Kde?', en: 'Where?' }, icon: 'i-lucide-map-pin', fields: ['place'] },
+    { label: { cs: 'Kontakty', en: 'Contacts' }, fields: ['email', 'phone'], columns: 2 },
+  ] },
+  fields: {
+    kind: f.select({ options: ['race', 'club'] as const, icons: { race: 'i-lucide-trophy', club: 'i-lucide-users' } }),
+    startsAt: f.datetime({ allDay: true }),          // an "All day" switch; stored at 0:00
+    place: f.text().optional().icon('i-lucide-map-pin'),
+    organised: f.boolean().label('We organise it').help('It gets a label in the calendar.'), // the help is the switch's sentence
+    /* … */
+  },
+})
+```
+
+Without `admin.sections`, a form of six fields or more is grouped by kind (dates,
+pictures, links, related entries); `admin.tabs` read as sections in the form and
+preview editors.
+
+Tokens, rules and building blocks:
 [`docs/ui-foundation.md`](docs/ui-foundation.md); live tour at `/admin/styleguide`.
 
 ## Tests, typecheck & CI
@@ -413,6 +460,8 @@ file → POST /api/cms/_media → StorageDriver.put → cms_media row → FK on 
   for intrinsic sizing + lazy loading in the admin.
 - **Lifecycle / GC:** blobs are reference-counted across every media field — replacing or
   clearing a media field, or deleting its owning row, removes the now-orphan row **and** blob.
+  Files uploaded or edited **in the library** (its page or picker; `cms_media.in_library`)
+  are never removed automatically, only by deleting them there.
   `DELETE /api/cms/_media/:id` removes a specific media (409 if still referenced).
 - **Limits:** per-file `cms.storage.maxSizeMb`, per-user `maxBytesPerUser` quota (0 = off),
   and `uploadRatePerMin` rate-limit (default 60; in-memory, single-instance).
@@ -505,7 +554,9 @@ GET /api/content/:entity/:slug   # single published item by slug (or id)
 Responses resolve relations + media into nested objects, drop raw FK ids, and omit
 `hidden` fields — on the item **and** on populated relations (a non-public relation target
 collapses to `{ id, title }`). Drafts are never served (list excludes them; single → 404).
-Responses are CDN-cacheable (`Cache-Control`), or lock the whole API behind a token with
+Responses are CDN-cacheable (`Cache-Control`: a CDN may keep them 5 minutes; browsers
+check back every time and get a quick `304` via `ETag` while nothing changed, so a
+published change shows at once), or lock the whole API behind a token with
 `cms.content.token` / `NUXT_CMS_CONTENT_TOKEN`.
 
 Render stored rich text on the frontend with the shipped `<CmsContent :doc="post.body" />`
@@ -564,7 +615,74 @@ URL (it stays relative otherwise — the request Host is never reflected). The p
 
 ![OpenAPI reference](docs/screenshots/openapi-docs.png)
 
+## Start a new website
+
+```bash
+pnpm dlx tinyzoo init my-site      # (in this repo: pnpm exec tsx packages/cms/cli/index.ts init my-site)
+cd my-site && pnpm install && cp .env.example .env
+docker compose up -d && pnpm db:migrate && pnpm dev   # → /admin
+```
+
+The starter (`packages/cms/starter`, a workspace app typechecked with the rest) is a
+small-business site with the CMS inside: pages from blocks (opening, text, picture,
+call to action, contact form), news, menus with dropdowns, redirects, site settings
+with opening hours, a contact form, Czech + English. Each block is drawn by
+`app/components/global/Block<Type>.vue`; one catch-all page serves pages, the news
+list and news items in both languages.
+
+## More field types
+
+```ts
+team: f.list({ fields: { name: f.text({ required: true }), role: f.text() }, max: 30 }),
+// → [{ id, type: 'item', name, role }] — add, drag to reorder, duplicate, remove (with undo)
+rules: f.file(),                    // a document to download (PDF by default): name, size, open
+brandColor: f.color().optional(),   // #rrggbb, colour picker + hex
+```
+
+`f.list` items take the same field types as blocks and can be `.localized()`. Menus
+(`defineNavigation`) are lists of links; a link marked "under the link above" goes into
+the dropdown of the one before it — `cmsMenuTree(nav.main)` from `@tinyzoo/client`
+nests them, `<CmsNav>` draws them.
+
+## Website forms
+
+```ts
+export const ContactForm = defineForm('contactForm', {
+  label: { en: 'Contact form', cs: 'Kontaktní formulář' },
+  fields: {
+    name: f.text({ required: true }).label({ en: 'Name', cs: 'Jméno' }),
+    email: f.text({ required: true, format: 'email' }).label({ en: 'Email', cs: 'E-mail' }),
+    message: f.text({ required: true, multiline: true, max: 5000 }).label({ en: 'Message', cs: 'Zpráva' }),
+  },
+})
+export const FormSettings = defineFormSettings() // editors set who gets the emails
+```
+
+On a page: `<CmsForm name="contactForm" />` (plain HTML, zero-specificity default
+styles, errors per field in the visitor's language). Or post JSON to
+`POST /api/content/_form/contactForm`; `GET` on the same address describes the form.
+Each submission becomes an entry (state New / Read / Done) and the people in Forms
+settings get an email (fallback: `notify.to` in code, then `NUXT_CMS_FORMS_NOTIFY_TO`).
+Spam protection: a hidden field, a minimum fill-in time, a rate limit per visitor,
+same-site Origin, and Cloudflare Turnstile when `NUXT_CMS_FORMS_TURNSTILE_SECRET` and
+`NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` are set. Every list can be exported as CSV
+(`/api/cms/:entity/_export`, the Export button).
+
+## Frontend kit (for the website's pages)
+
+| | |
+|---|---|
+| `<CmsBlocks :blocks="page.sections" />` | each block drawn by the site's `Block<Type>` component |
+| `<CmsImage :media="post.hero" />` | alt text, real size, lazy loading, the editor's focal point |
+| `<CmsContent :doc="post.body" />` | rich text, sanitised |
+| `<CmsNav :links="nav.main" />` | a menu with dropdowns, as nested lists |
+| `<CmsForm name="contactForm" />` | a website form |
+| `useCmsSeo(() => item)` | title, description, sharing image from the `seo()` fields |
+
 ## Not yet built (next slices, in rough order)
+
+- **Plugin API** (forms is a first-party preset today) and **`f.group`** (an object of fields).
+- **Links that follow their target** (today a picked page is stored as its address).
 
 - **Streaming multipart parser** (bound chunked uploads that omit `Content-Length`)
 - **Per-field permissions** (`fieldMode`) and custom roles beyond admin / editor / author.

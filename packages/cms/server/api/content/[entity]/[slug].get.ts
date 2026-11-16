@@ -37,6 +37,8 @@ export default defineEventHandler(async (event) => {
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
   await overlayTranslations(db, reg, e, [row], locale)
+  // The editor's unsaved values, while they type (live preview).
+  applyPreviewDrafts(event, reg, e, [row], locale)
   await populateItems(db, reg, e, [row], e.content?.populate, locale)
   // Never let a draft preview be cached by a shared/browser cache.
   if (preview) setResponseHeader(event, 'Cache-Control', 'private, no-store')

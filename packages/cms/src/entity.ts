@@ -119,17 +119,59 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
        * dragging, and the content API returns this order unless asked to sort.
        */
       orderField?: keyof F & string
+      /**
+       * How the list looks. Default: chosen from the content — `grid` when the first
+       * column is a picture and there is no text body (albums, logos), `dated` (Upcoming / Past) when there are no drafts and a
+       * date column, otherwise `table`.
+       */
+      layout?: CmsListLayout
     }
+    /**
+     * How the editor is arranged. Default: chosen from the content — `write` for a
+     * rich-text body with a page on the website, `preview` for pages built from blocks
+     * (and globals with a `preview` address), otherwise `form`.
+     */
+    editor?: CmsEditorLayout
+    /**
+     * Where a global (defineSingleton) shows on the website, e.g. '/' for the home
+     * page: the editor then shows it beside the form. Entries use `publish.preview`.
+     */
+    preview?: PathTemplate
     /**
      * Tabs for a long form: each lists the fields it shows in the main column
      * (fields in no tab go into the first). The side panel is not tabbed.
      */
     tabs?: { label: LocalizedText; fields: (keyof F & string)[] }[]
+    /**
+     * How the form is grouped: each section is a heading (best as a plain question,
+     * "When?", "Where?") over the fields it lists, in order. Fields in no section
+     * follow in sections of their own kind. Unset = grouped by kind of field (dates,
+     * pictures, links, related entries) once a form has enough fields to need it.
+     * Long forms (four sections or more) get a section menu beside them.
+     */
+    sections?: CmsFormSection<keyof F & string>[]
   }
   access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
   content?: ContentConfig<F>
   publish?: PublishConfig<F>
 }
+
+/** A titled group of fields in the admin form (see `admin.sections`). */
+export interface CmsFormSection<K extends string = string> {
+  label: LocalizedText
+  /** An Iconify icon for the heading, e.g. `i-lucide-calendar`. */
+  icon?: string
+  /** One sentence under the heading: what the fields are for or where they show. */
+  description?: LocalizedText
+  fields: K[]
+  /** Lay short fields (single-line text, numbers, choices) two to a row on wide screens. */
+  columns?: 1 | 2
+}
+
+/** The editor's arrangement: one calm writing column, a form with a properties panel, or the form beside the live page. */
+export type CmsEditorLayout = 'write' | 'form' | 'preview'
+/** The list's look: rows, picture cards, or Upcoming / Past by date. */
+export type CmsListLayout = 'table' | 'grid' | 'dated'
 
 /** The precisely-typed entity returned by defineEntity. */
 export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<string, AnyFieldDescriptor>> {
@@ -178,7 +220,13 @@ export interface CmsEntity {
   insertSchema: z.ZodTypeAny
   updateSchema: z.ZodTypeAny
   singleton?: boolean
-  admin?: { list?: { columns: string[]; searchable?: string[]; orderField?: string }; tabs?: { label: LocalizedText; fields: string[] }[] }
+  admin?: {
+    list?: { columns: string[]; searchable?: string[]; orderField?: string; layout?: CmsListLayout }
+    editor?: CmsEditorLayout
+    preview?: PathTemplate
+    tabs?: { label: LocalizedText; fields: string[] }[]
+    sections?: CmsFormSection[]
+  }
   access?: Record<string, (ctx: { user: any; table: any }) => unknown>
   content?: {
     public?: boolean
@@ -233,6 +281,14 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   const orderField = def.admin?.list?.orderField as string | undefined
   if (orderField && (fields[orderField]?.type !== 'number' || fields[orderField]?.spec?.base.kind !== 'integer')) {
     throw new Error(`admin.list.orderField of "${name}" must be a whole-number field ("${orderField}" is not).`)
+  }
+  const sectioned = new Set<string>()
+  for (const section of def.admin?.sections ?? []) {
+    for (const key of section.fields as string[]) {
+      if (!fields[key]) throw new Error(`admin.sections of "${name}" lists "${key}", which is not a field.`)
+      if (sectioned.has(key)) throw new Error(`admin.sections of "${name}" lists "${key}" twice.`)
+      sectioned.add(key)
+    }
   }
 
   // 1) pgEnums for select fields
@@ -312,7 +368,7 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
 /** Define a single-row global (Settings, Homepage). One editable record, no list. */
 export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
-  def: Omit<EntityDef<F>, 'singleton' | 'admin'>,
+  def: Omit<EntityDef<F>, 'singleton' | 'admin'> & { admin?: Pick<NonNullable<EntityDef<F>['admin']>, 'editor' | 'preview' | 'tabs' | 'sections'> },
 ): Entity<F> {
   return defineEntity(name, { ...def, singleton: true } as EntityDef<F>)
 }
@@ -394,7 +450,7 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   }
 
   for (const e of entities) {
-    for (const [what, t] of [['content.path', e.content?.path], ['publish.preview', e.publish?.preview]] as const) {
+    for (const [what, t] of [['content.path', e.content?.path], ['publish.preview', e.publish?.preview], ['admin.preview', e.admin?.preview]] as const) {
       const problem = pathTemplateProblem(t, locales)
       if (problem) throw new Error(`${what} of "${e.name}" ${problem}.`)
     }
@@ -411,6 +467,31 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   return reg
 }
 
+/**
+ * The editor's arrangement, from what the content is (the developer can say otherwise
+ * with `admin.editor`): the layout is the point → `preview`; a text to write → `write`;
+ * facts to fill in → `form`.
+ */
+export function editorLayout(e: CmsEntity): CmsEditorLayout {
+  if (e.admin?.editor) return e.admin.editor
+  const page = !!(e.publish?.preview ?? e.admin?.preview)
+  const types = Object.values(e.fields).filter((f) => !f.meta?.group).map((f) => f.type)
+  if (page && (e.singleton || types.includes('blocks'))) return 'preview'
+  if (page && types.includes('richtext')) return 'write'
+  return 'form'
+}
+
+/** The list's look, from what the content is (or `admin.list.layout`). */
+export function listLayout(e: CmsEntity): CmsListLayout {
+  if (e.admin?.list?.layout) return e.admin.list.layout
+  const columns = e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4)
+  // The picture is the content (albums, logos): it leads the list and there is no text body.
+  const hasBody = Object.values(e.fields).some((f) => f.type === 'richtext' && !f.meta?.group)
+  if (e.fields[columns[0] ?? '']?.type === 'media' && !hasBody) return 'grid'
+  if (!e.publish && columns.some((k) => e.fields[k]?.type === 'datetime')) return 'dated'
+  return 'table'
+}
+
 function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
   return {
     name: e.name,
@@ -421,14 +502,19 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     description: e.description ?? null,
     icon: e.icon ?? (e.singleton ? 'i-lucide-settings-2' : 'i-lucide-folder'),
     titleField: e.titleField,
+    // A ready-made kind (pages, redirects, form…) the admin may treat specially.
+    preset: (e as any).preset ?? null,
     singleton: !!e.singleton,
     publish: e.publish,
     // The preview address per language, prefix included ({ cs: '/aktuality/:slug', en: '/en/news/:slug' }).
-    previewPaths: prefixedTemplates(e.publish?.preview, locales),
+    previewPaths: prefixedTemplates(e.publish?.preview ?? e.admin?.preview, locales),
+    editor: editorLayout(e),
+    listLayout: listLayout(e),
     listColumns: e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4),
     searchable: e.admin?.list?.searchable ?? [],
     orderField: e.admin?.list?.orderField ?? null,
     tabs: e.admin?.tabs ?? null,
+    sections: e.admin?.sections ?? null,
     fields: Object.entries(e.fields).map(([key, fld]) => ({
       key,
       type: fld.type,
@@ -436,6 +522,8 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
       localized: !!fld.isLocalized,
       required: fld.isRequired,
       unique: fld.isUnique,
+      // What a new entry starts with in the admin (select defaults, switches).
+      default: fld.default ?? null,
       ui: fld.ui,
       meta: fld.meta,
       relation: fld.relation

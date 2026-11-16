@@ -116,6 +116,9 @@ export default async function setup(project: TestProject) {
       NUXT_CMS_WEBHOOKS_SECRET: WEBHOOK_SECRET,
       // First-run setup needs this code (seedAccounts sends it).
       NUXT_CMS_AUTH_SETUP_TOKEN: SETUP_TOKEN,
+      // A public demo account (cms.demo): created on its first sign-in (demo.spec.ts).
+      NUXT_PUBLIC_CMS_DEMO_EMAIL: 'demo@test.local',
+      NUXT_PUBLIC_CMS_DEMO_PASSWORD: 'try it out please',
     },
   })
   // CMS_TEST_SERVER_LOG_FILE=path: the server's output, as it happens (for debugging).

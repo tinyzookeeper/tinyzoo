@@ -1,0 +1,234 @@
+export default (h) => {
+  const { id, item, p, doc, link, picture, video, img } = h
+  const configCode = h.code.configCode
+    .replace('// Pole pro editora, typovaný obsah pro web.', '// Fields for the editor, typed content for the website.')
+    .replace('/aktuality/:slug', '/news/:slug')
+
+  return {
+    pages: {
+      home: {
+        title: 'Home', slug: 'home',
+        sections: [
+          {
+            id: id(), type: 'hero', eyebrow: null,
+            heading: 'Feel at home editing your website.',
+            text: 'We build your website together with you. It comes with tinyzoo: an admin area in your language where you write articles, put pages together and publish content.\nWe want it to feel like calm, pleasant work. Try the demo and tell us how you get on.',
+            primaryLabel: 'Try the admin area', primaryUrl: '/en/demo',
+            secondaryLabel: 'Share your thoughts', secondaryUrl: '/en/feedback',
+            video: video.link, image: null,
+          },
+          {
+            id: id(), type: 'features', eyebrow: null,
+            heading: 'Everything you need is close at hand.',
+            text: 'Write a news post, update a page or read a message from your website. The admin area speaks English, Czech and German and works on your phone too.',
+            items: [
+              item({ title: 'Text, pictures and links', text: 'Write with headings and lists. Add a description to a picture and choose what stays visible when it is cropped. Find a link by the page title.', animal: 'bunny' }),
+              item({ title: 'A page that fits your needs', text: 'Choose ready-made page sections: cards, questions and answers, or a video. Drag them into order. See the preview alongside, including a phone view.', animal: 'elephant' }),
+              item({ title: 'Work on an article together', text: 'Write in the same article as a colleague. See where the other person is typing. Your changes will not overwrite each other.', animal: 'octopus' }),
+              item({ title: 'One more check before publishing', text: 'Missing a required detail or a picture description? The admin area lets you know and takes you straight to where you can add it.', animal: 'bird' }),
+              item({ title: 'Publish when you are ready', text: 'Publish an article straight away or choose a day and time. Version history lets you go back to an earlier version.', animal: 'frog' }),
+              item({ title: 'Website messages in one place', text: 'Find form messages in the admin area. An email lets you know when one arrives. You can also download messages as a spreadsheet for Excel.', animal: 'fox' }),
+            ],
+          },
+          {
+            id: id(), type: 'showcase', eyebrow: null,
+            heading: 'Four small tasks from an ordinary day.',
+            text: 'These short videos show the admin area in use. You can then try the same tasks yourself.',
+            items: [
+              item({ title: 'Add a link by the page title', text: 'Select some words and search for the page you want to link to. There is no need to copy its address.', video: video.link }),
+              item({ title: 'Read a message from your website', text: 'A visitor fills in a form and the message appears in the admin area. An email lets you know it has arrived.', video: video.form }),
+              item({ title: 'Edit an article or start with a copy', text: 'Browse the article list, open an article and edit it. You can also start a new article by copying an existing one.', video: video.duplicate }),
+              item({ title: 'Add a second level to the menu', text: 'Place a page under another menu item. Visitors will then find it in a drop-down menu on your website.', video: video.menu }),
+            ],
+          },
+          {
+            id: id(), type: 'steps', eyebrow: null,
+            heading: 'From planning together to writing your article.',
+            items: [
+              item({ title: 'We plan and build your website together', text: 'We talk through what your website needs to do and which content you will be changing. Then we build it around those needs.' }),
+              item({ title: 'You get your own admin area', text: 'In tinyzoo you will find your pages, articles and picture library. This is where you look after your website content.' }),
+              item({ title: 'Write and watch the preview', text: 'Add text and pictures, or put a page together from ready-made sections. See how it looks in the preview before you publish.' }),
+              item({ title: 'Publish at the right time for you', text: 'Fill in any missing details and publish your finished content. Or choose the day and time it should appear on your website.' }),
+            ],
+          },
+          {
+            id: id(), type: 'cta', heading: 'Try editing an article of your own.',
+            text: 'Feel free to experiment in the demo admin area. We reset it every night. Your thoughts will help us prepare for the pilot on our first client website.',
+            primaryLabel: 'Open the demo', primaryUrl: '/en/demo', secondaryLabel: 'Tell us how it went', secondaryUrl: '/en/feedback', animal: 'fox',
+          },
+          {
+            id: id(), type: 'faq', heading: 'Before you start editing',
+            text: 'A few answers to questions you may have.',
+            items: [
+              item({ question: 'Do I need training first?', answer: 'You can open the demo and try writing your first article straight away. The demo page has a few specific tasks to try. During the pilot, we also want to find out where people need more explanation. If you lose your way, please tell us.' }),
+              item({ question: 'Can I break anything while trying it?', answer: 'The demo admin area is there for you to experiment. We reset it every night, so you cannot break anything permanently. Your changes will not stay there either. On your own website, you can preview unfinished content before publishing.' }),
+              item({ question: 'What if two of us edit the same article?', answer: 'You can write in it at the same time. Each of you can see where the other is typing, and your changes will not overwrite each other.' }),
+              item({ question: 'Can I go back to an earlier version?', answer: 'Yes. Version history lets you restore an earlier version of your content.' }),
+              item({ question: 'Does the admin area work on a phone?', answer: 'Yes, you can edit content on your phone too. You can also switch the page preview to a phone view to see how it will look to visitors. We also plan a separate mobile app.' }),
+              item({ question: 'Is tinyzoo finished? Can I try it yet?', answer: 'The demo is open to everyone and resets every night. tinyzoo is new. It has over 350 automated tests, and before the pilot we went through all the usual editing tasks in detail. We fixed the issues we found. Clients have not used it in their everyday work yet. That is what we will test in the pilot. We look after development and fixes ourselves.' }),
+              item({ question: 'What if I need something extra?', answer: 'Tell us what you need to do on your website. We do not have a catalogue of ready-made add-ons. We build extra features for individual websites.' }),
+            ],
+          },
+        ],
+        metaDescription: 'tinyzoo is a friendly admin area for your website. Write articles, build pages and preview your content. Try the demo and tell us how you get on.',
+      },
+      plany: {
+        title: 'Roadmap', slug: 'roadmap',
+        sections: [
+          {
+            id: id(), type: 'roadmap', eyebrow: null,
+            heading: 'What we are working on and where tinyzoo is heading.',
+            text: 'These are our plans for tinyzoo. We choose the order based on what people tell us while trying the demo and working with content.',
+            items: [
+              item({ title: 'Pilot on our first client website', text: 'We are preparing a pilot on our first client website. We want to learn how real editors work with their own content and where they need help.', stage: 'now', animal: 'bunny' }),
+              item({ title: 'Improvements from demo feedback', text: 'We are gathering the thoughts you send us from the demo. We want to use them to make the admin area easier to work in.', stage: 'now', animal: 'bird' }),
+              item({ title: 'Website search', text: 'We plan to add search to help visitors find content on your website.', stage: 'next', animal: 'fox' }),
+              item({ title: 'Add-on modules', text: 'We plan to build add-on modules so your website can grow as your needs change.', stage: 'next', animal: 'frog' }),
+              item({ title: 'A mobile app for managing content', text: 'More people expect to manage content straight from their phone. We plan an app where you could write a news post, add photos directly from your phone and publish from anywhere.', stage: 'later', animal: 'octopus' }),
+              item({ title: 'Moving content from your existing website', text: 'We want to make it easier to bring text and pictures from your existing website into tinyzoo.', stage: 'later', animal: 'elephant' }),
+            ],
+            note: 'Plans can change. Tell us what you would need for your website.',
+          },
+          {
+            id: id(), type: 'cta', heading: 'What would help you?',
+            text: 'Try the tinyzoo demo or tell us what you need when editing your website. Your experience will help us choose the next steps.',
+            primaryLabel: 'Try the demo', primaryUrl: '/en/demo', secondaryLabel: 'Tell us what you need', secondaryUrl: '/en/feedback', animal: 'fox',
+          },
+        ],
+        metaDescription: 'Where is tinyzoo heading? See our plans, from the first pilot to a mobile app. Try the demo and tell us what you would need.',
+      },
+      demo: {
+        title: 'Try the admin area', slug: 'demo',
+        sections: [{
+          id: id(), type: 'demo', heading: 'Try editing a website.',
+          text: 'The demo is open to everyone. Sign in with the details on this page and start editing. We reset it every night, so you cannot break anything permanently. Your work will not stay here either. Here are a few tasks to get you started.',
+          tips: [
+            item({ text: 'Write a short news post with a heading and a list. Add a picture and its description, then choose which part should stay visible when it is cropped.' }),
+            item({ text: 'Select a few words and add a link. Find the page you want to link to by its title.' }),
+            item({ text: 'Add a ready-made section to a page and drag it into place. Check the preview in the phone view too.' }),
+            item({ text: 'Prepare an article and schedule it to go live tomorrow morning.' }),
+            item({ text: 'Open the same article in two windows. Take turns typing in each and watch where the changes appear.' }),
+            item({ text: 'Find the messages from a website form and download them as a spreadsheet for Excel.' }),
+          ],
+        }],
+        metaDescription: 'Try the tinyzoo admin area. Write a news post, edit a page and check the preview. We reset the demo every night.',
+      },
+      'zpetna-vazba': {
+        title: 'Feedback', slug: 'feedback',
+        sections: [{
+          id: id(), type: 'feedback', heading: 'How did you get on with tinyzoo?',
+          text: 'Tell us what felt easy, where you got stuck or what was missing. Even a small observation from a single task helps. Your experience will help us prepare the pilot on our first client website.',
+        }],
+        metaDescription: 'Tried tinyzoo? Tell us what went well while editing and where you got stuck. Your thoughts will help us prepare the pilot.',
+      },
+      'pro-vyvojare': {
+        title: 'For developers', slug: 'developers',
+        sections: [
+          {
+            id: id(), type: 'hero', eyebrow: null,
+            heading: 'Content management inside Nuxt.',
+            text: 'We build client websites in Nuxt. Each website also needs a place where the client can look after content. That is why we are developing tinyzoo: a CMS with a TypeScript model and an admin area in Czech, English or German.\nThe website and content management run in one application. One project, one deployment.',
+            primaryLabel: 'Try the admin area', primaryUrl: '/en/demo',
+            secondaryLabel: 'What\'s coming', secondaryUrl: '/en/roadmap',
+            video: video.duplicate, image: null,
+          },
+          {
+            id: id(), type: 'code', eyebrow: null,
+            heading: 'Start with the content your website needs.',
+            text: 'Define articles, page blocks and forms in cms.config.ts. The model generates the admin area. A generated client file carries the types through to your Vue templates. tinyzoo is a Nuxt layer and module that runs directly in your application.',
+            files: [item({ name: 'cms.config.ts', code: configCode }), item({ name: 'pages/aktuality/[slug].vue', code: h.code.pageCode })],
+            chips: 'defineEntity(), defineBlock(), definePages(), defineForm(), f.list()',
+          },
+          {
+            id: id(), type: 'steps', eyebrow: null,
+            heading: 'From the first command to managing content.',
+            items: [
+              item({ title: 'Create a project', text: 'The npx tinyzoo init command sets up the project foundation. Carry on building your website in Nuxt.', command: 'npx tinyzoo init' }),
+              item({ title: 'Define the content', text: 'Describe the content your client will edit in cms.config.ts. Their admin area is generated from the model.', command: 'pnpm db:generate' }),
+              item({ title: 'Deploy the application', text: 'tinyzoo uses Node and Postgres. We deploy with Pushbase. The website and admin area deploy together.', command: 'pnpm build' }),
+              item({ title: 'Walk through the website with your client', text: 'Try editing content, using the live preview and scheduling publication together. It is a chance to see how the content setup works for your client.' }),
+            ],
+          },
+          {
+            id: id(), type: 'faq', heading: 'Developer questions',
+            items: [
+              item({ question: 'What does tinyzoo already include?', answer: 'Pages built from blocks, lists within blocks and forms. Also menus with subitems, redirects, SEO fields and translations. The media library generates images in the sizes you need on demand. Editing includes a live preview, real-time collaborative writing, scheduled publishing and version history.' }),
+              item({ question: 'What if we need something extra?', answer: 'We write extra features as custom modules in code. Tell us what your website needs. Together we can work out how to extend it.' }),
+              item({ question: 'How do we access the content?', answer: 'Content is stored in standard Postgres tables. There is also a content API described in OpenAPI. In Vue templates, you work with types from the generated client file.' }),
+              item({ question: 'Who handles maintenance?', answer: 'We handle development and fixes ourselves. We update one package across our websites. tinyzoo is young. Over 350 automated tests and a detailed check of all the usual editing tasks help us verify how it works. We will gather more experience as people use it.' }),
+            ],
+          },
+          {
+            id: id(), type: 'cta', heading: 'See the website through an editor’s eyes.',
+            text: 'Try editing an article and checking the preview. Then tell us how you got on and what you would need for your own website.',
+            primaryLabel: 'Try the admin area', primaryUrl: '/en/demo', secondaryLabel: 'Share your thoughts', secondaryUrl: '/en/feedback', animal: 'frog',
+          },
+        ],
+        metaDescription: 'tinyzoo for Nuxt websites: a TypeScript content model, an admin area in Czech, English or German, and types through to Vue templates. Explore the content model and API.',
+      },
+    },
+    news: {
+      'seznamy-v-blocich': {
+        title: 'Cards and questions on one page', slug: 'lists-in-blocks',
+        perex: 'You can now build a page with cards or questions and answers. Drag them into the order you need.',
+        body: doc(p('Build a page from ready-made sections, such as cards or questions and answers. Add your own text and drag the sections into order.'),
+          p('We put this website together in the same way.')),
+      },
+      formulare: {
+        title: 'Form messages in the admin area', slug: 'forms',
+        perex: 'Find new messages from your website in one place. An email lets you know whenever one arrives.',
+        body: doc(p('Messages from website forms are saved in the admin area. An email lets you know when a new message arrives. Download them as a spreadsheet for Excel to work with them further.'),
+          p('The forms include spam protection.')),
+      },
+      'odkazy-vyberem-stranky': {
+        title: 'Add a link by the page title', slug: 'links-by-page-title',
+        perex: 'While writing, find the page you want to link to by its title. No need to copy its address.',
+        body: doc(p('Select the words you want to turn into a link. Search for the page by its title and select it. You can stay with the text you are writing.')),
+      },
+      'opravy-z-testu': {
+        title: 'We fixed the issues found while testing the admin area', slug: 'fixes-from-testing',
+        perex: 'Before the pilot, we went through all the usual editing tasks in detail. We fixed every issue we found.',
+        body: doc(p('Testing revealed two serious issues and around twenty smaller ones. We fixed them all. tinyzoo also has over 350 automated tests.'),
+          p('Clients have not used the admin area in their everyday work yet. We want to learn from their experience in the pilot on our first client website.')),
+      },
+      'spolecne-psani': {
+        title: 'Write in the same article together', slug: 'writing-together',
+        perex: 'Write at the same time as a colleague. You can both see where the other person is typing.',
+        body: doc(p('Several people can now edit an article at once. See where others are typing. Your changes will not overwrite each other.'),
+          picture(img.desk, 'A desk with a laptop used to write an article'),
+          p('You can add text together, or review and correct it with a colleague.')),
+      },
+      'nahled-vedle-editoru': {
+        title: 'See a page preview as you edit', slug: 'preview-beside-editor',
+        perex: 'A live preview sits beside your editing area. You can switch it to a phone view too.',
+        body: doc(p('As you put a page together, you can see how it will look right beside it. Switch the preview to a phone view if you need to.'),
+          p('You can also preview unfinished content that is not yet on your website.')),
+      },
+      planovani: {
+        title: 'Choose when to publish', slug: 'scheduled-publishing',
+        perex: 'Prepare a news post in advance. It will appear on your website at the time you choose.',
+        body: doc(p('Choose a day and time when scheduling publication. You can prepare an article today and have it go live on Monday morning.'),
+          p('If you need an earlier version of the text, you will find it in version history.')),
+      },
+      'pilot-na-klientskem-webu': {
+        title: 'Preparing our first pilot', slug: 'first-client-pilot',
+        perex: 'We are preparing a trial on our first client website. We want to see how people get on editing real content.',
+        body: doc(p('During the pilot, real editors will try tinyzoo while looking after their website. Their observations will show us what still needs work.')),
+      },
+      'co-chystame-dal': {
+        title: 'Feedback for the next changes', slug: 'what-comes-next',
+        perex: 'We are making room for what we learn from the demo and the first pilot.',
+        body: doc(p('We want to capture what helps people while editing and where they need clearer explanations. This text is still a draft.')),
+      },
+    },
+    navigation: {
+      main: [link('Roadmap', '/en/roadmap'), link('News', '/en/news'), link('For developers', '/en/developers'), link('Get in touch', '/en/feedback')],
+      footer: [link('Home', '/en'), link('Roadmap', '/en/roadmap'), link('Try the admin area', '/en/demo'), link('News', '/en/news'), link('For developers', '/en/developers'), link('Get in touch', '/en/feedback'), link('Edit this website', '/admin')],
+    },
+    settings: {
+      tagline: 'Feel at home editing your website.',
+      footerNote: 'We are preparing a pilot on our first client website. Try the demo and tell us how you get on.',
+      metaDescription: 'tinyzoo is a friendly admin area for your website. Write articles, build pages and preview your content. Try the demo and share your experience.',
+    },
+  }
+}

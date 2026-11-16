@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, gt, isNull, ne, or, propOf, sql } from 'tinyzoo'
+import { and, asc, desc, eq, gt, gte, isNull, listLayout, ne, or, propOf, sql } from 'tinyzoo'
 
 // GET /api/cms/_overview — what the admin home page shows: how many items each
 // collection holds, the most recently edited items across all of them, this
-// person's own drafts and what is scheduled to go live next. Only what the
+// person's own drafts, what is scheduled to go live next and what is coming up in
+// dated collections (events: the next ones by their date). Only what the
 // signed-in user may read (entity- and row-level access applied).
 const RECENT = 8
 
@@ -15,6 +16,7 @@ export default defineEventHandler(async (event) => {
   const recent: Item[] = []
   const drafts: Item[] = []
   const scheduled: Item[] = []
+  const upcoming: { entity: string; id: string; title: string | null; at: Date }[] = []
 
   for (const e of reg.entities) {
     const { allowed, where } = accessWhere(e, 'read', user)
@@ -54,6 +56,17 @@ export default defineEventHandler(async (event) => {
         for (const r of next) scheduled.push({ entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), updatedAt: r.updatedAt, published: true, publishAt: r.date })
       }
     }
+    // Dated collections (no drafts, a date column): the next few by their date.
+    if (listLayout(e) === 'dated') {
+      const columns = e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4)
+      const key = columns.find((k) => e.fields[k]?.type === 'datetime')
+      const col = key ? e.table[propOf(key, e.fields[key]!)] : undefined
+      if (col) {
+        const next: any[] = await db.select({ id: e.table.id, title: titleCol, at: col }).from(e.table)
+          .where(both(where, gte(col, sql`now()`))).orderBy(asc(col)).limit(RECENT)
+        for (const r of next) upcoming.push({ entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), at: r.at })
+      }
+    }
     for (const r of rows) {
       recent.push({
         entity: e.name,
@@ -69,5 +82,6 @@ export default defineEventHandler(async (event) => {
   recent.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   drafts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   scheduled.sort((a, b) => new Date(a.publishAt!).getTime() - new Date(b.publishAt!).getTime())
-  return { counts, recent: recent.slice(0, RECENT), drafts: drafts.slice(0, RECENT), scheduled: scheduled.slice(0, RECENT) }
+  upcoming.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+  return { counts, recent: recent.slice(0, RECENT), drafts: drafts.slice(0, RECENT), scheduled: scheduled.slice(0, RECENT), upcoming: upcoming.slice(0, RECENT) }
 })

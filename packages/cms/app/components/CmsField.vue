@@ -8,20 +8,24 @@
 // shipping a same-named component (auto-imported) — no package edits.
 //
 // One field convention everywhere: required fields carry no marker, optional ones
-// say "Optional". Help text sits under the control in the content column; in the
-// properties panel it is one click away behind an info toggle.
+// say "Optional" (sectioned forms leave that out: empty optional fields wait behind
+// "+ Add …" there). Help text sits under the control in the content column; in the
+// properties panel it is one click away behind an info toggle. A switch is one row:
+// what it is, what it does, the switch.
 //
 // The label is ours, linked to the control by a STABLE id derived from the field
 // key (not useId): pages that await data render ids differently on the server and
 // in the browser, which left server-rendered labels pointing at nothing.
-const props = defineProps<{ field: any; entity: string; error?: string; placement?: 'main' | 'sidebar'; idPrefix?: string }>()
+const props = defineProps<{
+  field: any; entity: string; error?: string; placement?: 'main' | 'sidebar'; idPrefix?: string; hideOptional?: boolean
+  /** A details row: the label on the left, a quiet control on the right (the writing editor's details). */
+  row?: boolean
+}>()
 const model = defineModel<any>()
 
 const appConfig = useAppConfig()
-const component = computed(() => {
-  const override = (appConfig.cms as any)?.fields?.[props.field.type]?.edit
-  return resolveComponent(override || props.field.ui?.edit || 'CmsFieldText')
-})
+const override = computed(() => (appConfig.cms as any)?.fields?.[props.field.type]?.edit as string | undefined)
+const component = computed(() => resolveComponent(override.value || props.field.ui?.edit || 'CmsFieldText'))
 
 const { t, fieldLabel, fieldHelp } = useCmsI18n()
 const label = computed(() => fieldLabel(props.field))
@@ -29,14 +33,49 @@ const help = computed(() => fieldHelp(props.field))
 const compact = computed(() => props.placement === 'sidebar')
 const showHelp = ref(false)
 const inputId = computed(() => `cms-field-${props.idPrefix ?? ''}${props.field.key}`)
-// Composite fields (rich text, images, blocks) have no single control to focus.
-const composite = computed(() => ['richtext', 'media', 'blocks', 'gallery'].includes(props.field.type))
-// Field widgets that adapt to where they sit (e.g. the image field) read this.
+// Composite fields (rich text, images, blocks, choice buttons) have no single control to focus.
+const composite = computed(() => ['richtext', 'media', 'blocks', 'gallery'].includes(props.field.type)
+  || (!override.value && cmsSelectAsButtons(props.field, props.placement ?? 'main')))
+const isSwitch = computed(() => props.field.type === 'boolean' && !override.value)
+// Field widgets that adapt to where they sit (e.g. the image field) read this; in a
+// details row the controls are quiet (no box until hovered).
 provide('cmsFieldPlacement', computed(() => props.placement ?? 'main'))
+const inRow = computed(() => !!props.row && !composite.value)
+provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
 </script>
 
 <template>
-  <div class="space-y-1.5">
+  <!-- a switch: one row, the sentence says what it does -->
+  <UFormField v-if="isSwitch" :name="field.key" :error="error" :ui="{ error: 'text-error' }">
+    <div
+      class="flex items-center justify-between gap-4"
+      :class="compact ? '' : 'rounded-(--ui-radius) border border-default bg-default px-3.5 py-3'"
+    >
+      <label :for="inputId" :id="`${inputId}-label`" class="min-w-0 cursor-pointer">
+        <span class="block" :class="compact ? 'text-xs font-medium text-muted' : 'text-sm font-medium text-highlighted'">{{ label }}</span>
+        <span v-if="help && !compact" class="block text-sm text-muted text-pretty">{{ help }}</span>
+      </label>
+      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" />
+    </div>
+  </UFormField>
+
+  <!-- a details row: label | quiet control -->
+  <div v-else-if="inRow" class="cms-field-row">
+    <label :for="inputId" :id="`${inputId}-label`" class="cms-field-row__label">
+      {{ label }}
+      <button
+        v-if="help" type="button" class="ml-0.5 align-[-2px] text-dimmed hover:text-highlighted"
+        :aria-label="t('fields.showHelp')" :aria-expanded="showHelp" @click.prevent="showHelp = !showHelp"
+      >
+        <UIcon name="i-lucide-info" class="size-3.5 inline-block" />
+      </button>
+    </label>
+    <UFormField :name="field.key" :error="error" :help="showHelp ? help : undefined" :ui="{ help: 'text-muted text-xs', error: 'text-error text-xs' }" class="min-w-0">
+      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" />
+    </UFormField>
+  </div>
+
+  <div v-else class="space-y-1.5">
     <div class="flex items-center justify-between gap-2">
       <component
         :is="composite ? 'span' : 'label'" :for="composite ? undefined : inputId" :id="`${inputId}-label`"
@@ -51,7 +90,7 @@ provide('cmsFieldPlacement', computed(() => props.placement ?? 'main'))
           <UIcon name="i-lucide-info" class="size-3.5 block" />
         </button>
       </component>
-      <span v-if="field.optional" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
+      <span v-if="field.optional && !hideOptional" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
     </div>
     <UFormField
       :name="field.key" :error="error" :help="compact ? (showHelp ? help : undefined) : help"

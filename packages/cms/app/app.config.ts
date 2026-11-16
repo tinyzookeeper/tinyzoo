@@ -27,7 +27,7 @@ export default defineAppConfig({
       name: 'tinyzoo' as string | Record<string, string>,
       siteUrl: '/',
       accent: 'mono' as 'mono' | 'indigo' | 'blue' | 'violet' | 'emerald',
-      locales: ['cs', 'en'] as string[],
+      locales: ['cs', 'en', 'de'] as string[],
       defaultLocale: 'en',
       timeZone: 'Europe/Prague',
     },

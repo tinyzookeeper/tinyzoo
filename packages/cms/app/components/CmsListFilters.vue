@@ -44,9 +44,16 @@ const chips = computed(() => {
   return out
 })
 const count = computed(() => chips.value.length)
-const dateValue = (param: string) => (model.value[param] ?? '').slice(0, 10)
-const setDate = (param: string, v: string, part: 'from' | 'to') =>
-  set(param, v ? new Date(`${v}T${part === 'from' ? '00:00:00' : '23:59:59'}`).toISOString() : null)
+// Days in the admin's time zone (cms.admin.timeZone), sent as exact instants: from the
+// day's first minute to its last.
+const config = useCmsAdminConfig()
+const dateValue = (param: string) => toZonedInput(model.value[param], config.value.timeZone).slice(0, 10)
+const setDate = (param: string, v: string, part: 'from' | 'to') => {
+  if (!v) return set(param, null)
+  const at = fromZonedInput(`${v}T${part === 'from' ? '00:00' : '23:59'}`, config.value.timeZone)
+  if (!at) return set(param, null)
+  set(param, part === 'to' ? new Date(new Date(at).getTime() + 59_999).toISOString() : at)
+}
 </script>
 
 <template>
@@ -80,8 +87,8 @@ const setDate = (param: string, v: string, part: 'from' | 'to') =>
               @update:open="(o: boolean) => o && loadRelation(f)" @update:model-value="(v: any) => set(`filter.${f.key}`, v)"
             />
             <div v-else-if="f.type === 'datetime'" class="grid grid-cols-2 gap-2">
-              <UInput type="date" size="sm" :aria-label="`${fieldLabel(f)} ${t('list.filterFrom')}`" :model-value="dateValue(`filter.${f.key}.from`)" @update:model-value="(v: any) => setDate(`filter.${f.key}.from`, v, 'from')" />
-              <UInput type="date" size="sm" :aria-label="`${fieldLabel(f)} ${t('list.filterTo')}`" :model-value="dateValue(`filter.${f.key}.to`)" @update:model-value="(v: any) => setDate(`filter.${f.key}.to`, v, 'to')" />
+              <CmsDayPicker :label="`${fieldLabel(f)} ${t('list.filterFrom')}`" :placeholder="t('list.filterFrom')" :model-value="dateValue(`filter.${f.key}.from`)" @update:model-value="(v: string) => setDate(`filter.${f.key}.from`, v, 'from')" />
+              <CmsDayPicker :label="`${fieldLabel(f)} ${t('list.filterTo')}`" :placeholder="t('list.filterTo')" :model-value="dateValue(`filter.${f.key}.to`)" @update:model-value="(v: string) => setDate(`filter.${f.key}.to`, v, 'to')" />
             </div>
           </div>
           <UButton v-if="count" color="neutral" variant="link" size="sm" class="px-0" @click="model = {}">{{ t('list.filterClear') }}</UButton>

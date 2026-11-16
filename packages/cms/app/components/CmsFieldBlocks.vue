@@ -4,14 +4,22 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 // Page builder: an ordered list of typed blocks. Each block is a collapsible card —
 // its type, a one-line summary when collapsed, and a marker when something inside
 // needs attention. Insert between blocks or at the end through a searchable picker;
-// move, duplicate and remove from the block's "…" menu (keyboard- and touch-friendly,
-// no drag required).
+// move, duplicate and remove from the block's "…" menu (keyboard- and touch-friendly),
+// or drag a block by its handle. A removed block can be brought back from the toast.
+// `f.list()` uses the same editor with one item type: items read as their own text
+// ("Jana Nováková · Coach"), not as "Item", and a `sub` switch indents an item
+// under the one above (menus). A block can hold a list (FAQ questions, feature
+// cards): the same editor again, inside the open block, under its full path
+// ("sections.2.items"), so a problem in item 3 marks both the item and the block.
 const props = defineProps<{ field: any; entity: string }>()
 // Text inside blocks is edited on its own (not shared), even on a shared entry.
 provide('cmsCollab', null)
 const model = defineModel<any[] | null>()
 const { t, tl } = useCmsI18n()
+const toast = useToast()
 const form = inject<{ issues?: Record<string, string> } | null>('cmsForm', null)
+const list = computed<{ max: number | null; itemLabel: any } | null>(() => props.field.meta?.list ?? null)
+const full = computed(() => !!list.value?.max && blocks.value.length >= list.value.max)
 
 const defs = computed<Record<string, any>>(() => props.field.meta?.blocks ?? {})
 const blocks = computed<any[]>(() => (Array.isArray(model.value) ? model.value : []))
@@ -36,6 +44,8 @@ function insertAt(index: number, type: string) {
   const next = [...blocks.value]
   next.splice(index, 0, b)
   update(next)
+  // Only the new one opens: a page with many blocks stays readable.
+  for (const k of Object.keys(open)) open[k] = false
   open[b.id] = true
   pickerOpen.value = false
 }
@@ -54,8 +64,48 @@ function duplicate(index: number) {
 }
 function remove(index: number) {
   const next = [...blocks.value]
-  next.splice(index, 1)
+  const [gone] = next.splice(index, 1)
   update(next)
+  if (!gone) return
+  toast.add({
+    title: t('blocks.removed', { label: shortName(gone, index) }),
+    icon: 'i-lucide-trash-2',
+    actions: [{ label: t('blocks.undo'), color: 'neutral', variant: 'outline', onClick: () => {
+      const back = [...blocks.value]
+      back.splice(Math.min(index, back.length), 0, gone)
+      update(back)
+    } }],
+  })
+}
+/** One short name for a block (its first text, else its kind): for messages. */
+function shortName(b: any, index: number): string {
+  const first = summary(b).split(' · ')[0] ?? ''
+  const name = first || itemLabel(b, index)
+  return name.length > 40 ? `${name.slice(0, 39).trimEnd()}…` : name
+}
+/** A list item's name when it has no text yet: "Item 3". */
+function itemLabel(b: any, index: number): string {
+  return list.value ? `${tl(list.value.itemLabel ?? defs.value[b.type]?.label, t('blocks.item'))} ${index + 1}` : tl(defs.value[b.type]?.label, b.type)
+}
+const indented = (b: any) => !!list.value && b?.sub === true
+
+// Drag by the handle (the rest of the card stays clickable and selectable).
+const armed = ref<string | null>(null)
+const dragFrom = ref<number | null>(null)
+const dragOver = ref<number | null>(null)
+function onDrop(to: number) {
+  const from = dragFrom.value
+  dragFrom.value = dragOver.value = null
+  armed.value = null
+  if (from === null || from === to) return
+  const next = [...blocks.value]
+  const [b] = next.splice(from, 1)
+  next.splice(from < to ? to - 1 : to, 0, b)
+  update(next)
+}
+/** A list inside block `index`, keyed by its full path (errors and ids find it). */
+function nested(f: any, index: number) {
+  return { ...f, key: `${props.field.key}.${index}.${f.key}` }
 }
 function setField(index: number, key: string, value: unknown) {
   const next = [...blocks.value]
@@ -63,17 +113,20 @@ function setField(index: number, key: string, value: unknown) {
   update(next)
 }
 
-/** First non-empty text-ish value, for the collapsed header. */
+/** What the block says, for the collapsed header: its first few values, choices by their labels ("Plavání · Úterý · 18:00"). */
 function summary(b: any): string {
+  const parts: string[] = []
   for (const f of defs.value[b.type]?.fields ?? []) {
     const v = b[f.key]
-    if (typeof v === 'string' && v.trim() && f.type !== 'media') return v.trim()
-    if (f.type === 'richtext' && v?.content) {
+    if (f.type === 'select' && typeof v === 'string' && v) parts.push(tl(f.meta?.labels?.[v], v))
+    else if (typeof v === 'string' && v.trim() && f.type !== 'media') parts.push(v.trim())
+    else if (f.type === 'richtext' && v?.content) {
       const text = JSON.stringify(v).match(/"text":"([^"]{1,120})/)?.[1]
-      if (text) return text
+      if (text) parts.push(text)
     }
+    if (parts.length === 3) break
   }
-  return ''
+  return parts.join(' · ')
 }
 const hasIssue = (index: number) => Object.keys(form?.issues ?? {}).some((k) => k.startsWith(`${props.field.key}.${index}.`) || k === `${props.field.key}.${index}`)
 // A block with a problem opens itself.
@@ -101,7 +154,8 @@ const onlyType = computed(() => {
   const types = Object.keys(defs.value)
   return types.length === 1 ? types[0]! : null
 })
-const addLabel = computed(() => (onlyType.value ? t('blocks.addType', { label: tl(defs.value[onlyType.value]?.label, onlyType.value) }) : t('blocks.add')))
+// A list says "Add item" (a label like "Opening hours" doesn't bend into a sentence).
+const addLabel = computed(() => (list.value ? t('blocks.addItem') : onlyType.value ? t('blocks.addType', { label: tl(defs.value[onlyType.value]?.label, onlyType.value) }) : t('blocks.add')))
 function openPicker(at: number) {
   if (onlyType.value) return insertAt(at, onlyType.value)
   pickerAt.value = at
@@ -140,17 +194,35 @@ const choices = computed(() => {
         <span class="absolute inset-x-0 top-1/2 h-px bg-transparent group-hover:bg-(--ui-border)" aria-hidden="true" />
       </div>
 
-      <div class="cms-card" :class="hasIssue(i) ? 'border-error' : ''">
-        <div class="flex items-center gap-2 pl-3 pr-1.5 py-2">
+      <div
+        class="cms-card transition-[margin,box-shadow]"
+        :class="[hasIssue(i) ? 'border-error' : '', indented(b) ? 'ml-6' : '', dragOver === i && dragFrom !== i ? 'ring-2 ring-(--ui-primary)/40' : '', dragFrom === i ? 'opacity-50' : '']"
+        :draggable="armed === b.id"
+        @dragstart.stop="(e: DragEvent) => { dragFrom = i; e.dataTransfer?.setData('text/plain', b.id) }"
+        @dragover.prevent.stop="dragFrom !== null && (dragOver = i)" @dragleave.stop="dragOver === i && (dragOver = null)"
+        @drop.prevent.stop="onDrop(dragOver !== null && dragFrom !== null && dragOver > dragFrom ? i + 1 : i)"
+        @dragend.stop="dragFrom = dragOver = null; armed = null"
+      >
+        <div class="flex items-center gap-2 pl-1.5 pr-1.5 py-2">
+          <span
+            v-if="blocks.length > 1" class="cursor-grab touch-none text-dimmed hover:text-muted shrink-0 p-1" :title="t('blocks.drag')" aria-hidden="true"
+            @pointerdown="armed = b.id" @pointerup="armed = null"
+          ><UIcon name="i-lucide-grip-vertical" class="size-4" /></span>
           <button
             type="button" class="flex flex-1 min-w-0 items-center gap-2.5 text-left"
             :aria-expanded="!!open[b.id]"
             @click="open[b.id] = !open[b.id]"
           >
             <UIcon name="i-lucide-chevron-right" class="size-4 text-dimmed shrink-0 transition-transform" :class="open[b.id] ? 'rotate-90' : ''" />
-            <UIcon :name="defs[b.type]?.icon ?? 'i-lucide-square'" class="size-4 text-muted shrink-0" />
-            <span class="text-sm font-medium text-highlighted shrink-0">{{ tl(defs[b.type]?.label, b.type) }}</span>
-            <span v-if="!open[b.id] && summary(b)" class="text-sm text-muted truncate">{{ summary(b) }}</span>
+            <template v-if="list">
+              <UIcon v-if="indented(b)" name="i-lucide-corner-down-right" class="size-4 text-dimmed shrink-0" />
+              <span class="text-sm font-medium text-highlighted truncate">{{ summary(b) || itemLabel(b, i) }}</span>
+            </template>
+            <template v-else>
+              <UIcon :name="defs[b.type]?.icon ?? 'i-lucide-square'" class="size-4 text-muted shrink-0" />
+              <span class="text-sm font-medium text-highlighted shrink-0">{{ tl(defs[b.type]?.label, b.type) }}</span>
+              <span v-if="!open[b.id] && summary(b)" class="text-sm text-muted truncate">{{ summary(b) }}</span>
+            </template>
             <span v-if="hasIssue(i)" class="ml-auto shrink-0 inline-flex items-center gap-1 text-xs text-error">
               <span class="size-1.5 rounded-full bg-error" aria-hidden="true" />{{ t('blocks.hasErrors') }}
             </span>
@@ -163,7 +235,7 @@ const choices = computed(() => {
           <p v-if="!defs[b.type]" class="text-sm text-muted">{{ b.type }}</p>
           <CmsField
             v-for="f in defs[b.type]?.fields ?? []" :key="f.key"
-            :model-value="b[f.key]" :field="f" :entity="entity" :id-prefix="`${field.key}-${b.id}-`"
+            :model-value="b[f.key]" :field="f.type === 'blocks' ? nested(f, i) : f" :entity="entity" :id-prefix="`${field.key}-${b.id}-`"
             :error="form?.issues?.[`${field.key}.${i}.${f.key}`]"
             @update:model-value="(v: unknown) => setField(i, f.key, v)"
           />
@@ -171,7 +243,7 @@ const choices = computed(() => {
       </div>
     </template>
 
-    <UButton v-if="blocks.length || onlyType" color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openPicker(blocks.length)">
+    <UButton v-if="(blocks.length || onlyType) && !full" color="neutral" variant="ghost" icon="i-lucide-plus" size="sm" @click="openPicker(blocks.length)">
       {{ addLabel }}
     </UButton>
 

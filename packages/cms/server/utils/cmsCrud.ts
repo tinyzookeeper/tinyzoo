@@ -286,3 +286,22 @@ export function stampPublishDate(e: CmsEntity, values: Record<string, any>, befo
   const date = dateKey in values ? values[dateKey] : before?.[dateKey]
   if (date == null || date === '') values[dateKey] = sql`date_trunc('milliseconds', clock_timestamp())`
 }
+
+/**
+ * What still points at an entry (many-to-one relations of other collections), so a
+ * refused delete can say where it is used: a few titles per collection.
+ */
+export async function usedBy(db: any, reg: CmsRegistry, target: CmsEntity, id: string): Promise<{ entity: string; id: string; title: string }[]> {
+  const out: { entity: string; id: string; title: string }[] = []
+  for (const e of reg.entities) {
+    for (const [key, fld] of Object.entries(e.fields) as [string, any][]) {
+      if (fld.type !== 'relation' || fld.relation?.kind !== 'many-to-one') continue
+      if ((fld.relation.to() as CmsEntity).name !== target.name) continue
+      const col = e.table[`${key}Id`]
+      if (!col) continue
+      const rows: any[] = await db.select({ id: e.table.id, title: e.table[e.titleField] ?? e.table.id }).from(e.table).where(eq(col, id)).limit(5)
+      for (const r of rows) out.push({ entity: e.name, id: r.id, title: r.title == null ? '' : String(r.title) })
+    }
+  }
+  return out
+}

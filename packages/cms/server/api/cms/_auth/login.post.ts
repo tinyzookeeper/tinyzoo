@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 429, statusMessage: 'Too many sign-in attempts; wait a few minutes and try again' })
   }
 
+  await ensureDemoAccount(email, password) // the public demo account (cms.demo), if these are its details
   const { db, reg } = useCms()
   const [user] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.email, email))
   const ok = user?.passwordHash

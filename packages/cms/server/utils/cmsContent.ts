@@ -1,4 +1,4 @@
-import { and, blockMediaKeys, eq, inArray, isNull, lte, or, propOf, sql } from 'tinyzoo'
+import { and, eq, inArray, isNull, lte, or, propOf, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
@@ -74,13 +74,19 @@ function withPublished(target: CmsEntity, idCond: any): any {
   return pub ? and(pub, idCond) : idCond
 }
 
-/** Cache headers: public+CDN-friendly when open, private+no-store when token-gated. */
+/**
+ * Cache headers: public+CDN-friendly when open, private+no-store when token-gated or
+ * for an editor's preview (drafts and unsaved values must never be cached).
+ */
 export function setContentCache(event: any): void {
   const cfg = (useRuntimeConfig().cms as any)?.content ?? {}
-  const cc = cfg.token
-    ? 'private, no-store'
-    : cfg.cacheControl || 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400'
+  const locked = cfg.token || isPreviewAuthorized(event)
+  // Browsers check back every time (max-age=0) and get a quick 304 when nothing changed
+  // (ETag, plugins/cms-content-etag.ts), so a published change shows immediately.
+  // A CDN may keep an answer for 5 minutes; publish webhooks tell it what to purge sooner.
+  const cc = locked ? 'private, no-store' : cfg.cacheControl || 'public, max-age=0, must-revalidate, s-maxage=300'
   setResponseHeader(event, 'Cache-Control', cc)
+  if (!locked) event.context.cmsContentEtag = true
 }
 
 /** Media → a lean public shape (never the storage key or internals). */
@@ -185,15 +191,10 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
 async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], locale: string | null = null) {
   const blockFields = Object.entries(e.fields).filter(([, f]) => f.type === 'blocks' && f.blocks)
   if (!blockFields.length) return
+  // Media ids from every block and from the lists inside blocks, one query for all.
   const ids = new Set<string>()
   for (const [key, fld] of blockFields) {
-    const mediaKeys = blockMediaKeys(fld.blocks!)
-    for (const r of rows) {
-      for (const b of Array.isArray(r[key]) ? r[key] : []) {
-        if (!b || typeof b.type !== 'string' || !Object.hasOwn(fld.blocks!, b.type)) continue
-        for (const mk of mediaKeys.get(b.type) ?? []) if (typeof b[mk] === 'string' && b[mk]) ids.add(b[mk])
-      }
-    }
+    for (const r of rows) collectBlockMedia(r[key], fld.blocks!, ids)
   }
   const byId = new Map<string, any>()
   if (ids.size) {
@@ -201,20 +202,34 @@ async function populateBlocks(db: any, reg: CmsRegistry, e: CmsEntity, rows: any
     for (const m of media) byId.set(m.id, mediaProjection(m, locale))
   }
   for (const [key, fld] of blockFields) {
-    const defs = fld.blocks!
-    for (const r of rows) {
-      r[key] = (Array.isArray(r[key]) ? r[key] : [])
-        .filter((b: any) => b && typeof b === 'object' && typeof b.type === 'string' && Object.hasOwn(defs, b.type))
-        .map((b: any) => {
-          const out: Record<string, any> = { id: String(b.id), type: b.type }
-          for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) {
-            const v = b[fk] ?? null
-            out[fk] = bf.type === 'media' ? (v ? byId.get(v) ?? null : null) : v
-          }
-          return out
-        })
+    for (const r of rows) r[key] = projectBlocks(r[key], fld.blocks!, byId)
+  }
+}
+
+function collectBlockMedia(value: unknown, defs: Record<string, any>, ids: Set<string>) {
+  for (const b of Array.isArray(value) ? value : []) {
+    if (!b || typeof b.type !== 'string' || !Object.hasOwn(defs, b.type)) continue
+    for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) {
+      if (bf.type === 'media' && typeof b[fk] === 'string' && b[fk]) ids.add(b[fk])
+      else if (bf.type === 'blocks' && bf.blocks) collectBlockMedia(b[fk], bf.blocks, ids)
     }
   }
+}
+
+/** Known block types only; each field present (null when empty, a list inside a block: []). */
+function projectBlocks(value: unknown, defs: Record<string, any>, byId: Map<string, any>): any[] {
+  return (Array.isArray(value) ? value : [])
+    .filter((b: any) => b && typeof b === 'object' && typeof b.type === 'string' && Object.hasOwn(defs, b.type))
+    .map((b: any) => {
+      const out: Record<string, any> = { id: String(b.id), type: b.type }
+      for (const [fk, bf] of Object.entries(defs[b.type]!.fields) as [string, any][]) {
+        const v = b[fk] ?? null
+        out[fk] = bf.type === 'media' ? (v ? byId.get(v) ?? null : null)
+          : bf.type === 'blocks' && bf.blocks ? projectBlocks(v, bf.blocks, byId)
+            : v
+      }
+      return out
+    })
 }
 
 /**
@@ -239,15 +254,20 @@ export function projectItem(e: CmsEntity, row: any) {
 }
 
 /**
- * Which language each item is served in and which languages it exists in — added to
- * items of collections with translatable fields (mirrored by content-shape).
+ * Which language each item is served in, which languages it exists in and (for
+ * collections with an address) its address in each — added to items of collections
+ * with translatable fields (mirrored by content-shape).
  */
 export async function attachLocaleInfo(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], items: any[], locale: string | null) {
   if (!reg.locales || !e.localized.length) return
-  const avail = await availableLocales(db, reg, e, rows.map((r) => r.id))
+  const ids = rows.map((r) => r.id)
+  const avail = await availableLocales(db, reg, e, ids)
+  // The item's address in each language, for collections that live at an address.
+  const paths = e.content?.path ? await localePaths(db, reg, e, ids) : null
   items.forEach((item, i) => {
     item.locale = locale ?? reg.locales!.default
     item.locales = avail.get(rows[i].id) ?? [reg.locales!.default]
+    if (paths) item.paths = paths.get(rows[i].id) ?? {}
   })
 }
 

@@ -81,8 +81,11 @@ const live = rowId
 const others = computed(() => live?.others.value ?? [])
 
 // Shared editing of the rich-text fields, as in the entry editor.
-const collab = rowId ? useCmsCollab({ entity: props.entity, id: rowId, locale: isTranslation.value ? currentLocale.value : null }) : null
+// Only when there is text to write together (a rich-text field).
+const hasRichText = (props.meta?.fields ?? []).some((f: any) => f.type === 'richtext')
+const collab = rowId && hasRichText ? useCmsCollab({ entity: props.entity, id: rowId, locale: isTranslation.value ? currentLocale.value : null }) : null
 const sharedFields = computed(() => (collab?.status.value === 'ready' ? collab.mounted.value : new Set<string>()))
+form.setSharedText({ fields: () => sharedFields.value, othersHere: () => others.value.length > 0, reset: (key, value) => { collab?.set(key, value) } })
 const collabHeaders = (): Record<string, string> => {
   if (!collab || collab.status.value !== 'ready' || !collab.epoch.value) return {}
   for (const k of collab.fields.value) if (!collab.mounted.value.has(k)) return {}
@@ -97,31 +100,63 @@ function copyDefault(key: string) {
 const title = computed(() => entityLabel(props.meta))
 const visible = computed(() => editable.value.filter((f: any) => !isTranslation.value || f.localized))
 
-// Same convention as the entry editor: grouped fields (e.g. "Search & sharing")
-// collapse below the rest.
-const ungrouped = computed(() => visible.value.filter((f: any) => !f.meta?.group))
-const groups = computed(() => {
-  const out = new Map<string, { label: string; fields: any[] }>()
-  for (const f of visible.value) {
-    if (!f.meta?.group) continue
-    const label = tl(f.meta.group)
-    if (!out.has(label)) out.set(label, { label, fields: [] })
-    out.get(label)!.fields.push(f)
-  }
-  return [...out.values()]
-})
-const openGroups = reactive<Record<string, boolean>>({})
-watch(() => ({ ...fieldErrors }), (errs) => {
-  for (const g of groups.value) if (g.fields.some((f: any) => errs[f.key])) openGroups[g.label] = true
-})
 useHead({ title })
 
-const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
-  label: code === locales.value?.default ? `${localeLabel(code)} (${t('translation.default')})` : localeLabel(code),
-  description: code === locales.value?.default ? undefined : (available.value.includes(code) ? t('translation.translated') : t('translation.notTranslated')),
-  icon: code === currentLocale.value ? 'i-lucide-check' : undefined,
-  to: { query: code === locales.value?.default ? {} : { locale: code } },
-})))
+// ── arrangement: a global with a page on the website (admin.preview, e.g. the home
+// page) is edited beside that page; others are a plain form ──
+const arrangement = computed<'write' | 'form' | 'preview'>(() => props.meta?.editor ?? 'form')
+const wide = ref(false)
+const previewOpen = ref(arrangement.value === 'preview')
+const previewSheet = ref(false)
+const previewKey = computed(() => `cms-preview:${props.entity}`)
+onMounted(() => {
+  const m = window.matchMedia('(min-width: 1024px)')
+  wide.value = m.matches
+  m.addEventListener('change', (e) => { wide.value = e.matches })
+  try {
+    const pref = localStorage.getItem(previewKey.value)
+    if (pref) previewOpen.value = pref === '1'
+  }
+  catch { /* storage blocked: the arrangement's default */ }
+})
+const previewUrl = computed(() => {
+  const paths: Record<string, string> | null = props.meta?.previewPaths ?? null
+  const template = !paths ? null : currentLocale.value ? (paths[currentLocale.value] ?? null) : (paths[''] ?? Object.values(paths)[0] ?? null)
+  if (!template || !rowId) return null
+  let ok = true
+  const url = template.replace(/:(\w+)/g, (_m: string, k: string) => {
+    const v = state[k]
+    if (v === undefined || v === null || v === '') ok = false
+    return encodeURIComponent(v ?? '')
+  })
+  return ok ? `${url}?preview${isTranslation.value ? `&locale=${currentLocale.value}` : ''}` : null
+})
+function togglePreview() {
+  if (!wide.value) {
+    previewSheet.value = true
+    return
+  }
+  previewOpen.value = !previewOpen.value
+  try {
+    localStorage.setItem(previewKey.value, previewOpen.value ? '1' : '0')
+  }
+  catch { /* storage blocked: for this visit only */ }
+}
+const split = computed(() => wide.value && previewOpen.value && !!previewUrl.value)
+useCmsFocus(split)
+
+// Before the first save there is nothing to translate yet: the languages show, with
+// a word on what to do first.
+const localeItems = computed(() => (locales.value?.all ?? []).map((code) => {
+  const isDefault = code === locales.value?.default
+  return {
+    label: isDefault ? `${localeLabel(code)} (${t('translation.default')})` : localeLabel(code),
+    description: isDefault ? undefined : !exists.value ? t('translation.saveFirst') : (available.value.includes(code) ? t('translation.translated') : t('translation.notTranslated')),
+    icon: code === currentLocale.value ? 'i-lucide-check' : undefined,
+    disabled: !isDefault && !exists.value,
+    to: { query: isDefault ? {} : { locale: code } },
+  }
+}))
 
 function save() {
   return form.submit(async () => {
@@ -140,65 +175,82 @@ function save() {
     const res: any = await $fetch(url, { method: 'PUT', body: form.body(), headers })
     version.value = versionOf(res?.row)
     if (live) live.incoming.value = null
-  })
+    // The first save creates the row: languages can be translated from now on.
+    if (!exists.value && res?.row) data.value = { row: res.row }
+  }, t('editor.savedLive'))
 }
 defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value) save() } } })
 </script>
 
 <template>
-  <CmsPage
-    :title="title" :description="tl(meta?.description) || undefined" narrow
-    :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]"
-  >
+  <CmsPage flush :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]">
     <template #actions>
       <CmsPresence :people="others" />
-      <UDropdownMenu v-if="locales && exists" :items="localeItems" :content="{ align: 'end' }">
+      <UDropdownMenu v-if="locales && (meta?.fields ?? []).some((f: any) => f.localized)" :items="localeItems" :content="{ align: 'end' }">
         <UButton color="neutral" variant="ghost" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
           {{ (currentLocale ?? '').toUpperCase() }}
         </UButton>
       </UDropdownMenu>
-      <span v-if="dirty" class="hidden md:inline text-sm text-warning mr-1">{{ t('editor.unsaved') }}</span>
+      <span v-if="dirty" class="max-md:hidden text-sm cms-unsaved mr-1">{{ t('editor.unsaved') }}</span>
+      <UButton
+        v-if="previewUrl" color="neutral" variant="outline" icon="i-lucide-eye"
+        :class="split ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="split" :aria-label="t('editor.preview')" @click="togglePreview"
+      ><span class="max-sm:hidden">{{ t('editor.preview') }}</span></UButton>
       <UTooltip :text="t('editor.shortcutSave')">
-        <UButton :loading="saving" :disabled="meta?.can?.update === false" icon="i-lucide-check" @click="save()">
+        <UButton :loading="saving" :disabled="meta?.can?.update === false" @click="save()">
           {{ isTranslation ? t('translation.save') : t('common.save') }}
         </UButton>
       </UTooltip>
     </template>
 
-    <CmsLiveNotice
-      :conflict="conflict" :incoming="live?.incoming.value"
-      @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
-    />
-    <div class="space-y-6">
-      <p v-if="isTranslation" class="text-sm text-muted">
-        {{ t('translation.shared') }}
-        <NuxtLink :to="{ query: {} }" class="underline underline-offset-2 hover:text-highlighted">{{ t('translation.editShared', { lang: defaultLabel }) }}</NuxtLink>
-      </p>
-      <div v-for="f in ungrouped" :key="f.key">
-        <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" />
-        <CmsTranslationRef
-          v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
-          :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
-          @copy="copyDefault(f.key)"
+    <div class="cms-editor cms-editor--no-aside" :class="split ? 'cms-editor--split' : ''">
+      <div class="cms-editor__main">
+        <div class="cms-editor__column">
+          <CmsLiveNotice
+            :conflict="conflict" :incoming="live?.incoming.value"
+            @load="loadNewest" @save-anyway="saveOnTop" @dismiss="live && (live.incoming.value = null)"
+          />
+          <CmsFormSections
+            :fields="visible" :sections="meta?.sections" :state="state" :errors="fieldErrors"
+            :disclose="!isTranslation" :menu="!split"
+          >
+            <template #top>
+              <h1 class="cms-display text-[1.75rem] leading-tight text-highlighted">{{ title }}</h1>
+              <p v-if="tl(meta?.description)" class="mt-1 text-sm text-muted text-pretty">{{ tl(meta?.description) }}</p>
+              <p class="mt-3 text-sm text-muted flex items-center gap-1.5">
+                <UIcon name="i-lucide-globe" class="size-3.5 shrink-0" />{{ t('editor.liveOnSave') }}
+              </p>
+              <p v-if="isTranslation" class="mt-2 text-sm text-muted">
+                {{ t('translation.shared') }}
+                <NuxtLink :to="{ query: {} }" class="underline underline-offset-2 hover:text-highlighted">{{ t('translation.editShared', { lang: defaultLabel }) }}</NuxtLink>
+              </p>
+            </template>
+            <template #field="{ field: f }">
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" hide-optional />
+              <CmsTranslationRef
+                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+                @copy="copyDefault(f.key)"
+              />
+            </template>
+          </CmsFormSections>
+        </div>
+      </div>
+      <div v-if="split && previewUrl && rowId" class="cms-editor__preview">
+        <CmsPreviewPanel
+          :url="previewUrl" :entity="entity" :id="rowId"
+          :locale="isTranslation ? currentLocale : null" :data="form.body()" :version="version" @close="togglePreview"
         />
       </div>
-      <UCollapsible
-        v-for="g in groups" :key="g.label" v-model:open="openGroups[g.label]"
-        class="border-t border-default pt-4"
-      >
-        <button type="button" class="group w-full flex items-center justify-between text-sm font-medium text-muted hover:text-highlighted">
-          {{ g.label }}
-          <UIcon name="i-lucide-chevron-down" class="size-4 transition-transform group-data-[state=open]:rotate-180" />
-        </button>
-        <template #content>
-          <div class="space-y-6 pt-4">
-            <CmsField
-              v-for="f in g.fields" :key="f.key"
-              v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]"
-            />
-          </div>
-        </template>
-      </UCollapsible>
     </div>
+
+    <UModal v-if="previewUrl && rowId" v-model:open="previewSheet" fullscreen :title="t('editor.preview')" :ui="{ header: 'hidden', body: 'p-3 sm:p-4 flex flex-col' }">
+      <template #body>
+        <CmsPreviewPanel
+          :url="previewUrl" :entity="entity" :id="rowId" sheet
+          :locale="isTranslation ? currentLocale : null" :data="form.body()" :version="version" @close="previewSheet = false"
+        />
+      </template>
+    </UModal>
   </CmsPage>
 </template>

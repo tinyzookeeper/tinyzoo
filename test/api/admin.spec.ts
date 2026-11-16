@@ -74,14 +74,14 @@ describe('admin pages (server-rendered)', () => {
     expect(status).toBe(200)
     expect(body).toMatch(/<html[^>]*lang="cs"/)
     expect(body).toMatch(/<html[^>]*data-cms-admin/)
-    expect(body).toContain('Pokračovat v úpravách')
+    expect(body).toContain('Naposledy upravené')
     expect(body).toContain('Články') // a config label in its Czech form
   })
 
   it('renders in English when the browser asks for it', async () => {
     const { body } = await html(admin, '/admin', { 'accept-language': 'en-US,en;q=0.9' })
     expect(body).toMatch(/<html[^>]*lang="en"/)
-    expect(body).toContain('Continue editing')
+    expect(body).toContain('Recently edited')
     expect(body).toContain('Posts')
   })
 

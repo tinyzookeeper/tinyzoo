@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1794762770975,
+      "tag": "0000_noisy_wolf_cub",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1794816561452,
+      "tag": "0001_languages",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794817058539,
+      "tag": "0002_feedback_role_optional",
+      "breakpoints": true
+    }
+  ]
+}

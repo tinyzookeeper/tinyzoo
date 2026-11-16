@@ -54,6 +54,8 @@ export interface ContentShape {
   filters: FilterParam[]
   /** Content languages, when the collection has translatable fields: items then carry `locale` + `locales`. */
   locales: string[] | null
+  /** With `locales`: items also carry `paths`, their address in each language. */
+  paths?: boolean
 }
 
 /** Scalar-only projection of a PUBLIC entity when populated as another's relation. */
@@ -129,7 +131,9 @@ function blocksType(fld: FieldDescriptor): ContentFieldType {
     fields: (Object.entries(def.fields) as [string, FieldDescriptor][]).map(([key, bf]): ContentField =>
       bf.type === 'media'
         ? { key, type: { kind: 'media' }, nullable: true }
-        : { key, type: scalarType(bf), nullable: !bf.isRequired }),
+        : bf.type === 'blocks'
+          ? { key, type: blocksType(bf), nullable: false } // a list inside a block: always an array
+          : { key, type: scalarType(bf), nullable: !bf.isRequired }),
   }))
   return { kind: 'blocks', blocks }
 }
@@ -263,6 +267,7 @@ export function buildContentModel(config: Record<string, any>): ContentModel {
     sortKeys: sortKeys(e),
     filters: filters(e),
     locales: reg.locales && e.localized.length ? reg.locales.locales : null,
+    paths: !!(reg.locales && e.localized.length && e.content?.path),
   }))
 
   // Collect every relation target reachable through a populated field.

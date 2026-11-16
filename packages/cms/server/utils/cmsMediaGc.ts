@@ -1,4 +1,5 @@
 import { eq, mediaIdsInBlocks, sql } from 'tinyzoo'
+import { deleteImageVariants } from './cmsImageSizes'
 import type { CmsRegistry } from 'tinyzoo'
 import type { StorageDriver } from './cmsStorage'
 
@@ -102,8 +103,12 @@ export async function gcMediaIfOrphan(
   // not remove anyone else's — pointing a draft at a file and clearing it would
   // otherwise be a way around that rule.
   if (scope.onlyUploadedBy !== undefined && m.uploadedBy !== scope.onlyUploadedBy) return
+  // A library file stays until someone deletes it there (other pages may use it later,
+  // and older versions in History still point at it).
+  if (m.inLibrary) return
   if (await isMediaReferenced(db, reg, mediaId, m.key)) return
   await storage.delete(m.key)
+  await deleteImageVariants(m.key)
   await db.delete(reg.cmsMedia).where(eq(reg.cmsMedia.id, mediaId))
 }
 

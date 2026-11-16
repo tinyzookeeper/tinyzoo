@@ -9,12 +9,19 @@
 
 export default defineEventHandler(async (event) => {
   if (cmsAuthMode() !== 'builtin') return
-  if (!(event.path || '').startsWith('/api/')) return
+  const path = event.path || ''
+  const page = path === '/admin' || path.startsWith('/admin/') || path.startsWith('/admin?')
+  if (!path.startsWith('/api/') && !page) return
   if (event.context.cmsUser) return
 
   const session: any = await getUserSession(event)
+  // An admin page with no CMS identity in the cookie: nothing to check.
+  if (page && !session?.cms) return
   const u = await activeAccountOf(session)
   if (!u) {
+    // The cookie no longer opens the admin (role or password changed, account
+    // disabled): drop it on this very response — for an admin page too, so the
+    // browser lands on sign-in instead of bouncing between sign-in and the admin.
     if (session?.cms) await clearUserSession(event)
     return
   }

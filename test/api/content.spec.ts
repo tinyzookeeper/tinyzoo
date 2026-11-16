@@ -85,6 +85,27 @@ describe('collection list', () => {
     expect(res.headers.get('cache-control')).toMatch(/^public, /)
   })
 
+  it('lets browsers check back cheaply: an ETag, 304 while unchanged, the new answer once changed', async () => {
+    const post = await publish({ title: 'První verze', slug: 'prvni' })
+    const first = await anonymous().get('/api/content/post/prvni')
+    // Browsers ask every time (a CDN may keep it for a while).
+    expect(first.headers.get('cache-control')).toBe('public, max-age=0, must-revalidate, s-maxage=300')
+    const etag = first.headers.get('etag')!
+    expect(etag).toMatch(/^W\/".+"$/)
+    const again = await anonymous().get('/api/content/post/prvni', { 'if-none-match': etag })
+    expect(again.status).toBe(304)
+    expect(again.body).toBeFalsy()
+    // A published change: the old fingerprint no longer matches, the new content comes back.
+    await admin.request('PATCH', `/api/cms/post/${post.id}`, { json: { title: 'Druhá verze' } })
+    const changed = await anonymous().get('/api/content/post/prvni', { 'if-none-match': etag })
+    expect(changed.status).toBe(200)
+    expect(changed.body.item.title).toBe('Druhá verze')
+    expect(changed.headers.get('etag')).not.toBe(etag)
+    // Lists and globals too.
+    const list = await anonymous().get('/api/content/post')
+    expect((await anonymous().get('/api/content/post', { 'if-none-match': list.headers.get('etag')! })).status).toBe(304)
+  })
+
   it('answers 404 for an unknown collection and for a global on the collection route', async () => {
     expect((await anonymous().get('/api/content/nope')).status).toBe(404)
     expect((await anonymous().get('/api/content/siteSettings')).status).toBe(404)
@@ -120,6 +141,37 @@ describe('draft preview', () => {
     expect((await anonymous().get('/api/content/post/wip?preview=1')).status).toBe(404)
   })
 
+  it('lays an editor’s unsaved values over their own preview only, while they type', async () => {
+    const post = await publish({ slug: 'live', title: 'Saved title' })
+    const typed = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'typed', marks: [{ type: 'link', attrs: { href: 'javascript:alert(1)' } }] }] }] }
+    const sent = await admin.post('/api/cms/_preview', { entity: 'post', id: post.id, locale: null, data: { title: 'Typed title', body: typed } })
+    expect(sent.status).toBe(204)
+
+    const mine = await admin.get('/api/content/post/live?preview')
+    expect(mine.body.item.title).toBe('Typed title')
+    expect(JSON.stringify(mine.body.item.body)).toContain('typed')
+    expect(JSON.stringify(mine.body.item.body)).not.toContain('javascript:') // checked as a save would be
+    expect(mine.headers.get('cache-control')).toBe('private, no-store')
+    expect((await admin.get('/api/content/post?preview')).body.items[0].title).toBe('Typed title')
+
+    // Nobody else sees them: not the public, not another editor.
+    expect((await anonymous().get('/api/content/post/live')).body.item.title).toBe('Saved title')
+    expect((await admin.get('/api/content/post/live')).body.item.title).toBe('Saved title')
+    const editor = await signIn('editor')
+    expect((await editor.get('/api/content/post/live?preview')).body.item.title).toBe('Saved title')
+
+    // Closing the editor drops them.
+    await admin.post('/api/cms/_preview', { entity: 'post', id: post.id, locale: null, clear: true })
+    expect((await admin.get('/api/content/post/live?preview')).body.item.title).toBe('Saved title')
+  })
+
+  it('keeps the saved value where a typed one is not valid yet', async () => {
+    const post = await publish({ slug: 'live', title: 'Saved title' })
+    await admin.post('/api/cms/_preview', { entity: 'post', id: post.id, locale: null, data: { title: 42 } })
+    expect((await admin.get('/api/content/post/live?preview')).body.item.title).toBe('Saved title')
+    expect((await anonymous().post('/api/cms/_preview', { entity: 'post', id: post.id, data: { title: 'x' } })).status).toBe(401)
+  })
+
   it('does not turn a published item into a preview response for anonymous callers', async () => {
     await publish({ slug: 'live' })
     const res = await anonymous().get('/api/content/post/live?preview')
@@ -142,3 +194,15 @@ describe('rich text on the public API', () => {
     expect((await anonymous().get('/api/content/post/fine')).body.item.body).toEqual(doc('Just text'))
   })
 })
+
+describe('unknown API addresses', () => {
+  it('answer 404 at once, never rendered as a website page (no request loop)', async () => {
+    for (const path of ['/api/content/page/a/b', '/api/content/nothing/a/b/c', '/api/cms/nothing/a/b', '/api/content/.well-known/x']) {
+      const started = Date.now()
+      const res = await anonymous().request('GET', path, { headers: { accept: 'text/html' } })
+      expect(res.status, path).toBe(404)
+      expect(Date.now() - started, path).toBeLessThan(2000)
+    }
+  })
+})
+

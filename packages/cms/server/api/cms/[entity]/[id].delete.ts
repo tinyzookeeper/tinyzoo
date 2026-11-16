@@ -18,7 +18,13 @@ export default defineEventHandler(async (event) => {
   const translatedMedia = await translationMediaIds(db, e, id)
   const seenBefore = await changeSnapshot(e, id)
   const deleted: any[] = await (db as any).delete(e.table).where(both(both(eq(e.table.id, id), rowFilter), notLiveCond(e, user))).returning()
-    .catch((err: unknown) => rethrowDbError(err, e, 'delete'))
+    .catch(async (err: any) => {
+      // Still used by other content: say by what, so the editor can go and change it.
+      if ((err?.code ?? err?.cause?.code) === '23503') {
+        throw createError({ statusCode: 409, statusMessage: 'Still in use by other content', data: { code: 'in_use', usedBy: await usedBy(db, reg, e, id) } })
+      }
+      return rethrowDbError(err, e, 'delete')
+    })
   if (!deleted.length) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
 
   // GC media the deleted row owned, once nothing else references it.

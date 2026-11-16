@@ -35,7 +35,8 @@ export default defineNuxtConfig({
   // cannot see, so they are declared here and registered globally.
   fonts: {
     families: [
-      { name: 'Geist', provider: 'google', weights: [400, 500, 600], global: true },
+      { name: 'Inter', provider: 'google', weights: [400, 500, 600], global: true },
+      { name: 'Manrope', provider: 'google', weights: [600, 700, 800], global: true },
       { name: 'Geist Mono', provider: 'google', weights: [400, 500], global: true },
     ],
   },

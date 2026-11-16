@@ -41,7 +41,7 @@ async function sendInvite() {
   }
   catch (err: any) {
     const issues = err?.data?.data
-    if (Array.isArray(issues)) for (const i of issues) if (i.path?.[0]) inviteErrors[i.path[0]] = i.message
+    if (Array.isArray(issues)) for (const i of issues) if (i.path?.[0]) inviteErrors[i.path[0]] = cmsIssueMessage(i, null, t as any)
     if (!Object.keys(inviteErrors).length) toast.add({ title: t('team.actionFailed'), description: cmsErrorMessage(err, ''), color: 'error', icon: 'i-lucide-x' })
   }
   finally {
@@ -77,12 +77,19 @@ async function resend(u: any) {
   }, t('team.resent'))
 }
 
-const pendingRemove = ref<any | null>(null)
-async function confirmRemove() {
-  const u = pendingRemove.value
-  if (!u) return
-  await act(() => cmsFetch(`/api/cms/_users/${u.id}`, { method: 'DELETE' }), t('team.removed'))
-  pendingRemove.value = null
+// Someone who never accepted the invitation has only an invitation to take back.
+const confirm = useCmsConfirm()
+async function remove(u: any) {
+  const name = u.name || u.email
+  const invited = u.status === 'invited'
+  const ok = await confirm({
+    title: t(invited ? 'team.cancelInviteTitle' : 'team.removeTitle', { name }),
+    description: t(invited ? 'team.cancelInviteBody' : 'team.removeBody'),
+    icon: invited ? 'i-lucide-mail-x' : 'i-lucide-user-minus', color: 'error',
+    confirmLabel: t(invited ? 'team.cancelInvite' : 'team.remove'),
+    cancelLabel: t(invited ? 'team.keepInvite' : 'common.cancel'),
+  })
+  if (ok) await act(() => cmsFetch(`/api/cms/_users/${u.id}`, { method: 'DELETE' }), t(invited ? 'team.inviteCancelled' : 'team.removed'))
 }
 
 function rowMenu(u: any): DropdownMenuItem[][] {
@@ -96,7 +103,9 @@ function rowMenu(u: any): DropdownMenuItem[][] {
   if (u.status === 'invited') groups[0]!.push({ label: t('team.resend'), icon: 'i-lucide-send', onSelect: () => resend(u) })
   if (u.status === 'active') groups[0]!.push({ label: t('team.disable'), icon: 'i-lucide-ban', onSelect: () => act(() => patch(u.id, { status: 'disabled' }), t('team.disabled')) })
   if (u.status === 'disabled') groups[0]!.push({ label: t('team.enable'), icon: 'i-lucide-rotate-ccw', onSelect: () => act(() => patch(u.id, { status: 'active' }), t('team.enabled')) })
-  groups.push([{ label: t('team.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => { pendingRemove.value = u } }])
+  groups.push([u.status === 'invited'
+    ? { label: t('team.cancelInvite'), icon: 'i-lucide-mail-x', color: 'error' as const, onSelect: () => remove(u) }
+    : { label: t('team.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => remove(u) }])
   return groups
 }
 
@@ -116,9 +125,10 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
           <UButton color="neutral" variant="outline" icon="i-lucide-rotate-ccw" @click="refresh()">{{ t('list.retry') }}</UButton>
         </template>
       </CmsEmptyState>
-      <div v-else class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
+      <!-- phones: each person is a small card (name, then role and status under it) -->
+      <div v-else class="sm:overflow-x-auto">
+        <table class="w-full text-sm max-sm:block">
+          <thead class="max-sm:hidden">
             <tr class="border-b border-default text-left text-muted">
               <th scope="col" class="font-medium px-4 py-2.5">{{ t('team.person') }}</th>
               <th scope="col" class="font-medium px-4 py-2.5">{{ t('team.role') }}</th>
@@ -127,11 +137,11 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
               <th class="w-12"><span class="sr-only">{{ t('common.edit') }}</span></th>
             </tr>
           </thead>
-          <tbody>
-            <tr v-for="u in users" :key="u.id" class="border-b border-default last:border-0">
-              <td class="px-4 py-3">
+          <tbody class="max-sm:block">
+            <tr v-for="u in users" :key="u.id" class="border-b border-default last:border-0 max-sm:grid max-sm:grid-cols-[minmax(0,1fr)_auto] max-sm:gap-x-2 max-sm:gap-y-1 max-sm:px-4 max-sm:py-3">
+              <td class="px-4 py-3 max-sm:p-0 max-sm:col-start-1 max-sm:row-start-1">
                 <div class="flex items-center gap-3 min-w-0">
-                  <span class="size-8 shrink-0 rounded-full bg-elevated text-highlighted grid place-items-center text-xs font-medium">{{ initials(u) }}</span>
+                  <span class="size-8 shrink-0 rounded-full bg-(--cms-moment-strong) text-highlighted grid place-items-center text-xs font-medium">{{ initials(u) }}</span>
                   <span class="min-w-0">
                     <span class="flex items-center gap-2">
                       <span class="font-medium text-highlighted truncate">{{ u.name || u.email }}</span>
@@ -141,21 +151,28 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
                   </span>
                 </div>
               </td>
-              <td class="px-4 py-3 whitespace-nowrap">{{ roleName(u.role) }}</td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <UBadge v-if="u.status === 'active'" color="success" variant="subtle" class="rounded-full">{{ t('team.statusActive') }}</UBadge>
-                <span v-else-if="u.status === 'invited'" class="inline-flex flex-col">
-                  <UBadge color="info" variant="subtle" class="rounded-full self-start">{{ t('team.statusInvited') }}</UBadge>
-                  <span v-if="u.invite?.expiresAt" class="mt-1 text-xs text-muted">{{ t('team.inviteExpires', { time: '' }) }}<CmsTime :value="u.invite.expiresAt" relative /></span>
-                  <span v-else class="mt-1 text-xs text-warning">{{ t('team.inviteExpiredBadge') }}</span>
+              <td class="px-4 py-3 whitespace-nowrap max-sm:col-start-1 max-sm:p-0 max-sm:pl-11 max-sm:text-muted">{{ roleName(u.role) }}</td>
+              <td class="px-4 py-3 whitespace-nowrap max-sm:col-start-1 max-sm:p-0 max-sm:pl-11">
+                <!-- a dot and a word, as every status in the admin -->
+                <span v-if="u.status === 'active'" class="inline-flex items-center gap-2 text-default">
+                  <span class="size-2 rounded-full bg-success" aria-hidden="true" />{{ t('team.statusActive') }}
                 </span>
-                <UBadge v-else color="neutral" variant="subtle" class="rounded-full">{{ t('team.statusDisabled') }}</UBadge>
+                <span v-else-if="u.status === 'invited'" class="inline-flex flex-col">
+                  <span class="inline-flex items-center gap-2 text-default">
+                    <span class="size-2 rounded-full bg-info" aria-hidden="true" />{{ t('team.statusInvited') }}
+                  </span>
+                  <span v-if="u.invite?.expiresAt" class="mt-1 text-xs text-muted">{{ t('team.inviteExpires', { time: '' }) }}<CmsTime :value="u.invite.expiresAt" relative /></span>
+                  <span v-else class="mt-1 text-xs cms-unsaved">{{ t('team.inviteExpiredBadge') }}</span>
+                </span>
+                <span v-else class="inline-flex items-center gap-2 text-muted">
+                  <span class="size-2 rounded-full ring-[1.5px] ring-inset ring-(--ui-text-dimmed)" aria-hidden="true" />{{ t('team.statusDisabled') }}
+                </span>
               </td>
-              <td class="px-4 py-3 text-muted whitespace-nowrap">
+              <td class="px-4 py-3 text-muted whitespace-nowrap max-sm:hidden">
                 <CmsTime v-if="u.lastLoginAt" :value="u.lastLoginAt" relative />
                 <span v-else>{{ t('team.never') }}</span>
               </td>
-              <td class="px-2 py-3 text-right">
+              <td class="px-2 py-3 text-right max-sm:p-0 max-sm:col-start-2 max-sm:row-start-1 max-sm:self-center">
                 <UDropdownMenu v-if="u.id !== me?.id" :items="rowMenu(u)" :content="{ align: 'end' }">
                   <UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" size="sm" :aria-label="t('common.edit')" />
                 </UDropdownMenu>
@@ -188,6 +205,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
           <UFormField :label="t('team.role')" name="role">
             <URadioGroup
               v-model="invite.role" variant="card" indicator="start"
+              :ui="{ item: 'has-data-[state=checked]:bg-(--cms-moment-bg) has-data-[state=checked]:border-(--cms-moment-line)' }"
               :items="ROLES.map((r: typeof ROLES[number]) => ({ value: r, label: t(`roles.${r}.name`), description: t(`roles.${r}.description`) }))"
             />
           </UFormField>
@@ -196,7 +214,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
           <template v-if="created">
-            <UButton color="neutral" variant="ghost" @click="openInvite">{{ t('team.invite') }}</UButton>
+            <UButton color="neutral" variant="ghost" icon="i-lucide-user-plus" @click="openInvite">{{ t('team.inviteAnother') }}</UButton>
             <UButton @click="inviteOpen = false">{{ t('common.close') }}</UButton>
           </template>
           <template v-else>
@@ -222,20 +240,5 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
       </template>
     </UModal>
 
-    <!-- Remove -->
-    <UModal
-      :open="!!pendingRemove" :title="t('team.removeTitle', { name: pendingRemove?.name || pendingRemove?.email || '' })"
-      @update:open="(v: boolean) => { if (!v) pendingRemove = null }"
-    >
-      <template #body>
-        <p class="text-sm text-muted">{{ t('team.removeBody') }}</p>
-      </template>
-      <template #footer>
-        <div class="flex justify-end gap-2 w-full">
-          <UButton color="neutral" variant="ghost" @click="pendingRemove = null">{{ t('common.cancel') }}</UButton>
-          <UButton color="error" icon="i-lucide-trash-2" @click="confirmRemove">{{ t('team.remove') }}</UButton>
-        </div>
-      </template>
-    </UModal>
   </CmsPage>
 </template>

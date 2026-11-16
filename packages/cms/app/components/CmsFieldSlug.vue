@@ -8,6 +8,8 @@ const model = defineModel<any>()
 
 const form = inject<{ state: Record<string, any>, isNew: { value: boolean } } | null>('cmsForm', null)
 const from = props.field.meta?.from as string | undefined
+const injected = inject<Ref<'outline' | 'ghost'> | null>('cmsFieldVariant', null)
+const variant = computed(() => injected?.value ?? 'outline')
 
 function slugify(s: unknown): string {
   return String(s ?? '')
@@ -23,15 +25,18 @@ let lastAuto: string | undefined
 if (form && from) {
   watch(() => form.state[from], (val) => {
     if (touched.value) return
-    if (model.value && !form.isNew?.value) return // keep an existing record's slug
+    // Fill only an empty slug or one we filled ourselves: a saved slug (an existing
+    // entry, a saved translation) is kept. A new translation of an existing entry
+    // starts empty, so it auto-fills like a new entry does.
+    if (model.value && model.value !== lastAuto) return
     lastAuto = slugify(val)
     model.value = lastAuto
   })
   // Any value the user (not our auto-fill) puts in disables further auto-generation.
-  watch(model, (val) => { if (val !== lastAuto) touched.value = true })
+  watch(model, (val) => { if (val && val !== lastAuto) touched.value = true })
 }
 </script>
 
 <template>
-  <UInput v-model="model" :placeholder="t('fields.slugPlaceholder')" class="w-full" />
+  <UInput v-model="model" :variant="variant" :placeholder="t('fields.slugPlaceholder')" class="w-full" :ui="{ base: 'font-mono text-[0.8125rem]' }" />
 </template>

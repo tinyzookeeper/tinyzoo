@@ -1,4 +1,5 @@
 import { eq } from 'tinyzoo'
+import { deleteImageVariants } from '../../../utils/cmsImageSizes'
 
 // DELETE /api/cms/_media/:id — remove a media record and its blob. Lets orphaned
 // uploads be reclaimed (full auto-GC on hero replace / entity delete is a follow-up).
@@ -19,6 +20,7 @@ export default defineEventHandler(async (event) => {
 
   // Remove the blob first; if that fails we keep the row so the delete stays retryable.
   await useCmsStorage().delete(media.key)
+  await deleteImageVariants(media.key)
   await db.delete(reg.cmsMedia).where(eq(reg.cmsMedia.id, id))
 
   await audit(event, 'media.delete', { recordId: id })

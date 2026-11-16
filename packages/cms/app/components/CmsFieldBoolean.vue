@@ -4,5 +4,5 @@ const model = defineModel<any>()
 </script>
 
 <template>
-  <USwitch v-model="model" />
+  <USwitch v-model="model" class="shrink-0" />
 </template>

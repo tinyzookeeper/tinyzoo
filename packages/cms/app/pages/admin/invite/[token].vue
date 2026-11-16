@@ -39,12 +39,12 @@ async function submit() {
 
 <template>
   <div v-if="expired || !invite" class="space-y-3">
-    <h1 class="text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.inviteExpiredTitle') }}</h1>
+    <h1 class="text-center cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.inviteExpiredTitle') }}</h1>
     <p class="text-sm text-muted">{{ t('auth.inviteExpired') }}</p>
   </div>
   <form v-else class="space-y-5" novalidate @submit.prevent="submit">
-    <div>
-      <h1 class="text-xl font-semibold text-highlighted tracking-tight">{{ t('auth.inviteTitle', { site: productName }) }}</h1>
+    <div class="text-center">
+      <h1 class="cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.inviteTitle', { site: productName }) }}</h1>
       <p class="mt-1 text-sm text-muted">
         {{ invite.inviter ? t('auth.inviteSubtitle', { inviter: invite.inviter, role: roleName }) : t('auth.inviteSubtitleAnonymous', { role: roleName }) }}
       </p>

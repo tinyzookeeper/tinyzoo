@@ -1,4 +1,4 @@
-import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from "tinyzoo"
+import { defineBlock, defineEntity, defineForm, defineFormSettings, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from "tinyzoo"
 
 // Content languages: Czech is the default (each entry's own row), English is a
 // translation of the fields marked .localized(), falling back to Czech when missing.
@@ -17,9 +17,19 @@ export const SiteSettings = defineSingleton("siteSettings", {
       .help({ en: "Shown in the header and browser tab.", cs: "Zobrazí se v hlavičce webu a v záložce prohlížeče." }),
     tagline: f.text().optional().label({ en: "Tagline", cs: "Slogan" }),
     logo: f.media({ accept: "image/*" }).optional().label({ en: "Logo", cs: "Logo" }),
+    brandColor: f.color().optional().label({ en: "Brand colour", cs: "Barva značky" }),
+    openingHours: f.list({
+      fields: {
+        days: f.text({ required: true }).label({ en: "Days", cs: "Dny" }),
+        hours: f.text().label({ en: "Hours", cs: "Hodiny" }),
+      },
+      max: 14,
+      itemLabel: { en: "Opening hours", cs: "Otevírací doba" },
+    }).label({ en: "Opening hours", cs: "Otevírací doba" }),
+    rules: f.file().optional().label({ en: "Rules (PDF)", cs: "Pravidla (PDF)" }),
     ...seo(),
   },
-  content: { public: true, populate: ["logo", "ogImage"] },
+  content: { public: true, populate: ["logo", "rules", "ogImage"] },
 })
 
 export const Author = defineEntity("author", {
@@ -146,7 +156,7 @@ export const Page = definePages({
         lead: f.text().label({ en: "Lead", cs: "Perex" }),
         image: f.media({ accept: "image/*" }).label({ en: "Image", cs: "Obrázek" }),
         buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
-        buttonUrl: f.text().label({ en: "Button link", cs: "Odkaz tlačítka" }),
+        buttonUrl: f.text({ format: "link" }).label({ en: "Button link", cs: "Odkaz tlačítka" }),
       },
     }),
     text: defineBlock({
@@ -174,8 +184,26 @@ export const Page = definePages({
       fields: {
         text: f.text({ required: true }).label({ en: "Text", cs: "Text" }),
         buttonLabel: f.text().label({ en: "Button text", cs: "Text tlačítka" }),
-        buttonUrl: f.text().label({ en: "Button link", cs: "Odkaz tlačítka" }),
+        buttonUrl: f.text({ format: "link" }).label({ en: "Button link", cs: "Odkaz tlačítka" }),
         highlighted: f.boolean().label({ en: "Highlighted", cs: "Zvýrazněné" }),
+      },
+    }),
+    // A block with a list inside: cards (services, team, advantages), each with a picture.
+    cards: defineBlock({
+      label: { en: "Cards", cs: "Karty" },
+      description: { en: "A heading and a few cards side by side.", cs: "Nadpis a několik karet vedle sebe." },
+      icon: "i-lucide-layout-grid",
+      fields: {
+        heading: f.text().label({ en: "Heading", cs: "Nadpis" }),
+        items: f.list({
+          fields: {
+            title: f.text({ required: true }).label({ en: "Title", cs: "Nadpis" }),
+            text: f.text({ multiline: true }).label({ en: "Text", cs: "Text" }),
+            image: f.media({ accept: "image/*" }).label({ en: "Picture", cs: "Obrázek" }),
+          },
+          max: 12,
+          itemLabel: { en: "Card", cs: "Karta" },
+        }).label({ en: "Cards", cs: "Karty" }),
       },
     }),
   },
@@ -186,3 +214,22 @@ export const Navigation = defineNavigation({ localized: true })
 
 // Old address → new address, applied by the server to every page request.
 export const Redirect = defineRedirects()
+
+// A form on the website: each message lands here as an entry, and the people in
+// Forms settings get an email. On a page: <CmsForm name="contactForm" />.
+export const ContactForm = defineForm("contactForm", {
+  label: { en: "Contact form", cs: "Kontaktní formulář" },
+  labelSingular: { en: "Message", cs: "Zpráva" },
+  fields: {
+    name: f.text({ required: true, max: 200 }).label({ en: "Your name", cs: "Vaše jméno" }),
+    email: f.text({ required: true, format: "email" }).label({ en: "Email", cs: "E-mail" }),
+    topic: f.select({ options: ["question", "race", "other"] as const, labels: { question: { en: "A question", cs: "Dotaz" }, race: { en: "A race", cs: "Závod" }, other: { en: "Something else", cs: "Něco jiného" } } })
+      .optional().label({ en: "Topic", cs: "Téma" }),
+    message: f.text({ required: true, multiline: true, max: 5000 }).label({ en: "Message", cs: "Zpráva" }),
+    consent: f.boolean().label({ en: "I agree to the processing of my details", cs: "Souhlasím se zpracováním údajů" }),
+  },
+  successMessage: { en: "Thank you, we will reply soon.", cs: "Děkujeme, brzy se ozveme." },
+})
+
+// Who gets an email about new form messages (editable in the admin).
+export const FormSettings = defineFormSettings()
