@@ -55,7 +55,14 @@ The platform has no release step, so the app migrates itself: with
 starts. API requests wait for it; a Postgres advisory lock makes concurrent
 replicas take turns, so the first one migrates and the rest find nothing to do.
 The bookkeeping is drizzle's own (`drizzle.__drizzle_migrations`), so running
-`drizzle-kit migrate` by hand stays compatible.
+`drizzle-kit migrate` by hand stays compatible. The same start also runs tinyzoo's
+**upgrade steps** (the data work of an upgrade that a migration cannot express,
+recorded in `cms_upgrades`) in the same transaction; `tinyzoo up` does exactly the
+same from the command line (`DATABASE_URL` from the environment or the site's
+`.env`), and `tinyzoo status` tells what is still pending (exit code 1 when
+something is — handy as a deploy check). A migration that was never applied but is
+older than one that was (two branches each generated one) stops the start with an
+error naming the file, instead of being skipped. See [upgrading.md](upgrading.md).
 
 If the database does not accept connections yet (freshly provisioned,
 restarting), the instance retries for about a minute and a half. A migration that
@@ -64,7 +71,8 @@ schema, `/api/health/live` fails, and in production the process exits so the
 platform restarts it. Pushbase's readiness check is the open port, so watch the
 deploy log after a schema change. Destructive changes
 (dropping a column the running version still reads) need two deploys: stop
-using it, then drop it.
+using it, then drop it ([the two-step rule](upgrading.md#the-two-step-rule)).
+To restore after a failed upgrade, restore the database backup taken before it.
 
 ## Health
 

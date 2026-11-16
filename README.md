@@ -49,7 +49,7 @@ roles, audit log), entity- and **row-level** access enforcement, a polished side
 | `defineEntity(name, def)` | builds the live Drizzle `pgTable` (the type-inference anchor; SQL name `snake_case(name)`) + Zod create/update schemas |
 | `buildRegistry(config)` | two-phase: resolves relation thunks, creates m2m junctions, builds the serializable UI graph |
 | `emitSchema(config)` | serializes the **same IR** to `db/schema.ts` source → **one IR, two sinks, zero drift** |
-| `cms` CLI | `generate` (emit schema + `drizzle-kit generate`) / `up` (`drizzle-kit migrate`) |
+| `tinyzoo` CLI | `generate` (emit schema + `drizzle-kit generate`, stops on migrations that lose data) / `up` (migrations + upgrade steps) / `status` / `upgrade` — see [docs/upgrading.md](docs/upgrading.md) |
 | Nuxt module | aliases `#cms/config`, wires runtimeConfig; the layer ships `/admin` + `Cms*` + server API |
 | generic CRUD | one handler set dispatching by entity; relations, m2m diff-writes, populated labels |
 
@@ -90,7 +90,7 @@ type NewPost = Insert<typeof Post>
 ```
 packages/cms/          tinyzoo — the Layer + Module
   src/                 field engine, defineEntity, registry, emitters (schema / openapi / sdk)
-  cli/                 tinyzoo generate|up|client|openapi (wraps drizzle-kit + codegen)
+  cli/                 tinyzoo generate|up|status|upgrade|client|openapi (wraps drizzle-kit + codegen)
   module.ts            build-time wiring (#cms/config alias, runtimeConfig)
   nuxt.config.ts       layer root
   server/              generic CRUD + content API + drizzle DataSource (useCms)
@@ -130,6 +130,8 @@ then match `DATABASE_URL` in `playground/.env`.
 
 `DATABASE_URL` is read from `playground/.env`. Edit `playground/cms.config.ts`, re-run
 `pnpm db:generate` (review the SQL!) and `pnpm db:migrate`, and the dashboard updates itself.
+`pnpm db:generate` stops before a migration that drops data (a removed or renamed field);
+moving a site to a newer tinyzoo is described in [docs/upgrading.md](docs/upgrading.md).
 
 ## Accounts, roles & sign-in
 

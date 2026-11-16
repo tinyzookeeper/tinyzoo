@@ -5,9 +5,11 @@
  * The host's drizzle-kit migrations folder is bundled into the server build as
  * server assets (see module.ts), and applied here with drizzle's own bookkeeping —
  * the same `drizzle.__drizzle_migrations` table, hashes and ordering as
- * `drizzle-kit migrate` — so either tool can take over from the other. A Postgres
- * advisory lock makes concurrent replicas take turns; the second one finds nothing
- * left to do. Node only: a Worker may not do I/O while it starts (see the plugin).
+ * `drizzle-kit migrate` — so either tool can take over from the other — plus the
+ * package's upgrade steps (the data work a migration cannot express, see
+ * src/upgrades.ts) in the same transaction. A Postgres advisory lock makes concurrent
+ * replicas take turns; the second one finds nothing left to do. A migration older than
+ * the newest applied one that was never applied stops the start with an error. Node only: a Worker may not do I/O while it starts (see the plugin).
  *
  * The database may not accept connections yet when the app boots (a freshly
  * provisioned one, a restart during maintenance): connection errors are retried for
@@ -16,7 +18,7 @@
  * rather than staying up and answering 503 forever.
  */
 
-import { applyMigrations, isConnectionError, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
+import { CORE_UPGRADE_STEPS, isConnectionError, runUpgrade, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
 
 let ready: Promise<void> = Promise.resolve()
 let state: 'idle' | 'running' | 'done' | 'failed' = 'idle'
@@ -70,11 +72,14 @@ async function migrateOnce(): Promise<void> {
     },
   }
   const { db } = useCms()
-  const applied = await applyMigrations(source, (fn) => (db as any).transaction((tx: any) =>
+  // Upgrade steps run in the same transaction and lock; plugins will add theirs here.
+  const result = await runUpgrade(source, (fn) => (db as any).transaction((tx: any) =>
     fn(async (text, params = []) => {
       const res: any = await tx.execute(sqlWithParams(text, params))
       return res.rows ?? res
-    })))
-  console.info(applied.length ? `[cms] applied migrations: ${applied.join(', ')}` : '[cms] database is up to date')
+    })), CORE_UPGRADE_STEPS)
+  const ranSteps = result.steps.filter((s) => s.ran).map((s) => s.id)
+  if (ranSteps.length) console.info(`[cms] ran upgrade steps: ${ranSteps.join(', ')}`)
+  console.info(result.migrations.length ? `[cms] applied migrations: ${result.migrations.join(', ')}` : '[cms] database is up to date')
   state = 'done'
 }

@@ -1,28 +1,30 @@
 #!/usr/bin/env tsx
 /**
  * `tinyzoo` CLI — thin wrapper over drizzle-kit + the codegen sinks.
- *   tinyzoo generate          → emit host db/schema.ts from cms.config.ts, then `drizzle-kit generate`
- *   tinyzoo up                → `drizzle-kit migrate`
+ *   tinyzoo generate          → emit host db/schema.ts from cms.config.ts, then `drizzle-kit generate`;
+ *                               stops on migrations that lose data unless --allow-drop
+ *   tinyzoo up                → apply migrations + upgrade steps to DATABASE_URL (same runner as the app's start)
+ *   tinyzoo status            → what DATABASE_URL has applied / has pending (exit 1 when something is pending)
+ *   tinyzoo upgrade           → after updating tinyzoo: check versions, generate, regenerate the client, show status
  *   tinyzoo client [out]      → emit the typed @tinyzoo/client bindings (default cms-content.ts; --stdout)
  *   tinyzoo openapi [out]     → emit the OpenAPI 3.1 document (default openapi.json; --stdout)
  *   tinyzoo init <dir>        → a new website with the CMS inside (the starter: pages, news,
  *                               menus, a contact form, cs/en), ready for `pnpm install`
  * Run from the host app root (cwd = host). Designed to run under tsx.
  */
-import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { buildOpenApiDocument, emitContentTypes, emitSchema } from '../src/index'
+import { askYesNo, drizzleKitRunner, generateMigration } from './generate'
+import { status } from './status'
+import { up } from './up'
+import { upgrade } from './upgrade'
 
 const cmd = process.argv[2]
 const cwd = process.cwd()
 const configPath = resolve(cwd, 'cms.config.ts')
 const schemaOut = resolve(cwd, 'server/db/schema.ts')
-
-function drizzleKit(...args: string[]) {
-  execFileSync('pnpm', ['exec', 'drizzle-kit', ...args], { cwd, stdio: 'inherit' })
-}
 
 function loadConfig() {
   return import(pathToFileURL(configPath).href)
@@ -34,25 +36,21 @@ function outArg(fallback: string): string {
   return arg && !arg.startsWith('-') ? resolve(cwd, arg) : resolve(cwd, fallback)
 }
 
-async function generate() {
+/** Emit schema.ts, then let drizzle-kit write the migration (returns an exit code). */
+async function generate(): Promise<number> {
   const config = await loadConfig()
   const src = emitSchema(config)
   mkdirSync(dirname(schemaOut), { recursive: true })
   writeFileSync(schemaOut, src)
   console.log(`✓ emitted ${schemaOut}`)
-  const migrationsDir = resolve(cwd, 'server/db/migrations')
-  const sqlFiles = () => (existsSync(migrationsDir) ? readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')) : [])
-  const before = new Set(sqlFiles())
-  drizzleKit('generate')
-  // Trigram indexes (the search index) need pg_trgm, which drizzle-kit does not enable.
-  for (const f of sqlFiles().filter((x) => !before.has(x))) {
-    const file = join(migrationsDir, f)
-    const sql = readFileSync(file, 'utf8')
-    if (sql.includes('gin_trgm_ops') && !sql.includes('CREATE EXTENSION IF NOT EXISTS pg_trgm')) {
-      writeFileSync(file, 'CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint\n' + sql)
-      console.log(`✓ ${f}: enables pg_trgm (for the search index)`)
-    }
-  }
+  const interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY)
+  return generateMigration({
+    migrationsDir: resolve(cwd, 'server/db/migrations'),
+    allowDrop: process.argv.includes('--allow-drop'),
+    interactive,
+    runDrizzleKit: drizzleKitRunner(cwd, interactive),
+    confirm: askYesNo,
+  })
 }
 
 async function client() {
@@ -104,11 +102,13 @@ function init() {
 
 switch (cmd) {
   case 'init': init(); break
-  case 'generate': await generate(); break
-  case 'up': drizzleKit('migrate'); break
+  case 'generate': process.exit(await generate()); break
+  case 'up': process.exit(await up(cwd)); break
+  case 'status': process.exit(await status(cwd)); break
+  case 'upgrade': process.exit(await upgrade(cwd, resolve(dirname(fileURLToPath(import.meta.url)), '..'), { generate })); break
   case 'client': await client(); break
   case 'openapi': await openapi(); break
   default:
-    console.error('usage: tinyzoo <init|generate|up|client|openapi> [out] [--stdout]')
+    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi> [out] [--stdout] [--allow-drop]')
     process.exit(1)
 }
