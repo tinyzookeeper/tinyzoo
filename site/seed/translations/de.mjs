@@ -65,6 +65,7 @@ export default (h) => {
               item({ question: 'Kann ich beim Ausprobieren etwas kaputtmachen?', answer: 'Die Demo ist zum Ausprobieren da. Wir setzen sie jede Nacht auf den Ausgangszustand zurück. Sie können also nichts dauerhaft kaputtmachen. Auch Ihre Änderungen bleiben dort nicht erhalten. Auf Ihrer eigenen Website können Sie unfertige Inhalte vor dem Veröffentlichen in der Vorschau ansehen.' }),
               item({ question: 'Was passiert, wenn wir zu zweit denselben Beitrag bearbeiten?', answer: 'Sie können gleichzeitig darin schreiben. Beide sehen, wo die andere Person gerade schreibt. Die Änderungen überschreiben sich nicht gegenseitig.' }),
               item({ question: 'Kann ich zu einer früheren Version zurückkehren?', answer: 'Ja. Im Versionsverlauf können Sie eine frühere Fassung Ihrer Inhalte wiederherstellen.' }),
+              item({ question: 'Wie finde ich schnell einen älteren Artikel?', answer: 'Drücken Sie ⌘K (unter Windows Strg+K) oder klicken Sie auf Suchen und geben Sie ein beliebiges Wort aus dem Artikel ein. Die Suche findet auch Entwürfe und kommt mit Tippfehlern zurecht.' }),
               item({ question: 'Funktioniert die Verwaltung auf dem Smartphone?', answer: 'Ja, Sie können Inhalte auch auf dem Smartphone bearbeiten. Außerdem lässt sich die Seitenvorschau auf die Smartphone-Ansicht umstellen. So sehen Sie, wie die Seite für Besucher aussehen wird. Wir planen auch eine eigene mobile App.' }),
               item({ question: 'Ist tinyzoo fertig? Kann ich es schon ausprobieren?', answer: 'Die Demo ist für alle offen und wird jede Nacht zurückgesetzt. tinyzoo ist neu. Es hat über 350 automatisierte Tests. Vor dem Pilotprojekt haben wir außerdem alle üblichen Aufgaben bei der Inhaltspflege gründlich durchgespielt. Die gefundenen Fehler haben wir behoben. Kunden haben es bisher noch nicht im Arbeitsalltag genutzt. Das werden wir im Pilotprojekt erproben. Um die Weiterentwicklung und Fehlerbehebung kümmern wir uns selbst.' }),
               item({ question: 'Was ist, wenn ich mehr brauche?', answer: 'Sagen Sie uns, was Sie auf Ihrer Website machen möchten. Einen Katalog fertiger Erweiterungen haben wir nicht. Zusätzliche Möglichkeiten entwickeln wir für die jeweilige Website.' }),
@@ -83,8 +84,8 @@ export default (h) => {
             items: [
               item({ title: 'Pilotprojekt auf unserer ersten Kundenwebsite', text: 'Wir bereiten ein Pilotprojekt auf unserer ersten Kundenwebsite vor. Wir möchten erfahren, wie Menschen ihre eigenen Inhalte im Alltag pflegen und wo sie Hilfe brauchen.', stage: 'now', animal: 'bunny' }),
               item({ title: 'Verbesserungen aus dem Demo-Feedback', text: 'Wir sammeln die Eindrücke, die Sie uns aus der Demo schicken. Damit möchten wir die Arbeit in der Verwaltung angenehmer machen.', stage: 'now', animal: 'bird' }),
-              item({ title: 'Suche auf der Website', text: 'Wir planen eine Suche, mit der Besucher Inhalte auf Ihrer Website finden können.', stage: 'next', animal: 'fox' }),
               item({ title: 'Zusatzmodule', text: 'Wir möchten Zusatzmodule entwickeln, damit Ihre Website mit neuen Anforderungen wachsen kann.', stage: 'next', animal: 'frog' }),
+              item({ title: 'Eigene Rollen und Berechtigungen', text: 'Wir möchten eigene Rollen ermöglichen und festlegen lassen, wer welche Inhalte ändern darf. Das hilft größeren Teams und Websites mit mehreren Redakteuren.', stage: 'next', animal: 'fox' }),
               item({ title: 'Eine mobile App zur Inhaltspflege', text: 'Immer mehr Menschen erwarten, Inhalte direkt auf dem Smartphone pflegen zu können. Wir planen eine App, mit der Sie eine Neuigkeit schreiben, Fotos direkt vom Smartphone hinzufügen und von überall veröffentlichen könnten.', stage: 'later', animal: 'octopus' }),
               item({ title: 'Inhalte von Ihrer bisherigen Website übernehmen', text: 'Wir möchten die Übernahme von Texten und Bildern aus Ihrer bisherigen Website in tinyzoo erleichtern.', stage: 'later', animal: 'elephant' }),
             ],
@@ -153,7 +154,7 @@ export default (h) => {
           {
             id: id(), type: 'faq', heading: 'Fragen von Entwicklern',
             items: [
-              item({ question: 'Was gehört schon zu tinyzoo?', answer: 'Seiten aus Blöcken, Listen innerhalb von Blöcken und Formulare. Dazu Menüs mit Unterpunkten, Weiterleitungen, SEO-Felder und Übersetzungen. Die Medienbibliothek erzeugt Bilder bei Bedarf in den benötigten Größen. Beim Bearbeiten stehen eine Live-Vorschau, gemeinsames Schreiben in Echtzeit, geplante Veröffentlichungen und ein Versionsverlauf zur Verfügung.' }),
+              item({ question: 'Was gehört schon zu tinyzoo?', answer: 'Seiten aus Blöcken, Listen innerhalb von Blöcken und Formulare. Dazu Menüs mit Unterpunkten, Weiterleitungen, SEO-Felder und Übersetzungen. Die Medienbibliothek erzeugt Bilder bei Bedarf in den benötigten Größen. Beim Bearbeiten stehen eine Live-Vorschau, gemeinsames Schreiben in Echtzeit, geplante Veröffentlichungen und ein Versionsverlauf zur Verfügung. Besucher und Redakteure können die Inhalte durchsuchen, und die Suche kommt auch mit Tippfehlern zurecht.' }),
               item({ question: 'Was ist, wenn wir mehr brauchen?', answer: 'Zusätzliche Möglichkeiten schreiben wir als eigene Module im Code. Erzählen Sie uns, was Ihre Website braucht. Gemeinsam schauen wir, wie sie sich erweitern lässt.' }),
               item({ question: 'Wie greifen wir auf die Inhalte zu?', answer: 'Die Inhalte liegen in gewöhnlichen Postgres-Tabellen. Außerdem gibt es eine Inhalts-API, die in OpenAPI beschrieben ist. In Vue-Templates arbeiten Sie mit den Typen aus der generierten Client-Datei.' }),
               item({ question: 'Wer kümmert sich um die Wartung?', answer: 'Entwicklung und Fehlerbehebung übernehmen wir selbst. Über alle Websites hinweg aktualisieren wir ein Paket. tinyzoo ist noch jung. Über 350 automatisierte Tests und eine gründliche Prüfung aller üblichen Aufgaben bei der Inhaltspflege helfen uns, das Verhalten zu überprüfen. Weitere Erfahrungen sammeln wir nach und nach bei der Nutzung.' }),
@@ -169,6 +170,12 @@ export default (h) => {
       },
     },
     news: {
+      vyhledavani: {
+        title: 'Suche auf der Website und in der Verwaltung', slug: 'suche',
+        perex: 'Besucher finden Ihre Inhalte über jedes Wort darin. In der Verwaltung finden Sie jeden Eintrag mit ⌘K.',
+        body: doc(p('Die Suche durchsucht Überschriften, Texte und den Inhalt von Blöcken. Akzente sowie Groß- und Kleinschreibung spielen keine Rolle, und Tippfehler verzeiht sie auch: „Vorshau“ findet „Vorschau“.'),
+          p('In der Verwaltung öffnen Sie die Suche über die Schaltfläche in der Seitenleiste oder mit ⌘K (Strg+K). Sie findet auch Entwürfe und Texte in anderen Sprachen.')),
+      },
       'seznamy-v-blocich': {
         title: 'Karten und Fragen auf einer Seite', slug: 'listen-in-bloecken',
         perex: 'Stellen Sie eine Seite jetzt mit Karten oder Fragen und Antworten zusammen. Die Reihenfolge ändern Sie durch Ziehen.',

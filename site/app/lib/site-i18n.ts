@@ -9,6 +9,8 @@ export const LANG_NAMES: Record<Lang, string> = { cs: 'Čeština', en: 'English'
 export const LANG_TAGS: Record<Lang, string> = { cs: 'cs-CZ', en: 'en-GB', de: 'de-DE' }
 /** The changelog's address segment in each language (News content.path). */
 export const NEWS_SEGMENT: Record<Lang, string> = { cs: 'novinky', en: 'news', de: 'neuigkeiten' }
+/** The search page's address segment in each language (/hledat, /en/search, /de/suche). */
+export const SEARCH_SEGMENT: Record<Lang, string> = { cs: 'hledat', en: 'search', de: 'suche' }
 
 export const isLang = (v: unknown): v is Lang => typeof v === 'string' && (LANGS as readonly string[]).includes(v)
 /** '/en/comparison' → 'en'; '/srovnani' → 'cs'. */
@@ -66,6 +68,23 @@ const cs = {
   demoGo: 'Přejít do administrace',
   demoHint: 'Zkuste úpravy, náhled i publikování. Tipy vás provedou prvními kroky.',
   demoUnavailable: 'Ukázka zatím není dostupná. Zkuste ji prosím později.',
+  search: 'Hledat',
+  searchTitle: 'Hledání',
+  searchLabel: 'Co hledáte?',
+  searchPlaceholder: 'Například formuláře, náhled, jazyky…',
+  searchHint: 'Prohledáme stránky i novinky. Stačí napsat aspoň dvě písmena.',
+  searchNothing: 'Na „{q}“ jsme nic nenašli. Zkuste jiné nebo kratší slovo.',
+  searchCountOne: '1 výsledek',
+  searchCountFew: '{n} výsledky',
+  searchCount: '{n} výsledků',
+  searchKindPage: 'Stránka',
+  searchKindNews: 'Novinka',
+  searchError: 'Hledání se teď nepovedlo. Zkuste to prosím za chvíli.',
+  searchAll: 'Zobrazit všechny výsledky',
+  searchKeysMove: 'pohyb',
+  searchKeysOpen: 'otevřít',
+  searchKeysClose: 'zavřít',
+  close: 'Zavřít',
 }
 export type SiteText = typeof cs
 
@@ -113,6 +132,23 @@ const en: SiteText = {
   demoGo: 'Open the admin',
   demoHint: 'Try editing, the preview and publishing. The tips walk you through the first steps.',
   demoUnavailable: "The demo isn't available yet. Please try again later.",
+  search: 'Search',
+  searchTitle: 'Search',
+  searchLabel: 'What are you looking for?',
+  searchPlaceholder: 'For example forms, preview, languages…',
+  searchHint: 'We search the pages and the news. Type at least two letters.',
+  searchNothing: 'Nothing found for “{q}”. Try another or a shorter word.',
+  searchCountOne: '1 result',
+  searchCountFew: '{n} results',
+  searchCount: '{n} results',
+  searchKindPage: 'Page',
+  searchKindNews: 'Update',
+  searchError: "Search didn't work just now. Please try again in a moment.",
+  searchAll: 'Show all results',
+  searchKeysMove: 'move',
+  searchKeysOpen: 'open',
+  searchKeysClose: 'close',
+  close: 'Close',
 }
 
 const de: SiteText = {
@@ -159,6 +195,23 @@ const de: SiteText = {
   demoGo: 'Zum Admin',
   demoHint: 'Probieren Sie Bearbeiten, Vorschau und Veröffentlichen aus. Die Tipps führen Sie durch die ersten Schritte.',
   demoUnavailable: 'Die Demo ist noch nicht verfügbar. Bitte versuchen Sie es später noch einmal.',
+  search: 'Suchen',
+  searchTitle: 'Suche',
+  searchLabel: 'Wonach suchen Sie?',
+  searchPlaceholder: 'Zum Beispiel Formulare, Vorschau, Sprachen …',
+  searchHint: 'Wir durchsuchen die Seiten und die Neuigkeiten. Geben Sie mindestens zwei Buchstaben ein.',
+  searchNothing: 'Keine Treffer für „{q}“. Versuchen Sie ein anderes oder kürzeres Wort.',
+  searchCountOne: '1 Treffer',
+  searchCountFew: '{n} Treffer',
+  searchCount: '{n} Treffer',
+  searchKindPage: 'Seite',
+  searchKindNews: 'Neuigkeit',
+  searchError: 'Die Suche hat gerade nicht funktioniert. Bitte versuchen Sie es gleich noch einmal.',
+  searchAll: 'Alle Ergebnisse anzeigen',
+  searchKeysMove: 'bewegen',
+  searchKeysOpen: 'öffnen',
+  searchKeysClose: 'schließen',
+  close: 'Schließen',
 }
 
 export const SITE_TEXT: Record<Lang, SiteText> = { cs, en, de }

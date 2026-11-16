@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LANGS, LANG_NAMES, localePath, type Lang } from '~/lib/site-i18n'
+import { LANGS, LANG_NAMES, SEARCH_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
 
 const { settings, nav } = await useSite()
 const { lang, t, to } = useLang()
@@ -19,6 +19,14 @@ onMounted(() => {
   window.addEventListener('scroll', on, { passive: true })
   onBeforeUnmount(() => window.removeEventListener('scroll', on))
 })
+// Search opens in a palette over the page; the link itself leads to the full search
+// page (without JavaScript, or opened in a new tab).
+const searchOpen = ref(false)
+function openSearch(e: MouseEvent) {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+  e.preventDefault()
+  searchOpen.value = true
+}
 const year = new Date().getFullYear()
 // The logo on the home page itself: glide back to the top instead of doing nothing.
 function logoClick(e: MouseEvent) {
@@ -38,7 +46,13 @@ function logoClick(e: MouseEvent) {
           <img src="/brand/logo-primary.svg" alt="tinyzoo" class="h-7 w-auto sm:h-8" width="140" height="32">
         </NuxtLink>
         <CmsNav id="site-nav" :links="nav?.main" class="site-nav" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="t('mainMenu')" />
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1 sm:gap-2">
+          <a
+            :href="to(`/${SEARCH_SEGMENT[lang]}`)" class="site-search" :aria-label="t('search')" :title="`${t('search')} (⌘K)`"
+            aria-haspopup="dialog" @click="openSearch"
+          >
+            <UIcon name="i-lucide-search" class="size-5" />
+          </a>
           <details ref="langMenu" class="lang">
             <summary :aria-label="`${t('language')}: ${LANG_NAMES[lang]}`">{{ lang.toUpperCase() }}<UIcon name="i-lucide-chevron-down" class="size-3.5" /></summary>
             <ul>
@@ -60,6 +74,8 @@ function logoClick(e: MouseEvent) {
         </div>
       </div>
     </header>
+
+    <SearchPalette v-model:open="searchOpen" />
 
     <main id="obsah" class="flex-1">
       <slot />
@@ -93,6 +109,9 @@ function logoClick(e: MouseEvent) {
 </template>
 
 <style>
+/* Search: a round icon button beside the language switcher. */
+.site-search { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 999px; color: rgb(19 19 19 / 0.75); transition: color .15s ease, background-color .15s ease; }
+.site-search:hover, .site-search.router-link-active { color: var(--color-ink); background: rgb(19 19 19 / 0.05); }
 /* The language switcher: a small dropdown next to the main button. */
 .lang { position: relative; }
 .lang summary { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 2.75rem; padding: 0 0.75rem; border-radius: 999px; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; color: rgb(19 19 19 / 0.75); cursor: pointer; list-style: none; }
