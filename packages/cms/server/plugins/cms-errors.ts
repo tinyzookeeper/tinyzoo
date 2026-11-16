@@ -14,14 +14,14 @@ export default defineNitroPlugin((nitroApp) => {
     const userId: string | null = event?.context?.cmsUser?.id ?? null
     console.error(JSON.stringify({
       level: 'error',
-      msg: error?.statusMessage || error?.message || 'Server error',
+      msg: error?.statusMessage || (error?.message ? safeErrorMessage(error) : 'Server error'),
       status,
       requestId,
       method,
       path,
       user: userId,
       error: safeErrorMessage(cause),
-      stack: typeof cause?.stack === 'string' && !String(cause.message).startsWith('Failed query') ? cause.stack.split('\n').slice(0, 8).join('\n') : undefined,
+      stack: scrubError(cause).stack?.split('\n').slice(0, 8).join('\n'),
     }))
     reportCmsError({ source: 'request', error, status, requestId, method, path, userId }, event)
   })

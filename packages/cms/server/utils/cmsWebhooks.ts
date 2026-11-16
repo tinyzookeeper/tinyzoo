@@ -67,17 +67,6 @@ export async function sendWebhooks(change: CmsChange): Promise<void> {
   await Promise.all(urls.map((url) => deliver(url, secret, change.type, delivery, body).catch(() => {})))
 }
 
-/** A URL without its query string or credentials, for logs. */
-function safeUrl(url: string): string {
-  try {
-    const u = new URL(url)
-    return u.origin + u.pathname
-  }
-  catch {
-    return '(invalid url)'
-  }
-}
-
 async function deliver(url: string, secret: string, type: string, delivery: string, body: string): Promise<void> {
   let lastError = ''
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {

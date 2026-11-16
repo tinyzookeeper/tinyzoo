@@ -156,6 +156,36 @@ describe('the cms:error hook', () => {
     expect(reports().filter((r) => r.source === 'request')).toHaveLength(1)
   })
 
+  it('a failed query\'s bound values never reach report.error, its cause chain, its stack or the JSON log line', async () => {
+    await scratchDatabase('errors')
+    sink = join(dir, 'query.jsonl')
+    writeFileSync(sink, '')
+    const srv = await start(db.url, { NUXT_CMS_AUTH_SETUP_TOKEN: 't', CMS_ERROR_SINK_FILE: sink })
+    const admin = new Client(srv.baseURL)
+    expect((await admin.post('/api/cms/_auth/setup', { ...person, token: 't' })).status).toBe(201)
+    // The table is gone: the insert fails with drizzle's "Failed query: … params: …".
+    await sql(db.url, 'drop table tag cascade')
+    const secret = 'leak-me-42@example.test'
+    const res = await admin.post('/api/cms/tag', { name: secret, slug: 'leak-slug-42' })
+    expect(res.status).toBe(500)
+    const report = await waitForReport((r) => r.source === 'request' && r.path === '/api/cms/tag')
+    expect(report.message).toMatch(/^Query failed/)
+    expect(report.error.message).toBe(report.message)
+    expect(report.error.stack).toContain(report.message) // header with the safe message, then the frames
+    expect(report.error.stack).toMatch(/\n\s+at /)
+    let depth = 0
+    for (let e = report.error; e; e = e.cause, depth++) expect(e.message).not.toMatch(/Failed query|params:/)
+    expect(depth).toBeGreaterThanOrEqual(1)
+    expect(JSON.stringify(report)).not.toContain('leak-me-42')
+    expect(JSON.stringify(report)).not.toContain('leak-slug-42')
+    expect(report.rawErrorKept).toBe(true) // the raw error is still handed over, under its own name
+    await srv.waitForLog(/"level":"error"/)
+    // tinyzoo's own JSON line (Nitro's built-in "[request error]" dump of an unhandled error is a separate matter)
+    const jsonLines = srv.logs.join('').split('\n').filter((l) => l.startsWith('{"level":"error"'))
+    expect(jsonLines.length).toBeGreaterThan(0)
+    expect(jsonLines.join('\n')).not.toContain('leak-me-42')
+  })
+
   it('a failing hook never breaks the request', async () => {
     await scratchDatabase('errors')
     sink = join(dir, 'throwing.jsonl')
@@ -180,8 +210,10 @@ describe('the cms:error hook', () => {
     expect((await admin.post('/api/cms/_auth/setup', { ...person, token: 't' })).status).toBe(201)
     expect((await admin.post('/api/cms/tag', { name: 'Hello', slug: 'hello' })).status).toBe(201)
     const report = await waitForReport((r) => r.source === 'webhook', 20_000)
-    expect(report.webhook).toMatchObject({ url: 'http://127.0.0.1:1/hook', type: 'entry.created' })
+    expect(report.webhook).toMatchObject({ type: 'entry.created' })
+    expect(report.webhook.url).toMatch(/^http:\/\/127\.0\.0\.1:1\/…#[0-9a-f]{8}$/)
     expect(JSON.stringify(report)).not.toContain('abc')
+    expect(JSON.stringify(report)).not.toContain('/hook')
     expect(report.status).toBeNull()
   }, 40_000)
 
