@@ -1081,7 +1081,7 @@ Branch `fix/0.2-audit-shell` (F3 of the audit fixes; reports in the audit's `acc
 | Unnamed `nav` landmarks | 4 per screen | 0 |
 | Screens with text under AA (4.5:1) | 18 / 48 (`text-dimmed` 2.58:1 light, 3.82:1 dark; styleguide buttons 1.78–2.02:1) | 0 / 48 |
 | Phone screens with a control under 44 px | 16 / 16 | 0 / 16 |
-| Hydration warnings, 120 loads of editor, lists, media, settings (cs, en, phone) | 13 in 36 loads of the editor and page list | 0 |
+| Hydration warnings on fresh page loads (cs desktop, phone, en) | 13 in 72 loads (post editor 11, page list 2; 4 routes × 6 × 3) | 0 in 120 loads (editor, page list, post list, media, settings) |
 | English accessible names in a Czech admin | "Breadcrumb", "Notifications (F8)", "Show popup", Nuxt UI's close/next | none (checked: breadcrumb, notifications, selects, password toggle) |
 
 - **Language.** The site's `<UApp :locale="useCmsUiLocale()">` (the starter and playground have it; `docs/upgrading.md` step 9): Nuxt UI keeps one language and takes it from the first component that asks (the toaster inside `UApp`), so the old plugin and the layout's provider were never read. The notifications area's name is not part of Nuxt UI's locale and is set by the admin layout. The invitation page, the account page and the reset page speak the page's language through `cmsIssueMessage`; the account page marks the field instead of a "Validation failed" toast; the design system page is admins-only (a typed address goes home), its chrome is translated, its prose stays English with a note saying so.
