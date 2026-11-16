@@ -65,8 +65,8 @@ For a private bucket leave `PUBLIC_BASE_URL` out (or set `delivery: 'proxy'` / `
 `cms.storage.s3` of `nuxt.config`).
 
 Verified end-to-end against MinIO (an S3-compatible store you can run locally). It ships in
-`compose.yaml` behind the `s3` profile, together with a one-shot job that creates a
-public-read `cms-media` bucket:
+`compose.yaml` behind the `s3` profile, and creates a public-read `cms-media` bucket on its
+first start (`MINIO_DEFAULT_BUCKETS`; use `cms-media:none` for a private bucket):
 
 ```bash
 docker compose --profile s3 up -d     # MinIO on :9100, console on :9101

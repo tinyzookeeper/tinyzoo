@@ -11,7 +11,7 @@ import { storageFromEnv } from '../../packages/cms/cli/transfer'
 // that a bucket without a policy (private, like Pushbase's) refuses anonymous reads.
 //
 // Runs when TEST_S3_ENDPOINT is set (CI starts MinIO; locally:
-//   docker run -d --name tinyzoo-minio-test -p 9190:9000 -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 minio/minio server /data
+//   docker run -d --name tinyzoo-minio-test -p 9190:9000 -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 bitnamilegacy/minio:2025.7.23
 //   TEST_S3_ENDPOINT=http://localhost:9190 TEST_S3_ACCESS_KEY=minio TEST_S3_SECRET_KEY=minio12345 pnpm test:api …).
 // It makes its own bucket and removes only that.
 const endpoint = process.env.TEST_S3_ENDPOINT

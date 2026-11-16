@@ -6,6 +6,8 @@
 //
 // Runs in its own process: Nuxt's build pulls in Vite, which does not belong
 // inside the Vitest process that will run the specs.
+import { spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { join } from 'node:path'
@@ -19,6 +21,14 @@ if (!rootDir || !buildDir || !outputDir) {
 // Tailwind's CSS resolver looks packages up relative to the working directory, so the
 // build must run from inside the app, exactly as `nuxt build` would.
 process.chdir(rootDir)
+
+// The app's tsconfig.json points at .nuxt/tsconfig.*.json, which the build reads (Vue's
+// TypeScript support parses it) but only `nuxt prepare` or a dev server writes. On a fresh
+// clone (CI) they don't exist yet: prepare once. A developer's existing .nuxt is left alone.
+if (!existsSync(join(rootDir, '.nuxt', 'tsconfig.server.json'))) {
+  const prep = spawnSync('pnpm', ['exec', 'nuxt', 'prepare'], { cwd: rootDir, stdio: 'inherit' })
+  if (prep.status !== 0) process.exit(prep.status ?? 1)
+}
 
 // Resolve Nuxt from the host app, not from here — the root workspace does not depend on it.
 const require = createRequire(join(rootDir, 'package.json'))

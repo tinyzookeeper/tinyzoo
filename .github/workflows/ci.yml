@@ -51,10 +51,10 @@ jobs:
       TEST_S3_SECRET_KEY: minio12345
     steps:
       - uses: actions/checkout@v4
-      # A service container cannot be given MinIO's `server /data` command, so it starts here.
+      # MinIO no longer publishes images on Docker Hub; bitnamilegacy/minio is a frozen build of it.
       - run: |
           docker run -d --name minio -p 9190:9000 -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
-            minio/minio:RELEASE.2025-09-07T16-13-09Z server /data
+            bitnamilegacy/minio:2025.7.23
           for i in $(seq 1 30); do curl -sf http://localhost:9190/minio/health/ready && break; sleep 1; done
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
