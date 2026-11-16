@@ -5,7 +5,7 @@
  * sits in memory.
  */
 import { createReadStream, createWriteStream, type WriteStream } from 'node:fs'
-import { mkdir, stat } from 'node:fs/promises'
+import { mkdir, rm, stat } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { once } from 'node:events'
 import { Readable } from 'node:stream'
@@ -89,9 +89,16 @@ async function* tarChunks(entries: Iterable<TarEntry>): AsyncGenerator<Buffer> {
   yield Buffer.alloc(BLOCK * 2) // end of archive
 }
 
-/** Write `entries` as a gzip-compressed tar archive at `out`. */
-export async function writeTarGz(out: string, entries: Iterable<TarEntry>): Promise<void> {
-  await pipeline(Readable.from(tarChunks(entries)), createGzip(), createWriteStream(out))
+/**
+ * Write `entries` as a gzip-compressed tar archive at `out`. The file is created
+ * readable by its owner only (`mode`, 0600 unless asked otherwise) from the first
+ * byte — an archive of a whole site is not something other users of the machine
+ * should be able to read while it is being written. An existing `out` is replaced.
+ */
+export async function writeTarGz(out: string, entries: Iterable<TarEntry>, mode = 0o600): Promise<void> {
+  // Remove first: a leftover file keeps its old (maybe wider) permissions when reopened.
+  await rm(out, { force: true })
+  await pipeline(Readable.from(tarChunks(entries)), createGzip(), createWriteStream(out, { mode, flags: 'wx' }))
 }
 
 function field(h: Buffer, from: number, length: number): string {
@@ -101,8 +108,14 @@ function field(h: Buffer, from: number, length: number): string {
 }
 
 function parseSize(h: Buffer): number {
-  // GNU base-256 sizes (files over 8 GiB) are not something this archive produces.
-  if (h[124]! & 0x80) throw new Error('The archive holds a file too large to read')
+  // GNU base-256 sizes (files over 8 GiB): big-endian after the marker byte.
+  if (h[124]! & 0x80) {
+    if (h[124] !== 0x80) throw new Error('The archive is damaged (bad file size)')
+    let size = 0
+    for (let i = 125; i < 136; i++) size = size * 256 + h[i]!
+    if (!Number.isSafeInteger(size)) throw new Error('The archive holds a file too large to read')
+    return size
+  }
   const text = h.subarray(124, 136).toString('ascii').replace(/\0.*$/, '').trim()
   const size = parseInt(text || '0', 8)
   if (!Number.isFinite(size) || size < 0) throw new Error('The archive is damaged (bad file size)')
@@ -116,8 +129,9 @@ function checksumOk(h: Buffer): boolean {
   return stored === sum
 }
 
-function paxPath(data: Buffer): string | null {
-  // Records are "<length> <key>=<value>\n".
+/** The `path` and `size` records of a pax extended header ("<length> <key>=<value>\n" each). */
+function paxRecords(data: Buffer): { path: string | null; size: number | null } {
+  const out = { path: null as string | null, size: null as number | null }
   let i = 0
   while (i < data.length) {
     const space = data.indexOf(0x20, i)
@@ -125,92 +139,166 @@ function paxPath(data: Buffer): string | null {
     const length = parseInt(data.subarray(i, space).toString('ascii'), 10)
     if (!length) break
     const record = data.subarray(space + 1, i + length - 1).toString('utf8')
-    if (record.startsWith('path=')) return record.slice(5)
+    if (record.startsWith('path=')) out.path = record.slice(5)
+    else if (record.startsWith('size=')) { const n = Number(record.slice(5)); if (Number.isSafeInteger(n) && n >= 0) out.size = n }
     i += length
   }
-  return null
+  return out
 }
 
+/** The most a pax or GNU long-name header may hold: a path is at most a few KiB, never more than this. */
+export const MAX_HEADER_BODY = 64 * 1024
+
+/** The default cap on the bytes one archive may unpack to (20 GiB). */
+export const DEFAULT_MAX_EXTRACT_BYTES = 20 * 1024 ** 3
+
 /**
- * Extract a .tar.gz into `dest` (created). Only regular files are written; paths that
- * would leave `dest` are refused. Returns the extracted paths, relative to `dest`.
+ * The cap on unpacked bytes: `TINYZOO_MAX_ARCHIVE_BYTES` (a number of bytes), else 20 GiB.
+ * A gzip file of a few kilobytes can unpack to gigabytes; this stops it filling the disk.
  */
-export async function extractTarGz(file: string, dest: string): Promise<string[]> {
+export function archiveLimit(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.TINYZOO_MAX_ARCHIVE_BYTES)
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_MAX_EXTRACT_BYTES
+}
+
+export interface ExtractOptions {
+  /** Most bytes the archive may unpack to (default: `archiveLimit()`). */
+  maxBytes?: number
+  /**
+   * Refuse anything that is not a plain file or folder (symbolic and hard links,
+   * devices…) instead of skipping it. Links are never created either way.
+   */
+  strict?: boolean
+}
+
+const gib = (n: number) => (n >= 1024 ** 3 ? `${+(n / 1024 ** 3).toFixed(1)} GiB` : `${+(n / 1024 ** 2).toFixed(1)} MiB`)
+
+/**
+ * Extract a .tar.gz into `dest` (created). Only regular files are written (links and
+ * devices are never created); paths that would leave `dest` are refused, as is an
+ * archive that would unpack to more than `maxBytes`. Returns the extracted paths,
+ * relative to `dest`.
+ */
+export async function extractTarGz(file: string, dest: string, opts: ExtractOptions = {}): Promise<string[]> {
+  return extractFrom(file, dest, true, opts)
+}
+
+/** The same for an uncompressed .tar (what `tinyzoo backup` writes). */
+export async function extractTar(file: string, dest: string, opts: ExtractOptions = {}): Promise<string[]> {
+  return extractFrom(file, dest, false, opts)
+}
+
+async function extractFrom(file: string, dest: string, gzip: boolean, opts: ExtractOptions): Promise<string[]> {
+  const maxBytes = opts.maxBytes ?? archiveLimit()
   const source = createReadStream(file)
-  const gunzip = createGunzip()
-  source.on('error', (err) => gunzip.destroy(err))
-  source.pipe(gunzip)
+  let input: AsyncIterable<Buffer> = source
+  if (gzip) {
+    const gunzip = createGunzip()
+    source.on('error', (err) => gunzip.destroy(err))
+    source.pipe(gunzip)
+    input = gunzip
+  }
 
   const extracted: string[] = []
   let head = Buffer.alloc(0)
   type Body = { left: number; pad: number; kind: 'file' | 'skip' | 'pax' | 'gnuname'; name: string; out?: WriteStream; parts: Buffer[] }
   let body = null as Body | null
   let nextName: string | null = null
+  let nextSize: number | null = null // a pax `size` (members over 8 GiB, as bsdtar writes them)
   let ended = false
+  let total = 0
+  let outError: Error | null = null
 
   const finish = async () => {
     const b = body!
     body = null
     if (b.kind === 'file') {
+      if (outError) throw outError
       await new Promise<void>((resolve, reject) => { b.out!.once('error', reject); b.out!.end(resolve) })
       extracted.push(b.name)
     }
-    else if (b.kind === 'pax') nextName = paxPath(Buffer.concat(b.parts))
+    else if (b.kind === 'pax') { const r = paxRecords(Buffer.concat(b.parts)); nextName = r.path; nextSize = r.size }
     else if (b.kind === 'gnuname') nextName = Buffer.concat(b.parts).toString('utf8').replace(/\0.*$/, '')
   }
 
   const start = async (h: Buffer) => {
     if (!checksumOk(h)) throw new Error('The archive is damaged (bad header checksum)')
     const type = String.fromCharCode(h[156] || 0x30)
-    const size = parseSize(h)
+    let size = parseSize(h)
+    if (nextSize !== null && (type === '0' || type === '7')) { size = nextSize; nextSize = null }
     const ustar = h.subarray(257, 262).toString('ascii') === 'ustar'
     const prefix = ustar ? field(h, 345, 155) : ''
     let name = prefix ? `${prefix}/${field(h, 0, 100)}` : field(h, 0, 100)
     if (nextName && (type === '0' || type === '5' || type === '7')) { name = nextName; nextName = null }
     const pad = (BLOCK - (size % BLOCK)) % BLOCK
     if (type === '0' || type === '7') {
+      // The declared size counts before a byte is written: a bomb is refused at its header.
+      total += size
+      if (total > maxBytes) throw new Error(`The archive would unpack to more than ${gib(maxBytes)} (the limit). If it is genuine, raise the limit with TINYZOO_MAX_ARCHIVE_BYTES=<bytes>.`)
       const clean = safeArchivePath(name.replace(/^\.\//, ''))
       const target = join(dest, clean)
       await mkdir(dirname(target), { recursive: true })
-      body = { left: size, pad, kind: 'file', name: clean, out: createWriteStream(target), parts: [] }
+      // `wx`: never open an existing path (a name listed twice; a link that was somehow there).
+      const out = createWriteStream(target, { flags: 'wx' })
+      out.on('error', (err: NodeJS.ErrnoException) => { outError = err.code === 'EEXIST' ? new Error(`The archive lists ${JSON.stringify(clean)} more than once`) : err })
+      body = { left: size, pad, kind: 'file', name: clean, out, parts: [] }
     }
-    else if (type === 'x') body = { left: size, pad, kind: 'pax', name, parts: [] }
-    else if (type === 'L') body = { left: size, pad, kind: 'gnuname', name, parts: [] }
-    else body = { left: size, pad, kind: 'skip', name, parts: [] }
+    else if (type === 'x' || type === 'L') {
+      if (size > MAX_HEADER_BODY) throw new Error(`The archive is damaged or hostile (a ${type === 'x' ? 'pax' : 'long-name'} header of ${size} bytes; the limit is ${MAX_HEADER_BODY / 1024} KiB)`)
+      body = { left: size, pad, kind: type === 'x' ? 'pax' : 'gnuname', name, parts: [] }
+    }
+    else {
+      // Folders and the pax "global" header are harmless. A link or a device is never
+      // created; strict readers (backups) do not accept an archive that holds one.
+      if (opts.strict && type !== '5' && type !== 'g') {
+        const what = type === '2' ? 'a symbolic link' : type === '1' ? 'a hard link' : `an entry of type "${type}"`
+        throw new Error(`The archive contains ${what} (${JSON.stringify(name)}); only plain files are accepted.`)
+      }
+      body = { left: size, pad, kind: 'skip', name, parts: [] }
+    }
     // An empty file has no body and no padding: it is complete right here.
     if (body.left === 0) await finish()
   }
 
   await mkdir(dest, { recursive: true })
-  for await (let chunk of gunzip as AsyncIterable<Buffer>) {
-    while (chunk.length && !ended) {
-      if (body) {
-        if (body.left > 0) {
-          const part = chunk.subarray(0, body.left)
-          chunk = chunk.subarray(part.length)
-          body.left -= part.length
-          if (body.kind === 'file') { if (!body.out!.write(part)) await once(body.out!, 'drain') }
-          else if (body.kind !== 'skip') body.parts.push(Buffer.from(part))
-          if (body.left === 0 && body.pad === 0) await finish()
+  try {
+    for await (let chunk of input) {
+      while (chunk.length && !ended) {
+        if (outError) throw outError
+        if (body) {
+          if (body.left > 0) {
+            const part = chunk.subarray(0, body.left)
+            chunk = chunk.subarray(part.length)
+            body.left -= part.length
+            if (body.kind === 'file') { if (!body.out!.write(part)) await once(body.out!, 'drain') }
+            else if (body.kind !== 'skip') body.parts.push(Buffer.from(part))
+            if (body.left === 0 && body.pad === 0) await finish()
+          }
+          else {
+            const skip = Math.min(body.pad, chunk.length)
+            body.pad -= skip
+            chunk = chunk.subarray(skip)
+            if (body.pad === 0) await finish()
+          }
+          continue
         }
-        else {
-          const skip = Math.min(body.pad, chunk.length)
-          body.pad -= skip
-          chunk = chunk.subarray(skip)
-          if (body.pad === 0) await finish()
-        }
-        continue
+        const need = BLOCK - head.length
+        head = Buffer.concat([head, chunk.subarray(0, need)])
+        chunk = chunk.subarray(Math.min(need, chunk.length))
+        if (head.length < BLOCK) continue
+        const h = head
+        head = Buffer.alloc(0)
+        if (h.every((byte) => byte === 0)) { ended = true; continue }
+        await start(h)
       }
-      const need = BLOCK - head.length
-      head = Buffer.concat([head, chunk.subarray(0, need)])
-      chunk = chunk.subarray(Math.min(need, chunk.length))
-      if (head.length < BLOCK) continue
-      const h = head
-      head = Buffer.alloc(0)
-      if (h.every((byte) => byte === 0)) { ended = true; continue }
-      await start(h)
     }
+    if (body || head.length) throw new Error('The archive is incomplete (it ends in the middle of a file)')
+    if (outError) throw outError
+    return extracted
   }
-  if (body || head.length) throw new Error('The archive is incomplete (it ends in the middle of a file)')
-  return extracted
+  finally {
+    // A refused archive stops reading at once and leaves nothing open.
+    source.destroy()
+    ;(body as Body | null)?.out?.destroy()
+  }
 }

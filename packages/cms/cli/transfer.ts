@@ -31,14 +31,18 @@
  * the same reason (it points at accounts).
  */
 import { createHash } from 'node:crypto'
-import { createReadStream, createWriteStream, existsSync, readFileSync, type WriteStream } from 'node:fs'
+import { createReadStream, createWriteStream, type WriteStream } from 'node:fs'
+import { readFileSync } from 'node:fs'
+import { hostname } from 'node:os'
 import { once } from 'node:events'
 import { join, resolve, sep } from 'node:path'
 import { createInterface } from 'node:readline'
-import { getTableColumns } from 'drizzle-orm'
+import { getTableColumns, getTableName, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import pg from 'pg'
 import { mediaIdsInBlocks, propOf, type CmsEntity, type CmsRegistry, type Junction } from '../src/index'
+import { blockVersion, storedBlockVersion } from '../src/blocks'
+import { loadSettings, settingsFrom, type StorageSettings } from './backup'
 
 export const ARCHIVE_FORMAT = 1
 
@@ -78,7 +82,15 @@ export interface Manifest {
   only: string[] | null
   entities: ManifestEntity[]
   excluded: { entity: string; reason: string }[]
-  media: { rows: number; included: boolean; files: number; missing: number }
+  media: {
+    rows: number; included: boolean; files: number; missing: number
+    /**
+     * A fingerprint (sha256) of the storage the files were exported from — never the
+     * bucket name or a path. An import into the SAME storage warns: two environments
+     * must not share one, or deleting a file in one deletes it in the other.
+     */
+    storage?: string | null
+  }
   revisions: { included: boolean; rows: number }
 }
 
@@ -90,6 +102,8 @@ export interface FieldShape {
   relation?: { to: string; kind: string }
   values?: string[]
   blocks?: Record<string, Record<string, FieldShape>>
+  /** Block types (or list items) whose definition is at a version above 1. */
+  blockVersions?: Record<string, number>
 }
 
 export interface SchemaShape {
@@ -102,10 +116,15 @@ function fieldShape(fld: any): FieldShape {
   if (fld.relation) shape.relation = { to: (fld.relation.to() as CmsEntity).name, kind: fld.relation.kind }
   if (fld.spec?.base.kind === 'enum') shape.values = [...fld.spec.base.values]
   if (fld.blocks) {
-    shape.blocks = Object.fromEntries(Object.entries(fld.blocks as Record<string, any>).map(([type, def]) => [
+    const defs = fld.blocks as Record<string, any>
+    shape.blocks = Object.fromEntries(Object.entries(defs).map(([type, def]) => [
       type,
       Object.fromEntries(Object.entries(def.fields as Record<string, any>).map(([k, f]) => [k, fieldShape(f)])),
     ]))
+    // Stored blocks carry `v` once their definition is above 1: an archive at v2 does
+    // not fit a site still at v1. Left out at 1, so sites without versions keep their fingerprint.
+    const versions = Object.fromEntries(Object.entries(defs).filter(([, def]) => blockVersion(def) > 1).map(([type, def]) => [type, blockVersion(def)]))
+    if (Object.keys(versions).length) shape.blockVersions = versions
   }
   return shape
 }
@@ -142,22 +161,46 @@ export interface Difference {
   skip: boolean
 }
 
-function diffBlocks(path: string, a: FieldShape['blocks'], b: FieldShape['blocks'], entity: string, field: string, out: Difference[]) {
-  const mk = (message: string): Difference => ({ scope: 'blocks', entity, field, message: `${path}: ${message}`, skip: false })
-  const A = a ?? {}
-  const B = b ?? {}
-  for (const type of Object.keys(A)) if (!B[type]) out.push(mk(`block "${type}" is in the archive but no longer exists here`))
-  for (const type of Object.keys(B)) if (!A[type]) out.push(mk(`block "${type}" is new here (the archive has none)`))
-  for (const type of Object.keys(A)) {
-    const fa = A[type]
-    const fb = B[type]
-    if (!fa || !fb) continue
-    for (const k of Object.keys(fa)) {
-      if (!fb[k]) out.push(mk(`"${type}.${k}" is in the archive but no longer exists here`))
-      else if (canonicalJson(fa[k]) !== canonicalJson(fb[k])) out.push(mk(`"${type}.${k}" has changed (${describeChange(fa[k]!, fb[k]!)})`))
-    }
-    for (const k of Object.keys(fb)) if (!fa[k]) out.push(mk(`"${type}.${k}" is new here`))
+/** A field's shape without block versions (what the structure comparison looks at). */
+function withoutVersions(shape: FieldShape): FieldShape {
+  const { blockVersions: _v, ...rest } = shape
+  if (!rest.blocks) return rest
+  return { ...rest, blocks: Object.fromEntries(Object.entries(rest.blocks).map(([type, fields]) => [type, Object.fromEntries(Object.entries(fields).map(([k, f]) => [k, withoutVersions(f)]))])) }
+}
+
+/** Block types (at any depth) the archive has at a NEWER version than this site's definition. */
+function newerBlockVersions(path: string, a: FieldShape, b: FieldShape, out: string[]): void {
+  for (const type of Object.keys(a.blocks ?? {})) {
+    const fb = b.blocks?.[type]
+    if (!fb) continue
+    const av = a.blockVersions?.[type] ?? 1
+    const bv = b.blockVersions?.[type] ?? 1
+    if (av > bv) out.push(`"${type}" is at version ${av} in the archive but this site's definition is at ${bv} (update this site first)`)
+    for (const [k, fa] of Object.entries(a.blocks![type]!)) if (fb[k]) newerBlockVersions(`${path}: "${type}.${k}"`, fa, fb[k]!, out)
   }
+}
+
+function diffBlocks(path: string, fa: FieldShape, fb: FieldShape, entity: string, field: string, out: Difference[]) {
+  const mk = (message: string, skip = false): Difference => ({ scope: 'blocks', entity, field, message: `${path}: ${message}`, skip })
+  const a = fa.blocks ?? {}
+  const b = fb.blocks ?? {}
+  for (const type of Object.keys(a)) if (!b[type]) out.push(mk(`block "${type}" is in the archive but no longer exists here`))
+  for (const type of Object.keys(b)) if (!a[type]) out.push(mk(`block "${type}" is new here (the archive has none)`))
+  for (const type of Object.keys(a)) {
+    const xa = a[type]
+    const xb = b[type]
+    if (!xa || !xb) continue
+    for (const k of Object.keys(xa)) {
+      if (!xb[k]) out.push(mk(`"${type}.${k}" is in the archive but no longer exists here`))
+      else if (canonicalJson(withoutVersions(xa[k]!)) !== canonicalJson(withoutVersions(xb[k]!))) out.push(mk(`"${type}.${k}" has changed (${describeChange(xa[k]!, xb[k]!)})`))
+    }
+    for (const k of Object.keys(xb)) if (!xa[k]) out.push(mk(`"${type}.${k}" is new here`))
+  }
+  // Older blocks in the archive are brought up to date on import; newer ones cannot be read.
+  // The field is left out under --allow-mismatch.
+  const newer: string[] = []
+  newerBlockVersions(path, fa, fb, newer)
+  for (const message of newer) out.push(mk(message, true))
 }
 
 function describeChange(a: FieldShape, b: FieldShape): string {
@@ -197,7 +240,7 @@ export function diffSchemas(archive: SchemaShape, target: SchemaShape): Differen
           || fa.relation?.to !== fb.relation?.to || fa.relation?.kind !== fb.relation?.kind
         if (structural) out.push({ scope: 'field', entity: name, field: key, message: `${at} has changed (${describeChange(fa, fb)})`, skip: true })
         else if (canonicalJson(fa.values) !== canonicalJson(fb.values)) out.push({ scope: 'field', entity: name, field: key, message: `${at} has other choices (${describeChange(fa, fb)})`, skip: false })
-        else diffBlocks(at, fa.blocks, fb.blocks, name, key, out)
+        else diffBlocks(at, fa, fb, name, key, out)
       }
     }
   }
@@ -304,6 +347,86 @@ export function mediaIdsOfEntry(layout: EntityLayout, entry: Entry): string[] {
   return out
 }
 
+// ── who uses a media file ───────────────────────────────────────────────────────
+
+/** Field types whose JSON can hold media ids (rich text images, blocks, galleries). */
+const JSON_MEDIA_TYPES = new Set(['richtext', 'blocks', 'gallery'])
+
+const escapeLike = (s: string) => s.replace(/[\\%_]/g, (c) => `\\${c}`)
+
+/**
+ * Which of these media rows are still used by content: as a link in ANY table that has
+ * a foreign key to the media library, or inside the JSON of rich text, blocks and
+ * galleries — matched by id AND by storage key, as the server's own clean-up does
+ * (an embedded picture whose id was lost still carries its address). Tables in
+ * `exceptTables` (by name) are not looked at: the rows about to be replaced.
+ */
+export async function usedMediaIds(db: any, reg: CmsRegistry, media: { id: string; key: string }[], exceptTables: Set<string> = new Set()): Promise<Set<string>> {
+  const used = new Set<string>()
+  if (!media.length) return used
+  const mediaTable = getTableName(reg.cmsMedia)
+
+  // Links: every foreign key that points at the media library, whoever declared it.
+  const fks: { schema: string; tbl: string; col: string }[] = (await db.execute(sql`
+    select n.nspname as schema, c.relname as tbl, a.attname as col
+    from pg_constraint k
+    join pg_class c on c.oid = k.conrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    join pg_attribute a on a.attrelid = k.conrelid and a.attnum = any (k.conkey)
+    where k.contype = 'f' and k.confrelid = to_regclass(${`"${mediaTable}"`})`)).rows
+  const ids = media.map((m) => m.id)
+  for (let at = 0; at < ids.length; at += 1000) {
+    const batch = JSON.stringify(ids.slice(at, at + 1000))
+    for (const fk of fks) {
+      if (exceptTables.has(fk.tbl)) continue
+      const res = await db.execute(sql`select distinct ${sql.identifier(fk.col)}::text as id from ${sql.identifier(fk.schema)}.${sql.identifier(fk.tbl)}
+        where ${sql.identifier(fk.col)} in (select jsonb_array_elements_text(${batch}::jsonb)::uuid)`)
+      for (const r of res.rows) used.add(r.id)
+    }
+  }
+
+  // JSON: a column that can hold pictures, in the entity and in its translations.
+  const columns: { table: any; name: string; key: string }[] = []
+  for (const e of reg.entities) {
+    for (const [key, fld] of Object.entries(e.fields as Record<string, any>)) {
+      if (!JSON_MEDIA_TYPES.has(fld.type)) continue
+      columns.push({ table: e.table, name: getTableName(e.table), key })
+      if (fld.isLocalized && e.localesTable) columns.push({ table: e.localesTable, name: getTableName(e.localesTable), key })
+    }
+  }
+  for (let at = 0; at < media.length; at += 200) {
+    const batch = media.slice(at, at + 200)
+    const patterns = JSON.stringify(batch.flatMap((m) => [`%${escapeLike(m.id)}%`, `%${escapeLike(m.key)}%`]))
+    for (const { table, name, key } of columns) {
+      if (exceptTables.has(name)) continue
+      const col = (table as any)[key]
+      const res = await db.execute(sql`select cast(${col} as text) as t from ${table}
+        where cast(${col} as text) ilike any (array(select jsonb_array_elements_text(${patterns}::jsonb)))`)
+      for (const r of res.rows) {
+        const text = String(r.t).toLowerCase()
+        for (const m of batch) if (!used.has(m.id) && (text.includes(m.id.toLowerCase()) || text.includes(m.key.toLowerCase()))) used.add(m.id)
+      }
+    }
+  }
+  return used
+}
+
+/**
+ * Blocks (at any depth) stored at a version NEWER than this site's definition of the
+ * type: the site could neither read nor save them. One line per block, naming where.
+ */
+export function newerStoredBlocks(value: unknown, defs: Record<string, any>, path: (string | number)[] = [], out: string[] = []): string[] {
+  if (!Array.isArray(value)) return out
+  value.forEach((b, i) => {
+    if (!b || typeof b !== 'object' || typeof b.type !== 'string' || !Object.hasOwn(defs, b.type)) return
+    const def = defs[b.type]
+    const have = storedBlockVersion(b)
+    if (have > blockVersion(def)) out.push(`the "${b.type}" block${typeof b.id === 'string' ? ` ${b.id}` : ''} at ${[...path, i].join('.')} is stored at version ${have}, this site's definition is at ${blockVersion(def)}`)
+    for (const [key, fld] of Object.entries(def.fields as Record<string, any>)) if (fld.type === 'blocks' && fld.blocks) newerStoredBlocks(b[key], fld.blocks, [...path, i, key], out)
+  })
+  return out
+}
+
 // ── the order tables can be filled in ───────────────────────────────────────────
 
 export interface FkEdge { entity: string; key: string; prop: string; col: any; to: string; required: boolean }
@@ -385,25 +508,6 @@ export async function* readJsonl<T = any>(path: string): AsyncGenerator<T> {
 
 // ── the host: database and storage, as the server finds them ───────────────────
 
-/** Read the host's `.env` into `env` (what is already set wins), as `nuxt dev` does. */
-export function loadDotEnv(cwd: string, env: Record<string, string | undefined> = process.env): void {
-  const file = join(cwd, '.env')
-  if (!existsSync(file)) return
-  for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {
-    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line)
-    if (!m || line.trim().startsWith('#')) continue
-    let value = m[2]!
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1)
-    else value = value.replace(/\s+#.*$/, '')
-    if (env[m[1]!] === undefined) env[m[1]!] = value
-  }
-}
-
-/** The database the server would use: NUXT_CMS_DATABASE_URL, else DATABASE_URL. */
-export function databaseUrlFromEnv(env: Record<string, string | undefined> = process.env): string | null {
-  return env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || null
-}
-
 /** `host:port/name` of a connection string — never its password. */
 export function describeDatabase(url: string): string {
   try {
@@ -427,37 +531,53 @@ export function connectDb(url: string, reg: CmsRegistry) {
 /** Blob storage as the CLI needs it: read, write, and the public URL of a key. */
 export interface TransferStorage {
   describe: string
+  /**
+   * What identifies the place the files live in — the folder (on this machine), or the
+   * endpoint and bucket. Never printed or stored as it is: see `storageFingerprint`.
+   */
+  identity: string
   get(key: string): Promise<Buffer | null>
   put(key: string, body: Buffer, contentType: string): Promise<void>
   url(key: string): string
 }
 
+/** A fingerprint of a storage's identity, safe to put in an archive (no path, no bucket name). */
+export function storageFingerprint(identity: string): string {
+  return createHash('sha256').update(identity).digest('hex').slice(0, 32)
+}
+
+/**
+ * The host's database and storage settings, found the way the running app finds them:
+ * the environment, the host's `.env`, then the `cms:` options of nuxt.config
+ * (`loadSettings` of backup.ts — the same code `tinyzoo backup` uses).
+ */
+export async function hostSettings(cwd: string, env: Record<string, string | undefined> = process.env) {
+  return loadSettings(cwd, env as NodeJS.ProcessEnv)
+}
+
 /**
  * Storage the way the server resolves it (server/utils/cmsStorage.ts): the driver and
- * its settings from `NUXT_CMS_STORAGE_*`, defaulting to the host's `.cms-uploads`
- * folder. Keep the two in step (key layout, URLs).
+ * its settings from `NUXT_CMS_STORAGE_*` or the `cms.storage` options, defaulting to the
+ * host's `.cms-uploads` folder. Keep the two in step (key layout, URLs).
  */
-export function storageFromEnv(cwd: string, env: Record<string, string | undefined> = process.env, override: { dir?: string } = {}): TransferStorage {
-  const driver = env.NUXT_CMS_STORAGE_DRIVER || 'local'
+export function storageFromSettings(storage: StorageSettings, override: { dir?: string; cwd?: string } = {}): TransferStorage {
+  const driver = storage.driver
   if (driver === 'local') {
-    const dir = resolve(cwd, override.dir || env.NUXT_CMS_STORAGE_LOCAL_DIR || '.cms-uploads')
-    const base = (env.NUXT_CMS_STORAGE_LOCAL_PUBLIC_BASE || '/api/cms/_media/raw').replace(/\/$/, '')
-    return localStorageAt(dir, base)
+    const dir = override.dir ? resolve(override.cwd ?? process.cwd(), override.dir) : storage.localDir
+    return localStorageAt(dir, (storage.localPublicBase || '/api/cms/_media/raw').replace(/\/$/, ''))
   }
   if (driver === 's3' || driver === 'r2') {
-    const s = {
-      endpoint: env.NUXT_CMS_STORAGE_S3_ENDPOINT,
-      region: env.NUXT_CMS_STORAGE_S3_REGION || (driver === 'r2' ? 'auto' : 'us-east-1'),
-      bucket: env.NUXT_CMS_STORAGE_S3_BUCKET,
-      accessKeyId: env.NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID,
-      secretAccessKey: env.NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY,
-      publicBaseUrl: env.NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL,
-    }
+    const s = { ...storage.s3, publicBaseUrl: storage.s3.publicBaseUrl || undefined }
     const missing = (['endpoint', 'bucket', 'accessKeyId', 'secretAccessKey'] as const).filter((k) => !s[k])
-    if (missing.length) throw new Error(`Storage driver '${driver}' is missing ${missing.join(', ')} (set NUXT_CMS_STORAGE_S3_* in the environment or the host's .env).`)
-    return s3Storage(s as Parameters<typeof s3Storage>[0])
+    if (missing.length) throw new Error(`Storage driver '${driver}' is missing ${missing.join(', ')} (set NUXT_CMS_STORAGE_S3_* in the environment, the host's .env, or cms.storage.s3 in nuxt.config).`)
+    return s3Storage(s)
   }
   throw new Error(`Unknown storage driver '${driver}' (NUXT_CMS_STORAGE_DRIVER is 'local', 's3' or 'r2').`)
+}
+
+/** Settings from the environment and module options as plain data (for tests and `hostSettings`). */
+export function storageFromEnv(cwd: string, env: Record<string, string | undefined> = process.env, override: { dir?: string } = {}, cms: unknown = {}): TransferStorage {
+  return storageFromSettings(settingsFrom(cwd, env as NodeJS.ProcessEnv, cms).storage, { ...override, cwd })
 }
 
 export function localStorageAt(dir: string, publicBase = '/api/cms/_media/raw'): TransferStorage {
@@ -468,6 +588,8 @@ export function localStorageAt(dir: string, publicBase = '/api/cms/_media/raw'):
   }
   return {
     describe: `the folder ${dir}`,
+    // Another machine's folder with the same path is not the same files.
+    identity: `local:${hostname()}:${dir}`,
     async get(key) {
       try { return await (await import('node:fs/promises')).readFile(pathFor(key)) }
       catch { return null }
@@ -495,6 +617,7 @@ function s3Storage(cfg: { endpoint: string; region: string; bucket: string; acce
   const objectUrl = (key: string) => `${cfg.endpoint.replace(/\/$/, '')}/${cfg.bucket}/${encode(key)}`
   return {
     describe: `the bucket ${cfg.bucket}`,
+    identity: `s3:${cfg.endpoint.replace(/\/$/, '').toLowerCase()}/${cfg.bucket}`,
     async get(key) {
       const res = await (await getClient()).fetch(objectUrl(key))
       if (res.status === 404) return null

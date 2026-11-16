@@ -1,11 +1,16 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { drizzle } from 'drizzle-orm/node-postgres'
+import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { CORE_UPGRADE_STEPS, runUpgrade } from '../../packages/cms/src/index'
 import { type BackupSettings, runBackup, runRestore, type StorageSettings } from '../../packages/cms/cli/backup'
+import { diskSource, withDatabase } from '../../packages/cms/cli/db'
+import { playgroundDir, testDatabaseUrl } from '../setup/database'
 import { scratchDatabase } from '../helpers/server'
 
 // `tinyzoo backup` / `tinyzoo restore` against real databases (two scratch ones) and,
@@ -16,6 +21,19 @@ const tools = has(process.env.TINYZOO_PG_DUMP || 'pg_dump') && has(process.env.T
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
 const silent = { log: () => {} }
+
+/** A database with nothing in it (not even the migrations): what a restore is meant for. */
+async function bareDatabase(suffix: string): Promise<{ url: string; drop: () => Promise<void> }> {
+  const base = new URL(testDatabaseUrl())
+  const url = new URL(base)
+  url.pathname = `/${base.pathname.replace(/^\//, '')}_${suffix}`
+  const name = url.pathname.slice(1)
+  const admin = new URL(url); admin.pathname = '/postgres'
+  const run = async (sql: string) => { const c = new pg.Client({ connectionString: admin.toString() }); await c.connect(); try { await c.query(sql) } finally { await c.end() } }
+  await run(`drop database if exists "${name}" with (force)`)
+  await run(`create database "${name}"`)
+  return { url: url.toString(), drop: () => run(`drop database if exists "${name}" with (force)`) }
+}
 
 async function query<T = any>(url: string, text: string, params: unknown[] = []): Promise<T[]> {
   const c = new pg.Client({ connectionString: url })
@@ -51,7 +69,7 @@ function s3Server() {
 
 describe.skipIf(!tools)('backup and restore', () => {
   let src: Awaited<ReturnType<typeof scratchDatabase>>
-  let dst: Awaited<ReturnType<typeof scratchDatabase>>
+  let dst: Awaited<ReturnType<typeof bareDatabase>>
   let dir: string
   const local = (name: string): StorageSettings => ({ driver: 'local', localDir: join(dir, name), s3: { endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '' } })
   const s3 = (endpoint: string): StorageSettings => ({ driver: 's3', localDir: '', s3: { endpoint, region: 'us-east-1', bucket: 'bucket', accessKeyId: 'AKIATEST', secretAccessKey: 'secret' } })
@@ -60,7 +78,7 @@ describe.skipIf(!tools)('backup and restore', () => {
   beforeAll(async () => {
     dir = mkdtempSync(join(tmpdir(), 'cms-backup-'))
     src = await scratchDatabase('bkp_src')
-    dst = await scratchDatabase('bkp_dst')
+    dst = await bareDatabase('bkp_dst')
     await query(src.url, `insert into cms_users (email, name, role, status) values ('boss@example.com', 'Boss', 'admin', 'active')`)
     await query(src.url, `insert into cms_audit (action) values ('test.backup')`)
     await query(src.url, `insert into cms_media (url, key, mime, size) values ('/u/a', '2026/11/a.png', 'image/png', $1), ('/u/b', '2026/11/b.txt', 'text/plain', 5), ('/u/gone', '2026/11/gone.png', 'image/png', 1)`, [png.length])
@@ -103,10 +121,10 @@ describe.skipIf(!tools)('backup and restore', () => {
     expect((await query(dst.url, `select count(*)::int as n from drizzle.__drizzle_migrations`))[0].n).toBeGreaterThan(0)
   })
 
-  it('refuses a database that has accounts, unless forced; and asks first', async () => {
+  it('refuses a database that is not empty, unless forced; and asks first', async () => {
     const file = join(dir, 'again.tar')
     await runBackup(settings(src.url, local('src-uploads')), file, silent)
-    await expect(runRestore(settings(dst.url, local('dst-2')), file, { yes: true }, silent)).rejects.toThrow(/already has 1 account/)
+    await expect(runRestore(settings(dst.url, local('dst-2')), file, { yes: true }, silent)).rejects.toThrow(/is not empty \(\d+ table\(s\), \d+ applied migration\(s\), 1 account\(s\)\).*--force/s)
     expect(existsSync(join(dir, 'dst-2'))).toBe(false)
 
     // --force still asks, and a "no" changes nothing.
@@ -154,7 +172,7 @@ describe.skipIf(!tools)('backup and restore', () => {
       const target = s3Server()
       const targetUrl = await target.start()
       try {
-        const scratch = await scratchDatabase('bkp_s3')
+        const scratch = await bareDatabase('bkp_s3')
         try {
           await runRestore(settings(scratch.url, s3(targetUrl)), file, { yes: true }, silent)
           expect(target.objects.get('2026/11/b.txt')).toMatchObject({ type: 'text/plain' })
@@ -181,5 +199,183 @@ describe.skipIf(!tools)('backup and restore', () => {
       if (before === undefined) delete process.env.TINYZOO_PG_DUMP
       else process.env.TINYZOO_PG_DUMP = before
     }
+  })
+})
+
+// ── restoring over a database that is not empty ─────────────────────────────────
+
+describe.skipIf(!tools)('restore replaces the whole database', () => {
+  let dir: string
+  const created: { drop: () => Promise<void> }[] = []
+  const local = (name: string): StorageSettings => ({ driver: 'local', localDir: join(dir, name), s3: { endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '' } })
+  const settings = (databaseUrl: string, name: string): BackupSettings => ({ databaseUrl, storage: local(name) })
+  const tablesIn = async (url: string) => (await query(url, `select count(*)::int as n from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r'`))[0].n as number
+  const withEnv = async (vars: Record<string, string>, fn: () => Promise<void>) => {
+    const before = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]))
+    Object.assign(process.env, vars)
+    try { await fn() }
+    finally { for (const [k, v] of Object.entries(before)) { if (v === undefined) delete process.env[k]; else process.env[k] = v } }
+  }
+  /** The playground's migrations as they were before `0018_snake_case_tables` (the table renames). */
+  const migrationsBeforeRename = () => {
+    const to = join(dir, 'old-migrations')
+    cpSync(join(playgroundDir, 'server/db/migrations'), to, { recursive: true })
+    const journalFile = join(to, 'meta/_journal.json')
+    const journal = JSON.parse(readFileSync(journalFile, 'utf8'))
+    const cut = journal.entries.findIndex((e: any) => e.tag === '0018_snake_case_tables')
+    if (cut < 0) throw new Error('the playground has no 0018_snake_case_tables migration any more: pick another migration to stop at')
+    journal.entries = journal.entries.slice(0, cut)
+    writeFileSync(journalFile, JSON.stringify(journal))
+    return { dir: to, applied: cut }
+  }
+  const fresh = async (suffix: string) => { const d = await scratchDatabase(suffix); created.push(d); return d }
+  const bare = async (suffix: string) => { const d = await bareDatabase(suffix); created.push(d); return d }
+
+  beforeAll(() => { dir = mkdtempSync(join(tmpdir(), 'cms-restore-')) })
+  afterAll(async () => {
+    rmSync(dir, { recursive: true, force: true })
+    for (const d of created) await d.drop()
+  })
+
+  it('an older backup restored over an upgraded database leaves exactly the backup, and the new version starts on it', async () => {
+    // The site as the older version left it: tables named siteSettings…, a journal up to 0017.
+    const old = migrationsBeforeRename()
+    const oldDb = await bare('rst_old')
+    const oldPool = new pg.Pool({ connectionString: oldDb.url })
+    await migrate(drizzle(oldPool), { migrationsFolder: old.dir })
+    await oldPool.end()
+    expect(await query(oldDb.url, `select to_regclass('public."siteSettings"') as t`)).toEqual([{ t: '"siteSettings"' }])
+    await query(oldDb.url, `insert into "siteSettings" (site_name) values ('Old name')`)
+    await query(oldDb.url, `insert into cms_users (email, name, role, status) values ('boss@example.com', 'Boss', 'admin', 'active')`)
+    await query(oldDb.url, `insert into cms_media (url, key, mime, size) values ('/u/old', '2026/11/old.png', 'image/png', $1)`, [png.length])
+    mkdirSync(join(dir, 'old-uploads/2026/11'), { recursive: true })
+    writeFileSync(join(dir, 'old-uploads/2026/11/old.png'), png)
+    const file = join(dir, 'old-version.tar')
+    await runBackup(settings(oldDb.url, 'old-uploads'), file, silent)
+
+    // The site after upgrading: renamed tables, a newer journal, content of its own.
+    const head = await fresh('rst_head')
+    await query(head.url, `insert into site_settings (site_name) values ('New name')`)
+    await query(head.url, `insert into cms_users (email, name, role, status) values ('newer@example.com', 'Newer', 'admin', 'active')`)
+    expect((await query(head.url, `select count(*)::int as n from drizzle.__drizzle_migrations`))[0].n).toBe(old.applied + 1)
+
+    await runRestore(settings(head.url, 'head-uploads'), file, { yes: true, force: true }, silent)
+
+    // Exactly the backup: the old table name, the old journal, no trace of the newer schema.
+    expect((await query(head.url, `select to_regclass('public."siteSettings"') as a, to_regclass('public.site_settings') as b`))[0]).toEqual({ a: '"siteSettings"', b: null })
+    expect((await query(head.url, `select count(*)::int as n from drizzle.__drizzle_migrations`))[0].n).toBe(old.applied)
+    expect((await query(head.url, `select email from cms_users`)).map((r) => r.email)).toEqual(['boss@example.com'])
+    // The extension that lives in public went with the schema and came back with the dump.
+    expect((await query(head.url, `select extname from pg_extension where extname = 'pg_trgm'`)).length).toBe(1)
+    expect((await query(head.url, `select indexdef from pg_indexes where schemaname = 'public' and indexdef ilike '%gin_trgm_ops%'`)).length).toBeGreaterThan(0)
+    expect(readFileSync(join(dir, 'head-uploads/2026/11/old.png')).equals(png)).toBe(true)
+
+    // The current version's runner applies what the backup lacks (the rename) and starts cleanly.
+    const result = await withDatabase(head.url, ({ transaction }) => runUpgrade(diskSource(playgroundDir), transaction, CORE_UPGRADE_STEPS))
+    expect(result.migrations).toEqual(['0018_snake_case_tables'])
+    expect((await query(head.url, `select site_name from site_settings`)).map((r) => r.site_name)).toEqual(['Old name'])
+    expect((await query(head.url, `select to_regclass('public."siteSettings"') as t`))[0].t).toBeNull()
+    const again = await withDatabase(head.url, ({ transaction }) => runUpgrade(diskSource(playgroundDir), transaction, CORE_UPGRADE_STEPS))
+    expect(again.migrations).toEqual([])
+  })
+
+  it('refuses a target with any table or an applied migration, with no accounts needed, unless forced', async () => {
+    const src = await fresh('rst_src2')
+    const target = await fresh('rst_target2') // migrated, no rows at all: cms_users is empty (think external sign-in)
+    const file = join(dir, 'plain.tar')
+    await runBackup(settings(src.url, 'src2-uploads'), file, silent)
+    expect((await query(target.url, 'select count(*)::int as n from cms_users'))[0].n).toBe(0)
+    await expect(runRestore(settings(target.url, 'x'), file, { yes: true }, silent)).rejects.toThrow(/is not empty \(\d+ table\(s\), \d+ applied migration\(s\)\)/)
+    expect(await tablesIn(target.url)).toBeGreaterThan(0)
+
+    // Only the migration journal left: still not empty.
+    await query(target.url, 'drop schema public cascade; create schema public')
+    await expect(runRestore(settings(target.url, 'x'), file, { yes: true }, silent)).rejects.toThrow(/is not empty \(0 table\(s\), \d+ applied migration\(s\)\)/)
+    expect(await tablesIn(target.url)).toBe(0)
+    await runRestore(settings(target.url, 'target2-uploads'), file, { yes: true, force: true }, silent)
+    expect(await tablesIn(target.url)).toBeGreaterThan(0)
+  })
+
+  it('is all or nothing: when pg_restore fails the database is empty, not half restored, and the message says so', async () => {
+    const src = await fresh('rst_src3')
+    const target = await fresh('rst_target3')
+    const file = join(dir, 'fails.tar')
+    await runBackup(settings(src.url, 'src3-uploads'), file, silent)
+    const real = process.env.TINYZOO_PG_RESTORE || 'pg_restore'
+    const shim = join(dir, 'failing-pg_restore')
+    writeFileSync(shim, `#!/bin/sh\ncase "$*" in *--list*) exec "${real}" "$@";; esac\necho "pg_restore: error: boom" >&2\nexit 1\n`)
+    chmodSync(shim, 0o755)
+    await withEnv({ TINYZOO_PG_RESTORE: shim }, async () => {
+      await expect(runRestore(settings(target.url, 'target3-uploads'), file, { yes: true, force: true }, silent)).rejects.toThrow(/boom[\s\S]*is now EMPTY[\s\S]*run the restore again/)
+    })
+    expect(await tablesIn(target.url)).toBe(0)
+    expect((await query(target.url, `select to_regclass('drizzle.__drizzle_migrations') as t`))[0].t).toBeNull()
+    expect(existsSync(join(dir, 'target3-uploads'))).toBe(false)
+    // …and the same archive restores fine once the cause is gone.
+    await runRestore(settings(target.url, 'target3-uploads'), file, { yes: true }, silent)
+    expect(await tablesIn(target.url)).toBeGreaterThan(0)
+  })
+
+  it('checks the dump can be read before it empties anything', async () => {
+    const target = await fresh('rst_target4')
+    const evil = join(dir, 'unreadable')
+    mkdirSync(evil)
+    writeFileSync(join(evil, 'database.dump'), 'not a dump at all')
+    writeFileSync(join(evil, 'manifest.json'), JSON.stringify({ format: 'tinyzoo-backup', version: 1, tinyzooVersion: 'x', createdAt: '', database: 'x', storageDriver: 'local', media: [], missingMedia: [] }))
+    const file = join(dir, 'unreadable.tar')
+    spawnSync('tar', ['-cf', file, '-C', evil, 'manifest.json', 'database.dump'])
+    const before = await tablesIn(target.url)
+    await expect(runRestore(settings(target.url, 'x'), file, { yes: true, force: true }, silent)).rejects.toThrow(/not a readable pg_dump archive; nothing was changed/)
+    expect(await tablesIn(target.url)).toBe(before)
+    expect(before).toBeGreaterThan(0)
+  })
+
+  it('does not follow a symbolic link in the archive into the media (no copying ~/.ssh/id_rsa into public files)', async () => {
+    const target = await bare('rst_target5')
+    const secret = join(dir, 'secret.txt')
+    writeFileSync(secret, 'TOP SECRET')
+    const evil = join(dir, 'linked')
+    mkdirSync(join(evil, 'media/2026/11'), { recursive: true })
+    writeFileSync(join(evil, 'database.dump'), 'irrelevant')
+    symlinkSync(secret, join(evil, 'media/2026/11/a.png'))
+    writeFileSync(join(evil, 'manifest.json'), JSON.stringify({ format: 'tinyzoo-backup', version: 1, tinyzooVersion: 'x', createdAt: '', database: 'x', storageDriver: 'local', media: [{ key: '2026/11/a.png', mime: 'image/png', size: 10 }], missingMedia: [] }))
+    const file = join(dir, 'linked.tar')
+    expect(spawnSync('tar', ['-cf', file, '-C', evil, 'manifest.json', 'database.dump', 'media']).status).toBe(0)
+    await expect(runRestore(settings(target.url, 'target5-uploads'), file, { yes: true }, silent)).rejects.toThrow(/symbolic link/)
+    expect(existsSync(join(dir, 'target5-uploads'))).toBe(false)
+    expect(await tablesIn(target.url)).toBe(0)
+  })
+
+  it('refuses an archive that would unpack to more than the limit, before changing anything', async () => {
+    const src = await fresh('rst_src6')
+    const target = await bare('rst_target6')
+    const file = join(dir, 'big.tar')
+    await runBackup(settings(src.url, 'src6-uploads'), file, silent)
+    await withEnv({ TINYZOO_MAX_ARCHIVE_BYTES: '2000' }, async () => {
+      await expect(runRestore(settings(target.url, 'x'), file, { yes: true }, silent)).rejects.toThrow(/would unpack to more than .*TINYZOO_MAX_ARCHIVE_BYTES/)
+    })
+    expect(await tablesIn(target.url)).toBe(0)
+  })
+
+  it('creates the backup file readable by its owner only BEFORE tar writes a byte', async () => {
+    const src = await fresh('rst_src7')
+    const real = spawnSync('which', ['tar'], { encoding: 'utf8' }).stdout.trim()
+    const bin = join(dir, 'bin')
+    mkdirSync(bin)
+    const spy = join(dir, 'tar-saw-mode')
+    // A tar that looks at the output file's permissions the moment it is started.
+    writeFileSync(join(bin, 'tar'), `#!/usr/bin/env node
+const fs = require('fs'), cp = require('child_process')
+const out = process.argv[3]
+fs.writeFileSync(process.env.TAR_SPY, fs.existsSync(out) ? (fs.statSync(out).mode & 0o777).toString(8) : 'missing')
+process.exit(cp.spawnSync(process.env.REAL_TAR, process.argv.slice(2), { stdio: 'inherit' }).status ?? 1)
+`)
+    chmodSync(join(bin, 'tar'), 0o755)
+    const file = join(dir, 'private.tar')
+    await withEnv({ PATH: `${bin}:${process.env.PATH}`, TAR_SPY: spy, REAL_TAR: real }, async () => {
+      await runBackup(settings(src.url, 'src7-uploads'), file, silent)
+    })
+    expect(readFileSync(spy, 'utf8')).toBe('600')
+    expect(lstatSync(file).mode & 0o777).toBe(0o600)
   })
 })

@@ -272,7 +272,7 @@ tinyzoo backup                              # tinyzoo-backup-<database>-<time>.t
 tinyzoo backup backups/before-0.3.tar
 tinyzoo restore backups/before-0.3.tar      # asks you to type the database's name
 tinyzoo restore backups/before-0.3.tar --yes     # no question (scripts)
-tinyzoo restore backups/before-0.3.tar --force   # the database already has accounts: replace it
+tinyzoo restore backups/before-0.3.tar --force   # the database already has tables: replace everything in it
 ```
 
 **The archive** is one plain tar (list it with `tar -tf`): `manifest.json` (tinyzoo
@@ -282,14 +282,41 @@ or downloaded from the bucket with the same signed requests the app uses (the
 resized copies under `_w/` are not included; the site makes them again). Files the
 database refers to but storage no longer has are listed as missing, not silently
 dropped. The archive holds password hashes, form messages and every upload: it is
-written readable by its owner only; keep it as private as the database.
+created readable by its owner only (before the first byte is written); keep it as
+private as the database.
 
-**Restore** puts the database back with `pg_restore --clean`, then writes the media
-into the configured folder or bucket. It refuses a database that has accounts
-unless you add `--force`, always asks (type the database's name) unless you add
-`--yes`, and checks the whole archive — including that no media path leaves the
-media folder — before it changes anything. The restored migration journal lets the
-site start on it as before; a newer version applies its migrations itself.
+**Restore** replaces the whole database with the backup's. In one transaction it
+drops and recreates the `public` and `drizzle` schemas (the tables, the migration
+journal and the `pg_trgm` extension go with them and come back from the dump), then runs
+`pg_restore --single-transaction --exit-on-error --no-owner`, then writes the media into
+the configured folder or bucket. Dropping everything, and not just what the dump
+contains, is what makes an **older backup over a database that was upgraded since**
+come out exactly as the backup was (no renamed tables beside the old ones, no newer
+journal): the restored journal lets the site start on it, and a newer version applies
+its migrations itself. The restore is all or nothing: if `pg_restore` fails, the
+database is empty — never half old, half new — and the message says so; fix the cause
+and run it again. Stop the site first (a connection that holds a lock stops the
+drop with a clear message).
+
+It refuses a database that is not empty — any table in `public`, or applied migrations
+in `drizzle.__drizzle_migrations` (so an external-sign-in site with no accounts is
+protected too) — unless you add `--force`; a site that has run its migrations once has
+tables, so restoring over it needs `--force`. It always asks (type the database's name)
+unless you add `--yes`. Before it changes anything it checks the whole archive: that
+`pg_restore` can read the dump, that no media path leaves the media folder, that
+nothing in the archive is a link (the restore unpacks with its own reader: plain files
+only, so a symbolic link to `~/.ssh/id_rsa` can never be copied into public media), and
+that it does not unpack to more than 20 GiB (`TINYZOO_MAX_ARCHIVE_BYTES` changes the cap).
+
+**TLS to the database.** `pg_dump` / `pg_restore` connect with the TLS settings of the
+connection string, mapped to what the app (node-postgres) does: `sslmode=require`,
+`prefer`, `verify-ca`, `verify-full`, `ssl=true` and any of `sslrootcert` /
+`sslcert` / `sslkey` mean an encrypted connection with the certificate **and** the host
+name verified (libpq `verify-full` — libpq's own `require` would accept any
+certificate); `sslmode=no-verify` is encrypted without checking (libpq `require`);
+`sslmode=disable` is no TLS. The certificate files are passed on, and `PGSSLMODE`,
+`PGSSLROOTCERT`, `PGSSLCERT`, `PGSSLKEY` of the shell are kept when the URL says
+nothing. With `uselibpqcompat=true` in the URL, libpq's own meanings are used.
 
 **Tools.** Both commands need `pg_dump` and `pg_restore` of the server's major
 version or newer (`brew install libpq`, `apt install postgresql-client`). Point
@@ -299,7 +326,9 @@ container and keep it with a copy of the bucket:
 
 ```bash
 docker exec <container> pg_dump --format=custom -U <user> <database> > database.dump
-docker exec -i <container> pg_restore --clean --if-exists --no-owner -U <user> -d <database> < database.dump
+# restoring by hand: empty the schemas first, then restore all or nothing
+docker exec <container> psql -U <user> -d <database> -c 'drop schema if exists drizzle cascade; drop schema if exists public cascade; create schema public;'
+docker exec -i <container> pg_restore --single-transaction --exit-on-error --no-owner --no-acl -U <user> -d <database> < database.dump
 ```
 
 **No automatic backup before migrations.** The server applies migrations when it
