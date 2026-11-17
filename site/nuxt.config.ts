@@ -2,12 +2,28 @@
 // API at /api/content, and the pages read from it. See README.md.
 export default defineNuxtConfig({
   extends: ['tinyzoo/layer'],
-  modules: ['@nuxt/ui', 'nuxt-auth-utils'],
+  modules: [
+    '@nuxt/ui',
+    'nuxt-auth-utils',
+    // Nuxt SEO, module by module (the @nuxtjs/seo bundle brings nuxt-ai-ready, which wants
+    // another drizzle-orm): site config, robots.txt + noindex, sharing images, schema.org,
+    // canonical links and meta defaults. No sitemap module: tinyzoo serves /sitemap.xml.
+    // Before nuxt-og-image, which looks for @nuxt/fonts when it starts (Nuxt UI only
+    // brings it in later): without it the sharing images get Inter without Czech letters.
+    '@nuxt/fonts',
+    'nuxt-site-config',
+    '@nuxtjs/robots',
+    'nuxt-og-image',
+    'nuxt-schema-org',
+    'nuxt-seo-utils',
+  ],
   build: { transpile: ['@tinyzoo/client'] },
   css: ['~/assets/css/main.css'],
   app: {
     head: {
       htmlAttrs: { lang: 'cs' },
+      // The pages write the whole title ("Plány · tinyzoo"); no " | tinyzoo" from nuxt-seo-utils.
+      titleTemplate: '%s',
       link: [{ rel: 'icon', type: 'image/svg+xml', href: '/brand/favicon.svg' }],
       meta: [{ name: 'theme-color', content: '#F9F5EF' }],
     },
@@ -19,8 +35,41 @@ export default defineNuxtConfig({
       demo: { url: '', email: '', password: '' },
     },
   },
+  // The site's address, name and languages, for canonical links, og:url, schema.org and
+  // the sharing images. Per deployment: NUXT_SITE_URL, and NUXT_SITE_INDEXABLE=false on the
+  // demo (same content as the website): noindex meta, X-Robots-Tag and `Disallow: /`.
+  site: {
+    url: 'https://tinyzoo.pushbase.app',
+    name: 'tinyzoo',
+    description: 'tinyzoo je česká administrace pro váš web. Pište články, skládejte stránky a prohlížejte si náhled.',
+    defaultLocale: 'cs',
+  },
+  // /robots.txt: everything but the admin; announces tinyzoo's own /sitemap.xml.
+  robots: {
+    disallow: ['/admin'],
+    sitemap: '/sitemap.xml',
+  },
+  // Sharing images, drawn on request from the page's title and description
+  // (app/components/OgImage/Tinyzoo.satori.vue) and cached for a day. The image
+  // addresses are signed with NUXT_APP_SECRET (32+ characters) in production.
+  ogImage: {
+    defaults: { width: 1200, height: 630, cacheMaxAgeSeconds: 60 * 60 * 24 },
+    // ě š č ř ž ů and ä ö ü ß are in latin-ext.
+    fontSubsets: ['latin', 'latin-ext'],
+  },
+  // The organisation behind the site; every page adds itself as a WebPage of the WebSite.
+  schemaOrg: {
+    identity: {
+      type: 'Organization',
+      name: 'tinyzoo',
+      logo: '/brand/logo-primary.svg',
+      sameAs: ['https://github.com/tinyzookeeper/tinyzoo', 'https://www.npmjs.com/package/tinyzoo'],
+    },
+  },
   // The website's typefaces (the admin adds its own): served from the app, not Google.
+  // `global: true` lets the sharing images use them; latin-ext carries the Czech letters.
   fonts: {
+    defaults: { subsets: ['latin', 'latin-ext'] },
     families: [
       { name: 'Manrope', provider: 'google', weights: [400, 500, 600, 700, 800], global: true },
       { name: 'JetBrains Mono', provider: 'google', weights: [400, 500], global: true },
