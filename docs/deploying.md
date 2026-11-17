@@ -20,7 +20,7 @@ admin API and the public content API.
 
 Without Redis everything still works on **one** replica; with several, each would
 count rate limits on its own and see other replicas' content changes only after
-its caches expire (redirects: 30 s, sitemap: 1 min).
+its caches expire (redirects: 30 s, sitemap: 1 hour).
 
 ### A client site on any container host
 
@@ -99,14 +99,15 @@ The items people forget, in one place:
   admin's top left, its sign-in page and its browser tab say; the starter ships "My website".
   Set it to the client's name before anybody signs in.
 - **`robots.txt` and the sitemap.** The starter serves `/robots.txt` (the admin is
-  `Disallow`ed, the sitemap named) and `/sitemap.xml`. Open both on the live address: the
-  sitemap needs `NUXT_CMS_PUBLIC_URL` and is a `404` without it (a site whose content API is
-  behind a token has none). A site not made from the starter needs its own `robots.txt`
-  (a file in `public/`, or a `server/routes/robots.txt.get.ts`), and fixed pages that are
-  not entries (the news list, a contact page the website draws itself) go in
-  `cms.sitemap.paths` in `nuxt.config.ts`.
-- **The public address.** `NUXT_CMS_PUBLIC_URL` is also the base of the sitemap and of the
-  starter's canonical and `hreflang` links.
+  `Disallow`ed, the sitemap named); every tinyzoo site serves `/sitemap.xml`
+  ([`@nuxtjs/sitemap`](guide/content-api.md#the-sitemap)). Open both on the live address and
+  check that the sitemap's addresses start with the site's real address. A site not made from
+  the starter needs its own `robots.txt` (a file in `public/`, a
+  `server/routes/robots.txt.get.ts`, or [`@nuxtjs/robots`](https://nuxtseo.com/docs/robots),
+  which names the sitemap by itself), and addresses the website draws from data (the news list
+  on a catch-all page) go in `cms.sitemap.paths` in `nuxt.config.ts`.
+- **The public address.** `NUXT_CMS_PUBLIC_URL` is also the base of the sitemap (unless
+  `NUXT_SITE_URL` is set) and of the starter's canonical and `hreflang` links.
 
 ## Environment
 
@@ -117,7 +118,8 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 |---|---|---|
 | `DATABASE_URL` | yes | Postgres connection (`NUXT_CMS_DATABASE_URL` overrides). The server refuses to start without one |
 | `NUXT_APP_SECRET` | yes | Nuxt's app secret, ≥ 32 characters: the sign-in cookie is sealed with a key derived from it, and other modules derive their keys from it too (signed image URLs, for example). Changing it signs everyone out. **The server refuses to start** without it (or with a shorter one) and says so in the log. A site set up before 0.4 has `NUXT_SESSION_PASSWORD` instead: until 0.5 that value stands in for `NUXT_APP_SECRET` when it is not set, with a deprecation warning in the log (nuxt-auth-utils' own "is not used anymore" line next to it can be ignored until then); rename the variable, keeping the value, and the rename signs nobody out ([upgrading](upgrading.md#from-03-to-04)) |
-| `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails and `/sitemap.xml`. Without it the server starts but logs one warning saying what is missing |
+| `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails, and the address `/sitemap.xml` starts with (`NUXT_SITE_URL` wins when it is set). Without it the server starts but logs one warning saying what is missing |
+| `NUXT_SITE_URL`, `NUXT_SITE_INDEXABLE` | optional | [Nuxt SEO's site config](https://nuxtseo.com/docs/site-config): `NUXT_SITE_URL` is the address `/sitemap.xml` starts with when the website's address is not `NUXT_CMS_PUBLIC_URL`; `NUXT_SITE_INDEXABLE=false` keeps a copy of a site (a demo, a staging site) out of search engines, with `@nuxtjs/robots` |
 | `NUXT_CMS_MIGRATIONS_ON_START` | recommended | `true`: apply bundled migrations at start (below) |
 | `REDIS_URL` | with > 1 replica | `NUXT_CMS_REDIS_URL` overrides |
 | `NUXT_CMS_REDIS_PREFIX` | optional | namespace for keys and channels; default `cms:<database name>`, so environments sharing one Redis stay apart |
@@ -267,7 +269,7 @@ What the app sends, so a CDN in front of it can be set up for exactly that:
 |---|---|---|
 | Content API (`/api/content/…`) | `public, max-age=0, must-revalidate, s-maxage=300` | a **shared cache (CDN) may keep it 5 minutes** (`s-maxage`); a browser asks again every time and gets a quick `304` through the `ETag` while nothing changed, so a published change shows at once for visitors who reach the origin. Change it with `cms.content.cacheControl`. Behind a content token, and for an editor's draft preview: `private, no-store` |
 | Media files and picture sizes (`/api/cms/_media/raw/…`, `/api/cms/_media/img/…`) | `public, max-age=31536000, immutable` | a new upload has a new address, so they never change under it |
-| `/sitemap.xml` | `public, max-age=3600` | |
+| `/sitemap.xml` | `public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600` | the server's own copy is cleared at once when content changes; a CDN may keep it an hour. Change it with `sitemap.cacheMaxAgeSeconds` |
 | `/robots.txt` of the starter | `public, max-age=3600` | |
 | The admin and its API (`/admin`, `/api/cms/…`) | `no-store` | never cache |
 | The website's own pages | none of the CMS's | whatever your site sets (`routeRules` in `nuxt.config.ts`); Nuxt sends no `Cache-Control` for a server-rendered page |

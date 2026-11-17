@@ -50,6 +50,8 @@ describe('start-up checks (production)', () => {
       expect(warnings.length).toBe(1)
       expect(s.logs.join('')).toMatch(/sitemap/i)
       expect((await new Client(s.baseURL).get('/api/health/ready')).status).toBe(200)
+      // no address of its own: no sitemap, rather than one with whatever Host a request names
+      expect((await fetch(`${s.baseURL}/sitemap.xml`, { headers: { 'x-forwarded-host': 'evil.test' } })).status).toBe(404)
     }
     finally { await s.stop() }
   })

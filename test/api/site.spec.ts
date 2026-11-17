@@ -48,11 +48,22 @@ describe('sitemap', () => {
     expect(json[0].alternates).toHaveLength(2)
 
     const res = await raw('/sitemap.xml')
-    expect(res.headers.get('content-type')).toContain('application/xml')
+    expect(res.headers.get('content-type')).toMatch(/\/xml/)
     const xml = await res.text()
     expect(xml).toContain(`<loc>${anonymous().baseURL}/blog/kvaskovy-chleb</loc>`)
     expect(xml).toContain(`hreflang="en" href="${anonymous().baseURL}/en/blog/sourdough-bread"`)
     expect(xml).not.toContain('koncept')
+    // the admin is not part of the website (@nuxtjs/sitemap's defaults in module.ts)
+    expect(xml).not.toMatch(/<loc>[^<]*\/admin/)
+  })
+
+  it('lists a newly published item at once, although the sitemap is cached for an hour', async () => {
+    const author = await createAuthor(admin)
+    const first = await raw('/sitemap.xml')
+    expect(first.headers.get('cache-control')).toMatch(/^public, max-age=3600\b/)
+    expect(await first.text()).not.toContain('/blog/novy-clanek')
+    await createPost(admin, { author: author.id, status: 'published', slug: 'novy-clanek', body: doc('x') })
+    expect(await (await raw('/sitemap.xml')).text()).toContain(`<loc>${anonymous().baseURL}/blog/novy-clanek</loc>`)
   })
 
   it('uses the address of each language when it is translated', async () => {

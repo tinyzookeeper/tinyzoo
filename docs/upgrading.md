@@ -140,6 +140,30 @@ which needs Nuxt 4.6 and seals the sign-in cookie differently.
    export const plugins = [formsPlugin()]
    ```
 
+## From 0.4 to 0.5
+
+Everything below is also in the changelog of 0.5.0.
+
+1. **`/sitemap.xml` comes from `@nuxtjs/sitemap`.** tinyzoo installs [Nuxt SEO's sitemap
+   module](https://nuxtseo.com/docs/sitemap) itself and hands it the same entries as before
+   (`cms.sitemap.paths` and the `cms:sitemap` hook work as they did; see
+   [the sitemap](guide/content-api.md#the-sitemap)). Open `/sitemap.xml` after the update and check:
+   - **It is there.** If your `nuxt.config.ts` has `sitemap: { enabled: false }` (sites with
+     `@nuxtjs/seo` that switched its sitemap off because tinyzoo served one), remove it: it now
+     turns off the only sitemap. If your site has its own `server/routes/sitemap.xml*`, remove
+     that, or keep it and set `sitemap: { enabled: false }`.
+   - **The addresses start with the website's.** They come from `NUXT_SITE_URL` (or `site.url`)
+     when set, otherwise `NUXT_CMS_PUBLIC_URL`. Without either, a production sitemap is a `404`,
+     as before.
+   - **Your own pages are listed too.** The module adds the site's static pages
+     (`pages/kontakt.vue`), so an address you also had in `cms.sitemap.paths` is listed once. Leave
+     a page out with `sitemap: { exclude: ['/hledat'] }`, or a `robots: false` route rule.
+
+   Nothing else changes: `/api/content/_sitemap`, the tables and the content API are as they were.
+   The sitemap now carries `x-default` next to the languages, and it is cached for an hour
+   (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`); a content
+   change clears the server's copy at once.
+
 ## On every upgrade
 
 ```bash

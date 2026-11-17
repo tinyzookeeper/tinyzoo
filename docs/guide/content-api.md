@@ -126,12 +126,30 @@ URL (it stays relative otherwise — the request Host is never reflected). The p
 ## The sitemap
 
 Collections with `content.path` (e.g. `'/blog/:slug'`) appear in **`/sitemap.xml`**
-(published only, with `hreflang` alternates; `defineLocales({ prefix })` controls
-`/en/…` prefixes) and in `GET /api/content/_sitemap`. A site can replace the XML
-route with its own `server/routes/sitemap.xml`.
+(published only, with `hreflang` alternates and `x-default` for the default language;
+`defineLocales({ prefix })` controls `/en/…` prefixes) and in `GET /api/content/_sitemap`.
 
-**Pages that are not entries.** `/sitemap.xml` lists entries with a `content.path`.
-For addresses that are not entries (`/aktuality`, `/kontakt`) there are two ways, both
+`/sitemap.xml` is served by [`@nuxtjs/sitemap`](https://nuxtseo.com/docs/sitemap), which
+comes with tinyzoo (a site does not install it). tinyzoo hands it the entries; the module
+adds what it does for any Nuxt site:
+
+- the site's own static pages (`pages/kontakt.vue`) are listed too;
+- a page that robots rules keep from search engines (a `robots: false` route rule, a
+  `Disallow` of [`@nuxtjs/robots`](https://nuxtseo.com/docs/robots)) is left out, and so is the admin;
+- a large sitemap can be split (`sitemap: { sitemaps: true, defaultSitemapsChunkSize: … }`), and
+  opening it in a browser shows a readable table.
+
+It is cached for an hour, on the server and in browsers; a content change clears the server's
+copy at once, so a new page is listed straight away. Its addresses start with the site's
+address: `NUXT_SITE_URL` (or `site.url` in `nuxt.config.ts`) when set, otherwise
+`NUXT_CMS_PUBLIC_URL`; in production without either, `/sitemap.xml` is a `404` (never the
+address a request names: a forged one would end up in a cached sitemap). Change the module's
+options with `sitemap: { … }` in `nuxt.config.ts`, e.g. `sitemap: { exclude: ['/hledat'] }`;
+`sitemap: { enabled: false }` turns `/sitemap.xml` off (`/api/content/_sitemap` stays). A site
+whose content API is behind a token (`NUXT_CMS_CONTENT_TOKEN`) keeps its entries out of it.
+
+**Pages that are not entries.** For addresses the website draws from data rather than from
+its own `pages/` (`/aktuality` drawn by a catch-all page, a shop's sale page) there are two ways, both
 feeding `/sitemap.xml` and `/api/content/_sitemap`:
 
 ```ts

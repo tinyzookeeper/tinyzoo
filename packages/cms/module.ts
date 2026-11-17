@@ -128,7 +128,8 @@ export interface CmsModuleOptions {
    *   sitemap: { paths: ['/kontakt', { cs: '/aktuality', en: '/en/news' }] }
    *
    * For addresses that come from data, use the `cms:sitemap` Nitro hook instead (it can
-   * push entries). Both end up in /sitemap.xml and /api/content/_sitemap.
+   * push entries). Both end up in /sitemap.xml (@nuxtjs/sitemap, which also lists the
+   * site's own static pages) and /api/content/_sitemap.
    */
   sitemap?: { paths?: (string | Record<string, string>)[] }
   /**
@@ -221,6 +222,22 @@ function appSecretFallback(code: string, onInstalled: () => void) {
 export default defineNuxtModule<CmsModuleOptions>({
   meta: { name: 'tinyzoo', configKey: 'cms' },
   defaults: { config: 'cms.config.ts' },
+  // /sitemap.xml is @nuxtjs/sitemap's (Nuxt SEO), resolved from tinyzoo's own folder so a
+  // site does not install it. tinyzoo hands it the entries and the site's address
+  // (server/plugins/cms-sitemap.ts). A site changes it with `sitemap: { … }` in
+  // nuxt.config; these are only the defaults.
+  moduleDependencies: {
+    '@nuxtjs/sitemap': {
+      version: '>=9.1.0',
+      defaults: {
+        // The admin is not part of the website.
+        exclude: ['/admin', '/admin/**'],
+        // Kept on the server and in browsers for an hour; a content change clears the
+        // server's copy at once (invalidateSitemap), so a new page is listed straight away.
+        cacheMaxAgeSeconds: 60 * 60,
+      },
+    },
+  },
   async setup(options, nuxt) {
     const configPath = resolve(nuxt.options.rootDir, options.config || 'cms.config.ts')
     if (!existsSync(configPath)) {

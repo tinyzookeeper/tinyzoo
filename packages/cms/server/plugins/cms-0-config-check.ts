@@ -8,7 +8,7 @@ import { cmsDeprecated } from 'tinyzoo'
 //    runtimeConfig.session.password) stands in for it when it is not set (src/appSecret.ts),
 //    with a deprecation warning;
 //  - a database address: NUXT_CMS_DATABASE_URL or DATABASE_URL;
-//  - NUXT_CMS_PUBLIC_URL: not fatal, but the sitemap and the links in emails need it — one warning.
+//  - NUXT_CMS_PUBLIC_URL: not fatal, but the links in emails need it (and the sitemap's addresses) — one warning.
 // Development keeps its defaults (Nuxt generates an app secret, the dev database is in
 // .env); a prerender during the build has no runtime settings either.
 export default defineNitroPlugin(() => {
@@ -54,7 +54,7 @@ export default defineNitroPlugin(() => {
   }
 
   if (!String(cms.publicUrl || '').trim()) {
-    console.warn('[cms] NUXT_CMS_PUBLIC_URL is not set: /sitemap.xml and the links in invitation and password-reset emails need the site\'s public address '
-      + '(e.g. https://cms.example.com). Set it in the environment.')
+    console.warn('[cms] NUXT_CMS_PUBLIC_URL is not set: the links in invitation and password-reset emails need the site\'s public address '
+      + '(e.g. https://cms.example.com), and so does /sitemap.xml (a 404 until it, or NUXT_SITE_URL, is set). Set it in the environment.')
   }
 })

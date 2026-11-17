@@ -35,9 +35,10 @@ deployment runs it every night.
 
 Nuxt SEO, module by module (`nuxt.config.ts`): `nuxt-site-config`, `@nuxtjs/robots`
 (`/robots.txt`), `nuxt-og-image`, `nuxt-schema-org` and `nuxt-seo-utils`. Not the
-`@nuxtjs/seo` bundle: it brings `nuxt-ai-ready`, which wants another `drizzle-orm`. No
-sitemap module either: `/sitemap.xml` is tinyzoo's (`server/plugins/sitemap.ts` writes
-the home pages as `/`, `/en`, `/de` and adds the news pages).
+`@nuxtjs/seo` bundle: it brings `nuxt-ai-ready`, which wants another `drizzle-orm`.
+`/sitemap.xml` is `@nuxtjs/sitemap`, which comes with tinyzoo and gets tinyzoo's entries
+(`server/plugins/sitemap.ts` writes the home pages as `/`, `/en`, `/de` and adds the news
+pages; `sitemap.exclude` keeps the search pages out).
 
 - **Sharing images** are drawn on request by `app/components/OgImage/Tinyzoo.satori.vue`
   from the page's first heading and its description (`useShareImage`); an image uploaded
