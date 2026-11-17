@@ -340,7 +340,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
 
     <!-- What can each role do? Every role side by side (Ditto's permission groups): what it changes, what it only
          reads, whether it publishes, its files, and how many people have it. Phones: one card per role. -->
-    <UModal v-model:open="overviewOpen" :title="t('team.rolesOverview')" :description="t('team.rolesOverviewBody')" :ui="{ content: 'sm:max-w-4xl' }">
+    <UModal v-model:open="overviewOpen" :title="t('team.rolesOverview')" :description="t('team.rolesOverviewBody')" :ui="{ content: 'sm:max-w-4xl', description: 'pe-10' }">
       <template #body>
         <table class="w-full text-sm max-md:block">
           <thead class="max-md:hidden">
