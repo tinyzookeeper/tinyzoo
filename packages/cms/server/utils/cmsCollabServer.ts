@@ -93,6 +93,8 @@ let instance: Hocuspocus | null = null
 let starting: Promise<Hocuspocus> | null = null
 let heartbeat: ReturnType<typeof setInterval> | null = null
 let lastPurge = 0
+/** The heartbeat while it runs: a document's last tab waits for it before marking the document idle. */
+let beating: Promise<void> | null = null
 /** The epoch each loaded document belongs to (what it may store into). */
 const loadedEpoch = new Map<string, string>()
 /** Documents opened on each socket. */
@@ -320,6 +322,9 @@ async function startCollabServer(): Promise<Hocuspocus> {
       if (docs && !docs.size) docsBySocket.delete(socketId)
       // The last one left: nobody has it open now (not for another minute and a half).
       if (clientsCount === 0) {
+        // A heartbeat that counted this tab as a writer may still be writing "being edited":
+        // let it finish first, or it would land after "idle" and stay there.
+        await beating?.catch(() => {})
         if (redisPresence) {
           // Leave the list first: of two replicas losing their last tab at once, the later one sees it empty.
           await redisPresence.left(documentName).catch(() => {})
@@ -362,7 +367,10 @@ async function startCollabServer(): Promise<Hocuspocus> {
   })
   instance = server
 
-  heartbeat ??= setInterval(() => { void beat() }, cmsTimerMs('CMS_TEST_COLLAB_HEARTBEAT_MS', HEARTBEAT_MS))
+  heartbeat ??= setInterval(() => {
+    if (beating) return
+    beating = beat().finally(() => { beating = null })
+  }, cmsTimerMs('CMS_TEST_COLLAB_HEARTBEAT_MS', HEARTBEAT_MS))
   ;(heartbeat as any).unref?.()
   return server
 }
@@ -400,7 +408,10 @@ async function beat() {
     if (presence && doc.getConnectionsCount() > 0) await presence.here(doc.name).catch(() => {})
   }
   try {
-    if (editing.length) await db.update(reg.cmsCollab).set({ activeAt: sql`now()` }).where(inArray(reg.cmsCollab.name, editing))
+    // Only documents that still have a writer now: the re-checks above wait on the database,
+    // and a last tab that left meanwhile has marked its document idle.
+    const stillEditing = editing.filter((name) => [...(server.documents.get(name)?.getConnections() ?? [])].some((c: any) => !c.readOnly))
+    if (stillEditing.length) await db.update(reg.cmsCollab).set({ activeAt: sql`now()` }).where(inArray(reg.cmsCollab.name, stillEditing))
     if (Date.now() - lastPurge > 60 * 60_000) {
       lastPurge = Date.now()
       await db.delete(reg.cmsCollab).where(sql`${reg.cmsCollab.updatedAt} < now() - interval '30 days' and (${reg.cmsCollab.activeAt} is null or ${reg.cmsCollab.activeAt} < now() - interval '1 day')`)
