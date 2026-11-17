@@ -136,8 +136,10 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   if (stateIn.date !== undefined && stateIn.published === undefined && statePublished === null) {
     throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: [{ code: 'invalid_value', path: [p!.dateField!], message: 'Set the status of this language together with its publish date' }] })
   }
-  // A translation being worked on that is emptied entirely holds nothing (its state is the same as no translation for visitors): it goes.
-  const holdsState = statePublished !== null && !(!stateIn.touched && isBeingTranslated(before))
+  // A translation being worked on that is emptied entirely holds nothing (its state is the same as no translation for visitors): it
+  // goes — when this person may remove every translated field (field rules); otherwise the empty row stays, as any draft's does.
+  const dropsEmpty = !stateIn.touched && isBeingTranslated(before) && !e.localized.some((k) => uneditableFields(e, user).has(k))
+  const holdsState = statePublished !== null && !dropsEmpty
   if (e.localized.every((k) => emptyTranslationValue(merged[k])) && !holdsState) {
     if (before) {
       await assertCurrentVersion(e, { updatedAt: before.updatedAt, updatedBy: null }, baseTr)

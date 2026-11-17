@@ -232,11 +232,14 @@ describe('what the translator may do, by state', () => {
     await patchEn(proofreader, p.id, english)
     expect((await patchEn(proofreader, p.id, { title: null, slug: null, body: null })).status).toBe(200)
     expect(await stored()).toEqual([])
-    // The translator's own removal is held by that field rule only, not by the publish rule.
+    // The translator's own removal is held by that field rule only, not by the publish rule; emptying it keeps the empty draft.
     await patchEn(translator, p.id, english)
     const refused = await translator.delete(`/api/cms/post/${p.id}?locale=en`)
     expect(refused.status).toBe(403)
     expect(JSON.stringify(refused.body)).not.toMatch(/publish/i)
+    expect((await patchEn(translator, p.id, { title: null, slug: null, body: null })).status).toBe(200)
+    expect(await stored()).toEqual([{ locale: 'en', published: false, wasLive: false }])
+    expect(await website(p.id)).toEqual(before)
   })
 
   it('once it is live: nothing (not the text, not removing it, not its state)', async () => {
