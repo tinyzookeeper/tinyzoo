@@ -16,7 +16,7 @@ You go back to the default language the same way: with the language button in th
 
 ## Translating with the original in view
 
-When you open a language that hasn't been translated yet, the fields aren't empty. **Every untranslated field shows the Czech text in grey.** That's exactly what a visitor reading in that language would see there until you translate it. Each field says **Shown in Czech until you translate it**.
+When you open a language that hasn't been translated yet, the fields aren't empty. **Every untranslated field shows the Czech text in grey.** That's exactly what a visitor reading in that language would see there until you translate it. One line above the form says so: **Empty fields show the Czech text in grey until you translate them.**
 
 ![The editor for the English version of a post: the title and the text show the original Czech text in grey, each field says "Shown in Czech until you translate it" with a "Use it as a start" link, and above the post's text there's also a "Show the original beside it" link.](../../screenshots/0.6/translate-empty.png)
 
@@ -125,7 +125,7 @@ In the list on a phone, the languages for each entry are below its status, with 
 
 ![A list of posts on a phone: below each post's title is its status, and below that the code EN with the language's mark.](../../screenshots/0.6/phone-list.png)
 
-In an open entry on a phone, the language and its status are at the top left, right next to the back arrow (for example **EN · Draft**; on a narrow screen, just the circle and the start of the code). **Tap it and the language menu opens**, showing the status of each language. You'll find the same menu under **More actions** (the three dots), under **Language**.
+In an open entry on a phone, the language and its status are at the top left, right next to the back arrow, as the status mark and the language code (for example a grey ring and **EN** for a draft, a green dot for a language on the website). **Tap it and the language menu opens**, with the status of each language in words. You'll find the same menu under **More actions** (the three dots), under **Language**.
 
 ![The language menu on a phone: below the bar with the language and the "Save translation" button, a menu with "Čeština (default) – On the website" and "English – Draft".](../../screenshots/0.6/phone-language-menu.png)
 

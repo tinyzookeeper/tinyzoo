@@ -282,3 +282,29 @@ describe('what the translator may do, by state', () => {
     expect((await single('draft', 'en')).body.item.title).toBe('Draft')
   })
 })
+
+// The editor's "Saved … ago" is the translation's own time. The row the admin gets for a translation carries the entry's
+// `updatedAt` (the Czech article's, untouched by translating) and the translation's under `__version`; the bar used to read
+// the first, so a translation saved a second ago was "saved" as long ago as the original.
+describe('when a translation was saved', () => {
+  it('has its own version, apart from the entry\'s time, on the row it opens with and on the answer to a save', async () => {
+    const p = await liveCzech()
+    const entryTime = (await admin.get(`/api/cms/post/${p.id}`)).body.row.updatedAt
+    // Not translated yet: no version of its own, so nothing to say "saved" about.
+    expect((await admin.get(`/api/cms/post/${p.id}?locale=en`)).body.row.__version).toBeNull()
+
+    await new Promise((r) => setTimeout(r, 30))
+    const saved = await patchEn(translator, p.id, english)
+    expect(saved.status).toBe(200)
+    // The entry keeps its time; the translation has a newer one of its own, which is what a reload shows too.
+    expect(saved.body.row.updatedAt).toBe(entryTime)
+    expect(new Date(saved.body.row.__version).getTime()).toBeGreaterThan(new Date(entryTime).getTime())
+    expect((await admin.get(`/api/cms/post/${p.id}?locale=en`)).body.row.__version).toBe(saved.body.row.__version)
+
+    // Saving again moves only the translation's version on.
+    const again = await patchEn(translator, p.id, { ...english, title: 'Christmas biscuits' })
+    expect(again.status).toBe(200)
+    expect(again.body.row.updatedAt).toBe(entryTime)
+    expect(new Date(again.body.row.__version).getTime()).toBeGreaterThan(new Date(saved.body.row.__version).getTime())
+  })
+})

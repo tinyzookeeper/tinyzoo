@@ -16,7 +16,7 @@ Zpátky do výchozího jazyka se vrátíte stejně: tlačítkem s jazykem v horn
 
 ## Překládání s originálem před očima
 
-Když otevřete jazyk, který ještě není přeložený, nejsou pole prázdná. **V každém nepřeloženém poli je šedě český text.** Je to přesně to, co by návštěvník v tom jazyce na místě viděl, než to přeložíte. U pole je napsáno **Než to přeložíte, ukazuje se tu čeština**.
+Když otevřete jazyk, který ještě není přeložený, nejsou pole prázdná. **V každém nepřeloženém poli je šedě český text.** Je to přesně to, co by návštěvník v tom jazyce na místě viděl, než to přeložíte. Nad formulářem je to napsané jednou větou: **Prázdná pole ukazují šedě výchozí jazyk (čeština), dokud je nepřeložíte.**
 
 ![Editor anglické verze článku: v nadpisu a v textu je šedě původní český text, u každého pole je napsáno „Než to přeložíte, ukazuje se tu čeština“ a odkaz „Vzít jako základ“, nad textem článku je i odkaz „Ukázat originál vedle“.](../../screenshots/0.6/translate-empty.png)
 
@@ -125,7 +125,7 @@ V seznamu na telefonu jsou jazyky u každé položky pod jejím stavem, se stejn
 
 ![Seznam článků na telefonu: pod názvem každého článku je jeho stav a pod ním zkratka EN se značkou jazyka.](../../screenshots/0.6/phone-list.png)
 
-V otevřené položce je na telefonu jazyk a jeho stav vlevo nahoře, hned vedle šipky zpět (třeba **EN · Koncept**, na úzkém displeji jen kolečko a začátek zkratky). **Klepněte na něj a otevře se nabídka jazyků** se stavem každého z nich. Stejnou nabídku najdete i v **Další akce** (tři tečky) pod **Jazyk**.
+V otevřené položce je na telefonu jazyk a jeho stav vlevo nahoře, hned vedle šipky zpět, jako značka stavu a zkratka jazyka (třeba šedé kolečko a **EN** u konceptu, zelená tečka u jazyka na webu). **Klepněte na něj a otevře se nabídka jazyků** se stavem každého z nich slovy. Stejnou nabídku najdete i v **Další akce** (tři tečky) pod **Jazyk**.
 
 ![Nabídka jazyků na telefonu: pod lištou s jazykem a tlačítkem „Uložit překlad“ je nabídka „Čeština (výchozí) – Na webu“ a „English – Koncept“.](../../screenshots/0.6/phone-language-menu.png)
 

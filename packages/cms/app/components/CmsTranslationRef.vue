@@ -1,13 +1,14 @@
 <script setup lang="ts">
-// Beside a field while translating: what the default language says there. An empty field shows the
-// default language's text greyed inside it (the field's placeholder, or the rich text behind the
-// editor: CmsField's `fallback`), and this line says what that is and offers it as a start, right at
-// the field — above a text body (so it is seen before the long text), under a short field:
+// Beside a field while translating. What an empty translated field shows is said once for the whole translation
+// (the editor's note at the top: "Empty fields show the Czech text in grey until you translate them"): the default
+// language's text greyed inside the field (the placeholder of a text, the original behind an empty rich text, CmsField's
+// `fallback`). So an empty field only gets its action here, right at the field — above a text body (so it is seen
+// before the long text), under a short field:
 //
-//   Shown in Czech until you translate it · Use it as a start
+//   Use it as a start
 //
-// A field already translated shows the default language's words quietly for reference (a line of
-// text), and a long text can show the original beside it (`compare`, wide screens only).
+// A field already translated shows the default language's words quietly for reference (a line of text), and a
+// long text can show the original beside it (`compare`, wide screens only).
 const props = defineProps<{
   field: any
   value: unknown
@@ -22,38 +23,29 @@ const emit = defineEmits<{ copy: [] }>()
 const compare = defineModel<boolean>('compare', { default: false })
 const { t, locale } = useCmsI18n()
 const isText = computed(() => props.field.type === 'text' || props.field.type === 'slug')
-const hasValue = computed(() => {
-  const v = props.value
-  if (v === null || v === undefined || v === '') return false
-  if (Array.isArray(v)) return v.length > 0
-  if (typeof v === 'object' && (v as any).type === 'doc') return !isEmptyRichText(v)
-  return true
-})
+const hasValue = computed(() => !cmsBlank(props.value))
+// A field this person may not change offers nothing to copy into it.
+const copyable = computed(() => props.empty && !props.field.readOnly)
+const referenced = computed(() => !props.empty && isText.value)
 </script>
 
 <template>
-  <div v-if="hasValue" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted min-w-0" :class="above ? 'mb-2' : 'mt-1.5'">
-    <template v-if="empty">
-      <UIcon name="i-lucide-languages" class="size-3.5 shrink-0 text-dimmed" aria-hidden="true" />
-      <span>{{ t('translation.shownUntil', { lang }) }}</span>
-      <!-- a field this person may not change offers nothing to copy into it -->
-      <span v-if="!field.readOnly" class="text-dimmed" aria-hidden="true">·</span>
-      <button
-        v-if="!field.readOnly"
-        type="button" class="underline underline-offset-2 hover:text-highlighted"
-        :aria-label="t('translation.copyFrom', { lang })" @click="emit('copy')"
-      >{{ t('translation.useAsStart') }}</button>
-    </template>
-    <span v-else-if="isText" class="truncate min-w-0 max-w-full">{{ t('translation.reference', { lang: cmsCapitalize(lang, locale), value: String(value) }) }}</span>
-    <template v-if="canCompare">
-      <span v-if="empty" class="text-dimmed" aria-hidden="true">·</span>
-      <!-- it only changes the view: an <a role="button">, so a read-only form (a disabled fieldset) keeps it -->
-      <a
-        href="#" role="button" class="inline-flex items-center gap-1 underline underline-offset-2 hover:text-highlighted" :aria-pressed="compare"
-        @click.prevent="compare = !compare" @keydown.space.prevent="compare = !compare"
-      >
-        <UIcon name="i-lucide-columns-2" class="size-3.5" aria-hidden="true" />{{ compare ? t('translation.hideOriginal') : t('translation.showOriginal') }}
-      </a>
-    </template>
+  <div v-if="hasValue && (copyable || referenced || canCompare)" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted min-w-0" :class="above ? 'mb-2' : 'mt-1.5'">
+    <button
+      v-if="copyable"
+      type="button" class="inline-flex items-center gap-1 underline underline-offset-2 hover:text-highlighted"
+      :title="t('translation.copyFrom', { lang })" :aria-label="t('translation.copyFrom', { lang })" @click="emit('copy')"
+    >
+      <UIcon name="i-lucide-copy" class="size-3.5 shrink-0" aria-hidden="true" />{{ t('translation.useAsStart') }}
+    </button>
+    <span v-else-if="referenced" class="truncate min-w-0 max-w-full">{{ t('translation.reference', { lang: cmsCapitalize(lang, locale), value: String(value) }) }}</span>
+    <!-- it only changes the view: an <a role="button">, so a read-only form (a disabled fieldset) keeps it -->
+    <a
+      v-if="canCompare"
+      href="#" role="button" class="inline-flex items-center gap-1 underline underline-offset-2 hover:text-highlighted" :aria-pressed="compare"
+      @click.prevent="compare = !compare" @keydown.space.prevent="compare = !compare"
+    >
+      <UIcon name="i-lucide-columns-2" class="size-3.5" aria-hidden="true" />{{ compare ? t('translation.hideOriginal') : t('translation.showOriginal') }}
+    </a>
   </div>
 </template>
