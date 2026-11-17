@@ -8,6 +8,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { z, type ZodTypeAny } from 'zod'
 import { richTextSchema, type RichTextDoc } from './richtext'
+import { normalizeFieldAccess, type CmsFieldAccess, type CmsFieldRule } from './roles'
 import type {
   AnyFieldDescriptor, ColumnBase, ColumnSpec, FieldDescriptor, FieldKind, OnDelete, RelationKind, RelationSpec, ValidationContext, ValidationMode,
 } from './descriptor'
@@ -127,6 +128,7 @@ interface Mods {
   position?: 'main' | 'sidebar'
   group?: LocalizedText
   icon?: string
+  access?: CmsFieldRule
 }
 
 function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
@@ -169,6 +171,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
   if (mods.position !== undefined) meta.position = mods.position
   if (mods.group !== undefined) meta.group = mods.group
   if (mods.icon !== undefined) meta.icon = mods.icon
+  if (mods.access !== undefined) meta.access = mods.access
 
   const descriptor = {
     type: cfg.type,
@@ -190,6 +193,7 @@ function createField(cfg: FieldConfig, mods: Mods = {}): FieldDescriptor {
     position: (where: 'main' | 'sidebar') => createField(cfg, { ...mods, position: where }),
     group: (label: LocalizedText) => createField(cfg, { ...mods, group: label }),
     icon: (name: string) => createField(cfg, { ...mods, icon: name }),
+    access: (rules: CmsFieldAccess) => createField(cfg, { ...mods, access: normalizeFieldAccess(rules) }),
   }
   return descriptor as unknown as FieldDescriptor
 }

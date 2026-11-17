@@ -19,9 +19,13 @@ export default defineEventHandler(async (event) => {
   const inviteOf = new Map<string, any>()
   for (const i of invites) if (!inviteOf.has(i.userId)) inviteOf.set(i.userId, i)
 
+  const known = new Set(assignableRoles())
   return {
+    // The roles to pick from, and which accounts hold one the site no longer has (they sign in, but see nothing).
+    roles: roleChoices(),
     users: users.map((x: any) => ({
       ...x,
+      roleRemoved: !known.has(x.role),
       invite: x.status === 'invited' ? (inviteOf.get(x.id) ? { sentAt: inviteOf.get(x.id).createdAt, expiresAt: inviteOf.get(x.id).expiresAt } : { expired: true }) : null,
     })),
   }

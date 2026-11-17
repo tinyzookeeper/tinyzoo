@@ -41,10 +41,31 @@ export function getCmsSession(event: any): CmsUser | null {
   return (event.context?.cmsUser as CmsUser) ?? null
 }
 
-export function requireCmsUser(event: any): CmsUser {
+/** Signed in (any account that may still be used), whatever its role: for the account's own pages and signing out. */
+export function requireCmsAccount(event: any): CmsUser {
   const user = getCmsSession(event)
   if (!user) throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
   return user
+}
+
+/**
+ * Signed in, with a role this site knows. An account whose role was removed from the config
+ * signs in but may do nothing: 403 `role-removed`, which the admin answers with "your role no
+ * longer exists, ask an administrator". The account's own pages (password, email, language)
+ * use `requireCmsAccount` and keep working.
+ */
+export function requireCmsUser(event: any): CmsUser {
+  const user = requireCmsAccount(event)
+  if (!roleOf(user)) throw roleRemoved(user)
+  return user
+}
+
+export function roleRemoved(user: CmsUser) {
+  return createError({
+    statusCode: 403,
+    statusMessage: 'Your role no longer exists; ask an administrator to give you another',
+    data: { code: 'role-removed', role: String(user.role) },
+  })
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -103,6 +124,8 @@ export async function admitAdminSocket(request: any): Promise<void> {
   const u = await activeAccountOf(session)
   if (!u) throw new Response('Unauthorized', { status: 401 })
   request.context.cmsUser = { id: u.id, email: u.email, name: u.name || u.email, role: u.role, locale: u.locale }
+  // The sockets carry content: a role the site does not know has none of it.
+  if (!roleOf(request.context.cmsUser)) throw new Response('Forbidden', { status: 403 })
   request.context.cmsSessionVersion = u.sessionVersion
   request.context.cmsSignedInAt = session.cms.iat
 }

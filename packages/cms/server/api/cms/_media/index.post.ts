@@ -30,6 +30,7 @@ const ALLOWED_KIND: Record<string, string> = {
 // and records metadata in cms_media. Returns the media record.
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
+  assertMediaLibrary(user)
   const { db, reg } = useCms()
   const storage = useCmsStorage()
 

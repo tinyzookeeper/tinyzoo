@@ -40,6 +40,10 @@ export { cmsMedia } from './media'
 export type { CmsChange, CmsChangeType, CmsSitemapEntry } from './changes'
 export type { CmsErrorReport } from './errorReport'
 export { generateSetupCode, normalizeSetupCode } from './setupCode'
+export {
+  defineRoles, resolveRole, roleName, rolesDefOf, allRoleNames, fieldReadable, fieldEditable, normalizeFieldAccess, CMS_ENTITY_OPS, CMS_MEDIA_ACCESS, CMS_ROLE_BASES,
+  type CmsRoleDef, type CmsRoleRef, type CmsRoleInput, type CmsRoles, type CmsRolesDef, type CmsResolvedRole, type CmsFieldAccess, type CmsFieldRule, type CmsEntityOp, type CmsMediaAccess, type CmsRoleBase,
+} from './roles'
 export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, CMS_ROLES, type CmsRole } from './system'
 export { searchTerms, foldSearchText, entryTexts, richTextPlain, isSearchableField, matchEntry, excerptOf, highlightRanges, wordMatch, editDistance, allowedTypos, SEARCH_MAX_QUERY, type SearchMatch } from './search'
 export { linkRef, parseLinkRef, isLinkRef, looksLikeLinkRef, holdsLinks, linkFieldsOf, mapFieldLinks, mapRowLinks, mapDocLinks, linkRefsOf, type LinkRef, type LinkVisitor, type LinkFieldLike } from './links'

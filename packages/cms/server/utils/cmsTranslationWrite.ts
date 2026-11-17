@@ -40,6 +40,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   if (!t) throw createError({ statusCode: 404, statusMessage: 'This content has nothing to translate' })
 
   const raw = (await readBody(event)) ?? {}
+  assertFieldsEditable(e, user, bodyKeys(raw))
   // An emptied field means "use the default language".
   const cleaned = Object.fromEntries(Object.entries(raw as Record<string, unknown>).map(([k, v]) => [k, v === '' ? null : v]))
 
@@ -67,7 +68,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
     }
     const [bare] = await db.select().from(e.table).where(eq(e.table.id, id))
     await hydrateRowForForm(db, reg, e, bare)
-    return translationFormRow(db, reg, e, bare, locale)
+    return stripUnreadable(e, user, await translationFormRow(db, reg, e, bare, locale))
   }
   const { row, effect } = await db.transaction(async (tx: any) => {
     // A page tree: the tree lock before any row lock, in the order every tree write takes
@@ -124,7 +125,7 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   await reportChange(event, { type: 'translation.updated', entity: e, id, locale, before: seenBefore, after: { updatedAt: row.updatedAt }, moved: effect?.moved })
   if (effect) await reportTreeRedirects(event, reg, effect.redirects)
   await hydrateRowForForm(db, reg, e, fresh)
-  const result = await translationFormRow(db, reg, e, fresh, locale)
+  const result = stripUnreadable(e, user, await translationFormRow(db, reg, e, fresh, locale))
   // Old addresses that now lead to the new one (a translated address part changed): told, so the editor knows.
   if (effect?.redirects.length) result.__redirects = effect.redirects.length
   return result
@@ -135,6 +136,8 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
   const { db, reg } = useCms()
   const t = e.localesTable
   if (!t) throw createError({ statusCode: 404, statusMessage: 'This content has nothing to translate' })
+  // Removing a translation removes every translated field of it: all must be the person's to change.
+  assertFieldsEditable(e, user, e.localized)
   const [base] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
   if (!base) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
   assertPublishAllowed(e, user, {}, base)

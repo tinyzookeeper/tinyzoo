@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
   authorize(e, 'create', user)
 
   const body = await readBody(event)
+  assertFieldsEditable(e, user, bodyKeys(body))
   const data = parseOr422(writeSchema(e, 'create'), body)
   await assertMediaAccepted(db, reg, e, data)
   const { values, m2m } = splitPayload(e, data)
@@ -34,5 +35,5 @@ export default defineEventHandler(async (event) => {
   if (publishAction(e, null, row) === 'entry.publish') await audit(event, 'entry.publish', { entity: e.name, recordId: row.id })
   await reportChange(event, { type: 'entry.created', entity: e, id: row.id, after: row })
   setResponseStatus(event, 201)
-  return { row }
+  return { row: stripUnreadable(e, user, row) }
 })

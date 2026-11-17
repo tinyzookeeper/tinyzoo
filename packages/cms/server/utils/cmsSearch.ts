@@ -40,7 +40,7 @@ interface SearchDoc { title: string; body: string; extra: string }
  * `content.search.fields` when set); `extra` the rest, for the admin only —
  * hidden or left-out prose and the list's searchable fields (an email address).
  */
-function documentOf(e: CmsEntity, source: Record<string, any>): SearchDoc {
+function documentOf(e: CmsEntity, source: Record<string, any>, unreadable?: ReadonlySet<string>): SearchDoc {
   // Read blocks in their current shape (a renamed field is still found).
   const row = upgradedCopy(e, source)
   const cfg = e.content?.search
@@ -49,12 +49,13 @@ function documentOf(e: CmsEntity, source: Record<string, any>): SearchDoc {
   const publicFields: Record<string, any> = {}
   const privateFields: Record<string, any> = {}
   for (const [k, fld] of Object.entries(e.fields)) {
-    if (k === e.titleField) continue
+    if (k === e.titleField || unreadable?.has(k)) continue
     if (hidden.has(k) || (picked && !picked.has(k))) privateFields[k] = fld
     else publicFields[k] = fld
   }
   const extra = entryTexts(privateFields, row)
   for (const k of e.admin?.list?.searchable ?? []) {
+    if (unreadable?.has(k)) continue
     const fld = e.fields[k]
     if (k !== e.titleField && fld && !fld.relation && !isSearchableField(fld) && row[k] != null && row[k] !== '') extra.push(String(row[k]))
   }
@@ -322,6 +323,13 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
         .where(both(and(eq(s.entity, e.name), termsCond([s.titleFolded, s.bodyFolded, s.extraFolded], terms)), access.where))
         .orderBy(desc(score)).limit(CANDIDATES)
 
+      // The index holds all of an entry's text, a field this person may not read included. It only
+      // finds candidates: for a collection with such a field the texts are made again from the
+      // fields they may read, so an entry that matches through the other one is dropped (and no
+      // excerpt shows it).
+      const unreadable = unreadableFields(e, user)
+      if (unreadable.size && rows.length) await readableTexts(tx, reg, e, rows, unreadable)
+
       // One result per entry, read across its languages.
       const byId = new Map<string, any[]>()
       for (const r of rows) byId.set(r.id, [...(byId.get(r.id) ?? []), r])
@@ -348,6 +356,23 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
     }
   })
   return out.sort(byScore)
+}
+
+/** Replace each candidate's indexed text by the text of the fields `unreadable` leaves (title, body, extra), in its language. */
+async function readableTexts(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], unreadable: ReadonlySet<string>): Promise<void> {
+  const ids = [...new Set(rows.map((r) => r.id))]
+  const sources = new Map<string, any>((await db.select().from(e.table).where(inArray(e.table.id, ids)) as any[]).map((r) => [r.id, r]))
+  const trs = new Map<string, any>()
+  if (e.localesTable && e.localized.length) {
+    for (const tr of await db.select().from(e.localesTable).where(inArray(e.localesTable.parentId, ids)) as any[]) trs.set(`${tr.parentId}:${tr.locale}`, tr)
+  }
+  for (const r of rows) {
+    const row = sources.get(r.id)
+    if (!row) { r.title = ''; r.body = ''; r.extra = ''; continue }
+    const tr = r.locale && reg.locales && r.locale !== reg.locales.default ? trs.get(`${r.id}:${r.locale}`) : null
+    const d = documentOf(e, tr ? mergeTranslation(e, { ...row }, tr) : row, unreadable)
+    r.title = d.title; r.body = d.body; r.extra = d.extra
+  }
 }
 
 const byScore = (a: { score: number; updatedAt: string }, b: { score: number; updatedAt: string }) =>

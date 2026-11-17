@@ -15,5 +15,11 @@ export default defineEventHandler(async (event) => {
   if (!found) throw createError({ statusCode: 404, statusMessage: 'Not found' })
   // A snapshot made at an older shape is shown in the current one (restore loads it into the form).
   if (found.data && typeof found.data === 'object') upgradeStoredJson(e, found.data, { admin: true, recordId: id })
+  // The values and the list of what changed, without the fields this person may not read.
+  const hidden = unreadableFields(e, user)
+  if (hidden.size) {
+    stripUnreadableValues(e, user, found.data)
+    if (Array.isArray(found.changed)) found.changed = found.changed.filter((k: string) => !hidden.has(k))
+  }
   return { revision: found }
 })

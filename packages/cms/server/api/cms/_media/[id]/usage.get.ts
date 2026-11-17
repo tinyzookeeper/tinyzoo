@@ -4,6 +4,7 @@ import { eq } from 'tinyzoo'
 // read): media fields, rich text and blocks, translations included.
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
+  assertMediaLibrary(user)
   const { db, reg } = useCms()
   const id = getIdParam(event)
   // Finding uses reads every rich-text column: keep it to a human pace.

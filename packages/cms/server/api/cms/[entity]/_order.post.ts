@@ -14,6 +14,8 @@ export default defineEventHandler(async (event) => {
   const key = e.admin?.list?.orderField
   if (!key || e.singleton) throw createError({ statusCode: 404, statusMessage: 'This collection has no manual order' })
   const rowFilter = authorize(e, 'update', user)
+  // The position is a field like any other: whoever may not edit it cannot arrange the list.
+  assertFieldsEditable(e, user, [key])
   const { ids } = parseOr422(body, await readBody(event))
   if (new Set(ids).size !== ids.length) throw createError({ statusCode: 422, statusMessage: 'Each entry may appear once' })
   const col = e.table[propOf(key, e.fields[key]!)]

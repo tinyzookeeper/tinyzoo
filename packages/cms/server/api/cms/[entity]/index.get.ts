@@ -10,11 +10,14 @@ export default defineEventHandler(async (event) => {
   const page = Math.max(1, Number(query.page) || 1)
   const limit = Math.min(100, Math.max(1, Number(query.limit) || 20))
   const dir = query.dir === 'asc' ? asc : desc
+  // A field this person may not read cannot order the list either (the order would tell them what it holds).
+  const hidden = unreadableFields(e, user)
   const sortKey = String(query.sort ?? 'createdAt')
-  const sortCol = e.table[sortKey] ?? e.table[`${sortKey}Id`] ?? e.table.createdAt
+  const sortField = [...hidden].find((k) => sortKey === k || sortKey === `${k}Id`)
+  const sortCol = (sortField ? undefined : (e.table[sortKey] ?? e.table[`${sortKey}Id`])) ?? e.table.createdAt
 
   // Search, filters and status tabs: the same conditions the CSV export uses.
-  const conds = listConditions(e, reg, query, rowFilter)
+  const conds = listConditions(e, reg, query, rowFilter, hidden)
   const where = conds.length ? and(...conds) : undefined
 
   // Ties (and empty values, last) in a fixed order, so pages never repeat or skip rows.
@@ -57,6 +60,6 @@ export default defineEventHandler(async (event) => {
     const avail = await availableLocales(db, reg, e, rows.map((r) => r.id))
     for (const r of rows) r.__locales = avail.get(r.id) ?? [reg.locales.default]
   }
-  return { rows, total: count, page, limit }
+  return { rows: stripUnreadableRows(e, user, rows), total: count, page, limit }
 })
 

@@ -30,10 +30,15 @@ import { retainForms } from './retention'
  * Who may read a form's messages (list, open, export, search) and the recipients in the
  * Forms settings, unless the site says otherwise with `defineForm({ access })`: administrators
  * and editors. Messages are personal data of people who are not users of the site — an
- * author, who writes posts, has no business reading them. (A custom role of an external
- * sign-in gets no access either, until the form's `access.read` names it.)
+ * author, who writes posts, has no business reading them. A role defined with `defineRoles`
+ * follows the built-in it extends (`user.base`); a role name of an external sign-in the site
+ * does not define gets no access, until the form's `access.read` names it.
  */
-export const formsReadAccess: NonNullable<EntityDef<any>['access']>['read'] = ({ user }) => user?.role === 'admin' || user?.role === 'editor'
+export const formsReadAccess: NonNullable<EntityDef<any>['access']>['read'] = ({ user }) => {
+  // `base`: the built-in role a custom role extends, so one built on editor reads too (narrow it with `entities`).
+  const base = user?.base ?? user?.role
+  return base === 'admin' || base === 'editor'
+}
 
 /** Field types a visitor can fill in on a website form. */
 export const FORM_FIELD_TYPES = new Set(['text', 'number', 'boolean', 'select', 'datetime'])

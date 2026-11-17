@@ -6,6 +6,7 @@ import { deleteImageVariants } from '../../../utils/cmsImageSizes'
 // If a required FK still references it, the DB's ON DELETE restrict surfaces an error.
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
+  assertMediaLibrary(user)
   const { db, reg } = useCms()
   const id = getIdParam(event)
 

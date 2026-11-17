@@ -27,6 +27,8 @@ export default defineEventHandler(async (event) => {
   const rowFilter = authorize(e, 'update', user)
   const { id, parent, index } = parseOr422(body, await readBody(event))
   const p = treeProps(e)
+  // Where a page sits and its position are fields: moving writes both.
+  assertFieldsEditable(e, user, [e.tree.parent, e.tree.order])
 
   const [current] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
   if (!current) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })

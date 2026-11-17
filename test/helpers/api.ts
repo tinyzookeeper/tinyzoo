@@ -98,7 +98,7 @@ export async function login(email: string, password: string): Promise<Client> {
  * shared seeded sessions stay valid.
  */
 let seq = 0
-export async function newAccount(role: 'admin' | 'editor' | 'author', password = 'a long enough password'): Promise<{ client: Client; id: string; email: string; password: string }> {
+export async function newAccount(role: 'admin' | 'editor' | 'author' | (string & {}), password = 'a long enough password'): Promise<{ client: Client; id: string; email: string; password: string }> {
   const admin = await signIn('admin')
   const email = `${role}-${Date.now().toString(36)}-${seq++}@test.local`
   const invited = await admin.post('/api/cms/_users', { email, role })

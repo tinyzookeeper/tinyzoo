@@ -1,4 +1,4 @@
-import { CMS_ROLES, eq } from 'tinyzoo'
+import { eq } from 'tinyzoo'
 import { z } from 'zod'
 
 // POST /api/cms/_users — invite someone. Creates the account (status "invited"),
@@ -7,7 +7,7 @@ import { z } from 'zod'
 const body = z.object({
   email: emailSchema,
   name: z.string().trim().max(120).optional().default(''),
-  role: z.enum(CMS_ROLES),
+  role: assignableRoleSchema(),
 })
 
 export default defineEventHandler(async (event) => {

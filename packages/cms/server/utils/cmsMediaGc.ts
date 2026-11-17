@@ -113,9 +113,9 @@ export async function gcMediaIfOrphan(
   await db.delete(reg.cmsMedia).where(eq(reg.cmsMedia.id, mediaId))
 }
 
-/** Whose files a write by `user` may clean up: authors only their own, everyone else any. */
+/** Whose files a write by `user` may clean up: with media `'all'` any, otherwise only their own. */
 export function gcScope(user: { id: string; role: string }): { onlyUploadedBy?: string } {
-  return user.role === 'author' ? { onlyUploadedBy: user.id } : {}
+  return mediaAccess(user) === 'all' ? {} : { onlyUploadedBy: user.id }
 }
 
 /**
@@ -133,10 +133,13 @@ export async function mediaUsage(db: any, reg: CmsRegistry, user: any, mediaId: 
     const { allowed, where } = accessWhere(e, 'read', user)
     if (!allowed) continue
     const title = (e.table as any)[e.titleField]
+    // A file held by a field this person may not read is not told.
+    const hidden = unreadableFields(e, user)
     const add = (rows: any[], locale: string | null = null) => {
       for (const r of rows) found.set(`${e.name}:${r.id}:${locale ?? ''}`, { entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), locale })
     }
     for (const [key, fld] of Object.entries(e.fields)) {
+      if (hidden.has(key)) continue
       const type = (fld as any).type
       if (type === 'media') {
         add(await db.select({ id: e.table.id, title }).from(e.table).where(both(eq((e.table as any)[`${key}Id`], mediaId), where)).limit(limit))

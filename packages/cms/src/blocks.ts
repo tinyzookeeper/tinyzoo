@@ -85,6 +85,9 @@ export function holdsList(fields: Record<string, AnyFieldDescriptor>): boolean {
 export function checkContainedFields(what: string, fields: Record<string, AnyFieldDescriptor>, opts: { reserved?: boolean } = { reserved: true }) {
   for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
     if (opts.reserved && (key === 'id' || key === 'type' || key === 'v')) throw new Error(`${what} field "${key}" is reserved (every block has an id, a type and a version).`)
+    if (fld.meta?.access) {
+      throw new Error(`${what} field "${key}" has .access(): per-field access belongs to the fields of a collection or global, not to a field inside a block, a list or a group. Put it on the blocks, list or group field itself.`)
+    }
     if (!BLOCK_FIELD_TYPES.has(fld.type)) {
       throw new Error(`${what} field "${key}" has type "${fld.type}", which blocks, lists and groups do not support (allowed: ${[...BLOCK_FIELD_TYPES].join(', ')}).`)
     }

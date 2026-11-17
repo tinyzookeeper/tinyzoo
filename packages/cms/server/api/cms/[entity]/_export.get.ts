@@ -22,10 +22,13 @@ export default defineEventHandler(async (event) => {
   if (e.singleton) throw createError({ statusCode: 404, statusMessage: 'Globals have no list to export' })
   const rowFilter = authorize(e, 'read', user)
 
+  // Only the fields this person may read: no column, no related names, no filter on the others.
+  const hidden = unreadableFields(e, user)
   const cols = (Object.entries(e.fields) as [string, any][])
+    .filter(([k]) => !hidden.has(k))
     .filter(([, f]) => (PLAIN.has(f.type) && !f.relation) || f.relation?.kind === 'many-to-one')
     .map(([k, f]) => ({ key: k, prop: f.relation ? `${k}Id` : propOf(k, f), target: f.relation ? (f.relation.to() as any) : null }))
-  const conds = listConditions(e, reg, getQuery(event), rowFilter)
+  const conds = listConditions(e, reg, getQuery(event), rowFilter, hidden)
   const rows: any[] = await db.select().from(e.table).where(conds.length ? and(...conds) : undefined).orderBy(desc(e.table.createdAt)).limit(MAX_ROWS)
 
   // Related items by their title, not their id.

@@ -22,7 +22,7 @@ const WINDOW = 15 * 60_000
 
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
-  const me = requireCmsUser(event)
+  const me = requireCmsAccount(event)
   if (isDemoAccount(me.email)) throw createError({ statusCode: 403, statusMessage: 'The demo account keeps its email', data: { code: 'demo_account' } })
   const data = parseOr422(body, await readBody(event))
   const ip = clientIp(event)

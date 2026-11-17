@@ -1,6 +1,6 @@
 import { EMAIL_CHANGE_TTL_MS, EMAIL_REVERT_TTL_MS, INVITE_TTL_MS } from './cmsAuth'
 import { maskEmail } from './cmsEmailChangeRules'
-import { resolveText } from 'tinyzoo'
+import { resolveRole, resolveText } from 'tinyzoo'
 
 // The emails the CMS sends: an invitation, a password-reset link, and the ones about a
 // change of email address (the link to the new address, notices to the old one). Plain, neutral
@@ -185,6 +185,15 @@ ${fallback}</div></body></html>`
   return { html, text }
 }
 
+/** The role as the invitation names it: the built-ins in the sentence's language, a custom role by its own label. */
+function roleInSentence(locale: Locale, role: string | undefined): string {
+  if (role && roleNames[locale][role]) return roleNames[locale][role]!
+  let own: ReturnType<typeof resolveRole> = null
+  try { own = role ? resolveRole(useCms().reg.roles, role) : null } catch { /* outside the server: the built-in wording */ }
+  if (own?.custom) return resolveText(own.label, locale) ?? own.name
+  return roleNames[locale].editor!
+}
+
 export function inviteEmail(opts: { to: string; inviter: string; url: string; role?: string; locale?: string | null }) {
   const { locale, site } = emailContext(opts.locale)
   const c = copy[locale]
@@ -192,7 +201,7 @@ export function inviteEmail(opts: { to: string; inviter: string; url: string; ro
   return {
     to: opts.to,
     subject: c.inviteSubject(site),
-    ...layout({ intro: c.inviteIntro(opts.inviter, site, roleNames[locale][opts.role ?? ''] ?? roleNames[locale].editor!), action: c.inviteAction, url: opts.url, footer: c.inviteExpiry(days), fallback: c.fallback }),
+    ...layout({ intro: c.inviteIntro(opts.inviter, site, roleInSentence(locale, opts.role)), action: c.inviteAction, url: opts.url, footer: c.inviteExpiry(days), fallback: c.fallback }),
   }
 }
 

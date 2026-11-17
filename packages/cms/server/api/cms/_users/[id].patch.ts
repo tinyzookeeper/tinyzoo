@@ -1,4 +1,4 @@
-import { CMS_ROLES, eq, sql } from 'tinyzoo'
+import { eq, sql } from 'tinyzoo'
 import { z } from 'zod'
 
 // PATCH /api/cms/_users/:id — change someone's role or sign-in email, or disable /
@@ -23,7 +23,7 @@ import { z } from 'zod'
 // such a link would give the account to whoever reads it now. The protection here is the
 // administrator's password; someone who has that can do far more than this anyway.
 const body = z.object({
-  role: z.enum(CMS_ROLES).optional(),
+  role: assignableRoleSchema().optional(),
   status: z.enum(['active', 'disabled']).optional(),
   email: emailSchema.pipe(z.string().max(254)).optional(),
   password: z.string().max(200).optional(),

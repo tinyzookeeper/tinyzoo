@@ -20,7 +20,12 @@ export default defineEventHandler(async (event) => {
 
   // The row as it is now: blocks that are behind or of a type that is gone are only kept when stored already.
   const [prior] = await db.select().from(e.table).orderBy(e.table.createdAt).limit(1)
-  const data = parseOr422(writeSchema(e, 'create', prior), await readBody(event))
+  const body = await readBody(event)
+  assertFieldsEditable(e, user, bodyKeys(body))
+  // A save replaces the whole global (omitted fields take their default), so a field this person
+  // may not edit is left out of the check and the write: it keeps what it holds. (The very first
+  // save has nothing to keep: there the defaults apply, and a required field with none is refused.)
+  const data = parseOr422(writeSchema(e, 'create', prior, prior ? uneditableFields(e, user) : undefined), body)
   await assertMediaAccepted(db, reg, e, data)
   const { values, m2m } = splitPayload(e, data)
   const base = baseVersion(event)
@@ -72,5 +77,5 @@ export default defineEventHandler(async (event) => {
   await noteCollabSave(event, { entity: e, id: row.id, locale: null }, row.updatedAt)
   await reportChange(event, { type: 'global.updated', entity: e, id: row.id, before: seenBefore, after: row })
   await hydrateRowForForm(db, reg, e, row)
-  return { row }
+  return { row: stripUnreadable(e, user, row) }
 })

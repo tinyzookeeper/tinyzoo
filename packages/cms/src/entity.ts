@@ -4,6 +4,7 @@ import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
+import { checkRoles, isRolesExport, rolesDefOf, type CmsRolesDef } from './roles'
 import { pathTemplateProblem, pathTemplateKeys, prefixedTemplates, type PathTemplate } from './paths'
 import { TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, type TreeConfig } from './tree'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
@@ -443,6 +444,8 @@ export interface CmsRegistry {
   graph: any[]
   /** Content languages (defineLocales), or null when content is single-language. */
   locales: LocalesDef | null
+  /** The site's own roles (`export const roles = defineRoles(…)`), or null: only admin, editor and author. */
+  roles: CmsRolesDef | null
   cmsMedia: typeof cmsMedia
   cmsUsers: typeof cmsUsers
   cmsTokens: typeof cmsTokens
@@ -514,6 +517,11 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     throw new Error(`${withLocalized.map((e) => e.name).join(', ')} ha${withLocalized.length > 1 ? 've' : 's'} localized fields, but no languages are defined. Export \`locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })\` from cms.config.ts.`)
   }
 
+  const rolesExports = Object.values(config).filter(isRolesExport)
+  if (rolesExports.length > 1) throw new Error('cms.config.ts exports more than one `defineRoles(…)`: a site has one set of roles.')
+  const roles = rolesExports.length ? rolesDefOf(rolesExports[0]) : null
+  checkRoles(roles, entities as any, (e: CmsEntity) => (e.content?.path ? pathTemplateKeys(e.content.path) : []))
+
   for (const e of entities) {
     if (e.tree && (e.fields[e.tree.parent]!.relation!.to() as CmsEntity).name !== e.name) {
       throw new Error(`tree.parent of "${e.name}" must point at "${e.name}" itself.`)
@@ -533,7 +541,7 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   for (const j of junctions) schema[j.name] = j.table
 
   const graph = entities.map((e) => withPlugins(entityGraph(e, locales), e, plugins, pluginOf))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, roles, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf }
   _regCache.set(config, reg)
   return reg
 }

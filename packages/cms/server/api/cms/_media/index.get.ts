@@ -5,7 +5,7 @@ import { and, asc, desc, eq, inArray, isNotNull, isNull, sql } from 'tinyzoo'
 // picker's count + items match, and ?folder= (a folder's name, or "none"). Returns
 // the library's folders too. Powers the media page and the picker.
 export default defineEventHandler(async (event) => {
-  requireCmsUser(event)
+  assertMediaLibrary(requireCmsUser(event))
   const { db, reg } = useCms()
   const m = reg.cmsMedia
 
