@@ -1,0 +1,45 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Dependency updates for tinyzoo. CONTRIBUTING.md ('Dependency updates') says how to handle the pull requests.",
+  "extends": ["config:recommended", ":semanticCommits", ":semanticCommitTypeAll(chore)"],
+  "timezone": "Europe/Prague",
+  "schedule": ["* 0-6 * * 1"],
+  "postUpdateOptions": ["pnpmDedupe"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-6 * * 1"]
+  },
+  "packageRules": [
+    {
+      "description": "An npm release waits three days before it is proposed: time for a broken or hijacked release to be pulled.",
+      "matchDatasources": ["npm"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Patch updates: one pull request a week, together with the minor ones below.",
+      "matchUpdateTypes": ["patch"],
+      "groupName": "minor and patch updates",
+      "groupSlug": "minor-patch"
+    },
+    {
+      "description": "Minor updates from 1.0 on join the weekly group. Below 1.0 a minor update may break (drizzle-orm 0.44 to 0.45), so it gets its own pull request, like a major one.",
+      "matchUpdateTypes": ["minor"],
+      "matchCurrentVersion": ">=1.0.0",
+      "groupName": "minor and patch updates",
+      "groupSlug": "minor-patch"
+    },
+    {
+      "description": "The editor stack moves as one: pnpm-workspace.yaml pins a single copy of @tiptap/core, @tiptap/pm and ProseMirror (two copies break collaborative editing), and Renovate updates those overrides in the same pull request.",
+      "matchPackageNames": ["@tiptap/**", "prosemirror-*", "y-prosemirror", "yjs"],
+      "groupName": "editor stack (TipTap, ProseMirror, Yjs)",
+      "groupSlug": "editor-stack"
+    },
+    {
+      "description": "Postgres 16 is the server tinyzoo is tested against (CI, the backup check, compose.yaml). Moving to a newer one is a decision, not an update.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ]
+}
