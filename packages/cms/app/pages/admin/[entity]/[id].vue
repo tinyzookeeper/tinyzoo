@@ -978,7 +978,10 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 
       <!-- one primary action (none for someone who cannot save here) -->
       <template v-if="readOnly" />
-      <UButton v-else-if="isTranslation && !(perLocale && publish && canPublish)" :loading="saving" @click="() => { save() }">{{ t('translation.save') }}</UButton>
+      <UButton v-else-if="isTranslation && !(perLocale && publish && canPublish)" :loading="saving" :aria-label="t('translation.save')" @click="() => { save() }">
+        <!-- phones: the bar has no room for "Save translation" next to the language and its state -->
+        <span class="max-md:hidden">{{ t('translation.save') }}</span><span class="md:hidden">{{ t('common.save') }}</span>
+      </UButton>
       <template v-else-if="publish && canPublish">
         <UButton v-if="isPublished && !isNew" :loading="saving" @click="() => { save() }">{{ futureDate ? t('editor.saveChanges') : t('editor.update') }}</UButton>
         <template v-else>
