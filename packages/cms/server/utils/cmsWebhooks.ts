@@ -20,7 +20,9 @@ import type { CmsChange } from 'tinyzoo'
  * the 2nd); a 4xx answer other than 408/429 is final. Runs after the response and
  * only ever logs failures. In production nothing is sent without a secret.
  */
-const RETRY_DELAYS_MS = [1_000, 5_000]
+const RETRY_DELAY_MS = 1_000
+/** The 2nd attempt after the first delay, the 3rd after five times as long (the test build shortens it: CMS_TEST_WEBHOOK_RETRY_MS). */
+const retryDelays = (): number[] => { const first = cmsTimerMs('CMS_TEST_WEBHOOK_RETRY_MS', RETRY_DELAY_MS); return [first, first * 5] }
 const TIMEOUT_MS = 5_000
 
 export function webhookConfig(): { urls: string[]; secret: string } {
@@ -71,8 +73,9 @@ export async function sendWebhooks(change: CmsChange): Promise<void> {
 
 async function deliver(url: string, secret: string, type: string, delivery: string, body: string): Promise<void> {
   let lastError = ''
-  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-    if (attempt) await new Promise((r) => setTimeout(r, RETRY_DELAYS_MS[attempt - 1]))
+  const delays = retryDelays()
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, delays[attempt - 1]))
     try {
       const t = Math.floor(Date.now() / 1000)
       const headers: Record<string, string> = {

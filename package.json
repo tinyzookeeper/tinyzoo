@@ -15,7 +15,7 @@
     "test:watch": "vitest --project unit",
     "typecheck": "tsc -p tsconfig.json && pnpm docs:check && pnpm --filter playground typecheck && pnpm --filter tinyzoo-starter typecheck && pnpm --filter tinyzoo-web typecheck",
     "build": "node scripts/build-check.mjs",
-    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "check": "pnpm typecheck && pnpm test",
     "check:consumer": "node scripts/consumer-check.mjs",
     "check:upgrade": "node scripts/upgrade-check.mjs",
     "check:starter": "node scripts/starter-check.mjs",

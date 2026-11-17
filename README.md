@@ -98,7 +98,7 @@ pnpm install
 docker compose up -d       # the playground's Postgres on :5434
 pnpm db:migrate
 pnpm play                  # the playground app → http://localhost:3000/admin
-pnpm check                 # typecheck, tests, production build: what CI runs
+pnpm check                 # typecheck, unit + API tests (the API tests production-build the playground): what CI runs on every pull request
 ```
 
 Layout, tests, and the decisions behind the code: [docs/development.md](docs/development.md).

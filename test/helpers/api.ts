@@ -164,7 +164,21 @@ const BACKGROUND_TASK_LOCKS = [72_011_004, 72_011_040]
  * advisory locks the tasks use, inside the same transaction: a task that is running
  * finishes, one that starts meanwhile finds the lock taken and skips its round.
  */
-export async function truncateAll(pool: pg.Pool): Promise<void> {
+export async function truncateAll(pool: pg.Pool, options: { strict?: boolean } = {}): Promise<void> {
+  // A query of the server that joins several tables (the heartbeats' access checks run
+  // every second in the test server) can still meet the truncate halfway through taking
+  // its locks: Postgres ends one of the two. The truncate is the one to try again; nothing
+  // of it was applied. `strict` (truncate.spec, which tests exactly this) does not retry.
+  for (let attempt = 1; ; attempt++) {
+    try { return await truncateOnce(pool) }
+    catch (err) {
+      if (options.strict || (err as { code?: string }).code !== '40P01' || attempt >= 5) throw err
+      await new Promise((r) => setTimeout(r, 50 * attempt))
+    }
+  }
+}
+
+async function truncateOnce(pool: pg.Pool): Promise<void> {
   const { rows: all } = await pool.query<{ tablename: string }>(
     `select tablename from pg_tables where schemaname = 'public' order by tablename`,
   )

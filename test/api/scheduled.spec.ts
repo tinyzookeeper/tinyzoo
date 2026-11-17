@@ -10,6 +10,20 @@ afterAll(() => db.end())
 
 const inSeconds = (s: number) => new Date(Date.now() + s * 1000).toISOString()
 
+const lastRun = async () => (await db.query(`select value->>'at' as at from cms_state where key = 'scheduler.lastRun'`)).rows[0]?.at ?? null
+
+/** Wait until the scheduler has run `n` more times (each run stamps its time into cms_state), instead of sleeping for as long as that takes. */
+async function afterSchedulerRuns(n: number, timeoutMs = 15_000) {
+  let seen = await lastRun()
+  const deadline = Date.now() + timeoutMs
+  for (let runs = 0; runs < n;) {
+    if (Date.now() > deadline) throw new Error(`the scheduler did not run ${n} times within ${timeoutMs} ms`)
+    await new Promise((r) => setTimeout(r, 50))
+    const now = await lastRun()
+    if (now !== seen) { seen = now; runs++ }
+  }
+}
+
 describe('scheduled publishing', () => {
   it('keeps a scheduled entry off the website until its time, then shows and announces it', async () => {
     const a = await createAuthor(admin)
@@ -34,10 +48,10 @@ describe('scheduled publishing', () => {
     const a = await createAuthor(admin)
     const mark = hooksMark()
     const post = await createPost(admin, { author: a.id, status: 'published', publishedAt: new Date().toISOString() })
-    await new Promise((r) => setTimeout(r, 5000)) // a couple of scheduler runs
+    await afterSchedulerRuns(3) // a couple of scheduler runs, each of which would have announced it
     const mine = receivedHooks(mark).filter((h) => h.path === '/ok' && h.json.id === post.id)
     expect(mine.map((h) => h.json.type)).toEqual(['entry.created'])
-  }, 10_000)
+  }, 20_000)
 })
 
 describe('publish dates', () => {

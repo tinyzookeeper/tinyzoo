@@ -55,7 +55,7 @@ describe('truncateAll next to a running background task', () => {
   it('waits for the task to finish, then truncates: no deadlock, nothing lost half-way', async () => {
     const task = await retentionTask()
     let done = false
-    const truncating = truncateAll(db).then(() => { done = true })
+    const truncating = truncateAll(db, { strict: true }).then(() => { done = true })
     await settle(300)
     expect(done).toBe(false) // it waits for the task's advisory lock
     expect(await task.finish()).toBeNull() // the task reached the audit log and committed
@@ -67,7 +67,7 @@ describe('truncateAll next to a running background task', () => {
     const holder = await db.connect()
     await holder.query('begin')
     await holder.query('select pg_advisory_xact_lock($1)', [RETENTION_LOCK])
-    const truncating = truncateAll(db) // blocked on the lock the holder has
+    const truncating = truncateAll(db, { strict: true }) // blocked on the lock the holder has
     await settle(100)
     // A task starting now (the server's own retention does exactly this) finds the lock taken and skips, never waits.
     const other = new pg.Client({ connectionString: inject('databaseUrl') }) // (the pool's two connections are taken)

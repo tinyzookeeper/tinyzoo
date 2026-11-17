@@ -1,0 +1,32 @@
+name: Playground build cache
+description: >-
+  Restores the production build of the playground that the API suites run against
+  (node_modules/.cache/cms-test/output), when one exists for exactly the files it is made
+  from, and saves it after the job when there was none. `reuse` is '1' on a hit: pass it
+  to the tests as CMS_TEST_REUSE_BUILD, which then skips the build (see test/setup/server.ts);
+  on a miss it is empty and the tests build as always.
+  The key is the git tree ids of everything the build reads (the packages, the playground,
+  the lockfile and workspace files, test/setup), so it does not depend on the commit, only on
+  the files. Use it after setup-node (the Node version is part of the key) and before the tests.
+
+outputs:
+  reuse:
+    description: "'1' when a build for exactly these files was restored, else empty."
+    value: ${{ steps.cache.outputs.cache-hit == 'true' && '1' || '' }}
+
+runs:
+  using: composite
+  steps:
+    - name: Key from the files the build is made of
+      id: key
+      shell: bash
+      run: |
+        set -euo pipefail
+        ids=$(git rev-parse HEAD:packages HEAD:playground HEAD:pnpm-lock.yaml HEAD:pnpm-workspace.yaml HEAD:package.json HEAD:test/setup | sha256sum | cut -c1-40)
+        echo "key=playground-build-$RUNNER_OS-$(node --version)-$ids" >> "$GITHUB_OUTPUT"
+    - name: Restore
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: node_modules/.cache/cms-test/output
+        key: ${{ steps.key.outputs.key }}

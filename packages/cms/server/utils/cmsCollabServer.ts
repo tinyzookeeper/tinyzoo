@@ -360,7 +360,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
   })
   instance = server
 
-  heartbeat ??= setInterval(() => { void beat() }, HEARTBEAT_MS)
+  heartbeat ??= setInterval(() => { void beat() }, cmsTimerMs('CMS_TEST_COLLAB_HEARTBEAT_MS', HEARTBEAT_MS))
   ;(heartbeat as any).unref?.()
   return server
 }

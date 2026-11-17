@@ -1,0 +1,261 @@
+name: Heavy checks
+
+# The slow checks that ci.yml leaves out of every pull request. They run
+#   - nightly, on main (schedule),
+#   - on demand: Actions → Heavy checks → Run workflow, on any branch (workflow_dispatch),
+#   - on the "Version packages" pull request (head branch changeset-release/main), before
+#     a release is merged, all of them,
+#   - on any other pull request, only the ones whose paths it changes (the `changes` job).
+# release.yml still runs the consumer check on the packed tarballs right before publishing.
+#
+#   upgrade    a site made on an older tinyzoo moves to this one (scripts/upgrade-check.mjs)
+#   consumer   the packages as a client app gets them: packed, installed, built
+#   backup     tinyzoo backup / restore with pg_dump, pg_restore and psql of 16, 17 and 18
+#              against a 16 server — strict: a runner without the tools fails
+#   s3-minio   the S3 delivery modes against a real MinIO
+#   result     one check that is green when every heavy job that ran passed (skipped = nothing relevant)
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+  pull_request:
+
+concurrency:
+  group: heavy-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Which heavy jobs this event needs. Everything but an ordinary pull request needs all of
+  # them; an ordinary pull request needs the ones whose paths it touches (or the workflow itself).
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lists the pull request's files through the API
+    outputs:
+      backup: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.backup == 'true' || steps.filter.outputs.workflow == 'true' }}
+      upgrade: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.upgrade == 'true' || steps.filter.outputs.workflow == 'true' }}
+      consumer: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.consumer == 'true' || steps.filter.outputs.workflow == 'true' }}
+      minio: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.minio == 'true' || steps.filter.outputs.workflow == 'true' }}
+    steps:
+      - id: everything
+        if: github.event_name != 'pull_request' || github.head_ref == 'changeset-release/main'
+        run: echo "all=true" >> "$GITHUB_OUTPUT"
+      # paths-filter v4.0.3, pinned to its commit.
+      - id: filter
+        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            workflow:
+              - '.github/workflows/heavy.yml'
+              - '.github/actions/playground-build-cache/**'
+            backup:
+              - 'packages/cms/cli/backup*'
+              - 'packages/cms/cli/tar*'
+              - 'packages/cms/src/migrate*'
+              - '.github/actions/pg-client/**'
+              - 'test/api/backup.spec.ts'
+            upgrade:
+              - 'packages/cms/src/**'
+              - 'packages/cms/cli/**'
+              - 'packages/cms/server/**'
+              - 'packages/cms/starter/**'
+              - 'scripts/upgrade-check*'
+              - 'scripts/upgrade-check/**'
+              - '.github/upgrade-baseline/**'
+            consumer:
+              - 'packages/*/package.json'
+              - 'packages/cms/module.ts'
+              - 'packages/cms/nuxt.config.ts'
+              - 'scripts/consumer-check*'
+              - 'test/consumer/**'
+              - 'playground/package.json'
+              - 'playground/cms.config.ts'
+              - 'playground/cms-plugins/**'
+            minio:
+              - 'packages/cms/server/utils/cmsStorage*'
+              - 'packages/cms/server/api/cms/_media/**'
+              - 'packages/cms/cli/transfer*'
+              - 'test/api/s3-minio.spec.ts'
+
+  # A site made on an older tinyzoo moves to this one: scripts/upgrade-check.mjs builds each
+  # baseline in .github/upgrade-baseline (and the latest release tag), seeds a site from it,
+  # installs this commit's packages, runs `tinyzoo upgrade`, starts the site on the same
+  # database and compares what the content API and the admin return, field by field.
+  # CONTRIBUTING.md says what to do when it fails.
+  upgrade:
+    needs: changes
+    if: needs.changes.outputs.upgrade == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: cms
+          POSTGRES_DB: cms
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cms -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      redis:
+        image: valkey/valkey:8-alpine
+        ports: ['6379:6379']
+    env:
+      # The check makes (and drops) its own cms_upcheck_* databases on this server.
+      UPGRADE_CHECK_DATABASE_URL: postgres://cms:cms@localhost:5432/postgres
+      UPGRADE_CHECK_REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the baselines are commits and tags
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm # the store also holds what the baseline and the site installs download
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:upgrade --logs "$RUNNER_TEMP/upgrade-logs"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-check-logs
+          path: ${{ runner.temp }}/upgrade-logs
+          if-no-files-found: ignore
+
+  # The packages as a client app gets them: packed, installed from the tarballs into
+  # a fresh app outside the workspace, CLI run from the install, production build.
+  consumer:
+    needs: changes
+    if: needs.changes.outputs.consumer == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:consumer
+
+  # `tinyzoo restore` with client tools of each major version against the 16 server: the same
+  # version (what the compose file runs), and newer, which writes settings 16 does not know
+  # (`SET transaction_timeout`, pg_dump 17+). Only the backup spec: ci.yml runs the rest.
+  backup:
+    needs: changes
+    if: needs.changes.outputs.backup == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        client: [16, 17, 18]
+    name: backup (client tools ${{ matrix.client }}, server 16)
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: cms
+          POSTGRES_DB: cms
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cms -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
+      # The spec skips where the tools are missing; here a missing tool must fail it.
+      TINYZOO_REQUIRE_PG_TOOLS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/pg-client
+        with:
+          version: ${{ matrix.client }}
+          database-url: postgres://cms:cms@localhost:5432/cms
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/playground-build-cache
+        id: build-cache
+      - run: pnpm exec vitest run --project api test/api/backup.spec.ts
+        env:
+          CMS_TEST_REUSE_BUILD: ${{ steps.build-cache.outputs.reuse }}
+
+  # The S3 delivery modes (proxy, redirect) against a real MinIO, with no bucket policy
+  # (private): what the in-process fake S3 cannot show.
+  s3-minio:
+    needs: changes
+    if: needs.changes.outputs.minio == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: cms
+          POSTGRES_DB: cms
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cms -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
+      TEST_S3_ENDPOINT: http://localhost:9190
+      TEST_S3_ACCESS_KEY: minio
+      TEST_S3_SECRET_KEY: minio12345
+    steps:
+      - uses: actions/checkout@v4
+      # MinIO no longer publishes images on Docker Hub; bitnamilegacy/minio is a frozen build of it.
+      - run: |
+          docker run -d --name minio -p 9190:9000 -e MINIO_ROOT_USER=minio -e MINIO_ROOT_PASSWORD=minio12345 \
+            bitnamilegacy/minio:2025.7.23
+          for _ in $(seq 1 30); do curl -sf http://localhost:9190/minio/health/ready && exit 0; sleep 1; done
+          echo "MinIO did not come up" >&2
+          docker logs minio >&2
+          exit 1
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/playground-build-cache
+        id: build-cache
+      - run: pnpm exec vitest run --project api test/api/s3-minio.spec.ts
+        env:
+          CMS_TEST_REUSE_BUILD: ${{ steps.build-cache.outputs.reuse }}
+
+  # One check for "the heavy jobs this event needed passed": skipped jobs (nothing relevant
+  # changed) are fine, a failed or cancelled one is not.
+  result:
+    needs: [changes, upgrade, consumer, backup, s3-minio]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every heavy job that ran passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Results: $RESULTS"
+          case " $RESULTS " in
+            *" failure "*|*" cancelled "*) exit 1 ;;
+          esac

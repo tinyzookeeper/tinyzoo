@@ -16,11 +16,12 @@ import { scratchDatabase } from '../helpers/server'
 // `tinyzoo backup` / `tinyzoo restore` against real databases (two scratch ones) and,
 // for S3, a small S3-style server in this process. Needs pg_dump and pg_restore (or
 // TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE / TINYZOO_PSQL pointing at them); skipped where they
-// are missing, except in CI, where a runner without them must fail instead of quietly
-// skipping the whole restore story.
+// are missing, except where TINYZOO_REQUIRE_PG_TOOLS=1 (the `backup` jobs of
+// .github/workflows/heavy.yml, which install the tools of each version), where a runner
+// without them must fail instead of quietly skipping the whole restore story.
 const has = (cmd: string) => !spawnSync(cmd, ['--version']).error
 const tools = has(process.env.TINYZOO_PG_DUMP || 'pg_dump') && has(process.env.TINYZOO_PG_RESTORE || 'pg_restore') && has(process.env.TINYZOO_PSQL || 'psql')
-const skip = !tools && !process.env.CI
+const skip = !tools && process.env.TINYZOO_REQUIRE_PG_TOOLS !== '1'
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
 const silent = { log: () => {} }

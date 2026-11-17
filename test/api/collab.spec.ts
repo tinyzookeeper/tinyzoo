@@ -281,9 +281,9 @@ describe('shared editing', () => {
       tab.close() // a disabled account's reconnect is refused (401); stop here
     })
     expect((await admin.patch(`/api/cms/_users/${person.id}`, { status: 'disabled' })).status).toBe(200)
-    // Checked within the 30 s heartbeat, also for a socket that only listens.
-    expect(await until(() => closed, 40_000)).toBe(true)
-  }, 45_000)
+    // Checked within the heartbeat (30 s in production, one second in the test server), also for a socket that only listens.
+    expect(await until(() => closed, 15_000)).toBe(true)
+  }, 20_000)
 
   it('treats emptied text in a translation as not translated (the site falls back)', async () => {
     const a = await createAuthor(admin)

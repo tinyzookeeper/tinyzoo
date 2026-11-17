@@ -55,6 +55,7 @@ interface LocalPeer {
 }
 
 const LIVE_CHANNEL = 'live'
+/** The test build shortens it (CMS_TEST_LIVE_HEARTBEAT_MS); the other limits below stay, so a quiet test tab is not dropped. */
 const HEARTBEAT_MS = 20_000
 const REMOTE_TTL_MS = 50_000
 /** A socket that has not answered for this long is gone (sleeping laptop, dead network). */
@@ -82,7 +83,7 @@ let stopChanges: (() => void) | null = null
  */
 function start(): void {
   if (started) return
-  timer = setInterval(() => { void heartbeat() }, HEARTBEAT_MS)
+  timer = setInterval(() => { void heartbeat() }, cmsTimerMs('CMS_TEST_LIVE_HEARTBEAT_MS', HEARTBEAT_MS))
   ;(timer as any).unref?.()
   stopChanges = onCmsChange((change) => { void deliverChange(change).catch((err) => console.error('[cms] realtime delivery failed', scrubError(err))) })
   started = (async () => {

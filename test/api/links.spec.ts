@@ -5,7 +5,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { buildRegistry, linkRef } from 'tinyzoo'
 import * as config from '../../playground/cms.config'
 import { convertLinks, formatConvertReport } from '../../packages/cms/cli/links-convert'
-import { anonymous, type Client, hooksMark, signIn, testDb, truncateAll, waitForHooks } from '../helpers/api'
+import { anonymous, type Client, hooksMark, type ReceivedHook, signIn, testDb, truncateAll, waitForHooks } from '../helpers/api'
 import { createAuthor, createPost } from '../helpers/fixtures'
 import { envWithout, siteFolderWithEnvFile } from '../helpers/siteFolder'
 
@@ -434,6 +434,12 @@ describe('the link picker', () => {
 })
 
 describe('what a site should purge', () => {
+  /**
+   * The change of one entry as the receiver that always answers 200 got it: not the creation
+   * that may still be on its way, and not the retry of an earlier delivery to the flaky one.
+   */
+  const changeOf = (id: string) => (x: ReceivedHook) => x.path === '/ok' && x.json.type !== 'entry.created' && x.json.id === id
+
   it('names the pages that link to a page whose address changed, and the menus', async () => {
     const target = await page('Cíl', 'cil')
     const ref = linkRef('page', target.id)
@@ -442,8 +448,8 @@ describe('what a site should purge', () => {
     await saveMenu([link('Cíl', ref)])
     const mark = hooksMark()
     expect((await admin.patch(`/api/cms/page/${target.id}`, { slug: 'novy-cil' })).status).toBe(200)
-    const hooks = await waitForHooks(mark, (h) => h.some((x) => x.json.entity === 'page' && x.json.id === target.id))
-    const change = hooks.find((x) => x.json.id === target.id)!.json
+    const hooks = await waitForHooks(mark, (h) => h.some(changeOf(target.id)))
+    const change = hooks.find(changeOf(target.id))!.json
     expect(change.paths.sort()).toEqual(['/cil', '/novy-cil', '/odkazuje'].sort())
     expect(change.globals).toEqual(['navigation'])
     expect(linking.id).toBeTruthy()
@@ -454,17 +460,17 @@ describe('what a site should purge', () => {
     const team = await page('Tým', 'tym', { parent: about.id })
     const linking = await page('Odkazuje', 'odkazuje', { sections: [{ id: 'h', type: 'hero', heading: 'Hej', buttonUrl: linkRef('page', team.id) }] })
     await saveMenu([link('Tým', linkRef('page', team.id))]) // only the subpage is linked: nothing links to "about" itself
-    const changeOf = async (id: string, act: () => Promise<unknown>) => {
+    const changeAfter = async (id: string, act: () => Promise<unknown>) => {
       const mark = hooksMark()
       await act()
-      return (await waitForHooks(mark, (h) => h.some((x) => x.json.id === id))).find((x) => x.json.id === id)!.json
+      return (await waitForHooks(mark, (h) => h.some(changeOf(id)))).find(changeOf(id))!.json
     }
 
-    const renamed = await changeOf(about.id, () => admin.patch(`/api/cms/page/${about.id}`, { slug: 'nas' }))
+    const renamed = await changeAfter(about.id, () => admin.patch(`/api/cms/page/${about.id}`, { slug: 'nas' }))
     expect(renamed.globals).toEqual(['navigation'])
     expect(renamed.paths).toEqual(expect.arrayContaining(['/o-nas/tym', '/nas/tym', '/odkazuje']))
 
-    const unpublished = await changeOf(about.id, () => admin.patch(`/api/cms/page/${about.id}`, { status: 'draft' }))
+    const unpublished = await changeAfter(about.id, () => admin.patch(`/api/cms/page/${about.id}`, { status: 'draft' }))
     expect(unpublished.globals).toEqual(['navigation'])
     expect(unpublished.paths).toEqual(expect.arrayContaining(['/nas/tym', '/odkazuje']))
     expect(linking.id).toBeTruthy()
@@ -475,8 +481,8 @@ describe('what a site should purge', () => {
     await saveMenu([link('Cíl', linkRef('page', target.id))])
     const mark = hooksMark()
     await admin.patch(`/api/cms/page/${target.id}`, { title: 'Nový nadpis' })
-    const hooks = await waitForHooks(mark, (h) => h.some((x) => x.json.id === target.id))
-    const change = hooks.find((x) => x.json.id === target.id)!.json
+    const hooks = await waitForHooks(mark, (h) => h.some(changeOf(target.id)))
+    const change = hooks.find(changeOf(target.id))!.json
     expect(change.paths).toEqual(['/cil'])
     expect(change.globals).toBeUndefined()
   })

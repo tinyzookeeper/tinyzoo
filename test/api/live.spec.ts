@@ -159,11 +159,11 @@ describe('realtime socket', () => {
     const person = await newAccount('editor')
     const tab = await open(person.client)
     expect((await admin.patch(`/api/cms/_users/${person.id}`, { status: 'disabled' })).status).toBe(200)
-    // Checked on the heartbeat (every 20 s).
-    const deadline = Date.now() + 25_000
-    while (!tab.closed && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100))
+    // Checked on the heartbeat (every 20 s in production, every second in the test server: see test/setup/timers.ts).
+    const deadline = Date.now() + 15_000
+    while (!tab.closed && Date.now() < deadline) await new Promise((r) => setTimeout(r, 50))
     expect(tab.closed?.code).toBe(4401)
-  }, 30_000)
+  }, 20_000)
 })
 
 describe('saving over someone else’s change', () => {
