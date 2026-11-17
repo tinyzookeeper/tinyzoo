@@ -292,7 +292,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
       </template>
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
-          <UButton color="neutral" variant="ghost" @click="emailTarget = null">{{ t('common.cancel') }}</UButton>
+          <UButton color="neutral" variant="ghost" @click="() => { emailTarget = null }">{{ t('common.cancel') }}</UButton>
           <UButton type="submit" form="cms-change-email" icon="i-lucide-mail" :loading="savingEmail">{{ t('team.changeEmail') }}</UButton>
         </div>
       </template>
