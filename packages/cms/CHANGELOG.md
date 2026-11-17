@@ -1,5 +1,26 @@
 # tinyzoo
 
+## 0.3.0
+
+### Minor Changes
+
+- People can change the email address they sign in with. On **Your account**, a person enters the new address and their current password; a confirmation link goes to the new address (it works for 24 hours, once) and a notice to the old one, and the change is made when the link is opened. A new password cancels a pending change. Once the change is made, the old address gets a notice with an **Undo the change** link (7 days, once): it gives the account its old address back, sets a new password and signs everyone else out — so someone who only knew the password cannot keep an account by moving it to their own mailbox. While that link works, the old address stays reserved for the account (nobody can be invited with it or move to it), and when it is used the newer address is told. An administrator's change in Team ends these links. An administrator can also change someone's email in **Team**, with their own password (it takes effect at once, ends the person's sessions and tells both addresses, except for a disabled account; for someone who has not accepted yet, the invitation goes to the new address). Requests are limited per account, per address written to and per client. Everything is in the audit log with the old and the new address, and **Privacy** finds, exports and erases it by either address (an export leaves out the other address when it belongs to someone else).
+
+  Nothing to do for a site: no migration. The emails use the mail settings and `cms.publicUrl` that invitations and password resets already need. If your privacy policy lists what the audit log keeps, add that a change of sign-in email keeps the old and the new address.
+- tinyzoo now runs on drizzle-orm 0.45 (was 0.44) and drizzle-kit 0.31.11. drizzle-orm 0.45 escapes the names passed to `sql.identifier()` and `sql.as()` properly; before, a name with a double quote in it could break out of the SQL (tinyzoo only passes its own column and collation names there, but your own code may not). Your schema and migrations do not change: `tinyzoo generate` writes no new migration after the update, and the migration history stays readable by both versions.
+
+  **Upgrade**
+
+  1. In your `package.json`, set `drizzle-orm` to `^0.45.4` and `drizzle-kit` to `^0.31.11`, then run `pnpm install`. Until you do, `tinyzoo upgrade` warns that drizzle-orm 0.44 does not fit, and your site ends up with two copies of drizzle-orm.
+
+### Patch Changes
+
+- The admin's Vue templates are now type-checked together with the rest of tinyzoo, and the places the check found are tidied: click handlers on buttons, the labels of the calendar's month arrows and the colour field's input. Nothing changes in what the admin shows or does.
+- Shared editing: when the last person closed a document at the moment the server was checking who has it open, the document could stay marked as "being edited" after everyone had left. A later change to the entry made elsewhere then did not start the shared text afresh until the 90-second window ran out. The check now waits for that moment to pass.
+- Shared editing in the admin runs on Hocuspocus 4 (was 3). Nothing changes for editors or for your site: an admin tab that was open during the deploy keeps working against the new server (the two versions speak the same protocol) and reconnects as before. Messages from one editor are now applied strictly in the order they arrive, and a tab that is open but quiet in the background stays connected.
+- The shared store (rate limits shared by replicas, realtime updates) and shared editing talk to Redis through ioredis 6 (was 5). Nothing changes for your site: the same `REDIS_URL` / `cms.redis.url` works, and tinyzoo keeps speaking the same Redis protocol as before (RESP2), so a managed Redis, Valkey or a proxy in front of them that worked with tinyzoo 0.2 keeps working.
+- Emails over SMTP (invitations, password resets, form notifications) are sent with nodemailer 10 (was 7). Nothing changes in your mail settings: the same `cms.mail.smtp` host, port, `secure`, user and password work as before. nodemailer 10 brings its own types, so tinyzoo no longer installs `@types/nodemailer`; if your own code imports nodemailer, it gets the types from nodemailer itself. One thing you may notice in the logs: an SMTP server that asks for a password when none is configured now fails with the error code `ENOAUTH` (was `NoAuth`).
+
 ## 0.2.2
 
 ### Patch Changes
