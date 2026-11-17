@@ -115,6 +115,8 @@ export async function runUpgradeSteps(
  * The steps tinyzoo itself ships. Plugins contribute theirs next to these (namespaced
  * `<plugin>:<id>`, see `pluginUpgradeSteps`; `allUpgradeSteps` is the whole list); the
  * runner takes it as a parameter.
+ *
+ * @internal
  */
 export const CORE_UPGRADE_STEPS: UpgradeStep[] = [
   {
@@ -131,7 +133,11 @@ export const CORE_UPGRADE_STEPS: UpgradeStep[] = [
   },
 ]
 
-/** tinyzoo's steps and those of the plugins, in that order (plugins in registration order). */
+/**
+ * tinyzoo's steps and those of the plugins, in that order (plugins in registration order).
+ *
+ * @internal
+ */
 export function allUpgradeSteps(plugins: readonly import('./plugin').CmsPlugin[] = []): UpgradeStep[] {
   return [...CORE_UPGRADE_STEPS, ...pluginUpgradeSteps(plugins)]
 }

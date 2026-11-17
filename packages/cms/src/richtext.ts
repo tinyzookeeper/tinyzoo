@@ -29,6 +29,8 @@ function schemeAllowed(u: unknown, allowed: Set<string>): boolean {
  * Safe as a link target: a site path, #anchor, http(s)/mailto/tel, or a reference to
  * an entry of this site (`cms:<entity>/<id>`, which the content API turns into the
  * entry's address — see links.ts). No control chars or spaces.
+ *
+ * @internal
  */
 export function isSafeLink(u: unknown): boolean {
   const s = String(u ?? '')
@@ -53,18 +55,24 @@ function sanitizeNode(node: any): void {
   if (Array.isArray(node.content)) for (const child of node.content) sanitizeNode(child)
 }
 
-/** Neutralize XSS-unsafe attrs in a stored doc. Mutates in place; returns the doc. */
+/**
+ * Neutralize XSS-unsafe attrs in a stored doc. Mutates in place; returns the doc.
+ *
+ * @internal
+ */
 export function sanitizeRichText(doc: RichTextDoc): RichTextDoc {
   if (Array.isArray(doc?.content)) for (const node of doc.content) sanitizeNode(node)
   return doc
 }
 
 // Permissive structure, but every write is sanitized via the transform.
+/** @internal */
 export const richTextSchema = z.object({
   type: z.literal('doc'),
   content: z.array(z.any()).optional(),
 }).transform(sanitizeRichText) as unknown as z.ZodType<RichTextDoc>
 
+/** @internal */
 export const emptyDoc: RichTextDoc = { type: 'doc', content: [] }
 
 /**
@@ -75,11 +83,18 @@ export const emptyDoc: RichTextDoc = { type: 'doc', content: [] }
  * `newNode` is; "wrap every list" is not). Empty today.
  *
  *   richTextUpgrades.push({ id: 'tiptap-3-rename-callout', upgrade: (doc) => renameNodes(doc, 'callout', 'note') })
+ *
+ * @internal
  */
 export interface RichTextUpgrade { id: string; upgrade: (doc: RichTextDoc) => RichTextDoc }
+/** @internal */
 export const richTextUpgrades: RichTextUpgrade[] = []
 
-/** A stored document in the current shape. The same object when there are no steps (or it is not a document). */
+/**
+ * A stored document in the current shape. The same object when there are no steps (or it is not a document).
+ *
+ * @internal
+ */
 export function upgradeRichText<T>(doc: T): T {
   if (!richTextUpgrades.length || !doc || typeof doc !== 'object' || (doc as any).type !== 'doc') return doc
   let out = structuredClone(doc) as unknown as RichTextDoc

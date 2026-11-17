@@ -3,15 +3,14 @@ import { dirname, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildOpenApiDocument, emitContentTypes } from 'tinyzoo'
 import * as config from '../../playground/cms.config'
+import { contractsDir as dir, readableDiff, UPDATE_CONTRACTS as UPDATE } from '../helpers/golden'
 
 // Contract snapshots: the public content API as the playground's config produces it,
 // committed as golden files. A site's frontend depends on these shapes, so a change
 // here is a change to the API: it fails until someone looks at it and accepts it
 // (`pnpm contracts:update`), and the changeset then says whether it breaks sites.
-// See "Contracts" in CONTRIBUTING.md.
-
-const dir = join(import.meta.dirname, '../contracts')
-const UPDATE = process.env.UPDATE_CONTRACTS === '1'
+// See "Contracts" in CONTRIBUTING.md. The other frozen surfaces (the exported API of each entry
+// point, module options, hooks, CLI, webhook) are in api-surface.spec.ts.
 
 const contracts: { file: string; what: string; render: () => string }[] = [
   {
@@ -25,31 +24,6 @@ const contracts: { file: string; what: string; render: () => string }[] = [
     render: () => emitContentTypes(config),
   },
 ]
-
-/** The part of two texts that differs, with a little context: enough to read, never a wall. */
-export function readableDiff(golden: string, fresh: string, context = 3, cap = 40): string {
-  const a = golden.split('\n')
-  const b = fresh.split('\n')
-  let start = 0
-  while (start < a.length && start < b.length && a[start] === b[start]) start++
-  let endA = a.length
-  let endB = b.length
-  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) { endA--; endB-- }
-
-  const out: string[] = []
-  const before = a.slice(Math.max(0, start - context), start)
-  const after = a.slice(endA, endA + context)
-  const show = (sign: '-' | '+', lines: string[]) => {
-    for (const line of lines.slice(0, cap)) out.push(`${sign} ${line}`)
-    if (lines.length > cap) out.push(`${sign} … ${lines.length - cap} more lines`)
-  }
-  out.push(`@@ line ${start + 1} @@`)
-  for (const line of before) out.push(`  ${line}`)
-  show('-', a.slice(start, endA))
-  show('+', b.slice(start, endB))
-  for (const line of after) out.push(`  ${line}`)
-  return out.join('\n')
-}
 
 describe('contract snapshots (test/contracts)', () => {
   for (const { file, what, render } of contracts) {

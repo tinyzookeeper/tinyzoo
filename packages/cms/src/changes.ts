@@ -52,3 +52,34 @@ export interface CmsSitemapEntry {
   lastmod: string | null
   alternates: { locale: string; loc: string }[]
 }
+
+/**
+ * The body of a publish webhook (`cms.webhooks`): the change as the website sees it, plus
+ * `delivery`, an id that is unique per change and the same on every retry (deduplicate on it;
+ * it is inside the signed body). Who made the change (`by`) stays inside the admin.
+ * Each language of a translation is its own change (`locale`).
+ */
+export interface CmsWebhookPayload extends Omit<CmsChange, 'by'> {
+  delivery: string
+}
+
+/**
+ * The request headers of a publish webhook, lower-case: the change type (`entry.published`),
+ * the delivery id again (for logs), and the signature `t=<unix seconds>,v1=<hex HMAC-SHA256 of
+ * "<t>.<raw body>" with the secret>`.
+ */
+export const CMS_WEBHOOK_HEADERS = {
+  event: 'x-cms-event',
+  delivery: 'x-cms-delivery',
+  signature: 'x-cms-signature',
+} as const
+
+/**
+ * The JSON body of a webhook for a change: `delivery` first, then the change without `by`.
+ *
+ * @internal
+ */
+export function webhookPayload(change: CmsChange, delivery: string): CmsWebhookPayload {
+  const { by: _by, ...rest } = change
+  return { delivery, ...rest }
+}

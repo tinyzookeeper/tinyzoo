@@ -12,10 +12,16 @@ import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueInde
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date', precision: 3 })
 
-/** Built-in roles. `admin` also manages people; `author` edits only what they created and cannot publish. */
-export const CMS_ROLES = ['admin', 'editor', 'author'] as const
-export type CmsRole = (typeof CMS_ROLES)[number]
+/**
+ * Built-in roles. `admin` also manages people; `author` edits only what they created and cannot publish.
+ *
+ * @internal
+ */
+export const CMS_ROLES = ['admin', 'editor', 'author'] as const satisfies readonly CmsRole[]
+/** A built-in role: `admin` also manages people; `author` edits only what they created and cannot publish. */
+export type CmsRole = 'admin' | 'editor' | 'author'
 
+/** @internal */
 export const cmsUsers = pgTable('cms_users', {
   id: uuid('id').primaryKey().defaultRandom(),
   // Stored lower-cased; unique.
@@ -35,6 +41,7 @@ export const cmsUsers = pgTable('cms_users', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('cms_users_email_unique').on(t.email)])
 
+/** @internal */
 export const cmsTokens = pgTable('cms_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => cmsUsers.id, { onDelete: 'cascade' }),
@@ -48,6 +55,7 @@ export const cmsTokens = pgTable('cms_tokens', {
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('cms_tokens_hash_unique').on(t.tokenHash), index('cms_tokens_user_idx').on(t.userId)])
 
+/** @internal */
 export const cmsAudit = pgTable('cms_audit', {
   id: uuid('id').primaryKey().defaultRandom(),
   // Who did it (null for anonymous events like a failed sign-in).
@@ -65,6 +73,8 @@ export const cmsAudit = pgTable('cms_audit', {
  * people type into together; saving the entry stores its content as usual. `epoch`
  * changes when the document is started afresh from the saved entry, so a browser
  * holding an older history cannot merge it back in.
+ *
+ * @internal
  */
 export const cmsCollab = pgTable('cms_collab', {
   // <entity>/<id> or <entity>/<id>/<locale>
@@ -82,6 +92,8 @@ export const cmsCollab = pgTable('cms_collab', {
 /**
  * Revisions: a snapshot of an entry (or one translation) after every save — its
  * field values as the editor sees them — for the history panel, compare and restore.
+ *
+ * @internal
  */
 export const cmsRevisions = pgTable('cms_revisions', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -100,7 +112,11 @@ export const cmsRevisions = pgTable('cms_revisions', {
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [index('cms_revisions_record_idx').on(t.entity, t.recordId, t.locale, t.createdAt)])
 
-/** Small bits of state the CMS keeps for itself (e.g. when the scheduler last ran). */
+/**
+ * Small bits of state the CMS keeps for itself (e.g. when the scheduler last ran).
+ *
+ * @internal
+ */
 export const cmsState = pgTable('cms_state', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),
@@ -114,6 +130,8 @@ export const cmsState = pgTable('cms_state', {
  * (pg_trgm) for typo-tolerant matching. `body` is what visitors may read; `extra` is
  * only for the admin's search (hidden fields, the list's searchable fields). Kept up
  * to date on every change and rebuilt when the search configuration changes.
+ *
+ * @internal
  */
 export const cmsSearch = pgTable('cms_search', {
   entity: text('entity').notNull(),

@@ -5,6 +5,7 @@ import { buildContentModel, type ContentField, type ContentFieldType, type Conte
 // `/<name>/{slug}` paths (concrete, not templated — far better codegen DX), and the
 // response schemas mirror the actual projected shapes (see content-shape.ts).
 
+/** @internal */
 export interface OpenApiOptions {
   title?: string
   version?: string
@@ -167,6 +168,7 @@ function listParams(shape: ContentShape): JsonSchema[] {
   return params
 }
 
+/** @internal */
 export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiOptions = {}): JsonSchema {
   const model = buildContentModel(config)
   const tokenAuth = !!opts.tokenAuth

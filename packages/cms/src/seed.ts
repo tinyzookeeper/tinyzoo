@@ -188,6 +188,7 @@ export function defineSeed(run: (s: SeedContext) => Promise<void> | void): SeedD
   return { __cms: 'seed', run: async (s) => { await run(s) } }
 }
 
+/** @internal */
 export function isSeed(value: unknown): value is SeedDefinition {
   return !!value && typeof value === 'object' && (value as any).__cms === 'seed' && typeof (value as any).run === 'function'
 }

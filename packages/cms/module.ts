@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addComponentsDir, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
 import { createJiti } from 'jiti'
-import { appSecretFallbackCode, NITRO_CONFIG_MODULE, planAppSecretFallback, prependedLinesMap } from './src/appSecret'
+import { cmsDeprecated } from './src/deprecate'
 import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
@@ -12,8 +12,11 @@ export interface CmsModuleOptions {
   /** Path to the host config, relative to rootDir. Default: 'cms.config.ts'. */
   config?: string
   /**
-   * Postgres connection string. Leave it out in production: the server reads
-   * NUXT_CMS_DATABASE_URL or DATABASE_URL at runtime, which win over this value.
+   * Postgres connection string. The server reads NUXT_CMS_DATABASE_URL or DATABASE_URL at
+   * runtime, which win over this value; a value here is written into the build, password
+   * included.
+   *
+   * @deprecated Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) in the environment instead. Removed in 1.0.
    */
   databaseUrl?: string
   /** Blob storage for uploaded media. Defaults to the local filesystem driver. */
@@ -203,22 +206,6 @@ function sitemapPaths(paths: (string | Record<string, string>)[] | undefined): (
   return paths ?? []
 }
 
-/**
- * NUXT_SESSION_PASSWORD (or a nuxt.config `runtimeConfig.session.password`) standing in for
- * NUXT_APP_SECRET until 0.5: the lines of src/appSecret.ts put at the top of Nitro's runtime
- * config module, before Nitro reads the environment.
- */
-function appSecretFallback(code: string, onInstalled: () => void) {
-  return {
-    name: 'tinyzoo:app-secret-fallback',
-    transform(source: string, id: string) {
-      if (!NITRO_CONFIG_MODULE.test(id.split('?')[0]!)) return null
-      onInstalled()
-      return { code: code + source, map: prependedLinesMap(code, source, id) }
-    },
-  }
-}
-
 export default defineNuxtModule<CmsModuleOptions>({
   meta: { name: 'tinyzoo', configKey: 'cms' },
   defaults: { config: 'cms.config.ts' },
@@ -240,6 +227,9 @@ export default defineNuxtModule<CmsModuleOptions>({
   },
   async setup(options, nuxt) {
     const configPath = resolve(nuxt.options.rootDir, options.config || 'cms.config.ts')
+    if (options.databaseUrl) {
+      cmsDeprecated('option:cms.databaseUrl', '`cms.databaseUrl` writes the database address, password included, into the build: set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment instead.', { removeIn: '1.0.0' })
+    }
     if (!existsSync(configPath)) {
       console.warn(`[tinyzoo] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
     }
@@ -248,21 +238,6 @@ export default defineNuxtModule<CmsModuleOptions>({
     nuxt.options.alias['#cms/config'] = configPath
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
-    // NUXT_SESSION_PASSWORD as the app secret while a site has not set NUXT_APP_SECRET yet
-    // (src/appSecret.ts).
-    nuxt.hook('nitro:init', (nitro) => {
-      const plan = planAppSecretFallback(nitro.options.runtimeConfig as any)
-      if (!plan.install) return
-      let installed = false
-      nitro.hooks.hook('rollup:before', (_nitro, rollupConfig) => {
-        const plugins = (rollupConfig.plugins ||= []) as any[]
-        plugins.push(appSecretFallback(appSecretFallbackCode(plan.envPrefix, plan.fromConfig), () => { installed = true }))
-      })
-      // After the server is built, whichever bundler built it: was the module found?
-      nitro.hooks.hook('compiled', () => {
-        if (!installed) console.warn('[tinyzoo] Nitro\'s runtime config module was not found in the server bundle, so NUXT_SESSION_PASSWORD will not stand in for NUXT_APP_SECRET: set NUXT_APP_SECRET.')
-      })
-    })
     nuxt.hook('nitro:config', (nitro) => {
       if (existsSync(migrationsDir)) {
         nitro.serverAssets = nitro.serverAssets || []

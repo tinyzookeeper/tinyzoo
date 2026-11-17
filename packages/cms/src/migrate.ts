@@ -10,13 +10,16 @@ import { docsUrl } from './docs'
 import { sql, type SQL } from 'drizzle-orm'
 import { assertValidSteps, runUpgradeSteps, stepIsDue, UPGRADES_TABLE_SQL, type StepOutcome, type UpgradeContext, type UpgradeStep } from './upgrades'
 
+/** @internal */
 export interface MigrationJournal { entries: { idx: number; when: number; tag: string }[] }
+/** @internal */
 export interface MigrationSource {
   journal: MigrationJournal
   readSql: (tag: string) => Promise<string>
 }
-/** Runs one SQL text with optional params; returns rows. */
+/** Runs one SQL text with optional params; returns rows (what an upgrade step's `ctx.run` is). */
 export type SqlRunner = (text: string, params?: unknown[]) => Promise<any[]>
+/** @internal */
 export type JournalEntry = MigrationJournal['entries'][number]
 
 const LOCK = 72_011_003
@@ -26,6 +29,7 @@ async function sha256Hex(text: string): Promise<string> {
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/** @internal */
 export interface MigrationClassification<T extends { idx: number; when: number }> {
   applied: T[]
   /** Newer than everything applied: will run. */
@@ -42,6 +46,8 @@ export interface MigrationClassification<T extends { idx: number; when: number }
  * applied one and was never applied (two branches each generated one) would be skipped
  * for good. Entries are matched by `created_at` (the journal's `when`), not by hash: a
  * migration edited after it was applied must not look unapplied.
+ *
+ * @internal
  */
 export function classifyMigrations<T extends { idx: number; when: number }>(entries: T[], appliedMillis: number[]): MigrationClassification<T> {
   const have = new Set(appliedMillis)
@@ -58,7 +64,11 @@ export function classifyMigrations<T extends { idx: number; when: number }>(entr
   return out
 }
 
-/** An unapplied migration older than the newest applied one: stopped instead of skipped. */
+/**
+ * An unapplied migration older than the newest applied one: stopped instead of skipped.
+ *
+ * @internal
+ */
 export class MigrationOrderError extends Error {
   constructor(public readonly entries: JournalEntry[]) {
     super(orderMessage(entries))
@@ -69,6 +79,8 @@ export class MigrationOrderError extends Error {
 /**
  * What to do about an out-of-order migration. Regenerating gives it a later date, which is
  * all that is needed if it ran nowhere; if it ran on another database that is not enough.
+ *
+ * @internal
  */
 export const ORDER_FIX = {
   /** The fix: take it out and let `tinyzoo generate` write it again on top of the newest one. */
@@ -97,6 +109,7 @@ async function readMigrations(source: MigrationSource): Promise<ReadMigration[]>
 
 const statementsOf = (migrations: ReadMigration[]) => migrations.flatMap((m) => m.statements).map((s) => s.trim()).filter(Boolean)
 
+/** @internal */
 export interface UpgradeResult {
   /** Tags of the migrations applied. */
   migrations: string[]
@@ -110,6 +123,8 @@ export interface UpgradeResult {
  * Apply the pending migrations and upgrade steps. `transaction` must run the callback in
  * one transaction (so a failed migration or step leaves nothing half-applied). Throws
  * `MigrationOrderError` instead of skipping an out-of-order migration.
+ *
+ * @internal
  */
 export async function runUpgrade(
   source: MigrationSource,
@@ -143,6 +158,8 @@ export async function runUpgrade(
 /**
  * Apply every migration newer than the last one recorded, with the upgrade steps.
  * Returns the tags applied (see `runUpgrade` for the steps too).
+ *
+ * @internal
  */
 export async function applyMigrations(
   source: MigrationSource,
@@ -152,6 +169,7 @@ export async function applyMigrations(
   return (await runUpgrade(source, transaction, steps)).migrations
 }
 
+/** @internal */
 export interface StepStatus {
   id: string
   since: string
@@ -160,6 +178,7 @@ export interface StepStatus {
   /** applied: recorded. pending: due now. idle: has a `when` that does not hold right now. */
   state: 'applied' | 'pending' | 'idle'
 }
+/** @internal */
 export interface MigrationStatus {
   /** No migration applied yet. */
   freshInstall: boolean
@@ -174,6 +193,8 @@ export interface MigrationStatus {
 /**
  * What the database has and has not applied, without changing anything (`tinyzoo status`).
  * Missing bookkeeping tables read as "nothing applied yet".
+ *
+ * @internal
  */
 export async function inspectMigrations(source: MigrationSource, run: SqlRunner, steps: UpgradeStep[]): Promise<MigrationStatus> {
   assertValidSteps(steps)
@@ -205,6 +226,8 @@ export async function inspectMigrations(source: MigrationSource, run: SqlRunner,
  * Positional params ($1, $2…) → a drizzle sql chunk with bound values. Without
  * params the text goes through untouched: migration SQL may contain `$1` in a
  * function body or `'$5'` in a literal.
+ *
+ * @internal
  */
 export function sqlWithParams(text: string, params: unknown[] = []): SQL {
   if (!params.length) return sql.raw(text)
@@ -224,7 +247,11 @@ const CONNECTION_ERRORS = new Set(['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'E
 
 const CONNECTION_MESSAGES = /^(Connection terminated (due to connection timeout|unexpectedly)|timeout expired)$/
 
-/** Could not reach the database (worth retrying), as opposed to a statement that failed. */
+/**
+ * Could not reach the database (worth retrying), as opposed to a statement that failed.
+ *
+ * @internal
+ */
 export function isConnectionError(err: any): boolean {
   for (let e = err, depth = 0; e && depth < 4; e = e.cause, depth++) {
     if (CONNECTION_ERRORS.has(e.code)) return true

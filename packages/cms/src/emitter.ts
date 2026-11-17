@@ -3,7 +3,11 @@ import { camel, serializeColumn, snake } from './fields'
 import { CMS_MEDIA_SOURCE } from './media'
 import { CMS_SYSTEM_SOURCE } from './system'
 
-/** Emit the on-disk db/schema.ts source from the entity descriptors. */
+/**
+ * Emit the on-disk db/schema.ts source from the entity descriptors.
+ *
+ * @internal
+ */
 export function emitSchema(config: Record<string, any>): string {
   const reg = buildRegistry(config)
   const usesRich = reg.entities.some((e) => Object.values(e.fields).some((fl) => fl.type === 'richtext'))

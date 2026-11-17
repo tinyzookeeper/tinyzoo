@@ -165,7 +165,9 @@ the `backup` jobs set `TINYZOO_REQUIRE_PG_TOOLS=1`, so there a missing tool is a
 **Releases.** `tinyzoo` and `@tinyzoo/client` share one version. Every change to a
 package adds a changeset (`pnpm changeset`; a change a site must act on has an
 `### Upgrade` section with the steps), and a changed contract snapshot
-(`test/contracts/`, `pnpm contracts:update`) means the public content API changed.
+(`test/contracts/`, `pnpm contracts:update`) means a frozen surface changed: the content API, what
+an entry point exports, the `cms` options, the hooks, the webhook or the CLI
+([the public API](api-surface.md), [CONTRIBUTING.md](../CONTRIBUTING.md#contracts)).
 Merging to `main` makes `.github/workflows/release.yml` open a "Version packages"
 pull request; merging that publishes both packages to npm with provenance. Details,
 the version policy and how deprecations work (`cmsDeprecated()`): [CONTRIBUTING.md](../CONTRIBUTING.md).

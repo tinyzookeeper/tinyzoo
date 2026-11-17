@@ -20,7 +20,11 @@ export { linkRef, parseLinkRef, isLinkRef, looksLikeLinkRef, type LinkRef } from
 
 // ── walking stored values ──────────────────────────────────────────────────────
 
-/** What the walk needs to know of a field (a field descriptor, or its graph entry). */
+/**
+ * What the walk needs to know of a field (a field descriptor, or its graph entry).
+ *
+ * @internal
+ */
 export interface LinkFieldLike {
   type: string
   meta?: Record<string, any>
@@ -36,6 +40,8 @@ const holds = new WeakMap<object, boolean>()
 /**
  * Can a value of this field contain a link, at any depth? Link fields and rich text do;
  * a list, a block or a group does when one of its fields does.
+ *
+ * @internal
  */
 export function holdsLinks(fld: LinkFieldLike): boolean {
   const known = holds.get(fld)
@@ -48,13 +54,19 @@ export function holdsLinks(fld: LinkFieldLike): boolean {
   return out
 }
 
-/** The fields of an entity (or any field map) that can hold a link. */
+/**
+ * The fields of an entity (or any field map) that can hold a link.
+ *
+ * @internal
+ */
 export const linkFieldsOf = <F extends LinkFieldLike>(fields: Record<string, F>): [string, F][] => Object.entries(fields).filter(([, fld]) => holdsLinks(fld))
 
 /**
  * What to do with each link found. Return `undefined` to leave a link as it is.
  *  - `field`: a stored link field's value (text) → the new value, or null to empty it;
  *  - `mark`: a rich-text link's href → the new href, or null to take the link off the text (the text stays).
+ *
+ * @internal
  */
 export interface LinkVisitor {
   field?: (value: string) => string | null | undefined
@@ -66,7 +78,11 @@ export interface LinkVisitor {
 
 const isPlainObject = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v)
 
-/** A rich-text document with its link marks rewritten; the same object when nothing changed. */
+/**
+ * A rich-text document with its link marks rewritten; the same object when nothing changed.
+ *
+ * @internal
+ */
 export function mapDocLinks<T>(doc: T, visitor: LinkVisitor): T {
   if (!visitor.mark) return doc
   const mark = visitor.mark
@@ -107,7 +123,11 @@ export function mapDocLinks<T>(doc: T, visitor: LinkVisitor): T {
   return walk(doc)
 }
 
-/** One field's value with its links rewritten; the same value when nothing changed. */
+/**
+ * One field's value with its links rewritten; the same value when nothing changed.
+ *
+ * @internal
+ */
 export function mapFieldLinks(fld: LinkFieldLike, value: unknown, visitor: LinkVisitor): unknown {
   if (value === null || value === undefined) return value
   if (isLinkField(fld)) {
@@ -157,6 +177,8 @@ function mapBlockLinks(value: unknown, defs: Record<string, { fields: Record<str
 /**
  * The links of a row rewritten, as the fields that changed (`{ url: '/o-nas' }`):
  * nothing is modified, so a row (or a draft someone else holds) is never touched.
+ *
+ * @internal
  */
 export function mapRowLinks(fields: Record<string, LinkFieldLike>, row: Record<string, any>, visitor: LinkVisitor): Record<string, any> {
   const changed: Record<string, any> = {}
@@ -168,7 +190,11 @@ export function mapRowLinks(fields: Record<string, LinkFieldLike>, row: Record<s
   return changed
 }
 
-/** Every link reference (`cms:…`, well-formed or not) a row holds, in its link fields and rich text. */
+/**
+ * Every link reference (`cms:…`, well-formed or not) a row holds, in its link fields and rich text.
+ *
+ * @internal
+ */
 export function linkRefsOf(fields: Record<string, LinkFieldLike>, row: Record<string, any>, out: Set<string> = new Set()): Set<string> {
   const seen = (v: string) => {
     if (looksLikeLinkRef(v)) out.add(v)

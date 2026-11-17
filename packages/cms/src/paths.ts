@@ -10,21 +10,33 @@ import type { LocalesDef } from './locales'
  */
 export type PathTemplate = string | Record<string, string>
 
-/** The address prefix of a language ('/en'), per `defineLocales({ prefix })`. */
+/**
+ * The address prefix of a language ('/en'), per `defineLocales({ prefix })`.
+ *
+ * @internal
+ */
 export function sitePrefix(locales: LocalesDef | null, locale: string | null): string {
   if (!locales || !locale || locales.prefix === 'none') return ''
   if (locales.prefix === 'except-default' && locale === locales.default) return ''
   return `/${locale}`
 }
 
-/** The template for one language (null: that language has no page). */
+/**
+ * The template for one language (null: that language has no page).
+ *
+ * @internal
+ */
 export function pathTemplateFor(template: PathTemplate | undefined | null, locale: string | null, locales: LocalesDef | null): string | null {
   if (!template) return null
   if (typeof template === 'string') return template
   return template[locale ?? locales?.default ?? ''] ?? null
 }
 
-/** Placeholder keys of a template ('/blog/:slug' → ['slug']); for a map, of every language's. */
+/**
+ * Placeholder keys of a template ('/blog/:slug' → ['slug']); for a map, of every language's.
+ *
+ * @internal
+ */
 export function pathTemplateKeys(template: PathTemplate | undefined | null): string[] {
   if (!template) return []
   const all = typeof template === 'string' ? [template] : Object.values(template)
@@ -35,6 +47,8 @@ export function pathTemplateKeys(template: PathTemplate | undefined | null): str
  * A template filled in from a row ('/blog/:slug' → '/blog/hello'), or null when a part is
  * empty. A part can be a list of address parts (a page tree: ['o-nas', 'tym']): each is
  * escaped and they are joined with '/' ('/o-nas/tym').
+ *
+ * @internal
  */
 export function fillPathTemplate(template: string, row: Record<string, any>): string | null {
   let ok = true
@@ -54,6 +68,8 @@ export function fillPathTemplate(template: string, row: Record<string, any>): st
  * The full address of a row in one language (prefix included), or null. This is the one
  * place addresses are put together: a page tree passes its address parts as a list
  * (`{ slug: ['o-nas', 'tym'] }`, see src/tree.ts) and gets the nested address.
+ *
+ * @internal
  */
 export function sitePath(locales: LocalesDef | null, template: PathTemplate | undefined | null, locale: string | null, row: Record<string, any>): string | null {
   const t = pathTemplateFor(template, locale, locales)
@@ -64,6 +80,8 @@ export function sitePath(locales: LocalesDef | null, template: PathTemplate | un
 /**
  * Per-language templates with the prefix already in front, for the admin's preview:
  * { cs: '/aktuality/:slug', en: '/en/news/:slug' }; without languages, { '': '/blog/:slug' }.
+ *
+ * @internal
  */
 export function prefixedTemplates(template: PathTemplate | undefined | null, locales: LocalesDef | null): Record<string, string> | null {
   if (!template) return null

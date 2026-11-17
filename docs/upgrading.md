@@ -11,9 +11,13 @@ who work on tinyzoo itself.
   in the package's `CHANGELOG.md` under an **Upgrade** heading that says what your
   site has to do. A patch version (0.2.1 → 0.2.2) never needs anything from you.
 - **From 1.0:** [semver](https://semver.org). The content API, the types of
-  `@tinyzoo/client` and the config API (`defineEntity`, `f.*`, presets, plugins)
-  only break in a new major version, and anything that goes away is marked
-  deprecated for at least one minor version first.
+  `@tinyzoo/client`, the config API (`defineEntity`, `f.*`, presets, plugins), the webhook and
+  the Nitro hooks, the CLI, the `cms` options and `NUXT_CMS_*` variables, and the admin's
+  extension points only break in a new major version, and anything that goes away is marked
+  deprecated for at least one minor version first. **[The public API](api-surface.md)** lists
+  every one of them; everything else (other `Cms*` components, server utilities, anything
+  tagged `@internal`, the database tables) can change in any minor release, with its
+  changeset, and tinyzoo migrates the tables for you.
 
 ## From 0.1 to 0.2
 
@@ -117,13 +121,12 @@ which needs Nuxt 4.6 and seals the sign-in cookie differently.
      (`openssl rand -base64 32`). Everything signed with the old one changes with it:
      `nuxt-og-image`'s signed image URLs change, and everyone signs in again.
 
-   Until 0.5, a deploy that still has only `NUXT_SESSION_PASSWORD` (or the `nuxt.config` password)
-   keeps working: its value stands in for `NUXT_APP_SECRET`, and the log says once, at start,
-   that the old name is deprecated. nuxt-auth-utils logs its own line next to it, that
-   `NUXT_SESSION_PASSWORD` "is not used anymore": until you rename the variable that line can be
-   ignored, as tinyzoo still uses the value. With no app secret (or with one shorter than 32
-   characters), the server does not start and names the variable. In development Nuxt makes an
-   app secret by itself when there is none.
+   Tinyzoo 0.4 and 0.5 let a deploy that still had only `NUXT_SESSION_PASSWORD` (or the
+   `nuxt.config` password) keep working, with a deprecation warning: its value stood in for
+   `NUXT_APP_SECRET`. **0.6 removed that** ([From 0.5 to 0.6](#from-05-to-06)): rename the variable
+   before you update to it. With no app secret (or with one shorter than 32 characters), the
+   server does not start and names the variable. In development Nuxt makes an app secret by
+   itself when there is none.
 4. **Everyone signs in again, once.** The sign-in cookie has a new name (`nuxt-auth-session`, was
    `nuxt-session`) and a new format, so the sessions from before the update no longer open the
    admin. Accounts and passwords are unchanged. Renaming the variable later, with the same value,
@@ -163,6 +166,46 @@ Everything below is also in the changelog of 0.5.0.
    The sitemap now carries `x-default` next to the languages, and it is cached for an hour
    (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`); a content
    change clears the server's copy at once.
+
+## From 0.5 to 0.6
+
+Everything below is also in the changelog of 0.6.0. 0.6 is the last minor before 1.0: it removes what was
+deprecated, marks what is internal, and writes down [the public API](api-surface.md) that 1.0 freezes.
+
+1. **Update** both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+2. **`NUXT_APP_SECRET` is required; `NUXT_SESSION_PASSWORD` is no longer read.** A site that was set up
+   before 0.4 may still have only `NUXT_SESSION_PASSWORD` (or `runtimeConfig.session.password` in
+   `nuxt.config.ts`): 0.4 and 0.5 used it as the app secret and warned. 0.6 does not: the server
+   **refuses to start** and says `NUXT_APP_SECRET is not set` and to rename the variable. **Before you
+   deploy 0.6**, on your platform and in `.env`:
+   - rename `NUXT_SESSION_PASSWORD=…` to `NUXT_APP_SECRET=…`, **keeping the value**: nobody is
+     signed out;
+   - or move `runtimeConfig.session.password` from `nuxt.config.ts` to `NUXT_APP_SECRET` in the
+     environment and remove it from the config;
+   - the value is at least 32 characters (`openssl rand -base64 32` makes one). A site that
+     already sets `NUXT_APP_SECRET` needs nothing: an old `NUXT_SESSION_PASSWORD` next to it is
+     ignored, and can be deleted.
+
+   A site that already runs 0.5 without the deprecation warning (`[tinyzoo] deprecated:
+   NUXT_SESSION_PASSWORD is used as the app secret…`) in its log has nothing to do.
+3. **Deprecations that start now** (a warning at build or start; removed in 1.0, so change them
+   during 0.6):
+   - `cms.databaseUrl` in `nuxt.config.ts` writes the database address, password included, into the
+     build. Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) in the environment and delete the option.
+   - `import type { FormOptions } from 'tinyzoo'`: import it from `tinyzoo/forms`.
+   - A field named `page`, `limit`, `sort`, `dir` or `q` in a collection of the public content API has the
+     name of a parameter of its list, so it cannot be a filter. Rename the field (a rename is a
+     migration: [Renaming a field](#renaming-a-field)).
+4. **Internal exports.** Many helpers exported from `tinyzoo` (the tree, search, link and migration
+   functions, the system tables, `buildRegistry`…) are tagged `@internal`: the server, the admin and
+   the CLI use them, a site should not. They still work, and can change in any minor release. Everything
+   else that `tinyzoo`, `tinyzoo/forms`, `tinyzoo/module` and `@tinyzoo/client` export is listed in
+   [the public API](api-surface.md). If your code imports an `@internal` name, tell us what it needs
+   and use the documented API meanwhile.
+5. **Nothing else.** No migration, no change to the content API or to the generated client types. Two
+   additions you may use: `tinyzoo help` prints every command and flag, and `CmsWebhookPayload`,
+   `CMS_WEBHOOK_HEADERS`, `CmsAdminField`, `CmsFieldEditProps` and `CmsFieldCellProps` are exported as
+   types for webhook receivers and your own field renderers.
 
 ## On every upgrade
 

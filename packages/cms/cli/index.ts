@@ -21,6 +21,7 @@
  *                               through the admin API (--url --email, password in $SEED_PASSWORD; --dry-run, --reset)
  *   tinyzoo init <dir>        → a new website with the CMS inside (the starter: pages, news,
  *                               menus, a contact form, cs/en), ready for `pnpm install`
+ * `tinyzoo help` prints the commands and flags (cli/usage.ts holds the list the docs and the tests follow).
  * Run from the host app root (cwd = host). Designed to run under tsx.
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
@@ -34,6 +35,7 @@ import { upgrade } from './upgrade'
 import { runExport } from './export'
 import { runImport } from './import'
 import { reportFailure } from './transfer'
+import { usage } from './usage'
 
 const cmd = process.argv[2]
 const cwd = process.cwd()
@@ -130,11 +132,8 @@ switch (cmd) {
   case 'seed': await (await import('./seed')).seedCommand(await loadConfig(), process.argv.slice(3)).catch(reportFailure); break
   case 'backup': await (await import('./backup')).backup(process.argv.slice(3)); break
   case 'restore': await (await import('./backup')).restore(process.argv.slice(3)); break
+  case 'help': case '--help': case '-h': process.stdout.write(usage()); break
   default:
-    console.error('usage: tinyzoo <init|generate|up|status|upgrade|client|openapi|content:migrate|export|import|seed|links:convert|backup|restore> [out] [--stdout] [--allow-drop] [--allow-risky] [--dry-run]\n'
-      + '       tinyzoo export <file.tar.gz> [--only a,b] [--no-media] [--with-revisions] [--with-submissions] [--force]\n'
-      + '       tinyzoo import <file.tar.gz> [--replace [--yes] | --merge] [--allow-mismatch] [--dry-run]\n'
-      + '       tinyzoo seed [file] [--url u] [--email e] [--dry-run] [--reset [--yes]]   (password: $SEED_PASSWORD)\n'
-      + '       tinyzoo backup [file]  ·  tinyzoo restore <file> [--yes] [--force]')
+    console.error(usage())
     process.exit(1)
 }

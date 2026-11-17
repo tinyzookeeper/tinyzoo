@@ -160,11 +160,20 @@ const RESERVED_PLUGIN_NAMES = new Set(['cms', 'core', 'tinyzoo', 'admin', 'api',
 /** Content API addresses tinyzoo uses itself. */
 const RESERVED_CONTENT_SEGMENTS = new Set(['_global', '_search', '_sitemap'])
 
-/** Where plugin routes and pages live. */
+/**
+ * Where plugin routes and pages live.
+ *
+ * @internal
+ */
 export const pluginApiBase = (plugin: string) => `/api/cms/_p/${plugin}`
+/** @internal */
 export const pluginAdminBase = (plugin: string) => `/admin/p/${plugin}`
 
-/** Entity names of a plugin are `<name>` or `<name>_<rest>`, dashes written as underscores. */
+/**
+ * Entity names of a plugin are `<name>` or `<name>_<rest>`, dashes written as underscores.
+ *
+ * @internal
+ */
 export const pluginEntityPrefix = (plugin: string) => plugin.replace(/-/g, '_')
 
 const fail = (name: string | undefined, message: string): never => {
@@ -326,6 +335,7 @@ function normalizeParams(path: string): string {
   return path.split('/').map((s) => (s.startsWith(':') ? ':' : s)).join('/')
 }
 
+/** @internal */
 export const isCmsPlugin = (v: unknown): v is CmsPlugin => !!v && typeof v === 'object' && (v as any).__cms === 'plugin'
 
 // ── collecting plugins from a host config ───────────────────────────────────────
@@ -333,6 +343,8 @@ export const isCmsPlugin = (v: unknown): v is CmsPlugin => !!v && typeof v === '
  * Marks an entity that needs a plugin: `defineForm` needs `forms`. A plugin that is not
  * registered is an error, unless the entity says how to make it (`create`): the
  * deprecated way of using forms, which registers the plugin by itself.
+ *
+ * @internal
  */
 export interface CmsPluginRequirement {
   plugin: string
@@ -346,6 +358,8 @@ export interface CmsPluginRequirement {
  * The plugins of a host config: the arrays exported as `plugins` and any plugin
  * exported by itself, plus those an entity of the config asks for by itself. Throws on
  * two plugins with one name, or an entity whose plugin is missing.
+ *
+ * @internal
  */
 export function collectPlugins(config: Record<string, any>): CmsPlugin[] {
   const found: CmsPlugin[] = []
@@ -376,19 +390,35 @@ export function collectPlugins(config: Record<string, any>): CmsPlugin[] {
   return found
 }
 
-/** tinyzoo's own steps are not namespaced; a plugin's are `<plugin>:<id>`. */
+/**
+ * tinyzoo's own steps are not namespaced; a plugin's are `<plugin>:<id>`.
+ *
+ * @internal
+ */
 export const pluginStepId = (plugin: string, id: string) => `${plugin}:${id}`
 
-/** The upgrade steps of the plugins, namespaced, ready for the runner. */
+/**
+ * The upgrade steps of the plugins, namespaced, ready for the runner.
+ *
+ * @internal
+ */
 export function pluginUpgradeSteps(plugins: readonly CmsPlugin[]): UpgradeStep[] {
   return plugins.flatMap((p) => (p.upgrades ?? []).map((s) => ({ ...s, id: pluginStepId(p.name, s.id), since: s.since ?? p.version })))
 }
 
-/** Every entity the plugins add (collections and singletons). */
+/**
+ * Every entity the plugins add (collections and singletons).
+ *
+ * @internal
+ */
 export const pluginEntities = (plugins: readonly CmsPlugin[]): CmsEntity[] => plugins.flatMap((p) => [...p.entities, ...p.singletons])
 
 // ── routes ──────────────────────────────────────────────────────────────────────
-/** Does `path` (no query) match a route with `:param` segments? */
+/**
+ * Does `path` (no query) match a route with `:param` segments?
+ *
+ * @internal
+ */
 export function matchRoute(pattern: string, path: string): boolean {
   const a = pattern.split('/')
   const b = routePath(path).split('/')
@@ -407,6 +437,8 @@ export const routePath = (path: string): string => path.split('?')[0]!.replace(/
  * The access rule for a request to `/api/cms/_p/…`: `null` when the path is not under
  * a plugin namespace at all, otherwise the declared access of the matching route, or
  * `user` for an address no route declares (never open by accident).
+ *
+ * @internal
  */
 export function pluginRouteAccess(plugins: readonly CmsPlugin[], method: string, path: string): CmsRouteAccess | null {
   if (!path.split('?')[0]!.startsWith('/api/cms/_p/')) return null
@@ -429,6 +461,7 @@ export function pluginRouteAccess(plugins: readonly CmsPlugin[], method: string,
 }
 
 // ── what the Nuxt module registers ──────────────────────────────────────────────
+/** @internal */
 export interface PluginPlan {
   pages: { name: string; path: string; file: string; plugin: string }[]
   handlers: { method: CmsHttpMethod; route: string; handler: string; plugin: string }[]
@@ -444,6 +477,8 @@ export interface PluginPlan {
  * What the build must register for these plugins, or an error that names the plugin:
  * duplicate names, two plugins on one route, page or field type, files that do not
  * exist (`exists`: the module passes `existsSync`).
+ *
+ * @internal
  */
 export function planPlugins(plugins: readonly CmsPlugin[], opts: { exists?: (file: string) => boolean } = {}): PluginPlan {
   const exists = opts.exists ?? (() => true)

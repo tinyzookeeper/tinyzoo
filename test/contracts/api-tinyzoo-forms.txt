@@ -1,0 +1,34 @@
+// API report: `tinyzoo/forms` (packages/cms/forms/index.ts)
+// The forms plugin: defineForm, defineFormSettings, formsPlugin.
+// Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
+
+// ── public (4) ─────────────────────────────────────────────────
+
+export interface FormOptions<F extends Record<string, any>> {
+    label: LocalizedText;
+    labelSingular?: LocalizedText;
+    description?: LocalizedText;
+    fields: F;
+    titleField?: keyof F & string;
+    submitLabel?: LocalizedText;
+    successMessage?: LocalizedText;
+    notify?: {
+        to?: string[];
+    };
+    retentionDays?: number;
+    access?: EntityDef<F>['access'];
+}
+
+export function defineForm<F extends Record<string, any>>(name: string, opts: FormOptions<F>): Entity<Record<string, AnyFieldDescriptor>>;
+
+export function defineFormSettings(opts?: {
+    name?: string;
+    access?: EntityDef<any>["access"];
+}): Entity<Record<string, AnyFieldDescriptor>>;
+
+export function formsPlugin(): CmsPlugin;
+
+// ── internal (3): exported, not part of the frozen API, may change in any minor ──
+const FORMS_REQUIREMENT
+const FORM_FIELD_TYPES
+const formsReadAccess
