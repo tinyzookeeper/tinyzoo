@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, ne, or, sql } from 'tinyzoo'
-import { propOf, snake, type CmsEntity, type CmsRegistry } from 'tinyzoo'
+import { propOf, snake, type CmsAccessUser, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 import type { CmsUser } from './cmsSession'
 
 export function getEntity(reg: CmsRegistry, name: string | undefined): CmsEntity {
@@ -134,7 +134,9 @@ export function accessWhere(
   // `base`: it reaches what the entity rules allow, as before roles existed, but a rule that
   // trusts `base === 'editor'` (the forms' messages) must not take it for an editor.
   const role = roleOf(user)
-  const res = rule({ user: { ...user, base: role?.legacy ? null : role?.base ?? null }, table: e.table })
+  // What the rule gets is `CmsAccessUser`: the fields a host's external sign-in left out are filled in empty.
+  const ruleUser: CmsAccessUser = { ...user, email: user.email ?? '', name: user.name ?? user.email ?? '', locale: user.locale ?? null, base: role?.legacy ? null : role?.base ?? null }
+  const res = rule({ user: ruleUser, table: e.table })
   if (res === false || res === null || res === undefined) return { allowed: false, where: undefined }
   return { allowed: true, where: both(byRole.where, res === true ? undefined : res) }
 }

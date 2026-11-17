@@ -40,10 +40,11 @@ export { cmsMedia } from './media'
 export { CMS_WEBHOOK_HEADERS, webhookPayload, type CmsChange, type CmsChangeType, type CmsSitemapEntry, type CmsWebhookPayload } from './changes'
 export type { CmsErrorReport } from './errorReport'
 export type { CmsAdminField, CmsFieldEditProps, CmsFieldCellProps } from './admin'
+export type { CmsImageMedia, CmsImageProps, CmsBlocksProps, CmsBlockProps, CmsContentNode, CmsContentProps, CmsNavLink, CmsNavProps, CmsHighlightProps, CmsFormProps, CmsSearchItem, CmsSearchResult } from './frontend'
 export { generateSetupCode, normalizeSetupCode } from './setupCode'
 export {
   defineRoles, resolveRole, roleName, rolesDefOf, allRoleNames, fieldReadable, fieldEditable, normalizeFieldAccess, CMS_ENTITY_OPS, CMS_MEDIA_ACCESS, CMS_ROLE_BASES,
-  type CmsRoleDef, type CmsRoleRef, type CmsRoleInput, type CmsRoles, type CmsRolesDef, type CmsResolvedRole, type CmsFieldAccess, type CmsFieldRule, type CmsEntityOp, type CmsMediaAccess, type CmsRoleBase,
+  type CmsRoleDef, type CmsRoleRef, type CmsRoleInput, type CmsRoles, type CmsRolesDef, type CmsResolvedRole, type CmsFieldAccess, type CmsFieldRule, type CmsEntityOp, type CmsMediaAccess, type CmsRoleBase, type CmsAccessUser,
 } from './roles'
 export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, CMS_ROLES, type CmsRole } from './system'
 export { searchTerms, foldSearchText, entryTexts, richTextPlain, isSearchableField, matchEntry, excerptOf, highlightRanges, wordMatch, editDistance, allowedTypos, SEARCH_MAX_QUERY, type SearchMatch } from './search'

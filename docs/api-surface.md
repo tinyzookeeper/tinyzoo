@@ -6,7 +6,7 @@ deprecated for at least one minor release first (how: [CONTRIBUTING.md](../CONTR
 Until 1.0, a change to it is a minor release with an `### Upgrade` section in its changeset.
 
 What is **not** on this page is internal and can change in any minor release, always with a changeset:
-the other `Cms*` components, the server's own utilities, the admin's API (`/api/cms/**`), every export
+the other `Cms*` components (the admin's own: see [the frontend kit](#the-frontend-kit) for the ones a website uses), the server's own utilities, the admin's API (`/api/cms/**`), every export
 tagged `@internal`, and the database tables (tinyzoo migrates them, with upgrade steps:
 [upgrading.md](upgrading.md)). The names stay as they are: `cms.config.ts`, `NUXT_CMS_*`, `cms_*`,
 `Cms*` and the `cms` key of `nuxt.config`.
@@ -16,6 +16,7 @@ tagged `@internal`, and the database tables (tinyzoo migrates them, with upgrade
 | [The config API](#the-config-api-tinyzoo): `defineEntity`, `f.*`, blocks, presets, seeds, plugins | `tinyzoo`, [`tinyzoo/forms`](#forms-tinyzooforms) |
 | [The Nuxt layer and its options](#the-nuxt-layer-and-the-cms-options) and [environment variables](#environment-variables) | `tinyzoo/layer`, `tinyzoo/module`, `nuxt.config`, `NUXT_CMS_*` |
 | [The content API](#the-content-api-http) (HTTP) and [the client](#the-client-tinyzooclient) | `/api/content/*`, `@tinyzoo/client` |
+| [The frontend kit](#the-frontend-kit): `<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()` | `Cms*` components and composables of the layer |
 | [The webhook](#the-webhook) and [the Nitro hooks](#the-nitro-hooks) | `cms:*` |
 | [The CLI](#the-cli) | `tinyzoo <command>` |
 | [The admin's extension points](#the-admins-extension-points) | `cms.fields` in `app.config.ts` |
@@ -37,9 +38,10 @@ The reviewer reads that diff, and the changeset says whether it **breaks sites**
 | `content-routes.txt` | the routes of the content API |
 | `layer-config.json` | what `extends: ['tinyzoo/layer']` sets up |
 | `openapi.playground.json`, `client-types.playground.ts` | the content API of the playground |
-| `surface.client-types.ts`, `surface.openapi.json`, `surface.admin-graph.json` | the content API, client types and admin graph of `test/contracts/surface/cms.config.ts`, a config that uses every field and option |
+| `frontend-kit.txt` | the props, emits, slots and signatures of the frontend kit |
+| `surface.client-types.ts`, `surface.openapi.json`, `surface.admin-graph.json` | the content API, client types and admin graph of `test/contracts/surface/cms.config.ts`, a config that uses every field and option (a role of the site's own, a field with `.access()`, per-language publishing among them) |
 
-`test/unit/surface-types.spec.ts` asserts the inferred `Row`, `Insert` and `Update` types and the client's
+`test/unit/surface-types.spec.ts` asserts the inferred `Row`, `Insert` and `Update` types, the role references and the client's
 types of that same config, so a type regression fails `pnpm typecheck`. `test/unit/api-surface.spec.ts`
 also checks that this page names every public export, command, flag, route, hook and variable.
 
@@ -56,7 +58,7 @@ through the same entry point).
 | Export | What it is |
 |---|---|
 | `defineEntity(name, def)` | a collection: fields, admin, access, content API, publishing. Returns an `Entity` whose fields are typed end to end |
-| `defineSingleton(name, def)` | a global with one record (site settings, a home page) |
+| `defineSingleton(name, def)` | a global with one record (site settings, a home page): **the** way to make one (`singleton: true` on `defineEntity` is deprecated) |
 | `defineBlock(def)` | one type of block for `f.blocks()`: label, fields, `version` and `upgrade` |
 | `defineLocales(def)` | the content languages: default, list, labels, address prefix |
 | `defineRoles(roles)` | the site's own roles, each extending `editor` or `author`: per-collection operations, `publish`, `media` ([roles](guide/roles.md)) |
@@ -81,7 +83,7 @@ types are inferred from them.
 |---|---|---|
 | `f.text(o)` | `required`, `format: 'email' \| 'url' \| 'path' \| 'link'`, `multiline`, `max` | `string` |
 | `f.slug(o)` | `from` (the field it follows), `unique` | `string` |
-| `f.number(o)` | `int` (default true; `false` is a decimal), `min`, `max` | `number` |
+| `f.number(o)` | `int` (default true; `false` is a decimal), `min`, `max` | `number`; **`string` for a decimal** (`int: false`: the column is `numeric`, a select and the content API give `"19.99"`). An `Insert` or `Update` takes `number \| string` for a decimal. Read it with `Number(row.price)` |
 | `f.boolean(o)` | `default`, `mustBeTrue`, `needsPrevious` | `boolean` |
 | `f.datetime(o)` | `default: 'now'`, `allDay` | `Date` (a `Date` or an ISO string on insert) |
 | `f.select(o)` | `options` (a tuple), `default`, `labels`, `icons` | the union of the options |
@@ -122,11 +124,12 @@ Properties a plugin or admin code may read: `type`, `isRequired`, `isUnique`, `i
 | `label`, `labelSingular`, `description`, `icon` | how the admin names it |
 | `titleField` | the field that names an entry |
 | `fields` | the `f.*` fields |
-| `singleton`, `live` | one record only; every write is live at once (redirects) |
+| `singleton` | **deprecated**, removed in 1.0: use `defineSingleton` (a warning at start says so) |
+| `live` | every write is live at once (redirects) |
 | `admin.list` | `columns`, `searchable`, `orderField` (arranged by dragging), `layout` (`CmsListLayout`) |
 | `admin.editor` | `'write' \| 'form' \| 'preview'` (`CmsEditorLayout`) |
 | `admin.preview`, `admin.tabs`, `admin.sections` | the preview address of a global, form tabs, form sections (`CmsFormSection`) |
-| `access` | row-level rules per `read`, `create`, `update`, `delete`: a function of `{ user, table }` returning a drizzle condition |
+| `access` | row-level rules per `read`, `create`, `update`, `delete`: a function of `{ user, table }` returning a drizzle condition; `user` is a `CmsAccessUser` |
 | `content` | the public content API (`ContentConfig`): `public`, `published`, `slug`, `path`, `populate`, `hidden`, `search` |
 | `publish` | the workflow (`PublishConfig`): `field`, `publishedValue`, `draftValue`, `dateField`, `schedule`, `preview`, `perLocale` (each language published on its own) |
 | `tree` | entries under each other: `parent`, `order`, `maxDepth` (`TreeConfig`) |
@@ -150,11 +153,18 @@ routes. Their types belong to `drizzle-orm`.
 | Fields | `FieldDescriptor`, `AnyFieldDescriptor`, `FieldKind`, `FieldUi`, `Nullable`, `Defaulted`, `OnDelete`, `RelationKind`, `RelationSpec` |
 | Values | `RichTextDoc`, `CmsBlock`, `BlockDef`, `BlockValue`, `BlocksValue`, `GroupValue`, `CmsListValue`, `CmsGalleryValue` |
 | Languages and text | `LocalesDef`, `LocalizedText`, `PathTemplate` |
-| Users and roles | `CmsRole` (`'admin' \| 'editor' \| 'author'`), `CmsRoleBase`, `CmsRoleDef`, `CmsRoleRef`, `CmsRoleInput`, `CmsRoles`, `CmsEntityOp`, `CmsMediaAccess`, `CmsFieldAccess` |
+| Users and roles | `CmsAccessUser` (what an `access` rule is given: `id`, `email`, `name`, `role`, `base`, `locale`, and what an external sign-in adds as `unknown`), `CmsRole` (`'admin' \| 'editor' \| 'author'`), `CmsRoleBase`, `CmsRoleDef`, `CmsRoleRef`, `CmsRoleInput`, `CmsRoles`, `CmsEntityOp`, `CmsMediaAccess`, `CmsFieldAccess` |
 | Seeds | `SeedDefinition`, `SeedContext`, `SeedEntry`, `SeedInsert`, `SeedWriteOptions`, `SeedGlobalOptions`, `SeedUploadOptions`, `SeedLink`, `SeedLinkOptions`, `SeedRich`, `SeedRichNode` |
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
+| Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsSearchItem`, `CmsSearchResult` |
+
+**`Entity` or `CmsEntity`?** They are two views of the same thing. `Entity<F>` is what `defineEntity`,
+`defineSingleton`, `defineForm` and the presets return, typed from its fields: it is the one to write in a site's
+code, and the one the guides use. `CmsEntity` is the same entity with its fields erased, what **a plugin's hooks
+and routes receive** (and what the registry lists): it appears only in the plugin documentation. An `Entity` is
+assignable to a `CmsEntity`, not the other way round.
 
 `CmsEntity` and `CmsRegistry` are what a plugin's hooks receive: the erased entity (its name, fields,
 `table`, `content`, `publish`…) and the registry (`entities`, `byName`, `locales`, `plugins`, `pluginOf`);
@@ -170,11 +180,12 @@ The forms plugin ([plugins](plugins.md#forms)).
 | Export | What it is |
 |---|---|
 | `formsPlugin()` | the plugin to register: `export const plugins = [formsPlugin()]` |
-| `defineForm(name, opts)` | a website form and its messages as a collection (`FormOptions`) |
+| `defineForm(name, opts)` | a website form and its messages as a collection (`FormOptions`). Returns `Entity<F & { status: FormStatusField }>`: `Row<typeof ContactForm>` has the form's fields (typed) and the state `status` (`'new' \| 'read' \| 'done'`) |
 | `defineFormSettings(opts)` | the global that holds the recipients of the notifications |
 | `FormOptions` | the options of `defineForm`: `label`, `fields`, `submitLabel`, `successMessage`, `notify`, `retentionDays`, `access` |
+| `FormStatusField` | the type of the `status` field every form gets |
 
-It also brings `<CmsForm name="…" />` (props `name`, `locale`; event `sent`) and `GET` / `POST /api/content/_form/:name`.
+It also brings `<CmsForm name="…" />` ([the frontend kit](#the-frontend-kit): props `name`, `locale`; event `sent`; slot `success`) and `GET` / `POST /api/content/_form/:name`.
 
 ## The Nuxt layer and the `cms` options
 
@@ -197,22 +208,23 @@ environment** without a rebuild: `cms.storage.s3.bucket` is `NUXT_CMS_STORAGE_S3
 | `config` | | path of the config, relative to the site (`cms.config.ts`; build time) |
 | `databaseUrl` | `NUXT_CMS_DATABASE_URL` | deprecated: set `DATABASE_URL` or `NUXT_CMS_DATABASE_URL` in the environment instead |
 | `migrations.dir`, `migrations.onStart` | `NUXT_CMS_MIGRATIONS_ON_START` | the migrations bundled into the build; apply them when the server starts |
-| `publicUrl` | `NUXT_CMS_PUBLIC_URL` | the public address of the site (links in emails, the sitemap) |
+| `publicUrl` | `NUXT_CMS_PUBLIC_URL` | the public address of the site (links in emails, the sitemap, and the OpenAPI server address unless `content.publicUrl` says otherwise) |
 | `auth.mode`, `auth.trustedProxies`, `auth.ipHeader` | `NUXT_CMS_AUTH_MODE`, `NUXT_CMS_AUTH_TRUSTED_PROXIES`, `NUXT_CMS_AUTH_IP_HEADER` | `builtin` or `external` sign-in; proxies in front of the app; the client-IP header |
-| | `NUXT_CMS_AUTH_SETUP_TOKEN` | the code first-run setup asks for (an environment variable only) |
+| | `NUXT_CMS_AUTH_SETUP_TOKEN` | the code first-run setup asks for. **An environment variable only, on purpose**: it is a secret, and an option would write it into the build (and into `nuxt.config.ts`, which is committed) |
 | `mail.transport`, `mail.from`, `mail.smtp.*`, `mail.file.dir` | `NUXT_CMS_MAIL_TRANSPORT`, `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `NUXT_CMS_MAIL_SMTP_PORT`, `NUXT_CMS_MAIL_SMTP_SECURE`, `NUXT_CMS_MAIL_SMTP_USER`, `NUXT_CMS_MAIL_SMTP_PASS`, `NUXT_CMS_MAIL_FILE_DIR` | `log`, `file` or `smtp` |
 | `storage.driver`, `storage.local.dir`, `storage.local.publicBase` | `NUXT_CMS_STORAGE_DRIVER`, `NUXT_CMS_STORAGE_LOCAL_DIR`, `NUXT_CMS_STORAGE_LOCAL_PUBLIC_BASE` | `local`, `s3` or `r2`; the local upload folder |
 | `storage.s3.endpoint`, `.region`, `.bucket`, `.accessKeyId`, `.secretAccessKey`, `.publicBaseUrl`, `.delivery` | `NUXT_CMS_STORAGE_S3_ENDPOINT`, `NUXT_CMS_STORAGE_S3_REGION`, `NUXT_CMS_STORAGE_S3_BUCKET`, `NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID`, `NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY`, `NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL`, `NUXT_CMS_STORAGE_S3_DELIVERY` | the S3-compatible store; `delivery` is `public`, `proxy` or `redirect` |
 | `storage.maxSizeMb`, `storage.maxBytesPerUser`, `storage.uploadRatePerMin` | `NUXT_CMS_STORAGE_MAX_SIZE_MB`, `NUXT_CMS_STORAGE_MAX_BYTES_PER_USER`, `NUXT_CMS_STORAGE_UPLOAD_RATE_PER_MIN` | upload limits |
 | `redis.url`, `redis.prefix` | `NUXT_CMS_REDIS_URL`, `NUXT_CMS_REDIS_PREFIX` | state shared by several instances (`REDIS_URL` too) |
-| `scheduler.cron` | `CMS_SCHEDULER_CRON` (build time) | how often scheduled entries are checked |
+| `scheduler.cron` | | how often scheduled entries are checked (a cron expression; **build time**: it is written into the build, so there is no `NUXT_CMS_*` variable and a change needs a rebuild). `CMS_SCHEDULER_CRON` still works as a deprecated alias |
+| `retention.cron` | | when the daily retention task runs (a cron expression, default `17 3 * * *`; build time like `scheduler.cron`). `CMS_RETENTION_CRON` still works as a deprecated alias |
 | `retention.auditDays` | `NUXT_CMS_RETENTION_AUDIT_DAYS` | how long audit entries are kept |
 | `revisions.keep` | `NUXT_CMS_REVISIONS_KEEP` | versions kept per entry and language (0 = off) |
 | `webhooks.urls`, `webhooks.secret` | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | [the webhook](#the-webhook) |
 | `sitemap.paths` | `NUXT_CMS_SITEMAP_PATHS` | addresses that are not entries but belong in `/sitemap.xml` |
-| `forms.notifyTo`, `forms.turnstileSecret`, `forms.turnstileSiteKey` | `NUXT_CMS_FORMS_NOTIFY_TO`, `NUXT_CMS_FORMS_TURNSTILE_SECRET`, `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` | the forms plugin's recipients and Turnstile |
+| `forms.notifyTo`, `forms.turnstileSecret`, `forms.turnstileSiteKey` | `NUXT_CMS_FORMS_NOTIFY_TO`, `NUXT_CMS_FORMS_TURNSTILE_SECRET`, `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` | the forms plugin's recipients (`notifyTo` is an address or a list; the variable is one comma-separated string) and Turnstile |
 | `demo.email`, `demo.password` | `NUXT_PUBLIC_CMS_DEMO_EMAIL`, `NUXT_PUBLIC_CMS_DEMO_PASSWORD` | a public demo admin |
-| `content.token`, `content.cacheControl`, `content.publicUrl`, `content.docs` | `NUXT_CMS_CONTENT_TOKEN`, `NUXT_CMS_CONTENT_CACHE_CONTROL`, `NUXT_CMS_CONTENT_PUBLIC_URL`, `NUXT_CMS_CONTENT_DOCS` | the content API: a token, the cache header, the OpenAPI server address, the interactive reference |
+| `content.token`, `content.cacheControl`, `content.publicUrl`, `content.docs` | `NUXT_CMS_CONTENT_TOKEN`, `NUXT_CMS_CONTENT_CACHE_CONTROL`, `NUXT_CMS_CONTENT_PUBLIC_URL`, `NUXT_CMS_CONTENT_DOCS` | the content API: a token, the cache header, the OpenAPI server address (falls back to `publicUrl` when empty), the interactive reference |
 
 ## Environment variables
 
@@ -225,12 +237,13 @@ The `NUXT_CMS_*` and `NUXT_PUBLIC_CMS_*` variables above, and:
 | `REDIS_URL` | Redis, when `NUXT_CMS_REDIS_URL` is not set |
 | `NUXT_SITE_URL`, `NUXT_SITE_INDEXABLE` | Nuxt SEO's site configuration (the sitemap's address; keeping a copy out of search engines) |
 | `NUXT_SESSION_MAX_AGE` | the admin session's lifetime in seconds (default 14 days) |
-| `CMS_SCHEDULER_CRON`, `CMS_RETENTION_CRON` | build-time cron expressions of the scheduled tasks |
+| `CMS_SCHEDULER_CRON`, `CMS_RETENTION_CRON` | **deprecated** (removed in 1.0): build-time cron expressions of the scheduled tasks; use `cms.scheduler.cron` and `cms.retention.cron`. Like the options they are read **when the site is built**, not when it starts |
+| `CMS_ALLOW_REQUEST_ORIGIN` | `1` lets the admin write links in emails (invites, password resets) from the address of the request when `cms.publicUrl` is not set, in production too. **Keep it out of any site that has a public address**: the request's `Host` is chosen by whoever makes it, so a forged one would put an attacker's domain in a reset link. Read when the link is written, not at build time. Kept under this name and as an environment variable only: it is an escape hatch for a deploy without a public address (an internal tool behind a trusted proxy), not a setting, so it is not a `cms` option and not a `NUXT_CMS_*` variable, which would suggest a normal choice |
 | `TINYZOO_DEPRECATIONS` | `1` prints deprecation warnings under `NODE_ENV=test`, `0` silences them |
 | `TINYZOO_PG_DUMP`, `TINYZOO_PG_RESTORE`, `TINYZOO_PSQL` | the `pg_dump`, `pg_restore` and `psql` that `tinyzoo backup` and `restore` run |
 | `SEED_URL`, `SEED_EMAIL`, `SEED_PASSWORD`, `SEED_NAME`, `SEED_SETUP_CODE` | the defaults of `tinyzoo seed`'s flags |
 
-Not part of the surface: the test-only `CMS_TEST_*` variables and `CMS_ALLOW_REQUEST_ORIGIN`.
+Not part of the surface: the test-only `CMS_TEST_*` variables.
 
 ---
 
@@ -264,7 +277,7 @@ A dependency-free, strictly typed client; the schema types come from the generat
 
 | Export | What it is |
 |---|---|
-| `createCmsClient(options)` | the client: `cms.<collection>.list()`, `.get()`, `.tree()`, `cms.global()`, `cms.search()`, `cms.openapi()`, `cms.collection(name)` |
+| `createCmsClient<Schema, Globals>(options)` | the **untyped runtime**: the client with no knowledge of a site (typed only as far as the schema it is given): `cms.<collection>.list()`, `.get()`, `.tree()`, `cms.global()`, `cms.search()`, `cms.openapi()`, `cms.collection(name)` |
 | `CmsError` | thrown for any non-2xx answer: `status`, `statusText`, `url`, `body` |
 | `cmsMenuTree(links)` | nests a menu's links (`sub` goes under the link above) |
 | `ClientOptions` | `baseUrl`, `token`, `headers`, `fetch` |
@@ -273,8 +286,15 @@ A dependency-free, strictly typed client; the schema types come from the generat
 | `SearchParams`, `SearchItem`, `SearchResponse` | the website search |
 | `CmsMenuLink`, `CmsMenuItem` | a menu link and a top-level link with its dropdown |
 
-The generated `cms-content.ts` exports `createClient(options)` (a `createCmsClient` of the site's own schema),
-the item and filter types of every collection and global, `ContentSchema` and `GlobalSchema`.
+The generated `cms-content.ts` exports `createClient(options)`, the item and filter types of every collection and
+global, `ContentSchema` and `GlobalSchema`.
+
+**`createClient` and `createCmsClient` are not two names for one thing.** `createClient` is *generated* for the site and *typed*:
+every collection, field, sort key and filter of the config. It is what a site calls, and it is
+`createCmsClient<ContentSchema, GlobalSchema>` and nothing else. `createCmsClient` is the *untyped runtime* the
+package exports, for tooling with no generated file or for wrapping. Neither has an alias (the package keeps its `Cms` prefix, the generated
+file is the site's own) and both are frozen under their names ([the guide](guide/content-api.md#typed-clients--openapi)). The types of the client keep the names they have (`CmsClient`, `CmsError` next to `ClientOptions`,
+`ListParams`, `Collection`…): there are no aliases, and what the generated file imports does not change.
 
 ## The webhook
 
@@ -356,11 +376,32 @@ export default defineAppConfig({
 
 The rest of the admin (the other `Cms*` components, the pages, `/api/cms/**`) is internal.
 
-## Used by every site, not on this list
+## The frontend kit
 
-The frontend kit ([guide](guide/content-api.md#the-frontend-kit)) is documented, but is not (yet) part of
-the freeze: `<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`,
-`useCmsSeo()` and `useCmsSearch()`.
+The components and composables every website draws its content with
+([guide](guide/content-api.md#the-frontend-kit)). They are frozen like the config API: a prop, a slot, an event or
+a returned key is added in a minor release and removed or changed only in a major one. Their props are the
+interfaces of `tinyzoo` named below (the components declare their props with them), and
+`frontend-kit.txt` holds each one's props, emits, slots and signature.
+
+| Component | Props | Slots, events |
+|---|---|---|
+| `<CmsBlocks>` | `CmsBlocksProps`: `blocks` (a `f.blocks()` value, or `null`), `prefix` (default `'Block'`) | none. Draws each block with the site's global component named `<prefix><Type>` (`hero` → `<BlockHero>`), given `block` and `index` (`CmsBlockProps`); a block with no component is skipped |
+| `<CmsImage>` | `CmsImageProps`: `media` (`CmsImageMedia`: `url`, `id`, `alt`, `width`, `height`, `mime`, `focal`; or `null`), `eager`, `sizes`, `alt` | none. Renders one `<img>` (nothing when there is no `media`) |
+| `<CmsContent>` | `CmsContentProps`: `doc` (a rich-text value, or `null`) | none. Renders a `div.cms-content` with sanitised HTML |
+| `<CmsNav>` | `CmsNavProps`: `links` (`CmsNavLink`: `id`, `label`, `url`, `newTab`, `sub`; or `null`) | none. Renders a `nav.cms-nav` with nested lists |
+| `<CmsHighlight>` | `CmsHighlightProps`: `text`, `ranges` (`[start, end)` pairs, or `null`) | none. Renders a `span` with `<mark>` around each range |
+| `<CmsForm>` (`tinyzoo/forms`) | `CmsFormProps`: `name`, `locale` | event `sent`; slot `success` (replaces the form after sending) |
+
+| Composable | Takes | Returns |
+|---|---|---|
+| `useCmsSeo(item, options)` | an item or a getter of one, and `{ siteName, titleField, descriptionField, imageField, fallback, defaultLocale, path, ogLocales }` | `{ title, description, image, canonical }` (computed values); sets the page's head |
+| `useCmsSearch(query, options)` | a query (ref or getter) and `{ locale, limit, entities }` | a promise of `{ items, total, searched, pending, error }`; `items` are `CmsSearchItem`s |
+| `useCmsUiLocale()` | nothing | a computed locale for `<UApp :locale>`: Nuxt UI's words in the admin's language on `/admin` pages, `undefined` elsewhere |
+
+Every other `Cms*` component and `useCms*` composable (`CmsPage`, `CmsField`, `CmsEmptyState`, `CmsStatusBadge`,
+`useCmsI18n`, …) is the admin's own and **internal**, including when a plugin's admin page uses it
+([plugins](plugins.md#admin-pages-and-navigation)): it can change in any minor release.
 
 ## Deprecated
 
@@ -372,6 +413,8 @@ Still working, removed in the release named, and a deprecation warning at start 
 | `cms.databaseUrl` | `DATABASE_URL` or `NUXT_CMS_DATABASE_URL` in the environment | 1.0 |
 | `FormOptions` imported from `tinyzoo` | `import type { FormOptions } from 'tinyzoo/forms'` | 1.0 |
 | a field named `page`, `limit`, `sort`, `dir` or `q` in a public collection | another name | 1.0 (an error) |
+| `defineEntity(name, { singleton: true })` | `defineSingleton(name, { … })` | 1.0 |
+| the variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` | the `cms.scheduler.cron` and `cms.retention.cron` options | 1.0 |
 
 Removed in 0.6: `NUXT_SESSION_PASSWORD` as a stand-in for `NUXT_APP_SECRET`
 ([upgrading](upgrading.md#from-05-to-06)).

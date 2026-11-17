@@ -9,8 +9,9 @@
 //   <CmsBlocks :blocks="page.sections" />
 //   <CmsBlocks :blocks="page.sections" prefix="Section" />   // → <SectionHero>
 import { resolveDynamicComponent } from 'vue'
+import type { CmsBlocksProps } from '../../src/frontend'
 
-const props = withDefaults(defineProps<{ blocks: { id: string; type: string; [k: string]: unknown }[] | null | undefined; prefix?: string }>(), { prefix: 'Block' })
+const props = withDefaults(defineProps<CmsBlocksProps>(), { prefix: 'Block' })
 const pascal = (s: string) => s.replace(/(^|[-_])(\w)/g, (_m, _s, c: string) => c.toUpperCase())
 function componentFor(type: string) {
   if (!renderableBlockType(type)) return null

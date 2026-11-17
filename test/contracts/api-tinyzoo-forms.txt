@@ -2,7 +2,7 @@
 // The forms plugin: defineForm, defineFormSettings, formsPlugin.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (4) ─────────────────────────────────────────────────
+// ── public (5) ─────────────────────────────────────────────────
 
 export interface FormOptions<F extends Record<string, any>> {
     label: LocalizedText;
@@ -19,7 +19,16 @@ export interface FormOptions<F extends Record<string, any>> {
     access?: EntityDef<F>['access'];
 }
 
-export function defineForm<F extends Record<string, any>>(name: string, opts: FormOptions<F>): Entity<Record<string, AnyFieldDescriptor>>;
+export type FormStatusField = FieldDescriptor<{
+    out: 'new' | 'read' | 'done';
+    in: 'new' | 'read' | 'done';
+    col: 'scalar';
+    optionalIn: true;
+}>;
+
+export function defineForm<F extends Record<string, AnyFieldDescriptor>>(name: string, opts: FormOptions<F>): Entity<F & {
+    status: FormStatusField;
+}>;
 
 export function defineFormSettings(opts?: {
     name?: string;

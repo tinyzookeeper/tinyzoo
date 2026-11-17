@@ -5,7 +5,7 @@ import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
-import { checkRoles, isRolesExport, rolesDefOf, type CmsRolesDef } from './roles'
+import { checkRoles, isRolesExport, rolesDefOf, type CmsAccessUser, type CmsRolesDef } from './roles'
 import { pathTemplateProblem, pathTemplateKeys, prefixedTemplates, type PathTemplate } from './paths'
 import { TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, type TreeConfig } from './tree'
 import type { CmsAdminField } from './admin'
@@ -123,7 +123,11 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
   icon?: string
   titleField: keyof F & string
   fields: F
-  /** A single-row global (Settings/Homepage) — admin shows one form, no list. */
+  /**
+   * A single-row global (Settings/Homepage) — admin shows one form, no list.
+   *
+   * @deprecated Use `defineSingleton(name, def)`, which makes the same thing. Removed in 1.0.
+   */
   singleton?: boolean
   /**
    * Every write takes effect on the website at once (e.g. redirects). People who may
@@ -171,7 +175,7 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
      */
     sections?: CmsFormSection<keyof F & string>[]
   }
-  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
+  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: CmsAccessUser; table: TableColumns<F> }) => unknown>>
   content?: ContentConfig<F>
   publish?: PublishConfig<F>
   /**
@@ -265,7 +269,7 @@ export interface CmsEntity {
     tabs?: { label: LocalizedText; fields: string[] }[]
     sections?: CmsFormSection[]
   }
-  access?: Record<string, (ctx: { user: any; table: any }) => unknown>
+  access?: Record<string, (ctx: { user: CmsAccessUser; table: any }) => unknown>
   content?: {
     public?: boolean
     published?: (table: any) => unknown
@@ -320,6 +324,19 @@ export const PUBLISH_STATE_COLUMNS = ['published', 'publishedAt']
 const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
 
 export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
+  name: string,
+  def: EntityDef<F>,
+): Entity<F> {
+  if (def.singleton) {
+    cmsDeprecated('option:defineEntity.singleton', `\`defineEntity('${name}', { singleton: true })\` is replaced by \`defineSingleton('${name}', { … })\`.`, { removeIn: '1.0.0' })
+  }
+  return buildEntity(name, def)
+}
+
+/**
+ * `defineEntity` without the deprecation: what `defineSingleton` builds on.
+ */
+function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: EntityDef<F>,
 ): Entity<F> {
@@ -476,7 +493,7 @@ export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: Omit<EntityDef<F>, 'singleton' | 'admin'> & { admin?: Pick<NonNullable<EntityDef<F>['admin']>, 'editor' | 'preview' | 'tabs' | 'sections'> },
 ): Entity<F> {
-  return defineEntity(name, { ...def, singleton: true } as EntityDef<F>)
+  return buildEntity(name, { ...def, singleton: true } as EntityDef<F>)
 }
 
 // ── registry: junctions + serializable graph, memoized per config module ────────

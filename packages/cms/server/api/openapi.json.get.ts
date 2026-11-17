@@ -12,18 +12,21 @@ import * as cmsConfig from '#cms/config'
 // that wants it closed sets a content token.
 //
 // The document is a pure function of the (immutable) config, so it is built once
-// and cached. NB: the `servers` URL comes from configured `cms.content.publicUrl`,
-// NOT the request Host — reflecting an attacker-controlled Host into the publicly
+// and cached. NB: the `servers` URL comes from configured `cms.content.publicUrl`
+// (or, when that is empty, `cms.publicUrl`), NOT the request Host — reflecting an attacker-controlled Host into the publicly
 // cacheable spec would be a cache-poisoning vector.
 let cached: Record<string, any> | undefined
 
 export default defineEventHandler((event) => {
   assertContentAuth(event)
   if (!cached) {
-    const content = (useRuntimeConfig().cms as any)?.content ?? {}
+    const cms = (useRuntimeConfig().cms as any) ?? {}
+    const content = cms.content ?? {}
+    // `cms.content.publicUrl` wins; a site that set only `cms.publicUrl` (emails, sitemap) gets it here too.
+    const serverUrl = String(content.publicUrl || '').trim() || String(cms.publicUrl || '').trim()
     cached = buildOpenApiDocument(cmsConfig as Record<string, any>, {
       title: 'Content API',
-      servers: content.publicUrl ? [{ url: content.publicUrl }] : undefined,
+      servers: serverUrl ? [{ url: serverUrl }] : undefined,
       tokenAuth: !!content.token,
     })
   }

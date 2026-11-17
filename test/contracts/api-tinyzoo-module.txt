@@ -55,6 +55,7 @@ export interface CmsModuleOptions {
     };
     retention?: {
         auditDays?: number;
+        cron?: string;
     };
     revisions?: {
         keep?: number;
@@ -67,7 +68,7 @@ export interface CmsModuleOptions {
         paths?: (string | Record<string, string>)[];
     };
     forms?: {
-        notifyTo?: string;
+        notifyTo?: string | string[];
         turnstileSecret?: string;
         turnstileSiteKey?: string;
     };

@@ -87,6 +87,8 @@ export const Settings = defineSingleton('settings', { label: 'Settings', titleFi
 | `publish` | may publish and unpublish, and change what is live. Default: what `from` has (editor yes, author no). A role that may not publish writes drafts only, and cannot change an entry that is live, or write content that is live the moment it is saved (a global, redirects) |
 | `media` | the media library: `'all'`, `'own'` or `'none'` ([below](#the-media-library)). Default: what `from` has |
 
+**Publish rights are role-wide.** `publish` is one switch for the whole site, also when an entity [publishes each language on its own](content-model.md#publishing-each-language-on-its-own): a role cannot be allowed to publish one language only.
+
 A few things follow from "extends":
 
 - **A role based on `author` keeps "own entries only".** It changes and deletes only what it created, on every collection it

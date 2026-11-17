@@ -79,7 +79,7 @@ these are all the types.
 |---|---|---|---|
 | `f.text(opts)` | a line of text (or a growing box with `multiline: true`) | `text` | names, titles, short texts. `max` caps the length. `format: 'email'`, `'url'` (a full `https://…` address), `'path'` (an address on this site, `/old-page`) or `'link'` (a page, `https://…`, `mailto:`, `tel:` or an anchor; the only one that can hold a [reference to a page](#links-that-follow-their-page)) checks the value. Spaces around it are trimmed |
 | `f.slug({ from, unique })` | a lowercase-and-dashes address part, filled in from the `from` field until edited | `text` | the part of a web address (`/blog/:slug`). `unique: true` adds a unique index. Can be `.localized()` |
-| `f.number({ int, min, max })` | a number box | `integer` (`int: false`: `numeric(12,2)`) | counts, positions, prices |
+| `f.number({ int, min, max })` | a number box | `integer` (`int: false`: `numeric(12,2)`) | counts, positions, prices. **A decimal (`int: false`) is a string** in a `Row`, in a select and in the content API (`"19.99"`: a number could not hold it exactly): read it with `Number(row.price)`. `Insert` and `Update` take a number or a numeric string. A whole number is a number everywhere |
 | `f.boolean({ default, mustBeTrue })` | a switch | `boolean`, never null (default `false`) | "Show on the home page", "Open in a new tab". `mustBeTrue: true` refuses `false`: a consent on a [website form](recipes.md#1-a-contact-form) that must be ticked (the form marks it required and tells the visitor, in their language, to tick it) |
 | `f.datetime({ default: 'now', allDay })` | a date and time picker in the admin's time zone; `allDay: true` adds an "All day" switch (stored at 0:00) | `timestamptz` | when something happens or goes live |
 | `f.select({ options, default, labels, icons })` | a choice | a Postgres enum | status, kind, category. `options` must be `as const`; `labels` give each option a name per admin language, `icons` an icon |
@@ -279,7 +279,8 @@ and how to draw a picture on the website: [Media](media.md).
 
 `defineSingleton(name, options)` makes a **global**: a single-row record like site settings or
 the home page, edited as one form under **Settings** in the admin (no list, no "new", no delete). It takes the
-same options as `defineEntity` except `admin.list`:
+same options as `defineEntity` except `admin.list`. (The `singleton` option of `defineEntity` makes the same thing
+but is deprecated and warns at start: use `defineSingleton`.)
 
 ```ts
 export const SiteSettings = defineSingleton('siteSettings', {
@@ -463,7 +464,8 @@ visitor's language). A `f.select` with a `default` opens on it, a consent is
 (send `_locale: 'cs'` for the refused fields' messages in that language; they come back in
 `data[].message`); `GET` on the same address describes the form.
 Each submission becomes an entry (state New / Read / Done) and the people in Forms
-settings get an email (fallback: `notify.to` in code, then `NUXT_CMS_FORMS_NOTIFY_TO`).
+settings get an email (fallback: `notify.to` in code, then `cms.forms.notifyTo` / `NUXT_CMS_FORMS_NOTIFY_TO`: an address, a list, or in the variable a comma-separated string).
+`defineForm` returns an `Entity` typed from the form's fields, so `Row<typeof ContactForm>` has `name`, `email`, `message` and the state `status` with their real types.
 Spam protection: a hidden field, a minimum fill-in time, a rate limit per visitor,
 same-site Origin, and Cloudflare Turnstile when `NUXT_CMS_FORMS_TURNSTILE_SECRET` and
 `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` are set. Robots get the same `201` as a real
@@ -673,8 +675,11 @@ access: {
 
 `read`, `create`, `update` and `delete` can each be given; `eq`, `ne`, `gt`, `and`, `or`,
 `not`, `ilike`, `inArray`, `isNull`, `sql` and the rest of Drizzle's helpers are exported
-from `tinyzoo`. `user.role` is the role's name as stored for the person, `user.base` the built-in role
-it is or extends (`'admin'`, `'editor'`, `'author'`): test `base` to hold a custom role to its parent's rules. Rules apply to everything a signed-in person does in the admin (lists, forms, search, the
+from `tinyzoo`. `user` is a `CmsAccessUser`: `id`, `email`, `name`, `locale`, `role` (the role's name as stored for the
+person) and `base` (the built-in role it is or extends: `'admin'`, `'editor'`, `'author'`, or `null` for a role name of an
+external sign-in that the site did not define). Test `base` to hold a custom role to its parent's rules. With an external
+sign-in, anything else your sign-in puts on the person is there too, typed `unknown`: check it before you use it
+(`typeof user.tenant === 'string'`); `email` and `name` are `''` and `locale` is `null` when it did not send them. Rules apply to everything a signed-in person does in the admin (lists, forms, search, the
 link picker, `?preview`); they do not change the public content API, which serves what
 `content.published` allows. Every request re-reads the
 account, so a disabled person or a changed role takes effect at once. Roles of your own

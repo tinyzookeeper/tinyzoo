@@ -9,22 +9,9 @@
 // Rendered on the server for the first query (a search page works without JavaScript
 // and can be linked to); asks again whenever the query or the language changes.
 
-export interface CmsSearchItem {
-  entity: string
-  id: string
-  title: string
-  /** Where the words are in the title, as [start, end) character ranges. */
-  titleHighlights: [number, number][]
-  /** A sentence or two of the entry's text around the first word found ('' when only the title matched). */
-  excerpt: string
-  highlights: [number, number][]
-  /** The entry's address on the website, in the searched language. */
-  path: string | null
-  locale: string | null
-  updatedAt: string
-}
+import type { CmsSearchItem, CmsSearchResult } from '../../src/frontend'
 
-export interface CmsSearchResult { query: string; items: CmsSearchItem[]; total: number }
+export type { CmsSearchItem, CmsSearchResult }
 
 export async function useCmsSearch(
   query: MaybeRefOrGetter<string>,

@@ -38,6 +38,27 @@ export type CmsRoleBase = Exclude<CmsRole, 'admin'>
 /** @internal */
 export const CMS_ROLE_BASES = ['editor', 'author'] as const
 
+/**
+ * The person an `access` rule is asked about (`access: { update: ({ user, table }) => … }`).
+ *
+ * - `role`: the name stored for the person: `'admin'`, `'editor'`, `'author'`, a role of
+ *   `defineRoles`, or, with external sign-in, whatever the provider sent.
+ * - `base`: the built-in role that is (or, for a custom role, is extended by it). `null` for a role
+ *   name of an external sign-in that the site did not define. Test `user.base`, not `user.role`,
+ *   to treat a custom role like its parent.
+ * - `email`, `name`, `locale`: empty (`''`, `''`, `null`) when the external sign-in did not send them.
+ * - Anything else the external sign-in put on `event.context.cmsUser` (claims, groups, a tenant)
+ *   is there too, typed `unknown`: check it before you use it.
+ */
+export type CmsAccessUser = {
+  id: string
+  email: string
+  name: string
+  role: string
+  base: CmsRole | null
+  locale: string | null
+} & Record<string, unknown>
+
 export interface CmsRoleDef {
   /** The built-in role this one starts as: `editor` (every entry) or `author` (drafts, own entries). */
   from: CmsRoleBase

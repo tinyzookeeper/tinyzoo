@@ -177,7 +177,9 @@ export default defineEventHandler(async (event) => {
 `/admin/p/<plugin>` and `/admin/p/<plugin>/orders/:id`. A page is a normal Vue page of
 the admin: `definePageMeta({ layout: 'admin' })`, then the CMS's components
 (`CmsPage`, `CmsEmptyState`, `CmsStatusBadge`, …), the admin's tokens and its
-`useCmsI18n()`. Follow `docs/ui-foundation.md`, so a plugin looks like the rest of the
+`useCmsI18n()`. Those components and `useCmsI18n()` are the admin's own: they are **not** part of the
+[frozen API](api-surface.md#the-frontend-kit) and can change in a minor release, so a plugin that uses them
+is updated with the version of tinyzoo it is written for. Follow `docs/ui-foundation.md`, so a plugin looks like the rest of the
 admin. Pages sit behind the admin's sign-in like every `/admin` page; the data they
 show comes from the plugin's routes, which have their own `access`.
 
@@ -236,7 +238,10 @@ submissions past their form's `retentionDays` this way.
 
 ### Notes in the admin's lists
 
-`graph(entity)` is called for every entity when the registry is built, and may return
+`graph(entity)` is called for every entity when the registry is built (`entity` is a `CmsEntity`, and `reg` in the
+hooks above a `CmsRegistry`: the entity with its fields erased, as a plugin sees every entity, whatever it is
+made of. In a site's own code you write `Entity`, which `defineEntity` returns and is typed from its fields: see
+[the public API](api-surface.md#types)), and may return
 `{ create: false }` (no "New …" button: entries arrive some other way) and
 `notices: [{ icon, key, params }]` (short lines under the list, from the plugin's
 `i18n`). The forms plugin uses both for its forms: no "New" button, and "Messages are

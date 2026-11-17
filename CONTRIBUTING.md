@@ -133,7 +133,7 @@ Handling them:
 ## Deprecations
 
 The API a site's code touches (everything in [docs/api-surface.md](docs/api-surface.md): `cms.config.ts` options, the
-`f.*` and `define*` helpers, the `cms` options and `NUXT_CMS_*` variables, `tinyzoo` CLI commands, the content
+`f.*` and `define*` helpers, the frontend kit, the `cms` options and `NUXT_CMS_*` variables, `tinyzoo` CLI commands, the content
 API, the webhook and hooks) is retired in two steps, never removed at once:
 
 1. Mark it with a `@deprecated` JSDoc line that names the replacement, and call
@@ -169,6 +169,7 @@ internal; the golden files are how it is kept true:
 | `nitro-hooks.d.ts`, `webhook.json` | | a change to the **Nitro hooks** and their arguments, or the webhook's headers and body |
 | `cli-usage.txt` | | a change to the **CLI**'s commands and flags (`packages/cms/cli/usage.ts`) |
 | `content-routes.txt`, `layer-config.json` | | a new or removed content API route, or something the layer sets up |
+| `frontend-kit.txt` | `test/unit/frontend-kit.spec.ts` | a change to the **frontend kit** (`<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()`): a prop, slot, event, signature or returned key. A component's props are an interface of `packages/cms/src/frontend.ts`; add the prop to it, not inline in the `.vue` file |
 | `surface.client-types.ts`, `surface.openapi.json`, `surface.admin-graph.json` | | the content API, the client types and the admin graph (what a field renderer receives) of `test/contracts/surface/cms.config.ts`, a config that uses every field and option |
 
 `test/unit/surface-types.spec.ts` also asserts the types a site's code sees for that config (`Row`, `Insert`,

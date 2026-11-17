@@ -118,7 +118,7 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 |---|---|---|
 | `DATABASE_URL` | yes | Postgres connection (`NUXT_CMS_DATABASE_URL` overrides). The server refuses to start without one |
 | `NUXT_APP_SECRET` | yes | Nuxt's app secret, ≥ 32 characters: the sign-in cookie is sealed with a key derived from it, and other modules derive their keys from it too (signed image URLs, for example). Changing it signs everyone out. **The server refuses to start** without it (or with a shorter one) and says so in the log. A site set up before 0.4 has `NUXT_SESSION_PASSWORD` instead: 0.4 and 0.5 used that value as a stand-in, 0.6 does not read it, and the start check says to rename the variable; keeping the value signs nobody out ([upgrading](upgrading.md#from-05-to-06)) |
-| `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails, and the address `/sitemap.xml` starts with (`NUXT_SITE_URL` wins when it is set). Without it the server starts but logs one warning saying what is missing |
+| `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails, the server address of `/api/openapi.json` (unless `cms.content.publicUrl` / `NUXT_CMS_CONTENT_PUBLIC_URL` is set), and the address `/sitemap.xml` starts with (`NUXT_SITE_URL` wins when it is set). Without it the server starts but logs one warning saying what is missing |
 | `NUXT_SITE_URL`, `NUXT_SITE_INDEXABLE` | optional | [Nuxt SEO's site config](https://nuxtseo.com/docs/site-config): `NUXT_SITE_URL` is the address `/sitemap.xml` starts with when the website's address is not `NUXT_CMS_PUBLIC_URL`; `NUXT_SITE_INDEXABLE=false` keeps a copy of a site (a demo, a staging site) out of search engines, with `@nuxtjs/robots` |
 | `NUXT_CMS_MIGRATIONS_ON_START` | recommended | `true`: apply bundled migrations at start (below) |
 | `REDIS_URL` | with > 1 replica | `NUXT_CMS_REDIS_URL` overrides |
@@ -132,7 +132,9 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (below) |
 | `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API (`x-api-key` or `Authorization: Bearer`). The website's own server-side requests need none, see [Content API token](#content-api-token) |
 | `NUXT_CMS_CONTENT_DOCS` | optional | `true` publishes the interactive API reference at `/api/openapi` (off in production by default, see [Content API token](#content-api-token)) |
-| `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). Without it the server makes a one-time code and prints it in the log — see [First run](#first-run-the-setup-code) |
+| `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). Without it the server makes a one-time code and prints it in the log — see [First run](#first-run-the-setup-code). It is a secret, so it is an environment variable only (there is no `cms` option: an option would be written into the build and into a committed `nuxt.config.ts`) |
+| `CMS_ALLOW_REQUEST_ORIGIN` | almost never | `1` lets links in emails (invitations, password resets) use the address of the request when `NUXT_CMS_PUBLIC_URL` is not set, also in production. **Do not set it on a site with a public address**: the request's `Host` is chosen by whoever makes it, so a forged one would put an attacker's domain in a reset link. For a deploy that has no public address (an internal tool behind a proxy you trust). Not a `NUXT_CMS_*` setting on purpose: it is an escape hatch, read when the link is written |
+| `CMS_SCHEDULER_CRON`, `CMS_RETENTION_CRON` | deprecated | build-time cron expressions of the scheduled tasks, replaced by `scheduler: { cron }` and `retention: { cron }` in nuxt.config's `cms` options (removed in 1.0). They are read **when the site is built**, so setting them on a running server changes nothing |
 | `NUXT_CMS_RETENTION_AUDIT_DAYS` | optional | delete audit-log entries older than this many days (default 365, `0` = keep). See [Privacy](#privacy-gdpr) |
 | `NUXT_CMS_AUTH_TRUSTED_PROXIES` | optional | proxy hops in front of the app (default 1 — Pushbase's ingress). Too few and rate limits count the proxy instead of visitors; too many (e.g. 1 with no proxy at all) and visitors can fake their address in `X-Forwarded-For` to dodge limits. Set `0` when the app is reached directly |
 
@@ -670,8 +672,9 @@ export const ContactForm = defineForm('contactForm', { /* … */ retentionDays: 
 NUXT_CMS_RETENTION_AUDIT_DAYS=365   # or retention: { auditDays: 365 } in nuxt.config's cms options
 ```
 
-A scheduled task (`cms:retention`, daily at 03:17; `CMS_RETENTION_CRON` at build time
-changes it) deletes form messages older than their form's `retentionDays`, with their
+A scheduled task (`cms:retention`, daily at 03:17; `retention: { cron: '…' }` in nuxt.config's `cms` options
+changes it, **at build time**: it is written into the build, so there is no runtime variable and a change needs a rebuild;
+the old `CMS_RETENTION_CRON` still works as a deprecated alias) deletes form messages older than their form's `retentionDays`, with their
 saved versions and search rows, and audit entries older than `auditDays`, in batches
 and on one instance at a time. It writes one audit entry, `retention.purge`, with the
 counts (never the content). The admin says it under the form's list: "Messages are

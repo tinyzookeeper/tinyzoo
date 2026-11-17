@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (93) ─────────────────────────────────────────────────
+// ── public (106) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -34,6 +34,15 @@ export const CMS_WEBHOOK_HEADERS: {
     readonly signature: "x-cms-signature";
 };
 
+export type CmsAccessUser = {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    base: CmsRole | null;
+    locale: string | null;
+} & Record<string, unknown>;
+
 export interface CmsAdminField {
     key: string;
     type: string;
@@ -57,6 +66,16 @@ export interface CmsBlock {
     [field: string]: unknown;
 }
 
+export interface CmsBlockProps<B extends CmsBlock = CmsBlock> {
+    block: B;
+    index: number;
+}
+
+export interface CmsBlocksProps {
+    blocks: CmsBlock[] | null | undefined;
+    prefix?: string;
+}
+
 export interface CmsChange {
     type: CmsChangeType;
     entity: string;
@@ -77,6 +96,18 @@ export interface CmsChange {
 }
 
 export type CmsChangeType = 'entry.created' | 'entry.updated' | 'entry.deleted' | 'entry.published' | 'entry.unpublished' | 'translation.updated' | 'translation.deleted' | 'global.updated';
+
+export interface CmsContentNode {
+    type: string;
+    content?: CmsContentNode[];
+    text?: string;
+    marks?: any[];
+    attrs?: any;
+}
+
+export interface CmsContentProps {
+    doc: CmsContentNode | null;
+}
 
 export type CmsEditorLayout = 'write' | 'form' | 'preview';
 
@@ -110,7 +141,7 @@ export interface CmsEntity {
         sections?: CmsFormSection[];
     };
     access?: Record<string, (ctx: {
-        user: any;
+        user: CmsAccessUser;
         table: any;
     }) => unknown>;
     content?: {
@@ -179,6 +210,11 @@ export interface CmsFieldRenderer {
     cell?: string;
 }
 
+export interface CmsFormProps {
+    name: string;
+    locale?: string;
+}
+
 export interface CmsFormSection<K extends string = string> {
     label: LocalizedText;
     icon?: string;
@@ -201,13 +237,53 @@ export interface CmsGraphExtension {
     }[];
 }
 
+export interface CmsHighlightProps {
+    text: string;
+    ranges?: [
+        number,
+        number
+    ][] | null;
+}
+
 export type CmsHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
+
+export interface CmsImageMedia {
+    id?: string;
+    url: string;
+    alt?: string | null;
+    width?: number | null;
+    height?: number | null;
+    mime?: string | null;
+    focal?: {
+        x: number;
+        y: number;
+    } | null;
+}
+
+export interface CmsImageProps {
+    media: CmsImageMedia | null | undefined;
+    eager?: boolean;
+    sizes?: string;
+    alt?: string;
+}
 
 export type CmsListLayout = 'table' | 'grid' | 'dated' | 'tree';
 
 export type CmsListValue<F, K extends string = 'item'> = Array<BlockValue<K, F>>;
 
 export type CmsMediaAccess = 'all' | 'own' | 'none';
+
+export interface CmsNavLink {
+    id: string;
+    label: string;
+    url: string | null;
+    newTab?: boolean | null;
+    sub?: boolean | null;
+}
+
+export interface CmsNavProps {
+    links: CmsNavLink[] | null | undefined;
+}
 
 export interface CmsPlugin extends Readonly<Omit<CmsPluginDef, 'entities' | 'singletons'>> {
     readonly __cms: 'plugin';
@@ -307,6 +383,30 @@ export type CmsRoles<R extends Record<string, CmsRoleDef>> = {
 
 export type CmsRouteAccess = 'user' | 'admin' | 'public';
 
+export interface CmsSearchItem {
+    entity: string;
+    id: string;
+    title: string;
+    titleHighlights: [
+        number,
+        number
+    ][];
+    excerpt: string;
+    highlights: [
+        number,
+        number
+    ][];
+    path: string | null;
+    locale: string | null;
+    updatedAt: string;
+}
+
+export interface CmsSearchResult {
+    query: string;
+    items: CmsSearchItem[];
+    total: number;
+}
+
 export interface CmsSitemapEntry {
     loc: string;
     locale: string | null;
@@ -386,7 +486,7 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
         sections?: CmsFormSection<keyof F & string>[];
     };
     access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: {
-        user: any;
+        user: CmsAccessUser;
         table: TableColumns<F>;
     }) => unknown>>;
     content?: ContentConfig<F>;
@@ -655,7 +755,7 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
     path?: PathTemplate;
     tree?: T;
     access?: Partial<Record<"read" | "create" | "update" | "delete", (ctx: {
-        user: any;
+        user: CmsAccessUser;
         table: any;
     }) => unknown>>;
     perLocale?: boolean;
@@ -700,11 +800,11 @@ export const f: {
         from?: string;
         unique?: boolean;
     }) => FieldDescriptor<ScalarKind<string, string, false>>;
-    number: (o?: {
-        int?: boolean;
+    number: <I extends boolean = true>(o?: {
+        int?: I;
         min?: number;
         max?: number;
-    }) => FieldDescriptor<ScalarKind<number, number, false>>;
+    }) => FieldDescriptor<ScalarKind<[I] extends [false] ? string : number, [I] extends [false] ? string | number : number, false>>;
     boolean: (o?: {
         default?: boolean;
         mustBeTrue?: boolean;
@@ -776,8 +876,9 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── deprecated (1): still part of the API, to be removed in the release named in its @deprecated tag ──
+// ── deprecated (2): still part of the API, to be removed in the release named in its @deprecated tag ──
 FormOptions
+EntityDef.singleton
 
 // ── internal (174): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES

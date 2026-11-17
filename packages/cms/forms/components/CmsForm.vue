@@ -11,7 +11,9 @@
 // the form (slot `success`).
 // Spam: a hidden field, the time the form was open, and Cloudflare Turnstile when the
 // site key is configured.
-const props = defineProps<{ name: string; locale?: string }>()
+import type { CmsFormProps } from '../../src/frontend'
+
+const props = defineProps<CmsFormProps>()
 const emit = defineEmits<{ sent: [] }>()
 
 // The site's language for this form (the CMS's default language when not given).

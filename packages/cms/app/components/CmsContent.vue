@@ -1,10 +1,10 @@
 <script lang="ts">
 import { defineComponent, h, type PropType, type VNode } from 'vue'
+import type { CmsContentNode as Node, CmsContentProps } from '../../src/frontend'
 
 // Renders a stored TipTap/ProseMirror JSON doc to HTML for consumer frontends.
 // Built from structured nodes via h() — no v-html — so stored content can't inject
 // markup/script. Covers the StarterKit node/mark set.
-type Node = { type: string; content?: Node[]; text?: string; marks?: any[]; attrs?: any }
 
 // Only emit hrefs with a safe scheme — a stored `javascript:`/`data:` link mark
 // would otherwise be clickable stored-XSS in the visitor's origin.
@@ -75,7 +75,7 @@ function render(node: Node | null | undefined): any {
 
 export default defineComponent({
   name: 'CmsContent',
-  props: { doc: { type: Object as PropType<Node | null>, default: null } },
+  props: { doc: { type: Object as PropType<CmsContentProps['doc']>, default: null } },
   setup(props) {
     return () => h('div', { class: 'cms-content' }, render(props.doc) as any)
   },
