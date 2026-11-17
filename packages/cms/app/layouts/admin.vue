@@ -76,6 +76,8 @@ const navigation = computed<NavigationMenuItem[][]>(() => {
   // Settings someone may not change (an author and the site settings) stay out of their way.
   const settings = all.filter((e) => e.singleton && e.can?.update !== false)
   const groups: NavigationMenuItem[][] = [[{ label: t('nav.home'), icon: 'i-lucide-house', to: '/admin', exact: true, 'aria-label': t('nav.home') } as NavigationMenuItem]]
+  // A role the site no longer defines opens nothing: no plugin pages, no media library.
+  if (roleRemoved.value) return groups
   const contentExtra = pluginNav('content')
   const mediaItem = mediaClosed.value ? [] : [{ label: t('media.libraryTitle'), icon: 'i-lucide-images', to: '/admin/media', 'aria-label': t('media.libraryTitle') } as NavigationMenuItem]
   if (collections.length || contentExtra.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav), ...contentExtra, ...mediaItem])
