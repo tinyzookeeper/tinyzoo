@@ -3,7 +3,8 @@
 Playful, calm, simple (docs/brand/brand-guide.md), for non-technical editors and
 small business owners. A white workspace that stays out of the way of the client's
 content; the brand speaks only in **moments**. Light and dark are equal citizens,
-and every screen works on a phone. Live reference: `/admin/styleguide`.
+and every screen works on a phone. Live reference: `/design-system` on the tinyzoo
+website (`site/app/pages/design-system.vue`).
 
 Research: `docs/research/admin-ux-references.md` (structure),
 `docs/research/admin-ux-calm.md` (calm screens), `docs/research/admin-brand-references.md`
@@ -88,8 +89,7 @@ sentence per screen; labels, errors and delete confirmations stay plain.
 `UDashboardGroup` + `UDashboardSidebar` (16 rem, resizable, collapsible to icons, a
 slide-over menu on phones). The client's name leads at the top; the current page sits
 on cream; **tinyzoo signs** under the account button. Groups: Home, Content,
-Settings, then View website and the account menu (appearance, language, sign out;
-the design system — this page's live reference — is the administrators' entry only).
+Settings, then View website and the account menu (appearance, language, sign out).
 
 The Write and Preview editors **fold the sidebar to icons** (`useCmsFocus`); leaving
 them restores what the person chose (kept apart in `localStorage`).

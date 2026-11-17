@@ -39,7 +39,7 @@ Plans, research and the rules of the project. Not needed to build a site.
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Changesets, version bumps, deprecations, releases, the upgrade test, the docs check |
 | [Roadmap](roadmap.md) | The plan to 1.0, with a write-up of every slice as it was finished |
 | [Production plan](production-plan.md), [Pilot plan](pilot-plan.md) | The earlier plans (done, or folded into the roadmap) |
-| [UI foundation](ui-foundation.md) | The admin's design tokens and rules; the live reference is `/admin/styleguide` |
+| [UI foundation](ui-foundation.md) | The admin's design tokens and rules; the live reference is `/design-system` on the website |
 | [Research](research/) | What informed the admin's structure and look |
 | [Brand guide](brand/brand-guide.md), [logo and characters](brand/) | Name, voice, logo, the animals |
 | [Screenshots](screenshots/) | The pictures used in the README and the roadmap |

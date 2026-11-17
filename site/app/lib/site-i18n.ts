@@ -11,6 +11,8 @@ export const LANG_TAGS: Record<Lang, string> = { cs: 'cs-CZ', en: 'en-GB', de: '
 export const NEWS_SEGMENT: Record<Lang, string> = { cs: 'novinky', en: 'news', de: 'neuigkeiten' }
 /** The search page's address segment in each language (/hledat, /en/search, /de/suche). */
 export const SEARCH_SEGMENT: Record<Lang, string> = { cs: 'hledat', en: 'search', de: 'suche' }
+/** The design system page's address segment in each language (/design-system, /en/design-system, /de/designsystem). */
+export const DESIGN_SYSTEM_SEGMENT: Record<Lang, string> = { cs: 'design-system', en: 'design-system', de: 'designsystem' }
 
 export const isLang = (v: unknown): v is Lang => typeof v === 'string' && (LANGS as readonly string[]).includes(v)
 /** '/en/comparison' → 'en'; '/srovnani' → 'cs'. */

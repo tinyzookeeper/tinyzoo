@@ -71,4 +71,5 @@ pnpm db:migrate             # applies it
 | `app/pages/[...slug].vue` | every address: pages, the news list and news items, in all languages |
 | `app/lib/site-i18n.ts` | the languages, their address prefixes and the few texts that live in code |
 | `app/layouts/default.vue` | header (menu, language switcher), footer |
+| `app/pages/design-system.vue`, `app/lib/design-system-i18n.ts` | the admin's design system in the admin's own look (`/design-system`, `/en/design-system`, `/de/designsystem`): in the footer menu, or right-click (long-press) the logo in the header |
 | `scripts/seed.mjs`, `seed/` | the content, its translations and media |

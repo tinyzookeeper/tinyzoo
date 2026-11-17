@@ -3,7 +3,7 @@ import { buildRegistry, defineEntity, f } from 'tinyzoo'
 import * as config from '../../playground/cms.config'
 
 describe('defineEntity', () => {
-  it.each(['_secret', 'media', 'graph', 'styleguide'])('rejects the reserved name %s', (name) => {
+  it.each(['_secret', 'media', 'graph'])('rejects the reserved name %s', (name) => {
     expect(() => defineEntity(name, { label: 'X', titleField: 'title', fields: { title: f.text() } })).toThrow(/reserved/)
   })
 

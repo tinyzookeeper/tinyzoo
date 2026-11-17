@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { LANGS, LANG_NAMES, SEARCH_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
+import { DESIGN_SYSTEM_SEGMENT, LANGS, LANG_NAMES, SEARCH_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
 
 const { settings, nav } = await useSite()
 const { lang, t, to } = useLang()
@@ -35,11 +35,29 @@ function openSearch(e: MouseEvent) {
 const year = new Date().getFullYear()
 // The logo on the home page itself: glide back to the top instead of doing nothing.
 function logoClick(e: MouseEvent) {
+  // The click a long press ends with (see below) does not also go home.
+  if (logoPressed) { e.preventDefault(); logoPressed = false; return }
   if (route.path.replace(/\/$/, '') !== to('/').replace(/\/$/, '') || e.metaKey || e.ctrlKey || e.shiftKey) return
   e.preventDefault()
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' })
 }
+// Right-clicking the logo opens the admin's design system (brand, colours, components)
+// instead of the browser's menu. On a phone it's a long press: Android sends a contextmenu
+// for it, iOS doesn't, so a held touch counts too.
+function openDesignSystem(e?: Event) {
+  e?.preventDefault()
+  navigateTo(to(`/${DESIGN_SYSTEM_SEGMENT[lang.value]}`))
+}
+let logoPressed = false
+let logoTimer: ReturnType<typeof setTimeout> | undefined
+function logoTouchStart() {
+  logoPressed = false
+  clearTimeout(logoTimer)
+  logoTimer = setTimeout(() => { logoPressed = true; openDesignSystem() }, 500)
+}
+function logoTouchEnd() { clearTimeout(logoTimer) }
+onBeforeUnmount(() => clearTimeout(logoTimer))
 </script>
 
 <template>
@@ -47,8 +65,12 @@ function logoClick(e: MouseEvent) {
     <a href="#obsah" class="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 btn btn-dark">{{ t('skipToContent') }}</a>
     <header class="site-bar sticky top-0 z-40" :class="[scrolled || menuOpen ? 'site-bar--solid' : '', menuOpen ? 'site-bar--open' : '']">
       <div class="wrap relative flex h-16 items-center justify-between gap-6 sm:h-[4.5rem]">
-        <NuxtLink :to="to('/')" class="flex min-h-11 shrink-0 items-center" :aria-label="t('homeLabel')" @click="logoClick">
-          <img src="/brand/logo-primary.svg" alt="tinyzoo" class="h-7 w-auto sm:h-8" width="140" height="32">
+        <NuxtLink
+          :to="to('/')" class="site-logo flex min-h-11 shrink-0 items-center" :aria-label="t('homeLabel')"
+          @click="logoClick" @contextmenu="openDesignSystem"
+          @touchstart.passive="logoTouchStart" @touchend="logoTouchEnd" @touchmove.passive="logoTouchEnd" @touchcancel="logoTouchEnd"
+        >
+          <img src="/brand/logo-primary.svg" alt="tinyzoo" class="h-7 w-auto sm:h-8" width="140" height="32" draggable="false">
         </NuxtLink>
         <CmsNav id="site-nav" :links="nav?.main" class="site-nav" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="t('mainMenu')" />
         <div class="flex items-center gap-1 sm:gap-2">
@@ -114,6 +136,8 @@ function logoClick(e: MouseEvent) {
 </template>
 
 <style>
+/* The logo's long press opens the design system, not iOS's link callout. */
+.site-logo { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* Search: a round icon button beside the language switcher. */
 .site-search { display: grid; place-items: center; width: 2.75rem; height: 2.75rem; border-radius: 999px; color: rgb(19 19 19 / 0.75); transition: color .15s ease, background-color .15s ease; }
 .site-search:hover, .site-search.router-link-active { color: var(--color-ink); background: rgb(19 19 19 / 0.05); }
