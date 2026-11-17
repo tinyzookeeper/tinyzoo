@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'tinyzoo'
 import { Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs'
+import { REDIS_PROTOCOL } from '../store/redis'
 
 /**
  * The shared-editing engine (Hocuspocus), on the app's own port: it opens no server
@@ -64,7 +65,7 @@ interface Presence {
 async function createPresence(redisUrl: string, prefix: string): Promise<Presence> {
   const { default: IORedis } = await import('ioredis')
   // Like the shared store: never wait on a Redis that is down (callers fall back to the 90 s window).
-  const redis = new IORedis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false, commandTimeout: 500, connectTimeout: 2_000 })
+  const redis = new IORedis(redisUrl, { protocol: REDIS_PROTOCOL, maxRetriesPerRequest: 1, enableOfflineQueue: false, commandTimeout: 500, connectTimeout: 2_000 })
   redis.on('error', (err) => console.error('[cms] collab presence', err.message))
   const key = (name: string) => `${prefix}:presence:${name}`
   return {
@@ -75,7 +76,7 @@ async function createPresence(redisUrl: string, prefix: string): Promise<Presenc
       await redis.zrem(key(name), REPLICA_ID)
     },
     async othersHere(name) {
-      const res = await redis.multi().zremrangebyscore(key(name), '-inf', Date.now()).zrange(key(name), 0, -1).exec()
+      const res = await redis.multi().zremrangebyscore(key(name), '-inf', Date.now()).zrange(key(name), 0, '-1').exec()
       const [err, members] = res?.[1] ?? [new Error('empty transaction result'), null]
       if (err || !Array.isArray(members)) throw err ?? new Error('presence list missing')
       return members.some((m) => m !== REPLICA_ID)
@@ -92,6 +93,8 @@ let instance: Hocuspocus | null = null
 let starting: Promise<Hocuspocus> | null = null
 let heartbeat: ReturnType<typeof setInterval> | null = null
 let lastPurge = 0
+/** The heartbeat while it runs: a document's last tab waits for it before marking the document idle. */
+let beating: Promise<void> | null = null
 /** The epoch each loaded document belongs to (what it may store into). */
 const loadedEpoch = new Map<string, string>()
 /** Documents opened on each socket. */
@@ -195,7 +198,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
   const redisUrl = String((useRuntimeConfig().cms as any)?.redis?.url || process.env.REDIS_URL || '')
   if (redisUrl) {
     const [{ Redis: RedisExtension }, { default: IORedis }] = await Promise.all([import('@hocuspocus/extension-redis'), import('ioredis')])
-    extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { maxRetriesPerRequest: null }) as any, prefix: `${cmsStorePrefix()}:collab` } as any))
+    extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { protocol: REDIS_PROTOCOL, maxRetriesPerRequest: null }) as any, prefix: `${cmsStorePrefix()}:collab` } as any))
   }
 
   // "Nobody has it open" is known the moment the last tab leaves: with one instance
@@ -277,7 +280,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
       return document
     },
 
-    async onStoreDocument({ documentName, document, context }) {
+    async onStoreDocument({ documentName, document, lastContext }) {
       const epoch = loadedEpoch.get(documentName)
       if (!epoch) return
       const state = encodeState(document)
@@ -294,8 +297,9 @@ async function startCollabServer(): Promise<Hocuspocus> {
       const active = await occupied(document)
       const stored: any[] = await db.update(c).set({ state, updatedAt: sql`now()`, activeAt: active ? sql`now()` : null })
         .where(and(eq(c.name, documentName), eq(c.epoch, epoch))).returning({ name: c.name })
-      // Who typed last: shown with text that is left behind unsaved.
-      const typist = (context as CollabContext | undefined)?.displayName
+      // Who typed last: shown with text that is left behind unsaved. (The context of the
+      // connection behind the last change; empty for one that came from another replica.)
+      const typist = (lastContext as CollabContext | undefined)?.displayName
       if (stored.length && typist) await noteCollabEditor(documentName, typist).catch(() => {})
       if (!stored.length) {
         // Restarted (or deleted) meanwhile: what is loaded here is an old history.
@@ -318,6 +322,9 @@ async function startCollabServer(): Promise<Hocuspocus> {
       if (docs && !docs.size) docsBySocket.delete(socketId)
       // The last one left: nobody has it open now (not for another minute and a half).
       if (clientsCount === 0) {
+        // A heartbeat that counted this tab as a writer may still be writing "being edited":
+        // let it finish first, or it would land after "idle" and stay there.
+        await beating?.catch(() => {})
         if (redisPresence) {
           // Leave the list first: of two replicas losing their last tab at once, the later one sees it empty.
           await redisPresence.left(documentName).catch(() => {})
@@ -360,7 +367,10 @@ async function startCollabServer(): Promise<Hocuspocus> {
   })
   instance = server
 
-  heartbeat ??= setInterval(() => { void beat() }, cmsTimerMs('CMS_TEST_COLLAB_HEARTBEAT_MS', HEARTBEAT_MS))
+  heartbeat ??= setInterval(() => {
+    if (beating) return
+    beating = beat().finally(() => { beating = null })
+  }, cmsTimerMs('CMS_TEST_COLLAB_HEARTBEAT_MS', HEARTBEAT_MS))
   ;(heartbeat as any).unref?.()
   return server
 }
@@ -398,7 +408,10 @@ async function beat() {
     if (presence && doc.getConnectionsCount() > 0) await presence.here(doc.name).catch(() => {})
   }
   try {
-    if (editing.length) await db.update(reg.cmsCollab).set({ activeAt: sql`now()` }).where(inArray(reg.cmsCollab.name, editing))
+    // Only documents that still have a writer now: the re-checks above wait on the database,
+    // and a last tab that left meanwhile has marked its document idle.
+    const stillEditing = editing.filter((name) => [...(server.documents.get(name)?.getConnections() ?? [])].some((c: any) => !c.readOnly))
+    if (stillEditing.length) await db.update(reg.cmsCollab).set({ activeAt: sql`now()` }).where(inArray(reg.cmsCollab.name, stillEditing))
     if (Date.now() - lastPurge > 60 * 60_000) {
       lastPurge = Date.now()
       await db.delete(reg.cmsCollab).where(sql`${reg.cmsCollab.updatedAt} < now() - interval '30 days' and (${reg.cmsCollab.activeAt} is null or ${reg.cmsCollab.activeAt} < now() - interval '1 day')`)
@@ -445,7 +458,7 @@ export async function stopCollabServer(): Promise<void> {
   }
   server.closeConnections()
   // Store what is still pending, then let extensions (Redis) close their clients.
-  await Promise.allSettled([...server.documents.values()].map((d) => server.storeDocumentHooks(d, { clientsCount: 0, context: {}, document: d, documentName: d.name, instance: server, requestHeaders: {}, requestParameters: new URLSearchParams(), socketId: 'shutdown' } as any, true)))
+  await Promise.allSettled([...server.documents.values()].map((d) => server.storeDocumentHooks(d, { clientsCount: 0, lastContext: {}, lastTransactionOrigin: null, document: d, documentName: d.name, instance: server }, true)))
   await Promise.resolve(server.hooks('onDestroy', { instance: server } as any)).catch(() => {})
   await p?.close()
 }
