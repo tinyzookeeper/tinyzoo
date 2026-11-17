@@ -59,7 +59,8 @@ export default defineEventHandler(async (event) => {
     // Dated collections (no drafts, a date column): the next few by their date.
     if (listLayout(e) === 'dated') {
       const columns = e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4)
-      const key = columns.find((k) => e.fields[k]?.type === 'datetime')
+      const hidden = unreadableFields(e, user)
+      const key = columns.find((k) => e.fields[k]?.type === 'datetime' && !hidden.has(k))
       const col = key ? e.table[propOf(key, e.fields[key]!)] : undefined
       if (col) {
         const next: any[] = await db.select({ id: e.table.id, title: titleCol, at: col }).from(e.table)

@@ -2,6 +2,11 @@
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 
 const { data: graph, error: graphError } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
+// What the person's role allows beyond the entities (the media library, the role's own name), and whether it still exists.
+const { data: me } = await useFetch<{ access: { removed: boolean; role: string; label?: any; custom?: boolean; media?: 'all' | 'own' | 'none' } }>('/api/cms/_auth/me', { key: 'cms-access' })
+// A role the site no longer defines: signed in, but no access (the server answers 403 `role-removed`).
+const roleRemoved = computed(() => !!me.value?.access?.removed || (graphError.value as any)?.data?.data?.code === 'role-removed')
+const mediaClosed = computed(() => me.value?.access?.media === 'none')
 const { user, clear } = useUserSession()
 const route = useRoute()
 const colorMode = useColorMode()
@@ -72,7 +77,8 @@ const navigation = computed<NavigationMenuItem[][]>(() => {
   const settings = all.filter((e) => e.singleton && e.can?.update !== false)
   const groups: NavigationMenuItem[][] = [[{ label: t('nav.home'), icon: 'i-lucide-house', to: '/admin', exact: true, 'aria-label': t('nav.home') } as NavigationMenuItem]]
   const contentExtra = pluginNav('content')
-  if (collections.length || contentExtra.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav), ...contentExtra, { label: t('media.libraryTitle'), icon: 'i-lucide-images', to: '/admin/media', 'aria-label': t('media.libraryTitle') } as NavigationMenuItem])
+  const mediaItem = mediaClosed.value ? [] : [{ label: t('media.libraryTitle'), icon: 'i-lucide-images', to: '/admin/media', 'aria-label': t('media.libraryTitle') } as NavigationMenuItem]
+  if (collections.length || contentExtra.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav), ...contentExtra, ...mediaItem])
   const settingsGroup: NavigationMenuItem[] = [...settings.map(toNav), ...pluginNav('settings')]
   if (user.value?.role === 'admin') {
     settingsGroup.push({ label: t('nav.team'), icon: 'i-lucide-users-round', to: '/admin/team', 'aria-label': t('nav.team') } as NavigationMenuItem)
@@ -92,7 +98,9 @@ const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((p) =
 const initials = computed(() => initialsOf(user.value?.name ?? '?'))
 const roleLabel = computed(() => {
   const role = user.value?.role as string | undefined
-  return role === 'admin' || role === 'editor' || role === 'author' ? t(`roles.${role}.name`) : role
+  if (role === 'admin' || role === 'editor' || role === 'author') return t(`roles.${role}.name`)
+  // A role the site defined has its own, translated name; one it no longer has shows as stored.
+  return me.value?.access?.custom ? tl(me.value.access.label, role ?? '') : role
 })
 
 // Nuxt UI names the notifications area "Notifications (F8)" in English whatever its locale
@@ -215,7 +223,8 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
       </template>
     </UDashboardSidebar>
 
-    <slot />
+    <CmsRoleRemoved v-if="roleRemoved && !route.path.startsWith('/admin/account')" :role="String(user?.role ?? '')" />
+    <slot v-else />
     <CmsSearch :graph="graph ?? []" :places="places" />
     <CmsConfirmDialog />
   </UDashboardGroup>

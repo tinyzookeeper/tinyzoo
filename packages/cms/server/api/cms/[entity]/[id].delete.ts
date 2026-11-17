@@ -6,7 +6,7 @@ import { eq } from 'tinyzoo'
  */
 async function inUse(db: any, reg: any, user: any, used: { entity: string; id: string }[]) {
   const { visible, hidden } = await splitReadable(db, reg, user, used)
-  return createError({ statusCode: 409, statusMessage: 'Still in use by other content', data: { code: 'in_use', usedBy: visible, ...(hidden ? { hidden } : {}) } })
+  return createError({ statusCode: 409, statusMessage: 'Still in use by other content', data: { code: 'in_use', usedBy: visible.map(({ fields: _fields, ...rest }: any) => rest), ...(hidden ? { hidden } : {}) } })
 }
 
 export default defineEventHandler(async (event) => {

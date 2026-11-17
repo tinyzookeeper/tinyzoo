@@ -57,6 +57,7 @@ export default defineEventHandler(async (event) => {
   if (preview) setResponseHeader(event, 'Cache-Control', 'private, no-store')
   else setContentCache(event)
   const item = projectItem(e, row)
+  stripForPreviewer(event, e, [item])
   await attachLocaleInfo(db, reg, e, [row], [item], locale)
   await attachTreeInfo(db, reg, e, [row], [item], locale, { drafts })
   return { item, ...(preview ? { preview: true } : {}) }

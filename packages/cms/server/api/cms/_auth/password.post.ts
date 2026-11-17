@@ -7,7 +7,7 @@ const body = z.object({ current: z.string().max(200), password: passwordSchema }
 
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
-  const me = requireCmsUser(event)
+  const me = requireCmsAccount(event)
   if (isDemoAccount(me.email)) throw createError({ statusCode: 403, statusMessage: 'The demo account keeps its password', data: { code: 'demo_account' } })
   if (!(await rateLimit(`password:${me.id}`, 10, 15 * 60_000))) throw tooManyRequests(event, 'Too many attempts; try again later', 15 * 60_000)
   const data = parseOr422(body, await readBody(event))

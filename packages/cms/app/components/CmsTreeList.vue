@@ -303,7 +303,7 @@ function menu(r: Row, index: number, count: number): DropdownMenuItem[][] {
 }
 const siblingIndex = (r: Row) => kids(r.parentId && byId.value.has(r.parentId) ? r.parentId : null).findIndex((s) => s.id === r.id)
 const siblingCount = (r: Row) => kids(r.parentId && byId.value.has(r.parentId) ? r.parentId : null).length
-const canMove = computed(() => props.meta?.can?.update !== false)
+const canMove = computed(() => props.meta?.can?.update !== false && props.meta?.can?.move !== false)
 </script>
 
 <template>

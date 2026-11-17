@@ -11,5 +11,5 @@ export default defineEventHandler((event) => {
   const access = pluginRouteAccess(useCms().reg.plugins, event.method, path)
   if (access === 'public' || access === null) return
   const user = requireCmsUser(event)
-  if (access === 'admin' && user.role !== 'admin') throw createError({ statusCode: 403, statusMessage: 'Administrators only' })
+  if (access === 'admin' && !roleOf(user)?.manage) throw createError({ statusCode: 403, statusMessage: 'Administrators only' })
 })

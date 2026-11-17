@@ -76,6 +76,7 @@ export default defineEventHandler(async (event) => {
   applyPreviewDrafts(event, reg, e, rows, locale)
   await populateItems(db, reg, e, rows, e.content?.populate, locale, { preview: isPreviewAuthorized(event), user: event.context?.cmsUser })
   const items = rows.map((r) => projectItem(e, r))
+  stripForPreviewer(event, e, items)
   await attachLocaleInfo(db, reg, e, rows, items, locale)
   await attachTreeInfo(db, reg, e, rows, items, locale)
   setContentCache(event)

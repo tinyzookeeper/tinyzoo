@@ -6,6 +6,7 @@ import { eq } from 'tinyzoo'
 // change only files they uploaded.
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
+  assertMediaLibrary(user)
   const { db, reg } = useCms()
   const id = getIdParam(event)
 

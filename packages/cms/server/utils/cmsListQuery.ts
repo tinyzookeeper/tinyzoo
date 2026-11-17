@@ -9,12 +9,14 @@ const TYPO_SIMILARITY = 0.35
  * (accents ignored), `filter.<field>` filters and the status tab. Shared by the list
  * and its CSV export, so the file holds exactly what the editor sees.
  */
-export function listConditions(e: CmsEntity, reg: CmsRegistry, query: Record<string, any>, rowFilter: any): any[] {
+export function listConditions(e: CmsEntity, reg: CmsRegistry, query: Record<string, any>, rowFilter: any, hidden?: ReadonlySet<string>): any[] {
   const conds: any[] = []
   if (rowFilter) conds.push(rowFilter)
   const search = String(query.q ?? '').trim()
   if (search) {
-    const fields = e.admin?.list?.searchable?.length ? e.admin.list.searchable : [e.titleField]
+    // Never by a field this person may not read: a match would tell them what it holds.
+    const searchable = (e.admin?.list?.searchable ?? []).filter((k) => !hidden?.has(k))
+    const fields = searchable.length ? searchable : [e.titleField]
     // Every word must be found (in any order, in any of the fields). Accents and case do
     // not matter ("zimni" finds "Zimní", "pribram" finds "Příbram"), and a longer word
     // may have a typo ("clenek" finds "článek"): trigram word similarity, as the admin's search.
@@ -30,7 +32,7 @@ export function listConditions(e: CmsEntity, reg: CmsRegistry, query: Record<str
       })))
     }
   }
-  conds.push(...listFilters(e, reg, query))
+  conds.push(...listFilters(e, reg, query, hidden))
   // Status tabs: ?status=published | scheduled | draft (entities with a publish workflow).
   const p = e.publish
   if (p && ['published', 'scheduled', 'draft'].includes(String(query.status))) {
@@ -51,12 +53,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * and a date range (`filter.<field>.from` / `.to`, ISO dates). Unknown or invalid
  * filters are ignored; values are bound parameters.
  */
-export function listFilters(e: any, reg: any, query: Record<string, any>): any[] {
+export function listFilters(e: any, reg: any, query: Record<string, any>, hidden?: ReadonlySet<string>): any[] {
   const out: any[] = []
   for (const [param, raw] of Object.entries(query)) {
     if (!param.startsWith('filter.')) continue
     const [key = '', part] = param.slice('filter.'.length).split('.')
-    const fld = key && Object.hasOwn(e.fields, key) ? e.fields[key] : null
+    const fld = key && Object.hasOwn(e.fields, key) && !hidden?.has(key) ? e.fields[key] : null
     if (!fld) continue
     const value = String(Array.isArray(raw) ? raw[0] : raw ?? '').slice(0, 500)
     if (!value) continue

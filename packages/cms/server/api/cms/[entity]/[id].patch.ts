@@ -11,6 +11,7 @@ export default defineEventHandler(async (event) => {
   const locale = requestedLocale(event, reg)
   if (isTranslationLocale(reg, locale)) return { row: await writeTranslation(event, e, id, locale, user, rowFilter) }
   const body = await readBody(event)
+  assertFieldsEditable(e, user, bodyKeys(body))
 
   // The row as it is now: for media cleanup, the publish rule, the audit entry and the check of its blocks.
   const [old] = await db.select().from(e.table).where(both(eq(e.table.id, id), rowFilter))
@@ -112,5 +113,5 @@ export default defineEventHandler(async (event) => {
   })
   if (effect) await reportTreeRedirects(event, reg, effect.redirects)
   // Old addresses that now lead to the new ones (a changed address part or a move): told, so the editor knows.
-  return { row, ...(effect?.redirects.length ? { redirects: effect.redirects.length } : {}) }
+  return { row: stripUnreadable(e, user, row), ...(effect?.redirects.length ? { redirects: effect.redirects.length } : {}) }
 })

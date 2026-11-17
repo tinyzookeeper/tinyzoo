@@ -2,7 +2,7 @@
 // that was sent stops working.
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
-  const me = requireCmsUser(event)
+  const me = requireCmsAccount(event)
   const { db, reg } = useCms()
   const pending = await readEmailChange(db, reg, me.id)
   await endLinksOf(db, reg, me.id, ['email'])

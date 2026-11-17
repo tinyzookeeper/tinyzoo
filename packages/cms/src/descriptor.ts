@@ -1,5 +1,6 @@
 import type { LocalizedText } from './i18n'
 import type { ZodTypeAny } from 'zod'
+import type { CmsFieldAccess } from './roles'
 
 export type OnDelete = 'cascade' | 'restrict' | 'set null' | 'no action'
 export type RelationKind = 'many-to-one' | 'one-to-many' | 'many-to-many'
@@ -158,6 +159,15 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   icon(name: string): FieldDescriptor<K>
   /** Put the field in a named, collapsible group in the editor (e.g. 'Search & sharing'). */
   group(label: LocalizedText): FieldDescriptor<K>
+  /**
+   * Who may read and who may edit the field in the admin, by role:
+   * `.access({ read: ['editor', roles.translator], edit: ['editor'] })`. A role not listed does not
+   * see the field (`read`) or sees it read-only (`edit`); a rule left out means everyone who may
+   * read (write) the collection; administrators always may. Enforced by the server on every
+   * read and write of the admin API; the public content API follows `content.hidden`, not this.
+   * Only on a field of a collection or global — not on a field inside a block, a list or a group.
+   */
+  access(rules: CmsFieldAccess): FieldDescriptor<K>
 }
 
 /** Any descriptor, regardless of kind. */

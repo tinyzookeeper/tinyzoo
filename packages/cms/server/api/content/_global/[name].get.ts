@@ -18,6 +18,7 @@ export default defineEventHandler(async (event) => {
   setContentCache(event)
   await populateItems(db, reg, e, [row], e.content?.populate, locale, { preview: isPreviewAuthorized(event), user: event.context?.cmsUser })
   const item = projectItem(e, row)
+  stripForPreviewer(event, e, [item])
   await attachLocaleInfo(db, reg, e, [row], [item], locale)
   return { item }
 })

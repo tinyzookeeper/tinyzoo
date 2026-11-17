@@ -1,10 +1,38 @@
-import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
 import { defineForm, defineFormSettings, formsPlugin } from "tinyzoo/forms"
 import { eventsPlugin } from "./cms-plugins/events"
 
 // Content languages: Czech is the default (each entry's own row), English is a
 // translation of the fields marked .localized(), falling back to Czech when missing.
 export const locales = defineLocales({ default: "cs", locales: ["cs", "en"] })
+
+// Roles beyond admin, editor and author. Each one extends a built-in role and narrows (or, for an
+// author, widens) it per collection; what a role may do with a single field is set on the field.
+export const roles = defineRoles({
+  // Translates posts and pages: reads the other content, changes only these two, never publishes
+  // (it drafts only), and may change only the files it uploaded.
+  translator: {
+    from: "editor",
+    label: { en: "Translator", cs: "Překladatel" },
+    description: { en: "Translates posts and pages; drafts only.", cs: "Překládá články a stránky; jen koncepty." },
+    entities: { post: ["read", "update"], page: ["read", "update"], author: ["read"], tag: ["read"] },
+    publish: false,
+    media: "own",
+  },
+  // Looks after the people who write: manages authors (and sees their email), reads posts, has no media library.
+  curator: {
+    from: "editor",
+    label: { en: "Curator", cs: "Správce autorů" },
+    entities: { author: ["read", "create", "update", "delete"], post: ["read"], tag: ["read"] },
+    media: "none",
+  },
+  // Looks after the site's texts: the settings and the posts. May publish, but not rename the site or change its colour.
+  marketer: {
+    from: "editor",
+    label: { en: "Marketing", cs: "Marketing" },
+    entities: { siteSettings: ["read", "update"], post: ["read", "update"] },
+  },
+})
 
 // A single-row global: site-wide settings, editable under "Globals" in the admin
 // and delivered headlessly at GET /api/content/_global/siteSettings.
@@ -15,11 +43,13 @@ export const SiteSettings = defineSingleton("siteSettings", {
   titleField: "siteName",
   fields: {
     siteName: f.text({ required: true })
+      // The name of the site is the editors' to change; marketing sees it but cannot.
+      .access({ edit: ["editor"] })
       .label({ en: "Site name", cs: "Název webu" })
       .help({ en: "Shown in the header and browser tab.", cs: "Zobrazí se v hlavičce webu a v záložce prohlížeče." }),
     tagline: f.text().optional().label({ en: "Tagline", cs: "Slogan" }),
     logo: f.media({ accept: "image/*" }).optional().label({ en: "Logo", cs: "Logo" }),
-    brandColor: f.color().optional().label({ en: "Brand colour", cs: "Barva značky" }),
+    brandColor: f.color().optional().access({ edit: ["editor"] }).label({ en: "Brand colour", cs: "Barva značky" }),
     openingHours: f.list({
       fields: {
         days: f.text({ required: true }).label({ en: "Days", cs: "Dny" }),
@@ -59,11 +89,16 @@ export const Author = defineEntity("author", {
   admin: { list: { columns: ["name", "email"], orderField: "position" } },
   fields: {
     name: f.text({ required: true }).label({ en: "Name", cs: "Jméno" }),
-    position: f.number().optional().label({ en: "Position", cs: "Pořadí" }),
+    // Who is first in the list is the editors' say; whoever else manages authors only reads it.
+    position: f.number().optional().access({ edit: ["editor"] }).label({ en: "Position", cs: "Pořadí" }),
     email: f.text({ required: true, format: "email" }).unique()
+      // Private: editors and curators read it, only editors change it; everyone else does not see it.
+      .access({ read: ["editor", roles.curator], edit: ["editor"] })
       .label({ en: "Email", cs: "E-mail" })
       .help({ en: "Private — never shown on the website.", cs: "Soukromé — na webu se nikdy nezobrazí." }),
     bio: f.richtext().optional()
+      // Editors only (a rich text field with a rule is edited alone, not shared with others in real time).
+      .access({ read: ["editor"] })
       .label({ en: "Bio", cs: "Medailonek" })
       .help({ en: "A few sentences about the author.", cs: "Pár vět o autorovi." }),
     posts: f.relation({
@@ -137,7 +172,7 @@ export const Post = defineEntity("post", {
         place: f.text({ required: true }).label({ en: "Place", cs: "Místo" }),
         note: f.text().label({ en: "Note", cs: "Poznámka" }),
       },
-    }).optional().localized().label({ en: "Location", cs: "Místo konání" }),
+    }).optional().localized().access({ edit: ["editor"] }).label({ en: "Location", cs: "Místo konání" }),
     gallery: f.gallery().label({ en: "Photos", cs: "Fotky" })
       .help({ en: "Shown under the text, in this order.", cs: "Zobrazí se pod textem, v tomto pořadí." }),
     ...seo(),
@@ -146,7 +181,8 @@ export const Post = defineEntity("post", {
   // can narrow it further with `access`, e.g. a row-level rule that is AND-ed in:
   //   access: { update: ({ user, table }) => eq(table.authorId, user.id) }
   // Here: authors read every post except the internal ones (a title starting with "Interní").
-  access: { read: ({ user, table }) => (user.role === "author" ? not(ilike(table.title, "Interní%")) : true) },
+  // `user.base` is the built-in role a person has or a custom role extends: a role built on author is held to it too.
+  access: { read: ({ user, table }) => (user.base === "author" ? not(ilike(table.title, "Interní%")) : true) },
   // First-class publish workflow: publish/unpublish toggles `status`, stamps
   // `publishedAt`, and the Preview button opens the draft at /blog/:slug?preview.
   publish: {
@@ -173,7 +209,7 @@ export const Page = definePages({
   // Pages under pages: /o-nas/tym in Czech, /en/pages/about/team in English.
   tree: true,
   // A row-level rule on top of the roles: authors do not see internal pages (address "interni…").
-  access: { read: ({ user, table }) => (user.role === "author" ? not(ilike(table.slug, "interni%")) : true) },
+  access: { read: ({ user, table }) => (user.base === "author" ? not(ilike(table.slug, "interni%")) : true) },
   // The address differs per language: /o-nas in Czech, /en/pages/about in English.
   path: { cs: "/:slug", en: "/pages/:slug" },
   blocks: {

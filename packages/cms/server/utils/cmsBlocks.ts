@@ -31,17 +31,20 @@ export function upgradedCopy<R extends Record<string, any>>(e: CmsEntity, row: R
 }
 
 /**
- * The schema a write is checked with: `e.insertSchema` / `e.updateSchema`, with the
+ * The schema a write is checked with (`omit`: fields left out of it altogether): `e.insertSchema` / `e.updateSchema`, with the
  * blocks and list fields told what the row holds now (`stored`: the raw row, or the
  * translation row for a translation; nothing for a new row). Blocks that are behind,
  * whose upgrade fails, or whose type is gone are only kept when they are stored
  * already — see `blocksSchema`.
  */
-export function writeSchema(e: CmsEntity, mode: 'create' | 'update', stored?: Record<string, any> | null): ZodTypeAny {
-  const base: any = mode === 'create' ? e.insertSchema : e.updateSchema
+export function writeSchema(e: CmsEntity, mode: 'create' | 'update', stored?: Record<string, any> | null, omit?: ReadonlySet<string>): ZodTypeAny {
+  let base: any = mode === 'create' ? e.insertSchema : e.updateSchema
   const own: Record<string, ZodTypeAny> = {}
   for (const [key, fld] of Object.entries(e.fields)) {
-    if (fld.type === 'blocks' || fld.type === 'group') own[key] = fld.zod(mode, { stored: stored?.[key] })
+    if ((fld.type === 'blocks' || fld.type === 'group') && !omit?.has(key)) own[key] = fld.zod(mode, { stored: stored?.[key] })
   }
-  return Object.keys(own).length ? base.extend(own) : base
+  if (Object.keys(own).length) base = base.extend(own)
+  // Fields the person may not edit take no part in the write: not validated, not defaulted, not stored.
+  if (omit?.size) base = base.omit(Object.fromEntries([...omit].filter((k) => Object.hasOwn(e.fields, k)).map((k) => [k, true])))
+  return base
 }

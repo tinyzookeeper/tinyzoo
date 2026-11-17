@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { allUpgradeSteps, collectPlugins, type MigrationSource, type SqlRunner, type UpgradeStep } from '../src/index'
+import { allRoleNames, allUpgradeSteps, collectPlugins, rolesDefOf, type MigrationSource, type SqlRunner, type UpgradeStep } from '../src/index'
 
 /** `NUXT_CMS_DATABASE_URL` / `DATABASE_URL` from the environment, else from the host's `.env`. */
 export function databaseUrl(cwd: string): string {
@@ -83,4 +83,13 @@ export async function siteUpgradeSteps(cwd: string): Promise<UpgradeStep[]> {
   const file = resolve(cwd, 'cms.config.ts')
   if (!existsSync(file)) return allUpgradeSteps([])
   return allUpgradeSteps(collectPlugins(await import(pathToFileURL(file).href)))
+}
+
+/** Every role name the site's `cms.config.ts` knows: admin, editor, author and what it defines with `defineRoles`. */
+export async function siteRoleNames(cwd: string): Promise<string[]> {
+  const file = resolve(cwd, 'cms.config.ts')
+  if (!existsSync(file)) return allRoleNames(null)
+  const mod = await import(pathToFileURL(file).href)
+  const exported = Object.values(mod).find((v: any) => v && typeof v === 'object' && v.__cms === 'roles')
+  return allRoleNames(rolesDefOf(exported))
 }

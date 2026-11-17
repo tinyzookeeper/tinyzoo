@@ -202,10 +202,26 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    else that `tinyzoo`, `tinyzoo/forms`, `tinyzoo/module` and `@tinyzoo/client` export is listed in
    [the public API](api-surface.md). If your code imports an `@internal` name, tell us what it needs
    and use the documented API meanwhile.
-5. **Nothing else.** No migration, no change to the content API or to the generated client types. Two
-   additions you may use: `tinyzoo help` prints every command and flag, and `CmsWebhookPayload`,
-   `CMS_WEBHOOK_HEADERS`, `CmsAdminField`, `CmsFieldEditProps` and `CmsFieldCellProps` are exported as
-   types for webhook receivers and your own field renderers.
+5. **Custom roles and per-field permissions.** A site can now define roles of its own and say, per
+   field, who reads and who edits it ([Roles and permissions](guide/roles.md)). **A site that does neither
+   behaves exactly as before: there is nothing to do, and no migration** (`cms_users.role` is a text column; the
+   roles live in `cms.config.ts`). To use them:
+   - `export const roles = defineRoles({ translator: { from: 'editor', … } })` from `cms.config.ts`, above the
+     entities that name it; `f.text().access({ read: [...], edit: [...] })` on a field. Then give people the
+     new role in Settings → Team.
+   - Your own row-level `access` rules get the person with a new `base` (the built-in role they are or
+     extend, `'admin' | 'editor' | 'author'`) next to `role`. If a rule says `user.role === 'author'` and you add a
+     role built on author, change it to `user.base === 'author'`, or that role is not held to it.
+   - Two behaviours differ from 0.5, in cases that did not arise through the admin:
+     an account whose stored role is **not** `admin`, `editor` or `author` (typed into the database by hand, or
+     left by a role you removed) now has **no access** and sees "Your role no longer exists", where before it was
+     treated as an editor; and with `cms.auth.mode: 'external'`, once you define roles, a role name from your
+     sign-in that you did not define has no access either (a site without `defineRoles` keeps the old behaviour).
+     `tinyzoo status` lists accounts whose role the config does not know.
+
+**Also new:** `tinyzoo help` prints every command and flag, and `CmsWebhookPayload`,
+`CMS_WEBHOOK_HEADERS`, `CmsAdminField`, `CmsFieldEditProps` and `CmsFieldCellProps` are exported as
+types for webhook receivers and your own field renderers.
 
 ## On every upgrade
 

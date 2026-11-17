@@ -174,7 +174,7 @@ const localeItems = computed(() => (locales.value?.all ?? []).map((code) => {
 function save() {
   return form.submit(async () => {
     if (isTranslation.value) {
-      const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
+      const body = Object.fromEntries(editable.value.filter((f: any) => f.localized && !f.readOnly).map((f: any) => [f.key, state[f.key] ?? null]))
       const url: string = `/api/cms/_singleton/${props.entity}?locale=${currentLocale.value}`
       const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
       const res: any = await $fetch(url, { method: 'PUT', body, headers })

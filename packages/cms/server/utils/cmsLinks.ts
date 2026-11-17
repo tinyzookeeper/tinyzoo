@@ -175,6 +175,8 @@ export interface LinkedFrom {
   label: unknown
   /** The language of the translation that holds the link; null for the entry itself. */
   locale: string | null
+  /** The fields that hold the link (the refusal names the entry only to people who may read one of them). */
+  fields: string[]
 }
 
 /**
@@ -201,12 +203,22 @@ export async function linksTo(db: any, reg: CmsRegistry, target: CmsEntity, idOr
     const notSelf = id !== null && e.name === target.name ? ne(own.id, id) : undefined
     const direct = or(...keys.map((k) => has(own[k])))
     const found = new Map<string, LinkedFrom>()
-    const add = (r: { id: string; title: unknown }, locale: string | null) => {
+    const add = (r: { id: string; title: unknown }, locale: string | null, fields: string[]) => {
+      const key = `${r.id}:${locale ?? ''}`
+      const seen = found.get(key)
+      if (seen) { seen.fields = [...new Set([...seen.fields, ...fields])]; return }
       if (found.size >= perEntity) return
-      found.set(`${r.id}:${locale ?? ''}`, { entity: e.name, id: r.id, title: e.singleton || r.title == null ? '' : String(r.title), singleton: !!e.singleton, label: e.label, locale })
+      found.set(key, { entity: e.name, id: r.id, title: e.singleton || r.title == null ? '' : String(r.title), singleton: !!e.singleton, label: e.label, locale, fields })
     }
     const rows: any[] = await db.select({ id: own.id, title: titleCol }).from(own).where(notSelf ? and(direct, notSelf) : direct).limit(perEntity)
-    for (const r of rows) add(r, null)
+    // Which field holds it: asked per field, so the refusal can say it only to people who may read that field.
+    for (const r of rows) {
+      const via = keys.length > 1 ? (await Promise.all(keys.map(async (k) => {
+        const [hit] = await db.select({ id: own.id }).from(own).where(and(eq(own.id, r.id), has(own[k]))).limit(1)
+        return hit ? k : null
+      }))).filter((k): k is string => !!k) : keys
+      add(r, null, via)
+    }
     const t = e.localesTable
     const tkeys = keys.filter((k) => e.localized.includes(k) && t?.[k])
     if (t && tkeys.length && found.size < perEntity) {
@@ -214,7 +226,7 @@ export async function linksTo(db: any, reg: CmsRegistry, target: CmsEntity, idOr
       for (const h of hits) {
         if (id !== null && e.name === target.name && h.parentId === id) continue
         const [parent] = await db.select({ id: own.id, title: titleCol }).from(own).where(eq(own.id, h.parentId))
-        if (parent) add(parent, h.locale)
+        if (parent) add(parent, h.locale, tkeys)
       }
     }
     out.push(...found.values())
@@ -236,12 +248,15 @@ export async function splitReadable<T extends { entity: string; id: string }>(db
     if (!e) continue
     const { allowed, where } = accessWhere(e, 'read', user)
     if (!allowed) continue
+    // Found through a field this person may not read: the entry is counted, not named.
+    const hiddenFields = unreadableFields(e, user)
+    const sees = (it: T) => !hiddenFields.size || !(it as any).fields?.length || (it as any).fields.some((k: string) => !hiddenFields.has(k))
     if (!where) {
-      for (const it of list) readable.add(`${name}\u0000${it.id}`)
+      for (const it of list) if (sees(it)) readable.add(`${name}\u0000${it.id}`)
       continue
     }
     const rows: any[] = await db.select({ id: e.table.id }).from(e.table).where(and(inArray(e.table.id, [...new Set(list.map((it) => it.id))]), where))
-    for (const r of rows) readable.add(`${name}\u0000${r.id}`)
+    for (const r of rows) for (const it of list) if (it.id === r.id && sees(it)) readable.add(`${name}\u0000${r.id}`)
   }
   const visible = items.filter((it) => readable.has(`${it.entity}\u0000${it.id}`))
   return { visible, hidden: items.length - visible.length }

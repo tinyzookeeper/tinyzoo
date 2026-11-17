@@ -270,7 +270,7 @@ async function restoreRevision(data: Record<string, any>) {
   const gone = await missingMedia(data)
   data = withoutMedia(data, gone)
   for (const f of editable.value) {
-    if (!(f.key in data) || workflowFields.value.has(f.key)) continue
+    if (!(f.key in data) || workflowFields.value.has(f.key) || f.readOnly) continue
     if (sharedFields.value.has(f.key) && collab?.set(f.key, data[f.key])) continue
     state[f.key] = structuredClone(toRaw(data[f.key]))
   }
@@ -541,7 +541,7 @@ async function save(successTitle?: string | null) {
 async function saveTranslation() {
   redirectsMade = 0
   return form.submit(async () => {
-    const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
+    const body = Object.fromEntries(editable.value.filter((f: any) => f.localized && !f.readOnly).map((f: any) => [f.key, state[f.key] ?? null]))
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
     const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
     const res: any = await $fetch(url, { method: 'PATCH', body, headers })
@@ -882,7 +882,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                 <textarea
                   :id="`cms-field-${titleField.key}`" v-model="state[titleField.key]" rows="1" class="cms-title-input resize-none field-sizing-content" :class="titleIsAddress ? 'cms-title-input--address' : ''"
                   :placeholder="titlePlaceholder"
-                  :disabled="isTranslation && !titleField.localized"
+                  :disabled="(isTranslation && !titleField.localized) || !!titleField.readOnly"
                   :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" :aria-describedby="fieldErrors[titleField.key] ? `cms-field-${titleField.key}-error` : undefined" autocomplete="off"
                   @keydown.enter.prevent
                 />
@@ -920,7 +920,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <textarea
                 :id="`cms-field-${titleField.key}`" v-model="state[titleField.key]" rows="1" class="cms-title-input resize-none field-sizing-content" :class="titleIsAddress ? 'cms-title-input--address' : ''"
                 :placeholder="titlePlaceholder"
-                :disabled="isTranslation && !titleField.localized"
+                :disabled="(isTranslation && !titleField.localized) || !!titleField.readOnly"
                 :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" :aria-describedby="fieldErrors[titleField.key] ? `cms-field-${titleField.key}-error` : undefined" autocomplete="off"
                 @keydown.enter.prevent
               />

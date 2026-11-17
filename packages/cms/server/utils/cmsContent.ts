@@ -91,7 +91,8 @@ function noteRefusedContentRequest(event: any): void {
  */
 export function isPreviewAuthorized(event: any): boolean {
   if (getQuery(event).preview === undefined) return false
-  if (event.context?.cmsUser) return true
+  // A signed-in account whose role the site no longer has sees nothing, drafts included.
+  if (event.context?.cmsUser && roleOf(event.context.cmsUser)) return true
   const token = (useRuntimeConfig().cms as any)?.content?.token
   if (!token) return false
   const header = getHeader(event, 'authorization') || ''
