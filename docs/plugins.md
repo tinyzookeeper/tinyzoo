@@ -362,10 +362,9 @@ the tables `defineForm` has always made); the plugin brings what is around them:
 | Deleting submissions after `retentionDays` | `hooks.retention` |
 | No "New" button, and the retention note under a form's list | `graph` + `i18n` |
 
-`defineForm` and `defineFormSettings` are still exported from `tinyzoo` (deprecated,
-removed in 0.4): they register the forms plugin by themselves and say so once, so a site
-that has not moved yet keeps working with the same tables, endpoints and component.
-The move, for a site that already has forms:
+Until 0.4, `defineForm` and `defineFormSettings` were also exported from `tinyzoo`
+(deprecated since 0.2), registering the forms plugin by themselves. 0.4 removed them.
+The move, for a site that still imports them from there:
 
 ```diff
 -import { defineForm, defineFormSettings } from 'tinyzoo'
