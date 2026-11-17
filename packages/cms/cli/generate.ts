@@ -31,7 +31,8 @@ export interface GenerateOptions {
   error?: (line: string) => void
 }
 
-const journalTags = (dir: string): string[] => {
+/** The migrations a folder's drizzle journal lists, by tag (file name without `.sql`). */
+export const journalTags = (dir: string): string[] => {
   const file = join(dir, 'meta/_journal.json')
   return existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')).entries as { tag: string }[]).map((e) => e.tag) : []
 }
