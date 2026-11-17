@@ -7,6 +7,7 @@ import { isRisky, removeMigrations, scanBreaking } from '../../packages/cms/cli/
 import { generateMigration, NEEDS_TERMINAL_MESSAGE, type GenerateOptions } from '../../packages/cms/cli/generate'
 import { formatStatus } from '../../packages/cms/cli/status'
 import { checkVersions, satisfiesRange } from '../../packages/cms/cli/versions'
+import { nextSteps } from '../../packages/cms/cli/upgrade'
 
 const BP = '--> statement-breakpoint\n'
 
@@ -345,5 +346,20 @@ describe('status report', () => {
 
   it('does not count a conditional step that is not needed right now', () => {
     expect(formatStatus({ ...base, steps: [{ ...base.steps[0]!, state: 'idle' }] }).clean).toBe(true)
+  })
+})
+
+describe('what `tinyzoo upgrade` says to do next', () => {
+  it('without a new migration, does not send you to read one', () => {
+    const text = nextSteps([])
+    expect(text).toContain('No new migration')
+    expect(text).not.toContain('Read the new migration')
+    expect(text).not.toContain('commit the migration')
+  })
+
+  it('with a new migration, names its file', () => {
+    const text = nextSteps(['0007_brave_owl'])
+    expect(text).toContain('Read the new migration (server/db/migrations/0007_brave_owl.sql)')
+    expect(text).toContain('commit the migration, schema.ts and the typed client')
   })
 })
