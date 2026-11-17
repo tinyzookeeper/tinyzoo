@@ -59,6 +59,11 @@ export default defineEventHandler(async (event) => {
   if (reg.locales && e.localized.length) {
     const avail = await availableLocales(db, reg, e, rows.map((r) => r.id))
     for (const r of rows) r.__locales = avail.get(r.id) ?? [reg.locales.default]
+    // Publishing per language: where a translation's state differs from the entry's, the list says so.
+    if (e.publish?.perLocale) {
+      const states = await translationStates(db, reg, e, rows)
+      for (const r of rows) r.__states = states.get(r.id) ?? {}
+    }
   }
   return { rows: stripUnreadableRows(e, user, rows), total: count, page, limit }
 })

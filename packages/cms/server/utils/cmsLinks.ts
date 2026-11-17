@@ -55,7 +55,7 @@ export async function resolveLinkRefs(db: any, reg: CmsRegistry, refs: Iterable<
     for (const k of addressKeys(e)) cols[k] = (e.table as any)[k]
     // Visitors reach what is live. A signed-in previewer also reaches the drafts they may read
     // (never one a row-level `access.read` rule keeps from them); a content token (no user) reaches every draft.
-    const published = publishedCond(e)
+    const published = publishedCond(e, liveLocale(reg, scope.locale))
     let live = published
     if (scope.preview) {
       live = undefined
@@ -139,7 +139,7 @@ export async function describeLinkRefs(db: any, reg: CmsRegistry, user: any, ref
       for (const [id, list] of ids) for (const ref of list) out[ref] = gone(ref, name, id)
       continue
     }
-    const liveCond = publishedCond(e)
+    const liveCond = publishedCond(e, liveLocale(reg, locale))
     const titleCol = (e.table as any)[e.titleField]
     const cols: Record<string, any> = { id: e.table.id, title: titleCol, live: liveCond ? sql<boolean>`${liveCond}` : sql<boolean>`true` }
     for (const k of addressKeys(e)) cols[k] = (e.table as any)[k]

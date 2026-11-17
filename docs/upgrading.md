@@ -219,6 +219,28 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
      sign-in that you did not define has no access either (a site without `defineRoles` keeps the old behaviour).
      `tinyzoo status` lists accounts whose role the config does not know.
 
+6. **Per-language publishing (optional).** An entity can now publish each language on its own:
+   `publish: { …, perLocale: true }` ([the guide](guide/content-model.md#publishing-each-language-on-its-own)).
+   **If you do not turn it on, nothing changes**: no step, no migration, the same pages, lists,
+   sitemap and webhooks as in 0.5. To turn it on for an entity with `.localized()` fields:
+
+   1. Add `perLocale: true` to its `publish` in `cms.config.ts`.
+   2. `tinyzoo generate`, review and commit the migration. It adds two nullable columns to the
+      entity's translation table (`<entity>_locales`: `published`, `published_at`), nothing else.
+   3. `tinyzoo up` (or start with `NUXT_CMS_MIGRATIONS_ON_START`).
+
+   There is no data to move. Every language starts **following the default language**, so every
+   page, list, sitemap entry and `hreflang` alternate is exactly as before, translations and
+   entries without a translation alike. A language gets a state of its own when an editor
+   publishes, unpublishes or schedules it. Not for page trees (`tree`) yet; the config check
+   says so when the option is combined with one.
+
+   What is new for a site that turns it on: a language that is not published answers `404` for
+   the item and is left out of its list, the sitemap, the `hreflang` alternates, the search and
+   links; the webhook for it names the language in `locale` (`entry.published` and
+   `entry.unpublished`, the payload keeps its shape). A site that had its own code deciding
+   what to show per language can drop it.
+
 **Also new:** `tinyzoo help` prints every command and flag, and `CmsWebhookPayload`,
 `CMS_WEBHOOK_HEADERS`, `CmsAdminField`, `CmsFieldEditProps` and `CmsFieldCellProps` are exported as
 types for webhook receivers and your own field renderers.

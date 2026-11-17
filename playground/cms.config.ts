@@ -191,6 +191,10 @@ export const Post = defineEntity("post", {
     draftValue: "draft",
     dateField: "publishedAt",
     preview: "/blog/:slug",
+    // Each language publishes on its own: a translation can be a draft or scheduled while the
+    // Czech post is live. Until one is set it follows Czech, so nothing changes by itself.
+    // (The API tests build the playground a second time with CMS_TEST_NO_PER_LOCALE=1 to prove that.)
+    perLocale: process.env.CMS_TEST_NO_PER_LOCALE !== "1",
   },
   // Headless delivery: only published posts, looked up by slug, with relations resolved.
   content: {

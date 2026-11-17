@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { and, desc, eq, indexTree, inArray, or, pathTemplateKeys, propOf, sitePath, sql, entryTexts, foldSearchText, isSearchableField, matchEntry, highlightRanges } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
-import { mergeTranslation } from './cmsLocales'
+import { hasTranslatedText, mergeTranslation } from './cmsLocales'
 // Explicit (not Nitro's auto-import): the CLI's import rebuilds the index outside Nitro.
 import { upgradedCopy } from './cmsBlocks'
 
@@ -83,6 +83,8 @@ function indexRows(reg: CmsRegistry, e: CmsEntity, row: Record<string, any>, tra
     add(def, row, pathOf(def, row))
     for (const tr of translations) {
       if (tr.locale === def || !reg.locales.locales.includes(tr.locale)) continue
+      // A row that only holds a language's publish state is not a translation: nothing to find in it.
+      if (e.publish?.perLocale && !hasTranslatedText(e, tr)) continue
       const merged = mergeTranslation(e, { ...row }, tr)
       add(tr.locale, merged, pathOf(tr.locale, merged))
     }
@@ -259,7 +261,7 @@ export async function searchPublic(db: any, reg: CmsRegistry, terms: string[], q
       const pathCols: Record<string, any> = {}
       for (const k of pathTemplateKeys(e.content!.path)) if (e.table[k]) pathCols[k] = e.table[k]
       const score = closeness(s.titleFolded, [s.bodyFolded], terms)
-      const conds = [eq(s.entity, e.name), inArray(s.locale, langs), termsCond([s.titleFolded, s.bodyFolded], terms), publishedCond(e)]
+      const conds = [eq(s.entity, e.name), inArray(s.locale, langs), termsCond([s.titleFolded, s.bodyFolded], terms), publishedCond(e, liveLocale(reg, locale))]
       const rows: any[] = await tx.select({ id: s.recordId, title: s.title, body: s.body, path: s.path, updatedAt: e.table.updatedAt, rank: score, ...pathCols })
         .from(s).innerJoin(e.table, eq(e.table.id, s.recordId))
         .where(and(...conds.filter(Boolean))).orderBy(desc(score)).limit(CANDIDATES)

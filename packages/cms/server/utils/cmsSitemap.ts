@@ -1,4 +1,4 @@
-import { and, indexTree, inArray, sitePath } from 'tinyzoo'
+import { and, indexTree, inArray, sitePath, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry, CmsSitemapEntry } from 'tinyzoo'
 import { scrubError } from './cmsScrub'
 
@@ -37,7 +37,12 @@ export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<Sitemap
     const keys = pathKeys(e.content.path).filter((k) => e.table[k])
     const cols: Record<string, any> = { id: e.table.id, updatedAt: e.table.updatedAt }
     for (const k of keys) cols[k] = e.table[k]
-    const rows: any[] = await db.select(cols).from(e.table).where(publishedCond(e)).limit(50_000)
+    // Publishing per language: a language is in the sitemap, and among the alternates, only while it is live.
+    const perLanguage = perLocalePublishing(e) && !!reg.locales
+    const languages = reg.locales?.locales ?? []
+    if (perLanguage) languages.forEach((l, i) => { cols[`live${i}`] = sql<boolean>`coalesce(${publishedCond(e, l) ?? sql`true`}, false)` })
+    const liveIn = (row: any, locale: string | null) => !perLanguage || !locale || row[`live${languages.indexOf(locale)}`] === true
+    const rows: any[] = await db.select(cols).from(e.table).where(perLanguage ? liveInAnyCond(e, languages) : publishedCond(e)).limit(50_000)
     if (!rows.length) continue
     const translations = await translationsByParent(db, reg, e, rows.map((r) => r.id), keys)
     // A page tree: addresses are the chain of ancestors' address parts (live pages only: publishedCond checks the ancestors).
@@ -50,9 +55,10 @@ export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<Sitemap
         for (const v of treeVersions(reg, e, treeIndex, row.id)) versions.push({ locale: v.locale, loc: v.loc, lastmod: lastmods.get(v.locale) ?? row.updatedAt })
       }
       else {
-        const defaultLoc = sitePath(reg.locales, e.content.path, reg.locales?.default ?? null, row)
+        const defaultLoc = liveIn(row, reg.locales?.default ?? null) ? sitePath(reg.locales, e.content.path, reg.locales?.default ?? null, row) : null
         if (defaultLoc) versions.push({ locale: reg.locales?.default ?? null, loc: defaultLoc, lastmod: row.updatedAt })
         for (const tr of translations.get(row.id) ?? []) {
+          if (!liveIn(row, tr.locale)) continue
           // Untranslated fields (e.g. the slug) fall back to the default language.
           const merged = { ...row }
           for (const k of keys) if (tr[k] !== null && tr[k] !== undefined && tr[k] !== '') merged[k] = tr[k]

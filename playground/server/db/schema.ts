@@ -234,6 +234,8 @@ export const postLocales = pgTable('post_locales', {
   slug: text('slug'),
   body: jsonb('body').$type<RichTextDoc>(),
   location: jsonb('location').$type<Record<string, unknown>>(),
+  published: boolean('published'),
+  publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('post_locales_parent_locale_unique').on(t.parentId, t.locale), uniqueIndex('post_locales_slug_unique').on(t.locale, t.slug)])

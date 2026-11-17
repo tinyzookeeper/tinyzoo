@@ -1,0 +1,98 @@
+import { PgDialect } from 'drizzle-orm/pg-core'
+import { describe, expect, it } from 'vitest'
+import { buildRegistry, defineEntity, defineLocales, definePages, emitSchema, f } from 'tinyzoo'
+import { liveInAnyCond, perLocalePublishing, publishedCond, scheduleCond } from '../../packages/cms/server/utils/cmsPublished'
+
+// publish.perLocale: what it needs, the columns it adds, and the condition that decides what a language shows.
+const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
+const entity = (name: string, publish: Record<string, unknown> | undefined, over: { localized?: boolean; dated?: boolean; published?: boolean } = {}) => defineEntity(name, {
+  label: name,
+  titleField: 'title',
+  fields: {
+    title: over.localized === false ? f.text({ required: true }) : f.text({ required: true }).localized(),
+    status: f.select({ options: ['draft', 'live'] as const, default: 'draft' }),
+    publishedAt: f.datetime().optional(),
+  },
+  publish: publish ? { field: 'status', publishedValue: 'live', draftValue: 'draft', ...(over.dated ? { dateField: 'publishedAt' } : {}), ...publish } as any : undefined,
+  content: { public: true, ...(over.published ? { published: (t: any) => (t.status as any) } : {}) },
+})
+const sqlOf = (cond: any) => new PgDialect().sqlToQuery(cond)
+
+describe('publish.perLocale', () => {
+  it('needs a field that is translated', () => {
+    expect(() => entity('plain', { perLocale: true }, { localized: false })).toThrow(/publish\.perLocale of "plain" needs at least one field marked \.localized\(\)/)
+  })
+
+  it('is not available for a page tree yet', () => {
+    const blocks = {}
+    expect(() => definePages({ blocks, name: 'treePage', localized: true, tree: true, perLocale: true })).toThrow(/not available for a page tree/)
+    expect(definePages({ blocks, name: 'flatPage', localized: true, perLocale: true }).publish?.perLocale).toBe(true)
+    expect(() => definePages({ blocks, name: 'unlocalized', perLocale: true })).toThrow(/needs at least one field marked \.localized\(\)/)
+  })
+
+  it('keeps the translation table\'s own state columns to itself', () => {
+    expect(() => defineEntity('clash', {
+      label: 'x', titleField: 'title',
+      fields: { title: f.text({ required: true }).localized(), published: f.text().localized(), status: f.select({ options: ['draft', 'live'] as const, default: 'draft' }) },
+      publish: { field: 'status', publishedValue: 'live', draftValue: 'draft', perLocale: true },
+    })).toThrow(/cannot be called "published"/)
+  })
+
+  it('adds a nullable state and date to the translations, and nothing to an entity without it', () => {
+    const on = entity('onPost', { perLocale: true })
+    const off = entity('offPost', {})
+    expect(Object.keys(on.localesTable)).toEqual(expect.arrayContaining(['published', 'publishedAt']))
+    expect(on.localesTable.published.notNull).toBe(false)
+    expect(on.localesTable.publishedAt.notNull).toBe(false)
+    expect(Object.keys(off.localesTable)).not.toContain('published')
+    // The generated schema.ts says the same, and only for the entity that has the option.
+    const source = emitSchema({ locales, on, off })
+    const table = (name: string) => source.slice(source.indexOf(`export const ${name}Locales`), source.indexOf('\n\n', source.indexOf(`export const ${name}Locales`)))
+    expect(table('onPost')).toContain(`published: boolean('published'),`)
+    expect(table('onPost')).toContain(`publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 }),`)
+    expect(table('offPost')).not.toContain('published')
+  })
+})
+
+describe('what is live in a language', () => {
+  const reg = buildRegistry({ locales, post: entity('post', { perLocale: true }, { dated: true }), plain: entity('plainPost', {}, { dated: true }), custom: entity('customPost', { perLocale: true }, { dated: true, published: true }) })
+  const e = (name: string) => reg.byName.get(name)!
+
+  it('is the entry\'s own state for the default language, for no language and for an entity that publishes as one', () => {
+    for (const name of ['post', 'plainPost', 'customPost']) {
+      const own = sqlOf(publishedCond(e(name)))
+      expect(sqlOf(publishedCond(e(name), null))).toEqual(own)
+      expect(sqlOf(publishedCond(e(name), undefined))).toEqual(own)
+      expect(own.sql).not.toContain('_locales')
+    }
+    // Another language changes nothing for an entity without the option.
+    expect(sqlOf(publishedCond(e('plainPost'), 'en'))).toEqual(sqlOf(publishedCond(e('plainPost'))))
+    expect(perLocalePublishing(e('plainPost'))).toBe(false)
+    expect(perLocalePublishing(e('post'))).toBe(true)
+  })
+
+  it('asks the translation first for a language, and falls back to the entry', () => {
+    const q = sqlOf(publishedCond(e('post'), 'en'))
+    expect(q.sql).toContain('"post_locales"')
+    expect(q.sql).toContain('coalesce(')
+    expect(q.sql).toContain('"published" is not null')
+    // The language is a bound parameter, never part of the text.
+    expect(q.sql).not.toContain('en"')
+    expect(q.params).toContain('en')
+    // The schedule follows the same view: the translation's date while it has a state, the entry's otherwise.
+    expect(sqlOf(scheduleCond(e('post'))).sql).not.toContain('_locales')
+  })
+
+  it('runs the site\'s own content.published rule against that view', () => {
+    const q = sqlOf(publishedCond(e('customPost'), 'en'))
+    expect(q.sql).toContain('"custom_post_locales"')
+    expect(q.sql).toContain('coalesce(')
+  })
+
+  it('is any language for what is selected before each language is looked at', () => {
+    const any = sqlOf(liveInAnyCond(e('post'), ['cs', 'en']))
+    expect(any.sql).toContain(' or ')
+    expect(any.sql).toContain('"post_locales"')
+    expect(sqlOf(liveInAnyCond(e('plainPost'), ['cs', 'en']))).toEqual(sqlOf(publishedCond(e('plainPost'))))
+  })
+})
