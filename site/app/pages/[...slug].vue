@@ -1,22 +1,37 @@
 <script setup lang="ts">
 // Every address, in every language: a page from blocks (/, /srovnani, /en/comparison),
 // the changelog (/novinky, /en/news) or one update (/novinky/formulare, /de/neuigkeiten/…).
-import { DEFAULT_LANG, LANGS, LANG_TAGS, NEWS_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
+import { DEFAULT_LANG, LANG_TAGS, NEWS_SEGMENT, localePath } from '~/lib/site-i18n'
+import { contentRoute, homeOf, itemAlternates, newsListAlternates } from '~/lib/content-route'
+
+definePageMeta({
+  // The language switcher (in the layout, which renders before this page) needs this item's
+  // address in each language before anything is drawn, or the server renders it with the
+  // fallbacks and the browser hydrates with the real links. In the browser the page sets
+  // it as soon as its own data is in, so only the server asks.
+  middleware: async (route) => {
+    if (import.meta.client) return
+    const { lang, kind, url } = contentRoute(route.path, route.params.slug as string | string[] | undefined)
+    const fallback = useAlternatesFallback()
+    if (kind === 'updates') { fallback.value = null; useAlternates().value = newsListAlternates(); return }
+    fallback.value = kind === 'update' ? 'news' : 'home'
+    const res = await useRequestFetch()<{ item?: { paths?: Record<string, string> } }>(url, {
+      query: { locale: lang, ...('preview' in route.query ? { preview: '' } : {}) },
+    }).catch(() => null)
+    useAlternates().value = itemAlternates(res?.item?.paths)
+  },
+})
 
 const route = useRoute()
 const { lang, t, to } = useLang()
-const segments = computed(() => ([] as string[]).concat(route.params.slug ?? []).filter(Boolean))
-// Without the language prefix: /en/news/x → ['news', 'x'].
-const parts = computed(() => (lang.value !== DEFAULT_LANG ? segments.value.slice(1) : segments.value))
+const parts = computed(() => contentRoute(route.path, route.params.slug as string | string[] | undefined).parts)
 // The home page has one address per language: /, /en, /de.
 if (parts.value.length === 1 && parts.value[0] === 'home') await navigateTo(to('/'), { redirectCode: 301 })
 const news = computed(() => NEWS_SEGMENT[lang.value])
-const kind = computed(() => (parts.value[0] === news.value ? (parts.value[1] ? 'update' : 'updates') : 'page'))
+const kind = computed(() => contentRoute(route.path, route.params.slug as string | string[] | undefined).kind)
 const preview = computed(() => ('preview' in route.query ? { preview: '' } : {}))
 
-const { data, error } = await useFetch<any>(() => kind.value === 'updates'
-  ? '/api/content/news'
-  : kind.value === 'update' ? `/api/content/news/${parts.value[1]}` : `/api/content/page/${parts.value.length ? parts.value.join('/') : 'home'}`,
+const { data, error } = await useFetch<any>(() => contentRoute(route.path, route.params.slug as string | string[] | undefined).url,
 {
   query: computed(() => ({ locale: lang.value, ...(kind.value === 'updates' ? { sort: 'publishedAt', limit: 50 } : preview.value) })),
   key: computed(() => `site:${route.fullPath}`),
@@ -26,8 +41,6 @@ if (error.value?.statusCode === 404 && parts.value.length) throw createError({ s
 const item = computed(() => (kind.value === 'updates' ? null : data.value?.item ?? null))
 const isHome = computed(() => kind.value === 'page' && !parts.value.length)
 const { settings } = await useSite()
-// The home page of each language is at /, /en, /de (its content address is /home).
-const homeOf = (p: string) => p.replace(/\/home$/, '') || '/'
 // Title, description, canonical and hreflang from the item. The sharing image is
 // useShareImage's (below), so the item's pictures are kept out of it here.
 useCmsSeo(computed(() => (item.value ? { ...item.value, ogImage: null } : null)), {
@@ -68,12 +81,12 @@ useSchemaOrg([
 
 // The same page in the other languages: the item's own addresses (/home is the
 // language's home page); the changelog lives at a fixed address in each language.
+// (The route middleware above sets the same on the server, before the layout renders.)
 const alternates = useAlternates()
+const fallback = useAlternatesFallback()
 watchEffect(() => {
-  const out: Partial<Record<Lang, string>> = {}
-  if (kind.value === 'updates') for (const l of LANGS) out[l] = localePath(`/${NEWS_SEGMENT[l]}`, l)
-  else if (item.value?.paths) for (const [l, p] of Object.entries(item.value.paths as Record<string, string>)) out[l as Lang] = homeOf(p)
-  alternates.value = out
+  alternates.value = kind.value === 'updates' ? newsListAlternates() : itemAlternates(item.value?.paths)
+  fallback.value = kind.value === 'updates' ? null : kind.value === 'update' ? 'news' : 'home'
 })
 // hreflang for the changelog (useCmsSeo writes them for items).
 useHead({

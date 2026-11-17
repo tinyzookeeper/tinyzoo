@@ -22,6 +22,7 @@ definePageMeta({
       }
     }
     useAlternates().value = out
+    useAlternatesFallback().value = null
   },
 })
 
