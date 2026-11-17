@@ -1235,7 +1235,7 @@ Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, one ag
 
 | Slice | Branch | State |
 |---|---|---|
-| M — custom roles, per-field permissions | `feat/1.0-roles` | merged into `feat/1.0-wave4`; admin screens not yet seen in a browser |
+| M — custom roles, per-field permissions | `feat/1.0-roles` | merged into `feat/1.0-wave4`, seen in a browser |
 | N — per-language publishing | `feat/1.0-locale-publishing` | merged into `feat/1.0-wave4` |
 | O — `pnpm create tinyzoo` | `feat/1.0-create` | merged into `feat/1.0-wave4` |
 | P — API review before the freeze | `feat/1.0-api-review` | merged into `feat/1.0-wave4`; 11 proposals for Vojtěch in its write-up |
@@ -1250,6 +1250,11 @@ Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, one ag
 | `fix/1.0-w4-locale-gating` | the default language gates; deleting a translation with its own state needs publish rights; shared editing, the editor's read-only switch and Publish follow the language; export/import keep per-language state | merged (`check` and `check:upgrade` green on the branch) |
 | `fix/1.0-w4-create-release` | `init .` keeps the folder; release re-run tags every package; `readOnly` for custom renderers; `init` writes a random app secret and production refuses the example one; changelog "Breaking:" markers; CI filters; nits | merged (all four checks green on the branch) |
 | `fix/1.0-w4-api-refine` | P's proposals: decimal type, frozen frontend kit, typed access user, typed `defineForm`, cron options, `singleton: true` deprecated, `content.publicUrl` fallback, `notifyTo` list; the typed surface config covers roles, `.access()` and `perLocale` | merged (all four checks green on the branch) |
+| `fix/1.0-w4-removed-role-nav` | the sidebar of a removed role listed the plugins' pages and the media library (found in the browser check) | merged |
+
+**Browser check (2026-11-17)** on the built playground, own database, Czech admin: as the translator, the post list's language column shows English live, its own draft and waiting for Czech (hourglass); an English translation with its own draft state opens editable with "Save translation" and no Publish, the place field (`.access({ edit: ['editor'] })`) disabled and marked read-only; a published English translation under a Czech draft reads "Waiting for the default language (Czech)" and opens read-only for the translator. A role removed from the config shows "Your role no longer exists" (every API answer 403, plugin routes included; the sidebar fix above), Team flags the account and offers the custom roles by their labels; changing the role signs the person out and the curator (`media: 'none'`) gets the closed media library without a sidebar entry. No console errors.
+
+**Result on `feat/1.0-wave4`** (after the three review fix branches; `TEST_DATABASE_URL=…/cms_test_wave4`, starter and upgrade databases likewise, `TEST_REDIS_URL` on a throwaway Valkey 8): `pnpm check` green, 115 files / 1649 tests passed, 2 files / 23 tests skipped (256 s); `check:starter` green on defaults, english-empty, all-with-german and english-first (177 s); `check:upgrade` green from `2506403` (0.1) and `tinyzoo@0.5.0` (133 s); `check:consumer` green, create-tinyzoo included (43 s). The removed-role sidebar fix came after them (one template; `pnpm typecheck` green).
 
 ### 0.6 P — API review before the freeze
 
