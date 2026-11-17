@@ -38,7 +38,7 @@ export const cmsUsers = pgTable('cms_users', {
 export const cmsTokens = pgTable('cms_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => cmsUsers.id, { onDelete: 'cascade' }),
-  // invite | reset
+  // invite | reset | email (a change of address; the address waits in cms_state)
   kind: text('kind').notNull(),
   // SHA-256 of the secret sent in the link; the secret itself is never stored.
   tokenHash: text('token_hash').notNull(),

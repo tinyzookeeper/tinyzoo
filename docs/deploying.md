@@ -16,7 +16,7 @@ admin API and the public content API.
 | Postgres 16+ | all content, accounts, audit log | managed Postgres, linked → `DATABASE_URL` |
 | Redis (or Valkey) | rate limits shared by replicas, change fan-out (caches, realtime) | managed Redis, linked → `REDIS_URL` |
 | S3-compatible bucket | media (containers have no lasting disk) | external — see [Media](#media) |
-| SMTP | invitations, password resets | external (any provider) |
+| SMTP | invitations, password resets, email-change links and notices | external (any provider) |
 
 Without Redis everything still works on **one** replica; with several, each would
 count rate limits on its own and see other replicas' content changes only after
@@ -644,9 +644,9 @@ privacy policy; it is not legal advice.
 
 | What | Contents | How long |
 |---|---|---|
-| Accounts (Team) | email, name, role, admin language, a scrypt hash of the password, last sign-in; hashes of invitation and reset links (7 days / 1 hour) | until the person is removed or erased |
+| Accounts (Team) | email, name, role, admin language, a scrypt hash of the password, last sign-in; hashes of invitation, reset and email-change links (7 days / 1 hour / 24 hours); a requested new address until it is confirmed or cancelled | until the person is removed or erased |
 | Sign-in cookie | a sealed cookie holding the account id; nothing is kept on the server | until sign-out or expiry |
-| Audit log | who did what and when (sign-ins, publishing, team changes, exports); a failed sign-in keeps the **email tried and the visitor's IP address** | `cms.retention.auditDays`, default **365 days**, then deleted daily (`0` keeps it) |
+| Audit log | who did what and when (sign-ins, publishing, team changes, exports); a failed sign-in keeps the **email tried and the visitor's IP address**; a change of sign-in email keeps the **old and the new address** | `cms.retention.auditDays`, default **365 days**, then deleted daily (`0` keeps it) |
 | Form messages | the fields of the form (name, email, text…) and their state; saved versions and search-index rows hold the same text | `defineForm(name, { retentionDays })`; without it, **until deleted** — set it to what the policy promises |
 | Notification emails | a message to the people in Forms settings, through the SMTP provider you configured | the provider's retention |
 | Rate limits | visitors' IP addresses counted for minutes (memory or Redis) | the window (10–15 minutes) |
@@ -677,10 +677,11 @@ deleted automatically after 180 days."
 **Settings → Privacy** (administrators only; `/api/cms/_privacy/*`, rate limited,
 every action audited): enter an email address and see what is stored about it — form
 messages whose email fields match (any case), the account with that address, and the
-audit entries made by or about it (including failed sign-ins with that address).
+audit entries made by or about it (including failed sign-ins with that address, and a change of
+sign-in email from or to it).
 
 - **Export as JSON** — everything above in one file, without password hashes, to hand to the person (right of access).
-- **Delete this person's data** (confirmation dialog) — the messages are deleted with their saved versions and search rows; the account is **disabled and anonymised**: name and email removed (the address becomes `deleted-<id>@anonymised.invalid`), password and invitation links removed, signed out everywhere; audit entries about them lose email, name and IP address but keep who-did-what. Not your own account, never the last active administrator.
+- **Delete this person's data** (confirmation dialog) — the messages are deleted with their saved versions and search rows; the account is **disabled and anonymised**: name and email removed (the address becomes `deleted-<id>@anonymised.invalid`), password, invitation links and a pending change of email removed, signed out everywhere; audit entries about them lose email (old and new, after a change of address), name and IP address but keep who-did-what. Not your own account, never the last active administrator.
 
 Why anonymise rather than delete the account: the site's history ("saved by …",
 the audit trail, uploaded files) refers to the account by id. Deleting the row would

@@ -82,6 +82,44 @@ async function resend(u: any) {
   }, t('team.resent'))
 }
 
+// ── change someone's email (not your own: that is on your account page, with a confirmation link) ──
+const emailTarget = ref<{ id: string; name: string; email: string; invited: boolean } | null>(null)
+const newEmail = ref('')
+const emailError = ref('')
+const emailFailed = ref('')
+const savingEmail = ref(false)
+const emailFormEl = ref<HTMLElement | null>(null)
+function openEmail(u: any) {
+  emailTarget.value = { id: u.id, name: u.name || u.email, email: u.email, invited: u.status === 'invited' }
+  newEmail.value = u.email
+  emailError.value = ''
+  emailFailed.value = ''
+}
+async function saveEmail() {
+  const target = emailTarget.value
+  if (!target) return
+  emailError.value = ''
+  emailFailed.value = ''
+  savingEmail.value = true
+  try {
+    const res = await cmsFetch<{ user: { email: string; role: string }; inviteUrl?: string; emailed?: boolean }>(`/api/cms/_users/${target.id}`, { method: 'PATCH', body: { email: newEmail.value } })
+    emailTarget.value = null
+    toast.add({ title: t('team.emailChanged'), description: res.user.email, icon: 'i-lucide-check', color: 'success' })
+    // An invitation that went to the new address: show its link, as after "Send a new invitation".
+    if (res.inviteUrl) resent.value = { email: res.user.email, role: res.user.role, url: res.inviteUrl, emailed: !!res.emailed }
+    refresh()
+  }
+  catch (err: any) {
+    const issue = (err?.data?.data as any[] | undefined)?.find?.((i: any) => i?.path?.[0] === 'email')
+    if (issue) emailError.value = cmsIssueMessage(issue, null, t as any)
+    else emailFailed.value = cmsRequestError(err, t as any)
+    await cmsFocusInvalid(emailFormEl.value)
+  }
+  finally {
+    savingEmail.value = false
+  }
+}
+
 // Someone who never accepted the invitation has only an invitation to take back.
 const confirm = useCmsConfirm()
 async function remove(u: any) {
@@ -116,6 +154,7 @@ function rowMenu(u: any): DropdownMenuItem[][] {
       onSelect: () => { if (u.role !== r) act(() => patch(u.id, { role: r }), t('team.roleChanged')) },
     })),
   }]]
+  groups[0]!.push({ label: t('team.changeEmail'), icon: 'i-lucide-mail', onSelect: () => openEmail(u) })
   if (u.status === 'invited') groups[0]!.push({ label: t('team.resend'), icon: 'i-lucide-send', onSelect: () => resend(u) })
   if (u.status === 'active') groups[0]!.push({ label: t('team.disable'), icon: 'i-lucide-ban', onSelect: () => disable(u) })
   if (u.status === 'disabled') groups[0]!.push({ label: t('team.enable'), icon: 'i-lucide-rotate-ccw', onSelect: () => act(() => patch(u.id, { status: 'active' }), t('team.enabled')) })
@@ -235,6 +274,26 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
             <UButton color="neutral" variant="ghost" @click="inviteOpen = false">{{ t('common.cancel') }}</UButton>
             <UButton type="submit" form="cms-invite" icon="i-lucide-send" :loading="inviting">{{ t('team.sendInvite') }}</UButton>
           </template>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Change someone's email -->
+    <UModal :open="!!emailTarget" :title="emailTarget ? t('team.changeEmailTitle', { name: emailTarget.name }) : ''" @update:open="(v: boolean) => { if (!v) emailTarget = null }">
+      <template #body>
+        <form v-if="emailTarget" id="cms-change-email" ref="emailFormEl" class="space-y-5" novalidate @submit.prevent="saveEmail">
+          <p class="text-sm text-muted text-pretty">{{ emailTarget.invited ? t('team.changeEmailInvitedBody') : t('team.changeEmailBody') }}</p>
+          <UFormField :label="t('team.newEmail')" name="email" :error="emailError || undefined" required>
+            <UInput v-model="newEmail" type="email" autocomplete="off" inputmode="email" autofocus class="w-full" />
+            <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
+          </UFormField>
+          <UAlert v-if="emailFailed" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="emailFailed" role="alert" data-cms-error-summary />
+        </form>
+      </template>
+      <template #footer>
+        <div class="flex justify-end gap-2 w-full">
+          <UButton color="neutral" variant="ghost" @click="emailTarget = null">{{ t('common.cancel') }}</UButton>
+          <UButton type="submit" form="cms-change-email" icon="i-lucide-mail" :loading="savingEmail">{{ t('team.changeEmail') }}</UButton>
         </div>
       </template>
     </UModal>

@@ -1,6 +1,6 @@
 # Přihlášení a váš účet
 
-Jak se do správy obsahu poprvé dostanete, co dělat se zapomenutým heslem a co který člověk smí.
+Jak se do správy obsahu poprvé dostanete, co dělat se zapomenutým heslem, jak si změnit e-mail a co který člověk smí.
 
 ## První přihlášení
 
@@ -45,11 +45,38 @@ Vlevo dole (na telefonu v menu) otevřete nabídku se svým jménem a vyberte **
 
 - **Profil.** Tady si změníte jméno. Vaše jméno uvidí kolegové v historii změn.
 - **Jazyk rozhraní.** Správa mluví česky nebo anglicky. Tohle nastavení se týká jen toho, jak vypadají tlačítka a hlášky. Na jazyk webu pro návštěvníky nemá vliv.
+- **Přihlašovací e-mail.** Adresa, kterou se přihlašujete. Jak ji změnit, je hned níže.
 - **Heslo.** Napište **Současné heslo** a **Nové heslo** a klikněte na **Změnit heslo**. Po změně vás správa odhlásí na všech ostatních zařízeních.
 
 V nabídce u jména je také **Vzhled**: **Světlý**, **Tmavý** nebo **Podle systému**. Je to jen věc pohodlí vašich očí, web návštěvníků se tím nemění. Úplně dole je **Odhlásit se**.
 
 <!-- screenshot: nabídka u jména vlevo dole se zvýrazněnými položkami Váš účet, Vzhled a Odhlásit se -->
+
+## Změna e-mailu
+
+Přihlašovací e-mail si změníte sami na stránce **Váš účet**, v části **Přihlašovací e-mail**.
+
+1. Do pole **Nová e-mailová adresa** napište novou adresu.
+2. Do pole **Vaše heslo** napište heslo, kterým se teď přihlašujete. Správa tak ví, že jste to opravdu vy.
+3. Klikněte na **Změnit e-mail**.
+4. Na **novou** adresu vám přijde e-mail s odkazem **Potvrdit novou adresu**. Klikněte na něj. Otevře se stránka **Potvrďte nový e-mail**, na které je vaše nová adresa. Klikněte na **Potvrdit novou adresu**.
+5. Hotovo. Ukáže se **E-mail je změněný**. Odteď se přihlašujete novou adresou a heslo zůstává stejné.
+
+Dokud na odkaz nekliknete, nic se nemění a přihlašujete se **dosavadní** adresou. Odkaz můžete otevřít na počítači i v telefonu a nemusíte být přihlášení. Když ho otevřete v prohlížeči, kde jste přihlášení, zůstanete přihlášení, jen už s novou adresou. Na ostatních zařízeních vás správa odhlásí a přihlásíte se tam znovu novou adresou.
+
+Na **starou** adresu přijdou dva krátké e-maily: první hned po žádosti, druhý po dokončení změny. Je to ochrana: kdyby o změnu požádal někdo jiný, dozvíte se to.
+
+> **Pozor:** Pokud vám přijde e-mail o změně přihlašovacího e-mailu a vy jste o ni nežádali, hned si nastavte nové heslo (tlačítko v tom e-mailu nebo **Zapomenuté heslo?** na přihlašovací stránce). Tím se změna zruší a všichni ostatní se odhlásí. Pak dejte vědět administrátorovi.
+
+**Co když e-mail s odkazem nepřišel?**
+
+- Počkejte pár minut a podívejte se do spamu nové schránky.
+- Na stránce **Váš účet** je napsáno **Čeká na potvrzení adresy…** a za tím adresa, na kterou odkaz odešel. Zkontrolujte, že je správně. Když není, napište správnou adresu a pošlete žádost znovu.
+- Žádost můžete poslat znovu, i když je adresa správně. Platí vždycky jen **poslední** odkaz, ty starší přestanou fungovat.
+- Pokud adresu už používá jiný účet na tomto webu, odkaz nepřijde. Přijde jen upozornění na tu adresu.
+- Když nic nepomůže, požádejte administrátora. E-mail vám může změnit v části **Tým** (viz níže).
+
+Odkaz platí **24 hodin** a jde použít jen jednou. Když vypršel, už byl použit, nebo jste mezitím požádali o jinou adresu (případně si změnili heslo), ukáže se **Tento odkaz už nefunguje**. Požádejte o nový na stránce **Váš účet**. Rozmysleli jste si to? Klikněte na **Zrušit změnu** a odkaz přestane platit.
 
 ## Kdo co smí: role
 
@@ -75,12 +102,15 @@ Kolegovi přijde e-mail, který říká, kdo ho zve a **jako kdo** (v jaké roli
 V seznamu **Tým** vidíte u každého stav (**Aktivní**, **Pozvánka odeslána**, **Přístup zablokován**) a kdy byl člověk **Naposledy aktivní**. U jména je nabídka s těmito volbami:
 
 - **Změnit roli**
+- **Změnit e-mail**: napište novou adresu a klikněte na **Změnit e-mail**. Platí hned, bez potvrzovacího odkazu. Člověk se odhlásí na všech zařízeních a přihlásí se novou adresou a svým dosavadním heslem. Na starou i novou adresu mu přijde e-mail o změně. Kdo ještě nepřijal pozvánku, dostane novou pozvánku na novou adresu a ta stará přestane platit. Hodí se, když se v pozvánce překlepnete.
 - **Poslat novou pozvánku**
 - **Zrušit pozvánku**
 - **Zablokovat přístup**: člověk je okamžitě odhlášen všude a nepřihlásí se, dokud mu přístup neobnovíte tlačítkem **Obnovit přístup**.
 - **Odebrat**: do správy se už nepřihlásí. Články a další obsah od něj zůstanou.
 
 > **Pozor:** Posledního aktivního administrátora nelze odebrat ani zablokovat, aby se k webu vždycky někdo dostal.
+
+Svůj vlastní řádek v seznamu **Tým** nabídku nemá: svou roli si měnit nemůžete a svůj e-mail si změníte na stránce **Váš účet** (viz [Změna e-mailu](#změna-e-mailu)).
 
 ## Viz také
 

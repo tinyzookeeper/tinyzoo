@@ -11,7 +11,7 @@ Nejčastější potíže a jejich řešení. Podívejte se na nadpis, který se 
 
 ## Odkaz z e-mailu nefunguje
 
-Uvidíte **Tento odkaz už nefunguje** nebo **Tato pozvánka už nefunguje**. Odkaz vypršel (pozvánka po 7 dnech, odkaz na nové heslo po hodině) nebo už byl použit. U nového hesla klikněte na **Poslat nový odkaz**. U pozvánky požádejte toho, kdo vás pozval, o novou (v části **Tým** je **Poslat novou pozvánku**).
+Uvidíte **Tento odkaz už nefunguje** nebo **Tato pozvánka už nefunguje**. Odkaz vypršel (pozvánka po 7 dnech, odkaz na nové heslo po hodině, odkaz na potvrzení nového e-mailu po 24 hodinách) nebo už byl použit. U nového hesla klikněte na **Poslat nový odkaz**. U pozvánky požádejte toho, kdo vás pozval, o novou (v části **Tým** je **Poslat novou pozvánku**). U nového e-mailu požádejte o změnu znovu na stránce **Váš účet** (viz [Změna e-mailu](prihlaseni-a-ucet.md#změna-e-mailu)).
 
 ## Ztratil(a) jsem napsaný text
 
