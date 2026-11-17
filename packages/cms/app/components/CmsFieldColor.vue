@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // A colour (#rrggbb): the system colour picker next to the hex code, both editable.
-const props = defineProps<{ field: any; entity?: string; id?: string }>()
+const props = defineProps<{ field: any; entity?: string; id?: string; readOnly?: boolean }>()
 const model = defineModel<string | null | undefined>()
 const { t } = useCmsI18n()
 const injected = inject<Ref<'outline' | 'ghost'> | null>('cmsFieldVariant', null)

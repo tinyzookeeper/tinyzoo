@@ -2,7 +2,7 @@
 // Several related items (tags, authors): the chosen ones as chips that wrap, so all
 // of them stay readable in a narrow panel, and a menu to add more.
 const { t, fieldLabel } = useCmsI18n()
-const props = defineProps<{ field: any; entity?: string; id?: string }>()
+const props = defineProps<{ field: any; entity?: string; id?: string; readOnly?: boolean }>()
 const model = defineModel<any>()
 
 const options = ref<{ id: string; label: string }[]>([])

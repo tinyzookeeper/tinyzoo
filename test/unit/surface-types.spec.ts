@@ -309,7 +309,9 @@ describe('the definitions', () => {
 
 describe('the admin extension points', () => {
   it('give a field renderer the field of the graph, and the entity', () => {
-    expectTypeOf<CmsFieldEditProps>().toEqualTypeOf<{ field: CmsAdminField; entity: string; id?: string }>()
+    expectTypeOf<CmsFieldEditProps>().toEqualTypeOf<{ field: CmsAdminField; entity: string; id?: string; readOnly?: boolean }>()
+    // (set for a field the person's role may read but not edit: the graph marks it, the renderer is told)
+    expectTypeOf<CmsAdminField['readOnly']>().toEqualTypeOf<boolean | undefined>()
     expectTypeOf<CmsFieldCellProps>().toEqualTypeOf<{ field: CmsAdminField; row: Record<string, unknown>; entity: string }>()
     expectTypeOf<CmsAdminField['relation']>().toEqualTypeOf<{ to: string; kind: 'many-to-one' | 'one-to-many' | 'many-to-many'; required: boolean } | undefined>()
   })

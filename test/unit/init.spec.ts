@@ -1,15 +1,24 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync, cpSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
 import { tmpdir } from 'node:os'
 import { basename, join, relative } from 'node:path'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { spawnSync } from 'node:child_process'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
-  ADDRESS_WORDS, applyMarkers, commandsFor, detectPackageManager, InitError, nextSteps, PRESET_NAMES, packageNameOf,
+  ADDRESS_WORDS, applyMarkers, commandsFor, detectPackageManager, InitError, INIT_USAGE, nextSteps, PRESET_NAMES, packageNameOf, newAppSecret,
   parseInitArgs, parseLanguages, parsePresets, resolveOptions, scaffold,
 } from '../../packages/cms/cli/init.mjs'
 import { WORDS } from '../../packages/cms/starter/app/utils/site'
 
 // `tinyzoo init` and `create-tinyzoo`: the options, the markers in the starter and the sites made from it.
 // The sites are checked in full (installed, built, started) by `pnpm check:starter`; here, what is cheap to see.
+
+// A hook into the renames of cli/init.mjs, to make one of them fail (the others go to the real thing).
+const hook = vi.hoisted(() => ({ rename: undefined as undefined | ((from: string, to: string) => void) }))
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>()
+  return { ...actual, renameSync: (from: string, to: string) => { hook.rename?.(from, to); return actual.renameSync(from, to) } }
+})
 
 const starterDir = join(import.meta.dirname, '../../packages/cms/starter')
 let dir: string
@@ -36,16 +45,25 @@ const make = (options: Partial<Parameters<typeof scaffold>[0]> = {}) => {
 
 describe('the options', () => {
   it('reads every flag, with a value after a space or an equals sign', () => {
-    const args = parseInitArgs(['my-site', '--languages', 'cs, en,de', '--presets=news,search', '--no-demo', '--package-manager', 'npm', '-y'])
-    expect(args).toMatchObject({ folder: 'my-site', languages: ['cs', 'en', 'de'], presets: ['news', 'search'], demo: false, packageManager: 'npm', yes: true, install: undefined })
+    const args = parseInitArgs(['my-site', '--languages', 'cs, en,de', '--presets=news,search', '--no-demo', '--package-manager', 'npm'])
+    expect(args).toMatchObject({ folder: 'my-site', languages: ['cs', 'en', 'de'], presets: ['news', 'search'], demo: false, packageManager: 'npm', yes: false, install: undefined })
     expect(parseInitArgs(['--demo', 'x']).demo).toBe(true)
     expect(parseInitArgs([]).folder).toBeUndefined()
   })
 
-  it('takes --install only where the command installs', () => {
-    expect(parseInitArgs(['a', '--install'], { install: true }).install).toBe(true)
-    expect(parseInitArgs(['a', '--no-install'], { install: true }).install).toBe(false)
-    expect(() => parseInitArgs(['a', '--install'])).toThrow(InitError)
+  it('takes --install and --yes only for create-tinyzoo: `tinyzoo init` never asks and never installs', () => {
+    expect(parseInitArgs(['a', '--install'], { create: true }).install).toBe(true)
+    expect(parseInitArgs(['a', '--no-install'], { create: true }).install).toBe(false)
+    expect(parseInitArgs(['a', '-y'], { create: true }).yes).toBe(true)
+    expect(parseInitArgs(['a', '--yes'], { create: true }).yes).toBe(true)
+    for (const flag of ['--install', '--no-install', '--yes', '-y']) expect(() => parseInitArgs(['a', flag]), flag).toThrow(/Unknown option/)
+  })
+
+  it('has no undocumented aliases: --pm is refused, and the flags of the usage text are the flags it reads', () => {
+    expect(() => parseInitArgs(['a', '--pm', 'npm'])).toThrow(/Unknown option --pm/)
+    expect(() => parseInitArgs(['a', '--pm', 'npm'], { create: true })).toThrow(/Unknown option --pm/)
+    for (const flag of ['--languages', '--presets', '--demo', '--no-demo', '--package-manager']) expect(INIT_USAGE).toContain(flag)
+    expect(INIT_USAGE).not.toMatch(/--yes|--pm\b|--install/)
   })
 
   it('refuses what it does not understand', () => {
@@ -221,7 +239,9 @@ describe('what the default site is', () => {
       if (skip.has(rel) || skipDirs.some((d) => rel.split('/').includes(d)) || rel === '.env') continue
       expect(existsSync(join(site, rel)), `${rel} is in the site`).toBe(true)
       const [a, b] = [readFileSync(path), readFileSync(join(site, rel))]
-      if (/\.(ts|vue|md|mjs|css)$|\.env\.example$/.test(rel)) expect(b.toString(), rel).toBe(applyMarkers(a.toString(), on, rel))
+      // (the README's `cp .env.example .env` goes: the site has its .env already)
+      const expected = rel === 'README.md' ? a.toString().replace(/^cp \.env\.example \.env .*\n/m, '') : a.toString()
+      if (/\.(ts|vue|md|mjs|css)$|\.env\.example$/.test(rel)) expect(b.toString(), rel).toBe(applyMarkers(expected, on, rel))
       else expect(b.equals(a), rel).toBe(true)
       compared++
     }
@@ -253,11 +273,76 @@ describe('the folder', () => {
     expect(readdirSync(dir).filter((f) => f.startsWith('.tinyzoo-init-'))).toEqual([])
   })
 
-  it('may be an empty folder that exists, and may be several folders deep', () => {
+  it('may be an empty folder that exists: the folder itself stays (same folder, no work folder left), the site goes into it', () => {
     const empty = fresh()
     mkdirSync(empty)
-    scaffold({ dest: empty, starterDir, version: '1.0.0', ...resolveOptions() })
+    const before = statSync(empty)
+    const { dest } = scaffold({ dest: empty, starterDir, version: '1.0.0', ...resolveOptions() })
+    expect(dest).toBe(empty)
     expect(existsSync(join(empty, 'cms.config.ts'))).toBe(true)
+    expect(existsSync(join(empty, '.gitignore'))).toBe(true)
+    expect(readdirSync(empty).filter((f) => f.startsWith('.tinyzoo-init-'))).toEqual([])
+    // not deleted and made again: the same folder (a shell standing in it, its permissions and mount stay)
+    const after = statSync(empty)
+    expect([after.ino, after.dev]).toEqual([before.ino, before.dev])
+    // (and the same site as into a folder that did not exist)
+    const other = make().dest
+    expect(readdirSync(empty).sort()).toEqual(readdirSync(other).sort())
+    expect(readFileSync(join(empty, 'cms.config.ts'), 'utf8')).toBe(readFileSync(join(other, 'cms.config.ts'), 'utf8'))
+  })
+
+  it('may be `.`: run inside an empty folder, `tinyzoo init .` makes the site there and the folder stays', () => {
+    const empty = fresh()
+    mkdirSync(empty)
+    const before = statSync(empty)
+    const code = `import { resolveOptions, scaffold, nextSteps } from ${JSON.stringify(pathToFileURL(join(starterDir, '../cli/init.mjs')).href)}
+      const r = scaffold({ dest: '.', starterDir: ${JSON.stringify(starterDir)}, version: '1.0.0', ...resolveOptions() })
+      console.log(JSON.stringify({ dest: r.dest, steps: nextSteps({ folder: '.', packageManager: 'pnpm', demo: true, regenerate: r.regenerate }) }))`
+    const run = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: empty, encoding: 'utf8' })
+    expect(run.stderr).toBe('')
+    expect(run.status).toBe(0)
+    const out = JSON.parse(run.stdout)
+    expect(readFileSync(join(empty, 'package.json'), 'utf8')).toContain(`"name": "${basename(empty)}"`)
+    expect(existsSync(join(empty, 'cms.config.ts'))).toBe(true)
+    expect(existsSync(join(empty, '.env'))).toBe(true)
+    expect(readdirSync(empty).filter((f) => f.startsWith('.tinyzoo-init-'))).toEqual([])
+    // nothing was made next to it, in its parent
+    expect(readdirSync(dir).filter((f) => f.startsWith('.tinyzoo-init-'))).toEqual([])
+    const after = statSync(empty)
+    expect([after.ino, after.dev]).toEqual([before.ino, before.dev])
+    // already in the folder: no `cd .`
+    expect(out.steps).not.toMatch(/\bcd\b/)
+    expect(out.steps).toMatch(/pnpm install/)
+  })
+
+  it('refuses a path that is a file', () => {
+    const file = fresh()
+    writeFileSync(file, 'x')
+    expect(() => scaffold({ dest: file, starterDir, version: '1.0.0', ...resolveOptions() })).toThrow(/exists and is not a folder/)
+    expect(readFileSync(file, 'utf8')).toBe('x')
+  })
+
+  it('removes only what it moved when moving into an existing folder fails halfway', () => {
+    const empty = fresh()
+    mkdirSync(empty)
+    const before = statSync(empty)
+    let moves = 0
+    hook.rename = (from, to) => {
+      if (to.startsWith(`${empty}/`) && from.startsWith(`${empty}/.tinyzoo-init-`) && ++moves === 3) {
+        // a file the person (or another program) put there in the meantime is theirs
+        writeFileSync(join(empty, 'theirs.txt'), 'keep')
+        throw new Error('EBUSY: simulated')
+      }
+    }
+    try { expect(() => scaffold({ dest: empty, starterDir, version: '1.0.0', ...resolveOptions() })).toThrow(/EBUSY/) }
+    finally { hook.rename = undefined }
+    expect(moves).toBe(3)
+    expect(readdirSync(empty)).toEqual(['theirs.txt'])
+    const after = statSync(empty)
+    expect([after.ino, after.dev]).toEqual([before.ino, before.dev])
+  })
+
+  it('may be several folders deep', () => {
     const deep = join(fresh(), 'a/b/site')
     scaffold({ dest: deep, starterDir, version: '1.0.0', ...resolveOptions() })
     expect(existsSync(join(deep, 'cms.config.ts'))).toBe(true)
@@ -279,10 +364,52 @@ describe('the folder', () => {
   })
 })
 
+describe('the app secret', () => {
+  const example = readFileSync(join(starterDir, '.env.example'), 'utf8')
+
+  it('a new site has a .env with a secret of its own, made from .env.example, readable by its owner only', () => {
+    const site = make().dest
+    const env = read(site, '.env')
+    const secret = /^NUXT_APP_SECRET=(.*)$/m.exec(env)?.[1] ?? ''
+    expect(secret).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(secret).not.toBe(/^NUXT_APP_SECRET=(.*)$/m.exec(example)?.[1])
+    // the rest is the example (the database address of its compose.yaml), nothing else changed
+    expect(env.replace(secret, 'X')).toBe(applyMarkers(example, new Set([...PRESET_NAMES, 'demo']), '.env.example').replace(/^NUXT_APP_SECRET=.*$/m, 'NUXT_APP_SECRET=X'))
+    expect(read(site, '.gitignore').split('\n')).toContain('.env')
+    if (process.platform !== 'win32') expect(statSync(join(site, '.env')).mode & 0o077).toBe(0)
+  })
+
+  it('differs from site to site, and .env.example stays the documentation (with the example value)', () => {
+    const [a, b] = [make().dest, make().dest]
+    expect(/^NUXT_APP_SECRET=(.*)$/m.exec(read(a, '.env'))?.[1]).not.toBe(/^NUXT_APP_SECRET=(.*)$/m.exec(read(b, '.env'))?.[1])
+    expect(read(a, '.env.example')).toContain('NUXT_APP_SECRET=change-me-to-a-long-random-string-32-chars-min')
+    expect(newAppSecret()).not.toBe(newAppSecret())
+  })
+
+  it('is written when the site has only some parts too (the markers in .env.example still resolve)', () => {
+    const site = make({ presets: [], demo: false, languages: ['de'] }).dest
+    expect(read(site, '.env')).toMatch(/^NUXT_APP_SECRET=[A-Za-z0-9_-]{43}$/m)
+    expect(read(site, '.env')).not.toContain('#if')
+    expect(read(site, '.env')).not.toContain('NOTIFY_TO')
+  })
+
+  it('stops, and leaves nothing, when the starter has no NUXT_APP_SECRET line to fill', () => {
+    const broken = join(dir, 'no-secret-starter')
+    cpSync(starterDir, broken, { recursive: true, filter: (s) => !/node_modules|\.nuxt|\.output/.test(s) })
+    writeFileSync(join(broken, '.env.example'), 'DATABASE_URL=x\n')
+    const dest = fresh()
+    expect(() => scaffold({ dest, starterDir: broken, version: '1.0.0', ...resolveOptions() })).toThrow(/NUXT_APP_SECRET/)
+    expect(existsSync(dest)).toBe(false)
+  })
+})
+
 describe('the next steps', () => {
   it('list what is still to do, in the package manager\'s commands', () => {
     const text = nextSteps({ folder: 'my-site', packageManager: 'npm', demo: true, regenerate: { schema: true, client: true } })
-    expect(text).toMatch(/cd my-site\n\s+npm install\n\s+npm run db:generate.*\n\s+npm run cms:client.*\n\s+cp \.env\.example \.env/)
+    expect(text).toMatch(/cd my-site\n\s+npm install\n\s+npm run db:generate.*\n\s+npm run cms:client.*\n\s+docker compose up -d/)
+    // .env is made by init: nothing to copy, and it says so
+    expect(text).not.toContain('cp .env.example')
+    expect(text).toMatch(/\.env is made, with a NUXT_APP_SECRET of its own/)
     expect(text).toContain('npm run seed')
     const done = nextSteps({ folder: 'my-site', packageManager: 'pnpm', demo: false, regenerate: { schema: true, client: true }, installed: true, generated: true })
     expect(done).not.toMatch(/install|db:generate|cms:client|seed/)

@@ -3,7 +3,7 @@ import type { Ref } from 'vue'
 // Media upload widget. `model` is the cms_media id (the FK value the form saves).
 // `variant="cover"`: the entry's main picture at the top of the writing column, wide,
 // with "Change photo" on it.
-const props = defineProps<{ field: any; entity?: string; variant?: 'cover' }>()
+const props = defineProps<{ field: any; entity?: string; variant?: 'cover'; readOnly?: boolean }>()
 const model = defineModel<string | null>()
 const toast = useToast()
 const { t } = useCmsI18n()

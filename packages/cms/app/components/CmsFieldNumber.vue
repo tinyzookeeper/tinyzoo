@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{ field: any; entity?: string }>()
+const props = defineProps<{ field: any; entity?: string; readOnly?: boolean }>()
 const model = defineModel<any>()
 const icon = computed(() => cmsFieldIcon(props.field))
 const injected = inject<Ref<'outline' | 'ghost'> | null>('cmsFieldVariant', null)

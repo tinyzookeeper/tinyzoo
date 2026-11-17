@@ -4,7 +4,7 @@
 //
 // Every question has a flag, and with `--yes` (or without a terminal) nothing is asked:
 //
-//   pnpm create tinyzoo my-site --languages cs,en --presets pages,news --no-demo --yes
+//   pnpm create tinyzoo my-site --languages cs,en --presets news,search --no-demo --yes
 //
 // Ctrl-C at a question ends the run and writes nothing. A failure while making the site
 // removes what it made; a failed install keeps the finished folder and says what to run.
@@ -31,7 +31,7 @@ terminal) nothing is asked: the defaults are used for what is not given.
   -y, --yes              ask nothing
   -h, --help
 
-The same options, except the installing, work with \`tinyzoo init <folder>\`.`
+The same options, except the installing and --yes (init never asks), work with \`tinyzoo init <folder>\`.`
 
 /** The init code, the starter and the version to pin: bundled in the published package, from the repository when run there. */
 export async function loadTemplate() {
@@ -66,7 +66,7 @@ export async function main(argv, deps = {}) {
   const run = deps.run ?? runCommand
 
   let args
-  try { args = init.parseInitArgs(argv, { install: true }) }
+  try { args = init.parseInitArgs(argv, { create: true }) }
   catch (err) {
     if (!(err instanceof init.InitError)) throw err
     error(`✗ ${err.message}\n\n${USAGE}`)

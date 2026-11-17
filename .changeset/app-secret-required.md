@@ -2,7 +2,7 @@
 'tinyzoo': minor
 ---
 
-`NUXT_SESSION_PASSWORD` no longer stands in for `NUXT_APP_SECRET`: the server needs `NUXT_APP_SECRET` (at least 32 characters) and refuses to start without it. 0.4 and 0.5 used the old variable (or `runtimeConfig.session.password` in `nuxt.config.ts`) as the app secret when no other was set, and warned; that stand-in is removed, with the Rollup transform that did it. A site that has only the old variable now stops at start with a message that says `NUXT_APP_SECRET is not set`, names the old variable, and says to rename it. The value is never printed.
+**Breaking:** `NUXT_SESSION_PASSWORD` no longer stands in for `NUXT_APP_SECRET`: the server needs `NUXT_APP_SECRET` (at least 32 characters) and refuses to start without it. 0.4 and 0.5 used the old variable (or `runtimeConfig.session.password` in `nuxt.config.ts`) as the app secret when no other was set, and warned; that stand-in is removed, with the Rollup transform that did it. A site that has only the old variable now stops at start with a message that says `NUXT_APP_SECRET is not set`, names the old variable, and says to rename it. The value is never printed.
 
 ### Upgrade
 

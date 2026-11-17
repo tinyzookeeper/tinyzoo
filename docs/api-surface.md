@@ -221,7 +221,7 @@ The `NUXT_CMS_*` and `NUXT_PUBLIC_CMS_*` variables above, and:
 | Variable | What it is |
 |---|---|
 | `DATABASE_URL` | the Postgres connection (`NUXT_CMS_DATABASE_URL` wins). The server does not start without one |
-| `NUXT_APP_SECRET` | Nuxt's app secret, at least 32 characters: the sign-in cookie is sealed with a key derived from it. The server does not start without it. `NUXT_SESSION_PASSWORD` is **not read** (removed in 0.6): when only it is set, the message says to rename it |
+| `NUXT_APP_SECRET` | Nuxt's app secret, at least 32 characters: the sign-in cookie is sealed with a key derived from it. The server does not start without it, nor with the example value of the starter's `.env.example`. `NUXT_SESSION_PASSWORD` is **not read** (removed in 0.6): when only it is set, the message says to rename it |
 | `REDIS_URL` | Redis, when `NUXT_CMS_REDIS_URL` is not set |
 | `NUXT_SITE_URL`, `NUXT_SITE_INDEXABLE` | Nuxt SEO's site configuration (the sitemap's address; keeping a copy out of search engines) |
 | `NUXT_SESSION_MAX_AGE` | the admin session's lifetime in seconds (default 14 days) |
@@ -315,7 +315,7 @@ is `cli-usage.txt`.
 
 | Command | Flags |
 |---|---|
-| `tinyzoo init <dir>` | `--languages <a,b>`, `--presets <a,b\|none>`, `--no-demo`, `--package-manager <pm>` |
+| `tinyzoo init <dir>` | `--languages <a,b>`, `--presets <a,b\|none>`, `--demo`, `--no-demo`, `--package-manager <pm>` |
 | `tinyzoo generate` | `--allow-drop`, `--allow-risky` |
 | `tinyzoo up` | |
 | `tinyzoo status` | |
@@ -350,7 +350,7 @@ export default defineAppConfig({
 | `cms.fields[type].edit`, `.cell` | the registry: a field type (`text`, `slug`, `number`, `boolean`, `datetime`, `select`, `richtext`, `blocks`, `group`, `media`, `gallery`, `relation`) to a component name. A plugin's `fields` (`CmsFieldRenderer`) feed it; the site's own entry wins. Components are resolved by name at run time, so they must be global (`components/global/`) |
 | `CmsField`, `CmsCell` | the two dispatchers that resolve it: host entry, then a plugin's, then the field's own `ui` hint, then `CmsFieldText` / `CmsCellText` |
 | The default components | `CmsFieldText`, `CmsFieldSlug`, `CmsFieldNumber`, `CmsFieldBoolean`, `CmsFieldDate`, `CmsFieldSelect`, `CmsFieldRichText`, `CmsFieldBlocks`, `CmsFieldGroup`, `CmsFieldMedia`, `CmsFieldGallery`, `CmsFieldColor`, `CmsFieldRelationOne`, `CmsFieldRelationMany`, and `CmsCellText`, `CmsCellCode`, `CmsCellNumber`, `CmsCellBoolean`, `CmsCellDate`, `CmsCellBadge`, `CmsCellExcerpt`, `CmsCellBlocks`, `CmsCellGroup`, `CmsCellThumb`, `CmsCellGallery`, `CmsCellColor`, `CmsCellRelation`: these names are what `field.ui` carries (`surface.admin-graph.json`) and can be used as renderers by name |
-| Props of an editor | `CmsFieldEditProps`: `field` (a `CmsAdminField`), `entity`, `id`, and `v-model` |
+| Props of an editor | `CmsFieldEditProps`: `field` (a `CmsAdminField`), `entity`, `id`, `readOnly` (the person may see the value but not change it: their role may only read the field, `field.readOnly`, or the whole entry is read-only for them), and `v-model`. Every renderer the registry resolves gets `readOnly`, built-in ones too |
 | Props of a cell | `CmsFieldCellProps`: `field`, `row`, `entity` |
 | `cms.admin` | the admin's `name`, `siteUrl`, `accent`, `locales`, `defaultLocale` and `timeZone` |
 

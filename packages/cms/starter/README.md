@@ -7,7 +7,7 @@ the content from the CMS.
 
 ```bash
 pnpm install
-cp .env.example .env
+cp .env.example .env        # your settings, and a NUXT_APP_SECRET of your own (openssl rand -base64 32)
 docker compose up -d        # the database
 pnpm db:migrate             # create the tables
 pnpm dev                    # → http://localhost:3000/admin

@@ -49,6 +49,7 @@ export interface CmsAdminField {
         kind: RelationKind;
         required: boolean;
     };
+    readOnly?: boolean;
 }
 
 export interface CmsBlock {
@@ -172,6 +173,7 @@ export interface CmsFieldEditProps {
     field: CmsAdminField;
     entity: string;
     id?: string;
+    readOnly?: boolean;
 }
 
 export interface CmsFieldRenderer {

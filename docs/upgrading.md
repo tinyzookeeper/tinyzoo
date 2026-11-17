@@ -187,7 +187,19 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
      ignored, and can be deleted.
 
    A site that already runs 0.5 without the deprecation warning (`[tinyzoo] deprecated:
-   NUXT_SESSION_PASSWORD is used as the app secret…`) in its log has nothing to do.
+   NUXT_SESSION_PASSWORD is used as the app secret…`) in its log has nothing to do, **unless its secret
+   is the example value** (next point).
+
+   **The example secret is refused in production.** The starter's `.env.example` has always held
+   `NUXT_APP_SECRET=change-me-to-a-long-random-string-32-chars-min` (before 0.4 as `NUXT_SESSION_PASSWORD`),
+   and `cp .env.example .env` followed by a deploy with it set a secret that anyone can read: with it, anyone
+   can forge a sign-in cookie. With `NODE_ENV=production` the server now **refuses to start** with that exact
+   value, naming the variable. Look at what your server runs with (the platform's environment, not
+   only `.env`); if it is the example, set a new one **before you deploy 0.6** (`openssl rand -base64 32`).
+   That signs everyone out once, accounts and passwords stay. Do not "keep the value" when renaming
+   `NUXT_SESSION_PASSWORD` if it is this one. In development the server starts and warns. A site made by
+   0.6's `tinyzoo init` or `pnpm create tinyzoo` has a `.env` with a random secret of its own, and its next steps
+   no longer say to copy `.env.example`.
 3. **Deprecations that start now** (a warning at build or start; removed in 1.0, so change them
    during 0.6):
    - `cms.databaseUrl` in `nuxt.config.ts` writes the database address, password included, into the
@@ -243,16 +255,19 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
 
 7. **`pnpm create tinyzoo`: nothing to do.** A new package, `create-tinyzoo`, makes a site and
    asks for the languages, the parts (news, contact form, redirects, search) and the demo content.
-   `tinyzoo init <folder>` gets the same options (`--languages`, `--presets`, `--no-demo`,
-   `--package-manager`) and makes the same site as before without them. A site you already
+   `tinyzoo init <folder>` gets the same options (`--languages`, `--presets`, `--demo` /
+   `--no-demo`, `--package-manager`) and makes the same site as before without them. A site you already
    have is not touched: its files are yours. If you want what a fresh starter does now (its
    website reads the languages and its own few words from `app/utils/site.ts`, the search page
    is `app/pages/search.vue`), make a scratch site and compare it with yours
    (`pnpm dlx tinyzoo init ../scratch`, then `diff -r app ../scratch/app`).
 
-**Also new:** `tinyzoo help` prints every command and flag, and `CmsWebhookPayload`,
-`CMS_WEBHOOK_HEADERS`, `CmsAdminField`, `CmsFieldEditProps` and `CmsFieldCellProps` are exported as
-types for webhook receivers and your own field renderers.
+**Also new:** `tinyzoo help` prints every command and flag. `CmsWebhookPayload`, `CmsAdminField`,
+`CmsFieldEditProps` and `CmsFieldCellProps` are exported as types for webhook receivers and your own
+field renderers, and `CMS_WEBHOOK_HEADERS` as a constant (the names of the webhook's headers). A custom
+field renderer now gets a `readOnly` prop (`true` when the person's role may read the field but not edit
+it, or the entry is read-only for them): a renderer that is not made of native form controls should stop
+editing when it is set ([the admin guide](guide/admin.md#extensibility--the-field--view-registry)).
 
 ## On every upgrade
 

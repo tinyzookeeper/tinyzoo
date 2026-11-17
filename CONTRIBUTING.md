@@ -24,7 +24,8 @@ when it touches what they cover**:
 | Job | What | Runs on a pull request that changes |
 |---|---|---|
 | `upgrade` | a site made on an older tinyzoo moves to this one (below) | `packages/cms/{src,cli,server,starter}/**`, `scripts/upgrade-check*`, `.github/upgrade-baseline/**` |
-| `consumer` | the packages packed, installed into a fresh app and built; `create-tinyzoo` installed from its tarball makes a site | `packages/*/package.json`, `packages/cms/module.ts`, `packages/cms/nuxt.config.ts`, `packages/cms/cli/init.mjs`, `packages/create-tinyzoo/**`, `scripts/consumer-check*`, `test/consumer/**`, the playground's `package.json`, `cms.config.ts` and `cms-plugins/` |
+| `consumer` | the packages packed, installed into a fresh app and built; `create-tinyzoo` installed from its tarball makes a site | `packages/*/package.json`, `packages/cms/module.ts`, `packages/cms/nuxt.config.ts`, `packages/cms/cli/init.mjs`, `packages/cms/starter/**`, `packages/create-tinyzoo/**`, `scripts/consumer-check*`, `test/consumer/**`, the playground's `package.json`, `cms.config.ts` and `cms-plugins/` |
+| `starter` | the starter in four combinations (languages, parts, demo content), each made by the packed `tinyzoo init` or `create-tinyzoo`, installed from the tarballs, migrated, built, started and checked (about ten minutes) | `packages/cms/starter/**`, `packages/cms/cli/init*`, `packages/create-tinyzoo/**`, `scripts/starter-check*` |
 | `backup (client tools 16 / 17 / 18, server 16)` | `tinyzoo backup` and `restore` with `pg_dump`, `pg_restore` and `psql` of each version; fails where the tools are missing | `packages/cms/cli/backup*`, `cli/tar*`, `src/migrate*`, `.github/actions/pg-client/**`, `test/api/backup.spec.ts` |
 | `s3-minio` | the S3 delivery modes against a real MinIO | `server/utils/cmsStorage*`, `server/api/cms/_media/**`, `cli/transfer*`, `test/api/s3-minio.spec.ts` |
 | `result` | green when every heavy job that ran passed (skipped ones are nothing relevant) | every pull request |
@@ -286,7 +287,9 @@ the **first** publish is a placeholder, made by hand once by an owner of the pac
    `create-tinyzoo`: without a trusted publisher (and without the `NPM_TOKEN` secret allowed to
    publish it) that release publishes `tinyzoo` and `@tinyzoo/client` and fails on the third.
    If it did fail, set the publisher, then re-run the failed job: `scripts/release.mjs` publishes
-   only what npm does not have yet.
+   only what npm does not have yet, and gives every package that npm has at this version its git
+   tag and GitHub release (it skips a tag and a release that exist). A failed run already tags and
+   releases what it did publish, so `tinyzoo` and `@tinyzoo/client` are not left without.
 4. After the release, check the package page: the **Provenance** badge, and `pnpm create tinyzoo
    scratch --yes` from an empty folder.
 

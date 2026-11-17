@@ -102,6 +102,12 @@ function checkTheSite({ site, sc, stdout }) {
   }
   const pkg = JSON.parse(readFileSync(join(site, 'package.json'), 'utf8'))
   ok(!!pkg.scripts.seed === sc.demo, `package.json should ${sc.demo ? '' : 'not '}have a seed script`)
+  // .env comes with a secret of its own, not the example's (a production server refuses that one)
+  const secret = /^NUXT_APP_SECRET=(.+)$/m.exec(existsSync(join(site, '.env')) ? readFileSync(join(site, '.env'), 'utf8') : '')?.[1]
+  const example = /^NUXT_APP_SECRET=(.+)$/m.exec(readFileSync(join(site, '.env.example'), 'utf8'))?.[1]
+  ok(!!secret && secret.length >= 32 && secret !== example, `the site's .env should have a NUXT_APP_SECRET of its own (got ${secret ? 'the example or a short one' : 'none'})`)
+  ok(/^\.env$/m.test(readFileSync(join(site, '.gitignore'), 'utf8')), 'the site\'s .gitignore should list .env')
+  ok(!/cp \.env\.example/.test(stdout), 'the next steps should not tell people to copy .env.example over the .env that was made')
   ok(/db:generate/.test(stdout) === regenerate.schema && /cms:client/.test(stdout) === regenerate.client, `the next steps should${regenerate.schema ? '' : ' not'} say db:generate and${regenerate.client ? '' : ' not'} cms:client:\n${stdout}`)
   ok(/pnpm seed/.test(stdout) === sc.demo, `the next steps should${sc.demo ? '' : ' not'} mention \`pnpm seed\``)
   return regenerate

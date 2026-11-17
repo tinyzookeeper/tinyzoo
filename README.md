@@ -21,8 +21,7 @@ You need Node 22+, pnpm 10 and Docker (for the local database).
 ```bash
 pnpm create tinyzoo my-site      # asks for the languages, the parts of the site and demo content
 cd my-site
-pnpm install                     # unless the questions installed for you
-cp .env.example .env
+pnpm install                     # unless the questions installed for you (.env is already made, with a secret of its own)
 docker compose up -d && pnpm db:migrate
 pnpm dev                                                     # the site, and /admin
 # in a second terminal, while `pnpm dev` runs: the demo content and your first administrator

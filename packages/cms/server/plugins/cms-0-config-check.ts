@@ -5,26 +5,36 @@
 //    a key derived from it). NUXT_SESSION_PASSWORD (and nuxt.config's
 //    runtimeConfig.session.password) stood in for it until 0.5 and are not read any more:
 //    when only the old one is set, the message says to rename it;
+//    the example value of the starter's .env.example (cmsAppSecret.ts) is refused too: anyone can
+//    read it, so the cookie would be sealed with a public key. Development only warns about it;
 //  - a database address: NUXT_CMS_DATABASE_URL or DATABASE_URL;
 //  - NUXT_CMS_PUBLIC_URL: not fatal, but the links in emails need it (and the sitemap's addresses) — one warning.
 // Development keeps its defaults (Nuxt generates an app secret, the dev database is in
 // .env); a prerender during the build has no runtime settings either.
 export default defineNitroPlugin(() => {
-  if (process.env.NODE_ENV !== 'production' || import.meta.prerender) return
+  if (import.meta.prerender) return
   const config = useRuntimeConfig()
   const cms = (config.cms ?? {}) as any
+  // The variable Nitro read the app secret from: NITRO_APP_SECRET when it is there (even
+  // empty), otherwise the site's prefix (NUXT_, or nitro.envPrefix).
+  const prefix = String((config as any).nitro?.envPrefix || 'NUXT_')
+  const name = process.env.NITRO_APP_SECRET !== undefined ? 'NITRO_APP_SECRET' : `${prefix}APP_SECRET`
+
+  if (process.env.NODE_ENV !== 'production') {
+    if (cmsAuthMode() === 'builtin' && (config as any).appSecret === CMS_EXAMPLE_APP_SECRET) console.warn(cmsExampleSecretWarning(name))
+    return
+  }
 
   const problems: string[] = []
   if (cmsAuthMode() === 'builtin') {
     const secret = (config as any).appSecret
-    // The variable Nitro read the app secret from: NITRO_APP_SECRET when it is there (even
-    // empty), otherwise the site's prefix (NUXT_, or nitro.envPrefix).
-    const prefix = String((config as any).nitro?.envPrefix || 'NUXT_')
-    const name = process.env.NITRO_APP_SECRET !== undefined ? 'NITRO_APP_SECRET' : `${prefix}APP_SECRET`
     if (secret !== undefined && secret !== null && secret !== '' && typeof secret !== 'string') {
       const kind = Array.isArray(secret) ? 'a list' : typeof secret === 'object' ? 'an object' : `a ${typeof secret}`
       problems.push(`${name} was read as ${kind}, not as text (the environment is parsed as JSON where it can be). `
         + 'Make one with: openssl rand -base64 32')
+    }
+    else if (secret === CMS_EXAMPLE_APP_SECRET) {
+      problems.push(cmsExampleSecretRefusal(name))
     }
     else if (String(secret ?? '').length < 32) {
       const unset = !secret

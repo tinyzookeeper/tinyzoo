@@ -310,7 +310,7 @@ async function checkBaseline(baseline) {
     // The variable the baseline's own docs name for the sign-in secret (see SITE_SECRET).
     const secretVar = /^NUXT_APP_SECRET=/m.test(readFileSync(join(dirs.src, 'packages/cms/starter/.env.example'), 'utf8')) ? 'NUXT_APP_SECRET' : 'NUXT_SESSION_PASSWORD'
     siteEnv[secretVar] = SITE_SECRET
-    note(`the site's sign-in secret is ${secretVar}, as the baseline's starter documents it; the upgraded site keeps the same environment`)
+    note(`the site's sign-in secret is ${secretVar}, as the baseline's starter documents it; the upgraded site gets the same environment, except that a baseline on NUXT_SESSION_PASSWORD is first refused and then renamed to NUXT_APP_SECRET, as docs/upgrading.md says`)
     await step('install and pack the baseline', () => {
       sh('baseline-install', 'pnpm', ['install', '--frozen-lockfile'], { cwd: dirs.src })
       sh('baseline-pack-cms', 'pnpm', ['pack', '--pack-destination', dirs.packsOld], { cwd: join(dirs.src, 'packages/cms') })

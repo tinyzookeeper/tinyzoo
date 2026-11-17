@@ -8,7 +8,8 @@
 // build @tinyzoo/client (dist), run the consumer check on the packed tarballs (create-tinyzoo
 // is packed with the starter of tinyzoo inside), then `changeset publish` (pnpm publish per
 // package, with provenance when NPM_CONFIG_PROVENANCE=true), then the git tags and GitHub
-// releases (tagAndRelease).
+// releases (tagAndRelease) of every package that is on npm at its version, also when the
+// publish failed halfway (a re-run publishes what is missing and tags what has no tag yet).
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -45,12 +46,21 @@ run('pnpm', ['--filter', '@tinyzoo/client', 'build'])
 run('node', ['scripts/consumer-check.mjs'])
 if (dry) run('pnpm', ['publish', '-r', '--dry-run', '--no-git-checks'])
 else {
-  run('pnpm', ['exec', 'changeset', 'publish'])
-  tagAndRelease(missing)
+  try { run('pnpm', ['exec', 'changeset', 'publish']) }
+  finally {
+    // Not only what this run published: a run that died after `changeset publish` put tinyzoo
+    // and @tinyzoo/client on npm, but before create-tinyzoo, left them without a tag, and the
+    // re-run has only create-tinyzoo missing. Whatever npm has at this version gets its tag and release.
+    try { tagAndRelease(packages.filter(onNpm)) }
+    catch (err) {
+      console.error(`Could not tag or release: ${err.message}`)
+      process.exitCode = 1
+    }
+  }
 }
 
 /**
- * Pushes the tag of every package just published and makes its GitHub release from the
+ * Pushes the tag of every package that is on npm and makes its GitHub release from the
  * CHANGELOG. The release action does this only when the publish output has "New tag:"
  * lines, which @changesets/cli 3 no longer prints: 0.2.0 and 0.2.1 went to npm without
  * either. Skips a tag the remote has and a release that exists, so it never doubles up.
@@ -78,9 +88,14 @@ function tagAndRelease(published) {
   if (failed) process.exitCode = 1
 }
 
-/** The CHANGELOG section of one version, without its heading. */
+/** The CHANGELOG section of one version, without its heading ('' when there is none, as for a package's first, unversioned publish). */
 function changelogOf({ dir, version }) {
-  const log = readFileSync(join(root, dir, 'CHANGELOG.md'), 'utf8')
+  let log
+  try { log = readFileSync(join(root, dir, 'CHANGELOG.md'), 'utf8') }
+  catch (err) {
+    if (err.code === 'ENOENT') return ''
+    throw err
+  }
   const start = log.indexOf(`\n## ${version}\n`)
   if (start === -1) return ''
   const body = log.slice(start + `\n## ${version}\n`.length)
