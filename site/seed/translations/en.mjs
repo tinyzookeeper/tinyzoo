@@ -3,6 +3,8 @@ export default (h) => {
   const configCode = h.code.configCode
     .replace('// Pole pro editora, typovaný obsah pro web.', '// Fields for the editor, typed content for the website.')
     .replace('/aktuality/:slug', '/news/:slug')
+  const pageCode = h.code.pageCode
+    .replace('// news má typ News, odvozený z cms.config.ts', '// news is typed as News, inferred from cms.config.ts')
 
   return {
     pages: {
@@ -129,7 +131,7 @@ export default (h) => {
             id: id(), type: 'code', eyebrow: null,
             heading: 'Start with the content your website needs.',
             text: 'Define articles, page blocks and forms in cms.config.ts. The model generates the admin area. A generated client file carries the types through to your Vue templates. tinyzoo is a Nuxt layer and module that runs directly in your application.',
-            files: [item({ name: 'cms.config.ts', code: configCode }), item({ name: 'pages/aktuality/[slug].vue', code: h.code.pageCode })],
+            files: [item({ name: 'cms.config.ts', code: configCode }), item({ name: 'pages/news/[slug].vue', code: pageCode })],
             chips: 'defineEntity(), defineBlock(), definePages(), defineForm(), f.list()',
           },
           {
