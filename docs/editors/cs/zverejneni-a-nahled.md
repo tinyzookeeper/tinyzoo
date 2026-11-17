@@ -50,6 +50,24 @@ Zpátky ji dostanete tlačítkem **Zveřejnit…**. Nic se nemaže.
 
 Když upravíte už zveřejněnou položku, klikněte na **Aktualizovat**. Změna je na webu hned. Žádný další krok už není.
 
+## Zveřejnění překladu
+
+Na webech, kde se každý jazyk zveřejňuje zvlášť (vývojář to zapíná pro jednotlivé druhy obsahu, třeba pro články), má zveřejnění překladu vlastní kontrolu. Otevřete jazyk, třeba angličtinu, a klikněte na **Zveřejnit…**. Obrazovka se jmenuje **Zveřejnit překlad: angličtina** a pod nadpisem je **Ostatní jazyky zůstanou, jak jsou.** Zveřejníte tedy jen angličtinu. Čeština a ostatní jazyky se nezmění.
+
+![Obrazovka „Zveřejnit překlad: angličtina“: nahoře upozornění „Čeština je zatím koncept – Tahle verze půjde na web, jakmile tam bude i čeština.“, pod ním kontrola Názvu, upozornění „Prázdné: Text“ s tlačítkem Přeložit a Adresa na webu, dole volby Hned teď a Naplánovat a tlačítko Zveřejnit.](../../screenshots/0.6/publish-review-translation.png)
+
+Co kontrola ukáže:
+
+- **Nepřeložená pole.** Třeba **Prázdné: Text** a pod tím **Než to přeložíte, návštěvníci tu uvidí původní text (čeština).** Tlačítkem **Přeložit** se k poli vrátíte. Zveřejnění to nebrání: návštěvník tam jen uvidí český text.
+- **Adresu na webu** v tom jazyce, třeba `/en/blog/new-members`.
+- **Když je čeština zatím koncept**, je nahoře **Čeština je zatím koncept** a **Tahle verze půjde na web, jakmile tam bude i čeština.** U volby **Hned teď** se pak píše **Na web to půjde, jakmile tam bude i čeština.** Překlad totiž nikdy nejde na web bez české verze.
+
+Pak vyberte **Hned teď** nebo **Naplánovat** a klikněte na **Zveřejnit**. Když je čeština na webu, potvrdí to **A je to na webu.** Když na češtinu čeká, uvidíte **Připraveno.** a **Na web to půjde, jakmile tam bude i čeština.** Jakmile pak češtinu zveřejníte, jde angličtina na web sama.
+
+Překlad stáhnete z webu stejně jako celou položku (**Další akce → Stáhnout z webu**, v otevřeném jazyce). Správa se zeptá **Stáhnout z webu verzi angličtina?** a upozorní, že ostatní jazyky zůstanou, jak jsou. Když stáhnete z webu češtinu, odejdou s ní všechny jazyky. Po novém zveřejnění češtiny se vrátí.
+
+Kdo nesmí zveřejňovat (třeba **Překladatel**), překlad uloží tlačítkem **Uložit překlad** a zveřejní ho editor. Víc o jazycích, jejich stavech a značkách v seznamu je v kapitole [Překlady](preklady.md#každý-jazyk-zvlášť).
+
 ## Náhled
 
 Náhled ukáže, jak bude stránka vypadat pro návštěvníky, a to **ještě před zveřejněním**.
@@ -64,7 +82,7 @@ U náhledu se může objevit hláška **Na webu tu zatím žádná stránka nen�
 
 ## Autor a zveřejňování
 
-Kdo má roli **Autor**, píše koncepty a zveřejnit nemůže. Místo **Zveřejnit…** uvidí **Zveřejní ho editor**. Až bude koncept hotový, upozorněte editora nebo administrátora, ať ho zveřejní.
+Kdo má roli **Autor** (nebo jinou roli, která nezveřejňuje, třeba **Překladatel**), píše koncepty a zveřejnit nemůže. Místo **Zveřejnit…** uvidí **Zveřejní ho editor**. Až bude koncept hotový, upozorněte editora nebo administrátora, ať ho zveřejní. Co která role smí, je v kapitole [Role a oprávnění](role-a-opravneni.md).
 
 ## Ukládání a neuložené změny
 
@@ -93,5 +111,6 @@ Zveřejněný text je obvykle vidět **hned**. Po zveřejnění ještě pár min
 
 - [Stránky a bloky](stranky-a-bloky.md)
 - [Překlady](preklady.md): zveřejnění platí pro všechny jazyky, nebo (když je zapnuté) pro každý zvlášť
+- [Role a oprávnění](role-a-opravneni.md): kdo smí zveřejňovat
 - [Historie a obnovení](historie-a-obnoveni.md)
 - [Co dělat, když něco nefunguje](kdyz-neco-nefunguje.md): „Uložil(a) jsem, ale na webu to není“
