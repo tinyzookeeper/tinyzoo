@@ -60,6 +60,29 @@ function sweepOldTemp(dir: string) {
   }))).catch(() => {})
 }
 
+let tempDirWarned = false
+
+/**
+ * Creates the folder uploads are staged in. A container with a read-only filesystem and
+ * no writable /tmp (some hosts run every app that way) fails here on the first upload;
+ * the log then says what to set instead of a bare ENOENT/EROFS, once per process.
+ */
+async function prepareTempDir(tempDir: string): Promise<void> {
+  try {
+    await mkdir(tempDir, { recursive: true })
+  }
+  catch (err: any) {
+    if (!tempDirWarned) {
+      tempDirWarned = true
+      console.error(`[cms] uploads are staged on disk, but ${tempDir} cannot be created (${err?.code ?? err}). `
+        + 'The filesystem is probably read-only: mount a writable volume and point TMPDIR at it '
+        + '(or at /dev/shm, which counts against the memory limit, for small files only). '
+        + 'See https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/deploying.md#media')
+    }
+    throw createError({ statusCode: 500, statusMessage: 'The server has no writable folder for uploads' })
+  }
+}
+
 /**
  * Read the multipart upload of `event`: the first part named `file` with a filename is
  * written to `tempDir`, the small text fields are returned. Throws 413 when more than
@@ -69,7 +92,7 @@ function sweepOldTemp(dir: string) {
 export async function receiveUpload(event: any, opts: { maxBytes: number; tempDir: string }): Promise<ReceivedUpload> {
   const req = event.node.req
   const { maxBytes, tempDir } = opts
-  await mkdir(tempDir, { recursive: true })
+  await prepareTempDir(tempDir)
   sweepOldTemp(tempDir)
 
   let parser: BusboyInstance
