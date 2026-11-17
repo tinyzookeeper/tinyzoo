@@ -167,6 +167,23 @@ for 2.0, and anything removed was deprecated for at least one minor first.
 | O | **`pnpm create tinyzoo`**: a `create-tinyzoo` package wrapping `tinyzoo init` with questions (languages, which presets, demo content) | S |
 | P | **API review before the freeze**: list the public surface of each API, remove what's deprecated, mark internals as internal, typed-config golden tests | M |
 
+#### Decisions locked for Wave 4 (2026-11-17)
+
+| Decision | Choice |
+|---|---|
+| Role model (M) | A custom role **extends a built-in** (`from: 'editor'` or `'author'`) and narrows it or adds grants per entity (`read`/`create`/`update`/`delete`), plus `publish` and `media: 'all' \| 'own' \| 'none'`. Only `admin` manages people; a custom role can never become one. Per field: `read`/`edit` by role. |
+| Role removed from config (M) | **Fails closed**: the account signs in to a "your role no longer exists, ask an administrator" screen with no access; the Team page flags it and `tinyzoo status` warns. |
+| Per-language publishing (N) | **Opt-in per entity** (`publish: { perLocale: true }`). Turning it on comes with an upgrade step that copies the current state into every language, so nothing changes on the website by itself. |
+| A translation that is not published (N) | **Not there in that language**: `404` for the item, left out of that language's lists, sitemap and `hreflang`; webhooks report the language. Per-field fallback to the default language stays, inside a published translation only. |
+| What 1.0 freezes (P) | Besides the content API, the `@tinyzoo/client` types and the config API: the **webhook payload and Nitro hooks**, the **CLI commands and flags, `cms.*` module options and `NUXT_CMS_*` variables**, and the **admin extension points** (`cms.fields` in `app.config`, the component names it resolves, their props). Everything else is marked `@internal`. Database tables are not promised: tinyzoo migrates them, with an upgrade step. |
+| `cms` naming (P) | **Kept** (`cms.config.ts`, `NUXT_CMS_*`, `cms_*`, `Cms*`, `cms` in `nuxt.config`). |
+| Releases | 0.5.0 released before the wave; **Wave 4 ships as 0.6.0**, the last minor before 1.0 (P's removals land there). |
+| `create-tinyzoo` (O) | Unscoped `create-tinyzoo` (`pnpm create tinyzoo`). Vojtěch publishes a `0.0.0` placeholder by hand once, then ticks the trusted publisher on npmjs.com; releases go through the workflow after that. |
+
+Every schema or behaviour change in the wave comes with an upgrade step (where data
+must move) and a changeset whose **Upgrade** section says what a site has to do.
+Branches `feat/1.0-<slice>`, test databases with `test` in their names.
+
 ### Wave 5: ship 1.0
 
 | Slice | What | Size |
@@ -1207,3 +1224,18 @@ Branch `feat/0.4-auth-utils-06`, two commits: `chore(deps): Nuxt 4.6`, then the 
 ### 0.4 — The old form helpers are gone
 
 Branch `chore/0.4-remove-old-form-helpers`. `defineForm` and `defineFormSettings` exported from `tinyzoo` (deprecated in 0.2, `removeIn: '0.4.0'`) are removed, with the internal `IMPLICIT_FORMS_REQUIREMENT` they used to register the plugin by themselves (the generic `create` of a plugin requirement stays). Nothing we run used them: the website, the playground, the starter and the two pitch sites with forms (autoservis-benesov, samoty) import from `tinyzoo/forms`. Tests that exercised the old import are removed; `test/unit/ops.spec.ts` now uses the plugin's `defineForm`. `docs/upgrading.md` ("From 0.3 to 0.4", step 5) and `docs/plugins.md` say what a site still on the old import does. The upgrade check's oldest baseline (`2506403`, a tinyzoo 0.1 starter) still had the old import: its hook `scripts/upgrade-check/2506403.mjs` now makes the documented change before `tinyzoo upgrade`, as a site does by hand. Checked by CI (typecheck, unit, API, upgrade, consumer).
+
+### 0.5 — Released (2026-11-17)
+
+`tinyzoo` and `@tinyzoo/client` 0.5.0 (sitemap through `@nuxtjs/sitemap`, the design system page moved to the website), released before Wave 4 starts.
+
+### 1.0 — Wave 4 (started 2026-11-17)
+
+Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, one agent each in its own worktree and branch: M `feat/1.0-roles`, N `feat/1.0-locale-publishing`, O `feat/1.0-create`, P `feat/1.0-api-review`. Each uses its own databases (`cms_test_<slice>`, `cms_test_<slice>_starter`, `cms_test_<slice>_upgrade`). After they merge: two independent reviews of the merged wave, fix branches for what they find, then `check`, `check:starter`, `check:upgrade` and `check:consumer` green before the pull requests.
+
+| Slice | Branch | State |
+|---|---|---|
+| M — custom roles, per-field permissions | `feat/1.0-roles` | running |
+| N — per-language publishing | `feat/1.0-locale-publishing` | running |
+| O — `pnpm create tinyzoo` | `feat/1.0-create` | running |
+| P — API review before the freeze | `feat/1.0-api-review` | running |
