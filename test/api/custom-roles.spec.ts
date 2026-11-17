@@ -534,6 +534,9 @@ describe('giving people a custom role', () => {
     expect(invited.status).toBe(201)
     expect(invited.body.user.role).toBe('translator')
     const mail = await waitForMail(email)
+    // The invitation page names the role by its own label.
+    const info = await anonymous().get(`/api/cms/_auth/invite/${String(invited.body.inviteUrl).split('/').pop()}`)
+    expect(info.body).toMatchObject({ role: 'translator', roleLabel: { en: 'Translator', cs: 'Překladatel' } })
     expect(mail.text).toMatch(/jako Překladatel/)
     // Unknown roles are refused, on invite and on change.
     expect((await admin.post('/api/cms/_users', { email: 'x1@test.local', role: 'ghost' })).status).toBe(422)

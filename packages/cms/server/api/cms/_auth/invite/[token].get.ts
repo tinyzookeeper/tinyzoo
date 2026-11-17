@@ -15,5 +15,5 @@ export default defineEventHandler(async (event) => {
     inviter = by ? (by.name || by.email) : null
   }
   // A role the site defined carries its own name, in the admin's languages.
-  return { email: found.user.email, name: found.user.name, role: found.user.role, roleLabel: roleOf(found.user)?.label ?? null, inviter }
+  return { email: found.user.email, name: found.user.name, role: found.user.role, ...(roleOf(found.user)?.label ? { roleLabel: roleOf(found.user)!.label } : {}), inviter }
 })
