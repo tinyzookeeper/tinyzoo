@@ -69,15 +69,17 @@ export function signedInRecently(session: any, now = Date.now()): boolean {
  * bumps it). Null otherwise.
  */
 export async function activeAccountOf(session: any): Promise<any | null> {
-  if (!signedInRecently(session)) return null
-  return activeAccount(session?.cms?.uid, session?.cms?.sv)
+  return activeAccount(session?.cms?.uid, session?.cms?.sv, session?.cms?.iat)
 }
 
 /**
- * The account, if it is active and still at session version `sv`: for a socket admitted
- * earlier with a session (activeAccountOf), checked again while it stays open.
+ * The account, if the session it was admitted with was signed in at `iat` less than
+ * `maxAge` ago, and the account is active and still at session version `sv`: for a socket
+ * admitted earlier with a session (activeAccountOf), checked again while it stays open, so
+ * an open socket ends with its session too instead of outliving the 14 days.
  */
-export async function activeAccount(id: unknown, sv: unknown): Promise<any | null> {
+export async function activeAccount(id: unknown, sv: unknown, iat: unknown): Promise<any | null> {
+  if (!signedInRecently({ cms: { iat } })) return null
   if (typeof id !== 'string' || !UUID.test(id)) return null
   const { db, reg } = useCms()
   const [u] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.id, id))
@@ -88,8 +90,9 @@ export async function activeAccount(id: unknown, sv: unknown): Promise<any | nul
 /**
  * Admit a WebSocket upgrade for the admin (realtime, shared editing): it must come
  * from this site's own pages and carry a valid built-in session for an active
- * account. Puts the account on `request.context` (cmsUser, cmsSessionVersion), which
- * the socket's peer then carries. Throws a Response to refuse.
+ * account. Puts the account on `request.context` (cmsUser, cmsSessionVersion and
+ * cmsSignedInAt, the session's sign-in time), which the socket's peer then carries.
+ * Throws a Response to refuse.
  */
 export async function admitAdminSocket(request: any): Promise<void> {
   if (cmsAuthMode() !== 'builtin') throw new Response('Needs the built-in sign-in', { status: 404 })
@@ -101,6 +104,7 @@ export async function admitAdminSocket(request: any): Promise<void> {
   if (!u) throw new Response('Unauthorized', { status: 401 })
   request.context.cmsUser = { id: u.id, email: u.email, name: u.name || u.email, role: u.role, locale: u.locale }
   request.context.cmsSessionVersion = u.sessionVersion
+  request.context.cmsSignedInAt = session.cms.iat
 }
 
 /**

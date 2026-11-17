@@ -65,7 +65,7 @@ export default defineWebSocketHandler({
     socketsByUser.set(user.id, mine)
     const server = await useCollabServer()
     if (state.closed) return // gone while the server started
-    const connection = server.handleConnection(peer.websocket, peer.request, { user, sv: peer.context.cmsSessionVersion })
+    const connection = server.handleConnection(peer.websocket, peer.request, { user, sv: peer.context.cmsSessionVersion, iat: peer.context.cmsSignedInAt })
     state.connection = connection
     ws.on('pong', () => connection.touch())
     state.ping = setInterval(() => {

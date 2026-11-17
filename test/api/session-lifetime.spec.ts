@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import WebSocket from 'ws'
 import { Client } from '../helpers/api'
 import { scratchDatabase, startServer, type SpawnedServer } from '../helpers/server'
 
@@ -57,6 +58,24 @@ describe('the absolute session lifetime', () => {
     const again = new Client(server.baseURL)
     expect((await again.post('/api/cms/_auth/login', { email: account.email, password: account.password })).status).toBe(200)
     expect((await again.get('/api/cms/_auth/me')).status).toBe(200)
+  }, 30_000)
+
+  it('an open realtime socket ends with its session too (it does not outlive the sign-in)', async () => {
+    const c = new Client(server.baseURL)
+    expect((await c.post('/api/cms/_auth/login', { email: account.email, password: account.password })).status).toBe(200)
+    const signedInAt = Date.now()
+    // Opened halfway through the session, kept open past its end.
+    await until(signedInAt + (MAX_AGE_S / 2) * 1000)
+    const ws = new WebSocket(`${server.baseURL.replace(/^http/, 'ws')}/api/cms/_live`, { headers: { origin: server.baseURL, cookie: c.cookie } })
+    let closed: { code: number; at: number } | null = null
+    ws.on('close', (code) => { closed = { code, at: Date.now() } })
+    await new Promise<void>((resolve, reject) => { ws.once('open', () => resolve()); ws.once('error', reject) })
+    // The test server re-checks every second (CMS_TEST_LIVE_HEARTBEAT_MS).
+    await until(signedInAt + MAX_AGE_S * 1000 + 3000)
+    expect(closed).not.toBeNull()
+    expect(closed!.code).toBe(4401)
+    expect(closed!.at).toBeGreaterThanOrEqual(signedInAt + MAX_AGE_S * 1000)
+    ws.close()
   }, 30_000)
 
   it('the session cookie does not outlive the sign-in either: its Max-Age is the configured one', async () => {

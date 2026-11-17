@@ -16,7 +16,7 @@ export default defineWebSocketHandler({
     // (the `ws` default is 100 MiB). crossws-private, so only when it is there.
     const ws = peer._internal?.ws
     if (ws?._receiver && typeof ws._receiver._maxPayload === 'number') ws._receiver._maxPayload = 16 * 1024
-    liveOpen(peer, user, peer.context.cmsSessionVersion)
+    liveOpen(peer, user, peer.context.cmsSessionVersion, peer.context.cmsSignedInAt)
   },
   message(peer: any, message: any) {
     return liveMessage(peer, message.text())
