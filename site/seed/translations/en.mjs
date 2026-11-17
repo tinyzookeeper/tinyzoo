@@ -66,7 +66,7 @@ export default (h) => {
               item({ question: 'Can I go back to an earlier version?', answer: 'Yes. Version history lets you restore an earlier version of your content.' }),
               item({ question: 'How do I quickly find an older article?', answer: 'Press ⌘K (Ctrl+K on Windows) or click Search and type any word from the article. Search finds drafts too and copes with typos.' }),
               item({ question: 'Does the admin area work on a phone?', answer: 'Yes, you can edit content on your phone too. You can also switch the page preview to a phone view to see how it will look to visitors. We also plan a separate mobile app.' }),
-              item({ question: 'Is tinyzoo finished? Can I try it yet?', answer: 'The demo is open to everyone and resets every night. tinyzoo is new. It has over 350 automated tests, and before the pilot we went through all the usual editing tasks in detail. We fixed the issues we found. Clients have not used it in their everyday work yet. That is what we will test in the pilot. We look after development and fixes ourselves.' }),
+              item({ question: 'Is tinyzoo finished? Can I try it yet?', answer: 'The demo is open to everyone and resets every night. tinyzoo is new. It has over 1,600 automated tests, and before the pilot we went through all the usual editing tasks in detail. We fixed the issues we found. Clients have not used it in their everyday work yet. That is what we will test in the pilot. We look after development and fixes ourselves.' }),
               item({ question: 'What if I need something extra?', answer: 'Tell us what you need to do on your website. We do not have a catalogue of ready-made add-ons. We build extra features for individual websites.' }),
             ],
           },
@@ -156,7 +156,7 @@ export default (h) => {
               item({ question: 'What does tinyzoo already include?', answer: 'Pages built from blocks, lists within blocks and forms. Also menus with subitems, redirects, SEO fields and translations. The media library generates images in the sizes you need on demand. Editing includes a live preview, real-time collaborative writing, scheduled publishing and version history. Visitors and editors can search the content, and search copes with typos.' }),
               item({ question: 'What if we need something extra?', answer: 'We write extra features as custom modules in code. Tell us what your website needs. Together we can work out how to extend it.' }),
               item({ question: 'How do we access the content?', answer: 'Content is stored in standard Postgres tables. There is also a content API described in OpenAPI. In Vue templates, you work with types from the generated client file.' }),
-              item({ question: 'Who handles maintenance?', answer: 'We handle development and fixes ourselves. We update one package across our websites. tinyzoo is young. Over 350 automated tests and a detailed check of all the usual editing tasks help us verify how it works. We will gather more experience as people use it.' }),
+              item({ question: 'Who handles maintenance?', answer: 'We handle development and fixes ourselves. We update one package across our websites. tinyzoo is young. Over 1,600 automated tests and a detailed check of all the usual editing tasks help us verify how it works. We will gather more experience as people use it.' }),
             ],
           },
           {
