@@ -132,33 +132,92 @@ describe('unpublishing one language', () => {
   })
 })
 
-describe('publishing one language alone', () => {
-  it('can be live while the default language is a draft, and the rest falls back to the default language', async () => {
+describe('the default language gates every language', () => {
+  const state = async (id: string, locale = 'en') => (await admin.get(`/api/cms/post/${id}`)).body.row.__states[locale]
+  const nothingPublic = async () => {
+    for (const locale of ['cs', 'en']) {
+      expect((await single('vanocni-cukrovi', locale)).status).toBe(404)
+      expect((await single('christmas-cookies', locale)).status).toBe(404)
+      expect(await list(locale)).toEqual([])
+    }
+    expect(await locs()).toEqual([])
+    for (const [q, locale] of [['christmas', 'en'], ['vanocni', 'cs'], ['vanocni', 'en']]) expect((await anonymous().get(`/api/content/_search?q=${q}&locale=${locale}`)).body.total).toBe(0)
+  }
+
+  it('keeps a translation off the website while the default language is a draft, with nothing of the draft public', async () => {
     const p = await post({ status: 'draft' })
     expect((await patchEn(p.id, { title: 'Christmas cookies', slug: 'christmas-cookies', status: 'published' })).status).toBe(200)
-    expect((await single('vanocni-cukrovi', 'cs')).status).toBe(404)
+    // Published on its own, but the default language is a draft: the item, the list, the sitemap, hreflang and the search have none of it.
+    await nothingPublic()
+    // The admin says why.
+    expect(await state(p.id)).toMatchObject({ state: 'published', own: true, waitingFor: 'cs' })
+    expect((await patchEn(p.id, { title: 'Christmas cookies' })).body.row.__states.en).toMatchObject({ waitingFor: 'cs' })
+    // An editor's preview still sees the draft translation (and, shared fields, the draft).
+    expect((await admin.get('/api/content/post/christmas-cookies?locale=en&preview')).status).toBe(200)
+    // Links to it read as a draft in every language.
+    const ref = `cms:post/${p.id}`
+    for (const locale of ['cs', 'en']) expect((await admin.post('/api/cms/_links/resolve', { refs: [ref], locale })).body.items[ref].state).toBe('draft')
+
+    // The default language goes live: the translation goes with it, in its own words, falling back for the rest.
+    await admin.patch(`/api/cms/post/${p.id}`, { status: 'published' })
     const en = await single('christmas-cookies', 'en')
     expect(en.status).toBe(200)
-    // Per-field fallback inside a published translation: the body is not translated, so the default language's text shows.
-    expect(en.body.item).toMatchObject({ title: 'Christmas cookies', status: 'published', locale: 'en', locales: ['en'] })
+    expect(en.body.item).toMatchObject({ title: 'Christmas cookies', status: 'published', locale: 'en', locales: ['cs', 'en'] })
     expect(JSON.stringify(en.body.item.body)).toContain('Česky')
-    expect(Object.keys(en.body.item.paths)).toEqual(['en'])
-    expect((await list('cs'))).toEqual([])
-    expect((await list('en')).map((i) => i.id)).toEqual([p.id])
-    // Nothing assumes the default language row is live: the sitemap, with itself as the only alternate.
-    expect(await locs()).toEqual(['/en/blog/christmas-cookies'])
-    expect((await sitemap()).find((e) => e.locale === 'en')!.alternates).toEqual([{ locale: 'en', loc: '/en/blog/christmas-cookies' }])
-    expect((await anonymous().get('/api/content/_search?q=christmas&locale=en')).body.total).toBe(1)
+    expect(await locs()).toEqual(['/blog/vanocni-cukrovi', '/en/blog/christmas-cookies'])
+    expect((await sitemap()).find((e) => e.locale === 'en')!.alternates.map((a) => a.locale)).toEqual(['cs', 'en'])
+    expect(await state(p.id)).toMatchObject({ state: 'published', own: true })
+    expect(await state(p.id)).not.toHaveProperty('waitingFor')
+    // …and unpublishing it takes every language off, whatever its own state says.
+    await admin.patch(`/api/cms/post/${p.id}`, { status: 'draft' })
+    await nothingPublic()
+    expect((await admin.get('/api/cms/post')).body.rows[0].__states.en).toMatchObject({ state: 'published', waitingFor: 'cs' })
   })
 
-  it('keeps the default language\'s draft private even though a translation is live', async () => {
-    const p = await post({ status: 'draft' })
-    await patchEn(p.id, { title: 'Christmas cookies', slug: 'christmas-cookies', status: 'published' })
-    // The draft is reachable only by its own language\'s state: the Czech address and the Czech list say nothing.
-    expect((await single('vanocni-cukrovi', 'cs')).status).toBe(404)
-    expect((await anonymous().get('/api/content/post?locale=cs')).body.total).toBe(0)
+  it('still lets a language be unpublished on its own while the default language is live', async () => {
+    const p = await translated()
+    expect((await patchEn(p.id, { status: 'draft' })).status).toBe(200)
+    expect((await single('christmas-cookies', 'en')).status).toBe(404)
+    expect((await single('vanocni-cukrovi', 'cs')).status).toBe(200)
+    expect(await state(p.id)).toMatchObject({ state: 'draft', own: true })
   })
 
+  it('makes a following language exactly as live as the default language', async () => {
+    const p = await translated({ status: 'draft' })
+    expect(await state(p.id)).toMatchObject({ state: 'draft', own: false })
+    expect((await single('christmas-cookies', 'en')).status).toBe(404)
+    await admin.patch(`/api/cms/post/${p.id}`, { status: 'published' })
+    expect((await single('christmas-cookies', 'en')).status).toBe(200)
+  })
+
+  it('is live from the later of the two dates when the default language is scheduled', async () => {
+    const p = await translated({ publishedAt: inSeconds(3600) })
+    // English publishes on its own now; Czech is scheduled for later: English waits for it.
+    expect((await patchEn(p.id, { status: 'published', publishedAt: inSeconds(-60) })).status).toBe(200)
+    expect((await single('christmas-cookies', 'en')).status).toBe(404)
+    const waiting = await state(p.id)
+    expect(waiting).toMatchObject({ state: 'scheduled', own: true })
+    expect(new Date(waiting.date).getTime()).toBeGreaterThan(Date.now() + 3000 * 1000)
+    // Czech goes live (its date has come): English with it.
+    await db.query(`update post set published_at = now() - interval '1 minute' where id = $1`, [p.id])
+    expect((await single('christmas-cookies', 'en')).status).toBe(200)
+    // English scheduled after Czech: English waits for its own date.
+    await patchEn(p.id, { status: 'published', publishedAt: inSeconds(3600) })
+    expect((await single('vanocni-cukrovi', 'cs')).status).toBe(200)
+    expect((await single('christmas-cookies', 'en')).status).toBe(404)
+    expect(await state(p.id)).toMatchObject({ state: 'scheduled', own: true })
+  })
+
+  it('publishes a language on its own only to follow the default language: nothing to announce while the default language is a draft', async () => {
+    const p = await translated({ status: 'draft' })
+    const mark = hooksMark()
+    await patchEn(p.id, { status: 'published' })
+    await new Promise((r) => setTimeout(r, 700))
+    expect(receivedHooks(mark).filter((h) => h.path === '/ok' && h.json.id === p.id && (h.json.type === 'entry.published' || h.json.type === 'entry.unpublished') && h.json.public)).toEqual([])
+  })
+})
+
+describe('publishing one language alone', () => {
   it('refuses a status other than the entry\'s own, and a date without one', async () => {
     const p = await translated()
     expect((await patchEn(p.id, { status: 'archived' })).status).toBe(422)
@@ -198,6 +257,27 @@ describe('a language with its own schedule', () => {
     const event = hooks.find((x) => x.path === '/ok' && x.json.id === p.id && x.json.locale === 'en')!.json
     expect(event).toMatchObject({ type: 'entry.published', locale: 'en', public: true, paths: ['/en/blog/christmas-cookies'] })
   }, 25_000)
+
+  it('holds a language back while the default language is not live, and announces both when the default language goes live', async () => {
+    const p = await translated({ publishedAt: inSeconds(3600) }) // Czech is scheduled far ahead
+    const deadline = Date.now() + 5000
+    while (!(await db.query(`select 1 from cms_state where key = 'scheduler.lastRun'`)).rowCount && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100))
+    // English publishes on its own date, which passes while Czech is still waiting: nothing is announced, it is not on the website.
+    expect((await patchEn(p.id, { status: 'published', publishedAt: inSeconds(2) })).status).toBe(200)
+    const mark = hooksMark()
+    await new Promise((r) => setTimeout(r, 4500))
+    expect(receivedHooks(mark).filter((h) => h.path === '/ok' && h.json.id === p.id && h.json.type === 'entry.published')).toEqual([])
+    expect((await single('christmas-cookies', 'en')).status).toBe(404)
+
+    // Czech goes live: it is announced (every language's address in it), and English is announced as its own language.
+    const mark2 = hooksMark()
+    await db.query(`update post set published_at = now(), updated_at = now() - interval '1 minute' where id = $1`, [p.id])
+    const pub = (h: ReceivedHook[], locale: string | null) => h.find((x) => x.path === '/ok' && x.json.id === p.id && x.json.type === 'entry.published' && x.json.locale === locale)
+    const hooks = await waitForHooks(mark2, (h) => !!pub(h, null) && !!pub(h, 'en'), 10_000)
+    expect([...pub(hooks, null)!.json.paths].sort()).toEqual(['/blog/vanocni-cukrovi', '/en/blog/christmas-cookies'])
+    expect(pub(hooks, 'en')!.json).toMatchObject({ public: true, paths: ['/en/blog/christmas-cookies'] })
+    expect((await single('christmas-cookies', 'en')).status).toBe(200)
+  }, 30_000)
 })
 
 describe('webhooks', () => {
@@ -248,6 +328,32 @@ describe('webhooks', () => {
     expect(json.locale).toBeNull()
     expect([...json.paths].sort()).toEqual(['/blog/vanocni-cukrovi', '/en/blog/christmas-cookies'])
   })
+  it('unpublishing the default language names every language that was live (one with a translation or a state of its own), and not one that was off', async () => {
+    const withText = await translated()
+    const through = await post({ slug: 'bez-prekladu', title: 'Bez překladu' })
+    const ownLive = await post({ slug: 'vlastni-stav', title: 'Vlastní stav' })
+    await patchEn(ownLive.id, { status: 'published' })
+    const off = await post({ slug: 'anglicky-vypnuto', title: 'Anglicky vypnuto' })
+    await patchEn(off.id, { status: 'draft' })
+    const down = async (id: string, status = 'draft') => {
+      const mark = hooksMark()
+      await admin.patch(`/api/cms/post/${id}`, { status })
+      const type = status === 'draft' ? 'entry.unpublished' : 'entry.published'
+      const find = (h: ReceivedHook[]) => h.find((x) => x.path === '/ok' && x.json.id === id && x.json.type === type)
+      const json = find(await waitForHooks(mark, (h) => !!find(h)))!.json
+      expect(json.locale).toBeNull()
+      return [...json.paths].sort()
+    }
+    expect(await down(withText.id)).toEqual(['/blog/vanocni-cukrovi', '/en/blog/christmas-cookies'])
+    // A language served only through the default language has no row: as ever, a change to the default language does not list it.
+    expect(await down(through.id)).toEqual(['/blog/bez-prekladu'])
+    expect(await down(ownLive.id)).toEqual(['/blog/vlastni-stav', '/en/blog/vlastni-stav'])
+    expect(await down(off.id)).toEqual(['/blog/anglicky-vypnuto'])
+    // And back: each language that is live again, the one that stayed off excluded.
+    expect(await down(through.id, 'published')).toEqual(['/blog/bez-prekladu'])
+    expect(await down(off.id, 'published')).toEqual(['/blog/anglicky-vypnuto'])
+  })
+
 })
 
 describe('who may publish a language', () => {
@@ -271,6 +377,34 @@ describe('who may publish a language', () => {
     // Back to a draft by an editor: the author may write again.
     await patchEn(mine.id, { status: 'draft' })
     expect((await patchEn(mine.id, { title: 'My post, edited' }, author)).status).toBe(200)
+  })
+})
+
+describe('the dashboard and the admin search follow each language', () => {
+  const overview = async () => (await admin.get('/api/cms/_overview')).body as { drafts: any[]; scheduled: any[] }
+  const found = async (q: string) => ((await admin.get(`/api/cms/_search?q=${q}`)).body.items as any[]).filter((i) => i.entity === 'post')
+
+  it('lists a language that is a draft, or scheduled on its own, with that language', async () => {
+    const p = await translated()
+    expect((await overview()).drafts.filter((d) => d.id === p.id)).toEqual([])
+    await patchEn(p.id, { status: 'draft' })
+    expect((await overview()).drafts.filter((d) => d.id === p.id)).toEqual([expect.objectContaining({ entity: 'post', locale: 'en', published: false })])
+    await patchEn(p.id, { status: 'published', publishedAt: inSeconds(3600) })
+    const o = await overview()
+    expect(o.drafts.filter((d) => d.id === p.id)).toEqual([])
+    expect(o.scheduled.filter((d) => d.id === p.id)).toEqual([expect.objectContaining({ locale: 'en', published: true })])
+  })
+
+  it('shows the state of the language a hit was found in, and a language held back by a draft default language as waiting', async () => {
+    const p = await translated()
+    expect((await found('christmas'))[0]).toMatchObject({ id: p.id, status: 'published' })
+    await patchEn(p.id, { status: 'draft' })
+    expect((await found('christmas'))[0]).toMatchObject({ id: p.id, status: 'draft' })
+    // The Czech hit is still the live Czech entry.
+    expect((await found('vanocni'))[0]).toMatchObject({ id: p.id, status: 'published' })
+    await patchEn(p.id, { status: 'published' })
+    await admin.patch(`/api/cms/post/${p.id}`, { status: 'draft' })
+    expect((await found('christmas'))[0]).toMatchObject({ id: p.id, status: 'waiting' })
   })
 })
 

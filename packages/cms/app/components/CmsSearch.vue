@@ -47,7 +47,7 @@ watch(term, (value) => {
 onBeforeUnmount(() => clearTimeout(timer))
 
 const byName = computed(() => new Map(props.graph.map((e) => [e.name, e])))
-const statusLabel = (s: string | null) => (s === 'draft' ? t('editor.draft') : s === 'scheduled' ? t('editor.scheduled') : '')
+const statusLabel = (s: string | null) => (s === 'draft' ? t('editor.draft') : s === 'scheduled' ? t('editor.scheduled') : s === 'waiting' ? t('translation.waiting') : '')
 
 const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
   const out: CommandPaletteGroup<CommandPaletteItem>[] = []

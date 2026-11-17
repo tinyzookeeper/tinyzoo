@@ -19,6 +19,14 @@ export const roles = defineRoles({
     publish: false,
     media: "own",
   },
+  // Proofreads posts: edits them (the "Where" note too, which translators may only read), never publishes.
+  proofreader: {
+    from: "editor",
+    label: { en: "Proofreader", cs: "Korektor" },
+    entities: { post: ["read", "update"] },
+    publish: false,
+    media: "own",
+  },
   // Looks after the people who write: manages authors (and sees their email), reads posts, has no media library.
   curator: {
     from: "editor",
@@ -154,7 +162,9 @@ export const Post = defineEntity("post", {
       default: "draft",
       labels: { draft: { en: "Draft", cs: "Koncept" }, published: { en: "Published", cs: "Zveřejněno" } },
     }).label({ en: "Status", cs: "Stav" }),
-    publishedAt: f.datetime().optional().label({ en: "Publish date", cs: "Datum zveřejnění" }),
+    // Who sets the date decides who can schedule: the marketing role may publish posts but not change this field, so the
+    // editor does not offer it Publish at all (a publish can be a schedule, and a save of the date would be refused).
+    publishedAt: f.datetime().optional().access({ edit: ["editor", "author", roles.translator, roles.proofreader] }).label({ en: "Publish date", cs: "Datum zveřejnění" }),
     hero: f.media({ accept: "image/*" }).optional()
       .label({ en: "Main image", cs: "Hlavní obrázek" })
       .help({ en: "Shown at the top of the post and in listings.", cs: "Zobrazí se nahoře v článku a v přehledu článků." }),
@@ -172,7 +182,7 @@ export const Post = defineEntity("post", {
         place: f.text({ required: true }).label({ en: "Place", cs: "Místo" }),
         note: f.text().label({ en: "Note", cs: "Poznámka" }),
       },
-    }).optional().localized().access({ edit: ["editor"] }).label({ en: "Location", cs: "Místo konání" }),
+    }).optional().localized().access({ edit: ["editor", roles.proofreader] }).label({ en: "Location", cs: "Místo konání" }),
     gallery: f.gallery().label({ en: "Photos", cs: "Fotky" })
       .help({ en: "Shown under the text, in this order.", cs: "Zobrazí se pod textem, v tomto pořadí." }),
     ...seo(),

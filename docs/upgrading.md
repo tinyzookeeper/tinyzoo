@@ -253,6 +253,36 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    `entry.unpublished`, the payload keeps its shape). A site that had its own code deciding
    what to show per language can drop it.
 
+   **The default language gates every language.** A translation is on the website only while the
+   default language is too: unpublish the default language and every language goes off (the
+   translations' own states are kept and apply again when it is published); a language can still be
+   unpublished or scheduled on its own, and a scheduled one is live from the later of its date and
+   the default language's. A language that follows is live exactly when the default language is.
+   A webhook for the default language going off names the address of each language that went off
+   with it (as for any change to the default language, one served only through it, with no
+   translation row, is not listed), and the editor says **Waiting for the default language** for a language that is published
+   but held back. Whoever may not publish also cannot remove a translation that holds a state of its
+   own (the language would follow the default language again and could go live), and shared editing
+   and the editor's read-only switch judge a translation by its own state, as saving does. If you
+   run an integration that reads `locales` or `paths` of a published item, there is nothing to change:
+   a draft is as private as before.
+
+   Export and import: the content model of an archive now says which entities publish per language
+   (a `perLocale` key, only where it is on, so every other site keeps its fingerprint). An archive
+   from 0.5 (or from a site without the option) imports into a site that has it as before: its
+   translations follow the default language, and `--merge` leaves the states already there alone.
+   An archive that carries per-language states into a site where
+   the entity does not publish per language is reported as a difference, and `--allow-mismatch`
+   imports it with a warning that the states were left out. An archive made by 0.6 with per-language
+   states cannot be imported into 0.5 faithfully: 0.5 does not know the key and drops the states
+   without a word, so keep both sites on 0.6 for it.
+
+   No migration comes with this beyond the two columns above.
+
+   With roles (step 5) one more thing: **Publish is offered to a role only if it may edit the
+   publish status field and the date field of that entity** (`.access({ edit })` on them), because a
+   publish writes both. If you put such a rule on those fields, add the roles that should publish.
+
 7. **`pnpm create tinyzoo`: nothing to do.** A new package, `create-tinyzoo`, makes a site and
    asks for the languages, the parts (news, contact form, redirects, search) and the demo content.
    `tinyzoo init <folder>` gets the same options (`--languages`, `--presets`, `--demo` /

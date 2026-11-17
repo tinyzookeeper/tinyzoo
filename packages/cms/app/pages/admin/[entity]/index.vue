@@ -381,7 +381,7 @@ const langState = (row: any, code: string): 'published' | 'scheduled' | 'draft' 
 const langTitle = (row: any, code: string) => {
   const s = row.__states?.[code]
   const name = languageName(code, meta.value?.locales?.labels?.[code])
-  const parts = [t(`translation.state.${langState(row, code)}`)]
+  const parts = [s?.waitingFor ? t('translation.waitingFor', { lang: languageName(s.waitingFor, meta.value?.locales?.labels?.[s.waitingFor]) }) : t(`translation.state.${langState(row, code)}`)]
   if (s && !s.own) parts.push(t('translation.followsShort'))
   if (!(row.__locales ?? []).includes(code)) parts.push(t('translation.notTranslated'))
   return `${name}: ${parts.join(' · ')}`
@@ -693,7 +693,8 @@ const tabs = computed(() => [
                 <span v-if="publish?.perLocale && row.__states" class="inline-flex items-center gap-2.5 text-xs">
                   <span v-for="code in otherLocales" :key="code" class="inline-flex items-center gap-1" :title="langTitle(row, code)">
                     <span class="font-medium" :class="(row.__locales ?? []).includes(code) ? 'text-default' : 'text-dimmed'">{{ code.toUpperCase() }}</span>
-                    <UIcon v-if="langState(row, code) === 'scheduled'" name="i-lucide-clock" class="size-3 text-warning" aria-hidden="true" />
+                    <UIcon v-if="row.__states?.[code]?.waitingFor" name="i-lucide-hourglass" class="size-3 text-warning" aria-hidden="true" />
+                    <UIcon v-else-if="langState(row, code) === 'scheduled'" name="i-lucide-clock" class="size-3 text-warning" aria-hidden="true" />
                     <span v-else class="size-2 rounded-full" :class="langState(row, code) === 'published' ? 'bg-success' : 'border border-(--ui-text-dimmed)'" aria-hidden="true" />
                     <span class="sr-only">{{ langTitle(row, code) }}</span>
                   </span>

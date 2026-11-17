@@ -657,6 +657,9 @@ export default {
     unpublishTitle: 'Take the {lang} version off the website?',
     unpublishBody: 'Visitors reading in {lang} stop seeing it; the other languages stay as they are. It stays here as a draft, and you can publish it again any time.',
     followsShort: 'follows the default language',
+    waitingFor: 'Waiting for the default language ({lang})',
+    waiting: 'Waiting for the default language',
+    waitingForBody: 'It is published, and goes on the website when the default language ({lang}) does.',
     state: { published: 'Published', scheduled: 'Scheduled', draft: 'Draft' },
   },
   sections: {
@@ -695,7 +698,7 @@ export default {
     translationMissing: 'Translation missing: {lang}',
     translationMissingBody: 'Visitors in that language will see the default language ({lang}) instead.',
     defaultNotLive: 'The default language ({lang}) is not published',
-    defaultNotLiveBody: 'The {lang} version goes live on its own; the default language stays off the website until you publish it.',
+    defaultNotLiveBody: 'Publishing the {lang} version only marks it as published: it reaches the website when the default language ({default}) is published too.',
     translate: 'Translate',
     sharedUnsaved: 'This also publishes unsaved text from {names}',
     sharedUnsavedBody: 'Changes in {fields} are saved and published along with everything else.',

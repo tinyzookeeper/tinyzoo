@@ -82,14 +82,6 @@ function readStateWrite(e: CmsEntity, body: Record<string, unknown>): StateWrite
   return out
 }
 
-/** The condition "this language is not live" for writes by people who may not publish (the entry's own for the default language). */
-function notLiveInLanguage(e: CmsEntity, user: CmsUser, locale: string): any {
-  const p = e.publish
-  if (!p?.perLocale || canPublish(user)) return notLiveCond(e, user)
-  const status = localeView(e, e.table, locale)[propOf(p.field, e.fields[p.field]!)]
-  return or(isNull(status), ne(status, p.publishedValue))
-}
-
 /**
  * Write the translation of one entry: only `.localized()` fields, empty = fall back to
  * the default language. Same access as editing the entry (row rules, and people who
@@ -228,6 +220,17 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   return result
 }
 
+/**
+ * Removing a translation that holds a state of its own (published, draft or scheduled) is a
+ * change of state: the language follows the default language again, which may put it on the
+ * website. So it is for people who may publish, even when the state it holds is a draft.
+ */
+function assertMayDropState(user: CmsUser, translation: Record<string, any> | undefined): void {
+  if (translation && translation.published !== null && translation.published !== undefined && !canPublish(user)) {
+    throw createError({ statusCode: 403, statusMessage: 'Your role can write drafts but not publish' })
+  }
+}
+
 /** Remove one entry's translation (falls back to the default language again). */
 export async function deleteTranslation(event: any, e: CmsEntity, id: string, locale: string, user: CmsUser, rowFilter: any) {
   const { db, reg } = useCms()
@@ -240,6 +243,7 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
   if (e.publish?.perLocale) {
     const current = (await translationRows(db, e, [id], locale)).get(id)
     assertPublishAllowed(e, user, {}, { [propOf(e.publish.field, e.fields[e.publish.field]!)]: effectiveStatus(e, base, current) })
+    assertMayDropState(user, current)
   }
   else assertPublishAllowed(e, user, {}, base)
   const seenBefore = await changeSnapshot(e, id)
@@ -248,6 +252,8 @@ export async function deleteTranslation(event: any, e: CmsEntity, id: string, lo
     const [touched] = await tx.update(e.table).set({ updatedAt: sql`${e.table.updatedAt}` })
       .where(both(both(eq(e.table.id, id), rowFilter), notLiveInLanguage(e, user, locale))).returning({ id: e.table.id })
     if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
+    // The entry is locked now (every write to a language takes this lock first): the state read here is the stored one.
+    if (e.publish?.perLocale) assertMayDropState(user, (await tx.select().from(t).where(and(eq(t.parentId, id), eq(t.locale, locale))))[0])
     // A page tree: without its translation the page falls back to the default language's address
     // part, and so does every page below it.
     const tp = e.tree ? treeProps(e) : null

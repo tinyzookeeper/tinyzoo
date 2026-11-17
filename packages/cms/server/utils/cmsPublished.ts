@@ -27,10 +27,23 @@ export function perLocalePublishing(e: CmsEntity): boolean {
   return !!e.publish?.perLocale && !!e.localesTable
 }
 
-/** The entry's own "is live" condition, against `t` (its table, or an alias of it). */
+/**
+ * The entry's own "is live" condition, against `t` (its table, or an alias of it). For a language
+ * of an entity that publishes per language, the default language gates: the translation is live
+ * only while the entry itself is live (status, schedule and the site's own `content.published`
+ * rule) AND the language's own state is live too. A translation that follows has no state of its
+ * own, so it is live exactly when the entry is; one with a date of its own goes live at the later
+ * of the two dates (both schedules must have come).
+ */
 export function ownPublishedCond(e: CmsEntity, t: any = e.table, locale?: string | null): any {
+  const entry = entryLiveCond(e, t)
+  if (!locale || !perLocalePublishing(e)) return entry
+  return and(entry, entryLiveCond(e, localeView(e, t, locale)))
+}
+
+/** The rule that decides "live" for one view of an entry (the entry itself, or a language's `localeView`). */
+function entryLiveCond(e: CmsEntity, view: any): any {
   const p = e.publish
-  const view = locale && perLocalePublishing(e) ? localeView(e, t, locale) : t
   const status = p ? eq(view[propOf(p.field, e.fields[p.field]!)], p.publishedValue) : undefined
   const base: any = e.content?.published ? e.content.published(view) : status
   return and(base, scheduleCond(e, view))
@@ -43,6 +56,8 @@ export function ownPublishedCond(e: CmsEntity, t: any = e.table, locale?: string
  * no translation at all, follows the entry. So the same rule that decides what is live
  * (`content.published` of the site, the schedule) runs unchanged against this view. For the
  * default language there is never a translation row, so the view is the entry itself.
+ * This is the language's own state only: that the default language gates it (a translation is
+ * live only while the entry is) is `ownPublishedCond`'s doing, which asks both.
  */
 export function localeView(e: CmsEntity, t: any, locale: string): any {
   const p = e.publish!
@@ -57,18 +72,6 @@ export function localeView(e: CmsEntity, t: any, locale: string): any {
   return new Proxy(t, {
     get: (target, prop, receiver) => (prop === statusKey ? status : prop === dateKey ? date : Reflect.get(target, prop, receiver)),
   })
-}
-
-/**
- * Live in at least one of `locales` (for an entity that publishes per language), else the
- * ordinary condition: what the sitemap, links and the like select before they look at each
- * language.
- */
-export function liveInAnyCond(e: CmsEntity, locales: readonly string[]): any {
-  const own = publishedCond(e)
-  if (!perLocalePublishing(e) || !own) return own
-  const others = locales.map((l) => publishedCond(e, l)).filter(Boolean)
-  return others.length === locales.length ? or(own, ...others) : undefined
 }
 
 /**

@@ -66,6 +66,16 @@ checks the archive first:
   always stops. Blocks stored at an older version are brought up to date on import; a
   block stored at a *newer* one than this site knows is refused, because the site could
   neither read nor save it (update the site first);
+- **each language's own publish state** (an entity with `publish.perLocale`) travels in the
+  archive as `translations[].publish` (`{ "published": true, "publishedAt": "…" }`, or
+  `"published": null` for a language that follows the default language), and the content model
+  says which entities have it. An archive from a site without it, or from before 0.6, has none:
+  `--merge` then leaves the states already in the target as they are, and a new translation
+  follows the default language. An archive that carries the states into a site where that entity
+  does not publish per language is a difference like any other (`--allow-mismatch` imports it, the
+  languages follow the default language, and the import warns how many states it left out). A
+  0.6 archive with such states cannot be imported into 0.5 faithfully: 0.5 does not know the key
+  and drops the states without a word;
 - media files are checked against their hashes, and uploaded to the target's storage;
   the media rows get that storage's public addresses, and pictures embedded in rich
   text are pointed at them;
@@ -113,7 +123,8 @@ An entry is keyed by field names, not columns:
 ```json
 { "id": "…", "createdAt": "…", "updatedAt": "…",
   "fields": { "title": "První", "author": "<id>", "hero": "<media id>", "body": { "type": "doc" } },
-  "translations": [{ "id": "…", "locale": "en", "createdAt": "…", "updatedAt": "…", "fields": { "title": "First" } }],
+  "translations": [{ "id": "…", "locale": "en", "createdAt": "…", "updatedAt": "…", "fields": { "title": "First" },
+                     "publish": { "published": true, "publishedAt": "…" } }],
   "relations": { "tags": ["<id>", "<id>"] } }
 ```
 

@@ -8,7 +8,7 @@ const { t, entitySingular, entityLabel, formatDate, formatDateWith } = useCmsI18
 const { user } = useUserSession()
 const config = useCmsAdminConfig()
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
-type Item = { entity: string; id: string; title: string | null; updatedAt: string; published: boolean | null; publishAt?: string | null }
+type Item = { entity: string; id: string; title: string | null; updatedAt: string; published: boolean | null; publishAt?: string | null; locale?: string }
 const { data: overview } = await useFetch<{ counts: Record<string, number>; recent: Item[]; drafts: Item[]; scheduled: Item[]; upcoming: { entity: string; id: string; title: string | null; at: string }[] }>('/api/cms/_overview')
 
 useHead({ title: () => t('nav.home') })
@@ -16,12 +16,12 @@ useHead({ title: () => t('nav.home') })
 const byName = computed(() => new Map((graph.value ?? []).map((e) => [e.name, e])))
 const drafts = computed(() => (overview.value?.drafts ?? []).slice(0, 4))
 const recent = computed(() => {
-  const waiting = new Set(drafts.value.map((d) => `${d.entity}:${d.id}`))
+  const waiting = new Set(drafts.value.filter((d) => !d.locale).map((d) => `${d.entity}:${d.id}`))
   return (overview.value?.recent ?? []).filter((r) => !waiting.has(`${r.entity}:${r.id}`)).slice(0, 5)
 })
 // Coming soon: scheduled publications and the next dated items (events), by date.
 const coming = computed(() => [
-  ...(overview.value?.scheduled ?? []).map((s) => ({ entity: s.entity, id: s.id, title: s.title, at: s.publishAt!, kind: 'scheduled' as const })),
+  ...(overview.value?.scheduled ?? []).map((s) => ({ entity: s.entity, id: s.id, title: s.title, at: s.publishAt!, kind: 'scheduled' as const, locale: s.locale as string | undefined })),
   ...(overview.value?.upcoming ?? []).map((u) => ({ ...u, kind: 'event' as const })),
 ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()).slice(0, 4))
 
@@ -52,6 +52,9 @@ const summary = computed(() => {
   if (next) parts.push(t('home.summaryNext', { title: short(next.title || t('common.untitled')), date: formatDate(next.at, { time: false }) }))
   return parts.join(' ')
 })
+
+/** The editor of an item; for one language of an entry that publishes per language, in that language. */
+const itemTo = (item: { entity: string; id: string; locale?: string }) => `/admin/${item.entity}/${item.id}${item.locale ? `?locale=${item.locale}` : ''}`
 
 /** A title inside a sentence: long ones end with an ellipsis. */
 const short = (s: string, max = 60) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
@@ -109,15 +112,15 @@ const leaf = (d: string) => ({
               <span class="rounded-full bg-elevated px-1.5 text-xs font-medium text-muted tabular-nums">{{ overview?.drafts?.length }}</span>
             </h2>
             <ul class="cms-card divide-y divide-(--ui-border-muted)">
-              <li v-for="item in drafts" :key="`${item.entity}:${item.id}`" class="relative flex items-center gap-3 px-4 py-3">
+              <li v-for="item in drafts" :key="`${item.entity}:${item.id}:${item.locale ?? ''}`" class="relative flex items-center gap-3 px-4 py-3">
                 <UIcon :name="byName.get(item.entity)?.icon ?? 'i-lucide-file'" class="size-4 text-dimmed shrink-0" />
                 <div class="min-w-0 flex-1">
-                  <NuxtLink :to="`/admin/${item.entity}/${item.id}`" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">
+                  <NuxtLink :to="itemTo(item)" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">
                     {{ item.title || t('common.untitled') }}
                   </NuxtLink>
-                  <p class="truncate text-xs text-muted">{{ t('editor.draft') }} · {{ entityLabel(byName.get(item.entity)) }} · <CmsTime :value="item.updatedAt" relative /></p>
+                  <p class="truncate text-xs text-muted">{{ t('editor.draft') }}{{ item.locale ? ` (${item.locale.toUpperCase()})` : '' }} · {{ entityLabel(byName.get(item.entity)) }} · <CmsTime :value="item.updatedAt" relative /></p>
                 </div>
-                <UButton :to="`/admin/${item.entity}/${item.id}`" color="neutral" variant="outline" size="sm" class="relative shrink-0 max-sm:hidden">{{ t('home.finish') }}</UButton>
+                <UButton :to="itemTo(item)" color="neutral" variant="outline" size="sm" class="relative shrink-0 max-sm:hidden">{{ t('home.finish') }}</UButton>
               </li>
             </ul>
           </section>
@@ -165,10 +168,10 @@ const leaf = (d: string) => ({
           <section v-if="coming.length">
             <h2 class="cms-label mb-2">{{ t('home.comingSoon') }}</h2>
             <ul class="cms-card divide-y divide-(--ui-border-muted)">
-              <li v-for="c in coming" :key="`${c.entity}:${c.id}`" class="relative flex items-center gap-3 px-4 py-3">
+              <li v-for="c in coming" :key="`${c.entity}:${c.id}:${(c as any).locale ?? ''}`" class="relative flex items-center gap-3 px-4 py-3">
                 <span class="cms-date"><b>{{ leaf(c.at).day }}</b><span>{{ leaf(c.at).month }}</span></span>
                 <div class="min-w-0 flex-1">
-                  <NuxtLink :to="`/admin/${c.entity}/${c.id}`" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">{{ c.title || t('common.untitled') }}</NuxtLink>
+                  <NuxtLink :to="itemTo(c)" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">{{ c.title || t('common.untitled') }}{{ (c as any).locale ? ` (${(c as any).locale.toUpperCase()})` : '' }}</NuxtLink>
                   <p class="truncate text-xs text-muted">
                     <template v-if="c.kind === 'scheduled'">{{ t('home.goesLive', { time: formatDateWith(c.at, { timeStyle: 'short' }) }) }}</template>
                     <template v-else>{{ entitySingular(byName.get(c.entity)) }}</template>

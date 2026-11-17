@@ -1,7 +1,7 @@
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import { buildRegistry, defineEntity, defineLocales, definePages, emitSchema, f } from 'tinyzoo'
-import { liveInAnyCond, perLocalePublishing, publishedCond, scheduleCond } from '../../packages/cms/server/utils/cmsPublished'
+import { perLocalePublishing, publishedCond, scheduleCond } from '../../packages/cms/server/utils/cmsPublished'
 
 // publish.perLocale: what it needs, the columns it adds, and the condition that decides what a language shows.
 const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
@@ -89,10 +89,15 @@ describe('what is live in a language', () => {
     expect(q.sql).toContain('coalesce(')
   })
 
-  it('is any language for what is selected before each language is looked at', () => {
-    const any = sqlOf(liveInAnyCond(e('post'), ['cs', 'en']))
-    expect(any.sql).toContain(' or ')
-    expect(any.sql).toContain('"post_locales"')
-    expect(sqlOf(liveInAnyCond(e('plainPost'), ['cs', 'en']))).toEqual(sqlOf(publishedCond(e('plainPost'))))
+  it('is gated by the default language: a translation is live only where the entry is, and its own state too', () => {
+    for (const name of ['post', 'customPost']) {
+      const own = sqlOf(publishedCond(e(name)))
+      const en = sqlOf(publishedCond(e(name), 'en'))
+      // The entry's own condition (status, schedule, the site's rule) is in it as it stands, ahead of the language's own state.
+      expect(en.sql.startsWith('(' + own.sql)).toBe(true)
+      expect(en.sql.indexOf('_locales')).toBeGreaterThan(own.sql.length)
+      // Following (no state of its own) can only be as live as the entry; so the language adds nothing but its own say.
+      expect(en.sql.length).toBeGreaterThan(own.sql.length)
+    }
   })
 })

@@ -136,7 +136,7 @@ export async function collabAccess(user: CmsUser, t: CollabTarget): Promise<'wri
   try {
     const writeFilter = authorize(e, 'update', user)
     const [ok] = await db.select({ id: e.table.id }).from(e.table)
-      .where(both(both(eq(e.table.id, t.id), writeFilter), notLiveCond(e, user)))
+      .where(both(both(eq(e.table.id, t.id), writeFilter), notLiveInLanguage(e, user, t.locale)))
     return ok ? 'write' : 'read'
   }
   catch {

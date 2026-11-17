@@ -1,11 +1,12 @@
-import { and, eq, gt, lte, propOf, sql } from 'tinyzoo'
+import { and, eq, gt, inArray, isNull, lte, or, propOf, sql } from 'tinyzoo'
 
 const LOCK = 72_011_004
 const KEY = 'scheduler.lastRun'
 
 /**
  * Report every scheduled entry (or, with per-language publishing, translation) whose publish
- * date passed since the last run. One
+ * date passed since the last run — a translation only once the default language is live too
+ * (it gates every language). One
  * replica at a time (a Postgres advisory lock); the last run is kept in cms_state,
  * so a restart or a missed minute catches up instead of skipping. The very first
  * run starts from now.
@@ -32,12 +33,27 @@ export async function announceScheduled(): Promise<number> {
       const rows: any[] = await tx.select().from(e.table)
         .where(and(eq(status, p.publishedValue), gt(date, since), lte(date, new Date(now)), sql`${date} > ${e.table.updatedAt}`))
       for (const row of rows) due.push({ e, id: row.id, row })
-      // Publishing per language: a translation with its own date and state goes live on its own.
+      // Publishing per language: a translation with its own date and state goes live on its own. The
+      // default language gates: it is live (and announced) only while the entry itself is, so a
+      // translation whose date passed while the default language was not live yet waits, and goes
+      // live with it, at the later of the two dates.
       const lt = e.localesTable
       if (p.perLocale && lt) {
-        const translations: any[] = await tx.select({ parentId: lt.parentId, locale: lt.locale, updatedAt: lt.updatedAt }).from(lt)
+        const candidates = new Map<string, { parentId: string; locale: string; updatedAt: Date }>()
+        const own: any[] = await tx.select({ parentId: lt.parentId, locale: lt.locale, updatedAt: lt.updatedAt }).from(lt)
           .where(and(eq(lt.published, true), gt(lt.publishedAt, since), lte(lt.publishedAt, new Date(now)), sql`${lt.publishedAt} > ${lt.updatedAt}`))
-        for (const tr of translations) due.push({ e, id: tr.parentId, row: { updatedAt: tr.updatedAt }, locale: tr.locale })
+        for (const tr of own) candidates.set(tr.parentId + '#' + tr.locale, tr)
+        // The default language going live now takes along the languages that were only waiting for it.
+        if (rows.length) {
+          const waiting: any[] = await tx.select({ parentId: lt.parentId, locale: lt.locale, updatedAt: lt.updatedAt }).from(lt)
+            .where(and(inArray(lt.parentId, rows.map((r) => r.id)), eq(lt.published, true), or(isNull(lt.publishedAt), lte(lt.publishedAt, new Date(now)))))
+          for (const tr of waiting) candidates.set(tr.parentId + '#' + tr.locale, tr)
+        }
+        if (candidates.size) {
+          const parents = [...new Set([...candidates.values()].map((c) => c.parentId))]
+          const live = new Set((await tx.select({ id: e.table.id }).from(e.table).where(and(inArray(e.table.id, parents), ownPublishedCond(e)))).map((r: any) => r.id))
+          for (const tr of candidates.values()) if (live.has(tr.parentId)) due.push({ e, id: tr.parentId, row: { updatedAt: tr.updatedAt }, locale: tr.locale })
+        }
       }
     }
     await tx.insert(s).values({ key: KEY, value: { at: new Date(now).toISOString() } })

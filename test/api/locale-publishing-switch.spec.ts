@@ -139,4 +139,15 @@ describe('switching publish.perLocale on', () => {
     // (The build without the option does not know the state: it still serves the entry in English. That is what makes the first test a comparison.)
     expect((await offClient.get('/api/content/post/jen-cesky?locale=en')).status).toBe(200)
   }, 120_000)
+
+  it('keeps a language published on its own off the website while the default language is a draft (the default language gates)', async () => {
+    const before = await snapshot(anonymous())
+    const drafts = (await db.query(`select id from post where slug in ('koncept', 'brzy')`)).rows
+    expect(drafts).toHaveLength(2) // a draft, and one scheduled for tomorrow
+    for (const { id } of drafts) expect((await admin.request('PATCH', `/api/cms/post/${id}?locale=en`, { json: { status: 'published' } })).status).toBe(200)
+    // Nothing a visitor can read changed: not the English items, lists, the sitemap and its alternates, nor the search.
+    expect(await snapshot(anonymous())).toEqual(before)
+    expect((await anonymous().get('/api/content/post/draft?locale=en')).status).toBe(404)
+    expect((await anonymous().get('/api/content/post/soon?locale=en')).status).toBe(404)
+  }, 120_000)
 })

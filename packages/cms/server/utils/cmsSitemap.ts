@@ -37,12 +37,12 @@ export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<Sitemap
     const keys = pathKeys(e.content.path).filter((k) => e.table[k])
     const cols: Record<string, any> = { id: e.table.id, updatedAt: e.table.updatedAt }
     for (const k of keys) cols[k] = e.table[k]
-    // Publishing per language: a language is in the sitemap, and among the alternates, only while it is live.
+    // Publishing per language: a language is in the sitemap, and among the alternates, only while it is live (the default language gates the others, so an entry that is not live in it is not here at all).
     const perLanguage = perLocalePublishing(e) && !!reg.locales
     const languages = reg.locales?.locales ?? []
     if (perLanguage) languages.forEach((l, i) => { cols[`live${i}`] = sql<boolean>`coalesce(${publishedCond(e, l) ?? sql`true`}, false)` })
     const liveIn = (row: any, locale: string | null) => !perLanguage || !locale || row[`live${languages.indexOf(locale)}`] === true
-    const rows: any[] = await db.select(cols).from(e.table).where(perLanguage ? liveInAnyCond(e, languages) : publishedCond(e)).limit(50_000)
+    const rows: any[] = await db.select(cols).from(e.table).where(publishedCond(e)).limit(50_000)
     if (!rows.length) continue
     const translations = await translationsByParent(db, reg, e, rows.map((r) => r.id), keys)
     // A page tree: addresses are the chain of ancestors' address parts (live pages only: publishedCond checks the ancestors).
