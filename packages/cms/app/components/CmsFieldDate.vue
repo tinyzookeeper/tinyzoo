@@ -5,6 +5,7 @@
 // The day is picked from a calendar ("Saturday 13 June 2026"), the time typed beside
 // it. `f.datetime({ allDay: true })` adds "All day": the time goes away and the value
 // is stored at 0:00.
+import type { ButtonProps } from '@nuxt/ui'
 import { CalendarDate } from '@internationalized/date'
 
 const props = defineProps<{ field: any; entity?: string; id?: string }>()
@@ -34,10 +35,11 @@ function write(d: string, hm: string) {
 
 const open = ref(false)
 // The calendar's own words otherwise stay English ("Event date", "Previous month").
+// Nuxt UI types the arrows as ButtonProps only, yet v-binds them, so HTML attributes reach the button.
 const calendarLabels = computed(() => ({
   calendarLabel: fieldLabel(props.field),
-  prevMonth: { 'aria-label': t('fields.prevMonth') },
-  nextMonth: { 'aria-label': t('fields.nextMonth') },
+  prevMonth: { 'aria-label': t('fields.prevMonth') } as ButtonProps,
+  nextMonth: { 'aria-label': t('fields.nextMonth') } as ButtonProps,
 }))
 const calendarValue = computed({
   get: () => {
@@ -123,7 +125,7 @@ const shortShown = computed(() => {
       />
       <UButton
         v-if="model && field.optional" :id="clearId" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('fields.clear')"
-        @click="model = null"
+        @click="() => { model = null }"
       />
     </div>
     <UCheckbox v-if="canAllDay" :id="allDayId" :model-value="allDay" :label="t('fields.allDay')" class="mt-2.5" @update:model-value="setAllDay" />

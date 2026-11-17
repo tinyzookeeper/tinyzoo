@@ -1,11 +1,13 @@
 <script setup lang="ts">
+import type { Post } from '~/lib/cms-content'
+
 // The English version of a post lives under /en (the language prefix the CMS adds).
 definePageMeta({ alias: ["/en/blog/:slug"] })
 const route = useRoute()
 // Pass ?preview through so an authenticated editor can see a draft. useRequestFetch
 // forwards the incoming cookie on SSR so the editor's session reaches the content API
 // (a plain useFetch would drop it → the draft would 404 during server render).
-const { data, error } = await useFetch(() => `/api/content/post/${route.params.slug}`, {
+const { data, error } = await useFetch<{ item: Post; preview?: true }>(() => `/api/content/post/${route.params.slug}`, {
   query: { preview: route.query.preview, locale: route.query.locale },
   // useRequestFetch's server-side type lacks $fetch's .raw/.create; the call shape is the same.
   $fetch: useRequestFetch() as typeof $fetch,

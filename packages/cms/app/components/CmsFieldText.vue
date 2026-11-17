@@ -50,7 +50,7 @@ const pickedRef = computed(() => (asRefs.value && typeof model.value === 'string
           <CmsLinkPicker :initial="null" refs @pick="onPick" />
         </template>
       </UPopover>
-      <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('link.remove')" @click="model = ''" />
+      <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('link.remove')" @click="() => { model = '' }" />
     </div>
     <UInput v-else :id="id" v-model="model" :variant="variant" :placeholder="variant === 'ghost' ? t('fields.notSet') : undefined" class="w-full" :maxlength="max" :icon="icon" :ui="href || pickable ? { trailing: 'pe-1.5' } : undefined">
       <template v-if="href || pickable" #trailing>

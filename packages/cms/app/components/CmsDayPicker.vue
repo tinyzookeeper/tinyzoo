@@ -2,6 +2,7 @@
 // A day (YYYY-MM-DD) from the admin's calendar, for small places like list filters:
 // a button with the day ("14. 11. 2026") that opens the same calendar the date
 // field uses, never the browser's own date box.
+import type { ButtonProps } from '@nuxt/ui'
 import { CalendarDate } from '@internationalized/date'
 
 const props = defineProps<{ label: string; placeholder?: string }>()
@@ -20,6 +21,9 @@ const value = computed({
     open.value = false
   },
 })
+// Nuxt UI types the arrows as ButtonProps only, yet v-binds them, so HTML attributes reach the button.
+const prevMonth = computed(() => ({ 'aria-label': t('fields.prevMonth') }) as ButtonProps)
+const nextMonth = computed(() => ({ 'aria-label': t('fields.nextMonth') }) as ButtonProps)
 const shown = computed(() => (model.value ? formatDateWith(`${model.value}T12:00:00`, { dateStyle: 'medium' }) : ''))
 </script>
 
@@ -33,7 +37,7 @@ const shown = computed(() => (model.value ? formatDateWith(`${model.value}T12:00
       <div class="p-2">
         <UCalendar
           v-model="value" :locale="locale" :week-starts-on="1" weekday-format="short" :year-controls="false" :fixed-weeks="false"
-          :calendar-label="label" :prev-month="{ 'aria-label': t('fields.prevMonth') }" :next-month="{ 'aria-label': t('fields.nextMonth') }"
+          :calendar-label="label" :prev-month="prevMonth" :next-month="nextMonth"
         />
         <div v-if="model" class="flex justify-end pt-1">
           <UButton size="xs" color="neutral" variant="ghost" @click="value = undefined">{{ t('fields.clear') }}</UButton>

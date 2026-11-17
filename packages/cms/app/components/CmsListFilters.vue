@@ -91,7 +91,7 @@ const setDate = (param: string, v: string, part: 'from' | 'to') => {
               <CmsDayPicker :label="`${fieldLabel(f)} ${t('list.filterTo')}`" :placeholder="t('list.filterTo')" :model-value="dateValue(`filter.${f.key}.to`)" @update:model-value="(v: string) => setDate(`filter.${f.key}.to`, v, 'to')" />
             </div>
           </div>
-          <UButton v-if="count" color="neutral" variant="link" size="sm" class="px-0" @click="model = {}">{{ t('list.filterClear') }}</UButton>
+          <UButton v-if="count" color="neutral" variant="link" size="sm" class="px-0" @click="() => { model = {} }">{{ t('list.filterClear') }}</UButton>
         </div>
       </template>
     </UPopover>

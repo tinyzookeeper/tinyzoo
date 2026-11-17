@@ -13,7 +13,7 @@ Every pull request and every push to `main` (`.github/workflows/ci.yml`, about f
 
 | Job | What |
 |---|---|
-| `check` | `pnpm typecheck` and `pnpm test:unit` |
+| `check` | `pnpm typecheck` (the code, the docs' examples and the Vue templates of the admin, playground, starter and website) and `pnpm test:unit` |
 | `api` | `pnpm test:api`: the built playground over HTTP against Postgres and Redis. Its production build is the build check |
 | `changeset` | pull requests only: a change to a package comes with a changeset |
 
