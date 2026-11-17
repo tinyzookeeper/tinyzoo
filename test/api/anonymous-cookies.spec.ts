@@ -54,10 +54,17 @@ describe('anonymous visitors', () => {
       await res.arrayBuffer()
       expect([path, res.headers.getSetCookie()]).toEqual([path, []])
     }
-    // A cookie from another secret / an old session: not valid, not replaced by a new anonymous one either.
+    // A cookie from another secret / an old session opens nothing. The seal does not open, so
+    // Nuxt's useSession starts an empty session in its place: the response sets that one cookie
+    // again (never another), and the new one opens nothing either.
     const stale = await get('/api/content/post', { cookie: 'nuxt-auth-session=Fe26.2**nonsense' })
     await stale.arrayBuffer()
-    expect(cookiesOf(stale).filter((c) => c !== 'nuxt-auth-session')).toEqual([])
+    expect(stale.status).toBe(200)
+    expect(cookiesOf(stale)).toEqual(['nuxt-auth-session'])
+    const replaced = stale.headers.getSetCookie()[0]!.split(';')[0]!
+    expect(replaced).not.toBe('nuxt-auth-session=Fe26.2**nonsense')
+    expect((await get('/api/cms/_auth/me', { cookie: replaced })).status).toBe(401)
+    expect(await (await get('/api/_auth/session', { cookie: replaced })).json()).not.toHaveProperty('user')
   })
 
   it('treat the cookie of tinyzoo 0.3 and older (`nuxt-session`) as no session at all', async () => {

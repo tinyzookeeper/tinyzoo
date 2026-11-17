@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { TestProject } from 'vitest/node'
 import { playgroundDir, prepareTestDatabase, repoRoot, testDatabaseUrl } from './database'
-import { BUILD_CRON, TEST_TIMERS } from './timers'
+import { BUILD_CRON, BUILD_SECRETS, TEST_TIMERS } from './timers'
 
 /**
  * Global setup for the API suites.
@@ -73,7 +73,8 @@ export default async function setup(project: TestProject) {
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
       // Scheduled entries are checked every second in tests (every minute by default), retention every 3 s (daily).
-      env: { ...process.env, NODE_ENV: 'production', ...BUILD_CRON },
+      // Secrets in the build's environment too (start-checks.spec: none of them ends up in the output).
+      env: { ...process.env, NODE_ENV: 'production', ...BUILD_CRON, ...BUILD_SECRETS },
     })
     if (res.status !== 0) {
       throw new Error(`Playground build failed:\n${res.stdout}\n${res.stderr}`)
@@ -96,7 +97,12 @@ export default async function setup(project: TestProject) {
   const logs: string[] = []
   // The server runs as in production: without Vitest's TEST flag, which would make
   // Nitro skip its scheduled tasks (std-env's isTest).
-  const { TEST: _test, VITEST: _vitest, ...parentEnv } = process.env
+  // Nor the app secret of the shell running the tests (NITRO_APP_SECRET would win over the one below).
+  const {
+    TEST: _test, VITEST: _vitest,
+    NUXT_APP_SECRET: _a, NITRO_APP_SECRET: _na, NUXT_SESSION_PASSWORD: _p, NITRO_SESSION_PASSWORD: _np,
+    ...parentEnv
+  } = process.env
   const child = spawn(process.execPath, [serverEntry], {
     cwd: playgroundDir,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -165,6 +171,7 @@ export default async function setup(project: TestProject) {
   project.provide('mailDir', mailDir)
   project.provide('hooksDir', hooks.dir)
   project.provide('accounts', accounts)
+  project.provide('outputDir', outputDir)
 
   return async () => {
     if (child.exitCode === null) {
@@ -260,5 +267,7 @@ declare module 'vitest' {
     mailDir: string
     hooksDir: string
     accounts: TestAccounts
+    /** The test build's `.output` (start-checks.spec looks through it). */
+    outputDir: string
   }
 }

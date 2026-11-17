@@ -53,7 +53,13 @@ export async function startServer(databaseUrl: string, env: Record<string, strin
   const port = await freePort()
   const baseURL = `http://127.0.0.1:${port}`
   const logs: string[] = []
-  const { TEST: _t, VITEST: _v, NUXT_CMS_AUTH_SETUP_TOKEN: _s, ...parentEnv } = process.env
+  // The app secret is only what this server is given: a secret (or stand-in) exported in the
+  // shell running the tests must not change what the start-up checks see.
+  const {
+    TEST: _t, VITEST: _v, NUXT_CMS_AUTH_SETUP_TOKEN: _s,
+    NUXT_APP_SECRET: _a, NITRO_APP_SECRET: _na, NUXT_SESSION_PASSWORD: _p, NITRO_SESSION_PASSWORD: _np,
+    ...parentEnv
+  } = process.env
   const child = spawn(process.execPath, [builtServer], {
     cwd: join(repoRoot, 'playground'),
     stdio: ['ignore', 'pipe', 'pipe'],

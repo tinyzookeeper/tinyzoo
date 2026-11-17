@@ -1,6 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
 import { Client } from '../helpers/api'
 import { scratchDatabase, startServer } from '../helpers/server'
+import { BUILD_SECRETS } from '../setup/timers'
 
 // A production server that is misconfigured does not start: it says which variable is
 // wrong, instead of answering "ready" and failing the first sign-in with a 500.
@@ -26,6 +29,12 @@ describe('start-up checks (production)', () => {
     }
     // Nitro parses the environment as JSON where it can: JSON is not a secret.
     expect(await failure({ NUXT_APP_SECRET: '{"secret":"0123456789abcdef0123456789abcdef"}' })).toMatch(/NUXT_APP_SECRET was read as an object/)
+  })
+
+  it('names NITRO_APP_SECRET when that is the one Nitro read (it wins over NUXT_APP_SECRET)', async () => {
+    const message = await failure({ NUXT_APP_SECRET: 'a-long-enough-nuxt-app-secret-0123456789', NITRO_APP_SECRET: 'short-nitro-secret' })
+    expect(message).toContain('NITRO_APP_SECRET is only 18 characters long')
+    expect(message).not.toMatch(/NUXT_APP_SECRET is/)
   })
 
   it('refuses to start without a database address, naming DATABASE_URL and NUXT_CMS_DATABASE_URL', async () => {
@@ -71,6 +80,8 @@ describe('NUXT_SESSION_PASSWORD standing in for NUXT_APP_SECRET (deprecated)', (
       const logs = s.logs.join('')
       expect(logs.match(/\[tinyzoo\] deprecated: NUXT_SESSION_PASSWORD is used as the app secret/g) ?? []).toHaveLength(1)
       expect(logs).toMatch(/Rename the variable to NUXT_APP_SECRET/)
+      // nuxt-auth-utils prints its own "is not used anymore" next to it: tinyzoo's line says that one can be ignored for now.
+      expect(logs).toMatch(/nuxt-auth-utils' own warning that it "is not used anymore" can be ignored/)
       const c = new Client(s.baseURL)
       expect((await c.post('/api/cms/_auth/setup', { ...account, token: SETUP })).status).toBe(201)
       expect(c.cookie).toContain('nuxt-auth-session=')
@@ -107,9 +118,44 @@ describe('NUXT_SESSION_PASSWORD standing in for NUXT_APP_SECRET (deprecated)', (
     finally { await s.stop() }
   })
 
+  it('a set NITRO_APP_SECRET wins as well: NUXT_SESSION_PASSWORD is not used', async () => {
+    const s = await startServer(db.url, { NUXT_APP_SECRET: '', NITRO_APP_SECRET: 'a-nitro-app-secret-of-at-least-32-characters', NUXT_SESSION_PASSWORD: PASSWORD })
+    try {
+      expect(s.logs.join('')).not.toMatch(/\[tinyzoo\] deprecated/)
+      const c = new Client(s.baseURL)
+      c.cookie = cookie
+      expect((await c.get('/api/cms/_auth/me')).status).toBe(401)
+    }
+    finally { await s.stop() }
+  })
+
   it('a NUXT_SESSION_PASSWORD under 32 characters is refused like a short NUXT_APP_SECRET, naming both', async () => {
     const message = await failure({ NUXT_APP_SECRET: '', NUXT_SESSION_PASSWORD: 'too-short-for-a-session' })
     expect(message).toContain('NUXT_SESSION_PASSWORD (used because NUXT_APP_SECRET is not set)')
     expect(message).toMatch(/32 characters/)
+  })
+})
+
+// The app secret (and the old session password) are read when the server starts, never at
+// build time: a build whose environment had them writes none of them into `.output`. The test
+// build gets three recognisable ones (test/setup/timers.ts, BUILD_SECRETS).
+describe('the build', () => {
+  // Every file of the output (symbolic links, to packages traced into it, are not followed).
+  const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true })
+    .flatMap((e) => e.isDirectory() ? files(join(dir, e.name)) : e.isFile() ? [join(dir, e.name)] : [])
+
+  it('writes no secret from its environment into the output, and still carries the NUXT_SESSION_PASSWORD stand-in', () => {
+    const all = files(inject('outputDir'))
+    expect(all.length).toBeGreaterThan(10)
+    const found: string[] = []
+    let fallback = 0
+    for (const file of all) {
+      const text = readFileSync(file).toString('latin1')
+      for (const [name, value] of Object.entries(BUILD_SECRETS)) if (text.includes(value)) found.push(`${name} in ${file}`)
+      if (text.includes('tinyzoo.appSecretFrom')) fallback++
+    }
+    expect(found).toEqual([])
+    // An app secret in the build's environment does not drop the stand-in (only runtimeConfig.appSecret in nuxt.config does).
+    expect(fallback).toBeGreaterThan(0)
   })
 })

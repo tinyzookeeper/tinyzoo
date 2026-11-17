@@ -18,3 +18,14 @@ export const TEST_TIMERS = {
 
 /** The scheduled tasks of the test build (cron with seconds): scheduled entries every second, retention every 3 s (production: every minute, daily). */
 export const BUILD_CRON = { CMS_SCHEDULER_CRON: '* * * * * *', CMS_RETENTION_CRON: '*/3 * * * * *' } as const
+
+/**
+ * Secrets in the environment of the test build, each recognisable: a build must not write any
+ * of them into `.output` (the app secret is read at start, never at build). start-checks.spec
+ * looks for them in the output.
+ */
+export const BUILD_SECRETS = {
+  NUXT_APP_SECRET: 'build-env-app-secret-must-not-be-bundled-4f1c9a',
+  NITRO_APP_SECRET: 'build-env-nitro-app-secret-must-not-be-bundled-7b2e',
+  NUXT_SESSION_PASSWORD: 'build-env-session-password-must-not-be-bundled-93d0',
+} as const
