@@ -15,7 +15,7 @@ const { t } = useCmsI18n()
       <UButton
         color="neutral" variant="link" size="sm" :icon="visible ? 'i-lucide-eye-off' : 'i-lucide-eye'"
         :aria-label="visible ? t('auth.hidePassword') : t('auth.showPassword')" :aria-pressed="visible"
-        @click="visible = !visible"
+        @click="() => { visible = !visible }"
       />
     </template>
   </UInput>

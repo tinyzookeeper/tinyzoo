@@ -67,7 +67,7 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
       <UFieldGroup>
         <UButton
           v-for="a in accents" :key="a" color="neutral" :variant="accent === a ? 'solid' : 'outline'"
-          size="sm" class="capitalize" @click="accent = a"
+          size="sm" class="capitalize" @click="() => { accent = a }"
         >{{ a }}</UButton>
       </UFieldGroup>
     </template>

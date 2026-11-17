@@ -105,10 +105,22 @@ moving a site to a newer tinyzoo is described in [upgrading.md](upgrading.md).
 pnpm test          # unit + API suites (needs the compose Postgres running)
 pnpm test:unit     # core, CLI and server helpers: descriptors, codegen drift, sanitiser, client; the CLI specs use scratch databases (cms_test_*), ~15 s
 pnpm test:api      # the built playground over real HTTP against real Postgres
-pnpm typecheck     # core/client/tests (tsc) + the playground and layer (nuxt typecheck)
+pnpm typecheck     # core/client/tests (tsc), the docs' examples, and the playground, starter and website with the layer, templates included (vue-tsc 3)
 pnpm build         # a plain production build (Pushbase, Docker, any VM); the API tests make one too
 pnpm check         # typecheck + test: what CI runs on every pull request
 ```
+
+`pnpm typecheck` reads the admin's Vue templates too: the playground's and the website's `nuxt typecheck`
+run vue-tsc over everything their `.nuxt/tsconfig.*.json` include, which is their own `app/` and the
+layer's (`packages/cms/app/**`, the components of `tinyzoo/forms` among them). A wrong prop, a value that
+may be `undefined`, or a handler of the wrong type fails it with the file and line. It needs vue-tsc 3:
+vue-tsc 2 found no `vue` package next to the generated tsconfig (pnpm does not hoist it there), skipped its
+template types without a word, and so checked only the `<script>` blocks. The starter's own check
+(`node scripts/typecheck.mjs`) reports only the starter's files, as a site made from it would.
+
+One habit it asks for: an inline `@click` on a `UButton` that assigns or returns a value is written as
+`@click="() => { open = false }"`. Nuxt UI 4.9 types the handler as returning `void | Promise<void>`, so
+`@click="open = false"` (which returns `false`) does not type-check; Nuxt UI 4.10 lifts that.
 
 The API suites run against **their own database**, `<dev db>_test` (e.g. `cms_test`; any name with a `test` word in it, such as `cms_test_ops`, is accepted),
 which the global setup creates, wipes and migrates from the playground's migrations

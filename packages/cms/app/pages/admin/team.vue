@@ -268,10 +268,10 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
         <div class="flex justify-end gap-2 w-full">
           <template v-if="created">
             <UButton color="neutral" variant="ghost" icon="i-lucide-user-plus" @click="openInvite">{{ t('team.inviteAnother') }}</UButton>
-            <UButton @click="inviteOpen = false">{{ t('common.close') }}</UButton>
+            <UButton @click="() => { inviteOpen = false }">{{ t('common.close') }}</UButton>
           </template>
           <template v-else>
-            <UButton color="neutral" variant="ghost" @click="inviteOpen = false">{{ t('common.cancel') }}</UButton>
+            <UButton color="neutral" variant="ghost" @click="() => { inviteOpen = false }">{{ t('common.cancel') }}</UButton>
             <UButton type="submit" form="cms-invite" icon="i-lucide-send" :loading="inviting">{{ t('team.sendInvite') }}</UButton>
           </template>
         </div>

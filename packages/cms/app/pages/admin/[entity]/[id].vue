@@ -801,11 +801,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         </UButton>
       </UDropdownMenu>
       <UTooltip v-if="!isNew" :text="t('revisions.open')">
-        <UButton variant="ghost" color="neutral" icon="i-lucide-history" :aria-label="t('revisions.open')" class="max-md:hidden" @click="historyOpen = true" />
+        <UButton variant="ghost" color="neutral" icon="i-lucide-history" :aria-label="t('revisions.open')" class="max-md:hidden" @click="() => { historyOpen = true }" />
       </UTooltip>
       <UButton
         v-if="arrangement === 'write' && wide && !split" color="neutral" variant="outline" icon="i-lucide-sliders-horizontal"
-        :class="detailsOpen ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="detailsOpen" @click="detailsOpen = !detailsOpen"
+        :class="detailsOpen ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="detailsOpen" @click="() => { detailsOpen = !detailsOpen }"
       >{{ t('editor.details') }}</UButton>
       <!-- phones: the details sit under the text; this says they exist and goes there -->
       <UButton
@@ -819,18 +819,18 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 
       <!-- one primary action (none for someone who cannot save here) -->
       <template v-if="readOnly" />
-      <UButton v-else-if="isTranslation" :loading="saving" @click="save()">{{ t('translation.save') }}</UButton>
+      <UButton v-else-if="isTranslation" :loading="saving" @click="() => { save() }">{{ t('translation.save') }}</UButton>
       <template v-else-if="publish && canPublish">
-        <UButton v-if="isPublished && !isNew" :loading="saving" @click="save()">{{ futureDate ? t('editor.saveChanges') : t('editor.update') }}</UButton>
+        <UButton v-if="isPublished && !isNew" :loading="saving" @click="() => { save() }">{{ futureDate ? t('editor.saveChanges') : t('editor.update') }}</UButton>
         <template v-else>
-          <UButton color="neutral" variant="outline" :loading="saving" class="max-md:hidden" @click="save()">{{ t('editor.saveDraft') }}</UButton>
+          <UButton color="neutral" variant="outline" :loading="saving" class="max-md:hidden" @click="() => { save() }">{{ t('editor.saveDraft') }}</UButton>
           <!-- phones: with unsaved changes the bar offers Save (Publish waits in the menu), otherwise Publish -->
-          <UButton v-if="phoneSave" class="md:hidden" :loading="saving" @click="save()">{{ t('common.save') }}</UButton>
-          <UButton :disabled="saving" :class="phoneSave ? 'max-md:hidden' : ''" @click="reviewOpen = true">{{ t('editor.publishEllipsis') }}</UButton>
+          <UButton v-if="phoneSave" class="md:hidden" :loading="saving" @click="() => { save() }">{{ t('common.save') }}</UButton>
+          <UButton :disabled="saving" :class="phoneSave ? 'max-md:hidden' : ''" @click="() => { reviewOpen = true }">{{ t('editor.publishEllipsis') }}</UButton>
         </template>
       </template>
-      <UButton v-else-if="isNew" :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.create') }}</UButton>
-      <UButton v-else :loading="saving" @click="save()">{{ publish ? t('editor.saveDraft') : t('common.save') }}</UButton>
+      <UButton v-else-if="isNew" :loading="saving" @click="() => { save() }">{{ publish ? t('editor.saveDraft') : t('common.create') }}</UButton>
+      <UButton v-else :loading="saving" @click="() => { save() }">{{ publish ? t('editor.saveDraft') : t('common.save') }}</UButton>
       <UDropdownMenu v-if="menuGroups.length" :items="menuGroups" :content="{ align: 'end' }">
         <UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('editor.moreActions')" />
       </UDropdownMenu>
