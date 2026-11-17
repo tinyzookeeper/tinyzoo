@@ -165,6 +165,7 @@ for 2.0, and anything removed was deprecated for at least one minor first.
 | M | **Custom roles and per-field permissions**: roles defined in config on top of admin/editor/author; per field `read`/`edit` by role; media access per role | L |
 | N | **Per-language publishing**: each translation has its own state and schedule; the content API and webhooks follow it | M |
 | O | **`pnpm create tinyzoo`**: a `create-tinyzoo` package wrapping `tinyzoo init` with questions (languages, which presets, demo content) | S |
+| T | **`useFetch` typed without a type argument**: the type generator also writes Nitro route types per collection and global (`/api/content/news/:slug` → `{ item: News }`), so `useFetch('/api/content/news/…')` infers the item the way `cms.news.get()` does. First check how Nitro chooses between these routes and the generic `:entity` one | S |
 | P | **API review before the freeze**: list the public surface of each API, remove what's deprecated, mark internals as internal, typed-config golden tests | M |
 
 ### Wave 5: ship 1.0
