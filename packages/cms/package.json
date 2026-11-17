@@ -51,9 +51,9 @@
   ],
   "dependencies": {
     "@fastify/busboy": "^3.2.6",
-    "@hocuspocus/extension-redis": "^3.4.4",
-    "@hocuspocus/provider": "^3.4.4",
-    "@hocuspocus/server": "^3.4.4",
+    "@hocuspocus/extension-redis": "^4.8.0",
+    "@hocuspocus/provider": "^4.8.0",
+    "@hocuspocus/server": "^4.8.0",
     "@nuxt/kit": "^4.0.0",
     "@tiptap/core": "^3.34.0",
     "@tiptap/extension-collaboration": "^3.34.0",

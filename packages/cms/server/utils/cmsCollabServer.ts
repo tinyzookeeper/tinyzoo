@@ -278,7 +278,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
       return document
     },
 
-    async onStoreDocument({ documentName, document, context }) {
+    async onStoreDocument({ documentName, document, lastContext }) {
       const epoch = loadedEpoch.get(documentName)
       if (!epoch) return
       const state = encodeState(document)
@@ -295,8 +295,9 @@ async function startCollabServer(): Promise<Hocuspocus> {
       const active = await occupied(document)
       const stored: any[] = await db.update(c).set({ state, updatedAt: sql`now()`, activeAt: active ? sql`now()` : null })
         .where(and(eq(c.name, documentName), eq(c.epoch, epoch))).returning({ name: c.name })
-      // Who typed last: shown with text that is left behind unsaved.
-      const typist = (context as CollabContext | undefined)?.displayName
+      // Who typed last: shown with text that is left behind unsaved. (The context of the
+      // connection behind the last change; empty for one that came from another replica.)
+      const typist = (lastContext as CollabContext | undefined)?.displayName
       if (stored.length && typist) await noteCollabEditor(documentName, typist).catch(() => {})
       if (!stored.length) {
         // Restarted (or deleted) meanwhile: what is loaded here is an old history.
@@ -446,7 +447,7 @@ export async function stopCollabServer(): Promise<void> {
   }
   server.closeConnections()
   // Store what is still pending, then let extensions (Redis) close their clients.
-  await Promise.allSettled([...server.documents.values()].map((d) => server.storeDocumentHooks(d, { clientsCount: 0, context: {}, document: d, documentName: d.name, instance: server, requestHeaders: {}, requestParameters: new URLSearchParams(), socketId: 'shutdown' } as any, true)))
+  await Promise.allSettled([...server.documents.values()].map((d) => server.storeDocumentHooks(d, { clientsCount: 0, lastContext: {}, lastTransactionOrigin: null, document: d, documentName: d.name, instance: server }, true)))
   await Promise.resolve(server.hooks('onDestroy', { instance: server } as any)).catch(() => {})
   await p?.close()
 }
