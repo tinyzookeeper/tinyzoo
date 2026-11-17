@@ -5,7 +5,6 @@ import { f } from './fields'
 import type { LocalizedText } from './i18n'
 import type { PathTemplate } from './paths'
 import { cmsDeprecated } from './deprecate'
-import { defineForm as formsDefineForm, defineFormSettings as formsDefineFormSettings, IMPLICIT_FORMS_REQUIREMENT } from '../forms'
 import { TREE_DEFAULT_MAX_DEPTH } from './tree'
 
 const SEO_GROUP = { en: 'Search & sharing', cs: 'Vyhledávače a sdílení', de: 'Suche & Teilen' }
@@ -195,36 +194,5 @@ export function defineRedirects(opts: { name?: string } = {}) {
   return e
 }
 
-// ── forms: moved to the forms plugin (`tinyzoo/forms`); these keep old sites working ──
+// ── forms: in the forms plugin (`tinyzoo/forms`); the field types and options stay importable from here ──
 export { FORM_FIELD_TYPES, type FormOptions } from '../forms'
-
-/**
- * @deprecated Import `defineForm` from `tinyzoo/forms` and register `formsPlugin()` in
- * `export const plugins = [...]`. Still works (it registers the plugin by itself), same
- * tables and endpoints. Removed in 0.4.
- */
-export function defineForm<F extends Record<string, any>>(name: string, opts: import('../forms').FormOptions<F>) {
-  cmsDeprecated(
-    'defineForm',
-    '`defineForm()` from "tinyzoo" is replaced by `defineForm()` from "tinyzoo/forms" with `export const plugins = [formsPlugin()]` in cms.config.ts.',
-    { removeIn: '0.4.0' },
-  )
-  const e = formsDefineForm(name, opts)
-  ;(e as any).requiresPlugin = IMPLICIT_FORMS_REQUIREMENT
-  return e
-}
-
-/**
- * @deprecated Import `defineFormSettings` from `tinyzoo/forms` and register `formsPlugin()`.
- * Still works (it registers the plugin by itself). Removed in 0.4.
- */
-export function defineFormSettings(opts: Parameters<typeof formsDefineFormSettings>[0] = {}) {
-  cmsDeprecated(
-    'defineFormSettings',
-    '`defineFormSettings()` from "tinyzoo" is replaced by `defineFormSettings()` from "tinyzoo/forms" with `export const plugins = [formsPlugin()]` in cms.config.ts.',
-    { removeIn: '0.4.0' },
-  )
-  const e = formsDefineFormSettings(opts)
-  ;(e as any).requiresPlugin = IMPLICIT_FORMS_REQUIREMENT
-  return e
-}

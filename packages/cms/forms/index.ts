@@ -198,6 +198,3 @@ export function formsPlugin(): CmsPlugin {
     },
   })
 }
-
-/** The registration the deprecated `defineForm` / `defineFormSettings` of `tinyzoo` leave to the plugin. */
-export const IMPLICIT_FORMS_REQUIREMENT: CmsPluginRequirement = { ...FORMS_REQUIREMENT, create: formsPlugin }

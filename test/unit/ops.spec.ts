@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { defineForm, f, generateSetupCode, normalizeSetupCode, buildRegistry } from '../../packages/cms/src/index'
+import { f, generateSetupCode, normalizeSetupCode, buildRegistry } from '../../packages/cms/src/index'
+import { defineForm, formsPlugin } from '../../packages/cms/forms'
 import { pgEnv, safeKey, settingsFrom } from '../../packages/cms/cli/backup'
 
 describe('setup code', () => {
@@ -39,10 +40,10 @@ describe('defineForm retentionDays', () => {
   it('is kept on the form and shown in the admin graph; default is to keep', () => {
     const kept = defineForm('keptForm', { label: 'Kept', fields })
     const limited = defineForm('limitedForm', { label: 'Limited', fields, retentionDays: 90 })
-    const reg = buildRegistry({ kept, limited })
+    const reg = buildRegistry({ kept, limited, plugins: [formsPlugin()] })
     expect((limited as any).form.retentionDays).toBe(90)
     expect((kept as any).form.retentionDays).toBeNull()
-    // The forms plugin (registered by itself here: the deprecated defineForm) adds the note to the graph.
+    // The forms plugin adds the note to the graph.
     expect(reg.graph.find((g) => g.name === 'limitedForm')!.notices).toEqual([{ icon: 'i-lucide-clock', key: 'plugins.forms.retention', params: { count: 90 } }])
     expect(reg.graph.find((g) => g.name === 'keptForm')!.notices).toEqual([])
   })

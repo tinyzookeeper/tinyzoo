@@ -45,8 +45,8 @@ database: [deploying.md](deploying.md#backups-and-restore)).
 5. **Apply it** with `pnpm exec tinyzoo up`, or at start with `NUXT_CMS_MIGRATIONS_ON_START=true`.
    Stop the old instances first: the old version does not find the renamed tables. Search
    your own code for raw SQL that names a table by its old camelCase name.
-6. **Forms moved to a plugin.** The old `import { defineForm } from 'tinyzoo'` still works and
-   logs one deprecation line per helper; it is removed in 0.4. Change the import to
+6. **Forms moved to a plugin.** The old `import { defineForm } from 'tinyzoo'` still works in
+   0.2 and 0.3 and logs one deprecation line per helper; 0.4 removes it. Change the import to
    `tinyzoo/forms` and register the plugin. No migration, no change in the tables:
 
    ```ts
@@ -129,6 +129,16 @@ which needs Nuxt 4.6 and seals the sign-in cookie differently.
    admin. Accounts and passwords are unchanged. Renaming the variable later, with the same value,
    does not sign anyone out again; a new value does. A session still ends 14 days
    (`runtimeConfig.session.maxAge`) after signing in, however often it is written since.
+5. **Forms only from `tinyzoo/forms`.** `defineForm` and `defineFormSettings` are no longer
+   exported from `tinyzoo` (deprecated since 0.2). If your `cms.config.ts` still imports them
+   from there, `pnpm typecheck` says so; change the import and register the plugin, as in
+   step 6 of "From 0.1 to 0.2" above. No migration, the tables stay:
+
+   ```ts
+   import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
+
+   export const plugins = [formsPlugin()]
+   ```
 
 ## On every upgrade
 

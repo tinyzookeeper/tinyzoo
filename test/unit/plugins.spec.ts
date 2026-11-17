@@ -4,7 +4,6 @@ import {
   matchRoute, planPlugins, pluginFile, pluginRouteAccess, pluginUpgradeSteps, resetCmsDeprecations, type CmsPluginDef,
 } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
-import { defineForm as deprecatedDefineForm, defineFormSettings as deprecatedDefineFormSettings } from 'tinyzoo'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -234,55 +233,6 @@ describe('collectPlugins', () => {
     defineForm('contactForm', { label: 'Contact', fields: { email: f.text({ required: true, format: 'email' }) } })
     defineFormSettings()
     expect(cmsDeprecations()).toEqual([])
-  })
-})
-
-describe('deprecated forms through "tinyzoo"', () => {
-  beforeEach(() => resetCmsDeprecations())
-  const fields = { email: f.text({ required: true, format: 'email' }), message: f.text({ required: true }) }
-
-  it('still works: registers the forms plugin by itself, same entity', () => {
-    const Contact = deprecatedDefineForm('contactForm', { label: 'Contact', fields, retentionDays: 30 })
-    const Settings = deprecatedDefineFormSettings()
-    const reg = buildRegistry({ Contact, Settings })
-    expect(reg.plugins.map((p) => p.name)).toEqual(['forms'])
-    expect(reg.byName.get('contactForm')).toBe(Contact)
-    expect((Contact as any).preset).toBe('form')
-    expect((Settings as any).preset).toBe('formSettings')
-    // the tables are the ones defineForm has always made
-    expect(Object.keys((Contact as any).table).sort()).toEqual(expect.arrayContaining(['id', 'email', 'message', 'status', 'createdAt']))
-  })
-
-  it('warns once per helper, with what to do', () => {
-    deprecatedDefineForm('a', { label: 'A', fields })
-    deprecatedDefineForm('b', { label: 'B', fields })
-    deprecatedDefineFormSettings()
-    deprecatedDefineFormSettings()
-    expect(cmsDeprecations().map((d) => d.id)).toEqual(['defineForm', 'defineFormSettings'])
-    expect(cmsDeprecations()[0]).toMatchObject({ removeIn: '0.4.0' })
-    expect(cmsDeprecations()[0]!.message).toContain('tinyzoo/forms')
-  })
-
-  it('is planned for the build like the explicit plugin: endpoints, components, texts', () => {
-    const Contact = deprecatedDefineForm('contactForm', { label: 'Contact', fields })
-    const plan = planPlugins(collectPlugins({ Contact }))
-    expect(plan.handlers.map((h) => `${h.method} ${h.route}`)).toEqual(['get /api/content/_form/:name', 'post /api/content/_form/:name'])
-    expect(plan.componentDirs).toHaveLength(1)
-    expect(plan.messages.forms).toBeDefined()
-    expect(plan).toEqual(planPlugins([formsPlugin()]))
-  })
-
-  it('does not register the plugin twice when the site also lists it', () => {
-    const Contact = deprecatedDefineForm('contactForm', { label: 'Contact', fields })
-    expect(buildRegistry({ Contact, plugins: [formsPlugin()] }).plugins).toHaveLength(1)
-  })
-
-  it('makes the same entity as the plugin\'s own defineForm', () => {
-    const old = deprecatedDefineForm('contactForm', { label: 'Contact', fields, retentionDays: 5 }) as any
-    const now = defineForm('contactForm', { label: 'Contact', fields, retentionDays: 5 }) as any
-    expect(old.form).toEqual(now.form)
-    expect(old.preset).toBe(now.preset)
-    expect(Object.keys(old.fields)).toEqual(Object.keys(now.fields))
   })
 })
 
