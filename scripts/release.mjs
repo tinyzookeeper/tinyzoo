@@ -7,7 +7,7 @@
 // Steps: skip when every package version is already on npm (every push to main runs this),
 // build @tinyzoo/client (dist), run the consumer check on the packed tarballs of both
 // packages, then `changeset publish` (pnpm publish per package, with provenance when
-// NPM_CONFIG_PROVENANCE=true, plus the git tags the release action turns into GitHub releases).
+// NPM_CONFIG_PROVENANCE=true), then the git tags and GitHub releases (tagAndRelease).
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -18,7 +18,7 @@ const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit'
 
 const packages = ['packages/cms', 'packages/client'].map((dir) => {
   const { name, version } = JSON.parse(readFileSync(join(root, dir, 'package.json'), 'utf8'))
-  return { name, version }
+  return { dir, name, version }
 })
 
 function onNpm({ name, version }) {
@@ -43,4 +43,45 @@ console.log(`To publish: ${(missing.length ? missing : packages).map((p) => `${p
 run('pnpm', ['--filter', '@tinyzoo/client', 'build'])
 run('node', ['scripts/consumer-check.mjs'])
 if (dry) run('pnpm', ['publish', '-r', '--dry-run', '--no-git-checks'])
-else run('pnpm', ['exec', 'changeset', 'publish'])
+else {
+  run('pnpm', ['exec', 'changeset', 'publish'])
+  tagAndRelease(missing)
+}
+
+/**
+ * Pushes the tag of every package just published and makes its GitHub release from the
+ * CHANGELOG. The release action does this only when the publish output has "New tag:"
+ * lines, which @changesets/cli 3 no longer prints: 0.2.0 and 0.2.1 went to npm without
+ * either. Skips a tag the remote has and a release that exists, so it never doubles up.
+ */
+function tagAndRelease(published) {
+  const sh = (cmd, args) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+  const remote = sh('git', ['ls-remote', '--tags', 'origin'])
+  let failed = false
+  for (const p of published) {
+    const tag = `${p.name}@${p.version}`
+    try {
+      try { sh('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`]) }
+      catch { run('git', ['tag', tag]) }
+      if (!remote.includes(`refs/tags/${tag}\n`)) run('git', ['push', 'origin', `refs/tags/${tag}`])
+      try { sh('gh', ['release', 'view', tag]); continue }
+      catch { /* no release yet */ }
+      run('gh', ['release', 'create', tag, '--verify-tag', '--title', tag, '--notes', changelogOf(p) || `Published to npm as ${tag}.`])
+    }
+    catch (err) {
+      failed = true
+      console.error(`Could not tag or release ${tag}: ${err.message}`)
+    }
+  }
+  if (failed) process.exitCode = 1
+}
+
+/** The CHANGELOG section of one version, without its heading. */
+function changelogOf({ dir, version }) {
+  const log = readFileSync(join(root, dir, 'CHANGELOG.md'), 'utf8')
+  const start = log.indexOf(`\n## ${version}\n`)
+  if (start === -1) return ''
+  const body = log.slice(start + `\n## ${version}\n`.length)
+  const end = body.search(/\n## /)
+  return (end === -1 ? body : body.slice(0, end)).trim()
+}
