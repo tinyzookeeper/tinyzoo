@@ -90,9 +90,34 @@ export function sessionUser(u: any) {
   return { id: u.id as string, email: u.email as string, name: (u.name as string) || u.email, role: u.role as string, locale: (u.locale as string | null) ?? null }
 }
 
-/** Sign the person in on this browser (replaces any previous session). */
+/**
+ * Sign the person in on this browser (replaces any previous session). The session keeps the
+ * time of the sign-in (`cms.iat`, ms): it ends `runtimeConfig.session.maxAge` after it
+ * (activeAccountOf), however often it is written again since. nuxt-auth-utils 0.6 only
+ * counts its own age from the last write, so without this a stolen cookie that keeps
+ * changing something (a name, the language) would never end.
+ */
 export async function startCmsSession(event: any, u: any): Promise<void> {
-  await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number } } as any)
+  await sealCmsSession(event, u, Date.now())
+}
+
+/**
+ * Write the session of the person already signed in on this browser again (a changed name,
+ * language, password or email), keeping the time they signed in: no later than `maxAge`
+ * after that, they sign in again. Without that time (not signed in on this request) nothing
+ * is written: 401.
+ */
+export async function continueCmsSession(event: any, u: any): Promise<void> {
+  const signedInAt = event.context?.cmsSignedInAt
+  if (typeof signedInAt !== 'number' || event.context?.cmsUser?.id !== u.id) {
+    await clearUserSession(event)
+    throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
+  }
+  await sealCmsSession(event, u, signedInAt)
+}
+
+async function sealCmsSession(event: any, u: any, iat: number): Promise<void> {
+  await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number, iat } } as any)
 }
 
 // ── links in emails ────────────────────────────────────────────────────────────

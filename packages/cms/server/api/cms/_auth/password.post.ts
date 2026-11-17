@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
     await clearUserSession(event)
     throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
   }
-  await startCmsSession(event, updated)
+  await continueCmsSession(event, updated) // the sign-in time stays
   await audit(event, 'account.password')
   return { ok: true }
 })

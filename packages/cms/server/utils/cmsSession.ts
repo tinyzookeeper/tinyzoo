@@ -15,9 +15,14 @@ export interface CmsUser {
  * middleware (server/middleware/cms-session.ts) sets it from the session after
  * checking the account in the database; with `cms.auth.mode: 'external'` the host does.
  */
-/** The name of the session cookie (nuxt-auth-utils: `nuxt-session`, or `runtimeConfig.session.name`). */
+/**
+ * The name of the session cookie: nuxt-auth-utils' `nuxt-auth-session`, or
+ * `runtimeConfig.session.name` (NUXT_SESSION_NAME). nuxt-auth-utils refuses
+ * `nuxt-session` (the cookie of Nuxt's own `useSession()`) and uses its default instead.
+ */
 export function sessionCookieName(): string {
-  return String((useRuntimeConfig().session as any)?.name || 'nuxt-session')
+  const name = String((useRuntimeConfig().session as any)?.name || 'nuxt-auth-session')
+  return name === 'nuxt-session' ? 'nuxt-auth-session' : name
 }
 
 /**
@@ -45,33 +50,61 @@ export function requireCmsUser(event: any): CmsUser {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * The account a sealed session belongs to, if it may still be used: it exists, is
- * active, and the session was issued for its current session version (a password
- * change or "sign out everywhere" bumps it). Null otherwise.
+ * Was the session signed in less than `runtimeConfig.session.maxAge` ago (NUXT_SESSION_MAX_AGE,
+ * seconds; 14 days by default)? From `cms.iat`, the time of the sign-in that a session written
+ * again keeps (cmsAuth.ts, startCmsSession). A session without it was not made by this version:
+ * not in time. Without a maxAge only that is checked.
+ */
+export function signedInRecently(session: any, now = Date.now()): boolean {
+  const iat = session?.cms?.iat
+  if (typeof iat !== 'number' || !Number.isFinite(iat) || iat > now + 60_000) return false
+  const maxAge = Number((useRuntimeConfig().session as any)?.maxAge)
+  return !(maxAge > 0) || now - iat < maxAge * 1000
+}
+
+/**
+ * The account a sealed session belongs to, if it may still be used: signed in less than
+ * `maxAge` ago (signedInRecently), and the account exists, is active, and the session was
+ * issued for its current session version (a password change or "sign out everywhere"
+ * bumps it). Null otherwise.
  */
 export async function activeAccountOf(session: any): Promise<any | null> {
-  const id = session?.cms?.uid
+  return activeAccount(session?.cms?.uid, session?.cms?.sv, session?.cms?.iat)
+}
+
+/**
+ * The account, if the session it was admitted with was signed in at `iat` less than
+ * `maxAge` ago, and the account is active and still at session version `sv`: for a socket
+ * admitted earlier with a session (activeAccountOf), checked again while it stays open, so
+ * an open socket ends with its session too instead of outliving the 14 days.
+ */
+export async function activeAccount(id: unknown, sv: unknown, iat: unknown): Promise<any | null> {
+  if (!signedInRecently({ cms: { iat } })) return null
   if (typeof id !== 'string' || !UUID.test(id)) return null
   const { db, reg } = useCms()
   const [u] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.id, id))
-  if (!u || u.status !== 'active' || u.sessionVersion !== session?.cms?.sv) return null
+  if (!u || u.status !== 'active' || u.sessionVersion !== sv) return null
   return u
 }
 
 /**
  * Admit a WebSocket upgrade for the admin (realtime, shared editing): it must come
  * from this site's own pages and carry a valid built-in session for an active
- * account. Puts the account on `request.context` (cmsUser, cmsSessionVersion), which
- * the socket's peer then carries. Throws a Response to refuse.
+ * account. Puts the account on `request.context` (cmsUser, cmsSessionVersion and
+ * cmsSignedInAt, the session's sign-in time), which the socket's peer then carries.
+ * Throws a Response to refuse.
  */
 export async function admitAdminSocket(request: any): Promise<void> {
   if (cmsAuthMode() !== 'builtin') throw new Response('Needs the built-in sign-in', { status: 404 })
   if (!sameOrigin(request)) throw new Response('Forbidden', { status: 403 })
+  // Only read: in a WebSocket handler nuxt-auth-utils cannot write the session (there is no
+  // response to carry the cookie), so a stale cookie is refused here, not cleared.
   const session: any = hasSessionCookie(request) ? await getUserSession(request).catch(() => null) : null
   const u = await activeAccountOf(session)
   if (!u) throw new Response('Unauthorized', { status: 401 })
   request.context.cmsUser = { id: u.id, email: u.email, name: u.name || u.email, role: u.role, locale: u.locale }
   request.context.cmsSessionVersion = u.sessionVersion
+  request.context.cmsSignedInAt = session.cms.iat
 }
 
 /**

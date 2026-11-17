@@ -25,7 +25,7 @@ export async function upgrade(cwd: string, pkgDir: string, deps: UpgradeDeps): P
 
   console.log('1. Versions')
   const problems = checkVersions(cwd, own)
-  if (!problems.length) console.log('   ✓ nuxt, @nuxt/ui, drizzle-orm and zod fit this tinyzoo')
+  if (!problems.length) console.log('   ✓ nuxt, @nuxt/ui, nuxt-auth-utils, drizzle-orm and zod fit this tinyzoo')
   for (const p of problems) {
     console.warn(`   ⚠ ${p.name}: ${p.installed ? `${p.installed} is installed` : 'not installed'}, tinyzoo ${own.version} wants ${p.wanted} — update it (\`pnpm up ${p.name}\`) before deploying`)
   }

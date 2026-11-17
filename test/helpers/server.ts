@@ -53,7 +53,13 @@ export async function startServer(databaseUrl: string, env: Record<string, strin
   const port = await freePort()
   const baseURL = `http://127.0.0.1:${port}`
   const logs: string[] = []
-  const { TEST: _t, VITEST: _v, NUXT_CMS_AUTH_SETUP_TOKEN: _s, ...parentEnv } = process.env
+  // The app secret is only what this server is given: a secret (or stand-in) exported in the
+  // shell running the tests must not change what the start-up checks see.
+  const {
+    TEST: _t, VITEST: _v, NUXT_CMS_AUTH_SETUP_TOKEN: _s,
+    NUXT_APP_SECRET: _a, NITRO_APP_SECRET: _na, NUXT_SESSION_PASSWORD: _p, NITRO_SESSION_PASSWORD: _np,
+    ...parentEnv
+  } = process.env
   const child = spawn(process.execPath, [builtServer], {
     cwd: join(repoRoot, 'playground'),
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -62,7 +68,7 @@ export async function startServer(databaseUrl: string, env: Record<string, strin
       ...TEST_TIMERS,
       NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(port),
       DATABASE_URL: databaseUrl, NUXT_CMS_DATABASE_URL: databaseUrl,
-      NUXT_SESSION_PASSWORD: 'test-session-password-at-least-32-characters-long',
+      NUXT_APP_SECRET: 'test-app-secret-at-least-32-characters-long',
       NUXT_CMS_STORAGE_DRIVER: 'local', NUXT_CMS_PUBLIC_URL: baseURL, NUXT_CMS_MAIL_TRANSPORT: 'log',
       NUXT_CMS_MIGRATIONS_ON_START: 'true',
       ...env,

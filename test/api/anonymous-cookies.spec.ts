@@ -54,10 +54,29 @@ describe('anonymous visitors', () => {
       await res.arrayBuffer()
       expect([path, res.headers.getSetCookie()]).toEqual([path, []])
     }
-    // A cookie from another secret / an old session: not valid, not replaced by a new anonymous one either.
-    const stale = await get('/api/content/post', { cookie: 'nuxt-session=Fe26.2**nonsense' })
+    // A cookie from another secret / an old session opens nothing. The seal does not open, so
+    // Nuxt's useSession starts an empty session in its place: the response sets that one cookie
+    // again (never another), and the new one opens nothing either.
+    const stale = await get('/api/content/post', { cookie: 'nuxt-auth-session=Fe26.2**nonsense' })
     await stale.arrayBuffer()
-    expect(cookiesOf(stale).filter((c) => c !== 'nuxt-session')).toEqual([])
+    expect(stale.status).toBe(200)
+    expect(cookiesOf(stale)).toEqual(['nuxt-auth-session'])
+    const replaced = stale.headers.getSetCookie()[0]!.split(';')[0]!
+    expect(replaced).not.toBe('nuxt-auth-session=Fe26.2**nonsense')
+    expect((await get('/api/cms/_auth/me', { cookie: replaced })).status).toBe(401)
+    expect(await (await get('/api/_auth/session', { cookie: replaced })).json()).not.toHaveProperty('user')
+  })
+
+  it('treat the cookie of tinyzoo 0.3 and older (`nuxt-session`) as no session at all', async () => {
+    // What a browser signed in before the update still sends: it opens nothing, and nothing
+    // fails or sets a cookie because of it.
+    for (const path of ['/api/content/post', '/api/cms/_auth/me', '/api/_auth/session', '/admin']) {
+      const res = await get(path, { cookie: 'nuxt-session=Fe26.2**0123456789abcdef*sealed-by-nuxt-auth-utils-0.5' })
+      await res.arrayBuffer()
+      expect([path, res.status < 500, res.headers.getSetCookie()]).toEqual([path, true, []])
+    }
+    const me = await get('/api/cms/_auth/me', { cookie: 'nuxt-session=Fe26.2**0123456789abcdef*sealed-by-nuxt-auth-utils-0.5' })
+    expect(me.status).toBe(401)
   })
 })
 
@@ -65,7 +84,7 @@ describe('signing in still works', () => {
   it('sets the session cookie on sign-in, and the cookie opens the admin API', async () => {
     const a = accounts().editor
     const c = await login(a.email, a.password)
-    expect(c.cookie).toContain('nuxt-session=')
+    expect(c.cookie).toContain('nuxt-auth-session=')
     expect((await c.get('/api/cms/_auth/me')).body.user.email).toBe(a.email)
     expect((await c.get('/api/cms/_graph')).status).toBe(200)
     // The signed-in person's own requests keep their session (and the cookie is not re-issued on every read).

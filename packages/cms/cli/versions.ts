@@ -1,8 +1,8 @@
-/** Version checks for `tinyzoo upgrade`: does the site's own nuxt, @nuxt/ui, drizzle-orm and zod fit? */
+/** Version checks for `tinyzoo upgrade`: does the site's own nuxt, @nuxt/ui, nuxt-auth-utils, drizzle-orm and zod fit? */
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, parse } from 'node:path'
 
-export const CHECKED_PACKAGES = ['nuxt', '@nuxt/ui', 'drizzle-orm', 'zod'] as const
+export const CHECKED_PACKAGES = ['nuxt', '@nuxt/ui', 'nuxt-auth-utils', 'drizzle-orm', 'zod'] as const
 
 const parseVersion = (v: string): [number, number, number] | null => {
   const m = /^[v=\s]*(\d+)(?:\.(\d+|x|\*))?(?:\.(\d+|x|\*))?/.exec(v)

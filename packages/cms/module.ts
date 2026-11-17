@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addComponentsDir, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
 import { createJiti } from 'jiti'
+import { appSecretFallbackCode, NITRO_CONFIG_MODULE, planAppSecretFallback, prependedLinesMap } from './src/appSecret'
 import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
@@ -201,6 +202,22 @@ function sitemapPaths(paths: (string | Record<string, string>)[] | undefined): (
   return paths ?? []
 }
 
+/**
+ * NUXT_SESSION_PASSWORD (or a nuxt.config `runtimeConfig.session.password`) standing in for
+ * NUXT_APP_SECRET until 0.5: the lines of src/appSecret.ts put at the top of Nitro's runtime
+ * config module, before Nitro reads the environment.
+ */
+function appSecretFallback(code: string, onInstalled: () => void) {
+  return {
+    name: 'tinyzoo:app-secret-fallback',
+    transform(source: string, id: string) {
+      if (!NITRO_CONFIG_MODULE.test(id.split('?')[0]!)) return null
+      onInstalled()
+      return { code: code + source, map: prependedLinesMap(code, source, id) }
+    },
+  }
+}
+
 export default defineNuxtModule<CmsModuleOptions>({
   meta: { name: 'tinyzoo', configKey: 'cms' },
   defaults: { config: 'cms.config.ts' },
@@ -214,15 +231,22 @@ export default defineNuxtModule<CmsModuleOptions>({
     nuxt.options.alias['#cms/config'] = configPath
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
+    // NUXT_SESSION_PASSWORD as the app secret while a site has not set NUXT_APP_SECRET yet
+    // (src/appSecret.ts).
+    nuxt.hook('nitro:init', (nitro) => {
+      const plan = planAppSecretFallback(nitro.options.runtimeConfig as any)
+      if (!plan.install) return
+      let installed = false
+      nitro.hooks.hook('rollup:before', (_nitro, rollupConfig) => {
+        const plugins = (rollupConfig.plugins ||= []) as any[]
+        plugins.push(appSecretFallback(appSecretFallbackCode(plan.envPrefix, plan.fromConfig), () => { installed = true }))
+      })
+      // After the server is built, whichever bundler built it: was the module found?
+      nitro.hooks.hook('compiled', () => {
+        if (!installed) console.warn('[tinyzoo] Nitro\'s runtime config module was not found in the server bundle, so NUXT_SESSION_PASSWORD will not stand in for NUXT_APP_SECRET: set NUXT_APP_SECRET.')
+      })
+    })
     nuxt.hook('nitro:config', (nitro) => {
-      // nuxt-auth-utils adds a Nitro plugin when WebSockets are on (the admin's live socket
-      // is one) that reads the session on EVERY request: for a visitor without one that
-      // *creates* it and sets a cookie on every response, public pages, content API and
-      // media included, so no CDN caches them. The admin socket checks the session itself
-      // (admitAdminSocket) and only when the request carries one, so that plugin goes.
-      if (Array.isArray(nitro.plugins)) {
-        nitro.plugins = nitro.plugins.filter((p) => !/nuxt-auth-utils[\\/]dist[\\/]runtime[\\/]server[\\/]plugins[\\/]ws(\.|$)/.test(String(p)))
-      }
       if (existsSync(migrationsDir)) {
         nitro.serverAssets = nitro.serverAssets || []
         nitro.serverAssets.push({ baseName: 'cms-migrations', dir: migrationsDir })
@@ -253,7 +277,7 @@ export default defineNuxtModule<CmsModuleOptions>({
     locale: string | null
   }
   interface UserSession {
-    cms?: { uid: string; sv: number }
+    cms?: { uid: string; sv: number; iat: number }
   }
 }
 declare module 'nitropack/types' {

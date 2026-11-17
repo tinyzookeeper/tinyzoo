@@ -44,6 +44,8 @@ interface LocalPeer {
   socket: LiveSocket
   user: CmsUser
   sv: number
+  /** When the session this socket was admitted with was signed in (it ends with that session). */
+  iat: number
   topics: Map<string, Watch>
   /** Messages are handled one at a time, in order. */
   queue: Promise<void>
@@ -111,7 +113,7 @@ export function stopLive(): void {
 
 // ── connections ──
 
-export function liveOpen(socket: LiveSocket, user: CmsUser, sv: number): void {
+export function liveOpen(socket: LiveSocket, user: CmsUser, sv: number, iat: number): void {
   const mine = [...local.values()].filter((p) => p.user.id === user.id)
   if (mine.length >= MAX_SOCKETS_PER_USER) {
     // Too many tabs: the oldest one gives way.
@@ -120,7 +122,7 @@ export function liveOpen(socket: LiveSocket, user: CmsUser, sv: number): void {
     liveClose(oldest.socket)
   }
   const now = Date.now()
-  local.set(socket.id, { socket, user, sv, topics: new Map(), queue: Promise.resolve(), openedAt: now, seenAt: now, burst: { at: now, n: 0 } })
+  local.set(socket.id, { socket, user, sv, iat, topics: new Map(), queue: Promise.resolve(), openedAt: now, seenAt: now, burst: { at: now, n: 0 } })
   start()
 }
 
@@ -332,8 +334,9 @@ async function recheckAccounts(): Promise<void> {
   const byId = new Map(rows.map((r) => [r.id, r]))
   for (const p of [...local.values()]) {
     const u = byId.get(p.user.id)
-    // A changed role reconnects too, so watches are re-authorised under the new one.
-    if (!u || u.status !== 'active' || u.sv !== p.sv || u.role !== p.user.role) {
+    // A changed role reconnects too, so watches are re-authorised under the new one; a
+    // session past its 14 days (from its sign-in) ends here as it does over HTTP.
+    if (!u || u.status !== 'active' || u.sv !== p.sv || u.role !== p.user.role || !signedInRecently({ cms: { iat: p.iat } })) {
       p.socket.close(4401, 'Session no longer valid')
       liveClose(p.socket)
     }

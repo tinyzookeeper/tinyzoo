@@ -59,7 +59,7 @@ CMD ["node", ".output/server/index.mjs"]
   and applied when the server starts, **if** `NUXT_CMS_MIGRATIONS_ON_START=true`. The
   build needs no database and no secrets, so one image serves every environment.
 - **Settings are read at start**, from the container's environment: `DATABASE_URL`,
-  `NUXT_SESSION_PASSWORD`, `NUXT_CMS_PUBLIC_URL`, `NUXT_CMS_MIGRATIONS_ON_START=true`,
+  `NUXT_APP_SECRET`, `NUXT_CMS_PUBLIC_URL`, `NUXT_CMS_MIGRATIONS_ON_START=true`,
   the storage variables (`NUXT_CMS_STORAGE_DRIVER=s3` and `NUXT_CMS_STORAGE_S3_*`; a
   container's own disk is gone after every deploy) and the mail ones
   (`NUXT_CMS_MAIL_TRANSPORT=smtp`, `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_*`); the
@@ -79,7 +79,7 @@ Try it on your machine before the host does:
 docker build -t my-site .
 docker run --rm -p 3000:3000 \
   -e DATABASE_URL=postgres://site:site@host.docker.internal:5433/site \
-  -e NUXT_SESSION_PASSWORD="$(openssl rand -base64 32)" \
+  -e NUXT_APP_SECRET="$(openssl rand -base64 32)" \
   -e NUXT_CMS_PUBLIC_URL=http://localhost:3000 \
   -e NUXT_CMS_MIGRATIONS_ON_START=true \
   -e NUXT_CMS_STORAGE_LOCAL_DIR=/tmp/uploads \
@@ -116,7 +116,7 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | Variable | Required | |
 |---|---|---|
 | `DATABASE_URL` | yes | Postgres connection (`NUXT_CMS_DATABASE_URL` overrides). The server refuses to start without one |
-| `NUXT_SESSION_PASSWORD` | yes | seals the sign-in cookie, ≥ 32 characters. Changing it signs everyone out. **The server refuses to start** without it (or with a shorter one) and says so in the log |
+| `NUXT_APP_SECRET` | yes | Nuxt's app secret, ≥ 32 characters: the sign-in cookie is sealed with a key derived from it, and other modules derive their keys from it too (signed image URLs, for example). Changing it signs everyone out. **The server refuses to start** without it (or with a shorter one) and says so in the log. A site set up before 0.4 has `NUXT_SESSION_PASSWORD` instead: until 0.5 that value stands in for `NUXT_APP_SECRET` when it is not set, with a deprecation warning in the log (nuxt-auth-utils' own "is not used anymore" line next to it can be ignored until then); rename the variable, keeping the value, and the rename signs nobody out ([upgrading](upgrading.md#from-03-to-04)) |
 | `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails and `/sitemap.xml`. Without it the server starts but logs one warning saying what is missing |
 | `NUXT_CMS_MIGRATIONS_ON_START` | recommended | `true`: apply bundled migrations at start (below) |
 | `REDIS_URL` | with > 1 replica | `NUXT_CMS_REDIS_URL` overrides |
@@ -706,7 +706,7 @@ gone after every deploy — give staging a bucket too.
 1. Create the project (its slug becomes `<slug>.pushbase.app`).
 2. Provision Postgres and Redis and link both to the environment
    (`DATABASE_URL`, `REDIS_URL` are injected).
-3. Set the environment above (session password, public URL, S3, SMTP,
+3. Set the environment above (`NUXT_APP_SECRET`, public URL, S3, SMTP,
    `NUXT_CMS_MIGRATIONS_ON_START=true`). Pushbase runs apps on a read-only
    filesystem with a writable `/tmp` (2 GiB per app), where uploads are staged
    ([Media](#media)): leave `TMPDIR` unset.
