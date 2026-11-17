@@ -22,7 +22,15 @@ async function req(method, path, body) {
   let payload
   if (body instanceof FormData) payload = body
   else if (body !== undefined) { headers['content-type'] = 'application/json'; payload = JSON.stringify(body) }
-  const res = await fetch(base + path, { method, headers, body: payload, redirect: 'manual' })
+  let res = await fetch(base + path, { method, headers, body: payload, redirect: 'manual' })
+  // The admin API allows a site's account so many uploads a minute (cms.storage.uploadRatePerMin):
+  // a full seed has more than that, so wait the time it names and send the same request again.
+  for (let tries = 0; res.status === 429 && tries < 5; tries++) {
+    const wait = Math.min(65, Number(res.headers.get('retry-after')) || 20)
+    console.log(`… the upload limit: waiting ${wait} s`)
+    await new Promise((r) => setTimeout(r, wait * 1000))
+    res = await fetch(base + path, { method, headers, body: payload, redirect: 'manual' })
+  }
   const set = res.headers.getSetCookie(); if (set.length) cookie = set.map((c) => c.split(';')[0]).join('; ')
   const text = await res.text(); let json = text; try { json = JSON.parse(text) } catch {}
   if (res.status >= 300) throw new Error(`${method} ${path} → ${res.status} ${JSON.stringify(json).slice(0, 400)}`)
