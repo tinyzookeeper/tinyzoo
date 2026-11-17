@@ -1,7 +1,9 @@
-import { INVITE_TTL_MS } from './cmsAuth'
+import { EMAIL_CHANGE_TTL_MS, EMAIL_REVERT_TTL_MS, INVITE_TTL_MS } from './cmsAuth'
+import { maskEmail } from './cmsEmailChangeRules'
 import { resolveText } from 'tinyzoo'
 
-// The emails the CMS sends: an invitation and a password-reset link. Plain, neutral
+// The emails the CMS sends: an invitation, a password-reset link, and the ones about a
+// change of email address (the link to the new address, notices to the old one). Plain, neutral
 // HTML that survives every mail client, with a text version. Czech, English and German,
 // chosen by the recipient's interface language (or the admin's default).
 
@@ -18,6 +20,30 @@ const copy = {
     resetAction: 'Choose a new password',
     resetExpiry: 'The link works for 1 hour. If you didn’t ask for this, ignore this email — your password stays the same.',
     fallback: 'If the button does not work, copy this address into your browser:',
+    emailConfirmSubject: (site: string) => `Confirm your new email address for ${site}`,
+    emailConfirmIntro: (site: string) => `You asked to sign in to ${site} with this email address. Confirm it with the link below.`,
+    emailConfirmAction: 'Confirm the new address',
+    emailConfirmExpiry: (hours: number) => `The link works for ${hours} hours. Until you confirm, you keep signing in with your current address. If you didn’t ask for this, ignore this email.`,
+    emailRequestedSubject: (site: string) => `Your sign-in email for ${site} is about to change`,
+    emailRequestedIntro: (site: string, to: string) => `Someone signed in to your account at ${site} asked to change its sign-in email to ${to}. Nothing changes until the new address is confirmed.`,
+    emailRequestedAction: 'Choose a new password',
+    emailRequestedFooter: 'If it was you, there is nothing to do. If not, someone knows your password: choose a new password right away. Until the new address is confirmed, that cancels the change and signs everyone else out. If it has been confirmed already, another email will come here with a link that undoes it.',
+    emailChangedSubject: (site: string) => `Your sign-in email for ${site} was changed`,
+    emailChangedIntro: (site: string, to: string) => `The sign-in email of your account at ${site} was changed to ${to}. From now on, sign in with the new address.`,
+    emailChangedByAdminIntro: (site: string, to: string) => `An administrator changed the sign-in email of your account at ${site} to ${to}. From now on, sign in with the new address.`,
+    emailChangedFooter: 'If you didn’t expect this, contact the administrator of the site.',
+    emailRevertAction: 'Undo the change',
+    emailRevertFooter: (days: number) => `If it wasn’t you, open the link within ${days} days: your account gets this address back, you choose a new password and everyone else is signed out. If it was you, there is nothing to do, but don’t pass this email on: the link gives the account back to whoever opens it.`,
+    emailSetSubject: (site: string) => `Your sign-in email for ${site}`,
+    emailSetIntro: (site: string) => `An administrator set this address as the sign-in email of your account at ${site}. Sign in with it and your usual password.`,
+    emailSetAction: 'Sign in',
+    emailSetFooter: 'If you didn’t expect this, contact the administrator of the site.',
+    emailRevertedSubject: (site: string) => `Your sign-in email for ${site} was set back`,
+    emailRevertedIntro: (site: string, to: string) => `The sign-in email of your account at ${site} was set back to ${to} with the undo link sent to that address. A new password was chosen and everyone was signed out.`,
+    emailRevertedFooter: 'If you didn’t expect this, contact the administrator of the site.',
+    emailInUseSubject: (site: string) => `Your email address at ${site}`,
+    emailInUseIntro: (site: string) => `Someone asked to use this address for another account at ${site}, but it already belongs to an account there. Nothing was changed.`,
+    emailInUseFooter: 'If it was you, sign in with this address instead. Otherwise, ignore this email.',
   },
   cs: {
     inviteSubject: (site: string) => `Pozvánka: ${site}`,
@@ -29,6 +55,30 @@ const copy = {
     resetAction: 'Nastavit nové heslo',
     resetExpiry: 'Odkaz platí 1 hodinu. Pokud jste o obnovení nežádali, e-mail ignorujte — vaše heslo zůstává stejné.',
     fallback: 'Pokud tlačítko nefunguje, zkopírujte tuto adresu do prohlížeče:',
+    emailConfirmSubject: (site: string) => `Potvrďte novou e-mailovou adresu: ${site}`,
+    emailConfirmIntro: (site: string) => `Požádali jste o přihlašování do webu ${site} touto e-mailovou adresou. Potvrďte ji přes odkaz níže.`,
+    emailConfirmAction: 'Potvrdit novou adresu',
+    emailConfirmExpiry: (hours: number) => `Odkaz platí ${hours} hodin. Dokud adresu nepotvrdíte, přihlašujete se dál tou současnou. Pokud jste o změnu nežádali, e-mail ignorujte.`,
+    emailRequestedSubject: (site: string) => `Žádost o změnu přihlašovacího e-mailu: ${site}`,
+    emailRequestedIntro: (site: string, to: string) => `Někdo přihlášený k vašemu účtu na webu ${site} požádal o změnu přihlašovacího e-mailu na ${to}. Dokud nová adresa není potvrzená, nic se nemění.`,
+    emailRequestedAction: 'Nastavit nové heslo',
+    emailRequestedFooter: 'Pokud jste to byli vy, nemusíte nic dělat. Pokud ne, někdo zná vaše heslo: hned si nastavte nové. Dokud nová adresa není potvrzená, tím se změna zruší a všichni ostatní se odhlásí. Pokud už potvrzená je, přijde sem další e-mail s odkazem, kterým změnu vrátíte.',
+    emailChangedSubject: (site: string) => `Přihlašovací e-mail byl změněn: ${site}`,
+    emailChangedIntro: (site: string, to: string) => `Přihlašovací e-mail vašeho účtu na webu ${site} byl změněn na ${to}. Odteď se přihlašujte novou adresou.`,
+    emailChangedByAdminIntro: (site: string, to: string) => `Administrátor změnil přihlašovací e-mail vašeho účtu na webu ${site} na ${to}. Odteď se přihlašujte novou adresou.`,
+    emailChangedFooter: 'Pokud jste změnu nečekali, obraťte se na administrátora webu.',
+    emailRevertAction: 'Vrátit změnu',
+    emailRevertFooter: (days: number) => `Pokud jste to nebyli vy, otevřete do ${days} dnů odkaz: účet dostane zpět tuto adresu, nastavíte si nové heslo a všichni ostatní se odhlásí. Pokud jste to byli vy, nemusíte nic dělat, jen tento e-mail nikomu nepřeposílejte: kdo odkaz otevře, tomu se účet vrátí.`,
+    emailSetSubject: (site: string) => `Váš přihlašovací e-mail: ${site}`,
+    emailSetIntro: (site: string) => `Administrátor nastavil tuto adresu jako přihlašovací e-mail vašeho účtu na webu ${site}. Přihlaste se jí a svým obvyklým heslem.`,
+    emailSetAction: 'Přihlásit se',
+    emailSetFooter: 'Pokud jste změnu nečekali, obraťte se na administrátora webu.',
+    emailRevertedSubject: (site: string) => `Přihlašovací e-mail byl vrácen: ${site}`,
+    emailRevertedIntro: (site: string, to: string) => `Přihlašovací e-mail vašeho účtu na webu ${site} byl vrácen na ${to} odkazem pro vrácení změny, který přišel na tu adresu. Bylo nastaveno nové heslo a všichni byli odhlášeni.`,
+    emailRevertedFooter: 'Pokud jste to nečekali, obraťte se na administrátora webu.',
+    emailInUseSubject: (site: string) => `Vaše e-mailová adresa: ${site}`,
+    emailInUseIntro: (site: string) => `Někdo chtěl tuto adresu použít pro jiný účet na webu ${site}, ale už k ní jeden účet patří. Nic se nezměnilo.`,
+    emailInUseFooter: 'Pokud jste to byli vy, přihlaste se touto adresou. Jinak e-mail ignorujte.',
   },
   de: {
     inviteSubject: (site: string) => `Einladung zu ${site}`,
@@ -40,6 +90,30 @@ const copy = {
     resetAction: 'Neues Passwort festlegen',
     resetExpiry: 'Der Link ist 1 Stunde gültig. Wenn Sie das nicht angefordert haben, ignorieren Sie diese E-Mail. Ihr Passwort bleibt unverändert.',
     fallback: 'Falls die Schaltfläche nicht funktioniert, kopieren Sie diese Adresse in Ihren Browser:',
+    emailConfirmSubject: (site: string) => `Neue E-Mail-Adresse für ${site} bestätigen`,
+    emailConfirmIntro: (site: string) => `Sie möchten sich bei ${site} mit dieser E-Mail-Adresse anmelden. Bestätigen Sie sie über den Link unten.`,
+    emailConfirmAction: 'Neue Adresse bestätigen',
+    emailConfirmExpiry: (hours: number) => `Der Link ist ${hours} Stunden gültig. Bis zur Bestätigung melden Sie sich weiter mit Ihrer bisherigen Adresse an. Wenn Sie das nicht angefordert haben, ignorieren Sie diese E-Mail.`,
+    emailRequestedSubject: (site: string) => `Ihre Anmelde-E-Mail für ${site} soll geändert werden`,
+    emailRequestedIntro: (site: string, to: string) => `Jemand, der in Ihrem Konto bei ${site} angemeldet ist, möchte die Anmelde-E-Mail in ${to} ändern. Bis die neue Adresse bestätigt ist, ändert sich nichts.`,
+    emailRequestedAction: 'Neues Passwort festlegen',
+    emailRequestedFooter: 'Wenn Sie das waren, ist nichts zu tun. Wenn nicht, kennt jemand Ihr Passwort: Legen Sie sofort ein neues fest. Solange die neue Adresse nicht bestätigt ist, bricht das die Änderung ab und meldet alle anderen ab. Ist sie schon bestätigt, kommt hierher eine weitere E-Mail mit einem Link, der die Änderung rückgängig macht.',
+    emailChangedSubject: (site: string) => `Ihre Anmelde-E-Mail für ${site} wurde geändert`,
+    emailChangedIntro: (site: string, to: string) => `Die Anmelde-E-Mail Ihres Kontos bei ${site} wurde in ${to} geändert. Melden Sie sich ab jetzt mit der neuen Adresse an.`,
+    emailChangedByAdminIntro: (site: string, to: string) => `Ein Administrator hat die Anmelde-E-Mail Ihres Kontos bei ${site} in ${to} geändert. Melden Sie sich ab jetzt mit der neuen Adresse an.`,
+    emailChangedFooter: 'Wenn Sie das nicht erwartet haben, wenden Sie sich an den Administrator der Website.',
+    emailRevertAction: 'Änderung rückgängig machen',
+    emailRevertFooter: (days: number) => `Wenn Sie das nicht waren, öffnen Sie den Link innerhalb von ${days} Tagen: Ihr Konto bekommt diese Adresse zurück, Sie legen ein neues Passwort fest und alle anderen werden abgemeldet. Wenn Sie das waren, ist nichts zu tun, aber leiten Sie diese E-Mail nicht weiter: Wer den Link öffnet, bekommt das Konto zurück.`,
+    emailSetSubject: (site: string) => `Ihre Anmelde-E-Mail für ${site}`,
+    emailSetIntro: (site: string) => `Ein Administrator hat diese Adresse als Anmelde-E-Mail Ihres Kontos bei ${site} festgelegt. Melden Sie sich damit und mit Ihrem gewohnten Passwort an.`,
+    emailSetAction: 'Anmelden',
+    emailSetFooter: 'Wenn Sie das nicht erwartet haben, wenden Sie sich an den Administrator der Website.',
+    emailRevertedSubject: (site: string) => `Ihre Anmelde-E-Mail für ${site} wurde zurückgesetzt`,
+    emailRevertedIntro: (site: string, to: string) => `Die Anmelde-E-Mail Ihres Kontos bei ${site} wurde mit dem Link zum Rückgängigmachen, der an diese Adresse ging, auf ${to} zurückgesetzt. Ein neues Passwort wurde festgelegt und alle wurden abgemeldet.`,
+    emailRevertedFooter: 'Wenn Sie das nicht erwartet haben, wenden Sie sich an den Administrator der Website.',
+    emailInUseSubject: (site: string) => `Ihre E-Mail-Adresse bei ${site}`,
+    emailInUseIntro: (site: string) => `Jemand wollte diese Adresse für ein anderes Konto bei ${site} verwenden, sie gehört dort aber schon zu einem Konto. Es wurde nichts geändert.`,
+    emailInUseFooter: 'Wenn Sie das waren, melden Sie sich mit dieser Adresse an. Andernfalls ignorieren Sie diese E-Mail.',
   },
 } satisfies Record<Locale, Record<string, unknown>>
 
@@ -90,16 +164,24 @@ export function emailContext(locale?: string | null): { locale: Locale; site: st
   return { locale: lang, site: resolveText(admin.name, lang, ['en']) || 'CMS' }
 }
 
-function layout(opts: { intro: string; action: string; url: string; footer: string; fallback: string }) {
-  const url = escapeHtml(opts.url)
+function layout(opts: { intro: string; action?: string; url?: string; footer: string; fallback: string }) {
+  const url = opts.url ? escapeHtml(opts.url) : ''
+  const button = opts.action && opts.url
+    ? `<p style="margin:0 0 24px"><a href="${url}" style="display:inline-block;background:#171717;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px;font-weight:600">${escapeHtml(opts.action)}</a></p>
+`
+    : ''
+  const fallback = opts.action && opts.url
+    ? `<p style="margin:0;font-size:12px;line-height:1.5;color:#a3a3a3">${escapeHtml(opts.fallback)}<br><span style="word-break:break-all">${url}</span></p>
+`
+    : ''
   const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#171717">
 <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:28px">
 <p style="margin:0 0 20px;font-size:15px;line-height:1.55">${escapeHtml(opts.intro)}</p>
-<p style="margin:0 0 24px"><a href="${url}" style="display:inline-block;background:#171717;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px;font-weight:600">${escapeHtml(opts.action)}</a></p>
-<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#737373">${escapeHtml(opts.footer)}</p>
-<p style="margin:0;font-size:12px;line-height:1.5;color:#a3a3a3">${escapeHtml(opts.fallback)}<br><span style="word-break:break-all">${url}</span></p>
-</div></body></html>`
-  const text = `${opts.intro}\n\n${opts.action}: ${opts.url}\n\n${opts.footer}\n`
+${button}<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#737373">${escapeHtml(opts.footer)}</p>
+${fallback}</div></body></html>`
+  const text = opts.action && opts.url
+    ? `${opts.intro}\n\n${opts.action}: ${opts.url}\n\n${opts.footer}\n`
+    : `${opts.intro}\n\n${opts.footer}\n`
   return { html, text }
 }
 
@@ -122,4 +204,68 @@ export function resetEmail(opts: { to: string; url: string; locale?: string | nu
     subject: c.resetSubject(site),
     ...layout({ intro: c.resetIntro, action: c.resetAction, url: opts.url, footer: c.resetExpiry, fallback: c.fallback }),
   }
+}
+
+// ── a change of email address ──────────────────────────────────────────────────
+
+/** To the new address: the link that makes the change. */
+export function emailConfirmEmail(opts: { to: string; url: string; locale?: string | null }) {
+  const { locale, site } = emailContext(opts.locale)
+  const c = copy[locale]
+  const hours = Math.round(EMAIL_CHANGE_TTL_MS / 3_600_000)
+  return { to: opts.to, subject: c.emailConfirmSubject(site), ...layout({ intro: c.emailConfirmIntro(site), action: c.emailConfirmAction, url: opts.url, footer: c.emailConfirmExpiry(hours), fallback: c.fallback }) }
+}
+
+/**
+ * To the old address when a change is asked for: if it was not them, somebody knows the
+ * password — a new one cancels the change while it waits; once it is made, the next
+ * notice carries the way back.
+ */
+export function emailRequestedNotice(opts: { to: string; newEmail: string; url: string; locale?: string | null }) {
+  const { locale, site } = emailContext(opts.locale)
+  const c = copy[locale]
+  return { to: opts.to, subject: c.emailRequestedSubject(site), ...layout({ intro: c.emailRequestedIntro(site, maskEmail(opts.newEmail)), action: c.emailRequestedAction, url: opts.url, footer: c.emailRequestedFooter, fallback: c.fallback }) }
+}
+
+/**
+ * To the old address once the change is made (by the person, or by an administrator).
+ * With `revertUrl` (a change the person made), it carries the link that undoes it.
+ */
+export function emailChangedNotice(opts: { to: string; newEmail: string; byAdmin?: boolean; revertUrl?: string; locale?: string | null }) {
+  const { locale, site } = emailContext(opts.locale)
+  const c = copy[locale]
+  const intro = opts.byAdmin ? c.emailChangedByAdminIntro(site, maskEmail(opts.newEmail)) : c.emailChangedIntro(site, maskEmail(opts.newEmail))
+  const days = Math.round(EMAIL_REVERT_TTL_MS / 86_400_000)
+  const parts = opts.revertUrl
+    ? { action: c.emailRevertAction, url: opts.revertUrl, footer: c.emailRevertFooter(days) }
+    : { footer: c.emailChangedFooter }
+  return { to: opts.to, subject: c.emailChangedSubject(site), ...layout({ intro, ...parts, fallback: c.fallback }) }
+}
+
+/** To the new address when an administrator set it: from now on this is how they sign in. */
+export function emailSetNotice(opts: { to: string; url: string; locale?: string | null }) {
+  const { locale, site } = emailContext(opts.locale)
+  const c = copy[locale]
+  return { to: opts.to, subject: c.emailSetSubject(site), ...layout({ intro: c.emailSetIntro(site), action: c.emailSetAction, url: opts.url, footer: c.emailSetFooter, fallback: c.fallback }) }
+}
+
+/**
+ * To the address a way back replaced (the newer one): the account went back to the old
+ * address. Whoever reads this mailbox may be the owner, locked out by someone who reads
+ * the old one now; they must hear of it.
+ */
+export function emailRevertedNotice(opts: { to: string; restoredEmail: string; locale?: string | null }) {
+  const { locale, site } = emailContext(opts.locale)
+  const c = copy[locale]
+  return { to: opts.to, subject: c.emailRevertedSubject(site), ...layout({ intro: c.emailRevertedIntro(site, maskEmail(opts.restoredEmail)), footer: c.emailRevertedFooter, fallback: c.fallback }) }
+}
+
+/**
+ * To an address someone asked to move to that already has an account: the person asking
+ * is not told (it would tell them who has an account), the owner of the address is.
+ */
+export function emailInUseNotice(opts: { to: string; locale?: string | null }) {
+  const { locale, site } = emailContext(opts.locale)
+  const c = copy[locale]
+  return { to: opts.to, subject: c.emailInUseSubject(site), ...layout({ intro: c.emailInUseIntro(site), footer: c.emailInUseFooter, fallback: c.fallback }) }
 }

@@ -4,7 +4,7 @@ import { z } from 'zod'
 
 /**
  * Built-in accounts: sessions (sealed cookie via nuxt-auth-utils), one-time links
- * for invites and password resets, and the helpers the auth and team endpoints share.
+ * for invites, password resets and email changes, and the helpers the auth and team endpoints share.
  *
  * Password hashing is nuxt-auth-utils' scrypt.
  */
@@ -31,6 +31,15 @@ export const emailSchema = z.string().trim().toLowerCase().pipe(z.email())
 const toBase64Url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
+/** A new one-time link secret: 32 random bytes, base64url. */
+export const newLinkSecret = () => toBase64Url(crypto.getRandomValues(new Uint8Array(32)))
+
+/**
+ * What a one-time link is for: an invitation, a password reset, confirming a new email
+ * address, or undoing a change of address (sent to the old one).
+ */
+export type CmsTokenKind = 'invite' | 'reset' | 'email' | 'email-revert'
+
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
@@ -38,13 +47,15 @@ export async function sha256Hex(text: string): Promise<string> {
 
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 export const RESET_TTL_MS = 60 * 60 * 1000
+export const EMAIL_CHANGE_TTL_MS = 24 * 60 * 60 * 1000
+export const EMAIL_REVERT_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
  * Create a one-time link secret for a user. Earlier unused links of the same kind
  * stop working (a resent invite replaces the old one). Only the hash is stored.
  */
-export async function issueToken(db: any, reg: CmsRegistry, opts: { userId: string; kind: 'invite' | 'reset'; ttlMs: number; createdBy?: string | null }): Promise<string> {
-  const secret = toBase64Url(crypto.getRandomValues(new Uint8Array(32)))
+export async function issueToken(db: any, reg: CmsRegistry, opts: { userId: string; kind: CmsTokenKind; ttlMs: number; createdBy?: string | null }): Promise<string> {
+  const secret = newLinkSecret()
   const t = reg.cmsTokens
   await db.transaction(async (tx: any) => {
     await tx.update(t).set({ usedAt: new Date() })
@@ -61,7 +72,7 @@ export async function issueToken(db: any, reg: CmsRegistry, opts: { userId: stri
 }
 
 /** The valid (unused, unexpired) token row for a secret, with its user — or null. */
-export async function findToken(db: any, reg: CmsRegistry, secret: string, kind: 'invite' | 'reset') {
+export async function findToken(db: any, reg: CmsRegistry, secret: string, kind: CmsTokenKind) {
   if (!secret || secret.length > 200) return null
   const t = reg.cmsTokens
   const [row] = await db.select().from(t).where(and(

@@ -1,4 +1,4 @@
-import { and, eq, or, propOf, sql } from 'tinyzoo'
+import { and, eq, inArray, or, propOf, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 import { z } from 'zod'
 import { formEntities, purgeSubmissions } from '../../forms/retention'
@@ -13,8 +13,11 @@ import { formEntities, purgeSubmissions } from '../../forms/retention'
  *    fields equal the address (case-insensitive, whitespace trimmed) — and their saved
  *    versions and search rows, which hold the same text;
  *  - the account: email, name, role, status, language, sign-in times;
- *  - audit entries: those the account made, those about it (invitation, role change)
- *    and failed sign-ins that tried the address.
+ *  - audit entries: those the account made, those about it (invitation, role change,
+ *    a change of its address) and failed sign-ins that tried the address. A change of
+ *    address names the new one as `email` and the old one as `previousEmail`; either finds it;
+ *  - a change of sign-in address waiting for confirmation, or the way back from one
+ *    (cms_state `email-change:*` / `email-revert:*`), that names the address.
  * Not covered: what an editor wrote under their own name in entries or media (that is
  * the site's content, not personal data about a visitor), and copies in backups.
  */
@@ -58,7 +61,7 @@ export async function findSubmissions(db: any, reg: CmsRegistry, email: string):
 /** The condition that picks the audit entries touching a person: theirs, about them, or naming their address. */
 export function auditCondition(reg: CmsRegistry, email: string, accountId: string | null) {
   const a = reg.cmsAudit
-  const parts = [sql`lower(${a.meta}->>'email') = ${email}`]
+  const parts = [sql`lower(${a.meta}->>'email') = ${email}`, sql`lower(${a.meta}->>'previousEmail') = ${email}`]
   if (accountId) parts.push(eq(a.userId, accountId), and(eq(a.recordId, accountId), sql`${a.action} like 'user.%'`)!)
   return or(...parts)!
 }
@@ -75,6 +78,31 @@ export function submissionView(e: CmsEntity, row: Record<string, any>) {
   const data: Record<string, unknown> = {}
   for (const k of form.fields) data[k] = row[propOf(k, e.fields[k]!)] ?? null
   return { form: e.name, id: row.id as string, createdAt: row.createdAt as Date, status: (row.status as string | null) ?? null, data }
+}
+
+/** The audit actions of a change of sign-in address: they name two addresses, `email` (new) and `previousEmail` (old). */
+const ADDRESS_CHANGES = new Set(['account.email_request', 'account.email', 'account.email_cancel', 'account.email_revert', 'user.email'])
+
+/**
+ * An audit entry as exported to the person with `email`: a change of sign-in address
+ * names two addresses, and the other one is not always theirs. It is when the entry is
+ * about their own account (they made the change, or it was made to their account) —
+ * except the address of another account they asked for (`inUse`). Found only through
+ * the address (it is the old address of somebody else's account now, or that other
+ * account's own), the other address is left out.
+ */
+export function auditExportMeta(entry: { action: string; userId: string | null; recordId: string | null; meta: unknown }, email: string, accountId: string | null): unknown {
+  const meta = entry.meta as Record<string, unknown> | null
+  if (!meta || typeof meta !== 'object' || Array.isArray(meta) || !ADDRESS_CHANGES.has(entry.action)) return entry.meta
+  const own = !!accountId && (entry.action.startsWith('user.') ? entry.recordId === accountId : entry.userId === accountId)
+  const out: Record<string, unknown> = { ...meta }
+  for (const key of ['email', 'previousEmail'] as const) {
+    const value = typeof out[key] === 'string' ? (out[key] as string).trim().toLowerCase() : null
+    if (value === null || value === email) continue
+    const theirs = own && !(key === 'email' && out.inUse === true)
+    if (!theirs) out[key] = '(another person’s address)'
+  }
+  return out
 }
 
 /** The account without secrets (no password hash, no session counter). */
@@ -125,16 +153,26 @@ export async function erasePerson(db: any, reg: CmsRegistry, email: string, acto
         sessionVersion: sql`${u.sessionVersion} + 1`, updatedAt: new Date(),
       }).where(eq(u.id, account.id))
       await tx.delete(reg.cmsTokens).where(eq(reg.cmsTokens.userId, account.id))
+      await tx.delete(reg.cmsState).where(eq(reg.cmsState.key, emailChangeStateKey(account.id)))
+      await tx.delete(reg.cmsState).where(sql`${reg.cmsState.key} like ${emailRevertStatePattern(account.id)}`)
     }
+    // A change waiting for this address, or a way back to it, of whichever account: the link goes with it.
+    const states = await findEmailStates(tx, reg, email)
+    if (states.length) await tx.delete(reg.cmsState).where(inArray(reg.cmsState.key, states.map((r) => r.key)))
     return { submissions, account: !!account, auditEntries }
   })
 }
 
 /**
  * Take the erased person's own details out of the audit log, and nobody else's:
- *  - entries that name their address (`meta.email`, any case, whitespace trimmed: a failed
- *    sign-in with it, their invitation, their deletion) and entries about their account
- *    (`user.*` on their id) lose email, IP address and name;
+ *  - entries that name their address (`meta.email` or `meta.previousEmail`, any case,
+ *    whitespace trimmed: a failed sign-in with it, their invitation, their deletion, a
+ *    change of their address) lose that address — only that one: a change of address
+ *    names another, which may be somebody else's now (the account that moved away from
+ *    the address this person has today) — and sign-in attempts their IP address too;
+ *  - entries about their account (`user.*` on their id) lose addresses, IP address and name;
+ *  - their own changes of address (`account.email*`) lose both addresses (but not the
+ *    address of another account they asked for, `inUse`);
  *  - entries they made themselves lose their IP address and their name — but not an
  *    `email` that is someone else's: the `user.invite` entries of an administrator hold
  *    the invitees' addresses, which belong to the invitees.
@@ -148,12 +186,23 @@ async function scrubAudit(tx: any, reg: CmsRegistry, email: string, account: { i
     const res: any = await tx.execute(sql`update ${a} set meta = nullif(${set}, '{}'::jsonb) where ${isObject} and (${where}) returning ${a.id}`)
     for (const row of res?.rows ?? []) touched.add(String(row.id))
   }
-  const strip = sql`${a.meta} - 'email' - 'ip' - 'name'`
+  const strip = sql`${a.meta} - 'email' - 'previousEmail' - 'ip' - 'name'`
+  const names = (key: string) => sql`lower(btrim(${a.meta}->>${key})) = ${email}`
   // Naming the address: a sign-in attempt (its IP address went with the attempt) or an entry by somebody
-  // else about this person (the actor's own details are not ours to take).
-  await run(sql`case when ${a.action} like 'auth.%' then ${strip} else ${a.meta} - 'email' end`, sql`lower(btrim(${a.meta}->>'email')) = ${email}`)
+  // else about this person (the actor's own details are not ours to take). Only the keys that hold this
+  // address go: the other address of a change belongs to whoever has it (their own changes: below).
+  const matching = sql`${a.meta} - (case when ${names('email')} then 'email' else '' end) - (case when ${names('previousEmail')} then 'previousEmail' else '' end)`
+  await run(
+    sql`case when ${a.action} like 'auth.%' then ${strip} else ${matching} end`,
+    sql`(${names('email')} or ${names('previousEmail')})`,
+  )
   if (account) {
-    await run(strip, sql`${a.recordId} = ${account.id} and ${a.action} like 'user.%' and ${a.meta} ?| array['email', 'ip', 'name']`)
+    await run(strip, sql`${a.recordId} = ${account.id} and ${a.action} like 'user.%' and ${a.meta} ?| array['email', 'previousEmail', 'ip', 'name']`)
+    // Their own changes of address: both addresses are theirs (but not another account's address they asked for).
+    await run(
+      sql`case when ${a.meta} ? 'inUse' then ${a.meta} - 'previousEmail' else ${a.meta} - 'email' - 'previousEmail' end`,
+      sql`${a.userId} = ${account.id} and ${a.action} like 'account.email%' and ${a.meta} ?| array['email', 'previousEmail']`,
+    )
     // Their own entries: their client address, and their name if it is the one on the entry.
     const name = (account.name ?? '').trim().toLowerCase()
     await run(

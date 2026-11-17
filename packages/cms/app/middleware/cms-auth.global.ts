@@ -1,6 +1,6 @@
 // Admin routes need a signed-in session; the sign-in pages are the exception (and
 // send someone who is already signed in straight to the admin).
-const PUBLIC = ['/admin/login', '/admin/setup', '/admin/forgot', '/admin/reset/', '/admin/invite/']
+const PUBLIC = ['/admin/login', '/admin/setup', '/admin/forgot', '/admin/reset/', '/admin/invite/', '/admin/email/']
 
 export default defineNuxtRouteMiddleware((to) => {
   if (!to.path.startsWith('/admin')) return

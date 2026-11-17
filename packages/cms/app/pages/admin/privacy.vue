@@ -19,6 +19,8 @@ interface Found {
   submissions: { form: string; formLabel: any; id: string; createdAt: string; status: string | null; data: Record<string, unknown> }[]
   account: { id: string; email: string; name: string; role: string; status: string; lastLoginAt: string | null; createdAt: string } | null
   audit: { total: number; latest: { id: string; action: string; createdAt: string }[] }
+  /** Changes of sign-in address waiting for this one, or ways back to it. */
+  emailChanges: number
 }
 
 const email = ref('')
@@ -29,7 +31,7 @@ const busy = ref<'export' | 'delete' | null>(null)
 // Right after an erase the lookup is empty because we emptied it: say so, not "nothing was ever stored".
 const justErased = ref(false)
 
-const empty = computed(() => !!found.value && !found.value.submissions.length && !found.value.account && !found.value.audit.total)
+const empty = computed(() => !!found.value && !found.value.submissions.length && !found.value.account && !found.value.audit.total && !found.value.emailChanges)
 
 async function search(keepErased = false) {
   if (!keepErased) justErased.value = false
@@ -72,10 +74,11 @@ async function erase() {
   if (!found.value) return
   const target = found.value.email
   // The question names what this lookup found, so "delete" says what goes.
-  const { submissions, account, audit } = found.value
+  const { submissions, account, audit, emailChanges } = found.value
   const lines = [
     submissions.length ? t('privacy.eraseSubmissions', { count: submissions.length }) : '',
     account ? t('privacy.eraseAccount') : '',
+    emailChanges ? t('privacy.eraseEmailChanges') : '',
     audit.total ? t('privacy.eraseActivity', { count: audit.total }) : '',
     t('privacy.eraseUndone'),
   ].filter(Boolean)
@@ -177,6 +180,7 @@ const roleName = (r: string) => (['admin', 'editor', 'author'] as const).include
               <dt class="text-muted">{{ t('team.status') }}</dt><dd>{{ t(`team.status${found.account.status === 'active' ? 'Active' : found.account.status === 'invited' ? 'Invited' : 'Disabled'}`) }}</dd>
               <dt class="text-muted">{{ t('team.lastActive') }}</dt><dd>{{ found.account.lastLoginAt ? formatDate(found.account.lastLoginAt) : t('team.never') }}</dd>
             </dl>
+            <p v-if="found.emailChanges" class="px-4 pb-3 text-sm text-muted">{{ t('privacy.emailChanges') }}</p>
           </section>
 
           <section class="cms-card overflow-hidden" :aria-label="t('privacy.activity')">

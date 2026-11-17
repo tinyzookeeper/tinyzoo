@@ -18,7 +18,7 @@ Správu obsahu najdete na adrese svého webu s koncovkou `/admin`, například `
 
 ## Obsah
 
-1. [Přihlášení a váš účet](prihlaseni-a-ucet.md): první přihlášení, zapomenuté heslo, role, pozvání kolegů.
+1. [Přihlášení a váš účet](prihlaseni-a-ucet.md): první přihlášení, zapomenuté heslo, změna e-mailu, role, pozvání kolegů.
 2. [Stránky a bloky](stranky-a-bloky.md): jak najít obsah, upravit stránku, přidávat a řadit bloky, psát text, přesouvat stránky.
 3. [Překlady](preklady.md): jak přidat anglickou (nebo jinou) verzi.
 4. [Zveřejnění, naplánování, náhled](zverejneni-a-nahled.md): kdy se změna objeví na webu a jak si ji předem prohlédnout.

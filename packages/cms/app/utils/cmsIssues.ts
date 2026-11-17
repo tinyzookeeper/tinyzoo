@@ -40,6 +40,8 @@ export function cmsIssueMessage(issue: any, field: any, t: T): string {
       // A page tree: the whole address is taken, not just the part.
       if (issue.address) return t('validation.addressTaken', { address: issue.address, title: issue.otherTitle ?? '' })
       return t('validation.unique')
+    case 'same_email':
+      return t('account.sameEmail')
     case 'tree_cycle':
       return t('validation.treeCycle', { loop: Array.isArray(issue.loop) ? issue.loop.join(' → ') : '' })
     case 'tree_depth':

@@ -116,8 +116,12 @@ export const tokenOf = (url: string) => String(url).split('/').pop()!
 export function sentMail(to?: string): { to: string; subject: string; text: string; html: string }[] {
   const dir = inject('mailDir')
   return readdirSync(dir).sort().reverse()
-    .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')))
-    .filter((m) => !to || m.to === to)
+    .map((f) => {
+      // A file the server is still writing reads as cut-off JSON: it is not there yet.
+      try { return JSON.parse(readFileSync(join(dir, f), 'utf8')) }
+      catch { return null }
+    })
+    .filter((m) => m && (!to || m.to === to))
 }
 
 /** Wait for an email to `to` matching `match` (some are sent after the response, e.g. password resets). */
