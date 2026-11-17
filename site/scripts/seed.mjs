@@ -34,6 +34,8 @@ const p = (...parts) => ({ type: 'paragraph', content: parts.map((t) => (typeof 
 const h2 = (text) => ({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text }] })
 const ul = (...items) => ({ type: 'bulletList', content: items.map((t) => ({ type: 'listItem', content: [p(t)] })) })
 const doc = (...content) => ({ type: 'doc', content })
+// A link inside a paragraph: p('See ', a('the guide', '/en/docs/editors'), '.')
+const a = (text, href) => ({ type: 'text', text, marks: [{ type: 'link', attrs: { href } }] })
 
 // ── sign in (or set up the first administrator) ──
 for (let i = 0; i < 60; i++) { try { if ((await fetch(`${base}/admin/login`)).ok) break } catch {} await new Promise((r) => setTimeout(r, 500)) }
@@ -263,17 +265,20 @@ await update('Nový web jedním příkazem: pnpm create tinyzoo', 'pnpm-create-t
   'Příkaz se zeptá na jazyky, části webu a ukázkový obsah. Za pár minut máte web se správou obsahu, který rovnou spustíte.',
   doc(p('Vyberete jazyky webu (první je výchozí), části, které web potřebuje (aktuality, kontaktní formulář, přesměrování, vyhledávání), a jestli chcete ukázkový obsah. Co nechcete, v projektu vůbec nebude.'),
     p('Každá otázka má i přepínač, takže příkaz spustíte i bez ptaní: pnpm create tinyzoo muj-web --languages cs,en --presets news,search --no-demo --yes.'),
-    p('Nový projekt má také soubor AGENTS.md. Je to krátký návod pro asistenta, se kterým programujete: kde je model obsahu, jak se mění a na co nesahat.')), { cover: img.desk.id })
+    p('Nový projekt má také soubor AGENTS.md. Je to krátký návod pro asistenta, se kterým programujete: kde je model obsahu, jak se mění a na co nesahat.'),
+    p('Krok za krokem to popisuje ', a('návod Getting started', '/dokumentace/pro-vyvojare/getting-started'), ' v dokumentaci (zatím v angličtině).')), { cover: img.desk.id })
 await update('Každý jazyk se zveřejňuje zvlášť, s originálem po ruce', 'jazyky-zvlast', 'feature', 0,
   'Anglickou verzi článku v klidu dopíšete a zveřejníte, až bude hotová. Při překládání máte český text pořád na očích.',
   doc(p('Každý jazyk má svůj stav: koncept, naplánováno, nebo na webu. Překlad jde na web vždy spolu s českou verzí, takže se tam nedostane nic z nehotového českého textu. Vývojář to zapne tam, kde to dává smysl, třeba u článků.'),
     p('V nepřeloženém poli je šedě český text. Přesně ten by návštěvník viděl, dokud pole nepřeložíte. Delší text si zobrazíte vedle originálu a překládáte odstavec po odstavci.'),
-    p('V seznamu článků poznáte stav každého jazyka podle malé značky. Na telefonu přepnete jazyk klepnutím na jeho název nahoře.')))
+    p('V seznamu článků poznáte stav každého jazyka podle malé značky. Na telefonu přepnete jazyk klepnutím na jeho název nahoře.'),
+    p('Jak překládat a zveřejnit jazyk, popisuje kapitola ', a('Překlady', '/dokumentace/pro-editory/preklady'), ' v příručce pro editory.')))
 await update('Role na míru a pole, která smí měnit jen někdo', 'role-na-miru', 'feature', 0,
   'Vedle administrátora, editora a autora může mít web vlastní role, třeba překladatele. U jednotlivých polí určíte, kdo je smí měnit.',
   doc(p('Vývojář webu nastaví role podle toho, kdo ve firmě co dělá. Překladatel třeba upravuje jen články a nic nezveřejňuje. Správce autorů se stará o jejich profily a do knihovny médií nevidí.'),
     p('Pole, které smí měnit jen někdo, má šedé pozadí a zámek. Pod ním je napsáno, kdo ho změní, takže víte, za kým jít.'),
-    p('V části Tým najdete přehled Co která role může?. V pozvánce i při změně role je u každé role jedna věta o tom, co smí.')))
+    p('V části Tým najdete přehled Co která role může?. V pozvánce i při změně role je u každé role jedna věta o tom, co smí.'),
+    p('Co která role smí a co dělat u pole se zámkem, popisuje kapitola ', a('Role a oprávnění', '/dokumentace/pro-editory/role-a-opravneni'), ' v příručce pro editory.')))
 await update('Karty a otázky na jedné stránce', 'seznamy-v-blocich', 'feature', 1,
   'Do stránky nově poskládáte karty nebo otázky a odpovědi. Jejich pořadí změníte přetažením.',
   doc(p('Stránku můžete sestavit z hotových částí, třeba z karet nebo otázek a odpovědí. Doplňte vlastní texty a seřaďte části přetažením.'),
@@ -330,7 +335,7 @@ await req('PUT', '/api/cms/_singleton/siteSettings', {
 // ── translations: English and German (seed/translations/<lang>.mjs) ──
 // Each file exports a function that gets the same helpers and media as above and
 // returns its texts, keyed by the Czech address of the page or update it translates.
-const helpers = { id, item, p, h2, ul, doc, link, picture, video, img, code: { configCode, pageCode } }
+const helpers = { id, item, p, a, h2, ul, doc, link, picture, video, img, code: { configCode, pageCode } }
 for (const lang of ['en', 'de']) {
   const file = join(dirname(fileURLToPath(import.meta.url)), `../seed/translations/${lang}.mjs`)
   if (!existsSync(file)) { console.log(`· no ${lang} translation yet`); continue }
