@@ -173,7 +173,7 @@ for 2.0, and anything removed was deprecated for at least one minor first.
 |---|---|
 | Role model (M) | A custom role **extends a built-in** (`from: 'editor'` or `'author'`) and narrows it or adds grants per entity (`read`/`create`/`update`/`delete`), plus `publish` and `media: 'all' \| 'own' \| 'none'`. Only `admin` manages people; a custom role can never become one. Per field: `read`/`edit` by role. |
 | Role removed from config (M) | **Fails closed**: the account signs in to a "your role no longer exists, ask an administrator" screen with no access; the Team page flags it and `tinyzoo status` warns. |
-| Per-language publishing (N) | **Opt-in per entity** (`publish: { perLocale: true }`). Turning it on comes with an upgrade step that copies the current state into every language, so nothing changes on the website by itself. |
+| Per-language publishing (N) | **Opt-in per entity** (`publish: { perLocale: true }`). A translation's state is nullable and `null` follows the default language, so turning it on changes nothing on the website by itself and needs no data step (amended at implementation: a copy could not cover entries without a translation row, which are served through fallback). Not for page trees yet. |
 | A translation that is not published (N) | **Not there in that language**: `404` for the item, left out of that language's lists, sitemap and `hreflang`; webhooks report the language. Per-field fallback to the default language stays, inside a published translation only. |
 | What 1.0 freezes (P) | Besides the content API, the `@tinyzoo/client` types and the config API: the **webhook payload and Nitro hooks**, the **CLI commands and flags, `cms.*` module options and `NUXT_CMS_*` variables**, and the **admin extension points** (`cms.fields` in `app.config`, the component names it resolves, their props). Everything else is marked `@internal`. Database tables are not promised: tinyzoo migrates them, with an upgrade step. |
 | `cms` naming (P) | **Kept** (`cms.config.ts`, `NUXT_CMS_*`, `cms_*`, `Cms*`, `cms` in `nuxt.config`). |
@@ -1236,6 +1236,6 @@ Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, one ag
 | Slice | Branch | State |
 |---|---|---|
 | M — custom roles, per-field permissions | `feat/1.0-roles` | done (e7fac16), waiting for merge; admin screens not yet seen in a browser |
-| N — per-language publishing | `feat/1.0-locale-publishing` | running |
+| N — per-language publishing | `feat/1.0-locale-publishing` | done (f1d4257), waiting for merge |
 | O — `pnpm create tinyzoo` | `feat/1.0-create` | running |
 | P — API review before the freeze | `feat/1.0-api-review` | done (6f7d046), waiting for merge; 11 proposals for Vojtěch in its write-up |
