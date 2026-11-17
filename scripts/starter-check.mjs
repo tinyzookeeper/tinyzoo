@@ -97,7 +97,7 @@ try {
     await c.query(`create database "${dbName}"`)
   })
   dbCreated = true
-  const env = { DATABASE_URL: dbUrl, NUXT_SESSION_PASSWORD: 'starter-check-session-password-32-characters', NUXT_CMS_STORAGE_LOCAL_DIR: uploads, NUXT_CMS_MAIL_TRANSPORT: 'log' }
+  const env = { DATABASE_URL: dbUrl, NUXT_APP_SECRET: 'starter-check-app-secret-of-32-characters', NUXT_CMS_STORAGE_LOCAL_DIR: uploads, NUXT_CMS_MAIL_TRANSPORT: 'log' }
   run('pnpm', ['db:migrate'], site, env)
 
   // The site's own files type-check as shipped, templates included (the blocks are typed from the generated client).
@@ -257,7 +257,7 @@ try {
   const runPort = await freePort()
   const lone = spawn(process.execPath, ['.output/server/index.mjs'], {
     cwd: runtime, stdio: ['ignore', 'pipe', 'pipe'],
-    env: { PATH: process.env.PATH, NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(runPort), DATABASE_URL: runUrl, NUXT_SESSION_PASSWORD: env.NUXT_SESSION_PASSWORD, NUXT_CMS_PUBLIC_URL: `http://127.0.0.1:${runPort}`, NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_STORAGE_LOCAL_DIR: join(work, 'runtime-uploads') },
+    env: { PATH: process.env.PATH, NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(runPort), DATABASE_URL: runUrl, NUXT_APP_SECRET: env.NUXT_APP_SECRET, NUXT_CMS_PUBLIC_URL: `http://127.0.0.1:${runPort}`, NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_STORAGE_LOCAL_DIR: join(work, 'runtime-uploads') },
   })
   const loneLogs = []
   lone.stdout.on('data', (d) => loneLogs.push(String(d)))

@@ -62,7 +62,7 @@ export async function startServer(databaseUrl: string, env: Record<string, strin
       ...TEST_TIMERS,
       NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(port),
       DATABASE_URL: databaseUrl, NUXT_CMS_DATABASE_URL: databaseUrl,
-      NUXT_SESSION_PASSWORD: 'test-session-password-at-least-32-characters-long',
+      NUXT_APP_SECRET: 'test-app-secret-at-least-32-characters-long',
       NUXT_CMS_STORAGE_DRIVER: 'local', NUXT_CMS_PUBLIC_URL: baseURL, NUXT_CMS_MAIL_TRANSPORT: 'log',
       NUXT_CMS_MIGRATIONS_ON_START: 'true',
       ...env,

@@ -18,11 +18,16 @@
 //      (replacing the tarballs) and `tinyzoo upgrade` runs without a terminal. A migration the
 //      guard refuses (a breaking change without its documented steps) fails the check with the
 //      guard's reasons: that is what the check is for.
-//   3. New site. Built, started with migrations on start against the SAME database. Checked:
-//      it starts, `tinyzoo status` has nothing pending, the old account signs in, the content API
-//      and the admin return the same content field by field (only differences written down in
-//      scripts/upgrade-check/differences.mjs or a baseline's hook are allowed), every recorded
-//      file is still served, and the admin can open and save every entry unchanged.
+//   3. New site. Built, started with migrations on start against the SAME database and the SAME
+//      environment (a deploy whose variables nobody touched). Checked: it starts, `tinyzoo status`
+//      has nothing pending, the old account signs in (and the session opens the admin API), a
+//      browser session from the old site does not break anything, the content API and the admin
+//      return the same content field by field (only differences written down in
+//      scripts/upgrade-check/differences.mjs or a baseline's hook are allowed), every recorded file
+//      is still served, and the admin can open and save every entry unchanged. When the old site
+//      ran on NUXT_SESSION_PASSWORD (tinyzoo 0.3 and older), the site is finally restarted the way
+//      the 0.4 changelog says to set it up, NUXT_APP_SECRET with the same value, and the session
+//      it signed in with must still open the admin.
 //
 // A baseline can have a hook file, scripts/upgrade-check/<ref>.mjs, for manual steps its
 // changelog documents: see scripts/upgrade-check/README.md. Databases created here are named
@@ -36,11 +41,13 @@ import { pathToFileURL } from 'node:url'
 import pg from 'pg'
 import differences from './upgrade-check/differences.mjs'
 import { lockfileVersions, newestTag, workspaceOverrides } from './upgrade-check/workspace.mjs'
-import { ACCOUNT, applyRules, checkMedia, describe, diff, formatDifference, saveEverything, seedViaApi, signIn, snapshot } from './upgrade-check/site.mjs'
+import { ACCOUNT, applyRules, checkMedia, Client, describe, diff, formatDifference, saveEverything, seedViaApi, signIn, snapshot } from './upgrade-check/site.mjs'
 
 const root = join(import.meta.dirname, '..')
 const SETUP_TOKEN = 'upgrade-check-setup-code'
-const SESSION_PASSWORD = 'upgrade-check-session-password-at-least-32-characters'
+// The site's sign-in secret. A baseline whose starter documents NUXT_APP_SECRET (0.4 and later)
+// gets it under that name, an older one as NUXT_SESSION_PASSWORD, as its own docs said.
+const SITE_SECRET = 'upgrade-check-session-password-at-least-32-characters'
 /** Keys that change when an entry is saved; ignored when comparing before and after a save. */
 const SAVE_NOISE = ['updatedAt', 'updatedBy', '__version', 'lastmod']
 
@@ -217,7 +224,6 @@ async function checkBaseline(baseline) {
   // by both versions (the files are the thing that must survive).
   const siteEnv = {
     DATABASE_URL: databaseUrl(dbName),
-    NUXT_SESSION_PASSWORD: SESSION_PASSWORD,
     NUXT_CMS_MIGRATIONS_ON_START: 'true',
     NUXT_CMS_AUTH_SETUP_TOKEN: SETUP_TOKEN, // refs before the generated setup code (slice D) honour it too
     NUXT_CMS_STORAGE_DRIVER: 'local',
@@ -293,6 +299,10 @@ async function checkBaseline(baseline) {
       sh('worktree', 'git', ['worktree', 'add', '--detach', dirs.src, baseline.sha])
       worktree = true
     })
+    // The variable the baseline's own docs name for the sign-in secret (see SITE_SECRET).
+    const secretVar = /^NUXT_APP_SECRET=/m.test(readFileSync(join(dirs.src, 'packages/cms/starter/.env.example'), 'utf8')) ? 'NUXT_APP_SECRET' : 'NUXT_SESSION_PASSWORD'
+    siteEnv[secretVar] = SITE_SECRET
+    note(`the site's sign-in secret is ${secretVar}, as the baseline's starter documents it; the upgraded site keeps the same environment`)
     await step('install and pack the baseline', () => {
       sh('baseline-install', 'pnpm', ['install', '--frozen-lockfile'], { cwd: dirs.src })
       sh('baseline-pack-cms', 'pnpm', ['pack', '--pack-destination', dirs.packsOld], { cwd: join(dirs.src, 'packages/cms') })
@@ -312,13 +322,16 @@ async function checkBaseline(baseline) {
     })
 
     let before
+    let oldCookie = ''
     let account = ACCOUNT
     await step('start the old site (migrations on start), set it up and seed it', async () => {
       const old = await startServer('old')
       const applied = old.output().split('\n').filter((l) => /\[cms\] applied migrations/.test(l))
       if (applied.length) note(applied.join(' ').trim())
       await (hook?.seed ?? SEEDERS[options.seed])({ ...ctx, baseURL: old.baseURL })
-      before = await snapshot(old.baseURL, await signIn(old.baseURL, account))
+      const oldAdmin = await signIn(old.baseURL, account)
+      oldCookie = oldAdmin.cookie
+      before = await snapshot(old.baseURL, oldAdmin)
       note(`recorded: ${describe(before)}`)
       if (!Object.keys(before.content).length || !Object.keys(before.admin).length) throw new CheckFailure('the seeding left nothing to compare: the site returned no content')
       await old.stop()
@@ -361,7 +374,7 @@ async function checkBaseline(baseline) {
       rmSync(join(dirs.site, '.nuxt'), { recursive: true, force: true })
       sh('site-rebuild', 'pnpm', ['exec', 'nuxt', 'build'], { cwd: dirs.site, env: { NODE_ENV: 'production' } })
       const now = await startServer('new')
-      const lines = now.output().split('\n').filter((l) => /\[cms\] (applied|upgrade|migrat)/i.test(l))
+      const lines = now.output().split('\n').filter((l) => /\[cms\] (applied|upgrade|migrat)/i.test(l) || /\[tinyzoo\] deprecated:/.test(l))
       for (const l of lines) note(l.trim())
     })
 
@@ -374,6 +387,23 @@ async function checkBaseline(baseline) {
     let admin
     await step('the old account signs in', async () => {
       admin = await signIn(baseURL, account)
+      // Signed in for real: the cookie the sign-in set opens the admin API as that account.
+      const me = await admin.get('/api/cms/_auth/me')
+      if (me.status !== 200 || me.body?.user?.email !== account.email) {
+        throw new CheckFailure(`the sign-in answered 200, but its session does not open the admin API (GET /api/cms/_auth/me: ${me.status})`, tail(server.output(), 40))
+      }
+      note(`signed in as ${account.email}; session cookie ${admin.cookie.split('=')[0]}`)
+    })
+
+    await step('a browser session from the old site breaks nothing', async () => {
+      const browser = new Client(baseURL)
+      browser.cookie = oldCookie
+      const me = await browser.get('/api/cms/_auth/me')
+      const page = await browser.get('/admin')
+      for (const [what, res] of [['GET /api/cms/_auth/me', me], ['GET /admin', page]]) {
+        if (res.status >= 500) throw new CheckFailure(`${what} with the old site's session cookie: HTTP ${res.status}`, tail(server.output(), 40))
+      }
+      note(me.status === 200 ? 'the old session still opens the admin' : `the old session no longer opens the admin (${me.status}): everyone signs in again once`)
     })
 
     let after
@@ -413,6 +443,23 @@ async function checkBaseline(baseline) {
       if (unexpected.length) throw new CheckFailure('saving entries unchanged changed their content', unexpected.slice(0, 30).map(formatDifference).join('\n'))
       note('saving changed nothing but timestamps')
     })
+
+    if (secretVar === 'NUXT_SESSION_PASSWORD') {
+      await step('NUXT_APP_SECRET set as the changelog says (same value): the session stays open', async () => {
+        await server.stop()
+        server = null
+        delete siteEnv.NUXT_SESSION_PASSWORD
+        siteEnv.NUXT_APP_SECRET = SITE_SECRET
+        const renamed = await startServer('app-secret')
+        admin.baseURL = renamed.baseURL // the same browser, the restarted site (on a new port)
+        if (/\[tinyzoo\] deprecated:.*NUXT_SESSION_PASSWORD/.test(renamed.output())) throw new CheckFailure('the site still warns about NUXT_SESSION_PASSWORD with NUXT_APP_SECRET set', tail(renamed.output(), 40))
+        const me = await admin.get('/api/cms/_auth/me')
+        if (me.status !== 200 || me.body?.user?.email !== account.email) {
+          throw new CheckFailure(`with NUXT_APP_SECRET set to the old NUXT_SESSION_PASSWORD, the session no longer opens the admin API (${me.status})`, tail(renamed.output(), 40))
+        }
+        note('the session signed in before the change still opens the admin')
+      })
+    }
   }
   catch (err) {
     failure = err

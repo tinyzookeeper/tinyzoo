@@ -19,13 +19,12 @@ export default defineNuxtConfig({
   // Admin design tokens, scoped to html[data-cms-admin] so the host site's own
   // theme is untouched (see app/assets/css/cms-admin.css).
   css: [join(layerDir, 'app/assets/css/cms-admin.css')],
-  // Admin sessions end after 14 days at the latest (sign in again). Without a maxAge
-  // a copied session cookie would stay valid until the account changes. Hosts can
-  // override with runtimeConfig.session.maxAge / NUXT_SESSION_MAX_AGE.
+  // Admin sessions end 14 days after they were last written (signing in, or changing
+  // one's name, email or password): sign in again. Without a maxAge a copied session cookie would
+  // stay valid until the account changes. Hosts can override with
+  // runtimeConfig.session.maxAge / NUXT_SESSION_MAX_AGE.
   runtimeConfig: {
-    // `as any`: on Nuxt 4.6, nuxt-auth-utils 0.5 types `session` as a full session config with
-    // a required `password` (it comes from NUXT_SESSION_PASSWORD at runtime).
-    session: { maxAge: 60 * 60 * 24 * 14 } as any,
+    session: { maxAge: 60 * 60 * 24 * 14 },
   },
   // The admin's realtime socket (/api/cms/_live): presence and live updates.
   nitro: {

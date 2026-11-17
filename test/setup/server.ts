@@ -109,7 +109,7 @@ export default async function setup(project: TestProject) {
       PORT: String(port),
       DATABASE_URL: databaseUrl,
       NUXT_CMS_DATABASE_URL: databaseUrl,
-      NUXT_SESSION_PASSWORD: 'test-session-password-at-least-32-characters-long',
+      NUXT_APP_SECRET: 'test-app-secret-at-least-32-characters-long',
       NUXT_CMS_STORAGE_DRIVER: 'local',
       NUXT_CMS_STORAGE_LOCAL_DIR: uploadsDir,
       // Every spec uploads as the same seeded admin: the default 60 a minute would be used up by the suites together.

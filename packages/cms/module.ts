@@ -201,6 +201,45 @@ function sitemapPaths(paths: (string | Record<string, string>)[] | undefined): (
   return paths ?? []
 }
 
+/**
+ * nuxt-auth-utils 0.6 seals the sign-in cookie with a key Nuxt derives from its app secret
+ * (`NUXT_APP_SECRET`) and no longer reads `NUXT_SESSION_PASSWORD`. So that a site deployed
+ * with only the old variable keeps starting (and signing people in) after the update, the
+ * server takes NUXT_SESSION_PASSWORD as NUXT_APP_SECRET when no app secret is set at all
+ * (neither NUXT_APP_SECRET nor NITRO_APP_SECRET, nor `runtimeConfig.appSecret` at build
+ * time). A set app secret always wins, whatever else uses it (signed image URLs…).
+ *
+ * Nitro reads the environment into its runtime config once, when its config module is
+ * evaluated, and freezes it; a Nitro plugin runs too late to change it. So the copy is put
+ * at the top of that module in the server bundle, before the environment is read. The
+ * start-up check (server/plugins/cms-0-config-check.ts) then warns that the old name is
+ * deprecated, or refuses to start when there is no secret at all. Removed in 0.5.
+ */
+function appSecretFallback(envPrefix: string) {
+  const prefix = JSON.stringify(envPrefix)
+  const code = `;(() => {
+  const env = globalThis.process?.env
+  if (!env || env[${prefix} + 'APP_SECRET'] || env.NITRO_APP_SECRET) return
+  const from = [${prefix} + 'SESSION_PASSWORD', 'NITRO_SESSION_PASSWORD'].find((name) => env[name])
+  if (!from) return
+  env[${prefix} + 'APP_SECRET'] = env[from]
+  globalThis[Symbol.for('tinyzoo.appSecretFrom')] = from
+})();
+`
+  let installed = false
+  return {
+    name: 'tinyzoo:app-secret-fallback',
+    transform(source: string, id: string) {
+      if (!/[\\/]nitropack[\\/]dist[\\/]runtime[\\/]internal[\\/]config\.mjs$/.test(id.split('?')[0]!)) return null
+      installed = true
+      return { code: code + source, map: null }
+    },
+    buildEnd() {
+      if (!installed) console.warn('[tinyzoo] Nitro\'s runtime config module was not found in the server bundle, so NUXT_SESSION_PASSWORD will not stand in for NUXT_APP_SECRET: set NUXT_APP_SECRET.')
+    },
+  }
+}
+
 export default defineNuxtModule<CmsModuleOptions>({
   meta: { name: 'tinyzoo', configKey: 'cms' },
   defaults: { config: 'cms.config.ts' },
@@ -214,14 +253,14 @@ export default defineNuxtModule<CmsModuleOptions>({
     nuxt.options.alias['#cms/config'] = configPath
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
-    // nuxt-auth-utils adds a Nitro plugin when WebSockets are on (the admin's live socket
-    // is one) that reads the session on EVERY request: for a visitor without one that
-    // *creates* it and sets a cookie on every response, public pages, content API and
-    // media included, so no CDN caches them. The admin socket checks the session itself
-    // (admitAdminSocket) and only when the request carries one, so that plugin goes.
-    // Nuxt 4.6 adds the modules' server plugins after `nitro:config`, so it is taken out here.
+    // NUXT_SESSION_PASSWORD as the app secret while a site has not set NUXT_APP_SECRET yet
+    // (see appSecretFallback below).
     nuxt.hook('nitro:init', (nitro) => {
-      nitro.options.plugins = nitro.options.plugins.filter((p) => !/nuxt-auth-utils[\\/]dist[\\/]runtime[\\/]server[\\/]plugins[\\/]ws(\.|$)/.test(String(p)))
+      if (nitro.options.runtimeConfig.appSecret) return // set in nuxt.config, or generated for `nuxt dev`
+      nitro.hooks.hook('rollup:before', (_nitro, rollupConfig) => {
+        const plugins = (rollupConfig.plugins ||= []) as any[]
+        plugins.push(appSecretFallback(String((nitro.options.runtimeConfig.nitro as any)?.envPrefix || 'NUXT_')))
+      })
     })
     nuxt.hook('nitro:config', (nitro) => {
       if (existsSync(migrationsDir)) {

@@ -315,6 +315,23 @@ describe('version checks', () => {
     }
     finally { rmSync(root, { recursive: true, force: true }) }
   })
+
+  it('checks nuxt-auth-utils too: a site still on 0.5 is told to update it (tinyzoo 0.4 needs 0.6)', () => {
+    const root = mkdtempSync(join(tmpdir(), 'tz-ver-'))
+    try {
+      const install = (name: string, version: string) => {
+        mkdirSync(join(root, 'node_modules', name), { recursive: true })
+        writeFileSync(join(root, 'node_modules', name, 'package.json'), JSON.stringify({ name, version }))
+      }
+      install('nuxt', '4.4.8'); install('@nuxt/ui', '4.9.0'); install('nuxt-auth-utils', '0.5.29'); install('drizzle-orm', '0.45.4'); install('zod', '4.1.0')
+      const problems = checkVersions(root, { peerDependencies: { 'nuxt': '^4.6.0', '@nuxt/ui': '^4.9.0', 'nuxt-auth-utils': '^0.6.2' }, dependencies: { 'drizzle-orm': '^0.45.4', 'zod': '^4.0.0' } })
+      expect(problems).toEqual([
+        { name: 'nuxt', installed: '4.4.8', wanted: '^4.6.0' },
+        { name: 'nuxt-auth-utils', installed: '0.5.29', wanted: '^0.6.2' },
+      ])
+    }
+    finally { rmSync(root, { recursive: true, force: true }) }
+  })
 })
 
 describe('status report', () => {

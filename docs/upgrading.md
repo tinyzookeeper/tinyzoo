@@ -88,6 +88,32 @@ Everything below is also in the changelog of 0.3.0.
    `drizzle-kit` to `^0.31.11`, then `pnpm install`. Your schema and migrations stay as
    they are: `tinyzoo generate` writes no new migration for this.
 
+## From 0.3 to 0.4
+
+Everything below is also in the changelog of 0.4.0. tinyzoo 0.4 runs on nuxt-auth-utils 0.6,
+which needs Nuxt 4.6 and seals the sign-in cookie differently.
+
+1. **Update** both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+2. **Nuxt 4.6 and nuxt-auth-utils 0.6.** In your `package.json`, set `nuxt` to `^4.6.0` and
+   `nuxt-auth-utils` to `^0.6.2`, then `pnpm install`. Until you do, `tinyzoo upgrade` warns that
+   they do not fit. Nuxt 4.6 builds with Vite 8; if your own `nuxt.config.ts` has Vite or Rollup
+   options, check them against [Vite 8's migration guide](https://vite.dev/guide/migration).
+   Your schema and migrations stay as they are: `tinyzoo generate` writes no new migration for this.
+3. **`NUXT_APP_SECRET`.** The sign-in cookie is now sealed with a key derived from Nuxt's app
+   secret, `NUXT_APP_SECRET`, and nuxt-auth-utils no longer reads `NUXT_SESSION_PASSWORD`.
+   Rename the variable on your platform (and in `.env`), **keeping its value**:
+   `NUXT_SESSION_PASSWORD=…` becomes `NUXT_APP_SECRET=…`. If your site already sets
+   `NUXT_APP_SECRET` (for `nuxt-og-image`, say), keep it as it is and remove
+   `NUXT_SESSION_PASSWORD`. Until 0.5, a deploy that still has only `NUXT_SESSION_PASSWORD`
+   keeps working: its value stands in for `NUXT_APP_SECRET`, and the log says once, at start,
+   that the old name is deprecated. With neither (or with one shorter than 32 characters), the
+   server does not start and says why. In development Nuxt makes an app secret by itself
+   when there is none.
+4. **Everyone signs in again, once.** The sign-in cookie has a new name (`nuxt-auth-session`, was
+   `nuxt-session`) and a new format, so the sessions from before the update no longer open the
+   admin. Accounts and passwords are unchanged. Renaming the variable later, with the same value,
+   does not sign anyone out again; a new value does.
+
 ## On every upgrade
 
 ```bash

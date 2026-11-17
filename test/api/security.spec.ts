@@ -66,9 +66,12 @@ describe('sessions', () => {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '198.18.250.1' },
       body: JSON.stringify({ email: acc.email, password: acc.password }),
     })
-    const expires = /Expires=([^;]+)/i.exec(res.headers.getSetCookie().join(';'))?.[1]
-    const days = (new Date(expires!).getTime() - Date.now()) / 86_400_000
-    expect(days).toBeGreaterThan(13.9)
+    // nuxt-auth-utils 0.6 (Nuxt's useSession) sends Max-Age only; 0.5 sent Expires too.
+    const cookie = res.headers.getSetCookie().find((c) => c.startsWith('nuxt-auth-session=')) ?? ''
+    const maxAge = /Max-Age=(\d+)/i.exec(cookie)?.[1]
+    const expires = /Expires=([^;]+)/i.exec(cookie)?.[1]
+    const days = maxAge ? Number(maxAge) / 86_400 : (new Date(expires!).getTime() - Date.now()) / 86_400_000
+    expect(days, cookie).toBeGreaterThan(13.9)
     expect(days).toBeLessThan(14.1)
   })
 

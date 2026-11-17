@@ -50,7 +50,7 @@ cp .env.example .env
 ```
 
 `.env` has two lines you need now: `DATABASE_URL` (where the database is) and
-`NUXT_SESSION_PASSWORD` (a long secret that signs the admin's sign-in cookie; the example
+`NUXT_APP_SECRET` (a long secret the admin's sign-in cookie is sealed with; the example
 value is fine on your machine, never on a server).
 
 ## 3. The database
@@ -298,7 +298,7 @@ environment (never in git). The whole list, with the reasons, is in
 | | Do | Why |
 |---|---|---|
 | ☐ | **Setup code.** Deploy, open the project's log, find `Setup code: XXXX-XXXX-XXXX-XXXX`, open `/admin/setup`, type it, make the first account. Or set `NUXT_CMS_AUTH_SETUP_TOKEN` to a code of your own | a fresh deploy has no administrator; without a code, whoever opens the page first would become one. In production the code is always required |
-| ☐ | **`NUXT_SESSION_PASSWORD`**: 32+ random characters (`openssl rand -base64 32`) | signs the sign-in cookie. Changing it signs everyone out. A production server will not start without it |
+| ☐ | **`NUXT_APP_SECRET`**: 32+ random characters (`openssl rand -base64 32`) | the sign-in cookie is sealed with a key derived from it (other modules use it too). Changing it signs everyone out. A production server will not start without it |
 | ☐ | **`NUXT_CMS_PUBLIC_URL`**: the site's real address (`https://www.example.cz`) | links in emails (invitations, password resets) and the sitemap use it, never the request's `Host` header |
 | ☐ | **Storage**: `NUXT_CMS_STORAGE_DRIVER=s3` (or `r2`) and the bucket's `NUXT_CMS_STORAGE_S3_*` variables, one bucket per environment | a container's disk is lost on every deploy; uploads must live in a bucket |
 | ☐ | **Email**: `NUXT_CMS_MAIL_TRANSPORT=smtp`, `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_*` | invitations, password resets and "new message" notifications; `log` only prints them |

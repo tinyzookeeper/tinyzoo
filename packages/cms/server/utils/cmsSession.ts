@@ -15,9 +15,14 @@ export interface CmsUser {
  * middleware (server/middleware/cms-session.ts) sets it from the session after
  * checking the account in the database; with `cms.auth.mode: 'external'` the host does.
  */
-/** The name of the session cookie (nuxt-auth-utils: `nuxt-session`, or `runtimeConfig.session.name`). */
+/**
+ * The name of the session cookie: nuxt-auth-utils' `nuxt-auth-session`, or
+ * `runtimeConfig.session.name` (NUXT_SESSION_NAME). nuxt-auth-utils refuses
+ * `nuxt-session` (the cookie of Nuxt's own `useSession()`) and uses its default instead.
+ */
 export function sessionCookieName(): string {
-  return String((useRuntimeConfig().session as any)?.name || 'nuxt-session')
+  const name = String((useRuntimeConfig().session as any)?.name || 'nuxt-auth-session')
+  return name === 'nuxt-session' ? 'nuxt-auth-session' : name
 }
 
 /**
@@ -67,6 +72,8 @@ export async function activeAccountOf(session: any): Promise<any | null> {
 export async function admitAdminSocket(request: any): Promise<void> {
   if (cmsAuthMode() !== 'builtin') throw new Response('Needs the built-in sign-in', { status: 404 })
   if (!sameOrigin(request)) throw new Response('Forbidden', { status: 403 })
+  // Only read: in a WebSocket handler nuxt-auth-utils cannot write the session (there is no
+  // response to carry the cookie), so a stale cookie is refused here, not cleared.
   const session: any = hasSessionCookie(request) ? await getUserSession(request).catch(() => null) : null
   const u = await activeAccountOf(session)
   if (!u) throw new Response('Unauthorized', { status: 401 })
