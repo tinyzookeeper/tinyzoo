@@ -9,7 +9,7 @@ import type { CmsCollab } from '../composables/useCmsCollab'
 // blocks, on a new entry, or when the shared document cannot be reached — the field
 // edits on its own, as always.
 defineOptions({ inheritAttrs: false })
-const props = defineProps<{ field?: any }>()
+const props = defineProps<{ field?: any; readOnly?: boolean }>()
 const model = defineModel<any>()
 const { t, fieldLabel } = useCmsI18n()
 const label = computed(() => (props.field ? fieldLabel(props.field) : undefined))

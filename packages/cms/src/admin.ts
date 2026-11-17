@@ -30,6 +30,12 @@ export interface CmsAdminField {
   meta: Record<string, unknown>
   /** A relation field: the entity it points at and how. */
   relation?: { to: string; kind: RelationKind; required: boolean }
+  /**
+   * `true` when the person's role may read this field but not change it (`.access({ edit })`
+   * on the field). Absent when they can edit it. The admin also tells the editor through
+   * `CmsFieldEditProps.readOnly`.
+   */
+  readOnly?: boolean
 }
 
 /**
@@ -37,12 +43,20 @@ export interface CmsAdminField {
  * (`defineModel`); `id` is the DOM id the control should take, so the label and the error
  * message find it. The component also gets `aria-labelledby` as an attribute for fields
  * that have no single control.
+ *
+ * `readOnly` is set when the person cannot change the field: their role may only read it
+ * (`field.readOnly`, from `.access({ edit })`), or the whole entry is read-only for them. A
+ * renderer that is not made of native inputs (a color picker, a drag handle, a canvas) has to
+ * stop editing itself: the admin disables the form controls inside a locked field, but it
+ * cannot disable what is not a control. The server refuses a write to such a field either way.
  */
 export interface CmsFieldEditProps {
   field: CmsAdminField
   /** The entity the form is for. */
   entity: string
   id?: string
+  /** The person may see the value but not change it: show it, and let nothing change it. */
+  readOnly?: boolean
 }
 
 /** The props of a list cell (`cms.fields[type].cell`): the field and the row the list shows. */

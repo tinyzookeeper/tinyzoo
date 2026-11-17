@@ -137,7 +137,7 @@ It enforces the rules on everything the admin does; the form only follows.
 | history (the list, a version, what changed) | the field is not in the snapshots or in "what changed" |
 | the admin search (⌘K) | an entry is not found through text in a field the person may not read, and no excerpt shows it |
 | where a file or an entry is used, what links to an entry, the refusal to delete something that is used | an entry that holds it only in a field the person may not read is counted, not named |
-| the admin's schema (`/api/cms/_graph`) | the field is not in it, nor in the list columns, tabs and sections; one that is read-only is marked |
+| the admin's schema (`/api/cms/_graph`) | the field is not in it, nor in the list columns, tabs and sections; one that is read-only is marked `readOnly: true` (a `CmsAdminField`), and a [custom field renderer](admin.md#extensibility--the-field--view-registry) receives it as its `readOnly` prop |
 | a draft preview through the content API (`?preview`, signed in) | the page without those fields |
 
 **Writing** — a request that names a field the person may not edit is **refused with `403`** and

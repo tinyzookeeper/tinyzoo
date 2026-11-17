@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { t, fieldLabel } = useCmsI18n()
-const props = defineProps<{ field: any; entity?: string; id?: string }>()
+const props = defineProps<{ field: any; entity?: string; id?: string; readOnly?: boolean }>()
 const model = defineModel<any>()
 
 // A page's parent picker (a relation to its own collection) leaves out the page itself and

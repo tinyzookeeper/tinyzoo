@@ -4,7 +4,7 @@
 // with its own label, help and error. An optional group left untouched stays empty
 // (null), so a form with an unused address does not store one.
 // `id` is the control id CmsField makes for the field (its label is `${id}-label`).
-const props = defineProps<{ field: any; entity: string; id?: string }>()
+const props = defineProps<{ field: any; entity: string; id?: string; readOnly?: boolean }>()
 // Text inside a group is edited on its own (not shared), even on a shared entry.
 provide('cmsCollab', null)
 const model = defineModel<Record<string, any> | null>()

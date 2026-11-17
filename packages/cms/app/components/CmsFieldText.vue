@@ -5,7 +5,7 @@ import { isLinkRef } from '../../src/linkref'
 // from the site's pages is stored as a reference to the page (it follows the page when
 // its address changes): the box then names the page and its address, and warns when
 // visitors will not get there.
-const props = defineProps<{ field: any; entity?: string; id?: string }>()
+const props = defineProps<{ field: any; entity?: string; id?: string; readOnly?: boolean }>()
 const model = defineModel<any>()
 const { t } = useCmsI18n()
 const multiline = computed(() => !!props.field?.meta?.multiline)

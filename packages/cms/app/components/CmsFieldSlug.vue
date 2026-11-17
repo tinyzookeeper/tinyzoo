@@ -3,7 +3,7 @@ const { t } = useCmsI18n()
 // Slug field. Auto-derives from its source field (`from`, set in cms.config) until
 // the editor types in it manually — and never clobbers a slug that already exists
 // on a record being edited.
-const props = defineProps<{ field: any; entity?: string }>()
+const props = defineProps<{ field: any; entity?: string; readOnly?: boolean }>()
 const model = defineModel<any>()
 
 const form = inject<{ state: Record<string, any>, isNew: { value: boolean } } | null>('cmsForm', null)

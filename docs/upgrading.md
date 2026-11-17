@@ -262,9 +262,12 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    is `app/pages/search.vue`), make a scratch site and compare it with yours
    (`pnpm dlx tinyzoo init ../scratch`, then `diff -r app ../scratch/app`).
 
-**Also new:** `tinyzoo help` prints every command and flag, and `CmsWebhookPayload`,
-`CMS_WEBHOOK_HEADERS`, `CmsAdminField`, `CmsFieldEditProps` and `CmsFieldCellProps` are exported as
-types for webhook receivers and your own field renderers.
+**Also new:** `tinyzoo help` prints every command and flag. `CmsWebhookPayload`, `CmsAdminField`,
+`CmsFieldEditProps` and `CmsFieldCellProps` are exported as types for webhook receivers and your own
+field renderers, and `CMS_WEBHOOK_HEADERS` as a constant (the names of the webhook's headers). A custom
+field renderer now gets a `readOnly` prop (`true` when the person's role may read the field but not edit
+it, or the entry is read-only for them): a renderer that is not made of native form controls should stop
+editing when it is set ([the admin guide](guide/admin.md#extensibility--the-field--view-registry)).
 
 ## On every upgrade
 

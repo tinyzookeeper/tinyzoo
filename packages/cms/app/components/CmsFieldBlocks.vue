@@ -12,7 +12,7 @@ import { isLinkRef } from '../../src/linkref'
 // under the one above (menus). A block can hold a list (FAQ questions, feature
 // cards): the same editor again, inside the open block, under its full path
 // ("sections.2.items"), so a problem in item 3 marks both the item and the block.
-const props = defineProps<{ field: any; entity: string }>()
+const props = defineProps<{ field: any; entity: string; readOnly?: boolean }>()
 // Text inside blocks is edited on its own (not shared), even on a shared entry.
 provide('cmsCollab', null)
 const model = defineModel<any[] | null>()
@@ -141,7 +141,8 @@ function onDrop(to: number) {
   const from = dragFrom.value
   dragFrom.value = dragOver.value = null
   armed.value = null
-  if (from === null || from === to) return
+  // (the handle is not a button, so a locked field's fieldset does not stop it)
+  if (props.readOnly || from === null || from === to) return
   const next = [...blocks.value]
   const [b] = next.splice(from, 1)
   next.splice(from < to ? to - 1 : to, 0, b)
@@ -277,7 +278,7 @@ const choices = computed(() => {
       <div
         v-else class="cms-card transition-[margin,box-shadow]"
         :class="[hasIssue(i) ? 'border-error' : '', indented(b) ? 'ml-6' : '', dragOver === i && dragFrom !== i ? 'ring-2 ring-(--ui-primary)/40' : '', dragFrom === i ? 'opacity-50' : '']"
-        :draggable="armed === b.id"
+        :draggable="!readOnly && armed === b.id"
         @dragstart.stop="(e: DragEvent) => { dragFrom = i; e.dataTransfer?.setData('text/plain', b.id) }"
         @dragover.prevent.stop="dragFrom !== null && (dragOver = i)" @dragleave.stop="dragOver === i && (dragOver = null)"
         @drop.prevent.stop="onDrop(dragOver !== null && dragFrom !== null && dragOver > dragFrom ? i + 1 : i)"
@@ -286,7 +287,7 @@ const choices = computed(() => {
         <div class="flex items-center gap-2 pl-1.5 pr-1.5 py-2">
           <span
             v-if="blocks.length > 1" class="cursor-grab touch-none text-dimmed hover:text-muted shrink-0 p-1" :title="t('blocks.drag')" aria-hidden="true"
-            @pointerdown="armed = b.id" @pointerup="armed = null"
+            @pointerdown="armed = readOnly ? null : b.id" @pointerup="armed = null"
           ><UIcon name="i-lucide-grip-vertical" class="size-4" /></span>
           <button
             type="button" class="flex flex-1 min-w-0 items-center gap-2.5 text-left"

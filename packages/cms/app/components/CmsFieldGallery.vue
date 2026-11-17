@@ -2,7 +2,7 @@
 // Gallery field: several files in order, each with an optional caption. Add by
 // uploading (several at once) or from the library; drag to reorder (or use the
 // arrows); the caption sits under each picture.
-const props = defineProps<{ field: any }>()
+const props = defineProps<{ field: any; readOnly?: boolean }>()
 const model = defineModel<{ mediaId: string; caption?: string | null }[] | null>()
 const { t } = useCmsI18n()
 const toast = useToast()
@@ -51,7 +51,8 @@ const setCaption = (i: number, caption: string) => set(items.value.map((it, j) =
 const dragFrom = ref<number | null>(null)
 function onDragOver(i: number) {
   const from = dragFrom.value
-  if (from === null || from === i) return
+  // (a fieldset disables the buttons of a locked gallery, not dragging: `draggable` is off for it too)
+  if (props.readOnly || from === null || from === i) return
   const next = [...items.value]
   const [moved] = next.splice(from, 1)
   next.splice(i, 0, moved!)
@@ -86,11 +87,11 @@ async function upload(files: FileList | null) {
     <input ref="fileInput" type="file" multiple class="hidden" :accept="field.meta?.accept" @change="(e: any) => { upload(e.target.files); e.target.value = '' }">
     <ol v-if="items.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3">
       <li
-        v-for="(it, i) in items" :key="it.mediaId" draggable="true" class="group space-y-1.5"
+        v-for="(it, i) in items" :key="it.mediaId" :draggable="!readOnly" class="group space-y-1.5"
         :class="dragFrom === i ? 'opacity-60' : ''"
         @dragstart="dragFrom = i" @dragover.prevent="onDragOver(i)" @dragend="dragFrom = null" @drop.prevent="dragFrom = null"
       >
-        <div class="relative aspect-[4/3] overflow-hidden rounded-(--ui-radius) border border-default bg-elevated cursor-grab">
+        <div class="relative aspect-[4/3] overflow-hidden rounded-(--ui-radius) border border-default bg-elevated" :class="readOnly ? '' : 'cursor-grab'">
           <CmsMediaThumb v-if="media[it.mediaId]" :media="media[it.mediaId]" />
           <!-- always there: a phone has no hover to show them (and a tap on an invisible x removed a photo) -->
           <div class="absolute right-1 top-1 flex gap-0.5 rounded-md bg-default/90 p-0.5 shadow-sm ring-1 ring-(--ui-border)">

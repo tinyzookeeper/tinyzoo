@@ -26,7 +26,11 @@ const model = defineModel<any>()
 // A field this person may read but not edit (`.access({ edit })`, `readOnly` in the graph): its controls are
 // disabled, and the rich-text editor inside reads the same switch the whole form uses when it is read-only.
 const formReadOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
-provide('cmsReadOnly', computed(() => !!formReadOnly?.value || !!props.field.readOnly))
+const readOnly = computed(() => !!formReadOnly?.value || !!props.field.readOnly)
+provide('cmsReadOnly', readOnly)
+// What the renderer is told (`CmsFieldEditProps.readOnly`): not `false` when it is not, so a renderer that
+// declares no such prop gets no attribute in the page.
+const readOnlyProp = computed(() => readOnly.value || undefined)
 
 const appConfig = useAppConfig()
 const pluginFields = (useRuntimeConfig().public.cmsPlugins as any)?.fields as Record<string, { edit?: string }> | undefined
@@ -67,7 +71,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
         <span class="block" :class="compact ? 'text-xs font-medium text-muted' : 'text-sm font-medium text-highlighted'">{{ label }}</span>
         <span v-if="help && !compact" class="block text-sm text-muted text-pretty">{{ help }}</span>
       </label>
-      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" />
+      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" :read-only="readOnlyProp" />
     </div>
   </UFormField>
 
@@ -83,7 +87,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
       </button>
     </label>
     <UFormField :name="field.key" :error="shownError" :help="showHelp ? help : undefined" :ui="{ help: 'text-muted text-xs', error: 'text-error text-xs' }" class="min-w-0">
-      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" />
+      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" :read-only="readOnlyProp" />
     </UFormField>
   </div>
 
@@ -110,7 +114,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
       :ui="{ help: 'text-muted', error: 'text-error' }"
     >
       <component
-        :is="component" :id="inputId" v-model="model" :field="field" :entity="entity"
+        :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" :read-only="readOnlyProp"
         :aria-labelledby="composite ? `${inputId}-label` : undefined"
       />
     </UFormField>
