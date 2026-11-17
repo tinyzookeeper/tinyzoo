@@ -83,6 +83,11 @@ function emitLocalesTable(e: CmsEntity): string {
     const fld = e.fields[key]!
     lines.push(`  ${key}: ${serializeColumn(translationSpec(fld.spec!), snake(key))},`)
   }
+  // Per-language publishing: this language's own state; null while it follows the default language.
+  if (e.publish?.perLocale) {
+    lines.push(`  published: boolean('published'),`)
+    lines.push(`  publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 }),`)
+  }
   lines.push(`  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
   lines.push(`  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
   const lname = `${snake(e.name)}_locales`

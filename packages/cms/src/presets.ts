@@ -79,6 +79,11 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
   tree?: T
   /** Row-level rules on top of the roles (as `defineEntity({ access })`): who may read, create, change or delete which pages. */
   access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: any }) => unknown>>
+  /**
+   * Publish each language on its own (`publish.perLocale`): a translation can be a draft or
+   * scheduled while the default language is live. Needs `localized: true`; not yet for `tree`.
+   */
+  perLocale?: boolean
 }) {
   const loc = <T extends { localized: () => any }>(d: T): T => (opts.localized ? d.localized() : d)
   const path = opts.path ?? '/:slug'
@@ -106,7 +111,7 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
       ...treeFields,
       ...seo({ localized: opts.localized }),
     },
-    publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', preview: path },
+    publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', preview: path, ...(opts.perLocale ? { perLocale: true } : {}) },
     ...(opts.access ? { access: opts.access as {} } : {}),
     content: {
       public: true,

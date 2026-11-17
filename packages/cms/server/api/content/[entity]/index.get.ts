@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
   const sortCol = e.table[sortKey]
 
   const conds: any[] = []
-  const published = publishedCond(e)
+  const published = publishedCond(e, locale)
   if (published) conds.push(published)
   if (search) {
     const esc = search.replace(/[\\%_]/g, (c) => `\\${c}`) // neutralize LIKE wildcards

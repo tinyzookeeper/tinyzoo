@@ -164,6 +164,32 @@ Everything below is also in the changelog of 0.5.0.
    (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`); a content
    change clears the server's copy at once.
 
+## From 0.5 to 0.6
+
+Everything below is also in the changelog of 0.6.0.
+
+1. **Per-language publishing (optional).** An entity can now publish each language on its own:
+   `publish: { …, perLocale: true }` ([the guide](guide/content-model.md#publishing-each-language-on-its-own)).
+   **If you do not turn it on, nothing changes**: no step, no migration, the same pages, lists,
+   sitemap and webhooks as in 0.5. To turn it on for an entity with `.localized()` fields:
+
+   1. Add `perLocale: true` to its `publish` in `cms.config.ts`.
+   2. `tinyzoo generate`, review and commit the migration. It adds two nullable columns to the
+      entity's translation table (`<entity>_locales`: `published`, `published_at`), nothing else.
+   3. `tinyzoo up` (or start with `NUXT_CMS_MIGRATIONS_ON_START`).
+
+   There is no data to move. Every language starts **following the default language**, so every
+   page, list, sitemap entry and `hreflang` alternate is exactly as before, translations and
+   entries without a translation alike. A language gets a state of its own when an editor
+   publishes, unpublishes or schedules it. Not for page trees (`tree`) yet; the config check
+   says so when the option is combined with one.
+
+   What is new for a site that turns it on: a language that is not published answers `404` for
+   the item and is left out of its list, the sitemap, the `hreflang` alternates, the search and
+   links; the webhook for it names the language in `locale` (`entry.published` and
+   `entry.unpublished`, the payload keeps its shape). A site that had its own code deciding
+   what to show per language can drop it.
+
 ## On every upgrade
 
 ```bash

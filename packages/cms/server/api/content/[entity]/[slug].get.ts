@@ -7,6 +7,8 @@ import { and, eq, indexTree } from 'tinyzoo'
 // the page whose address in the requested language (translated parts, then default) is
 // that chain.
 // A page under a draft is not reachable: its address runs through the draft.
+// With publish.perLocale a language that is not published is not there: 404 with ?locale= for it
+// (an editor's ?preview sees the draft translation).
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export default defineEventHandler(async (event) => {
@@ -23,7 +25,7 @@ export default defineEventHandler(async (event) => {
   const preview = isPreviewAuthorized(event)
   // A signed-in preview sees drafts — but only rows that person may read.
   const previewRows = preview && event.context?.cmsUser ? accessWhere(e, 'read', event.context.cmsUser) : null
-  const published = !preview ? publishedCond(e) : previewRows ? (previewRows.allowed ? previewRows.where : publishedCond(e)) : undefined
+  const published = !preview ? publishedCond(e, locale) : previewRows ? (previewRows.allowed ? previewRows.where : publishedCond(e, locale)) : undefined
   const guard = (col: any, val: string) => (published ? and(published, eq(col, val)) : eq(col, val))
   // Whether this reader sees drafts (an editor's preview) or live pages only.
   const drafts = preview && (previewRows ? previewRows.allowed : true)
@@ -57,7 +59,7 @@ export default defineEventHandler(async (event) => {
   if (preview) setResponseHeader(event, 'Cache-Control', 'private, no-store')
   else setContentCache(event)
   const item = projectItem(e, row)
-  await attachLocaleInfo(db, reg, e, [row], [item], locale)
+  await attachLocaleInfo(db, reg, e, [row], [item], locale, { drafts })
   await attachTreeInfo(db, reg, e, [row], [item], locale, { drafts })
   return { item, ...(preview ? { preview: true } : {}) }
 })

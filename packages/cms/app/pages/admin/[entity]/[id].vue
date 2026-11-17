@@ -42,6 +42,10 @@ const defaultLabel = computed(() => localeName(locales.value?.default))
 const available = ref<string[]>([])
 const defaults = ref<Record<string, any>>({})
 const translated = ref(false)
+// Publishing per language (publish.perLocale): the state of every language, and whether the one being
+// edited has a state of its own (false: it follows the default language).
+const states = ref<Record<string, { state: 'published' | 'scheduled' | 'draft'; own: boolean; date: string | null }>>({})
+const stateOwn = ref(false)
 
 // May this person save here? Told by the server with the entry (the same rules a save
 // applies); when not, the form opens read-only with the reason, not a save that fails.
@@ -64,6 +68,8 @@ function adopt(row: Record<string, any> | null | undefined) {
   available.value = row?.__locales ?? []
   defaults.value = row?.__defaults ?? {}
   translated.value = !!row?.__translated
+  states.value = row?.__states ?? {}
+  stateOwn.value = !!row?.__stateOwn
 }
 // An address of an entry that does not exist (deleted, mistyped): say so, never a blank editor.
 const missing = ref(false)
@@ -167,8 +173,8 @@ const collabHeaders = (): Record<string, string> => {
 
 // ── the "…" menu: whatever applies here ──
 // A draft's top bar on a phone: "Save" while there is something to save (publishing moves into the menu).
-const phoneSave = computed(() => narrow.value && dirty.value && !!publish.value && canPublish.value && !isPublished.value && !isTranslation.value && !readOnly.value)
-const draftActions = computed(() => !!publish.value && canPublish.value && !isPublished.value && !isTranslation.value)
+const phoneSave = computed(() => narrow.value && dirty.value && !!publish.value && canPublish.value && !isPublished.value && ownsPublishing.value && !readOnly.value)
+const draftActions = computed(() => !!publish.value && canPublish.value && !isPublished.value && ownsPublishing.value)
 const menuGroups = computed(() => {
   const groups: any[][] = []
   if (narrow.value) {
@@ -188,8 +194,12 @@ const moreItems = computed(() => {
   const items: any[] = []
   if (readOnly.value) return items
   if (!isNew.value && dirty.value) items.push({ label: t('editor.discard'), icon: 'i-lucide-undo-2', onSelect: discardChanges })
-  if (!isNew.value && !isTranslation.value && publish.value && canPublish.value && isPublished.value) {
+  if (!isNew.value && ownsPublishing.value && publish.value && canPublish.value && isPublished.value) {
     items.push({ label: t('editor.unpublish'), icon: 'i-lucide-eye-off', onSelect: confirmUnpublish })
+  }
+  // A language with a state of its own can go back to following the default language.
+  if (isTranslation.value && perLocale.value && publish.value && canPublish.value && stateOwn.value) {
+    items.push({ label: t('translation.followDefault'), icon: 'i-lucide-link', onSelect: followDefault })
   }
   if (isTranslation.value && translated.value) items.push({ label: t('translation.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: removeTranslation })
   return items
@@ -224,9 +234,11 @@ const confirm = useCmsConfirm()
 async function confirmUnpublish() {
   // A page tree: the pages under this one go off the website with it.
   const below = subpagesOnSite.value
+  const lang = localeName(currentLocale.value)
   const ok = await confirm({
-    title: t('editor.unpublishTitle'), description: below ? t('tree.unpublishBranchCount', { count: below }) : t('editor.unpublishBody'), icon: 'i-lucide-eye-off',
-    confirmLabel: t('editor.unpublish'),
+    title: isTranslation.value ? t('translation.unpublishTitle', { lang }) : t('editor.unpublishTitle'),
+    description: isTranslation.value ? t('translation.unpublishBody', { lang }) : below ? t('tree.unpublishBranchCount', { count: below }) : t('editor.unpublishBody'),
+    icon: 'i-lucide-eye-off', confirmLabel: t('editor.unpublish'),
   })
   if (ok) await setPublished(false)
 }
@@ -500,6 +512,10 @@ useHead({ title: heading })
 
 // ── publishing ──
 const canPublish = computed(() => meta.value?.can?.publish !== false)
+// Publishing per language: a translation has its own status and schedule, and its own Publish and Unpublish.
+const perLocale = computed(() => !!publish.value?.perLocale && !!locales.value)
+// Whether this view has publish controls: the entry itself, or a language that publishes on its own.
+const ownsPublishing = computed(() => !isTranslation.value || perLocale.value)
 const isPublished = computed(() => !!publish.value && state[publish.value.field] === publish.value.publishedValue)
 const publishedOn = computed(() => (publish.value?.dateField ? state[publish.value.dateField] : null))
 // A publish date ahead: publishing schedules it (live from that moment).
@@ -510,7 +526,7 @@ const isScheduled = computed(() => isPublished.value && futureDate.value)
 let redirectsMade = 0
 const redirectNote = () => (redirectsMade ? { successTitle: t('editor.savedRedirect', { count: redirectsMade }) } : undefined)
 async function save(successTitle?: string | null) {
-  if (isTranslation.value) return saveTranslation()
+  if (isTranslation.value) return saveTranslation(successTitle)
   redirectsMade = 0
   return form.submit(async () => {
     if (isNew.value) {
@@ -538,10 +554,19 @@ async function save(successTitle?: string | null) {
   }, successTitle === undefined ? (isNew.value ? t('editor.created') : t('editor.saved')) : successTitle)
 }
 
-async function saveTranslation() {
+// Set by Publish / Unpublish on a language that publishes on its own: this save carries its state.
+let sendState = false
+async function saveTranslation(successTitle?: string | null) {
   redirectsMade = 0
+  const withState = sendState
+  sendState = false
   return form.submit(async () => {
-    const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
+    const body: Record<string, any> = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
+    const p = publish.value
+    if (withState && p) {
+      body[p.field] = state[p.field]
+      if (p.dateField) body[p.dateField] = state[p.dateField] ?? null
+    }
     const url: string = `/api/cms/${entity.value}/${id.value}?locale=${currentLocale.value}`
     const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
     const res: any = await $fetch(url, { method: 'PATCH', body, headers })
@@ -553,8 +578,19 @@ async function saveTranslation() {
     translated.value = !!res?.row?.__translated
     const code = currentLocale.value
     if (code) available.value = translated.value ? [...new Set([...available.value, code])] : available.value.filter((l) => l !== code)
-    return redirectNote()
-  }, t('editor.saved'))
+    // The state this language is in now (the date may have been stamped by the server): shown as stored, quietly.
+    if (perLocale.value && res?.row) {
+      stateOwn.value = !!res.row.__stateOwn
+      states.value = res.row.__states ?? states.value
+      form.quiet(() => {
+        if (p) {
+          state[p.field] = res.row[p.field]
+          if (p.dateField) state[p.dateField] = res.row[p.dateField] ?? null
+        }
+      })
+    }
+    return successTitle === undefined ? redirectNote() : undefined
+  }, successTitle === undefined ? t('editor.saved') : successTitle)
 }
 
 async function removeTranslation() {
@@ -576,7 +612,9 @@ async function removeTranslation() {
 
 const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
   label: code === locales.value?.default ? `${localeLabel(code)} (${t('translation.default')})` : localeLabel(code),
-  description: code === locales.value?.default ? undefined : (available.value.includes(code) ? t('translation.translated') : t('translation.notTranslated')),
+  description: perLocale.value && states.value[code]
+    ? `${t(`translation.state.${states.value[code]!.state}`)}${code !== locales.value?.default && !available.value.includes(code) ? ` · ${t('translation.notTranslated')}` : ''}`
+    : code === locales.value?.default ? undefined : (available.value.includes(code) ? t('translation.translated') : t('translation.notTranslated')),
   icon: code === currentLocale.value ? 'i-lucide-check' : undefined,
   to: { query: code === locales.value?.default ? {} : { locale: code } },
 })))
@@ -586,14 +624,33 @@ async function setPublished(next: boolean, quiet = false): Promise<boolean> {
   if (!p) return false
   const before = { status: state[p.field], date: p.dateField ? state[p.dateField] : undefined }
   state[p.field] = next ? p.publishedValue : p.draftValue
+  if (isTranslation.value) sendState = true
   // The server stamps the publish date when there is none (its clock, not ours).
   const ok = await save(quiet ? null : next ? (futureDate.value ? t('editor.scheduledToast', { date: formatDate(publishedOn.value) }) : t('editor.publishedToast')) : t('editor.unpublishedToast'))
   if (!ok) {
+    sendState = false
     // Never show "Published" for something the server did not accept.
     state[p.field] = before.status
     if (p.dateField) state[p.dateField] = before.date
   }
   return !!ok
+}
+
+/** A language that publishes on its own follows the default language again. */
+async function followDefault() {
+  const p = publish.value
+  if (!p || !isTranslation.value) return
+  const before = { status: state[p.field], date: p.dateField ? state[p.dateField] : undefined }
+  state[p.field] = null
+  if (p.dateField) state[p.dateField] = null
+  sendState = true
+  const ok = await save(t('translation.followDefaultDone', { lang: localeName(currentLocale.value) }))
+  if (ok) await loadNewest()
+  else {
+    sendState = false
+    state[p.field] = before.status
+    if (p.dateField) state[p.dateField] = before.date
+  }
 }
 
 // ── the review step before going live, and the moment after ──
@@ -657,6 +714,10 @@ const reviewChecks = computed(() => {
       : { ok: false, title: t('review.missing', { field: fieldLabel(f) }), description: t('review.missingBody'), action: { label: t('review.add'), onClick: () => goToField(f.key) } })
   }
   if (publicPath.value) out.push({ ok: true, title: t('review.address'), description: publicPath.value })
+  // A language that publishes on its own while the default language is not published: it goes live alone.
+  if (isTranslation.value && perLocale.value && locales.value && states.value[locales.value.default]?.state === 'draft') {
+    out.push({ ok: false, title: t('review.defaultNotLive', { lang: defaultLabel.value }), description: t('review.defaultNotLiveBody', { lang: localeName(currentLocale.value) }) })
+  }
   // Translations not written yet (the page then shows the default language).
   if (locales.value && !isNew.value && !isTranslation.value) {
     for (const code of locales.value.all) {
@@ -819,7 +880,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 
       <!-- one primary action (none for someone who cannot save here) -->
       <template v-if="readOnly" />
-      <UButton v-else-if="isTranslation" :loading="saving" @click="() => { save() }">{{ t('translation.save') }}</UButton>
+      <UButton v-else-if="isTranslation && !(perLocale && publish && canPublish)" :loading="saving" @click="() => { save() }">{{ t('translation.save') }}</UButton>
       <template v-else-if="publish && canPublish">
         <UButton v-if="isPublished && !isNew" :loading="saving" @click="() => { save() }">{{ futureDate ? t('editor.saveChanges') : t('editor.update') }}</UButton>
         <template v-else>
@@ -984,7 +1045,8 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                 <template v-else-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
                 <template v-else-if="!isPublished">{{ canPublish ? t('editor.notPublished') : t('editor.cannotPublish') }}</template>
               </p>
-              <p v-if="isTranslation" class="text-xs">{{ t('translation.publishingShared') }}</p>
+              <p v-if="isTranslation && !perLocale" class="text-xs">{{ t('translation.publishingShared') }}</p>
+              <p v-else-if="isTranslation && !stateOwn" class="text-xs">{{ t('translation.followsDefault', { lang: defaultLabel }) }}</p>
             </div>
           </div>
 
@@ -1015,7 +1077,14 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                       :to="{ query: code === locales.default ? {} : { locale: code } }"
                       class="hover:underline underline-offset-2" :class="code === currentLocale ? 'font-medium text-highlighted' : 'text-default'"
                     >{{ localeLabel(code) }}</NuxtLink>
-                    <span class="text-xs" :class="code === locales.default || available.includes(code) ? 'text-muted' : 'cms-unsaved'">
+                    <span v-if="perLocale && states[code]" class="flex items-center gap-2 text-xs text-muted">
+                      <span v-if="code !== locales.default && !available.includes(code)" class="cms-unsaved">{{ t('translation.notTranslated') }}</span>
+                      <CmsStatusBadge :published="states[code].state !== 'draft'" :scheduled-for="states[code].state === 'scheduled' ? states[code].date : null" />
+                      <UTooltip v-if="code !== locales.default && !states[code].own" :text="t('translation.followsDefault', { lang: defaultLabel })">
+                        <UIcon name="i-lucide-link" class="size-3.5 text-dimmed" />
+                      </UTooltip>
+                    </span>
+                    <span v-else class="text-xs" :class="code === locales.default || available.includes(code) ? 'text-muted' : 'cms-unsaved'">
                       {{ code === locales.default ? t('translation.default') : available.includes(code) ? t('translation.translated') : t('translation.notTranslated') }}
                     </span>
                   </li>

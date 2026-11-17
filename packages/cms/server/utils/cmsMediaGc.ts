@@ -167,7 +167,8 @@ export async function isMediaLive(db: any, reg: CmsRegistry, mediaId: string, me
     ? sql`(cast(${col} as text) ilike ${'%' + mediaId + '%'} or cast(${col} as text) ilike ${'%' + mediaKey + '%'})`
     : sql`cast(${col} as text) ilike ${'%' + mediaId + '%'}`)
   for (const e of reg.entities) {
-    const live = publishedCond(e)
+    // Live in any language: with per-language publishing a file is on the website while some language shows it.
+    const live = liveInAnyCond(e, reg.locales?.locales ?? [])
     for (const [key, fld] of Object.entries(e.fields)) {
       const type = (fld as any).type
       let cond: any = null

@@ -77,7 +77,11 @@ export interface SeedWriteOptions<D = Record<string, any>> {
    * An entity without one needs it said here.
    */
   by?: (keyof D & string) | (keyof D & string)[]
-  /** The same entry in other languages: the translated fields only (`{ en: { title: 'Home' } }`). */
+  /**
+   * The same entry in other languages: the translated fields only (`{ en: { title: 'Home' } }`).
+   * With `publish.perLocale` also the language's own state: the entry's status and publish
+   * date (`{ en: { title: 'Home', status: 'published' } }`).
+   */
   translations?: Record<string, Partial<D>>
 }
 

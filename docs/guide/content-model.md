@@ -510,7 +510,8 @@ URL addresses unique per language) and fall back per field to the default. The
 admin edits a translation with the language switcher (default text shown as
 reference). The content API takes `?locale=en`, finds items by translated URL
 addresses, searches in the language, translates related items, and adds `locale` +
-`locales` to each item. Publishing applies to all languages.
+`locales` to each item. Publishing applies to all languages, unless the entity
+[publishes each language on its own](#publishing-each-language-on-its-own).
 
 `defineLocales` also takes `prefix`, which says which languages get a `/xx/` in their addresses:
 `'except-default'` (the default: `/en/about`, but Czech stays `/o-nas`), `'all'` or `'none'`, and
@@ -591,6 +592,61 @@ Give `publish.dateField` and an editor can pick **Schedule** instead of publishi
 date in the future is "scheduled", and the entry is live only from that moment on (the
 content API, the sitemap and the webhooks all follow it). `schedule: false` turns that
 off: a date in the future no longer holds a published entry back.
+
+### Publishing each language on its own
+
+By default the status and the publish date of an entry hold for every language: publish a post and
+it is live in all of them. Add `perLocale: true` to an entity's `publish` and each translation
+can have a state and a schedule of its own:
+
+```ts
+publish: {
+  field: 'status', publishedValue: 'published', draftValue: 'draft',
+  dateField: 'publishedAt',
+  perLocale: true,
+},
+```
+
+The default language's state stays on the entry. A translation **follows the default language
+until someone publishes or unpublishes it on its own** (the editor's Publish, Unpublish and
+Schedule act on the language being edited; "Follow the default language again" gives the choice
+back). So switching `perLocale` on changes nothing on the website, including for entries that have
+no translation at all and are served in other languages through the fallback.
+
+A language that is **not published is not there** in that language:
+
+| Where | What visitors get |
+|---|---|
+| `GET /api/content/<entity>/<slug>?locale=en` | `404`, by the translated address and by the default one |
+| the list, `?locale=en` | left out (and from `total`) |
+| the item's `locales` and `paths` | only the languages it is live in |
+| the sitemap and its `hreflang` alternates | no entry for it, and not among the others' alternates |
+| the website search, `?locale=en` | not found |
+| links to it (rich text, link fields, menus) | resolve to `null` in that language, like a link to a draft |
+
+An editor's `?preview` (a signed-in session, or the content token) still sees the draft
+translation. Inside a published translation the per-field fallback to the default language
+applies as before: a field left empty shows the default language's text.
+
+**The default language unpublished, a translation published:** the translation is live on its
+own. The language versions are independent: nothing about a translation (its address, the
+sitemap, its alternates) needs the default language to be live, and the default language is
+simply not among the item's `locales`. Mind that the translation's untranslated fields then
+show the default language's text, draft or not.
+
+**Schedules and webhooks follow.** A translation with its own date goes live at that moment (the
+scheduler announces `entry.published` with that `locale`). Publishing or unpublishing one language
+sends `entry.published` / `entry.unpublished` with its `locale` and `paths` for that language
+only; a change to the default language names every language that is live. Those who may not
+publish cannot publish, unpublish or reschedule a language either, and cannot change one that is live.
+
+In the admin API (`PATCH /api/cms/<entity>/<id>?locale=en`) the state is written with the entry's
+own keys: `{ "status": "draft" }`, `{ "status": "published", "publishedAt": "2026-12-01T09:00:00Z" }`,
+or `{ "status": null }` to follow the default language again. A date needs its status. Export and
+import, seeds (`translations: { en: { title: 'Home', status: 'draft' } }`) and the history of a
+language carry the state. Not available for page trees (`tree`) yet.
+
+Turning it on is one migration: [upgrading](../upgrading.md#from-05-to-06).
 
 ## Access rules
 

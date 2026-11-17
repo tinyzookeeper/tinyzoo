@@ -92,6 +92,6 @@ Zveřejněný text je obvykle vidět **hned**. Po zveřejnění ještě pár min
 ## Viz také
 
 - [Stránky a bloky](stranky-a-bloky.md)
-- [Překlady](preklady.md): zveřejnění platí pro všechny jazyky
+- [Překlady](preklady.md): zveřejnění platí pro všechny jazyky, nebo (když je zapnuté) pro každý zvlášť
 - [Historie a obnovení](historie-a-obnoveni.md)
 - [Co dělat, když něco nefunguje](kdyz-neco-nefunguje.md): „Uložil(a) jsem, ale na webu to není“

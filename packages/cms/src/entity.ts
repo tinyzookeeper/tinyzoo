@@ -1,4 +1,4 @@
-import { type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { boolean, type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
@@ -98,6 +98,15 @@ export interface PublishConfig<F extends Record<string, AnyFieldDescriptor>> {
    * opens it (language prefix added) with `?preview` so an editor can see a draft.
    */
   preview?: PathTemplate
+  /**
+   * Publish each language on its own. Without it (the default) the status and the
+   * publish date on the entry hold for every language. With it a translation can have its
+   * own state and schedule: until someone publishes or unpublishes a language it follows
+   * the default language, so switching it on changes nothing on the website. A language
+   * that is a draft is not there: 404 for the item, left out of lists, the sitemap,
+   * `hreflang` and search. Needs `.localized()` fields; not for page trees.
+   */
+  perLocale?: boolean
 }
 
 export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
@@ -256,7 +265,7 @@ export interface CmsEntity {
     hidden?: string[]
     search?: false | { fields?: string[] }
   }
-  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: PathTemplate }
+  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: PathTemplate; perLocale?: boolean }
   live?: boolean
   tree?: TreeConfig
   /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
@@ -279,6 +288,9 @@ export function propOf(key: string, fld: FieldDescriptor): string {
 
 /** Field names the CMS uses itself (system columns, translations, public item keys). */
 const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales'])
+
+/** The columns of `<entity>_locales` that hold a language's own publish state (`publish.perLocale`). */
+export const PUBLISH_STATE_COLUMNS = ['published', 'publishedAt']
 
 /** Entity names the CMS uses internally; user entities may not take them. */
 const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
@@ -307,6 +319,18 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   for (const key of Object.keys(fields)) {
     if (RESERVED_FIELD_NAMES.has(key)) {
       throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}).`)
+    }
+  }
+  if (def.publish?.perLocale) {
+    const localizedKeys = Object.entries(fields).filter(([, f]) => f.isLocalized).map(([k]) => k)
+    if (!localizedKeys.length) {
+      throw new Error(`publish.perLocale of "${name}" needs at least one field marked .localized(): without translations there is no language to publish on its own.`)
+    }
+    if (def.tree) {
+      throw new Error(`publish.perLocale of "${name}" is not available for a page tree yet: the pages under a page follow its state, which would then differ per language.`)
+    }
+    for (const key of localizedKeys) {
+      if (PUBLISH_STATE_COLUMNS.includes(key)) throw new Error(`A localized field of "${name}" cannot be called "${key}" with publish.perLocale: the translation table keeps each language's state in a column of that name.`)
     }
   }
   const orderField = def.admin?.list?.orderField as string | undefined
@@ -380,6 +404,12 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
     for (const key of localized) {
       const fld = fields[key]!
       lcols[key] = buildColumn(translationSpec(fld.spec!), snake(key))
+    }
+    // Per-language publishing: this language's own state, `null` while it follows the
+    // default language (see PUBLISH_STATE_COLUMNS).
+    if (def.publish?.perLocale) {
+      lcols.published = boolean('published')
+      lcols.publishedAt = timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 })
     }
     lcols.createdAt = timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
     lcols.updatedAt = timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()

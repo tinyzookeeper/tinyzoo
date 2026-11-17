@@ -196,6 +196,11 @@ function decodeEntry(plan: Plan, layout: EntityLayout, entry: Entry) {
       const f = layout.byKey.get(key)
       if (f && key in tr.fields && !skip?.has(key)) t[key] = decodeValue(plan, e, f, tr.fields[key], tr.id)
     }
+    // Per-language publishing: the language's own state travels with it (an archive of a site without it has none: it follows the default language).
+    if (e.publish?.perLocale) {
+      t.published = tr.publish?.published ?? null
+      t.publishedAt = tr.publish?.publishedAt ? new Date(tr.publish.publishedAt) : null
+    }
     translations.push(t)
   }
   return { row, fixups, translations, skippedTranslations }

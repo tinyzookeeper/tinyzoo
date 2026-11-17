@@ -1,6 +1,6 @@
 import { and, inArray, or, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
-import { publishedCond } from './cmsPublished'
+import { liveLanguages, perLocalePublishing, publishedCond } from './cmsPublished'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
 
@@ -99,9 +99,9 @@ export function isPreviewAuthorized(event: any): boolean {
   return !!provided && constantTimeEqual(provided, token)
 }
 
-/** AND the target's published condition into an id filter — so population never serves drafts. */
-function withPublished(target: CmsEntity, idCond: any): any {
-  const pub = publishedCond(target)
+/** AND the target's published condition (in the language asked for) into an id filter — so population never serves drafts. */
+function withPublished(target: CmsEntity, idCond: any, locale: string | null = null): any {
+  const pub = publishedCond(target, locale)
   return pub ? and(pub, idCond) : idCond
 }
 
@@ -192,7 +192,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const ids = unique(rows.map((r) => r[`${key}Id`]).filter(Boolean))
       const byId = new Map<string, any>()
       if (ids.length) {
-        const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, ids)))
+        const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, ids), locale))
         await overlayTranslations(db, reg, target, targets, locale)
         for (const t of targets) upgradeStoredJson(target, t)
         await resolveContentLinks(db, reg, target, targets, linkScope)
@@ -208,7 +208,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const targetIds = unique(links.map((l) => l[j.targetCol]))
       const tById = new Map<string, any>()
       if (targetIds.length) {
-        const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, targetIds)))
+        const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, targetIds), locale))
         await overlayTranslations(db, reg, target, targets, locale)
         await resolveContentLinks(db, reg, target, targets, linkScope)
         for (const t of targets) tById.set(t.id, publicProjection(target, t))
@@ -326,18 +326,22 @@ export function projectItem(e: CmsEntity, row: any) {
 /**
  * Which language each item is served in, which languages it exists in and (for
  * collections with an address) its address in each — added to items of collections
- * with translatable fields (mirrored by content-shape).
+ * with translatable fields (mirrored by content-shape). With per-language publishing
+ * only the languages the item is live in count, unless `drafts` (an editor's preview).
  */
-export async function attachLocaleInfo(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], items: any[], locale: string | null) {
+export async function attachLocaleInfo(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], items: any[], locale: string | null, opts: { drafts?: boolean } = {}) {
   if (!reg.locales || !e.localized.length) return
   const ids = rows.map((r) => r.id)
-  const avail = await availableLocales(db, reg, e, ids)
+  const avail = await availableLocales(db, reg, e, ids, { withStateRows: true })
   // The item's address in each language, for collections that live at an address.
   const paths = e.content?.path ? await localePaths(db, reg, e, ids) : null
+  const live = perLocalePublishing(e) && !opts.drafts ? await liveLanguages(db, e, ids, reg.locales.locales) : null
   items.forEach((item, i) => {
+    const id = rows[i].id
+    const here = live?.get(id)
     item.locale = locale ?? reg.locales!.default
-    item.locales = avail.get(rows[i].id) ?? [reg.locales!.default]
-    if (paths) item.paths = paths.get(rows[i].id) ?? {}
+    item.locales = (avail.get(id) ?? [reg.locales!.default]).filter((l) => !here || here.has(l))
+    if (paths) item.paths = Object.fromEntries(Object.entries(paths.get(id) ?? {}).filter(([l]) => !here || here.has(l)))
   })
 }
 

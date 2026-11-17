@@ -20,7 +20,7 @@ Zpátky do výchozího jazyka se vrátíte stejně: tlačítkem s jazykem v horn
 
 Překládají se **texty**: název, adresa stránky, text, bloky, popisy pro vyhledávače. Obrázky, čísla, data a přepínače jsou pro všechny jazyky stejné. Pod překladem proto uvidíte upozornění **Ostatní pole jsou společná pro všechny jazyky.** a odkaz **Upravit v jazyce …**, který vás vrátí do výchozí verze, kde se tato pole mění.
 
-Zveřejnění je také společné. Napíše se to u tlačítka: **Zveřejnění platí pro všechny jazyky.** Znamená to, že když položku zveřejníte, jsou na webu všechny její vyplněné jazykové verze najednou.
+Zveřejnění je také společné. Napíše se to u tlačítka: **Zveřejnění platí pro všechny jazyky.** Znamená to, že když položku zveřejníte, jsou na webu všechny její vyplněné jazykové verze najednou. (Na webech, kde to správce zapnul pro daný druh obsahu, jde každý jazyk zveřejnit zvlášť, viz [Zveřejnění jednoho jazyka](#zveřejnění-jednoho-jazyka).)
 
 ## Když překlad chybí
 
@@ -29,6 +29,18 @@ Pokud je pole v jazyce prázdné, ukáže se **Prázdné — zobrazí se jazyk �
 V seznamu položek je u každé sloupec **Jazyky**. Vidíte tam buď **Všechny jazyky**, nebo **Chybí EN** (podle toho, co chybí). Hodí se to, abyste rychle našli věci, které ještě nejsou přeložené.
 
 Před zveřejněním vám správa chybějící překlad také připomene: na obrazovce **Skoro hotovo** uvidíte **Chybí verze: …** a tlačítko **Přeložit**. Je to jen upozornění. Zveřejnit můžete i tak.
+
+## Zveřejnění jednoho jazyka
+
+Když správce webu zapne u daného obsahu **zveřejňování po jazycích**, má každý jazyk vlastní stav: **Koncept**, **Naplánováno** nebo **Zveřejněno**. V nabídce jazyků a v panelu s podrobnostmi je u každého jazyka jeho stav a v seznamu položek ve sloupci **Jazyky** vidíte u každého jazyka tečku (zelená je zveřejněno, hodiny naplánováno, prázdná koncept).
+
+- Dokud jazyk nezveřejníte nebo nestáhnete zvlášť, **řídí se výchozím jazykem**: jde na web a z webu spolu s ním. Proto se nic nezmění, když se tato volba zapne. U takového jazyka se píše **Řídí se výchozím jazykem**.
+- Otevřete jazyk a použijte **Zveřejnit**, **Aktualizovat** nebo **Naplánovat** (v nabídce **Další akce** je **Stáhnout z webu**). Platí to jen pro jazyk, který máte otevřený. Ostatní jazyky se nezmění.
+- **Koncept jazyka na webu není**: návštěvník v tom jazyce stránku nenajde (404), nevyskočí mu v seznamu, v mapě webu ani ve vyhledávání. Rozepsaný překlad si prohlédnete v **Náhledu**.
+- Zveřejněná verze si prázdná pole bere z výchozího jazyka, jako dřív.
+- Jazyk může být na webu i tehdy, když výchozí jazyk zatím koncept je. Správa na to upozorní v kontrole před zveřejněním.
+- **Znovu se řídit výchozím jazykem** (v nabídce **Další akce**) vrátí jazyk k tomu, že jde na web a z webu spolu s výchozím jazykem.
+- Kdo nesmí zveřejňovat (autor), nemůže zveřejnit ani stáhnout žádný jazyk, ani měnit ten, který je na webu.
 
 ## Adresa v jiném jazyce
 
