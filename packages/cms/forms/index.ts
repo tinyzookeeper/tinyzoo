@@ -76,7 +76,7 @@ export interface FormOptions<F extends Record<string, any>> {
    * editors read them (authors do not, whatever else they may do): write a rule to widen
    * or narrow that, the same rules entities have everywhere:
    *
-   *   access: { read: ({ user }) => user.role !== 'author' || user.id === '…' }
+   *   access: { read: ({ user }) => user.base !== 'author' || user.id === '…' }
    *
    * A rule given here for `read` replaces the default; `update` and `delete` narrow what the
    * roles allow, as always. It decides the list, a message, the CSV export, search and the
