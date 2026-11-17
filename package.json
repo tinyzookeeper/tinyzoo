@@ -34,7 +34,7 @@
     "@types/node": "^26.6.6",
     "@types/pg": "^8.20.0",
     "@types/ws": "^8.18.2",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.4",
     "ioredis": "^5.11.1",
     "pg": "^8.22.0",
     "tinyzoo": "workspace:*",
