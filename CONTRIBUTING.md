@@ -286,7 +286,9 @@ the **first** publish is a placeholder, made by hand once by an owner of the pac
    `create-tinyzoo`: without a trusted publisher (and without the `NPM_TOKEN` secret allowed to
    publish it) that release publishes `tinyzoo` and `@tinyzoo/client` and fails on the third.
    If it did fail, set the publisher, then re-run the failed job: `scripts/release.mjs` publishes
-   only what npm does not have yet.
+   only what npm does not have yet, and gives every package that npm has at this version its git
+   tag and GitHub release (it skips a tag and a release that exist). A failed run already tags and
+   releases what it did publish, so `tinyzoo` and `@tinyzoo/client` are not left without.
 4. After the release, check the package page: the **Provenance** badge, and `pnpm create tinyzoo
    scratch --yes` from an empty folder.
 
