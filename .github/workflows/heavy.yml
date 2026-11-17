@@ -72,6 +72,8 @@ jobs:
               - 'packages/*/package.json'
               - 'packages/cms/module.ts'
               - 'packages/cms/nuxt.config.ts'
+              - 'packages/cms/cli/init.mjs'
+              - 'packages/create-tinyzoo/**'
               - 'scripts/consumer-check*'
               - 'test/consumer/**'
               - 'playground/package.json'

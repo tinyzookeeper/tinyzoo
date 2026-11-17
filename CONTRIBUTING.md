@@ -24,7 +24,7 @@ when it touches what they cover**:
 | Job | What | Runs on a pull request that changes |
 |---|---|---|
 | `upgrade` | a site made on an older tinyzoo moves to this one (below) | `packages/cms/{src,cli,server,starter}/**`, `scripts/upgrade-check*`, `.github/upgrade-baseline/**` |
-| `consumer` | the packages packed, installed into a fresh app and built | `packages/*/package.json`, `packages/cms/module.ts`, `packages/cms/nuxt.config.ts`, `scripts/consumer-check*`, `test/consumer/**`, the playground's `package.json`, `cms.config.ts` and `cms-plugins/` |
+| `consumer` | the packages packed, installed into a fresh app and built; `create-tinyzoo` installed from its tarball makes a site | `packages/*/package.json`, `packages/cms/module.ts`, `packages/cms/nuxt.config.ts`, `packages/cms/cli/init.mjs`, `packages/create-tinyzoo/**`, `scripts/consumer-check*`, `test/consumer/**`, the playground's `package.json`, `cms.config.ts` and `cms-plugins/` |
 | `backup (client tools 16 / 17 / 18, server 16)` | `tinyzoo backup` and `restore` with `pg_dump`, `pg_restore` and `psql` of each version; fails where the tools are missing | `packages/cms/cli/backup*`, `cli/tar*`, `src/migrate*`, `.github/actions/pg-client/**`, `test/api/backup.spec.ts` |
 | `s3-minio` | the S3 delivery modes against a real MinIO | `server/utils/cmsStorage*`, `server/api/cms/_media/**`, `cli/transfer*`, `test/api/s3-minio.spec.ts` |
 | `result` | green when every heavy job that ran passed (skipped ones are nothing relevant) | every pull request |
@@ -37,7 +37,10 @@ Locally, the same checks:
 
 ```sh
 pnpm check:upgrade          # needs UPGRADE_CHECK_DATABASE_URL and the network, see "The upgrade test"
-pnpm check:consumer         # packs both packages and builds a fresh app from the tarballs
+pnpm check:consumer         # packs the packages, builds a fresh app from the tarballs, makes a site with create-tinyzoo's
+# the starter in four combinations (languages, parts, demo content), each made by the packed package, installed,
+# built, started and checked: tinyzoo init, and create-tinyzoo (needs a scratch Postgres database, see docs/development.md)
+STARTER_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5434/cms_test_starter pnpm check:starter
 pnpm build                  # a plain production build of the playground (the API tests already make one)
 # backup: needs pg_dump, pg_restore and psql (or TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE / TINYZOO_PSQL);
 # TINYZOO_REQUIRE_PG_TOOLS=1 makes missing tools a failure instead of a skip, as in CI
@@ -54,10 +57,11 @@ personal token).
 
 ## Changesets: every change to a package gets one
 
-`tinyzoo` and `@tinyzoo/client` are released together, with the same version
-number. Every pull request that changes something inside `packages/` adds a
-changeset (the playground, the website and the starter are not published, so
-changes only to them need none):
+`tinyzoo`, `@tinyzoo/client` and `create-tinyzoo` are released together, with the same version
+number (`fixed` in `.changeset/config.json`). Every pull request that changes something inside
+`packages/` adds a changeset (the playground, the website and the starter are not published, so
+changes only to them need none; `create-tinyzoo` carries a copy of the starter, so a change to
+the starter that sites should hear about gets one on `tinyzoo`):
 
 ```sh
 pnpm changeset
@@ -72,8 +76,7 @@ The entries end up in each package's `CHANGELOG.md`.
 | New feature, or a deprecation | minor | minor |
 | Fix, no change to what a site sees or has to do | patch | patch |
 
-A breaking change on 0.x is a minor bump. Both packages follow the higher bump of
-the two.
+A breaking change on 0.x is a minor bump. The packages follow the highest bump of them.
 
 ### `### Upgrade`: when a site has to do something
 
@@ -225,7 +228,45 @@ not its template. Details: `test/docs/README.md`.
 ## Releasing
 
 Merging to `main` makes the release workflow open (or update) a "Version
-packages" pull request that bumps both versions and writes the changelogs.
+packages" pull request that bumps the versions and writes the changelogs.
 Merging that pull request builds the packages, runs the consumer check (packed
-tarballs installed into a fresh app, then built), and publishes both packages to
-npm with provenance. Nothing is published by hand.
+tarballs installed into a fresh app, then built), and publishes `tinyzoo`,
+`@tinyzoo/client` and `create-tinyzoo` to npm with provenance. Nothing is
+published by hand, except the one-time placeholder of a new package.
+
+### `create-tinyzoo`: how it is made, and its first publish
+
+`create-tinyzoo` (`pnpm create tinyzoo`) does not depend on `tinyzoo`: that would install the whole
+CMS (Nuxt, the editor, 700+ packages) to copy a folder. Its `prepack` (`scripts/bundle.mjs`, run by
+`pnpm pack` and `pnpm publish`) copies `packages/cms/cli/init.mjs` and `packages/cms/starter` into
+`bundle/` (not committed), so the package always carries the init code and the starter of the same
+commit, and the version `tinyzoo` has. The code that makes a site is `cli/init.mjs`: `tinyzoo init`
+and `create-tinyzoo` both run it. Markers in the starter (`// #if news` … `// #endif`) mark the parts
+a site can leave out; the head of `init.mjs` says how they work.
+
+npm trusted publishing is set on the package's page, which exists only once the package does. So
+the **first** publish is a placeholder, made by hand once by an owner of the package name:
+
+1. From a clean checkout of `main`, signed in to npm (`npm login`, with the account's second factor):
+
+   ```sh
+   pnpm install
+   cd packages/create-tinyzoo
+   npm publish --access public --ignore-scripts     # publishes 0.0.0 as it is in package.json
+   ```
+
+   `--ignore-scripts` skips `prepack`, so the placeholder has no starter inside: it exits with a
+   message instead of making a site. (The version stays `0.0.0`; the next release makes it the
+   version of the other two, as `fixed` in `.changeset/config.json` says.)
+2. On npmjs.com open **create-tinyzoo → Settings → Trusted publisher**, choose **GitHub Actions** and
+   fill in: organization or user `tinyzookeeper`, repository `tinyzoo`, workflow filename
+   `release.yml`, environment: empty. Save.
+3. Do both **before** merging the first "Version packages" pull request that contains
+   `create-tinyzoo`: without a trusted publisher (and without the `NPM_TOKEN` secret allowed to
+   publish it) that release publishes `tinyzoo` and `@tinyzoo/client` and fails on the third.
+   If it did fail, set the publisher, then re-run the failed job: `scripts/release.mjs` publishes
+   only what npm does not have yet.
+4. After the release, check the package page: the **Provenance** badge, and `pnpm create tinyzoo
+   scratch --yes` from an empty folder.
+
+The same applies to any package added to the repository later.

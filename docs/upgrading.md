@@ -164,6 +164,19 @@ Everything below is also in the changelog of 0.5.0.
    (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`); a content
    change clears the server's copy at once.
 
+## From 0.5 to 0.6
+
+Everything below is also in the changelog of 0.6.0.
+
+1. **`pnpm create tinyzoo`: nothing to do.** A new package, `create-tinyzoo`, makes a site and
+   asks for the languages, the parts (news, contact form, redirects, search) and the demo content.
+   `tinyzoo init <folder>` gets the same options (`--languages`, `--presets`, `--no-demo`,
+   `--package-manager`) and makes the same site as before without them. A site you already
+   have is not touched: its files are yours. If you want what a fresh starter does now (its
+   website reads the languages and its own few words from `app/utils/site.ts`, the search page
+   is `app/pages/search.vue`), make a scratch site and compare it with yours
+   (`pnpm dlx tinyzoo init ../scratch`, then `diff -r app ../scratch/app`).
+
 ## On every upgrade
 
 ```bash

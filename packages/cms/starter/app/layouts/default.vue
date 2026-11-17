@@ -1,9 +1,10 @@
 <script setup lang="ts">
 const { locale, settings, nav } = await useSite()
 const languages = await useLanguageSwitch()
+const words = useSiteWords()
 // A link the editor picked from the pages leads to the page's address; the home page is / here, not /home.
 const menu = <T extends { url: string | null }>(links: T[] | null | undefined): T[] => (links ?? []).map((l) => ({ ...l, url: l.url ? siteHref(l.url) : l.url }))
-const home = computed(() => (locale.value === 'en' ? '/en' : '/'))
+const home = computed(() => inLanguage(locale.value, '/'))
 // A long menu (more than five links) gets a row of its own under the logo instead of squeezing the header.
 const wide = computed(() => (nav.value?.main ?? []).filter((l: any) => !l.sub).length > 5)
 // Phones: the menu folds behind a button; it closes again on every page change.
@@ -19,10 +20,10 @@ useHead({ htmlAttrs: { lang: locale } })
       <div class="site-header relative mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-4" :class="wide ? 'site-header--wide' : ''">
         <NuxtLink :to="home" class="flex items-center gap-2 font-semibold">
           <CmsImage v-if="settings?.logo" :media="settings.logo" class="h-8 w-auto" eager />
-          <span>{{ settings?.siteName ?? 'Web' }}</span>
+          <span>{{ settings?.siteName ?? words.defaultName }}</span>
         </NuxtLink>
         <div class="ml-auto flex items-center gap-1 sm:order-last sm:ml-0">
-          <nav v-if="languages.length > 1" class="flex items-center text-sm" :aria-label="locale === 'en' ? 'Language' : 'Jazyk'">
+          <nav v-if="languages.length > 1" class="flex items-center text-sm" :aria-label="words.language">
             <NuxtLink
               v-for="l in languages" :key="l.code" :to="l.href" :lang="l.code" :hreflang="l.code" :title="l.label"
               class="grid min-h-11 min-w-9 place-items-center px-1.5 font-medium uppercase" :class="l.current ? 'text-highlighted underline underline-offset-4' : 'text-muted hover:text-highlighted'"
@@ -32,18 +33,20 @@ useHead({ htmlAttrs: { lang: locale } })
               <span class="sr-only"> — {{ l.label }}</span>
             </NuxtLink>
           </nav>
-          <NuxtLink :to="locale === 'en' ? '/en/search' : '/hledat'" class="grid size-11 place-items-center" :aria-label="locale === 'en' ? 'Search' : 'Hledat'">
+          <!-- #if search -->
+          <NuxtLink :to="searchPathOf(locale)" class="grid size-11 place-items-center" :aria-label="words.search">
             <UIcon name="i-lucide-search" class="size-5" />
           </NuxtLink>
+          <!-- #endif -->
         </div>
         <button
           type="button" class="site-menu-button sm:hidden" :aria-expanded="menuOpen" aria-controls="site-nav"
           @click="menuOpen = !menuOpen"
         >
           <UIcon :name="menuOpen ? 'i-lucide-x' : 'i-lucide-menu'" class="size-6" />
-          <span class="sr-only">{{ locale === 'en' ? 'Menu' : 'Menu' }}</span>
+          <span class="sr-only">{{ words.menu }}</span>
         </button>
-        <CmsNav id="site-nav" :links="menu(nav?.main)" class="site-nav sm:ml-auto" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="locale === 'en' ? 'Main menu' : 'Hlavní menu'" />
+        <CmsNav id="site-nav" :links="menu(nav?.main)" class="site-nav sm:ml-auto" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="words.mainMenu" />
       </div>
     </header>
     <main class="flex-1">
@@ -65,7 +68,7 @@ useHead({ htmlAttrs: { lang: locale } })
             <dt class="text-muted">{{ h.days }}</dt><dd>{{ h.hours }}</dd>
           </template>
         </dl>
-        <CmsNav :links="menu(nav?.footer)" class="site-nav-footer sm:col-span-3" :aria-label="locale === 'en' ? 'Footer menu' : 'Menu v patičce'" />
+        <CmsNav :links="menu(nav?.footer)" class="site-nav-footer sm:col-span-3" :aria-label="words.footerMenu" />
       </div>
     </footer>
   </div>

@@ -145,7 +145,7 @@ export default (h) => {
             id: id(), type: 'steps', eyebrow: null,
             heading: 'Vom ersten Befehl zur Inhaltspflege.',
             items: [
-              item({ title: 'Projekt anlegen', text: 'Der Befehl npx tinyzoo init legt die Grundlage für das Projekt an. Darauf bauen Sie Ihre Website in Nuxt auf.', command: 'npx tinyzoo init' }),
+              item({ title: 'Projekt anlegen', text: 'Der Befehl pnpm create tinyzoo fragt nach Sprachen, Bausteinen und Beispielinhalten und legt die Grundlage für das Projekt an. Darauf bauen Sie Ihre Website in Nuxt auf.', command: 'pnpm create tinyzoo' }),
               item({ title: 'Inhalte beschreiben', text: 'Legen Sie in cms.config.ts fest, welche Inhalte Ihr Kunde bearbeiten wird. Aus dem Modell wird die Verwaltung generiert.', command: 'pnpm db:generate' }),
               item({ title: 'Anwendung bereitstellen', text: 'tinyzoo nutzt Node und Postgres. Wir stellen unsere Websites über Pushbase bereit. Website und Verwaltung werden gemeinsam bereitgestellt.', command: 'pnpm build' }),
               item({ title: 'Die Website gemeinsam mit dem Kunden durchgehen', text: 'Probieren Sie gemeinsam die Inhaltspflege, die Live-Vorschau und die Veröffentlichungsplanung aus. Dabei sehen Sie, wie der Kunde mit den vorbereiteten Inhalten zurechtkommt.' }),

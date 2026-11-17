@@ -1,7 +1,8 @@
 name: Release
 
 # Every push to main: open or update the "Version packages" pull request from the
-# changesets in .changeset/. Merging that pull request publishes both packages.
+# changesets in .changeset/. Merging that pull request publishes the packages: tinyzoo,
+# @tinyzoo/client and create-tinyzoo (one version for all three).
 on:
   push:
     branches: [main]
@@ -38,7 +39,7 @@ jobs:
           version: pnpm changeset version
           # When there are none: publish what npm does not have yet. `pnpm release`
           # builds @tinyzoo/client (dist), runs the consumer check on the packed
-          # tarballs of both packages, and only then publishes.
+          # tarballs of the packages, and only then publishes.
           publish: pnpm release
           title: 'Version packages'
           commit: 'chore: version packages'

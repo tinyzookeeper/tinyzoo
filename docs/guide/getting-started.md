@@ -5,7 +5,7 @@ list of what to do before it goes live. About half an hour.
 
 You will:
 
-1. make a site with `tinyzoo init`, start its database and open it;
+1. make a site with `pnpm create tinyzoo`, start its database and open it;
 2. fill it with demo content and sign in to the admin;
 3. add a collection of your own, **Team members** (a photo, a role, a hand-made order);
 4. show it on the website with the typed client;
@@ -17,18 +17,49 @@ for the local database (any Postgres 16+ works instead: see [step 3](#3-the-data
 ## 1. Make the site
 
 ```bash
-pnpm dlx tinyzoo init my-site
+pnpm create tinyzoo my-site
 cd my-site
-pnpm install
+pnpm install        # unless you let the questions install for you
 ```
 
-`tinyzoo init` copies the **starter**: a small bakery's website with the CMS inside, in
-Czech and English. It has pages built from blocks (opening, text, picture, call to action,
-contact form), news, menus with dropdowns, redirects, site settings with opening hours, a
-contact form and a search page. The files are yours from now on; nothing in them is
-updated behind your back.
+`pnpm create tinyzoo` asks a few questions: the **languages** the content is written in (the
+first one is the default), which **parts** the site has (news, a contact form, redirects, a
+search page), whether to fill it with **demo content**, and whether to install the
+dependencies now. Then it copies the **starter**: a small bakery's website with the CMS
+inside. By default that is Czech and English with everything on: pages built from blocks
+(opening, text, picture, call to action, contact form), news, menus with dropdowns, redirects,
+site settings with opening hours, a contact form and a search page. The files are yours from
+now on; nothing in them is updated behind your back.
 
-`pnpm dlx` and `pnpm install` may end with a yellow box, *Ignored build scripts: esbuild,
+Every question has an option, so it runs without a terminal too (`npm create tinyzoo@latest
+my-site -- …` and `yarn create tinyzoo` work the same; with npm the options come after `--`):
+
+```bash
+pnpm create tinyzoo my-site --languages de,en --presets news,search --no-demo --yes
+```
+
+| Option | |
+|---|---|
+| `--languages cs,en,de` | the content languages; the **first is the default** (its addresses have no prefix: `/o-nas`, the others have one: `/en/about`). Default `cs,en` |
+| `--presets news,forms,redirects,search` | the parts of the site, or `none` / `all`. Pages, menus, site settings and SEO are always there. Default: all |
+| `--demo` / `--no-demo` | the demo content (a small bakery, written in Czech and English: it needs `cs` or `en` first). `--no-demo` makes an empty site, without `seed/` |
+| `--install` / `--no-install` | install the dependencies right away, and write the typed files the site needs (below) |
+| `--package-manager pnpm` | `pnpm`, `npm`, `yarn` or `bun`: the commands it prints and the README use it. Default: the one you ran it with |
+| `--yes` | ask nothing: the defaults for what is not given |
+
+`tinyzoo init <folder>` makes the same site with the same options (except the installing),
+without asking anything: `pnpm dlx tinyzoo init my-site --languages de,en --no-demo`. It is
+what `create-tinyzoo` runs.
+
+**A site that differs from the starter's defaults needs two more commands.** The starter
+ships the database schema, its first migration and the typed client for its own choices (cs and
+en, every part). For any other choice, `create-tinyzoo --install` writes them for you; without
+installing, the next steps it prints include `pnpm db:generate` (the first migration) and
+`pnpm cms:client` (the typed client), to run after `pnpm install` and before `pnpm db:migrate`.
+More languages than it knows words for (`de` has them; `fr` shows English ones) need an entry in
+`app/utils/site.ts`.
+
+`pnpm create` and `pnpm install` may end with a yellow box, *Ignored build scripts: esbuild,
 sharp, …*. It is harmless: nothing here needs those scripts.
 
 What is where:
@@ -39,7 +70,8 @@ What is where:
 | `app/pages/` | the website's pages. `[...slug].vue` serves every CMS page, the news list and news items |
 | `app/components/global/Block<Type>.vue` | how each page block looks (`hero` → `BlockHero.vue`) |
 | `app/layouts/default.vue` | header with the menu, footer with contacts and opening hours |
-| `seed/` | the demo content and its pictures |
+| `app/utils/site.ts` | the website's languages, and the few words it draws itself (headings, buttons, the address of the news list and search) in each |
+| `seed/` | the demo content and its pictures (only with demo content) |
 | `server/db/` | `schema.ts` and `migrations/`, **generated** from `cms.config.ts`; you commit them, you do not edit them |
 | `.env` | your settings on this machine (not committed) |
 
