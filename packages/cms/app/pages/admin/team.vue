@@ -5,21 +5,31 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 // roles, disable access or remove someone; the server enforces every guard
 // (not yourself, never the last administrator).
 definePageMeta({ layout: 'admin' })
-const { t } = useCmsI18n()
+const { t, tl } = useCmsI18n()
 const toast = useToast()
 const { user: me } = useUserSession()
 useHead({ title: () => t('team.title') })
 
 const isAdmin = computed(() => me.value?.role === 'admin')
-const { data, refresh, error } = await useFetch<{ users: any[] }>('/api/cms/_users', { immediate: isAdmin.value })
+interface RoleChoice { name: string; custom: boolean; from: string; label: any; description: any }
+const { data, refresh, error } = await useFetch<{ users: any[]; roles: RoleChoice[] }>('/api/cms/_users', { immediate: isAdmin.value })
 const users = computed(() => data.value?.users ?? [])
 
-const ROLES = ['admin', 'editor', 'author'] as const
-const roleName = (r: string) => (ROLES as readonly string[]).includes(r) ? t(`roles.${r as typeof ROLES[number]}.name`) : r
+// The roles to pick from: the built-ins, then the site's own (`defineRoles`), named in the admin's language.
+const BUILT_IN = ['admin', 'editor', 'author'] as const
+const roles = computed<RoleChoice[]>(() => data.value?.roles ?? BUILT_IN.map((name) => ({ name, custom: false, from: name, label: null, description: null })))
+const roleName = (r: string) => {
+  if ((BUILT_IN as readonly string[]).includes(r)) return t(`roles.${r as typeof BUILT_IN[number]}.name`)
+  const own = roles.value.find((x) => x.name === r)
+  return own ? tl(own.label, r) : r
+}
+const roleHint = (r: RoleChoice) => (r.custom
+  ? (r.description ? tl(r.description) : t('team.customRoleHint', { base: roleName(r.from) }))
+  : t(`roles.${r.name as typeof BUILT_IN[number]}.description`))
 
 // ── invite ──
 const inviteOpen = ref(false)
-const invite = reactive({ email: '', name: '', role: 'editor' as typeof ROLES[number] })
+const invite = reactive({ email: '', name: '', role: 'editor' })
 const inviteErrors = reactive<Record<string, string>>({})
 const inviting = ref(false)
 const inviteForm = ref<HTMLElement | null>(null)
@@ -159,9 +169,9 @@ async function disable(u: any) {
 function rowMenu(u: any): DropdownMenuItem[][] {
   const groups: DropdownMenuItem[][] = [[{
     label: t('team.changeRole'), icon: 'i-lucide-shield',
-    children: ROLES.map((r) => ({
-      label: roleName(r), type: 'checkbox' as const, checked: u.role === r,
-      onSelect: () => { if (u.role !== r) act(() => patch(u.id, { role: r }), t('team.roleChanged')) },
+    children: roles.value.map((r) => ({
+      label: roleName(r.name), type: 'checkbox' as const, checked: u.role === r.name,
+      onSelect: () => { if (u.role !== r.name) act(() => patch(u.id, { role: r.name }), t('team.roleChanged')) },
     })),
   }]]
   groups[0]!.push({ label: t('team.changeEmail'), icon: 'i-lucide-mail', onSelect: () => openEmail(u) })
@@ -212,7 +222,13 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
                   </span>
                 </div>
               </td>
-              <td class="px-4 py-3 whitespace-nowrap max-sm:col-start-1 max-sm:p-0 max-sm:pl-11 max-sm:text-muted">{{ roleName(u.role) }}</td>
+              <td class="px-4 py-3 whitespace-nowrap max-sm:col-start-1 max-sm:p-0 max-sm:pl-11 max-sm:text-muted">
+                {{ roleName(u.role) }}
+                <!-- a role the site no longer defines: the person signs in and sees nothing -->
+                <span v-if="u.roleRemoved" class="mt-1 flex items-start gap-1.5 text-xs cms-unsaved whitespace-normal max-w-60" role="status">
+                  <UIcon name="i-lucide-triangle-alert" class="size-3.5 mt-px shrink-0" aria-hidden="true" />{{ t('team.roleRemoved') }}
+                </span>
+              </td>
               <td class="px-4 py-3 whitespace-nowrap max-sm:col-start-1 max-sm:p-0 max-sm:pl-11">
                 <!-- a dot and a word, as every status in the admin -->
                 <span v-if="u.status === 'active'" class="inline-flex items-center gap-2 text-default">
@@ -268,7 +284,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
             <URadioGroup
               v-model="invite.role" variant="card" indicator="start" :aria-label="t('team.role')"
               :ui="{ item: 'has-data-[state=checked]:bg-(--cms-moment-bg) has-data-[state=checked]:border-(--cms-moment-line)' }"
-              :items="ROLES.map((r: typeof ROLES[number]) => ({ value: r, label: t(`roles.${r}.name`), description: t(`roles.${r}.description`) }))"
+              :items="roles.map((r) => ({ value: r.name, label: roleName(r.name), description: roleHint(r) }))"
             />
           </UFormField>
           <UAlert v-if="inviteFailed" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="inviteFailed" role="alert" data-cms-error-summary />

@@ -15,6 +15,9 @@ const toast = useToast()
 useHead({ title: () => t('media.libraryTitle') })
 
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
+// A role with `media: 'none'` has no library (the server refuses every call): say so, show nothing to load.
+const { data: me } = await useFetch<{ access?: { media?: 'all' | 'own' | 'none' } }>('/api/cms/_auth/me', { key: 'cms-access' })
+const closed = computed(() => me.value?.access?.media === 'none')
 // Content languages (from any translatable collection): descriptions per language.
 const locales = computed(() => (graph.value ?? []).find((e: any) => e.locales)?.locales as { default: string; all: string[]; labels: Record<string, any> } | undefined)
 const otherLangs = computed(() => (locales.value?.all ?? []).filter((l) => l !== locales.value?.default))
@@ -48,7 +51,7 @@ async function load(reset = true) {
     loaded.value = true
   }
 }
-onMounted(() => load())
+onMounted(() => { if (!closed.value) load() })
 let debounce: ReturnType<typeof setTimeout> | undefined
 watch(q, () => { clearTimeout(debounce); debounce = setTimeout(() => load(), 250) })
 watch([folder, kind], () => load())
@@ -322,10 +325,11 @@ async function copyUrl() {
   <CmsPage flush :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: t('media.libraryTitle') }]">
     <template #actions>
       <input ref="fileInput" type="file" multiple class="hidden" accept="image/*,video/*,audio/*,application/pdf" @change="(e: any) => { upload(e.target.files); e.target.value = '' }">
-      <UButton icon="i-lucide-upload" :loading="uploading > 0" @click="fileInput?.click()">{{ t('media.upload') }}</UButton>
+      <UButton v-if="!closed" icon="i-lucide-upload" :loading="uploading > 0" @click="fileInput?.click()">{{ t('media.upload') }}</UButton>
     </template>
 
-    <div ref="editorEl" class="cms-editor" :class="current ? 'cms-editor--peek' : 'cms-editor--no-aside'" :style="{ '--cms-peek-w': `${peekWidth}px` }">
+    <CmsEmptyState v-if="closed" plain icon="i-lucide-lock" :title="t('media.closedTitle')" :description="t('media.closedBody')" />
+    <div v-else ref="editorEl" class="cms-editor" :class="current ? 'cms-editor--peek' : 'cms-editor--no-aside'" :style="{ '--cms-peek-w': `${peekWidth}px` }">
       <!-- the library: stays usable while a file is open beside it -->
       <div
         v-show="!(current && !wide)" class="cms-editor__main relative"

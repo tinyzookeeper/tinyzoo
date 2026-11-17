@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   // The values and the list of what changed, without the fields this person may not read.
   const hidden = unreadableFields(e, user)
   if (hidden.size) {
-    stripUnreadableValues(e, user, found.data)
+    stripUnreadableValues(e, user, found.data as Record<string, any>)
     if (Array.isArray(found.changed)) found.changed = found.changed.filter((k: string) => !hidden.has(k))
   }
   return { revision: found }

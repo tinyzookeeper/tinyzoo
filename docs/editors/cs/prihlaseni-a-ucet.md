@@ -95,6 +95,8 @@ Každý člověk má jednu roli. Kdo vás pozval, vybral ji. Roli změní jen ad
 | **Editor** | Vytváří, upravuje, zveřejňuje a maže veškerý obsah. Upravuje **Nastavení webu**. Nespravuje lidi. |
 | **Autor** | Píše koncepty a upravuje a maže jen to, co sám vytvořil. Nezveřejňuje. Nemůže měnit nastavení webu ani obsah, který se na web dostává hned po uložení (třeba **Přesměrování**). Soubory mění a maže jen ty, které sám nahrál. Nevidí **zprávy z formulářů** (jsou v nich osobní údaje návštěvníků) ani seznam příjemců těchto zpráv. |
 
+Web může mít i **vlastní role** (třeba **Překladatel**): vycházejí z role Editor nebo Autor a mají to, co jim vývojář webu nastavil. Co přesně role smí, vám řekne administrátor. Políčko, které vaše role smí jen číst, je v kartě záznamu označené **Jen ke čtení** a nejde v něm nic měnit. Políčko, které vaše role číst nesmí, tam vůbec není.
+
 Kdo je **Autor**, u položky vidí místo tlačítka **Zveřejnit** poznámku **Zveřejní ho editor**. Co dělat, když potřebujete něco, na co nemáte oprávnění, je v kapitole [Co dělat, když něco nefunguje](kdyz-neco-nefunguje.md).
 
 ## Pozvání kolegů (jen administrátor)
@@ -108,7 +110,7 @@ Kolegovi přijde e-mail, který říká, kdo ho zve a **jako kdo** (v jaké roli
 
 V seznamu **Tým** vidíte u každého stav (**Aktivní**, **Pozvánka odeslána**, **Přístup zablokován**) a kdy byl člověk **Naposledy aktivní**. U jména je nabídka s těmito volbami:
 
-- **Změnit roli**
+- **Změnit roli** (vedle tří základních rolí nabídne i role, které web definuje). U člověka, jehož role už na webu neexistuje (vývojář ji z nastavení odebral), je v seznamu **Tým** poznámka **Tato role už neexistuje**. Přihlásit se může, ale nic neuvidí a ukáže se mu **Vaše role už neexistuje**. Stačí mu přidělit jinou roli.
 - **Změnit e-mail**: napište novou adresu a do pole **Vaše heslo** své vlastní heslo (to, kterým se přihlašujete vy). Pak klikněte na **Změnit e-mail**. Heslo je pojistka: kdyby od vašeho počítače někdo odešel přihlášený, nemůže přesunout cizí účet na svou adresu. Změna platí hned, bez potvrzovacího odkazu. Člověk se odhlásí na všech zařízeních a přihlásí se novou adresou a svým dosavadním heslem. Na starou i novou adresu mu přijde e-mail o změně (v tom na starou adresu není odkaz na vrácení změny: stará schránka už často patří někomu jinému, a právě proto adresu měníte). Kdo má **Přístup zablokován**, tomu nepřijde nic; novou adresou se přihlásí, až mu přístup obnovíte. Kdo ještě nepřijal pozvánku, dostane novou pozvánku na novou adresu a ta stará přestane platit. Hodí se, když se v pozvánce překlepnete.
 - **Poslat novou pozvánku**
 - **Zrušit pozvánku**

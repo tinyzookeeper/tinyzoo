@@ -594,7 +594,8 @@ off: a date in the future no longer holds a published entry back.
 
 ## Access rules
 
-Three roles come with every site, whatever the config says:
+Three roles come with every site, whatever the config says (a site can add its own, and set who
+reads and edits each field: [Roles and permissions](roles.md)):
 
 | Role | Can |
 |---|---|
@@ -609,18 +610,20 @@ signed-in person and the table and returns a Drizzle condition (or `true`); it i
 import { eq, ilike, not } from 'tinyzoo'
 
 access: {
-  read: ({ user, table }) => (user.role === 'author' ? not(ilike(table.title, 'Interní%')) : true),
+  read: ({ user, table }) => (user.base === 'author' ? not(ilike(table.title, 'Interní%')) : true),
   update: ({ user, table }) => eq(table.authorId, user.id),
 },
 ```
 
 `read`, `create`, `update` and `delete` can each be given; `eq`, `ne`, `gt`, `and`, `or`,
 `not`, `ilike`, `inArray`, `isNull`, `sql` and the rest of Drizzle's helpers are exported
-from `tinyzoo`. Rules apply to everything a signed-in person does in the admin (lists, forms, search, the
+from `tinyzoo`. `user.role` is the role's name as stored for the person, `user.base` the built-in role
+it is or extends (`'admin'`, `'editor'`, `'author'`): test `base` to hold a custom role to its parent's rules. Rules apply to everything a signed-in person does in the admin (lists, forms, search, the
 link picker, `?preview`); they do not change the public content API, which serves what
 `content.published` allows. Every request re-reads the
-account, so a disabled person or a changed role takes effect at once. Custom roles and
-per-field permissions are not built yet.
+account, so a disabled person or a changed role takes effect at once. Roles of your own
+(`defineRoles`), `.access({ read, edit })` per field and the media library per role are in
+[Roles and permissions](roles.md).
 
 ## Reading content
 

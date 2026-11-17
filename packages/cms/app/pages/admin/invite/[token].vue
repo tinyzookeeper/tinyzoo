@@ -1,18 +1,19 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'cms-auth' })
-const { t } = useCmsI18n()
+const { t, tl } = useCmsI18n()
 const { productName } = useCmsAdminHead()
 const route = useRoute()
 const signedIn = useCmsSignedIn()
 // The tab already ends with the site's name (the title template): "Invitation · Site", not "Join Site · Site".
 useHead({ title: () => t('auth.inviteTabTitle') })
 
-const { data: invite, error: loadError } = await useFetch<{ email: string; name: string; role: string; inviter: string | null }>(
+const { data: invite, error: loadError } = await useFetch<{ email: string; name: string; role: string; roleLabel?: any; inviter: string | null }>(
   (): string => `/api/cms/_auth/invite/${route.params.token}`,
 )
 const roleName = computed(() => {
   const r = invite.value?.role
-  return r === 'admin' || r === 'editor' || r === 'author' ? t(`roles.${r}.name`).toLowerCase() : (r ?? '')
+  if (r === 'admin' || r === 'editor' || r === 'author') return t(`roles.${r}.name`).toLowerCase()
+  return invite.value?.roleLabel ? tl(invite.value.roleLabel, r ?? '') : (r ?? '')
 })
 
 const form = reactive({ name: invite.value?.name ?? '', password: '' })

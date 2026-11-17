@@ -164,6 +164,27 @@ Everything below is also in the changelog of 0.5.0.
    (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`); a content
    change clears the server's copy at once.
 
+## From 0.5 to 0.6
+
+Everything below is also in the changelog of 0.6.0.
+
+1. **Custom roles and per-field permissions.** A site can now define roles of its own and say, per
+   field, who reads and who edits it ([Roles and permissions](guide/roles.md)). **A site that does neither
+   behaves exactly as before: there is nothing to do, and no migration** (`cms_users.role` is a text column; the
+   roles live in `cms.config.ts`). To use them:
+   - `export const roles = defineRoles({ translator: { from: 'editor', … } })` from `cms.config.ts`, above the
+     entities that name it; `f.text().access({ read: [...], edit: [...] })` on a field. Then give people the
+     new role in Settings → Team.
+   - Your own row-level `access` rules get the person with a new `base` (the built-in role they are or
+     extend, `'admin' | 'editor' | 'author'`) next to `role`. If a rule says `user.role === 'author'` and you add a
+     role built on author, change it to `user.base === 'author'`, or that role is not held to it.
+   - Two behaviours differ from 0.5, in cases that did not arise through the admin:
+     an account whose stored role is **not** `admin`, `editor` or `author` (typed into the database by hand, or
+     left by a role you removed) now has **no access** and sees "Your role no longer exists", where before it was
+     treated as an editor; and with `cms.auth.mode: 'external'`, once you define roles, a role name from your
+     sign-in that you did not define has no access either (a site without `defineRoles` keeps the old behaviour).
+     `tinyzoo status` lists accounts whose role the config does not know.
+
 ## On every upgrade
 
 ```bash

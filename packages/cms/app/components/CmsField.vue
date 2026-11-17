@@ -16,12 +16,17 @@
 // The label is ours, linked to the control by a STABLE id derived from the field
 // key (not useId): pages that await data render ids differently on the server and
 // in the browser, which left server-rendered labels pointing at nothing.
+import type { Ref } from 'vue'
 const props = defineProps<{
   field: any; entity: string; error?: string; placement?: 'main' | 'sidebar'; idPrefix?: string; hideOptional?: boolean
   /** A details row: the label on the left, a quiet control on the right (the writing editor's details). */
   row?: boolean
 }>()
 const model = defineModel<any>()
+// A field this person may read but not edit (`.access({ edit })`, `readOnly` in the graph): its controls are
+// disabled, and the rich-text editor inside reads the same switch the whole form uses when it is read-only.
+const formReadOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
+provide('cmsReadOnly', computed(() => !!formReadOnly?.value || !!props.field.readOnly))
 
 const appConfig = useAppConfig()
 const pluginFields = (useRuntimeConfig().public.cmsPlugins as any)?.fields as Record<string, { edit?: string }> | undefined
@@ -51,6 +56,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
 </script>
 
 <template>
+  <CmsFieldLock :locked="!!field.readOnly">
   <!-- a switch: one row, the sentence says what it does -->
   <UFormField v-if="isSwitch" :name="field.key" :error="shownError" :ui="{ error: 'text-error' }">
     <div
@@ -96,7 +102,8 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
           <UIcon name="i-lucide-info" class="size-3.5 block" />
         </button>
       </component>
-      <span v-if="field.optional && !hideOptional" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
+      <span v-if="field.readOnly" class="inline-flex items-center gap-1 text-xs text-dimmed" :title="t('readOnly.fieldTitle')"><UIcon name="i-lucide-lock" class="size-3" aria-hidden="true" />{{ t('readOnly.field') }}</span>
+      <span v-else-if="field.optional && !hideOptional" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
     </div>
     <UFormField
       :name="field.key" :error="shownError" :help="compact ? (showHelp ? help : undefined) : help"
@@ -108,4 +115,5 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
       />
     </UFormField>
   </div>
+  </CmsFieldLock>
 </template>

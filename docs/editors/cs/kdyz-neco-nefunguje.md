@@ -55,6 +55,9 @@ Za to nejčastěji může role:
 | **Nastavení webu**, **Přesměrování**, jiná nastavení | Autoři je nemohou měnit. |
 | Úpravy cizí položky | Autor mění jen to, co sám vytvořil. |
 | **Tým**, **Soukromí** | Vidí je jen **Administrátor**. |
+| Políčko označené **Jen ke čtení**, nebo políčko, které chybí | Vaše role ho smí jen číst, nebo vůbec ne (nastavuje to vývojář webu). |
+| **Vaše role už neexistuje** | Role, kterou jste měli, už web nemá. Požádejte administrátora o jinou. |
+| **Knihovna médií není pro vaši roli otevřená** | Vaše role nesmí pracovat se soubory. Obrázky, které už jsou u záznamů, zůstávají. |
 | Tlačítko **+** u zpráv z formuláře | Zprávy přicházejí jen z webu. Vytvořit je ručně nejde. |
 
 Chybí-li vám přístup, o který jste žádali, napište administrátorovi. Na jeho stránce **Tým** se role mění jedním kliknutím. Správa také napíše **Na tohle nemáte oprávnění. Požádejte administrátora.**

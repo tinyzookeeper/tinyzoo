@@ -504,7 +504,7 @@ const tabs = computed(() => [
         <UDropdownMenu v-if="optionalCols.length && layout === 'table'" :items="columnItems" :content="{ align: 'end' }">
           <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-columns-3" :aria-label="t('list.columns')" class="max-sm:hidden" />
         </UDropdownMenu>
-        <UTooltip v-if="orderField && meta?.can?.update !== false" :text="t('list.arrange')">
+        <UTooltip v-if="orderField && meta?.can?.update !== false && meta?.can?.arrange !== false" :text="t('list.arrange')">
           <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-arrow-up-down" :aria-label="t('list.arrange')" @click="startArrange" />
         </UTooltip>
       </div>

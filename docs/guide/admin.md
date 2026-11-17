@@ -19,7 +19,9 @@ claimed by whoever opens the page first.
 | Editor | create, edit, publish and delete all content; edit site settings |
 | Author | create drafts; edit and delete only what they created; never publish, never touch settings |
 
-An entity's own `access` rules still apply on top (AND-ed). Every request re-reads
+A site can define roles of its own on top of these three (a translator that edits only posts, an editor with
+no media library) and say per field who reads and who edits it: [Roles and permissions](roles.md). An
+entity's own `access` rules still apply on top (AND-ed). Every request re-reads
 the account, so disabling someone, changing their role or changing a password takes
 effect immediately, not when a cookie expires. Sign-in is rate-limited, failures look
 identical whether or not the address exists, and writes, sign-ins and people changes go
