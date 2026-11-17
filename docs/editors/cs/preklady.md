@@ -129,6 +129,8 @@ Na **Přehledu** (první stránka po přihlášení) je seznam **Čeká na přek
 
 U každé položky je jazyk a jeho stav, třeba **Angličtina · Nepřeloženo**, a tlačítko **Přeložit**, které otevře rovnou ten jazyk. Nahoře jsou položky, na kterých se pracovalo naposledy. Seznam ukazuje pět položek; **Zobrazit vše** otevře celý seznam článků (nebo stránek, štítků…) s filtrem **Angličtina: Čeká na překlad**. Pozdrav nahoře to řekne i slovy, třeba „3 texty čekají na překlad.“
 
+![Přehled překladatelky: seznam Čeká na překlad s položkami jako „Angličtina · Nepřeloženo“ a tlačítkem Přeložit u každé](../../screenshots/0.6/needs-translating.png)
+
 V seznamu je jen to, co můžete přeložit vy. Překladatel tu nevidí třeba štítky, které smí jen číst, ani stránky, které jsou na webu (u stránek se všechny jazyky zveřejňují společně, a ty smí měnit jen ten, kdo zveřejňuje). Když je všechno přeložené, seznam na Přehledu není.
 
 Kdo smí zveřejňovat (**Editor**, **Administrátor**), vidí v tom samém seznamu i překlady, které někdo rozepsal. U takového překladu je tlačítko **Zkontrolovat**: otevřete ho, prohlédněte si ho v **Náhledu** a zveřejněte (**Zveřejnit…**).
@@ -136,6 +138,8 @@ Kdo smí zveřejňovat (**Editor**, **Administrátor**), vidí v tom samém sezn
 ### Filtr podle jazyka
 
 V seznamu položek najdete pod **Filtr** pro každý jazyk kromě výchozího jednu volbu (třeba **Angličtina**):
+
+![Seznam článků s filtrem „Angličtina: Čeká na překlad“; nepřeložené jazyky mají ve sloupci Jazyky čárkovaný kroužek](../../screenshots/0.6/list-language-filter.png)
 
 | Volba | Co ukáže |
 |---|---|

@@ -129,6 +129,8 @@ Auf der **Übersicht** (der ersten Seite nach der Anmeldung) gibt es die Liste *
 
 Bei jedem Eintrag stehen die Sprache und ihr Status, zum Beispiel **Englisch · Nicht übersetzt**, und die Schaltfläche **Übersetzen**, die direkt diese Sprache öffnet. Oben stehen die Einträge, an denen zuletzt gearbeitet wurde. Die Liste zeigt fünf Einträge; **Alle ansehen** öffnet die ganze Liste der Beiträge (oder Seiten, Schlagwörter …) mit dem Filter **Englisch: Wartet auf Übersetzung**. Die Begrüßung oben sagt es auch in Worten, zum Beispiel „3 Texte warten auf Übersetzung.“
 
+![Die Übersicht einer Übersetzerin: die Liste „Wartet auf Übersetzung“ mit Einträgen wie „Englisch · Nicht übersetzt“ und je einer Schaltfläche zum Übersetzen](../../screenshots/0.6/needs-translating.png)
+
 In der Liste steht nur, was Sie selbst übersetzen können. Wer übersetzt, sieht dort zum Beispiel keine Schlagwörter, die er nur lesen darf, und keine Seiten, die auf der Website sind (bei Seiten werden alle Sprachen gemeinsam veröffentlicht, und ändern darf sie nur, wer veröffentlicht). Wenn alles übersetzt ist, fehlt die Liste auf der Übersicht.
 
 Wer veröffentlichen darf (**Redakteur**, **Administrator**), sieht in derselben Liste auch Übersetzungen, die jemand begonnen hat. Bei einer solchen Übersetzung steht die Schaltfläche **Prüfen**: Öffnen Sie sie, sehen Sie sie in der **Vorschau** an und veröffentlichen Sie sie (**Veröffentlichen…**).
@@ -136,6 +138,8 @@ Wer veröffentlichen darf (**Redakteur**, **Administrator**), sieht in derselben
 ### Nach Sprache filtern
 
 In einer Liste von Einträgen gibt es unter **Filter** für jede Sprache außer der Standardsprache eine Auswahl (zum Beispiel **Englisch**):
+
+![Die Beitragsliste mit dem Filter „Englisch: Wartet auf Übersetzung“; nicht übersetzte Sprachen haben in der Spalte Sprachen einen gestrichelten Ring](../../screenshots/0.6/list-language-filter.png)
 
 | Auswahl | Was sie zeigt |
 |---|---|

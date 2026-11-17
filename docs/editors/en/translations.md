@@ -129,6 +129,8 @@ The **Home** page (the first page after you sign in) has a list called **Needs t
 
 Each item shows the language and its status, for example **English · Not translated**, and a **Translate** button that opens that language straight away. The items worked on most recently come first. The list shows five items; **View all** opens the whole list of posts (or pages, tags…) with the filter **English: Needs translating**. The greeting at the top says it in words too, for example "3 texts need translating."
 
+![A translator's Home: the Needs translating list with items like "English · Not translated" and a Translate button on each](../../screenshots/0.6/needs-translating.png)
+
 The list holds only what you can translate. A translator doesn't see tags, for example, if they may only read them, nor pages that are on the website (all of a page's languages are published together, and only someone who publishes may change those). When everything is translated, the list isn't on the Home page.
 
 People who can publish (**Editor**, **Administrator**) also see translations someone has started in the same list. Such a translation has a **Review** button: open it, look at it in **Preview** and publish it (**Publish…**).
@@ -136,6 +138,8 @@ People who can publish (**Editor**, **Administrator**) also see translations som
 ### Filtering by language
 
 In a list of items, **Filter** has one choice for each language other than the default one (for example **English**):
+
+![The posts list filtered by "English: Needs translating"; languages nobody translated have a dashed ring in the Languages column](../../screenshots/0.6/list-language-filter.png)
 
 | Choice | What it shows |
 |---|---|
