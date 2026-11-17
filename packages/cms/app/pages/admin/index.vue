@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Admin home. One brand moment (the cream welcome with an animal and the few things
-// people come to add), then what needs them ("Waiting for you"), what they touched
-// last, their website and what is coming up. Sections with nothing in them stay away.
+// people come to add), then what needs them ("Waiting for you", "Needs translating"),
+// what they touched last, their website and what is coming up. Sections with nothing in
+// them stay away.
 definePageMeta({ layout: 'admin' })
 
 const { t, entitySingular, entityLabel, formatDate, formatDateWith, languageName, locale } = useCmsI18n()
@@ -9,7 +10,12 @@ const { user } = useUserSession()
 const config = useCmsAdminConfig()
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
 type Item = { entity: string; id: string; title: string | null; updatedAt: string; published: boolean | null; publishAt?: string | null; locale?: string; translating?: true }
-const { data: overview } = await useFetch<{ counts: Record<string, number>; recent: Item[]; drafts: Item[]; scheduled: Item[]; upcoming: { entity: string; id: string; title: string | null; at: string }[] }>('/api/cms/_overview')
+/** One language of an entry that needs translating (the overview's `translate`). */
+type Work = { entity: string; id: string; title: string | null; updatedAt: string; locale: string; state: 'missing' | 'translating' | 'draft'; review?: true }
+const { data: overview } = await useFetch<{
+  counts: Record<string, number>; recent: Item[]; drafts: Item[]; scheduled: Item[]; upcoming: { entity: string; id: string; title: string | null; at: string }[]
+  translate?: { items: Work[]; total: number; groups: { entity: string; locale: string; count: number }[] }
+}>('/api/cms/_overview')
 
 useHead({ title: () => t('nav.home') })
 
@@ -19,6 +25,28 @@ const recent = computed(() => {
   const waiting = new Set(drafts.value.filter((d) => !d.locale).map((d) => `${d.entity}:${d.id}`))
   return (overview.value?.recent ?? []).filter((r) => !waiting.has(`${r.entity}:${r.id}`)).slice(0, 5)
 })
+// Needs translating: live (or scheduled) in the default language, not yet in another one, and the
+// person may write that language. The newest five; "View all" opens the list filtered the same way
+// (one link per collection and language when there are several).
+const translate = computed(() => (overview.value?.translate?.items ?? []).slice(0, 5))
+const translateTotal = computed(() => overview.value?.translate?.total ?? 0)
+const translateLinks = computed(() => {
+  const groups = overview.value?.translate?.groups ?? []
+  const entities = new Set(groups.map((g) => g.entity)).size
+  const languages = new Set(groups.map((g) => g.locale)).size
+  return groups.map((g) => ({
+    key: `${g.entity}:${g.locale}`,
+    to: { path: `/admin/${g.entity}`, query: { [`filter.lang:${g.locale}`]: 'todo' } },
+    label: groups.length === 1 ? t('home.viewAll') : [
+      entities > 1 ? entityLabel(byName.value.get(g.entity)) : null,
+      languages > 1 || entities === 1 ? cmsCapitalize(languageName(g.locale, byName.value.get(g.entity)?.locales?.labels?.[g.locale]), locale.value) : null,
+    ].filter(Boolean).join(' · '),
+    count: g.count,
+  }))
+})
+/** The one word for where a language stands, as the editor and the list say it. */
+const workState = (w: Work) => (w.state === 'missing' ? t('translation.notTranslated') : w.state === 'translating' ? t('translation.state.translating') : t('translation.state.draft'))
+
 // Coming soon: scheduled publications and the next dated items (events), by date.
 const coming = computed(() => [
   ...(overview.value?.scheduled ?? []).map((s) => ({ entity: s.entity, id: s.id, title: s.title, at: s.publishAt!, kind: 'scheduled' as const, locale: s.locale as string | undefined })),
@@ -47,7 +75,9 @@ const summary = computed(() => {
   const parts: string[] = []
   const waiting = overview.value?.drafts?.length ?? 0
   const empty = !Object.values(overview.value?.counts ?? {}).some((n) => n > 0)
-  parts.push(waiting ? t('home.summaryDrafts', { count: waiting }) : empty ? t('home.summaryEmpty') : t('home.summaryCalm'))
+  if (waiting) parts.push(t('home.summaryDrafts', { count: waiting }))
+  if (translateTotal.value) parts.push(t('home.summaryTranslate', { count: translateTotal.value }))
+  if (!waiting && !translateTotal.value) parts.push(empty ? t('home.summaryEmpty') : t('home.summaryCalm'))
   const next = coming.value[0]
   if (next) parts.push(t('home.summaryNext', { title: short(next.title || t('common.untitled')), date: formatDate(next.at, { time: false }) }))
   return parts.join(' ')
@@ -128,6 +158,35 @@ const leaf = (d: string) => ({
                 <UButton :to="itemTo(item)" color="neutral" variant="outline" size="sm" class="relative shrink-0 max-sm:hidden">{{ t('home.finish') }}</UButton>
               </li>
             </ul>
+          </section>
+
+          <section v-if="translate.length" aria-labelledby="cms-home-translate">
+            <h2 id="cms-home-translate" class="cms-label mb-2 flex items-center gap-2">
+              {{ t('home.translate') }}
+              <span class="rounded-full bg-elevated px-1.5 text-xs font-medium text-muted tabular-nums">{{ translateTotal }}</span>
+            </h2>
+            <ul class="cms-card divide-y divide-(--ui-border-muted)">
+              <li v-for="item in translate" :key="`${item.entity}:${item.id}:${item.locale}`" class="relative flex items-center gap-3 px-4 py-3">
+                <UIcon :name="byName.get(item.entity)?.icon ?? 'i-lucide-file'" class="size-4 text-dimmed shrink-0" />
+                <div class="min-w-0 flex-1">
+                  <NuxtLink :to="itemTo(item)" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">
+                    {{ item.title || t('common.untitled') }}
+                  </NuxtLink>
+                  <p class="truncate text-xs text-muted">{{ inLanguage(item, workState(item)) }} · {{ entityLabel(byName.get(item.entity)) }} · <CmsTime :value="item.updatedAt" relative /></p>
+                </div>
+                <UButton :to="itemTo(item)" color="neutral" variant="outline" size="sm" class="relative shrink-0 max-sm:hidden">{{ item.review ? t('home.reviewAction') : t('home.translateAction') }}</UButton>
+              </li>
+            </ul>
+            <p class="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted">
+              <span v-if="translateLinks.length > 1">{{ t('home.viewAll') }}:</span>
+              <NuxtLink
+                v-for="l in translateLinks" :key="l.key" :to="l.to"
+                class="inline-flex items-center gap-1 rounded-sm hover:text-highlighted hover:underline underline-offset-2 pointer-coarse:py-3"
+              >
+                {{ l.label }}<span v-if="translateLinks.length > 1" class="tabular-nums text-dimmed">{{ l.count }}</span>
+                <UIcon v-if="translateLinks.length === 1" name="i-lucide-arrow-right" class="size-3.5" aria-hidden="true" />
+              </NuxtLink>
+            </p>
           </section>
 
           <section>

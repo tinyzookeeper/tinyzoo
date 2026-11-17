@@ -1,8 +1,14 @@
 <script setup lang="ts">
 // The list's filters: one quiet "Filter" button opening a panel with a control per
-// filterable field, and the active filters as removable chips. The value is the
-// query the list endpoint reads: { 'filter.<field>': value, 'filter.<field>.from': … }.
-const props = defineProps<{ fields: any[] }>()
+// filterable field (and, for translated content, one per other language: where its
+// translation stands), and the active filters as removable chips. The value is the
+// query the list endpoint reads: { 'filter.<field>': value, 'filter.<field>.from': …,
+// 'filter.lang:<code>': state }.
+const props = defineProps<{
+  fields: any[]
+  /** The other languages, each with the states to pick from (`filter.lang:<code>`). */
+  languages?: { code: string; label: string; options: { value: string; label: string }[] }[]
+}>()
 const model = defineModel<Record<string, string>>({ default: () => ({}) })
 const { t, tl, fieldLabel, formatDate } = useCmsI18n()
 
@@ -25,6 +31,10 @@ watch(() => props.fields, (fs) => { for (const f of fs) if (f.relation && model.
 
 const chips = computed(() => {
   const out: { param: string; label: string }[] = []
+  for (const l of props.languages ?? []) {
+    const v = model.value[`filter.lang:${l.code}`]
+    if (v) out.push({ param: `filter.lang:${l.code}`, label: `${l.label}: ${v.split(',').map((x) => l.options.find((o) => o.value === x)?.label ?? x).join(', ')}` })
+  }
   for (const f of props.fields) {
     const v = model.value[`filter.${f.key}`]
     const name = fieldLabel(f)
@@ -64,6 +74,14 @@ const setDate = (param: string, v: string, part: 'from' | 'to') => {
       </UButton>
       <template #content>
         <div class="w-72 space-y-4 p-4">
+          <div v-for="l in languages ?? []" :key="l.code" class="space-y-1.5">
+            <p :id="`cms-filter-lang-${l.code}`" class="text-xs font-medium text-muted">{{ l.label }}</p>
+            <USelect
+              :model-value="model[`filter.lang:${l.code}`] || undefined" class="w-full" size="sm"
+              :items="l.options" :placeholder="t('list.filterAny')" :aria-labelledby="`cms-filter-lang-${l.code}`"
+              @update:model-value="(v: any) => set(`filter.lang:${l.code}`, v)"
+            />
+          </div>
           <div v-for="f in fields" :key="f.key" class="space-y-1.5">
             <p class="text-xs font-medium text-muted">{{ fieldLabel(f) }}</p>
             <USelect

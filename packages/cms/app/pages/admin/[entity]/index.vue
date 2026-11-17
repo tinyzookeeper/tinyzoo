@@ -11,7 +11,7 @@ definePageMeta({ layout: 'admin', key: (route) => route.path })
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { t, tl, entityLabel, entitySingular, fieldLabel, formatNumber, formatDateWith } = useCmsI18n()
+const { t, tl, entityLabel, entitySingular, fieldLabel, formatNumber, formatDateWith, languageName } = useCmsI18n()
 const entity = computed(() => route.params.entity as string)
 
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
@@ -25,7 +25,11 @@ const orderField = computed(() => (meta.value?.orderField as string | null) ?? n
 // ── how this list looks (from the content, or admin.list.layout) ──
 // table: rows · grid: picture cards (logos, albums) · dated: Upcoming / Past by date ·
 // tree: pages under pages (CmsTreeList brings its own data, search and arranging)
-const layout = computed<'table' | 'grid' | 'dated' | 'tree'>(() => meta.value?.listLayout ?? 'table')
+// Filters from the address: `filter.<field>` and `filter.lang:<code>`.
+const filters = ref<Record<string, string>>(Object.fromEntries(Object.entries(route.query).filter(([k, v]) => k.startsWith('filter.') && typeof v === 'string')) as Record<string, string>)
+// A page tree filtered by a language (from the home page's "Needs translating") is a plain table:
+// the pages that match, wherever they sit; removing the filter brings the tree back.
+const layout = computed<'table' | 'grid' | 'dated' | 'tree'>(() => (meta.value?.listLayout === 'tree' && Object.keys(filters.value).some((k) => k.startsWith('filter.lang:')) ? 'table' : meta.value?.listLayout ?? 'table'))
 const listColumns = computed<string[]>(() => meta.value?.listColumns ?? [])
 const dateKey = computed(() => (layout.value === 'dated' ? listColumns.value.find((k) => fieldOf(k)?.type === 'datetime') : undefined))
 
@@ -41,7 +45,6 @@ const defaultSort = computed(() => dateKey.value ?? orderField.value ?? 'updated
 const defaultDir = computed<'asc' | 'desc'>(() => (dateKey.value ? (when.value === 'past' ? 'desc' : 'asc') : orderField.value ? 'asc' : 'desc'))
 const sort = ref(qs('sort') || defaultSort.value)
 const dir = ref<'asc' | 'desc'>(qs('dir') === 'asc' || qs('dir') === 'desc' ? (qs('dir') as any) : defaultDir.value)
-const filters = ref<Record<string, string>>(Object.fromEntries(Object.entries(route.query).filter(([k, v]) => k.startsWith('filter.') && typeof v === 'string')) as Record<string, string>)
 watch([q, entity, status, filters], () => { page.value = 1 })
 watch(when, () => {
   page.value = 1
@@ -123,6 +126,25 @@ const filterable = computed(() => (meta.value?.fields ?? []).filter((f: any) =>
   && (['select', 'boolean', 'media', 'datetime'].includes(f.type) || f.relation?.kind === 'many-to-one' || f.relation?.kind === 'many-to-many')
   // A picture in the details panel (the sharing image) is not what people look for.
   && !(f.type === 'media' && f.meta?.position === 'sidebar')))
+
+// ── languages: where each translation stands (`filter.lang:<code>`; the default language has the status tabs) ──
+const languageFilters = computed(() => {
+  const loc = meta.value?.locales
+  if (!loc || layout.value === 'tree') return []
+  const p = publish.value
+  const options = p
+    ? [
+        // "Needs translating": what the home page lists, for those who may write translations.
+        ...(meta.value?.can?.update !== false ? [{ value: 'todo', label: t('home.translate') }] : []),
+        { value: 'missing', label: t('translation.notTranslated') },
+        ...(p.perLocale ? [{ value: 'translating', label: t('translation.state.translating') }] : []),
+        { value: 'draft', label: t('translation.state.draft') },
+        { value: 'published', label: t('translation.state.published') },
+      ]
+    : [{ value: 'missing', label: t('translation.notTranslated') }, { value: 'translated', label: t('translation.translated') }]
+  return (loc.all as string[]).filter((c) => c !== loc.default)
+    .map((code) => ({ code, label: cmsCapitalize(languageName(code, loc.labels?.[code])), options }))
+})
 
 // ── columns (which ones show is remembered per collection, in this browser) ──
 const titleKey = computed(() => meta.value?.titleField as string)
@@ -490,7 +512,7 @@ const tabs = computed(() => [
           v-else-if="publish" v-model="status" :items="tabs" :content="false" variant="link" size="sm"
           :ui="{ list: 'border-0 gap-4', trigger: 'px-0 whitespace-nowrap' }"
         />
-        <CmsListFilters v-if="filterable.length" v-model="filters" :fields="filterable" />
+        <CmsListFilters v-if="filterable.length || languageFilters.length" v-model="filters" :fields="filterable" :languages="languageFilters" />
       </div>
       <div class="flex items-center gap-1 w-full sm:w-auto">
         <UInput

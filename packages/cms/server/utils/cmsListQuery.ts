@@ -1,15 +1,18 @@
 import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, not, or, propOf, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
+import type { CmsUser } from './cmsSession'
+import { languageStateCond, parseLanguageFilters } from './cmsTranslationWork'
 
 /** Trigram word similarity a longer search word needs to count as a typo of a word in the text. */
 const TYPO_SIMILARITY = 0.35
 
 /**
  * What an admin list shows, as SQL conditions: the user's row rule, the search box
- * (accents ignored), `filter.<field>` filters and the status tab. Shared by the list
- * and its CSV export, so the file holds exactly what the editor sees.
+ * (accents ignored), `filter.<field>` filters, the language filters (`filter.lang:<code>`)
+ * and the status tab. Shared by the list and its CSV export, so the file holds exactly
+ * what the editor sees.
  */
-export function listConditions(e: CmsEntity, reg: CmsRegistry, query: Record<string, any>, rowFilter: any, hidden?: ReadonlySet<string>): any[] {
+export function listConditions(e: CmsEntity, reg: CmsRegistry, query: Record<string, any>, rowFilter: any, hidden?: ReadonlySet<string>, user?: CmsUser): any[] {
   const conds: any[] = []
   if (rowFilter) conds.push(rowFilter)
   const search = String(query.q ?? '').trim()
@@ -33,6 +36,7 @@ export function listConditions(e: CmsEntity, reg: CmsRegistry, query: Record<str
     }
   }
   conds.push(...listFilters(e, reg, query, hidden))
+  conds.push(...languageFilters(e, reg, query, hidden, user))
   // Status tabs: ?status=published | scheduled | draft (entities with a publish workflow).
   const p = e.publish
   if (p && ['published', 'scheduled', 'draft'].includes(String(query.status))) {
@@ -43,6 +47,20 @@ export function listConditions(e: CmsEntity, reg: CmsRegistry, query: Record<str
     else conds.push(live ? and(eq(col, p.publishedValue), not(live)) : sql`false`)
   }
   return conds
+}
+
+/**
+ * The language filters (`filter.lang:en=missing`, several states comma-separated: any of them):
+ * where the translation into a language stands (see LANGUAGE_FILTERS). Judged by the translated
+ * fields this person may read, so a field hidden from them never tells them whether it is
+ * translated. `todo` ("needs translating") is narrowed to what the person may update, as on the
+ * home page (`translationTodoCond`); without a person (no one to narrow it to) it matches nothing.
+ */
+export function languageFilters(e: CmsEntity, reg: CmsRegistry, query: Record<string, any>, hidden?: ReadonlySet<string>, user?: CmsUser): any[] {
+  const keys = e.localized.filter((k) => !hidden?.has(k))
+  return parseLanguageFilters(e, reg, query).map(({ locale, states }) => or(...states.map((state) => state === 'todo'
+    ? (user ? translationTodoCond(e, user, locale, keys) : sql`false`)
+    : languageStateCond(e, locale, state, keys))))
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i

@@ -119,6 +119,34 @@ Das Kürzel ist heller, wenn die Sprache noch nicht übersetzt ist (in ihr ersch
 
 Bei Inhalten, die für alle Sprachen gemeinsam veröffentlicht werden, steht in der Spalte **Sprachen** entweder **Alle Sprachen** oder **EN fehlt** (je nachdem, was fehlt). So finden Sie schnell, was noch nicht übersetzt ist.
 
+## Was auf eine Übersetzung wartet
+
+Auf der **Übersicht** (der ersten Seite nach der Anmeldung) gibt es die Liste **Wartet auf Übersetzung**. Darin stehen Einträge, die auf Tschechisch auf der Website (oder geplant) sind, in einer anderen Sprache aber noch nicht:
+
+- **Nicht übersetzt**: In dieser Sprache hat noch niemand etwas geschrieben;
+- **Wird übersetzt**: Eine Übersetzung ist begonnen und war noch nie auf der Website;
+- **Entwurf**: Eine Redakteurin oder ein Redakteur hat die Übersetzung von der Website genommen.
+
+Bei jedem Eintrag stehen die Sprache und ihr Status, zum Beispiel **Englisch · Nicht übersetzt**, und die Schaltfläche **Übersetzen**, die direkt diese Sprache öffnet. Oben stehen die Einträge, an denen zuletzt gearbeitet wurde. Die Liste zeigt fünf Einträge; **Alle ansehen** öffnet die ganze Liste der Beiträge (oder Seiten, Schlagwörter …) mit dem Filter **Englisch: Wartet auf Übersetzung**. Die Begrüßung oben sagt es auch in Worten, zum Beispiel „3 Texte warten auf Übersetzung.“
+
+In der Liste steht nur, was Sie selbst übersetzen können. Wer übersetzt, sieht dort zum Beispiel keine Schlagwörter, die er nur lesen darf, und keine Seiten, die auf der Website sind (bei Seiten werden alle Sprachen gemeinsam veröffentlicht, und ändern darf sie nur, wer veröffentlicht). Wenn alles übersetzt ist, fehlt die Liste auf der Übersicht.
+
+Wer veröffentlichen darf (**Redakteur**, **Administrator**), sieht in derselben Liste auch Übersetzungen, die jemand begonnen hat. Bei einer solchen Übersetzung steht die Schaltfläche **Prüfen**: Öffnen Sie sie, sehen Sie sie in der **Vorschau** an und veröffentlichen Sie sie (**Veröffentlichen…**).
+
+### Nach Sprache filtern
+
+In einer Liste von Einträgen gibt es unter **Filter** für jede Sprache außer der Standardsprache eine Auswahl (zum Beispiel **Englisch**):
+
+| Auswahl | Was sie zeigt |
+|---|---|
+| **Wartet auf Übersetzung** | dasselbe wie die Übersicht: auf Tschechisch online oder geplant, in dieser Sprache nicht übersetzt, begonnen oder von der Website genommen, und nur, was Sie übersetzen können |
+| **Nicht übersetzt** | in dieser Sprache gibt es noch nichts |
+| **Wird übersetzt** | eine begonnene Übersetzung, die noch nie auf der Website war |
+| **Entwurf** | die Sprache ist nicht auf der Website: Sie wurde von der Website genommen, oder der ganze Eintrag ist ein Entwurf |
+| **Auf der Website** | Besucher lesen den Eintrag in dieser Sprache |
+
+Bei Inhalten, die für alle Sprachen gemeinsam veröffentlicht werden, gibt es **Wartet auf Übersetzung**, **Nicht übersetzt**, **Entwurf** und **Auf der Website**; bei Inhalten ohne Entwürfe (etwa Schlagwörtern) nur **Nicht übersetzt** und **Übersetzt**. Der Filter lässt sich mit den Reitern (**Auf der Website**, **Entwurf** …) und der Suche kombinieren. Ein Feld, das Sie nicht lesen dürfen, zählt nicht dafür, ob ein Eintrag übersetzt ist.
+
 ## Auf dem Smartphone
 
 In der Liste auf dem Smartphone stehen die Sprachen bei jedem Eintrag unter seinem Status, mit denselben Zeichen wie am Computer.

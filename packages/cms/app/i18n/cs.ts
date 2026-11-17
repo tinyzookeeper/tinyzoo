@@ -143,6 +143,10 @@ export default {
     summaryCalm: 'Všechno je na webu.',
     summaryNext: 'Další na řadě: {title}, {date}.',
     goesLive: 'Vyjde v {time}',
+    translate: 'Čeká na překlad',
+    translateAction: 'Přeložit',
+    reviewAction: 'Zkontrolovat',
+    summaryTranslate: { one: 'Jeden text čeká na překlad.', few: '{count} texty čekají na překlad.', many: '{count} textu čeká na překlad.', other: '{count} textů čeká na překlad.' },
   },
   list: {
     filter: 'Filtr',

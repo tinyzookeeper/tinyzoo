@@ -124,19 +124,22 @@ export function mergeTranslation(e: CmsEntity, row: Record<string, any>, tr: Rec
  * (the website: a language published on its own is there, in the text of the default). The
  * website (`withStateRows`) does not see a translation being worked on, unless `drafts` (preview).
  */
-export async function availableLocales(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[], opts: { withStateRows?: boolean; drafts?: boolean } = {}): Promise<Map<string, string[]>> {
+export async function availableLocales(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[], opts: { withStateRows?: boolean; drafts?: boolean; fields?: readonly string[] } = {}): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>()
   if (!reg.locales) return out
   for (const id of ids) out.set(id, [reg.locales.default])
   if (!e.localesTable || !ids.length) return out
   const t = e.localesTable
   const stateRows = !!e.publish?.perLocale
+  // `fields`: only these translated fields count (the admin's list: those the person may read).
+  const keys = opts.fields ?? e.localized
+  const byText = stateRows || keys.length < e.localized.length
   const cols: Record<string, any> = { parentId: t.parentId, locale: t.locale }
-  if (stateRows) for (const k of e.localized) cols[k] = t[k]
+  if (byText) for (const k of keys) cols[k] = t[k]
   const rows: any[] = await db.select(cols).from(t).where(and(inArray(t.parentId, ids), opts.withStateRows && !opts.drafts ? shownTranslationCond(e, t) : undefined))
   for (const r of rows) {
     if (!reg.locales.locales.includes(r.locale)) continue
-    if (stateRows && !opts.withStateRows && !hasTranslatedText(e, r)) continue
+    if (byText && !opts.withStateRows && !keys.some((k) => !isEmpty(r[k]))) continue
     out.get(r.parentId)?.push(r.locale)
   }
   // Keep the configured order.
