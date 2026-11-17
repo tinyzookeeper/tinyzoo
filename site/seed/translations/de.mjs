@@ -1,5 +1,5 @@
 export default (h) => {
-  const { id, item, p, doc, link, picture, video, img } = h
+  const { id, item, p, doc, link, picture, video, img, shots } = h
   const configCode = h.code.configCode
     .replace('// Pole pro editora, typovaný obsah pro web.', '// Felder für die Redaktion, typisierte Inhalte für die Website.')
     .replace("label: { cs: 'Aktuality', en: 'News' }", "label: { cs: 'Aktuality', en: 'News', de: 'Neuigkeiten' }")
@@ -173,21 +173,31 @@ export default (h) => {
       'role-na-miru': {
         title: 'Eigene Rollen und Felder, die nur bestimmte Personen ändern dürfen', slug: 'eigene-rollen',
         perex: 'Neben Administrator, Editor und Autor kann Ihre Website eigene Rollen haben, etwa für Übersetzungen. Für jedes Feld legen Sie fest, wer es ändern darf.',
+        clip: { video: video.roles, caption: 'Was jede Rolle darf, und die Einladung mit den Rollenbeschreibungen' },
         body: doc(p('Ihr Entwickler richtet die Rollen danach ein, wer in Ihrem Team was macht. Wer übersetzt, bearbeitet zum Beispiel nur Artikel und veröffentlicht nichts. Wer sich um die Autoren kümmert, pflegt ihre Profile und hat keinen Zugriff auf die Medienbibliothek.'),
           p('Ein Feld, das nur bestimmte Personen ändern dürfen, hat einen grauen Hintergrund und ein Schloss. Darunter steht, wer es ändern kann. So wissen Sie, an wen Sie sich wenden.'),
+          p('Die Übersicht finden Sie unter Team:'),
+          picture(shots.rolesOverview, 'Was darf welche Rolle? unter Team: eine Tabelle der Rollen mit dem, was jede bearbeitet, nur liest, ob sie veröffentlicht und auf welche Dateien sie zugreifen kann'),
+          p('Und so sieht die Einladung aus, mit einem Satz zu jeder Rolle:'),
+          picture(shots.invite, 'Eine Person einladen: die Liste der Rollen, bei jeder ein Satz dazu, was sie darf'),
           p('Unter Team finden Sie die Übersicht Was darf welche Rolle?. Beim Einladen und beim Ändern einer Rolle steht bei jeder Rolle ein Satz dazu, was sie darf.')),
       },
       'jazyky-zvlast': {
         title: 'Jede Sprache wird einzeln veröffentlicht, mit dem Original zur Hand', slug: 'sprachen-einzeln',
         perex: 'Die englische Fassung eines Artikels schreiben Sie in Ruhe fertig und veröffentlichen sie, wenn sie bereit ist. Beim Übersetzen haben Sie den Originaltext immer im Blick.',
+        clip: { video: video.translate, caption: 'Einen Artikel übersetzen, das Original daneben' },
         body: doc(p('Jede Sprache hat ihren eigenen Status: Entwurf, geplant oder auf der Website. Eine Übersetzung geht nur zusammen mit der Hauptsprache online, so erreicht nichts aus einem unfertigen Original Ihre Besucher. Ihr Entwickler schaltet das dort ein, wo es sinnvoll ist, zum Beispiel bei Artikeln.'),
           p('Ein noch nicht übersetztes Feld zeigt den Originaltext in Grau. Genau das sähen Besucher, bis Sie es übersetzen. Längere Texte stellen Sie neben das Original und übersetzen Absatz für Absatz.'),
+          p('So sieht das Übersetzen mit dem Original daneben aus:'),
+          picture(shots.translating, 'Einen Artikel übersetzen: links der Originaltext, rechts die Übersetzung, die gerade geschrieben wird'),
           p('In der Artikelliste zeigt ein kleines Zeichen den Status jeder Sprache. Auf dem Handy tippen Sie oben auf den Namen der Sprache, um sie zu wechseln.')),
       },
       'pnpm-create-tinyzoo': {
         title: 'Eine neue Website mit einem Befehl: pnpm create tinyzoo', slug: 'pnpm-create-tinyzoo',
         perex: 'Der Befehl fragt nach Sprachen, Teilen der Website und Beispielinhalten. Nach wenigen Minuten haben Sie eine Website mit Verwaltung, die Sie gleich starten können.',
         body: doc(p('Sie wählen die Sprachen der Website (die erste ist die Standardsprache), die Teile, die sie braucht (Neuigkeiten, Kontaktformular, Weiterleitungen, Suche), und ob Sie Beispielinhalte möchten. Was Sie weglassen, ist im Projekt gar nicht erst enthalten.'),
+          p('So sieht der Befehl aus, wenn er läuft:'),
+          picture(shots.terminal, 'Ein Terminal mit pnpm create tinyzoo: Fragen nach dem Ordner, den Sprachen, den Teilen der Website, Beispielinhalten und der Installation, danach das erstellte Projekt und die Befehle zum Starten'),
           p('Jede Frage hat auch eine Option, so läuft der Befehl auch ohne Rückfragen: pnpm create tinyzoo meine-website --languages de,en --presets news,search --no-demo --yes.'),
           p('Jedes neue Projekt hat außerdem eine Datei AGENTS.md. Sie ist eine kurze Anleitung für den Assistenten, mit dem Sie programmieren: wo das Inhaltsmodell liegt, wie man es ändert und was man nicht anfassen sollte.')),
       },

@@ -137,6 +137,13 @@ const kinds = computed<Record<string, { label: string; tint: string }>>(() => ({
         <h1 class="display mt-4 text-4xl sm:text-5xl">{{ item.title }}</h1>
         <p v-if="item.perex" class="lede mt-6">{{ item.perex }}</p>
         <CmsImage v-if="item.cover" :media="item.cover" eager class="mt-10 w-full rounded-2xl" />
+        <!-- The clip is per language (a localized group), so each language shows the one recorded in its own admin. -->
+        <figure v-if="item.clip?.video" class="window news-clip mt-10">
+          <div class="window-bar" aria-hidden="true"><i /><i /><i /><span>{{ item.clip.caption }}</span></div>
+          <div class="news-clip-screen">
+            <ClipVideo :src="item.clip.video.url" :label="item.clip.caption || item.title" />
+          </div>
+        </figure>
         <CmsContent :doc="item.body" class="prose-zoo mt-10" />
       </div>
     </article>
@@ -156,6 +163,7 @@ const kinds = computed<Record<string, { label: string; tint: string }>>(() => ({
   .update-card--cover { grid-template-columns: 1fr 12rem; align-items: center; }
   .update-cover { order: 0; }
 }
+.news-clip-screen { aspect-ratio: 16 / 10; background: #fff; }
 .update-kind { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 800; background: color-mix(in oklab, var(--tint) 28%, #fff); color: var(--color-ink); }
 .update-kind::before { content: ""; width: 0.45rem; height: 0.45rem; border-radius: 999px; background: var(--tint); }
 </style>

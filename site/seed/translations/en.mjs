@@ -1,5 +1,5 @@
 export default (h) => {
-  const { id, item, p, doc, link, picture, video, img } = h
+  const { id, item, p, doc, link, picture, video, img, shots } = h
   const configCode = h.code.configCode
     .replace('// Pole pro editora, typovaný obsah pro web.', '// Fields for the editor, typed content for the website.')
     .replace('/aktuality/:slug', '/news/:slug')
@@ -172,21 +172,31 @@ export default (h) => {
       'role-na-miru': {
         title: 'Custom roles, and fields only some people can change', slug: 'custom-roles',
         perex: 'Besides administrator, editor and author, your website can have roles of its own, such as a translator. For each field you decide who may change it.',
+        clip: { video: video.roles, caption: 'What each role can do, and the invitation with role descriptions' },
         body: doc(p('Your developer sets up roles to match who does what in your team. A translator might edit only articles and publish nothing. Someone who looks after the authors manages their profiles and has no access to the media library.'),
           p('A field only some people can change has a grey background and a lock. Below it, the admin area says who can change it, so you know whom to ask.'),
+          p('You will find the overview in Team:'),
+          picture(shots.rolesOverview, 'What can each role do? in Team: a table of roles with what each one edits, what it can only read, whether it publishes and which files it can reach'),
+          p('And this is the invitation, with one sentence about each role:'),
+          picture(shots.invite, 'Inviting someone: the list of roles, each with one sentence about what it can do'),
           p('In Team you will find What can each role do?. When you invite someone or change their role, each role comes with one sentence about what it can do.')),
       },
       'jazyky-zvlast': {
         title: 'Each language is published on its own, with the original at hand', slug: 'languages-on-their-own',
         perex: 'Finish the English version of an article at your own pace and publish it when it is ready. While you translate, the original text stays in view.',
+        clip: { video: video.translate, caption: 'Translating an article with the original beside it' },
         body: doc(p('Each language has its own state: draft, scheduled or on the website. A translation goes live only together with the main language, so nothing from an unfinished original reaches your visitors. Your developer turns this on where it makes sense, for articles for example.'),
           p('A field you have not translated yet shows the original text in grey. That is exactly what visitors would see until you translate it. Longer texts can sit beside the original, so you translate paragraph by paragraph.'),
+          p('This is how translating with the original beside it looks:'),
+          picture(shots.translating, 'Translating an article: the original text on the left, the translation being typed on the right'),
           p('In the list of articles, a small mark shows the state of each language. On a phone, tap the language name at the top to switch.')),
       },
       'pnpm-create-tinyzoo': {
         title: 'A new website with one command: pnpm create tinyzoo', slug: 'pnpm-create-tinyzoo',
         perex: 'The command asks about languages, parts of the website and demo content. A few minutes later you have a website with its admin area, ready to run.',
         body: doc(p('Choose the website’s languages (the first one is the default), the parts it needs (news, a contact form, redirects, search) and whether you want demo content. Whatever you leave out is not in the project at all.'),
+          p('This is how the command looks when it runs:'),
+          picture(shots.terminal, 'A terminal running pnpm create tinyzoo: questions about the folder, the languages, the parts of the website, demo content and installing dependencies, then the created project and the commands to start it'),
           p('Every question has an option too, so the command also runs without asking: pnpm create tinyzoo my-site --languages en,de --presets news,search --no-demo --yes.'),
           p('Each new project also has an AGENTS.md file. It is a short guide for the assistant you code with: where the content model is, how to change it and what not to touch.')),
       },

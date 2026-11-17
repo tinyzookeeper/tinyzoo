@@ -255,6 +255,15 @@ export const News = defineEntity('news', {
     publishedAt: f.datetime().optional().label({ en: 'Publish date', cs: 'Datum zveřejnění', de: 'Veröffentlichungsdatum' }),
     cover: f.media({ accept: 'image/*' }).optional().label({ en: 'Cover picture', cs: 'Úvodní obrázek', de: 'Titelbild' }),
     perex: f.text({ multiline: true, max: 300 }).optional().localized().label({ en: 'Summary', cs: 'Perex', de: 'Kurzbeschreibung' }),
+    // A media field cannot be localized, a group can: each language gets its own clip (recorded
+    // in that language's admin) and, when a language has none, shows the default language's.
+    clip: f.group({
+      fields: {
+        video: f.media({ accept: 'video/*' }).label({ en: 'Video (silent loop)', cs: 'Video (smyčka bez zvuku)', de: 'Video (Endlosschleife ohne Ton)' }),
+        caption: f.text({ max: 120 }).label({ en: 'What the clip shows', cs: 'Co video ukazuje', de: 'Was das Video zeigt' }),
+      },
+    }).optional().localized().label({ en: 'Short clip', cs: 'Krátké video', de: 'Kurzes Video' })
+      .help({ en: 'Shown above the text, in this language only. The caption is the clip’s label for screen readers and its play button.', cs: 'Ukáže se nad textem, jen v tomto jazyce. Popisek je název videa pro čtečky obrazovky a pro tlačítko přehrání.', de: 'Wird über dem Text angezeigt, nur in dieser Sprache. Die Beschriftung ist der Name des Videos für Screenreader und die Wiedergabetaste.' }),
     body: f.richtext().localized().label({ en: 'Text', cs: 'Text', de: 'Text' }),
     ...seo({ localized: true }),
   },
