@@ -1235,7 +1235,7 @@ Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, one ag
 
 | Slice | Branch | State |
 |---|---|---|
-| M — custom roles, per-field permissions | `feat/1.0-roles` | running |
+| M — custom roles, per-field permissions | `feat/1.0-roles` | done (e7fac16), waiting for merge; admin screens not yet seen in a browser |
 | N — per-language publishing | `feat/1.0-locale-publishing` | running |
 | O — `pnpm create tinyzoo` | `feat/1.0-create` | running |
 | P — API review before the freeze | `feat/1.0-api-review` | done (6f7d046), waiting for merge; 11 proposals for Vojtěch in its write-up |
