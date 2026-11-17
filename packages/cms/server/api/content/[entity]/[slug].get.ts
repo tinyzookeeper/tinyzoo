@@ -25,7 +25,8 @@ export default defineEventHandler(async (event) => {
   const preview = isPreviewAuthorized(event)
   // A signed-in preview sees drafts — but only rows that person may read.
   const previewRows = preview && event.context?.cmsUser ? accessWhere(e, 'read', event.context.cmsUser) : null
-  const published = !preview ? publishedCond(e, locale) : previewRows ? (previewRows.allowed ? previewRows.where : publishedCond(e, locale)) : undefined
+  const liveIn = liveLocale(reg, locale)
+  const published = !preview ? publishedCond(e, liveIn) : previewRows ? (previewRows.allowed ? previewRows.where : publishedCond(e, liveIn)) : undefined
   const guard = (col: any, val: string) => (published ? and(published, eq(col, val)) : eq(col, val))
   // Whether this reader sees drafts (an editor's preview) or live pages only.
   const drafts = preview && (previewRows ? previewRows.allowed : true)

@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
     if (!allowed) continue
     const keys = pathKeys(e.content!.path).filter((k: string) => e.table[k])
     const titleCol = e.table[e.titleField]
-    const liveCond = publishedCond(e, locale)
+    const liveCond = publishedCond(e, liveLocale(reg, locale))
     const cols: Record<string, any> = { id: e.table.id, title: titleCol, live: liveCond ? sql<boolean>`${liveCond}` : sql<boolean>`true` }
     for (const k of keys) cols[k] = e.table[k]
     const conds: any[] = []

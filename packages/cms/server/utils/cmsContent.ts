@@ -192,7 +192,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const ids = unique(rows.map((r) => r[`${key}Id`]).filter(Boolean))
       const byId = new Map<string, any>()
       if (ids.length) {
-        const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, ids), locale))
+        const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, ids), liveLocale(reg, locale)))
         await overlayTranslations(db, reg, target, targets, locale)
         for (const t of targets) upgradeStoredJson(target, t)
         await resolveContentLinks(db, reg, target, targets, linkScope)
@@ -208,7 +208,7 @@ export async function populateItems(db: any, reg: CmsRegistry, e: CmsEntity, row
       const targetIds = unique(links.map((l) => l[j.targetCol]))
       const tById = new Map<string, any>()
       if (targetIds.length) {
-        const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, targetIds), locale))
+        const targets: any[] = await db.select().from(target.table).where(withPublished(target, inArray(target.table.id, targetIds), liveLocale(reg, locale)))
         await overlayTranslations(db, reg, target, targets, locale)
         await resolveContentLinks(db, reg, target, targets, linkScope)
         for (const t of targets) tById.set(t.id, publicProjection(target, t))

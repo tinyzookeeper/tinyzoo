@@ -28,6 +28,14 @@ export function closestLocale(configured: readonly string[], asked: string): str
 }
 
 /**
+ * The language to ask `publishedCond` about: a translation language, or null for the default
+ * one (its state is the entry's own, so that condition needs no look at the translations).
+ */
+export function liveLocale(reg: CmsRegistry, locale: string | null | undefined): string | null {
+  return isTranslationLocale(reg, locale) ? locale : null
+}
+
+/**
  * The language a request asks for (`?locale=`): null when content is single-language,
  * the default when not given, the closest configured language for "en-US" or "EN" (a
  * browser's language works as it is), 400 for a language the site does not have.

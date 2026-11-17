@@ -260,7 +260,7 @@ export async function searchPublic(db: any, reg: CmsRegistry, terms: string[], q
       const pathCols: Record<string, any> = {}
       for (const k of pathTemplateKeys(e.content!.path)) if (e.table[k]) pathCols[k] = e.table[k]
       const score = closeness(s.titleFolded, [s.bodyFolded], terms)
-      const conds = [eq(s.entity, e.name), inArray(s.locale, langs), termsCond([s.titleFolded, s.bodyFolded], terms), publishedCond(e, locale)]
+      const conds = [eq(s.entity, e.name), inArray(s.locale, langs), termsCond([s.titleFolded, s.bodyFolded], terms), publishedCond(e, liveLocale(reg, locale))]
       const rows: any[] = await tx.select({ id: s.recordId, title: s.title, body: s.body, path: s.path, updatedAt: e.table.updatedAt, rank: score, ...pathCols })
         .from(s).innerJoin(e.table, eq(e.table.id, s.recordId))
         .where(and(...conds.filter(Boolean))).orderBy(desc(score)).limit(CANDIDATES)
