@@ -221,7 +221,7 @@ The `NUXT_CMS_*` and `NUXT_PUBLIC_CMS_*` variables above, and:
 | Variable | What it is |
 |---|---|
 | `DATABASE_URL` | the Postgres connection (`NUXT_CMS_DATABASE_URL` wins). The server does not start without one |
-| `NUXT_APP_SECRET` | Nuxt's app secret, at least 32 characters: the sign-in cookie is sealed with a key derived from it. The server does not start without it. `NUXT_SESSION_PASSWORD` is **not read** (removed in 0.6): when only it is set, the message says to rename it |
+| `NUXT_APP_SECRET` | Nuxt's app secret, at least 32 characters: the sign-in cookie is sealed with a key derived from it. The server does not start without it, nor with the example value of the starter's `.env.example`. `NUXT_SESSION_PASSWORD` is **not read** (removed in 0.6): when only it is set, the message says to rename it |
 | `REDIS_URL` | Redis, when `NUXT_CMS_REDIS_URL` is not set |
 | `NUXT_SITE_URL`, `NUXT_SITE_INDEXABLE` | Nuxt SEO's site configuration (the sitemap's address; keeping a copy out of search engines) |
 | `NUXT_SESSION_MAX_AGE` | the admin session's lifetime in seconds (default 14 days) |

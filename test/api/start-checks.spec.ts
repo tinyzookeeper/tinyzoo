@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
 import { Client } from '../helpers/api'
 import { scratchDatabase, startServer } from '../helpers/server'
+import { CMS_EXAMPLE_APP_SECRET } from '../../packages/cms/server/utils/cmsAppSecret'
 import { BUILD_SECRETS } from '../setup/timers'
 
 // A production server that is misconfigured does not start: it says which variable is
@@ -29,6 +30,13 @@ describe('start-up checks (production)', () => {
     }
     // Nitro parses the environment as JSON where it can: JSON is not a secret.
     expect(await failure({ NUXT_APP_SECRET: '{"secret":"0123456789abcdef0123456789abcdef"}' })).toMatch(/NUXT_APP_SECRET was read as an object/)
+  })
+
+  it('refuses the example secret of the starter\'s .env.example, naming the variable and how to make a real one', async () => {
+    const message = await failure({ NUXT_APP_SECRET: CMS_EXAMPLE_APP_SECRET })
+    expect(message).toContain('NUXT_APP_SECRET is the example value')
+    expect(message).toContain('openssl rand -base64 32')
+    expect(message).not.toContain(CMS_EXAMPLE_APP_SECRET)
   })
 
   it('names NITRO_APP_SECRET when that is the one Nitro read (it wins over NUXT_APP_SECRET)', async () => {
