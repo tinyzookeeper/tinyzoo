@@ -35,7 +35,7 @@
     "@types/pg": "^8.20.0",
     "@types/ws": "^8.18.2",
     "drizzle-orm": "^0.45.4",
-    "ioredis": "^5.11.1",
+    "ioredis": "^6.0.0",
     "pg": "^8.22.0",
     "tinyzoo": "workspace:*",
     "typescript": "^5.9.3",

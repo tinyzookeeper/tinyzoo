@@ -1,6 +1,7 @@
 import { and, eq, inArray, sql } from 'tinyzoo'
 import { Hocuspocus } from '@hocuspocus/server'
 import * as Y from 'yjs'
+import { REDIS_PROTOCOL } from '../store/redis'
 
 /**
  * The shared-editing engine (Hocuspocus), on the app's own port: it opens no server
@@ -64,7 +65,7 @@ interface Presence {
 async function createPresence(redisUrl: string, prefix: string): Promise<Presence> {
   const { default: IORedis } = await import('ioredis')
   // Like the shared store: never wait on a Redis that is down (callers fall back to the 90 s window).
-  const redis = new IORedis(redisUrl, { maxRetriesPerRequest: 1, enableOfflineQueue: false, commandTimeout: 500, connectTimeout: 2_000 })
+  const redis = new IORedis(redisUrl, { protocol: REDIS_PROTOCOL, maxRetriesPerRequest: 1, enableOfflineQueue: false, commandTimeout: 500, connectTimeout: 2_000 })
   redis.on('error', (err) => console.error('[cms] collab presence', err.message))
   const key = (name: string) => `${prefix}:presence:${name}`
   return {
@@ -75,7 +76,7 @@ async function createPresence(redisUrl: string, prefix: string): Promise<Presenc
       await redis.zrem(key(name), REPLICA_ID)
     },
     async othersHere(name) {
-      const res = await redis.multi().zremrangebyscore(key(name), '-inf', Date.now()).zrange(key(name), 0, -1).exec()
+      const res = await redis.multi().zremrangebyscore(key(name), '-inf', Date.now()).zrange(key(name), 0, '-1').exec()
       const [err, members] = res?.[1] ?? [new Error('empty transaction result'), null]
       if (err || !Array.isArray(members)) throw err ?? new Error('presence list missing')
       return members.some((m) => m !== REPLICA_ID)
@@ -195,7 +196,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
   const redisUrl = String((useRuntimeConfig().cms as any)?.redis?.url || process.env.REDIS_URL || '')
   if (redisUrl) {
     const [{ Redis: RedisExtension }, { default: IORedis }] = await Promise.all([import('@hocuspocus/extension-redis'), import('ioredis')])
-    extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { maxRetriesPerRequest: null }) as any, prefix: `${cmsStorePrefix()}:collab` } as any))
+    extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { protocol: REDIS_PROTOCOL, maxRetriesPerRequest: null }) as any, prefix: `${cmsStorePrefix()}:collab` } as any))
   }
 
   // "Nobody has it open" is known the moment the last tab leaves: with one instance
