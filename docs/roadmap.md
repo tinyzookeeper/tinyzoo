@@ -1248,7 +1248,7 @@ Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, one ag
 |---|---|---|
 | `fix/1.0-w4-legacy-role-base` | an unknown external role got `base: 'editor'` and read form messages (A-M3 = B-H1); forms example, `cd` quoting | merged |
 | `fix/1.0-w4-locale-gating` | the default language gates; deleting a translation with its own state needs publish rights; shared editing, the editor's read-only switch and Publish follow the language; export/import keep per-language state | running |
-| `fix/1.0-w4-create-release` | `init .` keeps the folder; release re-run tags every package; `readOnly` for custom renderers; `init` writes a random app secret and production refuses the example one; changelog "Breaking:" markers; CI filters; nits | running |
+| `fix/1.0-w4-create-release` | `init .` keeps the folder; release re-run tags every package; `readOnly` for custom renderers; `init` writes a random app secret and production refuses the example one; changelog "Breaking:" markers; CI filters; nits | merged (all four checks green on the branch) |
 | `fix/1.0-w4-api-refine` | P's proposals: decimal type, frozen frontend kit, typed access user, typed `defineForm`, cron options, `singleton: true` deprecated, `content.publicUrl` fallback, `notifyTo` list; the typed surface config covers roles, `.access()` and `perLocale` | running |
 
 ### 0.6 P — API review before the freeze
