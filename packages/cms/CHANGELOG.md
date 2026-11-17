@@ -1,5 +1,12 @@
 # tinyzoo
 
+## 0.2.1
+
+### Patch Changes
+
+- Uploads are parsed with `@fastify/busboy`, the Fastify team's maintained fork of `busboy` (also what Node's own `fetch` uses), instead of `busboy` 1.6, which has had no release since 2022. Its types are built in, so `@types/busboy` is gone. The upload size cap is enforced by tinyzoo's own byte count, independent of the parser. Nothing changes for sites.
+- An upload on a server whose temporary folder cannot be created (a read-only container filesystem with no writable `/tmp`) now logs what to do, once: point `TMPDIR` at a writable volume, or at `/dev/shm` for small files. The upload itself answers 500 "The server has no writable folder for uploads" instead of a bare server error. The deploy guide's Media and Pushbase sections describe the setting.
+
 ## 0.2.0
 
 ### Minor Changes
