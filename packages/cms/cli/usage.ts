@@ -16,7 +16,17 @@ export interface CliCommand {
 }
 
 export const CLI_COMMANDS: CliCommand[] = [
-  { name: 'init', args: '<dir>', summary: 'a new website with the CMS inside (the starter: pages, news, menus, a contact form, cs/en)' },
+  {
+    name: 'init',
+    args: '<dir>',
+    summary: 'a new website with the CMS inside (the starter: pages, news, menus, a contact form, search)',
+    flags: [
+      ['--languages <a,b>', 'the content languages, the first one is the default (default: cs,en)'],
+      ['--presets <a,b|none>', 'which optional parts the site has: news, forms, redirects, search (default: all)'],
+      ['--no-demo', 'an empty site instead of the demo content'],
+      ['--package-manager <pm>', 'the commands to show and put in the README (default: the one that ran this)'],
+    ],
+  },
   {
     name: 'generate',
     summary: 'emit server/db/schema.ts from cms.config.ts and write the migration (drizzle-kit)',

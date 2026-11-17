@@ -241,6 +241,15 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    `entry.unpublished`, the payload keeps its shape). A site that had its own code deciding
    what to show per language can drop it.
 
+7. **`pnpm create tinyzoo`: nothing to do.** A new package, `create-tinyzoo`, makes a site and
+   asks for the languages, the parts (news, contact form, redirects, search) and the demo content.
+   `tinyzoo init <folder>` gets the same options (`--languages`, `--presets`, `--no-demo`,
+   `--package-manager`) and makes the same site as before without them. A site you already
+   have is not touched: its files are yours. If you want what a fresh starter does now (its
+   website reads the languages and its own few words from `app/utils/site.ts`, the search page
+   is `app/pages/search.vue`), make a scratch site and compare it with yours
+   (`pnpm dlx tinyzoo init ../scratch`, then `diff -r app ../scratch/app`).
+
 **Also new:** `tinyzoo help` prints every command and flag, and `CmsWebhookPayload`,
 `CMS_WEBHOOK_HEADERS`, `CmsAdminField`, `CmsFieldEditProps` and `CmsFieldCellProps` are exported as
 types for webhook receivers and your own field renderers.

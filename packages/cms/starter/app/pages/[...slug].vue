@@ -1,31 +1,36 @@
 <script setup lang="ts">
-// Every other address: a page from blocks (/o-nas, /o-nas/tym, /en/about), the news list
-// (/aktuality, /en/news) or one news item (/aktuality/zavod, /en/news/race).
+// Every other address: a page from blocks (/o-nas, /o-nas/tym, /en/about),
+// #if news
+// the news list (/aktuality, /en/news) or one news item (/aktuality/zavod, /en/news/race).
+// #endif
 // Pages sit under pages (Page is `tree: true`): the content API takes the whole address
 // ('o-nas/tym', slashes escaped as one path segment) and returns `breadcrumbs` for it.
 const route = useRoute()
 const locale = useSiteLocale()
+const words = useSiteWords()
 // The home page has one address: / (or /en). The query stays (?preview shows a draft).
-if (/^(\/en)?\/home\/?$/.test(route.path)) await navigateTo({ path: locale.value === 'en' ? '/en' : '/', query: route.query }, { redirectCode: 301 })
+if (route.path.replace(/\/$/, '') === inLanguage(locale.value, '/home')) await navigateTo({ path: inLanguage(locale.value, '/'), query: route.query }, { redirectCode: 301 })
 const { kind, data, error, item } = await useSitePage()
-if (error.value?.statusCode === 404) throw createError({ statusCode: 404, message: locale.value === 'en' ? 'Page not found' : 'Stránka nenalezena', fatal: true })
+if (error.value?.statusCode === 404) throw createError({ statusCode: 404, message: words.value.notFoundTitle, fatal: true })
 
 const { settings } = await useSite()
-useCmsSeo(item, { siteName: settings.value?.siteName, descriptionField: 'perex', imageField: 'cover', defaultLocale: 'cs', path: siteHref })
-if (kind.value === 'news') useHead({ title: () => `${locale.value === 'en' ? 'News' : 'Aktuality'} · ${settings.value?.siteName ?? ''}` })
+useCmsSeo(item, { siteName: settings.value?.siteName, descriptionField: 'perex', imageField: 'cover', defaultLocale: DEFAULT_LANGUAGE, path: siteHref })
 // "Draft preview" only for what is not on the website yet.
 const isDraft = computed(() => !!data.value?.preview && item.value?.status !== 'published')
-const prefix = computed(() => (locale.value === 'en' ? '/en/news/' : '/aktuality/'))
-const date = (d: string) => new Intl.DateTimeFormat(locale.value === 'en' ? 'en-GB' : 'cs-CZ', { dateStyle: 'long' }).format(new Date(d))
+// #if news
+if (kind.value === 'news') useHead({ title: () => `${words.value.news} · ${settings.value?.siteName ?? ''}` })
+const prefix = computed(() => `${newsPathOf(locale.value)}/`)
+const date = (d: string) => new Intl.DateTimeFormat(locale.value, { dateStyle: 'long' }).format(new Date(d))
+// #endif
 </script>
 
 <template>
   <div>
-    <p v-if="isDraft" class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">Náhled konceptu · zatím není na webu</p>
+    <p v-if="isDraft" class="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">{{ words.draftPreview }}</p>
 
     <!-- a page from blocks, under its parents' trail -->
     <template v-if="kind === 'page' && item">
-      <nav v-if="item.breadcrumbs?.length > 1" :aria-label="locale === 'en' ? 'Breadcrumbs' : 'Drobečková navigace'" class="mx-auto max-w-5xl px-4 pt-6 text-sm text-muted">
+      <nav v-if="item.breadcrumbs?.length > 1" :aria-label="words.breadcrumbs" class="mx-auto max-w-5xl px-4 pt-6 text-sm text-muted">
         <ol class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <li v-for="(b, i) in item.breadcrumbs" :key="b.path" class="flex items-center gap-2">
             <span v-if="i" aria-hidden="true">/</span>
@@ -37,9 +42,10 @@ const date = (d: string) => new Intl.DateTimeFormat(locale.value === 'en' ? 'en-
       <CmsBlocks :blocks="item.sections" />
     </template>
 
+    <!-- #if news -->
     <!-- the news list -->
     <section v-else-if="kind === 'news'" class="mx-auto max-w-5xl px-4 py-12">
-      <h1 class="text-3xl font-bold mb-8">{{ locale === 'en' ? 'News' : 'Aktuality' }}</h1>
+      <h1 class="text-3xl font-bold mb-8">{{ words.news }}</h1>
       <ul class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         <li v-for="n in data?.items ?? []" :key="n.id">
           <NuxtLink :to="prefix + n.slug" class="group block">
@@ -50,17 +56,18 @@ const date = (d: string) => new Intl.DateTimeFormat(locale.value === 'en' ? 'en-
           </NuxtLink>
         </li>
       </ul>
-      <p v-if="!data?.items?.length" class="text-muted">{{ locale === 'en' ? 'No news yet.' : 'Zatím tu nic není.' }}</p>
+      <p v-if="!data?.items?.length" class="text-muted">{{ words.noNews }}</p>
     </section>
 
     <!-- one news item -->
     <article v-else-if="kind === 'article' && item" class="mx-auto max-w-3xl px-4 py-12">
-      <NuxtLink :to="prefix.slice(0, -1)" class="text-sm text-muted hover:underline">← {{ locale === 'en' ? 'All news' : 'Všechny aktuality' }}</NuxtLink>
+      <NuxtLink :to="prefix.slice(0, -1)" class="text-sm text-muted hover:underline">← {{ words.allNews }}</NuxtLink>
       <h1 class="mt-4 text-4xl font-bold leading-tight">{{ item.title }}</h1>
       <p v-if="item.publishedAt" class="mt-2 text-muted">{{ date(item.publishedAt) }}</p>
       <p v-if="item.perex" class="mt-6 text-lg text-muted">{{ item.perex }}</p>
       <CmsImage v-if="item.cover" :media="item.cover" eager sizes="(min-width: 768px) 46rem, 100vw" class="mt-8 w-full rounded-xl" />
       <CmsContent :doc="item.body" class="prose mt-8 max-w-none" />
     </article>
+    <!-- #endif -->
   </div>
 </template>

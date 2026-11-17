@@ -227,7 +227,7 @@ await page('Pro vývojáře', 'pro-vyvojare', [
     id: id(), type: 'steps', eyebrow: null,
     heading: 'Od prvního příkazu ke správě obsahu.',
     items: [
-      item({ title: 'Založte projekt', text: 'Příkaz npx tinyzoo init připraví základ projektu. Dál stavíte web v Nuxtu.', command: 'npx tinyzoo init' }),
+      item({ title: 'Založte projekt', text: 'Příkaz pnpm create tinyzoo se zeptá na jazyky, části webu a ukázkový obsah a připraví základ projektu. Dál stavíte web v Nuxtu.', command: 'pnpm create tinyzoo' }),
       item({ title: 'Popište obsah', text: 'Do cms.config.ts zapište, jaký obsah bude klient upravovat. Z modelu se vygeneruje jeho administrace.', command: 'pnpm db:generate' }),
       item({ title: 'Nasaďte aplikaci', text: 'tinyzoo používá Node a Postgres. My nasazujeme přes Pushbase. Web i administraci nasadíte společně.', command: 'pnpm build' }),
       item({ title: 'Projděte web s klientem', text: 'Společně si vyzkoušejte úpravy obsahu, živý náhled a plánování zveřejnění. Je to příležitost zjistit, jak se klientovi s připraveným obsahem pracuje.' }),

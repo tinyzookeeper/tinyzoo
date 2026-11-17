@@ -10,13 +10,15 @@ and your own Postgres, on any Node host.
 
 ## Install
 
-A new website, with demo content in Czech and English (Node 22+, pnpm 10, Docker for the
-local database):
+A new website (Node 22+, pnpm 10, Docker for the local database). `create-tinyzoo` asks for the
+languages, the parts of the site and whether to add demo content; by default that is a small
+bakery's website in Czech and English. `tinyzoo init my-site` makes the same site without questions
+(`--languages`, `--presets`, `--no-demo`):
 
 ```bash
-pnpm dlx tinyzoo init my-site
+pnpm create tinyzoo my-site
 cd my-site
-pnpm install
+pnpm install                # unless the questions installed for you
 cp .env.example .env
 docker compose up -d && pnpm db:migrate
 pnpm dev                    # the site, and /admin

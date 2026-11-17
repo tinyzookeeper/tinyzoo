@@ -21,11 +21,13 @@
  *                               through the admin API (--url --email, password in $SEED_PASSWORD; --dry-run, --reset)
  *   tinyzoo init <dir>        → a new website with the CMS inside (the starter: pages, news,
  *                               menus, a contact form, cs/en), ready for `pnpm install`
+ *                               (--languages cs,en,de  --presets news,forms,redirects,search|none
+ *                               --no-demo  --package-manager npm; see cli/init.mjs)
  * `tinyzoo help` prints the commands and flags (cli/usage.ts holds the list the docs and the tests follow).
  * Run from the host app root (cwd = host). Designed to run under tsx.
  */
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { buildOpenApiDocument, emitContentTypes, emitSchema } from '../src/index'
 import { askYesNo, drizzleKitRunner, generateMigration } from './generate'
@@ -36,6 +38,7 @@ import { runExport } from './export'
 import { runImport } from './import'
 import { reportFailure } from './transfer'
 import { usage } from './usage'
+import { detectPackageManager, INIT_USAGE, InitError, nextSteps, parseInitArgs, resolveOptions, scaffold } from './init.mjs'
 
 const cmd = process.argv[2]
 const cwd = process.cwd()
@@ -89,32 +92,32 @@ async function openapi() {
   console.log(`✓ emitted ${out}`)
 }
 
-/** Copy the starter into a new folder, with versions instead of workspace links. */
+/**
+ * A new website: the starter with the parts and languages asked for (cli/init.mjs, which
+ * `create-tinyzoo` runs too, so both make the same site).
+ */
 function init() {
-  const target = process.argv[3]
-  if (!target || target.startsWith('-')) {
-    console.error('usage: tinyzoo init <folder>')
+  try {
+    const args = parseInitArgs(process.argv.slice(3))
+    if (args.help) { console.log(INIT_USAGE); return }
+    if (!args.folder) throw new InitError(INIT_USAGE)
+    const choices = resolveOptions(args)
+    const pkgDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+    const packageManager = args.packageManager ?? detectPackageManager()
+    const { dest, regenerate } = scaffold({
+      ...choices,
+      dest: resolve(cwd, args.folder),
+      starterDir: join(pkgDir, 'starter'),
+      version: JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8')).version as string,
+      packageManager,
+    })
+    console.log(`✓ created ${dest}\n${nextSteps({ folder: args.folder, packageManager, demo: choices.demo, regenerate })}`)
+  }
+  catch (err) {
+    if (!(err instanceof InitError)) throw err
+    console.error(err.message.startsWith('usage:') ? err.message : `✗ ${err.message}`)
     process.exit(1)
   }
-  const dest = resolve(cwd, target)
-  if (existsSync(dest) && readdirSync(dest).length) {
-    console.error(`✗ ${dest} exists and is not empty`)
-    process.exit(1)
-  }
-  const pkgDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-  const starter = join(pkgDir, 'starter')
-  const skip = new Set(['node_modules', '.nuxt', '.output', '.env', '.cms-uploads', '.cms-mail', '.data'])
-  cpSync(starter, dest, { recursive: true, filter: (src) => !skip.has(basename(src)) })
-  renameSync(join(dest, 'gitignore.txt'), join(dest, '.gitignore'))
-  const version = JSON.parse(readFileSync(join(pkgDir, 'package.json'), 'utf8')).version as string
-  const pkgPath = join(dest, 'package.json')
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
-  pkg.name = basename(dest).toLowerCase().replace(/[^a-z0-9-]+/g, '-')
-  for (const deps of [pkg.dependencies, pkg.devDependencies]) {
-    for (const [name, v] of Object.entries(deps ?? {})) if (String(v).startsWith('workspace:')) deps[name] = `^${version}`
-  }
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n')
-  console.log(`✓ created ${dest}\n\n  cd ${target}\n  pnpm install\n  cp .env.example .env\n  docker compose up -d\n  pnpm db:migrate\n  pnpm dev   → http://localhost:3000/admin\n\n  Demo content (Czech and English), while \`pnpm dev\` runs in another terminal:\n  SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed\n  (creates the first administrator with those details; run it again any time, it changes nothing twice)\n`)
 }
 
 switch (cmd) {

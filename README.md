@@ -19,9 +19,9 @@ guide, logo and the animal characters: [docs/brand](docs/brand/brand-guide.md).
 You need Node 22+, pnpm 10 and Docker (for the local database).
 
 ```bash
-pnpm dlx tinyzoo init my-site
+pnpm create tinyzoo my-site      # asks for the languages, the parts of the site and demo content
 cd my-site
-pnpm install
+pnpm install                     # unless the questions installed for you
 cp .env.example .env
 docker compose up -d && pnpm db:migrate
 pnpm dev                                                     # the site, and /admin
@@ -29,8 +29,8 @@ pnpm dev                                                     # the site, and /ad
 SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed
 ```
 
-That is a small bakery's website in Czech and English, with pages built from blocks, news,
-menus, a contact form and search. [Getting started](docs/guide/getting-started.md) walks
+With the defaults, that is a small bakery's website in Czech and English, with pages built from
+blocks, news, menus, a contact form and search (`tinyzoo init my-site` makes the same site without questions). [Getting started](docs/guide/getting-started.md) walks
 through it step by step, adds a collection of your own, and ends with the checklist for
 going live.
 

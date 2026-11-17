@@ -1,0 +1,45 @@
+{
+  "name": "create-tinyzoo",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Make a new website with tinyzoo: pnpm create tinyzoo",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/tinyzookeeper/tinyzoo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinyzookeeper/tinyzoo.git",
+    "directory": "packages/create-tinyzoo"
+  },
+  "bugs": {
+    "url": "https://github.com/tinyzookeeper/tinyzoo/issues"
+  },
+  "keywords": [
+    "create",
+    "scaffold",
+    "cms",
+    "nuxt",
+    "tinyzoo"
+  ],
+  "bin": {
+    "create-tinyzoo": "./bin/create-tinyzoo.mjs"
+  },
+  "files": [
+    "README.md",
+    "LICENSE",
+    "bin",
+    "src",
+    "bundle"
+  ],
+  "scripts": {
+    "prepack": "node scripts/bundle.mjs"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.9.0"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

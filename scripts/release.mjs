@@ -1,13 +1,14 @@
-// Publishes tinyzoo and @tinyzoo/client to npm. Run by the release workflow
+// Publishes tinyzoo, @tinyzoo/client and create-tinyzoo to npm. Run by the release workflow
 // (.github/workflows/release.yml) after the "Version packages" pull request is merged.
 //
 //   node scripts/release.mjs            publish what npm does not have yet
 //   node scripts/release.mjs --dry-run  the same steps, but `pnpm publish -r --dry-run`: nothing leaves the machine
 //
 // Steps: skip when every package version is already on npm (every push to main runs this),
-// build @tinyzoo/client (dist), run the consumer check on the packed tarballs of both
-// packages, then `changeset publish` (pnpm publish per package, with provenance when
-// NPM_CONFIG_PROVENANCE=true), then the git tags and GitHub releases (tagAndRelease).
+// build @tinyzoo/client (dist), run the consumer check on the packed tarballs (create-tinyzoo
+// is packed with the starter of tinyzoo inside), then `changeset publish` (pnpm publish per
+// package, with provenance when NPM_CONFIG_PROVENANCE=true), then the git tags and GitHub
+// releases (tagAndRelease).
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -16,7 +17,7 @@ const root = join(import.meta.dirname, '..')
 const dry = process.argv.includes('--dry-run')
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit' })
 
-const packages = ['packages/cms', 'packages/client'].map((dir) => {
+const packages = ['packages/cms', 'packages/client', 'packages/create-tinyzoo'].map((dir) => {
   const { name, version } = JSON.parse(readFileSync(join(root, dir, 'package.json'), 'utf8'))
   return { dir, name, version }
 })

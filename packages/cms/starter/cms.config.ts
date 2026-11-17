@@ -1,13 +1,27 @@
 import {
-  defineBlock, defineEntity, defineLocales, defineNavigation,
-  definePages, defineRedirects, defineSingleton, eq, f, seo,
+  defineBlock,
+  // #if news
+  defineEntity,
+  // #endif
+  defineLocales, defineNavigation, definePages,
+  // #if redirects
+  defineRedirects,
+  // #endif
+  defineSingleton,
+  // #if news
+  eq,
+  // #endif
+  f, seo,
 } from 'tinyzoo'
+// #if forms
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
+// #endif
 
 // The content model of the website: what editors can write and change. Change it
 // here, then `pnpm db:generate` (review the SQL) and `pnpm db:migrate`.
 
 // Czech first; English is a translation of the fields marked .localized().
+// (The website's own words and addresses for each language: app/utils/site.ts.)
 export const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
 
 // ── the whole site ──
@@ -74,20 +88,35 @@ const cta = defineBlock({
     buttonUrl: f.text({ required: true, format: 'link' }).label({ en: 'Button goes to', cs: 'Tlačítko vede na' }),
   },
 })
+// #if forms
 const contact = defineBlock({
   label: { en: 'Contact form', cs: 'Kontaktní formulář' },
   description: { en: 'The contact form, with a heading.', cs: 'Kontaktní formulář s nadpisem.' },
   icon: 'i-lucide-mail',
   fields: { heading: f.text().label({ en: 'Heading', cs: 'Nadpis' }) },
 })
+// #endif
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview. `tree: true` lets
 // pages sit under pages (/o-nas/tym): editors arrange them as a tree, moving a page leaves
 // redirects (Redirect below), and the website gets breadcrumbs and the tree for navigation.
 // Leave it out for flat pages (/o-nas).
-export const Page = definePages({ blocks: { hero, text, image, cta, contact }, localized: true, tree: true })
+export const Page = definePages({
+  blocks: {
+    hero, text, image, cta,
+    // #if forms
+    contact,
+    // #endif
+  },
+  localized: true,
+  tree: true,
+})
 
+// #if news
 // ── news ──
+// The address of a news item on the website, in each language (the language prefix is added for you).
+const newsAddress = { cs: '/aktuality/:slug', en: '/news/:slug' }
+
 export const News = defineEntity('news', {
   label: { en: 'News', cs: 'Aktuality' },
   labelSingular: { en: 'News item', cs: 'Aktualita' },
@@ -107,20 +136,28 @@ export const News = defineEntity('news', {
     body: f.richtext().localized().label({ en: 'Text', cs: 'Text' }),
     ...seo({ localized: true }),
   },
-  publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', dateField: 'publishedAt', preview: { cs: '/aktuality/:slug', en: '/news/:slug' } },
+  publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', dateField: 'publishedAt', preview: newsAddress },
   content: {
     public: true,
     published: (table) => eq(table.status, 'published'),
     slug: 'slug',
-    path: { cs: '/aktuality/:slug', en: '/news/:slug' },
+    path: newsAddress,
     populate: ['cover', 'ogImage'],
   },
 })
 
-// ── menus, redirects, forms ──
+// #endif
+
+// ── menus ──
 export const Navigation = defineNavigation({ localized: true })
+
+// #if redirects
+// ── redirects: an old address that leads to a new one (a moved page leaves one behind) ──
 export const Redirect = defineRedirects()
 
+// #endif
+// #if forms
+// ── forms ──
 // Plugins add features with their own admin pages, routes and tables: Forms here.
 export const plugins = [formsPlugin()]
 
@@ -135,3 +172,4 @@ export const ContactForm = defineForm('contactForm', {
   successMessage: { en: 'Thank you, we will reply soon.', cs: 'Děkujeme, brzy se ozveme.' },
 })
 export const FormSettings = defineFormSettings()
+// #endif

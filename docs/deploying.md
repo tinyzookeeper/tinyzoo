@@ -252,7 +252,7 @@ For a deploy script or CI step. `0` is success everywhere; what else a command a
 | `tinyzoo content:migrate` | `1`: some blocks could not be upgraded (they stay as stored), the arguments are wrong, or there is no `DATABASE_URL` |
 | `tinyzoo links:convert` | `1`: wrong arguments, or no `DATABASE_URL`. Addresses it could not convert are reported, not an error: the exit code is `0` |
 | `tinyzoo seed`, `export`, `import`, `backup`, `restore` | `1`: the command failed or refused (a non-empty database without `--force`, a missing Postgres tool, a wrong password); one line says why |
-| `tinyzoo init` | `1`: no folder given, or the folder exists and is not empty |
+| `tinyzoo init` | `1`: no folder given, an option it does not know or that does not fit (`--demo` with a first language that is not `cs` or `en`), or the folder exists and is not empty |
 | anything else | an unknown command prints the usage and exits `1` |
 
 ## Health

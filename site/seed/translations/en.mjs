@@ -144,7 +144,7 @@ export default (h) => {
             id: id(), type: 'steps', eyebrow: null,
             heading: 'From the first command to managing content.',
             items: [
-              item({ title: 'Create a project', text: 'The npx tinyzoo init command sets up the project foundation. Carry on building your website in Nuxt.', command: 'npx tinyzoo init' }),
+              item({ title: 'Create a project', text: 'The pnpm create tinyzoo command asks for the languages, the parts of the site and the demo content, and sets up the project foundation. Carry on building your website in Nuxt.', command: 'pnpm create tinyzoo' }),
               item({ title: 'Define the content', text: 'Describe the content your client will edit in cms.config.ts. Their admin area is generated from the model.', command: 'pnpm db:generate' }),
               item({ title: 'Deploy the application', text: 'tinyzoo uses Node and Postgres. We deploy with Pushbase. The website and admin area deploy together.', command: 'pnpm build' }),
               item({ title: 'Walk through the website with your client', text: 'Try editing content, using the live preview and scheduling publication together. It is a chance to see how the content setup works for your client.' }),
