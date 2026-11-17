@@ -704,9 +704,8 @@ gone after every deploy — give staging a bucket too.
    (`DATABASE_URL`, `REDIS_URL` are injected).
 3. Set the environment above (session password, public URL, S3, SMTP,
    `NUXT_CMS_MIGRATIONS_ON_START=true`). Pushbase runs apps on a read-only
-   filesystem with no writable `/tmp`, so uploads need `TMPDIR` pointed at a
-   writable folder ([Media](#media)); until the platform mounts one,
-   `TMPDIR=/dev/shm` carries small pictures.
+   filesystem with a writable `/tmp` (2 GiB per app), where uploads are staged
+   ([Media](#media)): leave `TMPDIR` unset.
 4. Connect the GitHub repo (`--preset nuxt` for a site, `dockerfile` for this
    repo's staging build) or upload with `pushbase deploy`.
 5. Open `/admin/setup`: a fresh database asks for the first administrator, and for
