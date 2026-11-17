@@ -324,7 +324,10 @@ after the change, in every language (a renamed slug gives both; a translation
 change only that language's). With `publish.perLocale`, publishing, unpublishing or
 a scheduled go-live of one language is `entry.published` / `entry.unpublished` with
 that language in `locale` and only its addresses in `paths` (an address served through
-the default language included): purge exactly those. `delivery` is unique per change and the same on
+the default language included): purge exactly those. The default language gates the others,
+so unpublishing it (or its date coming) names the languages it takes with it: one event with
+`locale: null` and the address of each language that was live and has a translation or a state
+of its own. `delivery` is unique per change and the same on
 every retry — deduplicate on it; it is inside the signed body. Each request
 carries `X-CMS-Event`, `X-CMS-Delivery` and `X-CMS-Signature: t=<unix>,v1=<hex>`, an
 HMAC-SHA256 of `` `${t}.${rawBody}` `` with `NUXT_CMS_WEBHOOKS_SECRET`. In production

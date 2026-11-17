@@ -40,7 +40,7 @@ export const pathKeys = pathTemplateKeys
  * API applies, scheduling included) and its addresses in every language.
  */
 export interface ChangeSnapshot {
-  /** Live in at least one language (for an entity that publishes per language: any of them). */
+  /** Live (for an entity that publishes per language: in the default language, which gates every other, so in at least one). */
   live: boolean
   /** Only for an entity that publishes per language: the languages it is live in. */
   locales?: string[]
@@ -173,6 +173,9 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     const paths = new Set<string>()
     // Publishing per language: a language that went live or off. Its address is purged even where it is only served through the default language, and what links to it reads differently.
     const languageFlipped = !!locale && liveFor(before) !== liveFor(after)
+    // (The default language gates every other: when it goes live or off, the languages it takes along are in `before` and
+    // `after` as live ones, so a change to it names each of their addresses. A language served only through the default
+    // language, with no row of its own, is `fallback` and stays out of a change to the default language, as it always did.)
     for (const snap of [before, after]) {
       if (!snap.live) continue
       for (const p of snap.paths) if (locale ? p.locale === locale && (!p.fallback || languageFlipped) : !p.fallback) paths.add(p.path)

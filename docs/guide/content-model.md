@@ -628,17 +628,26 @@ An editor's `?preview` (a signed-in session, or the content token) still sees th
 translation. Inside a published translation the per-field fallback to the default language
 applies as before: a field left empty shows the default language's text.
 
-**The default language unpublished, a translation published:** the translation is live on its
-own. The language versions are independent: nothing about a translation (its address, the
-sitemap, its alternates) needs the default language to be live, and the default language is
-simply not among the item's `locales`. Mind that the translation's untranslated fields then
-show the default language's text, draft or not.
+**The default language gates every other language.** A translation is live only while the default
+language is live too. Unpublish the default language and every language goes off the website, whatever
+its own state says; the translation's own state is kept, and it is back when the default language is
+published again. A language can still be unpublished on its own, and scheduled on its own: it is live
+from the later of its date and the default language's. A language that follows is live exactly when the
+default language is. The reason is the translation's untranslated fields: they show the default
+language's text, so a translation of a draft would show the draft (and its fallback text) to the public.
+In the admin a language that is published but held back says **Waiting for <default language>**.
 
 **Schedules and webhooks follow.** A translation with its own date goes live at that moment (the
 scheduler announces `entry.published` with that `locale`). Publishing or unpublishing one language
 sends `entry.published` / `entry.unpublished` with its `locale` and `paths` for that language
-only; a change to the default language names every language that is live. Those who may not
-publish cannot publish, unpublish or reschedule a language either, and cannot change one that is live.
+only. A change to the default language names every language that is live (`locale: null`, the
+addresses of all of them that have a translation or a state of their own), so unpublishing the
+default language purges the languages that went off with it; publishing a language while the default
+language is a draft is not public and sends nothing. When the default language goes live on its date
+the scheduler announces it, and then each language that was only waiting for it. Those who may not
+publish cannot publish, unpublish or reschedule a language, cannot remove a translation that holds a
+state of its own (the language would follow the default language again, which can put it on the
+website), and cannot change a language that is marked published (or follows a live default language).
 
 In the admin API (`PATCH /api/cms/<entity>/<id>?locale=en`) the state is written with the entry's
 own keys: `{ "status": "draft" }`, `{ "status": "published", "publishedAt": "2026-12-01T09:00:00Z" }`,

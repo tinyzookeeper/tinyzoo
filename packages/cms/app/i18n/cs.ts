@@ -666,7 +666,7 @@ export default {
     translationMissing: 'Chybí překlad: {lang}',
     translationMissingBody: 'Návštěvníci s tímto jazykem zatím uvidí výchozí jazyk ({lang}).',
     defaultNotLive: 'Výchozí jazyk ({lang}) není zveřejněný',
-    defaultNotLiveBody: 'Verze {lang} půjde na web sama; výchozí jazyk na webu zůstane, dokud ho nezveřejníte.',
+    defaultNotLiveBody: 'Zveřejnění verze {lang} ji jen označí jako zveřejněnou: na web se dostane, až se zveřejní i výchozí jazyk ({default}).',
     translate: 'Přeložit',
     sharedUnsaved: 'Zveřejní se i neuložený text: {names}',
     sharedUnsavedBody: 'Změny v poli {fields} se uloží a zveřejní spolu se vším ostatním.',
@@ -708,6 +708,9 @@ export default {
     unpublishTitle: 'Stáhnout z webu verzi {lang}?',
     unpublishBody: 'Návštěvníci čtoucí v jazyce {lang} ji přestanou vidět, ostatní jazyky zůstanou, jak jsou. Zůstane tu jako koncept a můžete ji kdykoli zveřejnit znovu.',
     followsShort: 'řídí se výchozím jazykem',
+    waitingFor: 'Čeká na výchozí jazyk ({lang})',
+    waiting: 'Čeká na výchozí jazyk',
+    waitingForBody: 'Je zveřejněná a na web půjde, až se zveřejní výchozí jazyk ({lang}).',
     state: { published: 'Zveřejněno', scheduled: 'Naplánováno', draft: 'Koncept' },
   },
   live: {

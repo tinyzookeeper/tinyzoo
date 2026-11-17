@@ -137,11 +137,19 @@ export async function availableLocales(db: any, reg: CmsRegistry, e: CmsEntity, 
 
 /** One language of an entry as the admin shows it: live, waiting for its date, or a draft. */
 export interface LanguageState {
+  /**
+   * What the website does with this language right now. The default language gates the others: a
+   * language that is published while the default language is a draft is `published` here (its own state)
+   * and `waitingFor` names the default language; one scheduled by the default language's date reads
+   * `scheduled`, with the later of the two dates.
+   */
   state: 'published' | 'scheduled' | 'draft'
   /** Set by someone for this language; false: it follows the default language (the default language itself is always its own). */
   own: boolean
-  /** The publish date in effect (the entry's while it follows the default language). */
+  /** The date it goes live: the later of its own and the default language's. The entry's while it follows the default language. */
   date: string | null
+  /** A language that is published (or scheduled) on its own but is not on the website, because the default language is a draft: the default language's code. Absent otherwise. */
+  waitingFor?: string
 }
 
 /**
@@ -167,17 +175,30 @@ export async function translationStates(db: any, reg: CmsRegistry, e: CmsEntity,
     !published ? 'draft' : scheduled && date && new Date(date).getTime() > now ? 'scheduled' : 'published'
   for (const row of rows) {
     const entryDate: Date | null = dateKey ? row[dateKey] : null
+    const defaultDate = entryDate ? new Date(entryDate) : null
+    const defaultState = stateOf(row[statusKey] === p.publishedValue, entryDate)
     const states: Record<string, LanguageState> = {
-      [reg.locales.default]: { state: stateOf(row[statusKey] === p.publishedValue, entryDate), own: true, date: entryDate ? new Date(entryDate).toISOString() : null },
+      [reg.locales.default]: { state: defaultState, own: true, date: defaultDate ? defaultDate.toISOString() : null },
     }
     for (const l of others) {
       const mine = own.get(row.id + '#' + l)
-      const date: Date | null = mine ? mine.publishedAt : entryDate
-      states[l] = {
-        state: stateOf(mine ? mine.published === true : row[statusKey] === p.publishedValue, date),
-        own: !!mine,
-        date: date ? new Date(date).toISOString() : null,
+      if (!mine) {
+        // Follows: exactly what the default language is.
+        states[l] = { state: defaultState, own: false, date: defaultDate ? defaultDate.toISOString() : null }
+        continue
       }
+      let state = stateOf(mine.published === true, mine.publishedAt)
+      let date: Date | null = mine.publishedAt ? new Date(mine.publishedAt) : null
+      let waitingFor: string | undefined
+      if (state !== 'draft') {
+        // The default language gates: a draft holds it back; a date of the default language that has not come yet holds it too (the later date counts).
+        if (defaultState === 'draft') waitingFor = reg.locales.default
+        else if (defaultState === 'scheduled' && defaultDate && (!date || defaultDate > date)) {
+          date = defaultDate
+          state = 'scheduled'
+        }
+      }
+      states[l] = { state, own: true, date: date ? date.toISOString() : null, ...(waitingFor ? { waitingFor } : {}) }
     }
     out.set(row.id, states)
   }

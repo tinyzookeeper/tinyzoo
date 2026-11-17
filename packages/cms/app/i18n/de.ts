@@ -656,6 +656,9 @@ export default {
     unpublishTitle: 'Die Version {lang} von der Website nehmen?',
     unpublishBody: 'Besucher, die auf {lang} lesen, sehen sie nicht mehr; die anderen Sprachen bleiben, wie sie sind. Sie bleibt hier als Entwurf und kann jederzeit erneut veröffentlicht werden.',
     followsShort: 'folgt der Standardsprache',
+    waitingFor: 'Wartet auf die Standardsprache ({lang})',
+    waiting: 'Wartet auf die Standardsprache',
+    waitingForBody: 'Sie ist veröffentlicht und geht online, sobald die Standardsprache ({lang}) veröffentlicht ist.',
     state: { published: 'Veröffentlicht', scheduled: 'Geplant', draft: 'Entwurf' },
   },
   sections: {
@@ -694,7 +697,7 @@ export default {
     translationMissing: 'Übersetzung fehlt: {lang}',
     translationMissingBody: 'Besucher mit dieser Sprache sehen stattdessen die Standardsprache ({lang}).',
     defaultNotLive: 'Die Standardsprache ({lang}) ist nicht veröffentlicht',
-    defaultNotLiveBody: 'Die Version {lang} geht allein online; die Standardsprache bleibt von der Website fern, bis Sie sie veröffentlichen.',
+    defaultNotLiveBody: 'Die Veröffentlichung der Version {lang} markiert sie nur als veröffentlicht: Sie erreicht die Website, wenn auch die Standardsprache ({default}) veröffentlicht ist.',
     translate: 'Übersetzen',
     sharedUnsaved: 'Veröffentlicht auch nicht gespeicherten Text von {names}',
     sharedUnsavedBody: 'Änderungen in {fields} werden zusammen mit allem anderen gespeichert und veröffentlicht.',

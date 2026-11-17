@@ -44,7 +44,7 @@ const defaults = ref<Record<string, any>>({})
 const translated = ref(false)
 // Publishing per language (publish.perLocale): the state of every language, and whether the one being
 // edited has a state of its own (false: it follows the default language).
-const states = ref<Record<string, { state: 'published' | 'scheduled' | 'draft'; own: boolean; date: string | null }>>({})
+const states = ref<Record<string, { state: 'published' | 'scheduled' | 'draft'; own: boolean; date: string | null; waitingFor?: string }>>({})
 const stateOwn = ref(false)
 
 // May this person save here? Told by the server with the entry (the same rules a save
@@ -521,6 +521,13 @@ const publishedOn = computed(() => (publish.value?.dateField ? state[publish.val
 // A publish date ahead: publishing schedules it (live from that moment).
 const futureDate = computed(() => !!publishedOn.value && new Date(publishedOn.value).getTime() > Date.now())
 const isScheduled = computed(() => isPublished.value && futureDate.value)
+// What the top bar says. A language with a state of its own reads what the website does with it: the default
+// language gates it, so it can wait for the default language (draft) or for its date (scheduled).
+const shownState = computed(() => {
+  const s = isTranslation.value && perLocale.value ? states.value[currentLocale.value ?? ''] : undefined
+  if (!s || !stateOwn.value) return { published: isPublished.value, date: publishedOn.value, waitingFor: null as string | null }
+  return { published: s.state !== 'draft', date: s.state === 'scheduled' ? s.date : null, waitingFor: s.waitingFor ? localeName(s.waitingFor) : null }
+})
 
 // A changed address leaves redirects behind: the "Saved" says so.
 let redirectsMade = 0
@@ -613,7 +620,7 @@ async function removeTranslation() {
 const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
   label: code === locales.value?.default ? `${localeLabel(code)} (${t('translation.default')})` : localeLabel(code),
   description: perLocale.value && states.value[code]
-    ? `${t(`translation.state.${states.value[code]!.state}`)}${code !== locales.value?.default && !available.value.includes(code) ? ` · ${t('translation.notTranslated')}` : ''}`
+    ? `${states.value[code]!.waitingFor ? t('translation.waitingFor', { lang: localeName(states.value[code]!.waitingFor) }) : t(`translation.state.${states.value[code]!.state}`)}${code !== locales.value?.default && !available.value.includes(code) ? ` · ${t('translation.notTranslated')}` : ''}`
     : code === locales.value?.default ? undefined : (available.value.includes(code) ? t('translation.translated') : t('translation.notTranslated')),
   icon: code === currentLocale.value ? 'i-lucide-check' : undefined,
   to: { query: code === locales.value?.default ? {} : { locale: code } },
@@ -716,7 +723,7 @@ const reviewChecks = computed(() => {
   if (publicPath.value) out.push({ ok: true, title: t('review.address'), description: publicPath.value })
   // A language that publishes on its own while the default language is not published: it goes live alone.
   if (isTranslation.value && perLocale.value && locales.value && states.value[locales.value.default]?.state === 'draft') {
-    out.push({ ok: false, title: t('review.defaultNotLive', { lang: defaultLabel.value }), description: t('review.defaultNotLiveBody', { lang: localeName(currentLocale.value) }) })
+    out.push({ ok: false, title: t('review.defaultNotLive', { lang: defaultLabel.value }), description: t('review.defaultNotLiveBody', { lang: localeName(currentLocale.value), default: defaultLabel.value }) })
   }
   // Translations not written yet (the page then shows the default language).
   if (locales.value && !isNew.value && !isTranslation.value) {
@@ -844,7 +851,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     <!-- one top bar for every arrangement: ‹ back · status · saved | language, history, details, preview, the primary action, … -->
     <template #status>
       <!-- phones: one thing — unsaved changes while there are any, else the status -->
-      <CmsStatusBadge v-if="publish && !isNew" :published="isPublished" :scheduled-for="publishedOn" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''" />
+      <CmsStatusBadge v-if="publish && !isNew" :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''" />
       <span v-else-if="isNew" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''">{{ t('editor.newEntry') }}</span>
       <span v-if="readOnly" class="inline-flex items-center gap-1 text-muted"><UIcon name="i-lucide-lock" class="size-3.5" />{{ t('readOnly.badge') }}</span>
       <span v-if="!readOnly && ((publish && !isNew) || isNew) && (saving || dirty || savedAt)" class="text-dimmed max-md:hidden" aria-hidden="true">·</span>
@@ -1037,11 +1044,12 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       <aside v-if="showAside" class="cms-editor__aside" :aria-label="t('editor.details')">
         <div class="cms-editor__aside-inner space-y-5">
           <!-- the status itself is in the top bar; here only what it does not say -->
-          <div v-if="publish && !isNew && (isScheduled || !isPublished || publishedOn)" class="flex items-start gap-2 text-sm text-muted">
+          <div v-if="publish && !isNew && (shownState.waitingFor || isScheduled || !isPublished || publishedOn)" class="flex items-start gap-2 text-sm text-muted">
             <UIcon :name="isScheduled ? 'i-lucide-clock' : isPublished ? 'i-lucide-globe' : 'i-lucide-pencil-line'" class="size-4 shrink-0 mt-0.5" />
             <div>
               <p>
-                <template v-if="isScheduled">{{ t('editor.goesLive', { date: formatDate(publishedOn) }) }}</template>
+                <template v-if="shownState.waitingFor">{{ t('translation.waitingForBody', { lang: shownState.waitingFor }) }}</template>
+                <template v-else-if="isScheduled">{{ t('editor.goesLive', { date: formatDate(publishedOn) }) }}</template>
                 <template v-else-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
                 <template v-else-if="!isPublished">{{ canPublish ? t('editor.notPublished') : t('editor.cannotPublish') }}</template>
               </p>
@@ -1057,7 +1065,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <UIcon name="i-lucide-sparkles" class="size-4 shrink-0 mt-0.5" />
               <dd>{{ t('editor.newEntryHint') }}</dd>
             </div>
-            <div v-if="publicPath && isPublished" class="flex items-start gap-2 min-w-0">
+            <div v-if="publicPath && isPublished && !shownState.waitingFor" class="flex items-start gap-2 min-w-0">
               <dt class="sr-only">{{ t('editor.onWebsite') }}</dt>
               <UIcon name="i-lucide-link" class="size-4 shrink-0 mt-0.5 text-muted" />
               <dd class="min-w-0"><a :href="publicPath" target="_blank" rel="noopener" class="text-highlighted hover:underline underline-offset-2 break-all">{{ publicPath }}</a></dd>
@@ -1079,7 +1087,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                     >{{ localeLabel(code) }}</NuxtLink>
                     <span v-if="perLocale && states[code]" class="flex items-center gap-2 text-xs text-muted">
                       <span v-if="code !== locales.default && !available.includes(code)" class="cms-unsaved">{{ t('translation.notTranslated') }}</span>
-                      <CmsStatusBadge :published="states[code].state !== 'draft'" :scheduled-for="states[code].state === 'scheduled' ? states[code].date : null" />
+                      <CmsStatusBadge :published="states[code].state !== 'draft'" :scheduled-for="states[code].state === 'scheduled' ? states[code].date : null" :waiting-for="states[code].waitingFor ? localeName(states[code].waitingFor) : null" />
                       <UTooltip v-if="code !== locales.default && !states[code].own" :text="t('translation.followsDefault', { lang: defaultLabel })">
                         <UIcon name="i-lucide-link" class="size-3.5 text-dimmed" />
                       </UTooltip>

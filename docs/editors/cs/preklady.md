@@ -38,9 +38,9 @@ Když správce webu zapne u daného obsahu **zveřejňování po jazycích**, m�
 - Otevřete jazyk a použijte **Zveřejnit**, **Aktualizovat** nebo **Naplánovat** (v nabídce **Další akce** je **Stáhnout z webu**). Platí to jen pro jazyk, který máte otevřený. Ostatní jazyky se nezmění.
 - **Koncept jazyka na webu není**: návštěvník v tom jazyce stránku nenajde (404), nevyskočí mu v seznamu, v mapě webu ani ve vyhledávání. Rozepsaný překlad si prohlédnete v **Náhledu**.
 - Zveřejněná verze si prázdná pole bere z výchozího jazyka, jako dřív.
-- Jazyk může být na webu i tehdy, když výchozí jazyk zatím koncept je. Správa na to upozorní v kontrole před zveřejněním.
+- **Výchozí jazyk rozhoduje.** Překlad je na webu jen tehdy, když je na webu i výchozí jazyk. Když výchozí jazyk stáhnete z webu, odejdou s ním všechny jazyky. Jejich vlastní stav zůstane a po zveřejnění výchozího jazyka jsou zpátky. Zveřejněný překlad u konceptu výchozího jazyka proto není vidět a ve stavu se u něj píše **Čeká na výchozí jazyk (čeština)**. Jazyk jde pořád stáhnout nebo naplánovat zvlášť: na web jde, až když přijde jeho datum i datum výchozího jazyka (platí to pozdější). Správa na to upozorní v kontrole před zveřejněním.
 - **Znovu se řídit výchozím jazykem** (v nabídce **Další akce**) vrátí jazyk k tomu, že jde na web a z webu spolu s výchozím jazykem.
-- Kdo nesmí zveřejňovat (autor), nemůže zveřejnit ani stáhnout žádný jazyk, ani měnit ten, který je na webu.
+- Kdo nesmí zveřejňovat (autor), nemůže zveřejnit ani stáhnout žádný jazyk, ani měnit ten, který je zveřejněný, ani odebrat překlad, který má vlastní stav (jazyk by se pak zase řídil výchozím a mohl by se dostat na web). Jazyk, který zveřejněný není, psát smí.
 
 ## Adresa v jiném jazyce
 

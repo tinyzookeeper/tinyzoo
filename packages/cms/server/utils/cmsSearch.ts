@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { and, desc, eq, indexTree, inArray, or, pathTemplateKeys, propOf, sitePath, sql, entryTexts, foldSearchText, isSearchableField, matchEntry, highlightRanges } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
-import { hasTranslatedText, mergeTranslation } from './cmsLocales'
+import { hasTranslatedText, mergeTranslation, translationStates } from './cmsLocales'
+import type { LanguageState } from './cmsLocales'
 // Explicit (not Nitro's auto-import): the CLI's import rebuilds the index outside Nitro.
 import { upgradedCopy } from './cmsBlocks'
 
@@ -294,7 +295,7 @@ export interface AdminSearchItem {
   titleHighlights: [number, number][]
   excerpt: string
   highlights: [number, number][]
-  /** 'published' | 'scheduled' | 'draft' for collections with publishing, else null. */
+  /** 'published' | 'scheduled' | 'draft' for collections with publishing (per language: of the language the hit is in; 'waiting' = published, held back by the default language), else null. */
   status: string | null
   updatedAt: string
   score: number
@@ -335,6 +336,10 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
       // One result per entry, read across its languages.
       const byId = new Map<string, any[]>()
       for (const r of rows) byId.set(r.id, [...(byId.get(r.id) ?? []), r])
+      // Publishing per language: the state of the language a hit was found in (its own, or the entry's), not always the default language's.
+      const states = e.publish?.perLocale && reg.locales && byId.size
+        ? await translationStates(tx, reg, e, await tx.select().from(e.table).where(inArray(e.table.id, [...byId.keys()])))
+        : null
       const found: AdminSearchItem[] = []
       for (const [id, versions] of byId) {
         const first = versions[0]
@@ -349,7 +354,7 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
           titleHighlights: highlightRanges(title, terms),
           excerpt: match.excerpt,
           highlights: match.highlights,
-          status: !p ? null : first.status !== p.publishedValue ? 'draft' : first.due ? 'published' : 'scheduled',
+          status: !p ? null : languageStatus(states?.get(id)?.[first.locale]) ?? (first.status !== p.publishedValue ? 'draft' : first.due ? 'published' : 'scheduled'),
           updatedAt: new Date(first.updatedAt).toISOString(),
           score: match.score,
         })
@@ -358,6 +363,11 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
     }
   })
   return out.sort(byScore)
+}
+
+/** The admin search's word for one language's state: 'waiting' is published but held back by the default language. */
+function languageStatus(s: LanguageState | undefined): string | null {
+  return !s ? null : s.waitingFor ? 'waiting' : s.state
 }
 
 /** Replace each candidate's indexed text by the text of the fields `unreadable` leaves (title, body, extra), in its language. */
