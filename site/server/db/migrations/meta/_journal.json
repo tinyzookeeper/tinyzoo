@@ -36,6 +36,13 @@
       "when": 1794844612665,
       "tag": "0004_snake_case_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794952381098,
+      "tag": "0005_news_clip",
+      "breakpoints": true
     }
   ]
 }
