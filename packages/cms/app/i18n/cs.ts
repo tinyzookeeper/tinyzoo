@@ -725,7 +725,7 @@ export default {
     reference: '{lang}: {value}',
     copyFrom: 'Zkopírovat z výchozího jazyka ({lang})',
     fallback: 'Prázdné — zobrazí se výchozí jazyk ({lang})',
-    shownUntil: 'Než to přeložíte, ukazuje se tu {lang}',
+    shownUntil: 'Prázdná pole ukazují šedě výchozí jazyk ({lang}), dokud je nepřeložíte.',
     useAsStart: 'Vzít jako základ',
     showOriginal: 'Ukázat originál vedle',
     hideOriginal: 'Skrýt originál',

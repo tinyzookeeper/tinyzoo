@@ -16,7 +16,7 @@ Zurück zur Standardsprache kommen Sie genauso: mit der Sprachschaltfläche in d
 
 ## Übersetzen mit dem Original vor Augen
 
-Öffnen Sie eine Sprache, die noch nicht übersetzt ist, sind die Felder nicht leer. **In jedem nicht übersetzten Feld steht grau der tschechische Text.** Genau das würden Besucher in dieser Sprache an dieser Stelle sehen, bis Sie es übersetzen. Beim Feld steht **Bis Sie übersetzen, steht hier der Text auf Tschechisch**.
+Öffnen Sie eine Sprache, die noch nicht übersetzt ist, sind die Felder nicht leer. **In jedem nicht übersetzten Feld steht grau der tschechische Text.** Genau das würden Besucher in dieser Sprache an dieser Stelle sehen, bis Sie es übersetzen. Über dem Formular steht das in einem Satz: **Leere Felder zeigen den Text auf Tschechisch grau, bis Sie sie übersetzen.**
 
 ![Der Editor der englischen Fassung eines Artikels: In der Überschrift und im Text steht grau der ursprüngliche tschechische Text, bei jedem Feld steht „Bis Sie übersetzen, steht hier der Text auf Tschechisch“ und der Link „Als Vorlage übernehmen“, über dem Artikeltext außerdem der Link „Original daneben zeigen“.](../../screenshots/0.6/translate-empty.png)
 
@@ -125,7 +125,7 @@ In der Liste auf dem Smartphone stehen die Sprachen bei jedem Eintrag unter sein
 
 ![Eine Liste von Artikeln auf dem Smartphone: Unter dem Titel jedes Artikels steht sein Status und darunter das Kürzel EN mit dem Zeichen der Sprache.](../../screenshots/0.6/phone-list.png)
 
-In einem geöffneten Eintrag stehen auf dem Smartphone die Sprache und ihr Status links oben, direkt neben dem Zurück-Pfeil (etwa **EN · Entwurf**, auf einem schmalen Display nur der Kreis und der Anfang des Kürzels). **Tippen Sie darauf, öffnet sich das Sprachmenü** mit dem Status jeder Sprache. Dasselbe Menü finden Sie auch unter **Weitere Aktionen** (drei Punkte) bei **Sprache**.
+In einem geöffneten Eintrag stehen auf dem Smartphone die Sprache und ihr Status links oben, direkt neben dem Zurück-Pfeil, als Statuszeichen und Sprachkürzel (etwa ein grauer Ring und **EN** bei einem Entwurf, ein grüner Punkt bei einer Sprache auf der Website). **Tippen Sie darauf, öffnet sich das Sprachmenü** mit dem Status jeder Sprache in Worten. Dasselbe Menü finden Sie auch unter **Weitere Aktionen** (drei Punkte) bei **Sprache**.
 
 ![Das Sprachmenü auf dem Smartphone: Unter der Leiste mit der Sprache und der Schaltfläche „Übersetzung speichern“ steht das Menü mit „Čeština (Standard) – Auf der Website“ und „English – Entwurf“.](../../screenshots/0.6/phone-language-menu.png)
 

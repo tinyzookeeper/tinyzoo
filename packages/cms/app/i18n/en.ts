@@ -668,7 +668,7 @@ export default {
     reference: '{lang}: {value}',
     copyFrom: 'Copy from the default language ({lang})',
     fallback: 'Empty — the default language ({lang}) is shown instead',
-    shownUntil: 'Shown in {lang} until you translate it',
+    shownUntil: 'Empty fields show the {lang} text in grey until you translate them.',
     useAsStart: 'Use it as a start',
     showOriginal: 'Show the original beside it',
     hideOriginal: 'Hide the original',

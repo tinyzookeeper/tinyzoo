@@ -666,7 +666,7 @@ export default {
     reference: '{lang}: {value}',
     copyFrom: 'Aus der Standardsprache kopieren ({lang})',
     fallback: 'Leer – stattdessen wird die Standardsprache ({lang}) angezeigt',
-    shownUntil: 'Bis Sie übersetzen, steht hier der Text auf {lang}',
+    shownUntil: 'Leere Felder zeigen den Text auf {lang} grau, bis Sie sie übersetzen.',
     useAsStart: 'Als Vorlage übernehmen',
     showOriginal: 'Original daneben zeigen',
     hideOriginal: 'Original ausblenden',
