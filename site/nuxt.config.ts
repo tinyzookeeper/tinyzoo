@@ -1,5 +1,7 @@
 // The tinyzoo website, built with tinyzoo: the admin lives at /admin, the content
-// API at /api/content, and the pages read from it. See README.md.
+// API at /api/content, and the pages read from it. The documentation (/dokumentace,
+// /en/docs, /de/dokumentation) is rendered from docs/ at build time by modules/docs,
+// which Nuxt picks up from the modules/ folder by itself. See README.md.
 export default defineNuxtConfig({
   extends: ['tinyzoo/layer'],
   modules: [
@@ -74,6 +76,8 @@ export default defineNuxtConfig({
     families: [
       { name: 'Manrope', provider: 'google', weights: [400, 500, 600, 700, 800], global: true },
       { name: 'JetBrains Mono', provider: 'google', weights: [400, 500], global: true },
+      // The documentation's reading text (modules/docs): Inter, as in the admin it describes.
+      { name: 'Inter', provider: 'google', weights: [400, 500, 600, 700] },
     ],
   },
   // Speed: built JS/CSS ship pre-compressed; the brand pictures are cached for a week.
@@ -82,6 +86,8 @@ export default defineNuxtConfig({
   routeRules: {
     '/animals/**': { headers: { 'cache-control': 'public, max-age=604800, stale-while-revalidate=86400' } },
     '/brand/**': { headers: { 'cache-control': 'public, max-age=604800, stale-while-revalidate=86400' } },
+    // The documentation's clips (public/docs/clips); its pictures get the same from modules/docs.
+    '/docs/clips/**': { headers: { 'cache-control': 'public, max-age=604800, stale-while-revalidate=86400' } },
   },
   devtools: { enabled: false },
   compatibilityDate: '2025-06-01',

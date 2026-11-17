@@ -20,6 +20,8 @@ Web může mít i **vlastní role**, třeba **Překladatel** nebo **Korektor**. 
 
 **Role jsou dané webem, administrátor vybírá, kdo bude mít kterou.** Novou roli ani její pravidla ve správě nevytvoříte. Když potřebujete roli jinou, požádejte vývojáře.
 
+<!-- clip: roles | Krátké video: přehled „Co která role může?“, pozvání kolegy s rolí a pole se zámkem, které smí měnit jen některé role. -->
+
 ## Co která role může?
 
 Administrátor najde přehled všech rolí v části **Tým**, tlačítkem **Co která role může?** vpravo nahoře. Jste-li editor nebo autor, tuhle část nevidíte. Co vaše role smí, vám řekne administrátor.

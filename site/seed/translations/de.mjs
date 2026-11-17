@@ -1,5 +1,5 @@
 export default (h) => {
-  const { id, item, p, doc, link, picture, video, img, shots } = h
+  const { id, item, p, doc, link, picture, video, img, shots, a } = h
   const configCode = h.code.configCode
     .replace('// Pole pro editora, typovaný obsah pro web.', '// Felder für die Redaktion, typisierte Inhalte für die Website.')
     .replace("label: { cs: 'Aktuality', en: 'News' }", "label: { cs: 'Aktuality', en: 'News', de: 'Neuigkeiten' }")
@@ -180,7 +180,8 @@ export default (h) => {
           picture(shots.rolesOverview, 'Was darf welche Rolle? unter Team: eine Tabelle der Rollen mit dem, was jede bearbeitet, nur liest, ob sie veröffentlicht und auf welche Dateien sie zugreifen kann'),
           p('Und so sieht die Einladung aus, mit einem Satz zu jeder Rolle:'),
           picture(shots.invite, 'Eine Person einladen: die Liste der Rollen, bei jeder ein Satz dazu, was sie darf'),
-          p('Unter Team finden Sie die Übersicht Was darf welche Rolle?. Beim Einladen und beim Ändern einer Rolle steht bei jeder Rolle ein Satz dazu, was sie darf.')),
+          p('Unter Team finden Sie die Übersicht Was darf welche Rolle?. Beim Einladen und beim Ändern einer Rolle steht bei jeder Rolle ein Satz dazu, was sie darf.'),
+          p('Was jede Rolle darf und was bei einem gesperrten Feld zu tun ist, steht im Kapitel ', a('Rollen und Berechtigungen', '/de/dokumentation/redaktion/rollen-und-berechtigungen'), ' des Handbuchs für die Redaktion.')),
       },
       'jazyky-zvlast': {
         title: 'Jede Sprache wird einzeln veröffentlicht, mit dem Original zur Hand', slug: 'sprachen-einzeln',
@@ -190,7 +191,8 @@ export default (h) => {
           p('Ein noch nicht übersetztes Feld zeigt den Originaltext in Grau. Genau das sähen Besucher, bis Sie es übersetzen. Längere Texte stellen Sie neben das Original und übersetzen Absatz für Absatz.'),
           p('So sieht das Übersetzen mit dem Original daneben aus:'),
           picture(shots.translating, 'Einen Artikel übersetzen: links der Originaltext, rechts die Übersetzung, die gerade geschrieben wird'),
-          p('In der Artikelliste zeigt ein kleines Zeichen den Status jeder Sprache. Auf dem Handy tippen Sie oben auf den Namen der Sprache, um sie zu wechseln.')),
+          p('In der Artikelliste zeigt ein kleines Zeichen den Status jeder Sprache. Auf dem Handy tippen Sie oben auf den Namen der Sprache, um sie zu wechseln.'),
+          p('Wie Sie übersetzen und eine Sprache veröffentlichen, steht im Kapitel ', a('Übersetzungen', '/de/dokumentation/redaktion/uebersetzungen'), ' des Handbuchs für die Redaktion.')),
       },
       'pnpm-create-tinyzoo': {
         title: 'Eine neue Website mit einem Befehl: pnpm create tinyzoo', slug: 'pnpm-create-tinyzoo',
@@ -199,7 +201,8 @@ export default (h) => {
           p('So sieht der Befehl aus, wenn er läuft:'),
           picture(shots.terminal, 'Ein Terminal mit pnpm create tinyzoo: Fragen nach dem Ordner, den Sprachen, den Teilen der Website, Beispielinhalten und der Installation, danach das erstellte Projekt und die Befehle zum Starten'),
           p('Jede Frage hat auch eine Option, so läuft der Befehl auch ohne Rückfragen: pnpm create tinyzoo meine-website --languages de,en --presets news,search --no-demo --yes.'),
-          p('Jedes neue Projekt hat außerdem eine Datei AGENTS.md. Sie ist eine kurze Anleitung für den Assistenten, mit dem Sie programmieren: wo das Inhaltsmodell liegt, wie man es ändert und was man nicht anfassen sollte.')),
+          p('Jedes neue Projekt hat außerdem eine Datei AGENTS.md. Sie ist eine kurze Anleitung für den Assistenten, mit dem Sie programmieren: wo das Inhaltsmodell liegt, wie man es ändert und was man nicht anfassen sollte.'),
+          p('Schritt für Schritt erklärt es die Anleitung ', a('Getting started', '/de/dokumentation/entwicklung/getting-started'), ' in der Dokumentation (vorerst auf Englisch).')),
       },
       vyhledavani: {
         title: 'Suche auf der Website und in der Verwaltung', slug: 'suche',

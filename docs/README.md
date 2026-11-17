@@ -25,13 +25,44 @@ Read in this order the first time; come back to any page later.
 
 ## For editors
 
-The manual for the people who fill the site with content, written in Czech, in plain
-language, with the admin's own button names. Hand it to the client.
+The manual for the people who fill the site with content, in plain language, with the admin's own button names.
+Hand it to the client. In Czech, English and German, with the same chapters and pictures:
 
-[**Příručka pro editory**](editors/cs/README.md): přihlášení a účet · [role a
-oprávnění](editors/cs/role-a-opravneni.md) · úprava stránky a bloků · [překlady](editors/cs/preklady.md) ·
-zveřejnění, naplánování a náhled · obrázky a soubory · menu a odkazy · zprávy z formulářů ·
-historie a obnovení · soukromí · co dělat, když…
+- [**Příručka pro editory**](editors/cs/README.md) (Czech): přihlášení a účet · [role a
+  oprávnění](editors/cs/role-a-opravneni.md) · úprava stránky a bloků · [překlady](editors/cs/preklady.md) ·
+  zveřejnění, naplánování a náhled · obrázky a soubory · menu a odkazy · zprávy z formulářů ·
+  historie a obnovení · soukromí · co dělat, když…
+- [**Editors' guide**](editors/en/README.md) (English)
+- [**Handbuch für die Redaktion**](editors/de/README.md) (German)
+
+## On the website
+
+Everything above (the editors' guide in its three languages, and the developer pages in the table at the top) is
+also on the tinyzoo website: [/dokumentace](https://tinyzoo.pushbase.app/dokumentace),
+[/en/docs](https://tinyzoo.pushbase.app/en/docs), [/de/dokumentation](https://tinyzoo.pushbase.app/de/dokumentation).
+The Markdown here is the source: the website renders it when it is built (`site/modules/docs`), so a change here
+is on the website with the next deploy. What that means when you write:
+
+- **What is published, and in which order**, comes from the lists themselves: the developer pages are the table
+  at the top of this file; the editors' chapters are the numbered list in each language's `README.md`. A new page
+  goes into that list. The chapters pair up across languages by their place in the list, so the three lists keep
+  the same order.
+- **Links** between these pages become website addresses (a link to a heading keeps its anchor). Links to
+  anything else in the repository go to GitHub.
+- **Screenshots** live in `docs/screenshots/`. A page links the Czech one (`../../screenshots/0.6/team.png`); the
+  English and German pages link the same file, and the website shows `docs/screenshots/0.6/<lang>/team.png` instead
+  when it exists (`en`, `de`). So a translated screenshot needs no change in the Markdown.
+- **Clips**, short looping videos without sound, are an HTML comment on a line of its own (GitHub does not show it):
+
+  ```md
+  <!-- clip: roles | Short video: inviting a colleague with a role. -->
+  ```
+
+  The name before `|` is the file: `site/public/docs/clips/roles.<lang>.mp4`, falling back to `roles.cs.mp4`.
+  The text after it says what the clip shows (for screen readers). Until a file exists, the website shows nothing
+  in its place.
+- `> **Tip:**` and `> **Pozor:**` (`Watch out:`, `Achtung:`) quotes become callouts; a code block's
+  `<!-- check: group/file -->` marker gives its file name.
 
 ## For people working on tinyzoo
 

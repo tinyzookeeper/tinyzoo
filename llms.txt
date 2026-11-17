@@ -4,6 +4,8 @@
 
 Key facts for working in a tinyzoo site: the schema is code-first (never edited in the admin or by hand in the database); after changing `cms.config.ts` run `tinyzoo generate`, review the migration, `tinyzoo up`, and regenerate the client; after updating tinyzoo run `tinyzoo upgrade`. Never use `drizzle-kit push`, never edit generated files, never import exports tagged `@internal`. Every new site has an `AGENTS.md` with these rules.
 
+The same documentation, rendered from the Markdown linked below, is on the website: https://tinyzoo.pushbase.app/en/docs (developer guides in English; the editors' guide in Czech at /dokumentace, English at /en/docs/editors and German at /de/dokumentation/redaktion).
+
 ## Building a site
 
 - [AGENTS.md of the starter](https://github.com/tinyzookeeper/tinyzoo/blob/main/packages/cms/starter/AGENTS.md): the short guide every new site gets: where things are, the commands, the change workflow, the don'ts
@@ -26,4 +28,4 @@ Key facts for working in a tinyzoo site: the schema is code-first (never edited 
 
 - [Plugins](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/plugins.md): collections, admin pages, routes and upgrade steps of your own, shipped as a package
 - [Content between environments](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-transfer.md): `tinyzoo export` and `import`
-- [Editors' guide (Czech)](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/cs/README.md): the manual for the people who write content, with the admin's own labels
+- [Editors' guide](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/en/README.md): the manual for the people who write content, with the admin's own labels, in [Czech](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/cs/README.md), English and [German](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/de/README.md)
