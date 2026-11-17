@@ -98,7 +98,7 @@ describe('a translated group', () => {
   it('is found by the website search, in the language it is written in', async () => {
     const author = await createAuthor(admin)
     const post = await createPost(admin, { author: author.id, status: 'published', location: location('Sokolovna Tábor') })
-    await en(post.id, { location: location('Gymnasium Tabor') })
+    await en(post.id, { location: location('Gymnasium Tabor'), status: null }) // follows the live Czech version (else being translated: not searchable)
     const cs = (await anonymous().get('/api/content/_search?q=sokolovna')).body
     expect(cs.items.map((i: any) => i.id)).toEqual([post.id])
     expect((await anonymous().get('/api/content/_search?q=gymnasium&locale=en')).body.total).toBe(1)
