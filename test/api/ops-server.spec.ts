@@ -250,7 +250,7 @@ describe('the cms:error hook', () => {
     writeFileSync(sink, '')
     const srv = await start(db.url, {
       NUXT_CMS_AUTH_SETUP_TOKEN: 't', CMS_ERROR_SINK_FILE: sink,
-      NUXT_CMS_WEBHOOKS_URLS: 'http://127.0.0.1:1/hook?token=abc', NUXT_CMS_WEBHOOKS_SECRET: 'secret',
+      NUXT_CMS_WEBHOOKS_URLS: 'http://127.0.0.1:1/hook?token=tok-not-in-report', NUXT_CMS_WEBHOOKS_SECRET: 'secret',
     })
     const admin = new Client(srv.baseURL)
     expect((await admin.post('/api/cms/_auth/setup', { ...person, token: 't' })).status).toBe(201)
@@ -258,7 +258,8 @@ describe('the cms:error hook', () => {
     const report = await waitForReport((r) => r.source === 'webhook', 20_000)
     expect(report.webhook).toMatchObject({ type: 'entry.created' })
     expect(report.webhook.url).toMatch(/^http:\/\/127\.0\.0\.1:1\/…#[0-9a-f]{8}$/)
-    expect(JSON.stringify(report)).not.toContain('abc')
+    // A token no random id can contain (the delivery id is a UUID: hex digits and dashes).
+    expect(JSON.stringify(report)).not.toContain('tok-not-in-report')
     expect(JSON.stringify(report)).not.toContain('/hook')
     expect(report.status).toBeNull()
   }, 40_000)
