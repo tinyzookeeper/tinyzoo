@@ -64,9 +64,16 @@ Přihlašovací e-mail si změníte sami na stránce **Váš účet**, v části
 
 Dokud na odkaz nekliknete, nic se nemění a přihlašujete se **dosavadní** adresou. Odkaz můžete otevřít na počítači i v telefonu a nemusíte být přihlášení. Když ho otevřete v prohlížeči, kde jste přihlášení, zůstanete přihlášení, jen už s novou adresou. Na ostatních zařízeních vás správa odhlásí a přihlásíte se tam znovu novou adresou.
 
-Na **starou** adresu přijdou dva krátké e-maily: první hned po žádosti, druhý po dokončení změny. Je to ochrana: kdyby o změnu požádal někdo jiný, dozvíte se to.
+Na **starou** adresu přijdou dva krátké e-maily: první hned po žádosti, druhý po dokončení změny. Je to ochrana: kdyby o změnu požádal někdo jiný, dozvíte se to a můžete ji vrátit.
 
-> **Pozor:** Pokud vám přijde e-mail o změně přihlašovacího e-mailu a vy jste o ni nežádali, hned si nastavte nové heslo (tlačítko v tom e-mailu nebo **Zapomenuté heslo?** na přihlašovací stránce). Tím se změna zruší a všichni ostatní se odhlásí. Pak dejte vědět administrátorovi.
+**Přišel vám e-mail o změně a vy jste o ni nežádali?** Znamená to, že někdo zná vaše heslo. Podle toho, který e-mail vám přišel:
+
+- **Žádost o změnu přihlašovacího e-mailu** (změna ještě není hotová): hned si nastavte nové heslo, tlačítkem **Nastavit nové heslo** v tom e-mailu nebo přes **Zapomenuté heslo?** na přihlašovací stránce. Dokud nová adresa není potvrzená, tím se změna zruší a všichni ostatní se odhlásí.
+- **Přihlašovací e-mail byl změněn** (změna už je hotová): klikněte v tom e-mailu na **Vrátit změnu**. Otevře se stránka **Vraťte si účet**. Napište nové heslo a klikněte na **Vrátit adresu a uložit heslo**. Účet dostane zpět vaši adresu, platí nové heslo, všichni ostatní se odhlásí a vy jste rovnou přihlášení. Nové heslo je nutné, protože ten, kdo změnu udělal, to staré zná.
+
+Pak v obou případech dejte vědět administrátorovi.
+
+> **Pozor:** Odkaz **Vrátit změnu** platí **7 dní** a jde použít jen jednou. Kdo ho otevře, tomu se účet vrátí. Když jste e-mail měnili vy sami, nemusíte s ním nic dělat, jen ho nikomu nepřeposílejte. To platí hlavně tehdy, když starou schránku po vás převezme kolega (třeba pracovní adresu po odchodu z firmy): zprávu o změně z ní raději smažte. Když odkaz vypršel nebo už byl použit, ukáže se **Tento odkaz už nefunguje**. Pokud starou adresu mezitím dostal jiný účet, ukáže se **Tato adresa je obsazená** a nic se nezmění. V obou případech pomůže jen administrátor.
 
 **Co když e-mail s odkazem nepřišel?**
 
@@ -102,7 +109,7 @@ Kolegovi přijde e-mail, který říká, kdo ho zve a **jako kdo** (v jaké roli
 V seznamu **Tým** vidíte u každého stav (**Aktivní**, **Pozvánka odeslána**, **Přístup zablokován**) a kdy byl člověk **Naposledy aktivní**. U jména je nabídka s těmito volbami:
 
 - **Změnit roli**
-- **Změnit e-mail**: napište novou adresu a klikněte na **Změnit e-mail**. Platí hned, bez potvrzovacího odkazu. Člověk se odhlásí na všech zařízeních a přihlásí se novou adresou a svým dosavadním heslem. Na starou i novou adresu mu přijde e-mail o změně. Kdo ještě nepřijal pozvánku, dostane novou pozvánku na novou adresu a ta stará přestane platit. Hodí se, když se v pozvánce překlepnete.
+- **Změnit e-mail**: napište novou adresu a do pole **Vaše heslo** své vlastní heslo (to, kterým se přihlašujete vy). Pak klikněte na **Změnit e-mail**. Heslo je pojistka: kdyby od vašeho počítače někdo odešel přihlášený, nemůže přesunout cizí účet na svou adresu. Změna platí hned, bez potvrzovacího odkazu. Člověk se odhlásí na všech zařízeních a přihlásí se novou adresou a svým dosavadním heslem. Na starou i novou adresu mu přijde e-mail o změně (v tom na starou adresu není odkaz na vrácení změny: stará schránka už často patří někomu jinému, a právě proto adresu měníte). Kdo má **Přístup zablokován**, tomu nepřijde nic; novou adresou se přihlásí, až mu přístup obnovíte. Kdo ještě nepřijal pozvánku, dostane novou pozvánku na novou adresu a ta stará přestane platit. Hodí se, když se v pozvánce překlepnete.
 - **Poslat novou pozvánku**
 - **Zrušit pozvánku**
 - **Zablokovat přístup**: člověk je okamžitě odhlášen všude a nepřihlásí se, dokud mu přístup neobnovíte tlačítkem **Obnovit přístup**.

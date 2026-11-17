@@ -14,7 +14,9 @@ Správa hledá podle e-mailové adresy. Prohledá tři místa:
 
 - **Zprávy z formulářů**: zprávy, které z této adresy přišly přes web (např. kontaktní formulář).
 - **Účet v administraci**: pokud má člověk u vás účet (je to kolega nebo kolegyně).
-- **Záznam aktivity**: záznamy, které tento účet vytvořil, záznamy o něm (pozvánka, změna role) a neúspěšná přihlášení s touto adresou.
+- **Záznam aktivity**: záznamy, které tento účet vytvořil, záznamy o něm (pozvánka, změna role, změna přihlašovacího e-mailu z této adresy nebo na ni) a neúspěšná přihlášení s touto adresou.
+
+U účtu se navíc může ukázat věta, že tuto adresu uvádí **změna přihlašovacího e-mailu**: buď někdo požádal o přechod na tuto adresu a ještě to nepotvrdil, nebo jde o odkaz na vrácení změny, který přišel na tuto adresu (viz [Změna e-mailu](prihlaseni-a-ucet.md#změna-e-mailu)). V exportu je pod `emailChanges`. Když záznam o změně e-mailu uvádí i druhou adresu, která tomuto člověku nepatří, je v exportu místo ní jen „(another person’s address)“.
 
 Ostatní texty, které někdo napsal do obsahu webu, hledání neprohledává.
 
@@ -43,7 +45,8 @@ Když člověk žádá o kopii svých údajů:
 3. Správa se zeptá **Smazat vše, co je uložené k adrese …?** a vypíše, co přesně se stane, jen z toho, co existuje:
    - **zprávy z formulářů se smažou i s uloženými verzemi**,
    - **účet** s touto adresou se zablokuje a anonymizuje: zmizí jméno a e-mail, ale to, co v administraci udělal, zůstane pod označením „smazaný účet“,
-   - v **záznamu aktivity** zmizí jméno, e-mail a IP adresa.
+   - v **záznamu aktivity** zmizí jméno, e-mail a IP adresa,
+   - čekající **změna přihlašovacího e-mailu** na tuto adresu nebo odkaz na vrácení změny na ni se zruší.
 4. Přečtěte si to a potvrďte. Správa vždycky zdůrazní: **Nejde to vrátit zpět.**
 5. Až bude hotovo, uvidíte **Smazáno. K adrese … už není nic uloženo.**
 

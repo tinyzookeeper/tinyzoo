@@ -644,7 +644,7 @@ privacy policy; it is not legal advice.
 
 | What | Contents | How long |
 |---|---|---|
-| Accounts (Team) | email, name, role, admin language, a scrypt hash of the password, last sign-in; hashes of invitation, reset and email-change links (7 days / 1 hour / 24 hours); a requested new address until it is confirmed or cancelled | until the person is removed or erased |
+| Accounts (Team) | email, name, role, admin language, a scrypt hash of the password, last sign-in; hashes of invitation, reset, email-change and undo links (7 days / 1 hour / 24 hours / 7 days); a requested new address until it is confirmed or cancelled, and after a change the old address with its undo link | until the person is removed or erased; a requested address and an undo link also go once their link has expired (the daily retention run) |
 | Sign-in cookie | a sealed cookie holding the account id; nothing is kept on the server | until sign-out or expiry |
 | Audit log | who did what and when (sign-ins, publishing, team changes, exports); a failed sign-in keeps the **email tried and the visitor's IP address**; a change of sign-in email keeps the **old and the new address** | `cms.retention.auditDays`, default **365 days**, then deleted daily (`0` keeps it) |
 | Form messages | the fields of the form (name, email, text…) and their state; saved versions and search-index rows hold the same text | `defineForm(name, { retentionDays })`; without it, **until deleted** — set it to what the policy promises |
@@ -678,10 +678,13 @@ deleted automatically after 180 days."
 every action audited): enter an email address and see what is stored about it — form
 messages whose email fields match (any case), the account with that address, and the
 audit entries made by or about it (including failed sign-ins with that address, and a change of
-sign-in email from or to it).
+sign-in email from or to it), and a change of sign-in email waiting for that address or an undo
+link back to it. Where a change of address names a second address that is not this person's
+(the account that moved away from an address someone else has now, or an address of another
+account that was asked for), the export shows `(another person’s address)` instead.
 
 - **Export as JSON** — everything above in one file, without password hashes, to hand to the person (right of access).
-- **Delete this person's data** (confirmation dialog) — the messages are deleted with their saved versions and search rows; the account is **disabled and anonymised**: name and email removed (the address becomes `deleted-<id>@anonymised.invalid`), password, invitation links and a pending change of email removed, signed out everywhere; audit entries about them lose email (old and new, after a change of address), name and IP address but keep who-did-what. Not your own account, never the last active administrator.
+- **Delete this person's data** (confirmation dialog) — the messages are deleted with their saved versions and search rows; the account is **disabled and anonymised**: name and email removed (the address becomes `deleted-<id>@anonymised.invalid`), password, invitation links, a pending change of email and undo links removed, signed out everywhere; audit entries about them lose email (old and new, after a change of address — only the erased person's own addresses), name and IP address but keep who-did-what. A change of email waiting for the address, or an undo link back to it, of any account, is cancelled. Not your own account, never the last active administrator.
 
 Why anonymise rather than delete the account: the site's history ("saved by …",
 the audit trail, uploaded files) refers to the account by id. Deleting the row would
