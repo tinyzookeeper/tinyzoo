@@ -507,7 +507,11 @@ export interface CmsRegistry {
   graph: any[]
   /** Content languages (defineLocales), or null when content is single-language. */
   locales: LocalesDef | null
-  /** The site's own roles (`export const roles = defineRoles(…)`), or null: only admin, editor and author. */
+  /**
+   * The site's own roles (`export const roles = defineRoles(…)`), or null: only admin, editor and author.
+   *
+   * @internal
+   */
   roles: CmsRolesDef | null
   /** @internal */
   cmsMedia: typeof cmsMedia

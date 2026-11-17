@@ -59,6 +59,7 @@ through the same entry point).
 | `defineSingleton(name, def)` | a global with one record (site settings, a home page) |
 | `defineBlock(def)` | one type of block for `f.blocks()`: label, fields, `version` and `upgrade` |
 | `defineLocales(def)` | the content languages: default, list, labels, address prefix |
+| `defineRoles(roles)` | the site's own roles, each extending `editor` or `author`: per-collection operations, `publish`, `media` ([roles](guide/roles.md)) |
 | `definePages(opts)` | the ready-made pages collection (blocks, SEO, preview, optionally a tree) |
 | `defineNavigation(opts)` | site menus as one global (`/api/content/_global/navigation`) |
 | `defineRedirects(opts)` | the redirects collection |
@@ -68,7 +69,7 @@ through the same entry point).
 | `defineCmsPlugin(def)` | a plugin: collections, admin pages, server routes, hooks, upgrade steps ([plugins](plugins.md)) |
 | `pluginFile(base, relative)` | the absolute path of a file next to a plugin's module, for its `serverHandlers` and `adminPages` |
 
-A config exports its entities, globals, `locales`, the pages, navigation and redirects presets, and
+A config exports its entities, globals, `locales`, `roles`, the pages, navigation and redirects presets, and
 `plugins`; the module finds them by what they are.
 
 ### Fields: `f`
@@ -106,6 +107,7 @@ Methods of every `FieldDescriptor`, each returning a descriptor of the same kind
 | `.position('main' \| 'sidebar')` | where the writing editor puts it |
 | `.icon(name)` | the icon of the control (any Iconify name) |
 | `.group(label)` | a named, collapsible group in the editor |
+| `.access({ read, edit })` | which roles read and which edit the field in the admin (`CmsFieldAccess`; role references from `defineRoles` or built-in names) |
 
 Properties a plugin or admin code may read: `type`, `isRequired`, `isUnique`, `isOptional`, `isLocalized`,
 `default`, `ui`, `meta`, `relation`, `blocks`, `fields`. The column description (`spec`, `dbDefault`) and
@@ -126,7 +128,7 @@ Properties a plugin or admin code may read: `type`, `isRequired`, `isUnique`, `i
 | `admin.preview`, `admin.tabs`, `admin.sections` | the preview address of a global, form tabs, form sections (`CmsFormSection`) |
 | `access` | row-level rules per `read`, `create`, `update`, `delete`: a function of `{ user, table }` returning a drizzle condition |
 | `content` | the public content API (`ContentConfig`): `public`, `published`, `slug`, `path`, `populate`, `hidden`, `search` |
-| `publish` | the workflow (`PublishConfig`): `field`, `publishedValue`, `draftValue`, `dateField`, `schedule`, `preview` |
+| `publish` | the workflow (`PublishConfig`): `field`, `publishedValue`, `draftValue`, `dateField`, `schedule`, `preview`, `perLocale` (each language published on its own) |
 | `tree` | entries under each other: `parent`, `order`, `maxDepth` (`TreeConfig`) |
 
 `definePages`, `defineNavigation` and `defineRedirects` take `name`, `label`, `localized` and the like as
@@ -148,7 +150,7 @@ routes. Their types belong to `drizzle-orm`.
 | Fields | `FieldDescriptor`, `AnyFieldDescriptor`, `FieldKind`, `FieldUi`, `Nullable`, `Defaulted`, `OnDelete`, `RelationKind`, `RelationSpec` |
 | Values | `RichTextDoc`, `CmsBlock`, `BlockDef`, `BlockValue`, `BlocksValue`, `GroupValue`, `CmsListValue`, `CmsGalleryValue` |
 | Languages and text | `LocalesDef`, `LocalizedText`, `PathTemplate` |
-| Users | `CmsRole` (`'admin' \| 'editor' \| 'author'`) |
+| Users and roles | `CmsRole` (`'admin' \| 'editor' \| 'author'`), `CmsRoleBase`, `CmsRoleDef`, `CmsRoleRef`, `CmsRoleInput`, `CmsRoles`, `CmsEntityOp`, `CmsMediaAccess`, `CmsFieldAccess` |
 | Seeds | `SeedDefinition`, `SeedContext`, `SeedEntry`, `SeedInsert`, `SeedWriteOptions`, `SeedGlobalOptions`, `SeedUploadOptions`, `SeedLink`, `SeedLinkOptions`, `SeedRich`, `SeedRichNode` |
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
@@ -313,7 +315,7 @@ is `cli-usage.txt`.
 
 | Command | Flags |
 |---|---|
-| `tinyzoo init <dir>` | |
+| `tinyzoo init <dir>` | `--languages <a,b>`, `--presets <a,b\|none>`, `--no-demo`, `--package-manager <pm>` |
 | `tinyzoo generate` | `--allow-drop`, `--allow-risky` |
 | `tinyzoo up` | |
 | `tinyzoo status` | |

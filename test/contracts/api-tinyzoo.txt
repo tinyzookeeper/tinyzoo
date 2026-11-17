@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (84) ─────────────────────────────────────────────────
+// ── public (93) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -131,10 +131,13 @@ export interface CmsEntity {
         dateField?: string;
         schedule?: boolean;
         preview?: PathTemplate;
+        perLocale?: boolean;
     };
     live?: boolean;
     tree?: TreeConfig;
 }
+
+export type CmsEntityOp = 'read' | 'create' | 'update' | 'delete';
 
 export interface CmsErrorReport {
     source: 'request' | 'task' | 'webhook';
@@ -152,6 +155,11 @@ export interface CmsErrorReport {
         type: string;
         delivery: string;
     };
+}
+
+export interface CmsFieldAccess {
+    read?: readonly CmsRoleInput[];
+    edit?: readonly CmsRoleInput[];
 }
 
 export interface CmsFieldCellProps {
@@ -198,6 +206,8 @@ export type CmsHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
 export type CmsListLayout = 'table' | 'grid' | 'dated' | 'tree';
 
 export type CmsListValue<F, K extends string = 'item'> = Array<BlockValue<K, F>>;
+
+export type CmsMediaAccess = 'all' | 'own' | 'none';
 
 export interface CmsPlugin extends Readonly<Omit<CmsPluginDef, 'entities' | 'singletons'>> {
     readonly __cms: 'plugin';
@@ -267,6 +277,33 @@ export interface CmsRetentionContext {
 }
 
 export type CmsRole = 'admin' | 'editor' | 'author';
+
+export type CmsRoleBase = Exclude<CmsRole, 'admin'>;
+
+export interface CmsRoleDef {
+    from: CmsRoleBase;
+    label?: LocalizedText;
+    description?: LocalizedText;
+    entities?: Record<string, readonly CmsEntityOp[]>;
+    publish?: boolean;
+    media?: CmsMediaAccess;
+}
+
+export type CmsRoleInput = CmsRole | CmsRoleRef;
+
+export interface CmsRoleRef<N extends string = string> {
+    readonly __cms: 'role';
+    readonly name: N;
+}
+
+export type CmsRoles<R extends Record<string, CmsRoleDef>> = {
+    readonly [K in keyof R & string]: CmsRoleRef<K>;
+} & {
+    readonly admin: CmsRoleRef<'admin'>;
+    readonly editor: CmsRoleRef<'editor'>;
+    readonly author: CmsRoleRef<'author'>;
+    readonly __cms: 'roles';
+};
 
 export type CmsRouteAccess = 'user' | 'admin' | 'public';
 
@@ -383,6 +420,7 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
     position(where: 'main' | 'sidebar'): FieldDescriptor<K>;
     icon(name: string): FieldDescriptor<K>;
     group(label: LocalizedText): FieldDescriptor<K>;
+    access(rules: CmsFieldAccess): FieldDescriptor<K>;
 }
 
 export interface FieldKind {
@@ -434,6 +472,7 @@ export interface PublishConfig<F extends Record<string, AnyFieldDescriptor>> {
     dateField?: keyof F & string;
     schedule?: boolean;
     preview?: PathTemplate;
+    perLocale?: boolean;
 }
 
 export type RelationKind = 'many-to-one' | 'one-to-many' | 'many-to-many';
@@ -619,6 +658,7 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
         user: any;
         table: any;
     }) => unknown>>;
+    perLocale?: boolean;
 }): Entity<{
     title: FieldDescriptor<ScalarKind<string, string, false>>;
     slug: FieldDescriptor<ScalarKind<string, string, false>>;
@@ -640,6 +680,8 @@ export function defineRedirects(opts?: {
     to: FieldDescriptor<ScalarKind<string, string, false>>;
     permanent: FieldDescriptor<ScalarKind<boolean, boolean, true>>;
 }>;
+
+export function defineRoles<const R extends Record<string, CmsRoleDef>>(roles: R & { [K in CmsRole]?: never; }): CmsRoles<R>;
 
 export function defineSeed(run: (s: SeedContext) => Promise<void> | void): SeedDefinition;
 
@@ -737,13 +779,19 @@ alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, 
 // ── deprecated (1): still part of the API, to be removed in the release named in its @deprecated tag ──
 FormOptions
 
-// ── internal (161): exported, not part of the frozen API, may change in any minor ──
+// ── internal (174): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
+const CMS_ENTITY_OPS
+const CMS_MEDIA_ACCESS
 const CMS_ROLES
+const CMS_ROLE_BASES
 const CORE_UPGRADE_STEPS
 interface CmsDeprecatedOptions
 interface CmsDeprecation
+interface CmsFieldRule
 interface CmsPluginRequirement
+interface CmsResolvedRole
+interface CmsRolesDef
 type ColumnBase
 type ColumnDefault
 interface ColumnReference
@@ -791,6 +839,7 @@ interface UpgradeOptions
 interface UpgradeResult
 interface ValidationContext
 type ValidationMode
+function allRoleNames
 function allUpgradeSteps
 function allowedTypos
 function applyChange
@@ -829,6 +878,8 @@ const emptyDoc
 function entryTexts
 function excerptOf
 function existsIn
+function fieldEditable
+function fieldReadable
 function fillPathTemplate
 function foldSearchText
 function generateSetupCode
@@ -857,6 +908,7 @@ function matchRoute
 function mediaIdsInBlocks
 function mediaIdsInFields
 function movedPaths
+function normalizeFieldAccess
 function normalizeSetupCode
 function parseLinkRef
 const pascal
@@ -874,10 +926,13 @@ function pluginUpgradeSteps
 function prefixedTemplates
 function propOf
 function resetCmsDeprecations
+function resolveRole
 function resolveText
 function richTextPlain
 const richTextSchema
 const richTextUpgrades
+function roleName
+function rolesDefOf
 function runUpgrade
 function sanitizeRichText
 function searchTerms

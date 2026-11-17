@@ -25,14 +25,17 @@ import { CMS_ROLES, type CmsRole } from './system'
 
 /** What a role may do with the entries of one collection (or a global: read and update). */
 export type CmsEntityOp = 'read' | 'create' | 'update' | 'delete'
+/** @internal */
 export const CMS_ENTITY_OPS = ['read', 'create', 'update', 'delete'] as const
 
 /** The media library: every file ('all'), the person's own uploads to change ('own'), or closed ('none'). */
 export type CmsMediaAccess = 'all' | 'own' | 'none'
+/** @internal */
 export const CMS_MEDIA_ACCESS = ['all', 'own', 'none'] as const
 
 /** The built-in roles a custom role can extend. `admin` cannot be extended. */
 export type CmsRoleBase = Exclude<CmsRole, 'admin'>
+/** @internal */
 export const CMS_ROLE_BASES = ['editor', 'author'] as const
 
 export interface CmsRoleDef {
@@ -72,7 +75,11 @@ export interface CmsFieldAccess {
   edit?: readonly CmsRoleInput[]
 }
 
-/** The rule as stored on a field (`meta.access`): role names only. */
+/**
+ * The rule as stored on a field (`meta.access`): role names only.
+ *
+ * @internal
+ */
 export interface CmsFieldRule {
   read?: string[]
   edit?: string[]
@@ -83,7 +90,11 @@ export type CmsRoles<R extends Record<string, CmsRoleDef>> =
   { readonly [K in keyof R & string]: CmsRoleRef<K> }
   & { readonly admin: CmsRoleRef<'admin'>; readonly editor: CmsRoleRef<'editor'>; readonly author: CmsRoleRef<'author'>; readonly __cms: 'roles' }
 
-/** The definitions behind a `defineRoles` result (not enumerable on it). */
+/**
+ * The definitions behind a `defineRoles` result (not enumerable on it).
+ *
+ * @internal
+ */
 export interface CmsRolesDef {
   __cms: 'roles'
   roles: Record<string, CmsRoleDef>
@@ -94,7 +105,11 @@ const DEFS = Symbol.for('tinyzoo.roles')
 
 const isRef = (v: unknown): v is CmsRoleRef => !!v && typeof v === 'object' && (v as any).__cms === 'role' && typeof (v as any).name === 'string'
 
-/** The name a role is stored under (cms_users.role): a string as given, or a reference's name. */
+/**
+ * The name a role is stored under (cms_users.role): a string as given, or a reference's name.
+ *
+ * @internal
+ */
 export function roleName(input: CmsRoleInput | string): string {
   return typeof input === 'string' ? input : input.name
 }
@@ -143,24 +158,37 @@ export function defineRoles<const R extends Record<string, CmsRoleDef>>(roles: R
   return Object.freeze(out) as unknown as CmsRoles<R>
 }
 
-/** The definitions of a `defineRoles` result (or of a config module that exports one), or null. */
+/**
+ * The definitions of a `defineRoles` result (or of a config module that exports one), or null.
+ *
+ * @internal
+ */
 export function rolesDefOf(v: unknown): CmsRolesDef | null {
   const found = v && typeof v === 'object' && (v as any).__cms === 'roles' ? v : null
   return (found && (found as any)[DEFS]) ?? null
 }
 
+/** @internal */
 export function isRolesExport(v: unknown): boolean {
   return !!v && typeof v === 'object' && (v as any).__cms === 'roles'
 }
 
-/** Every role name a site has: the built-ins, then its own. */
+/**
+ * Every role name a site has: the built-ins, then its own.
+ *
+ * @internal
+ */
 export function allRoleNames(roles: CmsRolesDef | null): string[] {
   return [...CMS_ROLES, ...Object.keys(roles?.roles ?? {})]
 }
 
 // ── what a role means at run time ────────────────────────────────────────────────
 
-/** A role with its defaults filled in. */
+/**
+ * A role with its defaults filled in.
+ *
+ * @internal
+ */
 export interface CmsResolvedRole {
   name: string
   /** The built-in it is (or extends). `admin` only for the built-in admin. */
@@ -193,7 +221,9 @@ const cache = new WeakMap<CmsRolesDef, Map<string, CmsResolvedRole>>()
  * has no access: a role removed from the config fails closed). With `legacyUnknown` — an
  * external sign-in on a site that defines no roles — an unknown name is what it always was:
  * every collection allowed and the entities' own `access` rules decide.
- */
+  *
+  * @internal
+  */
 export function resolveRole(roles: CmsRolesDef | null, name: unknown, opts: { legacyUnknown?: boolean } = {}): CmsResolvedRole | null {
   if (typeof name !== 'string') return null
   if ((CMS_ROLES as readonly string[]).includes(name)) return BUILT_IN[name as CmsRole]
@@ -222,19 +252,31 @@ function listed(role: CmsResolvedRole, names: readonly string[] | undefined): bo
   return role.name === 'admin' || !names || names.includes(role.name)
 }
 
-/** May the role read a field with this rule? */
+/**
+ * May the role read a field with this rule?
+ *
+ * @internal
+ */
 export function fieldReadable(role: CmsResolvedRole | null, rule: CmsFieldRule | undefined): boolean {
   if (!role) return false
   return !rule || listed(role, rule.read)
 }
 
-/** May the role edit a field with this rule (it must be able to read it)? Whether it may write the entry at all is the entity's rule. */
+/**
+ * May the role edit a field with this rule (it must be able to read it)? Whether it may write the entry at all is the entity's rule.
+ *
+ * @internal
+ */
 export function fieldEditable(role: CmsResolvedRole | null, rule: CmsFieldRule | undefined): boolean {
   if (!role) return false
   return !rule || (listed(role, rule.read) && listed(role, rule.edit))
 }
 
-/** Turn `.access()`'s input into the stored rule (role names), checking its shape. */
+/**
+ * Turn `.access()`'s input into the stored rule (role names), checking its shape.
+ *
+ * @internal
+ */
 export function normalizeFieldAccess(access: CmsFieldAccess): CmsFieldRule {
   if (!access || typeof access !== 'object' || Array.isArray(access)) throw new Error('`.access()` takes { read?: [roles], edit?: [roles] }.')
   const rule: CmsFieldRule = {}
@@ -257,7 +299,9 @@ export function normalizeFieldAccess(access: CmsFieldAccess): CmsFieldRule {
  * The checks that need the entities (so they run when the registry is built): collection
  * names a role lists, operations a global cannot have, role names in field rules, a rule that
  * lets a role edit what it may not read, and fields the admin needs everyone to read.
- */
+  *
+  * @internal
+  */
 export function checkRoles(
   roles: CmsRolesDef | null,
   entities: { name: string; singleton?: boolean; titleField: string; fields: Record<string, { meta?: Record<string, any> }>; tree?: { parent: string; order: string }; content?: { slug?: string; path?: unknown }; publish?: { field: string; dateField?: string }; admin?: { list?: { orderField?: string } } }[],

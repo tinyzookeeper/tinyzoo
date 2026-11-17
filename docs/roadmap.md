@@ -1283,7 +1283,6 @@ Branch `feat/1.0-api-review`. Slice P of Wave 4: write down what 1.0 freezes, cl
 
 **Result** (`TEST_DATABASE_URL=…/cms_test_apireview`, starter and upgrade databases likewise, no Redis): `pnpm check` green on the code commit: typecheck (tsc, docs check with 30 blocks, playground, starter, website) and 100 files / 1374 tests passed, 3 files / 26 tests skipped (180 s for the tests); `check:starter` green; `check:upgrade` green on `2506403` and `tinyzoo@0.4.0` (the newest tag in this clone; no 0.5.0 tag was fetched), both going through the new "refused, then renamed" step, no migration; `check:consumer` green. New or changed tests: `api-surface.spec.ts` (27), `surface-types.spec.ts` (34), `contracts.spec.ts`, and `start-checks.spec.ts` (the old-variable cases).
 
-
 ### 0.6 M — Custom roles and per-field permissions
 
 Branch `feat/1.0-roles`. Why: the roles were three fixed names with their rules spread over `cmsCrud.ts`, the media code and a few `user.role === 'author'` checks; a site could not give a translator edit rights on posts only, or keep a field from some people. Decisions are the ones locked for Wave 4 ("Role model", "Role removed from config"); what follows is what was built and what had to be decided on the way. Guide: `docs/guide/roles.md`. Changeset `custom-roles.md` (minor, `### Upgrade`); `docs/upgrading.md` gets "From 0.5 to 0.6", step 1.

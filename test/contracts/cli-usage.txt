@@ -2,7 +2,11 @@ usage: tinyzoo <command> [options]
 
 Run from the root of the website. Commands:
 
-  init <dir>            a new website with the CMS inside (the starter: pages, news, menus, a contact form, cs/en)
+  init <dir>            a new website with the CMS inside (the starter: pages, news, menus, a contact form, search)
+                          --languages <a,b>       the content languages, the first one is the default (default: cs,en)
+                          --presets <a,b|none>    which optional parts the site has: news, forms, redirects, search (default: all)
+                          --no-demo               an empty site instead of the demo content
+                          --package-manager <pm>  the commands to show and put in the README (default: the one that ran this)
   generate              emit server/db/schema.ts from cms.config.ts and write the migration (drizzle-kit)
                           --allow-drop   keep a migration that drops data (a removed or renamed field)
                           --allow-risky  keep a migration that may fail on existing rows
