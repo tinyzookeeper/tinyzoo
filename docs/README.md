@@ -14,22 +14,24 @@ Read in this order the first time; come back to any page later.
 | [The content API](guide/content-api.md) | What the website reads: endpoints, drafts and preview, caching, the website search, the typed client, OpenAPI, the sitemap, the components that draw content |
 | [Media](guide/media.md) | Uploads, limits, the storage drivers (local disk, S3, Cloudflare R2), drawing pictures on the website |
 | [The admin](guide/admin.md) | Accounts and roles, branding the admin, form layouts, replacing how a field is drawn |
-| [Roles and permissions](guide/roles.md) | Roles of your own on top of admin, editor and author, who reads and edits each field, the media library per role, what happens to a removed role |
+| [Roles and permissions](guide/roles.md) | Roles of your own on top of admin, editor and author, who reads and edits each field, the media library per role, what happens to a removed role, a worked example with a translator |
 | [Seeding](guide/seeding.md) | Content a site starts with, written in code and put into a running site with `tinyzoo seed` |
 | [Content between environments](guide/content-transfer.md) | `tinyzoo export` and `import`: production to staging, a laptop to a server |
 | [The public API](api-surface.md) | What 1.0 freezes: the config API, the `cms` options and environment variables, the content API and client, the webhook and hooks, the CLI, the admin's extension points. Everything else is internal |
 | [Plugins](plugins.md) | Adding a feature of your own (collections, admin pages, routes, upgrade steps), and shipping it as a package |
 | [Upgrading](upgrading.md) | Moving a site to a newer tinyzoo: the version policy, what to do on every upgrade, 0.1 → 0.2, recipes for renaming and removing, writing upgrade steps |
 | [Deploying](deploying.md) | Running a site in production: environment, first run, migrations, backups and restore, privacy, logs, a worked example on Pushbase |
+| [AGENTS.md](../packages/cms/starter/AGENTS.md) and [llms.txt](../llms.txt) | For the coding assistant you build with: the guide every new site gets (the content model workflow, commands, what is frozen, what not to touch), and an index of the pages above |
 
 ## For editors
 
 The manual for the people who fill the site with content, written in Czech, in plain
 language, with the admin's own button names. Hand it to the client.
 
-[**Příručka pro editory**](editors/cs/README.md): přihlášení a účet · úprava stránky a
-bloků · překlady · zveřejnění, naplánování a náhled · obrázky a soubory · menu a odkazy ·
-zprávy z formulářů · historie a obnovení · soukromí · co dělat, když…
+[**Příručka pro editory**](editors/cs/README.md): přihlášení a účet · [role a
+oprávnění](editors/cs/role-a-opravneni.md) · úprava stránky a bloků · [překlady](editors/cs/preklady.md) ·
+zveřejnění, naplánování a náhled · obrázky a soubory · menu a odkazy · zprávy z formulářů ·
+historie a obnovení · soukromí · co dělat, když…
 
 ## For people working on tinyzoo
 

@@ -291,6 +291,9 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    website reads the languages and its own few words from `app/utils/site.ts`, the search page
    is `app/pages/search.vue`), make a scratch site and compare it with yours
    (`pnpm dlx tinyzoo init ../scratch`, then `diff -r app ../scratch/app`).
+   A new site also gets an `AGENTS.md`, a short guide for the coding assistant you work with (the content
+   model workflow, the commands, what is frozen, what not to touch). To give your site the same, copy
+   `node_modules/tinyzoo/starter/AGENTS.md` into its root after updating, and add your own notes to it.
 
 8. **A decimal is a string in your types (`f.number({ int: false })`).** The column is `numeric`, and a select and
    the content API have always returned a string (`"19.99"`), but `Row`, `Insert` and `Update` said `number`.

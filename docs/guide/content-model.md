@@ -639,6 +639,20 @@ default language is. The reason is the translation's untranslated fields: they s
 language's text, so a translation of a draft would show the draft (and its fallback text) to the public.
 In the admin a language that is published but held back says **Waiting for <default language>**.
 
+**What editors see.** The editor's top bar names the language and its state (*English · Draft*), and Publish…,
+Update, Unpublish and Schedule act on that language only; its review step is *Publish the English version* and says
+when the default language is still a draft. The menu has *Follow the default language again*. The language switcher and
+the side panel list every language with its state, and the list's Languages column shows a mark per language (a dot
+on the website, a ring for a draft, a clock when scheduled, an hourglass when waiting for the default language). On a
+phone the language and its state in the top bar open the language switcher. The editors' guide explains it in their
+words: [Překlady](../editors/cs/preklady.md#každý-jazyk-zvlášť).
+
+**Translators who may not publish.** A role with `publish: false` can write a language that is not live. A language
+that *follows* a live default language is live, so for a post that is already published an editor first unpublishes
+its translation (it then has a draft state of its own); for a new post the translation is written before the default
+language is published and goes live with it. The [worked example](roles.md#worked-example-a-translator) sets up such
+a role, a field only editors may change, and `perLocale` together.
+
 **Schedules and webhooks follow.** A translation with its own date goes live at that moment (the
 scheduler announces `entry.published` with that `locale`). Publishing or unpublishing one language
 sends `entry.published` / `entry.unpublished` with its `locale` and `paths` for that language
