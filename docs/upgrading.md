@@ -79,6 +79,15 @@ database: [deploying.md](deploying.md#backups-and-restore)).
    </template>
    ```
 
+## From 0.2 to 0.3
+
+Everything below is also in the changelog of 0.3.0.
+
+1. **Update** both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+2. **drizzle-orm 0.45.** In your `package.json`, set `drizzle-orm` to `^0.45.4` and
+   `drizzle-kit` to `^0.31.11`, then `pnpm install`. Your schema and migrations stay as
+   they are: `tinyzoo generate` writes no new migration for this.
+
 ## On every upgrade
 
 ```bash

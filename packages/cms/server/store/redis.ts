@@ -8,11 +8,19 @@ import type { CmsStoreConfig, SharedStore } from './types'
 // The subscriber connection is the opposite — it waits and re-subscribes after
 // every reconnect, so an instance that booted before Redis was up still hears the
 // other replicas once it is.
+//
+// RESP2 on every connection (`protocol: 2`), as with ioredis 5. ioredis 6 opens with
+// `HELLO 3` and falls back to RESP2 only on the replies Redis itself gives; a proxy or
+// managed service that answers `HELLO` some other way would fail the connection, and
+// the site would quietly run on memory. Nothing here needs RESP3.
+export const REDIS_PROTOCOL = 2 as const
+
 export async function createRedisStore(cfg: CmsStoreConfig): Promise<SharedStore | null> {
   if (!cfg.redisUrl) return null
   const { default: Redis } = await import('ioredis')
   const prefix = cfg.prefix || 'cms'
   const client = new Redis(cfg.redisUrl, {
+    protocol: REDIS_PROTOCOL,
     maxRetriesPerRequest: 1,
     enableOfflineQueue: false,
     commandTimeout: 500,
@@ -57,7 +65,7 @@ export async function createRedisStore(cfg: CmsStoreConfig): Promise<SharedStore
     },
     async subscribe(channel, handler) {
       if (!subscriber) {
-        subscriber = new Redis(cfg.redisUrl, { maxRetriesPerRequest: null, enableOfflineQueue: true, connectTimeout: 2_000 })
+        subscriber = new Redis(cfg.redisUrl, { protocol: REDIS_PROTOCOL, maxRetriesPerRequest: null, enableOfflineQueue: true, connectTimeout: 2_000 })
         subscriber.on('error', (err) => console.error('[cms] redis subscriber', err.message))
         subscriber.on('message', (ch: string, msg: string) => {
           for (const h of handlers.get(ch) ?? []) h(msg)

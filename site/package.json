@@ -18,7 +18,7 @@
     "@internationalized/date": "^3.12.2",
     "@nuxt/ui": "^4.0.0",
     "@tinyzoo/client": "workspace:*",
-    "drizzle-orm": "^0.44.0",
+    "drizzle-orm": "^0.45.4",
     "nuxt": "^4.0.0",
     "nuxt-auth-utils": "^0.5.29",
     "pg": "^8.16.3",
@@ -28,7 +28,7 @@
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.114",
-    "drizzle-kit": "^0.31.0",
+    "drizzle-kit": "^0.31.11",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vue-tsc": "^3.3.14"
