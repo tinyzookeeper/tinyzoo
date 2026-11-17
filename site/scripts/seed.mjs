@@ -49,7 +49,7 @@ async function upload(file, mime) {
   return req('POST', '/api/cms/_media', fd)
 }
 const video = {}
-for (const v of ['link', 'form', 'duplicate', 'menu']) video[v] = (await upload(`${v}.mp4`, 'video/mp4')).id
+for (const v of ['link', 'form', 'duplicate', 'menu', 'roles', 'translate']) video[v] = (await upload(`${v}.mp4`, 'video/mp4')).id
 // The same clips recorded in the English and German admin (<clip>.<lang>.mp4), for those pages.
 const videoIn = { cs: video }
 for (const lang of ['en', 'de']) {
@@ -60,7 +60,21 @@ for (const lang of ['en', 'de']) {
 }
 // Illustrations (generated for tinyzoo, no client data): covers, pictures in text, sharing.
 const img = {}
-for (const i of ['blocks', 'forms', 'links', 'testing', 'collab', 'preview', 'schedule', 'desk', 'search']) img[i] = await upload(`${i}.jpg`, 'image/jpeg')
+for (const i of ['blocks', 'forms', 'links', 'testing', 'collab', 'preview', 'schedule', 'desk', 'search', 'roles', 'languages', 'create']) img[i] = await upload(`${i}.jpg`, 'image/jpeg')
+// Screenshots of the admin for the 0.6 posts, one set per language (<name>.<lang>.jpg, Czech without
+// the suffix; a language without its own file shows the Czech one). translateEmpty exists in Czech only.
+const shotFiles = { rolesOverview: 'roles-overview', invite: 'invite-roles', translating: 'translating', translateEmpty: 'translate-empty', terminal: 'create-terminal' }
+const shotCache = new Map()
+const shotUpload = async (file) => { if (!shotCache.has(file)) shotCache.set(file, await upload(file, 'image/jpeg')); return shotCache.get(file) }
+const shots = { cs: {}, en: {}, de: {} }
+for (const [key, name] of Object.entries(shotFiles)) {
+  shots.cs[key] = await shotUpload(`${name}.jpg`)
+  // The terminal is in English (the command line is), so every language shows the same file.
+  for (const lang of ['en', 'de']) {
+    if (existsSync(join(MEDIA, `${name}.${lang}.jpg`))) shots[lang][key] = await shotUpload(`${name}.${lang}.jpg`)
+    else if (key === 'terminal') shots[lang][key] = shots.cs[key]
+  }
+}
 const picture = (m, alt) => ({ type: 'image', attrs: { src: m.url, mediaId: m.id, alt } })
 
 // ── pages ──
@@ -251,10 +265,11 @@ await page('Pro vývojáře', 'pro-vyvojare', [
 
 // ── what's new ──
 const days = (n) => new Date(Date.now() - n * 86400000).toISOString()
-const covers = { 'seznamy-v-blocich': 'blocks', 'formulare': 'forms', 'odkazy-vyberem-stranky': 'links', 'opravy-z-testu': 'testing', 'spolecne-psani': 'collab', 'nahled-vedle-editoru': 'preview', 'planovani': 'schedule', 'vyhledavani': 'search' }
+const covers = { 'role-na-miru': 'roles', 'jazyky-zvlast': 'languages', 'pnpm-create-tinyzoo': 'create', 'seznamy-v-blocich': 'blocks', 'formulare': 'forms', 'odkazy-vyberem-stranky': 'links', 'opravy-z-testu': 'testing', 'spolecne-psani': 'collab', 'nahled-vedle-editoru': 'preview', 'planovani': 'schedule', 'vyhledavani': 'search' }
 const update = async (title, slug, kind, ago, perex, body, extra = {}) => {
   const res = await req('POST', '/api/cms/news', {
-    title, slug, kind, status: 'published', publishedAt: days(ago), perex, body, cover: img[covers[slug]]?.id ?? null, ...extra,
+    // The cover in `covers` wins; one in `extra` is only for entries without their own picture.
+    title, slug, kind, status: 'published', publishedAt: days(ago), perex, body, ...extra, cover: img[covers[slug]]?.id ?? extra.cover ?? null,
   })
   created.news[slug] = (res.row ?? res).id
 }
@@ -262,17 +277,27 @@ const update = async (title, slug, kind, ago, perex, body, extra = {}) => {
 await update('Nový web jedním příkazem: pnpm create tinyzoo', 'pnpm-create-tinyzoo', 'feature', 0,
   'Příkaz se zeptá na jazyky, části webu a ukázkový obsah. Za pár minut máte web se správou obsahu, který rovnou spustíte.',
   doc(p('Vyberete jazyky webu (první je výchozí), části, které web potřebuje (aktuality, kontaktní formulář, přesměrování, vyhledávání), a jestli chcete ukázkový obsah. Co nechcete, v projektu vůbec nebude.'),
+    p('Takhle vypadá spuštění příkazu:'),
+    picture(shots.cs.terminal, 'Terminál s příkazem pnpm create tinyzoo: otázky na složku, jazyky, části webu, ukázkový obsah a instalaci, pak vytvořený projekt a příkazy, kterými ho spustíte'),
     p('Každá otázka má i přepínač, takže příkaz spustíte i bez ptaní: pnpm create tinyzoo muj-web --languages cs,en --presets news,search --no-demo --yes.'),
     p('Nový projekt má také soubor AGENTS.md. Je to krátký návod pro asistenta, se kterým programujete: kde je model obsahu, jak se mění a na co nesahat.')), { cover: img.desk.id })
 await update('Každý jazyk se zveřejňuje zvlášť, s originálem po ruce', 'jazyky-zvlast', 'feature', 0,
   'Anglickou verzi článku v klidu dopíšete a zveřejníte, až bude hotová. Při překládání máte český text pořád na očích.',
   doc(p('Každý jazyk má svůj stav: koncept, naplánováno, nebo na webu. Překlad jde na web vždy spolu s českou verzí, takže se tam nedostane nic z nehotového českého textu. Vývojář to zapne tam, kde to dává smysl, třeba u článků.'),
     p('V nepřeloženém poli je šedě český text. Přesně ten by návštěvník viděl, dokud pole nepřeložíte. Delší text si zobrazíte vedle originálu a překládáte odstavec po odstavci.'),
+    p('Takhle vypadá nepřeložené pole s českým textem:'),
+    picture(shots.cs.translateEmpty, 'Anglická verze článku s ještě nepřeloženými poli, ve kterých je šedě český text'),
+    p('A takhle se překládá vedle originálu:'),
+    picture(shots.cs.translating, 'Překlad článku do angličtiny: vlevo český originál, vpravo anglický text, který se právě píše'),
     p('V seznamu článků poznáte stav každého jazyka podle malé značky. Na telefonu přepnete jazyk klepnutím na jeho název nahoře.')))
 await update('Role na míru a pole, která smí měnit jen někdo', 'role-na-miru', 'feature', 0,
   'Vedle administrátora, editora a autora může mít web vlastní role, třeba překladatele. U jednotlivých polí určíte, kdo je smí měnit.',
   doc(p('Vývojář webu nastaví role podle toho, kdo ve firmě co dělá. Překladatel třeba upravuje jen články a nic nezveřejňuje. Správce autorů se stará o jejich profily a do knihovny médií nevidí.'),
     p('Pole, které smí měnit jen někdo, má šedé pozadí a zámek. Pod ním je napsáno, kdo ho změní, takže víte, za kým jít.'),
+    p('Přehled rolí najdete v části Tým:'),
+    picture(shots.cs.rolesOverview, 'Okno Co která role může? v části Tým: tabulka rolí s tím, co každá upravuje, co jen čte, zda zveřejňuje a ke kterým souborům má přístup'),
+    p('A takhle vypadá pozvánka, u které je každá role popsaná jednou větou:'),
+    picture(shots.cs.invite, 'Pozvánka kolegy: seznam rolí, u každé jedna věta o tom, co smí'),
     p('V části Tým najdete přehled Co která role může?. V pozvánce i při změně role je u každé role jedna věta o tom, co smí.')))
 await update('Karty a otázky na jedné stránce', 'seznamy-v-blocich', 'feature', 1,
   'Do stránky nově poskládáte karty nebo otázky a odpovědi. Jejich pořadí změníte přetažením.',
@@ -315,6 +340,13 @@ await update('Postřehy pro další úpravy', 'co-chystame-dal', 'improvement', 
   'Připravujeme si místo pro zkušenosti z ukázky a prvního pilotu.',
   doc(p('Chceme zachytit, co lidem při úpravách pomáhá a kde potřebují lepší vysvětlení. Tento text je zatím rozepsaný.')), { status: 'draft', publishedAt: null })
 
+// The 0.6 posts' clips. The clip is a localized group, so Czech is set here and English and German
+// with their translations below (each recorded in that language's admin).
+for (const [slug, v, caption] of [
+  ['role-na-miru', 'roles', 'Co která role může a pozvánka s popisem rolí'],
+  ['jazyky-zvlast', 'translate', 'Překlad článku s českým originálem vedle'],
+]) await req('PATCH', `/api/cms/news/${created.news[slug]}`, { clip: { video: video[v], caption } })
+
 // ── menus and settings ──
 const link = (label, url, sub = false) => ({ id: id(), type: 'link', label, url, newTab: false, sub })
 await req('PUT', '/api/cms/_singleton/navigation', {
@@ -334,7 +366,7 @@ const helpers = { id, item, p, h2, ul, doc, link, picture, video, img, code: { c
 for (const lang of ['en', 'de']) {
   const file = join(dirname(fileURLToPath(import.meta.url)), `../seed/translations/${lang}.mjs`)
   if (!existsSync(file)) { console.log(`· no ${lang} translation yet`); continue }
-  const tr = (await import(pathToFileURL(file).href)).default({ ...helpers, video: videoIn[lang] })
+  const tr = (await import(pathToFileURL(file).href)).default({ ...helpers, video: videoIn[lang], shots: shots[lang] })
   for (const [key, fields] of Object.entries(tr.pages ?? {})) {
     if (!created.page[key]) throw new Error(`${lang}: no page with the address ${key}`)
     await req('PATCH', `/api/cms/page/${created.page[key]}?locale=${lang}`, fields)
