@@ -227,11 +227,16 @@ describe('webhooks', () => {
 
   it('send nothing public for a language that is not live', async () => {
     const p = await translated()
+    // Wait for the hooks of the steps before (delivery is asynchronous), so none lands after the mark.
+    const mark0 = hooksMark()
     await patchEn(p.id, { status: 'draft' })
+    const un = (h: ReceivedHook[]) => h.find((x) => x.path === '/ok' && x.json.id === p.id && x.json.type === 'entry.unpublished')
+    await waitForHooks(mark0, (h) => !!un(h))
     const mark = hooksMark()
     await patchEn(p.id, { title: 'Christmas biscuits' })
     await new Promise((r) => setTimeout(r, 700))
-    expect(receivedHooks(mark).filter((h) => h.path === '/ok' && h.json.id === p.id)).toEqual([])
+    // A late hook of the default language's own publishing is not about English: only English counts here.
+    expect(receivedHooks(mark).filter((h) => h.path === '/ok' && h.json.id === p.id && h.json.locale !== null)).toEqual([])
   })
 
   it('a change to the default language still names every language that is live', async () => {
