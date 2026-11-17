@@ -318,7 +318,7 @@ const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy
 /** Query parameters of the content API's list (`/api/content/:entity?page=…`): a field of that name cannot be filtered by. */
 const LIST_PARAMS = ['page', 'limit', 'sort', 'dir', 'q']
 /** The columns of `<entity>_locales` that hold a language's own publish state (`publish.perLocale`). */
-export const PUBLISH_STATE_COLUMNS = ['published', 'publishedAt']
+export const PUBLISH_STATE_COLUMNS = ['published', 'publishedAt', 'firstLiveAt']
 
 /** Entity names the CMS uses internally; user entities may not take them. */
 const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
@@ -452,10 +452,13 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
       lcols[key] = buildColumn(translationSpec(fld.spec!), snake(key))
     }
     // Per-language publishing: this language's own state, `null` while it follows the
-    // default language (see PUBLISH_STATE_COLUMNS).
+    // default language (see PUBLISH_STATE_COLUMNS). `firstLiveAt`: when the language was first on
+    // the website in its own right; null while it never was (a draft then is a translation being
+    // worked on, which visitors do not see).
     if (def.publish?.perLocale) {
       lcols.published = boolean('published')
       lcols.publishedAt = timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 })
+      lcols.firstLiveAt = timestamp('first_live_at', { withTimezone: true, mode: 'date', precision: 3 })
     }
     lcols.createdAt = timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
     lcols.updatedAt = timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()

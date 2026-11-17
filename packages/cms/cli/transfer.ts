@@ -20,7 +20,7 @@
  *     "fields":       { "title": "…", "author": "<id>", "hero": "<media id>", "body": {…} },
  *     "translations": [ { "id": "…", "locale": "en", "createdAt": "…", "updatedAt": "…",
  *                         "fields": { "title": "…", "body": {…} },
- *                         "publish": { "published": true, "publishedAt": "…" } } ],  // only with publish.perLocale; null follows the default language
+ *                         "publish": { "published": true, "publishedAt": "…", "firstLiveAt": "…" } } ],  // only with publish.perLocale; null follows the default language
  *     "relations":    { "tags": ["<id>", …] } }          // many-to-many, by field
  *
  * Not in the archive, on purpose: accounts (users, invitation and reset links),
@@ -314,8 +314,11 @@ export interface Entry {
   fields: Record<string, unknown>
   translations: {
     id: string; locale: string; createdAt: string; updatedAt: string; fields: Record<string, unknown>
-    /** Per-language publishing (`publish.perLocale`): this language's own state; `published: null` follows the default language. Left out for entities without it. */
-    publish?: { published: boolean | null; publishedAt: string | null }
+    /**
+     * Per-language publishing (`publish.perLocale`): this language's own state; `published: null` follows the default language.
+     * `firstLiveAt`: when it was first on the website in its own right (null: never — a draft then is being translated). Left out for entities without it.
+     */
+    publish?: { published: boolean | null; publishedAt: string | null; firstLiveAt?: string | null }
   }[]
   relations: Record<string, string[]>
 }
@@ -334,7 +337,7 @@ export function encodeEntry(layout: EntityLayout, row: any, translations: any[],
       createdAt: iso(t.createdAt) as string,
       updatedAt: iso(t.updatedAt) as string,
       fields: Object.fromEntries(layout.e.localized.map((k) => [k, iso(t[k])])),
-      ...(layout.e.publish?.perLocale ? { publish: { published: t.published ?? null, publishedAt: (iso(t.publishedAt) as string | null) ?? null } } : {}),
+      ...(layout.e.publish?.perLocale ? { publish: { published: t.published ?? null, publishedAt: (iso(t.publishedAt) as string | null) ?? null, firstLiveAt: (iso(t.firstLiveAt) as string | null) ?? null } } : {}),
     })),
     relations,
   }

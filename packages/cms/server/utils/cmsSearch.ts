@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
 import { and, desc, eq, indexTree, inArray, or, pathTemplateKeys, propOf, sitePath, sql, entryTexts, foldSearchText, isSearchableField, matchEntry, highlightRanges } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
-import { hasTranslatedText, mergeTranslation, translationStates } from './cmsLocales'
+import { hasTranslatedText, isTranslationLocale, mergeTranslation, translationStates } from './cmsLocales'
+import { shownTranslationCond } from './cmsPublished'
 import type { LanguageState } from './cmsLocales'
 // Explicit (not Nitro's auto-import): the CLI's import rebuilds the index outside Nitro.
 import { upgradedCopy } from './cmsBlocks'
@@ -262,7 +263,7 @@ export async function searchPublic(db: any, reg: CmsRegistry, terms: string[], q
       const pathCols: Record<string, any> = {}
       for (const k of pathTemplateKeys(e.content!.path)) if (e.table[k]) pathCols[k] = e.table[k]
       const score = closeness(s.titleFolded, [s.bodyFolded], terms)
-      const conds = [eq(s.entity, e.name), inArray(s.locale, langs), termsCond([s.titleFolded, s.bodyFolded], terms), publishedCond(e, liveLocale(reg, locale))]
+      const conds = [eq(s.entity, e.name), inArray(s.locale, langs), termsCond([s.titleFolded, s.bodyFolded], terms), publishedCond(e, liveLocale(reg, locale)), notBeingTranslated(e, reg, locale)]
       const rows: any[] = await tx.select({ id: s.recordId, title: s.title, body: s.body, path: s.path, updatedAt: e.table.updatedAt, rank: score, ...pathCols })
         .from(s).innerJoin(e.table, eq(e.table.id, s.recordId))
         .where(and(...conds.filter(Boolean))).orderBy(desc(score)).limit(CANDIDATES)
@@ -288,6 +289,18 @@ export async function searchPublic(db: any, reg: CmsRegistry, terms: string[], q
   return out.sort(byScore)
 }
 
+/**
+ * Publishing per language: the index holds a translation being worked on (the admin finds it), but
+ * visitors searching in its language must not: for them it is not there yet (see `shownTranslationCond`).
+ */
+function notBeingTranslated(e: CmsEntity, reg: CmsRegistry, locale: string | null): any {
+  const lt = e.localesTable
+  const shown = shownTranslationCond(e, lt)
+  if (!shown || !isTranslationLocale(reg, locale)) return undefined
+  // (`coalesce`: the condition is null, not false, for a row whose first_live_at is null.)
+  return sql`not exists (select 1 from ${lt} where ${lt.parentId} = ${e.table.id} and ${lt.locale} = ${locale} and not coalesce(${shown}, false))`
+}
+
 export interface AdminSearchItem {
   entity: string
   id: string
@@ -295,7 +308,7 @@ export interface AdminSearchItem {
   titleHighlights: [number, number][]
   excerpt: string
   highlights: [number, number][]
-  /** 'published' | 'scheduled' | 'draft' for collections with publishing (per language: of the language the hit is in; 'waiting' = published, held back by the default language), else null. */
+  /** 'published' | 'scheduled' | 'draft' for collections with publishing (per language: of the language the hit is in; 'waiting' = published, held back by the default language; 'translating' = a draft never on the website, being translated), else null. */
   status: string | null
   /** Publishing per language: the language the hit was found in, when it is not the default one (its state is `status`; the admin opens that language). */
   locale?: string
@@ -368,9 +381,9 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
   return out.sort(byScore)
 }
 
-/** The admin search's word for one language's state: 'waiting' is published but held back by the default language. */
+/** The admin search's word for one language's state: 'waiting' is published but held back by the default language; 'translating' a draft never on the website. */
 function languageStatus(s: LanguageState | undefined): string | null {
-  return !s ? null : s.waitingFor ? 'waiting' : s.state
+  return !s ? null : s.waitingFor ? 'waiting' : s.translating ? 'translating' : s.state
 }
 
 /** Replace each candidate's indexed text by the text of the fields `unreadable` leaves (title, body, extra), in its language. */

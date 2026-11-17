@@ -45,6 +45,12 @@ export interface ChangeSnapshot {
   /** Only for an entity that publishes per language: the languages it is live in. */
   locales?: string[]
   /**
+   * Only for an entity that publishes per language: the live languages visitors read in a translation of
+   * their own (the others among `locales` are served through the default language: no translation, or
+   * one being worked on, which visitors do not see).
+   */
+  translated?: string[]
+  /**
    * `fallback`: a language that follows the default one without a translation of its own (only for
    * an entity that publishes per language). It is served, so it is purged when a change is about that
    * language; it is not part of "the address changed" or of a change to the entry itself.
@@ -117,16 +123,18 @@ async function localeSnapshot(db: any, e: CmsEntity, id: string, keys: string[],
   const live = row ? languages.filter((_, i) => row[`live${i}`] === true) : []
   if (!live.length) return { live: false, paths: [] }
   const out: ChangeSnapshot = { live: true, locales: live, paths: [] }
-  if (!keys.length) return out
   const translated = new Map<string, any>()
   const t = e.localesTable
   const others = live.filter((l) => l !== defaultLocale)
   if (t && others.length) {
     const tcols: Record<string, any> = { locale: t.locale }
     for (const k of keys) if (e.localized.includes(k)) tcols[k] = t[k]
-    const rows: any[] = await db.select(tcols).from(t).where(and(eq(t.parentId, id), inArray(t.locale, others)))
+    // Only what visitors see: a translation being worked on is not there for them.
+    const rows: any[] = await db.select(tcols).from(t).where(and(eq(t.parentId, id), inArray(t.locale, others), shownTranslationCond(e, t)))
     for (const tr of rows) translated.set(tr.locale, tr)
   }
+  out.translated = [...translated.keys()]
+  if (!keys.length) return out
   for (const l of live) {
     const merged = { ...row }
     const tr = translated.get(l)
@@ -172,7 +180,11 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     // Only addresses a visitor could have reached, in the language the change is about.
     const paths = new Set<string>()
     // Publishing per language: a language that went live or off. Its address is purged even where it is only served through the default language, and what links to it reads differently.
-    const languageFlipped = !!locale && liveFor(before) !== liveFor(after)
+    // A language that publishes on its own also flips when visitors switch between the default language's text (fallback, or a
+    // translation being worked on) and a translation of its own, while it stays live: publishing a translation being worked on.
+    const ownFor = (snap: ChangeSnapshot) => !!locale && liveFor(snap) && !!snap.translated?.includes(locale)
+    const perLanguage = !!locale && (!!before.locales || !!after.locales)
+    const languageFlipped = !!locale && (liveFor(before) !== liveFor(after) || (perLanguage && ownFor(before) !== ownFor(after)))
     // (The default language gates every other: when it goes live or off, the languages it takes along are in `before` and
     // `after` as live ones, so a change to it names each of their addresses. A language served only through the default
     // language, with no row of its own, is `fallback` and stays out of a change to the default language, as it always did.)
@@ -207,7 +219,9 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
       entity: e.name,
       id: r.id,
       locale,
-      public: liveFor(before) || liveFor(after),
+      // Publishing per language: a change about a language is public when visitors could see what changed — its own
+      // translation, before or after, or a flip. Saving a translation being worked on changes nothing they see.
+      public: perLanguage ? ownFor(before) || ownFor(after) || languageFlipped : liveFor(before) || liveFor(after),
       paths: [...paths],
       ...(globals.size ? { globals: [...globals] } : {}),
       ...(r.moved?.length ? { moved: r.moved } : {}),

@@ -237,8 +237,9 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    sitemap and webhooks as in 0.5. To turn it on for an entity with `.localized()` fields:
 
    1. Add `perLocale: true` to its `publish` in `cms.config.ts`.
-   2. `tinyzoo generate`, review and commit the migration. It adds two nullable columns to the
-      entity's translation table (`<entity>_locales`: `published`, `published_at`), nothing else.
+   2. `tinyzoo generate`, review and commit the migration. It adds three nullable columns to the
+      entity's translation table (`<entity>_locales`: `published`, `published_at`, `first_live_at`),
+      nothing else.
    3. `tinyzoo up` (or start with `NUXT_CMS_MIGRATIONS_ON_START`).
 
    There is no data to move. Every language starts **following the default language**, so every
@@ -252,6 +253,14 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    links; the webhook for it names the language in `locale` (`entry.published` and
    `entry.unpublished`, the payload keeps its shape). A site that had its own code deciding
    what to show per language can drop it.
+
+   **A translation that has never been published is being translated.** A first translation of
+   an entry that is already live starts as one: visitors keep getting the default language there
+   (through fallback, as before it existed) until an editor publishes it, and people who may not
+   publish can write it. This holds for a translation written through the admin API too: a first
+   translation of a published entry, without a status, is not on the website yet. A script that
+   should put a translation on the website at once sends `"status": null` with it (it then follows
+   the default language, as before); seeds do that for a translation without a status.
 
    **The default language gates every language.** A translation is on the website only while the
    default language is too: unpublish the default language and every language goes off (the
@@ -277,7 +286,7 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    states cannot be imported into 0.5 faithfully: 0.5 does not know the key and drops the states
    without a word, so keep both sites on 0.6 for it.
 
-   No migration comes with this beyond the two columns above.
+   No migration comes with this beyond the three columns above.
 
    With roles (step 5) one more thing: **Publish is offered to a role only if it may edit the
    publish status field and the date field of that entity** (`.access({ edit })` on them), because a

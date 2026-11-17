@@ -1,6 +1,7 @@
 import { and, eq, indexTree, inArray, pathTemplateKeys, sitePath } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 import { loadTreeNodes, treePathIn } from './cmsTreeAddress'
+import { shownTranslationCond } from './cmsPublished'
 
 // Explicit imports only (no Nitro auto-imports): `tinyzoo links:convert` uses this too.
 
@@ -19,7 +20,7 @@ const filled = (v: unknown) => v !== null && v !== undefined && v !== ''
  * one falls back to the default language; a language the collection has no address for
  * (`content.path` per language) links to the default language's page.
  */
-export async function entryAddresses(db: any, reg: CmsRegistry, e: CmsEntity, rows: Record<string, any>[], locale: string | null): Promise<Map<string, string | null>> {
+export async function entryAddresses(db: any, reg: CmsRegistry, e: CmsEntity, rows: Record<string, any>[], locale: string | null, opts: { drafts?: boolean } = {}): Promise<Map<string, string | null>> {
   const out = new Map<string, string | null>()
   if (!rows.length || !e.content?.path) return out
   // A page tree: the address is the ancestors' parts plus its own (/o-nas/tym), per language.
@@ -35,7 +36,8 @@ export async function entryAddresses(db: any, reg: CmsRegistry, e: CmsEntity, ro
   if (locale && def && locale !== def && t && keys.some((k) => e.localized.includes(k))) {
     const cols: Record<string, any> = { parentId: t.parentId }
     for (const k of keys) if (e.localized.includes(k) && t[k]) cols[k] = t[k]
-    const trs: any[] = await db.select(cols).from(t).where(and(inArray(t.parentId, rows.map((r) => r.id)), eq(t.locale, locale)))
+    // The address visitors reach: a translation being worked on has none of its own yet (a preview, `drafts`, uses it).
+    const trs: any[] = await db.select(cols).from(t).where(and(inArray(t.parentId, rows.map((r) => r.id)), eq(t.locale, locale), opts.drafts ? undefined : shownTranslationCond(e, t)))
     for (const r of trs) translated.set(r.parentId, r)
   }
   for (const row of rows) {

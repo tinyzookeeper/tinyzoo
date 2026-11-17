@@ -91,6 +91,7 @@ function emitLocalesTable(e: CmsEntity): string {
   if (e.publish?.perLocale) {
     lines.push(`  published: boolean('published'),`)
     lines.push(`  publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 }),`)
+    lines.push(`  firstLiveAt: timestamp('first_live_at', { withTimezone: true, mode: 'date', precision: 3 }),`)
   }
   lines.push(`  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
   lines.push(`  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)

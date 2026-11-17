@@ -411,7 +411,12 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
       if (!changed.length) { note({ action: 'unchanged', kind: 'translation', entity: e.name, label }); return }
       if (apply) {
         if (entry.kind === 'global') await backend.putGlobal(e.name, wanted, locale)
-        else await backend.update(e.name, entry.id, wanted, locale)
+        else {
+          // A seed's translation is content as it should be: one without a state of its own follows the default language
+          // (a first translation written through the API otherwise starts as being translated: not on the website yet).
+          const follows = !!e.publish?.perLocale && !known && !stateKeys.some((k) => k in wanted)
+          await backend.update(e.name, entry.id, follows ? { ...wanted, [e.publish!.field]: null } : wanted, locale)
+        }
       }
       note({ action: translated ? 'updated' : 'created', kind: 'translation', entity: e.name, label, fields: changed })
     })

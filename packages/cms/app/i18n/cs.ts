@@ -695,6 +695,7 @@ export default {
     defaultNotLiveBody: 'Tahle verze půjde na web, jakmile tam bude i {default}.',
     titleLang: 'Zveřejnit překlad: {lang}',
     subtitleLang: 'Ostatní jazyky zůstanou, jak jsou.',
+    subtitleTranslating: 'Návštěvníci tu zatím vidí výchozí jazyk ({default}). Ostatní jazyky zůstanou, jak jsou.',
     fallbackBody: 'Než to přeložíte, návštěvníci tu uvidí původní text ({lang}).',
     translate: 'Přeložit',
     sharedUnsaved: 'Zveřejní se i neuložený text: {names}',
@@ -747,7 +748,8 @@ export default {
     waitingFor: 'Čeká, až bude na webu {lang}',
     waiting: 'Čeká na výchozí jazyk',
     waitingForBody: 'Je připravená a na web půjde spolu s výchozím jazykem ({lang}), který je zatím koncept.',
-    state: { published: 'Na webu', scheduled: 'Naplánováno', draft: 'Koncept' },
+    state: { published: 'Na webu', scheduled: 'Naplánováno', draft: 'Koncept', translating: 'Překládá se' },
+    translatingBody: 'Návštěvníci zatím vidí výchozí jazyk ({lang}). Tuhle verzi uvidí, až ji editor zveřejní.',
   },
   live: {
     offlineLost: 'Text napsaný bez připojení se nepodařilo sloučit',

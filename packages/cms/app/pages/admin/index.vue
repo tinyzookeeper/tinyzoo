@@ -8,7 +8,7 @@ const { t, entitySingular, entityLabel, formatDate, formatDateWith, languageName
 const { user } = useUserSession()
 const config = useCmsAdminConfig()
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
-type Item = { entity: string; id: string; title: string | null; updatedAt: string; published: boolean | null; publishAt?: string | null; locale?: string }
+type Item = { entity: string; id: string; title: string | null; updatedAt: string; published: boolean | null; publishAt?: string | null; locale?: string; translating?: true }
 const { data: overview } = await useFetch<{ counts: Record<string, number>; recent: Item[]; drafts: Item[]; scheduled: Item[]; upcoming: { entity: string; id: string; title: string | null; at: string }[] }>('/api/cms/_overview')
 
 useHead({ title: () => t('nav.home') })
@@ -123,7 +123,7 @@ const leaf = (d: string) => ({
                   <NuxtLink :to="itemTo(item)" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">
                     {{ item.title || t('common.untitled') }}
                   </NuxtLink>
-                  <p class="truncate text-xs text-muted">{{ inLanguage(item, t('editor.draft')) }} · {{ entityLabel(byName.get(item.entity)) }} · <CmsTime :value="item.updatedAt" relative /></p>
+                  <p class="truncate text-xs text-muted">{{ inLanguage(item, item.translating ? t('translation.state.translating') : t('editor.draft')) }} · {{ entityLabel(byName.get(item.entity)) }} · <CmsTime :value="item.updatedAt" relative /></p>
                 </div>
                 <UButton :to="itemTo(item)" color="neutral" variant="outline" size="sm" class="relative shrink-0 max-sm:hidden">{{ t('home.finish') }}</UButton>
               </li>

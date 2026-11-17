@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
 
   const counts: Record<string, number> = {}
-  type Item = { entity: string; id: string; title: string | null; updatedAt: Date; published: boolean | null; publishAt?: Date | null; locale?: string }
+  type Item = { entity: string; id: string; title: string | null; updatedAt: Date; published: boolean | null; publishAt?: Date | null; locale?: string; translating?: true }
   const recent: Item[] = []
   const drafts: Item[] = []
   const scheduled: Item[] = []
@@ -58,13 +58,14 @@ export default defineEventHandler(async (event) => {
       // Publishing per language: a language with a state of its own is a draft, or goes live, on its own.
       const lt = e.localesTable
       if (p.perLocale && lt && reg.locales) {
-        const tbase = { id: e.table.id, title: titleCol, updatedAt: lt.updatedAt, locale: lt.locale, date: lt.publishedAt }
+        const tbase = { id: e.table.id, title: titleCol, updatedAt: lt.updatedAt, locale: lt.locale, date: lt.publishedAt, translating: sql<boolean>`coalesce(not (${lt.firstLiveAt} <= now()), true)` }
         const draftIn: any[] = me
           ? await db.select(tbase).from(lt).innerJoin(e.table, eq(e.table.id, lt.parentId))
             .where(both(where, and(eq(lt.published, false), or(eq(e.table.createdBy, me), eq(e.table.updatedBy, me)))))
             .orderBy(desc(lt.updatedAt)).limit(RECENT)
           : []
-        for (const r of draftIn) drafts.push({ entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), updatedAt: r.updatedAt, published: false, locale: r.locale })
+        // A draft that was never on the website is a translation being worked on (visitors see the default language meanwhile).
+        for (const r of draftIn) drafts.push({ entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), updatedAt: r.updatedAt, published: false, locale: r.locale, ...(r.translating ? { translating: true } : {}) })
         // Scheduled by its own date while the default language is live (a language held back by the default language is not scheduled: it waits for it).
         const sched = scheduleCond(e)
         if (sched && dateCol) {

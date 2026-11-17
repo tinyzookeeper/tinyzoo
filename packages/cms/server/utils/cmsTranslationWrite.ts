@@ -2,6 +2,7 @@ import { and, eq, isNull, ne, or, propOf, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 import { z } from 'zod'
 import type { CmsUser } from './cmsSession'
+import { isBeingTranslated } from './cmsPublished'
 
 /**
  * The admin's view of an entry in a translation language, with (publishing per language)
@@ -111,7 +112,10 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   const before = (await translationRows(db, e, [id], locale)).get(id)
   if (e.publish?.perLocale) {
     // Changing the text of a language that is live, like changing a live entry, is for people who may publish; so is any change of its state.
-    assertPublishAllowed(e, user, stateIn.touched ? { [propOf(e.publish.field, e.fields[e.publish.field]!)]: e.publish.publishedValue } : {}, { [propOf(e.publish.field, e.fields[e.publish.field]!)]: effectiveStatus(e, base, before) })
+    // A first translation is not live (it is made "being translated" below, or follows a default language that is not published):
+    // writing it changes nothing visitors see. The same rule runs again under the entry lock (notLiveInLanguage).
+    const statusProp = propOf(e.publish.field, e.fields[e.publish.field]!)
+    assertPublishAllowed(e, user, stateIn.touched ? { [statusProp]: e.publish.publishedValue } : {}, before ? { [statusProp]: effectiveStatus(e, base, before) } : null)
   }
   else assertPublishAllowed(e, user, {}, base)
   const seenBefore = await changeSnapshot(e, id)
@@ -132,7 +136,11 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
   if (stateIn.date !== undefined && stateIn.published === undefined && statePublished === null) {
     throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: [{ code: 'invalid_value', path: [p!.dateField!], message: 'Set the status of this language together with its publish date' }] })
   }
-  if (e.localized.every((k) => emptyTranslationValue(merged[k])) && statePublished === null) {
+  // A translation being worked on that is emptied entirely holds nothing (its state is the same as no translation for visitors): it
+  // goes — when this person may remove every translated field (field rules); otherwise the empty row stays, as any draft's does.
+  const dropsEmpty = !stateIn.touched && isBeingTranslated(before) && !e.localized.some((k) => uneditableFields(e, user).has(k))
+  const holdsState = statePublished !== null && !dropsEmpty
+  if (e.localized.every((k) => emptyTranslationValue(merged[k])) && !holdsState) {
     if (before) {
       await assertCurrentVersion(e, { updatedAt: before.updatedAt, updatedBy: null }, baseTr)
       await deleteTranslation(event, e, id, locale, user, rowFilter)
@@ -149,11 +157,12 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
     // live" for people who cannot publish, re-checked here at write time (an editor
     // may have published it since we read it).
     // A no-op update: it locks the entry and re-checks access at write time.
+    const statusCol = p?.perLocale ? e.table[propOf(p.field, e.fields[p.field]!)] : null
     const [touched] = await tx.update(e.table).set({ updatedAt: sql`${e.table.updatedAt}` })
-      .where(both(both(eq(e.table.id, id), rowFilter), notLiveInLanguage(e, user, locale))).returning({ id: e.table.id })
+      .where(both(both(eq(e.table.id, id), rowFilter), notLiveInLanguage(e, user, locale))).returning({ id: e.table.id, ...(statusCol ? { status: statusCol } : {}) })
     if (!touched) throw createError({ statusCode: 404, statusMessage: 'Not found or not permitted' })
     // The entry is locked now, so this is the translation as it stands.
-    const [current] = await tx.select({ updatedAt: t.updatedAt }).from(t).where(and(eq(t.parentId, id), eq(t.locale, locale)))
+    const [current] = await tx.select({ updatedAt: t.updatedAt, ...(p?.perLocale ? { published: t.published } : {}) }).from(t).where(and(eq(t.parentId, id), eq(t.locale, locale)))
     if (current) await assertCurrentVersion(e, { updatedAt: current.updatedAt, updatedBy: null }, baseTr)
     // A page tree: a translated address part (or a first translation) changes the address of the
     // page in this language and of every page below it.
@@ -177,14 +186,34 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
     const now = new Date(Math.max(Date.now(), current ? new Date(current.updatedAt).getTime() + 1 : 0))
     // Publishing per language: the state in this write (stamping the publish date as an entry's is: the database's clock).
     const state: Record<string, unknown> = {}
+    // `first_live_at` as stored before (it stays once passed) and for a new row.
+    let firstLive: { insert: unknown; update: unknown } | null = null
+    const stamp = sql`date_trunc('milliseconds', clock_timestamp())`
+    const defaultPublished = !!p?.perLocale && touched.status === p.publishedValue
     if (p?.perLocale && stateIn.touched) {
       state.published = statePublished
       const date = stateIn.date !== undefined ? stateIn.date : dateKept
       state.publishedAt = statePublished === null ? null
-        : statePublished && p.dateField && date === null ? sql`date_trunc('milliseconds', clock_timestamp())` : date
+        : statePublished && p.dateField && date === null ? stamp : date
+      // When the language was (first) on the website in its own right. One that was there through the default language
+      // (it followed a published one, with or without a translation) was: now, so unpublishing or rescheduling it takes it
+      // off (a 404 until its date), as before. One being translated is there from its publish date (a scheduled one, once
+      // the date comes; until then visitors keep the default language). A draft that never was, or following again: not
+      // (a first date that never came is dropped).
+      const onSiteBefore = (!current || current.published === null) && defaultPublished
+      const fresh = statePublished === null ? null : onSiteBefore ? stamp
+        : statePublished ? (state.publishedAt instanceof Date ? state.publishedAt : stamp) : null
+      firstLive = { insert: fresh, update: sql`case when ${t.firstLiveAt} <= now() then ${t.firstLiveAt} else ${fresh} end` }
     }
-    const [saved] = await tx.insert(t).values({ parentId: id, locale, ...data, ...state, updatedAt: now })
-      .onConflictDoUpdate({ target: [t.parentId, t.locale], set: { ...data, ...state, updatedAt: now } })
+    else if (p?.perLocale && !current && defaultPublished) {
+      // A first translation of a published entry, by anyone: being translated. Visitors keep seeing the default language
+      // (through fallback) until someone publishes this language.
+      state.published = false
+      state.publishedAt = null
+      firstLive = { insert: null, update: null }
+    }
+    const [saved] = await tx.insert(t).values({ parentId: id, locale, ...data, ...state, ...(firstLive ? { firstLiveAt: firstLive.insert } : {}), updatedAt: now })
+      .onConflictDoUpdate({ target: [t.parentId, t.locale], set: { ...data, ...state, ...(firstLive ? { firstLiveAt: firstLive.update } : {}), updatedAt: now } })
       .returning()
     const effect = writeTree ? await treeEffect(tx, reg, e, writeTree.nodes, writeTree.next, id, wasLive, actorId(user)) : null
     // A translated address part (or a first translation) may put the entry where a redirect leaves from: that one goes, in this transaction.
@@ -223,10 +252,12 @@ export async function writeTranslation(event: any, e: CmsEntity, id: string, loc
 /**
  * Removing a translation that holds a state of its own (published, draft or scheduled) is a
  * change of state: the language follows the default language again, which may put it on the
- * website. So it is for people who may publish, even when the state it holds is a draft.
+ * website. So it is for people who may publish, even when the state it holds is a draft —
+ * except a translation being worked on (a draft that was never on the website): visitors see the
+ * default language in its place already, so removing it changes nothing they see.
  */
 function assertMayDropState(user: CmsUser, translation: Record<string, any> | undefined): void {
-  if (translation && translation.published !== null && translation.published !== undefined && !canPublish(user)) {
+  if (translation && translation.published !== null && translation.published !== undefined && !isBeingTranslated(translation) && !canPublish(user)) {
     throw createError({ statusCode: 403, statusMessage: 'Your role can write drafts but not publish' })
   }
 }

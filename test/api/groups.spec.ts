@@ -75,7 +75,8 @@ describe('a translated group', () => {
     // Untranslated: the default language's group.
     expect((await anonymous().get(`/api/content/post/${post.slug}?locale=en`)).body.item.location).toEqual({ place: 'Sokolovna', note: 'vchod z ulice' })
 
-    expect((await en(post.id, { location: location('Gym') })).status).toBe(200)
+    // `status: null`: this first translation of a live post follows it (posts publish each language on their own; otherwise it is being translated).
+    expect((await en(post.id, { location: location('Gym'), status: null })).status).toBe(200)
     const trans = (await admin.request('GET', `/api/cms/post/${post.id}?locale=en`)).body.row
     expect(trans.location).toEqual({ place: 'Gym' })
     expect(trans.__defaults.location).toEqual(location('Sokolovna', 'vchod z ulice'))
@@ -97,7 +98,7 @@ describe('a translated group', () => {
   it('is found by the website search, in the language it is written in', async () => {
     const author = await createAuthor(admin)
     const post = await createPost(admin, { author: author.id, status: 'published', location: location('Sokolovna Tábor') })
-    await en(post.id, { location: location('Gymnasium Tabor') })
+    await en(post.id, { location: location('Gymnasium Tabor'), status: null }) // follows the live Czech version (else being translated: not searchable)
     const cs = (await anonymous().get('/api/content/_search?q=sokolovna')).body
     expect(cs.items.map((i: any) => i.id)).toEqual([post.id])
     expect((await anonymous().get('/api/content/_search?q=gymnasium&locale=en')).body.total).toBe(1)

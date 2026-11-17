@@ -8,7 +8,9 @@ import { createAuthor, createPost } from '../helpers/fixtures'
 //   author       the built-in role: its own posts, drafts only (also held by the field rule)
 //   editor       publishes
 // A language's own state decides whether someone who may not publish can write it: its own while it has one, else the
-// default language's (it follows). The default language gates what visitors see; this is about who may write.
+// default language's (it follows). A language with no translation yet can always be written: a first translation of a
+// published entry starts as being translated (a draft never on the website, which visitors do not see), one of a draft
+// follows it. The default language gates what visitors see; this is about who may write.
 const db = testDb()
 let admin: Client
 let editor: Client
@@ -32,7 +34,8 @@ beforeEach(async () => {
 afterAll(() => db.end())
 
 type Default = 'draft' | 'published'
-type English = 'follows' | 'draft' | 'published'
+// none: no translation; translating: a first translation written while Czech was live (never published); draft: taken off
+type English = 'none' | 'translating' | 'follows' | 'draft' | 'published'
 const patchEn = (c: Client, id: string, body: Record<string, unknown>) => c.request('PATCH', `/api/cms/post/${id}?locale=en`, { json: body })
 const single = (slug: string, locale: string) => anonymous().get(`/api/content/post/${slug}?locale=${locale}`)
 
@@ -40,22 +43,30 @@ const single = (slug: string, locale: string) => anonymous().get(`/api/content/p
 async function make(def: Default, en: English) {
   const k = ++n
   const p = await createPost(author, { author: byline.id, title: `Titulek ${k}`, slug: `titulek-${k}`, body: doc('Česky') })
-  expect((await patchEn(admin, p.id, { title: `Title ${k}`, slug: `title-${k}` })).status).toBe(200)
+  if (en === 'translating') {
+    expect((await admin.patch(`/api/cms/post/${p.id}`, { status: 'published' })).status).toBe(200)
+    const started = await patchEn(admin, p.id, { title: `Title ${k}`, slug: `title-${k}` })
+    expect(started.body.row.__states.en.translating).toBe(true)
+    if (def === 'draft') expect((await admin.patch(`/api/cms/post/${p.id}`, { status: 'draft' })).status).toBe(200)
+    return { ...p, k }
+  }
+  if (en !== 'none') expect((await patchEn(admin, p.id, { title: `Title ${k}`, slug: `title-${k}` })).status).toBe(200)
   if (def === 'published') expect((await admin.patch(`/api/cms/post/${p.id}`, { status: 'published' })).status).toBe(200)
-  if (en !== 'follows') expect((await patchEn(admin, p.id, { status: en })).status).toBe(200)
+  if (en === 'draft' || en === 'published') expect((await patchEn(admin, p.id, { status: en })).status).toBe(200)
   return { ...p, k }
 }
 const rows = async () => (await db.query('select locale, published from post_locales order by locale')).rows
 
 const matrix: [Default, English][] = [
-  ['published', 'follows'], ['published', 'draft'], ['published', 'published'],
-  ['draft', 'follows'], ['draft', 'draft'], ['draft', 'published'],
+  ['published', 'none'], ['published', 'translating'], ['published', 'follows'], ['published', 'draft'], ['published', 'published'],
+  ['draft', 'none'], ['draft', 'translating'], ['draft', 'follows'], ['draft', 'draft'], ['draft', 'published'],
 ]
 
 describe('the editor\'s read-only switch and the save agree, for every state', () => {
   for (const [def, en] of matrix) {
     it(`Czech ${def}, English ${en}`, async () => {
-      // Whoever may not publish can write a language that is not marked live, whatever the default language says.
+      // Whoever may not publish can write a language that is not marked live, whatever the default language says: one with
+      // no translation yet or being translated too (visitors do not see what they write).
       const live = en === 'published' || (en === 'follows' && def === 'published')
       for (const [name, c] of [['translator', translator], ['proofreader', proofreader], ['author', author]] as const) {
         const p = await make(def, en)
@@ -64,6 +75,8 @@ describe('the editor\'s read-only switch and the save agree, for every state', (
         expect(told.update, `${name}: told`).toBe(!live)
         expect(saved.status, `${name}: saved (${saved.status})`).toBe(told.update ? 200 : 403)
         if (live) expect(told.why).toBe('published')
+        // A first translation of a live article is being translated; of a draft, it follows the draft.
+        if (en === 'none') expect((await c.get(`/api/cms/post/${p.id}`)).body.row.__states.en).toMatchObject(def === 'published' ? { state: 'draft', translating: true } : { own: false })
       }
       // Whoever may publish is never held.
       const p = await make(def, en)
@@ -146,6 +159,8 @@ describe('shared editing of a language', () => {
     // A language that follows is as live as the default language.
     const follows = await make('published', 'follows')
     expect((await session(translator, follows.id, 'en')).body.access).toBe('read')
+    // One being translated, or not translated yet, is theirs to type in, though Czech is live.
+    for (const en of ['translating', 'none'] as const) expect((await session(translator, (await make('published', en)).id, 'en')).body.access).toBe('write')
     // People who may publish write either.
     for (const id of [open.id, held.id]) expect((await session(editor, id, 'en')).body.access).toBe('write')
   })

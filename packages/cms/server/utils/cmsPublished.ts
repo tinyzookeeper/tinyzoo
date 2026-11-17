@@ -52,8 +52,9 @@ function entryLiveCond(e: CmsEntity, view: any): any {
 /**
  * The entry as one language sees its state: a table whose status and publish date columns
  * are SQL for the state in effect in `locale`. A translation with a state of its own
- * (`published` is set) answers with that, its date included; a translation without one, or
- * no translation at all, follows the entry. So the same rule that decides what is live
+ * (`published` is set) that has been on the website answers with that, its date included; a
+ * translation without one, one being worked on (never on the website: see
+ * `shownTranslationCond`), or no translation at all, follows the entry. So the same rule that decides what is live
  * (`content.published` of the site, the schedule) runs unchanged against this view. For the
  * default language there is never a translation row, so the view is the entry itself.
  * This is the language's own state only: that the default language gates it (a translation is
@@ -64,14 +65,42 @@ export function localeView(e: CmsEntity, t: any, locale: string): any {
   const lt = e.localesTable
   const statusKey = propOf(p.field, e.fields[p.field]!)
   const dateKey = p.dateField ? propOf(p.dateField, e.fields[p.dateField]!) : undefined
-  const mine = sql`${lt.parentId} = ${t.id} and ${lt.locale} = ${locale}`
-  const status = sql`coalesce((select case when ${lt.published} then ${p.publishedValue} else ${p.draftValue} end from ${lt} where ${mine} and ${lt.published} is not null), (${t[statusKey]})::text)`
+  // A state of its own counts only once the language has been on the website: before that (a translation
+  // being worked on) visitors see what they saw without it, the default language through fallback.
+  const mine = sql`${lt.parentId} = ${t.id} and ${lt.locale} = ${locale} and ${lt.published} is not null and ${lt.firstLiveAt} <= now()`
+  const status = sql`coalesce((select case when ${lt.published} then ${p.publishedValue} else ${p.draftValue} end from ${lt} where ${mine}), (${t[statusKey]})::text)`
   const date = dateKey
-    ? sql`(case when exists (select 1 from ${lt} where ${mine} and ${lt.published} is not null) then (select ${lt.publishedAt} from ${lt} where ${mine}) else ${t[dateKey]} end)`
+    ? sql`(case when exists (select 1 from ${lt} where ${mine}) then (select ${lt.publishedAt} from ${lt} where ${mine}) else ${t[dateKey]} end)`
     : undefined
   return new Proxy(t, {
     get: (target, prop, receiver) => (prop === statusKey ? status : prop === dateKey ? date : Reflect.get(target, prop, receiver)),
   })
+}
+
+/**
+ * Publishing per language: the translation rows visitors see, as a condition on the translation
+ * table (undefined for an entity that publishes as one: every row is seen). A row is seen while it
+ * follows the default language (`published` null) or once the language has been on the website in
+ * its own right (`first_live_at` passed; a scheduled language's is its date). A row with a state of
+ * its own that never was is a translation **being worked on**: visitors do not see its text, its
+ * address or its state; they get what they got without it (the default language, through fallback).
+ * An editor's preview sees it. Everything that reads translation text for visitors adds this.
+ */
+export function shownTranslationCond(e: CmsEntity, lt: any = e.localesTable): any {
+  if (!perLocalePublishing(e)) return undefined
+  // Never null (a null first_live_at would make `not (…)` of it null too).
+  return sql`coalesce(${or(isNull(lt.published), lte(lt.firstLiveAt, sql`now()`))}, false)`
+}
+
+/**
+ * Publishing per language: is this translation row (as read) one being worked on — a draft of its
+ * own that was never on the website (see `shownTranslationCond`)? `now` is the time to judge by.
+ * (A language scheduled for the first time is not seen by visitors before its date either, but it is
+ * published: not this.)
+ */
+export function isBeingTranslated(tr: Record<string, any> | null | undefined, now: number = Date.now()): boolean {
+  if (!tr || tr.published !== false) return false
+  return !tr.firstLiveAt || new Date(tr.firstLiveAt).getTime() > now
 }
 
 /**

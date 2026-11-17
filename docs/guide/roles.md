@@ -289,7 +289,7 @@ export const Post = defineEntity('post', {
 })
 ```
 
-`perLocale` adds two columns to `post_locales`: run `pnpm db:generate`, read the migration, `pnpm db:migrate`,
+`perLocale` adds three columns to `post_locales`: run `pnpm db:generate`, read the migration, `pnpm db:migrate`,
 then give the person the role in Settings → Team.
 
 **What the translator sees.** Under their name, *Translator*. In a post's English version:
@@ -298,15 +298,17 @@ then give the person the role in Settings → Team.
   it · Use it as a start* (which copies the Czech text in), and the body offers *Show the original beside it* (Czech
   on the left, the translation on the right, on a wide screen);
 - the category has a grey fill and a lock, and under it *Only Editor and Administrator can change this*;
-- the top bar says *English · Draft* (or *English · Waiting for Czech*) with *Save translation*, and no Publish:
-  the side panel says *An editor will publish it*;
+- the top bar says *English · Being translated* for an English version that has never been on the website (the
+  tooltip: *Visitors see the Czech version until an editor publishes this one.*), or *English · Draft* once an editor
+  took it off, or *English · Waiting for Czech*, with *Save translation*, and no Publish;
 - the media library is not in the sidebar, and pictures already on a post still show.
 
 **What the editor sees.** The list's Languages column shows EN with a mark (a dot when it is on the website, a
-ring for a draft, a clock when scheduled, an hourglass when it is published but waiting for Czech; the tooltip says
-it in words). In the English version, Publish… opens *Publish the English version* (*The other languages stay as
-they are*), with the fields still in Czech listed, and, while Czech is a draft, *Czech is still a draft*: the English
-goes on the website together with Czech. Settings → Team → *What can each role do?* shows the translator's row: *Changes*
+ring for a draft, a clock when scheduled, an hourglass when it is published but waiting for Czech, a languages mark
+when it is being translated; the tooltip says it in words). The home page's drafts and the search say *English · Being
+translated* too. In the English version, Publish… opens *Publish the English version* (*Until now visitors see the
+Czech version here. The other languages stay as they are.* for one being translated), with the fields still in Czech
+listed, and, while Czech is a draft, *Czech is still a draft*: the English goes on the website together with Czech. Settings → Team → *What can each role do?* shows the translator's row: *Changes*
 Posts, *Only reads* Tags, *Publishes* No, drafts only, *Files* None.
 
 **Two things to know before you set this up:**
@@ -314,13 +316,16 @@ Posts, *Only reads* Tags, *Publishes* No, drafts only, *Files* None.
 - **A role cannot be limited to one language.** `entities` and `.access()` hold for an entry in every language, so
   the translator above can also change the Czech text of a post **while it is a draft**. A live Czech version they
   cannot change: a role that may not publish never changes what is live.
-- **A language that follows a live default language counts as live**, so the translator cannot write the English
-  of a post that is already published until it has a state of its own. Two ways to work:
-  translate before the Czech version is published (the English follows a draft, the translator writes it, and it
-  goes live with Czech when an editor publishes), or, for a post that is already live, an editor opens its English
-  version and unpublishes it first (it is then a draft of its own), the translator writes it, and an editor
-  publishes it. Without `perLocale` the second way does not exist: every language of a live post is live, and a
-  role with `publish: false` can only translate drafts.
+- **Translating a post that is already live just works.** The translator opens its English version and saves: the
+  English is *being translated*, a draft that has never been on the website. Visitors on `/en` keep reading the Czech
+  text exactly as before (the item, the lists, the search, the sitemap, links to it), and no webhook says anything
+  changed. The translator saves as often as needed (and may remove it again); an editor reads it in the preview and
+  publishes it, and from then on English is live on its own, so it is the editors' to change or take off. A post that
+  is still a draft works as before: the English follows the draft and goes live with Czech. What stays locked for the
+  translator is what visitors see: an English version that is live (published, or a translation that follows a live
+  Czech version), publishing, scheduling, unpublishing, and removing an English version an editor took off (that
+  would put the Czech text back on `/en`). Without `perLocale` none of this exists: every language of a live post is
+  live, and a role with `publish: false` can only translate drafts.
 
 The editors' guide says the same for the people doing it: [Překlady](../editors/cs/preklady.md#každý-jazyk-zvlášť) and
 [Role a oprávnění](../editors/cs/role-a-opravneni.md).

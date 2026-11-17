@@ -128,8 +128,10 @@ Guide: [roles.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/
 
 `publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', dateField: 'publishedAt', perLocale: true }`
 gives each translation its own state and schedule. It needs a `.localized()` field, is not for page trees, and adds
-two columns (`db:generate`). A language follows the default language until an editor publishes or unpublishes it on
-its own, so turning it on changes nothing on the website. **The default language gates**: a translation is live only
+three columns (`db:generate`). A language follows the default language until an editor publishes or unpublishes it on
+its own, so turning it on changes nothing on the website. A first translation of a live entry is **being translated**:
+visitors keep the default language there until an editor publishes it (send `"status": null` through the API to have
+it follow, and go live, at once). **The default language gates**: a translation is live only
 while the default language is live. An unpublished language is a 404 in that language and is left out of its lists,
 the sitemap, `hreflang` and search. See
 [content-model.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-model.md#publishing-each-language-on-its-own).
