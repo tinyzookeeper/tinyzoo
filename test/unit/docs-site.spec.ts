@@ -89,6 +89,8 @@ describe('pictures and clips per language', () => {
 
   it('use the language’s own file when there is one, the Czech one when not, and leave out a clip with no file', () => {
     cpSync(join(root, 'docs'), join(dir, 'docs'), { recursive: true })
+    // The repository's own English and German screenshots would decide the case: start from none.
+    for (const lang of ['en', 'de']) rmSync(join(dir, 'docs/screenshots/0.6', lang), { recursive: true, force: true })
     mkdirSync(join(dir, 'docs/screenshots/0.6/en'), { recursive: true })
     writeFileSync(join(dir, 'docs/screenshots/0.6/en/team.png'), 'x')
     const clips = join(dir, 'clips')
