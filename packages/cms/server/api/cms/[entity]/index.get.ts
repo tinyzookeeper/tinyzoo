@@ -17,7 +17,7 @@ export default defineEventHandler(async (event) => {
   const sortCol = (sortField ? undefined : (e.table[sortKey] ?? e.table[`${sortKey}Id`])) ?? e.table.createdAt
 
   // Search, filters and status tabs: the same conditions the CSV export uses.
-  const conds = listConditions(e, reg, query, rowFilter, hidden)
+  const conds = listConditions(e, reg, query, rowFilter, hidden, user)
   const where = conds.length ? and(...conds) : undefined
 
   // Ties (and empty values, last) in a fixed order, so pages never repeat or skip rows.
@@ -57,7 +57,8 @@ export default defineEventHandler(async (event) => {
 
   // Which languages each row is available in (for the list's language column).
   if (reg.locales && e.localized.length) {
-    const avail = await availableLocales(db, reg, e, rows.map((r) => r.id))
+    // Judged by the translated fields this person may read (one hidden from them never says it is translated).
+    const avail = await availableLocales(db, reg, e, rows.map((r) => r.id), { fields: e.localized.filter((k) => !hidden.has(k)) })
     for (const r of rows) r.__locales = avail.get(r.id) ?? [reg.locales.default]
     // Publishing per language: where a translation's state differs from the entry's, the list says so.
     if (e.publish?.perLocale) {

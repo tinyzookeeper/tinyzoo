@@ -699,6 +699,27 @@ state. Not available for page trees (`tree`) yet.
 
 Turning it on is one migration: [upgrading](../upgrading.md#from-05-to-06).
 
+### Finding what needs translating
+
+The admin's home page has a **Needs translating** list for everyone who may write translations of a collection with
+`.localized()` fields: entries that are live or scheduled in the default language (status published, any date) whose
+translation into another language is missing, being translated, or (`perLocale`) a draft of its own, newest first,
+each opening that language's editor (`?locale=en`). It follows what the person may **update**, nothing else: the
+role and the entity's own `update` rule (an author's own entries), at least one translated field they may edit, and,
+for a role that may not publish, a language that is not live (the rule the translation write applies). So a
+translator sees no live pages of a page tree (all its languages publish together) and no collection it only reads.
+Globals are left out (a translation of one is live once saved). People who may publish see the same list; a
+translation that already holds text offers *Review* instead of *Translate*. Nothing shows on a site with one language.
+
+Every list of such a collection filters by language on the server (counts and pages included), with the language
+filters in its Filter panel: `filter.lang:<code>=<state>` (several states comma-separated: any of them), where the
+state is `missing` (nothing translated; per language: and no draft of its own), `translating`, `draft` (taken off on
+its own, or translated under a draft default language), `published` (its translated text is what visitors read in that
+language), `translated`, or `todo` (the home page's list, narrowed to what this person may update, as above). A
+language that is scheduled, or waits for the default language, is in none of the first four. Whether a language is
+translated is judged by the translated fields the person may read (`.access({ read })`), so a hidden field never tells
+them whether it has text. The CSV export takes the same parameters. A page tree filtered by language shows as a flat table.
+
 ## Access rules
 
 Three roles come with every site, whatever the config says (a site can add its own, and set who

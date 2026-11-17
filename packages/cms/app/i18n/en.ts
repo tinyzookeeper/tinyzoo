@@ -144,6 +144,10 @@ export default {
     summaryCalm: 'Everything is on the website.',
     summaryNext: 'Next up: {title}, {date}.',
     goesLive: 'Goes live at {time}',
+    translate: 'Needs translating',
+    translateAction: 'Translate',
+    reviewAction: 'Review',
+    summaryTranslate: { one: 'One text needs translating.', other: '{count} texts need translating.' },
   },
   list: {
     filter: 'Filter',

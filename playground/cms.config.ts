@@ -176,13 +176,16 @@ export const Post = defineEntity("post", {
     }).label({ en: "Author", cs: "Autor", de: "Autor" }),
     tags: f.relation({ to: () => Tag, kind: "many-to-many" }).label({ en: "Tags", cs: "Štítky", de: "Schlagwörter" }),
     body: f.richtext().localized().label({ en: "Text", cs: "Text", de: "Text" }),
-    // A translatable group: each language has its own whole "where" note.
+    // A translatable group: each language has its own whole "where" note. Editors and proofreaders change it;
+    // the curator (who only reads posts) does not see it at all, so it never tells them whether it is translated.
     location: f.group({
       fields: {
         place: f.text({ required: true }).label({ en: "Place", cs: "Místo", de: "Ort" }),
         note: f.text().label({ en: "Note", cs: "Poznámka", de: "Anmerkung" }),
       },
-    }).optional().localized().access({ edit: ["editor", roles.proofreader] }).label({ en: "Location", cs: "Místo konání", de: "Veranstaltungsort" }),
+    }).optional().localized()
+      .access({ read: ["editor", "author", roles.translator, roles.proofreader, roles.marketer], edit: ["editor", roles.proofreader] })
+      .label({ en: "Location", cs: "Místo konání", de: "Veranstaltungsort" }),
     gallery: f.gallery().label({ en: "Photos", cs: "Fotky", de: "Fotos" })
       .help({ en: "Shown under the text, in this order.", cs: "Zobrazí se pod textem, v tomto pořadí.", de: "Wird in dieser Reihenfolge unter dem Text angezeigt." }),
     ...seo(),

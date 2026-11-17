@@ -208,6 +208,11 @@ the browser tab with unsaved changes still gets the browser's own prompt.
 
 Override with `admin.list.layout`.
 
+- **Language filters** (content with translations): the Filter panel has one choice per other language, in the
+  state words (*Needs translating*, *Not translated*, *Being translated*, *Draft*, *On the website*); the chip reads
+  "English: Not translated". The home page's **Needs translating** (after "Waiting for you", the same rows: the
+  language and its state, *Translate*, or *Review* for someone who publishes a translation with text) links to the
+  list filtered by *Needs translating* ("View all", one link per collection and language when there are several).
 - **Table** (default). Above it, an **"In progress"** strip with drafts and scheduled
   entries (unfiltered first page), each with its verb (Finish / Edit). Rows: thumbnail,
   title and address; columns from `admin.list.columns`; languages say only what is

@@ -3,8 +3,9 @@ import { and, asc, desc, eq, gt, gte, isNull, listLayout, ne, or, propOf, sql } 
 // GET /api/cms/_overview — what the admin home page shows: how many items each
 // collection holds, the most recently edited items across all of them, this
 // person's own drafts, what is scheduled to go live next and what is coming up in
-// dated collections (events: the next ones by their date). Only what the
-// signed-in user may read (entity- and row-level access applied).
+// dated collections (events: the next ones by their date), and what needs translating
+// (`translate`: see translationWork). Only what the signed-in user may read
+// (entity- and row-level access applied).
 const RECENT = 8
 
 export default defineEventHandler(async (event) => {
@@ -104,5 +105,6 @@ export default defineEventHandler(async (event) => {
   drafts.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   scheduled.sort((a, b) => new Date(a.publishAt!).getTime() - new Date(b.publishAt!).getTime())
   upcoming.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
-  return { counts, recent: recent.slice(0, RECENT), drafts: drafts.slice(0, RECENT), scheduled: scheduled.slice(0, RECENT), upcoming: upcoming.slice(0, RECENT) }
+  const translate = await translationWork(db, reg, user, RECENT)
+  return { counts, recent: recent.slice(0, RECENT), drafts: drafts.slice(0, RECENT), scheduled: scheduled.slice(0, RECENT), upcoming: upcoming.slice(0, RECENT), translate }
 })

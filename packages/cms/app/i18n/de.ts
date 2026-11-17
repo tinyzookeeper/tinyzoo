@@ -143,6 +143,10 @@ export default {
     summaryCalm: 'Alles ist auf der Website.',
     summaryNext: 'Als Nächstes: {title}, {date}.',
     goesLive: 'Wird um {time} veröffentlicht',
+    translate: 'Wartet auf Übersetzung',
+    translateAction: 'Übersetzen',
+    reviewAction: 'Prüfen',
+    summaryTranslate: { one: 'Ein Text wartet auf Übersetzung.', other: '{count} Texte warten auf Übersetzung.' },
   },
   list: {
     filter: 'Filter',
