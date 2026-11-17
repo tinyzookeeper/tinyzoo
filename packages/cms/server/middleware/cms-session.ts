@@ -38,4 +38,6 @@ export default defineEventHandler(async (event) => {
   // The version this request was authorised with; writes that re-sign the session
   // must not upgrade a session past a concurrent password change (see me.patch).
   event.context.cmsSessionVersion = u.sessionVersion
+  // When this browser signed in: a session written again keeps it (continueCmsSession).
+  event.context.cmsSignedInAt = session.cms.iat
 })

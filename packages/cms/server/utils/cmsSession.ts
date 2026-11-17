@@ -50,16 +50,38 @@ export function requireCmsUser(event: any): CmsUser {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
- * The account a sealed session belongs to, if it may still be used: it exists, is
- * active, and the session was issued for its current session version (a password
- * change or "sign out everywhere" bumps it). Null otherwise.
+ * Was the session signed in less than `runtimeConfig.session.maxAge` ago (NUXT_SESSION_MAX_AGE,
+ * seconds; 14 days by default)? From `cms.iat`, the time of the sign-in that a session written
+ * again keeps (cmsAuth.ts, startCmsSession). A session without it was not made by this version:
+ * not in time. Without a maxAge only that is checked.
+ */
+export function signedInRecently(session: any, now = Date.now()): boolean {
+  const iat = session?.cms?.iat
+  if (typeof iat !== 'number' || !Number.isFinite(iat) || iat > now + 60_000) return false
+  const maxAge = Number((useRuntimeConfig().session as any)?.maxAge)
+  return !(maxAge > 0) || now - iat < maxAge * 1000
+}
+
+/**
+ * The account a sealed session belongs to, if it may still be used: signed in less than
+ * `maxAge` ago (signedInRecently), and the account exists, is active, and the session was
+ * issued for its current session version (a password change or "sign out everywhere"
+ * bumps it). Null otherwise.
  */
 export async function activeAccountOf(session: any): Promise<any | null> {
-  const id = session?.cms?.uid
+  if (!signedInRecently(session)) return null
+  return activeAccount(session?.cms?.uid, session?.cms?.sv)
+}
+
+/**
+ * The account, if it is active and still at session version `sv`: for a socket admitted
+ * earlier with a session (activeAccountOf), checked again while it stays open.
+ */
+export async function activeAccount(id: unknown, sv: unknown): Promise<any | null> {
   if (typeof id !== 'string' || !UUID.test(id)) return null
   const { db, reg } = useCms()
   const [u] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.id, id))
-  if (!u || u.status !== 'active' || u.sessionVersion !== session?.cms?.sv) return null
+  if (!u || u.status !== 'active' || u.sessionVersion !== sv) return null
   return u
 }
 

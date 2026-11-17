@@ -118,7 +118,7 @@ function dropSocket(ws: any, code = 4401, reason = 'Not permitted') {
 
 /** Is this account still allowed this document, and with which access? */
 async function recheck(ctx: CollabContext): Promise<'write' | 'read' | null> {
-  const u = await activeAccountOf({ cms: { uid: ctx.user.id, sv: ctx.sv } })
+  const u = await activeAccount(ctx.user.id, ctx.sv)
   if (!u || u.role !== ctx.user.role) return null
   const target = parseCollabName(collabName(ctx.target.entityName, ctx.target.id, ctx.target.locale))
   return target ? collabAccess({ ...ctx.user, role: u.role }, target) : null
@@ -236,7 +236,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
       // Only the canonical spelling of a name.
       if (!target || target.name !== documentName) throw new Error('Unknown document')
       // The account as it is now (disabled, demoted, signed out everywhere?).
-      const u = await activeAccountOf({ cms: { uid: socketUser.id, sv: context.sv } })
+      const u = await activeAccount(socketUser.id, context.sv)
       if (!u) throw new Error('Session no longer valid')
       const user: CmsUser = { ...socketUser, role: u.role, name: u.name || socketUser.name }
       const access = await collabAccess(user, target)

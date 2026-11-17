@@ -293,7 +293,7 @@ export default defineNuxtModule<CmsModuleOptions>({
     locale: string | null
   }
   interface UserSession {
-    cms?: { uid: string; sv: number }
+    cms?: { uid: string; sv: number; iat: number }
   }
 }
 declare module 'nitropack/types' {

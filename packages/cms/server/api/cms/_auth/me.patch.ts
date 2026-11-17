@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     await clearUserSession(event)
     throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
   }
-  await startCmsSession(event, u)
+  await continueCmsSession(event, u) // the sign-in time stays: this does not make the session last longer
   await audit(event, 'account.update', { meta: { fields: Object.keys(data) } })
   return { user: sessionUser(u) }
 })

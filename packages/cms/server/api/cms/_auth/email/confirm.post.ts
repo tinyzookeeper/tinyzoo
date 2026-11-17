@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const sameAccount = getCmsSession(event)?.id === updated.id
-  if (sameAccount) await startCmsSession(event, updated)
+  if (sameAccount) await continueCmsSession(event, updated) // the sign-in time stays
   await audit(event, 'account.email', { userId: updated.id, meta: { email: updated.email, previousEmail: before.email } })
 
   const locale = updated.locale || requestLocale(event)
