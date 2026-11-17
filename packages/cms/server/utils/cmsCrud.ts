@@ -130,7 +130,11 @@ export function accessWhere(
   // `user.base === 'author'` to treat a custom role like its parent.
   const rule = (e.access as any)?.[op]
   if (!rule) return byRole
-  const res = rule({ user: { ...user, base: roleOf(user)?.base ?? null }, table: e.table })
+  // A role name of an external sign-in on a site without `defineRoles` (legacy) gets no
+  // `base`: it reaches what the entity rules allow, as before roles existed, but a rule that
+  // trusts `base === 'editor'` (the forms' messages) must not take it for an editor.
+  const role = roleOf(user)
+  const res = rule({ user: { ...user, base: role?.legacy ? null : role?.base ?? null }, table: e.table })
   if (res === false || res === null || res === undefined) return { allowed: false, where: undefined }
   return { allowed: true, where: both(byRole.where, res === true ? undefined : res) }
 }

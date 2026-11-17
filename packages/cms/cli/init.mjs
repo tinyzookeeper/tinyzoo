@@ -326,7 +326,7 @@ function shape(root, { version, languages, presets, demo, packageManager, folder
  */
 export function nextSteps({ folder, packageManager: pm, demo, regenerate, installed = false, generated = false }) {
   const run = (script) => runScript(pm, script)
-  const lines = [`cd ${folder}`]
+  const lines = [`cd ${/[\s'"$`\\]/.test(folder) ? `'${folder.replace(/'/g, `'\\''`)}'` : folder}`]
   if (!installed) lines.push(`${pm} install`)
   if (!generated && regenerate.schema) lines.push(`${run('db:generate')}      # the first migration, from your cms.config.ts`)
   if (!generated && regenerate.client) lines.push(`${run('cms:client')}      # the typed client for the pages`)

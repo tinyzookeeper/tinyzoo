@@ -202,3 +202,17 @@ describe('field access on the server', () => {
     expect(rolesUtil.stripUnreadable(entity, user('author'), { heroId: 'h', name: 'n' })).toEqual({ name: 'n' })
   })
 })
+
+describe('an external sign-in on a site without defineRoles', () => {
+  it('gives a role name the site does not know no `base`, so the forms\' default rule does not take it for an editor', async () => {
+    const { formsReadAccess } = await import('tinyzoo/forms')
+    mode = 'external'
+    const inbox = defineEntity('inbox', { label: 'Inbox', titleField: 'title', fields: { title: f.text() }, access: { read: formsReadAccess } }) as any
+    expect(crud.accessWhere(inbox, 'read', user('member')).allowed).toBe(false)
+    expect(crud.accessWhere(inbox, 'read', user('editor')).allowed).toBe(true)
+    let seen: any
+    const spy = defineEntity('spy', { label: 'Spy', titleField: 'title', fields: { title: f.text() }, access: { read: ({ user }: any) => { seen = user.base; return true } } }) as any
+    expect(crud.accessWhere(spy, 'read', user('member')).allowed).toBe(true) // the entity rules decide, as before roles existed
+    expect(seen).toBeNull()
+  })
+})
