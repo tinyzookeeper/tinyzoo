@@ -1235,10 +1235,12 @@ Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, one ag
 
 | Slice | Branch | State |
 |---|---|---|
-| M — custom roles, per-field permissions | `feat/1.0-roles` | done (e7fac16), waiting for merge; admin screens not yet seen in a browser |
-| N — per-language publishing | `feat/1.0-locale-publishing` | done (f1d4257), waiting for merge |
-| O — `pnpm create tinyzoo` | `feat/1.0-create` | done (e9b0887) |
-| P — API review before the freeze | `feat/1.0-api-review` | done (6f7d046), waiting for merge; 11 proposals for Vojtěch in its write-up |
+| M — custom roles, per-field permissions | `feat/1.0-roles` | merged into `feat/1.0-wave4`; admin screens not yet seen in a browser |
+| N — per-language publishing | `feat/1.0-locale-publishing` | merged into `feat/1.0-wave4` |
+| O — `pnpm create tinyzoo` | `feat/1.0-create` | merged into `feat/1.0-wave4` |
+| P — API review before the freeze | `feat/1.0-api-review` | merged into `feat/1.0-wave4`; 11 proposals for Vojtěch in its write-up |
+
+**Integration (`feat/1.0-wave4`, 2026-11-17).** The four slices merged in the order P, M, N, O. Conflicts by hand in `src/entity.ts` (the list-parameter deprecation next to the `perLocale` checks; `CmsRegistry.roles`), `cmsTranslationWrite.ts` (field rules and per-language state on one write), the content API's single item, the editor's translation save, `cli/index.ts` (`tinyzoo help` and the init flags), `forms/index.ts`, and the combined "From 0.5 to 0.6" in `docs/upgrading.md`. Only N adds a migration (`0022`), so nothing had to be regenerated (`pnpm db:generate`: no changes). The role helpers the server uses are `@internal`; `defineRoles`, the role types and `.access()` are public and in `docs/api-surface.md`; `tinyzoo init`'s flags are in `cli/usage.ts`; goldens updated. Typecheck and unit tests green (924). Two independent reviews running: A security and access, B upgrades, API freeze and integration.
 
 ### 0.6 P — API review before the freeze
 
