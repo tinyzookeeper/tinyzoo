@@ -1,15 +1,10 @@
-import { eq } from 'tinyzoo'
-
 // GET /api/cms/_auth/email — the change of your sign-in email that is waiting for its
-// link to be opened, if any: { pending: { email, expiresAt } | null }.
+// link to be opened, if any: { pending: { email, expiresAt } | null }. A change that can
+// no longer happen (expired, cancelled by a new password) is forgotten on the way.
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   const me = requireCmsUser(event)
   const { db, reg } = useCms()
-  const pending = await readEmailChange(db, reg, me.id)
-  if (!pending) return { pending: null }
-  const [token] = await db.select().from(reg.cmsTokens).where(eq(reg.cmsTokens.id, pending.tokenId))
-  const [user] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.id, me.id))
-  const usable = !!token && !token.usedAt && !!user && emailChangeUsable(pending, token, user)
-  return { pending: usable ? { email: pending.email, expiresAt: pending.expiresAt } : null }
+  const pending = await readLiveEmailChange(db, reg, me.id)
+  return { pending: pending ? { email: pending.email, expiresAt: pending.expiresAt } : null }
 })

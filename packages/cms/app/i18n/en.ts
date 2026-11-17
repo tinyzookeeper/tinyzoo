@@ -461,6 +461,12 @@ export default {
     emailLinkExpired: 'It has expired, was already used, or a newer change was asked for. Ask for a new one on your account page.',
     emailTakenTitle: 'This address is taken',
     emailTakenBody: 'Another account already uses {email}, so nothing was changed.',
+    emailRevertTabTitle: 'Undo the email change',
+    emailRevertTitle: 'Take your account back',
+    emailRevertBody: '{email} becomes the sign-in email of your account at {site} again. Choose a new password too: whoever made the change knew the old one. Everyone else is signed out.',
+    emailRevertAction: 'Restore the address and save the password',
+    emailRevertExpired: 'It has expired or was already used. If someone else still has your account, contact the administrator of the site.',
+    emailRevertTakenBody: 'Another account uses {email} now, so nothing was changed. Contact the administrator of the site.',
   },
   roles: {
     admin: { name: 'Administrator', description: 'Everything, including people and site settings.' },
@@ -520,6 +526,9 @@ export default {
     changeEmailInvitedBody: 'The invitation goes to the new address, and the link sent to the old one stops working.',
     newEmail: 'New email address',
     emailChanged: 'Email changed',
+    changeEmailDisabledBody: 'Their access is disabled, so no email goes to either address. They will sign in with the new one once you enable them again.',
+    yourPassword: 'Your password',
+    yourPasswordHint: 'Your own, so that a session left open is not enough to move someone’s account.',
   },
   privacy: {
     title: 'Privacy',
@@ -534,6 +543,7 @@ export default {
     noSubmissions: 'No messages sent from this address.',
     account: 'Account in this administration',
     noAccount: 'No account with this address.',
+    emailChanges: 'A change of sign-in email names this address: one waiting for confirmation, or the way back after one.',
     activity: 'Activity log',
     noActivity: 'No entries about this address.',
     activityBody: 'Entries made by this account, entries about it (invitation, role) and failed sign-ins with this address. Included in the export.',
@@ -546,6 +556,7 @@ export default {
     eraseTitle: 'Delete everything stored about {email}?',
     // The confirmation lists what this lookup found, one line each (only what exists).
     eraseSubmissions: { one: '{count} form message is deleted for good, with its saved versions.', other: '{count} form messages are deleted for good, with their saved versions.' },
+    eraseEmailChanges: 'A waiting change of sign-in email to this address, or the way back to it, is cancelled.',
     eraseAccount: 'The account with this address is disabled and anonymised: its name and email are removed, but what it did stays under “deleted account”.',
     eraseActivity: { one: 'In the activity log ({count} entry), the name, email and IP address are removed.', other: 'In the activity log ({count} entries), the name, email and IP address are removed.' },
     eraseUndone: 'This cannot be undone.',

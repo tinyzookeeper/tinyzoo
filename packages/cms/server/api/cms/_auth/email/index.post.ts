@@ -4,7 +4,8 @@ import { z } from 'zod'
 // POST /api/cms/_auth/email — ask to change your own sign-in email. Needs your current
 // password. Nothing changes yet: a one-time link goes to the new address (it makes the
 // change, see confirm.post.ts) and a notice to the current one (if it was not you, a new
-// password cancels the change).
+// password cancels the change while it waits; once it is made, the next notice to the
+// old address carries a link that undoes it, see revert.post.ts).
 //
 // Wrong passwords count against the same limits as failed sign-ins of this account
 // (per address and per client address), so this is no second door for guessing it.
@@ -45,8 +46,13 @@ export default defineEventHandler(async (event) => {
   if (data.email === u.email) {
     throw createError({ statusCode: 422, statusMessage: 'Validation failed', data: [{ path: ['email'], code: 'same_email', message: 'This is already your address' }] })
   }
-  // A handful of requests an hour: each one sends two emails.
-  if (!(await rateLimit(`email-change:${u.id}`, 5, 60 * 60_000))) throw tooManyRequests(event, 'Too many requests; try again later', 60 * 60_000)
+  // A handful of requests an hour: each one sends two emails. Per account, per address
+  // written to (many accounts must not flood one stranger's mailbox) and per client.
+  const HOUR = 60 * 60_000
+  const allowed = (await rateLimit(`email-change:${u.id}`, 5, HOUR))
+    && (await rateLimit(`email-change:to:${data.email}`, 3, HOUR))
+    && (await rateLimit(`email-change:ip:${ip}`, 10, HOUR))
+  if (!allowed) throw tooManyRequests(event, 'Too many requests; try again later', HOUR)
   if (u.sessionVersion !== event.context.cmsSessionVersion) {
     await clearUserSession(event)
     throw createError({ statusCode: 401, statusMessage: 'Authentication required' })
@@ -70,8 +76,9 @@ export default defineEventHandler(async (event) => {
         console.error(`[cms] could not send the ${what} email`, redactEmails(safeErrorMessage(err)))
       }
     }
-    await send(inUse ? emailInUseNotice({ to: data.email, locale }) : emailConfirmEmail({ to: data.email, url: linkBase + secret, locale }), inUse ? 'address-in-use' : 'email confirmation')
+    // The old address first: its owner hears before the link can be opened.
     await send(emailRequestedNotice({ to: u.email, newEmail: data.email, url: forgotUrl, locale }), 'email change notice')
+    await send(inUse ? emailInUseNotice({ to: data.email, locale }) : emailConfirmEmail({ to: data.email, url: linkBase + secret, locale }), inUse ? 'address-in-use' : 'email confirmation')
   })().catch((err) => console.error('[cms] email change request failed', redactEmails(safeErrorMessage(err))))
   event.waitUntil(work)
 

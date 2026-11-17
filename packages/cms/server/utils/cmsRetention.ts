@@ -7,6 +7,8 @@ import { inArray, lt, sql } from 'tinyzoo'
  *    past their form's `retentionDays`; none = kept).
  *  - The audit log: `cms.retention.auditDays` (default 365; 0 = kept) — it holds who
  *    did what and, for failed sign-ins, the email and address tried.
+ *  - Changes of sign-in address: one nobody confirmed, or a way back nobody took, is
+ *    deleted once its link has expired (cms_state `email-change:*`, `email-revert:*`).
  *
  * A daily task (`cms:retention`) deletes what is past its time, in batches, one
  * instance at a time (an advisory lock), and writes one audit entry with the counts
@@ -47,6 +49,8 @@ export async function runRetention(): Promise<RetentionResult | null> {
         if (old.length < BATCH * 2) break
       }
     }
+    // Changes of sign-in address nobody confirmed, and ways back nobody took, once expired.
+    await sweepEmailStates(tx, reg)
     return true
   })
   if (!ran) return null

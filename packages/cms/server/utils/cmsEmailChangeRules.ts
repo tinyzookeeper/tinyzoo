@@ -18,6 +18,29 @@ export interface PendingEmailChange {
 export const EMAIL_CHANGE_STATE_PREFIX = 'email-change:'
 export const emailChangeStateKey = (userId: string) => `${EMAIL_CHANGE_STATE_PREFIX}${userId}`
 
+/**
+ * A way back from a change that was made, kept in cms_state under
+ * `email-revert:<userId>:<tokenId>`: the address the account had before (the link went
+ * there, in the "your email was changed" notice). One row per change, so after A → B → C
+ * the link in A's mailbox still restores A.
+ */
+export interface EmailRevert {
+  /** The address to restore (the account's address before the change). */
+  email: string
+  expiresAt: string
+}
+
+export const EMAIL_REVERT_STATE_PREFIX = 'email-revert:'
+export const emailRevertStateKey = (userId: string, tokenId: string) => `${EMAIL_REVERT_STATE_PREFIX}${userId}:${tokenId}`
+/** A LIKE pattern for every way back of one account (user ids are uuids: no `%` or `_` to escape). */
+export const emailRevertStatePattern = (userId: string) => `${EMAIL_REVERT_STATE_PREFIX}${userId}:%`
+
+export function asEmailRevert(value: unknown): EmailRevert | null {
+  const v = value as Partial<EmailRevert> | null
+  if (!v || typeof v !== 'object' || typeof v.email !== 'string' || typeof v.expiresAt !== 'string') return null
+  return { email: v.email, expiresAt: v.expiresAt }
+}
+
 /** A stored value, if it has the shape of a pending change (cms_state is plain JSON). */
 export function asPendingEmailChange(value: unknown): PendingEmailChange | null {
   const v = value as Partial<PendingEmailChange> | null
@@ -46,10 +69,27 @@ export function emailChangeUsable(
 }
 
 /**
+ * Is a pending change dead for good (so its cms_state row can go)? Its own link was
+ * used, replaced or is gone, it expired, or the account moved on (session version,
+ * status). Unlike emailChangeUsable this looks at the pending change's own token, not
+ * at whichever link somebody opened: an older link must not delete a newer request.
+ */
+export function emailChangeDead(
+  pending: PendingEmailChange,
+  ownToken: { id: string; expiresAt: Date | string; usedAt: Date | string | null } | null | undefined,
+  user: { status: string; sessionVersion: number } | null | undefined,
+  now = new Date(),
+): boolean {
+  if (!ownToken || ownToken.usedAt || !user) return true
+  return !emailChangeUsable(pending, ownToken, user, now)
+}
+
+/**
  * An address as a notice to the old mailbox shows it: enough for the owner to recognise
  * their own new address, not enough to hand it in full to whoever reads the old mailbox
  * now (a shared or handed-over work address is the usual reason to change it).
- * `jana.novakova@example.com` → `j…a@example.com`; `jo@x.cz` → `j…@x.cz`.
+ * `jana.novakova@example.com` → `j…a@example.com`; `jan@x.cz` → `j…@x.cz` (a short local
+ * part shows only its first character: two of three would all but spell it out).
  */
 export function maskEmail(email: string): string {
   const at = email.lastIndexOf('@')
@@ -57,7 +97,7 @@ export function maskEmail(email: string): string {
   const local = email.slice(0, at)
   const domain = email.slice(at + 1)
   const chars = [...local]
-  const shown = chars.length <= 2 ? `${chars[0]}…` : `${chars[0]}…${chars[chars.length - 1]}`
+  const shown = chars.length <= 3 ? `${chars[0]}…` : `${chars[0]}…${chars[chars.length - 1]}`
   return `${shown}@${domain}`
 }
 

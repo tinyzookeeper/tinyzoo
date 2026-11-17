@@ -26,7 +26,7 @@ async function confirmChange() {
     const res = await $fetch<{ email: string; signedIn: boolean }>('/api/cms/_auth/email/confirm', { method: 'POST', body: { token: token.value } })
     changedTo.value = res.email
     stillSignedIn.value = res.signedIn
-    // This browser's session now carries the new address (or, signed in elsewhere, was ended).
+    // A browser signed in to this account now carries the new address in its session; one signed in as somebody else is left alone.
     if (loggedIn.value) await refreshSession()
     outcome.value = 'done'
   }

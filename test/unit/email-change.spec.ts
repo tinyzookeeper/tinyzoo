@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { asPendingEmailChange, emailChangeStateKey, emailChangeUsable, isUniqueViolation, maskEmail } from '../../packages/cms/server/utils/cmsEmailChangeRules'
+import { asEmailRevert, asPendingEmailChange, emailChangeDead, emailChangeStateKey, emailChangeUsable, emailRevertStateKey, emailRevertStatePattern, isUniqueViolation, maskEmail } from '../../packages/cms/server/utils/cmsEmailChangeRules'
 
 const now = new Date('2026-11-17T12:00:00Z')
 const later = new Date(now.getTime() + 60_000).toISOString()
@@ -58,12 +58,48 @@ describe('maskEmail', () => {
     expect(maskEmail('j@x.cz')).toBe('j…@x.cz')
   })
 
+  it('shows only the first letter of a short name (two of three letters would all but spell it)', () => {
+    expect(maskEmail('jan@x.cz')).toBe('j…@x.cz')
+    expect(maskEmail('eva@x.cz')).toBe('e…@x.cz')
+    expect(maskEmail('jana@x.cz')).toBe('j…a@x.cz')
+  })
+
   it('never shows the whole name, and copes with odd input', () => {
     expect(maskEmail('ab@x.cz')).not.toContain('ab@')
     expect(maskEmail('no-at-sign')).toBe('…')
     expect(maskEmail('@x.cz')).toBe('…')
-    expect(maskEmail('a@b@x.cz')).toBe('a…b@x.cz')
+    expect(maskEmail('a@b@x.cz')).toBe('a…@x.cz')
+    expect(maskEmail('ab@c@x.cz')).toBe('a…c@x.cz')
     expect(maskEmail('žofie@x.cz')).toBe('ž…e@x.cz')
+  })
+})
+
+describe('emailChangeDead', () => {
+  const own = { id: 't1', expiresAt: later, usedAt: null }
+  it('is alive while its own link is unused, unexpired, and the account unchanged', () => {
+    expect(emailChangeDead(pending, own, user, now)).toBe(false)
+  })
+  it('is dead once its own link is used or gone, it expired, or the account moved on', () => {
+    expect(emailChangeDead(pending, { ...own, usedAt: now }, user, now)).toBe(true)
+    expect(emailChangeDead(pending, null, user, now)).toBe(true)
+    expect(emailChangeDead(pending, { ...own, expiresAt: earlier }, user, now)).toBe(true)
+    expect(emailChangeDead({ ...pending, expiresAt: earlier }, own, user, now)).toBe(true)
+    expect(emailChangeDead(pending, own, { ...user, sessionVersion: 4 }, now)).toBe(true)
+    expect(emailChangeDead(pending, own, { ...user, status: 'disabled' }, now)).toBe(true)
+    expect(emailChangeDead(pending, own, null, now)).toBe(true)
+  })
+})
+
+describe('the way back (email-revert)', () => {
+  it('is keyed by account and link, so one account can have several', () => {
+    expect(emailRevertStateKey('u1', 't1')).toBe('email-revert:u1:t1')
+    expect(emailRevertStatePattern('u1')).toBe('email-revert:u1:%')
+  })
+  it('reads only well-formed values', () => {
+    expect(asEmailRevert({ email: 'old@example.com', expiresAt: later })).toEqual({ email: 'old@example.com', expiresAt: later })
+    expect(asEmailRevert({ email: 'old@example.com' })).toBeNull()
+    expect(asEmailRevert('old@example.com')).toBeNull()
+    expect(asEmailRevert(null)).toBeNull()
   })
 })
 

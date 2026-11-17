@@ -460,6 +460,12 @@ export default {
     emailLinkExpired: 'Er ist abgelaufen, wurde bereits verwendet, oder inzwischen wurde eine neuere Änderung angefordert. Fordern Sie auf Ihrer Kontoseite einen neuen an.',
     emailTakenTitle: 'Diese Adresse ist vergeben',
     emailTakenBody: '{email} wird schon von einem anderen Konto verwendet, daher wurde nichts geändert.',
+    emailRevertTabTitle: 'E-Mail-Änderung rückgängig machen',
+    emailRevertTitle: 'Holen Sie sich Ihr Konto zurück',
+    emailRevertBody: '{email} wird wieder die Anmelde-E-Mail Ihres Kontos bei {site}. Legen Sie auch ein neues Passwort fest: Wer die Änderung gemacht hat, kannte das alte. Alle anderen werden abgemeldet.',
+    emailRevertAction: 'Adresse zurückholen und Passwort speichern',
+    emailRevertExpired: 'Der Link ist abgelaufen oder wurde schon verwendet. Wenn noch jemand anderes Ihr Konto hat, wenden Sie sich an den Administrator der Website.',
+    emailRevertTakenBody: '{email} gehört jetzt zu einem anderen Konto, daher wurde nichts geändert. Wenden Sie sich an den Administrator der Website.',
   },
   roles: {
     admin: { name: 'Administrator', description: 'Alles, auch Teamverwaltung und Website-Einstellungen.' },
@@ -519,6 +525,9 @@ export default {
     changeEmailInvitedBody: 'Die Einladung geht an die neue Adresse, und der Link an die alte Adresse wird ungültig.',
     newEmail: 'Neue E-Mail-Adresse',
     emailChanged: 'E-Mail geändert',
+    changeEmailDisabledBody: 'Der Zugang ist gesperrt, daher geht an keine der Adressen eine E-Mail. Nach dem Entsperren meldet sich die Person mit der neuen Adresse an.',
+    yourPassword: 'Ihr Passwort',
+    yourPasswordHint: 'Ihr eigenes, damit eine offen gelassene Sitzung nicht reicht, um das Konto einer anderen Person umzuziehen.',
   },
   privacy: {
     title: 'Datenschutz',
@@ -533,6 +542,7 @@ export default {
     noSubmissions: 'Von dieser Adresse wurde keine Nachricht gesendet.',
     account: 'Konto in dieser Verwaltung',
     noAccount: 'Kein Konto mit dieser Adresse.',
+    emailChanges: 'Eine Änderung der Anmelde-E-Mail nennt diese Adresse: eine, die auf Bestätigung wartet, oder der Weg zurück nach einer Änderung.',
     activity: 'Aktivitätsprotokoll',
     noActivity: 'Keine Einträge zu dieser Adresse.',
     activityBody: 'Einträge, die dieses Konto erzeugt hat, Einträge über das Konto (Einladung, Rolle) und fehlgeschlagene Anmeldungen mit dieser Adresse. Sie sind im Export enthalten.',
@@ -545,6 +555,7 @@ export default {
     eraseTitle: 'Alles zu {email} löschen?',
     // The confirmation lists what this lookup found, one line each (only what exists).
     eraseSubmissions: { one: '{count} Formularnachricht wird endgültig gelöscht, samt gespeicherter Versionen.', other: '{count} Formularnachrichten werden endgültig gelöscht, samt gespeicherter Versionen.' },
+    eraseEmailChanges: 'Eine wartende Änderung der Anmelde-E-Mail auf diese Adresse oder der Weg zurück zu ihr wird abgebrochen.',
     eraseAccount: 'Das Konto mit dieser Adresse wird gesperrt und anonymisiert: Name und E-Mail werden entfernt, seine Aktionen bleiben unter „gelöschtes Konto“.',
     eraseActivity: { one: 'Im Aktivitätsprotokoll ({count} Eintrag) werden Name, E-Mail und IP-Adresse entfernt.', other: 'Im Aktivitätsprotokoll ({count} Einträge) werden Name, E-Mail und IP-Adresse entfernt.' },
     eraseUndone: 'Das lässt sich nicht rückgängig machen.',

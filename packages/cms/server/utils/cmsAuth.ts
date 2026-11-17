@@ -34,8 +34,11 @@ const toBase64Url = (bytes: Uint8Array) =>
 /** A new one-time link secret: 32 random bytes, base64url. */
 export const newLinkSecret = () => toBase64Url(crypto.getRandomValues(new Uint8Array(32)))
 
-/** What a one-time link is for: an invitation, a password reset, or confirming a new email address. */
-export type CmsTokenKind = 'invite' | 'reset' | 'email'
+/**
+ * What a one-time link is for: an invitation, a password reset, confirming a new email
+ * address, or undoing a change of address (sent to the old one).
+ */
+export type CmsTokenKind = 'invite' | 'reset' | 'email' | 'email-revert'
 
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
@@ -45,6 +48,7 @@ export async function sha256Hex(text: string): Promise<string> {
 export const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 export const RESET_TTL_MS = 60 * 60 * 1000
 export const EMAIL_CHANGE_TTL_MS = 24 * 60 * 60 * 1000
+export const EMAIL_REVERT_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
  * Create a one-time link secret for a user. Earlier unused links of the same kind

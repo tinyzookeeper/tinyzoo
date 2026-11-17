@@ -83,36 +83,46 @@ async function resend(u: any) {
 }
 
 // ── change someone's email (not your own: that is on your account page, with a confirmation link) ──
-const emailTarget = ref<{ id: string; name: string; email: string; invited: boolean } | null>(null)
+const emailTarget = ref<{ id: string; name: string; email: string; status: string } | null>(null)
 const newEmail = ref('')
+// Your own password: a session left open must not be enough to move someone's account (the server checks it).
+const myPassword = ref('')
 const emailError = ref('')
+const passwordError = ref('')
 const emailFailed = ref('')
 const savingEmail = ref(false)
 const emailFormEl = ref<HTMLElement | null>(null)
 function openEmail(u: any) {
-  emailTarget.value = { id: u.id, name: u.name || u.email, email: u.email, invited: u.status === 'invited' }
+  emailTarget.value = { id: u.id, name: u.name || u.email, email: u.email, status: u.status }
   newEmail.value = u.email
+  myPassword.value = ''
   emailError.value = ''
+  passwordError.value = ''
   emailFailed.value = ''
 }
 async function saveEmail() {
   const target = emailTarget.value
   if (!target) return
   emailError.value = ''
+  passwordError.value = ''
   emailFailed.value = ''
   savingEmail.value = true
   try {
-    const res = await cmsFetch<{ user: { email: string; role: string }; inviteUrl?: string; emailed?: boolean }>(`/api/cms/_users/${target.id}`, { method: 'PATCH', body: { email: newEmail.value } })
+    const res = await cmsFetch<{ user: { email: string; role: string }; inviteUrl?: string; emailed?: boolean }>(`/api/cms/_users/${target.id}`, { method: 'PATCH', body: { email: newEmail.value, password: myPassword.value } })
     emailTarget.value = null
+    myPassword.value = ''
     toast.add({ title: t('team.emailChanged'), description: res.user.email, icon: 'i-lucide-check', color: 'success' })
     // An invitation that went to the new address: show its link, as after "Send a new invitation".
     if (res.inviteUrl) resent.value = { email: res.user.email, role: res.user.role, url: res.inviteUrl, emailed: !!res.emailed }
     refresh()
   }
   catch (err: any) {
-    const issue = (err?.data?.data as any[] | undefined)?.find?.((i: any) => i?.path?.[0] === 'email')
-    if (issue) emailError.value = cmsIssueMessage(issue, null, t as any)
-    else emailFailed.value = cmsRequestError(err, t as any)
+    const issues = Array.isArray(err?.data?.data) ? err.data.data as any[] : []
+    const emailIssue = issues.find((i: any) => i?.path?.[0] === 'email')
+    const passwordIssue = issues.find((i: any) => i?.path?.[0] === 'password')
+    if (emailIssue) emailError.value = cmsIssueMessage(emailIssue, null, t as any)
+    if (passwordIssue) passwordError.value = t(passwordIssue.message === 'Required' ? 'validation.required' : 'validation.wrongPassword')
+    if (!emailIssue && !passwordIssue) emailFailed.value = cmsRequestError(err, t as any)
     await cmsFocusInvalid(emailFormEl.value)
   }
   finally {
@@ -282,9 +292,13 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
     <UModal :open="!!emailTarget" :title="emailTarget ? t('team.changeEmailTitle', { name: emailTarget.name }) : ''" @update:open="(v: boolean) => { if (!v) emailTarget = null }">
       <template #body>
         <form v-if="emailTarget" id="cms-change-email" ref="emailFormEl" class="space-y-5" novalidate @submit.prevent="saveEmail">
-          <p class="text-sm text-muted text-pretty">{{ emailTarget.invited ? t('team.changeEmailInvitedBody') : t('team.changeEmailBody') }}</p>
+          <p class="text-sm text-muted text-pretty">{{ t(emailTarget.status === 'invited' ? 'team.changeEmailInvitedBody' : emailTarget.status === 'disabled' ? 'team.changeEmailDisabledBody' : 'team.changeEmailBody') }}</p>
           <UFormField :label="t('team.newEmail')" name="email" :error="emailError || undefined" required>
             <UInput v-model="newEmail" type="email" autocomplete="off" inputmode="email" autofocus class="w-full" />
+            <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
+          </UFormField>
+          <UFormField :label="t('team.yourPassword')" name="password" :help="t('team.yourPasswordHint')" :error="passwordError || undefined" required>
+            <CmsPasswordInput v-model="myPassword" autocomplete="current-password" />
             <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
           </UFormField>
           <UAlert v-if="emailFailed" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="emailFailed" role="alert" data-cms-error-summary />

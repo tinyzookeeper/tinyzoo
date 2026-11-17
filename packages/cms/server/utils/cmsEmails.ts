@@ -1,4 +1,4 @@
-import { EMAIL_CHANGE_TTL_MS, INVITE_TTL_MS } from './cmsAuth'
+import { EMAIL_CHANGE_TTL_MS, EMAIL_REVERT_TTL_MS, INVITE_TTL_MS } from './cmsAuth'
 import { maskEmail } from './cmsEmailChangeRules'
 import { resolveText } from 'tinyzoo'
 
@@ -27,11 +27,13 @@ const copy = {
     emailRequestedSubject: (site: string) => `Your sign-in email for ${site} is about to change`,
     emailRequestedIntro: (site: string, to: string) => `Someone signed in to your account at ${site} asked to change its sign-in email to ${to}. Nothing changes until the new address is confirmed.`,
     emailRequestedAction: 'Choose a new password',
-    emailRequestedFooter: 'If it was you, there is nothing to do. If not, choose a new password right away: that cancels the change and signs everyone else out.',
+    emailRequestedFooter: 'If it was you, there is nothing to do. If not, someone knows your password: choose a new password right away. Until the new address is confirmed, that cancels the change and signs everyone else out. If it has been confirmed already, another email will come here with a link that undoes it.',
     emailChangedSubject: (site: string) => `Your sign-in email for ${site} was changed`,
     emailChangedIntro: (site: string, to: string) => `The sign-in email of your account at ${site} was changed to ${to}. From now on, sign in with the new address.`,
     emailChangedByAdminIntro: (site: string, to: string) => `An administrator changed the sign-in email of your account at ${site} to ${to}. From now on, sign in with the new address.`,
     emailChangedFooter: 'If you didn’t expect this, contact the administrator of the site.',
+    emailRevertAction: 'Undo the change',
+    emailRevertFooter: (days: number) => `If it wasn’t you, open the link within ${days} days: your account gets this address back, you choose a new password and everyone else is signed out. If it was you, there is nothing to do, but don’t pass this email on: the link gives the account back to whoever opens it.`,
     emailSetSubject: (site: string) => `Your sign-in email for ${site}`,
     emailSetIntro: (site: string) => `An administrator set this address as the sign-in email of your account at ${site}. Sign in with it and your usual password.`,
     emailSetAction: 'Sign in',
@@ -57,11 +59,13 @@ const copy = {
     emailRequestedSubject: (site: string) => `Žádost o změnu přihlašovacího e-mailu: ${site}`,
     emailRequestedIntro: (site: string, to: string) => `Někdo přihlášený k vašemu účtu na webu ${site} požádal o změnu přihlašovacího e-mailu na ${to}. Dokud nová adresa není potvrzená, nic se nemění.`,
     emailRequestedAction: 'Nastavit nové heslo',
-    emailRequestedFooter: 'Pokud jste to byli vy, nemusíte nic dělat. Pokud ne, hned si nastavte nové heslo: tím se změna zruší a všichni ostatní se odhlásí.',
+    emailRequestedFooter: 'Pokud jste to byli vy, nemusíte nic dělat. Pokud ne, někdo zná vaše heslo: hned si nastavte nové. Dokud nová adresa není potvrzená, tím se změna zruší a všichni ostatní se odhlásí. Pokud už potvrzená je, přijde sem další e-mail s odkazem, kterým změnu vrátíte.',
     emailChangedSubject: (site: string) => `Přihlašovací e-mail byl změněn: ${site}`,
     emailChangedIntro: (site: string, to: string) => `Přihlašovací e-mail vašeho účtu na webu ${site} byl změněn na ${to}. Odteď se přihlašujte novou adresou.`,
     emailChangedByAdminIntro: (site: string, to: string) => `Administrátor změnil přihlašovací e-mail vašeho účtu na webu ${site} na ${to}. Odteď se přihlašujte novou adresou.`,
     emailChangedFooter: 'Pokud jste změnu nečekali, obraťte se na administrátora webu.',
+    emailRevertAction: 'Vrátit změnu',
+    emailRevertFooter: (days: number) => `Pokud jste to nebyli vy, otevřete do ${days} dnů odkaz: účet dostane zpět tuto adresu, nastavíte si nové heslo a všichni ostatní se odhlásí. Pokud jste to byli vy, nemusíte nic dělat, jen tento e-mail nikomu nepřeposílejte: kdo odkaz otevře, tomu se účet vrátí.`,
     emailSetSubject: (site: string) => `Váš přihlašovací e-mail: ${site}`,
     emailSetIntro: (site: string) => `Administrátor nastavil tuto adresu jako přihlašovací e-mail vašeho účtu na webu ${site}. Přihlaste se jí a svým obvyklým heslem.`,
     emailSetAction: 'Přihlásit se',
@@ -87,11 +91,13 @@ const copy = {
     emailRequestedSubject: (site: string) => `Ihre Anmelde-E-Mail für ${site} soll geändert werden`,
     emailRequestedIntro: (site: string, to: string) => `Jemand, der in Ihrem Konto bei ${site} angemeldet ist, möchte die Anmelde-E-Mail in ${to} ändern. Bis die neue Adresse bestätigt ist, ändert sich nichts.`,
     emailRequestedAction: 'Neues Passwort festlegen',
-    emailRequestedFooter: 'Wenn Sie das waren, ist nichts zu tun. Wenn nicht, legen Sie sofort ein neues Passwort fest: Das bricht die Änderung ab und meldet alle anderen ab.',
+    emailRequestedFooter: 'Wenn Sie das waren, ist nichts zu tun. Wenn nicht, kennt jemand Ihr Passwort: Legen Sie sofort ein neues fest. Solange die neue Adresse nicht bestätigt ist, bricht das die Änderung ab und meldet alle anderen ab. Ist sie schon bestätigt, kommt hierher eine weitere E-Mail mit einem Link, der die Änderung rückgängig macht.',
     emailChangedSubject: (site: string) => `Ihre Anmelde-E-Mail für ${site} wurde geändert`,
     emailChangedIntro: (site: string, to: string) => `Die Anmelde-E-Mail Ihres Kontos bei ${site} wurde in ${to} geändert. Melden Sie sich ab jetzt mit der neuen Adresse an.`,
     emailChangedByAdminIntro: (site: string, to: string) => `Ein Administrator hat die Anmelde-E-Mail Ihres Kontos bei ${site} in ${to} geändert. Melden Sie sich ab jetzt mit der neuen Adresse an.`,
     emailChangedFooter: 'Wenn Sie das nicht erwartet haben, wenden Sie sich an den Administrator der Website.',
+    emailRevertAction: 'Änderung rückgängig machen',
+    emailRevertFooter: (days: number) => `Wenn Sie das nicht waren, öffnen Sie den Link innerhalb von ${days} Tagen: Ihr Konto bekommt diese Adresse zurück, Sie legen ein neues Passwort fest und alle anderen werden abgemeldet. Wenn Sie das waren, ist nichts zu tun, aber leiten Sie diese E-Mail nicht weiter: Wer den Link öffnet, bekommt das Konto zurück.`,
     emailSetSubject: (site: string) => `Ihre Anmelde-E-Mail für ${site}`,
     emailSetIntro: (site: string) => `Ein Administrator hat diese Adresse als Anmelde-E-Mail Ihres Kontos bei ${site} festgelegt. Melden Sie sich damit und mit Ihrem gewohnten Passwort an.`,
     emailSetAction: 'Anmelden',
@@ -201,19 +207,30 @@ export function emailConfirmEmail(opts: { to: string; url: string; locale?: stri
   return { to: opts.to, subject: c.emailConfirmSubject(site), ...layout({ intro: c.emailConfirmIntro(site), action: c.emailConfirmAction, url: opts.url, footer: c.emailConfirmExpiry(hours), fallback: c.fallback }) }
 }
 
-/** To the old address when a change is asked for: who to call if it was not them (a new password cancels it). */
+/**
+ * To the old address when a change is asked for: if it was not them, somebody knows the
+ * password — a new one cancels the change while it waits; once it is made, the next
+ * notice carries the way back.
+ */
 export function emailRequestedNotice(opts: { to: string; newEmail: string; url: string; locale?: string | null }) {
   const { locale, site } = emailContext(opts.locale)
   const c = copy[locale]
   return { to: opts.to, subject: c.emailRequestedSubject(site), ...layout({ intro: c.emailRequestedIntro(site, maskEmail(opts.newEmail)), action: c.emailRequestedAction, url: opts.url, footer: c.emailRequestedFooter, fallback: c.fallback }) }
 }
 
-/** To the old address once the change is made (by the person, or by an administrator). */
-export function emailChangedNotice(opts: { to: string; newEmail: string; byAdmin?: boolean; locale?: string | null }) {
+/**
+ * To the old address once the change is made (by the person, or by an administrator).
+ * With `revertUrl` (a change the person made), it carries the link that undoes it.
+ */
+export function emailChangedNotice(opts: { to: string; newEmail: string; byAdmin?: boolean; revertUrl?: string; locale?: string | null }) {
   const { locale, site } = emailContext(opts.locale)
   const c = copy[locale]
   const intro = opts.byAdmin ? c.emailChangedByAdminIntro(site, maskEmail(opts.newEmail)) : c.emailChangedIntro(site, maskEmail(opts.newEmail))
-  return { to: opts.to, subject: c.emailChangedSubject(site), ...layout({ intro, footer: c.emailChangedFooter, fallback: c.fallback }) }
+  const days = Math.round(EMAIL_REVERT_TTL_MS / 86_400_000)
+  const parts = opts.revertUrl
+    ? { action: c.emailRevertAction, url: opts.revertUrl, footer: c.emailRevertFooter(days) }
+    : { footer: c.emailChangedFooter }
+  return { to: opts.to, subject: c.emailChangedSubject(site), ...layout({ intro, ...parts, fallback: c.fallback }) }
 }
 
 /** To the new address when an administrator set it: from now on this is how they sign in. */

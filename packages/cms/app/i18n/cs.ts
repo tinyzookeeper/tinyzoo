@@ -460,6 +460,12 @@ export default {
     emailLinkExpired: 'Vypršel, už byl použit, nebo jste mezitím požádali o jinou změnu. O nový odkaz požádejte na stránce Váš účet.',
     emailTakenTitle: 'Tato adresa je obsazená',
     emailTakenBody: 'Adresu {email} už používá jiný účet, takže se nic nezměnilo.',
+    emailRevertTabTitle: 'Vrátit změnu e-mailu',
+    emailRevertTitle: 'Vraťte si účet',
+    emailRevertBody: 'Vašemu účtu na webu {site} se jako přihlašovací e-mail vrátí adresa {email}. Nastavte si i nové heslo: kdo změnu udělal, znal to staré. Všichni ostatní se odhlásí.',
+    emailRevertAction: 'Vrátit adresu a uložit heslo',
+    emailRevertExpired: 'Vypršel, nebo už byl použit. Pokud váš účet má pořád někdo jiný, obraťte se na administrátora webu.',
+    emailRevertTakenBody: 'Adresu {email} teď používá jiný účet, takže se nic nezměnilo. Obraťte se na administrátora webu.',
   },
   roles: {
     admin: { name: 'Administrátor', description: 'Všechno, včetně lidí a nastavení webu.' },
@@ -519,6 +525,9 @@ export default {
     changeEmailInvitedBody: 'Pozvánka odejde na novou adresu a odkaz poslaný na tu starou přestane platit.',
     newEmail: 'Nová e-mailová adresa',
     emailChanged: 'E-mail změněn',
+    changeEmailDisabledBody: 'Má zablokovaný přístup, takže na žádnou z adres nic nepřijde. Až mu přístup zase povolíte, bude se přihlašovat novou adresou.',
+    yourPassword: 'Vaše heslo',
+    yourPasswordHint: 'Vaše vlastní, aby k přesunu cizího účtu nestačilo jen otevřené přihlášení.',
   },
   privacy: {
     title: 'Soukromí',
@@ -533,6 +542,7 @@ export default {
     noSubmissions: 'Z této adresy nepřišla žádná zpráva.',
     account: 'Účet v administraci',
     noAccount: 'Žádný účet s touto adresou.',
+    emailChanges: 'Tuto adresu uvádí změna přihlašovacího e-mailu: buď čeká na potvrzení, nebo jde o cestu zpět po změně.',
     activity: 'Záznam aktivity',
     noActivity: 'Žádné záznamy k této adrese.',
     activityBody: 'Záznamy, které tento účet vytvořil, záznamy o něm (pozvánka, role) a neúspěšná přihlášení s touto adresou. Jsou součástí exportu.',
@@ -545,6 +555,7 @@ export default {
     eraseTitle: 'Smazat vše, co je uložené k adrese {email}?',
     // The confirmation lists what this lookup found, one line each (only what exists).
     eraseSubmissions: { one: '{count} zpráva z formuláře se smaže i s uloženými verzemi.', few: '{count} zprávy z formulářů se smažou i s uloženými verzemi.', other: '{count} zpráv z formulářů se smaže i s uloženými verzemi.' },
+    eraseEmailChanges: 'Čekající změna přihlašovacího e-mailu na tuto adresu nebo cesta zpět na ni se zruší.',
     eraseAccount: 'Účet s touto adresou se zablokuje a anonymizuje: zmizí jméno a e-mail, ale to, co v administraci udělal, zůstane pod označením „smazaný účet“.',
     eraseActivity: { one: 'V záznamu aktivity ({count} záznam) zmizí jméno, e-mail a IP adresa.', few: 'V záznamu aktivity ({count} záznamy) zmizí jméno, e-mail a IP adresa.', other: 'V záznamu aktivity ({count} záznamů) zmizí jméno, e-mail a IP adresa.' },
     eraseUndone: 'Nejde to vrátit zpět.',
