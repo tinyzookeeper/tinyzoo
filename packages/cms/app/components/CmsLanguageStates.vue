@@ -3,7 +3,7 @@
 // words in a tooltip and for screen readers ("English: On the website · not translated"), in the same
 // words as the editor (green dot = on the website, ring = draft, clock = scheduled, hourglass = waiting
 // for the default language, languages mark = being translated: never on the website yet, visitors see the
-// default language meanwhile). The code is dimmed for a language not translated yet.
+// default language meanwhile; dashed ring = not translated at all). The code is dimmed for a language not translated yet.
 const props = defineProps<{
   /** The row as the list loaded it (`__states`, `__locales`). */
   row: Record<string, any>
@@ -17,6 +17,10 @@ const stateOf = (code: string): 'published' | 'scheduled' | 'draft' => props.row
 const translated = (code: string) => (props.row.__locales ?? []).includes(code)
 function words(code: string): string {
   const s = props.row.__states?.[code]
+  // Not translated at all: that is what matters to whoever looks for work ("English: Not translated · …").
+  if (!translated(code) && !s?.own && !s?.waitingFor && stateOf(code) !== 'scheduled') {
+    return `${cmsCapitalize(name(code))}: ${cmsCapitalize(t('translation.notTranslated'))} · ${t(`translation.state.${stateOf(code)}`)} · ${t('translation.followsShort')}`
+  }
   const parts = [s?.waitingFor ? t('translation.waitingFor', { lang: name(s.waitingFor) })
     : s?.translating ? t('translation.state.translating')
       : t(`translation.state.${stateOf(code)}`)]
@@ -35,6 +39,8 @@ function words(code: string): string {
         <UIcon v-if="row.__states?.[code]?.waitingFor" name="i-lucide-hourglass" class="size-3 text-warning" aria-hidden="true" />
         <UIcon v-else-if="stateOf(code) === 'scheduled'" name="i-lucide-clock" class="size-3 text-warning" aria-hidden="true" />
         <UIcon v-else-if="row.__states?.[code]?.translating" name="i-lucide-languages" class="size-3 text-dimmed" aria-hidden="true" />
+        <!-- not translated: a dashed ring, whatever the default language's state (no green dot for a page nobody translated) -->
+        <span v-else-if="!translated(code)" class="size-2 rounded-full border border-dashed border-(--ui-text-dimmed)" aria-hidden="true" />
         <span v-else class="size-2 rounded-full" :class="stateOf(code) === 'published' ? 'bg-success' : 'border border-(--ui-text-dimmed)'" aria-hidden="true" />
         <span class="sr-only">{{ words(code) }}</span>
       </span>
