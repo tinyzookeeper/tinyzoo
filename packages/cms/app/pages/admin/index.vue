@@ -4,7 +4,7 @@
 // last, their website and what is coming up. Sections with nothing in them stay away.
 definePageMeta({ layout: 'admin' })
 
-const { t, entitySingular, entityLabel, formatDate, formatDateWith } = useCmsI18n()
+const { t, entitySingular, entityLabel, formatDate, formatDateWith, languageName, locale } = useCmsI18n()
 const { user } = useUserSession()
 const config = useCmsAdminConfig()
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
@@ -55,6 +55,11 @@ const summary = computed(() => {
 
 /** The editor of an item; for one language of an entry that publishes per language, in that language. */
 const itemTo = (item: { entity: string; id: string; locale?: string }) => `/admin/${item.entity}/${item.id}${item.locale ? `?locale=${item.locale}` : ''}`
+
+/** One language of an entry, named with its state ("English · Draft"), as the editor's bar says it. */
+const inLanguage = (item: { entity: string; locale?: string }, state: string) => (item.locale
+  ? cmsLanguageState(languageName(item.locale, byName.value.get(item.entity)?.locales?.labels?.[item.locale]), state, locale.value)
+  : state)
 
 /** A title inside a sentence: long ones end with an ellipsis. */
 const short = (s: string, max = 60) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
@@ -118,7 +123,7 @@ const leaf = (d: string) => ({
                   <NuxtLink :to="itemTo(item)" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">
                     {{ item.title || t('common.untitled') }}
                   </NuxtLink>
-                  <p class="truncate text-xs text-muted">{{ t('editor.draft') }}{{ item.locale ? ` (${item.locale.toUpperCase()})` : '' }} · {{ entityLabel(byName.get(item.entity)) }} · <CmsTime :value="item.updatedAt" relative /></p>
+                  <p class="truncate text-xs text-muted">{{ inLanguage(item, t('editor.draft')) }} · {{ entityLabel(byName.get(item.entity)) }} · <CmsTime :value="item.updatedAt" relative /></p>
                 </div>
                 <UButton :to="itemTo(item)" color="neutral" variant="outline" size="sm" class="relative shrink-0 max-sm:hidden">{{ t('home.finish') }}</UButton>
               </li>
@@ -171,9 +176,9 @@ const leaf = (d: string) => ({
               <li v-for="c in coming" :key="`${c.entity}:${c.id}:${(c as any).locale ?? ''}`" class="relative flex items-center gap-3 px-4 py-3">
                 <span class="cms-date"><b>{{ leaf(c.at).day }}</b><span>{{ leaf(c.at).month }}</span></span>
                 <div class="min-w-0 flex-1">
-                  <NuxtLink :to="itemTo(c)" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">{{ c.title || t('common.untitled') }}{{ (c as any).locale ? ` (${(c as any).locale.toUpperCase()})` : '' }}</NuxtLink>
+                  <NuxtLink :to="itemTo(c)" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">{{ c.title || t('common.untitled') }}</NuxtLink>
                   <p class="truncate text-xs text-muted">
-                    <template v-if="c.kind === 'scheduled'">{{ t('home.goesLive', { time: formatDateWith(c.at, { timeStyle: 'short' }) }) }}</template>
+                    <template v-if="c.kind === 'scheduled'">{{ inLanguage(c, t('home.goesLive', { time: formatDateWith(c.at, { timeStyle: 'short' }) })) }}</template>
                     <template v-else>{{ entitySingular(byName.get(c.entity)) }}</template>
                   </p>
                 </div>

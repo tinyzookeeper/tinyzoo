@@ -21,6 +21,11 @@ const props = defineProps<{
   field: any; entity: string; error?: string; placement?: 'main' | 'sidebar'; idPrefix?: string; hideOptional?: boolean
   /** A details row: the label on the left, a quiet control on the right (the writing editor's details). */
   row?: boolean
+  /**
+   * Translating: what the default language has in this field. An empty text field shows it greyed inside
+   * (its placeholder), an empty rich text shows it behind the editor: what visitors see until it is translated.
+   */
+  fallback?: unknown
 }>()
 const model = defineModel<any>()
 // A field this person may read but not edit (`.access({ edit })`, `readOnly` in the graph): its controls are
@@ -57,10 +62,11 @@ const isSwitch = computed(() => props.field.type === 'boolean' && !override.valu
 provide('cmsFieldPlacement', computed(() => props.placement ?? 'main'))
 const inRow = computed(() => !!props.row && !composite.value)
 provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
+provide('cmsFieldFallback', computed(() => props.fallback))
 </script>
 
 <template>
-  <CmsFieldLock :locked="!!field.readOnly">
+  <CmsFieldLock :locked="!!field.readOnly" :editable-by="field.editableBy" :id="inputId">
   <!-- a switch: one row, the sentence says what it does -->
   <UFormField v-if="isSwitch" :name="field.key" :error="shownError" :ui="{ error: 'text-error' }">
     <div
@@ -106,8 +112,8 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
           <UIcon name="i-lucide-info" class="size-3.5 block" />
         </button>
       </component>
-      <span v-if="field.readOnly" class="inline-flex items-center gap-1 text-xs text-dimmed" :title="t('readOnly.fieldTitle')"><UIcon name="i-lucide-lock" class="size-3" aria-hidden="true" />{{ t('readOnly.field') }}</span>
-      <span v-else-if="field.optional && !hideOptional" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
+      <!-- a locked field says so under itself (CmsFieldLock), once -->
+      <span v-if="field.optional && !hideOptional && !field.readOnly" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
     </div>
     <UFormField
       :name="field.key" :error="shownError" :help="compact ? (showHelp ? help : undefined) : help"

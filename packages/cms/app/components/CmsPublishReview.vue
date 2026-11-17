@@ -17,6 +17,14 @@ const props = defineProps<{
   dateField?: any
   entity: string
   busy?: boolean
+  /** The heading, when it is for one language ("Publish the English version"); else "Almost there." */
+  title?: string
+  /** The line under it; else "Check it, then publish." */
+  subtitle?: string
+  /** What "Right now" means, when not "Visitors see it within a minute" (a language waiting for the default one). */
+  nowHint?: string
+  /** The button, when not "Publish on the website". */
+  publishLabel?: string
 }>()
 const open = defineModel<boolean>('open', { default: false })
 /** The publish date (scheduling edits it in place). */
@@ -36,7 +44,7 @@ const bird = cmsCharacter('bird')
 
 <template>
   <UModal
-    v-model:open="open" fullscreen :title="t('review.title')" :description="t('review.subtitle')"
+    v-model:open="open" fullscreen :title="title || t('review.title')" :description="subtitle || t('review.subtitle')"
     :ui="{ header: 'hidden', body: 'p-0 sm:p-0', content: 'bg-(--cms-page-bg)' }"
   >
     <template #body>
@@ -46,8 +54,8 @@ const bird = cmsCharacter('bird')
       <div class="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
         <div class="flex items-start justify-between gap-6">
           <div>
-            <h2 class="cms-display text-[1.75rem] sm:text-3xl leading-tight text-highlighted">{{ t('review.title') }}</h2>
-            <p class="cms-display text-[1.75rem] sm:text-3xl leading-tight text-muted">{{ t('review.subtitle') }}</p>
+            <h2 class="cms-display text-[1.75rem] sm:text-3xl leading-tight text-highlighted text-balance">{{ title || t('review.title') }}</h2>
+            <p class="cms-display leading-tight text-muted" :class="subtitle ? 'mt-1 text-lg sm:text-xl' : 'text-[1.75rem] sm:text-3xl'">{{ subtitle || t('review.subtitle') }}</p>
           </div>
           <img :src="bird.url" alt="" class="h-14 sm:h-18 w-auto shrink-0 select-none" draggable="false">
         </div>
@@ -80,7 +88,7 @@ const bird = cmsCharacter('bird')
               <span class="mt-0.5 size-4 shrink-0 rounded-full border" :class="when === opt ? 'border-[5px] border-(--ui-primary)' : 'border-accented'" />
               <span>
                 <span class="block text-sm font-medium text-highlighted">{{ opt === 'now' ? t('review.now') : t('review.schedule') }}</span>
-                <span class="block text-sm text-muted">{{ opt === 'now' ? t('review.nowHint') : t('review.scheduleHint') }}</span>
+                <span class="block text-sm text-muted">{{ opt === 'now' ? (nowHint || t('review.nowHint')) : t('review.scheduleHint') }}</span>
               </span>
             </button>
           </div>
@@ -94,7 +102,7 @@ const bird = cmsCharacter('bird')
           <UButton
             size="lg" :loading="busy" :disabled="scheduleInvalid || blocked" class="justify-center"
             :icon="when === 'schedule' ? 'i-lucide-clock' : undefined" @click="emit('publish', when)"
-          >{{ when === 'schedule' ? t('review.scheduleAction') : t('review.publishAction') }}</UButton>
+          >{{ when === 'schedule' ? t('review.scheduleAction') : (publishLabel || t('review.publishAction')) }}</UButton>
         </div>
       </div>
     </template>

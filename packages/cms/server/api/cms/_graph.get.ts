@@ -22,6 +22,7 @@ export default defineEventHandler((event) => {
       if (!hasFieldRules(e)) return { ...g, can }
       const hidden = unreadableFields(e, user)
       const shown = (k: string) => !hidden.has(k)
+      const rules = new Map(fieldRules(e))
       // Dragging into order or into another place writes a field of its own.
       if (g.orderField && locked.has(g.orderField)) can.arrange = false
       if (g.tree && (locked.has(g.tree.parent) || locked.has(g.tree.order))) can.move = false
@@ -30,7 +31,8 @@ export default defineEventHandler((event) => {
         can,
         fields: g.fields.filter((f: any) => shown(f.key)).map((f: any) => {
           const { access: _access, ...meta } = f.meta ?? {}
-          return { ...f, meta, ...(locked.has(f.key) ? { readOnly: true } : {}) }
+          // A field this person may read but not change says who can (the roles, named in the admin's words).
+          return { ...f, meta, ...(locked.has(f.key) ? { readOnly: true, editableBy: editableBy(rules.get(f.key)) } : {}) }
         }),
         listColumns: g.listColumns.filter(shown),
         searchable: g.searchable.filter(shown),
