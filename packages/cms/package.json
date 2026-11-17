@@ -55,6 +55,7 @@
     "@hocuspocus/provider": "^4.8.0",
     "@hocuspocus/server": "^4.8.0",
     "@nuxt/kit": "^4.6.4",
+    "@nuxtjs/sitemap": "^9.1.0",
     "@tiptap/core": "^3.34.0",
     "@tiptap/extension-collaboration": "^3.34.0",
     "@tiptap/extension-collaboration-caret": "3.34.0",

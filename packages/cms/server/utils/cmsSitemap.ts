@@ -12,10 +12,16 @@ export type SitemapEntry = CmsSitemapEntry
 const MEMO_MS = 60_000
 let memo: { at: number; entries: SitemapEntry[] } | null = null
 
-/** Forget the memo (a content change touched an address). */
+/** Forget the memo (a content change touched an address), and @nuxtjs/sitemap's cached sitemaps on this instance. */
 export function invalidateSitemap(): void {
   memo = null
+  // The module caches with Nitro's cached functions under `sitemap:sitemap:…` (base and group "sitemap").
+  const storage = useStorage()
+  storage.getKeys(SITEMAP_CACHE_PREFIX)
+    .then((keys) => Promise.all(keys.map((k) => storage.removeItem(k))))
+    .catch((err) => console.error('[cms] could not clear the cached sitemap', scrubError(err)))
 }
+const SITEMAP_CACHE_PREFIX = 'sitemap:sitemap'
 
 
 /**

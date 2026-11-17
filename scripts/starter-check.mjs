@@ -202,7 +202,8 @@ try {
   // what a CDN is told (docs/deploying.md, "Caching")
   const cc = async (path) => (await get(path)).res.headers.get('cache-control')
   ok(await cc('/api/content/page') === 'public, max-age=0, must-revalidate, s-maxage=300', `content API Cache-Control: ${await cc('/api/content/page')}`)
-  ok(await cc('/sitemap.xml') === 'public, max-age=3600' && await cc('/robots.txt') === 'public, max-age=3600', 'sitemap and robots.txt should be cached for an hour')
+  // (the sitemap is @nuxtjs/sitemap's: it adds s-maxage and stale-while-revalidate)
+  ok(String(await cc('/sitemap.xml')).startsWith('public, max-age=3600,') && await cc('/robots.txt') === 'public, max-age=3600', `sitemap and robots.txt should be cached for an hour: ${await cc('/sitemap.xml')}`)
   console.log('Cache-Control of a server-rendered page:', await cc('/o-nas'))
 
   const moved = await get('/pekarna')

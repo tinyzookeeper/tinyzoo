@@ -426,7 +426,9 @@ describe('sitemap', () => {
     expect(xml).toMatch(/<loc>https?:\/\/[^<]+\/o-nas\/tym<\/loc>/)
     expect(xml).toMatch(/hreflang="en" href="https?:\/\/[^"]+\/en\/pages\/about\/team"/)
     // a fixed page has no date to give: <loc> is followed by the alternates straight away
-    expect(xml).toMatch(/\/aktuality<\/loc>\n    <xhtml/)
+    expect(xml).toMatch(/\/aktuality<\/loc>\s*<xhtml/)
+    // the language versions name the default language's as x-default
+    expect(xml).toMatch(/hreflang="x-default" href="https?:\/\/[^"]+\/o-nas\/tym"/)
   })
 
   it('follows a move at once', async () => {

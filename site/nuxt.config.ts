@@ -7,7 +7,7 @@ export default defineNuxtConfig({
     'nuxt-auth-utils',
     // Nuxt SEO, module by module (the @nuxtjs/seo bundle brings nuxt-ai-ready, which wants
     // another drizzle-orm): site config, robots.txt + noindex, sharing images, schema.org,
-    // canonical links and meta defaults. No sitemap module: tinyzoo serves /sitemap.xml.
+    // canonical links and meta defaults. The sitemap module comes with tinyzoo.
     // Before nuxt-og-image, which looks for @nuxt/fonts when it starts (Nuxt UI only
     // brings it in later): without it the sharing images get Inter without Czech letters.
     '@nuxt/fonts',
@@ -44,11 +44,12 @@ export default defineNuxtConfig({
     description: 'tinyzoo je česká administrace pro váš web. Pište články, skládejte stránky a prohlížejte si náhled.',
     defaultLocale: 'cs',
   },
-  // /robots.txt: everything but the admin; announces tinyzoo's own /sitemap.xml.
+  // /robots.txt: everything but the admin; it names /sitemap.xml by itself.
   robots: {
     disallow: ['/admin'],
-    sitemap: '/sitemap.xml',
   },
+  // /sitemap.xml (@nuxtjs/sitemap, with tinyzoo's entries): search results are not pages.
+  sitemap: { exclude: ['/hledat', '/en/search', '/de/suche'] },
   // Sharing images, drawn on request from the page's title and description
   // (app/components/OgImage/Tinyzoo.satori.vue) and cached for a day. The image
   // addresses are signed with NUXT_APP_SECRET (32+ characters) in production.
