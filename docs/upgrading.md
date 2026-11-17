@@ -94,25 +94,41 @@ Everything below is also in the changelog of 0.4.0. tinyzoo 0.4 runs on nuxt-aut
 which needs Nuxt 4.6 and seals the sign-in cookie differently.
 
 1. **Update** both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
-2. **Nuxt 4.6 and nuxt-auth-utils 0.6.** In your `package.json`, set `nuxt` to `^4.6.0` and
+2. **Nuxt 4.6 and nuxt-auth-utils 0.6.** In your `package.json`, set `nuxt` to `^4.6.4` and
    `nuxt-auth-utils` to `^0.6.2`, then `pnpm install`. Until you do, `tinyzoo upgrade` warns that
    they do not fit. Nuxt 4.6 builds with Vite 8; if your own `nuxt.config.ts` has Vite or Rollup
    options, check them against [Vite 8's migration guide](https://vite.dev/guide/migration).
    Your schema and migrations stay as they are: `tinyzoo generate` writes no new migration for this.
+   If your site uses nuxt-auth-utils itself (member sign-in, OAuth, WebAuthn), read its
+   [migration guide from 0.5](https://github.com/atinux/nuxt-auth-utils#migrate-from-v05) and the
+   [0.6.0 release notes](https://github.com/atinux/nuxt-auth-utils/releases/tag/v0.6.0) too:
+   sessions are read-only in WebSocket handlers, the cookie is renamed, a session's `maxAge`
+   counts from its last write, and the `seal`, `crypto`, `generateId` and session header options
+   are gone.
 3. **`NUXT_APP_SECRET`.** The sign-in cookie is now sealed with a key derived from Nuxt's app
    secret, `NUXT_APP_SECRET`, and nuxt-auth-utils no longer reads `NUXT_SESSION_PASSWORD`.
-   Rename the variable on your platform (and in `.env`), **keeping its value**:
-   `NUXT_SESSION_PASSWORD=…` becomes `NUXT_APP_SECRET=…`. If your site already sets
-   `NUXT_APP_SECRET` (for `nuxt-og-image`, say), keep it as it is and remove
-   `NUXT_SESSION_PASSWORD`. Until 0.5, a deploy that still has only `NUXT_SESSION_PASSWORD`
+   - Rename the variable on your platform (and in `.env`), **keeping its value**:
+     `NUXT_SESSION_PASSWORD=…` becomes `NUXT_APP_SECRET=…`.
+   - If you set `runtimeConfig.session.password` in `nuxt.config.ts`, move that value to
+     `NUXT_APP_SECRET` in the environment and remove it from the config.
+   - If your site already sets `NUXT_APP_SECRET` (for `nuxt-og-image`, say), remove
+     `NUXT_SESSION_PASSWORD` and check that `NUXT_APP_SECRET` is **at least 32 characters** long.
+     A shorter one stops the server from starting: replace it with a new one
+     (`openssl rand -base64 32`). Everything signed with the old one changes with it:
+     `nuxt-og-image`'s signed image URLs change, and everyone signs in again.
+
+   Until 0.5, a deploy that still has only `NUXT_SESSION_PASSWORD` (or the `nuxt.config` password)
    keeps working: its value stands in for `NUXT_APP_SECRET`, and the log says once, at start,
-   that the old name is deprecated. With neither (or with one shorter than 32 characters), the
-   server does not start and says why. In development Nuxt makes an app secret by itself
-   when there is none.
+   that the old name is deprecated. nuxt-auth-utils logs its own line next to it, that
+   `NUXT_SESSION_PASSWORD` "is not used anymore": until you rename the variable that line can be
+   ignored, as tinyzoo still uses the value. With no app secret (or with one shorter than 32
+   characters), the server does not start and names the variable. In development Nuxt makes an
+   app secret by itself when there is none.
 4. **Everyone signs in again, once.** The sign-in cookie has a new name (`nuxt-auth-session`, was
    `nuxt-session`) and a new format, so the sessions from before the update no longer open the
    admin. Accounts and passwords are unchanged. Renaming the variable later, with the same value,
-   does not sign anyone out again; a new value does.
+   does not sign anyone out again; a new value does. A session still ends 14 days
+   (`runtimeConfig.session.maxAge`) after signing in, however often it is written since.
 
 ## On every upgrade
 
