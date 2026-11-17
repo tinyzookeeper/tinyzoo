@@ -1,8 +1,21 @@
 <script setup lang="ts">
 import { DESIGN_SYSTEM_SEGMENT, LANGS, LANG_NAMES, SEARCH_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
+import { docsPath } from '#shared/docs'
 
 const { settings, nav } = await useSite()
 const { lang, t, to } = useLang()
+// The documentation is in the menus even before an editor adds it there: when a menu has
+// no link to it, it goes right after the link for developers (or at the end).
+function withDocs(links: any[] | null | undefined) {
+  if (!links?.length) return links
+  const docs = docsPath(lang.value)
+  if (links.some((l) => typeof l.url === 'string' && (l.url === docs || l.url.startsWith(`${docs}/`)))) return links
+  const devs = links.findIndex((l) => !l.sub && /\/(pro-vyvojare|developers|entwickler)$/.test(l.url ?? ''))
+  const at = devs >= 0 ? devs + 1 : links.length
+  return [...links.slice(0, at), { id: 'site-docs', type: 'link', label: t('docs'), url: docs, newTab: false, sub: false }, ...links.slice(at)]
+}
+const mainLinks = computed(() => withDocs(nav.value?.main))
+const footerLinks = computed(() => withDocs(nav.value?.footer))
 // schema.org: the site is in three languages; each page says which one it is in.
 useSchemaOrg([
   defineWebSite({ inLanguage: [...LANGS] }),
@@ -26,7 +39,7 @@ onMounted(() => {
 })
 // Search opens in a palette over the page; the link itself leads to the full search
 // page (without JavaScript, or opened in a new tab).
-const searchOpen = ref(false)
+const searchOpen = useState('site-search-open', () => false)
 function openSearch(e: MouseEvent) {
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
   e.preventDefault()
@@ -72,7 +85,7 @@ onBeforeUnmount(() => clearTimeout(logoTimer))
         >
           <img src="/brand/logo-primary.svg" alt="tinyzoo" class="h-7 w-auto sm:h-8" width="140" height="32" draggable="false">
         </NuxtLink>
-        <CmsNav id="site-nav" :links="nav?.main" class="site-nav" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="t('mainMenu')" />
+        <CmsNav id="site-nav" :links="mainLinks" class="site-nav" :class="menuOpen ? 'site-nav--open' : ''" :aria-label="t('mainMenu')" />
         <div class="flex items-center gap-1 sm:gap-2">
           <a
             :href="to(`/${SEARCH_SEGMENT[lang]}`)" class="site-search" :aria-label="t('search')" :title="`${t('search')} (⌘K)`"
@@ -117,7 +130,7 @@ onBeforeUnmount(() => clearTimeout(logoTimer))
         </div>
         <div>
           <p class="text-xs font-bold uppercase tracking-[0.08em] text-cream/65">{{ t('footerNext') }}</p>
-          <CmsNav :links="nav?.footer" class="site-nav-footer mt-4" :aria-label="t('footerMenu')" />
+          <CmsNav :links="footerLinks" class="site-nav-footer mt-4" :aria-label="t('footerMenu')" />
         </div>
         <div>
           <p class="text-xs font-bold uppercase tracking-[0.08em] text-cream/65">{{ t('footerThisSite') }}</p>

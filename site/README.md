@@ -53,6 +53,26 @@ pages; `sitemap.exclude` keeps the search pages out).
 - **One sharp.** nuxt-og-image and tinyzoo must share one `sharp` version (0.35.5): with two,
   the server cannot load libvips on Linux (`ERR_DLOPEN_FAILED`).
 
+## Documentation
+
+`/dokumentace`, `/en/docs` and `/de/dokumentation` show the Markdown in the repository's `docs/`: the editors'
+guide in its three languages and the developer pages (English; on `/dokumentace` and `/de/dokumentation` with a
+note saying so). Nothing of it is in the database.
+
+- **Built, not stored.** `modules/docs` (Nuxt loads it from `modules/` by itself) renders every page once per
+  language when the site is built (`marked`, plus a small highlighter) and hands the JSON to Nitro as server assets,
+  so it is inside `.output` and read from memory. The pictures the pages show are copied next to it and served
+  at `/docs/img/…`. In `pnpm dev` the Markdown, the pictures and the clips are watched and rendered again.
+- **Read by** `server/api/site-docs/` (`page`, `nav`, `search`) and drawn by `app/pages/dokumentace/[...path].vue`
+  with `components/DocsSidebar.vue`. The addresses are in `shared/docs.ts`.
+- **Search.** The website search (the search page and the ⌘K palette) also asks `/api/site-docs/search`, which
+  matches the same way as the content search (accents and small typos forgiven), heading by heading.
+- **Clips** are `public/docs/clips/<name>.<lang>.mp4`; how a page places one, and how translated screenshots are
+  picked, is in `docs/README.md` ("On the website").
+- **Menus.** The header and the footer add a link to the docs right after the link for developers when the menu
+  in the admin has none, so the docs are in the menu on every deployment; add the link in the admin to place it
+  yourself.
+
 ## Change what editors can write
 
 Everything editors can write is in `cms.config.ts`. After a change:
@@ -69,6 +89,7 @@ pnpm db:migrate             # applies it
 | `cms.config.ts` | content model: languages, settings, page blocks, news, menus, the feedback form |
 | `app/components/global/Block*.vue` | how each block looks (`hero` → `BlockHero.vue`) |
 | `app/pages/[...slug].vue` | every address: pages, the news list and news items, in all languages |
+| `modules/docs/`, `app/pages/dokumentace/`, `server/api/site-docs/`, `shared/docs.ts` | the documentation, rendered from `docs/` (above) |
 | `app/lib/site-i18n.ts` | the languages, their address prefixes and the few texts that live in code |
 | `app/layouts/default.vue` | header (menu, language switcher), footer |
 | `app/pages/design-system.vue`, `app/lib/design-system-i18n.ts` | the admin's design system in the admin's own look (`/design-system`, `/en/design-system`, `/de/designsystem`): in the footer menu, or right-click (long-press) the logo in the header |

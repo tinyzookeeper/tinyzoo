@@ -38,6 +38,7 @@
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.114",
     "drizzle-kit": "^0.31.11",
+    "marked": "^17.0.6",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vue-tsc": "^3.3.14"
