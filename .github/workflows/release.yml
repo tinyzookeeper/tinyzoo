@@ -26,6 +26,10 @@ jobs:
           node-version: 22
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      # npm trusted publishing (OIDC) needs npm >= 11.5.1; Node 22 ships npm 10, and pnpm
+      # hands the publish to npm. With a trusted publisher set on npmjs.com, OIDC wins
+      # over NPM_TOKEN, so the token can be deleted once a release has gone out this way.
+      - run: npm install -g npm@^11.5.1
       - run: pnpm install --frozen-lockfile
 
       - uses: changesets/action@v1

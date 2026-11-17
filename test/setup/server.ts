@@ -80,6 +80,13 @@ export default async function setup(project: TestProject) {
     }
     console.log(`[cms-test] built playground in ${((Date.now() - started) / 1000).toFixed(1)}s`)
   }
+  else if (!existsSync(join(playgroundDir, '.nuxt', 'tsconfig.app.json'))) {
+    // A reused build (CI restores it from cache) skips build-playground.mjs, and with it the
+    // `nuxt prepare` a fresh clone needs: specs that import playground code make Vite read
+    // playground/tsconfig.json, which points at .nuxt/tsconfig.*.json.
+    const prep = spawnSync('pnpm', ['exec', 'nuxt', 'prepare'], { cwd: playgroundDir, stdio: 'inherit' })
+    if (prep.status !== 0) throw new Error('`nuxt prepare` failed in playground')
+  }
 
   const uploadsDir = mkdtempSync(join(tmpdir(), 'cms-test-uploads-'))
   const mailDir = mkdtempSync(join(tmpdir(), 'cms-test-mail-'))
