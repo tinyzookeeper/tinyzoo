@@ -41,7 +41,7 @@ const variant = computed(() => injected?.value ?? 'outline')
     />
     <UButton
       v-if="model && field.optional" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('fields.clear')"
-      @click="model = null"
+      @click="() => { model = null }"
     />
   </div>
 </template>

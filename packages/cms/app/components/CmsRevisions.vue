@@ -187,7 +187,7 @@ function restore() {
     </template>
     <template #footer>
       <div class="flex w-full items-center justify-end gap-2">
-        <UButton color="neutral" variant="ghost" @click="open = false">{{ t('common.close') }}</UButton>
+        <UButton color="neutral" variant="ghost" @click="() => { open = false }">{{ t('common.close') }}</UButton>
         <UButton :disabled="!selected || !differences.length" :loading="loading" icon="i-lucide-history" @click="restore">{{ t('revisions.restore') }}</UButton>
       </div>
     </template>

@@ -251,15 +251,15 @@ const tools = computed<Tool[]>(() => {
         </UPopover>
         <UButton
           icon="i-lucide-image" size="xs" variant="ghost" color="neutral"
-          :aria-label="t('fields.toolbar.image')" @click="libraryOpen = true"
+          :aria-label="t('fields.toolbar.image')" @click="() => { libraryOpen = true }"
         />
         <UButton
           v-if="editor.isActive('image')" icon="i-lucide-text-quote" size="xs" variant="ghost" color="neutral"
           :aria-label="t('fields.toolbar.imageAlt')" @click="editAlt"
         >{{ t('fields.toolbar.imageAlt') }}</UButton>
         <div class="ml-auto flex gap-0.5">
-          <UButton icon="i-lucide-undo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.undo')" @click="editor.chain().focus().undo().run()" />
-          <UButton icon="i-lucide-redo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.redo')" @click="editor.chain().focus().redo().run()" />
+          <UButton icon="i-lucide-undo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.undo')" @click="() => { editor?.chain().focus().undo().run() }" />
+          <UButton icon="i-lucide-redo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.redo')" @click="() => { editor?.chain().focus().redo().run() }" />
         </div>
       </div>
       <EditorContent :editor="editor" class="cms-prose" />

@@ -2,7 +2,7 @@
 // Search in a palette over the page: the header's search button, ⌘K / Ctrl+K or "/".
 // Results follow the typing (pages and news, in the page's language, typos forgiven);
 // ↑↓ and Enter open one, "All results" opens the full search page with the same words.
-import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
+import type { ButtonProps, CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import { SEARCH_SEGMENT } from '~/lib/site-i18n'
 
 const open = defineModel<boolean>('open', { default: false })
@@ -13,6 +13,8 @@ interface Hit { entity: string; id: string; title: string; titleHighlights: [num
 const term = ref('')
 const hits = ref<Hit[]>([])
 const total = ref(0)
+// Nuxt UI types the close button as ButtonProps only, yet v-binds it, so HTML attributes reach the button.
+const closeButton = computed(() => ({ color: 'neutral', variant: 'ghost', 'aria-label': t('close') }) as ButtonProps)
 const searched = ref('')
 const loading = ref(false)
 const failed = ref(false)
@@ -107,7 +109,7 @@ defineShortcuts({
         :groups="groups"
         :loading="loading"
         :placeholder="t('searchPlaceholder')"
-        :close="{ color: 'neutral', variant: 'ghost', 'aria-label': t('close') }"
+        :close="closeButton"
         icon="i-lucide-search"
         class="site-palette-inner min-h-0 flex-1"
         :ui="{

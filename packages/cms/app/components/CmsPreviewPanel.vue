@@ -98,15 +98,15 @@ onBeforeUnmount(() => {
         <span class="text-xs text-muted mr-2 max-sm:hidden">{{ t('editor.previewHint') }}</span>
         <UButton
           size="xs" variant="ghost" :color="width === 'desktop' ? 'primary' : 'neutral'" icon="i-lucide-monitor"
-          :aria-label="t('editor.previewDesktop')" :aria-pressed="width === 'desktop'" @click="width = 'desktop'"
+          :aria-label="t('editor.previewDesktop')" :aria-pressed="width === 'desktop'" @click="() => { width = 'desktop' }"
         />
         <UButton
           size="xs" variant="ghost" :color="width === 'phone' ? 'primary' : 'neutral'" icon="i-lucide-smartphone"
-          :aria-label="t('editor.previewPhone')" :aria-pressed="width === 'phone'" @click="width = 'phone'"
+          :aria-label="t('editor.previewPhone')" :aria-pressed="width === 'phone'" @click="() => { width = 'phone' }"
         />
       </div>
       <div class="flex items-center gap-1">
-        <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-rotate-cw" :aria-label="t('editor.previewReload')" @click="reloads++" />
+        <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-rotate-cw" :aria-label="t('editor.previewReload')" @click="() => { reloads++ }" />
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-external-link" :to="url" target="_blank" :aria-label="t('editor.preview')" />
         <UButton size="xs" variant="ghost" color="neutral" icon="i-lucide-x" :aria-label="t('common.close')" @click="emit('close')" />
       </div>
@@ -118,7 +118,7 @@ onBeforeUnmount(() => {
         <p class="mt-1 text-sm text-muted text-pretty">
           {{ problem.status === 404 ? t('editor.previewMissingBody', { path }) : t('editor.previewErrorBody', { status: problem.status }) }}
         </p>
-        <UButton class="mt-4" size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-cw" @click="reloads++">{{ t('editor.previewReload') }}</UButton>
+        <UButton class="mt-4" size="sm" color="neutral" variant="outline" icon="i-lucide-rotate-cw" @click="() => { reloads++ }">{{ t('editor.previewReload') }}</UButton>
       </div>
     </div>
     <div v-else class="cms-preview__stage">

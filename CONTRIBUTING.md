@@ -13,7 +13,7 @@ Every pull request and every push to `main` (`.github/workflows/ci.yml`, about f
 
 | Job | What |
 |---|---|
-| `check` | `pnpm typecheck` and `pnpm test:unit` |
+| `check` | `pnpm typecheck` (the code, the docs' examples and the Vue templates of the admin, playground, starter and website) and `pnpm test:unit` |
 | `api` | `pnpm test:api`: the built playground over HTTP against Postgres and Redis. Its production build is the build check |
 | `changeset` | pull requests only: a change to a package comes with a changeset |
 
@@ -96,6 +96,36 @@ Search for the website and the admin.
 
 It appears in the changelog as a bold **Upgrade** block under the entry. A change
 that needs nothing from a site has no such section.
+
+## Dependency updates
+
+[Renovate](https://docs.renovatebot.com/) proposes updates on Monday mornings (Prague time),
+configured in `renovate.json`. Every pull request it opens updates `pnpm-lock.yaml` with the
+`package.json` it changes (deduplicated), so CI's `pnpm install --frozen-lockfile` passes.
+
+| Pull request | What is in it |
+|---|---|
+| `minor and patch updates` | every patch update, and minor updates of packages at 1.0 or later. Usually only `pnpm-lock.yaml` changes, as the new versions fit the ranges already written |
+| one per package (or monorepo) | a major update, and a minor update of a package below 1.0 (`drizzle-orm` 0.44 to 0.45 can break as a major would) |
+| `editor stack (TipTap, ProseMirror, Yjs)` | these move together, with the overrides in `pnpm-workspace.yaml` that keep one copy of each |
+| `lock file maintenance` | the lockfile refreshed within the existing ranges: newer indirect dependencies |
+
+An npm release is proposed only once it is three days old. Major versions of the Postgres
+image are not proposed: the server version tinyzoo is tested against is chosen, not updated.
+
+Handling them:
+
+- **Read the changelog** of each major or 0.x minor before merging, check its breaking
+  changes against how tinyzoo uses the package, and run the checks that CI does not run on
+  every pull request when they are relevant (`pnpm check:upgrade`, `pnpm check:starter`).
+- **A change to a published package needs a changeset** (above), and the `changeset` check
+  fails without one. That happens when an update changes `packages/cms/package.json` or
+  `packages/client/package.json`: push a changeset to the Renovate branch (Renovate then
+  leaves the branch to you). A raised peer dependency range (`nuxt`, `@nuxt/ui`,
+  `nuxt-auth-utils`) means sites must update too: minor, with an `### Upgrade` section.
+- The **Dependency Dashboard** issue lists what is waiting, what is scheduled and what was
+  closed. Closing an update's pull request without merging tells Renovate to skip it (that
+  major version, or that one version); to get it back, tick it on the dashboard.
 
 ## Deprecations
 

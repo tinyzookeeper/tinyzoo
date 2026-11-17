@@ -315,7 +315,7 @@ const canMove = computed(() => props.meta?.can?.update !== false)
           v-model="q" icon="i-lucide-search" :placeholder="t('common.search')" size="sm" variant="ghost" class="w-full sm:w-64" :aria-label="t('common.search')"
         >
           <template v-if="q" #trailing>
-            <UButton color="neutral" variant="link" size="xs" icon="i-lucide-x" :aria-label="t('common.clear')" @click="q = ''" />
+            <UButton color="neutral" variant="link" size="xs" icon="i-lucide-x" :aria-label="t('common.clear')" @click="() => { q = '' }" />
           </template>
         </UInput>
         <UTooltip v-if="branches.length" :text="allOpen ? t('tree.collapseAll') : t('tree.expandAll')">
@@ -339,7 +339,7 @@ const canMove = computed(() => props.meta?.can?.update !== false)
       </CmsEmptyState>
       <CmsEmptyState v-else-if="!shown.length" variant="no-results" :title="t('list.noResultsTitle', { q })" :description="t('list.noResultsDescription')">
         <template #actions>
-          <UButton color="neutral" variant="outline" @click="q = ''">{{ t('list.clearSearch') }}</UButton>
+          <UButton color="neutral" variant="outline" @click="() => { q = '' }">{{ t('list.clearSearch') }}</UButton>
         </template>
       </CmsEmptyState>
 
@@ -428,7 +428,7 @@ const canMove = computed(() => props.meta?.can?.update !== false)
       </template>
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
-          <UButton color="neutral" variant="ghost" @click="dialog = null">{{ t('common.cancel') }}</UButton>
+          <UButton color="neutral" variant="ghost" @click="() => { dialog = null }">{{ t('common.cancel') }}</UButton>
           <UButton icon="i-lucide-folder-input" :loading="moving" @click="confirmMove">{{ t('tree.moveConfirm') }}</UButton>
         </div>
       </template>

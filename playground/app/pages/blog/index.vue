@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import type { ListResponse } from '@tinyzoo/client'
+import type { Post, SiteSettings } from '~/lib/cms-content'
+
 // A public frontend consuming the headless content API — no admin/auth coupling.
-const { data } = await useFetch('/api/content/post', { query: { limit: 20 } })
+const { data } = await useFetch<ListResponse<Post>>('/api/content/post', { query: { limit: 20 } })
 const posts = computed(() => data.value?.items ?? [])
 
 // Site-wide settings (a singleton global) delivered headlessly.
-const { data: settings } = await useFetch('/api/content/_global/siteSettings')
+const { data: settings } = await useFetch<{ item: SiteSettings | null }>('/api/content/_global/siteSettings')
 const site = computed(() => settings.value?.item)
 
 function fmtDate(d?: string | null) {

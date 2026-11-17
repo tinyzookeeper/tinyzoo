@@ -211,7 +211,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         :class="split ? 'bg-(--cms-nav-active)' : ''" :aria-pressed="split" :aria-label="t('editor.preview')" @click="togglePreview"
       ><span class="max-sm:hidden">{{ t('editor.preview') }}</span></UButton>
       <UTooltip v-if="!readOnly" :text="t('editor.shortcutSave')">
-        <UButton :loading="saving" @click="save()">
+        <UButton :loading="saving" @click="() => { save() }">
           {{ isTranslation ? t('translation.save') : t('common.save') }}
         </UButton>
       </UTooltip>
