@@ -1380,3 +1380,66 @@ Branch `feat/1.0-create`. Why: a new site took `pnpm dlx tinyzoo init`, a starte
 Branch `docs/1.0-w4` (from `feat/1.0-wave4`). Wave 4 written up for three readers. **Editors (Czech):** `preklady.md` rewritten for per-language publishing (each language's state, Czech gates, translating with the greyed original, "Vzít jako základ" and "Ukázat originál vedle", what visitors see in an untranslated field, the list's marks, the switcher on a phone), a new `role-a-opravneni.md` (what a role is, reading "Co která role může?", locked fields and whom to ask, "Vaše role už neexistuje", inviting with a role and changing one, which signs the person out), the translation review step in `zverejneni-a-nahled.md`, smaller updates to `prihlaseni-a-ucet.md` and `kdyz-neco-nefunguje.md`, and the screenshots of `docs/screenshots/0.6/` with alt text. **Developers:** a type-checked worked example in `roles.md` (a translator role, a field only editors change, `perLocale` on posts, and what each side then sees, including the two limits: no per-language rule, and a language that follows a live default counts as live), "Changing someone's role", "What editors see" in the per-language part of `content-model.md`, `-y` and `AGENTS.md` in `getting-started.md`, a note in `upgrading.md`. **Coding assistants:** `packages/cms/starter/AGENTS.md`, so every site made by `tinyzoo init` or `pnpm create tinyzoo` has it (its snippet was loaded as a real config; `init.spec.ts` checks that every combination gets it with absolute links, `consumer-check` that the bundle has it), and `llms.txt` at the root. Changeset `starter-agents-md.md` (minor; Upgrade: copy it from the starter). **Website:** three news items in `site/scripts/seed.mjs` with English and German translations (the two earlier items dated `days(0)` moved to `days(1)` so the new ones are newest); not seeded anywhere.
 
 **Final result on `feat/1.0-wave4` (2026-11-17, after the UX pass, the docs and "being translated")** (`TEST_DATABASE_URL=…/cms_test_wave4`, starter and upgrade databases likewise, `TEST_REDIS_URL` on a throwaway Valkey 8): `pnpm check` green, 117 files / 1676 tests passed, 2 files / 23 tests skipped (273 s); `check:starter` green on all four combinations (198 s); `check:upgrade` green from `2506403` and `tinyzoo@0.5.0` (146 s); `check:consumer` green with create-tinyzoo and `AGENTS.md` (48 s). In the browser: a translator's never-published English translation of a live Czech post reads "Angličtina · Překládá se", stays editable, and visitors on `/en` keep the Czech article (screenshot `docs/screenshots/0.6/being-translated.png`). The website's news about 0.6 goes live only after 0.6.0 is released and the website deployed.
+
+### 1.0 Q — Docs on the website (first part)
+
+Branch `feat/1.0-docs-site` (from `feat/1.0-wave4` at `2a97b6a`). The documentation is on the tinyzoo website:
+`/dokumentace`, `/en/docs`, `/de/dokumentation`, in the main menu and the footer of all three languages.
+
+- **How it is built.** The Markdown in `docs/` stays the source. A local Nuxt module, `site/modules/docs`, renders
+  it when the site is built (`marked` as a dev dependency of the website, a small highlighter of our own) into JSON,
+  once per website language, and hands it to Nitro as **server assets**: they are bundled into `.output`, so the
+  Pushbase image (which ships only `.output`) needs no `docs/` folder, database table or extra service, and the
+  server reads the pages from memory. The pictures the pages use are copied next to it and published at
+  `/docs/img/…` (cached for a week). In `pnpm dev` the module watches `docs/` and `public/docs/clips` and renders
+  again. Considered and left: **@nuxt/content** (a second content system with its own SQLite database at runtime,
+  next to tinyzoo's, and another native dependency in the image) and **copying the texts into the CMS** (the brief
+  rules it out; the docs would drift from the code they describe). Checked by running the built `.output` copied to
+  a folder of its own: pages, pictures, search and sitemap answer.
+- **What is published** comes from the Markdown: the developer pages are the table at the top of `docs/README.md`
+  (13 pages, grouped Guides / Reference by folder); the editors' chapters are the numbered list in each language's
+  `docs/editors/<lang>/README.md`, paired across languages by their place in it (the build refuses lists of
+  different lengths). Links between pages become website addresses with their anchors (GitHub's slugs, so the
+  same anchors work on GitHub and on the website); links to anything else go to GitHub.
+- **Pages.** A landing page with two doors (Pro editory: cream, the bunny; Pro vývojáře: charcoal, the first
+  command), each part's first page with its chapters as cards, and the guide pages: sidebar contents (a drawer
+  on phones), "On this page" with the heading being read marked (a folding list on phones), breadcrumbs,
+  previous/next, a column of about 70 characters in Inter with Manrope headings, code in dark windows with the file
+  name (from the docs check's markers) and a copy button, tips and warnings as callouts, tables that scroll on
+  phones, pictures that open larger (on a phone, large enough to pan around), and clips in `ClipVideo`. Developer
+  pages on `/dokumentace` and `/de/dokumentation` say they are in English and carry `lang="en"`; they link their
+  source on GitHub. Each page has its title, description, hreflang alternates, sharing image, a `TechArticle` in
+  schema.org, and is in `/sitemap.xml`; the language switcher leads to the same page in the other language.
+- **Search.** `/api/site-docs/search` matches the way the content search does (tinyzoo's `matchEntry`: accents and
+  small typos forgiven), heading by heading, at most two hits per page. The search page and the ⌘K palette show
+  them as a second group, "V dokumentaci"; the docs' sidebar opens the palette.
+- **Languages.** The editors' guide in English (`docs/editors/en/`) and German (`docs/editors/de/`): same chapters,
+  sections and screenshots as the Czech one, the admin's labels taken from `app/i18n/{en,de}.ts` (and the starter,
+  presets, forms and emails), plain language, formal "Sie" in German. Two mistakes in the Czech found on the way and
+  fixed: the admin is also in German (`prihlaseni-a-ucet.md`), and the publish check says "Chybí překlad", not
+  "Chybí verze" (`zverejneni-a-nahled.md`).
+- **Clips and translated screenshots.** A clip is `<!-- clip: name | what it shows -->` on its own line (invisible on
+  GitHub), drawn from `site/public/docs/clips/<name>.<lang>.mp4` with the Czech file as fallback, and left out while
+  no file exists. `roles` is placed in "Role a oprávnění" (after "Co je role"), `translate` in "Překlady" (after
+  the original-beside-the-translation part), and at the same places in English and German. A screenshot linked as
+  `0.6/x.png` shows `0.6/<lang>/x.png` when that file exists. Both written up in `docs/README.md` ("On the
+  website").
+- **News and menus.** The three 0.6 news posts end with a link to their docs page in each language (the seed's only
+  change, plus an `a()` helper for a link inside a paragraph). The menu link to the docs is added by the layout when
+  a menu in the admin has none (after the link for developers), so every deployment has it without a content change.
+- **Also:** `llms.txt` and the starter's `AGENTS.md` say where the docs are on the website; `site/README.md` has a
+  "Documentation" section. Tests: `test/unit/docs-site.spec.ts` (every page in every language, translations
+  paired with the same screenshots and clips, every link and anchor resolves, pictures and clips fall back to
+  Czech, the renderer's escaping, code, callouts and figures).
+- **Seen in a browser** (own dev server on port 3172, database `tinyzoo_web_docs_test`, seeded): Czech, English and
+  German, at 1440 px and 390 px, light: landing, part pages, guide pages, the drawer, zoom, copy, a clip (a
+  stand-in file, removed), search, the language switcher, navigation between pages.
+
+**Left for the rest of Q:** the API reference from the OpenAPI document (`/api/openapi.json`) as pages of
+its own; the plugin API as a reference rather than a guide; the developer pages in Czech and German (first
+`getting-started`, `content-model`, `upgrading`); English and German screenshots (`docs/screenshots/0.6/<lang>/`)
+and the two clips; a "what's new in this version" page per release from the changesets; per-version docs once 1.x
+has more than one line people use; Czech non-breaking spaces after one-letter words when rendering (the seed's texts
+have them, the Markdown does not); the older screenshots in `docs/screenshots/*.png` (0.2) used by the developer
+pages could be retaken. The German starter labels (Neuigkeiten, Website-Einstellungen…) the guide uses are
+translations of labels the starter only has in Czech and English.
