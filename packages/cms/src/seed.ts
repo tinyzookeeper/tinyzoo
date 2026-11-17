@@ -80,7 +80,8 @@ export interface SeedWriteOptions<D = Record<string, any>> {
   /**
    * The same entry in other languages: the translated fields only (`{ en: { title: 'Home' } }`).
    * With `publish.perLocale` also the language's own state: the entry's status and publish
-   * date (`{ en: { title: 'Home', status: 'published' } }`).
+   * date (`{ en: { title: 'Home', status: 'published' } }`). Without one the language follows
+   * the default language (it is on the website while the entry is).
    */
   translations?: Record<string, Partial<D>>
 }

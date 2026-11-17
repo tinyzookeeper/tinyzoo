@@ -205,6 +205,12 @@ function decodeEntry(plan: Plan, layout: EntityLayout, entry: Entry) {
       if (tr.publish) {
         t.published = tr.publish.published ?? null
         t.publishedAt = tr.publish.publishedAt ? new Date(tr.publish.publishedAt) : null
+        // When it was first on the website. An archive that does not say (made before this was kept) is read the careful way:
+        // a language with a state of its own has been on the website (published: from its date; a draft: it was taken off),
+        // so nothing that was off the website comes back on it through the default language.
+        const firstLive = tr.publish.firstLiveAt !== undefined ? tr.publish.firstLiveAt
+          : t.published === null ? null : (tr.publish.publishedAt ?? tr.updatedAt)
+        t.firstLiveAt = firstLive ? new Date(firstLive) : null
       }
     }
     else if (tr.publish && tr.publish.published !== null && tr.publish.published !== undefined) {

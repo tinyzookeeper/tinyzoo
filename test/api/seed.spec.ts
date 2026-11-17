@@ -279,6 +279,9 @@ export default defineSeed(async (s) => {
   const by = await s.create('author', { name: 'Seed Author', email: 'lang@seed.example' }, { by: 'email' })
   await s.upsert('post', { title: 'Zimní recept', slug: 'zimni-recept', status: 'published', author: by.id, body: s.rich.doc(s.rich.p('Text')) },
     { translations: { en: { title: 'Winter recipe', slug: 'winter-recipe', status: 'draft' } } })
+  // Without a state: the seed's translation is content as it should be, on the website with Czech (not being translated).
+  await s.upsert('post', { title: 'Letní recept', slug: 'letni-recept', status: 'published', author: by.id, body: s.rich.doc(s.rich.p('Text')) },
+    { translations: { en: { title: 'Summer recipe', slug: 'summer-recipe' } } })
 })
 `)
       const first = await seed([], {}, file)
@@ -290,11 +293,15 @@ export default defineSeed(async (s) => {
       const visitor = new Client(srv.baseURL)
       expect((await visitor.get('/api/content/post/zimni-recept?locale=cs')).status).toBe(200)
       expect((await visitor.get('/api/content/post/winter-recipe?locale=en')).status).toBe(404)
+      const summer = () => sql(`select l.published, l.first_live_at from post_locales l join post p on p.id = l.parent_id where p.slug = 'letni-recept'`)
+      expect(await summer()).toEqual([{ published: null, first_live_at: null }])
+      expect((await visitor.get('/api/content/post/summer-recipe?locale=en')).body.item.title).toBe('Summer recipe')
       // A second run writes nothing.
       const again = await seed([], {}, file)
       expect(again.error).toBeNull()
       expect(again.out).not.toMatch(/✓ (created|updated)/)
       expect(await state()).toEqual([en])
+      expect(await summer()).toEqual([{ published: null, first_live_at: null }])
     }
     finally { rmSync(dir, { recursive: true, force: true }) }
   })

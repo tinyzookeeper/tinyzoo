@@ -1,7 +1,7 @@
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import { buildRegistry, defineEntity, defineLocales, definePages, emitSchema, f } from 'tinyzoo'
-import { perLocalePublishing, publishedCond, scheduleCond } from '../../packages/cms/server/utils/cmsPublished'
+import { isBeingTranslated, perLocalePublishing, publishedCond, scheduleCond, shownTranslationCond } from '../../packages/cms/server/utils/cmsPublished'
 
 // publish.perLocale: what it needs, the columns it adds, and the condition that decides what a language shows.
 const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
@@ -36,20 +36,27 @@ describe('publish.perLocale', () => {
       fields: { title: f.text({ required: true }).localized(), published: f.text().localized(), status: f.select({ options: ['draft', 'live'] as const, default: 'draft' }) },
       publish: { field: 'status', publishedValue: 'live', draftValue: 'draft', perLocale: true },
     })).toThrow(/cannot be called "published"/)
+    expect(() => defineEntity('clash2', {
+      label: 'x', titleField: 'title',
+      fields: { title: f.text({ required: true }).localized(), firstLiveAt: f.text().localized(), status: f.select({ options: ['draft', 'live'] as const, default: 'draft' }) },
+      publish: { field: 'status', publishedValue: 'live', draftValue: 'draft', perLocale: true },
+    })).toThrow(/cannot be called "firstLiveAt"/)
   })
 
   it('adds a nullable state and date to the translations, and nothing to an entity without it', () => {
     const on = entity('onPost', { perLocale: true })
     const off = entity('offPost', {})
-    expect(Object.keys(on.localesTable)).toEqual(expect.arrayContaining(['published', 'publishedAt']))
+    expect(Object.keys(on.localesTable)).toEqual(expect.arrayContaining(['published', 'publishedAt', 'firstLiveAt']))
     expect(on.localesTable.published.notNull).toBe(false)
     expect(on.localesTable.publishedAt.notNull).toBe(false)
+    expect(on.localesTable.firstLiveAt.notNull).toBe(false)
     expect(Object.keys(off.localesTable)).not.toContain('published')
     // The generated schema.ts says the same, and only for the entity that has the option.
     const source = emitSchema({ locales, on, off })
     const table = (name: string) => source.slice(source.indexOf(`export const ${name}Locales`), source.indexOf('\n\n', source.indexOf(`export const ${name}Locales`)))
     expect(table('onPost')).toContain(`published: boolean('published'),`)
     expect(table('onPost')).toContain(`publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 }),`)
+    expect(table('onPost')).toContain(`firstLiveAt: timestamp('first_live_at', { withTimezone: true, mode: 'date', precision: 3 }),`)
     expect(table('offPost')).not.toContain('published')
   })
 })
@@ -81,6 +88,22 @@ describe('what is live in a language', () => {
     expect(q.params).toContain('en')
     // The schedule follows the same view: the translation's date while it has a state, the entry's otherwise.
     expect(sqlOf(scheduleCond(e('post'))).sql).not.toContain('_locales')
+  })
+
+  it('counts a state of its own only once the language has been on the website (one being translated follows the entry)', () => {
+    const q = sqlOf(publishedCond(e('post'), 'en'))
+    expect(q.sql).toContain('"first_live_at" <= now()')
+    // What visitors see of the translation rows: following ones, and ones that have been on the website; never null.
+    const shown = sqlOf(shownTranslationCond(e('post')))
+    expect(shown.sql).toMatch(/^coalesce\(.*"published" is null.*"first_live_at" <= now\(\).*, false\)$/)
+    expect(shownTranslationCond(e('plainPost'))).toBeUndefined()
+    const now = Date.parse('2026-11-17T12:00:00Z')
+    expect(isBeingTranslated({ published: false, firstLiveAt: null }, now)).toBe(true)
+    expect(isBeingTranslated({ published: false, firstLiveAt: new Date(now + 60_000) }, now)).toBe(true) // a first date cancelled
+    expect(isBeingTranslated({ published: false, firstLiveAt: new Date(now - 60_000) }, now)).toBe(false) // taken off
+    expect(isBeingTranslated({ published: true, firstLiveAt: new Date(now + 60_000) }, now)).toBe(false) // scheduled: published
+    expect(isBeingTranslated({ published: null, firstLiveAt: null }, now)).toBe(false) // follows
+    expect(isBeingTranslated(undefined, now)).toBe(false)
   })
 
   it('runs the site\'s own content.published rule against that view', () => {

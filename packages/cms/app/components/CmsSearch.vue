@@ -51,7 +51,7 @@ const byName = computed(() => new Map(props.graph.map((e) => [e.name, e])))
 const statusLabel = (h: Hit, e: any) => {
   const langName = (code: string) => languageName(code, e?.locales?.labels?.[code])
   const s = h.status
-  const word = s === 'draft' ? t('editor.draft') : s === 'scheduled' ? t('editor.scheduled')
+  const word = s === 'draft' ? t('editor.draft') : s === 'translating' ? t('translation.state.translating') : s === 'scheduled' ? t('editor.scheduled')
     : s === 'waiting' ? (e?.locales?.default ? t('translation.waitingFor', { lang: langName(e.locales.default) }) : t('translation.waiting'))
       : s === 'published' && h.locale ? t('editor.published') : ''
   return h.locale && word ? cmsLanguageState(langName(h.locale), word, locale.value) : word

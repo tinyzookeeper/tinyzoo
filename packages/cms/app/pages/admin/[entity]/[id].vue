@@ -44,7 +44,7 @@ const defaults = ref<Record<string, any>>({})
 const translated = ref(false)
 // Publishing per language (publish.perLocale): the state of every language, and whether the one being
 // edited has a state of its own (false: it follows the default language).
-const states = ref<Record<string, { state: 'published' | 'scheduled' | 'draft'; own: boolean; date: string | null; waitingFor?: string }>>({})
+const states = ref<Record<string, { state: 'published' | 'scheduled' | 'draft'; own: boolean; date: string | null; waitingFor?: string; translating?: true }>>({})
 const stateOwn = ref(false)
 
 // May this person save here? Told by the server with the entry (the same rules a save
@@ -201,7 +201,10 @@ const moreItems = computed(() => {
   if (isTranslation.value && perLocale.value && publish.value && canPublish.value && stateOwn.value) {
     items.push({ label: t('translation.followDefault'), icon: 'i-lucide-link', onSelect: followDefault })
   }
-  if (isTranslation.value && translated.value) items.push({ label: t('translation.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: removeTranslation })
+  // Removing a language's own state puts the default language back in its place: for people who may publish, unless it
+  // is being translated (visitors see the default language there already).
+  const mayRemove = !(perLocale.value && stateOwn.value && !canPublish.value && !shownState.value.translating)
+  if (isTranslation.value && translated.value && mayRemove) items.push({ label: t('translation.remove'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: removeTranslation })
   return items
 })
 // The entry itself: see it live, copy it, delete it (never from a translation).
@@ -552,16 +555,18 @@ const publishedOn = computed(() => (publish.value?.dateField ? state[publish.val
 const futureDate = computed(() => !!publishedOn.value && new Date(publishedOn.value).getTime() > Date.now())
 const isScheduled = computed(() => isPublished.value && futureDate.value)
 // What the top bar says. A language with a state of its own reads what the website does with it: the default
-// language gates it, so it can wait for the default language (draft) or for its date (scheduled).
+// language gates it, so it can wait for the default language (draft) or for its date (scheduled). A draft that was
+// never on the website is being translated (`translating`: the default language's name, which visitors see meanwhile).
 const shownState = computed(() => {
   const s = isTranslation.value && perLocale.value ? states.value[currentLocale.value ?? ''] : undefined
-  if (!s || !stateOwn.value) return { published: isPublished.value, date: publishedOn.value, waitingFor: null as string | null }
-  return { published: s.state !== 'draft', date: s.state === 'scheduled' ? s.date : null, waitingFor: s.waitingFor ? localeName(s.waitingFor) : null }
+  if (!s || !stateOwn.value) return { published: isPublished.value, date: publishedOn.value, waitingFor: null as string | null, translating: null as string | null }
+  return { published: s.state !== 'draft', date: s.state === 'scheduled' ? s.date : null, waitingFor: s.waitingFor ? localeName(s.waitingFor) : null, translating: s.translating ? defaultLabel.value : null }
 })
 // The details column adds what the bar does not say: since when, until when, who publishes. "Not on the website
 // yet" is said once, by the address under the title, when there is one.
 const asideNote = computed(() => {
   if (shownState.value.waitingFor) return t('translation.waitingForBody', { lang: shownState.value.waitingFor })
+  if (shownState.value.translating) return t('translation.translatingBody', { lang: shownState.value.translating })
   if (isScheduled.value) return t('editor.goesLive', { date: formatDate(publishedOn.value) })
   if (isPublished.value && publishedOn.value) return t('editor.publishedSince', { date: formatDate(publishedOn.value, { time: false }) })
   if (!isPublished.value) return !canPublish.value ? t('editor.cannotPublish') : publicPath.value ? '' : t('editor.notPublished')
@@ -569,6 +574,7 @@ const asideNote = computed(() => {
 })
 // Whose state the bar shows, when the entry has languages: "English · Draft".
 const shownStateWord = computed(() => (shownState.value.waitingFor ? t('translation.waitingFor', { lang: shownState.value.waitingFor })
+  : shownState.value.translating ? t('translation.state.translating')
   : shownState.value.published && shownState.value.date && new Date(shownState.value.date).getTime() > Date.now() ? t('editor.scheduled')
     : shownState.value.published ? t('editor.published') : t('editor.draft')))
 const stateLang = computed(() => (locales.value && (locales.value.all.length > 1) ? localeName(currentLocale.value) : null))
@@ -665,9 +671,10 @@ async function removeTranslation() {
   }
 }
 
-/** One language's state in the words the list and the bar use ("On the website", "Waiting for Czech"). */
-const stateWord = (s: { state: 'published' | 'scheduled' | 'draft'; waitingFor?: string }) => (s.waitingFor
+/** One language's state in the words the list and the bar use ("On the website", "Waiting for Czech", "Being translated"). */
+const stateWord = (s: { state: 'published' | 'scheduled' | 'draft'; waitingFor?: string; translating?: true }) => (s.waitingFor
   ? t('translation.waitingFor', { lang: localeName(s.waitingFor) })
+  : s.translating ? t('translation.state.translating')
   : t(`translation.state.${s.state}`))
 const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
   label: code === locales.value?.default ? `${localeLabel(code)} (${t('translation.default')})` : localeLabel(code),
@@ -932,11 +939,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           :class="saving || dirty ? 'max-md:hidden' : ''" :aria-label="`${t('translation.language')}: ${cmsLanguageState(stateLang ?? '', shownStateWord, adminLocale)}`"
         >
           <!-- the bar is short on a phone: the language by its code ("EN · Draft"); its name is read out -->
-          <CmsStatusBadge :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" :lang="stateLang ? (currentLocale ?? '').toUpperCase() : null" />
+          <CmsStatusBadge :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" :translating="shownState.translating" :lang="stateLang ? (currentLocale ?? '').toUpperCase() : null" />
           <UIcon name="i-lucide-chevron-down" class="size-3.5 shrink-0 text-dimmed" aria-hidden="true" />
         </button>
       </UDropdownMenu>
-      <CmsStatusBadge v-else-if="publish && !isNew" :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" :lang="stateLang" class="min-w-0" :class="saving || dirty ? 'max-md:hidden' : ''" />
+      <CmsStatusBadge v-else-if="publish && !isNew" :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" :translating="shownState.translating" :lang="stateLang" class="min-w-0" :class="saving || dirty ? 'max-md:hidden' : ''" />
       <!-- phones, content without publishing: the language switcher on its own -->
       <UDropdownMenu v-else-if="!isNew && narrow && localeItems.length > 1" :items="localeItems" :content="{ align: 'start' }">
         <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
@@ -1186,7 +1193,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
                     >{{ localeLabel(code) }}</NuxtLink>
                     <span v-if="perLocale && states[code]" class="flex items-center gap-2 text-xs text-muted">
                       <span v-if="code !== locales.default && !available.includes(code)" class="cms-unsaved">{{ t('translation.notTranslated') }}</span>
-                      <CmsStatusBadge :published="states[code].state !== 'draft'" :scheduled-for="states[code].state === 'scheduled' ? states[code].date : null" :waiting-for="states[code].waitingFor ? localeName(states[code].waitingFor) : null" />
+                      <CmsStatusBadge :published="states[code].state !== 'draft'" :scheduled-for="states[code].state === 'scheduled' ? states[code].date : null" :waiting-for="states[code].waitingFor ? localeName(states[code].waitingFor) : null" :translating="states[code].translating ? defaultLabel : null" />
                       <UTooltip v-if="code !== locales.default && !states[code].own" :text="t('translation.followsDefault', { lang: defaultLabel })">
                         <UIcon name="i-lucide-link" class="size-3.5 text-dimmed" />
                       </UTooltip>
@@ -1264,7 +1271,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       v-if="publish && canPublish" v-model:open="reviewOpen"
       :checks="reviewChecks" :entity="entity" :busy="saving"
       :title="isTranslation && perLocale ? t('review.titleLang', { lang: localeName(currentLocale) }) : undefined"
-      :subtitle="isTranslation && perLocale ? t('review.subtitleLang') : undefined"
+      :subtitle="isTranslation && perLocale ? (shownState.translating ? t('review.subtitleTranslating', { default: shownState.translating }) : t('review.subtitleLang')) : undefined"
       :now-hint="gatedByDefault ? t('review.nowHintGated', { lang: defaultLabel }) : undefined"
       :publish-label="gatedByDefault ? t('editor.publish') : undefined"
       :date-field="dateFieldDesc" :date="publish.dateField ? state[publish.dateField] : undefined"

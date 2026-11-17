@@ -66,7 +66,7 @@ export async function resolveLinkRefs(db: any, reg: CmsRegistry, refs: Iterable<
     }
     const idCond = inArray(e.table.id, [...ids.keys()])
     const rows: any[] = await db.select(cols).from(e.table).where(live ? and(live, idCond) : idCond)
-    const addresses = await entryAddresses(db, reg, e, rows, scope.locale)
+    const addresses = await entryAddresses(db, reg, e, rows, scope.locale, { drafts: scope.preview })
     // A page under an unpublished page is not reachable on the website (page tree rule),
     // so a visitor's link to it goes nowhere, like a link to a draft.
     if (e.tree && !scope.preview && published) {

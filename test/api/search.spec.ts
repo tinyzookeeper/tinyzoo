@@ -65,7 +65,7 @@ describe('website search', () => {
   it('searches in the requested language, only entries translated into it, at their address there', async () => {
     const a = await createAuthor(admin)
     const translated = await createPost(admin, { author: a.id, status: 'published', title: 'Kváskový chléb', slug: 'kvaskovy-chleb', body: doc('Pečeme doma.') })
-    await admin.request('PATCH', `/api/cms/post/${translated.id}?locale=en`, { json: { title: 'Sourdough bread', slug: 'sourdough-bread', body: doc('Baking at home.') } })
+    await admin.request('PATCH', `/api/cms/post/${translated.id}?locale=en`, { json: { title: 'Sourdough bread', slug: 'sourdough-bread', body: doc('Baking at home.'), status: null } }) // follows the live Czech version (else: being translated, not searchable)
     await createPost(admin, { author: a.id, status: 'published', title: 'Chléb bez kvásku', slug: 'chleb-bez-kvasku', body: doc('Jen česky.') })
 
     const en = await search('bread', '&locale=en')
@@ -115,7 +115,7 @@ describe('typos and keeping up with changes', () => {
     await admin.patch(`/api/cms/post/${post.id}`, { body: doc('Start u přehrady.') })
     expect((await search('rybnika')).body.total).toBe(0)
     expect((await search('prehrady')).body.total).toBe(1)
-    await admin.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { title: 'Spring race', slug: 'spring-race', body: doc('Start at the dam.') } })
+    await admin.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { title: 'Spring race', slug: 'spring-race', body: doc('Start at the dam.'), status: null } }) // follows the live Czech version
     expect((await search('dam', '&locale=en')).body.items.map((i: any) => i.path)).toEqual(['/en/blog/spring-race'])
     await admin.patch(`/api/cms/post/${post.id}`, { status: 'draft' })
     expect((await search('prehrady')).body.total).toBe(0) // unpublished: gone from the website at once

@@ -689,7 +689,8 @@ export default {
     waitingFor: 'Wartet auf {lang}',
     waiting: 'Wartet auf die Standardsprache',
     waitingForBody: 'Bereit: Sie geht zusammen mit der Standardsprache ({lang}) online, die noch ein Entwurf ist.',
-    state: { published: 'Auf der Website', scheduled: 'Geplant', draft: 'Entwurf' },
+    state: { published: 'Auf der Website', scheduled: 'Geplant', draft: 'Entwurf', translating: 'Wird übersetzt' },
+    translatingBody: 'Besucher sehen die Standardsprache ({lang}), bis jemand aus der Redaktion diese Version veröffentlicht.',
   },
   sections: {
     menu: 'Formularbereiche',
@@ -731,6 +732,7 @@ export default {
     defaultNotLiveBody: 'Diese Version geht zusammen mit {default} online, sobald {default} veröffentlicht ist.',
     titleLang: 'Die Version auf {lang} veröffentlichen',
     subtitleLang: 'Die anderen Sprachen bleiben, wie sie sind.',
+    subtitleTranslating: 'Bisher sehen Besucher hier die Standardsprache ({default}). Die anderen Sprachen bleiben, wie sie sind.',
     fallbackBody: 'Besucher sehen hier den Text auf {lang}, bis Sie ihn übersetzen.',
     translate: 'Übersetzen',
     sharedUnsaved: 'Veröffentlicht auch nicht gespeicherten Text von {names}',

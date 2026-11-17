@@ -1,6 +1,6 @@
 import { and, inArray, or, sql } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
-import { liveLanguages, perLocalePublishing, publishedCond } from './cmsPublished'
+import { liveLanguages, perLocalePublishing, publishedCond, shownTranslationCond } from './cmsPublished'
 
 const unique = <T>(arr: T[]): T[] => [...new Set(arr)]
 
@@ -333,9 +333,9 @@ export function projectItem(e: CmsEntity, row: any) {
 export async function attachLocaleInfo(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], items: any[], locale: string | null, opts: { drafts?: boolean } = {}) {
   if (!reg.locales || !e.localized.length) return
   const ids = rows.map((r) => r.id)
-  const avail = await availableLocales(db, reg, e, ids, { withStateRows: true })
+  const avail = await availableLocales(db, reg, e, ids, { withStateRows: true, drafts: opts.drafts })
   // The item's address in each language, for collections that live at an address.
-  const paths = e.content?.path ? await localePaths(db, reg, e, ids) : null
+  const paths = e.content?.path ? await localePaths(db, reg, e, ids, { drafts: opts.drafts }) : null
   const live = perLocalePublishing(e) && !opts.drafts ? await liveLanguages(db, e, ids, reg.locales.locales) : null
   items.forEach((item, i) => {
     const id = rows[i].id
@@ -348,13 +348,15 @@ export async function attachLocaleInfo(db: any, reg: CmsRegistry, e: CmsEntity, 
 
 /**
  * Match a localized text column in the requested language: the default-language
- * value, or the translation's (so filters and search work in every language).
+ * value, or the translation's (so filters and search work in every language). For visitors:
+ * a translation being worked on is not there (its text finds nothing).
  */
 export function localizedMatch(reg: CmsRegistry, e: CmsEntity, key: string, locale: string | null, cond: (col: any) => any): any {
   const base = cond(e.table[key])
   if (!isTranslationLocale(reg, locale) || !e.localized.includes(key) || !e.localesTable) return base
   const t = e.localesTable
-  return or(base, sql`exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${t.locale} = ${locale} and ${cond(t[key])})`)
+  const shown = shownTranslationCond(e, t)
+  return or(base, sql`exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${t.locale} = ${locale} and ${cond(t[key])}${shown ? sql` and ${shown}` : sql``})`)
 }
 
 /**

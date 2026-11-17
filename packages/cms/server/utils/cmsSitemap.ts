@@ -122,7 +122,7 @@ function cleanSitemap(entries: SitemapEntry[]): SitemapEntry[] {
  * (a language switcher, hreflang links), and by links that follow their target.
  * Entries that are not at an address are left out.
  */
-export async function localePaths(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[]): Promise<Map<string, Record<string, string>>> {
+export async function localePaths(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[], opts: { drafts?: boolean } = {}): Promise<Map<string, Record<string, string>>> {
   const out = new Map<string, Record<string, string>>()
   if (!e.content?.path || !ids.length) return out
   if (e.tree) {
@@ -145,7 +145,7 @@ export async function localePaths(db: any, reg: CmsRegistry, e: CmsEntity, ids: 
     }
     return out
   }
-  const translations = await translationsByParent(db, reg, e, ids, keys)
+  const translations = await translationsByParent(db, reg, e, ids, keys, opts)
   for (const row of rows) {
     const paths: Record<string, string> = {}
     const base = sitePath(reg.locales, e.content.path, reg.locales.default, row)
@@ -161,7 +161,8 @@ export async function localePaths(db: any, reg: CmsRegistry, e: CmsEntity, ids: 
   return out
 }
 
-async function translationsByParent(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[], keys: string[]): Promise<Map<string, any[]>> {
+/** The translation rows visitors see (an editor's preview, `drafts`, also the ones being worked on), by entry. */
+async function translationsByParent(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[], keys: string[], opts: { drafts?: boolean } = {}): Promise<Map<string, any[]>> {
   const out = new Map<string, any[]>()
   if (!e.localesTable || !ids.length || !reg.locales) return out
   const t = e.localesTable
@@ -170,7 +171,7 @@ async function translationsByParent(db: any, reg: CmsRegistry, e: CmsEntity, ids
   // Only languages the site still has (a removed language must not reappear).
   const others = reg.locales.locales.filter((l) => l !== reg.locales!.default)
   if (!others.length) return out
-  const rows: any[] = await db.select(cols).from(t).where(and(inArray(t.parentId, ids), inArray(t.locale, others)))
+  const rows: any[] = await db.select(cols).from(t).where(and(inArray(t.parentId, ids), inArray(t.locale, others), opts.drafts ? undefined : shownTranslationCond(e, t)))
   for (const r of rows) out.set(r.parentId, [...(out.get(r.parentId) ?? []), r])
   return out
 }

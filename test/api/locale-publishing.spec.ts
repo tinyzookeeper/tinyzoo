@@ -21,10 +21,10 @@ afterAll(() => db.end())
 const inSeconds = (s: number) => new Date(Date.now() + s * 1000).toISOString()
 const patchEn = (id: string, body: Record<string, unknown>, c = admin) => c.request('PATCH', `/api/cms/post/${id}?locale=en`, { json: body })
 const post = (over: Record<string, unknown> = {}) => createPost(admin, { author: byline.id, status: 'published', title: 'Vánoční cukroví', slug: 'vanocni-cukrovi', body: doc('Česky'), ...over })
-/** A published post with an English translation that has no state of its own. */
+/** A published post with an English translation that has no state of its own (said so: a first translation of a published post is otherwise being translated). */
 const translated = async (over: Record<string, unknown> = {}) => {
   const p = await post(over)
-  expect((await patchEn(p.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })).status).toBe(200)
+  expect((await patchEn(p.id, { title: 'Christmas cookies', slug: 'christmas-cookies', status: null })).status).toBe(200)
   return p
 }
 const single = (slug: string, locale: string) => anonymous().get(`/api/content/post/${slug}?locale=${locale}`)

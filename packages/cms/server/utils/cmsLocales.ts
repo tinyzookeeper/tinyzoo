@@ -1,4 +1,6 @@
 import { and, eq, inArray, propOf } from 'tinyzoo'
+// Explicit: the CLI's import rebuilds the search index (which reads this file) outside Nitro.
+import { isBeingTranslated, shownTranslationCond } from './cmsPublished'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 
 /**
@@ -68,20 +70,26 @@ export function hasTranslatedText(e: CmsEntity, tr: Record<string, any>): boolea
   return e.localized.some((k) => !isEmpty(tr[k]))
 }
 
-/** The translation rows of `ids` in `locale`, by parent id. */
-export async function translationRows(db: any, e: CmsEntity, ids: string[], locale: string): Promise<Map<string, any>> {
+/**
+ * The translation rows of `ids` in `locale`, by parent id. `shown`: only rows visitors see (a
+ * translation being worked on is left out, as if it were not there: `shownTranslationCond`).
+ */
+export async function translationRows(db: any, e: CmsEntity, ids: string[], locale: string, opts: { shown?: boolean } = {}): Promise<Map<string, any>> {
   const out = new Map<string, any>()
   if (!e.localesTable || !ids.length) return out
   const t = e.localesTable
-  const rows: any[] = await db.select().from(t).where(and(inArray(t.parentId, ids), eq(t.locale, locale)))
+  const rows: any[] = await db.select().from(t).where(and(inArray(t.parentId, ids), eq(t.locale, locale), opts.shown ? shownTranslationCond(e, t) : undefined))
   for (const r of rows) out.set(r.parentId, r)
   return out
 }
 
-/** Overlay `locale`'s non-empty translated values on `rows` (in place): per-field fallback. */
-export async function overlayTranslations(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], locale: string | null): Promise<void> {
+/**
+ * Overlay `locale`'s non-empty translated values on `rows` (in place): per-field fallback. For
+ * visitors; a translation being worked on is not there for them (`drafts`, an editor's preview, sees it).
+ */
+export async function overlayTranslations(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], locale: string | null, opts: { drafts?: boolean } = {}): Promise<void> {
   if (!isTranslationLocale(reg, locale) || !e.localized?.length || !rows.length) return
-  const byParent = await translationRows(db, e, rows.map((r) => r.id), locale)
+  const byParent = await translationRows(db, e, rows.map((r) => r.id), locale, { shown: !opts.drafts })
   for (const row of rows) {
     const tr = byParent.get(row.id)
     if (tr) {
@@ -113,9 +121,10 @@ export function mergeTranslation(e: CmsEntity, row: Record<string, any>, tr: Rec
  * For each id, the languages it is available in: the default plus every translation. With
  * per-language publishing a translation row may hold only a state (a language switched off
  * or on without any text of its own), which is not a translation — unless `withStateRows`
- * (the website: a language published on its own is there, in the text of the default).
+ * (the website: a language published on its own is there, in the text of the default). The
+ * website (`withStateRows`) does not see a translation being worked on, unless `drafts` (preview).
  */
-export async function availableLocales(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[], opts: { withStateRows?: boolean } = {}): Promise<Map<string, string[]>> {
+export async function availableLocales(db: any, reg: CmsRegistry, e: CmsEntity, ids: string[], opts: { withStateRows?: boolean; drafts?: boolean } = {}): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>()
   if (!reg.locales) return out
   for (const id of ids) out.set(id, [reg.locales.default])
@@ -124,7 +133,7 @@ export async function availableLocales(db: any, reg: CmsRegistry, e: CmsEntity, 
   const stateRows = !!e.publish?.perLocale
   const cols: Record<string, any> = { parentId: t.parentId, locale: t.locale }
   if (stateRows) for (const k of e.localized) cols[k] = t[k]
-  const rows: any[] = await db.select(cols).from(t).where(inArray(t.parentId, ids))
+  const rows: any[] = await db.select(cols).from(t).where(and(inArray(t.parentId, ids), opts.withStateRows && !opts.drafts ? shownTranslationCond(e, t) : undefined))
   for (const r of rows) {
     if (!reg.locales.locales.includes(r.locale)) continue
     if (stateRows && !opts.withStateRows && !hasTranslatedText(e, r)) continue
@@ -135,7 +144,7 @@ export async function availableLocales(db: any, reg: CmsRegistry, e: CmsEntity, 
   return out
 }
 
-/** One language of an entry as the admin shows it: live, waiting for its date, or a draft. */
+/** One language of an entry as the admin shows it: live, waiting for its date, a draft, or being translated. */
 export interface LanguageState {
   /**
    * What the website does with this language right now. The default language gates the others: a
@@ -150,6 +159,12 @@ export interface LanguageState {
   date: string | null
   /** A language that is published (or scheduled) on its own but is not on the website, because the default language is a draft: the default language's code. Absent otherwise. */
   waitingFor?: string
+  /**
+   * A draft of this language that has never been on the website: a translation being worked on.
+   * Visitors keep seeing what they saw without it (the default language, while that one is live)
+   * until someone publishes it. `state` is `draft`. Absent otherwise.
+   */
+  translating?: true
 }
 
 /**
@@ -164,7 +179,7 @@ export async function translationStates(db: any, reg: CmsRegistry, e: CmsEntity,
   if (!p?.perLocale || !t || !reg.locales || !rows.length) return out
   const others = reg.locales.locales.filter((l) => l !== reg.locales!.default)
   const own = new Map<string, any>()
-  const trs: any[] = await db.select({ parentId: t.parentId, locale: t.locale, published: t.published, publishedAt: t.publishedAt }).from(t)
+  const trs: any[] = await db.select({ parentId: t.parentId, locale: t.locale, published: t.published, publishedAt: t.publishedAt, firstLiveAt: t.firstLiveAt }).from(t)
     .where(and(inArray(t.parentId, rows.map((r) => r.id)), inArray(t.locale, others)))
   for (const tr of trs) if (tr.published !== null) own.set(tr.parentId + '#' + tr.locale, tr)
   const statusKey = propOf(p.field, e.fields[p.field]!)
@@ -198,7 +213,8 @@ export async function translationStates(db: any, reg: CmsRegistry, e: CmsEntity,
           state = 'scheduled'
         }
       }
-      states[l] = { state, own: true, date: date ? date.toISOString() : null, ...(waitingFor ? { waitingFor } : {}) }
+      const translating = state === 'draft' && isBeingTranslated(mine, now)
+      states[l] = { state, own: true, date: date ? date.toISOString() : null, ...(waitingFor ? { waitingFor } : {}), ...(translating ? { translating: true as const } : {}) }
     }
     out.set(row.id, states)
   }

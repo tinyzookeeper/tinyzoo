@@ -185,14 +185,21 @@ export function notLiveCond(e: CmsEntity, user: CmsUser): any {
  * language) that language by **its own state**: its own while it has one, else the entry's
  * (it follows). A language that is published on its own is live for this purpose even while
  * the default language is a draft and holds it back: it is marked live, and the default
- * language going live would put it on the website. One rule for the translation write, shared
- * editing and the editor's read-only switch, so what the form says is what a save does.
+ * language going live would put it on the website. A language with no translation yet is not:
+ * writing it starts a translation that visitors do not see (it is made "being translated" when
+ * the default language is published; see writeTranslation), so nothing on the website changes.
+ * A language with a draft of its own is not either, being translated or taken off the website.
+ * One rule for the translation write, shared editing and the editor's read-only switch, so what
+ * the form says is what a save does.
  */
 export function notLiveInLanguage(e: CmsEntity, user: CmsUser, locale?: string | null): any {
   const p = e.publish
   if (!p?.perLocale || !locale || canPublish(user)) return notLiveCond(e, user)
-  const status = localeView(e, e.table, locale)[propOf(p.field, e.fields[p.field]!)]
-  return or(isNull(status), ne(status, p.publishedValue))
+  const lt = e.localesTable
+  const status = e.table[propOf(p.field, e.fields[p.field]!)]
+  // Live for this purpose: published on its own, or a translation that follows a published default language.
+  return sql`not exists (select 1 from ${lt} where ${lt.parentId} = ${e.table.id} and ${lt.locale} = ${locale}
+    and (${lt.published} is true or (${lt.published} is null and coalesce(${status} = ${p.publishedValue}, false))))`
 }
 
 /**

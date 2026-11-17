@@ -67,9 +67,14 @@ describe('publish webhooks', () => {
     const a = await createAuthor(admin)
     const post = await createPost(admin, { author: a.id, status: 'published', slug: 'clanek' })
     const mark = hooksMark()
-    expect((await admin.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'Article', slug: 'article' })).status).toBe(200)
+    // (Posts publish each language on their own: `status: null` makes this first translation follow Czech, so it is on the
+    // website at once; without it, it would be being translated, which visitors do not see and which sends nothing.)
+    expect((await admin.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'Article', slug: 'article', status: null })).status).toBe(200)
     const tr = (h: ReceivedHook[]) => h.find((x) => x.path === '/ok' && x.json.type === 'translation.updated')
-    expect(tr(await waitForHooks(mark, (h) => !!tr(h)))!.json).toMatchObject({ locale: 'en', paths: ['/en/blog/article'] })
+    const json = tr(await waitForHooks(mark, (h) => !!tr(h)))!.json
+    expect(json).toMatchObject({ locale: 'en' })
+    // Its new address, and the one English was served at through Czech until now (it reads English there too).
+    expect([...json.paths].sort()).toEqual(['/en/blog/article', '/en/blog/clanek'])
   })
 
   it('reports the translated address of a collection with one per language', async () => {
@@ -100,7 +105,7 @@ describe('publish webhooks', () => {
   it('covers every language: a renamed translated slug, and a deleted translated post', async () => {
     const a = await createAuthor(admin)
     const post = await createPost(admin, { author: a.id, status: 'published', slug: 'akce' })
-    await admin.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'Event', slug: 'event' })
+    await admin.patch(`/api/cms/post/${post.id}?locale=en`, { title: 'Event', slug: 'event', status: null }) // follows Czech: live
     let mark = hooksMark()
     await admin.patch(`/api/cms/post/${post.id}?locale=en`, { slug: 'events' })
     const tr = (h: ReceivedHook[]) => h.find((x) => x.path === '/ok' && x.json.type === 'translation.updated' && x.json.paths.includes('/en/blog/events'))

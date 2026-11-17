@@ -75,7 +75,8 @@ describe('a translated group', () => {
     // Untranslated: the default language's group.
     expect((await anonymous().get(`/api/content/post/${post.slug}?locale=en`)).body.item.location).toEqual({ place: 'Sokolovna', note: 'vchod z ulice' })
 
-    expect((await en(post.id, { location: location('Gym') })).status).toBe(200)
+    // `status: null`: this first translation of a live post follows it (posts publish each language on their own; otherwise it is being translated).
+    expect((await en(post.id, { location: location('Gym'), status: null })).status).toBe(200)
     const trans = (await admin.request('GET', `/api/cms/post/${post.id}?locale=en`)).body.row
     expect(trans.location).toEqual({ place: 'Gym' })
     expect(trans.__defaults.location).toEqual(location('Sokolovna', 'vchod z ulice'))

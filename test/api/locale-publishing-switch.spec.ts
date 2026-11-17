@@ -49,7 +49,9 @@ async function seed() {
   const byline = await createAuthor(admin)
   const tag = await createTag(admin, { name: 'Pečení', slug: 'peceni' })
   const text = (t: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: t }] }] })
-  const translate = (id: string, body: Record<string, unknown>) => admin.request('PATCH', `/api/cms/post/${id}?locale=en`, { json: body })
+  // Translations as a site had them before it switched the option on: no state of their own (they follow the default language).
+  // (Said explicitly: a first translation of a published post written through the API is otherwise being translated.)
+  const translate = (id: string, body: Record<string, unknown>) => admin.request('PATCH', `/api/cms/post/${id}?locale=en`, { json: { ...body, status: null } })
   const mk = (over: Record<string, unknown>) => createPost(admin, { author: byline.id, tags: [tag.id], ...over })
 
   // live, no translation at all: served in English through the default language

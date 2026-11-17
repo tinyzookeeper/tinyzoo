@@ -180,7 +180,9 @@ export async function isMediaLive(db: any, reg: CmsRegistry, mediaId: string, me
         cond = like((e.table as any)[key])
         const t = e.localesTable
         if ((fld as any).isLocalized && t) {
-          cond = sql`(${cond} or exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${like(t[key])}))`
+          // A translation being worked on is not on the website (shownTranslationCond).
+          const shown = shownTranslationCond(e, t)
+          cond = sql`(${cond} or exists (select 1 from ${t} where ${t.parentId} = ${e.table.id} and ${like(t[key])}${shown ? sql` and ${shown}` : sql``}))`
         }
       }
       if (!cond) continue

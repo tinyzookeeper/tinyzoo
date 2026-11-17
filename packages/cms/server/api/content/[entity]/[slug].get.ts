@@ -8,7 +8,8 @@ import { and, eq, indexTree } from 'tinyzoo'
 // that chain.
 // A page under a draft is not reachable: its address runs through the draft.
 // With publish.perLocale a language that is not published is not there: 404 with ?locale= for it
-// (an editor's ?preview sees the draft translation).
+// (an editor's ?preview sees the draft translation). A translation being worked on (never published)
+// is not there for visitors either way: they get the default language through fallback, as before it.
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export default defineEventHandler(async (event) => {
@@ -41,7 +42,8 @@ export default defineEventHandler(async (event) => {
   // A translated URL address first (e.g. /en/christmas-cookies), then the default one.
   if (!e.tree && slugField && isTranslationLocale(reg, locale) && e.localized.includes(slugField) && e.localesTable) {
     const t = e.localesTable
-    const [tr] = await db.select({ parentId: t.parentId }).from(t).where(and(eq(t.locale, locale), eq(t[slugField], key)))
+    // A translation being worked on has no address of its own for visitors yet (an editor's preview finds it).
+    const [tr] = await db.select({ parentId: t.parentId }).from(t).where(and(eq(t.locale, locale), eq(t[slugField], key), drafts ? undefined : shownTranslationCond(e, t)))
     if (tr) [row] = await db.select().from(e.table).where(guard(e.table.id, tr.parentId))
   }
   if (!row && !e.tree && slugField && e.table[slugField]) {
@@ -52,7 +54,7 @@ export default defineEventHandler(async (event) => {
   }
   if (!row) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
-  await overlayTranslations(db, reg, e, [row], locale)
+  await overlayTranslations(db, reg, e, [row], locale, { drafts })
   // The editor's unsaved values, while they type (live preview).
   applyPreviewDrafts(event, reg, e, [row], locale)
   await populateItems(db, reg, e, [row], e.content?.populate, locale, { preview, user: event.context?.cmsUser })

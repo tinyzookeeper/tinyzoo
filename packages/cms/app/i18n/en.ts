@@ -691,7 +691,8 @@ export default {
     waitingFor: 'Waiting for {lang}',
     waiting: 'Waiting for the default language',
     waitingForBody: 'Ready: it goes on the website together with the default language ({lang}), which is still a draft.',
-    state: { published: 'On the website', scheduled: 'Scheduled', draft: 'Draft' },
+    state: { published: 'On the website', scheduled: 'Scheduled', draft: 'Draft', translating: 'Being translated' },
+    translatingBody: 'Visitors see the {lang} version until an editor publishes this one.',
   },
   sections: {
     menu: 'Sections of the form',
@@ -733,6 +734,7 @@ export default {
     defaultNotLiveBody: 'This version goes on the website together with {default}, as soon as {default} is published.',
     titleLang: 'Publish the {lang} version',
     subtitleLang: 'The other languages stay as they are.',
+    subtitleTranslating: 'Until now visitors see the {default} version here. The other languages stay as they are.',
     fallbackBody: 'Visitors see the {lang} text here until you translate it.',
     translate: 'Translate',
     sharedUnsaved: 'This also publishes unsaved text from {names}',
