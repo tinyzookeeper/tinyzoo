@@ -332,6 +332,29 @@ html[data-cms-admin] .cms-write-body .cms-rte__toolbar {
   border-top: 1px solid var(--ui-border); border-bottom: 1px solid var(--ui-border);
 }
 html[data-cms-admin] .cms-write-body .ProseMirror { padding: 1.25rem 0 2rem; min-height: 18rem; }
+html[data-cms-admin] .cms-write-body .cms-rte__fallback { padding: 1.25rem 0 2rem; }
+
+/* Translating the main text with the original beside it (on request, 1280 px and wider): the column
+   widens and the text becomes two: the default language's, quiet, on the left; the translation on the
+   right, as the reader meets both. The original's heading sits where the toolbar is, so the texts start level. */
+@media (min-width: 1280px) {
+  html[data-cms-admin] .cms-editor--compare .cms-editor__column { max-width: 76rem; }
+}
+html[data-cms-admin] .cms-compare { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+html[data-cms-admin] .cms-compare__original { padding-right: 2rem; border-right: 1px solid var(--ui-border); color: var(--ui-text-muted); }
+html[data-cms-admin] .cms-compare__original > .cms-prose { padding: 1.25rem 0 2rem; }
+html[data-cms-admin] .cms-compare__original > .cms-prose > * + * { margin-top: 0.5rem; }
+html[data-cms-admin] .cms-compare__original > .cms-prose :is(h2, h3) { font-weight: 600; margin-top: 1rem; }
+html[data-cms-admin] .cms-compare__original > .cms-prose h2 { font-size: 1.25rem; line-height: 1.3; }
+html[data-cms-admin] .cms-compare__original > .cms-prose ul { list-style: disc; padding-left: 1.5rem; }
+html[data-cms-admin] .cms-compare__original > .cms-prose ol { list-style: decimal; padding-left: 1.5rem; }
+html[data-cms-admin] .cms-compare__original > .cms-prose img { max-width: 100%; height: auto; border-radius: 0.375rem; }
+html[data-cms-admin] .cms-compare > :last-child { padding-left: 2rem; min-width: 0; }
+html[data-cms-admin] .cms-compare__label {
+  display: flex; align-items: center; min-height: 2.625rem;
+  border-top: 1px solid var(--ui-border); border-bottom: 1px solid var(--ui-border);
+  font-size: 0.75rem; font-weight: 500; color: var(--ui-text-muted);
+}
 
 /* Details rows (the writing editor): label | quiet control. */
 html[data-cms-admin] .cms-field-row {
@@ -557,6 +580,40 @@ html[data-cms-admin] .cms-scroll-x::-webkit-scrollbar { display: none; }
    enough on charcoal night. */
 html[data-cms-admin] .cms-unsaved { color: color-mix(in oklab, var(--ui-warning) 62%, #000); }
 html[data-cms-admin].dark .cms-unsaved { color: color-mix(in oklab, var(--ui-warning) 70%, #fff); }
+
+/* A field the person's role may read but not change (.access({ edit }), CmsFieldLock): it reads as
+   locked, not as a field that happens to be pale. Its boxes get the raised grey as a fill and a lock
+   inside on the right; the words stay at full strength (they are still read); one sentence under it
+   says who can change it. The lock is drawn in the quiet text colour of each theme. */
+html[data-cms-admin] {
+  --cms-locked-bg: var(--ui-bg-elevated);
+  --cms-lock-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='11' x='3' y='11' rx='2' ry='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");
+}
+html[data-cms-admin].dark {
+  --cms-lock-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23A09D97' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='11' x='3' y='11' rx='2' ry='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");
+}
+html[data-cms-admin] .cms-field-locked__set { min-width: 0; margin: 0; padding: 0; border: 0; }
+html[data-cms-admin] .cms-field-locked :is(input, textarea, select, button):disabled { opacity: 1; cursor: default; }
+html[data-cms-admin] .cms-field-locked :is(input, textarea, [role='combobox'], .cms-rte) {
+  background-color: var(--cms-locked-bg);
+  border-color: transparent;
+  box-shadow: none;
+  --tw-ring-shadow: 0 0 #0000;
+}
+html[data-cms-admin] .cms-field-locked :is(input:not([type='checkbox'], [type='radio'], [type='color']), textarea, .cms-rte .ProseMirror) {
+  background-image: var(--cms-lock-icon);
+  background-repeat: no-repeat;
+  background-size: 0.875rem;
+  background-position: right 0.75rem top 0.7rem;
+  padding-inline-end: 2.25rem;
+}
+html[data-cms-admin] .cms-field-locked .cms-rte__toolbar { display: none; }
+html[data-cms-admin] .cms-field-locked__why {
+  margin-top: 0.375rem;
+  display: flex; align-items: flex-start; gap: 0.375rem;
+  font-size: 0.75rem; line-height: 1.1rem;
+  color: var(--ui-text-muted);
+}
 
 /* "Take me to the field" (publish review → Fix): a ring that fades. */
 @keyframes cms-flash { 0%, 60% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--ui-error) 45%, transparent); } 100% { box-shadow: 0 0 0 3px transparent; } }

@@ -297,6 +297,8 @@ export interface AdminSearchItem {
   highlights: [number, number][]
   /** 'published' | 'scheduled' | 'draft' for collections with publishing (per language: of the language the hit is in; 'waiting' = published, held back by the default language), else null. */
   status: string | null
+  /** Publishing per language: the language the hit was found in, when it is not the default one (its state is `status`; the admin opens that language). */
+  locale?: string
   updatedAt: string
   score: number
 }
@@ -355,6 +357,7 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
           excerpt: match.excerpt,
           highlights: match.highlights,
           status: !p ? null : languageStatus(states?.get(id)?.[first.locale]) ?? (first.status !== p.publishedValue ? 'draft' : first.due ? 'published' : 'scheduled'),
+          ...(states && first.locale && first.locale !== reg.locales!.default ? { locale: first.locale as string } : {}),
           updatedAt: new Date(first.updatedAt).toISOString(),
           score: match.score,
         })

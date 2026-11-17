@@ -131,12 +131,65 @@ export function assignableRoleSchema() {
   return z.string().refine((r) => assignableRoles().includes(r), { message: 'Unknown role' })
 }
 
-/** The roles an administrator can pick, for the Team page: name, label, what they extend. */
+/** What a role may do with one collection or global: the operations it has, and whether only on its own entries. */
+export interface CmsRoleReach { ops: ('read' | 'create' | 'update' | 'delete')[]; own: boolean }
+
+/**
+ * What a role reaches, area by area of the admin (every collection and global of the site): the same
+ * rules a request meets (the role, then the entity's own `access` rule, asked about a person with only
+ * that role), so the Team page can say in words what each role does. An area the role cannot read is
+ * left out. A rule that needs more of the person than their role (a row rule on their id) is taken as
+ * "some entries", which is what the person meets too.
+ */
+export function roleReach(name: string): Record<string, CmsRoleReach> {
+  const { reg } = useCms()
+  const role = resolveRole(reg.roles, name)
+  const out: Record<string, CmsRoleReach> = {}
+  if (!role) return out
+  const someone = { id: '00000000-0000-0000-0000-000000000000', email: '', name: '', role: name }
+  const ask = (e: CmsEntity, op: CmsRoleReach['ops'][number]) => {
+    try {
+      return accessWhere(e, op, someone)
+    }
+    catch {
+      // An `access` rule that cannot answer for a made-up person: what the role alone allows.
+      return roleAccess(e, op, someone)
+    }
+  }
+  for (const g of reg.graph) {
+    const e = reg.byName.get(g.name)
+    if (!e) continue
+    const read = ask(e, 'read')
+    if (!read.allowed) continue
+    const reach: CmsRoleReach = { ops: ['read'], own: false }
+    for (const op of ['create', 'update', 'delete'] as const) {
+      if (e.singleton && op !== 'update') continue
+      const a = ask(e, op)
+      if (!a.allowed) continue
+      reach.ops.push(op)
+      // Changing or deleting only some entries: an author's own (the row rule on `createdBy`).
+      if (op !== 'create' && a.where !== undefined && role.base === 'author') reach.own = true
+    }
+    out[g.name] = reach
+  }
+  return out
+}
+
+/**
+ * The roles an administrator can pick, for the Team page: name, label, what they extend, and what each
+ * reaches (`reach`), publishes and may do with files, so the admin can describe a role that has no
+ * `description` of its own, and show every role side by side.
+ */
 export function roleChoices() {
   const { reg } = useCms()
   return assignableRoles().map((name) => {
     const r = resolveRole(reg.roles, name)!
-    return { name, custom: r.custom, from: r.base, label: r.label ?? null, description: r.description ?? null }
+    return {
+      name, custom: r.custom, from: r.base, label: r.label ?? null, description: r.description ?? null,
+      publish: r.publish, media: r.media, manage: r.manage, reach: roleReach(name),
+      // The collections its definition names: what the role is about, said first.
+      listed: [...r.entities.keys()],
+    }
   })
 }
 
@@ -149,4 +202,18 @@ export function stripForPreviewer(event: any, e: CmsEntity, items: Record<string
   const user = event?.context?.cmsUser
   if (!user || getQuery(event).preview === undefined) return
   for (const item of items) stripUnreadable(e, user, item)
+}
+
+/**
+ * The roles that may change a field with this rule, for the sentence under a locked field ("Only Editor and
+ * Administrator can change this"): the roles it lists, built-ins first, the administrator (who always may) last.
+ * Each with its label from the config (null for a built-in: the admin names those itself).
+ */
+export function editableBy(rule: CmsFieldRule | undefined): { name: string; label: unknown }[] {
+  const { reg } = useCms()
+  const names = rule?.edit ?? rule?.read ?? []
+  const order = allRoleNames(reg.roles)
+  const listed = [...new Set([...names.filter((n) => n !== 'admin'), 'admin'])]
+    .sort((a, b) => (a === 'admin' ? 1 : b === 'admin' ? -1 : order.indexOf(a) - order.indexOf(b)))
+  return listed.map((name) => ({ name, label: resolveRole(reg.roles, name)?.label ?? null }))
 }

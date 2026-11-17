@@ -13,6 +13,10 @@ const max = computed<number | undefined>(() => props.field?.meta?.max)
 const icon = computed(() => cmsFieldIcon(props.field))
 const injected = inject<Ref<'outline' | 'ghost'> | null>('cmsFieldVariant', null)
 const variant = computed(() => injected?.value ?? 'outline')
+// Translating: the default language's text, greyed inside the empty field (what visitors see until it is translated).
+const fallback = inject<Ref<unknown> | null>('cmsFieldFallback', null)
+const fallbackText = computed(() => (typeof fallback?.value === 'string' && fallback.value ? fallback.value : undefined))
+const placeholder = computed(() => fallbackText.value ?? (variant.value === 'ghost' ? t('fields.notSet') : undefined))
 const href = computed(() => {
   const v = typeof model.value === 'string' ? model.value.trim() : ''
   const format = props.field?.meta?.format
@@ -33,7 +37,7 @@ const pickedRef = computed(() => (asRefs.value && typeof model.value === 'string
 
 <template>
   <div class="w-full">
-    <UTextarea v-if="multiline" :id="id" v-model="model" :variant="variant" class="w-full" autoresize :rows="3" :maxrows="12" :maxlength="max" />
+    <UTextarea v-if="multiline" :id="id" v-model="model" :variant="variant" :placeholder="placeholder" class="w-full" autoresize :rows="3" :maxrows="12" :maxlength="max" />
     <!-- a link to one of the site's pages: named by the page, not by its reference -->
     <div
       v-else-if="pickedRef" :id="id"
@@ -52,7 +56,7 @@ const pickedRef = computed(() => (asRefs.value && typeof model.value === 'string
       </UPopover>
       <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('link.remove')" @click="() => { model = '' }" />
     </div>
-    <UInput v-else :id="id" v-model="model" :variant="variant" :placeholder="variant === 'ghost' ? t('fields.notSet') : undefined" class="w-full" :maxlength="max" :icon="icon" :ui="href || pickable ? { trailing: 'pe-1.5' } : undefined">
+    <UInput v-else :id="id" v-model="model" :variant="variant" :placeholder="placeholder" class="w-full" :maxlength="max" :icon="icon" :ui="href || pickable ? { trailing: 'pe-1.5' } : undefined">
       <template v-if="href || pickable" #trailing>
         <UPopover v-if="pickable" v-model:open="pickerOpen" :content="{ align: 'end' }">
           <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-file-search" :aria-label="t('link.choose')">

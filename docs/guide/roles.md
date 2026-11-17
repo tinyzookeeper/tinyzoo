@@ -82,7 +82,7 @@ export const Settings = defineSingleton('settings', { label: 'Settings', titleFi
 | Setting | Meaning |
 |---|---|
 | `from` | `'editor'` (every entry of every collection) or `'author'` (drafts, and only own entries). Required |
-| `label`, `description` | the role's name and one sentence, one string or one per admin language |
+| `label`, `description` | the role's name and one sentence, one string or one per admin language. Without a `description` the admin describes the role from this definition ([below](#how-the-admin-shows-a-role)) |
 | `entities` | what the role may do with a collection, by its name: `read`, `create`, `update`, `delete`. A collection listed gets **exactly** these operations (`['read']` reads, `[]` does not see it at all); one left out is **what `from` allows**. Anything but `read` needs `read` too. A global has `read` and `update` only |
 | `publish` | may publish and unpublish, and change what is live. Default: what `from` has (editor yes, author no). A role that may not publish writes drafts only, and cannot change an entry that is live, or write content that is live the moment it is saved (a global, redirects). Publish is also offered only to a role that may edit the entity's status field and its publish date (a publish writes both): put a field rule on one of them and add the roles that should publish |
 | `media` | the media library: `'all'`, `'own'` or `'none'` ([below](#the-media-library)). Default: what `from` has |
@@ -102,6 +102,20 @@ The names are checked when the config loads, with the collection or the field in
 a role named like a built-in, one that extends `admin`, a collection the site does not have, an
 operation a global cannot have, or `update` without `read`.
 
+### How the admin shows a role
+
+Settings → Team names each role in the invitation and in "Change role" with one sentence: your `description`, or,
+when you wrote none, a sentence made from the definition, in the admin's language: what the role changes, what it
+only reads, whether it publishes, and its files. For the translator above without its description:
+
+> Edits Posts and Pages. Only reads Authors, Tags and 2 more. Cannot publish: drafts only. Changes only the files they uploaded.
+
+It is worked out from the same rules the server applies (the role, then each entity's own `access` rule), so it
+also says what a role reaches through what it inherits: a role based on editor that does not list a collection
+edits it, and a role that may not publish only reads content that is live the moment it is saved (a global, the
+redirects). **What can each role do?** on the Team page shows every role side by side, built-in ones included:
+what it changes, what it only reads, whether it publishes, its files, and how many people have it.
+
 ## Per-field permissions
 
 Each field can say who **reads** it and who **edits** it, by role:
@@ -113,6 +127,8 @@ cost:  f.number().access({ read: ['editor'], edit: ['editor'] }),     // the oth
 
 - A list names the roles that may. A role missing from it does not see the field (`read`) or sees it
   read-only (`edit`). A rule left out means everyone who may read (or write) the collection.
+- A read-only field looks locked in the admin (a grey fill and a lock in the field) and says who can change it,
+  by the roles' labels: "Only Editor and Administrator can change this." Name the roles you want people to ask.
 - **Administrators always may.** Editing needs reading: a role in `edit` must be able to read, and the
   config is refused when it names one that cannot.
 - Your own roles are named by their reference (`roles.translator`, so a typo is a compile error); the

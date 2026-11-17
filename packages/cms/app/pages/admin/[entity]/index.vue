@@ -11,7 +11,7 @@ definePageMeta({ layout: 'admin', key: (route) => route.path })
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { t, tl, languageName, entityLabel, entitySingular, fieldLabel, formatNumber, formatDateWith } = useCmsI18n()
+const { t, tl, entityLabel, entitySingular, fieldLabel, formatNumber, formatDateWith } = useCmsI18n()
 const entity = computed(() => route.params.entity as string)
 
 const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
@@ -375,17 +375,6 @@ function rowPublicPath(row: any): string | null {
 }
 // Translations: name only what is missing ("EN missing"), nothing when all are there.
 const missingLocales = (row: any) => (meta.value?.locales?.all ?? []).filter((code: string) => !(row.__locales ?? []).includes(code))
-// Publishing per language: each translation's own state, compactly ("EN" and a dot); what differs from the entry says why in its tooltip.
-const otherLocales = computed<string[]>(() => (meta.value?.locales?.all ?? []).filter((code: string) => code !== meta.value?.locales?.default))
-const langState = (row: any, code: string): 'published' | 'scheduled' | 'draft' => row.__states?.[code]?.state ?? 'draft'
-const langTitle = (row: any, code: string) => {
-  const s = row.__states?.[code]
-  const name = languageName(code, meta.value?.locales?.labels?.[code])
-  const parts = [s?.waitingFor ? t('translation.waitingFor', { lang: languageName(s.waitingFor, meta.value?.locales?.labels?.[s.waitingFor]) }) : t(`translation.state.${langState(row, code)}`)]
-  if (s && !s.own) parts.push(t('translation.followsShort'))
-  if (!(row.__locales ?? []).includes(code)) parts.push(t('translation.notTranslated'))
-  return `${name}: ${parts.join(' · ')}`
-}
 const isLive = (row: any) => !!publish.value && row[publish.value.field] === publish.value.publishedValue
 // Grid: pictures that are the content (album covers) fill the card; logos sit whole on a light tile.
 const gridFill = computed(() => !!publish.value)
@@ -640,7 +629,7 @@ const tabs = computed(() => [
                   <UIcon v-if="sort === key" :name="dir === 'asc' ? 'i-lucide-arrow-up' : 'i-lucide-arrow-down'" class="size-3.5" />
                 </button>
               </th>
-              <th v-if="meta?.locales" scope="col" class="text-left font-medium px-4 py-2.5 whitespace-nowrap max-lg:hidden">{{ t('translation.languages') }}</th>
+              <th v-if="meta?.locales" scope="col" class="text-left font-medium px-4 py-2.5 whitespace-nowrap max-md:hidden">{{ t('translation.languages') }}</th>
               <th scope="col" :aria-sort="ariaSort('updatedAt')" class="text-right font-medium px-4 py-2.5 whitespace-nowrap max-sm:hidden">
                 <button type="button" class="inline-flex items-center gap-1 hover:text-highlighted" @click="toggleSort('updatedAt')">
                   {{ t('list.updated') }}
@@ -670,13 +659,17 @@ const tabs = computed(() => [
                   <div class="min-w-0">
                     <div class="font-medium text-highlighted truncate">{{ rowTitle(row) }}</div>
                     <div v-if="slugKey && row[slugKey]" class="text-xs text-muted truncate max-sm:hidden">/{{ row[slugKey] }}</div>
-                    <!-- phones: the essentials in one line under the title -->
-                    <div class="sm:hidden text-xs text-muted flex items-center gap-1.5 min-w-0">
+                    <!-- phones: the essentials in one line under the title (the languages' states too, compactly) -->
+                    <div class="md:hidden text-xs text-muted flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
                       <CmsStatusBadge v-if="publish" :published="isLive(row)" :scheduled-for="publish.dateField ? row[publish.dateField] : null" class="!text-xs shrink-0" />
                       <!-- no publishing here (form messages): the row's own state — new, read, done — still shows -->
                       <CmsCell v-else-if="phoneState" :field="fieldOf(phoneState)" :row="row" :entity="entity" class="!text-xs shrink-0" />
-                      <span v-if="publish || (phoneState && row[phoneState])" aria-hidden="true">·</span>
-                      <CmsTime :value="row.updatedAt" relative class="truncate" />
+                      <span v-if="publish || (phoneState && row[phoneState])" class="sm:hidden" aria-hidden="true">·</span>
+                      <CmsTime :value="row.updatedAt" relative class="truncate sm:hidden" />
+                      <template v-if="meta?.locales && publish?.perLocale && row.__states">
+                        <span aria-hidden="true">·</span>
+                        <CmsLanguageStates :row="row" :locales="meta.locales" />
+                      </template>
                     </div>
                   </div>
                 </div>
@@ -689,16 +682,8 @@ const tabs = computed(() => [
                 <CmsCell v-else-if="fieldOf(key)" :field="fieldOf(key)" :row="row" :entity="entity" />
                 <span v-else>{{ row[key] ?? t('common.none') }}</span>
               </td>
-              <td v-if="meta?.locales" class="px-4 py-3 whitespace-nowrap max-lg:hidden">
-                <span v-if="publish?.perLocale && row.__states" class="inline-flex items-center gap-2.5 text-xs">
-                  <span v-for="code in otherLocales" :key="code" class="inline-flex items-center gap-1" :title="langTitle(row, code)">
-                    <span class="font-medium" :class="(row.__locales ?? []).includes(code) ? 'text-default' : 'text-dimmed'">{{ code.toUpperCase() }}</span>
-                    <UIcon v-if="row.__states?.[code]?.waitingFor" name="i-lucide-hourglass" class="size-3 text-warning" aria-hidden="true" />
-                    <UIcon v-else-if="langState(row, code) === 'scheduled'" name="i-lucide-clock" class="size-3 text-warning" aria-hidden="true" />
-                    <span v-else class="size-2 rounded-full" :class="langState(row, code) === 'published' ? 'bg-success' : 'border border-(--ui-text-dimmed)'" aria-hidden="true" />
-                    <span class="sr-only">{{ langTitle(row, code) }}</span>
-                  </span>
-                </span>
+              <td v-if="meta?.locales" class="px-4 py-3 whitespace-nowrap max-md:hidden">
+                <CmsLanguageStates v-if="publish?.perLocale && row.__states" :row="row" :locales="meta.locales" />
                 <span v-else-if="missingLocales(row).length" class="inline-flex items-center rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium cms-unsaved">
                   {{ t('translation.missing', { lang: missingLocales(row).map((c: string) => c.toUpperCase()).join(', ') }) }}
                 </span>

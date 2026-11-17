@@ -10,6 +10,9 @@ const form = inject<{ state: Record<string, any>, isNew: { value: boolean } } | 
 const from = props.field.meta?.from as string | undefined
 const injected = inject<Ref<'outline' | 'ghost'> | null>('cmsFieldVariant', null)
 const variant = computed(() => injected?.value ?? 'outline')
+// Translating: the default language's address, greyed in the empty field.
+const fallback = inject<Ref<unknown> | null>('cmsFieldFallback', null)
+const placeholder = computed(() => (typeof fallback?.value === 'string' && fallback.value ? fallback.value : t('fields.slugPlaceholder')))
 
 function slugify(s: unknown): string {
   return String(s ?? '')
@@ -40,7 +43,7 @@ if (form && from) {
 <template>
   <!-- an address can be long: it wraps instead of being cut off -->
   <UTextarea
-    v-model="model" :variant="variant" :placeholder="t('fields.slugPlaceholder')" class="w-full" :rows="1" autoresize :maxrows="5"
+    v-model="model" :variant="variant" :placeholder="placeholder" class="w-full" :rows="1" autoresize :maxrows="5"
     :ui="{ base: 'font-mono text-[0.8125rem] resize-none [overflow-wrap:anywhere]' }" @keydown.enter.prevent
   />
 </template>

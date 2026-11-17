@@ -167,6 +167,12 @@ describe('fields a role may not read: the admin API strips them everywhere', () 
     expect(field(forCurator, 'email').readOnly).toBe(true)
     expect(field(forCurator, 'position').readOnly).toBe(true)
     expect(field(forCurator, 'name').readOnly).toBeUndefined()
+    // … and who can change it, for the sentence under it ("Only Editor and Administrator can change this"):
+    // the roles the rule lists, the administrator (who always may) last; a role of the site with its label.
+    expect(field(forCurator, 'email').editableBy).toEqual([{ name: 'editor', label: null }, { name: 'admin', label: null }])
+    expect(field(forCurator, 'name').editableBy).toBeUndefined()
+    const where = (await translator.get('/api/cms/_graph')).body.find((x: any) => x.name === 'post').fields.find((f: any) => f.key === 'location')
+    expect(where).toMatchObject({ readOnly: true, editableBy: [{ name: 'editor' }, { name: 'proofreader', label: { en: 'Proofreader', cs: 'Korektor' } }, { name: 'admin' }] })
     expect(field((await editor.get('/api/cms/_graph')).body, 'email').readOnly).toBeUndefined()
     expect(field((await admin.get('/api/cms/_graph')).body, 'bio').readOnly).toBeUndefined()
     // Arranging the list writes the position: the curator may not.
@@ -513,6 +519,28 @@ describe('a role the site does not have (removed from the config) fails closed',
     expect(team.roles.map((r: any) => r.name)).toEqual(['admin', 'editor', 'author', 'translator', 'proofreader', 'curator', 'marketer'])
     expect(team.roles.find((r: any) => r.name === 'translator')).toMatchObject({ custom: true, from: 'editor', label: { en: 'Translator', cs: 'Překladatel' } })
     expect(team.roles.find((r: any) => r.name === 'editor')).toMatchObject({ custom: false, from: 'editor', label: null })
+  })
+
+  it('the Team page says what each role reaches, so a role without a description can be described', async () => {
+    const team = (await admin.get('/api/cms/_users')).body
+    const role = (name: string) => team.roles.find((r: any) => r.name === name)
+    // The translator: listed collections exactly, what it only reads, no publishing, its own files.
+    const tr = role('translator')
+    expect(tr).toMatchObject({ publish: false, media: 'own', manage: false, listed: ['post', 'page', 'author', 'tag'] })
+    expect(tr.reach.post).toEqual({ ops: ['read', 'update'], own: false })
+    expect(tr.reach.author).toEqual({ ops: ['read'], own: false })
+    // A global with no publishing is live the moment it is saved: a role that may not publish only reads it.
+    expect(tr.reach.siteSettings).toEqual({ ops: ['read'], own: false })
+    // The curator has no media library and manages authors.
+    expect(role('curator')).toMatchObject({ media: 'none', publish: true })
+    expect(role('curator').reach.author.ops).toEqual(['read', 'create', 'update', 'delete'])
+    // Built-ins too: the author changes only what it created and has no settings; the administrator manages people.
+    expect(role('author').reach.post).toEqual({ ops: ['read', 'create', 'update', 'delete'], own: true })
+    expect(role('author').reach.siteSettings.ops).toEqual(['read'])
+    expect(role('admin')).toMatchObject({ manage: true, publish: true, media: 'all' })
+    expect(role('admin').reach.siteSettings.ops).toEqual(['read', 'update'])
+    // Every area of the admin is told against, in the sidebar's order.
+    expect(Object.keys(role('editor').reach)).toEqual(expect.arrayContaining(['post', 'author', 'siteSettings']))
   })
 
   it('an administrator gives it another role and the person is back (their old sessions end)', async () => {

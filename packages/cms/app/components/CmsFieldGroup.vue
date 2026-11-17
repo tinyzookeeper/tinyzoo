@@ -10,6 +10,11 @@ provide('cmsCollab', null)
 const model = defineModel<Record<string, any> | null>()
 const form = inject<{ issues?: Record<string, string> } | null>('cmsForm', null)
 
+// Translating: a translated group is whole in each language, so while it is empty its fields show the
+// default language's values greyed inside them (CmsField's `fallback`, handed on field by field).
+const fallback = inject<Ref<unknown> | null>('cmsFieldFallback', null)
+const innerFallback = computed<Record<string, unknown> | null>(() => (model.value == null && fallback?.value && typeof fallback.value === 'object' ? fallback.value as Record<string, unknown> : null))
+
 const inner = computed<any[]>(() => props.field.meta?.fields ?? [])
 const value = computed<Record<string, any>>(() => (model.value && typeof model.value === 'object' ? model.value : {}))
 
@@ -46,7 +51,7 @@ function set(key: string, v: unknown) {
     <CmsField
       v-for="f in inner" :key="f.key"
       :model-value="value[f.key]" :field="nested(f)" :entity="entity" :id-prefix="innerPrefix"
-      :error="form?.issues?.[`${field.key}.${f.key}`]"
+      :error="form?.issues?.[`${field.key}.${f.key}`]" :fallback="innerFallback?.[f.key]"
       @update:model-value="(v: unknown) => set(f.key, v)"
     />
   </fieldset>

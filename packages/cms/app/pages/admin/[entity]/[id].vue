@@ -12,7 +12,7 @@ definePageMeta({ layout: 'admin', key: (route) => route.fullPath })
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
-const { t, tl, languageName, entityLabel, entitySingular, fieldLabel, formatDate, fieldHelp } = useCmsI18n()
+const { t, tl, languageName, entityLabel, entitySingular, fieldLabel, formatDate, fieldHelp, locale: adminLocale } = useCmsI18n()
 const entity = computed(() => route.params.entity as string)
 const id = computed(() => route.params.id as string)
 const isNew = computed(() => id.value === 'new')
@@ -208,7 +208,7 @@ const moreItems = computed(() => {
 const entryItems = computed(() => {
   const items: any[] = []
   if (isNew.value || isTranslation.value) return items
-  if (isPublished.value && publicPath.value) items.push({ label: t('editor.viewOnSite'), icon: 'i-lucide-arrow-up-right', to: publicPath.value, target: '_blank' })
+  if (liveHere.value && publicPath.value) items.push({ label: t('editor.viewOnSite'), icon: 'i-lucide-arrow-up-right', to: publicPath.value, target: '_blank' })
   if (meta.value?.can?.create !== false) items.push({ label: t('editor.duplicate'), icon: 'i-lucide-copy', onSelect: duplicateEntry })
   if (meta.value?.can?.delete !== false && !(readOnly.value && can.value.why !== 'published')) items.push({ label: t('editor.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: deleteEntry })
   return items
@@ -347,6 +347,33 @@ function withoutMedia(data: Record<string, any>, gone: Set<string>): Record<stri
   for (const [k, v] of Object.entries(data)) out[k] = typeof v === 'string' && gone.has(v) ? null : strip(v)
   return out
 }
+
+/** Translating: an empty text field shows the default language's text greyed inside it (its placeholder). */
+const translatedPlaceholder = (f: any): string | undefined => {
+  const v = isTranslation.value && f?.localized ? defaults.value[f.key] : undefined
+  return typeof v === 'string' && v ? v : undefined
+}
+/** What the default language has in a field, for a translation's empty field to show (CmsField `fallback`). */
+const fallbackOf = (f: any) => (isTranslation.value && f?.localized ? defaults.value[f.key] : undefined)
+/** A field whose original is long (a text body, blocks): the note about it goes above it, where it is seen first. */
+const refAbove = (f: any) => ['richtext', 'blocks', 'gallery', 'group'].includes(f?.type)
+/** "Show the original beside it": the main text of a translation next to the default language's, on a wide screen. */
+const compareOriginal = ref(false)
+const compareKey = 'cms-compare-original'
+const comparing = computed(() => isTranslation.value && roomy.value && compareOriginal.value && !!writeBody.value
+  && !isEmptyRichText(defaults.value[writeBody.value.key]))
+onMounted(() => {
+  try {
+    compareOriginal.value = localStorage.getItem(compareKey) === '1'
+  }
+  catch { /* storage blocked: off */ }
+})
+watch(compareOriginal, (v) => {
+  try {
+    localStorage.setItem(compareKey, v ? '1' : '0')
+  }
+  catch { /* for this visit only */ }
+})
 
 /** Copy the default language's value into this translation's field (shared text: for everyone). */
 function copyDefault(key: string) {
@@ -506,6 +533,9 @@ const listLabel = computed(() => entityLabel(meta.value) || entity.value)
 const heading = computed(() => {
   const v = titleKey.value ? state[titleKey.value] : ''
   if (v) return String(v)
+  // An untranslated title: the default language's (what visitors see in its place).
+  const shown = titleKey.value && isTranslation.value ? defaults.value[titleKey.value] : ''
+  if (shown) return String(shown)
   return isNew.value ? t('editor.newTitle', { label: entitySingular(meta.value).toLowerCase() }) : t('common.untitled')
 })
 useHead({ title: heading })
@@ -528,6 +558,24 @@ const shownState = computed(() => {
   if (!s || !stateOwn.value) return { published: isPublished.value, date: publishedOn.value, waitingFor: null as string | null }
   return { published: s.state !== 'draft', date: s.state === 'scheduled' ? s.date : null, waitingFor: s.waitingFor ? localeName(s.waitingFor) : null }
 })
+// The details column adds what the bar does not say: since when, until when, who publishes. "Not on the website
+// yet" is said once, by the address under the title, when there is one.
+const asideNote = computed(() => {
+  if (shownState.value.waitingFor) return t('translation.waitingForBody', { lang: shownState.value.waitingFor })
+  if (isScheduled.value) return t('editor.goesLive', { date: formatDate(publishedOn.value) })
+  if (isPublished.value && publishedOn.value) return t('editor.publishedSince', { date: formatDate(publishedOn.value, { time: false }) })
+  if (!isPublished.value) return !canPublish.value ? t('editor.cannotPublish') : publicPath.value ? '' : t('editor.notPublished')
+  return ''
+})
+// Whose state the bar shows, when the entry has languages: "English · Draft".
+const shownStateWord = computed(() => (shownState.value.waitingFor ? t('translation.waitingFor', { lang: shownState.value.waitingFor })
+  : shownState.value.published && shownState.value.date && new Date(shownState.value.date).getTime() > Date.now() ? t('editor.scheduled')
+    : shownState.value.published ? t('editor.published') : t('editor.draft')))
+const stateLang = computed(() => (locales.value && (locales.value.all.length > 1) ? localeName(currentLocale.value) : null))
+// Is the address of this language on the website right now? Not while it is a draft, scheduled, or waiting
+// for the default language: then the address is not a link to a live page, and the preview stands in for it.
+const liveHere = computed(() => shownState.value.published && !shownState.value.waitingFor
+  && !(shownState.value.date && new Date(shownState.value.date).getTime() > Date.now()))
 
 // A changed address leaves redirects behind: the "Saved" says so.
 let redirectsMade = 0
@@ -617,10 +665,14 @@ async function removeTranslation() {
   }
 }
 
+/** One language's state in the words the list and the bar use ("On the website", "Waiting for Czech"). */
+const stateWord = (s: { state: 'published' | 'scheduled' | 'draft'; waitingFor?: string }) => (s.waitingFor
+  ? t('translation.waitingFor', { lang: localeName(s.waitingFor) })
+  : t(`translation.state.${s.state}`))
 const localeItems = computed(() => (locales.value?.all ?? []).map((code) => ({
   label: code === locales.value?.default ? `${localeLabel(code)} (${t('translation.default')})` : localeLabel(code),
   description: perLocale.value && states.value[code]
-    ? `${states.value[code]!.waitingFor ? t('translation.waitingFor', { lang: localeName(states.value[code]!.waitingFor) }) : t(`translation.state.${states.value[code]!.state}`)}${code !== locales.value?.default && !available.value.includes(code) ? ` · ${t('translation.notTranslated')}` : ''}`
+    ? [stateWord(states.value[code]!), code !== locales.value?.default && !available.value.includes(code) ? t('translation.notTranslated') : ''].filter(Boolean).join(' · ')
     : code === locales.value?.default ? undefined : (available.value.includes(code) ? t('translation.translated') : t('translation.notTranslated')),
   icon: code === currentLocale.value ? 'i-lucide-check' : undefined,
   to: { query: code === locales.value?.default ? {} : { locale: code } },
@@ -692,15 +744,26 @@ async function goToField(key: string) {
   el.classList.add('cms-flash')
   setTimeout(() => el.classList.remove('cms-flash'), 2000)
 }
+/** A language that publishes on its own while the default language is a draft: publishing it now only makes it ready. */
+const gatedByDefault = computed(() => isTranslation.value && perLocale.value && !!locales.value && states.value[locales.value.default]?.state === 'draft')
 const reviewChecks = computed(() => {
   const out: { ok: boolean; blocking?: boolean; title: string; description?: string; action?: { label: string; onClick: () => void } }[] = []
+  // A translated field left empty is not empty on the website: visitors see the default language's
+  // text there (and a translation may leave even a required field to it). Said as such, never as
+  // "the page without it", and it never blocks.
+  const fallsBack = (f: any) => isTranslation.value && f.localized && hasContent(f, defaults.value[f.key])
+  const fallback = (f: any) => ({
+    ok: false, title: t('review.missing', { field: fieldLabel(f) }), description: t('review.fallbackBody', { lang: defaultLabel.value }),
+    action: { label: t('review.translate'), onClick: () => goToField(f.key) },
+  })
   const tf = titleField.value
   if (tf) {
     const v = state[tf.key]
     out.push(v
       ? { ok: true, title: fieldLabel(tf), description: String(v) }
-      // A required title blocks like any other required field, in the same words.
-      : { ok: false, blocking: !tf.optional, title: t('review.missing', { field: fieldLabel(tf) }), description: tf.optional ? t('review.titleMissingBody') : t('review.requiredBody'), action: { label: t('review.fix'), onClick: () => goToField(tf.key) } })
+      : fallsBack(tf) ? fallback(tf)
+        // A required title blocks like any other required field, in the same words.
+        : { ok: false, blocking: !tf.optional, title: t('review.missing', { field: fieldLabel(tf) }), description: tf.optional ? t('review.titleMissingBody') : t('review.requiredBody'), action: { label: t('review.fix'), onClick: () => goToField(tf.key) } })
   }
   // Required fields left empty: the save would be refused, so these come first and
   // block publishing. A translation only checks what it translates.
@@ -709,6 +772,10 @@ const reviewChecks = computed(() => {
     if (!(f.required || f.relation?.required)) continue
     if (isTranslation.value && !f.localized) continue
     if (hasContent(f, state[f.key])) continue
+    if (fallsBack(f)) {
+      if (!mainFields.value.includes(f)) out.push(fallback(f))
+      continue
+    }
     out.unshift({ ok: false, blocking: true, title: t('review.missing', { field: fieldLabel(f) }), description: t('review.requiredBody'), action: { label: t('review.fix'), onClick: () => goToField(f.key) } })
   }
   // The content itself: the text body and the main picture. Galleries, files and
@@ -718,12 +785,18 @@ const reviewChecks = computed(() => {
     if (f.type !== 'richtext' && f !== mainPicture) continue
     out.push(hasContent(f, state[f.key])
       ? { ok: true, title: fieldLabel(f) }
-      : { ok: false, title: t('review.missing', { field: fieldLabel(f) }), description: t('review.missingBody'), action: { label: t('review.add'), onClick: () => goToField(f.key) } })
+      : fallsBack(f) ? fallback(f)
+        : { ok: false, title: t('review.missing', { field: fieldLabel(f) }), description: t('review.missingBody'), action: { label: t('review.add'), onClick: () => goToField(f.key) } })
   }
   if (publicPath.value) out.push({ ok: true, title: t('review.address'), description: publicPath.value })
-  // A language that publishes on its own while the default language is not published: it goes live alone.
-  if (isTranslation.value && perLocale.value && locales.value && states.value[locales.value.default]?.state === 'draft') {
-    out.push({ ok: false, title: t('review.defaultNotLive', { lang: defaultLabel.value }), description: t('review.defaultNotLiveBody', { lang: localeName(currentLocale.value), default: defaultLabel.value }) })
+  // A language that publishes on its own while the default language is a draft: it goes live together with
+  // it, not now. Said plainly, before the rest (after anything that blocks).
+  if (gatedByDefault.value) {
+    const blocking = out.filter((c) => c.blocking)
+    out.splice(0, blocking.length, ...blocking, {
+      ok: false, title: t('review.defaultNotLive', { lang: cmsCapitalize(defaultLabel.value, adminLocale.value) }),
+      description: t('review.defaultNotLiveBody', { default: defaultLabel.value }),
+    })
   }
   // Translations not written yet (the page then shows the default language).
   if (locales.value && !isNew.value && !isTranslation.value) {
@@ -755,7 +828,7 @@ const reviewChecks = computed(() => {
   }
   return out
 })
-const moment = ref<null | 'published' | 'scheduled'>(null)
+const moment = ref<null | 'published' | 'scheduled' | 'waiting'>(null)
 const momentOpen = computed({ get: () => !!moment.value, set: (v: boolean) => { if (!v) moment.value = null } })
 // A new entry published from the review is saved first, then opened at its own
 // address (a new page): the moment is handed over in app state and shown there.
@@ -779,7 +852,8 @@ async function publishFromReview(when: 'now' | 'schedule') {
     return
   }
   reviewOpen.value = false
-  moment.value = kind
+  // A language published while the default language is a draft is ready, not live: it says so.
+  moment.value = kind === 'published' && shownState.value.waitingFor ? 'waiting' : kind
 }
 
 // A page tree: the address runs through the ancestors, so it comes from the server (the saved
@@ -850,8 +924,25 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
   <CmsPage v-else :back="{ label: listLabel, to: `/admin/${entity}` }" :heading="heading" flush>
     <!-- one top bar for every arrangement: ‹ back · status · saved | language, history, details, preview, the primary action, … -->
     <template #status>
-      <!-- phones: one thing — unsaved changes while there are any, else the status -->
-      <CmsStatusBadge v-if="publish && !isNew" :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''" />
+      <!-- phones: one thing — unsaved changes while there are any, else the status. With languages the status names
+           whose it is ("English · Draft"), and on phones it is the language switcher too (the bar has no room for both). -->
+      <UDropdownMenu v-if="publish && !isNew && narrow && localeItems.length > 1" :items="localeItems" :content="{ align: 'start' }">
+        <button
+          type="button" class="inline-flex min-w-0 items-center gap-1 rounded-md -mx-1 px-1 py-0.5 hover:bg-elevated/60"
+          :class="saving || dirty ? 'max-md:hidden' : ''" :aria-label="`${t('translation.language')}: ${cmsLanguageState(stateLang ?? '', shownStateWord, adminLocale)}`"
+        >
+          <!-- the bar is short on a phone: the language by its code ("EN · Draft"); its name is read out -->
+          <CmsStatusBadge :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" :lang="stateLang ? (currentLocale ?? '').toUpperCase() : null" />
+          <UIcon name="i-lucide-chevron-down" class="size-3.5 shrink-0 text-dimmed" aria-hidden="true" />
+        </button>
+      </UDropdownMenu>
+      <CmsStatusBadge v-else-if="publish && !isNew" :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" :lang="stateLang" class="min-w-0" :class="saving || dirty ? 'max-md:hidden' : ''" />
+      <!-- phones, content without publishing: the language switcher on its own -->
+      <UDropdownMenu v-else-if="!isNew && narrow && localeItems.length > 1" :items="localeItems" :content="{ align: 'start' }">
+        <UButton color="neutral" variant="ghost" size="sm" icon="i-lucide-languages" trailing-icon="i-lucide-chevron-down" :aria-label="t('translation.language')">
+          {{ (currentLocale ?? '').toUpperCase() }}
+        </UButton>
+      </UDropdownMenu>
       <span v-else-if="isNew" class="shrink-0" :class="saving || dirty ? 'max-md:hidden' : ''">{{ t('editor.newEntry') }}</span>
       <span v-if="readOnly" class="inline-flex items-center gap-1 text-muted"><UIcon name="i-lucide-lock" class="size-3.5" />{{ t('readOnly.badge') }}</span>
       <span v-if="!readOnly && ((publish && !isNew) || isNew) && (saving || dirty || savedAt)" class="text-dimmed max-md:hidden" aria-hidden="true">·</span>
@@ -911,7 +1002,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
 
     <div
       class="cms-editor"
-      :class="[arrangement === 'write' && !split ? 'cms-editor--write' : '', split ? 'cms-editor--split' : '', !showAside ? 'cms-editor--no-aside' : '']"
+      :class="[arrangement === 'write' && !split ? 'cms-editor--write' : '', split ? 'cms-editor--split' : '', !showAside ? 'cms-editor--no-aside' : '', comparing && !split ? 'cms-editor--compare' : '']"
     >
       <!-- someone who cannot save here can read everything and change nothing -->
       <fieldset class="cms-fieldset contents" :disabled="readOnly">
@@ -949,17 +1040,14 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <label v-if="titleIsAddress" :for="`cms-field-${titleField.key}`" class="block mb-1 text-sm font-medium text-highlighted">{{ fieldLabel(titleField) }}</label>
                 <textarea
                   :id="`cms-field-${titleField.key}`" v-model="state[titleField.key]" rows="1" class="cms-title-input resize-none field-sizing-content" :class="titleIsAddress ? 'cms-title-input--address' : ''"
-                  :placeholder="titlePlaceholder"
+                  :placeholder="translatedPlaceholder(titleField) ?? titlePlaceholder"
                   :disabled="(isTranslation && !titleField.localized) || !!titleField.readOnly"
                   :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" :aria-describedby="fieldErrors[titleField.key] ? `cms-field-${titleField.key}-error` : undefined" autocomplete="off"
                   @keydown.enter.prevent
                 />
                 <p v-if="fieldErrors[titleField.key]" :id="`cms-field-${titleField.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
               <p v-else-if="titleIsAddress && fieldHelp(titleField)" class="mt-1.5 text-sm text-muted">{{ fieldHelp(titleField) }}</p>
-                <p v-else-if="publicPath" class="mt-1.5 font-mono text-xs text-muted truncate">
-                  <a v-if="isPublished" :href="publicPath" target="_blank" rel="noopener" class="hover:text-highlighted">{{ publicPath }} <UIcon name="i-lucide-arrow-up-right" class="size-3 align-[-1px]" /></a>
-                  <template v-else>{{ publicPath }}</template>
-                </p>
+                <CmsEntryAddress v-else-if="publicPath" :path="publicPath" :live="liveHere" :can-preview="!!previewUrl && !split" @preview="togglePreview" />
                 <CmsTranslationRef
                   v-if="isTranslation && titleField.localized" :field="titleField" :value="defaults[titleField.key]"
                   :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
@@ -967,10 +1055,17 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               </div>
             </template>
             <template #field="{ field: f }">
-              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" hide-optional />
+              <!-- translating: the default language's text greyed in the empty field, and a line saying so with the
+                   copy action, right at the field (above a long text, under a short one) -->
               <CmsTranslationRef
-                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
-                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+                v-if="isTranslation && refAbove(f)" :field="f" :value="defaults[f.key]" :lang="defaultLabel" above
+                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length) || (f.type === 'richtext' && isEmptyRichText(state[f.key]))"
+                @copy="copyDefault(f.key)"
+              />
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" hide-optional :fallback="fallbackOf(f)" />
+              <CmsTranslationRef
+                v-if="isTranslation && !refAbove(f)" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+                :empty="state[f.key] == null || state[f.key] === ''"
                 @copy="copyDefault(f.key)"
               />
             </template>
@@ -987,17 +1082,14 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <label v-if="titleIsAddress" :for="`cms-field-${titleField.key}`" class="block mb-1 text-sm font-medium text-highlighted">{{ fieldLabel(titleField) }}</label>
               <textarea
                 :id="`cms-field-${titleField.key}`" v-model="state[titleField.key]" rows="1" class="cms-title-input resize-none field-sizing-content" :class="titleIsAddress ? 'cms-title-input--address' : ''"
-                :placeholder="titlePlaceholder"
+                :placeholder="translatedPlaceholder(titleField) ?? titlePlaceholder"
                 :disabled="(isTranslation && !titleField.localized) || !!titleField.readOnly"
                 :aria-label="fieldLabel(titleField)" :aria-invalid="!!fieldErrors[titleField.key]" :aria-describedby="fieldErrors[titleField.key] ? `cms-field-${titleField.key}-error` : undefined" autocomplete="off"
                 @keydown.enter.prevent
               />
               <p v-if="fieldErrors[titleField.key]" :id="`cms-field-${titleField.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[titleField.key] }}</p>
               <p v-else-if="titleIsAddress && fieldHelp(titleField)" class="mt-1.5 text-sm text-muted">{{ fieldHelp(titleField) }}</p>
-              <p v-else-if="publicPath" class="mt-1.5 font-mono text-xs text-muted truncate">
-                <a v-if="isPublished" :href="publicPath" target="_blank" rel="noopener" class="hover:text-highlighted">{{ publicPath }} <UIcon name="i-lucide-arrow-up-right" class="size-3 align-[-1px]" /></a>
-                <template v-else>{{ publicPath }}</template>
-              </p>
+              <CmsEntryAddress v-else-if="publicPath" :path="publicPath" :live="liveHere" :can-preview="!!previewUrl && !split" @preview="togglePreview" />
               <CmsTranslationRef
                 v-if="isTranslation && titleField.localized" :field="titleField" :value="defaults[titleField.key]"
                 :lang="defaultLabel" :empty="!state[titleField.key]" @copy="state[titleField.key] = defaults[titleField.key]"
@@ -1008,7 +1100,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <textarea
                 :id="`cms-field-${writeLead.key}`" v-model="state[writeLead.key]" rows="2"
                 class="cms-lead-input resize-none field-sizing-content" :maxlength="writeLead.meta?.max"
-                :placeholder="fieldHelp(writeLead) || fieldLabel(writeLead)"
+                :placeholder="translatedPlaceholder(writeLead) ?? (fieldHelp(writeLead) || fieldLabel(writeLead))"
                 :aria-label="fieldLabel(writeLead)" :aria-invalid="!!fieldErrors[writeLead.key]" :aria-describedby="fieldErrors[writeLead.key] ? `cms-field-${writeLead.key}-error` : undefined"
               />
               <p v-if="fieldErrors[writeLead.key]" :id="`cms-field-${writeLead.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[writeLead.key] }}</p>
@@ -1022,20 +1114,29 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             </div>
             <!-- the text: no box, the toolbar a quiet line above it -->
             <div v-if="writeBody" :id="`cms-field-${writeBody.key}`" class="cms-write-body" :aria-label="fieldLabel(writeBody)" role="group">
-              <CmsFieldRichText v-model="state[writeBody.key]" :field="writeBody" />
-              <p v-if="fieldErrors[writeBody.key]" :id="`cms-field-${writeBody.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[writeBody.key] }}</p>
+              <!-- translating: what the default language says, above the text (not under a long one) -->
               <CmsTranslationRef
-                v-if="isTranslation" :field="writeBody" :value="defaults[writeBody.key]" :lang="defaultLabel"
-                :empty="state[writeBody.key] == null" @copy="copyDefault(writeBody.key)"
+                v-if="isTranslation" v-model:compare="compareOriginal" :field="writeBody" :value="defaults[writeBody.key]" :lang="defaultLabel" above
+                :empty="state[writeBody.key] == null || isEmptyRichText(state[writeBody.key])" :can-compare="roomy"
+                @copy="copyDefault(writeBody.key)"
               />
+              <div :class="comparing ? 'cms-compare' : ''">
+                <!-- wide screens, on request: the original beside the translation, as the reader meets both -->
+                <section v-if="comparing" class="cms-compare__original" :aria-label="t('translation.originalLabel', { lang: defaultLabel })">
+                  <p class="cms-compare__label">{{ t('translation.originalLabel', { lang: defaultLabel }) }}</p>
+                  <CmsContent :doc="defaults[writeBody.key]" class="cms-prose" />
+                </section>
+                <CmsFieldRichText v-model="state[writeBody.key]" :field="writeBody" :fallback="comparing ? undefined : fallbackOf(writeBody)" />
+              </div>
+              <p v-if="fieldErrors[writeBody.key]" :id="`cms-field-${writeBody.key}-error`" role="alert" class="mt-1 text-sm text-error">{{ fieldErrors[writeBody.key] }}</p>
             </div>
             <div v-for="f in writeMore" :key="f.key">
-              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" />
               <CmsTranslationRef
-                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
-                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel" above
+                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length) || (f.type === 'richtext' && isEmptyRichText(state[f.key]))"
                 @copy="copyDefault(f.key)"
               />
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" :fallback="fallbackOf(f)" />
             </div>
           </div>
         </div>
@@ -1044,15 +1145,10 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
       <aside v-if="showAside" class="cms-editor__aside" :aria-label="t('editor.details')">
         <div class="cms-editor__aside-inner space-y-5">
           <!-- the status itself is in the top bar; here only what it does not say -->
-          <div v-if="publish && !isNew && (shownState.waitingFor || isScheduled || !isPublished || publishedOn)" class="flex items-start gap-2 text-sm text-muted">
+          <div v-if="publish && !isNew && (asideNote || (isTranslation && (!perLocale || !stateOwn)))" class="flex items-start gap-2 text-sm text-muted">
             <UIcon :name="isScheduled ? 'i-lucide-clock' : isPublished ? 'i-lucide-globe' : 'i-lucide-pencil-line'" class="size-4 shrink-0 mt-0.5" />
             <div>
-              <p>
-                <template v-if="shownState.waitingFor">{{ t('translation.waitingForBody', { lang: shownState.waitingFor }) }}</template>
-                <template v-else-if="isScheduled">{{ t('editor.goesLive', { date: formatDate(publishedOn) }) }}</template>
-                <template v-else-if="isPublished && publishedOn">{{ t('editor.publishedSince', { date: formatDate(publishedOn, { time: false }) }) }}</template>
-                <template v-else-if="!isPublished">{{ canPublish ? t('editor.notPublished') : t('editor.cannotPublish') }}</template>
-              </p>
+              <p v-if="asideNote">{{ asideNote }}</p>
               <p v-if="isTranslation && !perLocale" class="text-xs">{{ t('translation.publishingShared') }}</p>
               <p v-else-if="isTranslation && !stateOwn" class="text-xs">{{ t('translation.followsDefault', { lang: defaultLabel }) }}</p>
             </div>
@@ -1065,7 +1161,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <UIcon name="i-lucide-sparkles" class="size-4 shrink-0 mt-0.5" />
               <dd>{{ t('editor.newEntryHint') }}</dd>
             </div>
-            <div v-if="publicPath && isPublished && !shownState.waitingFor" class="flex items-start gap-2 min-w-0">
+            <div v-if="publicPath && liveHere" class="flex items-start gap-2 min-w-0">
               <dt class="sr-only">{{ t('editor.onWebsite') }}</dt>
               <UIcon name="i-lucide-link" class="size-4 shrink-0 mt-0.5 text-muted" />
               <dd class="min-w-0"><a :href="publicPath" target="_blank" rel="noopener" class="text-highlighted hover:underline underline-offset-2 break-all">{{ publicPath }}</a></dd>
@@ -1104,7 +1200,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           <!-- write: the details beside the text, as quiet rows -->
           <div v-else class="space-y-1">
             <div v-for="f in writeRows" :key="f.key">
-              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar" row />
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar" row :fallback="fallbackOf(f)" />
               <CmsTranslationRef
                 v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel" :empty="!state[f.key]"
                 @copy="state[f.key] = defaults[f.key]"
@@ -1129,7 +1225,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               <template #content>
                 <div class="space-y-5 pb-5">
                   <div v-for="f in g.fields" :key="f.key">
-                    <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar" hide-optional />
+                    <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="sidebar" hide-optional :fallback="fallbackOf(f)" />
                     <CmsTranslationRef
                       v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
                       :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
@@ -1164,14 +1260,18 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
     <CmsPublishReview
       v-if="publish && canPublish" v-model:open="reviewOpen"
       :checks="reviewChecks" :entity="entity" :busy="saving"
+      :title="isTranslation && perLocale ? t('review.titleLang', { lang: localeName(currentLocale) }) : undefined"
+      :subtitle="isTranslation && perLocale ? t('review.subtitleLang') : undefined"
+      :now-hint="gatedByDefault ? t('review.nowHintGated', { lang: defaultLabel }) : undefined"
+      :publish-label="gatedByDefault ? t('editor.publish') : undefined"
       :date-field="dateFieldDesc" :date="publish.dateField ? state[publish.dateField] : undefined"
       @update:date="(v: any) => { if (publish?.dateField) state[publish.dateField] = v }"
       @publish="publishFromReview"
     />
     <CmsMoment
-      v-model:open="momentOpen" :animal="moment === 'scheduled' ? 'turtle' : 'whale'"
-      :title="moment === 'scheduled' ? t('moment.scheduledTitle') : t('moment.liveTitle')"
-      :description="moment === 'scheduled' ? t('moment.scheduledBody', { date: formatDate(publishedOn) }) : t('moment.liveBody')"
+      v-model:open="momentOpen" :animal="moment === 'published' ? 'whale' : 'turtle'"
+      :title="moment === 'scheduled' ? t('moment.scheduledTitle') : moment === 'waiting' ? t('moment.waitingTitle') : t('moment.liveTitle')"
+      :description="moment === 'scheduled' ? t('moment.scheduledBody', { date: formatDate(publishedOn) }) : moment === 'waiting' ? t('moment.waitingBody', { lang: defaultLabel }) : t('moment.liveBody')"
     >
       <UButton v-if="moment === 'published' && publicPath" :to="publicPath" target="_blank" size="sm" color="neutral" variant="outline" icon="i-lucide-arrow-up-right">{{ t('moment.view') }}</UButton>
       <UButton :to="`/admin/${entity}`" size="sm" color="neutral" variant="ghost">{{ t('moment.backTo', { list: listLabel }) }}</UButton>
