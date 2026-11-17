@@ -12,3 +12,7 @@ overrides:
   prosemirror-model: ^1.25.13
   prosemirror-state: ^1.4.4
   prosemirror-view: ^1.41.0
+  # The website's sharing images (nuxt-og-image) read the brand fonts only through
+  # @nuxt/fonts >= 1.0, while @nuxt/ui still asks for ^0.14: without this they fall
+  # back to Inter.
+  '@nuxt/fonts': 1.2.0

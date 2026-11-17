@@ -28,6 +28,29 @@ deployment runs it every night.
 |---|---|
 | `NUXT_PUBLIC_DEMO_URL`, `NUXT_PUBLIC_DEMO_EMAIL`, `NUXT_PUBLIC_DEMO_PASSWORD` | where the demo admin is and its sign-in, shown on the demo page |
 | `NUXT_PUBLIC_CMS_DEMO_EMAIL`, `NUXT_PUBLIC_CMS_DEMO_PASSWORD` | on the demo deployment: the shared demo account (an editor that cannot change its name or password) |
+| `NUXT_SITE_URL` | the site's address for canonical links, og:url, schema.org and the sharing images (default `https://tinyzoo.pushbase.app`); the demo sets its own |
+| `NUXT_SITE_INDEXABLE` | `false` on the demo (the same content as the website): every page gets `noindex`, every response `X-Robots-Tag: noindex`, and `/robots.txt` says `Disallow: /` |
+
+## Search engines and sharing
+
+Nuxt SEO, module by module (`nuxt.config.ts`): `nuxt-site-config`, `@nuxtjs/robots`
+(`/robots.txt`), `nuxt-og-image`, `nuxt-schema-org` and `nuxt-seo-utils`. Not the
+`@nuxtjs/seo` bundle: it brings `nuxt-ai-ready`, which wants another `drizzle-orm`. No
+sitemap module either: `/sitemap.xml` is tinyzoo's (`server/plugins/sitemap.ts` writes
+the home pages as `/`, `/en`, `/de` and adds the news pages).
+
+- **Sharing images** are drawn on request by `app/components/OgImage/Tinyzoo.satori.vue`
+  from the page's first heading and its description (`useShareImage`); an image uploaded
+  in a page's SEO fields wins. They are cached for a day, and their addresses are signed
+  with `NUXT_APP_SECRET`.
+- **Fonts in the images** (don't revert): `@nuxt/fonts` is in `modules` before
+  `nuxt-og-image` and pinned to 1.2.0 in `pnpm-workspace.yaml`. nuxt-og-image looks for
+  @nuxt/fonts ≥ 1.0 when it starts; Nuxt UI only brings it in later and asks for 0.14, and
+  without either the images fall back to Inter without ť ř č š ž ů. The `latin-ext`
+  subset carries the Czech and German letters. After changing fonts, delete
+  `node_modules/.cache/nuxt/.nuxt/cache/og-image`.
+- **One sharp.** nuxt-og-image and tinyzoo must share one `sharp` version (0.35.5): with two,
+  the server cannot load libvips on Linux (`ERR_DLOPEN_FAILED`).
 
 ## Change what editors can write
 

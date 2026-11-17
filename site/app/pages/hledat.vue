@@ -55,6 +55,7 @@ useHead({
   // Results pages are not pages of their own for search engines.
   meta: [{ name: 'robots', content: 'noindex, follow' }],
 })
+useShareImage({ title: t('searchTitle'), description: settings.value?.metaDescription })
 </script>
 
 <template>

@@ -26,22 +26,63 @@ if (error.value?.statusCode === 404 && parts.value.length) throw createError({ s
 const item = computed(() => (kind.value === 'updates' ? null : data.value?.item ?? null))
 const isHome = computed(() => kind.value === 'page' && !parts.value.length)
 const { settings } = await useSite()
-useCmsSeo(item, { siteName: settings.value?.siteName, descriptionField: 'perex', imageField: 'cover', fallback: settings })
+// The home page of each language is at /, /en, /de (its content address is /home).
+const homeOf = (p: string) => p.replace(/\/home$/, '') || '/'
+// Title, description, canonical and hreflang from the item. The sharing image is
+// useShareImage's (below), so the item's pictures are kept out of it here.
+useCmsSeo(computed(() => (item.value ? { ...item.value, ogImage: null } : null)), {
+  siteName: settings.value?.siteName,
+  descriptionField: 'perex',
+  fallback: computed(() => ({ metaDescription: settings.value?.metaDescription })),
+  defaultLocale: DEFAULT_LANG,
+  path: homeOf,
+})
 useHead({ htmlAttrs: { lang }, title: () => (kind.value === 'updates' ? `${t('newsTitle')} · ${settings.value?.siteName ?? ''}` : undefined) })
+
+// The sharing image: the page's own headline (its first block's heading, e.g. the hero)
+// rather than its menu title ("Úvod").
+const headline = (i: any) => i?.metaTitle || i?.sections?.find((s: any) => s?.heading)?.heading || i?.title
+useShareImage(kind.value === 'updates'
+  ? { title: t('newsTitle'), description: t('newsLede') }
+  : {
+      title: headline(item.value) || settings.value?.siteName || 'tinyzoo',
+      description: item.value?.metaDescription || item.value?.perex || settings.value?.metaDescription,
+      uploaded: item.value?.ogImage,
+    })
+
+// schema.org: the changelog is a collection of updates, one update is an article.
+const siteUrl = useSiteConfig().url
+useSchemaOrg([
+  defineWebPage({ '@type': kind.value === 'updates' ? 'CollectionPage' : 'WebPage' }),
+  ...(kind.value === 'update' && item.value
+    ? [defineArticle({
+        '@type': 'BlogPosting',
+        'headline': item.value.title,
+        'description': item.value.perex ?? undefined,
+        'datePublished': item.value.publishedAt ?? undefined,
+        'dateModified': item.value.updatedAt ?? undefined,
+        'image': item.value.cover?.url ? new URL(item.value.cover.url, siteUrl).href : undefined,
+      })]
+    : []),
+])
 
 // The same page in the other languages: the item's own addresses (/home is the
 // language's home page); the changelog lives at a fixed address in each language.
 const alternates = useAlternates()
-const homeOf = (p: string) => p.replace(/\/home$/, '') || '/'
 watchEffect(() => {
   const out: Partial<Record<Lang, string>> = {}
   if (kind.value === 'updates') for (const l of LANGS) out[l] = localePath(`/${NEWS_SEGMENT[l]}`, l)
   else if (item.value?.paths) for (const [l, p] of Object.entries(item.value.paths as Record<string, string>)) out[l as Lang] = homeOf(p)
   alternates.value = out
 })
-const url = useRequestURL()
+// hreflang for the changelog (useCmsSeo writes them for items).
 useHead({
-  link: () => Object.entries(alternates.value).map(([l, p]) => ({ rel: 'alternate', hreflang: l, href: `${url.origin}${p}` })),
+  link: () => kind.value !== 'updates'
+    ? []
+    : [
+        ...Object.entries(alternates.value).map(([l, p]) => ({ rel: 'alternate' as const, hreflang: l, href: `${siteUrl}${p}` })),
+        { rel: 'alternate' as const, hreflang: 'x-default', href: `${siteUrl}${localePath(`/${NEWS_SEGMENT[DEFAULT_LANG]}`, DEFAULT_LANG)}` },
+      ],
 })
 
 const isDraft = computed(() => !!data.value?.preview && item.value?.status !== 'published')

@@ -3,6 +3,11 @@ import { DESIGN_SYSTEM_SEGMENT, LANGS, LANG_NAMES, SEARCH_SEGMENT, localePath, t
 
 const { settings, nav } = await useSite()
 const { lang, t, to } = useLang()
+// schema.org: the site is in three languages; each page says which one it is in.
+useSchemaOrg([
+  defineWebSite({ inLanguage: [...LANGS] }),
+  defineWebPage({ inLanguage: () => lang.value }),
+])
 // The language switcher: the same page in each language when it exists, else that language's home.
 const alternates = useAlternates()
 const langLink = (l: Lang) => alternates.value[l] ?? localePath('/', l)
