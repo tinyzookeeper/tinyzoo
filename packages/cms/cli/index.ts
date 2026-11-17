@@ -120,7 +120,7 @@ switch (cmd) {
   case 'generate': process.exit(await generate()); break
   case 'up': process.exit(await up(cwd)); break
   case 'status': process.exit(await status(cwd)); break
-  case 'upgrade': process.exit(await upgrade(cwd, resolve(dirname(fileURLToPath(import.meta.url)), '..'), { generate })); break
+  case 'upgrade': process.exit(await upgrade(cwd, resolve(dirname(fileURLToPath(import.meta.url)), '..'), { generate, migrationsDir: resolve(cwd, 'server/db/migrations') })); break
   case 'client': await client(); break
   case 'openapi': await openapi(); break
   case 'content:migrate': await (await import('./content-migrate')).contentMigrateCommand(await loadConfig(), process.argv.slice(3)); break
