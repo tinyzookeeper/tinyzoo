@@ -23,6 +23,7 @@ export const CLI_COMMANDS: CliCommand[] = [
     flags: [
       ['--languages <a,b>', 'the content languages, the first one is the default (default: cs,en)'],
       ['--presets <a,b|none>', 'which optional parts the site has: news, forms, redirects, search (default: all)'],
+      ['--demo', 'with the demo content, a small bakery (the default when cs or en is the first language)'],
       ['--no-demo', 'an empty site instead of the demo content'],
       ['--package-manager <pm>', 'the commands to show and put in the README (default: the one that ran this)'],
     ],

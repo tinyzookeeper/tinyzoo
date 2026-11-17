@@ -24,7 +24,8 @@ export interface InitArgs {
   install: boolean | undefined
   packageManager: string | undefined
 }
-export function parseInitArgs(argv: string[], options?: { install?: boolean }): InitArgs
+export function newAppSecret(): string
+export function parseInitArgs(argv: string[], options?: { create?: boolean }): InitArgs
 
 export interface InitChoices { languages: string[]; presets: string[]; demo: boolean }
 export function resolveOptions(given?: { languages?: string[]; presets?: string[]; demo?: boolean }): InitChoices

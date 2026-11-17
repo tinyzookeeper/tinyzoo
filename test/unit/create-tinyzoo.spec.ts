@@ -114,6 +114,31 @@ describe('without questions (--yes, or no terminal)', () => {
     expect(readdirSync(cwd)).toEqual([])
   })
 
+  it('makes the site in the current folder for `.`, when it is empty: the folder stays, and the steps do not `cd .`', async () => {
+    const { cwd, out, deps } = setup()
+    expect(await main(['.', '--yes'], deps)).toBe(0)
+    expect(existsSync(join(cwd, 'cms.config.ts'))).toBe(true)
+    expect(readdirSync(cwd).filter((f) => f.startsWith('.tinyzoo-init-'))).toEqual([])
+    expect(out.join('\n')).not.toMatch(/\bcd \./)
+  })
+
+  it('makes a .env with a secret of its own, and says so instead of telling you to copy .env.example', async () => {
+    const { cwd, out, deps } = setup()
+    expect(await main(['site', '--yes'], deps)).toBe(0)
+    expect(readFileSync(join(cwd, 'site/.env'), 'utf8')).toMatch(/^NUXT_APP_SECRET=(?!change-me)[A-Za-z0-9_-]{43}$/m)
+    expect(out.join('\n')).not.toContain('cp .env.example')
+    expect(out.join('\n')).toMatch(/\.env is made, with a NUXT_APP_SECRET of its own/)
+  })
+
+  it('refuses --pm (not an option) and lists only the options it takes', async () => {
+    const { err, deps } = setup()
+    expect(await main(['x', '--pm', 'npm', '--yes'], deps)).toBe(1)
+    expect(err.join('\n')).toMatch(/Unknown option --pm/)
+    for (const flag of ['--languages', '--presets', '--demo', '--no-demo', '--install', '--no-install', '--package-manager', '--yes']) expect(USAGE).toContain(flag)
+    expect(USAGE).not.toContain('--pm')
+    expect(USAGE).not.toMatch(/pages/)
+  })
+
   it('prints its usage for --help', async () => {
     const { out, deps } = setup()
     expect(await main(['--help'], deps)).toBe(0)

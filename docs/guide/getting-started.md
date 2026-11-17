@@ -47,9 +47,11 @@ pnpm create tinyzoo my-site --languages de,en --presets news,search --no-demo --
 | `--package-manager pnpm` | `pnpm`, `npm`, `yarn` or `bun`: the commands it prints and the README use it. Default: the one you ran it with |
 | `--yes` | ask nothing: the defaults for what is not given |
 
-`tinyzoo init <folder>` makes the same site with the same options (except the installing),
-without asking anything: `pnpm dlx tinyzoo init my-site --languages de,en --no-demo`. It is
-what `create-tinyzoo` runs.
+`tinyzoo init <folder>` makes the same site with the same options (except the installing and
+`--yes`), without asking anything: `pnpm dlx tinyzoo init my-site --languages de,en --no-demo`. It is
+what `create-tinyzoo` runs. The folder may be `.`, the current folder, when it is empty: it stays as it is
+(it is not deleted and made again) and the site is made inside it. A folder with anything in it is
+refused.
 
 **A site that differs from the starter's defaults needs two more commands.** The starter
 ships the database schema, its first migration and the typed client for its own choices (cs and
@@ -77,13 +79,14 @@ What is where:
 
 ## 2. Settings
 
-```bash
-cp .env.example .env
-```
+The site already has a `.env`: `pnpm create tinyzoo` (and `tinyzoo init`) write it from `.env.example`
+with a random `NUXT_APP_SECRET` of its own. It has two lines you need now: `DATABASE_URL` (where the
+database is) and `NUXT_APP_SECRET` (a long secret the admin's sign-in cookie is sealed with). That secret
+is for your machine: a server needs one of its own (`openssl rand -base64 32`), and refuses the example
+value of `.env.example` (`change-me-to-a-long-random-string-32-chars-min`: anyone can read it).
 
-`.env` has two lines you need now: `DATABASE_URL` (where the database is) and
-`NUXT_APP_SECRET` (a long secret the admin's sign-in cookie is sealed with; the example
-value is fine on your machine, never on a server).
+If you have no `.env` (a folder you copied), `cp .env.example .env` and put a secret of your own on the
+`NUXT_APP_SECRET` line.
 
 ## 3. The database
 
@@ -330,7 +333,7 @@ environment (never in git). The whole list, with the reasons, is in
 | | Do | Why |
 |---|---|---|
 | ☐ | **Setup code.** Deploy, open the project's log, find `Setup code: XXXX-XXXX-XXXX-XXXX`, open `/admin/setup`, type it, make the first account. Or set `NUXT_CMS_AUTH_SETUP_TOKEN` to a code of your own | a fresh deploy has no administrator; without a code, whoever opens the page first would become one. In production the code is always required |
-| ☐ | **`NUXT_APP_SECRET`**: 32+ random characters (`openssl rand -base64 32`) | the sign-in cookie is sealed with a key derived from it (other modules use it too). Changing it signs everyone out. A production server will not start without it |
+| ☐ | **`NUXT_APP_SECRET`**: 32+ random characters (`openssl rand -base64 32`) | the sign-in cookie is sealed with a key derived from it (other modules use it too). Changing it signs everyone out. A production server will not start without it, or with the example value from `.env.example` |
 | ☐ | **`NUXT_CMS_PUBLIC_URL`**: the site's real address (`https://www.example.cz`) | links in emails (invitations, password resets) and the sitemap use it, never the request's `Host` header |
 | ☐ | **Storage**: `NUXT_CMS_STORAGE_DRIVER=s3` (or `r2`) and the bucket's `NUXT_CMS_STORAGE_S3_*` variables, one bucket per environment | a container's disk is lost on every deploy; uploads must live in a bucket |
 | ☐ | **Email**: `NUXT_CMS_MAIL_TRANSPORT=smtp`, `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_*` | invitations, password resets and "new message" notifications; `log` only prints them |

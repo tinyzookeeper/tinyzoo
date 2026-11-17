@@ -243,8 +243,8 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
 
 7. **`pnpm create tinyzoo`: nothing to do.** A new package, `create-tinyzoo`, makes a site and
    asks for the languages, the parts (news, contact form, redirects, search) and the demo content.
-   `tinyzoo init <folder>` gets the same options (`--languages`, `--presets`, `--no-demo`,
-   `--package-manager`) and makes the same site as before without them. A site you already
+   `tinyzoo init <folder>` gets the same options (`--languages`, `--presets`, `--demo` /
+   `--no-demo`, `--package-manager`) and makes the same site as before without them. A site you already
    have is not touched: its files are yours. If you want what a fresh starter does now (its
    website reads the languages and its own few words from `app/utils/site.ts`, the search page
    is `app/pages/search.vue`), make a scratch site and compare it with yours

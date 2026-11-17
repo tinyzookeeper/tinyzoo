@@ -29,8 +29,11 @@ npm create tinyzoo@latest my-site -- --languages de,en --yes     # npm: options 
 | `--package-manager pnpm` | `pnpm`, `npm`, `yarn` or `bun` (default: the one you ran this with) |
 | `--yes` | ask nothing |
 
-Ctrl-C at a question stops without writing anything. A folder that is not empty is refused.
-The same site, without the questions: `tinyzoo init my-site` with the same options.
+Ctrl-C at a question stops without writing anything. A folder that is not empty is refused; an empty one
+(also `.`, the folder you are in) is used as it is. The site comes with a `.env` that has a random
+`NUXT_APP_SECRET` of its own (a server needs another: `openssl rand -base64 32`).
+The same site, without the questions: `tinyzoo init my-site` with the same options (except `--install`,
+`--no-install` and `--yes`).
 
 This package carries the starter of the matching `tinyzoo` version, so it needs no other
 package to make a site (the new site depends on `tinyzoo` and `@tinyzoo/client` at that version).

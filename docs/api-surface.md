@@ -315,7 +315,7 @@ is `cli-usage.txt`.
 
 | Command | Flags |
 |---|---|
-| `tinyzoo init <dir>` | `--languages <a,b>`, `--presets <a,b\|none>`, `--no-demo`, `--package-manager <pm>` |
+| `tinyzoo init <dir>` | `--languages <a,b>`, `--presets <a,b\|none>`, `--demo`, `--no-demo`, `--package-manager <pm>` |
 | `tinyzoo generate` | `--allow-drop`, `--allow-risky` |
 | `tinyzoo up` | |
 | `tinyzoo status` | |

@@ -11,8 +11,9 @@
 //
 // A few lines that depend on the languages are rewritten (`edit` below; each must be found
 // exactly once, so a starter that drifts from this file fails the tests instead of a site).
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, dirname, join, resolve } from 'node:path'
+import { randomBytes } from 'node:crypto'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, normalize, resolve } from 'node:path'
 
 /** A refusal the user can fix: bad flag, a folder that is not empty. The command prints its message. */
 export class InitError extends Error {}
@@ -45,7 +46,7 @@ export const ADDRESS_WORDS = {
 const wordsOf = (code) => ADDRESS_WORDS[code] ?? ADDRESS_WORDS.en
 
 export const INIT_USAGE = [
-  'usage: tinyzoo init <folder> [--languages cs,en] [--presets news,forms,redirects,search | none] [--no-demo] [--package-manager pnpm]',
+  'usage: tinyzoo init <folder> [--languages cs,en] [--presets news,forms,redirects,search | none] [--demo | --no-demo] [--package-manager pnpm]',
   '',
   '  --languages   the content languages, the first one is the default (default: cs,en)',
   `  --presets     which parts the site has: ${PRESET_NAMES.join(', ')}, or none (default: all)`,
@@ -84,21 +85,23 @@ export function parsePresets(text) {
 
 /**
  * The flags of `tinyzoo init` and `create-tinyzoo`, from `process.argv.slice(n)`. A flag that is not
- * given is `undefined`, so the caller knows what to ask. `install: true` also takes `--install` / `--no-install`.
+ * given is `undefined`, so the caller knows what to ask. `create: true` is for `create-tinyzoo`,
+ * which also takes `--install` / `--no-install` and `-y` / `--yes` (`tinyzoo init` never asks and
+ * never installs, so it refuses them).
  * @param {string[]} argv
- * @param {{ install?: boolean }} [options]
+ * @param {{ create?: boolean }} [options]
  */
 export function parseInitArgs(argv, options = {}) {
   const out = { folder: undefined, languages: undefined, presets: undefined, demo: undefined, yes: false, help: false, install: undefined, packageManager: undefined }
-  const takesValue = new Set(['--languages', '--presets', '--package-manager', '--pm'])
+  const takesValue = new Set(['--languages', '--presets', '--package-manager'])
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     if (arg === '-h' || arg === '--help') { out.help = true; continue }
-    if (arg === '-y' || arg === '--yes') { out.yes = true; continue }
     if (arg === '--demo') { out.demo = true; continue }
     if (arg === '--no-demo') { out.demo = false; continue }
-    if (options.install && arg === '--install') { out.install = true; continue }
-    if (options.install && arg === '--no-install') { out.install = false; continue }
+    if (options.create && (arg === '-y' || arg === '--yes')) { out.yes = true; continue }
+    if (options.create && arg === '--install') { out.install = true; continue }
+    if (options.create && arg === '--no-install') { out.install = false; continue }
     if (arg.startsWith('-')) {
       const [flag, inline] = arg.split(/=(.*)/s)
       if (!takesValue.has(flag)) throw new InitError(`Unknown option ${flag}.`)
@@ -213,10 +216,16 @@ export function commandsFor(text, pm) {
 /** A command that runs one of the site's scripts, as the package manager writes it. */
 export const runScript = (pm, script) => (pm === 'npm' ? `npm run ${script}` : pm === 'bun' ? `bun run ${script}` : `${pm} ${script}`)
 
+/** The app secret the site's `.env` gets: 32 random bytes, 43 characters of base64url (no `+`, `/` or `=` to trip an env parser). */
+export const newAppSecret = () => randomBytes(32).toString('base64url')
+
 /**
  * Makes the site: the starter, with the parts the options leave out removed, the languages
- * written in, and the tinyzoo versions pinned. Built in a folder next to the target and moved
- * into place, so nothing is left behind when it fails.
+ * written in, and the tinyzoo versions pinned. Built in a work folder and moved into place, so
+ * nothing is left behind when it fails. A folder that does not exist yet is made by renaming the
+ * work folder (made next to it); an existing empty folder (`tinyzoo init .`) is kept as it is, with
+ * its owner, permissions and mount, and the finished files are moved into it (the work folder is
+ * made inside it, so the move never crosses a file system).
  * @param {{ dest: string, starterDir: string, version: string, languages: string[], presets: string[], demo: boolean, packageManager?: string }} options
  * @returns {{ dest: string, regenerate: { schema: boolean, client: boolean } }}
  *   `regenerate`: what the site must generate before it starts, because the starter's own copy
@@ -224,23 +233,36 @@ export const runScript = (pm, script) => (pm === 'npm' ? `npm run ${script}` : p
  */
 export function scaffold({ dest, starterDir, version, languages, presets, demo, packageManager = 'pnpm' }) {
   dest = resolve(dest)
-  if (existsSync(dest) && readdirSync(dest).length) throw new InitError(`${dest} exists and is not empty`)
+  const existing = existsSync(dest)
+  if (existing) {
+    if (!statSync(dest).isDirectory()) throw new InitError(`${dest} exists and is not a folder`)
+    if (readdirSync(dest).length) throw new InitError(`${dest} exists and is not empty`)
+  }
   resolveOptions({ languages, presets, demo })
   if (!existsSync(starterDir)) throw new Error(`the starter is missing: ${starterDir}`)
 
   // A folder made on the way (foo/bar/site makes foo and foo/bar) goes with a failure too.
-  const firstMade = mkdirSync(dirname(dest), { recursive: true })
-  const work = mkdtempSync(join(dirname(dest), '.tinyzoo-init-'))
+  const firstMade = existing ? undefined : mkdirSync(dirname(dest), { recursive: true })
+  const work = mkdtempSync(join(existing ? dest : dirname(dest), '.tinyzoo-init-'))
+  const moved = []
   try {
     const skip = new Set(['node_modules', '.nuxt', '.output', '.env', '.cms-uploads', '.cms-mail', '.data'])
     cpSync(starterDir, work, { recursive: true, filter: (src) => !skip.has(basename(src)) })
     renameSync(join(work, 'gitignore.txt'), join(work, '.gitignore'))
     const result = shape(work, { starterDir, version, languages, presets, demo, packageManager, folder: dest })
-    if (existsSync(dest)) rmSync(dest, { recursive: true })
-    renameSync(work, dest)
+    if (existing) {
+      for (const name of readdirSync(work)) {
+        renameSync(join(work, name), join(dest, name))
+        moved.push(name)
+      }
+      rmSync(work, { recursive: true })
+    }
+    else renameSync(work, dest)
     return { dest, ...result }
   }
   catch (err) {
+    // Only what this run put there: the moved files, the work folder, the folders made on the way.
+    for (const name of moved) rmSync(join(dest, name), { recursive: true, force: true })
     rmSync(work, { recursive: true, force: true })
     if (firstMade) rmSync(firstMade, { recursive: true, force: true })
     throw err
@@ -306,6 +328,16 @@ function shape(root, { version, languages, presets, demo, packageManager, folder
   write('package.json', JSON.stringify(pkg, null, 2) + '\n')
   write('README.md', commandsFor(read('README.md'), packageManager))
 
+  // .env: the example with a secret of its own. A copy of .env.example would carry the example
+  // secret, which anybody can read in the repository (the start check refuses it in production).
+  if (!existsSync(join(root, '.env'))) {
+    const example = read('.env.example')
+    if (example.match(/^NUXT_APP_SECRET=.*$/gm)?.length !== 1) throw new Error('tinyzoo init: expected exactly one NUXT_APP_SECRET= line in .env.example: the starter and cli/init.mjs have drifted apart')
+    // (mode 0600: the file holds a secret; renaming it into place keeps that)
+    writeFileSync(join(root, '.env'), example.replace(/^NUXT_APP_SECRET=.*$/m, () => `NUXT_APP_SECRET=${newAppSecret()}`), { mode: 0o600 })
+  }
+  edit('README.md', 'cp .env.example .env        # your settings, and a NUXT_APP_SECRET of your own (openssl rand -base64 32)\n', '')
+
   // The generated files that come with the starter fit its own cms.config.ts: the full set of
   // parts in cs and en. Anything else regenerates them (`db:generate`, `cms:client`).
   const allParts = PRESET_NAMES.every(has)
@@ -326,12 +358,13 @@ function shape(root, { version, languages, presets, demo, packageManager, folder
  */
 export function nextSteps({ folder, packageManager: pm, demo, regenerate, installed = false, generated = false }) {
   const run = (script) => runScript(pm, script)
-  const lines = [`cd ${/[\s'"$`\\]/.test(folder) ? `'${folder.replace(/'/g, `'\\''`)}'` : folder}`]
+  // (`tinyzoo init .` is already in the folder)
+  const lines = normalize(folder).replace(/[\\/]$/, '') === '.' ? [] : [`cd ${/[\s'"$`\\]/.test(folder) ? `'${folder.replace(/'/g, `'\\''`)}'` : folder}`]
   if (!installed) lines.push(`${pm} install`)
   if (!generated && regenerate.schema) lines.push(`${run('db:generate')}      # the first migration, from your cms.config.ts`)
   if (!generated && regenerate.client) lines.push(`${run('cms:client')}      # the typed client for the pages`)
-  lines.push('cp .env.example .env', 'docker compose up -d', run('db:migrate'), `${run('dev')}   → http://localhost:3000/admin`)
-  let text = `\n  ${lines.join('\n  ')}\n`
+  lines.push('docker compose up -d', run('db:migrate'), `${run('dev')}   → http://localhost:3000/admin`)
+  let text = `\n  ${lines.join('\n  ')}\n\n  .env is made, with a NUXT_APP_SECRET of its own for this machine. A server needs its own: openssl rand -base64 32\n`
   if (demo) {
     text += `\n  Demo content, while \`${run('dev')}\` runs in another terminal:\n  SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' ${run('seed')}\n  (creates the first administrator with those details; run it again any time, it changes nothing twice)\n`
   }
