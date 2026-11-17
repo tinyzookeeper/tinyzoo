@@ -10,7 +10,7 @@ export default defineAppConfig({
   cms: {
     // The admin's branding and interface languages (see the layer's app.config.ts).
     admin: {
-      name: { en: 'Demo Blog', cs: 'Demo blog' },
+      name: { en: 'Demo Blog', cs: 'Demo blog', de: 'Demo-Blog' },
       siteUrl: '/blog',
       defaultLocale: 'cs',
     },

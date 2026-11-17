@@ -59,7 +59,7 @@ describe('buildRegistry', () => {
   it('serialises a graph the admin can render, with labels and help text', () => {
     const post = reg.graph.find((g: any) => g.name === 'post')
     const field = (k: string) => post.fields.find((x: any) => x.key === k)
-    expect(field('publishedAt').meta.label).toEqual({ en: 'Publish date', cs: 'Datum zveřejnění' })
+    expect(field('publishedAt').meta.label).toEqual({ en: 'Publish date', cs: 'Datum zveřejnění', de: 'Veröffentlichungsdatum' })
     expect(field('slug').meta).toMatchObject({ from: 'title', help: { en: expect.stringMatching(/title/) } })
     expect(field('status').meta).toMatchObject({ options: ['draft', 'published'], labels: { draft: { cs: 'Koncept' } } })
     expect(post).toMatchObject({ icon: 'i-lucide-newspaper', labelSingular: { en: 'Post' }, description: { cs: expect.any(String) } })
