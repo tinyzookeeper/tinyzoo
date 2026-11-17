@@ -107,7 +107,7 @@ async function upload(files: FileList | null) {
     </ol>
     <div class="flex flex-wrap gap-2">
       <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-upload" :loading="uploading > 0" @click="fileInput?.click()">{{ t('media.upload') }}</UButton>
-      <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-images" @click="libraryOpen = true">{{ t('media.browse') }}</UButton>
+      <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-images" @click="() => { libraryOpen = true }">{{ t('media.browse') }}</UButton>
       <span v-if="items.length" class="self-center text-xs text-muted">{{ t('fields.galleryCount', { count: items.length }) }}</span>
     </div>
   </div>

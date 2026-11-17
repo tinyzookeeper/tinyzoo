@@ -36,7 +36,7 @@ onBeforeUnmount(() => { if (timer) clearTimeout(timer) })
           <slot />
         </div>
       </div>
-      <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-x" class="-mr-1 -mt-1" :aria-label="t('common.close')" @click="open = false" />
+      <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-x" class="-mr-1 -mt-1" :aria-label="t('common.close')" @click="() => { open = false }" />
     </div>
   </Teleport>
 </template>

@@ -32,10 +32,10 @@ const showHint = computed(() => touched.value && !!model.value && !valid.value)
       <input type="color" class="absolute inset-0 size-full cursor-pointer opacity-0" :value="valid ? model! : '#000000'" :aria-label="t('fields.pickColor')" @input="onPick">
     </label>
     <UInput
-      :id="id" v-model="model" :variant="variant" placeholder="#1f6feb" class="w-32" maxlength="7"
-      :ui="{ base: 'font-mono text-[0.8125rem] uppercase' }" :aria-invalid="showHint" @blur="normalize"
+      :id="id" :model-value="model ?? undefined" :variant="variant" placeholder="#1f6feb" class="w-32" maxlength="7"
+      :ui="{ base: 'font-mono text-[0.8125rem] uppercase' }" :aria-invalid="showHint" @update:model-value="model = $event" @blur="normalize"
     />
-    <UButton v-if="model && field.optional" color="neutral" variant="ghost" size="sm" icon="i-lucide-x" :aria-label="t('fields.clear')" @click="model = null" />
+    <UButton v-if="model && field.optional" color="neutral" variant="ghost" size="sm" icon="i-lucide-x" :aria-label="t('fields.clear')" @click="() => { model = null }" />
   </div>
   <p v-if="showHint" class="mt-1 text-sm text-error">{{ t('fields.colorHint') }}</p>
   </div>

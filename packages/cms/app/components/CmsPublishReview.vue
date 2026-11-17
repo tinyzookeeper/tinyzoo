@@ -41,7 +41,7 @@ const bird = cmsCharacter('bird')
   >
     <template #body>
       <div class="flex h-14 items-center justify-between border-b border-default px-3 sm:px-6">
-        <UButton color="neutral" variant="ghost" icon="i-lucide-chevron-left" class="-ml-1.5" @click="open = false">{{ t('review.back') }}</UButton>
+        <UButton color="neutral" variant="ghost" icon="i-lucide-chevron-left" class="-ml-1.5" @click="() => { open = false }">{{ t('review.back') }}</UButton>
       </div>
       <div class="mx-auto w-full max-w-2xl px-4 py-8 sm:py-12">
         <div class="flex items-start justify-between gap-6">

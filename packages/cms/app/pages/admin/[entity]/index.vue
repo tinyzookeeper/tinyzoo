@@ -469,7 +469,7 @@ const tabs = computed(() => [
     <div v-if="arranging" class="flex flex-wrap items-center justify-between gap-3 mb-3 min-h-8">
       <p class="text-sm text-muted">{{ t('list.arrangeHint') }}</p>
       <div class="flex gap-2">
-        <UButton color="neutral" variant="ghost" size="sm" @click="arranging = false">{{ t('common.cancel') }}</UButton>
+        <UButton color="neutral" variant="ghost" size="sm" @click="() => { arranging = false }">{{ t('common.cancel') }}</UButton>
         <UButton size="sm" icon="i-lucide-check" :loading="savingOrder" :disabled="arrangeTooMany" @click="saveOrder">{{ t('list.saveOrder') }}</UButton>
       </div>
     </div>
@@ -477,7 +477,7 @@ const tabs = computed(() => [
       <span class="text-sm text-highlighted tabular-nums mr-2">{{ t('list.selected', { count: selected.size }) }}</span>
       <UButton v-if="canPublish && anyDraftSelected" size="sm" color="neutral" variant="outline" icon="i-lucide-globe" :loading="bulkBusy" @click="runBulk('publish')">{{ t('editor.publish') }}</UButton>
       <UButton v-if="canPublish && anyLiveSelected" size="sm" color="neutral" variant="outline" icon="i-lucide-eye-off" :disabled="bulkBusy" @click="runBulk('unpublish')">{{ t('editor.unpublish') }}</UButton>
-      <UButton v-if="canDelete" size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" :disabled="bulkBusy" @click="confirmBulkDelete = true">{{ t('common.delete') }}</UButton>
+      <UButton v-if="canDelete" size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" :disabled="bulkBusy" @click="() => { confirmBulkDelete = true }">{{ t('common.delete') }}</UButton>
       <UButton size="sm" color="neutral" variant="link" @click="toggleAll(false)">{{ t('list.clearSelection') }}</UButton>
     </div>
     <div v-else class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 mb-3">
@@ -498,7 +498,7 @@ const tabs = computed(() => [
           size="sm" variant="ghost" class="w-full sm:w-64" :aria-label="t('common.search')"
         >
           <template v-if="q" #trailing>
-            <UButton color="neutral" variant="link" size="xs" icon="i-lucide-x" :aria-label="t('common.clear')" @click="q = ''" />
+            <UButton color="neutral" variant="link" size="xs" icon="i-lucide-x" :aria-label="t('common.clear')" @click="() => { q = '' }" />
           </template>
         </UInput>
         <UDropdownMenu v-if="optionalCols.length && layout === 'table'" :items="columnItems" :content="{ align: 'end' }">
@@ -535,7 +535,7 @@ const tabs = computed(() => [
         :description="q ? t('list.noResultsDescription') : undefined"
       >
         <template v-if="q" #actions>
-          <UButton color="neutral" variant="outline" @click="q = ''">{{ t('list.clearSearch') }}</UButton>
+          <UButton color="neutral" variant="outline" @click="() => { q = '' }">{{ t('list.clearSearch') }}</UButton>
         </template>
       </CmsEmptyState>
 
@@ -701,8 +701,8 @@ const tabs = computed(() => [
     <div v-if="!arranging && total > limit" class="flex items-center justify-between mt-3 text-sm text-muted">
       <span class="tabular-nums">{{ range }}</span>
       <div class="flex gap-1">
-        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-left" :aria-label="t('common.previous')" :disabled="page <= 1" @click="page--" />
-        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-right" :aria-label="t('common.next')" :disabled="page >= pages" @click="page++" />
+        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-left" :aria-label="t('common.previous')" :disabled="page <= 1" @click="() => { page-- }" />
+        <UButton size="sm" variant="ghost" color="neutral" icon="i-lucide-chevron-right" :aria-label="t('common.next')" :disabled="page >= pages" @click="() => { page++ }" />
       </div>
     </div>
 
@@ -724,7 +724,7 @@ const tabs = computed(() => [
       </template>
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
-          <UButton color="neutral" variant="ghost" @click="confirmBulkDelete = false">{{ t('common.cancel') }}</UButton>
+          <UButton color="neutral" variant="ghost" @click="() => { confirmBulkDelete = false }">{{ t('common.cancel') }}</UButton>
           <UButton color="error" icon="i-lucide-trash-2" :loading="bulkBusy" @click="runBulk('delete')">{{ t('common.delete') }}</UButton>
         </div>
       </template>

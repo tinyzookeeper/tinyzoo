@@ -435,7 +435,7 @@ async function copyUrl() {
               <p id="cms-focal-help" class="text-xs text-muted" aria-live="polite">
                 {{ draft.focal ? t('media.focalSet', { x: draft.focal.x, y: draft.focal.y }) : t('media.focalHint') }}
                 <span class="max-sm:hidden"> {{ t('media.focalKeys') }}</span>
-                <UButton v-if="draft.focal" color="neutral" variant="link" size="xs" class="px-1" @click="draft.focal = null">{{ t('media.focalClear') }}</UButton>
+                <UButton v-if="draft.focal" color="neutral" variant="link" size="xs" class="px-1" @click="() => { draft.focal = null }">{{ t('media.focalClear') }}</UButton>
               </p>
             </div>
             <!-- a video or a sound: played right here -->
