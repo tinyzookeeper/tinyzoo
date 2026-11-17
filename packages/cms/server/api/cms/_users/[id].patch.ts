@@ -73,7 +73,12 @@ export default defineEventHandler(async (event) => {
       await tx.execute(sql`select pg_advisory_xact_lock(${ADMIN_GUARD_LOCK})`)
       if (losesAdmin) await assertAnotherActiveAdmin(tx, reg, id)
       const [row] = await tx.update(reg.cmsUsers).set(set).where(eq(reg.cmsUsers.id, id)).returning()
-      if (row && newEmail) await endLinksOf(tx, reg, id, ['reset', 'email', 'invite'])
+      if (row && newEmail) {
+        await endLinksOf(tx, reg, id, ['reset', 'email', 'invite'])
+        // Ways back from earlier changes go too: the administrator chose this address,
+        // often because an old mailbox is someone else's now.
+        await endRevertLinks(tx, reg, id)
+      }
       return row
     })
   }

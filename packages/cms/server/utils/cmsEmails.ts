@@ -38,6 +38,9 @@ const copy = {
     emailSetIntro: (site: string) => `An administrator set this address as the sign-in email of your account at ${site}. Sign in with it and your usual password.`,
     emailSetAction: 'Sign in',
     emailSetFooter: 'If you didn’t expect this, contact the administrator of the site.',
+    emailRevertedSubject: (site: string) => `Your sign-in email for ${site} was set back`,
+    emailRevertedIntro: (site: string, to: string) => `The sign-in email of your account at ${site} was set back to ${to} with the undo link sent to that address. A new password was chosen and everyone was signed out.`,
+    emailRevertedFooter: 'If you didn’t expect this, contact the administrator of the site.',
     emailInUseSubject: (site: string) => `Your email address at ${site}`,
     emailInUseIntro: (site: string) => `Someone asked to use this address for another account at ${site}, but it already belongs to an account there. Nothing was changed.`,
     emailInUseFooter: 'If it was you, sign in with this address instead. Otherwise, ignore this email.',
@@ -70,6 +73,9 @@ const copy = {
     emailSetIntro: (site: string) => `Administrátor nastavil tuto adresu jako přihlašovací e-mail vašeho účtu na webu ${site}. Přihlaste se jí a svým obvyklým heslem.`,
     emailSetAction: 'Přihlásit se',
     emailSetFooter: 'Pokud jste změnu nečekali, obraťte se na administrátora webu.',
+    emailRevertedSubject: (site: string) => `Přihlašovací e-mail byl vrácen: ${site}`,
+    emailRevertedIntro: (site: string, to: string) => `Přihlašovací e-mail vašeho účtu na webu ${site} byl vrácen na ${to} odkazem pro vrácení změny, který přišel na tu adresu. Bylo nastaveno nové heslo a všichni byli odhlášeni.`,
+    emailRevertedFooter: 'Pokud jste to nečekali, obraťte se na administrátora webu.',
     emailInUseSubject: (site: string) => `Vaše e-mailová adresa: ${site}`,
     emailInUseIntro: (site: string) => `Někdo chtěl tuto adresu použít pro jiný účet na webu ${site}, ale už k ní jeden účet patří. Nic se nezměnilo.`,
     emailInUseFooter: 'Pokud jste to byli vy, přihlaste se touto adresou. Jinak e-mail ignorujte.',
@@ -102,6 +108,9 @@ const copy = {
     emailSetIntro: (site: string) => `Ein Administrator hat diese Adresse als Anmelde-E-Mail Ihres Kontos bei ${site} festgelegt. Melden Sie sich damit und mit Ihrem gewohnten Passwort an.`,
     emailSetAction: 'Anmelden',
     emailSetFooter: 'Wenn Sie das nicht erwartet haben, wenden Sie sich an den Administrator der Website.',
+    emailRevertedSubject: (site: string) => `Ihre Anmelde-E-Mail für ${site} wurde zurückgesetzt`,
+    emailRevertedIntro: (site: string, to: string) => `Die Anmelde-E-Mail Ihres Kontos bei ${site} wurde mit dem Link zum Rückgängigmachen, der an diese Adresse ging, auf ${to} zurückgesetzt. Ein neues Passwort wurde festgelegt und alle wurden abgemeldet.`,
+    emailRevertedFooter: 'Wenn Sie das nicht erwartet haben, wenden Sie sich an den Administrator der Website.',
     emailInUseSubject: (site: string) => `Ihre E-Mail-Adresse bei ${site}`,
     emailInUseIntro: (site: string) => `Jemand wollte diese Adresse für ein anderes Konto bei ${site} verwenden, sie gehört dort aber schon zu einem Konto. Es wurde nichts geändert.`,
     emailInUseFooter: 'Wenn Sie das waren, melden Sie sich mit dieser Adresse an. Andernfalls ignorieren Sie diese E-Mail.',
@@ -238,6 +247,17 @@ export function emailSetNotice(opts: { to: string; url: string; locale?: string 
   const { locale, site } = emailContext(opts.locale)
   const c = copy[locale]
   return { to: opts.to, subject: c.emailSetSubject(site), ...layout({ intro: c.emailSetIntro(site), action: c.emailSetAction, url: opts.url, footer: c.emailSetFooter, fallback: c.fallback }) }
+}
+
+/**
+ * To the address a way back replaced (the newer one): the account went back to the old
+ * address. Whoever reads this mailbox may be the owner, locked out by someone who reads
+ * the old one now; they must hear of it.
+ */
+export function emailRevertedNotice(opts: { to: string; restoredEmail: string; locale?: string | null }) {
+  const { locale, site } = emailContext(opts.locale)
+  const c = copy[locale]
+  return { to: opts.to, subject: c.emailRevertedSubject(site), ...layout({ intro: c.emailRevertedIntro(site, maskEmail(opts.restoredEmail)), footer: c.emailRevertedFooter, fallback: c.fallback }) }
 }
 
 /**

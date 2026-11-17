@@ -17,7 +17,8 @@ export default defineEventHandler(async (event) => {
   const { db, reg } = useCms()
 
   const [existing] = await db.select({ id: reg.cmsUsers.id }).from(reg.cmsUsers).where(eq(reg.cmsUsers.email, data.email))
-  if (existing) {
+  // An address another account can still take back (a way back from a change) counts as taken.
+  if (existing || await emailReserved(db, reg, data.email)) {
     throw createError({ statusCode: 409, statusMessage: 'This person already has access', data: [{ path: ['email'], code: 'unique', message: 'Already has access' }] })
   }
 

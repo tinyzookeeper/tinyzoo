@@ -16,7 +16,9 @@ import { z } from 'zod'
 //  - ends every session (session version) and every reset and email link, forgets a
 //    pending change, and ends the ways back of later changes (they would undo this);
 //    those of earlier changes stay, they lead further back,
-//  - signs this browser in, as a reset does, and is audited (account.email_revert).
+//  - signs this browser in, as a reset does, and is audited (account.email_revert),
+//  - tells the address it replaces: the owner of that mailbox may have made the change
+//    (an old work mailbox read by someone else now), and must not be locked out unheard.
 const body = z.object({ token: z.string().min(1).max(200), password: passwordSchema })
 const GONE = 'This link has expired or was already used'
 
@@ -37,6 +39,7 @@ export default defineEventHandler(async (event) => {
   let user: any
   try {
     user = await db.transaction(async (tx: any) => {
+      await lockUser(tx, reg, before.id)
       // Claim the link atomically: of two simultaneous requests only one gets the row.
       const [claimed] = await tx.update(reg.cmsTokens).set({ usedAt: new Date() })
         .where(and(eq(reg.cmsTokens.id, found.token.id), isNull(reg.cmsTokens.usedAt))).returning({ id: reg.cmsTokens.id })
@@ -58,5 +61,8 @@ export default defineEventHandler(async (event) => {
 
   await startCmsSession(event, user)
   await audit(event, 'account.email_revert', { userId: user.id, meta: { email: user.email, previousEmail: before.email } })
+  const locale = user.locale || requestLocale(event)
+  event.waitUntil(sendCmsMail(emailRevertedNotice({ to: before.email, restoredEmail: user.email, locale }))
+    .catch((err) => console.error('[cms] could not send the email reverted notice', redactEmails(safeErrorMessage(err)))))
   return { user: sessionUser(user) }
 })

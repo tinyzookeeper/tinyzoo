@@ -586,6 +586,11 @@ describe('undoing a change from the old mailbox', () => {
 
     const rows = await auditRows(`user_id = $1 and action = 'account.email_revert'`, [victim.id])
     expect(rows.map((r) => r.meta)).toEqual([{ email: victim.email, previousEmail: theirs }])
+    // The address it replaced is told (it could be the owner's, locked out by whoever reads the old mailbox now).
+    // (The only mail to that address without a link: the others carry the confirmation and the reset.)
+    const told = await waitForMail(theirs, (m) => !/https?:\/\//.test(m.text))
+    expect(told.text).toContain(masked(victim.email))
+    expect(told.text).not.toContain(victim.email)
   })
 
   it('after two changes, the oldest mailbox still gets the account back, and using it ends the later way back', async () => {
@@ -612,20 +617,50 @@ describe('undoing a change from the old mailbox', () => {
     await login(acc2.email, 'password for a')
   })
 
+  it('keeps the old address reserved while its way back works: nobody can be invited with it or move to it', async () => {
+    const admin = await signIn('admin')
+    const acc = await newAccount('editor')
+    const back = await changeOwn(acc, fresh())
+    const invited = await admin.post('/api/cms/_users', { email: acc.email, role: 'author' })
+    expect(invited.status).toBe(409)
+    const other = await newAccount('author')
+    expect((await adminSets(other.id, acc.email)).status).toBe(409)
+    // Asking for it answers as for any address, but no link goes out; its mailbox gets the "already has an account" note.
+    expect((await ask(other.client, acc.email, other.password)).status).toBe(200)
+    await waitForMail(acc.email, (m) => !/https?:\/\//.test(m.text)) // the note has no link
+    expect(sentMail(acc.email).some((m) => m.text.includes('/admin/email/') && !m.text.includes('/admin/email/revert/'))).toBe(false)
+    // The account it belongs to may move back to it (the way back itself works).
+    expect((await revert(anonymous(), back, 'the owner’s new password')).status).toBe(200)
+    // Once used, the reservation is gone.
+    const freed = await admin.post('/api/cms/_users', { email: fresh('free'), role: 'author' })
+    expect(freed.status).toBe(201)
+  })
+
+  it('an administrator’s change ends the ways back of earlier changes', async () => {
+    const acc = await newAccount('editor')
+    const back = await changeOwn(acc, fresh())
+    const chosen = fresh('chosen')
+    expect((await adminSets(acc.id, chosen)).status).toBe(200)
+    expect((await revertGet(tokenOf(back))).status).toBe(410)
+    expect((await revert(anonymous(), back, 'whoever reads the old mailbox')).status).toBe(410)
+    expect((await db.query(`select 1 from cms_state where key like $1`, [`email-revert:${acc.id}:%`])).rowCount).toBe(0)
+    // The old address is free again.
+    expect((await (await signIn('admin')).post('/api/cms/_users', { email: acc.email, role: 'author' })).status).toBe(201)
+  })
+
   it('is refused when expired, and when the old address belongs to another account now', async () => {
     const admin = await signIn('admin')
     const acc = await newAccount('editor')
     const to = fresh()
     const back = await changeOwn(acc, to)
-    // Someone else has the old address now: nothing changes.
-    const invited = await admin.post('/api/cms/_users', { email: acc.email, role: 'author' })
-    expect(invited.status).toBe(201)
+    // Someone else has the old address now (only possible behind the reservation's back, e.g. straight in the database): nothing changes.
+    const sneaked = (await db.query(`insert into cms_users (email, name, role, status) values ($1, '', 'author', 'invited') returning id`, [acc.email])).rows[0].id
     const taken = await revert(anonymous(), back, 'the owner’s new password')
     expect(taken.status).toBe(409)
     expect(taken.body.data).toEqual({ code: 'email_taken' })
     await login(to, acc.password)
     // Freed again, but expired.
-    expect((await admin.delete(`/api/cms/_users/${invited.body.user.id}`)).status).toBe(200)
+    expect((await admin.delete(`/api/cms/_users/${sneaked}`)).status).toBe(200)
     await db.query(`update cms_tokens set expires_at = now() - interval '1 minute' where user_id = $1 and kind = 'email-revert' and used_at is null`, [acc.id])
     expect((await revertGet(tokenOf(back))).status).toBe(410)
     expect((await revert(anonymous(), back, 'the owner’s new password')).status).toBe(410)
@@ -666,6 +701,18 @@ describe('an administrator needs their own password to change someone’s email'
     expect((await adminSets(acc.id, to)).status).toBe(200)
   })
 
+  it('wrong passwords use up the administrator’s sign-in budget: the eleventh try is refused, even with the right one', async () => {
+    const boss = await newAccount('admin')
+    const acc = await newAccount('editor')
+    const statuses: number[] = []
+    for (let i = 0; i < 11; i++) statuses.push((await boss.client.patch(`/api/cms/_users/${acc.id}`, { email: fresh(), password: `guess number ${i}` })).status)
+    expect(statuses.slice(0, 10).every((s) => s === 422)).toBe(true)
+    expect(statuses[10]).toBe(429)
+    expect((await boss.client.patch(`/api/cms/_users/${acc.id}`, { email: fresh(), password: boss.password })).status).toBe(429)
+    expect((await anonymous().post('/api/cms/_auth/login', { email: boss.email, password: boss.password })).status).toBe(429)
+    expect((await db.query('select email from cms_users where id = $1', [acc.id])).rows[0].email).toBe(acc.email)
+  })
+
   it('a disabled account’s new address is not told to sign in, nor the old one', async () => {
     const admin = await signIn('admin')
     const acc = await newAccount('editor')
@@ -687,7 +734,9 @@ describe('privacy of a change of address', () => {
     const a = await newAccount('editor')
     const moved = fresh('moved')
     await changeOwn(a, moved)
-    // Someone else gets a's old address.
+    // Once the way back has expired (the old address is held for it until then), someone else gets a's old address.
+    const past = new Date(Date.now() - 60_000).toISOString()
+    await db.query(`update cms_state set value = jsonb_set(value, '{expiresAt}', to_jsonb($2::text)) where key like $1`, [`email-revert:${a.id}:%`, past])
     const c = await admin.post('/api/cms/_users', { email: a.email, role: 'author' })
     expect(c.status).toBe(201)
 

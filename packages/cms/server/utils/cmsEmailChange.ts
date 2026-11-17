@@ -21,6 +21,15 @@ import type { CmsRegistry } from 'tinyzoo'
  * knew the password and confirmed a change to their own address at once.
  */
 
+/**
+ * Lock the account's row for the rest of the transaction. The routes that claim a link
+ * and then end the account's other links (confirm, revert) take it first, so two of
+ * them at once wait for each other instead of deadlocking on each other's links.
+ */
+export async function lockUser(tx: any, reg: CmsRegistry, userId: string): Promise<void> {
+  await tx.select({ id: reg.cmsUsers.id }).from(reg.cmsUsers).where(eq(reg.cmsUsers.id, userId)).for('update')
+}
+
 /** Ask for a change: a new link (earlier email links stop working) and the address it is for. Returns the link's secret. */
 export async function startEmailChange(db: any, reg: CmsRegistry, opts: { userId: string; email: string; sessionVersion: number }): Promise<string> {
   const secret = newLinkSecret()
@@ -93,7 +102,25 @@ export async function emailTaken(db: any, reg: CmsRegistry, email: string, excep
   if (isDemoAccount(email)) return true
   const u = reg.cmsUsers
   const [row] = await db.select({ id: u.id }).from(u).where(and(eq(u.email, email), ne(u.id, exceptUserId)))
-  return !!row
+  return !!row || await emailReserved(db, reg, email, exceptUserId)
+}
+
+/**
+ * Is the address held for another account's way back? While a link that undoes a change
+ * still works, the old address stays reserved for that account: nobody can be invited
+ * with it or move to it. Otherwise someone who changed the address with the password
+ * alone could block the owner's way back by giving the old address to another account
+ * (an administrator's session can invite one).
+ */
+export async function emailReserved(db: any, reg: CmsRegistry, email: string, exceptUserId?: string): Promise<boolean> {
+  const s = reg.cmsState
+  const rows: { key: string }[] = await db.select({ key: s.key }).from(s).where(and(
+    sql`${s.key} like ${`${EMAIL_REVERT_STATE_PREFIX}%`}`,
+    sql`lower(btrim(${s.value}->>'email')) = ${email}`,
+    // expiresAt is always an ISO string written by toISOString(), so text comparison is time order.
+    sql`coalesce(${s.value}->>'expiresAt', '') > ${new Date().toISOString()}`,
+  ))
+  return rows.some((r) => !exceptUserId || !r.key.startsWith(`${EMAIL_REVERT_STATE_PREFIX}${exceptUserId}:`))
 }
 
 // ── the way back ───────────────────────────────────────────────────────────────
@@ -129,7 +156,8 @@ export async function readEmailRevert(db: any, reg: CmsRegistry, userId: string,
  */
 export async function endRevertLinks(db: any, reg: CmsRegistry, userId: string, since?: Date): Promise<void> {
   const t = reg.cmsTokens
-  const ended: { id: string }[] = await db.update(t).set({ usedAt: new Date() })
+  // A link already used keeps the time it was used; its row in cms_state goes all the same.
+  const ended: { id: string }[] = await db.update(t).set({ usedAt: sql`coalesce(${t.usedAt}, now())` })
     .where(and(eq(t.userId, userId), eq(t.kind, 'email-revert'), since ? gte(t.createdAt, since) : undefined))
     .returning({ id: t.id })
   const s = reg.cmsState

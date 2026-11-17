@@ -28,7 +28,10 @@ export default defineEventHandler(async (event) => {
 
   const taken = () => createError({ statusCode: 409, statusMessage: 'This address already belongs to another account', data: { code: 'email_taken' } })
   if (await emailTaken(db, reg, pending.email, before.id)) {
-    await endLinksOf(db, reg, before.id, ['email'])
+    // Only this link and its request end: a newer request made meanwhile stays.
+    await db.update(reg.cmsTokens).set({ usedAt: new Date() })
+      .where(and(eq(reg.cmsTokens.id, found.token.id), isNull(reg.cmsTokens.usedAt)))
+    await forgetEmailChange(db, reg, before.id, found.token.id)
     throw taken()
   }
 
@@ -36,6 +39,7 @@ export default defineEventHandler(async (event) => {
   let revertSecret = ''
   try {
     updated = await db.transaction(async (tx: any) => {
+      await lockUser(tx, reg, before.id)
       // Claim the link atomically: of two simultaneous requests only one gets the row.
       const [claimed] = await tx.update(reg.cmsTokens).set({ usedAt: new Date() })
         .where(and(eq(reg.cmsTokens.id, found.token.id), isNull(reg.cmsTokens.usedAt))).returning({ id: reg.cmsTokens.id })

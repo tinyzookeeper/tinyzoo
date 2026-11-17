@@ -73,7 +73,7 @@ Na **starou** adresu přijdou dva krátké e-maily: první hned po žádosti, dr
 
 Pak v obou případech dejte vědět administrátorovi.
 
-> **Pozor:** Odkaz **Vrátit změnu** platí **7 dní** a jde použít jen jednou. Kdo ho otevře, tomu se účet vrátí. Když jste e-mail měnili vy sami, nemusíte s ním nic dělat, jen ho nikomu nepřeposílejte. To platí hlavně tehdy, když starou schránku po vás převezme kolega (třeba pracovní adresu po odchodu z firmy): zprávu o změně z ní raději smažte. Když odkaz vypršel nebo už byl použit, ukáže se **Tento odkaz už nefunguje**. Pokud starou adresu mezitím dostal jiný účet, ukáže se **Tato adresa je obsazená** a nic se nezmění. V obou případech pomůže jen administrátor.
+> **Pozor:** Odkaz **Vrátit změnu** platí **7 dní** a jde použít jen jednou. Kdo ho otevře, tomu se účet vrátí. Když jste e-mail měnili vy sami, nemusíte s ním nic dělat, jen ho nikomu nepřeposílejte. To platí hlavně tehdy, když starou schránku po vás převezme kolega (třeba pracovní adresu po odchodu z firmy): zprávu o změně z ní raději smažte. Když odkaz vypršel nebo už byl použit, ukáže se **Tento odkaz už nefunguje** a pomůže jen administrátor. Po dobu těchto 7 dní zůstává stará adresa pro váš účet zamluvená: nikoho jiného s ní nejde pozvat ani na ni přesunout jiný účet. Když odkaz někdo použije, přijde na novou adresu krátká zpráva **Přihlašovací e-mail byl vrácen**. Pokud vás tak někdo ze staré schránky odřízl od účtu, obraťte se na administrátora. Když administrátor e-mail v **Týmu** změní, odkazy **Vrátit změnu** z dřívějších změn přestanou platit.
 
 **Co když e-mail s odkazem nepřišel?**
 
