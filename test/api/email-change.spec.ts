@@ -418,7 +418,7 @@ describe('a link of one kind opens nothing else', () => {
       ['invite', invite, tries.confirm], ['invite', invite, tries.emailGet], ['invite', invite, tries.revert], ['invite', invite, tries.reset],
       ['email-revert', back, tries.reset], ['email-revert', back, tries.accept], ['email-revert', back, tries.confirm], ['email-revert', back, tries.emailGet],
     ]
-    const names = new Map(Object.entries(tries).map(([name, fn]) => [fn, name]))
+    const names = new Map<unknown, string>(Object.entries(tries).map(([name, fn]) => [fn, name]))
     for (const [kind, link, attempt] of wrong) {
       expect((await attempt(link)).status, `a ${kind} link at ${names.get(attempt)}`).toBe(410)
     }
