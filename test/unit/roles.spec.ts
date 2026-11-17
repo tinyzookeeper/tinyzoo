@@ -221,7 +221,7 @@ describe('checks that need the entities (when the config loads)', () => {
 
   it('works with the playground\'s own roles and field rules', () => {
     const reg = buildRegistry(playground)
-    expect(Object.keys(reg.roles!.roles)).toEqual(['translator', 'curator', 'marketer'])
+    expect(Object.keys(reg.roles!.roles)).toEqual(['translator', 'proofreader', 'curator', 'marketer'])
     expect((playground.Author.fields.email as any).meta.access).toEqual({ read: ['editor', 'curator'], edit: ['editor'] })
   })
 })

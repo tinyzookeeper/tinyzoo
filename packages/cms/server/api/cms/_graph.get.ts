@@ -9,15 +9,18 @@ export default defineEventHandler((event) => {
     .filter((g) => accessWhere(reg.byName.get(g.name)!, 'read', user).allowed)
     .map((g) => {
       const e = reg.byName.get(g.name)!
+      const locked = hasFieldRules(e) ? uneditableFields(e, user) : new Set<string>()
+      // Publishing writes the status (and, scheduling, the date): a role that may not edit those fields cannot publish, whatever its `publish` says.
+      const pub = e.publish
+      const stateLocked = !!pub && (locked.has(pub.field) || (!!pub.dateField && locked.has(pub.dateField)))
       const can: Record<string, boolean> = {
         create: accessWhere(e, 'create', user).allowed,
         update: accessWhere(e, 'update', user).allowed,
         delete: accessWhere(e, 'delete', user).allowed,
-        publish: canPublish(user),
+        publish: canPublish(user) && !stateLocked,
       }
       if (!hasFieldRules(e)) return { ...g, can }
       const hidden = unreadableFields(e, user)
-      const locked = uneditableFields(e, user)
       const shown = (k: string) => !hidden.has(k)
       // Dragging into order or into another place writes a field of its own.
       if (g.orderField && locked.has(g.orderField)) can.arrange = false

@@ -14,7 +14,7 @@ import { createAuthor, createPost } from '../helpers/fixtures'
 //   author.email     read: editor, curator   edit: editor
 //   author.bio       read: editor            (rich text)
 //   author.position  edit: editor
-//   post.location    edit: editor            (a translatable group)
+//   post.location    edit: editor, proofreader  (a translatable group; proofreader is a translator-like role that may edit it)
 //   siteSettings.siteName, .brandColor  edit: editor
 // Administrators always pass.
 const db = testDb()
@@ -101,7 +101,10 @@ describe('what a custom role may do with collections', () => {
     expect(graph.find((g) => g.name === 'author').can).toMatchObject({ create: false, update: false, delete: false })
     // What an editor may do.
     expect((await editor.get('/api/cms/_graph')).body.find((g: any) => g.name === 'post').can).toEqual({ create: true, update: true, delete: true, publish: true })
-    expect((await marketer.get('/api/cms/_graph')).body.find((g: any) => g.name === 'post').can).toMatchObject({ update: true, create: false, publish: true })
+    // The marketing role may publish, but not set post.publishedAt (a rule on the field): Publish, which can be a schedule, is not offered to it.
+    expect((await marketer.get('/api/cms/_graph')).body.find((g: any) => g.name === 'post').can).toMatchObject({ update: true, create: false, publish: false })
+    // Where nothing locks the status or the date, publishing follows the role alone.
+    expect((await marketer.get('/api/cms/_graph')).body.find((g: any) => g.name === 'siteSettings').can.publish).toBe(true)
   })
 
   it('says who the person is: me carries the role\'s name, label and reach', async () => {
@@ -507,7 +510,7 @@ describe('a role the site does not have (removed from the config) fails closed',
     expect(team.users.find((u: any) => u.id === ghostId)).toMatchObject({ role: 'ghost', roleRemoved: true })
     expect(team.users.find((u: any) => u.role === 'translator').roleRemoved).toBe(false)
     expect(team.users.find((u: any) => u.role === 'admin').roleRemoved).toBe(false)
-    expect(team.roles.map((r: any) => r.name)).toEqual(['admin', 'editor', 'author', 'translator', 'curator', 'marketer'])
+    expect(team.roles.map((r: any) => r.name)).toEqual(['admin', 'editor', 'author', 'translator', 'proofreader', 'curator', 'marketer'])
     expect(team.roles.find((r: any) => r.name === 'translator')).toMatchObject({ custom: true, from: 'editor', label: { en: 'Translator', cs: 'Překladatel' } })
     expect(team.roles.find((r: any) => r.name === 'editor')).toMatchObject({ custom: false, from: 'editor', label: null })
   })

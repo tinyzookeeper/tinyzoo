@@ -84,7 +84,7 @@ export const Settings = defineSingleton('settings', { label: 'Settings', titleFi
 | `from` | `'editor'` (every entry of every collection) or `'author'` (drafts, and only own entries). Required |
 | `label`, `description` | the role's name and one sentence, one string or one per admin language |
 | `entities` | what the role may do with a collection, by its name: `read`, `create`, `update`, `delete`. A collection listed gets **exactly** these operations (`['read']` reads, `[]` does not see it at all); one left out is **what `from` allows**. Anything but `read` needs `read` too. A global has `read` and `update` only |
-| `publish` | may publish and unpublish, and change what is live. Default: what `from` has (editor yes, author no). A role that may not publish writes drafts only, and cannot change an entry that is live, or write content that is live the moment it is saved (a global, redirects) |
+| `publish` | may publish and unpublish, and change what is live. Default: what `from` has (editor yes, author no). A role that may not publish writes drafts only, and cannot change an entry that is live, or write content that is live the moment it is saved (a global, redirects). Publish is also offered only to a role that may edit the entity's status field and its publish date (a publish writes both): put a field rule on one of them and add the roles that should publish |
 | `media` | the media library: `'all'`, `'own'` or `'none'` ([below](#the-media-library)). Default: what `from` has |
 
 A few things follow from "extends":

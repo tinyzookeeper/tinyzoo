@@ -178,16 +178,34 @@ export function notLiveCond(e: CmsEntity, user: CmsUser): any {
 }
 
 /**
+ * "Not live" for a write by someone who may not publish, judged for what is being written:
+ * the entry itself, or (`locale`: a translation language, for an entity that publishes per
+ * language) that language by **its own state**: its own while it has one, else the entry's
+ * (it follows). A language that is published on its own is live for this purpose even while
+ * the default language is a draft and holds it back: it is marked live, and the default
+ * language going live would put it on the website. One rule for the translation write, shared
+ * editing and the editor's read-only switch, so what the form says is what a save does.
+ */
+export function notLiveInLanguage(e: CmsEntity, user: CmsUser, locale?: string | null): any {
+  const p = e.publish
+  if (!p?.perLocale || !locale || canPublish(user)) return notLiveCond(e, user)
+  const status = localeView(e, e.table, locale)[propOf(p.field, e.fields[p.field]!)]
+  return or(isNull(status), ne(status, p.publishedValue))
+}
+
+/**
  * May this person change this entry (or, with no id, the entity's one global)? The same
  * rules a save applies, told to the form beforehand so it opens read-only instead of
  * failing on save. `why` says which rule says no: the role, somebody else's entry,
  * or an entry that is live (people who may not publish cannot change what is live).
+ * `locale`: a translation language being edited (for an entity that publishes per language
+ * the language's own state counts, as in the translation write: `notLiveInLanguage`).
  */
-export async function updateVerdict(db: any, e: CmsEntity, user: CmsUser, id?: string | null): Promise<{ update: boolean; why?: 'role' | 'owner' | 'published' }> {
+export async function updateVerdict(db: any, e: CmsEntity, user: CmsUser, id?: string | null, locale?: string | null): Promise<{ update: boolean; why?: 'role' | 'owner' | 'published' }> {
   const a = accessWhere(e, 'update', user)
   if (!a.allowed) return { update: false, why: 'role' }
   if (!id) return { update: true }
-  const [ok] = await db.select({ id: e.table.id }).from(e.table).where(both(both(eq(e.table.id, id), a.where), notLiveCond(e, user)))
+  const [ok] = await db.select({ id: e.table.id }).from(e.table).where(both(both(eq(e.table.id, id), a.where), notLiveInLanguage(e, user, locale)))
   if (ok) return { update: true }
   const [mine] = await db.select({ id: e.table.id }).from(e.table).where(both(eq(e.table.id, id), a.where))
   return { update: false, why: mine ? 'published' : 'owner' }
