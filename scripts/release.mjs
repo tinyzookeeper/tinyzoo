@@ -66,7 +66,8 @@ function tagAndRelease(published) {
       if (!remote.includes(`refs/tags/${tag}\n`)) run('git', ['push', 'origin', `refs/tags/${tag}`])
       try { sh('gh', ['release', 'view', tag]); continue }
       catch { /* no release yet */ }
-      run('gh', ['release', 'create', tag, '--verify-tag', '--title', tag, '--notes', changelogOf(p) || `Published to npm as ${tag}.`])
+      // "Latest" on GitHub goes to the CMS itself, not to whichever release was made last.
+      run('gh', ['release', 'create', tag, '--verify-tag', '--title', tag, `--latest=${p.name === 'tinyzoo'}`, '--notes', changelogOf(p) || `Published to npm as ${tag}.`])
     }
     catch (err) {
       failed = true
