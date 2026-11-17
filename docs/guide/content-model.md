@@ -615,6 +615,15 @@ Schedule act on the language being edited; "Follow the default language again" g
 back). So switching `perLocale` on changes nothing on the website, including for entries that have
 no translation at all and are served in other languages through the fallback.
 
+**A translation that has never been published is being translated.** Start the English translation of
+a post that is already live, and it is a draft of its own that has never been on the website: visitors
+keep getting exactly what they got before, the default language through fallback (while that one is
+live), and none of the draft's text, address or state. It stays like that, however often it is saved,
+until someone who may publish publishes it (or schedules it: until its date the fallback stays); from
+then on it is that language's own published state. Whoever may edit the entry can start, write and remove
+such a translation, a role that may not publish included, because nothing visitors see changes. A
+translation of a post that is still a draft follows it, as before, and goes live with it.
+
 A language that is **not published is not there** in that language:
 
 | Where | What visitors get |
@@ -626,8 +635,14 @@ A language that is **not published is not there** in that language:
 | the website search, `?locale=en` | not found |
 | links to it (rich text, link fields, menus) | resolve to `null` in that language, like a link to a draft |
 
+Unpublishing a language takes it off, also one that had no translation of its own and was served
+through the default language: that one is a `404` from then on, not being translated. A translation
+being translated is different: for visitors it is not there at all, so they get the default language
+as if it had no translation (the item by its default address, the lists, the search, the sitemap
+and the addresses of links, all in the default language's words).
+
 An editor's `?preview` (a signed-in session, or the content token) still sees the draft
-translation. Inside a published translation the per-field fallback to the default language
+translation, a translation being translated included. Inside a published translation the per-field fallback to the default language
 applies as before: a field left empty shows the default language's text.
 
 **The default language gates every other language.** A translation is live only while the default
@@ -637,21 +652,23 @@ published again. A language can still be unpublished on its own, and scheduled o
 from the later of its date and the default language's. A language that follows is live exactly when the
 default language is. The reason is the translation's untranslated fields: they show the default
 language's text, so a translation of a draft would show the draft (and its fallback text) to the public.
-In the admin a language that is published but held back says **Waiting for <default language>**.
+In the admin a language that is published but held back says **Waiting for <default language>**, and one being
+translated says **Being translated**.
 
 **What editors see.** The editor's top bar names the language and its state (*English · Draft*), and Publish…,
 Update, Unpublish and Schedule act on that language only; its review step is *Publish the English version* and says
 when the default language is still a draft. The menu has *Follow the default language again*. The language switcher and
 the side panel list every language with its state, and the list's Languages column shows a mark per language (a dot
-on the website, a ring for a draft, a clock when scheduled, an hourglass when waiting for the default language). On a
-phone the language and its state in the top bar open the language switcher. The editors' guide explains it in their
+on the website, a ring for a draft, a clock when scheduled, an hourglass when waiting for the default language, a
+languages mark when being translated). The dashboard's drafts and the admin's search say *Being translated* too, and the
+review step of one says that visitors see the default language there until now. On a phone the language and its state in the top bar open the language switcher. The editors' guide explains it in their
 words: [Překlady](../editors/cs/preklady.md#každý-jazyk-zvlášť).
 
-**Translators who may not publish.** A role with `publish: false` can write a language that is not live. A language
-that *follows* a live default language is live, so for a post that is already published an editor first unpublishes
-its translation (it then has a draft state of its own); for a new post the translation is written before the default
-language is published and goes live with it. The [worked example](roles.md#worked-example-a-translator) sets up such
-a role, a field only editors may change, and `perLocale` together.
+**Translators who may not publish.** A role with `publish: false` can start the translation of a live post: it is
+being translated, and an editor publishes it when it is ready. It can write a language that is not live (being
+translated, or taken off by an editor, or following a draft), not one that is live (published on its own, or a
+translation that follows a live default language). The [worked example](roles.md#worked-example-a-translator) sets up
+such a role, a field only editors may change, and `perLocale` together.
 
 **Schedules and webhooks follow.** A translation with its own date goes live at that moment (the
 scheduler announces `entry.published` with that `locale`). Publishing or unpublishing one language
@@ -659,17 +676,26 @@ sends `entry.published` / `entry.unpublished` with its `locale` and `paths` for 
 only. A change to the default language names every language that is live (`locale: null`, the
 addresses of all of them that have a translation or a state of their own), so unpublishing the
 default language purges the languages that went off with it; publishing a language while the default
-language is a draft is not public and sends nothing. When the default language goes live on its date
+language is a draft is not public and sends nothing. Saving a translation being translated, or removing
+one, sends nothing public either (visitors see no change); publishing it sends `entry.published` with its
+`locale`, and `paths` both its own address and the one visitors read the default language at until then.
+When the default language goes live on its date
 the scheduler announces it, and then each language that was only waiting for it. Those who may not
 publish cannot publish, unpublish or reschedule a language, cannot remove a translation that holds a
 state of its own (the language would follow the default language again, which can put it on the
-website), and cannot change a language that is marked published (or follows a live default language).
+website) unless it is being translated, and cannot change a language that is marked published (or follows
+a live default language).
 
 In the admin API (`PATCH /api/cms/<entity>/<id>?locale=en`) the state is written with the entry's
 own keys: `{ "status": "draft" }`, `{ "status": "published", "publishedAt": "2026-12-01T09:00:00Z" }`,
-or `{ "status": null }` to follow the default language again. A date needs its status. Export and
-import, seeds (`translations: { en: { title: 'Home', status: 'draft' } }`) and the history of a
-language carry the state. Not available for page trees (`tree`) yet.
+or `{ "status": null }` to follow the default language again. A date needs its status. A first
+translation of an entry whose status is published, written without a status, is being translated;
+send `"status": null` with it to have it follow the default language (and go live) at once. The
+translation table keeps when the language was first on the website in its own right
+(`first_live_at`; null while it is being translated). Export and import (`translations[].publish`,
+`firstLiveAt` included), seeds (`translations: { en: { title: 'Home', status: 'draft' } }`; a seed's
+translation without a status follows the default language) and the history of a language carry the
+state. Not available for page trees (`tree`) yet.
 
 Turning it on is one migration: [upgrading](../upgrading.md#from-05-to-06).
 

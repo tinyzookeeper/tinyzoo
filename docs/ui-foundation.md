@@ -52,8 +52,10 @@ Status is the only other colour: Draft = grey ring, On the website = green,
 Scheduled = blue clock, warnings = amber, errors = red.
 
 **One word per state, everywhere** (the editor's bar, the language menu, the list, the home page, the
-search): *Draft*, *On the website* (cs *Na webu*, de *Auf der Website*), *Scheduled*, and for a
-translation held back by the default language *Waiting for Czech*. With content languages the state
+search): *Draft*, *On the website* (cs *Na webu*, de *Auf der Website*), *Scheduled*, for a
+translation held back by the default language *Waiting for Czech*, and for a translation that has never
+been on the website *Being translated* (cs *Překládá se*, de *Wird übersetzt*; a muted languages mark,
+with "Visitors see the Czech version until an editor publishes this one." in its tooltip). With content languages the state
 names its language: "English · Draft" (on a phone "EN · Draft").
 
 Client accents: `cms.admin.accent` = `indigo`, `blue`, `violet` or `emerald` replaces
@@ -206,7 +208,7 @@ Override with `admin.list.layout`.
   entries (unfiltered first page), each with its verb (Finish / Edit). Rows: thumbnail,
   title and address; columns from `admin.list.columns`; languages say only what is
   missing ("EN missing"), or, publishing per language, each language's state as a code and
-  a mark ("EN ●") with its words in a tooltip and for screen readers. Phones: title, status,
+  a mark ("EN ●"; a languages mark when being translated) with its words in a tooltip and for screen readers. Phones: title, status,
   time and the languages' marks in one cell.
 - **Grid** when the first column is a picture and there is no text body (albums,
   partner logos). Content pictures fill the card; logos sit whole on a light tile; with

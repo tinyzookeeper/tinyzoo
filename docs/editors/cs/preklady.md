@@ -48,7 +48,7 @@ To záleží na tom, jak má váš web nastavený daný druh obsahu. Poznáte to
 
 **Zveřejnění společné pro všechny jazyky.** Když je u překladu napsáno **Zveřejnění platí pro všechny jazyky.**, má položka jen jeden stav. Když ji zveřejníte, jsou na webu všechny její jazykové verze najednou. Uložený překlad zveřejněné položky je na webu hned.
 
-**Každý jazyk zvlášť.** Na webech, kde to vývojář zapnul (třeba u článků), má každý jazyk svůj vlastní stav: **Koncept**, **Naplánováno** nebo **Na webu**. Překlad tak můžete v klidu dopsat a zveřejnit, až bude hotový. Podrobnosti jsou v další části.
+**Každý jazyk zvlášť.** Na webech, kde to vývojář zapnul (třeba u článků), má každý jazyk svůj vlastní stav: **Překládá se**, **Koncept**, **Naplánováno** nebo **Na webu**. Překlad tak můžete v klidu dopsat a zveřejnit, až bude hotový. Podrobnosti jsou v další části.
 
 ## Každý jazyk zvlášť
 
@@ -56,12 +56,19 @@ To záleží na tom, jak má váš web nastavený daný druh obsahu. Poznáte to
 
 Stav vidíte na čtyřech místech: nahoře u názvu (**Angličtina · Koncept**), v nabídce jazyků, v panelu **Podrobnosti** a v seznamu položek.
 
-- **Koncept**: tenhle jazyk na webu není. Návštěvník v něm stránku nenajde, nevyskočí mu v seznamu, v mapě webu ani ve vyhledávání. Rozepsaný překlad si prohlédnete v **Náhledu**.
+- **Překládá se**: překlad, který ještě nikdy nebyl na webu. Návštěvníci zatím vidí češtinu, přesně jako předtím, a z rozepsaného překladu neuvidí nic (ani text, ani adresu). Tak to zůstane, dokud ho editor nezveřejní. Rozepsaný překlad si prohlédnete v **Náhledu**.
+- **Koncept**: tenhle jazyk editor stáhl z webu. Návštěvník v něm stránku nenajde, nevyskočí mu v seznamu, v mapě webu ani ve vyhledávání. Překlad si prohlédnete v **Náhledu**.
 - **Naplánováno**: jazyk půjde na web v den a čas, který jste vybrali.
 - **Na webu**: návštěvníci ho vidí.
 - **Řídí se výchozím jazykem**: jazyk zatím nemá vlastní stav. Jde na web a z webu spolu s češtinou. Takhle začíná každý jazyk, dokud ho někdo nezveřejní nebo nestáhne zvlášť. Proto se na webu nic nezmění, když vývojář tuhle volbu zapne.
 
 Otevřete jazyk a použijte **Zveřejnit…**, **Aktualizovat** nebo **Naplánovat**. V nabídce **Další akce** (tři tečky) je **Stáhnout z webu** a **Znovu se řídit výchozím jazykem**. Všechno to platí jen pro jazyk, který máte otevřený. Ostatní jazyky se nezmění.
+
+### Nový překlad článku, který už je na webu
+
+Otevřete u článku angličtinu, napište překlad a uložte. Angličtina je pak **Překládá se**. V panelu vpravo a v bublině u stavu je napsáno **Návštěvníci zatím vidí výchozí jazyk (čeština). Tuhle verzi uvidí, až ji editor zveřejní.** Ukládat můžete, kolikrát chcete; na webu se nic nezmění. Když je překlad hotový, editor ho zveřejní (**Zveřejnit…**) a od té chvíle čtou návštěvníci v angličtině anglický text.
+
+Překlad článku, který je zatím koncept, se řídí češtinou: jde na web spolu s ní, až editor zveřejní češtinu.
 
 ### Čeština rozhoduje
 
@@ -77,20 +84,20 @@ Proč? V překladu se nepřeložená pole ukazují česky. Kdyby šel překlad n
 
 ### Zveřejnění překladu
 
-**Zveřejnit…** u překladu otevře kontrolu **Zveřejnit překlad: angličtina** s větou **Ostatní jazyky zůstanou, jak jsou.** Jako u celé položky vás upozorní na nepřeložená pole a ukáže **Adresu na webu**. Když je čeština zatím koncept, je nahoře **Čeština je zatím koncept** a u volby **Hned teď** se píše **Na web to půjde, jakmile tam bude i čeština.** Víc o zveřejňování je v kapitole [Zveřejnění, naplánování, náhled](zverejneni-a-nahled.md#zveřejnění-překladu).
+**Zveřejnit…** u překladu otevře kontrolu **Zveřejnit překlad: angličtina** s větou **Ostatní jazyky zůstanou, jak jsou.** (u překladu, který se překládá, s větou **Návštěvníci tu zatím vidí výchozí jazyk (čeština). Ostatní jazyky zůstanou, jak jsou.**) Jako u celé položky vás upozorní na nepřeložená pole a ukáže **Adresu na webu**. Když je čeština zatím koncept, je nahoře **Čeština je zatím koncept** a u volby **Hned teď** se píše **Na web to půjde, jakmile tam bude i čeština.** Víc o zveřejňování je v kapitole [Zveřejnění, naplánování, náhled](zverejneni-a-nahled.md#zveřejnění-překladu).
 
 ### Kdo smí zveřejnit jazyk
 
 Kdo nesmí zveřejňovat (třeba **Autor** nebo **Překladatel**), překlad píše a ukládá, ale nezveřejní ho. Místo tlačítka **Zveřejnit…** vidí **Zveřejní ho editor**. Takový člověk také:
 
 - nemůže zveřejnit, stáhnout ani naplánovat žádný jazyk;
-- nemůže měnit jazyk, který je na webu, ani jazyk, který se řídí češtinou, když je čeština na webu. Takový jazyk se mu otevře **Jen ke čtení**;
-- nemůže odebrat překlad, který má vlastní stav.
+- nemůže měnit jazyk, který je na webu, ani překlad, který se řídí češtinou, když je čeština na webu. Takový jazyk se mu otevře **Jen ke čtení**;
+- nemůže odebrat překlad, který editor stáhl z webu (návštěvníci by pak zase viděli češtinu).
 
 Jazyk, který na webu není, psát smí. Jak to v praxi chodí:
 
-- **Nový článek** se nejlépe překládá dřív, než se zveřejní. Čeština je koncept, takže je koncept i angličtina a překladatel do ní může psát. Editor pak zveřejní češtinu a angličtina jde na web s ní.
-- **Článek, který už je na webu**, editor nejdřív u angličtiny stáhne z webu (**Další akce → Stáhnout z webu**, v otevřené anglické verzi). Angličtina je pak koncept, překladatel ji dopíše a editor ji zveřejní.
+- **Článek, který už je na webu**: překladatel otevře angličtinu, píše a ukládá. Angličtina je **Překládá se**, návštěvníci zatím vidí češtinu. Editor si překlad prohlédne v **Náhledu** a zveřejní ho. Překlad, který se překládá, smí překladatel i odebrat; na webu se tím nic nezmění.
+- **Nový článek** můžete přeložit i dřív, než se zveřejní. Čeština je koncept, angličtina se řídí češtinou a překladatel do ní může psát. Editor pak zveřejní češtinu a angličtina jde na web s ní.
 
 ### Jazyky v seznamu
 
@@ -100,6 +107,7 @@ V seznamu položek je sloupec **Jazyky**. Když se zveřejňuje každý jazyk zv
 |---|---|
 | plné zelené kolečko | **Na webu** |
 | prázdné kolečko | **Koncept** |
+| ikona jazyků | **Překládá se**: návštěvníci zatím vidí češtinu |
 | hodiny | **Naplánováno** |
 | přesýpací hodiny | **Čeká, až bude na webu čeština**: překlad je zveřejněný, ale čeština zatím ne |
 
@@ -129,7 +137,7 @@ Pod nadpisem překladu je adresa a vedle ní, jestli je na webu. Když na webu j
 
 ## Odebrání překladu
 
-Překlad, který už nechcete, odeberete tlačítkem **Odebrat překlad** (v nabídce **Další akce**, když máte otevřený jazyk, který není výchozí). Správa se zeptá **Odebrat překlad: angličtina?**. Návštěvníci pak v tom jazyce uvidí zase výchozí jazyk. **Nejde to vrátit.**
+Překlad, který už nechcete, odeberete tlačítkem **Odebrat překlad** (v nabídce **Další akce**, když máte otevřený jazyk, který není výchozí). Správa se zeptá **Odebrat překlad: angličtina?**. Návštěvníci pak v tom jazyce uvidí zase výchozí jazyk. **Nejde to vrátit.** U překladu, který se překládá, se na webu nic nezmění: návštěvníci češtinu vidí už teď.
 
 > **Tip:** Chcete-li překlad jen vyzkoušet, nejdřív ho uložte a otevřete **Náhled**. Uvidíte stránku tak, jak ji uvidí návštěvník v tom jazyce.
 
