@@ -297,6 +297,13 @@ The bucket is not covered by the platform's database backups: turn on its
 versioning or a lifecycle copy if losing an upload matters (see [Backups and
 restore](#backups-and-restore)).
 
+Every upload is staged in a temporary file first, in `TMPDIR` (`/tmp` when unset),
+whatever the storage. A container with a read-only filesystem needs a writable
+folder there: mount a volume (an `emptyDir` in Kubernetes) and point `TMPDIR` at
+it. Without one, uploads answer 500 and the log names the folder. `/dev/shm` works
+as a stopgap, but it is memory: a file staged there counts against the container's
+memory limit, so keep it for small pictures.
+
 ## Publish webhooks
 
 Saving content of a public collection that visitors can see — before or after
@@ -696,7 +703,10 @@ gone after every deploy — give staging a bucket too.
 2. Provision Postgres and Redis and link both to the environment
    (`DATABASE_URL`, `REDIS_URL` are injected).
 3. Set the environment above (session password, public URL, S3, SMTP,
-   `NUXT_CMS_MIGRATIONS_ON_START=true`).
+   `NUXT_CMS_MIGRATIONS_ON_START=true`). Pushbase runs apps on a read-only
+   filesystem with no writable `/tmp`, so uploads need `TMPDIR` pointed at a
+   writable folder ([Media](#media)); until the platform mounts one,
+   `TMPDIR=/dev/shm` carries small pictures.
 4. Connect the GitHub repo (`--preset nuxt` for a site, `dockerfile` for this
    repo's staging build) or upload with `pushbase deploy`.
 5. Open `/admin/setup`: a fresh database asks for the first administrator, and for

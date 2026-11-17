@@ -1,4 +1,5 @@
-import busboy from 'busboy'
+// The Fastify team's maintained fork of busboy (also what undici, Node's fetch, uses); types built in.
+import Busboy, { type BusboyInstance } from '@fastify/busboy'
 import { createHash, randomUUID } from 'node:crypto'
 import { createWriteStream } from 'node:fs'
 import { mkdir, readdir, stat, unlink } from 'node:fs/promises'
@@ -59,6 +60,29 @@ function sweepOldTemp(dir: string) {
   }))).catch(() => {})
 }
 
+let tempDirWarned = false
+
+/**
+ * Creates the folder uploads are staged in. A container with a read-only filesystem and
+ * no writable /tmp (some hosts run every app that way) fails here on the first upload;
+ * the log then says what to set instead of a bare ENOENT/EROFS, once per process.
+ */
+async function prepareTempDir(tempDir: string): Promise<void> {
+  try {
+    await mkdir(tempDir, { recursive: true })
+  }
+  catch (err: any) {
+    if (!tempDirWarned) {
+      tempDirWarned = true
+      console.error(`[cms] uploads are staged on disk, but ${tempDir} cannot be created (${err?.code ?? err}). `
+        + 'The filesystem is probably read-only: mount a writable volume and point TMPDIR at it '
+        + '(or at /dev/shm, which counts against the memory limit, for small files only). '
+        + 'See https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/deploying.md#media')
+    }
+    throw createError({ statusCode: 500, statusMessage: 'The server has no writable folder for uploads' })
+  }
+}
+
 /**
  * Read the multipart upload of `event`: the first part named `file` with a filename is
  * written to `tempDir`, the small text fields are returned. Throws 413 when more than
@@ -68,14 +92,15 @@ function sweepOldTemp(dir: string) {
 export async function receiveUpload(event: any, opts: { maxBytes: number; tempDir: string }): Promise<ReceivedUpload> {
   const req = event.node.req
   const { maxBytes, tempDir } = opts
-  await mkdir(tempDir, { recursive: true })
+  await prepareTempDir(tempDir)
   sweepOldTemp(tempDir)
 
-  let parser: busboy.Busboy
+  let parser: BusboyInstance
   try {
-    parser = busboy({
+    parser = Busboy({
       headers: req.headers,
-      defParamCharset: 'utf8',
+      // Field values and file names without a charset of their own are UTF-8.
+      defCharset: 'utf8',
       // One file, a handful of short fields; a byte over the cap shows as the file's 'limit'.
       limits: { files: 1, fields: 12, fieldSize: 4096, parts: 16, fileSize: maxBytes + 1 },
     })
@@ -113,13 +138,13 @@ export async function receiveUpload(event: any, opts: { maxBytes: number; tempDi
       if (total > cap) stop(tooLarge(maxBytes))
     }
 
-    parser.on('field', (name, value, info) => {
-      if (info.valueTruncated || info.nameTruncated) return stop(createError({ statusCode: 400, statusMessage: 'A form field is too long' }))
+    parser.on('field', (name: string, value: string, nameTruncated: boolean, valueTruncated: boolean) => {
+      if (valueTruncated || nameTruncated) return stop(createError({ statusCode: 400, statusMessage: 'A form field is too long' }))
       fields[name] = value
     })
 
-    parser.on('file', (name, stream, info) => {
-      if (name !== 'file' || !info.filename || received || writing) {
+    parser.on('file', (name: string, stream: NodeJS.ReadableStream & { resume(): void }, filename: string, _encoding: string, mimeType: string) => {
+      if (name !== 'file' || !filename || received || writing) {
         stream.resume() // a second or unexpected file: read past it
         return
       }
@@ -131,6 +156,11 @@ export async function receiveUpload(event: any, opts: { maxBytes: number; tempDi
       const meter = new Transform({
         transform(chunk: Buffer, _enc, cb) {
           size += chunk.length
+          // The cap is ours, not the parser's: refuse the moment the file passes it.
+          if (size > maxBytes) {
+            stop(tooLarge(maxBytes))
+            return cb(tooLarge(maxBytes))
+          }
           hash.update(chunk)
           if (headBytes < UPLOAD_HEAD_BYTES) {
             const part = chunk.subarray(0, UPLOAD_HEAD_BYTES - headBytes)
@@ -142,7 +172,7 @@ export async function receiveUpload(event: any, opts: { maxBytes: number; tempDi
       })
       stream.on('limit', () => stop(tooLarge(maxBytes)))
       writing = pipeline(stream, meter, createWriteStream(tempPath)).then(() => {
-        received = { filename: info.filename ?? '', type: String(info.mimeType || '').toLowerCase(), path: tempPath, size, sha256: hash.digest('hex'), head: Buffer.concat(head) }
+        received = { filename: filename ?? '', type: String(mimeType || '').toLowerCase(), path: tempPath, size, sha256: hash.digest('hex'), head: Buffer.concat(head) }
       })
       writing.catch((err) => stop(err))
     })
@@ -151,7 +181,8 @@ export async function receiveUpload(event: any, opts: { maxBytes: number; tempDi
     parser.on('partsLimit', () => stop(createError({ statusCode: 400, statusMessage: 'Too many parts in the upload' })))
     parser.on('fieldsLimit', () => stop(createError({ statusCode: 400, statusMessage: 'Too many fields in the upload' })))
 
-    parser.on('close', async () => {
+    // 'finish': every part has been read (the file part's stream may still be writing).
+    parser.on('finish', async () => {
       if (finished) return
       try { await writing } catch { return } // stop() has already answered
       if (finished) return
