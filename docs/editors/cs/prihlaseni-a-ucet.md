@@ -44,7 +44,7 @@ Pokud odkaz mezitím vypršel, ukáže se **Tento odkaz už nefunguje**. Klikně
 Vlevo dole (na telefonu v menu) otevřete nabídku se svým jménem a vyberte **Váš účet**.
 
 - **Profil.** Tady si změníte jméno. Vaše jméno uvidí kolegové v historii změn.
-- **Jazyk rozhraní.** Správa mluví česky nebo anglicky. Tohle nastavení se týká jen toho, jak vypadají tlačítka a hlášky. Na jazyk webu pro návštěvníky nemá vliv.
+- **Jazyk rozhraní.** Správa mluví česky, anglicky nebo německy. Tohle nastavení se týká jen toho, jak vypadají tlačítka a hlášky. Na jazyk webu pro návštěvníky nemá vliv.
 - **Přihlašovací e-mail.** Adresa, kterou se přihlašujete. Jak ji změnit, je hned níže.
 - **Heslo.** Napište **Současné heslo** a **Nové heslo** a klikněte na **Změnit heslo**. Po změně vás správa odhlásí na všech ostatních zařízeních.
 

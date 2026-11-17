@@ -19,7 +19,7 @@ Stav je vidět nahoře u názvu a v seznamu. Při zveřejněné položce také *
 
 1. Dopište text a klikněte na **Uložit koncept**.
 2. Klikněte na **Zveřejnit…**. Otevře se obrazovka **Skoro hotovo. Zkontrolujte a zveřejněte.**
-3. Podívejte se na **Adresu na webu**, kterou položka dostane. Správa vás upozorní na věci, které jste nevyplnili (**Prázdné: …**, **Chybí verze: …**). Tato upozornění zveřejnění nebrání, jen si to ještě jednou promyslete. Pokud je něco povinné, ukáže se **Nejdřív vyplňte povinná pole.** a u pole je tlačítko **Opravit** nebo **Doplnit**.
+3. Podívejte se na **Adresu na webu**, kterou položka dostane. Správa vás upozorní na věci, které jste nevyplnili (**Prázdné: …**, **Chybí překlad: …**). Tato upozornění zveřejnění nebrání, jen si to ještě jednou promyslete. Pokud je něco povinné, ukáže se **Nejdřív vyplňte povinná pole.** a u pole je tlačítko **Opravit** nebo **Doplnit**.
 4. V části **Kdy to má být na webu?** vyberte:
    - **Hned teď**: *Do minuty to uvidí všichni.*
    - **Naplánovat**: *Vyberete den a čas.*

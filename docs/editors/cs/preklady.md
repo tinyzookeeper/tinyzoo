@@ -24,6 +24,8 @@ Když otevřete jazyk, který ještě není přeložený, nejsou pole prázdná.
 - Když pole přeložíte, šedý text zmizí. Pod polem zůstane pro kontrolu, jak zní česky, třeba **Čeština: Jarní závod v orientačním běhu**.
 - U delšího textu (text článku nebo stránky) je navíc **Ukázat originál vedle**. Vlevo se objeví **Originál (čeština)** a vpravo píšete překlad. Odstavec po odstavci tak vidíte, co ještě zbývá. **Skrýt originál** ho zase schová. Tahle volba je jen na širší obrazovce, na telefonu ne.
 
+<!-- clip: translate | Krátké video: překlad článku do angličtiny, s českým originálem vedle a uložením překladu. -->
+
 ![Překlad vedle originálu: vlevo je šedě český text článku s nadpisem „Originál (čeština)“, vpravo se píše anglický překlad.](../../screenshots/0.6/translate-side-by-side.png)
 
 ![Uložený anglický překlad: nadpis „Spring orienteering race“, pod ním česky „Čeština: Jarní závod v orientačním běhu“ a vedle textu stále originál.](../../screenshots/0.6/translate-saved.png)
