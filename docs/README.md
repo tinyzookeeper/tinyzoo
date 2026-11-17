@@ -12,6 +12,7 @@ Read in this order the first time; come back to any page later.
 | [Content model](guide/content-model.md) | The reference for `cms.config.ts`: every field type, relations, lists, groups, blocks and their versions, globals, presets (pages, the page tree, menus, redirects, SEO, forms), languages, links that follow their page, publishing, access rules |
 | [Recipes](guide/recipes.md) | Ten things clients ask for (contact form, news, team page, FAQ, opening hours, photo gallery, downloads, partners, events, menus with dropdowns), each a complete config, the page that shows it, and a note for the editor |
 | [The content API](guide/content-api.md) | What the website reads: endpoints, drafts and preview, caching, the website search, the typed client, OpenAPI, the sitemap, the components that draw content |
+| [The content API reference](guide/content-api-reference.md) | Every route to look things up on: list, one item, page tree, globals, search, sitemap; the query parameters, filters and date ranges; languages and `paths`; drafts and preview; the token; caching headers; errors. On the website, followed by a worked example generated from an OpenAPI document |
 | [Media](guide/media.md) | Uploads, limits, the storage drivers (local disk, S3, Cloudflare R2), drawing pictures on the website |
 | [The admin](guide/admin.md) | Accounts and roles, branding the admin, form layouts, replacing how a field is drawn |
 | [Roles and permissions](guide/roles.md) | Roles of your own on top of admin, editor and author, who reads and edits each field, the media library per role, what happens to a removed role, a worked example with a translator |
@@ -47,6 +48,10 @@ is on the website with the next deploy. What that means when you write:
   at the top of this file; the editors' chapters are the numbered list in each language's `README.md`. A new page
   goes into that list. The chapters pair up across languages by their place in the list, so the three lists keep
   the same order.
+- **Generated pages.** The website adds one page to the developer pages that is not Markdown: a worked example of
+  the content API, made at build time from the OpenAPI document of the playground
+  ([`test/contracts/openapi.playground.json`](../test/contracts/openapi.playground.json)), placed right after
+  [the content API reference](guide/content-api-reference.md). It is not in the table above, so it is only on the website.
 - **Links** between these pages become website addresses (a link to a heading keeps its anchor). Links to
   anything else in the repository go to GitHub.
 - **Screenshots** live in `docs/screenshots/`. A page links the Czech one (`../../screenshots/0.6/team.png`); the
