@@ -181,11 +181,13 @@ Content answers carry a weak `ETag`; send it back as `If-None-Match` and an unch
 
 ## Errors
 
-Every error is JSON, with the status code and a short message:
+Every error is JSON, with the status code and a short message in `statusMessage`:
 
 ```json
-{ "url": "/api/content/post/nope", "statusCode": 404, "statusMessage": "Not found", "message": "Not found" }
+{ "error": true, "url": "https://cms.example.com/api/content/post/nope", "statusCode": 404, "statusMessage": "Not found", "message": "Not found" }
 ```
+
+(In development the answer also has a `stack`.) Errors are not cached.
 
 | Status | When |
 |---|---|

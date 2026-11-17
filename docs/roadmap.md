@@ -1435,11 +1435,44 @@ Branch `feat/1.0-docs-site` (from `feat/1.0-wave4` at `2a97b6a`). The documentat
   German, at 1440 px and 390 px, light: landing, part pages, guide pages, the drawer, zoom, copy, a clip (a
   stand-in file, removed), search, the language switcher, navigation between pages.
 
-**Left for the rest of Q:** the API reference from the OpenAPI document (`/api/openapi.json`) as pages of
-its own; the plugin API as a reference rather than a guide; the developer pages in Czech and German (first
-`getting-started`, `content-model`, `upgrading`); English and German screenshots (`docs/screenshots/0.6/<lang>/`)
-and the two clips; a "what's new in this version" page per release from the changesets; per-version docs once 1.x
-has more than one line people use; Czech non-breaking spaces after one-letter words when rendering (the seed's texts
-have them, the Markdown does not); the older screenshots in `docs/screenshots/*.png` (0.2) used by the developer
-pages could be retaken. The German starter labels (Neuigkeiten, Website-Einstellungen…) the guide uses are
-translations of labels the starter only has in Czech and English.
+**Second part: the content API reference** (branch `feat/1.0-docs-reference`, from `d1ce36c`). Two new developer pages,
+after "The content API" in the sidebar and in previous/next:
+
+- **"The content API reference"** (`docs/guide/content-api-reference.md`, `/en/docs/developers/content-api-reference`):
+  every route of the public content API (list, one item, page tree, global, search, sitemap JSON, forms, health, the
+  OpenAPI document and the client's types), the query parameters (`page`, `limit`, `sort`, `dir`, `q`, filters, `from`/`to`
+  date ranges, `locale`, `preview`) with their limits and what is ignored, how a key is looked up (translated slug, slug,
+  id, a page tree's address chain), the shape of an item (resolved relations and files, rich text, blocks, `locale`,
+  `locales`, `paths`), languages and fallback, drafts and preview (who may, what it changes), the token, caching headers
+  and `ETag`, errors by status, and how a site gets its own OpenAPI document (`/api/openapi.json`, `/api/openapi` with
+  Scalar, `tinyzoo openapi`, the typed client). Written from the route handlers and `buildOpenApiDocument`, and checked
+  against a running site (error bodies, headers, locale and date errors, search, sitemap).
+- **"Example: the API of one site"** (`/en/docs/developers/api-example`): **generated when the website is built**.
+  `site/modules/docs/openapi.ts` turns the OpenAPI document of the playground (`test/contracts/openapi.playground.json`,
+  which `contracts.spec.ts` keeps equal to what `buildOpenApiDocument` writes) into Markdown, and `build.ts` renders that
+  like any other page: the routes at a glance, the shapes every collection shares (a file, rich text, a list), then per
+  collection its list and single operations (parameters with types, limits and defaults, filters, status codes), its
+  fields (type, nullability, notes) and an example response made from the schema (deterministic sample values, so the
+  page is the same on every build), then the page tree, the globals and the search. Nothing on it is written by hand
+  except the intro, so it cannot drift from the generator. A page of this kind is one entry in `GENERATED` in
+  `build.ts` (which page it follows); its "source" link goes to the JSON. It is English on `/dokumentace` and
+  `/de/dokumentation` like the other developer pages. Tested on the playground's and the 1.0 surface config's documents
+  (every route, parameter and field present, examples carry exactly the schema's fields, tables keep their columns).
+- **The plugin API** (`docs/plugins.md`) and the public API (`docs/api-surface.md`) were already on the website with the
+  first part (in the table of `docs/README.md`, in "Reference"); nothing else in `docs/` is for site builders and
+  unpublished. `docs-site.spec.ts` now fails when a page of `docs/guide` or `docs/` is neither published nor named there as
+  for people working on tinyzoo, and checks that the sidebar's order is the previous/next order, so a new page cannot be
+  left out of either.
+- **Seen in a browser** (own dev server on port 3184, database `tinyzoo_web_ref_test`, seeded): the reference and the example
+  at 1280 px and 390 px (tables scroll inside their frame, no page overflow), the sidebar and "On this page".
+
+**Left for the rest of Q:** the plugin API as a reference rather than a guide (`plugins.md` is one long guide; a table of
+every hook and option, like `api-surface.md` for the rest, would help a plugin author); the example page for a site's own
+config (a site could publish its `/api/openapi.json` rendered the same way: the renderer is a pure function, so a
+`tinyzoo docs` command is a small step); the developer pages in Czech and German (first `getting-started`,
+`content-model`, `upgrading`); English and German screenshots (`docs/screenshots/0.6/<lang>/`) and the two clips; a
+"what's new in this version" page per release from the changesets; per-version docs once 1.x has more than one line
+people use; Czech non-breaking spaces after one-letter words when rendering (the seed's texts have them, the Markdown
+does not); the older screenshots in `docs/screenshots/*.png` (0.2) used by the developer pages could be retaken. The
+German starter labels (Neuigkeiten, Website-Einstellungen…) the guide uses are translations of labels the starter only
+has in Czech and English.

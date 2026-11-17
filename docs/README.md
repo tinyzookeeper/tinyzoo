@@ -48,6 +48,10 @@ is on the website with the next deploy. What that means when you write:
   at the top of this file; the editors' chapters are the numbered list in each language's `README.md`. A new page
   goes into that list. The chapters pair up across languages by their place in the list, so the three lists keep
   the same order.
+- **Generated pages.** The website adds one page to the developer pages that is not Markdown: a worked example of
+  the content API, made at build time from the OpenAPI document of the playground
+  ([`test/contracts/openapi.playground.json`](../test/contracts/openapi.playground.json)), placed right after
+  [the content API reference](guide/content-api-reference.md). It is not in the table above, so it is only on the website.
 - **Links** between these pages become website addresses (a link to a heading keeps its anchor). Links to
   anything else in the repository go to GitHub.
 - **Screenshots** live in `docs/screenshots/`. A page links the Czech one (`../../screenshots/0.6/team.png`); the

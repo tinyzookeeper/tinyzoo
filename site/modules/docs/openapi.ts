@@ -205,7 +205,7 @@ const prose = (s: string | undefined) => esc((s ?? '').trim())
 function paramRow(p: Parameter, doc: OpenApiDocument): string[] {
   const { schema } = split(p.schema)
   const notes = [p.required ? 'Required' : '', constraints(p.schema)].filter(Boolean)
-  const what = Array.isArray(schema.enum) && schema.enum.length > 8
+  const what = Array.isArray(schema.enum) && schema.enum.length > 5
     ? `${schema.enum.length} values: ${schema.enum.slice(0, 5).map((v: string) => code(v)).join(', ')}, …`
     : ''
   const type = what ? 'string' : typeText(p.schema, doc)
