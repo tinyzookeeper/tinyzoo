@@ -129,18 +129,19 @@ Handling them:
 
 ## Deprecations
 
-The API a site's code touches (`cms.config.ts` options, the `f.*` and `define*`
-helpers, `tinyzoo` CLI commands, the content API) is retired in two steps, never
-removed at once:
+The API a site's code touches (everything in [docs/api-surface.md](docs/api-surface.md): `cms.config.ts` options, the
+`f.*` and `define*` helpers, the `cms` options and `NUXT_CMS_*` variables, `tinyzoo` CLI commands, the content
+API, the webhook and hooks) is retired in two steps, never removed at once:
 
 1. Mark it with a `@deprecated` JSDoc line that names the replacement, and call
    `cmsDeprecated(id, message, { removeIn })` at the use site. It prints
    `[tinyzoo] deprecated: …` once per process (not under `NODE_ENV=test`, unless
    `TINYZOO_DEPRECATIONS=1`; `TINYZOO_DEPRECATIONS=0` silences it). Tests can read
    what was hit with `cmsDeprecations()`.
-2. Keep it working for **at least one minor release**, then remove it. The
-   removal is a breaking change: it gets a changeset with an `### Upgrade`
-   section. The release that deprecates something says so in its changelog.
+2. Keep it working for **at least one minor release**, then remove it (on 0.x in a minor, from 1.0 in a
+   major). The removal is a breaking change: it gets a changeset with an `### Upgrade`
+   section. The release that deprecates something says so in its changelog. A deprecated export, option
+   or member is listed under "deprecated" in its golden API report, so the diff shows it.
 
 ```ts
 /** @deprecated Use `slugField` instead. Removed in 0.4. */
@@ -152,24 +153,44 @@ export function slugOf(…) {
 
 ## Contracts
 
-The public content API is what site frontends depend on, so its shape is guarded
-by two committed files in `test/contracts/`, both made from
-`playground/cms.config.ts`:
+The surfaces a site, a plugin or a deploy depends on are written down as golden files in
+`test/contracts/`, and a test fails with the lines that differ when the code stops producing them.
+**[docs/api-surface.md](docs/api-surface.md)** says in words what is frozen from 1.0 and what is
+internal; the golden files are how it is kept true:
 
-- `openapi.playground.json`: the OpenAPI document of the content API.
-- `client-types.playground.ts`: the types generated for `@tinyzoo/client`.
+| Golden file | Test | A change to it is… |
+|---|---|---|
+| `openapi.playground.json`, `client-types.playground.ts` | `test/unit/contracts.spec.ts` | a change to the public **content API** as the playground's config produces it |
+| `api-tinyzoo.txt`, `api-tinyzoo-forms.txt`, `api-tinyzoo-module.txt`, `api-client.txt` | `test/unit/api-surface.spec.ts` | a change to what an entry point **exports**: every declaration, with `@internal` exports and members left out |
+| `module-options.json` | | a change to the `cms` options, their defaults, or the `NUXT_CMS_*` variables that follow |
+| `nitro-hooks.d.ts`, `webhook.json` | | a change to the **Nitro hooks** and their arguments, or the webhook's headers and body |
+| `cli-usage.txt` | | a change to the **CLI**'s commands and flags (`packages/cms/cli/usage.ts`) |
+| `content-routes.txt`, `layer-config.json` | | a new or removed content API route, or something the layer sets up |
+| `surface.client-types.ts`, `surface.openapi.json`, `surface.admin-graph.json` | | the content API, the client types and the admin graph (what a field renderer receives) of `test/contracts/surface/cms.config.ts`, a config that uses every field and option |
 
-`test/unit/contracts.spec.ts` fails with the lines that differ when either one
-changes. If the change is intended, accept it and commit the file:
+`test/unit/surface-types.spec.ts` also asserts the types a site's code sees for that config (`Row`, `Insert`,
+`Update`, the field kinds, the client): its assertions are checked by `pnpm typecheck`, so a regression fails
+there. When you add a field type, an option or an export, add it to `test/contracts/surface/cms.config.ts` and
+to `docs/api-surface.md` (a test checks that the page names every public export, command, flag, route, hook
+and variable). An export that is only for the server, the admin or the CLI gets `@internal` in its JSDoc and
+stays out of the page; do not tag something the docs show a site using.
+
+If a golden file fails because the change is intended, accept it and commit the file:
 
 ```sh
 pnpm contracts:update
 ```
 
-A changed golden file in a pull request means the public content API changed.
-The reviewer reads that diff, and the changeset says whether it **breaks sites**
-(a removed or renamed field, a changed type, a stricter filter: breaking; a new
-optional field or a new route: not).
+A changed golden file in a pull request means a frozen surface changed. The reviewer reads that diff, and the
+changeset says whether it **breaks sites**:
+
+- **Breaking** (a major bump from 1.0, so it waits for 2.0): a removed or renamed export, option, field type,
+  command, flag, route, hook, webhook key or variable; a narrower type, a stricter filter or validation; a
+  changed default; a field that is no longer in a response.
+- **Not breaking** (a minor bump): something added (an optional option, a new export, a new route, a new key
+  in a response, an optional field), a looser type, a fix that makes the code do what the docs said.
+- A change to an `@internal` export shows in `api-tinyzoo.txt` only as its name; it needs a changeset (it
+  changes the package) but is never breaking.
 
 ## The upgrade test
 

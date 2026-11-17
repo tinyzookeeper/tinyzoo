@@ -10,7 +10,11 @@ const ALPHABET = 'ABCDEFGHJKMNPQRSTVWXYZ0123456789' // 32 symbols
 const GROUPS = 4
 const GROUP_SIZE = 4
 
-/** A new random code, e.g. `K7QM-2XVD-R9TE-HC4Y`. */
+/**
+ * A new random code, e.g. `K7QM-2XVD-R9TE-HC4Y`.
+ *
+ * @internal
+ */
 export function generateSetupCode(): string {
   // 256 is a multiple of 32, so a random byte maps onto the alphabet without bias.
   const bytes = crypto.getRandomValues(new Uint8Array(GROUPS * GROUP_SIZE))
@@ -23,6 +27,8 @@ export function generateSetupCode(): string {
 /**
  * What a person typed or pasted, reduced to the code's own characters: case,
  * spaces and dashes do not matter (`k7qm 2xvd…` works), nor O for 0 or I/L for 1.
+ *
+ * @internal
  */
 export function normalizeSetupCode(input: unknown): string {
   if (typeof input !== 'string') return ''

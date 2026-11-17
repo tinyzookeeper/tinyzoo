@@ -13,7 +13,11 @@ import type { FieldDescriptor } from './descriptor'
 
 export const SLUG_PATTERN = '^[a-z0-9]+(?:-[a-z0-9]+)*$'
 
-/** The value-kind of a single projected field. */
+/**
+ * The value-kind of a single projected field.
+ *
+ * @internal
+ */
 export type ContentFieldType =
   | { kind: 'scalar'; scalar: 'string' | 'integer' | 'number' | 'boolean' | 'datetime'; enumValues?: readonly string[]; pattern?: string }
   | { kind: 'richtext' }
@@ -24,6 +28,7 @@ export type ContentFieldType =
   | { kind: 'blocks'; blocks: { type: string; fields: ContentField[] }[] }
   | { kind: 'group'; fields: ContentField[] }
 
+/** @internal */
 export interface ContentField {
   key: string
   type: ContentFieldType
@@ -31,7 +36,11 @@ export interface ContentField {
   nullable: boolean
 }
 
-/** A filterable query parameter on the list endpoint. */
+/**
+ * A filterable query parameter on the list endpoint.
+ *
+ * @internal
+ */
 export interface FilterParam {
   key: string
   enumValues?: readonly string[]
@@ -39,7 +48,11 @@ export interface FilterParam {
   value?: 'boolean' | 'datetime'
 }
 
-/** Top-level shape of a public collection (drives `/api/content/:name` + `/:slug`). */
+/**
+ * Top-level shape of a public collection (drives `/api/content/:name` + `/:slug`).
+ *
+ * @internal
+ */
 export interface ContentShape {
   name: string
   pascal: string
@@ -61,14 +74,22 @@ export interface ContentShape {
   tree?: boolean
 }
 
-/** Scalar-only projection of a PUBLIC entity when populated as another's relation. */
+/**
+ * Scalar-only projection of a PUBLIC entity when populated as another's relation.
+ *
+ * @internal
+ */
 export interface EmbeddedShape {
   name: string
   pascal: string
   fields: ContentField[]
 }
 
-/** Minimal reference of a NON-PUBLIC entity when populated as another's relation. */
+/**
+ * Minimal reference of a NON-PUBLIC entity when populated as another's relation.
+ *
+ * @internal
+ */
 export interface RefShape {
   name: string
   pascal: string
@@ -78,6 +99,7 @@ export interface RefShape {
   titleNullable: boolean
 }
 
+/** @internal */
 export interface ContentModel {
   entities: ContentShape[]
   /** Public singletons (globals), served at /api/content/_global/:name. */
@@ -274,7 +296,11 @@ function scalarEnum(fld: FieldDescriptor): readonly string[] | undefined {
   return t.kind === 'scalar' ? t.enumValues : undefined
 }
 
-/** Build the full content model: top-level shapes + the embedded/ref shapes they reference. */
+/**
+ * Build the full content model: top-level shapes + the embedded/ref shapes they reference.
+ *
+ * @internal
+ */
 export function buildContentModel(config: Record<string, any>): ContentModel {
   const reg = buildRegistry(config)
   // Singletons are delivered via /api/content/_global/:name (object), not as a

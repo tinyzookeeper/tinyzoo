@@ -19,15 +19,16 @@
 //      guard refuses (a breaking change without its documented steps) fails the check with the
 //      guard's reasons: that is what the check is for.
 //   3. New site. Built, started with migrations on start against the SAME database and the SAME
-//      environment (a deploy whose variables nobody touched). Checked: it starts, `tinyzoo status`
+//      environment, except for what the docs tell a site to change (below). Checked: it starts, `tinyzoo status`
 //      has nothing pending, the old account signs in (and the session opens the admin API), a
 //      browser session from the old site does not break anything, the content API and the admin
 //      return the same content field by field (only differences written down in
 //      scripts/upgrade-check/differences.mjs or a baseline's hook are allowed), every recorded file
 //      is still served, and the admin can open and save every entry unchanged. When the old site
-//      ran on NUXT_SESSION_PASSWORD (tinyzoo 0.3 and older), the site is finally restarted the way
-//      the 0.4 changelog says to set it up, NUXT_APP_SECRET with the same value, and the session
-//      it signed in with must still open the admin.
+//      ran on NUXT_SESSION_PASSWORD (tinyzoo 0.3 and older), the upgraded site is first started
+//      with that environment, as a deploy nobody touched: it must refuse, naming NUXT_APP_SECRET.
+//      Then the variable is renamed as docs/upgrading.md says (NUXT_APP_SECRET, same value) and
+//      everything above is checked on that site.
 //
 // A baseline can have a hook file, scripts/upgrade-check/<ref>.mjs, for manual steps its
 // changelog documents: see scripts/upgrade-check/README.md. Databases created here are named
@@ -46,7 +47,8 @@ import { ACCOUNT, applyRules, checkMedia, Client, describe, diff, formatDifferen
 const root = join(import.meta.dirname, '..')
 const SETUP_TOKEN = 'upgrade-check-setup-code'
 // The site's sign-in secret. A baseline whose starter documents NUXT_APP_SECRET (0.4 and later)
-// gets it under that name, an older one as NUXT_SESSION_PASSWORD, as its own docs said.
+// gets it under that name, an older one as NUXT_SESSION_PASSWORD, as its own docs said; the
+// upgraded site gets it as NUXT_APP_SECRET (NUXT_SESSION_PASSWORD is not read from 0.6).
 const SITE_SECRET = 'upgrade-check-session-password-at-least-32-characters'
 /** Keys that change when an entry is saved; ignored when comparing before and after a save. */
 const SAVE_NOISE = ['updatedAt', 'updatedBy', '__version', 'lastmod']
@@ -233,7 +235,7 @@ async function checkBaseline(baseline) {
     ...(process.env.UPGRADE_CHECK_REDIS_URL ? { NUXT_CMS_REDIS_URL: process.env.UPGRADE_CHECK_REDIS_URL, NUXT_CMS_REDIS_PREFIX: `${dbName}:` } : {}),
   }
 
-  async function startServer(label) {
+  async function startServer(label, { expectRefusal = false } = {}) {
     const port = await freePort()
     const baseURL = `http://127.0.0.1:${port}`
     const logFile = join(dirs.logs, `server-${label}.log`)
@@ -260,10 +262,16 @@ async function checkBaseline(baseline) {
     server = handle
     const deadline = Date.now() + 120_000
     while (Date.now() < deadline) {
-      if (child.exitCode !== null) throw new CheckFailure(`the ${label} site exited with ${child.exitCode} while starting`, tail(output, 60))
+      if (child.exitCode !== null) {
+        if (expectRefusal) { server = null; return { refused: true, output: () => output } }
+        throw new CheckFailure(`the ${label} site exited with ${child.exitCode} while starting`, tail(output, 60))
+      }
       try {
         const res = await fetch(`${baseURL}/api/health/ready`)
-        if (res.status === 200) return handle
+        if (res.status === 200) {
+          if (expectRefusal) { await handle.stop(); server = null; throw new CheckFailure(`the ${label} site started, but it should have refused to`, tail(output, 40)) }
+          return handle
+        }
       }
       catch { /* not listening yet */ }
       await new Promise((r) => setTimeout(r, 250))
@@ -369,10 +377,31 @@ async function checkBaseline(baseline) {
     })
 
     // 3. The new site ────────────────────────────────────────────────────────────
-    await step('build and start the upgraded site against the same database', async () => {
+    await step('build the upgraded site', () => {
       rmSync(join(dirs.site, '.output'), { recursive: true, force: true })
       rmSync(join(dirs.site, '.nuxt'), { recursive: true, force: true })
       sh('site-rebuild', 'pnpm', ['exec', 'nuxt', 'build'], { cwd: dirs.site, env: { NODE_ENV: 'production' } })
+    })
+
+    if (secretVar === 'NUXT_SESSION_PASSWORD') {
+      // 0.6 no longer reads NUXT_SESSION_PASSWORD: a deploy that still has only it must say what to do, not start.
+      await step('the unchanged environment (only NUXT_SESSION_PASSWORD) is refused, naming NUXT_APP_SECRET', async () => {
+        const refused = await startServer('refused', { expectRefusal: true })
+        const text = refused.output()
+        if (!refused.refused) throw new CheckFailure('the upgraded site started with only NUXT_SESSION_PASSWORD set')
+        if (!/NUXT_APP_SECRET is not set/.test(text) || !/NUXT_SESSION_PASSWORD is set, but no longer used/.test(text) || !/Rename the variable to NUXT_APP_SECRET/.test(text)) {
+          throw new CheckFailure('the upgraded site refused to start, but its message does not say to rename NUXT_SESSION_PASSWORD to NUXT_APP_SECRET', tail(text, 40))
+        }
+        if (text.includes(SITE_SECRET)) throw new CheckFailure('the refusal printed the secret', tail(text, 40))
+        note('refused, naming NUXT_APP_SECRET and the rename')
+        // What docs/upgrading.md ("From 0.5 to 0.6") tells a site to do: the same value under the new name.
+        delete siteEnv.NUXT_SESSION_PASSWORD
+        siteEnv.NUXT_APP_SECRET = SITE_SECRET
+        note('NUXT_SESSION_PASSWORD renamed to NUXT_APP_SECRET, same value, as the docs say')
+      })
+    }
+
+    await step('start the upgraded site against the same database', async () => {
       const now = await startServer('new')
       const lines = now.output().split('\n').filter((l) => /\[cms\] (applied|upgrade|migrat)/i.test(l) || /\[tinyzoo\] deprecated:/.test(l))
       for (const l of lines) note(l.trim())
@@ -444,22 +473,6 @@ async function checkBaseline(baseline) {
       note('saving changed nothing but timestamps')
     })
 
-    if (secretVar === 'NUXT_SESSION_PASSWORD') {
-      await step('NUXT_APP_SECRET set as the changelog says (same value): the session stays open', async () => {
-        await server.stop()
-        server = null
-        delete siteEnv.NUXT_SESSION_PASSWORD
-        siteEnv.NUXT_APP_SECRET = SITE_SECRET
-        const renamed = await startServer('app-secret')
-        admin.baseURL = renamed.baseURL // the same browser, the restarted site (on a new port)
-        if (/\[tinyzoo\] deprecated:.*NUXT_SESSION_PASSWORD/.test(renamed.output())) throw new CheckFailure('the site still warns about NUXT_SESSION_PASSWORD with NUXT_APP_SECRET set', tail(renamed.output(), 40))
-        const me = await admin.get('/api/cms/_auth/me')
-        if (me.status !== 200 || me.body?.user?.email !== account.email) {
-          throw new CheckFailure(`with NUXT_APP_SECRET set to the old NUXT_SESSION_PASSWORD, the session no longer opens the admin API (${me.status})`, tail(renamed.output(), 40))
-        }
-        note('the session signed in before the change still opens the admin')
-      })
-    }
   }
   catch (err) {
     failure = err

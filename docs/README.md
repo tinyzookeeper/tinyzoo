@@ -16,6 +16,7 @@ Read in this order the first time; come back to any page later.
 | [The admin](guide/admin.md) | Accounts and roles, branding the admin, form layouts, replacing how a field is drawn |
 | [Seeding](guide/seeding.md) | Content a site starts with, written in code and put into a running site with `tinyzoo seed` |
 | [Content between environments](guide/content-transfer.md) | `tinyzoo export` and `import`: production to staging, a laptop to a server |
+| [The public API](api-surface.md) | What 1.0 freezes: the config API, the `cms` options and environment variables, the content API and client, the webhook and hooks, the CLI, the admin's extension points. Everything else is internal |
 | [Plugins](plugins.md) | Adding a feature of your own (collections, admin pages, routes, upgrade steps), and shipping it as a package |
 | [Upgrading](upgrading.md) | Moving a site to a newer tinyzoo: the version policy, what to do on every upgrade, 0.1 → 0.2, recipes for renaming and removing, writing upgrade steps |
 | [Deploying](deploying.md) | Running a site in production: environment, first run, migrations, backups and restore, privacy, logs, a worked example on Pushbase |

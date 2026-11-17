@@ -13,8 +13,11 @@ import type {
 } from './descriptor'
 
 // ── naming helpers ───────────────────────────────────────────────────────────
+/** @internal */
 export const snake = (s: string) => s.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase())
+/** @internal */
 export const camel = (s: string) => s.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())
+/** @internal */
 export const pascal = (s: string) => { const c = camel(s); return c.charAt(0).toUpperCase() + c.slice(1) }
 
 // ── ONE IR, TWO SINKS ─────────────────────────────────────────────────────────
@@ -29,6 +32,7 @@ export interface BuildCtx {
   refTarget?: () => any
 }
 
+/** @internal */
 export function buildColumn(spec: ColumnSpec, colName: string, ctx: BuildCtx = {}): PgColumnBuilder {
   let col: any
   switch (spec.base.kind) {
@@ -58,6 +62,7 @@ export interface SerializeCtx {
   selfReference?: boolean
 }
 
+/** @internal */
 export function serializeColumn(spec: ColumnSpec, colName: string, ctx: SerializeCtx = {}): string {
   let s: string
   switch (spec.base.kind) {

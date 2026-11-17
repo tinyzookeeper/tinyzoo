@@ -4,7 +4,6 @@ import { defineEntity, defineSingleton } from './entity'
 import { f } from './fields'
 import type { LocalizedText } from './i18n'
 import type { PathTemplate } from './paths'
-import { cmsDeprecated } from './deprecate'
 import { TREE_DEFAULT_MAX_DEPTH } from './tree'
 
 const SEO_GROUP = { en: 'Search & sharing', cs: 'Vyhledávače a sdílení', de: 'Suche & Teilen' }
@@ -194,5 +193,7 @@ export function defineRedirects(opts: { name?: string } = {}) {
   return e
 }
 
-// ── forms: in the forms plugin (`tinyzoo/forms`); the field types and options stay importable from here ──
-export { FORM_FIELD_TYPES, type FormOptions } from '../forms'
+// ── forms: in the forms plugin (`tinyzoo/forms`) ──
+export { FORM_FIELD_TYPES } from '../forms'
+/** @deprecated Import `FormOptions` from `tinyzoo/forms`. Removed in 1.0. */
+export type FormOptions<F extends Record<string, any>> = import('../forms').FormOptions<F>

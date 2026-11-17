@@ -1,0 +1,901 @@
+// API report: `tinyzoo` (packages/cms/src/index.ts)
+// The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
+// Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
+
+// ── public (84) ─────────────────────────────────────────────────
+
+export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
+
+export interface BlockDef<F extends Record<string, AnyFieldDescriptor> = Record<string, AnyFieldDescriptor>> {
+    label: LocalizedText;
+    description?: LocalizedText;
+    icon?: string;
+    fields: F;
+    version?: number;
+    upgrade?: (data: Record<string, any>, fromVersion: number) => Record<string, any>;
+}
+
+export type BlockValue<K extends string, F> = Prettify<{
+    id: string;
+    type: K;
+} & {
+    [P in keyof F & string as KindOf<F[P]>['optionalIn'] extends true ? never : P]: KindOf<F[P]>['out'];
+} & {
+    [P in keyof F & string as KindOf<F[P]>['optionalIn'] extends true ? P : never]?: KindOf<F[P]>['out'] | null;
+}>;
+
+export type BlocksValue<B extends Record<string, BlockDef<any>>> = Array<{
+    [K in keyof B & string]: BlockValue<K, B[K]['fields']>;
+}[keyof B & string]>;
+
+export const CMS_WEBHOOK_HEADERS: {
+    readonly event: "x-cms-event";
+    readonly delivery: "x-cms-delivery";
+    readonly signature: "x-cms-signature";
+};
+
+export interface CmsAdminField {
+    key: string;
+    type: string;
+    optional: boolean;
+    required: boolean;
+    unique: boolean;
+    localized?: boolean;
+    default?: unknown;
+    ui: FieldUi;
+    meta: Record<string, unknown>;
+    relation?: {
+        to: string;
+        kind: RelationKind;
+        required: boolean;
+    };
+}
+
+export interface CmsBlock {
+    id: string;
+    type: string;
+    [field: string]: unknown;
+}
+
+export interface CmsChange {
+    type: CmsChangeType;
+    entity: string;
+    id: string;
+    locale: string | null;
+    public: boolean;
+    paths: string[];
+    globals?: string[];
+    moved?: {
+        id: string;
+        locale: string | null;
+        from: string;
+        to: string;
+    }[];
+    by: string | null;
+    version: string | null;
+    at: string;
+}
+
+export type CmsChangeType = 'entry.created' | 'entry.updated' | 'entry.deleted' | 'entry.published' | 'entry.unpublished' | 'translation.updated' | 'translation.deleted' | 'global.updated';
+
+export type CmsEditorLayout = 'write' | 'form' | 'preview';
+
+export interface CmsEntity {
+    __cms: 'entity';
+    name: string;
+    label: LocalizedText;
+    labelSingular?: LocalizedText;
+    description?: LocalizedText;
+    icon?: string;
+    titleField: string;
+    table: any;
+    localized: string[];
+    fields: Record<string, FieldDescriptor>;
+    insertSchema: z.ZodTypeAny;
+    updateSchema: z.ZodTypeAny;
+    singleton?: boolean;
+    admin?: {
+        list?: {
+            columns: string[];
+            searchable?: string[];
+            orderField?: string;
+            layout?: CmsListLayout;
+        };
+        editor?: CmsEditorLayout;
+        preview?: PathTemplate;
+        tabs?: {
+            label: LocalizedText;
+            fields: string[];
+        }[];
+        sections?: CmsFormSection[];
+    };
+    access?: Record<string, (ctx: {
+        user: any;
+        table: any;
+    }) => unknown>;
+    content?: {
+        public?: boolean;
+        published?: (table: any) => unknown;
+        slug?: string;
+        path?: PathTemplate;
+        populate?: string[];
+        hidden?: string[];
+        search?: false | {
+            fields?: string[];
+        };
+    };
+    publish?: {
+        field: string;
+        publishedValue: string;
+        draftValue: string;
+        dateField?: string;
+        schedule?: boolean;
+        preview?: PathTemplate;
+    };
+    live?: boolean;
+    tree?: TreeConfig;
+}
+
+export interface CmsErrorReport {
+    source: 'request' | 'task' | 'webhook';
+    error: Error;
+    rawError: unknown;
+    message: string;
+    status: number | null;
+    requestId: string | null;
+    method: string | null;
+    path: string | null;
+    userId: string | null;
+    task?: string;
+    webhook?: {
+        url: string;
+        type: string;
+        delivery: string;
+    };
+}
+
+export interface CmsFieldCellProps {
+    field: CmsAdminField;
+    row: Record<string, unknown>;
+    entity: string;
+}
+
+export interface CmsFieldEditProps {
+    field: CmsAdminField;
+    entity: string;
+    id?: string;
+}
+
+export interface CmsFieldRenderer {
+    edit?: string;
+    cell?: string;
+}
+
+export interface CmsFormSection<K extends string = string> {
+    label: LocalizedText;
+    icon?: string;
+    description?: LocalizedText;
+    fields: K[];
+    columns?: 1 | 2;
+}
+
+export type CmsGalleryValue = {
+    mediaId: string;
+    caption?: string | null;
+}[];
+
+export interface CmsGraphExtension {
+    create?: boolean;
+    notices?: {
+        icon?: string;
+        key: `plugins.${string}`;
+        params?: Record<string, string | number>;
+    }[];
+}
+
+export type CmsHttpMethod = 'get' | 'post' | 'put' | 'patch' | 'delete';
+
+export type CmsListLayout = 'table' | 'grid' | 'dated' | 'tree';
+
+export type CmsListValue<F, K extends string = 'item'> = Array<BlockValue<K, F>>;
+
+export interface CmsPlugin extends Readonly<Omit<CmsPluginDef, 'entities' | 'singletons'>> {
+    readonly __cms: 'plugin';
+    readonly entities: readonly CmsEntity[];
+    readonly singletons: readonly CmsEntity[];
+}
+
+export interface CmsPluginAdminPage {
+    path: string;
+    file: string;
+}
+
+export interface CmsPluginDef {
+    name: string;
+    version: string;
+    entities?: unknown[];
+    singletons?: unknown[];
+    fields?: Record<string, CmsFieldRenderer>;
+    components?: string;
+    adminPages?: CmsPluginAdminPage[];
+    navItems?: CmsPluginNavItem[];
+    serverHandlers?: CmsPluginHandler[];
+    serverPlugins?: string[];
+    hooks?: CmsPluginHooks;
+    i18n?: Record<string, Record<string, unknown>>;
+    upgrades?: CmsPluginUpgradeStep[];
+    graph?: (entity: CmsEntity) => CmsGraphExtension | void;
+}
+
+export interface CmsPluginHandler {
+    method?: CmsHttpMethod;
+    route?: string;
+    contentPath?: string;
+    handler: string;
+    access?: CmsRouteAccess;
+}
+
+export interface CmsPluginHooks {
+    retention?: (ctx: CmsRetentionContext) => Promise<Record<string, number> | void> | Record<string, number> | void;
+}
+
+export interface CmsPluginNavItem {
+    label: LocalizedText;
+    icon?: string;
+    page?: string;
+    to?: string;
+    group?: 'content' | 'settings';
+    adminOnly?: boolean;
+}
+
+export type CmsPluginUpgradeStep = Omit<UpgradeStep, 'since'> & {
+    since?: string;
+};
+
+export interface CmsRegistry {
+    entities: CmsEntity[];
+    byName: Map<string, CmsEntity>;
+    locales: LocalesDef | null;
+    plugins: CmsPlugin[];
+    pluginOf: Map<string, string>;
+}
+
+export interface CmsRetentionContext {
+    tx: any;
+    reg: CmsRegistry;
+    batch: number;
+}
+
+export type CmsRole = 'admin' | 'editor' | 'author';
+
+export type CmsRouteAccess = 'user' | 'admin' | 'public';
+
+export interface CmsSitemapEntry {
+    loc: string;
+    locale: string | null;
+    lastmod: string | null;
+    alternates: {
+        locale: string;
+        loc: string;
+    }[];
+}
+
+export interface CmsWebhookPayload extends Omit<CmsChange, 'by'> {
+    delivery: string;
+}
+
+export interface ContentConfig<F extends Record<string, AnyFieldDescriptor>> {
+    public?: boolean;
+    published?: (table: TableColumns<F>) => unknown;
+    slug?: keyof F & string;
+    path?: PathTemplate;
+    populate?: (keyof F & string)[];
+    hidden?: (keyof F & string)[];
+    search?: false | {
+        fields?: (keyof F & string)[];
+    };
+}
+
+export type Defaulted<K extends FieldKind> = {
+    out: K['out'];
+    in: K['in'];
+    col: K['col'];
+    optionalIn: true;
+};
+
+export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<string, AnyFieldDescriptor>> {
+    __cms: 'entity';
+    name: string;
+    label: LocalizedText;
+    labelSingular?: LocalizedText;
+    description?: LocalizedText;
+    icon?: string;
+    titleField: keyof F & string;
+    table: TableColumns<F>;
+    localized: string[];
+    fields: F;
+    insertSchema: z.ZodType<InsertFields<F>>;
+    updateSchema: z.ZodType<Partial<InsertFields<F>>>;
+    singleton?: boolean;
+    admin?: EntityDef<F>['admin'];
+    access?: EntityDef<F>['access'];
+    content?: EntityDef<F>['content'];
+    publish?: EntityDef<F>['publish'];
+    tree?: TreeConfig;
+}
+
+export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
+    label: LocalizedText;
+    labelSingular?: LocalizedText;
+    description?: LocalizedText;
+    icon?: string;
+    titleField: keyof F & string;
+    fields: F;
+    singleton?: boolean;
+    live?: boolean;
+    admin?: {
+        list?: {
+            columns: (keyof F & string)[];
+            searchable?: (keyof F & string)[];
+            orderField?: keyof F & string;
+            layout?: CmsListLayout;
+        };
+        editor?: CmsEditorLayout;
+        preview?: PathTemplate;
+        tabs?: {
+            label: LocalizedText;
+            fields: (keyof F & string)[];
+        }[];
+        sections?: CmsFormSection<keyof F & string>[];
+    };
+    access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: {
+        user: any;
+        table: TableColumns<F>;
+    }) => unknown>>;
+    content?: ContentConfig<F>;
+    publish?: PublishConfig<F>;
+    tree?: {
+        parent: keyof F & string;
+        order: keyof F & string;
+        maxDepth?: number;
+    };
+}
+
+export interface FieldDescriptor<K extends FieldKind = FieldKind> {
+    readonly __k?: K;
+    type: string;
+    isRequired: boolean;
+    isUnique: boolean;
+    isOptional: boolean;
+    isLocalized: boolean;
+    default?: unknown;
+    ui: FieldUi;
+    meta: Record<string, unknown>;
+    relation?: RelationSpec;
+    blocks?: Record<string, import('./blocks').BlockDef>;
+    fields?: Record<string, FieldDescriptor>;
+    optional(): FieldDescriptor<Nullable<K>>;
+    unique(): FieldDescriptor<K>;
+    localized(): FieldDescriptor<K>;
+    withDefault(value: K['out']): FieldDescriptor<Defaulted<K>>;
+    label(text: LocalizedText): FieldDescriptor<K>;
+    help(text: LocalizedText): FieldDescriptor<K>;
+    position(where: 'main' | 'sidebar'): FieldDescriptor<K>;
+    icon(name: string): FieldDescriptor<K>;
+    group(label: LocalizedText): FieldDescriptor<K>;
+}
+
+export interface FieldKind {
+    out: unknown;
+    in: unknown;
+    col: 'scalar' | 'fk' | 'none';
+    optionalIn: boolean;
+}
+
+export interface FieldUi {
+    edit: string;
+    cell: string;
+}
+
+/** @deprecated */
+export type FormOptions<F extends Record<string, any>> = import('../forms').FormOptions<F>;
+
+export type GroupValue<F> = Prettify<{
+    [P in keyof F & string]?: KindOf<F[P]>['out'] | null;
+}>;
+
+export type Insert<E> = E extends Entity<infer F> ? InsertFields<F> : never;
+
+export interface LocalesDef {
+    __cms: 'locales';
+    default: string;
+    locales: string[];
+    labels: Record<string, LocalizedText>;
+    prefix: 'except-default' | 'all' | 'none';
+}
+
+export type LocalizedText = string | Readonly<Record<string, string>>;
+
+export type Nullable<K extends FieldKind> = {
+    out: K['out'] | null;
+    in: K['in'] | null | undefined;
+    col: K['col'];
+    optionalIn: true;
+};
+
+export type OnDelete = 'cascade' | 'restrict' | 'set null' | 'no action';
+
+export type PathTemplate = string | Record<string, string>;
+
+export interface PublishConfig<F extends Record<string, AnyFieldDescriptor>> {
+    field: keyof F & string;
+    publishedValue: string;
+    draftValue: string;
+    dateField?: keyof F & string;
+    schedule?: boolean;
+    preview?: PathTemplate;
+}
+
+export type RelationKind = 'many-to-one' | 'one-to-many' | 'many-to-many';
+
+export interface RelationSpec {
+    to: () => any;
+    kind: RelationKind;
+    required?: boolean;
+    onDelete?: OnDelete;
+    inverseOf?: string;
+    through?: string;
+}
+
+export type RichTextDoc = {
+    type: 'doc';
+    content?: unknown[];
+};
+
+export type Row<E> = E extends Entity<infer F> ? RowFields<F> : never;
+
+export interface SeedContext {
+    create<E extends EntityLike>(entity: E, data: SeedInsert<E>, options?: SeedWriteOptions<SeedInsert<E>>): Promise<SeedEntry>;
+    create(entity: string, data: Record<string, any>, options?: SeedWriteOptions): Promise<SeedEntry>;
+    upsert<E extends EntityLike>(entity: E, data: SeedInsert<E>, options?: SeedWriteOptions<SeedInsert<E>>): Promise<SeedEntry>;
+    upsert(entity: string, data: Record<string, any>, options?: SeedWriteOptions): Promise<SeedEntry>;
+    translate(entry: SeedEntry, locale: string, data: Record<string, any>): Promise<void>;
+    global<E extends EntityLike>(entity: E, data: SeedInsert<E>, options?: SeedGlobalOptions<SeedInsert<E>>): Promise<SeedEntry>;
+    global(entity: string, data: Record<string, any>, options?: SeedGlobalOptions): Promise<SeedEntry>;
+    upload(file: string, options?: SeedUploadOptions): Promise<string>;
+    link(label: string, to: string | SeedEntry, options?: SeedLinkOptions): SeedLink;
+    rich: SeedRich;
+    locales: string[];
+}
+
+export interface SeedDefinition {
+    readonly __cms: 'seed';
+    run(s: SeedContext): Promise<void>;
+}
+
+export interface SeedEntry {
+    readonly kind: 'entry' | 'global';
+    readonly entity: string;
+    readonly id: string;
+    readonly key: Record<string, string>;
+    readonly existed: boolean;
+    readonly data: Record<string, any>;
+    readonly translations: Record<string, Record<string, any>>;
+}
+
+export interface SeedGlobalOptions<D = Record<string, any>> {
+    translations?: Record<string, Partial<D>>;
+    ifMissing?: boolean;
+}
+
+export type SeedInsert<E> = E extends EntityLike ? {
+    [K in keyof Insert<E>]: SeedValue<Insert<E>[K]>;
+} : Record<string, any>;
+
+export interface SeedLink {
+    id: string;
+    type: 'link';
+    label: string;
+    url: string;
+    newTab: boolean;
+    sub: boolean;
+}
+
+export interface SeedLinkOptions {
+    newTab?: boolean;
+    sub?: boolean;
+    locale?: string;
+}
+
+export interface SeedRich {
+    doc(...content: SeedRichNode[]): {
+        type: 'doc';
+        content: SeedRichNode[];
+    };
+    p(...parts: (string | SeedRichNode)[]): SeedRichNode;
+    h(level: 1 | 2 | 3 | 4 | 5 | 6, text: string): SeedRichNode;
+    h2(text: string): SeedRichNode;
+    h3(text: string): SeedRichNode;
+    ul(...items: (string | SeedRichNode[])[]): SeedRichNode;
+    ol(...items: (string | SeedRichNode[])[]): SeedRichNode;
+    quote(text: string, by?: string): SeedRichNode;
+    bold(text: string): SeedRichNode;
+    italic(text: string): SeedRichNode;
+    link(text: string, href: string): SeedRichNode;
+    image(media: string, alt?: string): SeedRichNode;
+}
+
+export interface SeedRichNode {
+    type: string;
+    text?: string;
+    content?: SeedRichNode[];
+    marks?: {
+        type: string;
+        attrs?: Record<string, unknown>;
+    }[];
+    attrs?: Record<string, unknown>;
+}
+
+export interface SeedUploadOptions {
+    alt?: string;
+    altLocales?: Record<string, string>;
+    focal?: {
+        x: number;
+        y: number;
+    };
+    folder?: string;
+    name?: string;
+    library?: boolean;
+    mime?: string;
+}
+
+export interface SeedWriteOptions<D = Record<string, any>> {
+    by?: (keyof D & string) | (keyof D & string)[];
+    translations?: Record<string, Partial<D>>;
+}
+
+export type SqlRunner = (text: string, params?: unknown[]) => Promise<any[]>;
+
+export interface StepOutcome {
+    id: string;
+    ran: boolean;
+}
+
+export interface TreeConfig {
+    parent: string;
+    order: string;
+    maxDepth: number;
+}
+
+export type Update<E> = E extends Entity<infer F> ? Partial<InsertFields<F>> : never;
+
+export interface UpgradeContext {
+    run: SqlRunner;
+    pendingStatements: string[];
+    freshInstall: boolean;
+}
+
+export interface UpgradeStep {
+    id: string;
+    since: string;
+    description: string;
+    phase: 'before' | 'after';
+    freshInstall?: 'skip' | 'run';
+    when?: (ctx: UpgradeContext) => boolean | Promise<boolean>;
+    run: (ctx: UpgradeContext) => void | Promise<void>;
+}
+
+export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: BlockDef<F>): BlockDef<F>;
+
+export function defineCmsPlugin(def: CmsPluginDef): CmsPlugin;
+
+export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(name: string, def: EntityDef<F>): Entity<F>;
+
+export function defineLocales(def: {
+    default: string;
+    locales: string[];
+    labels?: Record<string, LocalizedText>;
+    prefix?: LocalesDef["prefix"];
+}): LocalesDef;
+
+export function defineNavigation(opts?: {
+    name?: string;
+    menus?: Record<string, LocalizedText>;
+    localized?: boolean;
+}): Entity<Record<string, AnyFieldDescriptor>>;
+
+export function definePages<const B extends Record<string, BlockDef<any>>, const T extends boolean | {
+    maxDepth?: number;
+} | undefined = undefined>(opts: {
+    blocks: B;
+    name?: string;
+    label?: LocalizedText;
+    labelSingular?: LocalizedText;
+    description?: LocalizedText;
+    localized?: boolean;
+    path?: PathTemplate;
+    tree?: T;
+    access?: Partial<Record<"read" | "create" | "update" | "delete", (ctx: {
+        user: any;
+        table: any;
+    }) => unknown>>;
+}): Entity<{
+    title: FieldDescriptor<ScalarKind<string, string, false>>;
+    slug: FieldDescriptor<ScalarKind<string, string, false>>;
+    status: FieldDescriptor<ScalarKind<"draft" | "published", "draft" | "published", true>>;
+    sections: FieldDescriptor<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>;
+} & ([T] extends [false | undefined] ? {} : {
+    parent: FieldDescriptor<FkKind<true>>;
+    position: FieldDescriptor<Defaulted<ScalarKind<number, number, false>>>;
+}) & {
+    metaTitle: FieldDescriptor<Nullable<ScalarKind<string, string, false>>>;
+    metaDescription: FieldDescriptor<Nullable<ScalarKind<string, string, false>>>;
+    ogImage: FieldDescriptor<Nullable<FkKind<false>>>;
+}>;
+
+export function defineRedirects(opts?: {
+    name?: string;
+}): Entity<{
+    from: FieldDescriptor<ScalarKind<string, string, false>>;
+    to: FieldDescriptor<ScalarKind<string, string, false>>;
+    permanent: FieldDescriptor<ScalarKind<boolean, boolean, true>>;
+}>;
+
+export function defineSeed(run: (s: SeedContext) => Promise<void> | void): SeedDefinition;
+
+export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(name: string, def: Omit<EntityDef<F>, "singleton" | "admin"> & {
+    admin?: Pick<NonNullable<EntityDef<F>["admin"]>, "editor" | "preview" | "tabs" | "sections">;
+}): Entity<F>;
+
+export const f: {
+    text: (o?: {
+        required?: boolean;
+        format?: "email" | "url" | "path" | "link";
+        multiline?: boolean;
+        max?: number;
+    }) => FieldDescriptor<ScalarKind<string, string, false>>;
+    slug: (o?: {
+        from?: string;
+        unique?: boolean;
+    }) => FieldDescriptor<ScalarKind<string, string, false>>;
+    number: (o?: {
+        int?: boolean;
+        min?: number;
+        max?: number;
+    }) => FieldDescriptor<ScalarKind<number, number, false>>;
+    boolean: (o?: {
+        default?: boolean;
+        mustBeTrue?: boolean;
+        needsPrevious?: boolean;
+    }) => FieldDescriptor<ScalarKind<boolean, boolean, true>>;
+    datetime: (o?: {
+        default?: "now";
+        allDay?: boolean;
+    }) => FieldDescriptor<ScalarKind<Date, string | Date, false>>;
+    select: <const T extends readonly [string, ...string[]], D extends T[number] | undefined = undefined>(o: {
+        options: T;
+        default?: D;
+        labels?: Partial<Record<T[number], LocalizedText>>;
+        icons?: Partial<Record<T[number], string>>;
+    }) => FieldDescriptor<ScalarKind<T[number], T[number], undefined extends D ? false : true>>;
+    richtext: () => FieldDescriptor<ScalarKind<RichTextDoc, RichTextDoc, false>>;
+    blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) => FieldDescriptor<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>;
+    list: <const F extends Record<string, AnyFieldDescriptor>, const K extends string = "item">(o: {
+        fields: F;
+        max?: number;
+        itemLabel?: LocalizedText;
+        itemType?: K;
+        version?: number;
+        upgrade?: BlockDef["upgrade"];
+    }) => FieldDescriptor<ScalarKind<CmsListValue<F, K>, CmsListValue<F, K>, true>>;
+    group: <const F extends Record<string, AnyFieldDescriptor>>(o: {
+        fields: F;
+    }) => FieldDescriptor<ScalarKind<{ [K in keyof { [P in keyof F & string]?: KindOf<F[P]>["out"] | null | undefined; }]: { [P in keyof F & string]?: KindOf<F[P]>["out"] | null | undefined; }[K]; }, { [K in keyof { [P in keyof F & string]?: KindOf<F[P]>["out"] | null | undefined; }]: { [P in keyof F & string]?: KindOf<F[P]>["out"] | null | undefined; }[K]; }, false>>;
+    file: (o?: {
+        accept?: string;
+    }) => FieldDescriptor<FkKind<false>>;
+    color: (o?: {
+        required?: boolean;
+    }) => FieldDescriptor<ScalarKind<string, string, false>>;
+    gallery: (o?: {
+        accept?: string;
+        max?: number;
+    }) => FieldDescriptor<ScalarKind<CmsGalleryValue, CmsGalleryValue, true>>;
+    media: (o?: {
+        accept?: string;
+    }) => FieldDescriptor<FkKind<false>>;
+    relation: <Kind extends RelationKind, Req extends boolean = false>(o: {
+        to: () => any;
+        kind: Kind;
+        required?: Req;
+        onDelete?: OnDelete;
+        inverseOf?: string;
+        through?: string;
+    }) => FieldDescriptor<RelationFieldKind<Kind, Req>>;
+};
+
+export function linkBlock(): BlockDef<{
+    label: FieldDescriptor<ScalarKind<string, string, false>>;
+    url: FieldDescriptor<ScalarKind<string, string, false>>;
+    newTab: FieldDescriptor<ScalarKind<boolean, boolean, true>>;
+    sub: FieldDescriptor<ScalarKind<boolean, boolean, true>>;
+}>;
+
+export function pluginFile(base: string | URL, relative: string): string;
+
+export function seo(opts?: {
+    localized?: boolean;
+}): {
+    metaTitle: FieldDescriptor<Nullable<ScalarKind<string, string, false>>>;
+    metaDescription: FieldDescriptor<Nullable<ScalarKind<string, string, false>>>;
+    ogImage: FieldDescriptor<Nullable<FkKind<false>>>;
+};
+
+// ── re-exported from other packages (18) ───────────────────────────
+alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
+
+// ── deprecated (1): still part of the API, to be removed in the release named in its @deprecated tag ──
+FormOptions
+
+// ── internal (161): exported, not part of the frozen API, may change in any minor ──
+const BLOCK_FIELD_TYPES
+const CMS_ROLES
+const CORE_UPGRADE_STEPS
+interface CmsDeprecatedOptions
+interface CmsDeprecation
+interface CmsPluginRequirement
+type ColumnBase
+type ColumnDefault
+interface ColumnReference
+interface ColumnSpec
+interface ContentField
+type ContentFieldType
+interface ContentModel
+interface ContentShape
+interface EmbeddedShape
+const FORM_FIELD_TYPES
+interface FilterParam
+type JournalEntry
+interface Junction
+interface LinkFieldLike
+interface LinkRef
+interface LinkVisitor
+interface MigrationClassification
+interface MigrationJournal
+class MigrationOrderError
+interface MigrationSource
+interface MigrationStatus
+interface MovedPath
+const ORDER_FIX
+interface OpenApiOptions
+interface PluginPlan
+interface RefShape
+interface RichTextUpgrade
+const SEARCH_MAX_QUERY
+interface SdkOptions
+interface SearchMatch
+interface StepStatus
+const TREE_DEFAULT_MAX_DEPTH
+const TREE_MAX_DEPTH_LIMIT
+const TREE_POSITION_STEP
+interface TreeChange
+interface TreeCheckOptions
+type TreeIndex
+type TreeIssue
+interface TreeNode
+type TreeProblem
+const UNKNOWN_BLOCK_TYPE
+const UPGRADE_FAILED_KEY
+interface UpgradeIssue
+interface UpgradeOptions
+interface UpgradeResult
+interface ValidationContext
+type ValidationMode
+function allUpgradeSteps
+function allowedTypos
+function applyChange
+function applyMigrations
+function blockMediaKeys
+const blockVersion
+function blocksSchema
+function buildColumn
+function buildContentModel
+function buildOpenApiDocument
+function buildRegistry
+const camel
+function chainOf
+function checkTree
+function checkTreeChange
+function childrenMap
+function classifyMigrations
+const cmsAudit
+const cmsCollab
+function cmsDeprecated
+function cmsDeprecations
+const cmsMedia
+const cmsRevisions
+const cmsSearch
+const cmsState
+const cmsTokens
+const cmsUsers
+function collectPlugins
+function depthOf
+function descendantsOf
+function editDistance
+function editorLayout
+function emitContentTypes
+function emitSchema
+const emptyDoc
+function entryTexts
+function excerptOf
+function existsIn
+function fillPathTemplate
+function foldSearchText
+function generateSetupCode
+function heightOf
+function highlightRanges
+function holdsLinks
+function indexTree
+function inspectMigrations
+const isCmsPlugin
+function isConnectionError
+const isLinkRef
+function isSafeLink
+function isSearchableField
+function isSeed
+const linkFieldsOf
+function linkRef
+function linkRefsOf
+function listLayout
+function logUpgradeFailure
+const looksLikeLinkRef
+function mapDocLinks
+function mapFieldLinks
+function mapRowLinks
+function matchEntry
+function matchRoute
+function mediaIdsInBlocks
+function mediaIdsInFields
+function movedPaths
+function normalizeSetupCode
+function parseLinkRef
+const pascal
+function pathTemplateFor
+function pathTemplateKeys
+function placeAmong
+function planPlugins
+const pluginAdminBase
+const pluginApiBase
+const pluginEntities
+const pluginEntityPrefix
+function pluginRouteAccess
+const pluginStepId
+function pluginUpgradeSteps
+function prefixedTemplates
+function propOf
+function resetCmsDeprecations
+function resolveText
+function richTextPlain
+const richTextSchema
+const richTextUpgrades
+function runUpgrade
+function sanitizeRichText
+function searchTerms
+function serializeColumn
+function sitePath
+function sitePrefix
+function slugChain
+function slugIn
+const snake
+function sortSiblings
+function sqlWithParams
+function storedBlockVersion
+function titleIn
+function treeAddress
+function upgradeBlock
+function upgradeBlocks
+const upgradeListItems
+function upgradeRichText
+function upgradeStoredRow
+function webhookPayload
+function wordMatch

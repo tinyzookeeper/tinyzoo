@@ -1,11 +1,13 @@
 import { type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
+import { cmsDeprecated } from './deprecate'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
 import { pathTemplateProblem, pathTemplateKeys, prefixedTemplates, type PathTemplate } from './paths'
 import { TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, type TreeConfig } from './tree'
+import type { CmsAdminField } from './admin'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
 import { collectPlugins, pluginEntities, type CmsPlugin, type CmsPluginRequirement } from './plugin'
@@ -200,11 +202,16 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   icon?: string
   titleField: keyof F & string
   table: TableColumns<F>
-  /** Translations of the `.localized()` fields (`<name>_locales`), or undefined. */
+  /**
+   * Translations of the `.localized()` fields (`<name>_locales`), or undefined.
+   *
+   * @internal
+   */
   localesTable?: any
   /** Keys of the `.localized()` fields. */
   localized: string[]
   fields: F
+  /** @internal */
   enums: EntityEnum[]
   insertSchema: z.ZodType<InsertFields<F>>
   updateSchema: z.ZodType<Partial<InsertFields<F>>>
@@ -232,9 +239,11 @@ export interface CmsEntity {
   icon?: string
   titleField: string
   table: any
+  /** @internal */
   localesTable?: any
   localized: string[]
   fields: Record<string, FieldDescriptor>
+  /** @internal */
   enums: EntityEnum[]
   insertSchema: z.ZodTypeAny
   updateSchema: z.ZodTypeAny
@@ -259,9 +268,17 @@ export interface CmsEntity {
   publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: PathTemplate }
   live?: boolean
   tree?: TreeConfig
-  /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
+  /**
+   * Set by built-in presets (e.g. 'redirects') so the runtime can find them.
+   *
+   * @internal
+   */
   preset?: string
-  /** Set by a plugin's helpers (`defineForm`): the plugin this entity cannot work without. */
+  /**
+   * Set by a plugin's helpers (`defineForm`): the plugin this entity cannot work without.
+   *
+   * @internal
+   */
   requiresPlugin?: CmsPluginRequirement
 }
 
@@ -272,13 +289,20 @@ export function translationSpec(spec: import('./descriptor').ColumnSpec): import
   return { ...spec, notNull: false, unique: false, default: undefined, reference: undefined }
 }
 
-/** DB column property name for a field (FKs become `${key}Id`). */
+/**
+ * DB column property name for a field (FKs become `${key}Id`).
+ *
+ * @internal
+ */
 export function propOf(key: string, fld: FieldDescriptor): string {
   return fld.spec?.nameSuffix === '_id' ? key + 'Id' : key
 }
 
 /** Field names the CMS uses itself (system columns, translations, public item keys). */
 const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales'])
+
+/** Query parameters of the content API's list (`/api/content/:entity?page=…`): a field of that name cannot be filtered by. */
+const LIST_PARAMS = ['page', 'limit', 'sort', 'dir', 'q']
 
 /** Entity names the CMS uses internally; user entities may not take them. */
 const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
@@ -307,6 +331,11 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   for (const key of Object.keys(fields)) {
     if (RESERVED_FIELD_NAMES.has(key)) {
       throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}).`)
+    }
+  }
+  if (def.content?.public) {
+    for (const key of Object.keys(fields).filter((k) => LIST_PARAMS.includes(k))) {
+      cmsDeprecated(`field-name:${name}.${key}`, `The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=), so it cannot be used as a filter. Rename the field`, { removeIn: '1.0.0' })
     }
   }
   const orderField = def.admin?.list?.orderField as string | undefined
@@ -421,6 +450,7 @@ export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(
 }
 
 // ── registry: junctions + serializable graph, memoized per config module ────────
+/** @internal */
 export interface Junction {
   /** Schema key and TS export name (camelCase entity names); not the SQL table name. */
   name: string
@@ -437,19 +467,31 @@ export interface Junction {
 export interface CmsRegistry {
   entities: CmsEntity[]
   byName: Map<string, CmsEntity>
+  /** @internal */
   junctions: Junction[]
+  /** @internal */
   junctionByOwnerField: Map<string, Junction>
+  /** @internal */
   schema: Record<string, any>
+  /** @internal */
   graph: any[]
   /** Content languages (defineLocales), or null when content is single-language. */
   locales: LocalesDef | null
+  /** @internal */
   cmsMedia: typeof cmsMedia
+  /** @internal */
   cmsUsers: typeof cmsUsers
+  /** @internal */
   cmsTokens: typeof cmsTokens
+  /** @internal */
   cmsAudit: typeof cmsAudit
+  /** @internal */
   cmsCollab: typeof cmsCollab
+  /** @internal */
   cmsRevisions: typeof cmsRevisions
+  /** @internal */
   cmsState: typeof cmsState
+  /** @internal */
   cmsSearch: typeof cmsSearch
   /** Registered plugins (`export const plugins = [...]`), in order. */
   plugins: CmsPlugin[]
@@ -464,6 +506,7 @@ function isEntity(v: any): v is CmsEntity {
   return v && typeof v === 'object' && v.__cms === 'entity'
 }
 
+/** @internal */
 export function buildRegistry(config: Record<string, any>): CmsRegistry {
   const cached = _regCache.get(config)
   if (cached) return cached
@@ -542,6 +585,8 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
  * The editor's arrangement, from what the content is (the developer can say otherwise
  * with `admin.editor`): the layout is the point → `preview`; a text to write → `write`;
  * facts to fill in → `form`.
+ *
+ * @internal
  */
 export function editorLayout(e: CmsEntity): CmsEditorLayout {
   if (e.admin?.editor) return e.admin.editor
@@ -552,7 +597,11 @@ export function editorLayout(e: CmsEntity): CmsEditorLayout {
   return 'form'
 }
 
-/** The list's look, from what the content is (or `admin.list.layout`). */
+/**
+ * The list's look, from what the content is (or `admin.list.layout`).
+ *
+ * @internal
+ */
 export function listLayout(e: CmsEntity): CmsListLayout {
   if (e.admin?.list?.layout) return e.admin.list.layout
   if (e.tree) return 'tree'
@@ -605,7 +654,7 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     tree: e.tree ?? null,
     tabs: e.admin?.tabs ?? null,
     sections: e.admin?.sections ?? null,
-    fields: Object.entries(e.fields).map(([key, fld]) => ({
+    fields: Object.entries(e.fields).map(([key, fld]): CmsAdminField => ({
       key,
       type: fld.type,
       optional: fld.isOptional,

@@ -1,0 +1,134 @@
+// API report: `@tinyzoo/client` (packages/client/src/index.ts)
+// The typed content-API client: createCmsClient, CmsError, cmsMenuTree and the types the generated bindings use.
+// Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
+
+// ── public (18) ─────────────────────────────────────────────────
+
+export type AnyContentSchema = Record<string, CollectionSpec>;
+
+export interface ClientOptions {
+    baseUrl: string;
+    token?: string;
+    headers?: Record<string, string>;
+    fetch?: typeof globalThis.fetch;
+}
+
+export type CmsClient<S extends AnyContentSchema, G extends object = Record<string, unknown>> = {
+    readonly [K in keyof S]: Collection<S[K]>;
+} & {
+    collection: <K extends keyof S & string>(name: K) => Collection<S[K]>;
+    global: <K extends keyof G & string>(name: K, options?: GetOptions) => Promise<G[K] | null>;
+    openapi: () => Promise<unknown>;
+    search: (query: string, params?: SearchParams) => Promise<SearchResponse>;
+};
+
+export class CmsError extends Error {
+    readonly status: number;
+    readonly statusText: string;
+    readonly url: string;
+    readonly body: unknown;
+    constructor(message: string, status: number, statusText: string, url: string, body: unknown) {
+        super(message);
+        this.name = 'CmsError';
+        this.status = status;
+        this.statusText = statusText;
+        this.url = url;
+        this.body = body;
+    }
+}
+
+export type CmsMenuItem<L extends CmsMenuLink = CmsMenuLink> = L & {
+    children: L[];
+};
+
+export interface CmsMenuLink {
+    id: string;
+    label: string;
+    url: string | null;
+    newTab?: boolean | null;
+    sub?: boolean | null;
+}
+
+export interface CmsTreeNode {
+    id: string;
+    title: string;
+    path: string | null;
+    children: CmsTreeNode[];
+}
+
+export type Collection<C extends CollectionSpec> = {
+    list: (params?: ListParams<Extract<C['sort'], string>, C['filters']>) => Promise<ListResponse<C['item']>>;
+    get: (slugOrId: string, options?: GetOptions) => Promise<C['item']>;
+} & (C extends {
+    tree: true;
+} ? {
+    tree: (options?: TreeOptions) => Promise<CmsTreeNode[]>;
+} : unknown);
+
+export interface CollectionSpec {
+    item: unknown;
+    tree?: boolean;
+    sort?: string;
+    filters?: object;
+}
+
+export interface GetOptions {
+    locale?: string;
+}
+
+export interface ListParams<Sort extends string = string, Filters = Record<string, never>> {
+    page?: number;
+    limit?: number;
+    sort?: Sort;
+    dir?: 'asc' | 'desc';
+    q?: string;
+    filter?: Filters;
+    locale?: string;
+}
+
+export interface ListResponse<T> {
+    items: T[];
+    total: number;
+    page: number;
+    limit: number;
+}
+
+export interface SearchItem {
+    entity: string;
+    id: string;
+    title: string;
+    titleHighlights: [
+        number,
+        number
+    ][];
+    excerpt: string;
+    highlights: [
+        number,
+        number
+    ][];
+    path: string | null;
+    locale: string | null;
+    updatedAt: string;
+}
+
+export interface SearchParams {
+    locale?: string;
+    limit?: number;
+    collections?: string[];
+}
+
+export interface SearchResponse {
+    query: string;
+    items: SearchItem[];
+    total: number;
+}
+
+export interface TreeOptions {
+    locale?: string;
+}
+
+export function cmsMenuTree<L extends CmsMenuLink>(links: readonly L[] | null | undefined): CmsMenuItem<L>[];
+
+export function createCmsClient<S extends AnyContentSchema, G extends object = Record<string, unknown>>(options: ClientOptions): CmsClient<S, G>;
+
+// ── internal (0): exported, not part of the frozen API, may change in any minor ──

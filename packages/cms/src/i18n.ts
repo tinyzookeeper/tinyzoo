@@ -13,6 +13,8 @@ export type LocalizedText = string | Readonly<Record<string, string>>
 /**
  * Resolve a LocalizedText for a locale: exact locale → its language ('cs-CZ' → 'cs')
  * → each fallback in order → the first value present. Undefined in, undefined out.
+ *
+ * @internal
  */
 export function resolveText(text: LocalizedText | undefined | null, locale: string, fallbacks: readonly string[] = ['en']): string | undefined {
   if (text == null) return undefined

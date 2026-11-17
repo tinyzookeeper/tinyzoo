@@ -20,7 +20,7 @@
     "check:upgrade": "node scripts/upgrade-check.mjs",
     "check:starter": "node scripts/starter-check.mjs",
     "docs:check": "pnpm --reporter=silent --filter tinyzoo exec tsx ../../scripts/docs-check.ts",
-    "contracts:update": "UPDATE_CONTRACTS=1 vitest run --project unit test/unit/contracts.spec.ts",
+    "contracts:update": "UPDATE_CONTRACTS=1 vitest run --project unit test/unit/contracts.spec.ts test/unit/api-surface.spec.ts",
     "changeset": "changeset",
     "build:packages": "pnpm --filter @tinyzoo/client build",
     "release": "node scripts/release.mjs",

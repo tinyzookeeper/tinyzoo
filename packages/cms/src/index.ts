@@ -37,8 +37,9 @@ export {
   type FilterParam,
 } from './content-shape'
 export { cmsMedia } from './media'
-export type { CmsChange, CmsChangeType, CmsSitemapEntry } from './changes'
+export { CMS_WEBHOOK_HEADERS, webhookPayload, type CmsChange, type CmsChangeType, type CmsSitemapEntry, type CmsWebhookPayload } from './changes'
 export type { CmsErrorReport } from './errorReport'
+export type { CmsAdminField, CmsFieldEditProps, CmsFieldCellProps } from './admin'
 export { generateSetupCode, normalizeSetupCode } from './setupCode'
 export { cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, CMS_ROLES, type CmsRole } from './system'
 export { searchTerms, foldSearchText, entryTexts, richTextPlain, isSearchableField, matchEntry, excerptOf, highlightRanges, wordMatch, editDistance, allowedTypos, SEARCH_MAX_QUERY, type SearchMatch } from './search'

@@ -3,9 +3,14 @@ import type { ZodTypeAny } from 'zod'
 
 export type OnDelete = 'cascade' | 'restrict' | 'set null' | 'no action'
 export type RelationKind = 'many-to-one' | 'one-to-many' | 'many-to-many'
+/** @internal */
 export type ValidationMode = 'create' | 'update'
 
-/** What a write is checked against besides the payload. */
+/**
+ * What a write is checked against besides the payload.
+ *
+ * @internal
+ */
 export interface ValidationContext {
   /**
    * What the field holds in the row being written, as stored (nothing on create).
@@ -36,6 +41,7 @@ export interface FieldUi {
 }
 
 // ── the serializable column IR (one source for live builder + emitted source) ──
+/** @internal */
 export type ColumnBase =
   | { kind: 'uuid' }
   | { kind: 'text' }
@@ -46,16 +52,19 @@ export type ColumnBase =
   | { kind: 'jsonb' }
   | { kind: 'enum'; values: readonly string[] }
 
+/** @internal */
 export type ColumnDefault =
   | { kind: 'value'; value: unknown }
   | { kind: 'now' }
   | { kind: 'random' }
 
+/** @internal */
 export interface ColumnReference {
   target: 'media' | 'relation'
   onDelete: OnDelete
 }
 
+/** @internal */
 export interface ColumnSpec {
   base: ColumnBase
   notNull: boolean
@@ -104,6 +113,7 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   /** Has a value per language (see `.localized()` and `defineLocales`). */
   isLocalized: boolean
   default?: unknown
+  /** @internal */
   dbDefault?: 'now' | 'random'
   ui: FieldUi
   meta: Record<string, unknown>
@@ -112,8 +122,13 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   blocks?: Record<string, import('./blocks').BlockDef>
   /** The fields a group holds (group fields only). */
   fields?: Record<string, FieldDescriptor>
-  /** null ⇒ owns no DB column (many-to-many, one-to-many). */
+  /**
+   * The column this field owns (null ⇒ none: many-to-many, one-to-many).
+   *
+   * @internal
+   */
   spec: ColumnSpec | null
+  /** @internal */
   zod(mode?: ValidationMode, context?: ValidationContext): ZodTypeAny
   optional(): FieldDescriptor<Nullable<K>>
   unique(): FieldDescriptor<K>

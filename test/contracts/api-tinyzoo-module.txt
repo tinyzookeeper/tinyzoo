@@ -1,0 +1,95 @@
+// API report: `tinyzoo/module` (packages/cms/module.ts)
+// The Nuxt module (build-time wiring): its options are the `cms` key of nuxt.config.
+// Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
+
+// ── public (2) ─────────────────────────────────────────────────
+
+export interface CmsModuleOptions {
+    config?: string;
+    databaseUrl?: string;
+    storage?: {
+        driver?: 'local' | 's3' | 'r2';
+        local?: {
+            dir?: string;
+            publicBase?: string;
+        };
+        s3?: {
+            endpoint?: string;
+            region?: string;
+            bucket?: string;
+            accessKeyId?: string;
+            secretAccessKey?: string;
+            publicBaseUrl?: string;
+            delivery?: 'public' | 'proxy' | 'redirect';
+        };
+        maxSizeMb?: number;
+        maxBytesPerUser?: number;
+        uploadRatePerMin?: number;
+    };
+    auth?: {
+        mode?: 'builtin' | 'external';
+        trustedProxies?: number;
+        ipHeader?: string;
+    };
+    publicUrl?: string;
+    mail?: {
+        transport?: 'log' | 'file' | 'smtp';
+        from?: string;
+        smtp?: {
+            host?: string;
+            port?: number;
+            secure?: boolean;
+            user?: string;
+            pass?: string;
+        };
+        file?: {
+            dir?: string;
+        };
+    };
+    redis?: {
+        url?: string;
+        prefix?: string;
+    };
+    scheduler?: {
+        cron?: string;
+    };
+    retention?: {
+        auditDays?: number;
+    };
+    revisions?: {
+        keep?: number;
+    };
+    webhooks?: {
+        urls?: string | string[];
+        secret?: string;
+    };
+    sitemap?: {
+        paths?: (string | Record<string, string>)[];
+    };
+    forms?: {
+        notifyTo?: string;
+        turnstileSecret?: string;
+        turnstileSiteKey?: string;
+    };
+    demo?: {
+        email?: string;
+        password?: string;
+    };
+    migrations?: {
+        dir?: string;
+        onStart?: boolean;
+    };
+    content?: {
+        token?: string;
+        cacheControl?: string;
+        publicUrl?: string;
+        docs?: boolean;
+    };
+}
+
+export default: the Nuxt module: meta { name: 'tinyzoo', configKey: 'cms' }, options CmsModuleOptions
+
+// ── deprecated (1): still part of the API, to be removed in the release named in its @deprecated tag ──
+CmsModuleOptions.databaseUrl
+
+// ── internal (0): exported, not part of the frozen API, may change in any minor ──

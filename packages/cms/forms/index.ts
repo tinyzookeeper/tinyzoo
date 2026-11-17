@@ -15,9 +15,6 @@
  * submissions (`retentionDays`) and the admin's form bits (no "New" button, the retention
  * note under the list). The forms and the settings stay the site's own entities: the
  * tables and their names are exactly what `defineForm` has always made.
- *
- * `defineForm` and `defineFormSettings` are also exported from `tinyzoo`, deprecated:
- * they still work, register this plugin by themselves and say so once.
  */
 import { defineEntity, defineSingleton, type EntityDef } from '../src/entity'
 import { f } from '../src/fields'
@@ -32,10 +29,16 @@ import { retainForms } from './retention'
  * and editors. Messages are personal data of people who are not users of the site — an
  * author, who writes posts, has no business reading them. (A custom role of an external
  * sign-in gets no access either, until the form's `access.read` names it.)
+ *
+ * @internal
  */
 export const formsReadAccess: NonNullable<EntityDef<any>['access']>['read'] = ({ user }) => user?.role === 'admin' || user?.role === 'editor'
 
-/** Field types a visitor can fill in on a website form. */
+/**
+ * Field types a visitor can fill in on a website form.
+ *
+ * @internal
+ */
 export const FORM_FIELD_TYPES = new Set(['text', 'number', 'boolean', 'select', 'datetime'])
 
 export interface FormOptions<F extends Record<string, any>> {
@@ -77,7 +80,11 @@ export interface FormOptions<F extends Record<string, any>> {
   access?: EntityDef<F>['access']
 }
 
-/** What an entity made by this plugin's helpers says about the plugin it needs. */
+/**
+ * What an entity made by this plugin's helpers says about the plugin it needs.
+ *
+ * @internal
+ */
 export const FORMS_REQUIREMENT: CmsPluginRequirement = {
   plugin: 'forms',
   hint: 'add `export const plugins = [formsPlugin()]` to cms.config.ts (`import { formsPlugin } from \'tinyzoo/forms\'`).',

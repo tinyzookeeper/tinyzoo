@@ -1,0 +1,287 @@
+{
+  "module": {
+    "meta": {
+      "name": "tinyzoo",
+      "configKey": "cms"
+    },
+    "defaults": {
+      "config": "cms.config.ts"
+    },
+    "moduleDependencies": {
+      "@nuxtjs/sitemap": {
+        "version": ">=9.1.0",
+        "defaults": {
+          "exclude": [
+            "/admin",
+            "/admin/**"
+          ],
+          "cacheMaxAgeSeconds": 3600
+        }
+      }
+    }
+  },
+  "runtimeConfig.cms": {
+    "databaseUrl": "",
+    "migrations": {
+      "onStart": false
+    },
+    "redis": {
+      "url": "",
+      "prefix": ""
+    },
+    "revisions": {
+      "keep": 50
+    },
+    "retention": {
+      "auditDays": 365
+    },
+    "webhooks": {
+      "urls": "",
+      "secret": ""
+    },
+    "sitemap": {
+      "paths": []
+    },
+    "auth": {
+      "mode": "builtin",
+      "trustedProxies": 1,
+      "ipHeader": "",
+      "setupToken": ""
+    },
+    "publicUrl": "",
+    "mail": {
+      "transport": "log",
+      "from": "",
+      "smtp": {
+        "host": "",
+        "port": 587,
+        "secure": false,
+        "user": "",
+        "pass": ""
+      },
+      "file": {
+        "dir": ".cms-mail"
+      }
+    },
+    "storage": {
+      "driver": "local",
+      "local": {
+        "dir": ".cms-uploads",
+        "publicBase": "/api/cms/_media/raw"
+      },
+      "s3": {
+        "endpoint": "",
+        "region": "",
+        "bucket": "",
+        "accessKeyId": "",
+        "secretAccessKey": "",
+        "publicBaseUrl": "",
+        "delivery": ""
+      },
+      "maxSizeMb": 10,
+      "maxBytesPerUser": 0,
+      "uploadRatePerMin": 60
+    },
+    "forms": {
+      "notifyTo": "",
+      "turnstileSecret": ""
+    },
+    "content": {
+      "token": "",
+      "cacheControl": "",
+      "publicUrl": "",
+      "docs": ""
+    }
+  },
+  "runtimeConfig.public": {
+    "cmsPlugins": {
+      "plugins": [],
+      "navItems": [],
+      "fields": {},
+      "messages": {}
+    },
+    "cmsTurnstileSiteKey": "",
+    "cmsDemo": {
+      "email": "",
+      "password": ""
+    }
+  },
+  "environment": [
+    {
+      "name": "NUXT_CMS_DATABASE_URL",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_MIGRATIONS_ON_START",
+      "default": false
+    },
+    {
+      "name": "NUXT_CMS_REDIS_URL",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_REDIS_PREFIX",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_REVISIONS_KEEP",
+      "default": 50
+    },
+    {
+      "name": "NUXT_CMS_RETENTION_AUDIT_DAYS",
+      "default": 365
+    },
+    {
+      "name": "NUXT_CMS_WEBHOOKS_URLS",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_WEBHOOKS_SECRET",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_SITEMAP_PATHS",
+      "default": []
+    },
+    {
+      "name": "NUXT_CMS_AUTH_MODE",
+      "default": "builtin"
+    },
+    {
+      "name": "NUXT_CMS_AUTH_TRUSTED_PROXIES",
+      "default": 1
+    },
+    {
+      "name": "NUXT_CMS_AUTH_IP_HEADER",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_AUTH_SETUP_TOKEN",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_PUBLIC_URL",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_MAIL_TRANSPORT",
+      "default": "log"
+    },
+    {
+      "name": "NUXT_CMS_MAIL_FROM",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_MAIL_SMTP_HOST",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_MAIL_SMTP_PORT",
+      "default": 587
+    },
+    {
+      "name": "NUXT_CMS_MAIL_SMTP_SECURE",
+      "default": false
+    },
+    {
+      "name": "NUXT_CMS_MAIL_SMTP_USER",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_MAIL_SMTP_PASS",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_MAIL_FILE_DIR",
+      "default": ".cms-mail"
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_DRIVER",
+      "default": "local"
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_LOCAL_DIR",
+      "default": ".cms-uploads"
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_LOCAL_PUBLIC_BASE",
+      "default": "/api/cms/_media/raw"
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_S3_ENDPOINT",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_S3_REGION",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_S3_BUCKET",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_S3_DELIVERY",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_MAX_SIZE_MB",
+      "default": 10
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_MAX_BYTES_PER_USER",
+      "default": 0
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_UPLOAD_RATE_PER_MIN",
+      "default": 60
+    },
+    {
+      "name": "NUXT_CMS_FORMS_NOTIFY_TO",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_FORMS_TURNSTILE_SECRET",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_CONTENT_TOKEN",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_CONTENT_CACHE_CONTROL",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_CONTENT_PUBLIC_URL",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_CONTENT_DOCS",
+      "default": ""
+    },
+    {
+      "name": "NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY",
+      "default": ""
+    },
+    {
+      "name": "NUXT_PUBLIC_CMS_DEMO_EMAIL",
+      "default": ""
+    },
+    {
+      "name": "NUXT_PUBLIC_CMS_DEMO_PASSWORD",
+      "default": ""
+    }
+  ]
+}
