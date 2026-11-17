@@ -1,0 +1,29 @@
+# tinyzoo
+
+> tinyzoo is a code-first CMS for Nuxt 4: the content model is written in `cms.config.ts` (TypeScript), and the database schema, migrations, admin, content API and a typed client are generated from it. A site is one Nuxt app on Node and Postgres; editors work at `/admin`.
+
+Key facts for working in a tinyzoo site: the schema is code-first (never edited in the admin or by hand in the database); after changing `cms.config.ts` run `tinyzoo generate`, review the migration, `tinyzoo up`, and regenerate the client; after updating tinyzoo run `tinyzoo upgrade`. Never use `drizzle-kit push`, never edit generated files, never import exports tagged `@internal`. Every new site has an `AGENTS.md` with these rules.
+
+## Building a site
+
+- [AGENTS.md of the starter](https://github.com/tinyzookeeper/tinyzoo/blob/main/packages/cms/starter/AGENTS.md): the short guide every new site gets: where things are, the commands, the change workflow, the don'ts
+- [Getting started](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/getting-started.md): `pnpm create tinyzoo` and its flags, the database, a first collection shown with the typed client
+- [Content model](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-model.md): the reference for `cms.config.ts`: every field type and modifier, relations, blocks, globals, presets, languages, publishing (also per language), access rules
+- [Roles and permissions](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/roles.md): `defineRoles`, per-field `.access()`, the media library per role, a removed role, a worked translator example
+- [Recipes](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/recipes.md): complete configs and pages for common client requests (contact form, news, team, FAQ, opening hours, gallery, downloads, events, menus)
+- [The content API](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-api.md): endpoints, preview, caching, search, the typed client, OpenAPI, sitemap, the frontend components
+- [Media](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/media.md): uploads, storage drivers, drawing pictures
+- [The admin](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/admin.md): branding, form layouts, custom field renderers
+- [Seeding](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/seeding.md): starting content in code, `tinyzoo seed`
+
+## Stability and upgrades
+
+- [The public API](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/api-surface.md): what 1.0 freezes (config API, `cms` options and variables, content API and client, webhook and hooks, CLI with every flag, frontend kit, admin extension points); everything else is internal
+- [Upgrading](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md): the version policy, the steps per release, recipes for renaming, removing and changing fields, the migration guard
+- [Deploying](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/deploying.md): environment variables, migrations at start, backups and restore
+
+## Optional
+
+- [Plugins](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/plugins.md): collections, admin pages, routes and upgrade steps of your own, shipped as a package
+- [Content between environments](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-transfer.md): `tinyzoo export` and `import`
+- [Editors' guide (Czech)](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/cs/README.md): the manual for the people who write content, with the admin's own labels

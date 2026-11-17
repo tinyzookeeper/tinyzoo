@@ -258,11 +258,27 @@ const update = async (title, slug, kind, ago, perex, body, extra = {}) => {
   })
   created.news[slug] = (res.row ?? res).id
 }
-await update('Karty a otázky na jedné stránce', 'seznamy-v-blocich', 'feature', 0,
+// 0.6, called in this order so that the roles come first on the website (the same day, the newest last).
+await update('Nový web jedním příkazem: pnpm create tinyzoo', 'pnpm-create-tinyzoo', 'feature', 0,
+  'Příkaz se zeptá na jazyky, části webu a ukázkový obsah. Za pár minut máte web se správou obsahu, který rovnou spustíte.',
+  doc(p('Vyberete jazyky webu (první je výchozí), části, které web potřebuje (aktuality, kontaktní formulář, přesměrování, vyhledávání), a jestli chcete ukázkový obsah. Co nechcete, v projektu vůbec nebude.'),
+    p('Každá otázka má i přepínač, takže příkaz spustíte i bez ptaní: pnpm create tinyzoo muj-web --languages cs,en --presets news,search --no-demo --yes.'),
+    p('Nový projekt má také soubor AGENTS.md. Je to krátký návod pro asistenta, se kterým programujete: kde je model obsahu, jak se mění a na co nesahat.')), { cover: img.desk.id })
+await update('Každý jazyk se zveřejňuje zvlášť, s originálem po ruce', 'jazyky-zvlast', 'feature', 0,
+  'Anglickou verzi článku v klidu dopíšete a zveřejníte, až bude hotová. Při překládání máte český text pořád na očích.',
+  doc(p('Každý jazyk má svůj stav: koncept, naplánováno, nebo na webu. Překlad jde na web vždy spolu s českou verzí, takže se tam nedostane nic z nehotového českého textu. Vývojář to zapne tam, kde to dává smysl, třeba u článků.'),
+    p('V nepřeloženém poli je šedě český text. Přesně ten by návštěvník viděl, dokud pole nepřeložíte. Delší text si zobrazíte vedle originálu a překládáte odstavec po odstavci.'),
+    p('V seznamu článků poznáte stav každého jazyka podle malé značky. Na telefonu přepnete jazyk klepnutím na jeho název nahoře.')))
+await update('Role na míru a pole, která smí měnit jen někdo', 'role-na-miru', 'feature', 0,
+  'Vedle administrátora, editora a autora může mít web vlastní role, třeba překladatele. U jednotlivých polí určíte, kdo je smí měnit.',
+  doc(p('Vývojář webu nastaví role podle toho, kdo ve firmě co dělá. Překladatel třeba upravuje jen články a nic nezveřejňuje. Správce autorů se stará o jejich profily a do knihovny médií nevidí.'),
+    p('Pole, které smí měnit jen někdo, má šedé pozadí a zámek. Pod ním je napsáno, kdo ho změní, takže víte, za kým jít.'),
+    p('V části Tým najdete přehled Co která role může?. V pozvánce i při změně role je u každé role jedna věta o tom, co smí.')))
+await update('Karty a otázky na jedné stránce', 'seznamy-v-blocich', 'feature', 1,
   'Do stránky nově poskládáte karty nebo otázky a odpovědi. Jejich pořadí změníte přetažením.',
   doc(p('Stránku můžete sestavit z hotových částí, třeba z karet nebo otázek a odpovědí. Doplňte vlastní texty a seřaďte části přetažením.'),
     p('I tento web jsme poskládali stejným způsobem.')))
-await update('Vyhledávání na webu i v administraci', 'vyhledavani', 'feature', 0,
+await update('Vyhledávání na webu i v administraci', 'vyhledavani', 'feature', 1,
   'Návštěvníci najdou obsah vašeho webu podle kteréhokoli slova. V administraci najdete jakýkoli záznam přes ⌘K.',
   doc(p('Vyhledávání prochází nadpisy, texty i obsah bloků. Nezáleží na diakritice ani na velikosti písmen a poradí si i s překlepem, takže „zimni pripava“ najde „Zimní příprava“.'),
     p('V administraci otevřete hledání tlačítkem v postranním panelu nebo zkratkou ⌘K (Ctrl+K). Najdete v něm i koncepty a texty v ostatních jazycích.')))

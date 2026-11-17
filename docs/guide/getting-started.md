@@ -45,7 +45,7 @@ pnpm create tinyzoo my-site --languages de,en --presets news,search --no-demo --
 | `--demo` / `--no-demo` | the demo content (a small bakery, written in Czech and English: it needs `cs` or `en` first). `--no-demo` makes an empty site, without `seed/` |
 | `--install` / `--no-install` | install the dependencies right away, and write the typed files the site needs (below) |
 | `--package-manager pnpm` | `pnpm`, `npm`, `yarn` or `bun`: the commands it prints and the README use it. Default: the one you ran it with |
-| `--yes` | ask nothing: the defaults for what is not given |
+| `--yes`, `-y` | ask nothing: the defaults for what is not given |
 
 `tinyzoo init <folder>` makes the same site with the same options (except the installing and
 `--yes`), without asking anything: `pnpm dlx tinyzoo init my-site --languages de,en --no-demo`. It is
@@ -60,6 +60,9 @@ installing, the next steps it prints include `pnpm db:generate` (the first migra
 `pnpm cms:client` (the typed client), to run after `pnpm install` and before `pnpm db:migrate`.
 More languages than it knows words for (`de` has them; `fr` shows English ones) need an entry in
 `app/utils/site.ts`.
+
+Every new site has an `AGENTS.md`: a short guide for a coding assistant working in it (where the content model
+is, the change workflow, the commands, what not to touch). Keep it, and add your own project's notes to it.
 
 `pnpm create` and `pnpm install` may end with a yellow box, *Ignored build scripts: esbuild,
 sharp, …*. It is harmless: nothing here needs those scripts.

@@ -11,7 +11,8 @@ data: an administrator sets it in Settings → Team.
 [The built-in roles](#the-built-in-roles) · [Roles of your own](#roles-of-your-own) ·
 [Per-field permissions](#per-field-permissions) · [The media library](#the-media-library) ·
 [Row-level rules](#row-level-rules) · [A role that is removed](#a-role-that-is-removed) ·
-[External sign-in](#external-sign-in) · [What is enforced where](#what-is-enforced-where)
+[Changing someone's role](#changing-someones-role) · [External sign-in](#external-sign-in) ·
+[Worked example: a translator](#worked-example-a-translator) · [What is enforced where](#what-is-enforced-where)
 
 ## The built-in roles
 
@@ -219,6 +220,14 @@ Take a role out of `cms.config.ts` and the people who had it keep their accounts
 Define the role again and they are back, as they were: the name stored with a person is all that connects them.
 (The roles are not stored anywhere else: `cms_users.role` is a text column, so adding or removing a role needs no migration.)
 
+## Changing someone's role
+
+An administrator changes a role in Settings → Team (**Change role**, with the same sentence per role as the
+invitation). The change **signs the person out on every device**: their sessions end, an open realtime or
+shared-editing connection is closed, and they sign in again with the new role. Unsaved changes in an editor they had
+open are lost, so tell them first. Nobody can change their own role, and the last active administrator cannot be
+moved to another role. The audit log records the change (`user.role`, from and to).
+
 ## External sign-in
 
 With `cms.auth.mode: 'external'` your app signs people in and sets their `role`; the names it uses map onto the
@@ -228,6 +237,93 @@ same definitions: the built-ins, and the roles from `defineRoles`.
 - On a site that **defines none**, a name the CMS does not know acts as it always did: it reaches every
   collection and the entities' own `access` rules decide, it may publish, and it is never an administrator.
   Add `defineRoles` to get the stricter behaviour.
+
+## Worked example: a translator
+
+A site in Czech and English. Editors write posts in Czech and publish them. A translator writes the English
+versions, and an editor decides when they go live. The translator must not change what all languages share (the
+category), nor touch anything else on the site.
+
+<!-- check: translator/cms.config.ts -->
+```ts
+import { defineEntity, defineLocales, defineRoles, eq, f } from 'tinyzoo'
+
+export const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
+
+export const roles = defineRoles({
+  translator: {
+    from: 'editor',
+    label: { cs: 'Překladatel', en: 'Translator' },
+    description: { cs: 'Překládá články; jen koncepty.', en: 'Translates posts; drafts only.' },
+    // Every collection is listed: one left out would get what an editor has.
+    entities: { post: ['read', 'update'], tag: ['read'] },
+    publish: false,
+    media: 'none',
+  },
+})
+
+export const Tag = defineEntity('tag', {
+  label: { cs: 'Štítky', en: 'Tags' },
+  titleField: 'name',
+  fields: { name: f.text({ required: true }).localized() },
+})
+
+export const Post = defineEntity('post', {
+  label: { cs: 'Články', en: 'Posts' },
+  titleField: 'title',
+  fields: {
+    title: f.text({ required: true }).localized(),
+    slug: f.slug({ from: 'title', unique: true }).localized(),
+    body: f.richtext().localized(),
+    // Shared by every language. Editors choose it; the translator sees it locked.
+    category: f.select({ options: ['news', 'event'] as const, default: 'news' }).access({ edit: ['editor'] }),
+    status: f.select({ options: ['draft', 'published'] as const, default: 'draft' }),
+    publishedAt: f.datetime().optional(),
+  },
+  publish: {
+    field: 'status', publishedValue: 'published', draftValue: 'draft',
+    dateField: 'publishedAt',
+    perLocale: true,   // each language has its own state; the default language gates them
+  },
+  content: { public: true, published: (t) => eq(t.status, 'published'), slug: 'slug', path: '/blog/:slug' },
+})
+```
+
+`perLocale` adds two columns to `post_locales`: run `pnpm db:generate`, read the migration, `pnpm db:migrate`,
+then give the person the role in Settings → Team.
+
+**What the translator sees.** Under their name, *Translator*. In a post's English version:
+
+- every field not translated yet shows the Czech text greyed inside it, with *Shown in Czech until you translate
+  it · Use it as a start* (which copies the Czech text in), and the body offers *Show the original beside it* (Czech
+  on the left, the translation on the right, on a wide screen);
+- the category has a grey fill and a lock, and under it *Only Editor and Administrator can change this*;
+- the top bar says *English · Draft* (or *English · Waiting for Czech*) with *Save translation*, and no Publish:
+  the side panel says *An editor will publish it*;
+- the media library is not in the sidebar, and pictures already on a post still show.
+
+**What the editor sees.** The list's Languages column shows EN with a mark (a dot when it is on the website, a
+ring for a draft, a clock when scheduled, an hourglass when it is published but waiting for Czech; the tooltip says
+it in words). In the English version, Publish… opens *Publish the English version* (*The other languages stay as
+they are*), with the fields still in Czech listed, and, while Czech is a draft, *Czech is still a draft*: the English
+goes on the website together with Czech. Settings → Team → *What can each role do?* shows the translator's row: *Changes*
+Posts, *Only reads* Tags, *Publishes* No, drafts only, *Files* None.
+
+**Two things to know before you set this up:**
+
+- **A role cannot be limited to one language.** `entities` and `.access()` hold for an entry in every language, so
+  the translator above can also change the Czech text of a post **while it is a draft**. A live Czech version they
+  cannot change: a role that may not publish never changes what is live.
+- **A language that follows a live default language counts as live**, so the translator cannot write the English
+  of a post that is already published until it has a state of its own. Two ways to work:
+  translate before the Czech version is published (the English follows a draft, the translator writes it, and it
+  goes live with Czech when an editor publishes), or, for a post that is already live, an editor opens its English
+  version and unpublishes it first (it is then a draft of its own), the translator writes it, and an editor
+  publishes it. Without `perLocale` the second way does not exist: every language of a live post is live, and a
+  role with `publish: false` can only translate drafts.
+
+The editors' guide says the same for the people doing it: [Překlady](../editors/cs/preklady.md#každý-jazyk-zvlášť) and
+[Role a oprávnění](../editors/cs/role-a-opravneni.md).
 
 ## What is enforced where
 

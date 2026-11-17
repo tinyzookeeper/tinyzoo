@@ -61,6 +61,7 @@ points at every component that still uses the old name.
 | | |
 |---|---|
 | `cms.config.ts` | content model: what editors can write, and the site's languages |
+| `AGENTS.md` | notes for a coding assistant: the content model workflow, the commands, what not to touch |
 | `app/components/global/Block*.vue` | how each block looks (`hero` → `BlockHero.vue`) |
 | `app/pages/[...slug].vue` | every page from the CMS, in each language |
 | `app/layouts/default.vue` | header with the menu and the language switcher, footer with contacts and opening hours |
