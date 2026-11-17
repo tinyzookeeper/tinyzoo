@@ -7,15 +7,9 @@
 //   <CmsImage :media="post.hero" class="aspect-video w-full object-cover" />
 //   <CmsImage :media="post.hero" eager sizes="100vw" />   // the page's main picture
 //   <CmsImage :media="card.image" sizes="(min-width: 768px) 20rem, 100vw" />   // say how wide it shows
-const props = defineProps<{
-  media: { id?: string; url: string; alt?: string | null; width?: number | null; height?: number | null; mime?: string | null; focal?: { x: number; y: number } | null } | null | undefined
-  /** Load now (the first picture on the page); otherwise lazily. */
-  eager?: boolean
-  /** How wide the picture shows (CSS sizes), so the browser picks the right copy. Default: the full screen width. */
-  sizes?: string
-  /** Override the stored description (e.g. '' for a purely decorative picture). */
-  alt?: string
-}>()
+import type { CmsImageProps } from '../../src/frontend'
+
+const props = defineProps<CmsImageProps>()
 const style = computed(() => (props.media?.focal ? { objectPosition: `${props.media.focal.x}% ${props.media.focal.y}%` } : undefined))
 
 // The widths the CMS makes smaller copies at (server/utils/cmsImageSizes.ts).

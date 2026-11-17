@@ -16,7 +16,8 @@
  * note under the list). The forms and the settings stay the site's own entities: the
  * tables and their names are exactly what `defineForm` has always made.
  */
-import { defineEntity, defineSingleton, type EntityDef } from '../src/entity'
+import { defineEntity, defineSingleton, type Entity, type EntityDef } from '../src/entity'
+import type { AnyFieldDescriptor, FieldDescriptor } from '../src/descriptor'
 import { f } from '../src/fields'
 import type { LocalizedText } from '../src/i18n'
 import { defineCmsPlugin, pluginFile, type CmsPlugin, type CmsPluginRequirement } from '../src/plugin'
@@ -45,6 +46,9 @@ export const formsReadAccess: NonNullable<EntityDef<any>['access']>['read'] = ({
  * @internal
  */
 export const FORM_FIELD_TYPES = new Set(['text', 'number', 'boolean', 'select', 'datetime'])
+
+/** The state of a submission (`new`, `read`, `done`), the one field `defineForm` adds to the form's own. */
+export type FormStatusField = FieldDescriptor<{ out: 'new' | 'read' | 'done'; in: 'new' | 'read' | 'done'; col: 'scalar'; optionalIn: true }>
 
 export interface FormOptions<F extends Record<string, any>> {
   /** The form's name in the admin ("Contact form", { cs: 'Kontaktní formulář' }). */
@@ -113,8 +117,11 @@ export const FORMS_REQUIREMENT: CmsPluginRequirement = {
  *   // or POST /api/content/_form/contactForm { name, email, message }
  *
  * Needs `formsPlugin()` in the site's `plugins`.
+ *
+ * The entity is typed from the form's fields plus `status`, so `Row<typeof ContactForm>` has
+ * `name`, `email`, `message` and `status` with their real types.
  */
-export function defineForm<F extends Record<string, any>>(name: string, opts: FormOptions<F>) {
+export function defineForm<F extends Record<string, AnyFieldDescriptor>>(name: string, opts: FormOptions<F>): Entity<F & { status: FormStatusField }> {
   if (opts.retentionDays !== undefined && (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1)) {
     throw new Error(`Form "${name}": retentionDays must be a whole number of days, at least 1 (leave it out to keep submissions).`)
   }
@@ -152,7 +159,7 @@ export function defineForm<F extends Record<string, any>>(name: string, opts: Fo
     notify: { to: opts.notify?.to ?? [] },
     retentionDays: opts.retentionDays ?? null,
   }
-  return e
+  return e as unknown as Entity<F & { status: FormStatusField }>
 }
 
 /**

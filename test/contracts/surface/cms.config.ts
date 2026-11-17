@@ -1,4 +1,4 @@
-import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, eq, f, seo } from 'tinyzoo'
+import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, seo } from 'tinyzoo'
 
 // The typed config of the 1.0 freeze: every field factory and every option of it, every
 // option of an entity, a global and the presets, written once. From it:
@@ -10,6 +10,18 @@ import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages
 // CONTRIBUTING.md.
 
 export const locales = defineLocales({ default: 'cs', locales: ['cs', 'en', 'de'], labels: { de: 'Deutsch' }, prefix: 'except-default' })
+
+/** A role of the site's own: it extends a built-in one. Defined above what names it (`.access()`, `entities`). */
+export const roles = defineRoles({
+  translator: {
+    from: 'editor',
+    label: { en: 'Translator', cs: 'Překladatel' },
+    description: 'Writes the translations; does not publish.',
+    entities: { event: ['read', 'update'], category: ['read'] },
+    publish: false,
+    media: 'own',
+  },
+})
 
 /** A block with every kind of field a block may hold, a list and a group among them. */
 export const feature = defineBlock({
@@ -80,7 +92,7 @@ export const Event = defineEntity('event', {
     hidden: ['internalNote'],
     search: { fields: ['title', 'perex'] },
   },
-  publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', dateField: 'publishedAt', schedule: true, preview: '/events/:slug' },
+  publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', dateField: 'publishedAt', schedule: true, preview: '/events/:slug', perLocale: true },
   fields: {
     // text: every option
     title: f.text({ required: true, max: 120 }).localized().label({ en: 'Title', cs: 'Název' }).help('Shown everywhere.').position('main'),
@@ -90,7 +102,8 @@ export const Event = defineEntity('event', {
     oldPath: f.text({ format: 'path' }).optional(),
     link: f.text({ format: 'link' }).optional(),
     place: f.text().optional(),
-    internalNote: f.text().optional(),
+    // a field with its own access rules, chained with a label: the roles are references, so a typo does not compile
+    internalNote: f.text().optional().access({ read: ['editor', roles.translator], edit: ['editor'] }).label({ en: 'Internal note' }),
     // slug
     slug: f.slug({ from: 'title', unique: true }).localized().position('sidebar'),
     // numbers, switches, dates

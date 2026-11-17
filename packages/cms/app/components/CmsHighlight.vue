@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // Text with the searched words marked: <CmsHighlight :text="r.excerpt" :ranges="r.highlights" />
 // renders <mark> around each [start, end) range (as the search API returns them).
-const props = defineProps<{ text: string; ranges?: [number, number][] | null }>()
+import type { CmsHighlightProps } from '../../src/frontend'
+
+const props = defineProps<CmsHighlightProps>()
 const parts = computed(() => {
   const out: { text: string; mark: boolean }[] = []
   let at = 0

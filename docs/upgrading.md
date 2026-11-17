@@ -262,6 +262,46 @@ deprecated, marks what is internal, and writes down [the public API](api-surface
    is `app/pages/search.vue`), make a scratch site and compare it with yours
    (`pnpm dlx tinyzoo init ../scratch`, then `diff -r app ../scratch/app`).
 
+8. **A decimal is a string in your types (`f.number({ int: false })`).** The column is `numeric`, and a select and
+   the content API have always returned a string (`"19.99"`), but `Row`, `Insert` and `Update` said `number`.
+   In 0.6 the types tell the truth: a `Row` has `string`, and an `Insert` or `Update` takes `number | string`.
+   **Typed code that reads a decimal as a number stops compiling** (`row.price * 2`, `price.toFixed(2)`). Run
+   `tsc` / `nuxt typecheck` after updating and fix each place with `Number(...)`:
+
+   ```ts
+   const total = Number(row.price) * quantity      // was: row.price * quantity
+   const shown = Number(row.price).toFixed(2)      // was: row.price.toFixed(2)
+   ```
+
+   Nothing changes at run time: no migration, and the content API, the OpenAPI document and the generated client
+   types are the same (they already said string). Two small things that are new: a decimal sent to a write
+   may be a number or a numeric string (the admin used to fail on a decimal it had not touched), and it is
+   stored as the string; a default is now written as a string (`.withDefault('0')`). A decimal inside a block, a list or a
+   group is typed `string` too; items saved before 0.6 may hold a number there, so read it with `Number(...)` as well.
+   A whole number (`f.number()`, `int: true`) is a number, as before.
+9. **More deprecations** (a warning at build or start; removed in 1.0, so change them during 0.6):
+   - `defineEntity('settings', { singleton: true, … })`: write `defineSingleton('settings', { … })`, which takes the same options.
+     Nothing else changes (same table, same address, same admin).
+   - The variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON`: set `scheduler: { cron: '…' }` and
+     `retention: { cron: '…' }` in the `cms` options of `nuxt.config.ts` (new). They are read **when the site is built**,
+     as before: a change needs a rebuild, and setting them on a running server does nothing. The option wins over the variable.
+10. **An `access` rule's `user` is typed** (`CmsAccessUser`: `id`, `email`, `name`, `role`, `base`, `locale`; it was `any`).
+    Rules that read those fields compile unchanged. A rule that reads something your external sign-in adds to the person
+    (a tenant, groups) gets it as `unknown`: check it before you use it (`typeof user.tenant === 'string'`), or write
+    `(user as { tenant?: string }).tenant`. With external sign-in, `email` and `name` are now `''` and `locale` is `null`
+    where your sign-in did not send them (they were missing).
+11. **Smaller changes, nothing to do:**
+    - `cms.content.publicUrl` falls back to `cms.publicUrl` (the OpenAPI `servers[].url` was relative when only the second was set).
+    - `cms.forms.notifyTo` also takes a list of addresses (`NUXT_CMS_FORMS_NOTIFY_TO` stays one comma-separated string).
+    - `defineForm` returns an `Entity` typed from its fields (and `status`): `Row<typeof ContactForm>` is no longer loose.
+    - The [frontend kit](api-surface.md#the-frontend-kit) (`<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`,
+      `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()`) is part of what 1.0 freezes; their props
+      are exported as types (`CmsImageProps`…). Other `Cms*` components are the admin's and internal.
+    - `createClient` (generated, typed) and `createCmsClient` (the untyped runtime in `@tinyzoo/client`) keep their names; the
+      [client guide](guide/content-api.md#typed-clients--openapi) says which is which.
+    - `CMS_ALLOW_REQUEST_ORIGIN` and why `NUXT_CMS_AUTH_SETUP_TOKEN` is an environment variable only are documented
+      ([deploying](deploying.md)).
+
 **Also new:** `tinyzoo help` prints every command and flag. `CmsWebhookPayload`, `CmsAdminField`,
 `CmsFieldEditProps` and `CmsFieldCellProps` are exported as types for webhook receivers and your own
 field renderers, and `CMS_WEBHOOK_HEADERS` as a constant (the names of the webhook's headers). A custom

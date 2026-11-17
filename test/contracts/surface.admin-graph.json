@@ -169,7 +169,8 @@
       "draftValue": "draft",
       "dateField": "publishedAt",
       "schedule": true,
-      "preview": "/events/:slug"
+      "preview": "/events/:slug",
+      "perLocale": true
     },
     "previewPaths": {
       "cs": "/events/:slug",
@@ -363,7 +364,20 @@
           "edit": "CmsFieldText",
           "cell": "CmsCellText"
         },
-        "meta": {}
+        "meta": {
+          "label": {
+            "en": "Internal note"
+          },
+          "access": {
+            "read": [
+              "editor",
+              "translator"
+            ],
+            "edit": [
+              "editor"
+            ]
+          }
+        }
       },
       {
         "key": "slug",

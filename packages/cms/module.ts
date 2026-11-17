@@ -102,9 +102,11 @@ export interface CmsModuleOptions {
    */
   redis?: { url?: string; prefix?: string }
   /**
-   * How often scheduled entries are checked for going live (a cron expression; build
-   * time, env CMS_SCHEDULER_CRON). Their content is live on time regardless — this
-   * only sends the webhooks and live updates for that moment. Default every minute.
+   * How often scheduled entries are checked for going live (a cron expression; **build
+   * time**: it is written into the build, so a change needs a rebuild and there is no
+   * `NUXT_CMS_*` variable). Their content is live on time regardless — this only sends the
+   * webhooks and live updates for that moment. Default every minute.
+   * The variable `CMS_SCHEDULER_CRON` still works at build time as a deprecated alias.
    */
   scheduler?: { cron?: string }
   /**
@@ -112,9 +114,11 @@ export interface CmsModuleOptions {
    *  - auditDays: delete audit-log entries older than this (default 365, 0 = keep forever).
    *    Env NUXT_CMS_RETENTION_AUDIT_DAYS.
    * Form submissions have their own: `defineForm(name, { retentionDays })`.
-   * The task runs daily (build-time cron: env CMS_RETENTION_CRON, default '17 3 * * *').
+   * The task runs daily at `cron` (a cron expression; **build time**, like `scheduler.cron`:
+   * a change needs a rebuild; default '17 3 * * *'). The variable `CMS_RETENTION_CRON` still
+   * works at build time as a deprecated alias.
    */
-  retention?: { auditDays?: number }
+  retention?: { auditDays?: number; cron?: string }
   /** Revisions (history, compare, restore): how many to keep per entry and language. 0 = off. */
   revisions?: { keep?: number }
   /**
@@ -137,12 +141,13 @@ export interface CmsModuleOptions {
   sitemap?: { paths?: (string | Record<string, string>)[] }
   /**
    * Website forms (defineForm):
-   *  - notifyTo: fallback recipients of new submissions, comma separated (env NUXT_CMS_FORMS_NOTIFY_TO)
+   *  - notifyTo: fallback recipients of new submissions: an address, or a list of them
+   *    (env NUXT_CMS_FORMS_NOTIFY_TO, comma separated)
    *  - turnstileSecret: Cloudflare Turnstile secret; when set, every submission must
    *    pass it (env NUXT_CMS_FORMS_TURNSTILE_SECRET). The site key goes to
    *    `public.cmsTurnstileSiteKey` (env NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY).
    */
-  forms?: { notifyTo?: string; turnstileSecret?: string; turnstileSiteKey?: string }
+  forms?: { notifyTo?: string | string[]; turnstileSecret?: string; turnstileSiteKey?: string }
   /**
    * A public demo admin: the sign-in page shows these details, the account is created
    * (as an editor) the first time someone signs in with them, and it cannot change
@@ -166,8 +171,9 @@ export interface CmsModuleOptions {
     cacheControl?: string
     /**
      * Absolute public origin of this CMS (e.g. 'https://cms.example.com'), used as the
-     * OpenAPI `servers[].url`. Left blank, the spec uses a relative '/' server — never
-     * the request Host (which is attacker-controlled and would poison the cached spec).
+     * OpenAPI `servers[].url`. Left blank, it falls back to `cms.publicUrl`; with neither
+     * set, the spec uses a relative '/' server — never the request Host (which is
+     * attacker-controlled and would poison the cached spec).
      */
     publicUrl?: string
     /**
@@ -204,6 +210,17 @@ function sitemapPaths(paths: (string | Record<string, string>)[] | undefined): (
     if (!all.length || !all.every(ok)) throw new Error(`[tinyzoo] sitemap.paths: ${JSON.stringify(p)} must be an address starting with "/" (no query or fragment), or an object of them per language.`)
   }
   return paths ?? []
+}
+
+/**
+ * The cron of a scheduled task from its old build-time variable (`CMS_SCHEDULER_CRON`,
+ * `CMS_RETENTION_CRON`), kept as a deprecated alias of `cms.<task>.cron`. The option wins when both are set.
+ */
+function deprecatedCronVariable(name: string, option: 'scheduler' | 'retention'): string | undefined {
+  const value = process.env[name]
+  if (!value) return undefined
+  cmsDeprecated(`env:${name}`, `${name} is replaced by the \`cms.${option}.cron\` option in nuxt.config.ts (both are read at build time).`, { removeIn: '1.0.0' })
+  return value
 }
 
 export default defineNuxtModule<CmsModuleOptions>({
@@ -245,10 +262,10 @@ export default defineNuxtModule<CmsModuleOptions>({
       }
       // Scheduled publishing: announce entries whose publish time has come.
       nitro.experimental = { ...(nitro.experimental || {}), tasks: true }
-      const cron = options.scheduler?.cron || process.env.CMS_SCHEDULER_CRON || '* * * * *'
+      const cron = options.scheduler?.cron || deprecatedCronVariable('CMS_SCHEDULER_CRON', 'scheduler') || '* * * * *'
       nitro.scheduledTasks = { ...(nitro.scheduledTasks || {}), [cron]: [...((nitro.scheduledTasks as any)?.[cron] ?? []), 'cms:scheduled'] }
       // Retention (GDPR): delete form submissions and audit entries past their time, daily.
-      const retentionCron = process.env.CMS_RETENTION_CRON || '17 3 * * *'
+      const retentionCron = options.retention?.cron || deprecatedCronVariable('CMS_RETENTION_CRON', 'retention') || '17 3 * * *'
       nitro.scheduledTasks = { ...nitro.scheduledTasks, [retentionCron]: [...((nitro.scheduledTasks as any)?.[retentionCron] ?? []), 'cms:retention'] }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
@@ -368,7 +385,7 @@ export {}
       },
       // Empty defaults so NUXT_CMS_FORMS_* bind at runtime.
       forms: {
-        notifyTo: options.forms?.notifyTo || '',
+        notifyTo: (Array.isArray(options.forms?.notifyTo) ? options.forms.notifyTo.join(',') : options.forms?.notifyTo) || '',
         turnstileSecret: options.forms?.turnstileSecret || '',
       },
       content: {

@@ -43,7 +43,13 @@ It carries no knowledge of your specific schema — all types come from a genera
 
 ## API
 
-- `createClient(options)` / `createCmsClient<Schema>(options)` — build a client.
+- **`createClient(options)` is what a site uses.** It comes from the generated `cms-content.ts`, and
+  is typed for your config: every collection, field, sort key, filter and global.
+- **`createCmsClient<Schema, Globals>(options)` is what this package exports.** It is the same client with
+  no knowledge of your site: it is typed only as far as the schema you pass. Reach for it in tooling that has
+  no generated file, or to wrap it yourself. (`createClient` is `createCmsClient<ContentSchema, GlobalSchema>`
+  and nothing more; there is no alias for either.)
+- Both take the same `options`, and return the same `CmsClient`:
   - `baseUrl` — CMS origin (use `''` for same-origin in the browser).
   - `token` — sent as `x-api-key` when the content API is gated.
   - `headers`, `fetch` — optional overrides.

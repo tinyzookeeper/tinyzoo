@@ -251,16 +251,37 @@ export const f = {
       zod: () => z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, 'Lowercase letters, numbers and dashes only'),
     }, { isRequired: true, isUnique: o.unique })),
 
-  number: (o: { int?: boolean; min?: number; max?: number } = {}) =>
-    as<ScalarKind<number>>(createField({
+  /**
+   * A number. Whole by default (`integer`, a JSON number). `int: false` is a decimal
+   * (`numeric(12,2)`): the database and the content API give it as a **string**
+   * (`"19.99"`, exact), so a `Row` reads it as `string`; an `Insert` or `Update` takes a
+   * `number` or a numeric string. Convert at the point of use: `Number(row.price)`.
+   */
+  number: <I extends boolean = true>(o: { int?: I; min?: number; max?: number } = {}) =>
+    as<ScalarKind<[I] extends [false] ? string : number, [I] extends [false] ? number | string : number>>(createField({
       type: 'number', ui: { edit: 'CmsFieldNumber', cell: 'CmsCellNumber' },
       base: o.int === false ? { kind: 'numeric', precision: 12, scale: 2 } : { kind: 'integer' },
       zod: () => {
-        let s = z.number()
-        if (o.int !== false) s = s.int()
-        if (o.min != null) s = s.min(o.min)
-        if (o.max != null) s = s.max(o.max)
-        return s
+        const limits = (n: z.ZodNumber) => {
+          if (o.min != null) n = n.min(o.min)
+          if (o.max != null) n = n.max(o.max)
+          return n
+        }
+        if (o.int === false) {
+          // A decimal is stored exactly and read back as a string, so a form that sends the
+          // value it was given ("19.99") is accepted as well as a number. Either way the
+          // value that is stored (in a column, a block, a list) is the string.
+          const range = o.min != null && o.max != null ? `Enter a number from ${o.min} to ${o.max}`
+            : o.min != null ? `Enter a number of at least ${o.min}`
+            : o.max != null ? `Enter a number of at most ${o.max}`
+            : 'Enter a number'
+          const asNumber = (v: number | string) => (typeof v === 'string' ? (/^-?\d+(?:\.\d+)?$/.test(v.trim()) ? Number(v) : Number.NaN) : v)
+          return z.union([z.number(), z.string()])
+            .refine((v) => Number.isFinite(asNumber(v)), { message: 'Enter a number', abort: true })
+            .refine((v) => limits(z.number()).safeParse(asNumber(v)).success, { message: range })
+            .transform((v) => (typeof v === 'string' ? v.trim() : String(v)))
+        }
+        return limits(z.number().int())
       },
     })),
 

@@ -4,6 +4,7 @@ import { defineEntity, defineSingleton } from './entity'
 import { f } from './fields'
 import type { LocalizedText } from './i18n'
 import type { PathTemplate } from './paths'
+import type { CmsAccessUser } from './roles'
 import { TREE_DEFAULT_MAX_DEPTH } from './tree'
 
 const SEO_GROUP = { en: 'Search & sharing', cs: 'Vyhledávače a sdílení', de: 'Suche & Teilen' }
@@ -77,7 +78,7 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
   path?: PathTemplate
   tree?: T
   /** Row-level rules on top of the roles (as `defineEntity({ access })`): who may read, create, change or delete which pages. */
-  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: any }) => unknown>>
+  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: CmsAccessUser; table: any }) => unknown>>
   /**
    * Publish each language on its own (`publish.perLocale`): a translation can be a draft or
    * scheduled while the default language is live. Needs `localized: true`; not yet for `tree`.

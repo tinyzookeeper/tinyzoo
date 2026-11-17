@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
-  buildRegistry, defineBlock, defineCmsPlugin, defineEntity, defineLocales, defineSeed, defineSingleton, f,
-  type BlocksValue, type CmsAdminField, type CmsBlock, type CmsFieldCellProps, type CmsFieldEditProps, type CmsGalleryValue, type CmsListValue, type Entity,
+  buildRegistry, defineBlock, defineCmsPlugin, defineEntity, defineLocales, defineRoles, defineSeed, defineSingleton, eq, f,
+  type BlocksValue, type CmsAccessUser, type CmsAdminField, type CmsBlock, type CmsFieldCellProps, type CmsFieldEditProps, type CmsGalleryValue, type CmsListValue, type Entity,
   type EntityDef, type FieldDescriptor, type Insert, type RichTextDoc, type Row, type SeedContext, type Update,
 } from 'tinyzoo'
 import { formsPlugin, defineForm, defineFormSettings } from 'tinyzoo/forms'
@@ -46,7 +46,8 @@ describe('Row: what a select returns, at the database keys', () => {
       slug: string
       // f.number, f.boolean, f.datetime
       seats: number
-      price: number | null
+      // a decimal (`int: false`) is a string, as the database and the content API give it
+      price: string | null
       rating: number
       free: boolean
       consent: boolean
@@ -157,6 +158,9 @@ describe('Insert: what a create takes, at the API keys', () => {
     expectTypeOf<EventInsert['startsAt']>().toEqualTypeOf<Date | string>()
     expectTypeOf<EventInsert['publishedAt']>().toEqualTypeOf<Date | string | null | undefined>()
     expectTypeOf<EventInsert['kind']>().toEqualTypeOf<'talk' | 'workshop'>()
+    // a decimal takes a number or a numeric string; a whole number only a number
+    expectTypeOf<EventInsert['price']>().toEqualTypeOf<number | string | null | undefined>()
+    expectTypeOf<EventInsert['seats']>().toEqualTypeOf<number>()
     expectTypeOf<EventInsert['status']>().toEqualTypeOf<'draft' | 'published' | 'cancelled' | undefined>()
   })
 
@@ -183,6 +187,14 @@ describe('Insert: what a create takes, at the API keys', () => {
 })
 
 describe('Update: every key of an insert, all optional', () => {
+  it('takes a decimal as a number or a string', () => {
+    const ok: Update<typeof Event> = { price: 19.99 }
+    const alsoOk: Update<typeof Event> = { price: '19.99' }
+    // @ts-expect-error a decimal is not a boolean
+    const bad: Update<typeof Event> = { price: true }
+    void ok; void alsoOk; void bad
+  })
+
   it('is a partial insert', () => {
     expectTypeOf<Update<typeof Event>>().toEqualTypeOf<Partial<Insert<typeof Event>>>()
     expectTypeOf<RequiredKeys<Update<typeof Event>>>().toEqualTypeOf<never>()
@@ -199,6 +211,10 @@ describe('the field factories', () => {
     expectTypeOf(f.text().withDefault('x')).toEqualTypeOf<FieldDescriptor<{ out: string; in: string; col: 'scalar'; optionalIn: true }>>()
     expectTypeOf(f.slug()).toEqualTypeOf<FieldDescriptor<{ out: string; in: string; col: 'scalar'; optionalIn: false }>>()
     expectTypeOf(f.number()).toEqualTypeOf<FieldDescriptor<{ out: number; in: number; col: 'scalar'; optionalIn: false }>>()
+    expectTypeOf(f.number({ int: true, min: 1 })).toEqualTypeOf<FieldDescriptor<{ out: number; in: number; col: 'scalar'; optionalIn: false }>>()
+    // `int: false` is a decimal: read as a string (the column is `numeric`), written as a number or a string
+    expectTypeOf(f.number({ int: false })).toEqualTypeOf<FieldDescriptor<{ out: string; in: number | string; col: 'scalar'; optionalIn: false }>>()
+    expectTypeOf(f.number({ int: false }).optional()).toEqualTypeOf<FieldDescriptor<{ out: string | null; in: number | string | null | undefined; col: 'scalar'; optionalIn: true }>>()
     expectTypeOf(f.boolean()).toEqualTypeOf<FieldDescriptor<{ out: boolean; in: boolean; col: 'scalar'; optionalIn: true }>>()
     expectTypeOf(f.datetime()).toEqualTypeOf<FieldDescriptor<{ out: Date; in: Date | string; col: 'scalar'; optionalIn: false }>>()
     expectTypeOf(f.richtext()).toEqualTypeOf<FieldDescriptor<{ out: RichTextDoc; in: RichTextDoc; col: 'scalar'; optionalIn: false }>>()
@@ -304,6 +320,87 @@ describe('the definitions', () => {
     expectTypeOf(formsPlugin()).toHaveProperty('__cms')
     expectTypeOf(defineForm).parameter(0).toEqualTypeOf<string>()
     expectTypeOf(defineFormSettings).toBeFunction()
+  })
+})
+
+describe('roles, field access and per-language publishing', () => {
+  // (test/contracts/surface/cms.config.ts: a role of the site's own, a field with `.access()` then `.label()`, `publish.perLocale`.)
+  it('hands out role references, built-in and the site\'s own', () => {
+    expectTypeOf(surface.roles.translator).toMatchTypeOf<{ name: string }>()
+    expectTypeOf(surface.roles.editor).toMatchTypeOf<{ name: string }>()
+    // @ts-expect-error a typo in a role name is a compile error
+    void surface.roles.translatr
+  })
+
+  it('takes role references in a field\'s `.access()` and keeps the field\'s kind through `.label()`', () => {
+    const field = f.text().optional().access({ read: ['editor', surface.roles.translator], edit: ['editor'] }).label({ en: 'Note' })
+    expectTypeOf(field).toEqualTypeOf<FieldDescriptor<{ out: string | null; in: string | null | undefined; col: 'scalar'; optionalIn: true }>>()
+    // (Not run: a typo would throw at run time, which is not what is tested here.)
+    const notRun = (_check: () => unknown) => {}
+    // @ts-expect-error a role is a built-in name or a reference, not any string
+    notRun(() => f.text().access({ read: ['translator'] }))
+    // @ts-expect-error a typo in a reference is not a role
+    notRun(() => f.text().access({ edit: [surface.roles.translatr] }))
+    expectTypeOf(Event.fields.internalNote).toEqualTypeOf<FieldDescriptor<{ out: string | null; in: string | null | undefined; col: 'scalar'; optionalIn: true }>>()
+  })
+
+  it('refuses a role that extends admin or redefines a built-in one', () => {
+    const notRun = (_check: () => unknown) => {}
+    // @ts-expect-error only the built-in admin manages people
+    notRun(() => defineRoles({ boss: { from: 'admin' } }))
+    // @ts-expect-error a built-in role is not redefined
+    notRun(() => defineRoles({ editor: { from: 'editor' } }))
+  })
+
+  it('leaves the row types alone: `publish.perLocale` adds no key to Row, Insert or the client item', () => {
+    expectTypeOf<Row<typeof Event>>().not.toHaveProperty('published')
+    expectTypeOf<Insert<typeof Event>>().not.toHaveProperty('published')
+    expectTypeOf<EventItem>().not.toHaveProperty('published')
+    // (and `surface.openapi.json` and `surface.client-types.ts` did not change when the option was added to this config: the language's state is the admin's, not the content API's)
+    expect(Event.publish?.perLocale).toBe(true)
+  })
+
+  it('types the person an `access` rule is asked about', () => {
+    expectTypeOf<CmsAccessUser>().toMatchTypeOf<{ id: string; email: string; name: string; role: string; base: 'admin' | 'editor' | 'author' | null; locale: string | null }>()
+    // claims an external sign-in adds are there, as `unknown`
+    expectTypeOf<CmsAccessUser['groups']>().toEqualTypeOf<unknown>()
+    defineEntity('probe', {
+      label: 'Probes', titleField: 'name', fields: { name: f.text({ required: true }) },
+      access: {
+        read: ({ user }) => user.base !== null,
+        update: ({ user, table }) => (user.role === 'admin' ? true : eq(table.createdBy, user.id)),
+        delete: ({ user }) => typeof user.tenant === 'string' && user.tenant === 'acme',
+      },
+    })
+    defineEntity('probe', {
+      label: 'Probes', titleField: 'name', fields: { name: f.text({ required: true }) },
+      // @ts-expect-error the person has no `isAdmin`: it would be `unknown`, which is not a condition
+      access: { read: ({ user }) => user.role.isAdmin },
+    })
+    defineEntity('probe', {
+      label: 'Probes', titleField: 'name', fields: { name: f.text({ required: true }) },
+      // @ts-expect-error `base` is a built-in role name or null, not 'owner'
+      access: { read: ({ user }) => user.base === 'owner' },
+    })
+  })
+})
+
+describe('forms', () => {
+  const ContactForm = defineForm('contactForm', {
+    label: 'Contact form',
+    fields: { name: f.text({ required: true }), email: f.text({ required: true, format: 'email' }), message: f.text({ multiline: true }).optional(), seats: f.number({ int: false }).optional() },
+  })
+
+  it('types a form\'s rows from its fields and its state', () => {
+    expectTypeOf(ContactForm).toMatchTypeOf<Entity<any>>()
+    expectTypeOf<Row<typeof ContactForm>['name']>().toEqualTypeOf<string>()
+    expectTypeOf<Row<typeof ContactForm>['message']>().toEqualTypeOf<string | null>()
+    expectTypeOf<Row<typeof ContactForm>['seats']>().toEqualTypeOf<string | null>()
+    expectTypeOf<Row<typeof ContactForm>['status']>().toEqualTypeOf<'new' | 'read' | 'done'>()
+    expectTypeOf<Insert<typeof ContactForm>>().toEqualTypeOf<{ name: string; email: string; message?: string | null | undefined; seats?: number | string | null | undefined; status?: 'new' | 'read' | 'done' | undefined }>()
+    // @ts-expect-error a form has no such field
+    type Missing = Row<typeof ContactForm>['phone']
+    expectTypeOf<Missing>().toBeAny()
   })
 })
 
