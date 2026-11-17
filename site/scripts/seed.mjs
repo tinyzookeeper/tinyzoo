@@ -303,7 +303,7 @@ await update('Postřehy pro další úpravy', 'co-chystame-dal', 'improvement', 
 const link = (label, url, sub = false) => ({ id: id(), type: 'link', label, url, newTab: false, sub })
 await req('PUT', '/api/cms/_singleton/navigation', {
   main: [link('Plány', '/plany'), link('Novinky', '/novinky'), link('Pro vývojáře', '/pro-vyvojare'), link('Napište nám', '/zpetna-vazba')],
-  footer: [link('Úvod', '/'), link('Plány', '/plany'), link('Vyzkoušet administraci', '/demo'), link('Novinky', '/novinky'), link('Pro vývojáře', '/pro-vyvojare'), link('Napište nám', '/zpetna-vazba'), link('Upravit tento web', '/admin')],
+  footer: [link('Úvod', '/'), link('Plány', '/plany'), link('Vyzkoušet administraci', '/demo'), link('Novinky', '/novinky'), link('Pro vývojáře', '/pro-vyvojare'), link('Napište nám', '/zpetna-vazba'), link('Design systém', '/design-system'), link('Upravit tento web', '/admin')],
 })
 await req('PUT', '/api/cms/_singleton/siteSettings', {
   siteName: 'tinyzoo', ogImage: img.desk.id, tagline: 'Ať se vám web dobře upravuje.',

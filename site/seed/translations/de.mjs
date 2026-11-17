@@ -231,7 +231,7 @@ export default (h) => {
     },
     navigation: {
       main: [link('Roadmap', '/de/roadmap'), link('Neuigkeiten', '/de/neuigkeiten'), link('Für Entwickler', '/de/entwickler'), link('Schreiben Sie uns', '/de/feedback')],
-      footer: [link('Startseite', '/de'), link('Roadmap', '/de/roadmap'), link('Verwaltung ausprobieren', '/de/demo'), link('Neuigkeiten', '/de/neuigkeiten'), link('Für Entwickler', '/de/entwickler'), link('Schreiben Sie uns', '/de/feedback'), link('Diese Website bearbeiten', '/admin')],
+      footer: [link('Startseite', '/de'), link('Roadmap', '/de/roadmap'), link('Verwaltung ausprobieren', '/de/demo'), link('Neuigkeiten', '/de/neuigkeiten'), link('Für Entwickler', '/de/entwickler'), link('Schreiben Sie uns', '/de/feedback'), link('Designsystem', '/de/designsystem'), link('Diese Website bearbeiten', '/admin')],
     },
     settings: {
       tagline: 'Damit Sie Ihre Website gerne pflegen.',

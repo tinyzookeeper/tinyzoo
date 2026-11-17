@@ -58,7 +58,7 @@ admin. `defineSingleton` makes a [global](#globals).
 
 | Option | |
 |---|---|
-| `name` (first argument) | the entity's identity: the address in the content API (`/api/content/<name>`), the key in the typed client, the table (`snake_case` of it: `teamMember` → `team_member`). Names starting with `_` and `media`, `graph`, `styleguide`, `login`, `setup`, `forgot`, `reset`, `invite`, `team`, `account`, `p` are reserved, and so are the field names `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`, `parentId`, `locale`, `locales` |
+| `name` (first argument) | the entity's identity: the address in the content API (`/api/content/<name>`), the key in the typed client, the table (`snake_case` of it: `teamMember` → `team_member`). Names starting with `_` and `media`, `graph`, `login`, `setup`, `forgot`, `reset`, `invite`, `team`, `account`, `p` are reserved, and so are the field names `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`, `parentId`, `locale`, `locales` |
 | `label`, `labelSingular`, `description`, `icon` | what the admin calls it ("Posts" / "Post"), a sentence for the list's empty state, an [Iconify](https://icones.js.org) name (`i-lucide-newspaper`). Each can be one string or one per admin language: `{ en: 'Posts', cs: 'Články' }` |
 | `titleField` | the field that names an entry in lists, links and search |
 | `fields` | the fields ([below](#fields)) |

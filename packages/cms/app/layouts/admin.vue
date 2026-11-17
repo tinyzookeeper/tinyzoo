@@ -146,8 +146,6 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
       })),
     },
     { label: t('nav.account'), icon: 'i-lucide-user-round', to: '/admin/account' },
-    // The admin's building blocks: for whoever runs the site, not for every editor.
-    ...(user.value?.role === 'admin' ? [{ label: t('nav.designSystem'), icon: 'i-lucide-swatch-book', to: '/admin/styleguide' }] : []),
   ],
   [{ label: t('user.signOut'), icon: 'i-lucide-log-out', color: 'error' as const, onSelect: logout }],
 ])

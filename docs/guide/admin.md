@@ -128,7 +128,7 @@ pictures, links, related entries); `admin.tabs` read as sections in the form and
 preview editors.
 
 Tokens, rules and building blocks:
-[`../ui-foundation.md`](../ui-foundation.md); live tour at `/admin/styleguide`.
+[`../ui-foundation.md`](../ui-foundation.md); live tour at `/design-system` on the tinyzoo website.
 
 ## Theming (host-owned)
 
