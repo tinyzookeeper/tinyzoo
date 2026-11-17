@@ -23,7 +23,9 @@ export default defineNuxtConfig({
   // a copied session cookie would stay valid until the account changes. Hosts can
   // override with runtimeConfig.session.maxAge / NUXT_SESSION_MAX_AGE.
   runtimeConfig: {
-    session: { maxAge: 60 * 60 * 24 * 14 },
+    // `as any`: on Nuxt 4.6, nuxt-auth-utils 0.5 types `session` as a full session config with
+    // a required `password` (it comes from NUXT_SESSION_PASSWORD at runtime).
+    session: { maxAge: 60 * 60 * 24 * 14 } as any,
   },
   // The admin's realtime socket (/api/cms/_live): presence and live updates.
   nitro: {

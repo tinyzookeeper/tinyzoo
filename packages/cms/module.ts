@@ -214,15 +214,16 @@ export default defineNuxtModule<CmsModuleOptions>({
     nuxt.options.alias['#cms/config'] = configPath
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
+    // nuxt-auth-utils adds a Nitro plugin when WebSockets are on (the admin's live socket
+    // is one) that reads the session on EVERY request: for a visitor without one that
+    // *creates* it and sets a cookie on every response, public pages, content API and
+    // media included, so no CDN caches them. The admin socket checks the session itself
+    // (admitAdminSocket) and only when the request carries one, so that plugin goes.
+    // Nuxt 4.6 adds the modules' server plugins after `nitro:config`, so it is taken out here.
+    nuxt.hook('nitro:init', (nitro) => {
+      nitro.options.plugins = nitro.options.plugins.filter((p) => !/nuxt-auth-utils[\\/]dist[\\/]runtime[\\/]server[\\/]plugins[\\/]ws(\.|$)/.test(String(p)))
+    })
     nuxt.hook('nitro:config', (nitro) => {
-      // nuxt-auth-utils adds a Nitro plugin when WebSockets are on (the admin's live socket
-      // is one) that reads the session on EVERY request: for a visitor without one that
-      // *creates* it and sets a cookie on every response, public pages, content API and
-      // media included, so no CDN caches them. The admin socket checks the session itself
-      // (admitAdminSocket) and only when the request carries one, so that plugin goes.
-      if (Array.isArray(nitro.plugins)) {
-        nitro.plugins = nitro.plugins.filter((p) => !/nuxt-auth-utils[\\/]dist[\\/]runtime[\\/]server[\\/]plugins[\\/]ws(\.|$)/.test(String(p)))
-      }
       if (existsSync(migrationsDir)) {
         nitro.serverAssets = nitro.serverAssets || []
         nitro.serverAssets.push({ baseName: 'cms-migrations', dir: migrationsDir })

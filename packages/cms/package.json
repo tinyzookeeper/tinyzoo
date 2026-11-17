@@ -54,7 +54,7 @@
     "@hocuspocus/extension-redis": "^4.8.0",
     "@hocuspocus/provider": "^4.8.0",
     "@hocuspocus/server": "^4.8.0",
-    "@nuxt/kit": "^4.0.0",
+    "@nuxt/kit": "^4.6.4",
     "@tiptap/core": "^3.34.0",
     "@tiptap/extension-collaboration": "^3.34.0",
     "@tiptap/extension-collaboration-caret": "3.34.0",
@@ -85,7 +85,7 @@
   "peerDependencies": {
     "@internationalized/date": "^3.12.2",
     "@nuxt/ui": "^4.9.0",
-    "nuxt": "^4.4.0",
+    "nuxt": "^4.6.0",
     "nuxt-auth-utils": "^0.5.29"
   },
   "bin": {
