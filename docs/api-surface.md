@@ -139,6 +139,18 @@ listed in their declarations (`api-tinyzoo.txt`). A field of a public collection
 `page`, `limit`, `sort`, `dir` or `q`: they are parameters of the list (a deprecation warning says so;
 from 1.0 it is an error).
 
+### Search helpers
+
+For a site that searches its own content outside the CMS (static pages, documentation): the same matching the
+website search and the admin's ⌘K use, words in any order, accents and small typos forgiven.
+
+| Export | What it is |
+|---|---|
+| `searchTerms(query)` | the words of a query, folded; empty when there is nothing to look for |
+| `matchEntry(title, texts, terms, query?)` | whether an entry matches every term, with its score, excerpt and highlight ranges (`SearchMatch`), or `null` |
+| `highlightRanges(text, terms)` | the `[start, end]` ranges of the terms in a text, for highlighting a title |
+| `SEARCH_MAX_QUERY` | the longest query the search reads |
+
 ### Query helpers
 
 `alias`, `and`, `asc`, `desc`, `eq`, `gt`, `gte`, `ilike`, `inArray`, `isNotNull`, `isNull`, `lt`, `lte`,

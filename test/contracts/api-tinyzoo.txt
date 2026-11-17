@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (106) ─────────────────────────────────────────────────
+// ── public (111) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -595,6 +595,17 @@ export type RichTextDoc = {
 
 export type Row<E> = E extends Entity<infer F> ? RowFields<F> : never;
 
+export const SEARCH_MAX_QUERY: 100;
+
+export interface SearchMatch {
+    score: number;
+    excerpt: string;
+    highlights: [
+        number,
+        number
+    ][];
+}
+
 export interface SeedContext {
     create<E extends EntityLike>(entity: E, data: SeedInsert<E>, options?: SeedWriteOptions<SeedInsert<E>>): Promise<SeedEntry>;
     create(entity: string, data: Record<string, any>, options?: SeedWriteOptions): Promise<SeedEntry>;
@@ -858,6 +869,8 @@ export const f: {
     }) => FieldDescriptor<RelationFieldKind<Kind, Req>>;
 };
 
+export function highlightRanges(text: string, terms: string[]): [number, number][];
+
 export function linkBlock(): BlockDef<{
     label: FieldDescriptor<ScalarKind<string, string, false>>;
     url: FieldDescriptor<ScalarKind<string, string, false>>;
@@ -865,7 +878,11 @@ export function linkBlock(): BlockDef<{
     sub: FieldDescriptor<ScalarKind<boolean, boolean, true>>;
 }>;
 
+export function matchEntry(title: string, texts: string[], terms: string[], query?: string): SearchMatch | null;
+
 export function pluginFile(base: string | URL, relative: string): string;
+
+export function searchTerms(query: string): string[];
 
 export function seo(opts?: {
     localized?: boolean;
@@ -882,7 +899,7 @@ alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, 
 FormOptions
 EntityDef.singleton
 
-// ── internal (174): exported, not part of the frozen API, may change in any minor ──
+// ── internal (169): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ENTITY_OPS
 const CMS_MEDIA_ACCESS
@@ -922,9 +939,7 @@ interface OpenApiOptions
 interface PluginPlan
 interface RefShape
 interface RichTextUpgrade
-const SEARCH_MAX_QUERY
 interface SdkOptions
-interface SearchMatch
 interface StepStatus
 const TREE_DEFAULT_MAX_DEPTH
 const TREE_MAX_DEPTH_LIMIT
@@ -987,7 +1002,6 @@ function fillPathTemplate
 function foldSearchText
 function generateSetupCode
 function heightOf
-function highlightRanges
 function holdsLinks
 function indexTree
 function inspectMigrations
@@ -1006,7 +1020,6 @@ const looksLikeLinkRef
 function mapDocLinks
 function mapFieldLinks
 function mapRowLinks
-function matchEntry
 function matchRoute
 function mediaIdsInBlocks
 function mediaIdsInFields
@@ -1038,7 +1051,6 @@ function roleName
 function rolesDefOf
 function runUpgrade
 function sanitizeRichText
-function searchTerms
 function serializeColumn
 function sitePath
 function sitePrefix
