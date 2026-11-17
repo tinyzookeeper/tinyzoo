@@ -281,7 +281,7 @@ export function propOf(key: string, fld: FieldDescriptor): string {
 const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales'])
 
 /** Entity names the CMS uses internally; user entities may not take them. */
-const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'styleguide', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
+const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
 
 export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,

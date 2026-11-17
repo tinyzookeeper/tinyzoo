@@ -111,12 +111,6 @@ describe('admin pages (server-rendered)', () => {
     }
   })
 
-  it('serves the design system page', async () => {
-    const { status, body } = await html(admin, '/admin/styleguide', { 'accept-language': 'en' })
-    expect(status).toBe(200)
-    expect(body).toContain('Typography')
-  })
-
   it('sends anonymous visitors to sign in', async () => {
     const res = await fetch(`${admin.baseURL}/admin`, { redirect: 'manual' })
     expect([301, 302, 307]).toContain(res.status)

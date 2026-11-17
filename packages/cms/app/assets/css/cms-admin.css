@@ -485,12 +485,6 @@ html[data-cms-admin] .cms-date {
 html[data-cms-admin] .cms-date b { display: block; font: 700 1.0625rem var(--cms-font-display); color: var(--ui-text-highlighted); }
 html[data-cms-admin] .cms-date span { font-size: 0.65625rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ui-text-muted); }
 
-/* Colour ramps on the styleguide (fixed 11 columns; no dynamic class names). */
-html[data-cms-admin] .cms-ramp {
-  display: grid;
-  grid-template-columns: repeat(11, minmax(0, 1fr));
-}
-
 /* Respect reduced motion across the admin. */
 @media (prefers-reduced-motion: reduce) {
   html[data-cms-admin] *, html[data-cms-admin] *::before, html[data-cms-admin] *::after {

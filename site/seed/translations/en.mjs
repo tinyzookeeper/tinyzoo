@@ -230,7 +230,7 @@ export default (h) => {
     },
     navigation: {
       main: [link('Roadmap', '/en/roadmap'), link('News', '/en/news'), link('For developers', '/en/developers'), link('Get in touch', '/en/feedback')],
-      footer: [link('Home', '/en'), link('Roadmap', '/en/roadmap'), link('Try the admin area', '/en/demo'), link('News', '/en/news'), link('For developers', '/en/developers'), link('Get in touch', '/en/feedback'), link('Edit this website', '/admin')],
+      footer: [link('Home', '/en'), link('Roadmap', '/en/roadmap'), link('Try the admin area', '/en/demo'), link('News', '/en/news'), link('For developers', '/en/developers'), link('Get in touch', '/en/feedback'), link('Design system', '/en/design-system'), link('Edit this website', '/admin')],
     },
     settings: {
       tagline: 'Feel at home editing your website.',
