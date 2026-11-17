@@ -111,7 +111,8 @@ export interface FieldShape {
 }
 
 export interface SchemaShape {
-  entities: Record<string, { singleton: boolean; fields: Record<string, FieldShape> }>
+  /** `perLocale`: the entity publishes each language on its own (`publish.perLocale`); only present when it does, so every other site keeps its fingerprint. */
+  entities: Record<string, { singleton: boolean; fields: Record<string, FieldShape>; perLocale?: true }>
 }
 
 function fieldShape(fld: any): FieldShape {
@@ -140,6 +141,7 @@ export function describeSchema(reg: CmsRegistry): SchemaShape {
     entities: Object.fromEntries(reg.entities.map((e) => [e.name, {
       singleton: !!e.singleton,
       fields: Object.fromEntries(Object.entries(e.fields).map(([k, f]) => [k, fieldShape(f)])),
+      ...(e.publish?.perLocale ? { perLocale: true as const } : {}),
     }])),
   }
 }
@@ -232,6 +234,12 @@ export function diffSchemas(archive: SchemaShape, target: SchemaShape): Differen
     if (a.singleton !== b.singleton) {
       out.push({ scope: 'entity', entity: name, message: `"${name}" is ${a.singleton ? 'a global' : 'a collection'} in the archive but ${b.singleton ? 'a global' : 'a collection'} here`, skip: true })
       continue
+    }
+    // Per-language publishing: an archive that carries each language's own state does not fit a site that cannot keep it.
+    // The other way round (an archive from before 0.6, or from a site that does not have it, into one that does) is fine:
+    // its translations carry no state, so they follow the default language and a merge leaves the states already here alone.
+    if (a.perLocale && !b.perLocale) {
+      out.push({ scope: 'entity', entity: name, message: `"${name}" publishes each language on its own in the archive, but not here (the state of each language is left out: every language follows the default language)`, skip: false })
     }
     const keys = [...new Set([...Object.keys(a.fields), ...Object.keys(b.fields)])].sort()
     for (const key of keys) {
