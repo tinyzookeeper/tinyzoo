@@ -254,6 +254,17 @@ describe('what the default site is', () => {
     expect(readFileSync(join(site, 'app/lib/cms-content.ts'), 'utf8')).toBe(readFileSync(join(starterDir, 'app/lib/cms-content.ts'), 'utf8'))
   })
 
+  it('has AGENTS.md for a coding assistant, whatever the options, with links that work outside the repository', () => {
+    for (const site of [make().dest, make({ languages: ['en'], presets: [], demo: false, packageManager: 'npm' }).dest]) {
+      const agents = read(site, 'AGENTS.md')
+      expect(agents).toContain('cms.config.ts')
+      // a site has no docs/ folder: every link is absolute
+      const links = [...agents.matchAll(/\]\(([^)]+)\)/g)].map((m) => m[1]!)
+      expect(links.length).toBeGreaterThan(3)
+      for (const link of links) expect(link, link).toMatch(/^https:\/\/github\.com\/tinyzookeeper\/tinyzoo(\/|$)/)
+    }
+  })
+
   it('writes the README in the commands of the package manager', () => {
     const npm = make({ packageManager: 'npm' }).dest
     expect(read(npm, 'README.md')).toContain('npm run db:migrate')

@@ -62,7 +62,7 @@ try {
   const packedJson = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8'))
   const fail = (message) => { throw new Error(`create-tinyzoo: ${message}`) }
   if (Object.keys(packedJson.dependencies ?? {}).join() !== '@clack/prompts') fail(`should depend on @clack/prompts alone (not on tinyzoo and its 700 packages), has ${Object.keys(packedJson.dependencies ?? {})}`)
-  for (const file of ['bundle/init.mjs', 'bundle/tinyzoo.json', 'bundle/starter/cms.config.ts', 'bundle/starter/gitignore.txt', 'bundle/starter/.env.example', 'bundle/starter/seed/media/hero.jpg']) {
+  for (const file of ['bundle/init.mjs', 'bundle/tinyzoo.json', 'bundle/starter/cms.config.ts', 'bundle/starter/AGENTS.md', 'bundle/starter/gitignore.txt', 'bundle/starter/.env.example', 'bundle/starter/seed/media/hero.jpg']) {
     if (!existsSync(join(installed, file))) fail(`the package has no ${file}`)
   }
   if (existsSync(join(installed, 'bundle/starter/node_modules')) || existsSync(join(installed, 'bundle/starter/.nuxt'))) fail('the bundled starter has installed or built files')
