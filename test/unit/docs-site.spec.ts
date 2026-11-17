@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -75,6 +75,39 @@ describe('the docs on the website', () => {
     }
   })
 
+  it('has a place in the sidebar and in previous/next for every developer page, the generated ones included', () => {
+    for (const lang of DOCS_LANGS) {
+      const nav = built.files.get(`${lang}/nav.json`) as DocsNav
+      const listed = nav.sections.developers.groups.flatMap((g) => g.pages)
+      // The sidebar's order is the reading order: walking "next" from the part's first page visits each page once.
+      const byPath = new Map(pages(lang).map((p) => [p.path, p]))
+      const walked: string[] = []
+      for (let p: DocsPage | undefined = byPath.get(nav.sections.developers.path); p; p = p.next ? byPath.get(p.next.path) : undefined) walked.push(p.path)
+      expect(walked.slice(1), lang).toEqual(listed.map((p) => p.path))
+      for (const p of pages(lang).filter((x) => x.section === 'developers')) expect(p.title, p.path).toBeTruthy()
+    }
+    // The reference's worked example follows the reference, and is made from the OpenAPI document, in English everywhere.
+    const en = built.files.get('en/nav.json') as DocsNav
+    const slugs = en.sections.developers.groups.flatMap((g) => g.pages).map((p) => p.slug)
+    expect(slugs.indexOf('api-example')).toBe(slugs.indexOf('content-api-reference') + 1)
+    for (const lang of DOCS_LANGS) {
+      const page = built.files.get(`${lang}/pages/developers/api-example.json`) as DocsPage
+      expect(page.textLang).toBe('en')
+      expect(page.source).toBe('test/contracts/openapi.playground.json')
+      expect(htmlOf(page)).toContain('/api/content/post')
+    }
+    expect(slugs).toContain('plugins')
+    expect(slugs).toContain('api-surface')
+  })
+
+  it('publishes every page of docs/guide and docs/ for developers, except the ones for people working on tinyzoo', () => {
+    // A new page is either in docs/README.md's table (so on the website) or named here as not for site builders.
+    const forContributors = new Set(['README', 'development', 'roadmap', 'production-plan', 'pilot-plan', 'ui-foundation'])
+    const published = new Set((built.files.get('en/nav.json') as DocsNav).sections.developers.groups.flatMap((g) => g.pages).map((p) => p.slug))
+    const files = [...readdirSync(join(root, 'docs/guide')), ...readdirSync(join(root, 'docs'))].filter((n) => n.endsWith('.md')).map((n) => n.replace(/\.md$/, ''))
+    expect(files.filter((n) => !published.has(n) && !forContributors.has(n))).toEqual([])
+  })
+
   it('serves every picture the pages show, and the search has their text', () => {
     for (const [rel] of built.images) expect(rel).toMatch(/\.(png|jpe?g|gif|webp|svg)$/)
     expect(built.images.size).toBeGreaterThan(10)
@@ -89,6 +122,9 @@ describe('pictures and clips per language', () => {
 
   it('use the language’s own file when there is one, the Czech one when not, and leave out a clip with no file', () => {
     cpSync(join(root, 'docs'), join(dir, 'docs'), { recursive: true })
+    // The page generated from the OpenAPI document needs its document.
+    mkdirSync(join(dir, 'test/contracts'), { recursive: true })
+    cpSync(join(root, 'test/contracts/openapi.playground.json'), join(dir, 'test/contracts/openapi.playground.json'))
     // The repository's own English and German screenshots would decide the case: start from none.
     for (const lang of ['en', 'de']) rmSync(join(dir, 'docs/screenshots/0.6', lang), { recursive: true, force: true })
     mkdirSync(join(dir, 'docs/screenshots/0.6/en'), { recursive: true })

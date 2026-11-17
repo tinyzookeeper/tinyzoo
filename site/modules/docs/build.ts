@@ -6,7 +6,8 @@
 //  - editors: docs/editors/<lang>/README.md and the chapters its numbered list links, in
 //    that order; a language without its own guide shows the Czech one. The chapters pair
 //    up across languages by their place in that list.
-//  - developers: the table under the first heading of docs/README.md (English for now).
+//  - developers: the table under the first heading of docs/README.md (English for now), plus the
+//    pages generated at build time (GENERATED below), each placed after a page of that table.
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, join, posix } from 'node:path'
 import { Marked, type Tokens } from 'marked'
@@ -14,6 +15,7 @@ import {
   DOCS_LANGS, DOCS_SECTIONS, docsPath,
   type DocsLang, type DocsNav, type DocsNavGroup, type DocsPage, type DocsSearchSection, type DocsSection,
 } from '../../shared/docs'
+import { openApiPage, type OpenApiDocument } from './openapi'
 import { plainText, renderPage } from './render'
 
 const GITHUB = 'https://github.com/tinyzookeeper/tinyzoo'
@@ -58,7 +60,26 @@ interface Source {
   navDescription: string
   group: string
   textLang: DocsLang
+  /** A generated page: its Markdown (`file` is then where its links resolve from, not a real file) and the file it comes from. */
+  generated?: { markdown: string; source: string }
 }
+
+/**
+ * Pages made when the website is built from something other than a Markdown file. Each one is placed right
+ * after the page of the table with the slug `after`, in that page's group.
+ */
+const GENERATED: { after: string; slug: string; navTitle: string; navDescription: string; make(root: string): { markdown: string; source: string } }[] = [{
+  after: 'content-api-reference',
+  slug: 'api-example',
+  navTitle: 'Example: the API of one site',
+  navDescription: 'Every route, parameter and response of a site, generated from its OpenAPI document',
+  make(root) {
+    // The OpenAPI document of the playground's config: test/contracts/contracts.spec.ts keeps the file equal to what buildOpenApiDocument writes.
+    const source = 'test/contracts/openapi.playground.json'
+    const doc = JSON.parse(read(join(root, source))) as OpenApiDocument
+    return { source, markdown: openApiPage(doc, { sourceFile: source, guide: { content: 'content-api.md', reference: 'content-api-reference.md' } }) }
+  },
+}]
 
 const marked = new Marked({ gfm: true })
 const read = (file: string) => readFileSync(file, 'utf8')
@@ -104,7 +125,16 @@ function developerSources(root: string): Source[] {
       group: m[2]!.startsWith('guide/') ? 'guides' : 'reference', textLang: 'en',
     })
   }
-  return out
+  for (const g of GENERATED) {
+    const at = out.findIndex((s) => s.slug === g.after)
+    if (at < 0) throw new Error(`docs/README.md: no page "${g.after}" for the generated page "${g.slug}" to follow`)
+    const made = g.make(root)
+    out.splice(at + 1, 0, {
+      section: 'developers', index: 0, slug: g.slug, file: `docs/guide/${g.slug}.md`, navTitle: g.navTitle, navDescription: g.navDescription,
+      group: out[at]!.group, textLang: 'en', generated: made,
+    })
+  }
+  return out.map((s, index) => ({ ...s, index }))
 }
 
 /** A PNG's size from its header (no image library needed). */
@@ -150,7 +180,7 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
     for (const section of DOCS_SECTIONS) {
       const list = parts[section]
       for (const src of list) {
-        sources.add(src.file)
+        sources.add(src.generated?.source ?? src.file)
         const abs = join(root, src.file)
         const dir = dirname(src.file)
 
@@ -192,7 +222,7 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
           },
         }
 
-        let markdown = read(abs)
+        let markdown = src.generated?.markdown ?? read(abs)
         if (src.file === 'docs/README.md') markdown = developersIndexMarkdown(markdown)
         else if (src.slug === '' && section === 'editors') markdown = withoutContentsList(markdown)
         const page = renderPage(markdown, ctx)
@@ -202,7 +232,7 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
         const doc: DocsPage = {
           section, slug: src.slug, path, textLang: src.textLang, title,
           description: page.description, toc: page.toc, body: page.body, alternates,
-          prev: null, next: null, source: src.file,
+          prev: null, next: null, source: src.generated?.source ?? src.file,
         }
         rendered.set(src, doc)
         for (const s of page.sections) search.push({ ...s, path, page: title, section })
