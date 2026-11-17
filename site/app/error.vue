@@ -3,6 +3,9 @@
 const props = defineProps<{ error: { statusCode?: number; message?: string } }>()
 const notFound = computed(() => props.error.statusCode === 404)
 const { lang, t, to } = useLang()
+// The switcher has no same page to offer here (and must not keep the last page's).
+useAlternates().value = {}
+useAlternatesFallback().value = null
 useHead({ htmlAttrs: { lang }, title: () => (notFound.value ? t('notFoundHead') : t('errorTitle')) })
 </script>
 

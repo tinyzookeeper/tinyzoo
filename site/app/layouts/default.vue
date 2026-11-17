@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DESIGN_SYSTEM_SEGMENT, LANGS, LANG_NAMES, SEARCH_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
+import { DESIGN_SYSTEM_SEGMENT, LANGS, LANG_NAMES, NEWS_SEGMENT, SEARCH_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
 import { docsPath } from '#shared/docs'
 
 const { settings, nav } = await useSite()
@@ -21,13 +21,22 @@ useSchemaOrg([
   defineWebSite({ inLanguage: [...LANGS] }),
   defineWebPage({ inLanguage: () => lang.value }),
 ])
-// The language switcher: the same page in each language when it exists, else that language's home.
+const route = useRoute()
+// The language switcher: the same page in each language when it exists. When it doesn't (an
+// item not translated or not live there), that language's news list (for a news item) or
+// home page, and the menu says so. Pages without an item of their own (404) just go home.
 const alternates = useAlternates()
-const langLink = (l: Lang) => alternates.value[l] ?? localePath('/', l)
+const alternatesFallback = useAlternatesFallback()
+function langTarget(l: Lang): { to: string; hint: string | null } {
+  const exact = alternates.value[l]
+  if (exact) return { to: exact, hint: null }
+  if (l === lang.value) return { to: route.path, hint: null }
+  if (alternatesFallback.value === 'news') return { to: localePath(`/${NEWS_SEGMENT[l]}`, l), hint: t('langMissingNews') }
+  return { to: localePath('/', l), hint: alternatesFallback.value === 'home' ? t('langMissingHome') : null }
+}
 const langMenu = ref<HTMLDetailsElement>()
 // Phones: the menu folds behind a button; it closes again on every page change.
 const menuOpen = ref(false)
-const route = useRoute()
 watch(() => route.fullPath, () => { menuOpen.value = false; if (langMenu.value) langMenu.value.open = false })
 // The bar turns solid once the page scrolls under it.
 const scrolled = ref(false)
@@ -97,8 +106,9 @@ onBeforeUnmount(() => clearTimeout(logoTimer))
             <summary :aria-label="`${t('language')}: ${LANG_NAMES[lang]}`">{{ lang.toUpperCase() }}<UIcon name="i-lucide-chevron-down" class="size-3.5" /></summary>
             <ul>
               <li v-for="l in LANGS" :key="l">
-                <NuxtLink :to="langLink(l)" :hreflang="l" :lang="l" :aria-current="l === lang ? 'true' : undefined" :class="l === lang ? 'lang-on' : ''">
-                  <span class="lang-code">{{ l.toUpperCase() }}</span>{{ LANG_NAMES[l] }}
+                <NuxtLink :to="langTarget(l).to" :hreflang="l" :lang="l" :aria-current="l === lang ? 'true' : undefined" :class="l === lang ? 'lang-on' : ''">
+                  <span class="lang-code">{{ l.toUpperCase() }}</span>
+                  <span class="lang-name">{{ LANG_NAMES[l] }}<small v-if="langTarget(l).hint" class="lang-hint">{{ langTarget(l).hint }}</small></span>
                 </NuxtLink>
               </li>
             </ul>
@@ -159,11 +169,13 @@ onBeforeUnmount(() => clearTimeout(logoTimer))
 .lang summary { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 2.75rem; padding: 0 0.75rem; border-radius: 999px; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; color: rgb(19 19 19 / 0.75); cursor: pointer; list-style: none; }
 .lang summary::-webkit-details-marker { display: none; }
 .lang summary:hover, .lang[open] summary { color: var(--color-ink); background: rgb(19 19 19 / 0.05); }
-.lang ul { position: absolute; right: 0; top: calc(100% + 0.375rem); z-index: 30; min-width: 11rem; padding: 0.375rem; background: #fff; border-radius: 0.875rem; box-shadow: 0 0 0 1px rgb(19 19 19 / 0.08), 0 20px 40px -20px rgb(19 19 19 / 0.35); }
+.lang ul { position: absolute; right: 0; top: calc(100% + 0.375rem); z-index: 30; min-width: 11rem; max-width: min(18rem, calc(100vw - 2rem)); padding: 0.375rem; background: #fff; border-radius: 0.875rem; box-shadow: 0 0 0 1px rgb(19 19 19 / 0.08), 0 20px 40px -20px rgb(19 19 19 / 0.35); }
 .lang a { display: flex; align-items: center; gap: 0.625rem; min-height: 2.75rem; padding: 0.5rem 0.625rem; border-radius: 0.5rem; font-weight: 600; font-size: 0.9375rem; color: rgb(19 19 19 / 0.8); }
 .lang a:hover { background: rgb(19 19 19 / 0.05); color: var(--color-ink); }
 .lang a.lang-on { color: var(--color-ink); background: rgb(19 19 19 / 0.05); }
-.lang-code { width: 1.75rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-mute); }
+.lang-name { display: grid; gap: 0.0625rem; min-width: 0; }
+.lang-hint { text-wrap: balance; font-size: 0.75rem; font-weight: 500; line-height: 1.3; color: var(--color-mute); }
+.lang-code { flex: none; width: 1.75rem; font-family: var(--font-mono); font-size: 0.75rem; color: var(--color-mute); }
 .site-bar { transition: background-color .2s ease, box-shadow .2s ease, backdrop-filter .2s ease; }
 .site-bar--open { background: #fff !important; }
 .site-bar--solid { background: rgb(255 255 255 / 0.86); backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px); box-shadow: 0 1px 0 rgb(19 19 19 / 0.08); }

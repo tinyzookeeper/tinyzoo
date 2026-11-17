@@ -11,10 +11,23 @@ export function useLang() {
 
 /**
  * Where the current page lives in each language, for the language switcher and the
- * hreflang links. Pages set it; a language missing here falls back to its home page.
+ * hreflang links. Pages set it; a language missing here falls back (see below).
+ *
+ * The layout renders before the page, so a page must also set this in its route
+ * middleware, or the server renders the switcher with fallbacks and the browser, which
+ * hydrates with the final value, finds different links.
  */
 export function useAlternates() {
   return useState<Partial<Record<Lang, string>>>('site-alternates', () => ({}))
+}
+
+/**
+ * Where the switcher goes for a language the current page has no address in: that
+ * language's news list ('news', for a news item) or its home page ('home', for any other
+ * item), and the menu says so. null: not an item (search, 404), no hint.
+ */
+export function useAlternatesFallback() {
+  return useState<'home' | 'news' | null>('site-alternates-fallback', () => null)
 }
 export const SITE_LANGS = LANGS
 
