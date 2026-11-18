@@ -165,16 +165,16 @@ await page('Úvod', 'home', [
 await page('Plány', 'plany', [
   {
     id: id(), type: 'roadmap', eyebrow: null,
-    heading: 'Na čem pracujeme a kam tinyzoo míří.',
-    text: 'Tady jsou naše plány pro další vývoj tinyzoo. Pořadí vybíráme podle toho, co nám lidé říkají při zkoušení ukázky a při práci s obsahem.',
-    note: 'Plány se mohou měnit. Napište nám, co byste pro svůj web potřebovali.',
+    heading: 'Co je hotové a co chystáme',
+    text: 'Vaše zkušenosti s ukázkou i s úpravami webu nám pomáhají určit, co přijde na řadu.',
+    note: 'Napište nám, co vám při správě webu zabírá nejvíc času.',
   },
   {
     id: id(), type: 'cta', heading: 'Co by pomohlo vám?',
     text: 'Zkuste si ukázku tinyzoo nebo nám napište, co při úpravách webu potřebujete. Vaše zkušenost nám pomůže vybrat další kroky.',
     primaryLabel: 'Vyzkoušet ukázku', primaryUrl: '/demo', secondaryLabel: 'Napsat nám', secondaryUrl: '/zpetna-vazba', animal: 'fox',
   },
-], { metaDescription: 'Kam míří tinyzoo? Podívejte se, co je hotové, na čem pracujeme a co chystáme dál. Zkuste ukázku a napište nám, co byste potřebovali.' })
+], { metaDescription: 'Zjistěte, co už tinyzoo umí a co verze 1.0 znamená pro váš web. Podívejte se, co chystáme pro verzi 1.1 a co přijde později.' })
 
 // The plans the roadmap block lists (the Plan collection), in all three languages.
 await seedPlans(req)

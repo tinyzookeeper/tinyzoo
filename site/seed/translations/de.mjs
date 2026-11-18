@@ -79,9 +79,9 @@ export default (h) => {
         sections: [
           {
             id: id(), type: 'roadmap', eyebrow: null,
-            heading: 'Woran wir arbeiten und wohin tinyzoo sich entwickelt.',
-            text: 'Das sind unsere Pläne für tinyzoo. Die Reihenfolge richtet sich danach, was uns Menschen beim Ausprobieren der Demo und bei der Arbeit mit Inhalten erzählen.',
-            note: 'Pläne können sich ändern. Schreiben Sie uns, was Sie für Ihre Website brauchen würden.',
+            heading: 'Was fertig ist und was kommt',
+            text: 'Ihre Rückmeldungen zur Demo und zur Arbeit an Ihrer Website helfen uns, die nächsten Schritte festzulegen.',
+            note: 'Schreiben Sie uns, was Sie bei der Pflege Ihrer Website am meisten Zeit kostet.',
           },
           {
             id: id(), type: 'cta', heading: 'Was würde Ihnen helfen?',
@@ -89,7 +89,7 @@ export default (h) => {
             primaryLabel: 'Demo ausprobieren', primaryUrl: '/de/demo', secondaryLabel: 'Schreiben Sie uns', secondaryUrl: '/de/feedback', animal: 'fox',
           },
         ],
-        metaDescription: 'Wohin entwickelt sich tinyzoo? Sehen Sie, was erledigt ist, woran wir arbeiten und was als Nächstes kommt. Probieren Sie die Demo aus und teilen Sie Ihre Wünsche mit uns.',
+        metaDescription: 'Erfahren Sie, was tinyzoo schon kann und was Version 1.0 für Ihre Website bedeutet. Sehen Sie, was Sie ab Version 1.1 erwartet.',
       },
       demo: {
         title: 'Verwaltung ausprobieren', slug: 'demo',
