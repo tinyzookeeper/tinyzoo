@@ -2,6 +2,7 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writ
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
+import { matchEntry, searchTerms } from 'tinyzoo'
 import { buildDocs } from '../../site/modules/docs/build'
 import { czechSpaces, renderPage } from '../../site/modules/docs/render'
 import { DOCS_LANGS, docsPath, type DocsNav, type DocsPage } from '../../site/shared/docs'
@@ -53,6 +54,21 @@ describe('the docs on the website', () => {
       expect(dev.every((s) => s.path.startsWith('/en/docs/developers')), lang).toBe(true)
       expect(dev.some((s) => s.path === '/en/docs/developers/plugin-reference'), lang).toBe(true)
     }
+  })
+
+  it('gives the Czech search plain spaces, while the pages keep their non-breaking ones', () => {
+    // czechSpaces puts U+00A0 after one-letter words; a visitor types a normal space. plainText collapses
+    // every \s (U+00A0 included) into a plain space, so headings and text in search.json match the query
+    // as typed, and the whole-phrase bonus applies. (tinyzoo's foldSearchText folds U+00A0 too.)
+    const search = built.files.get('cs/search.json') as { heading: string; page: string; text: string }[]
+    expect(JSON.stringify(search)).not.toContain('\u00a0')
+    expect(pages('cs').some((p) => htmlOf(p).includes('\u00a0'))).toBe(true)
+    const s = search.find((x) => /^\S+ [aikosuvz] \S+/.test(x.heading))!
+    expect(s, 'a heading with a one-letter word').toBeTruthy()
+    const terms = searchTerms(s.heading)
+    const withNbsp = czechSpaces(s.heading)
+    expect(withNbsp).not.toBe(s.heading)
+    expect(matchEntry(withNbsp, [s.text], terms, s.heading)!.score).toBe(matchEntry(s.heading, [s.text], terms, s.heading)!.score)
   })
 
   it('pairs each translated chapter with the Czech one: same pictures, same clips, same place', () => {
@@ -165,6 +181,28 @@ describe('pictures and clips per language', () => {
     expect(de.body.find((s) => 'clip' in s)).toMatchObject({ clip: { src: '/docs/clips/roles.de.mp4' } })
     // No translate clip yet: nothing in its place.
     expect(page('cs/pages/editors/preklady.json').body.some((s) => 'clip' in s)).toBe(false)
+  })
+})
+
+describe('the developer pages in the Czech and German contents', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'docs-site-nav-'))
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('take a description docs/README.md leaves empty from the English page, as the English contents do', () => {
+    cpSync(join(root, 'docs'), join(dir, 'docs'), { recursive: true })
+    mkdirSync(join(dir, 'test/contracts'), { recursive: true })
+    cpSync(join(root, 'test/contracts/openapi.playground.json'), join(dir, 'test/contracts/openapi.playground.json'))
+    const readme = join(dir, 'docs/README.md')
+    const row = /^\| \[Content model\]\(guide\/content-model\.md\) \| .* \|$/m
+    expect(readFileSync(readme, 'utf8')).toMatch(row)
+    writeFileSync(readme, readFileSync(readme, 'utf8').replace(row, '| [Content model](guide/content-model.md) | |'))
+    const b = buildDocs({ root: dir, clipsDir: join(root, 'site/public/docs/clips') })
+    const english = b.files.get('en/pages/developers/content-model.json') as DocsPage
+    expect(english.description).toBeTruthy()
+    for (const lang of DOCS_LANGS) {
+      const entry = (b.files.get(`${lang}/nav.json`) as DocsNav).sections.developers.groups.flatMap((g) => g.pages).find((p) => p.slug === 'content-model')
+      expect(entry, lang).toMatchObject({ title: 'Content model', description: english.description, path: english.path })
+    }
   })
 })
 
