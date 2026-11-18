@@ -134,8 +134,6 @@ export interface CmsEntity {
     table: any;
     localized: string[];
     fields: Record<string, FieldDescriptor>;
-    insertSchema: z.ZodTypeAny;
-    updateSchema: z.ZodTypeAny;
     singleton?: boolean;
     admin?: {
         list?: {
@@ -464,8 +462,6 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
     table: TableColumns<F>;
     localized: string[];
     fields: F;
-    insertSchema: z.ZodType<InsertFields<F>>;
-    updateSchema: z.ZodType<Partial<InsertFields<F>>>;
     singleton?: boolean;
     admin?: EntityDef<F>['admin'];
     access?: EntityDef<F>['access'];

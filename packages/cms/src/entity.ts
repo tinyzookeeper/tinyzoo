@@ -208,6 +208,11 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   description?: LocalizedText
   icon?: string
   titleField: keyof F & string
+  /**
+   * The entry table's columns, for access rules, `content.published` and plugin queries. Frozen for
+   * reading: one column per field under its config key (a relation's as `<field>Id`), plus `id`,
+   * `createdAt`, `updatedAt`, `createdBy` and `updatedBy`. The SQL names behind them are not frozen.
+   */
   table: TableColumns<F>
   /**
    * Translations of the `.localized()` fields (`<name>_locales`), or undefined.
@@ -220,7 +225,17 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   fields: F
   /** @internal */
   enums: EntityEnum[]
+  /**
+   * The zod schema that validates a new entry. Not frozen: it follows zod's own major versions.
+   *
+   * @internal
+   */
   insertSchema: z.ZodType<InsertFields<F>>
+  /**
+   * The zod schema that validates a change. Not frozen: it follows zod's own major versions.
+   *
+   * @internal
+   */
   updateSchema: z.ZodType<Partial<InsertFields<F>>>
   singleton?: boolean
   admin?: EntityDef<F>['admin']
@@ -252,7 +267,9 @@ export interface CmsEntity {
   fields: Record<string, FieldDescriptor>
   /** @internal */
   enums: EntityEnum[]
+  /** @internal */
   insertSchema: z.ZodTypeAny
+  /** @internal */
   updateSchema: z.ZodTypeAny
   singleton?: boolean
   admin?: {

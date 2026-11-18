@@ -649,6 +649,12 @@ Rename the field. A rename is a migration: see [Renaming a field](#renaming-a-fi
 - They are still exported, so code that imports them keeps working for now.
 - They can change in any release. Use `useCmsSearch()` and `<CmsHighlight>`, which stay public.
 
+### An entity's zod schemas are internal
+
+`insertSchema` and `updateSchema` on an entity are `@internal`. They follow zod's major versions, so they are not frozen. They are still there. If your code validates with them, it keeps working, but it may need a change when tinyzoo moves to a new zod.
+
+An entity's `table` is frozen for reading: its columns under the fields' config keys, and `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`. The access rules you wrote keep working. See [the public API](api-surface.md#types).
+
 ## The two-step rule
 
 > A release that changes the shape of the database never removes what the

@@ -179,7 +179,14 @@ An `Entity` is assignable to a `CmsEntity`, not the other way round.
 - the erased entity: its name, fields, `table`, `content`, `publish` and so on;
 - the registry: `entities`, `byName`, `locales`, `plugins` and `pluginOf`.
 
-The tables and generated pieces on them are internal.
+**`table` is frozen for reading.** Access rules (`{ user, table }`), `content.published` and plugin queries use it. What is promised:
+
+- one column per field, under the field's key in the config; a relation's column is `<field>Id`;
+- tinyzoo's own columns `id`, `createdAt`, `updatedAt`, `createdBy` and `updatedBy`.
+
+Use these with the [query helpers](#query-helpers) to read. What is not promised: the SQL names of the tables and columns, the translations' table, and writing to the table yourself. tinyzoo migrates those with an upgrade step.
+
+`insertSchema` and `updateSchema` (zod) and the other generated pieces are internal. They follow zod's own versions.
 
 ---
 
