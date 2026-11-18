@@ -57,3 +57,13 @@ export function newestTag(tags) {
   }
   return [...tags].sort(compare)[0]
 }
+
+/**
+ * A baseline taken from npm: `npm:tinyzoo@0.2.0` → `{ version: '0.2.0', tag: 'tinyzoo@0.2.0' }`.
+ * The packages and `tinyzoo init` are the published ones; the release tag of the same version
+ * gives the lockfile that pins the starter's other dependencies. Anything else is `null`.
+ */
+export function npmBaseline(ref) {
+  const m = /^npm:tinyzoo@(\d+\.\d+\.\d+(?:-[\w.]+)?)$/.exec(String(ref).trim())
+  return m ? { version: m[1], tag: `tinyzoo@${m[1]}` } : null
+}

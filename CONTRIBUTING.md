@@ -214,13 +214,17 @@ same database and checks that
 - the content API and the admin return the same content, field by field,
 - every file is still served, and the admin can open and save every entry unchanged.
 
-The baselines are listed in `.github/upgrade-baseline` (before the first release a commit,
-not a tag); the latest release tag is added by itself once there is one. Run it yourself
-(about a minute and a half per baseline, needs Postgres and the network):
+The baselines are listed in `.github/upgrade-baseline`: a commit or a tag, or
+`npm:tinyzoo@<version>` for the packages as published (the site is made with
+`pnpm dlx tinyzoo@<version> init`, as that version's README said). The latest release tag is
+added by itself. The list starts from `npm:tinyzoo@0.2.0`: 1.0 promised that a 0.2 site gets to
+the current version by following `docs/upgrading.md`. Run it yourself (about a minute and a
+half per baseline, needs Postgres and the network):
 
 ```sh
 UPGRADE_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5432/postgres pnpm check:upgrade
 node scripts/upgrade-check.mjs --from 2506403 --keep   # one baseline; keeps the site and database to look at
+node scripts/upgrade-check.mjs --from npm:tinyzoo@0.2.0   # the first release, from npm
 ```
 
 When it fails, the message says which step and why. The usual causes:

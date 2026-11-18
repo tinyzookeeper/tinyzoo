@@ -1852,7 +1852,7 @@ Decisions above ("Decisions locked for Wave 5"). Integration branch `feat/1.0` (
 | R1 — API freeze: remove what 0.6 deprecated, search helpers back to `@internal`, `api-surface.md` and the contracts agree, "From 0.7 to 1.0" | `feat/1.0-freeze` | merged into `feat/1.0` |
 | R2 — Accessibility: lighter preset tints, keyboard focus on menu items, rich text and title, a keyboard pass | `fix/1.0-a11y` | in progress |
 | Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | merged into `feat/1.0` |
-| R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | `test/1.0-upgrade` | in progress |
+| R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | `test/1.0-upgrade` | merged into `feat/1.0` |
 | W — Plans on the website: a Plans collection edited in the website's admin, `/plany` lists it with a Done stage (owner's request, 2026-11-18) | `feat/site-roadmap` | merged into `feat/1.0` |
 | Reviews — two independent reviews of the merged wave, fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | after the slices | waiting |
 | S — Release 1.0.0, deploy the website and the demo; the pilot and the Tábor site upgraded (with the owner) | last | waiting |
@@ -1978,3 +1978,76 @@ It prints `✓ plans: 16 added (cs, en, de)` the first time and leaves the plans
 - **Arrange shows titles only.** The admin's Arrange list (a tinyzoo admin feature, not the site's) has no stage column, so an editor drags among all 16 plans by title; the seeded order keeps them stage by stage, which helps. A secondary column in Arrange would be a package change.
 - **The live page's meta description** still says "od prvního pilotu po mobilní aplikaci" (and the en/de equivalents); an editor can update it under Stránky → Plány. The page's heading and text still fit.
 - **Plans are not in the website search** (`search: false`); before, the block's items were found as text of the Plány page. Turn it on with a `path` to the page if visitors should find plans by search.
+
+### 1.0 R3 — Upgrade from 0.2 to 1.0
+
+Branch `test/1.0-upgrade` (from `feat/1.0` at `d933eda`, R1 merged). **The site made it from 0.2.0 to 1.0 by following `docs/upgrading.md` alone.** No step failed and no content was lost. The guide had six gaps, all fixed on this branch. `pnpm check:upgrade` now also starts from `tinyzoo@0.2.0` as published on npm.
+
+**The site.** Made outside the repository, the way 0.2.0's README said: `pnpm dlx tinyzoo@0.2.0 init site`, `pnpm install` (pinned to 0.2.0; `^0.2.0` would have given 0.2.2), `cp .env.example .env`, `pnpm db:migrate`, then `pnpm seed` with the setup code from the log. It ran as a production build (`node .output/server/index.mjs`) on `cms_test_10upgrade_site`, with local storage, mail to files and a webhook receiver. On top of the starter's demo (bakery, Czech and English) it got what editors would do in the admin:
+
+- 3 accounts: the administrator from the seed, an editor and an author (invited, accepted).
+- Pages as a tree: 6 in all. `o-nas/tym` was written by the editor in two languages and moved under "O nás" (2 redirects). A draft `o-nas/historie` came from the author. `cenik` exists only in Czech and links a PDF.
+- 6 news items, 2 of them drafts: one draft from the seed and one from the author. One published item is translated and was edited later.
+- Site settings with a changed phone, navigation in both languages, form settings, 3 redirects.
+- 7 files in the media library: 5 pictures from the seed, a JPEG and a PDF.
+- 3 form messages from visitors, one marked read.
+- Publish webhooks to a local receiver, signed with `NUXT_CMS_WEBHOOKS_SECRET`.
+
+That is 21 entries and 11 translations in 20 tables, with 35 saved versions.
+
+**Each step.** I went one minor at a time: `pnpm up tinyzoo@^0.N.0 @tinyzoo/client@^0.N.0` (see finding 1), then the version's section, `pnpm typecheck`, `pnpm exec tinyzoo upgrade`, `git diff`, commit, `nuxt build`, and a start with `NUXT_CMS_MIGRATIONS_ON_START=true`. 1.0 was this branch's two packages packed with `pnpm pack`. The installed CLI was checked byte for byte against the branch's.
+
+After each step a recording (`scripts/upgrade-check/site.mjs` `snapshot`, plus more) was compared field by field with the one before. It covered:
+
+- the content API of every entity and setting in both languages, and the admin's view of every entry and translation;
+- the page tree, the search (3 queries) and `/api/content/_sitemap` and `/sitemap.xml`;
+- the media library, with a SHA-256 of every file served;
+- the accounts and their sign-ins;
+- 17 website addresses (status, `<title>`, `<h1>`; drafts 404, the old address 301);
+- the number of saved versions per entry.
+
+A probe then published and deleted a news item and checked that both webhooks arrived with a valid signature. It also sent a form message and removed it again. A session cookie saved before each step was tried after it.
+
+| Step | What the guide said | What happened | Differences |
+|---|---|---|---|
+| 0.2.0 → 0.3.0 | packages; `drizzle-orm` ^0.45.4, `drizzle-kit` ^0.31.11 | typecheck clean; "No schema changes" | 0 |
+| 0.3.0 → 0.4.0 | packages; `nuxt` ^4.6.4, `nuxt-auth-utils` ^0.6.2; `NUXT_SESSION_PASSWORD` → `NUXT_APP_SECRET`, same value; everyone signs in once | as said. The 0.3 session cookie got 401, a new sign-in worked. The site's `.env.example` still named the old variable (finding 3) | 0 |
+| 0.4.0 → 0.5.0 | packages; check `NUXT_CMS_PUBLIC_URL`; open `/sitemap.xml` | sitemap there; it now also lists the noindex search page `/hledat` (finding 4) and is `text/xml` (finding 5) | 5, all in `/sitemap.xml` |
+| 0.5.0 → 0.6.0 | packages; secret checks; no deprecated settings (none in a 0.2 site); `tinyzoo status` lists unknown roles | nothing to change, status clean (exit 0), the 0.5 session kept | 0 |
+| 0.6.0 → 0.7.0 | packages; let `/api/cms/_theme` through a proxy | `_theme` 200 without sign-in, the 0.6 session kept | 0 |
+| 0.7.0 → 1.0 (branch) | packages; nothing else without deprecation warnings | none on 0.6 or 0.7 (the only `deprecated` lines in the builds are Nuxt DevTools' own) | 0 |
+
+Every step: no migration (3 applied from 0.2.0, 1 upgrade step), `tinyzoo status` exit 0, all three accounts sign in with their roles, every file is served with the same bytes, and the 2 probe webhooks are signed and valid. Over the whole run the receiver got 35 deliveries. From 0.2.0 to 1.0 the only differences are the 5 in `/sitemap.xml`. On 1.0 all 32 entries and translations were opened and saved unchanged through the admin API. The only thing that changed was one more saved version each.
+
+Times per step: `pnpm up` 2–3 s; `pnpm typecheck` 11 s; `tinyzoo upgrade` 3 s; `nuxt build` 17–18 s (21 s for the first); ready 1–2 s after start; a recording 1–2 s. The whole hand run took about 40 minutes, most of it reading.
+
+**Findings in the guide, fixed in `docs/upgrading.md`.** No heading or anchor changed.
+
+1. **More than one minor behind.** Every section says `pnpm up tinyzoo @tinyzoo/client --latest`. From 0.2 that goes straight to the newest version, and the guide did not say whether to step through the minors or how. "Why `--latest`" now gives both ways. One way is one minor at a time, with `pnpm up tinyzoo@^0.4.0 @tinyzoo/client@^0.4.0`. The other is all at once, doing every section in between, oldest first, before deploying. Both are proven: this hand run went step by step, and the upgrade check does the jump.
+2. **Typecheck after `tinyzoo upgrade`.** "On every upgrade" ran `pnpm typecheck` only before `tinyzoo upgrade`, which can rewrite the typed client. The command's own "Next" says to typecheck after it. The command list now typechecks again after it.
+3. **`.env.example`.** A site made before 0.4 still has `NUXT_SESSION_PASSWORD=change-me-…` in its own `.env.example` after the rename. The guide only named the platform and `.env`. The next person who copies the file gets a variable 0.6 no longer reads. The 0.4 step 3, the `NUXT_APP_SECRET` section and the 0.6 step 2 now say to rename it there too.
+4. **The search page in the sitemap.** On 0.5, `@nuxtjs/sitemap` lists the starter's `/hledat`, even though the page says `<meta name="robots" content="noindex, follow">`. A noindex address in a sitemap is what Search Console warns about. 0.5 now has a step 6 to exclude it with `sitemap: { exclude: ['/hledat'] }`, and says that a robots meta tag does not keep a page out. Tried on the site: after a rebuild the sitemap had its 19 addresses from 0.2 again.
+5. **The sitemap's content type** changed from `application/xml` to `text/xml` with 0.5. The guide now says so, next to the other two details.
+6. **Where the deprecation warnings are.** "From 0.7 to 1.0" says that a site with no deprecation warning on 0.6 or 0.7 is done. It now says what the warnings look like (`[tinyzoo] deprecated: …`) and where they appear (`nuxt build` output, the server's log).
+
+No step failed because of a bug in tinyzoo, so there is no changeset.
+
+**The upgrade check from npm.** `.github/upgrade-baseline` takes `npm:tinyzoo@<version>` lines, and lists `npm:tinyzoo@0.2.0` next to `2506403` (and `latest-tag`). For such a baseline the check:
+
+- downloads tinyzoo and @tinyzoo/client of that version with `npm pack`;
+- makes the site with `pnpm dlx tinyzoo@<version> init`, as that README said;
+- checks out the release tag `tinyzoo@<version>` only for the starter's pinned versions and `.env.example`;
+- runs everything else as before. The 0.2.0 site runs on `NUXT_SESSION_PASSWORD`, so the check also proves the refusal on 1.0 and the rename.
+
+The parser is `npmBaseline` in `workspace.mjs`, with a test in `upgrade-check.spec.ts`. CONTRIBUTING.md and the folder's README say how to use it. A run from `npm:tinyzoo@0.2.0` passed in 70 s. It made 8 entries, 12 with translations, and 3 files, and found no unexpected difference.
+
+**Result** (`TEST_DATABASE_URL=…/cms_test_10upgrade_unit`, `TEST_REDIS_URL=redis://localhost:6383`, `UPGRADE_CHECK_DATABASE_URL=…/cms_test_10upgrade`, `UPGRADE_CHECK_REDIS_URL` set):
+
+- `pnpm check:upgrade` green, three baselines in 227 s: `2506403` (83 s), `npm:tinyzoo@0.2.0` (73 s) and `tinyzoo@0.7.0` (71 s).
+- `pnpm check` green: typecheck, then 132 files and 1991 tests passed, with 2 files and 23 tests skipped (262 s).
+
+**Left open**
+
+- **The current starter has the same sitemap problem** (finding 4). `tinyzoo init` with the search preset makes `app/pages/search.vue` (`/hledat`, aliases `/en/search`…) with `noindex`, and `/sitemap.xml` lists it. This is not an upgrade problem, so it is not fixed here. The fix belongs in `cli/init.mjs` next to the path it writes: add `sitemap: { exclude: [<the search path and its aliases>] }` to the starter's `nuxt.config.ts` when the preset is on. Then `starter-check.mjs` should check that the search address is not in the sitemap.
+- **The admin in a real browser was not driven.** The shared DevTools browser profile was in use by another session. Sign-in was checked over the API for all three roles at every step, and `/admin` answered 200 with a session.
+- `docs/upgrading.md` "Version policy" still says "0.x (now)" (R1's open point 4, for S).

@@ -20,7 +20,7 @@ It is written for people who build sites with tinyzoo. The last section is for t
 ## On every upgrade
 
 1. **Read the changelog.** Open the new version's entry in `CHANGELOG.md` and read its **Upgrade** headings. The file is in the repository and on each release, not inside the package.
-2. **Update, check, upgrade.** Run the first three commands below.
+2. **Update, check, upgrade.** Run the first four commands below. `tinyzoo upgrade` may rewrite the typed client, so the compiler runs once more after it.
 3. **Read the result.** Run `git diff` and read the new migration and the schema.
 4. **Look at production.** With the new version installed, run `pnpm exec tinyzoo status` against the production database. An older CLI may not see what the new version refuses. See [Before you deploy, look at production](#before-you-deploy-look-at-production).
 5. **Commit.** Put the package update, the migration, `schema.ts` and the typed client in one commit.
@@ -30,6 +30,7 @@ It is written for people who build sites with tinyzoo. The last section is for t
 pnpm up tinyzoo @tinyzoo/client --latest   # update both packages together
 pnpm typecheck                       # the compiler finds what changed in the config API and client types
 pnpm exec tinyzoo upgrade            # versions, migration, typed client, what is pending
+pnpm typecheck                       # again, against the new typed client
 git diff                             # read the new migration (server/db/migrations) and the schema
 git commit                           # package update, migration, schema.ts and typed client in one commit
 git push                             # deploy
@@ -40,6 +41,13 @@ git push                             # deploy
 `tinyzoo init` writes `^0.2.0`. On 0.x a caret range stops at the next minor: `^0.2.0` means `>=0.2.0 <0.3.0`. So a plain `pnpm up` never moves a site from 0.2 to 0.3, and that is exactly where breaking changes live.
 
 `--latest` ignores the range and rewrites it. The two packages always share one version number. Keep them on the same one.
+
+`--latest` goes to the newest version. If your site is more than one minor behind, pick one of these:
+
+- **One minor at a time.** Name the next minor instead of `--latest`: `pnpm up tinyzoo@^0.4.0 @tinyzoo/client@^0.4.0`. Do that version's section below, build, start and check the site, then take the next one.
+- **All at once.** Update with `--latest`, then do every section from your version up to the new one, oldest first, before you deploy.
+
+Both work. A site made with 0.2.0 has been taken to 1.0 both ways.
 
 ### The files `tinyzoo init` made are yours
 
@@ -205,7 +213,7 @@ Everything below is also in the changelog of 0.4.0. tinyzoo 0.4 runs on nuxt-aut
 >
 > 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
 > 2. In your `package.json`, set `nuxt` to `^4.6.4` and `nuxt-auth-utils` to `^0.6.2`, then run `pnpm install`.
-> 3. Move the sign-in secret to `NUXT_APP_SECRET`, on your platform and in `.env`. Which step depends on what you have now; see the `NUXT_APP_SECRET` section below. A site that already sets `NUXT_APP_SECRET` keeps it, and does not copy the old password over it.
+> 3. Move the sign-in secret to `NUXT_APP_SECRET`, on your platform, in `.env` and in your `.env.example`. Which step depends on what you have now; see the `NUXT_APP_SECRET` section below. A site that already sets `NUXT_APP_SECRET` keeps it, and does not copy the old password over it.
 > 4. If your `cms.config.ts` still imports `defineForm` or `defineFormSettings` from `tinyzoo`, import them from `tinyzoo/forms` and register the plugin.
 > 5. Tell your editors that everyone signs in again, once.
 
@@ -232,6 +240,7 @@ The changes to expect:
 The sign-in cookie is now sealed with a key derived from Nuxt's app secret, `NUXT_APP_SECRET`. nuxt-auth-utils no longer reads `NUXT_SESSION_PASSWORD`.
 
 - Rename the variable on your platform (and in `.env`), **keeping its value**: `NUXT_SESSION_PASSWORD=…` becomes `NUXT_APP_SECRET=…`.
+- Rename it in your site's `.env.example` too. A site made by `tinyzoo init` before 0.4 still has `NUXT_SESSION_PASSWORD=change-me-…` there, and the next person who copies the file gets the old name. Keep the example value in that file: it is only an example, and from 0.6 production refuses it.
 - If you set `runtimeConfig.session.password` in `nuxt.config.ts`, move that value to `NUXT_APP_SECRET` in the environment and remove it from the config.
 - If your site already sets `NUXT_APP_SECRET` (for `nuxt-og-image`, say), remove `NUXT_SESSION_PASSWORD`. Then check that `NUXT_APP_SECRET` is **at least 32 characters** long.
 
@@ -271,6 +280,7 @@ Everything below is also in the changelog of 0.5.0.
 > 3. Open `/sitemap.xml` and check that it is there.
 > 4. If your `nuxt.config.ts` has `sitemap: { enabled: false }`, remove it.
 > 5. If your site has its own `server/routes/sitemap.xml*`, remove it, or keep it and set `sitemap: { enabled: false }`.
+> 6. If your site has a search page (the starter's `/hledat`), leave it out of the sitemap: `sitemap: { exclude: ['/hledat'] }` in `nuxt.config.ts`. The page says `noindex`, but the module lists it anyway.
 
 ### `/sitemap.xml` comes from `@nuxtjs/sitemap`
 
@@ -291,11 +301,12 @@ Open `/sitemap.xml` after the update and check these three things.
 **Your own pages are listed too.**
 
 - The module adds the site's static pages (`pages/kontakt.vue`). An address you also had in `cms.sitemap.paths` is listed once.
+- A `robots` meta tag in the page (`noindex`) does not keep it out. The starter's search page has one and is listed.
 - To leave a page out, use `sitemap: { exclude: ['/hledat'] }` or a `robots: false` route rule.
 
 Nothing else changes: `/api/content/_sitemap`, the tables and the content API are as they were.
 
-Two details are new. The sitemap now carries `x-default` next to the languages. It is also cached for an hour (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`). A content change clears the server's copy at once.
+Three details are new. The sitemap now carries `x-default` next to the languages. It is served as `text/xml` (was `application/xml`). It is also cached for an hour (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`). A content change clears the server's copy at once.
 
 ## From 0.5 to 0.6
 
@@ -304,7 +315,7 @@ Everything below is also in the changelog of 0.6.0. 0.6 is the last minor before
 > **What you have to do**
 >
 > 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
-> 2. Before you deploy, check that the server runs with `NUXT_APP_SECRET`: set, at least 32 characters, and not the example value from `.env.example`. Rename `NUXT_SESSION_PASSWORD` if that is all you have.
+> 2. Before you deploy, check that the server runs with `NUXT_APP_SECRET`: set, at least 32 characters, and not the example value from `.env.example`. Rename `NUXT_SESSION_PASSWORD` if that is all you have, in `.env.example` too.
 > 3. Remove the deprecated settings: `cms.databaseUrl`, `FormOptions` imported from `tinyzoo`, `defineEntity(…, { singleton: true })` and the `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` variables. Rename a field called `page`, `limit`, `sort`, `dir` or `q` in a public collection.
 > 4. Run `pnpm typecheck`. Wrap each decimal you read as a number in `Number(...)`, and check the `access` rules that read the signed-in person.
 > 5. Run `pnpm exec tinyzoo status`. It lists accounts whose stored role is not `admin`, `editor` or `author`. From 0.6 those accounts have **no access**, so give each one a role. See [Custom roles](#custom-roles-and-per-field-permissions) below.
@@ -599,7 +610,7 @@ The server's email builders (`inviteEmail`, `resetEmail`, the ones for a changed
 > **What you have to do**
 >
 > 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
-> 2. If your site saw no deprecation warning on 0.6 or 0.7, that is all.
+> 2. If your site saw no deprecation warning on 0.6 or 0.7, that is all. They are lines that start with `[tinyzoo] deprecated:`, in the output of `nuxt build` or in the server's log.
 > 3. Otherwise, change what is left over. Each step is below. The build, `defineEntity` or `pnpm typecheck` stops on anything you missed, and says what to write instead.
 
 ### `cms.databaseUrl` is gone
