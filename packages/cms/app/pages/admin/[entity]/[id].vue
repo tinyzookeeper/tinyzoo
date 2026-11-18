@@ -1097,7 +1097,7 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           </CmsFormSections>
 
           <!-- write: the cover photo, the title, the summary, the text — as the reader meets them -->
-          <div v-else class="space-y-6">
+          <div v-else class="cms-write space-y-6">
             <CmsFieldMedia
               v-if="writeCover" :id="`cms-field-${writeCover.key}`" v-model="state[writeCover.key]" :field="writeCover" :entity="entity"
               variant="cover" class="mb-2"
