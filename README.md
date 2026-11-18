@@ -16,7 +16,7 @@ guide, logo and the animal characters: [docs/brand](docs/brand/brand-guide.md).
 
 ## Try it
 
-You need Node 22+, pnpm 10 and Docker (for the local database).
+You need Node 22.22.3+ or 24.15+ (or 26+), pnpm 10 and Docker (for the local database).
 
 ```bash
 pnpm create tinyzoo my-site      # asks for the languages, the parts of the site and demo content

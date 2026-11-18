@@ -225,6 +225,10 @@ step of its own. So, until 2.0:
   baseline two minors back (`npm:tinyzoo@<x.y-2>.0`) next to the latest release tag the script adds
   by itself, and the 0.2 line stays while 1.0 promises that path.
 
+## New content routes within 1.x
+
+A core route added to the content API in 1.x (`/api/content/_x`) must not be an address a plugin can already take. A plugin's content routes start with `_<plugin name>`, and plugin names have no `_`. So either give the new route a segment with an `_` inside (`_cms_x`), or add its name to `RESERVED_PLUGIN_NAMES` in the release before the route ships.
+
 ## The upgrade test
 
 A change that is fine on its own can still strand a site that is already running. The

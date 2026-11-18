@@ -177,7 +177,8 @@ Inside a handler you still decide what the person may see or do. Use `useCms()`,
 
 Use `contentPath` for a plugin that gives the website something to call, such as the forms plugin's `_form/:name`.
 
-- The first segment must start with `_` and the plugin's name, as in `_events/next`. So two plugins, and tinyzoo's own routes, never meet. The forms plugin's `_form` is the one exception.
+- The first segment must be exactly `_` and the plugin's name, dashes kept, as in `_events/next` or `_my-shop/feed`. So two plugins, and tinyzoo's own routes, never meet. The forms plugin's `_form` is the one exception.
+- A plugin named `global`, `search`, `sitemap`, `tree` or `form` can exist, but it serves no content routes: those addresses are tinyzoo's.
 - These routes are open, so `access` does not apply. The handler checks what it needs, such as the content token or a spam check.
 
 #### Writing a handler

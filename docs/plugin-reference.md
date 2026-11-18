@@ -50,7 +50,7 @@ In entity names, dashes become underscores. The plugin `my-shop` names its entit
 | `method` | `CmsHttpMethod` | `'get'` | `'get'`, `'post'`, `'put'`, `'patch'` or `'delete'` |
 | `route` | `string` | | The address under `/api/cms/_p/<name>`. It starts with `/` and does not end with one. `:param` matches one segment |
 | `access` | `CmsRouteAccess` | `'user'` | Who may call `route`: `'user'` (anyone signed in), `'admin'` or `'public'`. Checked before the handler runs |
-| `contentPath` | `string` | | Also serves the handler at `/api/content/<contentPath>`, open to anyone. The first segment starts with `_<plugin name>`, as in `_events/next`. The forms plugin's `_form` is the one exception |
+| `contentPath` | `string` | | Also serves the handler at `/api/content/<contentPath>`, open to anyone. The first segment is exactly `_<plugin name>`, dashes kept, as in `_events/next` or `_my-shop/feed`. The forms plugin's `_form` is the one exception. A plugin named `global`, `search`, `sitemap`, `tree` or `form` serves no content routes |
 
 An address under `/api/cms/_p/<name>/` that no route declares gets the strictest `access` the plugin uses.
 

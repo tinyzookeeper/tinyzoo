@@ -88,7 +88,7 @@ Also read the new migration for statements the guard flagged (see [the guard](#t
 
 It does five things and stops at the first that fails:
 
-1. It checks that your `nuxt`, `@nuxt/ui`, `drizzle-orm` and `zod` fit what this tinyzoo asks for. It also warns when the site has `drizzle-kit` 1.0, which 1.x does not support ([why](stability.md#platform-and-dependencies)). It warns and does not stop.
+1. It checks that your `nuxt`, `@nuxt/ui`, `nuxt-auth-utils`, `drizzle-orm`, `drizzle-kit` and `zod` fit what this tinyzoo asks for. It also warns when the site has `drizzle-kit` 1.0, which 1.x does not support ([why](stability.md#platform-and-dependencies)). It warns and does not stop.
 2. It writes `server/db/schema.ts` from `cms.config.ts`.
 3. It generates the migration for the difference, with the [guard against statements that lose data](#the-guard-in-tinyzoo-generate).
 4. It regenerates the typed client when your `package.json` has a `cms:client` script.

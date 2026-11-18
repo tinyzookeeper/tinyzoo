@@ -210,7 +210,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 - A public collection, also: `page`, `limit`, `sort`, `dir` and `q`. They are parameters of the list. A global has no list, so its fields may use these names.
 - A translated field of an entity with `publish.perLocale`, also: `published`, `publishedAt` and `firstLiveAt`.
 
-**Entity names** start with a letter, then letters, digits and `_`. These are taken: `media`, `graph`, `login`, `setup`, `forgot`, `reset`, `invite`, `team`, `account`, `p`, `email`, `privacy`, and any name that starts with `cms`.
+**Entity names** start with a letter, then letters, digits and `_`. These are taken: `media`, `graph`, `login`, `setup`, `forgot`, `reset`, `invite`, `team`, `account`, `p`, `email`, `privacy`, and any name that starts with `cms`, in any case (`cmsPage`, `CmsPage`).
 
 **A plugin** names its entities like itself, or `<plugin>_…` ([plugins](plugins.md#entities)). A route it serves on the content API (`contentPath`) starts with `_<plugin>`. The forms plugin's `_form` is the one exception.
 
@@ -442,9 +442,7 @@ Neither has an alias: the package keeps its `Cms` prefix, and the generated file
 
 The types of the client keep the names they have (`CmsClient`, `CmsError` next to `ClientOptions`, `ListParams`, `Collection` and so on). There are no aliases, and what the generated file imports does not change.
 
-**The client's own methods never collide with a collection's name; see [the reserved names](#names-tinyzoo-keeps).** A collection named like one of today's methods (`search`, `global`, `openapi`, `collection`) is reached with `cms.collection('search')`.
-
-> TODO(parent): settle before 1.0 with the code branch, then replace this note with one sentence. Option A: a list of collection names reserved for the client's future methods, listed in [names tinyzoo keeps](#names-tinyzoo-keeps) and refused by `defineEntity`. Option B: every future member of the client starts with `$` (`cms.$health()`), so no collection name is reserved.
+**The client's own methods never collide with a collection's name.** The client's members are `collection`, `global`, `openapi` and `search`. Any member added after 1.0 starts with `$` (as in `cms.$health()`), which no collection name can. A collection named like one of the four is reached with `cms.collection('search')`.
 
 ## The webhook
 

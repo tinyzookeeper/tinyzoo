@@ -355,7 +355,7 @@ describe('docs/api-surface.md', () => {
   })
 
   it('names every route of the content API, every hook, and every key and header of the webhook', () => {
-    const routes = contentRoutes().split('\n').filter((l) => /^(GET|POST)/.test(l) && !l.includes('(stored in content)')).map((l) => l.replace(/^\w+\s+/, '').replace(/\s+\(.*$/, ''))
+    const routes = contentRoutes().split('\n').filter((l) => /^(GET|POST)/.test(l)).map((l) => l.replace(/^\w+\s+/, '').replace(/\s+\(.*$/, ''))
     const hooks = [...(kit.templates.find((t) => t.filename === 'types/cms-auth.d.ts')?.getContents() ?? '').matchAll(/'(cms:[a-z]+)'/g)].map((m) => m[1]!)
     expect(hooks.length).toBeGreaterThan(0)
     const body = Object.keys(webhookPayload(fullChange, 'd'))
