@@ -8,6 +8,9 @@ import { CLI_COMMANDS, usage } from '../../packages/cms/cli/usage'
 import { API_ENTRIES, apiExports, apiReport, repoRoot } from '../helpers/apiReport'
 import { goldenTests } from '../helpers/golden'
 
+// Several checks build TypeScript programs or start the CLI; a busy CI runner needs more than 5 s.
+vi.setConfig({ testTimeout: 60_000 })
+
 // The 1.0 freeze, as golden files in test/contracts (docs/api-surface.md lists the same
 // surfaces in words). A change to any of them is a change to what a site, a plugin or a
 // deploy depends on: the test fails with the lines that differ, `pnpm contracts:update`
@@ -170,7 +173,7 @@ goldenTests('frozen API surface (test/contracts)', [
 
 // ── the facts the goldens do not say by themselves ───────────────────────────────
 
-describe('the API report', { timeout: 60_000 }, () => {
+describe('the API report', () => {
   it('has a public and an internal part for every entry, and nothing public is tagged @internal', () => {
     for (const entry of API_ENTRIES) {
       const exports = apiExports(entry)
@@ -204,7 +207,7 @@ function sourcesUnder(paths: string[]): string[] {
   return paths.flatMap((p) => walk(join(repoRoot, p)))
 }
 
-describe('what sites import', { timeout: 60_000 }, () => {
+describe('what sites import', () => {
   it('is never @internal: the docs, the website, the playground and the starter use the public API only', () => {
     const internal = new Map(API_ENTRIES.map((entry) => [entry.name, new Set(apiExports(entry).filter((e) => e.internal).map((e) => e.name))]))
     const used: string[] = []
@@ -271,7 +274,7 @@ const doc = readFileSync(join(repoRoot, 'docs/api-surface.md'), 'utf8')
 /** Named as `name` or as a call, `name(args)`. */
 const documented = (name: string) => doc.includes(`\`${name}\``) || doc.includes(`\`${name}(`)
 
-describe('docs/api-surface.md', { timeout: 60_000 }, () => {
+describe('docs/api-surface.md', () => {
   it('names every public export of every entry point', () => {
     const missing = API_ENTRIES.flatMap((entry) => apiExports(entry)
       .filter((e) => !e.internal && e.name !== 'default' && !documented(e.name))
