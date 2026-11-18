@@ -58,7 +58,10 @@ else {
     // Not only what this run published: a run that died after `changeset publish` put tinyzoo
     // and @tinyzoo/client on npm, but before create-tinyzoo, left them without a tag, and the
     // re-run has only create-tinyzoo missing. Whatever npm has at this version gets its tag and release.
-    try { tagAndRelease(waitForNpm(missing).concat(packages.filter((p) => !missing.includes(p) && onNpm(p)))) }
+    try {
+      const listed = waitForNpm(missing)
+      tagAndRelease(packages.filter((p) => listed.includes(p) || (!missing.includes(p) && onNpm(p))))
+    }
     catch (err) {
       console.error(`Could not tag or release: ${err.message}`)
       process.exitCode = 1
@@ -71,7 +74,7 @@ else {
  * while some are missing: the registry lists a version a few seconds after `npm publish`
  * returns, and a 404 asked too early would leave that version without its tag.
  */
-function waitForNpm(wanted, { tries = 24, pauseMs = 5000 } = {}) {
+function waitForNpm(wanted, { tries = 24, pauseMs = Number(process.env.RELEASE_NPM_POLL_MS) || 5000 } = {}) {
   let left = wanted
   for (let i = 0; ; i++) {
     left = left.filter((p) => !onNpm(p))
@@ -79,7 +82,10 @@ function waitForNpm(wanted, { tries = 24, pauseMs = 5000 } = {}) {
     console.log(`Waiting for npm to list ${left.map((p) => `${p.name}@${p.version}`).join(', ')}…`)
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pauseMs)
   }
-  if (left.length) console.error(`npm does not list ${left.map((p) => `${p.name}@${p.version}`).join(', ')}: no tag or release for it. The next push to main tags it once npm does.`)
+  if (left.length) {
+    console.error(`npm does not list ${left.map((p) => `${p.name}@${p.version}`).join(', ')}: no tag or release for it. The next push to main tags it once npm does.`)
+    process.exitCode = 1
+  }
   return wanted.filter((p) => !left.includes(p))
 }
 
