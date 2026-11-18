@@ -1,6 +1,6 @@
 {
   "name": "create-tinyzoo",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "Make a new website with tinyzoo: pnpm create tinyzoo",
   "license": "UNLICENSED",
