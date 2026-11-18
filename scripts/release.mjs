@@ -74,7 +74,7 @@ else {
  * while some are missing: the registry lists a version some time after `npm publish` returns
  * (0.7.0: about three minutes for tinyzoo), and a 404 asked too early would leave it untagged.
  */
-function waitForNpm(wanted, { tries = 120, pauseMs = Number(process.env.RELEASE_NPM_POLL_MS) || 5000 } = {}) {
+function waitForNpm(wanted, { tries = Number(process.env.RELEASE_NPM_TRIES) || 120, pauseMs = Number(process.env.RELEASE_NPM_POLL_MS) || 5000 } = {}) {
   let left = wanted
   for (let i = 0; ; i++) {
     left = left.filter((p) => !onNpm(p))
