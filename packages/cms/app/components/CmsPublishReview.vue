@@ -39,7 +39,7 @@ watch(open, (v) => {
 const scheduleInvalid = computed(() => when.value === 'schedule' && !(date.value && new Date(date.value).getTime() > Date.now()))
 const warnings = computed(() => props.checks.filter((c) => !c.ok).length)
 const blocked = computed(() => props.checks.some((c) => !c.ok && c.blocking))
-const bird = cmsCharacter('bird')
+const animals = useCmsAnimals()
 </script>
 
 <template>
@@ -57,7 +57,7 @@ const bird = cmsCharacter('bird')
             <h2 class="cms-display text-[1.75rem] sm:text-3xl leading-tight text-highlighted text-balance">{{ title || t('review.title') }}</h2>
             <p class="cms-display leading-tight text-muted" :class="subtitle ? 'mt-1 text-lg sm:text-xl' : 'text-[1.75rem] sm:text-3xl'">{{ subtitle || t('review.subtitle') }}</p>
           </div>
-          <img :src="bird.url" alt="" class="h-14 sm:h-18 w-auto shrink-0 select-none" draggable="false">
+          <CmsAnimal v-if="animals" name="bird" class="h-14 sm:h-18 w-auto shrink-0" />
         </div>
 
         <ul class="cms-card mt-7 divide-y divide-(--ui-border-muted)">

@@ -23,6 +23,8 @@ const brand = computed(() => {
   return r.accent.kind === 'brand' ? r.accent : null
 })
 watch(brand, (b) => { if (b) accent.value = 'brand'; else if (accent.value === 'brand') accent.value = 'mono' })
+// Every animal on the page (CmsAnimal, the empty state's too) in the brand's shade, as a brand admin draws it.
+provide('cms-animal-tint', computed(() => !!brand.value))
 const pickPreset = (a: (typeof accents)[number]) => { brandInput.value = ''; accent.value = a }
 const fill = (text: string, vars: Record<string, string>) => text.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? '')
 // What the guard did, in the page's language (the admin tells developers the same in English).
@@ -56,6 +58,9 @@ const brandParts = computed(() => {
     { key: 'button', fill: b.light.primary, on: b.light.onPrimary, hex: b.light.primary, onText: tx.value.brandOn[b.light.onPrimary === '#FFFFFF' ? 'white' : 'ink'], ratio: ratioText(cmsContrastRatio(b.light.onPrimary, b.light.primary)) },
     { key: 'links', fill: b.light.text, hex: b.light.text, ratio: ratioText(cmsAccentTextContrast(b.light.text).ratio) },
     { key: 'dark', fill: b.dark.primary, hex: b.dark.primary, ratio: ratioText(cmsAccentTextContrast(b.dark.primary, 'dark').ratio) },
+    // The whole look follows the brand: the moments' tint (the quiet text on it) and the animals' shade.
+    { key: 'moments', fill: b.moments.light.bg, hex: b.moments.light.bg, ratio: ratioText(cmsContrastRatio(b.moments.light.text, b.moments.light.bg)) },
+    { key: 'animals', fill: b.moments.light.animalBody, hex: b.moments.light.animalBody, ratio: '' },
   ] as const
 })
 // Screen readers hear the result once the typing stops on a colour that reads, not on every key.
@@ -65,7 +70,7 @@ watch([brandParts, brandNotes], ([parts, notes]) => {
   clearTimeout(brandStatusTimer)
   if (!parts.length) return
   brandStatusTimer = setTimeout(() => {
-    const said = parts.map((p) => `${tx.value.brandParts[p.key]} ${p.hex}${'onText' in p ? `, ${p.onText}` : ''}, ${p.ratio}.`)
+    const said = parts.map((p) => `${tx.value.brandParts[p.key]} ${p.hex}${'onText' in p ? `, ${p.onText}` : ''}${p.ratio ? `, ${p.ratio}` : ''}.`)
     if (notes.length) said.push(`${tx.value.brandAdjusted} ${notes.join(' ')}`)
     brandStatus.value = said.join(' ')
   }, 700)
@@ -89,7 +94,7 @@ watch(lang, (l) => { cmsLocale.value = l }, { immediate: true })
 onBeforeUnmount(() => { cmsLocale.value = localeBefore })
 
 // "**bold**" and "{name}" (a config key, as code) inside a text.
-const CODE: Record<string, string> = { editor: 'admin.editor', layout: 'admin.list.layout', sections: 'admin.sections' }
+const CODE: Record<string, string> = { editor: 'admin.editor', layout: 'admin.list.layout', sections: 'admin.sections', animals: 'cms.admin.animals: false' }
 const Rich: FunctionalComponent<{ text: string }> = ({ text }) => text.split(/(\*\*[^*]+\*\*|\{\w+\})/).filter(Boolean).map((part) => {
   if (part.startsWith('**')) return h('b', { class: 'font-medium text-highlighted' }, part.slice(2, -2))
   const code = /^\{(\w+)\}$/.exec(part)?.[1]
@@ -186,7 +191,7 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
         <ul class="flex flex-wrap gap-x-6 gap-y-2">
           <li v-for="p in brandParts" :key="p.key" class="flex items-center gap-2">
             <span class="grid size-6 shrink-0 place-items-center rounded-[0.3125rem] border border-default text-[0.625rem] font-semibold" :style="{ backgroundColor: p.fill, color: 'on' in p ? p.on : undefined }">{{ 'on' in p ? 'Aa' : '' }}</span>
-            <span><span class="text-muted">{{ tx.brandParts[p.key] }}</span> <span class="font-mono text-xs text-highlighted">{{ p.hex }}</span><span v-if="'onText' in p" class="text-xs text-highlighted"> · {{ p.onText }}</span> <span class="text-xs text-muted tabular-nums">{{ p.ratio }}</span></span>
+            <span><span class="text-muted">{{ tx.brandParts[p.key] }}</span> <span class="font-mono text-xs text-highlighted">{{ p.hex }}</span><span v-if="'onText' in p" class="text-xs text-highlighted"> · {{ p.onText }}</span> <span v-if="p.ratio" class="text-xs text-muted tabular-nums">{{ p.ratio }}</span></span>
           </li>
         </ul>
         <p v-if="brandNotes.length" class="text-muted text-pretty"><span class="font-medium text-highlighted">{{ tx.brandAdjusted }}</span> {{ brandNotes.join(' ') }}</p>
@@ -219,15 +224,17 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
           </div>
           <CmsSection :title="tx.animalsTitle">
             <p class="mb-4 text-sm text-muted">{{ tx.animals }}</p>
+            <p v-if="brand" class="-mt-2 mb-4 text-sm text-muted"><Rich :text="tx.animalsBrand" /></p>
+            <!-- With a brand colour: the family as a brand admin draws it (CmsAnimal, the brand's muted shade). -->
             <ul class="flex flex-wrap items-end gap-x-5 gap-y-4">
               <li v-for="c in cmsCharacters.muted" :key="c.name" class="flex flex-col items-center gap-1.5">
-                <img :src="c.url" :alt="c.name" class="h-10 w-auto">
+                <CmsAnimal :name="c.name" class="h-10 w-auto" />
                 <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
               </li>
             </ul>
             <ul class="mt-6 flex flex-wrap items-end gap-x-5 gap-y-4">
               <li v-for="c in cmsCharacters.bright" :key="c.name" class="flex flex-col items-center gap-1.5">
-                <img :src="c.url" :alt="c.name" class="h-10 w-auto">
+                <CmsAnimal :name="c.name" set="bright" class="h-10 w-auto" />
                 <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
               </li>
             </ul>
@@ -287,17 +294,17 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
 
         <section id="moments" class="space-y-4 scroll-mt-20">
           <h2 class="cms-display text-lg font-semibold text-highlighted">{{ tx.toc.moments }}</h2>
-          <p class="max-w-2xl text-muted">{{ tx.moments }}</p>
+          <p class="max-w-2xl text-muted">{{ brand ? `${tx.moments} ${tx.momentsBrand}` : tx.moments }}</p>
           <div class="cms-moment flex items-center justify-between gap-6 p-6">
             <div>
               <p class="cms-display text-2xl text-highlighted">{{ tx.momentGreeting }}</p>
               <p class="cms-moment__muted mt-1 text-sm">{{ tx.momentText }}</p>
               <div class="mt-4 flex gap-2"><UButton icon="i-lucide-pen">{{ tx.momentWrite }}</UButton><UButton color="neutral" variant="outline" class="bg-(--cms-surface)">{{ tx.momentAdd }}</UButton></div>
             </div>
-            <img :src="cmsCharacter('owl').url" alt="" class="h-20 w-auto max-sm:hidden">
+            <CmsAnimal name="owl" class="h-20 w-auto max-sm:hidden" />
           </div>
           <div class="cms-card flex max-w-md items-start gap-4 p-4 shadow-[0_18px_40px_-14px_rgba(0,0,0,.35)]">
-            <img :src="cmsCharacter('whale').url" alt="" class="h-12 w-auto">
+            <CmsAnimal name="whale" class="h-12 w-auto shrink-0" />
             <div><p class="cms-display text-base text-highlighted">{{ tx.momentLiveTitle }}</p><p class="text-sm text-muted">{{ tx.momentLiveText }}</p></div>
           </div>
         </section>

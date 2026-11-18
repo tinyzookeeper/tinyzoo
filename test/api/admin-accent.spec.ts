@@ -24,4 +24,15 @@ describe('the admin accent', () => {
     expect(html).toMatch(/<html[^>]*data-cms-accent="mono"/)
     expect(html).not.toContain(`data-cms-accent='brand'`)
   })
+
+  it('unbranded: the animals are on (theme.animals), cream moments and the colourful hedgehog as an image', async () => {
+    const theme = (await anonymous().get('/api/cms/_theme')).body
+    expect(theme.animals).toBe(true)
+    expect(theme.accent.moments).toBeUndefined()
+    const html = await (await fetch(`${anonymous().baseURL}/admin/login`)).text()
+    // The sign-in's animal: the drawn file, not the inline drawing a brand colour gets.
+    expect(html).toMatch(/<img[^>]*data-character="hedgehog"/)
+    expect(html).not.toContain('cms-animal__body')
+    expect(html).not.toMatch(/--cms-moment-bg:#/)
+  })
 })
