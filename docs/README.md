@@ -8,21 +8,21 @@ Read in this order the first time; come back to any page later.
 
 | | |
 |---|---|
-| [Getting started](guide/getting-started.md) | From nothing to a running site with content, your first own collection, and the checklist for going live. Half an hour |
-| [Content model](guide/content-model.md) | The reference for `cms.config.ts`: every field type, relations, lists, groups, blocks and their versions, globals, presets (pages, the page tree, menus, redirects, SEO, forms), languages, links that follow their page, publishing, access rules |
-| [Recipes](guide/recipes.md) | Ten things clients ask for (contact form, news, team page, FAQ, opening hours, photo gallery, downloads, partners, events, menus with dropdowns), each a complete config, the page that shows it, and a note for the editor |
-| [The content API](guide/content-api.md) | What the website reads: endpoints, drafts and preview, caching, the website search, the typed client, OpenAPI, the sitemap, the components that draw content |
-| [The content API reference](guide/content-api-reference.md) | Every route to look things up on: list, one item, page tree, globals, search, sitemap; the query parameters, filters and date ranges; languages and `paths`; drafts and preview; the token; caching headers; errors. On the website, followed by a worked example generated from an OpenAPI document |
-| [Media](guide/media.md) | Uploads, limits, the storage drivers (local disk, S3, Cloudflare R2), drawing pictures on the website |
-| [The admin](guide/admin.md) | Accounts and roles, branding the admin, form layouts, replacing how a field is drawn |
-| [Roles and permissions](guide/roles.md) | Roles of your own on top of admin, editor and author, who reads and edits each field, the media library per role, what happens to a removed role, a worked example with a translator |
+| [Getting started](guide/getting-started.md) | From nothing to a running site with content, your first collection and the checklist for going live. Half an hour |
+| [Content model](guide/content-model.md) | The reference for `cms.config.ts`: fields, relations, blocks, globals, presets (page tree, menus, redirects, SEO, forms), languages, publishing, access rules |
+| [Recipes](guide/recipes.md) | Ten things clients ask for (contact form, news, team, FAQ, opening hours, gallery, downloads, partners, events, menus), each complete |
+| [The content API](guide/content-api.md) | What the website reads: endpoints, drafts and preview, caching, search, the typed client, OpenAPI, the sitemap, the frontend kit |
+| [The content API reference](guide/content-api-reference.md) | Every route to look things up on: parameters, filters, languages, preview, the token, caching and errors |
+| [Media](guide/media.md) | Uploads, limits, the storage drivers (local disk, S3, Cloudflare R2) and drawing pictures on the website |
+| [The admin](guide/admin.md) | Accounts and roles, branding the admin, form layouts and replacing how a field is drawn |
+| [Roles and permissions](guide/roles.md) | Roles of your own, who reads and edits each field, media per role, removed roles, a worked example with a translator |
 | [Seeding](guide/seeding.md) | Content a site starts with, written in code and put into a running site with `tinyzoo seed` |
 | [Content between environments](guide/content-transfer.md) | `tinyzoo export` and `import`: production to staging, a laptop to a server |
-| [The public API](api-surface.md) | What 1.0 freezes: the config API, the `cms` options and environment variables, the content API and client, the webhook and hooks, the CLI, the admin's extension points. Everything else is internal |
-| [Plugins](plugins.md) | Adding a feature of your own (collections, admin pages, routes, upgrade steps), and shipping it as a package |
-| [Upgrading](upgrading.md) | Moving a site to a newer tinyzoo: the version policy, what to do on every upgrade, 0.1 → 0.2, recipes for renaming and removing, writing upgrade steps |
+| [The public API](api-surface.md) | What 1.0 freezes: the config API, options and environment variables, content API, client, webhook, hooks, CLI, admin extension points. Everything else is internal |
+| [Plugins](plugins.md) | Adding a feature of your own (collections, admin pages, routes, upgrade steps) and shipping it as a package |
+| [Upgrading](upgrading.md) | Moving a site to a newer tinyzoo: the version policy, every upgrade, each version, renaming and removing, upgrade steps |
 | [Deploying](deploying.md) | Running a site in production: environment, first run, migrations, backups and restore, privacy, logs, a worked example on Pushbase |
-| [AGENTS.md](../packages/cms/starter/AGENTS.md) and [llms.txt](../llms.txt) | For the coding assistant you build with: the guide every new site gets (the content model workflow, commands, what is frozen, what not to touch), and an index of the pages above |
+| [AGENTS.md](../packages/cms/starter/AGENTS.md) and [llms.txt](../llms.txt) | For the coding assistant you build with: the guide every new site gets, and an index of the pages above |
 
 ## For editors
 
@@ -38,36 +38,41 @@ Hand it to the client. In Czech, English and German, with the same chapters and 
 
 ## On the website
 
-Everything above (the editors' guide in its three languages, and the developer pages in the table at the top) is
-also on the tinyzoo website: [/dokumentace](https://tinyzoo.pushbase.app/dokumentace),
-[/en/docs](https://tinyzoo.pushbase.app/en/docs), [/de/dokumentation](https://tinyzoo.pushbase.app/de/dokumentation).
-The Markdown here is the source: the website renders it when it is built (`site/modules/docs`), so a change here
-is on the website with the next deploy. What that means when you write:
+The editors' guide (in its three languages) and the developer pages in the table at the top are also on the tinyzoo website:
 
-- **What is published, and in which order**, comes from the lists themselves: the developer pages are the table
-  at the top of this file; the editors' chapters are the numbered list in each language's `README.md`. A new page
-  goes into that list. The chapters pair up across languages by their place in the list, so the three lists keep
-  the same order.
-- **Generated pages.** The website adds one page to the developer pages that is not Markdown: a worked example of
-  the content API, made at build time from the OpenAPI document of the playground
-  ([`test/contracts/openapi.playground.json`](../test/contracts/openapi.playground.json)), placed right after
-  [the content API reference](guide/content-api-reference.md). It is not in the table above, so it is only on the website.
-- **Links** between these pages become website addresses (a link to a heading keeps its anchor). Links to
-  anything else in the repository go to GitHub.
-- **Screenshots** live in `docs/screenshots/`. A page links the Czech one (`../../screenshots/0.6/team.png`); the
-  English and German pages link the same file, and the website shows `docs/screenshots/0.6/<lang>/team.png` instead
-  when it exists (`en`, `de`). So a translated screenshot needs no change in the Markdown.
-- **Clips**, short looping videos without sound, are an HTML comment on a line of its own (GitHub does not show it):
+- [/dokumentace](https://tinyzoo.pushbase.app/dokumentace) (Czech)
+- [/en/docs](https://tinyzoo.pushbase.app/en/docs) (English)
+- [/de/dokumentation](https://tinyzoo.pushbase.app/de/dokumentation) (German)
+
+The Markdown here is the source. The website renders it when it is built (`site/modules/docs`), so a change here is on the website with the next deploy.
+
+What that means when you write:
+
+- **What is published, and in which order**, comes from the lists themselves.
+  - The developer pages are the table at the top of this file.
+  - The editors' chapters are the numbered list in each language's `README.md`.
+  - A new page goes into that list.
+  - The chapters pair up across languages by their place in the list, so the three lists keep the same order.
+- **Generated pages.** The website adds one developer page that is not Markdown.
+  - It is a worked example of the content API, made at build time from the OpenAPI document of the playground ([`test/contracts/openapi.playground.json`](../test/contracts/openapi.playground.json)).
+  - It is placed right after [the content API reference](guide/content-api-reference.md).
+  - It is not in the table above, so it is only on the website.
+- **Links** between these pages become website addresses, and a link to a heading keeps its anchor. Links to anything else in the repository go to GitHub.
+- **Screenshots** live in `docs/screenshots/`.
+  - A page links the Czech one (`../../screenshots/0.6/team.png`). The English and German pages link the same file.
+  - The website shows `docs/screenshots/0.6/<lang>/team.png` instead when it exists (`en`, `de`).
+  - So a translated screenshot needs no change in the Markdown.
+- **Clips** are short looping videos without sound. A clip is an HTML comment on a line of its own (GitHub does not show it):
 
   ```md
   <!-- clip: roles | Short video: inviting a colleague with a role. -->
   ```
 
-  The name before `|` is the file: `site/public/docs/clips/roles.<lang>.mp4`, falling back to `roles.cs.mp4`.
-  The text after it says what the clip shows (for screen readers). Until a file exists, the website shows nothing
-  in its place.
-- `> **Tip:**` and `> **Pozor:**` (`Watch out:`, `Achtung:`) quotes become callouts; a code block's
-  `<!-- check: group/file -->` marker gives its file name.
+  - The name before `|` is the file: `site/public/docs/clips/roles.<lang>.mp4`, falling back to `roles.cs.mp4`.
+  - The text after it says what the clip shows, for screen readers.
+  - Until a file exists, the website shows nothing in its place.
+- **Callouts.** `> **Tip:**` and `> **Pozor:**` (`Watch out:`, `Achtung:`) quotes become callouts.
+- **Code block file names.** A code block's `<!-- check: group/file -->` marker gives its file name.
 
 ## For people working on tinyzoo
 

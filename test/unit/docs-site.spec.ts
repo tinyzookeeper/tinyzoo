@@ -171,6 +171,19 @@ describe('rendering one page', () => {
     const html = r.body.map((s) => ('html' in s ? s.html : '')).join('')
     expect(html).toContain('doc-note--tip')
     expect(html).toContain('doc-note--warn')
+    expect(html).toMatch(/<figure class="doc-figure">/)
+  })
+
+  it('makes a plain box of a quote with any other bold lead, and leaves a real quote alone', () => {
+    const r = renderPage('# T\n\n> **What you have to do**\n>\n> 1. Update.\n\n> Said someone.\n', ctx)
+    const html = r.body.map((s) => ('html' in s ? s.html : '')).join('')
+    expect(html).toMatch(/<aside class="doc-note"><p><strong>What you have to do<\/strong><\/p>\n<ol>/)
+    expect(html).toContain('<blockquote><p>Said someone.</p>')
+  })
+
+  it('draws pictures on their own line as figures', () => {
+    const r = renderPage('# T\n\n![A screen](../x.png)\n', ctx)
+    const html = r.body.map((s) => ('html' in s ? s.html : '')).join('')
     expect(html).toMatch(/<figure class="doc-figure"><button type="button" class="doc-zoom"[^>]*><img src="..\/x.png" alt="A screen"/)
     expect(html).not.toMatch(/<p><figure/)
   })

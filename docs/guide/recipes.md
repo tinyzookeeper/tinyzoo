@@ -1,41 +1,31 @@
 # Recipes
 
-Ten things clients ask for most, each as a complete `cms.config.ts`, the page that shows
-it on the website, and a note on what the editor sees. Start here once you have
-finished [Getting started](getting-started.md) and have a site running.
+Ten things clients ask for most. Each recipe gives the `cms.config.ts`, the page that shows
+it on the website, and a note for the editor. Start here once you have finished
+[Getting started](getting-started.md) and have a site running.
 
-**How to use a recipe**
+## How to use a recipe
 
 1. Copy the config. Each one is a whole `cms.config.ts` with its imports. In a site you
-   already have, add the new entities, `defineLocales` (once) and `plugins` to the file
-   you have instead of pasting a second copy.
-2. Run `pnpm db:generate` and read the migration it writes, then `pnpm db:migrate`.
+   already have, add the new entities, `defineLocales` (once) and `plugins` to your file.
+   Do not paste a second copy.
+2. Run `pnpm db:generate` and read the migration it writes. Then run `pnpm db:migrate`.
    A new entity only adds tables, so the migration is safe on a site with content.
-3. Run `pnpm cms:client` so the typed client knows the new entity (it writes
-   `app/lib/cms-content.ts`).
-4. Add the page. The pages use the typed client: `cms.teamMember.list()` returns `TeamMember[]`,
-   and a wrong field name or sort key is a compile error. The starter's own pages read the
-   API with plain `useFetch`; both work.
-5. Tell the editor what you set up. The *Admin note* of each recipe is the answer to the
+3. Run `pnpm cms:client`, so the typed client knows the new entity. It writes
+   `app/lib/cms-content.ts`.
+4. Add the page. The pages use the typed client: `cms.teamMember.list()` returns
+   `TeamMember[]`, and a wrong field name or sort key is a compile error. The starter's own
+   pages read the API with plain `useFetch`. Both work.
+5. Tell the editor what you set up. The *Editor note* of each recipe answers the
    questions that come next.
 
-Every config and script on this page is checked when the docs are built: it is loaded,
-turned into a schema and a typed client, and type-checked, so these examples do not
-drift from the code. (How: [CONTRIBUTING.md](../../CONTRIBUTING.md#the-docs-check).)
+Every config and script on this page is checked when the docs are built. It is loaded,
+turned into a schema and a typed client, and type-checked, so these examples do not drift
+from the code. [CONTRIBUTING.md](../../CONTRIBUTING.md#the-docs-check) explains how.
 
-The recipes that translate content use the starter's `useSiteLocale()` (in
-`app/composables/useSite.ts`), which says `'en'` under `/en/…` and the site's first language (`'cs'` in the starter) otherwise; the languages are in `app/utils/site.ts`.
-Replace it with your own if your site is not made from the starter. The recipes that
-show one language leave it out.
+### The client on every page
 
-**Keys.** Every `useAsyncData` / `useFetch` call has a key, and **two calls with the same
-key share one result**. The starter already uses `site-settings` and `site-nav` (in
-`useSite()`) and `site:<address>` (the page being shown), so never reuse those: a recipe's
-call that stored a different shape under `site-settings` would hand the layout something
-it cannot read and the page would answer 500. The keys in this page are named after what
-they hold (`opening-hours`, `team`, `faq`, …) for that reason; name yours the same way.
-
-**On every page you build** the client is made the same way:
+Every page you build makes the client the same way:
 
 ```ts
 const cms = createClient({ baseUrl: useRequestURL().origin })
@@ -44,6 +34,29 @@ const cms = createClient({ baseUrl: useRequestURL().origin })
 `useRequestURL().origin` is the site's own address, so the request goes to the same
 server on the server and in the browser. `useAsyncData` keeps the result between the
 server render and the browser.
+
+### Keys
+
+Every `useAsyncData` and `useFetch` call has a key. Two calls with the same key share one
+result.
+
+The starter already uses these keys, so never reuse them:
+
+- `site-settings` and `site-nav`, in `useSite()`
+- `site:<address>`, for the page being shown
+
+Say a recipe's call stored a different shape under `site-settings`. The layout could not
+read it, and the page would answer 500. So the keys in this page are named after what they
+hold (`opening-hours`, `team`, `faq`, and so on). Name yours the same way.
+
+### Languages
+
+The recipes that translate content use the starter's `useSiteLocale()`, in
+`app/composables/useSite.ts`. It says `'en'` under `/en/…`, and the site's first language
+(`'cs'` in the starter) otherwise. The languages are in `app/utils/site.ts`.
+
+Replace it with your own if your site is not made from the starter. The recipes that show
+one language leave it out.
 
 Contents: [contact form](#1-a-contact-form) · [news](#2-news) · [team page](#3-a-team-page) ·
 [FAQ](#4-questions-and-answers) · [opening hours](#5-opening-hours-and-closures) ·
@@ -55,11 +68,13 @@ Contents: [contact form](#1-a-contact-form) · [news](#2-news) · [team page](#3
 
 ## 1. A contact form
 
-**When:** visitors write to the client from the website, and the client wants the messages
-by email and in the admin.
+**The client asks:** visitors should write to them from the website, and the messages
+should arrive by email and in the admin.
 
-Forms are a plugin (`tinyzoo/forms`). Register it, define the form as an entity, and add
-the settings screen where editors choose who is told.
+### Config
+
+Forms are a plugin (`tinyzoo/forms`). Register it and define the form as an entity. Add the
+settings screen where editors choose who is told.
 
 <!-- check: contact/cms.config.ts -->
 ```ts
@@ -97,9 +112,11 @@ export const ContactForm = defineForm('contactForm', {
 export const FormSettings = defineFormSettings()
 ```
 
-**On the website** one component does everything: it fetches the form's description, draws
-the fields in the visitor's language, shows errors per field and replaces itself with the
-thank-you message.
+### The page
+
+One component does everything. It fetches the form's description and draws the fields in
+the visitor's language. It shows errors per field, then replaces itself with the thank-you
+message.
 
 <!-- check: contact/app/pages/contact.vue -->
 ```vue
@@ -115,43 +132,56 @@ const locale = useSiteLocale()
 </template>
 ```
 
-`<CmsForm>` makes plain HTML (`label`, `input`, `textarea`, `select`, a button) with
-default styles that sit in the lowest CSS layer and follow the text colour (so they read on
-a dark page too), so your own CSS wins without a fight. A choice with a `default` opens
-on it; a required field has a `*`; when the server refuses a field, the form shows its
-reason in the visitor's language (*Vyberte jednu z možností.*) under it, with a red border.
-To restyle the refused state, style `[aria-invalid='true']` or set `--cms-form-error`.
+### Editor note
 
-**Admin note.** Messages land under *Contact form* in the sidebar; they are personal data,
-so only editors and administrators see them (authors do not). Each has a state: *New*
-(Nové), *Read* (Přečtené), *Done* (Vyřízené). **Export CSV** downloads the whole list for
-a spreadsheet. Who gets the email is set by the editor in **Forms → Send new messages to**
-(Formuláře → Nové zprávy posílat na). If nobody is set there, the addresses in
-`notify: { to: [...] }` of the form are used, then `NUXT_CMS_FORMS_NOTIFY_TO`. Messages are
-deleted after `retentionDays` (180 here); the admin says so under the list. Without
-`retentionDays` they are kept until someone deletes them: set it to what the privacy
-policy promises.
+- Messages land under *Contact form* in the sidebar.
+- They are personal data, so only editors and administrators see them. Authors do not.
+- Each message has a state: *New* (Nové), *Read* (Přečtené) or *Done* (Vyřízené).
+- **Export CSV** downloads the whole list for a spreadsheet.
+- Who gets the email is set in **Forms → Send new messages to** (Formuláře → Nové zprávy
+  posílat na).
+- Messages are deleted after `retentionDays` (180 here). The admin says so under the list.
 
-**Gotchas**
-- Emails need a mail transport. In development they are printed to the server log; in
+### Details
+
+**Who is emailed.** If nobody is set in the admin, the addresses in `notify: { to: [...] }`
+of the form are used. After that comes `NUXT_CMS_FORMS_NOTIFY_TO`.
+
+**Retention.** Without `retentionDays`, messages are kept until someone deletes them. Set it
+to what the privacy policy promises.
+
+**How `<CmsForm>` looks.**
+
+- It makes plain HTML: `label`, `input`, `textarea`, `select` and a button.
+- Its default styles sit in the lowest CSS layer, so your own CSS wins without a fight.
+- The styles follow the text colour, so they read on a dark page too.
+- A choice with a `default` opens on it, and a required field has a `*`.
+- When the server refuses a field, the form shows the reason under it in the visitor's
+  language (*Vyberte jednu z možností.*), with a red border.
+- To restyle the refused state, style `[aria-invalid='true']` or set `--cms-form-error`.
+
+- Emails need a mail transport. In development they are printed to the server log. In
   production set `NUXT_CMS_MAIL_TRANSPORT=smtp` and the `NUXT_CMS_MAIL_SMTP_*` variables
   ([deploying.md](../deploying.md#environment)).
-- Spam is kept out by a hidden field, a minimum time to fill the form in, a rate limit per
-  visitor, and a same-site check. For more, set `NUXT_CMS_FORMS_TURNSTILE_SECRET` and
-  `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` and Cloudflare Turnstile is used as well.
+- Spam is kept out by four checks: a hidden field, a minimum time to fill the form in, a
+  rate limit per visitor, and a same-site check.
+- For more, set `NUXT_CMS_FORMS_TURNSTILE_SECRET` and `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY`.
+  Cloudflare Turnstile is then used as well.
 - A form field can be text (also `format: 'email'`, `multiline`), number, yes/no, a choice
   or a date. Relations and media are not allowed in a form.
-- The word *topic* above is an ordinary choice field; add as many as the client needs. The
-  state column (`status`) is added for you and is reserved.
+- The word *topic* above is an ordinary choice field. Add as many as the client needs.
+- The state column (`status`) is added for you and is reserved.
 
 ---
 
 ## 2. News
 
-**When:** the client posts articles: a title, a picture, a short summary, a text, a date.
-Some are written ahead and should appear on a chosen day.
+**The client asks:** to post articles with a title, a picture, a summary, a text and a date,
+and to write some ahead so they appear on a chosen day.
 
-This is the starter's news collection. Czech is the default language; English is a
+### Config
+
+This is the starter's news collection. Czech is the default language. English is a
 translation of the fields marked `.localized()`.
 
 <!-- check: news/cms.config.ts -->
@@ -195,17 +225,20 @@ export const News = defineEntity('news', {
 })
 ```
 
-Three things carry the behaviour:
+Four things carry the behaviour:
 
-- `publish` gives the editor *Publish* and *Unpublish* buttons and a **Preview** button
-  that opens `preview` with `?preview`. `dateField` is stamped when the entry is published,
-  and a date in the **future** schedules it: the entry goes live at that moment.
-- `content.published` is the rule the public API applies: only published entries are served,
-  and a scheduled one is hidden until its time.
-- `content.path` puts every published news item into `/sitemap.xml` (with `hreflang`
-  alternates when it has a translation) and tells webhooks which addresses changed.
+- `publish` gives the editor *Publish* and *Unpublish* buttons, and a **Preview** button
+  that opens `preview` with `?preview`.
+- `dateField` is stamped when the entry is published. A date in the **future** schedules
+  it: the entry goes live at that moment.
+- `content.published` is the rule the public API applies. Only published entries are
+  served, and a scheduled one is hidden until its time.
+- `content.path` puts every published news item into `/sitemap.xml`. It adds `hreflang`
+  alternates when the item has a translation. It also tells webhooks which addresses changed.
 
-**On the website** the list is paged, newest first:
+### The page
+
+The list is paged, newest first:
 
 <!-- check: news/app/pages/aktuality/index.vue -->
 ```vue
@@ -250,7 +283,7 @@ const date = (iso: string) => new Intl.DateTimeFormat(locale.value === 'en' ? 'e
 </template>
 ```
 
-and one item, with a proper 404 when the slug does not exist:
+One item, with a proper 404 when the slug does not exist:
 
 <!-- check: news/app/pages/aktuality/[slug].vue -->
 ```vue
@@ -285,37 +318,52 @@ useCmsSeo(() => item.value, { descriptionField: 'perex', imageField: 'cover' })
 ```
 
 `/api/content/news/<slug>` finds an item by its slug **in the language asked for**
-(`locale`), falling back to the default language's slug. The page's `locale` therefore
-must match the address the visitor used.
+(`locale`). It falls back to the default language's slug. So the page's `locale` must
+match the address the visitor used.
 
-**Admin note.** Editors write in the *Write* view: one calm column for the text, the
-properties beside it. To schedule an article they set **Publish date** in the future and
-press **Schedule** (Naplánovat); it shows as *Scheduled* until then. Each language is chosen with
-the language switcher in the editor: the English text starts empty and the Czech one is
-shown until it is written ([translations](content-model.md#languages)).
+### Editor note
 
-**Gotchas**
-- The typed client does not do **draft preview**: `?preview` needs the editor's cookie, and
-  the client has no option for it. The starter's catch-all page uses `useFetch` with
-  `query: { preview: '' }` for exactly this. Keep `useFetch` on the pages an editor will
-  preview, or add that page next to the typed one.
+Editors write in the *Write* view: one calm column for the text, with the properties beside
+it.
+
+To schedule an article, set **Publish date** in the future and press **Schedule**
+(Naplánovat). The article shows as *Scheduled* until then.
+
+Each language is chosen with the language switcher in the editor. The English text starts
+empty, and the Czech one is shown until it is written
+([translations](content-model.md#languages)).
+
+### Details
+
+- The typed client does not do **draft preview**. `?preview` needs the editor's cookie, and
+  the client has no option for it.
+- The starter's catch-all page uses `useFetch` with `query: { preview: '' }` for exactly
+  this. Keep `useFetch` on the pages an editor will preview, or add that page next to the
+  typed one.
 - `limit` is at most 100. Page through `total` for more.
 - `sort` only accepts what the generated types list (`createdAt`, `updatedAt`, `title`,
-  `slug`, `status`, `publishedAt`, …): a media, rich-text, group or relation field cannot
+  `slug`, `status`, `publishedAt`, …). A media, rich-text, group or relation field cannot
   be sorted on.
 
 ---
 
 ## 3. A team page
 
-**When:** "who we are": photo, name, role, a short bio, in an order the client chooses.
+**The client asks:** for a "who we are" page with a photo, a name, a role and a short bio,
+in an order they choose.
 
-This is the `teamMember` of [Getting started](getting-started.md#6-your-first-collection-team-members)
-with an email added and a longer `bio`: **if you built that one, add only `email` to it**
-(a new optional column: a safe migration) and keep `bio` as it is. Pasting a second
-definition with a different type for `bio` (rich text instead of plain text) would ask
-Postgres to change the column's type, which it cannot do without a conversion
-([Changing a field's type](../upgrading.md#changing-a-fields-type)).
+### Config
+
+This is the `teamMember` of
+[Getting started](getting-started.md#6-your-first-collection-team-members), with an email
+added and a longer `bio`.
+
+If you built that one, add only `email` to it. A new optional column is a safe migration.
+Keep `bio` as it is.
+
+Do not paste a second definition with a different type for `bio` (rich text instead of
+plain text). That would ask Postgres to change the column's type, which it cannot do
+without a conversion ([Changing a field's type](../upgrading.md#changing-a-fields-type)).
 
 <!-- check: team/cms.config.ts -->
 ```ts
@@ -343,16 +391,16 @@ export const TeamMember = defineEntity('teamMember', {
 })
 ```
 
-`position` is the order. It is hidden from the form: the editor never types a number.
-Make it `.optional()`, so a new person can be saved before anyone arranged the list; they
-are placed last.
+- `position` is the order. It is hidden from the form, so the editor never types a number.
+- Make it `.optional()`. A new person can then be saved before anyone arranged the list, and
+  is placed last.
+- The entity is called `teamMember`, not `team`. `team` is one of the names the admin keeps
+  for itself (Settings → Team), and a reserved name stops the build with a message that
+  says so.
 
-The entity is called `teamMember`, not `team`: `team` is one of the names the admin keeps
-for itself (Settings → Team), and a reserved name stops the build with a message that
-says so.
+### The page
 
-**On the website** nothing sorts: with an `orderField` and no `sort`, the API returns the
-editors' order.
+Nothing sorts here. With an `orderField` and no `sort`, the API returns the editors' order.
 
 <!-- check: team/app/pages/team.vue -->
 ```vue
@@ -385,20 +433,24 @@ const { data: team } = await useAsyncData(
 </template>
 ```
 
-**Admin note.** In the list, **Arrange** (Seřadit) lets the editor drag people (or use the
-arrows) and **Save order** (Uložit pořadí) stores it. Photos are cropped by the site
-(`object-cover`). In the media library the editor can click the picture where it must stay
-in view (the *focal point*, e.g. a face), and `<CmsImage>` keeps that spot visible however
-the crop changes.
+### Editor note
 
-**Gotchas**
-- **A longer, formatted bio** is `f.richtext()` instead of the short text, drawn with
-  `<CmsContent :doc="person.bio" class="prose" />`. On a site that already has people, that
-  is a change of the column's type (text to JSON): follow
-  [Changing a field's type](../upgrading.md#changing-a-fields-type), which has the
-  `USING` conversion the generated migration lacks, or add the rich field next to the old
-  one and move the texts over.
-- Arranging works for up to 100 entries; the admin says so when there are more.
+- In the list, **Arrange** (Seřadit) lets the editor drag people, or use the arrows.
+  **Save order** (Uložit pořadí) stores it.
+- Photos are cropped by the site (`object-cover`).
+- In the media library the editor can click the picture where it must stay in view, for
+  example a face. This is the *focal point*. `<CmsImage>` keeps that spot visible however
+  the crop changes.
+
+### Details
+
+- **A longer, formatted bio** is `f.richtext()` instead of the short text. Draw it with
+  `<CmsContent :doc="person.bio" class="prose" />`.
+- On a site that already has people, that changes the column's type (text to JSON). Follow
+  [Changing a field's type](../upgrading.md#changing-a-fields-type). It has the `USING`
+  conversion the generated migration lacks. Or add the rich field next to the old one and
+  move the texts over.
+- Arranging works for up to 100 entries. The admin says so when there are more.
 - Everyone you save is public at once, because the collection has no `status`. To hide
   someone without deleting them, add a `status` and `publish` as in [News](#2-news).
 
@@ -406,17 +458,20 @@ the crop changes.
 
 ## 4. Questions and answers
 
-**When:** a page of frequent questions. There are two ways to hold them; pick by who
-changes them and where they appear.
+**The client asks:** for a page of frequent questions that they can edit themselves.
 
-| | One entity (below, first) | A list inside a page block (second) |
+There are two ways to hold the questions. Pick by who changes them and where they appear.
+
+| | One entity (first) | A list inside a page block (second) |
 |---|---|---|
 | Good for | one FAQ page, or the same answers on several pages | answers that belong to one page |
 | Editors find it | in the sidebar, with search, order and categories | inside the page, next to its other blocks |
 | Reuse | any page can show any question | none |
 | Cost | one more table | none (it is part of the page's JSON) |
 
-**Entity with categories.** The answer is rich text; a category is optional.
+### Config: an entity with categories
+
+The answer is rich text. A category is optional.
 
 <!-- check: faq/cms.config.ts -->
 ```ts
@@ -454,8 +509,9 @@ export const Faq = defineEntity('faq', {
 })
 ```
 
-**On the website** group the questions by topic. Native `<details>` is an accordion with no
-JavaScript.
+### The page
+
+Group the questions by topic. Native `<details>` is an accordion with no JavaScript.
 
 <!-- check: faq/app/pages/faq.vue -->
 ```vue
@@ -498,12 +554,14 @@ const topics = computed(() => {
 </template>
 ```
 
-To show one topic only, filter on the server: `cms.faq.list({ filter: { category: id } })`
-(a many-to-one relation is a typed filter).
+To show one topic only, filter on the server: `cms.faq.list({ filter: { category: id } })`.
+A many-to-one relation is a typed filter.
 
-**A list in a page block.** When the answers belong to one page, add a block to
-`definePages` and let the editor write them in place. The items are the block's JSON,
-so there is no table, no sidebar entry, and no way to reuse them elsewhere.
+### The other way: a list in a page block
+
+When the answers belong to one page, add a block to `definePages` and let the editor write
+them in place. The items are the block's JSON. There is no table and no sidebar entry, and
+you cannot reuse the items elsewhere.
 
 <!-- check: faq-block/cms.config.ts -->
 ```ts
@@ -530,8 +588,8 @@ const questions = defineBlock({
 export const Page = definePages({ blocks: { questions }, localized: true })
 ```
 
-The block is drawn by `app/components/global/BlockQuestions.vue` (a block of type
-`questions` goes to `Block` + `Questions`). Its props are typed from the generated client:
+The block is drawn by `app/components/global/BlockQuestions.vue`. A block of type
+`questions` goes to `Block` + `Questions`. Its props are typed from the generated client:
 
 <!-- check: faq-block/app/components/global/BlockQuestions.vue -->
 ```vue
@@ -552,25 +610,31 @@ defineProps<{ block: Extract<Page['sections'][number], { type: 'questions' }> }>
 </template>
 ```
 
-**Admin note.** With the entity, editors arrange the questions with **Arrange** and pick
-a topic from a menu. With the block, they add *Questions and answers* to a page with
-**Add block** (Přidat blok), then **Add item** (Přidat položku) for each question, and drag
-items to reorder.
+### Editor note
 
-**Gotchas**
-- A list holds up to `max` items (500 when you leave it out), and items cannot hold
-  another list.
+- **With the entity**, editors arrange the questions with **Arrange** and pick a topic from
+  a menu.
+- **With the block**, they add *Questions and answers* to a page with **Add block**
+  (Přidat blok). Then they press **Add item** (Přidat položku) for each question, and drag
+  items to reorder.
+
+### Details
+
+- A list holds up to `max` items (500 when you leave it out), and items cannot hold another
+  list.
 - If you later want the questions on several pages, move them to the entity. There is no
-  automatic conversion: copy them across and remove the block.
+  automatic conversion. Copy them across and remove the block.
 
 ---
 
 ## 5. Opening hours and closures
 
-**When:** a shop, a clinic, a restaurant: regular hours in the footer, and a list of days
-when it is closed.
+**The client asks:** for regular opening hours in the footer, and a list of days when they
+are closed.
 
-Both live in one global, the **site settings**: a global is a single record with one form
+### Config
+
+Both live in one global, the **site settings**. A global is a single record with one form
 and no list ([globals](content-model.md#globals)).
 
 <!-- check: hours/cms.config.ts -->
@@ -606,8 +670,9 @@ export const SiteSettings = defineSingleton('siteSettings', {
 })
 ```
 
-**On the website** read the global once and show both lists. Closures that are over drop
-out by themselves.
+### The page
+
+Read the global once and show both lists. Closures that are over drop out by themselves.
 
 <!-- check: hours/app/components/OpeningHours.vue -->
 ```vue
@@ -643,26 +708,31 @@ const day = (iso: string) => new Intl.DateTimeFormat('cs-CZ', { dateStyle: 'long
 </template>
 ```
 
-**Admin note.** The editor sees two lists in the form, each with **Add item**. The "All
-day" switch on the dates hides the time. On the client's side, a closure is a thing they
-add a week ahead and forget: it disappears from the website after its last day without
-anyone removing it.
+### Editor note
 
-**Gotchas**
-- The hours are **text**, not times. tinyzoo does not compute "open now"; if the website
-  should say it, that logic is yours, and it will need the hours in a form you can parse
-  (two `f.text()` fields for opening and closing time per row, say).
-- Set the date fields' time zone in `app.config.ts` (`cms.admin.timeZone`, default
-  `Europe/Prague`) so "midnight" means the client's midnight.
+- The form has two lists, each with **Add item**.
+- The "All day" switch on the dates hides the time.
+- A closure is something the client adds a week ahead and forgets. It disappears from the
+  website after its last day, without anyone removing it.
+
+### Details
+
+- The hours are **text**, not times. tinyzoo does not compute "open now". If the website
+  should say it, that logic is yours. You will need the hours in a form you can parse, for
+  example two `f.text()` fields for opening and closing time per row.
+- Set the date fields' time zone in `app.config.ts` with `cms.admin.timeZone` (default
+  `Europe/Prague`). Then "midnight" means the client's midnight.
 - Add `.localized()` to the list if the day names differ per language ("Po–Pá" and
-  "Mon–Fri"); it needs `defineLocales`, and the list then gets a translation per language.
+  "Mon–Fri"). It needs `defineLocales`, and the list then gets a translation per language.
 
 ---
 
 ## 6. A photo gallery
 
-**When:** albums from events and trips: a cover, a title, a date, and many photos with
-captions.
+**The client asks:** for albums from events and trips, each with a cover, a title, a date and
+many photos with captions.
+
+### Config
 
 <!-- check: gallery/cms.config.ts -->
 ```ts
@@ -688,8 +758,10 @@ export const Album = defineEntity('album', {
 })
 ```
 
-**On the website**, the list of albums and one album. Each photo is the full media object
-(`url`, `width`, `height`, `alt`, `focal`) plus its `caption`.
+### The page
+
+The list of albums, and one album. Each photo is the full media object (`url`, `width`,
+`height`, `alt`, `focal`) plus its `caption`.
 
 <!-- check: gallery/app/pages/foto/index.vue -->
 ```vue
@@ -742,30 +814,41 @@ const { data: album } = await useAsyncData(`album-${slug}`, () => cms.album.get(
 </template>
 ```
 
-`<CmsImage>` writes the description as `alt`, the real size (so the page does not jump),
-lazy loading and smaller copies for smaller screens, and applies the focal point as
-`object-position` when the image is cropped.
+`<CmsImage>` does five things:
 
-**Admin note.** In the gallery field the editor drops many files at once, drags them into
-order and types a caption under each (**Caption**, Popisek). The first thing to tell them:
-the **image description** (alt text) is set in the media library, once per file
-(**Image description**, Popis obrázku): it is for people who cannot see the photo, and
+- It writes the description as `alt`.
+- It sets the real size, so the page does not jump.
+- It lazy-loads.
+- It serves smaller copies to smaller screens.
+- It applies the focal point as `object-position` when the image is cropped.
+
+### Editor note
+
+In the gallery field the editor drops many files at once and drags them into order. They
+type a caption under each (**Caption**, Popisek).
+
+Tell them first: the **image description** (alt text) is set in the media library, once per
+file (**Image description**, Popis obrázku). It is for people who cannot see the photo, and
 Google reads it too. A caption is for everyone, and is per album.
 
-**Gotchas**
+### Details
+
 - A gallery holds up to `max` photos (200 by default). A larger archive belongs in many
   albums.
-- Photos are files in the media library: one used in two albums is one file, kept while
+- Photos are files in the media library. A photo used in two albums is one file, kept while
   anything uses it. A file uploaded in the library itself is only removed by deleting it
   there.
-- There is no lightbox. The link above opens the original file; a lightbox is a frontend
+- There is no lightbox. The link above opens the original file. A lightbox is a frontend
   library you add to the site.
 
 ---
 
 ## 7. Documents to download
 
-**When:** price lists, forms, minutes, rules: PDFs the client updates a few times a year.
+**The client asks:** to publish price lists, forms, minutes and rules as PDFs, and to update
+them a few times a year.
+
+### Config
 
 <!-- check: downloads/cms.config.ts -->
 ```ts
@@ -798,9 +881,10 @@ export const Download = defineEntity('download', {
 })
 ```
 
-**On the website** group by category and link to the file. The API gives the file's
-`url` and `mime`; it does not give a size or a file name, so use `title` and, when you
-want a size, the `note`.
+### The page
+
+Group by category and link to the file. The API gives the file's `url` and `mime`. It does
+not give a size or a file name, so use `title` and, when you want a size, the `note`.
 
 <!-- check: downloads/app/pages/documents.vue -->
 ```vue
@@ -839,18 +923,23 @@ const inCategory = (key: (typeof categories)[number]['key']) => documents.value.
 </template>
 ```
 
-**Admin note.** The editor uploads the PDF in the document's form, or picks one from the
-library (**Choose from library**, Vybrat z knihovny). To replace a document they press
-**Replace** (Vyměnit) on the same entry, so the page and its place in the list stay. The
-admin shows the file's name, size and a button to open it.
+### Editor note
 
-**Gotchas**
+- The editor uploads the PDF in the document's form, or picks one from the library
+  (**Choose from library**, Vybrat z knihovny).
+- To replace a document, press **Replace** (Vyměnit) on the same entry. The page and its
+  place in the list stay.
+- The admin shows the file's name, its size and a button to open it.
+
+### Details
+
 - **Uploaded files are public by their address.** Anyone who has the address can open the
   file, and a search engine that finds the address will list it. Do not upload anything
   that must stay private.
-- A new upload gets a new address (files never change under an address, so a CDN can keep
-  them forever). Replacing a document therefore changes its link: a link typed into a text
-  by hand goes stale, while the website, which reads the address from the API, does not.
+- A new upload gets a new address. Files never change under an address, so a CDN can keep
+  them forever.
+- So replacing a document changes its link. A link typed into a text by hand goes stale.
+  The website does not, because it reads the address from the API.
 - Only the file types the server allows can be uploaded: images (JPG, PNG, WebP, GIF, AVIF),
   PDF, MP4/WebM video and MP3. The admin names them when a file is refused.
 
@@ -858,8 +947,10 @@ admin shows the file's name, size and a button to open it.
 
 ## 8. Partners and logos
 
-**When:** a strip of logos of sponsors, customers or members, in a chosen order, each
-possibly linking to its website.
+**The client asks:** for a strip of logos of sponsors, customers or members, in a chosen
+order, each possibly linking to its website.
+
+### Config
 
 <!-- check: partners/cms.config.ts -->
 ```ts
@@ -887,7 +978,7 @@ export const Partner = defineEntity('partner', {
 })
 ```
 
-**On the website**:
+### The page
 
 <!-- check: partners/app/components/PartnerLogos.vue -->
 ```vue
@@ -914,26 +1005,31 @@ const { data: partners } = await useAsyncData(
 </template>
 ```
 
-Passing `:alt="p.name"` overrides the stored description: a logo's useful alt text is the
+Passing `:alt="p.name"` overrides the stored description. A logo's useful alt text is the
 name of the company, whatever the editor typed in the library.
 
-**Admin note.** The list is a grid of logos. **Arrange** (Seřadit) works as for the team.
-Tell the client which formats work: **PNG, WebP, JPG, GIF or AVIF, not SVG**. SVG files
-can carry scripts, so the server does not accept them; a logo exported as PNG at twice its
-display size looks sharp.
+### Editor note
 
-**Gotchas**
+- The list is a grid of logos. **Arrange** (Seřadit) works as for the team.
+- Tell the client which formats work: **PNG, WebP, JPG, GIF or AVIF, not SVG**.
+- SVG files can carry scripts, so the server does not accept them.
+- A logo exported as PNG at twice its display size looks sharp.
+
+### Details
+
 - `content.hidden` is a deny-list: list every field that must not be public. A field you
   add later is public until you list it.
 - To split partners into groups (gold, silver), add an `f.select` and filter with
-  `cms.partner.list({ filter: { tier: 'gold' } })`: choice fields are typed filters.
+  `cms.partner.list({ filter: { tier: 'gold' } })`. Choice fields are typed filters.
 
 ---
 
 ## 9. Events with dates
 
-**When:** a calendar of things happening: races, workshops, meetings, with a date, a
+**The client asks:** for a calendar of races, workshops or meetings, each with a date, a
 place and a link.
+
+### Config
 
 <!-- check: events/cms.config.ts -->
 ```ts
@@ -974,8 +1070,10 @@ export const Event = defineEntity('event', {
 })
 ```
 
-**On the website** ask for what is still ahead, soonest first. Date fields have range
-filters, `'<field>.from'` and `'<field>.to'`:
+### The page
+
+Ask for what is still ahead, soonest first. Date fields have range filters,
+`'<field>.from'` and `'<field>.to'`:
 
 <!-- check: events/app/pages/akce/index.vue -->
 ```vue
@@ -1018,19 +1116,23 @@ const when = (iso: string) => new Intl.DateTimeFormat('cs-CZ', { dateStyle: 'ful
 </template>
 ```
 
-For a calendar archive, ask for the past the same way, `'startsAt.to': new Date()`, with
-`dir: 'desc'`.
+For a calendar archive, ask for the past the same way, with `'startsAt.to': new Date()`
+and `dir: 'desc'`.
 
-**Admin note.** The list opens as **Upcoming** (Nadcházející) and **Past** (Proběhlé). The
-form has the three questions as headings; empty optional fields wait behind **+ Add …**.
-For a one-day event the editor leaves **Ends** empty.
+### Editor note
 
-**Gotchas**
-- A bare date in a filter (`'2026-03-01'`) is a whole day in **UTC**; a time without an
+- The list opens as **Upcoming** (Nadcházející) and **Past** (Proběhlé).
+- The form has the three questions as headings. Empty optional fields wait behind
+  **+ Add …**.
+- For a one-day event the editor leaves **Ends** empty.
+
+### Details
+
+- A bare date in a filter (`'2026-03-01'`) is a whole day in **UTC**. A time without an
   offset is UTC too. Pass a `Date` or an ISO string with an offset to be exact.
-- The list is ordered by when events **start**. An event that started last week and
-  runs all month is "past" by this query; show such long events from a second query, or
-  give them a start date that keeps them in view.
+- The list is ordered by when events **start**. An event that started last week and runs
+  all month is "past" by this query. Show such long events from a second query, or give
+  them a start date that keeps them in view.
 - There is no calendar file (`.ics`) export. Add a server route that builds one from
   `cms.event.list` if the client wants it.
 
@@ -1038,8 +1140,10 @@ For a one-day event the editor leaves **Ends** empty.
 
 ## 10. Menus with dropdowns
 
-**When:** the site's main menu with a few dropdowns, and a footer menu, which the client
-changes without calling you.
+**The client asks:** for a main menu with a few dropdowns and a footer menu, which they can
+change without calling you.
+
+### Config
 
 <!-- check: menus/cms.config.ts -->
 ```ts
@@ -1069,8 +1173,10 @@ export const Navigation = defineNavigation({
 export const Redirect = defineRedirects()
 ```
 
-**On the website** read the menu and nest it. A link the editor marked **Under the link
-above** (Pod odkazem nad ním) goes into the dropdown of the link before it:
+### The page
+
+Read the menu and nest it. A link the editor marked **Under the link above** (Pod odkazem
+nad ním) goes into the dropdown of the link before it:
 
 <!-- check: menus/app/layouts/default.vue -->
 ```vue
@@ -1103,30 +1209,43 @@ const main = computed(() => cmsMenuTree(nav.value?.main))
 </template>
 ```
 
-`siteHref()` is the starter's (`app/utils/site.ts`): the page whose address is
-`home` is at `/home` in the content API, so a menu link picked from the page list comes
-out as `/home`, and the website sends the visitor on to `/` with a redirect (and `/en/home`
-to `/en`). Writing the link as `/` instead of `/home` saves the hop and keeps the menu's
-"current page" marking right; `siteHref` does it for every link, so the editor can keep
-picking the home page from the list. A site that does not come from the starter does the
-same with `url.replace(/^((?:\/[a-z]{2})?)\/home$/, '$1') || '/'`.
+`siteHref()` is the starter's, in `app/utils/site.ts`. It exists because of the home page:
 
-If you do not need your own markup, `<CmsNav :links="nav?.main" />` does the same
-nesting and makes `<nav class="cms-nav"><ul><li class="cms-nav__has-children"><a>…</a><ul><li><a>…</a></li></ul></li></ul></nav>`.
-Style it like any list; the starter's `app/layouts/default.vue` has a complete example with
-a dropdown that opens on hover or keyboard focus and folds behind a button on phones.
+- The page whose address is `home` is at `/home` in the content API.
+- So a menu link picked from the page list comes out as `/home`.
+- The website sends the visitor on to `/` with a redirect, and `/en/home` to `/en`.
 
-**Links follow their page.** When the editor picks a page from the link picker, the menu
-stores a reference to it, not its address. The content API turns it into the page's
-**current address in the language asked for**, so renaming or moving a page, or
-translating it, never breaks the menu. A link to a page that was deleted or is not
-published comes back with `url: null`; `cmsMenuTree` and `<CmsNav>` leave it out (a
-heading whose dropdown still works stays, without a link). Addresses typed by hand
-(`/cenik`, `https://…`, `mailto:`, `tel:`) are kept as typed. See
-[links that follow their target](content-model.md#links-that-follow-their-page).
+Writing the link as `/` instead of `/home` saves the hop and keeps the menu's "current
+page" marking right. `siteHref` does this for every link, so the editor can keep picking the
+home page from the list.
 
-**Pages under pages instead of a hand-made menu.** With `tree: true` the site can build
-navigation from the page tree itself:
+A site that does not come from the starter does the same with
+`url.replace(/^((?:\/[a-z]{2})?)\/home$/, '$1') || '/'`.
+
+#### Without your own markup
+
+`<CmsNav :links="nav?.main" />` does the same nesting. It makes
+`<nav class="cms-nav"><ul><li class="cms-nav__has-children"><a>…</a><ul><li><a>…</a></li></ul></li></ul></nav>`.
+
+Style it like any list. The starter's `app/layouts/default.vue` has a complete example. Its
+dropdown opens on hover or keyboard focus and folds behind a button on phones.
+
+#### Links follow their page
+
+When the editor picks a page from the link picker, the menu stores a reference to it, not
+its address. The content API turns it into the page's **current address in the language
+asked for**. So renaming, moving or translating a page never breaks the menu.
+
+- A link to a page that was deleted or is not published comes back with `url: null`.
+  `cmsMenuTree` and `<CmsNav>` leave it out. A heading whose dropdown still works stays,
+  without a link.
+- Addresses typed by hand (`/cenik`, `https://…`, `mailto:`, `tel:`) are kept as typed.
+
+See [links that follow their target](content-model.md#links-that-follow-their-page).
+
+#### Pages under pages instead of a hand-made menu
+
+With `tree: true` the site can build navigation from the page tree itself:
 
 <!-- check: menus/app/components/PageTree.vue -->
 ```vue
@@ -1160,25 +1279,34 @@ const { data: team } = await useAsyncData('team-page', () => cms.page.get('o-nas
 </template>
 ```
 
-Which one to use: a **menu** is what the client chooses to show and in what order, with
-external links and links that open in a new tab. The **tree** is the structure of the site
-itself: every live page appears, and moving a page in the admin changes its place in a navigation built from the tree,
-its address and the addresses of the pages under it (with redirects). Many sites use the tree for the sitemap
-and breadcrumbs and a menu for the header. Details: [pages under pages](content-model.md#presets).
+Which one to use:
 
-**Admin note.** **Navigation** has one form with a list per menu. For each link the
-editor picks a page (or types an address), writes the text, and may tick **Open in a new
-tab** or **Under the link above**. Links are dragged to reorder. In the page tree, **Move…**
-in a page's menu (or dragging) changes where it sits; the admin says how many addresses
-changed and whether redirects were made.
+- A **menu** is what the client chooses to show and in what order. It can have external
+  links and links that open in a new tab.
+- The **tree** is the structure of the site itself. Every live page appears.
+- Moving a page in the admin changes its place in a navigation built from the tree. It
+  also changes its address and the addresses of the pages under it, with redirects.
 
-**Gotchas**
-- A dropdown is one level deep: a `sub` link goes under the nearest top-level link above it.
-  Deeper nesting is what the page tree is for.
+Many sites use the tree for the sitemap and breadcrumbs, and a menu for the header. Details:
+[pages under pages](content-model.md#presets).
+
+### Editor note
+
+- **Navigation** has one form with a list per menu.
+- For each link the editor picks a page (or types an address) and writes the text. They may
+  tick **Open in a new tab** or **Under the link above**.
+- Links are dragged to reorder.
+- In the page tree, **Move…** in a page's menu (or dragging) changes where it sits. The
+  admin says how many addresses changed and whether redirects were made.
+
+### Details
+
+- A dropdown is one level deep. A `sub` link goes under the nearest top-level link above
+  it. Deeper nesting is what the page tree is for.
 - A top-level link needs an address to be shown, unless it has working dropdown links.
-  If the first link in a menu is marked "under the link above", there is nothing above it,
+- If the first link in a menu is marked "under the link above", there is nothing above it,
   so it stays on top.
-- A site with no `defineRedirects()` gets no redirects when pages move: add it.
+- A site with no `defineRedirects()` gets no redirects when pages move. Add it.
 
 ---
 
