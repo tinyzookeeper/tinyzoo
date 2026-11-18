@@ -36,21 +36,41 @@ const brandNotes = computed(() => {
     out.push(fill(shows ? tx.value.brandUnreadable : tx.value.brandHidden, { hex: b.hex, fill: b.light.primary }))
   }
   if (b.light.text !== b.hex) {
-    out.push(fill(tx.value.brandLinks, { hex: b.hex, text: b.light.text }))
+    // The guard's own number: the worst light surface the accent text sits on, as the dev note says.
+    const before = cmsAccentTextContrast(b.hex)
+    const text = before.ratio >= 4 ? tx.value.brandLinksNear : tx.value.brandLinks
+    out.push(fill(text, { hex: b.hex, text: b.light.text, ratio: ratioText(before.ratio), where: tx.value.brandWhere[before.surface as keyof typeof tx.value.brandWhere] ?? '' }))
     if (b.light.primary === b.hex) out.push(fill(tx.value.brandKeep, { hex: b.hex, on: tx.value.brandOnWith[on] }))
   }
   return out
 })
-const ratio = (a: string, b: string) => `${(Math.floor(cmsContrastRatio(a, b) * 10) / 10).toLocaleString(lang.value)}:1`
+// Ratios as the guard and the development note give them: rounded down to one decimal.
+function ratioText(r: number) {
+  return `${(Math.floor(r * 10) / 10).toLocaleString(lang.value, { minimumFractionDigits: 1 })}:1`
+}
 const brandParts = computed(() => {
   const b = brand.value
   if (!b) return []
+  // Links and dark mode: the worst surface the guard checks them on (not just white).
   return [
-    { key: 'button', fill: b.light.primary, on: b.light.onPrimary, label: `${b.light.primary} · ${tx.value.brandOn[b.light.onPrimary === '#FFFFFF' ? 'white' : 'ink']}`, ratio: ratio(b.light.onPrimary, b.light.primary) },
-    { key: 'links', fill: b.light.text, label: b.light.text, ratio: ratio(b.light.text, '#FFFFFF') },
-    { key: 'dark', fill: b.dark.primary, label: b.dark.primary, ratio: ratio(b.dark.primary, '#18191C') },
+    { key: 'button', fill: b.light.primary, on: b.light.onPrimary, hex: b.light.primary, onText: tx.value.brandOn[b.light.onPrimary === '#FFFFFF' ? 'white' : 'ink'], ratio: ratioText(cmsContrastRatio(b.light.onPrimary, b.light.primary)) },
+    { key: 'links', fill: b.light.text, hex: b.light.text, ratio: ratioText(cmsAccentTextContrast(b.light.text).ratio) },
+    { key: 'dark', fill: b.dark.primary, hex: b.dark.primary, ratio: ratioText(cmsAccentTextContrast(b.dark.primary, 'dark').ratio) },
   ] as const
 })
+// Screen readers hear the result once the typing stops on a colour that reads, not on every key.
+const brandStatus = ref('')
+let brandStatusTimer: ReturnType<typeof setTimeout> | undefined
+watch([brandParts, brandNotes], ([parts, notes]) => {
+  clearTimeout(brandStatusTimer)
+  if (!parts.length) return
+  brandStatusTimer = setTimeout(() => {
+    const said = parts.map((p) => `${tx.value.brandParts[p.key]} ${p.hex}${'onText' in p ? `, ${p.onText}` : ''}, ${p.ratio}.`)
+    if (notes.length) said.push(`${tx.value.brandAdjusted} ${notes.join(' ')}`)
+    brandStatus.value = said.join(' ')
+  }, 700)
+})
+onBeforeUnmount(() => clearTimeout(brandStatusTimer))
 const brandSwatch = computed(() => brand.value?.hex ?? '#B4532A')
 useHead({
   title: () => `${tx.value.title} · tinyzoo`,
@@ -161,11 +181,12 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
         </div>
       </header>
 
-      <div v-if="brand" class="mb-8 -mt-2 space-y-3 rounded-(--ui-radius) bg-elevated px-4 py-3 text-sm" aria-live="polite">
+      <p class="sr-only" aria-live="polite">{{ brandStatus }}</p>
+      <div v-if="brand" class="mb-8 -mt-2 space-y-3 rounded-(--ui-radius) bg-elevated px-4 py-3 text-sm">
         <ul class="flex flex-wrap gap-x-6 gap-y-2">
           <li v-for="p in brandParts" :key="p.key" class="flex items-center gap-2">
             <span class="grid size-6 shrink-0 place-items-center rounded-[0.3125rem] border border-default text-[0.625rem] font-semibold" :style="{ backgroundColor: p.fill, color: 'on' in p ? p.on : undefined }">{{ 'on' in p ? 'Aa' : '' }}</span>
-            <span><span class="text-muted">{{ tx.brandParts[p.key] }}</span> <span class="font-mono text-xs text-highlighted">{{ p.label }}</span> <span class="text-xs text-muted tabular-nums">{{ p.ratio }}</span></span>
+            <span><span class="text-muted">{{ tx.brandParts[p.key] }}</span> <span class="font-mono text-xs text-highlighted">{{ p.hex }}</span><span v-if="'onText' in p" class="text-xs text-highlighted"> · {{ p.onText }}</span> <span class="text-xs text-muted tabular-nums">{{ p.ratio }}</span></span>
           </li>
         </ul>
         <p v-if="brandNotes.length" class="text-muted text-pretty"><span class="font-medium text-highlighted">{{ tx.brandAdjusted }}</span> {{ brandNotes.join(' ') }}</p>

@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { adminAccentCss, adminAccentName, brandAccent, brandRamp, CMS_ACCENT_PRESETS, contrastRatio, gamutMap, oklchToRgb, parseHex, resolveAdminTheme, rgbToOklch, type CmsAdminTheme } from '../../packages/cms/src/theme'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cmsShowThemeNotes } from '../../packages/cms/app/utils/cmsAccent'
+
+// cmsAccent.ts reads Nuxt's import.meta.dev / .client; the root type-check has no Nuxt types.
+declare global { interface ImportMeta { dev?: boolean; client?: boolean } }
+import { accentFillHover, accentTextContrast, adminAccentCss, adminAccentName, brandAccent, brandRamp, CMS_ACCENT_PRESETS, contrastRatio, gamutMap, oklchToRgb, parseHex, resolveAdminTheme, rgbToOklch, type CmsAdminTheme } from '../../packages/cms/src/theme'
 
 // `cms.admin.accent` as a hex: the colour maths of src/theme.ts (parsing, OKLCH, the shades)
 // and the contrast guard, over a few hundred colours spread over hue, lightness and chroma.
@@ -35,6 +39,15 @@ function sampleColours(): string[] {
   return [...out]
 }
 const COLOURS = sampleColours()
+/** Every colour of a 16-step sRGB cube (4096): the grid the reviews measured the hover and the tints on. */
+const GRID = (() => {
+  const steps = Array.from({ length: 16 }, (_, i) => i * 17)
+  const out: string[] = []
+  for (const r of steps) for (const g of steps) for (const b of steps) out.push(hexOf([r / 255, g / 255, b / 255]))
+  return out
+})()
+/** The strongest tint of its own colour that accent text sits on (Nuxt UI: soft 10 %, its hover 15 %, the calendar's hover 20 %). */
+const TINT = 0.2
 
 describe('reading the accent', () => {
   it('reads #rgb and #rrggbb in any case, with spaces around', () => {
@@ -77,11 +90,31 @@ describe('the built-in accents', () => {
       const { accent } = resolveAdminTheme({ accent: p })
       for (const scheme of [accent.light, accent.dark]) {
         expect(Object.keys(scheme.ramp)).toEqual(['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'])
-        for (const v of [...Object.values(scheme.ramp), scheme.primary, scheme.onPrimary, scheme.text]) expect(v).toMatch(/^#[0-9A-F]{6}$/)
+        for (const v of [...Object.values(scheme.ramp), scheme.primary, scheme.onPrimary, scheme.primaryHover, scheme.text]) expect(v).toMatch(/^#[0-9A-F]{6}$/)
         expect(scheme.text).toBe(scheme.primary)
       }
     }
     expect(resolveAdminTheme().accent).toMatchObject({ light: { primary: '#2E3035', onPrimary: WHITE }, dark: { primary: CREAM, onPrimary: INK } })
+  })
+
+  it('dark mode: ink on the 400 shade, readable at 6:1 or more (white was 1.9–3.1:1); light mode keeps white', () => {
+    for (const p of CMS_ACCENT_PRESETS) {
+      const { accent } = resolveAdminTheme({ accent: p })
+      expect(accent.light.onPrimary, p).toBe(WHITE)
+      expect(accent.dark.onPrimary, p).toBe(INK)
+      expect(contrastRatio(accent.dark.onPrimary, accent.dark.primary), p).toBeGreaterThanOrEqual(5.9)
+    }
+  })
+
+  it('a solid button under the pointer: its text still reads at 4.5:1, light and dark', () => {
+    for (const p of CMS_ACCENT_PRESETS) {
+      const { accent } = resolveAdminTheme({ accent: p })
+      for (const [mode, s] of [['light', accent.light], ['dark', accent.dark]] as const) {
+        expect(s.primaryHover, `${p} ${mode}`).not.toBe(s.primary)
+        expect(contrastRatio(s.onPrimary, s.primaryHover), `${p} ${mode}: ${s.onPrimary} on ${s.primaryHover}`).toBeGreaterThanOrEqual(4.5)
+        expect(contrastRatio(s.onPrimary, s.primaryHover), `${p} ${mode}: hover reads at least as well as rest`).toBeGreaterThanOrEqual(contrastRatio(s.onPrimary, s.primary) - (p === 'mono' && mode === 'dark' ? 2 : 0))
+      }
+    }
   })
 })
 
@@ -149,11 +182,11 @@ describe(`the contrast guard over ${COLOURS.length} colours`, () => {
     }
   })
 
-  it('light: links and accent text read at 4.5:1 on white, cream, the hover grey and their own tint; rings at 3:1', () => {
+  it('light: links and accent text read at 4.5:1 on white, cream, the hover grey and their own tint (up to 20 %); rings at 3:1', () => {
     for (const r of results) {
       const { text } = r.light
       for (const [name, bg] of Object.entries(LIGHT)) expect(contrastRatio(text, bg), `${r.hex}: ${text} on ${name}`).toBeGreaterThanOrEqual(4.5)
-      expect(contrastRatio(text, tint(text, 0.1, WHITE)), `${r.hex}: ${text} on its tint`).toBeGreaterThanOrEqual(4.5)
+      for (const alpha of [0.1, 0.15, TINT]) expect(contrastRatio(text, tint(text, alpha, WHITE)), `${r.hex}: ${text} on its ${alpha * 100} % tint`).toBeGreaterThanOrEqual(4.5)
       expect(contrastRatio(text, WHITE)).toBeGreaterThanOrEqual(3)
       // A checked box or the selected day: white (the light theme's inverted text) on the text shade.
       expect(contrastRatio(WHITE, text)).toBeGreaterThanOrEqual(4.5)
@@ -167,7 +200,7 @@ describe(`the contrast guard over ${COLOURS.length} colours`, () => {
       expect(onPrimary, r.hex).toBe(INK)
       expect(contrastRatio(onPrimary, primary), `${r.hex}: ${onPrimary} on ${primary}`).toBeGreaterThanOrEqual(4.5)
       for (const [name, bg] of Object.entries(DARK)) expect(contrastRatio(text, bg), `${r.hex}: ${text} on ${name}`).toBeGreaterThanOrEqual(4.5)
-      expect(contrastRatio(text, tint(text, 0.1, DARK.page)), `${r.hex}: ${text} on its tint`).toBeGreaterThanOrEqual(4.5)
+      for (const over of [DARK.page, DARK.cards]) expect(contrastRatio(text, tint(text, TINT, over)), `${r.hex}: ${text} on its tint over ${over}`).toBeGreaterThanOrEqual(4.5)
       expect(lchOf(primary)[0], `${r.hex}: the dark version is not darker than the light one`).toBeGreaterThanOrEqual(Math.min(lchOf(r.light.text)[0], 0.71) - 1e-9)
     }
   })
@@ -202,10 +235,62 @@ describe(`the contrast guard over ${COLOURS.length} colours`, () => {
     }
   })
 
-  it('is quick enough to run in the browser on every keystroke', () => {
+  it('is quick enough to run in the browser on every keystroke: under 2 ms a colour', () => {
+    brandAccent('#B4532A') // warm up
     const t0 = performance.now()
-    for (const hex of COLOURS.slice(0, 100)) brandAccent(hex)
-    expect((performance.now() - t0) / 100).toBeLessThan(20)
+    for (const hex of COLOURS.slice(0, 200)) brandAccent(hex)
+    expect((performance.now() - t0) / 200).toBeLessThan(2)
+  })
+
+  it('the design-system page\'s number is the note\'s: the worst surface the guard checks', () => {
+    for (const r of results) {
+      if (r.light.text === r.hex) continue
+      const before = accentTextContrast(r.hex)
+      expect(before.ratio).toBeLessThan(4.5)
+      expect(r.notes[0]!.message, r.hex).toContain(`would be ${(Math.floor(before.ratio * 10) / 10).toFixed(1)}:1 on `)
+      expect(accentTextContrast(r.light.text).ratio).toBeGreaterThanOrEqual(4.5)
+      expect(accentTextContrast(r.dark.text, 'dark').ratio).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})
+
+describe(`a solid button under the pointer, over all ${GRID.length} colours of a 16-step cube`, () => {
+  const results = GRID.map((hex) => ({ hex, ...brandAccent(hex) }))
+  const L = (hex: string) => lchOf(hex)[0]
+
+  it('light: the text still reads at 4.5:1, the button still shows, and it moves away from its text', () => {
+    for (const r of results) {
+      const { primary, primaryHover, onPrimary } = r.light
+      expect(primaryHover, r.hex).toMatch(/^#[0-9A-F]{6}$/)
+      expect(primaryHover, `${r.hex}: the hover differs from the button`).not.toBe(primary)
+      expect(contrastRatio(onPrimary, primaryHover), `${r.hex}: ${onPrimary} on ${primaryHover}`).toBeGreaterThanOrEqual(4.5)
+      expect(Math.min(contrastRatio(primaryHover, WHITE), contrastRatio(primaryHover, CREAM)), `${r.hex}: ${primaryHover} shows`).toBeGreaterThanOrEqual(1.25)
+      // darker under white text, unless there is no room (black: then lighter, still readable)
+      if (onPrimary === WHITE && L(primary) > 0.1) expect(L(primaryHover), `${r.hex}: darker under white`).toBeLessThan(L(primary))
+    }
+  })
+
+  it('dark: the text (ink) still reads at 4.5:1, and the hover is lighter where there is room', () => {
+    for (const r of results) {
+      const { primary, primaryHover, onPrimary } = r.dark
+      expect(primaryHover, `${r.hex}: the hover differs from the button`).not.toBe(primary)
+      expect(contrastRatio(onPrimary, primaryHover), `${r.hex}: ${onPrimary} on ${primaryHover}`).toBeGreaterThanOrEqual(4.5)
+      if (L(primary) < 0.9) expect(L(primaryHover), `${r.hex}: lighter under ink`).toBeGreaterThan(L(primary))
+    }
+  })
+
+  it('the tints: light accent text on its own 10, 15 and 20 % tint over white, dark on its tint over the page and cards', () => {
+    for (const r of results) {
+      for (const alpha of [0.1, 0.15, TINT]) expect(contrastRatio(r.light.text, tint(r.light.text, alpha, WHITE)), `${r.hex}: ${r.light.text} at ${alpha}`).toBeGreaterThanOrEqual(4.5)
+      for (const over of [DARK.page, DARK.cards]) expect(contrastRatio(r.dark.text, tint(r.dark.text, TINT, over)), `${r.hex}: ${r.dark.text} over ${over}`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('the hover is a function of the fill and its text only (the same fill always hovers the same)', () => {
+    expect(accentFillHover('#B4532A', WHITE)).toBe(brandAccent('#B4532A').light.primaryHover)
+    expect(accentFillHover('#B4532A', WHITE)).toBe(accentFillHover('#B4532A', WHITE))
+    // cream under ink has no lighter step that still shows: it goes darker
+    expect(L(accentFillHover('#F9F5EF', INK, () => true))).toBeGreaterThan(L('#F9F5EF') - 1e-9)
   })
 })
 
@@ -216,6 +301,22 @@ describe('the guard on particular colours', () => {
     expect(r.light.text).not.toBe('#FFD500')
     expect(r.dark.primary).toBe('#FFD500')
     expect(r.notes[0]!.message).toMatch(/^accent #FFD500: links and other accent text would be 1\.\d:1 on .+; they use #[0-9A-F]{6} \(4\.\d:1\); buttons keep #FFD500 with ink text \(\d+\.\d:1\)\.$/)
+  })
+
+  it('#B4532A: buttons keep it with white text (4.9:1); links use a darker shade that reads on its own hover tint', () => {
+    const r = brand('#B4532A')
+    expect(r.light).toMatchObject({ primary: '#B4532A', onPrimary: WHITE, primaryHover: '#A04115', text: '#A44419' })
+    expect(r.notes[0]!.message).toBe('accent #B4532A: links and other accent text would be 3.7:1 on its own tint; they use #A44419 (4.5:1); buttons keep #B4532A with white text (4.9:1).')
+    // 4.9:1 on white, the number the design-system page used to show; the guard's worst surface is the tint.
+    expect(contrastRatio('#B4532A', WHITE)).toBeGreaterThan(4.9)
+    expect(accentTextContrast('#B4532A')).toMatchObject({ surface: 'tint' })
+  })
+
+  it('a mid-tone brand gets ink text on its buttons, as specified (#3B82F6: ink 5.0:1, white 3.7:1)', () => {
+    const r = brand('#3B82F6')
+    expect(r.light).toMatchObject({ primary: '#3B82F6', onPrimary: INK })
+    expect(contrastRatio(INK, '#3B82F6')).toBeGreaterThan(5)
+    expect(contrastRatio(WHITE, '#3B82F6')).toBeLessThan(3.7)
   })
 
   it('a dark, readable brand colour is used as it is, with white text, and no note', () => {
@@ -267,8 +368,12 @@ describe('the CSS the admin writes for a brand colour', () => {
     expect(blocks.map((b) => b.sel)).toEqual([`html[data-cms-admin][data-cms-accent='brand']`, `html[data-cms-admin][data-cms-accent='brand'].dark`])
     const [light, dark] = blocks
     if (t.accent.kind !== 'brand') throw new Error('brand')
-    expect(light!.vars).toMatchObject({ '--ui-primary': t.accent.light.text, '--cms-accent-fill': '#FFD500', '--cms-accent-on-fill': INK, '--ui-color-primary-50': t.accent.light.ramp['50'] })
-    expect(dark!.vars).toMatchObject({ '--ui-primary': t.accent.dark.text, '--cms-accent-fill': t.accent.dark.primary, '--cms-accent-on-fill': INK })
+    expect(light!.vars).toMatchObject({ '--ui-primary': t.accent.light.text, '--cms-accent-fill': '#FFD500', '--cms-accent-fill-hover': t.accent.light.primaryHover, '--cms-accent-on-fill': INK, '--ui-color-primary-50': t.accent.light.ramp['50'] })
+    expect(dark!.vars).toMatchObject({ '--ui-primary': t.accent.dark.text, '--cms-accent-fill': t.accent.dark.primary, '--cms-accent-fill-hover': t.accent.dark.primaryHover, '--cms-accent-on-fill': INK })
+    // The focus ring is the accent as text (a dark yellow), never the fill (yellow, 1.1:1 at 25 % on white).
+    expect(light!.vars['--cms-accent-ring']).toBe(t.accent.light.text)
+    expect(light!.vars['--cms-accent-ring']).not.toBe('#FFD500')
+    expect(dark!.vars['--cms-accent-ring']).toBe(t.accent.dark.primary)
     expect(Object.keys(light!.vars).filter((k) => k.startsWith('--ui-color-primary-'))).toHaveLength(11)
   })
 
@@ -280,5 +385,43 @@ describe('the CSS the admin writes for a brand colour', () => {
     expect(css).not.toContain('display')
     expect(css).not.toContain('url(')
     expect(css).toContain(`--ui-primary:${t.accent.light.primary}`)
+  })
+})
+
+describe('the development notes in the browser console', () => {
+  const dev = { dev: true, client: true }
+  const storage = () => {
+    const data = new Map<string, string>()
+    return { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v) }
+  }
+  afterEach(() => vi.unstubAllGlobals())
+  const theme = (message: string) => ({ notes: [{ kind: 'accent' as const, message }] })
+
+  it('prints once per browser session, not on every page load (Nuxt forwards each print to the dev server\'s log)', () => {
+    const session = storage()
+    vi.stubGlobal('sessionStorage', session)
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    cmsShowThemeNotes(theme('accent #FFD500: once'), dev)
+    cmsShowThemeNotes(theme('accent #FFD500: once'), dev)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toBe('[tinyzoo] cms.admin: accent #FFD500: once')
+    // The config changes while the dev server runs: the new notes print, and the old ones again if it goes back.
+    cmsShowThemeNotes(theme('accent #E8B10C: other'), dev)
+    cmsShowThemeNotes(theme('accent #FFD500: once'), dev)
+    expect(warn).toHaveBeenCalledTimes(3)
+    warn.mockRestore()
+  })
+
+  it('still prints (once per page) when storage is blocked, and never outside development or the browser', () => {
+    vi.stubGlobal('sessionStorage', { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    cmsShowThemeNotes(theme('accent #123456: blocked'), dev)
+    cmsShowThemeNotes(theme('accent #123456: blocked'), dev)
+    expect(warn).toHaveBeenCalledTimes(1)
+    cmsShowThemeNotes(theme('accent #654321: production'), { dev: false, client: true })
+    cmsShowThemeNotes(theme('accent #654321: server'), { dev: true, client: false })
+    cmsShowThemeNotes({ notes: [] }, dev)
+    expect(warn).toHaveBeenCalledTimes(1)
+    warn.mockRestore()
   })
 })

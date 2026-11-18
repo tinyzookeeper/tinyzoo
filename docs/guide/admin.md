@@ -94,17 +94,19 @@ cms: { admin: {
 - main buttons
 - the current page in the menu
 - links
-- focus rings, checked boxes and switches, selected options
+- focus rings (a solid 2 px ring in the link colour, never in a light button colour), checked boxes and switches, selected options
 
-The white workspace, the greys, cream, the animals and the status colours (green "On the website", red errors) stay as they are. tinyzoo works out the rest: the shades, a lighter version for dark mode, and the text colour on a button (white or ink, whichever reads better).
+The white workspace, the greys, cream, the animals and the status colours (green "On the website", red errors) stay as they are. tinyzoo works out the rest: the shades, a lighter version for dark mode, a button's colour under the pointer, and the text colour on a button.
 
-**The contrast guard.** Every colour has to stay readable: 4.5:1 for the text on a button and for links on the page, 3:1 for focus rings, in light and dark mode. When the brand colour falls short, tinyzoo moves it to the nearest colour that passes. Only the lightness changes; the hue stays. A light colour keeps its buttons: a yellow brand gets yellow buttons with ink text, while its links use a darker yellow. In development, the server log and the browser console say what changed and why:
+**The text on a button is white or ink, whichever reads better.** Dark colours get white text, light ones ink. Mid tones often get ink too: on `#3B82F6` ink reads at 5.0:1 and white at only 3.7:1, so its buttons carry ink text. That is on purpose; there is no option to force white. The built-in colour accents (`indigo`, `blue`, `violet`, `emerald`) have white text in light mode and ink in dark mode.
+
+**The contrast guard.** Every colour has to stay readable, in light and dark mode: 4.5:1 for the text on a button, at rest and under the pointer, and for links and other accent text on the page; 3:1 for focus rings. When the brand colour falls short, tinyzoo moves it to the nearest colour that passes. Only the lightness changes; the hue stays. A light colour keeps its buttons: a yellow brand gets yellow buttons with ink text, while its links use a darker yellow. Links are checked on white, cream, the hover grey and the colour's own light tint (the soft buttons, a hovered day in the calendar), so a colour that reads on white can still get a slightly darker shade for its links: `#B4532A` is 4.9:1 on white but 3.7:1 on its own tint, and its links use `#A44419`. In development, the server log and the browser console say what changed and why:
 
 ```
-[tinyzoo] cms.admin: accent #FFD500: links and other accent text would be 1.3:1 on the hover grey; they use #826C00 (4.5:1); buttons keep #FFD500 with ink text (13.0:1).
+[tinyzoo] cms.admin: accent #FFD500: links and other accent text would be 1.3:1 on the hover grey; they use #766100 (4.5:1); buttons keep #FFD500 with ink text (13.0:1).
 ```
 
-To silence the message, pick a colour that passes, or accept the adjustment: nothing breaks either way. Production adjusts quietly. An accent tinyzoo cannot read (`'red'`, `'#12345'`) falls back to `mono`, with the same kind of message. You can try colours at `/design-system` on the tinyzoo website: it runs the same guard.
+The server log says it at every start, the browser console once per browser session (and again when the colour changes). To silence the message, pick a colour that passes, or accept the adjustment: nothing breaks either way. Production adjusts quietly. An accent tinyzoo cannot read (`'red'`, `'#12345'`) falls back to `mono`, with the same kind of message. You can try colours at `/design-system` on the tinyzoo website: it runs the same guard.
 
 Nuxt UI draws a few words itself ("Close", "Previous month", "Show password"). They follow the admin language when the site's `app/app.vue` hands it over, and the starter does. Add:
 `const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">`. On the website's own pages it is empty, so the site keeps its own.

@@ -59,7 +59,9 @@ with "Visitors see the Czech version until an editor publishes this one." in its
 names its language: "English · Draft" (on a phone the bar has room for the mark and the code only, "○ EN ▾"; the words are the menu's lines and the button's name).
 
 Client accents: `cms.admin.accent` = `indigo`, `blue`, `violet` or `emerald` replaces
-charcoal, or the client's brand colour as a hex (below).
+charcoal, or the client's brand colour as a hex (below). The colour presets fill solid buttons with
+their 600 shade (emerald 700) and white text in light mode, and with their 400 shade and ink text in
+dark mode (6:1 or more; white there was 1.9–3.1:1).
 
 ### Brand colours
 
@@ -82,22 +84,42 @@ How the colours are derived, in OKLCH:
   at the fill. Everything else uses `--ui-primary`.
 - **Dark mode**: one lighter colour for both roles. It is the 400 shade, or the brand colour when that is
   lighter still, with ink text.
+- **Under the pointer** (and pressed) a solid button takes `--cms-accent-fill-hover`, not Nuxt UI's fill
+  at 75 % (which took white text down to 2.9:1): one step (0.06 OKLCH lightness) away from its text,
+  darker under white and lighter under ink, so the text reads better rather than worse. A fill with no
+  room that way (black, cream, a pale yellow that would vanish) steps the other way as far as its text
+  still reads at 4.5:1. The presets use their next shade (light: 700, emerald 800; dark: 300; mono
+  `#1E1F23` and `#EEEAE4`). The rule matches Nuxt UI's `hover:bg-primary/75` and
+  `active:bg-primary/75` classes, so it covers every accent.
+- **Focus rings** are `--cms-accent-ring`: the text shade in light mode, the dark colour in dark mode,
+  never the fill (a yellow brand's ring is its dark yellow), declared on `<html>` so a solid button that
+  re-points `--ui-primary` keeps it. Every Nuxt UI focus outline (its `focus-visible:outline-3`, 25 %
+  of the accent, 1.1–1.6:1 on white) is redrawn at full strength: 2 px, 2 px off the control, so it
+  sits on the page; text fields hug theirs (2 px, or 1 px against the field's own 1 px ring); the
+  menu's links draw it around their highlight. A plain link keeps the browser's own ring, in
+  `--cms-accent-ring` (only `outline-color` is set, so nothing that had no ring gains one).
 
 **The contrast guard** checks the hexes the admin draws (WCAG 2 ratios):
 
 | What | On | Bar |
 |---|---|---|
-| Text on a solid button | the fill | 4.5:1 |
-| The text shade | white, cream, the hover grey `#F5F5F5`, its own 10 % tint | 4.5:1 |
-| The dark colour | `#18191C`, `#1E1F23`, `#2E3035`, its own 10 % tint | 4.5:1 |
-| Focus rings, borders | the page | 3:1 (follows from the text bar) |
+| Text on a solid button | the fill, and the hover fill | 4.5:1 |
+| The text shade | white, cream, the hover grey `#F5F5F5`, its own tint up to 20 % over white | 4.5:1 |
+| The dark colour | `#18191C`, `#1E1F23`, `#2E3035`, its own tint up to 20 % over the page and cards | 4.5:1 |
+| Focus rings, borders | every surface (the stronger cream `#F1EADF` and dark `#383B41` included) | 3:1 (follows from the text bar) |
 | A button that shows | white and cream | 1.25:1 (not a WCAG bar; it stops a white brand from drawing invisible buttons) |
+
+The tint is Nuxt UI's: soft buttons at 10 %, their hover and the search's matched letters at 15 %, the
+calendar's hovered "today" at 20 %. Accent text does not sit on the stronger cream (`#F1EADF`), the
+pressed grey (neutral-200), or a tint over cream or charcoal anywhere in the admin, so the guard does not
+check those; a site's own component that puts it there is not covered. The five built-in accents are
+not run through the guard: blue, violet and emerald read 3.9–4.3:1 as text on their own 15–20 % tint.
 
 A colour that fails moves to the nearest one that passes, by OKLCH lightness only: the hue stays and
 the chroma stays as far as sRGB allows. The fill may go either way, the text shade only darker, the dark
 colour only lighter. A colour the guard produced passes as it is, so resolving it again changes nothing.
 What changed goes into the theme's `notes`, printed in development (the server log at start, the browser
-console once) and dropped in production. Tests: `test/unit/admin-accent.spec.ts` (a few hundred colours)
+console once per browser session, again when the notes change) and dropped in production. Tests: `test/unit/admin-accent.spec.ts` (a few hundred colours)
 and `test/unit/admin-contrast.spec.ts` (against the stylesheet's real surfaces).
 
 ## Type
@@ -382,7 +404,9 @@ touch by hand — if a control comes out smaller than 44 px on a phone, the rule
 - A page that needs the layout's data reads it with `useNuxtData('cms-graph')`; a second `useFetch` under the
   same key made the form's generated ids differ after hydration (label `for` ≠ input `id`: an unlabelled
   field).
-- Focus rings from Nuxt UI. `prefers-reduced-motion` turns transitions and the moment's rise off.
+- Focus rings: Nuxt UI's, redrawn by `cms-admin.css` at full strength in `--cms-accent-ring` (2 px,
+  3:1 or more on every surface, light and dark; see Brand colours). The editor-side resize handle's line
+  turns the accent from the keyboard. `prefers-reduced-motion` turns transitions and the moment's rise off.
 - Icon-only buttons carry translated, full `aria-label`s ("Export CSV", "New post" — not "Post"); toggles
   (Details, Preview) carry `aria-pressed`; sortable headers are buttons with `aria-sort` on the column.
 - The review's "when" choice is a `radiogroup`; the success card is `role="status"`.
