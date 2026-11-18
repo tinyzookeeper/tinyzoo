@@ -2,7 +2,7 @@
 'tinyzoo': minor
 ---
 
-`cms.admin.accent` takes any hex. Set it to the client's brand colour (`accent: '#B4532A'`) and the admin uses it for main buttons, the current page in the menu, links and focus rings, in light and dark mode. tinyzoo derives the shades, a lighter version for dark mode, a button's colour under the pointer and the text colour on buttons: white or ink, whichever reads better, so mid tones such as `#3B82F6` get ink text (5.0:1 against 3.7:1 for white). A contrast guard keeps everything readable (4.5:1 for text, at rest and under the pointer; 3:1 for focus rings): a colour that falls short is moved to the nearest readable one, and development prints what changed and why, in the server log at start and once per browser session in the console. A light colour keeps its buttons (yellow buttons with ink text) while links use a darker shade. An accent tinyzoo cannot read falls back to `mono` with a warning in development.
+`cms.admin.accent` takes any hex. Set it to the client's brand colour (`accent: '#B4532A'`) and the admin uses it for main buttons, the current page in the menu, links and focus rings, in light and dark mode. tinyzoo derives the shades, a lighter version for dark mode, a button's colour under the pointer and the text colour on buttons: white or ink, whichever reads better, so mid tones such as `#3B82F6` get ink text (5.0:1 against 3.7:1 for white). A contrast guard keeps everything readable (4.5:1 for text, at rest and under the pointer; 3:1 for focus rings): a colour that falls short is moved to the nearest readable one, and development prints what changed and why, in the server log at start and once per browser session in the console. A light colour keeps its buttons (yellow buttons with ink text) while links use a darker shade. Built-in names are read in any case. An accent tinyzoo cannot read falls back to `mono` with a warning in development.
 
 Accessibility fixes for every accent, built-in ones included:
 
@@ -12,4 +12,10 @@ Accessibility fixes for every accent, built-in ones included:
 
 ### Upgrade
 
-Nothing to do. The hex is optional and `mono` stays the default. A site on `indigo`, `blue`, `violet` or `emerald` sees dark text on its main buttons in dark mode; a site that styled the admin's focus rings or button hover itself in its own CSS should check that its rules still apply.
+Nothing to do. The hex is optional and `mono` stays the default.
+
+- A site on `indigo`, `blue`, `violet` or `emerald` sees dark text on its main buttons in dark mode.
+- An accent that is neither a built-in name nor a hex (a typo) now gives `mono`; before, it gave mono greys with an odd dark-mode button.
+- `data-cms-accent` on the admin's `<html>` is only `mono`, `indigo`, `blue`, `violet`, `emerald` or `brand`. Host CSS keyed to another value (a capitalised name, a hex) stops matching.
+- With a hex accent, host CSS that sets `--ui-primary` or `--ui-color-primary-*` under `html[data-cms-admin]` loses to the brand's own `<style>`. Nothing checks the contrast of what a host sets.
+- A site that styled the admin's focus rings or button hover itself in its own CSS should check that its rules still apply.

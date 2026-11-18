@@ -6,4 +6,10 @@ Emails carry the client's logo and colour; the admin can be added to a phone's h
 
 ### Upgrade
 
-Nothing to do. The logo in emails is loaded from `NUXT_CMS_PUBLIC_URL`, which production already needs for the links in them. A logo in `public/` must be a picture file (`.svg`, `.png`, `.webp`, `.jpg`, `.jpeg` or `.avif`); a logo on a server inside your own network cannot be made into the PNG versions, so put it in `public/`.
+Nothing to do for most sites.
+
+- The logo in emails is loaded from `NUXT_CMS_PUBLIC_URL`, which production already needs for the links in them. Mail clients must reach it from the internet.
+- `GET /api/cms/_brand/<file>` (and `GET /api/cms/_theme`, which the admin reads) need no sign-in. A proxy, basic auth or IP rule in front of `/api/cms` must let them through.
+- A logo in `public/` must be a picture file (`.svg`, `.png`, `.webp`, `.jpg`, `.jpeg` or `.avif`). A logo on a server inside your own network cannot be made into the PNG versions, so put it in `public/`; an `http://` logo is never downloaded.
+- A replaced logo reaches the icons and new emails within 15 minutes in production.
+- The server-side email builders are now async and take the request first. They are internal; only a site that calls them from its own server code has to change that call.

@@ -182,6 +182,8 @@ A site set up before 0.4 has `NUXT_SESSION_PASSWORD` instead. 0.4 and 0.5 used t
 
 Without it, the server starts but logs one warning saying what is missing.
 
+Mail clients load the logo in emails from `<NUXT_CMS_PUBLIC_URL>/api/cms/_brand/full-email.png`, so that address must be reachable from the internet. `GET /api/cms/_theme` and `/api/cms/_brand/*` need no sign-in (the sign-in page, the tab icons and mail clients read them). A proxy, basic auth or an IP rule in front of `/api/cms` must let them through.
+
 `NUXT_SITE_URL` and `NUXT_SITE_INDEXABLE` come from [Nuxt SEO's site config](https://nuxtseo.com/docs/site-config):
 
 - `NUXT_SITE_URL` is the address `/sitemap.xml` starts with when the website's address is not `NUXT_CMS_PUBLIC_URL`.
@@ -342,6 +344,7 @@ This section lists what the app sends, so a CDN in front of it can be set up for
 | The logo's PNG versions (`/api/cms/_brand/…png?v=…`) | `public, max-age=31536000, immutable` | with the current `v`; a new logo has a new `v`. Without it, or with an old one: `public, max-age=300` |
 | `/sitemap.xml` | `public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600` | the server's own copy is cleared at once when content changes; a CDN may keep it an hour. Change it with `sitemap.cacheMaxAgeSeconds` |
 | `/robots.txt` of the starter | `public, max-age=3600` | |
+| The admin's theme and web manifest (`/api/cms/_theme`, `/api/cms/_brand/admin.webmanifest`) | `no-cache` | a browser may keep a copy but asks again each time |
 | The admin and its API (`/admin`, `/api/cms/…`) | `no-store` | never cache |
 | The website's own pages | none of the CMS's | whatever your site sets (`routeRules` in `nuxt.config.ts`); Nuxt sends no `Cache-Control` for a server-rendered page |
 

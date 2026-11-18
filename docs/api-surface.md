@@ -176,6 +176,7 @@ Use these to search your own content outside the CMS, such as static pages or do
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
+| Admin branding (`cms.admin`) | `CmsAccent` (a built-in accent or a hex), `CmsAccentPreset` (`'mono' \| 'indigo' \| 'blue' \| 'violet' \| 'emerald'`), `CmsAdminLogo` (`full`, `mark`, `fullDark`, `markDark`) |
 | Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsSearchItem`, `CmsSearchResult` |
 
 **`Entity` or `CmsEntity`?** They are two views of the same thing.
@@ -419,7 +420,7 @@ export default defineAppConfig({
 | The default components | `CmsFieldText`, `CmsFieldSlug`, `CmsFieldNumber`, `CmsFieldBoolean`, `CmsFieldDate`, `CmsFieldSelect`, `CmsFieldRichText`, `CmsFieldBlocks`, `CmsFieldGroup`, `CmsFieldMedia`, `CmsFieldGallery`, `CmsFieldColor`, `CmsFieldRelationOne`, `CmsFieldRelationMany`, and `CmsCellText`, `CmsCellCode`, `CmsCellNumber`, `CmsCellBoolean`, `CmsCellDate`, `CmsCellBadge`, `CmsCellExcerpt`, `CmsCellBlocks`, `CmsCellGroup`, `CmsCellThumb`, `CmsCellGallery`, `CmsCellColor`, `CmsCellRelation`. These names are what `field.ui` carries (`surface.admin-graph.json`), and you can use them as renderers by name |
 | Props of an editor | `CmsFieldEditProps`: `field` (a `CmsAdminField`), `entity`, `id`, `readOnly` and `v-model`. Every renderer the registry resolves gets `readOnly`, built-in ones too. It means the person may see the value but not change it: their role may only read the field (`field.readOnly`), or the whole entry is read-only for them |
 | Props of a cell | `CmsFieldCellProps`: `field`, `row`, `entity` |
-| `cms.admin` | the admin's `name`, `siteUrl`, `accent` (`CmsAccent`: a built-in accent, `CmsAccentPreset`, or a hex), `logo` (`CmsAdminLogo`), `signature`, `animals` (boolean, default `true`), `locales`, `defaultLocale` and `timeZone` |
+| `cms.admin` | the admin's `name`, `siteUrl`, `accent` (`CmsAccent`: a built-in accent, `CmsAccentPreset`, or a hex), `logo` (`CmsAdminLogo`), `signature` (boolean, default `true`), `animals` (boolean, default `true`), `locales`, `defaultLocale` and `timeZone` ([the admin guide](guide/admin.md#what-you-can-brand)). The server resolves name, accent, logos, signature and animals into the theme the admin reads (`GET /api/cms/_theme`, internal) |
 
 The rest of the admin (the other `Cms*` components, the pages, `/api/cms/**`) is internal.
 

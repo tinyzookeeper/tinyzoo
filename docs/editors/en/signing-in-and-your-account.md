@@ -22,6 +22,10 @@ You get access in one of two ways.
 2. Type your **Email** and **Password**. You can check what you typed with the **Show password** button.
 3. Click **Sign in**.
 
+The sign-in page may carry your company's logo and colours. This is how it looks for a made-up bakery:
+
+![The sign-in page of the made-up Novák Bakery: an animal in a muted brick colour and the bakery's logo at the top, below them "Welcome back", the Email and Password fields and a brick-coloured Sign in button.](../../screenshots/0.7/admin-brand-signin.png)
+
 You stay signed in for about two weeks. After that, the admin asks you to sign in again.
 
 > **Tip:** Bookmark the `/admin` page in your browser.

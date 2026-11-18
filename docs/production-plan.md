@@ -256,7 +256,7 @@ Move auth from the host into the package.
 - **Admin:** sign-in, setup, forgot, reset, invitation, Team and Account screens.
 - **Host seam kept:** `cms.auth.mode: 'external'`.
 
-**Independent security review** (separate agent, given the code, not my
+**Independent security review** (separate reviewer, given the code, not my
 conclusions): no privilege escalation to admin and no account takeover without a
 prior foothold. 12 findings, all fixed, each with a regression test
 (`test/api/security.spec.ts`, `test/unit/rate-limit-ip.spec.ts`):
@@ -330,7 +330,7 @@ regenerated differently (Vue `useId` under pages that await data) — labels now
 stable ids from the field key; globals' saves did not clean up images removed from
 rich text.
 
-**Independent review** of the public-API changes (separate agent): no draft or
+**Independent review** of the public-API changes (separate reviewer): no draft or
 hidden-field leaks, the translation subqueries are parameterised and correctly
 scoped. 10 findings, all fixed with regression tests:
 
@@ -412,7 +412,7 @@ Found on the way: Nitro skips scheduled tasks when the server inherits Vitest's
 ignored row-level read rules; admin search treated `%`/`_` as wildcards; a "dirty"
 form stayed dirty after editing a field back (now: dirty = differs from saved).
 
-**Independent review** (separate agent): no High findings — scheduling hides
+**Independent review** (separate reviewer): no High findings — scheduling hides
 future entries everywhere public, access checks held. Fixed:
 
 | Severity | Finding | Fix |
@@ -481,7 +481,7 @@ Five slices, each tested and committed:
    `docs/deploying.md` covers environment, services, EU object storage, backups.
 5. **Realtime** (below).
 
-**Independent review** (separate agent, committed diff only): 2 High, 7 Medium, 8
+**Independent review** (separate reviewer, committed diff only): 2 High, 7 Medium, 8
 Low, 6 hardening — all fixed except the ones marked deferred:
 
 | Severity | Finding | Fix |
@@ -532,7 +532,7 @@ otherwise a notice offers to load it; saves send `X-CMS-Version` and get a 409
 with who saved in between — the editor loads the newer version or saves over it.
 Lists refresh when their collection changes. Translations keep their own version.
 
-**Independent review** of stage 1 (separate agent): no High findings — socket
+**Independent review** of stage 1 (separate reviewer): no High findings — socket
 auth, origin check, topic access and the version check itself held. Fixed:
 
 | Severity | Finding | Fix |
@@ -581,7 +581,7 @@ same text at once, each cursor labelled with its owner's name.
   changed through the API while people have it open keeps their text; the next save
   from it wins.
 
-**Independent review** of stage 2 (separate agent): live XSS, read-only
+**Independent review** of stage 2 (separate reviewer): live XSS, read-only
 enforcement, access mapping and sanitising on save held. Fixed:
 
 | Severity | Finding | Fix |
@@ -652,7 +652,7 @@ and mobile) in its own repository, `../triatlon-tabor-web`.
 | The CMS's rich-text styles beat the site's own | defaults are zero-specificity (`:where`) |
 | Internal links in rich text opened a new tab | only external links do |
 
-**Independent review** (separate agent, no High findings). Fixed:
+**Independent review** (separate reviewer, no High findings). Fixed:
 
 | Severity | Finding | Fix |
 |---|---|---|

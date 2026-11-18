@@ -20,6 +20,7 @@ cream stays out of the workspace on purpose.*
 |---|---|
 | Tokens (colour, type, radius, surfaces, editor layouts) | `packages/cms/app/assets/css/cms-admin.css` |
 | Branding & languages (host-overridable) | `cms.admin` in `app.config.ts` (defaults in the layer's `app/app.config.ts`) |
+| The resolved theme (name, colour, logos, animals) | `packages/cms/src/theme.ts`, `src/themeLogo.ts`, `src/themeAnimals.ts`; on the server `server/utils/cmsAdminTheme.ts` (`GET /api/cms/_theme`); PNG logos and the manifest `server/utils/cmsBrandFiles.ts`, `cmsBrandSource.ts` (`GET /api/cms/_brand/<file>`) |
 | Fonts | `fonts.families` in `packages/cms/nuxt.config.ts` (@nuxt/fonts, self-hosted at build) |
 | Brand assets, animals | `packages/cms/app/assets/brand`, `app/utils/cmsBrand.ts` (`cmsCharacter('owl')`) |
 | Interface strings | `packages/cms/app/i18n/{en,cs}.ts`, used through `useCmsI18n()` |
@@ -143,7 +144,10 @@ every token the stylesheet sets for the moments, light and dark, and `adminAccen
 - **What stays cream.** Dark mode's highlighted text (`--ui-text-highlighted`) and inverted surfaces
   (`--ui-bg-inverted`), and the light end of the dark grey ramp, stay tinyzoo's cream: they are text and
   the reversed primary of mono, not moments, and tinting every heading toward the brand would colour the
-  workspace, which stays neutral. The light-logo tile in dark mode stays cream too (the logo reads as on paper).
+  workspace, which stays neutral.
+- **The logo's tile.** In dark mode a light logo without its dark version sits on a small light tile
+  (`CmsBrandLogo`). With a brand colour the tile is the brand's light moment (`--cms-logo-plate`, written
+  in both schemes by `adminAccentCss`), so the logo reads as on the brand's own paper; otherwise cream.
 - **Animals.** Every animal file (`app/assets/brand/characters/{muted,bright}`) is drawn in exactly two
   colours: a body and a near-white face (`#F9F7F3`, `#F9F7F4`, `#F9F8F4`; a test fails if a new animal breaks
   this). A brand admin draws them inline (`CmsAnimal`, `src/themeAnimals.ts`) with those two fills replaced
@@ -195,9 +199,9 @@ sentence per screen; labels, errors and delete confirmations stay plain.
 `UDashboardGroup` + `UDashboardSidebar` (16 rem, resizable, collapsible to icons, a
 slide-over menu on phones). The client's brand leads at the top (`CmsBrandLogo`: the full
 logo, else the mark and the name, else the initials and the name; folded: the mark or the
-initials; on phones the top bar carries the mark too); the current page sits on cream;
+initials; on phones the top bar carries the mark too); the current page sits on cream (a brand's tint);
 **tinyzoo signs** under the account button (`signature: false` hides it). In dark mode a
-light logo without its dark version sits on a small cream tile. Groups: Home, Content,
+light logo without its dark version sits on a small cream tile (a brand's light tint). Groups: Home, Content,
 Settings, then View website and the account menu (appearance, language, sign out).
 
 The Write and Preview editors **fold the sidebar to icons** (`useCmsFocus`); leaving

@@ -208,7 +208,7 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
             if (/^[a-z]+:/i.test(href)) return { src: href }
             const target = posix.normalize(posix.join(dir, decodeURI(href)))
             if (!target.startsWith('docs/screenshots/')) return null
-            // docs/screenshots/0.6/<lang>/x.png when there is one, else the Czech docs/screenshots/0.6/x.png.
+            // docs/screenshots/<version>/<lang>/x.png when there is one, else the Czech docs/screenshots/<version>/x.png.
             const own = lang === DEFAULT ? null : posix.join(posix.dirname(target), lang, posix.basename(target))
             const file = own && existsSync(join(root, own)) ? own : target
             if (!existsSync(join(root, file))) return null
