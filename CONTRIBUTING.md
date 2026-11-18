@@ -127,7 +127,19 @@ Handling them:
   fails without one. That happens when an update changes `packages/cms/package.json` or
   `packages/client/package.json`: push a changeset to the Renovate branch (Renovate then
   leaves the branch to you). A raised peer dependency range (`nuxt`, `@nuxt/ui`,
-  `nuxt-auth-utils`) means sites must update too: minor, with an `### Upgrade` section.
+  `nuxt-auth-utils`, `drizzle-orm`) means sites must update too:
+  - a **new major** of `nuxt`, `@nuxt/ui` or Nitro, or a **new 0.x minor** of `nuxt-auth-utils`,
+    comes with a **tinyzoo major** (decided 2026-11-18: tinyzoo 2.0 moves to Nuxt 5 and drizzle 1.0
+    together; 1.x stays on drizzle-orm and drizzle-kit 0.x, and `tinyzoo status`/`upgrade` warn
+    about drizzle-kit 1.0);
+  - a **raised minimum within the same major** (`nuxt` `^4.6` → `^4.7`) is a **minor**, with an
+    `### Upgrade` section that names the command;
+  - a **new 0.x minor of `drizzle-orm`** (0.45 → 0.46) is a **minor** with an `### Upgrade` section:
+    its types follow drizzle-orm ("Drizzle's types" in the roadmap's Wave 5 decisions).
+
+  Node.js follows Nuxt: the packages' `engines.node` is the one of the `nuxt` version they ask
+  for (`^22.22.3 || ^24.15.0 || >=26.0.0` for Nuxt 4.6). Raising it within a Node major is a minor
+  with an `### Upgrade` section; dropping a Node major is a tinyzoo major.
 - The **Dependency Dashboard** issue lists what is waiting, what is scheduled and what was
   closed. Closing an update's pull request without merging tells Renovate to skip it (that
   major version, or that one version); to get it back, tick it on the dashboard.
@@ -197,6 +209,21 @@ changeset says whether it **breaks sites**:
   in a response, an optional field), a looser type, a fix that makes the code do what the docs said.
 - A change to an `@internal` export shows in `api-tinyzoo.txt` only as its name; it needs a changeset (it
   changes the package) but is never breaking.
+
+## tinyzoo's own tables and upgrade steps within 1.x
+
+A site on any 1.x must reach any later 1.x by updating and running `tinyzoo upgrade`, with no
+step of its own. So, until 2.0:
+
+- **Changes to tinyzoo's own `cms_*` tables are additive only**: a new table, a new nullable column
+  (or one with a default), a new index. No drop, rename or type change of a column that holds data,
+  and no new `NOT NULL` without a default. A column tinyzoo no longer needs stays (unused) until 2.0.
+- **Upgrade steps (`CORE_UPGRADE_STEPS`, a plugin's `upgrades`) stay valid against every later 1.x
+  schema** (a step written for 1.1 still runs on a database that is already at 1.4), and **none is
+  removed in 1.x**: a site that skips versions runs them all.
+- **The upgrade test keeps old baselines**: once 1.2 exists, `.github/upgrade-baseline` gets a
+  baseline two minors back (`npm:tinyzoo@<x.y-2>.0`) next to the latest release tag the script adds
+  by itself, and the 0.2 line stays while 1.0 promises that path.
 
 ## The upgrade test
 

@@ -7,6 +7,7 @@ import * as surface from '../contracts/surface/cms.config'
 import { CLI_COMMANDS, usage } from '../../packages/cms/cli/usage'
 import { API_ENTRIES, apiExports, apiReport, repoRoot, serverHelpersReport } from '../helpers/apiReport'
 import { goldenTests } from '../helpers/golden'
+import { CMS_IMAGE_WIDTHS } from '../../packages/cms/shared/image-widths'
 
 // Several checks build TypeScript programs or start the CLI; a busy CI runner needs more than 5 s.
 vi.setConfig({ testTimeout: 60_000 })
@@ -104,12 +105,27 @@ function contentRoutes(): string {
     .map((f) => routeOf(apiDir, f))
   // The forms plugin adds one under /api/content (its handler's `contentPath`).
   routes.push('GET  /api/content/_form/:name   (tinyzoo/forms)', 'POST /api/content/_form/:name   (tinyzoo/forms)')
+  // Addresses under /api/cms that tinyzoo writes into content: a file's address (`cms_media.url`,
+  // the `src` of a picture in rich text), the smaller copies <CmsImage> lists in srcset (cached a
+  // year), the logo in e-mails already sent. Stored and cached, so they are frozen too.
+  const stored = files(apiDir)
+    .filter((f) => /^cms[\\/](_media[\\/](raw|img)[\\/]|_brand[\\/])/.test(relative(apiDir, f)))
+    .map((f) => `${routeOf(apiDir, f)}   (stored in content)`)
   return `${[
     '# The HTTP routes of the public content API (and the documents around it): frozen from 1.0.',
-    '# Everything else under /api (/api/cms/*) is the admin\'s own API and may change in any minor.',
+    '# Everything else under /api (/api/cms/*) is the admin\'s own API and may change in any minor,',
+    '# except the addresses marked "stored in content": tinyzoo writes them into the database, rich',
+    '# text and e-mails (/api/cms/_media/raw/<key>, /api/cms/_media/img/<id>/<width>.webp,',
+    '# /api/cms/_brand/<file>), so they keep working within a major.',
     ...routes.sort(),
+    ...stored.sort(),
+    '',
+    `# The widths of /api/cms/_media/img/<id>/<width>.webp (may only grow): ${CMS_IMAGE_WIDTHS.join(', ')}`,
   ].join('\n')}\n`
 }
+
+/** The widths 1.0 shipped. Pages and CDNs keep srcset addresses for a year: a width may be added, never removed. */
+const IMAGE_WIDTHS_10 = [320, 640, 960, 1280, 1920]
 
 // ── the layer ───────────────────────────────────────────────────────────────────
 
@@ -174,6 +190,23 @@ goldenTests('frozen API surface (test/contracts)', [
 ], 'The frozen API changed')
 
 // ── the facts the goldens do not say by themselves ───────────────────────────────
+
+describe('addresses stored in content', () => {
+  it('keeps every image width 1.0 shipped (the list may only grow)', () => {
+    const removed = IMAGE_WIDTHS_10.filter((w) => !(CMS_IMAGE_WIDTHS as readonly number[]).includes(w))
+    expect(removed, 'a width was removed: pages and CDNs still ask for its address').toEqual([])
+    expect([...CMS_IMAGE_WIDTHS], 'ascending, no repeats').toEqual([...new Set(CMS_IMAGE_WIDTHS)].sort((a, b) => a - b))
+  })
+
+  it('serves the three stored addresses', () => {
+    const stored = contentRoutes().split('\n').filter((l) => l.includes('(stored in content)')).map((l) => l.replace(/\s+\(.*$/, ''))
+    expect(stored).toEqual(expect.arrayContaining([
+      'GET  /api/cms/_media/raw/:key*',
+      'GET  /api/cms/_media/img/:id/:file',
+      'GET  /api/cms/_brand/:file',
+    ]))
+  })
+})
 
 describe('the API report', () => {
   it('has a public and an internal part for every entry, and nothing public is tagged @internal', () => {
@@ -322,7 +355,7 @@ describe('docs/api-surface.md', () => {
   })
 
   it('names every route of the content API, every hook, and every key and header of the webhook', () => {
-    const routes = contentRoutes().split('\n').filter((l) => /^(GET|POST)/.test(l)).map((l) => l.replace(/^\w+\s+/, '').replace(/\s+\(.*$/, ''))
+    const routes = contentRoutes().split('\n').filter((l) => /^(GET|POST)/.test(l) && !l.includes('(stored in content)')).map((l) => l.replace(/^\w+\s+/, '').replace(/\s+\(.*$/, ''))
     const hooks = [...(kit.templates.find((t) => t.filename === 'types/cms-auth.d.ts')?.getContents() ?? '').matchAll(/'(cms:[a-z]+)'/g)].map((m) => m[1]!)
     expect(hooks.length).toBeGreaterThan(0)
     const body = Object.keys(webhookPayload(fullChange, 'd'))

@@ -9,6 +9,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
 import { isRisky, removeMigrations, scanBreaking, type BreakingChange } from './breaking'
+import { execArgs, sitePackageManager } from './package-manager'
 
 export interface DrizzleKitResult {
   ok: boolean
@@ -120,7 +121,8 @@ export async function generateMigration(opts: GenerateOptions): Promise<number> 
 /** drizzle-kit with the terminal when there is one; otherwise output is read to spot its rename question. */
 export function drizzleKitRunner(cwd: string, interactive: boolean): () => Promise<DrizzleKitResult> {
   return () => new Promise((resolve, reject) => {
-    const child = spawn('pnpm', ['exec', 'drizzle-kit', 'generate'], { cwd, stdio: interactive ? 'inherit' : ['ignore', 'pipe', 'pipe'] })
+    const [cmd, args] = execArgs(sitePackageManager(cwd), 'drizzle-kit', ['generate'])
+    const child = spawn(cmd, args, { cwd, stdio: interactive ? 'inherit' : ['ignore', 'pipe', 'pipe'] })
     let output = ''
     // Without a terminal drizzle-kit refuses to ask its rename question and says so (and
     // still exits 0): that, not the exit code, is how it is told apart from success. Its

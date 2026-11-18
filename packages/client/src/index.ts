@@ -203,6 +203,9 @@ export function createCmsClient<S extends AnyContentSchema, G extends object = R
     return res.item
   }
 
+  // The client's root members. A public collection is reached as `client.<name>`, so a member added
+  // here in 1.x would hide a collection of that name: members added after 1.0 start with "$", which
+  // no entity name can (test/unit/client.spec.ts keeps the list).
   const root = {
     collection,
     global,

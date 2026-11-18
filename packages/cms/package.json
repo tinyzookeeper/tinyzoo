@@ -58,7 +58,7 @@
     "@nuxtjs/sitemap": "^9.1.0",
     "@tiptap/core": "^3.34.0",
     "@tiptap/extension-collaboration": "^3.34.0",
-    "@tiptap/extension-collaboration-caret": "3.34.0",
+    "@tiptap/extension-collaboration-caret": "^3.34.0",
     "@tiptap/extension-image": "^3.34.0",
     "@tiptap/extension-link": "^3.34.0",
     "@tiptap/pm": "^3.34.0",
@@ -68,7 +68,6 @@
     "@types/node": ">=20",
     "@types/pg": "^8.11.0",
     "aws4fetch": "^1.0.20",
-    "drizzle-orm": "^0.45.4",
     "image-size": "^2.0.2",
     "ioredis": "^6.0.0",
     "jiti": "^2.6.0",
@@ -81,11 +80,13 @@
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.11",
+    "drizzle-orm": "^0.45.4",
     "typescript": "^5.7.0"
   },
   "peerDependencies": {
     "@internationalized/date": "^3.12.2",
     "@nuxt/ui": "^4.9.0",
+    "drizzle-orm": "^0.45.4",
     "nuxt": "^4.6.4",
     "nuxt-auth-utils": "^0.6.2"
   },
@@ -93,7 +94,7 @@
     "tinyzoo": "./cli/index.ts"
   },
   "engines": {
-    "node": ">=22"
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
   },
   "publishConfig": {
     "access": "public"

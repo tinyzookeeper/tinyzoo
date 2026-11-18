@@ -2200,3 +2200,36 @@ On `feat/1.0` at `a5de708` (R1, R2, Q, R3, W, the timeline and both review fix b
 
 Left for S: the "Version packages" pull request (1.0.0), the release, the website and demo deploy, `pnpm seed:plans` once on the website, the website's footer and FAQ wording about the pilot, and the pilot and Tábor sites (with the owner).
 
+
+### 1.0 — Hardening before the release: code (2026-11-18)
+
+Branch `fix/1.0-hardening-code` (from `feat/1.0` at `77345de`), the code and contract side of the two "what would force a 2.0" passes; the docs side is `fix/1.0-hardening-docs`.
+
+1. **Names that belong to tinyzoo** (`src/entity.ts`, `src/plugin.ts`, `packages/client/src/index.ts`):
+   - Field keys are validated like entity names (`^[A-Za-z][A-Za-z0-9_]*$`); a key starting with `_` is refused as tinyzoo's. `path`, `paths`, `breadcrumbs` and `preview` join the reserved field names of every entity (tinyzoo writes `path`/`breadcrumbs` onto tree items and `paths`/`locale`/`locales` onto translated items, overwriting a field of that name). None was used as a field name in the playground, the starter, `site/`, the tests or the docs.
+   - Entity names: `email` and `privacy` reserved (admin pages), and any name matching `/^cms/i` (tinyzoo's `cms_*` tables and `Cms*` schema names). The messages link "Renaming a field" / "Renaming an entity".
+   - `@tinyzoo/client`: root members added after 1.0 start with `$` (no entity name can), so no list of names is reserved for collections and nothing breaks; `collection`, `global`, `openapi`, `search` stay. `test/unit/client.spec.ts` fails on a new root member without `$`.
+   - A plugin's `contentPath` must have `_<plugin name>` as its first segment (dashes kept: `_my-shop/…`); the forms plugin keeps `_form`. `_tree` and `_form` join `_global`, `_search`, `_sitemap`: a plugin named `global`, `search`, `sitemap`, `tree` or `form` may exist but serves no content routes. `formsPlugin()` and the playground's `eventsPlugin()` comply.
+   - Major changeset `names-and-stored-addresses.md` with an Upgrade section.
+2. **Addresses stored in content frozen**: `test/contracts/content-routes.txt` lists `GET /api/cms/_media/raw/:key*` (and `HEAD`), `GET /api/cms/_media/img/:id/:file`, `GET /api/cms/_brand/:file` as "stored in content", derived from the route files, plus the image widths. The widths live once in `shared/image-widths.ts` (were copied in three places); a test fails when a 1.0 width (320, 640, 960, 1280, 1920) is removed.
+3. **Requirements**: `engines.node` `^22.22.3 || ^24.15.0 || >=26.0.0` (exactly Nuxt 4.6.4's; nuxt-auth-utils 0.6.2 says the same, Nitro, Nuxt UI and Vite ask for less) on `tinyzoo`, `@tinyzoo/client`, `create-tinyzoo` and the starter; the Dockerfiles use `node:22-alpine` (no patch pinned), unchanged. `drizzle-kit` is in `CHECKED_PACKAGES` with `>=0.31 <1` (`satisfiesRange` now takes space-joined comparators); `tinyzoo status` also prints the version warnings (exit code unchanged). `drizzle-orm` is a peer dependency (`^0.45.4`) and a dev dependency of `tinyzoo`, no longer a dependency.
+4. **The starter's scripts call the `tinyzoo` bin** (`tinyzoo generate|up|seed|client …`); `check:starter` ran all four through it. `tinyzoo generate` runs drizzle-kit and `tinyzoo upgrade` runs `cms:client` with the site's package manager (`cli/package-manager.ts`: lockfile, walking up; then `packageManager`; then the user agent; else pnpm), and the commands they print follow it.
+5. **Webhook signature**: the API test parsed `X-CMS-Signature` with an exact regex; it now uses `test/helpers/webhookSignature.ts` (split on `,`, any matching `v1=`, timing-safe, a time window), with unit tests for extra parts and a second `v1=`. The playground and `site/` do not parse it.
+6. **CONTRIBUTING.md**: peer ranges from 1.0 (a new major of Nuxt, Nuxt UI or Nitro, or a 0.x minor of nuxt-auth-utils, is a tinyzoo major; a raised minimum within a major, or a drizzle-orm 0.x minor, is a minor with an Upgrade section; Node follows Nuxt), and a new section: `cms_*` tables additive only in 1.x, upgrade steps valid against every later 1.x schema and never removed, a baseline two minors back once 1.2 exists.
+7. `@tiptap/extension-collaboration-caret` on `^3.34.0` like the other TipTap packages (patch changeset).
+
+Changesets: `names-and-stored-addresses.md` (tinyzoo major, client patch), `requirements-and-cli.md` (minor, all three), `collaboration-caret-range.md` (patch). `pnpm changeset status`: all three packages to 1.0.0.
+
+Checks, under Node 22.23.1 (the local 24.11.1 is below the new range; pnpm then prints an "Unsupported engine" warning, which broke the `tinyzoo help` output test), `TEST_DATABASE_URL=…/cms_test_harden`, `TEST_REDIS_URL` on a throwaway Valkey 8:
+
+- `pnpm check` green: 137 files / 2,137 tests passed, 2 files / 23 tests skipped (323 s, typecheck included).
+- `pnpm check:consumer` green (60 s).
+- `pnpm check:starter` green on defaults, english-empty, all-with-german and english-first (250 s).
+- `pnpm check:upgrade` green from `2506403`, `npm:tinyzoo@0.2.0` and `tinyzoo@0.7.0` (243 s); "drizzle-kit … fit this tinyzoo" on all three.
+
+Left open:
+
+- `test/unit/api-surface.spec.ts` checks that `docs/api-surface.md` names every content route, but leaves the "stored in content" lines out until the docs branch names them; drop that filter when `fix/1.0-hardening-docs` is merged.
+- A core content route added in 1.x (`/api/content/_x`) could meet a plugin named `x`. New core content routes should take a segment no plugin name can be (one with `_` inside, e.g. `_cms_x`: plugin names have no `_`), or a name added to `RESERVED_PLUGIN_NAMES` before it ships.
+- Yarn Plug'n'Play is not tried (`yarn drizzle-kit generate` should work there; nothing checks it). The bin's `#!/usr/bin/env tsx` needs `tsx` reachable from the site, which the starter's dev dependency gives.
+- `site/package.json` (the website) still calls `tsx node_modules/tinyzoo/cli/index.ts …`; it works, and is not a published package.

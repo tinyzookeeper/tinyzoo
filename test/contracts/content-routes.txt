@@ -1,5 +1,8 @@
 # The HTTP routes of the public content API (and the documents around it): frozen from 1.0.
-# Everything else under /api (/api/cms/*) is the admin's own API and may change in any minor.
+# Everything else under /api (/api/cms/*) is the admin's own API and may change in any minor,
+# except the addresses marked "stored in content": tinyzoo writes them into the database, rich
+# text and e-mails (/api/cms/_media/raw/<key>, /api/cms/_media/img/<id>/<width>.webp,
+# /api/cms/_brand/<file>), so they keep working within a major.
 GET  /api/content-types.ts
 GET  /api/content/:entity
 GET  /api/content/:entity/:slug
@@ -13,3 +16,9 @@ GET  /api/health/ready
 GET  /api/openapi
 GET  /api/openapi.json
 POST /api/content/_form/:name   (tinyzoo/forms)
+GET  /api/cms/_brand/:file   (stored in content)
+GET  /api/cms/_media/img/:id/:file   (stored in content)
+GET  /api/cms/_media/raw/:key*   (stored in content)
+HEAD /api/cms/_media/raw/:key*   (stored in content)
+
+# The widths of /api/cms/_media/img/<id>/<width>.webp (may only grow): 320, 640, 960, 1280, 1920
