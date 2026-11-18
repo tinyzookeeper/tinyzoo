@@ -11,6 +11,7 @@
 // moves the focus without scrolling (Reka's focus trap focuses with `preventScroll`). On a phone, where
 // the publish review is taller than the screen, the focused button then sat off screen. While the
 // keyboard is in use, a control that takes the focus entirely out of view is scrolled to the nearest edge.
+import { onBeforeUnmount, onMounted } from 'vue'
 
 /** The attribute on <html> while the keyboard was the last thing used. */
 export const CMS_KEYS_ATTR = 'data-cms-keys'
@@ -46,4 +47,40 @@ export function cmsTrackKeys(doc: Document = document): () => void {
     doc.removeEventListener('focusin', onFocus, opts)
     root.removeAttribute(CMS_KEYS_ATTR)
   }
+}
+
+/**
+ * `cmsTrackKeys` for as long as the calling component is mounted: started once it is in the page,
+ * stopped (listeners and attribute gone) before it leaves. The admin layout calls it in its setup.
+ */
+export function cmsTrackKeysWhileMounted(doc?: Document): void {
+  let stop: (() => void) | undefined
+  onMounted(() => { stop = cmsTrackKeys(doc ?? document) })
+  onBeforeUnmount(() => { stop?.(); stop = undefined })
+}
+
+/**
+ * The option of a radio group an arrow key moves to: Down and Right the next, Up and Left the
+ * previous, wrapping round. Null for any other key (Tab, Space and Enter keep their own meaning).
+ */
+export function cmsRadioArrow<T>(key: string, options: readonly T[], current: T): T | null {
+  const step = key === 'ArrowDown' || key === 'ArrowRight' ? 1 : key === 'ArrowUp' || key === 'ArrowLeft' ? -1 : 0
+  if (!step || !options.length) return null
+  const at = options.indexOf(current)
+  return options[((at < 0 ? 0 : at + step) + options.length) % options.length]!
+}
+
+/**
+ * A key on one option of a radio group (`role="radiogroup"` holding `role="radio"` buttons with
+ * `aria-checked` and a roving `tabindex`: only the chosen one is a Tab stop). An arrow key chooses
+ * the next or previous option and, once that is drawn (`after`: Vue's `nextTick`), moves the focus
+ * to the option now checked, so the focus and the choice move together. Other keys are left alone.
+ */
+export function cmsRadioGroupKey<T>(e: KeyboardEvent, options: readonly T[], current: T, choose: (option: T) => void, after: (fn: () => void) => unknown): void {
+  const next = cmsRadioArrow(e.key, options, current)
+  if (next === null) return
+  e.preventDefault()
+  const group = (e.currentTarget as HTMLElement | null)?.parentElement
+  choose(next)
+  after(() => group?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus())
 }

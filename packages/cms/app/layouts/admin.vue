@@ -49,7 +49,7 @@ if (sidebarLayout.value && typeof sidebarLayout.value === 'object' && !!sidebarL
 }
 // A select menu's or the search's option reached with the arrow keys shows the focus ring (cms-admin.css);
 // keyboard focus that lands off screen (Tab wrapping round a dialog) is scrolled into view.
-onMounted(() => onBeforeUnmount(cmsTrackKeys()))
+cmsTrackKeysWhileMounted()
 
 onMounted(() => {
   watch(focus, (on) => { collapsed.value = on || cmsSidebarFolded(pref.value) }, { immediate: true })

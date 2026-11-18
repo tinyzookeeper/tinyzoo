@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { CMS_KEYS_ATTR, cmsTrackKeys } from '../../packages/cms/app/utils/cmsKeys'
+import { describe, expect, it, vi } from 'vitest'
+import { createRenderer, defineComponent, h } from 'vue'
+import { CMS_KEYS_ATTR, cmsRadioArrow, cmsRadioGroupKey, cmsTrackKeys, cmsTrackKeysWhileMounted } from '../../packages/cms/app/utils/cmsKeys'
 
 // A select menu and the search keep the focus in their search box and mark the option the arrow keys reach
 // (data-highlighted), as the pointer does. cms-admin.css rings a marked option only while <html> carries
@@ -82,26 +83,113 @@ describe('cmsTrackKeys: the keyboard was the last thing used', () => {
     expect(focusAt(-103, -71)).toHaveLength(0)
   })
 
-  it('the admin layout starts it and stops it with the layout; the stylesheet reads the same attribute', () => {
-    const layout = readFileSync(join(import.meta.dirname, '../../packages/cms/app/layouts/admin.vue'), 'utf8')
-    expect(layout).toContain('onMounted(() => onBeforeUnmount(cmsTrackKeys()))')
+  it('the stylesheet rings a marked option only under the same attribute', () => {
     const css = readFileSync(join(import.meta.dirname, '../../packages/cms/app/assets/css/cms-admin.css'), 'utf8')
     expect(css).toContain(`html[data-cms-admin][${CMS_KEYS_ATTR}] `)
   })
 })
 
-describe('the publish review\'s "when" choice is a radio group from the keyboard', () => {
-  const review = readFileSync(join(import.meta.dirname, '../../packages/cms/app/components/CmsPublishReview.vue'), 'utf8')
+// Mounting the admin layout or the publish review needs Nuxt UI, the admin's auto-imports and a DOM, none of
+// which the unit tests have (no @vue/test-utils or DOM library in the repository). What they do from the
+// keyboard is in plain functions of app/utils/cmsKeys.ts, tested here; the lifecycle runs in a real Vue
+// component, mounted with a renderer that keeps its nodes in plain objects.
+const { createApp } = createRenderer<any, any>({
+  createElement: (type) => ({ type, children: [] }),
+  createText: (text) => ({ text }),
+  createComment: (text) => ({ text }),
+  setText: () => {},
+  setElementText: () => {},
+  insert: (child, parent) => { parent.children.push(child) },
+  remove: () => {},
+  parentNode: () => null,
+  nextSibling: () => null,
+  patchProp: () => {},
+})
 
-  it('one Tab stop (the chosen card), the arrow keys change the choice and move the focus with it', () => {
+describe('cmsTrackKeysWhileMounted: what the admin layout calls in its setup', () => {
+  it('tracks the keyboard from mounting until unmounting, then leaves nothing behind', () => {
+    const { doc, attrs, key } = fakeDocument()
+    const listening = vi.spyOn(doc, 'addEventListener')
+    const app = createApp(defineComponent({ setup() { cmsTrackKeysWhileMounted(doc); return () => h('div') } }))
+    expect(listening).not.toHaveBeenCalled() // set up, not yet in the page (nothing runs on the server)
+    app.mount({ children: [] })
+    expect(listening).toHaveBeenCalledTimes(4)
+    key('ArrowDown')
+    expect(attrs.has(CMS_KEYS_ATTR)).toBe(true)
+    app.unmount()
+    expect(attrs.has(CMS_KEYS_ATTR)).toBe(false)
+    key('ArrowDown')
+    expect(attrs.has(CMS_KEYS_ATTR)).toBe(false)
+  })
+
+  it('is what the layout uses', () => {
+    const layout = readFileSync(join(import.meta.dirname, '../../packages/cms/app/layouts/admin.vue'), 'utf8')
+    expect(layout).toMatch(/^cmsTrackKeysWhileMounted\(\)$/m)
+  })
+})
+
+describe('the publish review\'s "when" choice is a radio group from the keyboard', () => {
+  it('the arrow keys move to the next or previous option, wrapping round; other keys do nothing', () => {
+    const when = ['now', 'schedule'] as const
+    for (const key of ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft']) {
+      expect(cmsRadioArrow(key, when, 'now'), key).toBe('schedule')
+      expect(cmsRadioArrow(key, when, 'schedule'), key).toBe('now')
+    }
+    const three = ['a', 'b', 'c']
+    expect([cmsRadioArrow('ArrowDown', three, 'c'), cmsRadioArrow('ArrowUp', three, 'a'), cmsRadioArrow('ArrowRight', three, 'a')]).toEqual(['a', 'c', 'b'])
+    for (const key of ['Tab', ' ', 'Enter', 'Home', 'a']) expect(cmsRadioArrow(key, when, 'now'), key).toBeNull()
+  })
+
+  /** Two radio cards in a group; the group finds the one whose aria-checked follows the choice. */
+  function radioGroup() {
+    let chosen: 'now' | 'schedule' = 'now'
+    const focused: string[] = []
+    const card = (opt: typeof chosen) => ({ opt, focus: () => { focused.push(opt) } })
+    const cards = { now: card('now'), schedule: card('schedule') }
+    const group = { querySelector: (sel: string) => (sel === '[aria-checked="true"]' ? cards[chosen] : null) }
+    const pending: (() => void)[] = []
+    const press = (key: string) => {
+      const e = { key, currentTarget: { parentElement: group }, preventDefault: vi.fn() }
+      cmsRadioGroupKey(e as unknown as KeyboardEvent, ['now', 'schedule'] as const, chosen, (v) => { chosen = v }, (fn) => { pending.push(fn) })
+      return e
+    }
+    const draw = () => { for (const fn of pending.splice(0)) fn() }
+    return { press, draw, focused, chosen: () => chosen }
+  }
+
+  it('an arrow key changes the choice, keeps the page from scrolling, and moves the focus to the new choice once drawn', () => {
+    const r = radioGroup()
+    const e = r.press('ArrowDown')
+    expect(e.preventDefault).toHaveBeenCalled()
+    expect(r.chosen()).toBe('schedule')
+    expect(r.focused).toEqual([]) // not before the change is drawn
+    r.draw()
+    expect(r.focused).toEqual(['schedule'])
+    r.press('ArrowLeft')
+    r.draw()
+    expect([r.chosen(), r.focused]).toEqual(['now', ['schedule', 'now']])
+  })
+
+  it('Tab, Space and Enter are left to the browser (Tab leaves the group from its one stop)', () => {
+    const r = radioGroup()
+    for (const key of ['Tab', ' ', 'Enter']) {
+      const e = r.press(key)
+      expect(e.preventDefault, key).not.toHaveBeenCalled()
+    }
+    r.draw()
+    expect([r.chosen(), r.focused]).toEqual(['now', []])
+  })
+
+  it('is what the review\'s cards use, with the chosen card the one Tab stop', () => {
+    const review = readFileSync(join(import.meta.dirname, '../../packages/cms/app/components/CmsPublishReview.vue'), 'utf8')
     expect(review).toContain('role="radiogroup"')
     expect(review).toContain(':tabindex="when === opt ? 0 : -1"')
     expect(review).toContain('@keydown="onWhenKey"')
-    for (const key of ['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft']) expect(review).toContain(`'${key}'`)
-    expect(review).toMatch(/querySelector<HTMLElement>\('\[aria-checked="true"\]'\)\?\.focus\(\)/)
+    expect(review).toMatch(/cmsRadioGroupKey\(e, WHEN, when\.value,/)
   })
 
   it('its focus ring sits 2 px off the card, so it never reads as the chosen card\'s border', () => {
+    const review = readFileSync(join(import.meta.dirname, '../../packages/cms/app/components/CmsPublishReview.vue'), 'utf8')
     expect(review).toMatch(/role="radio"[\s\S]*?focus-visible:outline-2 focus-visible:outline-offset-2/)
   })
 })
