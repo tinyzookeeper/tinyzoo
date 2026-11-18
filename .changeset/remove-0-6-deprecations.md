@@ -12,11 +12,11 @@ What 0.6 deprecated is removed. Each one now stops the build or the config with 
 
 ### Upgrade
 
+A site that saw no deprecation warning on 0.6 or 0.7 has nothing to do. The warning is a line that starts with `[tinyzoo] deprecated: …`, in the output of `nuxt build` or in the server's log. Otherwise, follow "From 0.7 to 1.0" in [docs/upgrading.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#from-07-to-10):
+
 1. In `nuxt.config.ts`, delete `cms.databaseUrl`. Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) where the site runs, and in `.env` for the CLI.
 2. In `cms.config.ts`, change `defineEntity('x', { singleton: true, … })` to `defineSingleton('x', { … })`. Same table, same address, same admin.
 3. Change `import type { FormOptions } from 'tinyzoo'` to `from 'tinyzoo/forms'`.
 4. If your build sets `CMS_SCHEDULER_CRON` or `CMS_RETENTION_CRON`, write `cms: { scheduler: { cron: '…' }, retention: { cron: '…' } }` in `nuxt.config.ts` instead, and remove the variables.
 5. Rename a field called `page`, `limit`, `sort`, `dir` or `q` in a public collection. A rename is a migration: see "Renaming a field" in `docs/upgrading.md`.
 6. Run `pnpm typecheck` and build. Both name anything left over.
-
-A site that saw no deprecation warning on 0.6 or 0.7 has nothing to do.
