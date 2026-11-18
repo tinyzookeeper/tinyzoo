@@ -1,6 +1,7 @@
-# The versions the upgrade test (scripts/upgrade-check.mjs, the `upgrade` job in ci.yml)
-# moves a site FROM, one git ref per line. A site made with that version's `tinyzoo init`
-# is upgraded to the current code; the check fails when it cannot be.
+# The versions the upgrade test (scripts/upgrade-check.mjs, the `upgrade` job in heavy.yml)
+# moves a site FROM, one per line: a git ref, or npm:tinyzoo@<version> for the packages as
+# published. A site made with that version's `tinyzoo init` is upgraded to the current code;
+# the check fails when it cannot be.
 #
 # Before the first release the baseline is a commit, not a tag. Once releases exist the
 # latest release tag (v0.2.0, or tinyzoo@0.2.0 as Changesets writes it) is added
@@ -10,3 +11,9 @@
 # First commit with snake_case table names (merge of the 0.2 table-name work). Earlier
 # commits need the interactive rename documented in the changeset.
 2506403
+
+# The first release, as sites installed it: tinyzoo and @tinyzoo/client 0.2.0 from npm, the site
+# made with `pnpm dlx tinyzoo@0.2.0 init`. 1.0's promise is that a 0.2 site gets to the current
+# version by following docs/upgrading.md (an `npm:` line needs its release tag in the clone, for
+# the lockfile).
+npm:tinyzoo@0.2.0

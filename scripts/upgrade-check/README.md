@@ -74,7 +74,13 @@ seeder that runs it goes into `SEEDERS` in `upgrade-check.mjs` and is chosen wit
 ```sh
 UPGRADE_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5432/postgres pnpm check:upgrade
 node scripts/upgrade-check.mjs --from 2506403 --keep    # one baseline, keep the folder and database to look at
+node scripts/upgrade-check.mjs --from npm:tinyzoo@0.2.0 # the published 0.2.0, from npm
 ```
+
+A baseline written `npm:tinyzoo@<version>` installs tinyzoo and @tinyzoo/client of that version
+from npm and makes the site with `pnpm dlx tinyzoo@<version> init`. Its release tag
+(`tinyzoo@<version>`) must be in the clone: the check reads the starter's pinned versions and
+`.env.example` from it. Its hook file is `npm_tinyzoo@<version>.mjs`.
 
 It needs a Postgres server it may create `cms_upcheck_*` databases on (dropped at the end),
 the network for `pnpm install`, and about a minute and a half per baseline. Redis is used when
