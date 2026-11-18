@@ -39,7 +39,8 @@ describe('the docs on the website', () => {
   it('pairs each translated chapter with the Czech one: same pictures, same clips, same place', () => {
     const cs = (built.files.get('cs/nav.json') as DocsNav).sections.editors.groups[0]!.pages
     const media = (p: DocsPage) => ({
-      pictures: [...htmlOf(p).matchAll(/<img src="\/docs\/img\/(?:0\.6\/(?:en|de)\/)?([^"]+)"/g)].map((m) => m[1]!.replace(/^0\.6\//, '')),
+      // docs/screenshots/<version>/<lang>/x.png and the Czech <version>/x.png count as the same picture.
+      pictures: [...htmlOf(p).matchAll(/<img src="\/docs\/img\/([^"]+)"/g)].map((m) => m[1]!.replace(/^(\d+\.\d+\/)(?:en|de)\//, '$1')),
       // The clips the Markdown places (shown only once their file exists).
       clips: [...readFileSync(join(root, p.source), 'utf8').matchAll(/<!--\s*clip:\s*([a-z0-9-]+)/g)].map((m) => m[1]),
     })
