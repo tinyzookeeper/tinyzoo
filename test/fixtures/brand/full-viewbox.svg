@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 264 64">
+  <path d="M7 45C7 27 18 15 32 15S57 27 57 45c0 3-2 5-5 5H12c-3 0-5-2-5-5Z" fill="#7A3A17"/>
+  <path d="M21 25l4 13M31 22l4 16M41 25l4 13" stroke="#F6E3C8" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <text x="68" y="37" font-family="Georgia, 'Times New Roman', serif" font-size="25" font-weight="700" fill="#3B200F">Pekárna Novák</text>
+  <text x="69" y="54" font-family="Georgia, 'Times New Roman', serif" font-size="11" letter-spacing="2.2" fill="#9A5A30">CHLÉB OD ROKU 1994</text>
+</svg>

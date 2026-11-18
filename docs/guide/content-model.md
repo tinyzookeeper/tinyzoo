@@ -76,7 +76,7 @@ Entities are typed **without annotations**. `Row<typeof Post>` is what a row hol
 | `content` | How it is delivered to the website ([reading content](#reading-content)). |
 | `publish` | A draft / published workflow ([publishing](#publishing)). |
 | `access` | Row-level rules on top of the roles ([access rules](#access-rules)). |
-| `admin` | How the admin lays it out: `list` (`columns`, `searchable`, `orderField` to arrange by dragging, `layout`), `editor` (`write`, `form`, `preview`), `sections`, `tabs`. See [the admin](admin.md#admin-look--language). |
+| `admin` | How the admin lays it out: `list` (`columns`, `searchable`, `orderField` to arrange by dragging, `layout`), `editor` (`write`, `form`, `preview`), `sections`, `tabs`. See [the admin](admin.md#how-editors-and-lists-are-arranged). |
 | `live` | Every write is live at once (redirects). People who may not publish cannot write it. |
 
 Every row also gets `id` (uuid), `createdAt`, `updatedAt`, `createdBy` and `updatedBy`.
@@ -131,7 +131,7 @@ publishedAt: f.datetime().optional().label('Publish date'),
 slug: f.slug({ from: 'title', unique: true }).help('Filled in from the title: change it if you like.'),
 ```
 
-Fields in the admin read as a few titled sections. Name them with `admin.sections` (see [the admin](admin.md#admin-look--language)).
+Fields in the admin read as a few titled sections. Name them with `admin.sections` (see [the admin](admin.md#form-sections)).
 
 ### Details by type
 

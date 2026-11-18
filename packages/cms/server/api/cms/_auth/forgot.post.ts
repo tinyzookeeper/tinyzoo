@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
     const [user] = await db.select().from(reg.cmsUsers).where(eq(reg.cmsUsers.email, email))
     if (!user || user.status !== 'active') return
     const secret = await issueToken(db, reg, { userId: user.id, kind: 'reset', ttlMs: RESET_TTL_MS })
-    await sendCmsMail(resetEmail({ to: user.email, url: linkBase + secret, locale: user.locale || asked }))
+    await sendCmsMail(await resetEmail(event, { to: user.email, url: linkBase + secret, locale: user.locale || asked }))
     await audit(event, 'auth.reset_request', { userId: user.id })
   })().catch((err) => console.error('[cms] could not send the password reset email', redactEmails(safeErrorMessage(err))))
 

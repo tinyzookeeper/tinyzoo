@@ -13,12 +13,14 @@ const props = withDefaults(defineProps<{
   plain?: boolean
 }>(), { icon: 'i-lucide-inbox', variant: 'first-use' })
 
-const animal = computed(() => (props.variant === 'first-use' && !props.plain ? cmsCharacterFor(props.character ?? props.title) : null))
+const animals = useCmsAnimals()
+// No animals (`cms.admin.animals: false`): the plain tile with the icon, as in a form.
+const animal = computed(() => (props.variant === 'first-use' && !props.plain && animals.value ? cmsCharacterFor(props.character ?? props.title) : null))
 </script>
 
 <template>
   <div class="flex flex-col items-center text-center px-6 py-14 sm:py-16" :role="variant === 'error' ? 'alert' : undefined">
-    <img v-if="animal" :src="animal.url" alt="" class="h-20 w-auto mb-5 select-none" draggable="false" :data-character="animal.name">
+    <CmsAnimal v-if="animal" :name="animal.name" class="h-20 w-auto mb-5" />
     <div
       v-else
       class="size-10 rounded-md flex items-center justify-center mb-4"

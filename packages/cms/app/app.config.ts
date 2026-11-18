@@ -1,3 +1,5 @@
+import type { CmsAccent, CmsAdminLogo } from '../src/theme'
+
 // Default CMS app config (merged into the host; host values win).
 //
 // `cms.fields` is the field/view registry: map a field TYPE to override its edit
@@ -15,7 +17,10 @@
 //   cms: { admin: {
 //     name: { cs: 'Pekárna Novák', en: 'Novák Bakery' }, // shown in the sidebar and tab title
 //     siteUrl: 'https://pekarna-novak.cz',                // "View website" link
-//     accent: 'mono',                                     // mono | indigo | blue | violet | emerald
+//     accent: 'mono',                                     // mono | indigo | blue | violet | emerald, or any hex ('#B4532A')
+//     logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }, // optional; fullDark / markDark too
+//     signature: true,                                    // tinyzoo's quiet signature; false hides it
+//     animals: true,                                      // tinyzoo's animals at the moments; false hides them all
 //     locales: ['cs', 'en'], defaultLocale: 'cs',         // admin interface languages
 //     timeZone: 'Europe/Prague',                          // how dates are shown
 //   } }
@@ -26,7 +31,12 @@ export default defineAppConfig({
       // Unset: the admin is called tinyzoo. A client's name makes it theirs.
       name: 'tinyzoo' as string | Record<string, string>,
       siteUrl: '/',
-      accent: 'mono' as 'mono' | 'indigo' | 'blue' | 'violet' | 'emerald',
+      accent: 'mono' as CmsAccent,
+      logo: {} as CmsAdminLogo,
+      signature: true as boolean,
+      // tinyzoo's animals at the moments (sign-in, welcome, empty places, success). With a brand
+      // colour they are drawn in a muted shade of it. false: no animals anywhere (a white-label admin).
+      animals: true as boolean,
       locales: ['cs', 'en', 'de'] as string[],
       defaultLocale: 'en',
       timeZone: 'Europe/Prague',

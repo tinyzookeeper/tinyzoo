@@ -20,6 +20,7 @@ cream stays out of the workspace on purpose.*
 |---|---|
 | Tokens (colour, type, radius, surfaces, editor layouts) | `packages/cms/app/assets/css/cms-admin.css` |
 | Branding & languages (host-overridable) | `cms.admin` in `app.config.ts` (defaults in the layer's `app/app.config.ts`) |
+| The resolved theme (name, colour, logos, animals) | `packages/cms/src/theme.ts`, `src/themeLogo.ts`, `src/themeAnimals.ts`; on the server `server/utils/cmsAdminTheme.ts` (`GET /api/cms/_theme`); PNG logos and the manifest `server/utils/cmsBrandFiles.ts`, `cmsBrandSource.ts` (`GET /api/cms/_brand/<file>`) |
 | Fonts | `fonts.families` in `packages/cms/nuxt.config.ts` (@nuxt/fonts, self-hosted at build) |
 | Brand assets, animals | `packages/cms/app/assets/brand`, `app/utils/cmsBrand.ts` (`cmsCharacter('owl')`) |
 | Interface strings | `packages/cms/app/i18n/{en,cs}.ts`, used through `useCmsI18n()` |
@@ -59,7 +60,108 @@ with "Visitors see the Czech version until an editor publishes this one." in its
 names its language: "English · Draft" (on a phone the bar has room for the mark and the code only, "○ EN ▾"; the words are the menu's lines and the button's name).
 
 Client accents: `cms.admin.accent` = `indigo`, `blue`, `violet` or `emerald` replaces
-charcoal; or override `--ui-color-primary-*` under `html[data-cms-admin]`.
+charcoal, or the client's brand colour as a hex (below). The colour presets fill solid buttons with
+their 600 shade (emerald 700) and white text in light mode, and with their 400 shade and ink text in
+dark mode (6:1 or more; white there was 1.9–3.1:1).
+
+### Brand colours
+
+`cms.admin.accent: '#B4532A'` is resolved by `resolveAdminTheme()` (`packages/cms/src/theme.ts`),
+on the server at runtime. The admin sets `data-cms-accent="brand"` and writes the variables in a
+`<style>` scoped to `html[data-cms-admin][data-cms-accent='brand']` (light and `.dark`). The five built-in
+accents are drawn by `cms-admin.css` as before; `src/theme.ts` carries their hexes for the emails, and
+a test checks the two agree.
+
+How the colours are derived, in OKLCH:
+
+- **Shades 50…950** (`--ui-color-primary-*`): the lightness of each shade as in the built-in ramps
+  (97 % … 28 %), the hue kept, the chroma tapering toward both ends. The shade nearest the brand
+  colour's own lightness is the brand colour itself.
+- **Light mode** has two roles. The **fill** of solid buttons and badges (`--cms-accent-fill`) is the
+  brand colour, with white or ink text (`--cms-accent-on-fill`), whichever reads better.
+  The **text shade** (`--ui-primary`) is used for links, the active menu item, focus rings, checked
+  boxes, switches and selected borders. It is the brand colour when that reads on white, otherwise
+  a darker shade of it. `cms-admin.css` points solid buttons and badges (`[data-slot='base'].bg-primary`)
+  at the fill. Everything else uses `--ui-primary`.
+- **Dark mode**: one lighter colour for both roles. It is the 400 shade, or the brand colour when that is
+  lighter still, with ink text.
+- **Under the pointer** (and pressed) a solid button takes `--cms-accent-fill-hover`, not Nuxt UI's fill
+  at 75 % (which took white text down to 2.9:1): one step (0.06 OKLCH lightness) away from its text,
+  darker under white and lighter under ink, so the text reads better rather than worse. A fill with no
+  room that way (black, cream, a pale yellow that would vanish) steps the other way as far as its text
+  still reads at 4.5:1. The presets use their next shade (light: 700, emerald 800; dark: 300; mono
+  `#1E1F23` and `#EEEAE4`). The rule matches Nuxt UI's `hover:bg-primary/75` and
+  `active:bg-primary/75` classes, so it covers every accent.
+- **Focus rings** are `--cms-accent-ring`: the text shade in light mode, the dark colour in dark mode,
+  never the fill (a yellow brand's ring is its dark yellow), declared on `<html>` so a solid button that
+  re-points `--ui-primary` keeps it. Every Nuxt UI focus outline (its `focus-visible:outline-3`, 25 %
+  of the accent, 1.1–1.6:1 on white) is redrawn at full strength: 2 px, 2 px off the control, so it
+  sits on the page; text fields hug theirs (2 px, or 1 px against the field's own 1 px ring); the
+  menu's links draw it around their highlight. A plain link keeps the browser's own ring, in
+  `--cms-accent-ring` (only `outline-color` is set, so nothing that had no ring gains one).
+
+**The contrast guard** checks the hexes the admin draws (WCAG 2 ratios):
+
+| What | On | Bar |
+|---|---|---|
+| Text on a solid button | the fill, and the hover fill | 4.5:1 |
+| The text shade | white, the brand's own light moment (in place of cream), the hover grey `#F5F5F5`, its own tint up to 20 % over white | 4.5:1 |
+| The dark colour | `#18191C`, `#1E1F23`, `#2E3035`, the brand's own dark moment, its own tint up to 20 % over the page and cards | 4.5:1 |
+| Focus rings, borders | every surface (the stronger cream `#F1EADF` and dark `#383B41` included) | 3:1 (follows from the text bar) |
+| A button that shows | white and cream | 1.25:1 (not a WCAG bar; it stops a white brand from drawing invisible buttons) |
+
+The tint is Nuxt UI's: soft buttons at 10 %, their hover and the search's matched letters at 15 %, the
+calendar's hovered "today" at 20 %. Accent text does not sit on the stronger cream (`#F1EADF`), the
+pressed grey (neutral-200), or a tint over cream or charcoal anywhere in the admin, so the guard does not
+check those; a site's own component that puts it there is not covered. The five built-in accents are
+not run through the guard: blue, violet and emerald read 3.9–4.3:1 as text on their own 15–20 % tint.
+
+A colour that fails moves to the nearest one that passes, by OKLCH lightness only: the hue stays and
+the chroma stays as far as sRGB allows. The fill may go either way, the text shade only darker, the dark
+colour only lighter. A colour the guard produced passes as it is, so resolving it again changes nothing.
+What changed goes into the theme's `notes`, printed in development (the server log at start, the browser
+console once per browser session, again when the notes change) and dropped in production. Tests: `test/unit/admin-accent.spec.ts` (a few hundred colours)
+and `test/unit/admin-contrast.spec.ts` (against the stylesheet's real surfaces).
+
+### Brand moments and animals
+
+With a brand colour the whole look follows it (decided 2026-11-18): where tinyzoo draws cream (light) and
+charcoal (dark), a brand draws calm paper with a hint of itself. `brandMoments()` in `src/theme.ts` derives
+every token the stylesheet sets for the moments, light and dark, and `adminAccentCss` writes them in the same
+`<style>` as the accent: `--cms-moment-bg`, `--cms-moment-strong`, `--cms-moment-line`, `--cms-moment-text`,
+`--cms-nav-active`, `--cms-auth-bg`, and the animals' `--cms-animal-body` and `--cms-animal-face`.
+
+- **Hue and chroma.** The brand's OKLCH hue, and 7 % of its chroma, capped at 0.009 in light mode (cream's
+  own chroma; 0.02 read as peach for a terracotta) and 0.008 in dark mode (charcoal is 0.0094; more read as
+  brown). The stronger tint and the line keep cream's ratios (1.8× and 2.6× the chroma), the dark ones
+  charcoal's. A near-grey brand gives near-grey moments.
+- **Lightness.** Cream's and charcoal's: light `0.975` (strong `0.94`, line `0.90`, quiet text `0.517`), dark
+  `0.309` (strong `0.352`, line `0.394`, quiet text `0.752`). Two clamps by WCAG luminance: a light moment is
+  never darker than the hover grey `#F5F5F5`, a dark one never lighter than charcoal `#2E3035`. Every text
+  role and the accent already read at 4.5:1 on those, so they read on the moments too, and the accent a
+  colour gets is the same with or without them (the guard stays idempotent). The quiet text inside a moment
+  is checked on its own and moves by lightness until it reads at 4.5:1.
+- **What stays cream.** Dark mode's highlighted text (`--ui-text-highlighted`) and inverted surfaces
+  (`--ui-bg-inverted`), and the light end of the dark grey ramp, stay tinyzoo's cream: they are text and
+  the reversed primary of mono, not moments, and tinting every heading toward the brand would colour the
+  workspace, which stays neutral.
+- **The logo's tile.** In dark mode a light logo without its dark version sits on a small light tile
+  (`CmsBrandLogo`). With a brand colour the tile is the brand's light moment (`--cms-logo-plate`, written
+  in both schemes by `adminAccentCss`), so the logo reads as on the brand's own paper; otherwise cream.
+- **Animals.** Every animal file (`app/assets/brand/characters/{muted,bright}`) is drawn in exactly two
+  colours: a body and a near-white face (`#F9F7F3`, `#F9F7F4`, `#F9F8F4`; a test fails if a new animal breaks
+  this). A brand admin draws them inline (`CmsAnimal`, `src/themeAnimals.ts`) with those two fills replaced
+  by classes coloured from the two variables, so the server renders them in colour and they follow light
+  and dark. The body is one muted shade of the brand: lightness around the family's `0.68` (it follows the
+  brand a little, `0.65`–`0.74`; a yellow stays light), chroma at most `0.09` (70 % of the brand's), `0.04`
+  lighter in dark mode; the face is a near-white tint (`0.977`, chroma at most `0.006`). The bright six on the
+  first-run setup take the same shade. The drawings are loaded lazily (one small chunk each, only in a brand
+  admin), before the first render; tinyzoo's own look and the built-in accents keep the `<img>`.
+- **`cms.admin.animals: false`** (`theme.animals`) leaves every animal out, for any accent; each place closes
+  up around it (an empty place shows its plain icon tile).
+
+Mono and the four colour presets have no `moments` and write no `<style>`: cream, charcoal and the colourful
+family, exactly as before.
 
 ## Type
 
@@ -83,19 +185,23 @@ sentence per screen; labels, errors and delete confirmations stay plain.
 
 | Moment | Animal | Where |
 |---|---|---|
-| Sign-in, reset, invitation | hedgehog (setup: the bright six) | `layouts/cms-auth.vue` — cream, no card |
+| Sign-in, reset, invitation | hedgehog (setup: the bright six) | `layouts/cms-auth.vue` — cream (a brand's tint), no card |
 | Welcome | owl | home page, with the quick-add buttons |
 | Empty place | a muted animal per collection (always the same) | `CmsEmptyState` (80 px) |
 | Before publishing | bird | `CmsPublishReview` |
 | Live / scheduled | whale / turtle | `CmsMoment` (corner card, leaves by itself) |
 
-"No results" and errors get no animal.
+"No results" and errors get no animal. Every animal is a `CmsAnimal` behind `useCmsAnimals()`
+(`cms.admin.animals`); with a brand colour it is drawn in the brand's muted shade (see Brand moments and animals).
 
 ## Shell
 
 `UDashboardGroup` + `UDashboardSidebar` (16 rem, resizable, collapsible to icons, a
-slide-over menu on phones). The client's name leads at the top; the current page sits
-on cream; **tinyzoo signs** under the account button. Groups: Home, Content,
+slide-over menu on phones). The client's brand leads at the top (`CmsBrandLogo`: the full
+logo, else the mark and the name, else the initials and the name; folded: the mark or the
+initials; on phones the top bar carries the mark too); the current page sits on cream (a brand's tint);
+**tinyzoo signs** under the account button (`signature: false` hides it). In dark mode a
+light logo without its dark version sits on a small cream tile (a brand's light tint). Groups: Home, Content,
 Settings, then View website and the account menu (appearance, language, sign out).
 
 The Write and Preview editors **fold the sidebar to icons** (`useCmsFocus`); leaving
@@ -241,7 +347,19 @@ Override with `admin.list.layout`.
 
 Every screen is checked at 390 px: the sidebar becomes a slide-over, toolbars wrap,
 tables collapse to one cell, secondary actions move into "…", the preview opens as a
-sheet, the welcome animal shrinks into the corner.
+sheet, the welcome animal shrinks into the corner. The admin can be added to the home
+screen: its web manifest (`/api/cms/_brand/admin.webmanifest`) opens `/admin/` as an app,
+with the client's mark as the icon.
+
+## Emails
+
+Emails are plain on purpose: one white card on a light grey page, system fonts, no tables
+for layout. At the top, the client's full logo as a PNG 160 px wide (`full-email.png`), or
+the site's name in bold. One main button in the accent's light colour with its text colour.
+The written-out link under it is a real link in the accent's text colour (the shade that
+reads on white, darker than the button for a light brand colour), under a line in a readable
+grey (#525252). They ask mail apps for light mode (`color-scheme: light`), so a dark logo on
+transparent stays on white. No tinyzoo signature.
 
 ## Building blocks
 
@@ -328,7 +446,9 @@ touch by hand — if a control comes out smaller than 44 px on a phone, the rule
 - A page that needs the layout's data reads it with `useNuxtData('cms-graph')`; a second `useFetch` under the
   same key made the form's generated ids differ after hydration (label `for` ≠ input `id`: an unlabelled
   field).
-- Focus rings from Nuxt UI. `prefers-reduced-motion` turns transitions and the moment's rise off.
+- Focus rings: Nuxt UI's, redrawn by `cms-admin.css` at full strength in `--cms-accent-ring` (2 px,
+  3:1 or more on every surface, light and dark; see Brand colours). The editor-side resize handle's line
+  turns the accent from the keyboard. `prefers-reduced-motion` turns transitions and the moment's rise off.
 - Icon-only buttons carry translated, full `aria-label`s ("Export CSV", "New post" — not "Post"); toggles
   (Details, Preview) carry `aria-pressed`; sortable headers are buttons with `aria-sort` on the column.
 - The review's "when" choice is a `radiogroup`; the success card is `role="status"`.

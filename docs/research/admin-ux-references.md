@@ -2,7 +2,7 @@
 
 Research for turning the my-cms admin from a scaffold into a client-facing product. Audience: non-technical editors at small/medium (mostly Czech/European, multilingual) businesses. Stack: Nuxt 4 layer, Nuxt UI v4, Tailwind 4.
 
-All references live in the private Mobbin collection **"my-cms — admin references"** ([open collection](https://mobbin.com/collections/138adff5-c925-4645-b591-096ea2f2e6a2/mobile/screens?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp); switch to the *Web* tab). Platform: web. Researched 2026-11-13.
+All references live in the private Mobbin collection **"my-cms — admin references"** ([open collection](https://mobbin.com/collections/138adff5-c925-4645-b591-096ea2f2e6a2/mobile/screens); switch to the *Web* tab). Platform: web. Researched 2026-11-13.
 
 Note: Mobbin has few true headless-CMS screens (no Sanity/Payload/Storyblok/Strapi/Directus/Contentful in results). The closest analogues are the content areas of Shopify, Webflow, Framer, Wix, Squarespace, Ghost-like tools (beehiiv, Substack, Podia) and doc tools for history. That is fine: those are the tools our client editors already know.
 
@@ -11,9 +11,9 @@ Note: Mobbin has few true headless-CMS screens (no Sanity/Payload/Storyblok/Stra
 ## 1. Dashboard (home after login)
 
 References
-- [PandaDoc: Home](https://mobbin.com/screens/08462a15-46a6-4543-96af-0213eb1de0a3?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): tabbed "Drafts / Action required / Waiting for others" strip over a recent-documents table, with a "Get started" checklist and an activity timeline on the right.
-- [Squarespace: Welcome home](https://mobbin.com/screens/88be69ce-bdd6-472a-bede-3dc1d9c5dd5c?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "Welcome, Alex" heading, primary "Edit site" action top-right, calm cards, "Learn the basics" row.
-- [Hashnode: Blog overview](https://mobbin.com/screens/37befa5d-c370-45e5-b7d0-0582324a60fe?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): quick-action cards (icon, title, one-line description) and an empty "No recent articles" panel with a "Start writing" CTA.
+- [PandaDoc: Home](https://mobbin.com/screens/08462a15-46a6-4543-96af-0213eb1de0a3): tabbed "Drafts / Action required / Waiting for others" strip over a recent-documents table, with a "Get started" checklist and an activity timeline on the right.
+- [Squarespace: Welcome home](https://mobbin.com/screens/88be69ce-bdd6-472a-bede-3dc1d9c5dd5c): "Welcome, Alex" heading, primary "Edit site" action top-right, calm cards, "Learn the basics" row.
+- [Hashnode: Blog overview](https://mobbin.com/screens/37befa5d-c370-45e5-b7d0-0582324a60fe): quick-action cards (icon, title, one-line description) and an empty "No recent articles" panel with a "Start writing" CTA.
 
 Takeaways
 - Replace "N fields" collection cards with **work-oriented** content: (a) "Continue editing" = the user's 5 most recent drafts, (b) "Scheduled next" list, (c) a recent activity feed (who changed what, relative time). PandaDoc's segmented counters (Drafts 3 · Scheduled 1 · Needs translation 2) sit above the list and filter it. Build them with `UTabs` or a row of clickable count cards.
@@ -25,10 +25,10 @@ Takeaways
 ## 2. Collection list
 
 References
-- [Circle: Posts](https://mobbin.com/screens/e6471326-4a9f-4c62-8dca-5c5962e69b0d?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): status tabs with counts (All 1 · Drafts 1 · Scheduled 0), "+ Title / + Author / + Spaces" filter chips, "Bulk actions" dropdown, status badge column.
-- [Wix: Blog posts](https://mobbin.com/screens/b4b4bd64-1898-471f-b97d-5be5e569bcbe?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): Published / Drafts / Pending Review / Scheduled / Trash tabs, thumbnail rows, "Select all", inline search, row "…" menu.
-- [Webflow: CMS collection, bulk change](https://mobbin.com/screens/c5300942-26fe-47a0-a0af-a5c8237e5e21?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "2 Projects selected" replaces the header and offers Export / Delete / Update items, then a plain confirm dialog ("change the status of these 2 items to draft?").
-- [Pipedrive: Bulk edit panel](https://mobbin.com/screens/1c70f25d-7816-4204-a257-c5c4309dcb0c?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "2 selected ×" pill, and a right panel where every field defaults to "Keep current value".
+- [Circle: Posts](https://mobbin.com/screens/e6471326-4a9f-4c62-8dca-5c5962e69b0d): status tabs with counts (All 1 · Drafts 1 · Scheduled 0), "+ Title / + Author / + Spaces" filter chips, "Bulk actions" dropdown, status badge column.
+- [Wix: Blog posts](https://mobbin.com/screens/b4b4bd64-1898-471f-b97d-5be5e569bcbe): Published / Drafts / Pending Review / Scheduled / Trash tabs, thumbnail rows, "Select all", inline search, row "…" menu.
+- [Webflow: CMS collection, bulk change](https://mobbin.com/screens/c5300942-26fe-47a0-a0af-a5c8237e5e21): "2 Projects selected" replaces the header and offers Export / Delete / Update items, then a plain confirm dialog ("change the status of these 2 items to draft?").
+- [Pipedrive: Bulk edit panel](https://mobbin.com/screens/1c70f25d-7816-4204-a257-c5c4309dcb0c): "2 selected ×" pill, and a right panel where every field defaults to "Keep current value".
 
 Takeaways
 - Put **status tabs with counts** above the table: All · Draft · Scheduled · Published · (Changed since publish). Status is the first thing editors filter by, so it gets tabs. All other filters go into "+ Filter" chips (author, locale, date, relation). Nuxt UI: `UTabs` (variant `link`) plus `UButton` chips that open `UPopover` with a `USelectMenu`.
@@ -41,10 +41,10 @@ Takeaways
 ## 3. Entry editor layout
 
 References
-- [Shopify: Add blog post](https://mobbin.com/screens/c93c6814-ae2d-4d60-a0cd-4b446f396bcb?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): main column of white cards (Title, Content, Excerpt) plus a right column (Visibility, Image, Organization). A global top bar reads "Unsaved changes · Discard · Save".
-- [Podia: Edit post SEO tab](https://mobbin.com/screens/6677b01e-f0a2-4772-b18f-f294e6d4595c?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): the right card has a SEO tab with SEO title, description ("Recommended 120–160 characters"), social image and a "Show in search results" toggle. Labels have tooltip explanations. The header holds Save + Schedule.
-- [beehiiv: Post settings](https://mobbin.com/screens/be301e5a-4eff-4ff0-933a-9cfded029c8a?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "Draft · Synced" indicator and word count in the header, a tabbed settings sidebar (Post / Email / Website / SEO), and a footer with Preview / Schedule.
-- [Framer: CMS item editor](https://mobbin.com/screens/4e37b985-ce25-463f-8a18-bcf226d40c5e?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): Status dropdown as the first field, "Saved Draft" text next to a primary "Publish" button.
+- [Shopify: Add blog post](https://mobbin.com/screens/c93c6814-ae2d-4d60-a0cd-4b446f396bcb): main column of white cards (Title, Content, Excerpt) plus a right column (Visibility, Image, Organization). A global top bar reads "Unsaved changes · Discard · Save".
+- [Podia: Edit post SEO tab](https://mobbin.com/screens/6677b01e-f0a2-4772-b18f-f294e6d4595c): the right card has a SEO tab with SEO title, description ("Recommended 120–160 characters"), social image and a "Show in search results" toggle. Labels have tooltip explanations. The header holds Save + Schedule.
+- [beehiiv: Post settings](https://mobbin.com/screens/be301e5a-4eff-4ff0-933a-9cfded029c8a): "Draft · Synced" indicator and word count in the header, a tabbed settings sidebar (Post / Email / Website / SEO), and a footer with Preview / Schedule.
+- [Framer: CMS item editor](https://mobbin.com/screens/4e37b985-ce25-463f-8a18-bcf226d40c5e): Status dropdown as the first field, "Saved Draft" text next to a primary "Publish" button.
 
 Takeaways
 - Use a **two-column editor** at ≥ lg. The left column (about 2/3) holds content fields grouped in `UCard`s. The right column (320–360px, sticky) holds **Status & publishing** (status badge, last published, Publish/Schedule), then **SEO** (meta title/description with character counters and a Google-style preview), then **Details** (slug, author, relations, dates). Developers mark fields with `admin.position: 'sidebar'`.
@@ -57,10 +57,10 @@ Takeaways
 ## 4. Page builder / blocks
 
 References
-- [Shopify: Theme editor block picker](https://mobbin.com/screens/ff2e9ae9-8acb-4e1f-83f1-0dba0ff24319?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): section tree with indented "+ Add block" rows. The picker popover has search, grouped categories (Basic / Decorative / Layout) and a live preview pane.
-- [Maze: Block list](https://mobbin.com/screens/bc823c11-309c-4382-89ab-1d54a4345b74?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): vertical cards, each with a coloured type icon, title, type subtitle and "…" menu. "+ Add block" sits at the end, and the selected block is edited in a separate pane.
-- [Squarespace: Collapsible form blocks](https://mobbin.com/screens/7e32a46f-0676-4807-80ee-eec9f11ce239?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): chevron-collapsible rows with drag handle, icon, label, toggle and "…". Thin "+" inserters sit **between** items.
-- [Later: Block library](https://mobbin.com/screens/199b6880-96db-4c1f-8a63-07ed470be29b?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "My blocks" plus "Add more blocks" grid of cards (icon, name, one-line description, Add button).
+- [Shopify: Theme editor block picker](https://mobbin.com/screens/ff2e9ae9-8acb-4e1f-83f1-0dba0ff24319): section tree with indented "+ Add block" rows. The picker popover has search, grouped categories (Basic / Decorative / Layout) and a live preview pane.
+- [Maze: Block list](https://mobbin.com/screens/bc823c11-309c-4382-89ab-1d54a4345b74): vertical cards, each with a coloured type icon, title, type subtitle and "…" menu. "+ Add block" sits at the end, and the selected block is edited in a separate pane.
+- [Squarespace: Collapsible form blocks](https://mobbin.com/screens/7e32a46f-0676-4807-80ee-eec9f11ce239): chevron-collapsible rows with drag handle, icon, label, toggle and "…". Thin "+" inserters sit **between** items.
+- [Later: Block library](https://mobbin.com/screens/199b6880-96db-4c1f-8a63-07ed470be29b): "My blocks" plus "Add more blocks" grid of cards (icon, name, one-line description, Add button).
 
 Takeaways
 - Render blocks as **collapsible cards** in the main form column. The header row has: drag handle, block-type icon + colour, block label, a **summary** of the content when collapsed (first heading/text, e.g. "Hero — Vítejte v naší pekárně"), and a "…" menu (Move up/down, Duplicate, Hide, Delete). Use `UCollapsible` per block. "Collapse all / Expand all" goes on the field header.
@@ -73,10 +73,10 @@ Takeaways
 ## 5. Media library
 
 References
-- [Shopify: Asset details](https://mobbin.com/screens/723a5658-3c31-428c-8822-5b4985149bef?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): large preview, focal-point picker ("Click or drag to change focal point"), info card with Name, **Alt text**, Details (JPG · 3024×4032 · 1.61 MB · Added …) and **"Used in"**.
-- [Webflow: Asset details popover](https://mobbin.com/screens/8344b8cb-187d-4737-b595-807b49426080?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): alt text with a **Descriptive / Decorative** toggle and helper copy explaining what alt text is for.
-- [Wix: Choose images modal](https://mobbin.com/screens/13e7a87e-c6f5-4284-a7c9-ca9f9c39cb23?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): picker with left nav (Site files, Trash), "+ Upload Media", folders, gallery/list toggle, storage meter, disabled "Add to Page" until something is selected.
-- [Mailchimp: My files](https://mobbin.com/screens/1080d4ea-52b4-478e-941f-9e021a06f695?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): search, Filter + Folder dropdowns, sort, grid/list toggle, rows with thumbnail, date, dimensions and size, plus pagination.
+- [Shopify: Asset details](https://mobbin.com/screens/723a5658-3c31-428c-8822-5b4985149bef): large preview, focal-point picker ("Click or drag to change focal point"), info card with Name, **Alt text**, Details (JPG · 3024×4032 · 1.61 MB · Added …) and **"Used in"**.
+- [Webflow: Asset details popover](https://mobbin.com/screens/8344b8cb-187d-4737-b595-807b49426080): alt text with a **Descriptive / Decorative** toggle and helper copy explaining what alt text is for.
+- [Wix: Choose images modal](https://mobbin.com/screens/13e7a87e-c6f5-4284-a7c9-ca9f9c39cb23): picker with left nav (Site files, Trash), "+ Upload Media", folders, gallery/list toggle, storage meter, disabled "Add to Page" until something is selected.
+- [Mailchimp: My files](https://mobbin.com/screens/1080d4ea-52b4-478e-941f-9e021a06f695): search, Filter + Folder dropdowns, sort, grid/list toggle, rows with thumbnail, date, dimensions and size, plus pagination.
 
 Takeaways
 - Use **one component for both the library page and the picker modal** (Wix pattern): toolbar (search, type filter, folder, sort, grid/list toggle), a responsive thumbnail grid (`grid-cols-[repeat(auto-fill,minmax(160px,1fr))]`), and selection checkboxes on hover. In picker mode, add a sticky footer "Insert (1)".
@@ -89,10 +89,10 @@ Takeaways
 ## 6. Version history / restore
 
 References
-- [Plane: Page version history](https://mobbin.com/screens/afc55a5a-4236-4f12-859d-9d38a55bd06d?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): right panel of timestamps + author, "Current version" pinned at the top. The viewed version is "View only", and the header has "Compare versions" plus a primary "Restore this version". There is a "Highlight changes" checkbox.
-- [WRITER: Version history](https://mobbin.com/screens/d6e6654e-119a-456a-acef-fcb72d9ec330?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): grouped "Last 30 days" timeline, plus a bottom banner "Viewing January 9, 9:57 PM — If you restore this version, you'll overwrite your current doc" with a Restore button.
-- [Manus: Version history list](https://mobbin.com/screens/4142fbf7-14e2-4841-aad7-70e51ddf2dfe?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): each version shows relative time, a change summary, a "Published" marker, and Preview / Rollback / Publish actions.
-- [Sana: Inline diff](https://mobbin.com/screens/e4f25c59-b045-49ac-9505-86d6f2e8ed3d?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): strikethrough removed text and highlighted added text, with a "Highlight changes" toggle.
+- [Plane: Page version history](https://mobbin.com/screens/afc55a5a-4236-4f12-859d-9d38a55bd06d): right panel of timestamps + author, "Current version" pinned at the top. The viewed version is "View only", and the header has "Compare versions" plus a primary "Restore this version". There is a "Highlight changes" checkbox.
+- [WRITER: Version history](https://mobbin.com/screens/d6e6654e-119a-456a-acef-fcb72d9ec330): grouped "Last 30 days" timeline, plus a bottom banner "Viewing January 9, 9:57 PM — If you restore this version, you'll overwrite your current doc" with a Restore button.
+- [Manus: Version history list](https://mobbin.com/screens/4142fbf7-14e2-4841-aad7-70e51ddf2dfe): each version shows relative time, a change summary, a "Published" marker, and Preview / Rollback / Publish actions.
+- [Sana: Inline diff](https://mobbin.com/screens/e4f25c59-b045-49ac-9505-86d6f2e8ed3d): strikethrough removed text and highlighted added text, with a "Highlight changes" toggle.
 
 Takeaways
 - Open history from the editor header (clock icon / "History") as a **right `USlideover`** listing versions grouped by day (Today / Yesterday / date). Each item shows time, author avatar + name, and badges: **Published**, **Current**, **Autosave**, **Scheduled**.
@@ -104,10 +104,10 @@ Takeaways
 ## 7. Localization
 
 References
-- [Framer: Localization table](https://mobbin.com/screens/a2248603-8b0d-45e1-8284-c9658a380771?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): locale list with flag + completion % on the left. The table shows source vs target side by side, grouped by page, with a "NEW" status badge per string and an "All ▾" status filter.
-- [Etsy: Listing translation](https://mobbin.com/screens/45b8c2f0-6841-44f5-ac11-caa22aceabed?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): per-language tab. Each field shows the **original text in grey on the left** and the translation input on the right, with an "Edit original (English)" link.
-- [Customer.io: Localize](https://mobbin.com/screens/4a9501e1-3c81-4119-b520-b344a0e7c267?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): locale dropdown with a **"Missing content"** badge, a per-locale "Live" toggle, and "Add translation" placeholders per row.
-- [Shopify: Translate & Adapt](https://mobbin.com/screens/ee6ae86b-da7d-4307-810b-2bc066ea3e3f?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): per-locale "Unpublished" status ("Translations aren't visible to customers until the language is published"), plus an auto-translate confirm with "Translate" vs "Translate and publish".
+- [Framer: Localization table](https://mobbin.com/screens/a2248603-8b0d-45e1-8284-c9658a380771): locale list with flag + completion % on the left. The table shows source vs target side by side, grouped by page, with a "NEW" status badge per string and an "All ▾" status filter.
+- [Etsy: Listing translation](https://mobbin.com/screens/45b8c2f0-6841-44f5-ac11-caa22aceabed): per-language tab. Each field shows the **original text in grey on the left** and the translation input on the right, with an "Edit original (English)" link.
+- [Customer.io: Localize](https://mobbin.com/screens/4a9501e1-3c81-4119-b520-b344a0e7c267): locale dropdown with a **"Missing content"** badge, a per-locale "Live" toggle, and "Add translation" placeholders per row.
+- [Shopify: Translate & Adapt](https://mobbin.com/screens/ee6ae86b-da7d-4307-810b-2bc066ea3e3f): per-locale "Unpublished" status ("Translations aren't visible to customers until the language is published"), plus an auto-translate confirm with "Translate" vs "Translate and publish".
 
 Takeaways
 - Put a **locale switcher in the editor header** (`USelectMenu` with flag/code + label). Each option shows status: ✓ complete, ◐ "3 missing", ○ "Not translated". Switching keeps the scroll position. The default locale is labelled "(default)".
@@ -120,10 +120,10 @@ Takeaways
 ## 8. Publish & scheduled publishing
 
 References
-- [Salesforce: Publish article dialog](https://mobbin.com/screens/6713da09-509f-4e90-9a4d-14abae558b59?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "This action will apply to 1 article", radio **Publish now / Schedule publication on** with date + time, and a translation question "Do your changes affect existing translations? Flag as out of date".
-- [Confluence: Publish page](https://mobbin.com/screens/ee2ef0f5-a07e-474f-9d8a-74935f9fcd47?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): publish modal with location, access, **version comment**, "Schedule publish: Immediately ▾" opening a calendar + time + timezone.
-- [Wix: Schedule post](https://mobbin.com/screens/54eb2e89-bb6f-4fba-90eb-16f1b5735103?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "When do you want to publish your post?" calendar plus time field with the timezone shown underneath.
-- [Buffer: Schedule split button](https://mobbin.com/screens/836bdf4a-1e76-4a08-996f-91ea6e740058?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): footer date chip "Jun 23, 5:00 PM" next to the "Schedule Post" primary button. The time list has a typed-time field and timezone label.
+- [Salesforce: Publish article dialog](https://mobbin.com/screens/6713da09-509f-4e90-9a4d-14abae558b59): "This action will apply to 1 article", radio **Publish now / Schedule publication on** with date + time, and a translation question "Do your changes affect existing translations? Flag as out of date".
+- [Confluence: Publish page](https://mobbin.com/screens/ee2ef0f5-a07e-474f-9d8a-74935f9fcd47): publish modal with location, access, **version comment**, "Schedule publish: Immediately ▾" opening a calendar + time + timezone.
+- [Wix: Schedule post](https://mobbin.com/screens/54eb2e89-bb6f-4fba-90eb-16f1b5735103): "When do you want to publish your post?" calendar plus time field with the timezone shown underneath.
+- [Buffer: Schedule split button](https://mobbin.com/screens/836bdf4a-1e76-4a08-996f-91ea6e740058): footer date chip "Jun 23, 5:00 PM" next to the "Schedule Post" primary button. The time list has a typed-time field and timezone label.
 
 Takeaways
 - Use a **split primary button**: "Publish" publishes now (with a toast and "View on site" link). The ▾ menu holds "Schedule…", "Unpublish", "Schedule unpublish…". Once scheduled, the button reads "Scheduled · 12. 12. 9:00" with Edit / Cancel schedule.
@@ -135,10 +135,10 @@ Takeaways
 ## 9. Team members, invites & roles
 
 References
-- [Searchable: Invite teammates (flow)](https://mobbin.com/flows/92365a5f-7639-4187-9b21-8ecaa0762f8e?tab=screens&utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): email input with "+ Add" → staged invite rows with role + scope selectors → "Send invite". All / **Pending (2)** tabs, and the members table shows Role, Last active, Status (Active / Pending).
-- [Lyssna: Manage your team](https://mobbin.com/screens/249efdbd-e4f4-4fc7-a442-97f80c2c9a68?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): inline invite row, "Invited" section with **Resend invitation**, role dropdown whose options **describe each role** (Admin = full access incl. team…, Editor…, Viewer…) and a red Delete.
-- [beehiiv: Invite member slideover](https://mobbin.com/screens/08d14944-4ca3-4dee-a021-18722d5d2abe?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): email plus **radio cards** for permission levels, each with a one-sentence explanation. "Pending Invites" and "Expired Invites" sections sit behind it.
-- [Customer.io: Invite team member (flow)](https://mobbin.com/flows/b9a3df57-713b-49a4-8a48-ff447a311cdd?tab=screens&utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): full invite form, then the members list with an "Invite sent" badge and toast.
+- [Searchable: Invite teammates (flow)](https://mobbin.com/flows/92365a5f-7639-4187-9b21-8ecaa0762f8e?tab=screens): email input with "+ Add" → staged invite rows with role + scope selectors → "Send invite". All / **Pending (2)** tabs, and the members table shows Role, Last active, Status (Active / Pending).
+- [Lyssna: Manage your team](https://mobbin.com/screens/249efdbd-e4f4-4fc7-a442-97f80c2c9a68): inline invite row, "Invited" section with **Resend invitation**, role dropdown whose options **describe each role** (Admin = full access incl. team…, Editor…, Viewer…) and a red Delete.
+- [beehiiv: Invite member slideover](https://mobbin.com/screens/08d14944-4ca3-4dee-a021-18722d5d2abe): email plus **radio cards** for permission levels, each with a one-sentence explanation. "Pending Invites" and "Expired Invites" sections sit behind it.
+- [Customer.io: Invite team member (flow)](https://mobbin.com/flows/b9a3df57-713b-49a4-8a48-ff447a311cdd?tab=screens): full invite form, then the members list with an "Invite sent" badge and toast.
 
 Takeaways
 - Users page: a header "Team" with an "Invite people" button, plus All / Pending tabs. The table has avatar + name + email, a role `UBadge`, Last active, Status, and a "…" menu (Change role, Resend invite, Revoke / Remove).
@@ -150,10 +150,10 @@ Takeaways
 ## 10. Sign in & password reset
 
 References
-- [Relume: Log in](https://mobbin.com/screens/8993959c-edfd-493b-bbbe-716010895cc8?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): small centred card on a warm neutral background, logo above, "Forgot password?" aligned right on the password label row, full-width dark primary button.
-- [Webflow: Log in with inline error](https://mobbin.com/screens/6dedeb12-e86d-476a-a140-7537ef28c98f?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): password show/hide eye and an inline field-level validation message.
-- [Klaviyo: Reset password (flow)](https://mobbin.com/flows/c3c06f23-8c8a-4f0a-a3e2-d37dffbc44a7?tab=screens&utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): error alert on login → "Email Sent. If this account exists, you will receive…" (no account enumeration, spam-folder hint, "try sending again") → "Your password is updated" + Log in.
-- [Semrush: Reset password (flow)](https://mobbin.com/flows/695c023e-51a2-421c-b135-bb3099eea065?tab=screens&utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "Reset your password" with "Send me reset link" and a secondary "Go back to login", then a "Reset link sent" check confirmation.
+- [Relume: Log in](https://mobbin.com/screens/8993959c-edfd-493b-bbbe-716010895cc8): small centred card on a warm neutral background, logo above, "Forgot password?" aligned right on the password label row, full-width dark primary button.
+- [Webflow: Log in with inline error](https://mobbin.com/screens/6dedeb12-e86d-476a-a140-7537ef28c98f): password show/hide eye and an inline field-level validation message.
+- [Klaviyo: Reset password (flow)](https://mobbin.com/flows/c3c06f23-8c8a-4f0a-a3e2-d37dffbc44a7?tab=screens): error alert on login → "Email Sent. If this account exists, you will receive…" (no account enumeration, spam-folder hint, "try sending again") → "Your password is updated" + Log in.
+- [Semrush: Reset password (flow)](https://mobbin.com/flows/695c023e-51a2-421c-b135-bb3099eea065?tab=screens): "Reset your password" with "Send me reset link" and a secondary "Go back to login", then a "Reset link sent" check confirmation.
 
 Takeaways
 - Use a centred `UCard` (max-w-sm) on a softly tinted background. Show the **client's site logo/name** above it (white-label from config, e.g. "Pekárna Novák — správa obsahu"), with "Powered by my-cms" small in the footer.
@@ -164,10 +164,10 @@ Takeaways
 ## 11. Empty states & onboarding
 
 References
-- [Navattic: Empty list](https://mobbin.com/screens/7e20ec0c-148b-48dd-82f7-4f4b14b0cb47?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): toolbar (search, filters, Create) stays visible. The empty panel has an illustration, "No product demos", a one-line hint and a primary CTA. Below it is a dismissable "Get started" inspiration card.
-- [Copilot: Helpdesk empty state](https://mobbin.com/screens/bf4b8506-2424-470f-9620-c286480f53dd?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): left-aligned icon, "No articles have been created yet", **two sentences explaining what this content type is for**, "Learn more", "+ New article".
-- [Substack: Getting started checklist](https://mobbin.com/screens/73b297c2-e58e-4b05-b64b-48001a69e072?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): dismissable card with a progress bar, open steps first, completed steps struck/greyed, and "Continue setup".
-- [Searchable: Getting started](https://mobbin.com/screens/b3079404-1529-49f4-b72b-e83535cbe016?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp): "2 of 6 completed" with progress, expandable steps each with an action button, and a compact progress widget mirrored in the sidebar.
+- [Navattic: Empty list](https://mobbin.com/screens/7e20ec0c-148b-48dd-82f7-4f4b14b0cb47): toolbar (search, filters, Create) stays visible. The empty panel has an illustration, "No product demos", a one-line hint and a primary CTA. Below it is a dismissable "Get started" inspiration card.
+- [Copilot: Helpdesk empty state](https://mobbin.com/screens/bf4b8506-2424-470f-9620-c286480f53dd): left-aligned icon, "No articles have been created yet", **two sentences explaining what this content type is for**, "Learn more", "+ New article".
+- [Substack: Getting started checklist](https://mobbin.com/screens/73b297c2-e58e-4b05-b64b-48001a69e072): dismissable card with a progress bar, open steps first, completed steps struck/greyed, and "Continue setup".
+- [Searchable: Getting started](https://mobbin.com/screens/b3079404-1529-49f4-b72b-e83535cbe016): "2 of 6 completed" with progress, expandable steps each with an action button, and a compact progress widget mirrored in the sidebar.
 
 Takeaways
 - Use **one reusable `<CmsEmptyState>`** with icon, title, description and actions, and three variants: *first use* ("No blog posts yet" + description from the collection config + "Create your first post"), *no results* ("No posts match 'pekárna'" + "Clear filters"), and *error* (with Retry). Keep the toolbar visible in all of them.
@@ -216,3 +216,31 @@ An audit of the screens Wave 4 added, against Mobbin references (web). The scree
 6. **Icons alone in the list.** The language column shows EN ●/○/⏳ with no words: give each a tooltip and an accessible name in words, and show it on phones too (the card list drops it).
 7. **An address that isn't live yet** (/en/blog/summer-camp ↗) looks like a link to the live page. Say "not on the website yet" and point to the preview instead.
 8. **Phones**: the language switcher is not in the editor's top bar at phone width; it must be reachable.
+
+---
+
+## 0.7: the client's logo and colour in the admin (researched 2026-11-18)
+
+How admins let a customer put their own logo and colour on screens other people use, for 0.7 (admin theming). Web, Mobbin.
+
+### References
+- Brand settings: [Stripe: Branding](https://mobbin.com/screens/bb1a2f30-5b95-4ad8-9366-57f255cae3de) (an **Icon** and a **Logo**, "Prefer logo over icon", a brand colour and an accent colour; one preview per surface: email receipts, checkout, customer portal, invoice), [Stripe: Customer portal](https://mobbin.com/screens/cfd50149-0fe1-44c6-b7ee-6784c5519677) (the same two colours reach every surface), [Shopify: Brand, logos](https://mobbin.com/screens/069d7eeb-28bb-4323-8f1c-699864c37bba) (a **Default** logo, "512 px wide minimum", and a **Square** logo, "512×512, may be cropped into a circle"), [Shopify: Brand, small logo warning](https://mobbin.com/screens/fc31e4d8-0782-4107-a896-07561e84c320) ("less than 512 px … may not be used by some apps and channels", said under the picture, not as an error), [Shopify: Brand, colours](https://mobbin.com/screens/679f840d-adfc-4996-bb96-1d4102d6acee) (a **Primary colour** and its **Contrasting colour**, the text on it, filled in for you).
+- White-label settings: [Searchable: White-labelling](https://mobbin.com/screens/ac13f794-e37f-4ff0-a2b8-6b9017c516ac) (**Full logo** "shown in the header", **Icon / favicon** "for compact branding and browser icons"), [Hex: Workspace styling](https://mobbin.com/screens/05334f76-c5e6-4cdb-9ecd-2639cdf51774) (the logo "replaces the Hex logo in the top left corner", "Use logo as favicon", a preview in light and dark), [Okta: Brand theme](https://mobbin.com/screens/8737c147-e992-4323-9a11-bfd5cf02bd41) (logo "landscape, transparent background, min 420×120", favicon "512×512, 1:1", one **Primary colour** "for primary actions, buttons, text links"; the same theme for the sign-in page and the emails), [Langdock: Customizations](https://mobbin.com/screens/45b742c2-0164-4431-994f-d5f90d9c6a2e) (one custom colour, "main color for buttons and highlights"), [Bonsai: Brand](https://mobbin.com/screens/5b0ded3b-6d7e-491f-a1b4-04f78f4f830e) (brand colour "for client-facing buttons and links. Dark color recommended"; three levels of the provider's own branding: show, show both, remove).
+- Contrast: [Canny: Brand colour](https://mobbin.com/screens/c79654e5-2bbe-430e-8383-94cc6d2f0813) (a brand colour with a contrast check in light and dark: the ratio, pass or fail for small and large text).
+- Sign-in: [HoneyBook: Customize portal](https://mobbin.com/screens/dd6c5fb0-3929-4a3d-b7e2-2fce4760983d) (a sign-in card with the client's logo, "Logo shape: Square / Full"), [Employment Hero: Login logo](https://mobbin.com/screens/22efc406-50b1-4922-a7e0-3517c3e2b9e8) ("horizontal PNG or JPG, 400×60, transparent background", previewed on the sign-in page).
+- Emails: [Shopify: Email templates](https://mobbin.com/screens/b510efcc-7336-4456-aa9b-79f45f7d5275) (a logo with a size slider and one accent colour for the buttons), [PandaDoc: Branding and emails](https://mobbin.com/screens/95bddda6-07dd-45c1-ac36-a082c66ce437) (company logo, button colour, button text colour, a small email preview).
+
+### What holds up
+- **Two logos is the norm.** A wide one for headers and sign-in, a square one where there is little room (Stripe's icon, Shopify's square, Searchable's icon / favicon). The favicon comes from the square one (Hex, Searchable), not as a third upload.
+- **One colour, used for actions.** Okta and Langdock say it plainly: buttons, highlights, links. Nobody asks for shades. Shopify fills in the contrasting text colour itself.
+- **Contrast is checked, not trusted.** Canny shows the ratio in light and dark. Bonsai's hint ("dark colour recommended") is the cheap version of the same thing.
+- **Size guidance is a sentence, not an error** (Shopify, Okta, Employment Hero): what the logo should be, and a warning when it is too small.
+- **The emails follow the brand** (Shopify, PandaDoc, Okta): the logo at the top, the button in the brand colour, the text on it readable.
+
+### What this means for tinyzoo 0.7
+1. **A logo set, not one picture.** A full logo (sign-in, the open sidebar, emails) and a square mark (the folded sidebar, the phone's top bar, the tab icon, the phone's home-screen icon). Each may have a dark version. Without a mark, the initials tile stays.
+2. **One brand colour, any hex.** tinyzoo derives the shades, a dark-mode version and the text colour on it, and uses them only where the accent is today: main buttons, the active menu item, focus rings, links. Status colours, the greys, cream and the animals stay.
+3. **A contrast guard** in place of Canny's checker: in a code-first admin nobody picks the colour on a screen, so tinyzoo adjusts an unreadable colour to the nearest readable one (WCAG AA, 4.5:1 for text and links, 3:1 for focus rings) and tells the developer in development what it changed and why.
+4. **Emails carry the brand** the way Shopify's do: the full logo as a PNG (Gmail and Outlook do not show SVG), the button in the brand colour with its derived text colour.
+5. **Guidance in the docs, warnings in development**: the sizes and formats each logo should have, and a warning when a file is missing or the mark is not square.
+6. **Previews come later.** Stripe and Okta preview each surface because people change their brand in the browser. A code-first site changes it in `app.config.ts` and sees the admin. A hosted tinyzoo would need the preview, so the theme is one serialisable object resolved at runtime: stored settings could fill it later with no change to the config API. Inside tinyzoo that would still take work: the server would read each site's settings per request (`cmsAdminTheme(event)`), and the admin's fallback that resolves `app.config` in the browser could not be relied on.

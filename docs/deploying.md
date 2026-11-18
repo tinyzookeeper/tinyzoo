@@ -176,11 +176,13 @@ A site set up before 0.4 has `NUXT_SESSION_PASSWORD` instead. 0.4 and 0.5 used t
 
 `NUXT_CMS_PUBLIC_URL` is the admin's public address. It is used for:
 
-- links in emails;
+- links in emails, and the logo in them (mail clients load it from this address);
 - the server address of `/api/openapi.json`, unless `cms.content.publicUrl` / `NUXT_CMS_CONTENT_PUBLIC_URL` is set;
 - the address `/sitemap.xml` starts with. `NUXT_SITE_URL` wins when it is set.
 
 Without it, the server starts but logs one warning saying what is missing.
+
+Mail clients load the logo in emails from `<NUXT_CMS_PUBLIC_URL>/api/cms/_brand/full-email.png`, so that address must be reachable from the internet. `GET /api/cms/_theme` and `/api/cms/_brand/*` need no sign-in (the sign-in page, the tab icons and mail clients read them). A proxy, basic auth or an IP rule in front of `/api/cms` must let them through.
 
 `NUXT_SITE_URL` and `NUXT_SITE_INDEXABLE` come from [Nuxt SEO's site config](https://nuxtseo.com/docs/site-config):
 
@@ -339,8 +341,10 @@ This section lists what the app sends, so a CDN in front of it can be set up for
 |---|---|---|
 | Content API (`/api/content/…`) | `public, max-age=0, must-revalidate, s-maxage=300` | a **shared cache (CDN) may keep it 5 minutes** (`s-maxage`). See [The content API](#the-content-api) |
 | Media files and picture sizes (`/api/cms/_media/raw/…`, `/api/cms/_media/img/…`) | `public, max-age=31536000, immutable` | a new upload has a new address, so they never change under it |
+| The logo's PNG versions (`/api/cms/_brand/…png?v=…`) | `public, max-age=31536000, immutable` | with the current `v`; a new logo has a new `v`. Without it, or with an old one: `public, max-age=300` |
 | `/sitemap.xml` | `public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600` | the server's own copy is cleared at once when content changes; a CDN may keep it an hour. Change it with `sitemap.cacheMaxAgeSeconds` |
 | `/robots.txt` of the starter | `public, max-age=3600` | |
+| The admin's theme and web manifest (`/api/cms/_theme`, `/api/cms/_brand/admin.webmanifest`) | `no-cache` | a browser may keep a copy but asks again each time |
 | The admin and its API (`/admin`, `/api/cms/…`) | `no-store` | never cache |
 | The website's own pages | none of the CMS's | whatever your site sets (`routeRules` in `nuxt.config.ts`); Nuxt sends no `Cache-Control` for a server-rendered page |
 

@@ -2,6 +2,7 @@
 definePageMeta({ layout: 'cms-auth' })
 const { t } = useCmsI18n()
 const { productName } = useCmsAdminHead()
+const animals = useCmsAnimals()
 useHead({ title: () => t('auth.setupTitle') })
 
 const { data: status } = await useFetch<{ needsSetup: boolean; needsToken?: boolean; codeIn?: 'config' | 'log' | null }>('/api/cms/_auth/status')
@@ -55,8 +56,8 @@ async function submit() {
   <form method="post" ref="formEl" class="space-y-5" novalidate @submit.prevent="submit">
     <div class="text-center">
       <!-- First run: the whole family says hello. -->
-      <div class="-mt-1 mb-5 flex items-end justify-center gap-2" aria-hidden="true">
-        <img v-for="c in cmsCharacters.bright" :key="c.name" :src="c.url" alt="" class="h-9 w-auto" draggable="false">
+      <div v-if="animals" class="-mt-1 mb-5 flex items-end justify-center gap-2" aria-hidden="true">
+        <CmsAnimal v-for="c in cmsCharacters.bright" :key="c.name" :name="c.name" set="bright" class="h-9 w-auto" />
       </div>
       <p class="text-xs font-medium text-muted">{{ t('auth.setupWelcome') }}</p>
       <h1 class="mt-1 cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.setupTitle') }}</h1>

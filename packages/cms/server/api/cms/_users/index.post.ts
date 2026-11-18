@@ -29,7 +29,7 @@ export default defineEventHandler(async (event) => {
 
   let emailed = false
   try {
-    emailed = await sendCmsMail(inviteEmail({ to: user.email, inviter: me.name || me.email || 'An administrator', url: inviteUrl, role: user.role, locale: me.locale || requestLocale(event) }))
+    emailed = await sendCmsMail(await inviteEmail(event, { to: user.email, inviter: me.name || me.email || 'An administrator', url: inviteUrl, role: user.role, locale: me.locale || requestLocale(event) }))
   }
   catch (err) {
     console.error('[cms] could not send the invitation email', redactEmails(safeErrorMessage(err)))

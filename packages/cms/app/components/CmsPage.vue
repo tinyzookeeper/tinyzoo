@@ -14,6 +14,8 @@
 // bar is navigation, not a heading: the breadcrumb is a labelled `nav`.
 export interface CmsCrumb { label: string; to?: string }
 const { t } = useCmsI18n()
+// Phones: the sidebar is a drawer, so the top bar carries the client's mark (when they have one) beside the menu button.
+const { theme } = useCmsAdminBrand()
 defineProps<{
   title?: string
   /** The page's `<h1>` for screen readers when the screen draws its own title (an editor's title field). */
@@ -50,15 +52,20 @@ defineProps<{
               <slot name="status" />
             </div>
           </div>
-          <nav v-else-if="breadcrumbs?.length" :aria-label="t('nav.breadcrumb')" class="min-w-0">
-            <ol class="flex items-center gap-1.5 text-sm min-w-0">
-              <li v-for="(c, i) in breadcrumbs" :key="i" class="flex items-center gap-1.5 min-w-0" :class="i < breadcrumbs.length - 1 ? 'shrink-0 max-sm:hidden' : ''">
-                <NuxtLink v-if="c.to && i < breadcrumbs.length - 1" :to="c.to" class="text-muted hover:text-highlighted transition-colors">{{ c.label }}</NuxtLink>
-                <span v-else class="font-medium text-highlighted truncate" aria-current="page">{{ c.label }}</span>
-                <UIcon v-if="i < breadcrumbs.length - 1" name="i-lucide-chevron-right" class="size-3.5 text-dimmed shrink-0" />
-              </li>
-            </ol>
-          </nav>
+          <template v-else>
+            <NuxtLink v-if="theme.logo.mark" to="/admin" class="lg:hidden shrink-0 rounded-md">
+              <CmsBrandLogo room="compact" />
+            </NuxtLink>
+            <nav v-if="breadcrumbs?.length" :aria-label="t('nav.breadcrumb')" class="min-w-0">
+              <ol class="flex items-center gap-1.5 text-sm min-w-0">
+                <li v-for="(c, i) in breadcrumbs" :key="i" class="flex items-center gap-1.5 min-w-0" :class="i < breadcrumbs.length - 1 ? 'shrink-0 max-sm:hidden' : ''">
+                  <NuxtLink v-if="c.to && i < breadcrumbs.length - 1" :to="c.to" class="text-muted hover:text-highlighted transition-colors">{{ c.label }}</NuxtLink>
+                  <span v-else class="font-medium text-highlighted truncate" aria-current="page">{{ c.label }}</span>
+                  <UIcon v-if="i < breadcrumbs.length - 1" name="i-lucide-chevron-right" class="size-3.5 text-dimmed shrink-0" />
+                </li>
+              </ol>
+            </nav>
+          </template>
         </template>
         <template #right>
           <slot name="actions" />

@@ -1,11 +1,17 @@
 import { EMAIL_CHANGE_TTL_MS, EMAIL_REVERT_TTL_MS, INVITE_TTL_MS } from './cmsAuth'
+import { cmsAdminSettings } from './cmsAdminTheme'
 import { maskEmail } from './cmsEmailChangeRules'
-import { resolveRole, resolveText } from 'tinyzoo'
+import { brandFileUrl, resolveRole, resolveText, type CmsAdminTheme } from 'tinyzoo'
 
 // The emails the CMS sends: an invitation, a password-reset link, and the ones about a
-// change of email address (the link to the new address, notices to the old one). Plain, neutral
+// change of email address (the link to the new address, notices to the old one). Plain
 // HTML that survives every mail client, with a text version. Czech, English and German,
 // chosen by the recipient's interface language (or the admin's default).
+//
+// They carry the client's brand from the admin's theme (cmsAdminSettings, for the request
+// that sends the email: a per-site theme would come from it): the site's name,
+// the full logo at the top (as PNG, GET /api/cms/_brand/full-email.png, because Gmail and
+// Outlook do not show SVG) and the button in the brand colour. Never tinyzoo's signature.
 
 type Locale = 'cs' | 'en' | 'de'
 
@@ -155,34 +161,107 @@ export function requestLocale(event: any): Locale | null {
   return null
 }
 
-/** The admin's settings that emails need: product name and default language. */
-export function emailContext(locale?: string | null): { locale: Locale; site: string } {
-  const admin = ((useAppConfig() as any)?.cms?.admin ?? {}) as Record<string, any>
-  const wanted = (locale || admin.defaultLocale || 'en') as string
+/**
+ * The admin's settings that emails need, for the site of `event` (the request that sends the
+ * email): the site's name (from the theme), the language, and the theme itself.
+ */
+export async function emailContext(event: unknown, locale?: string | null): Promise<{ locale: Locale; site: string; theme: CmsAdminTheme }> {
+  const { theme, defaultLocale } = await cmsAdminSettings(event)
+  const wanted = (locale || defaultLocale || 'en') as string
   const base = wanted.toLowerCase().split('-')[0]
   const lang: Locale = base === 'cs' || base === 'de' ? base : 'en'
-  return { locale: lang, site: resolveText(admin.name, lang, ['en']) || 'CMS' }
+  return { locale: lang, site: resolveText(theme.name, lang, ['en']) || 'CMS', theme }
 }
 
-function layout(opts: { intro: string; action?: string; url?: string; footer: string; fallback: string }) {
+const TRAILING_SLASHES = /\/+$/
+
+/**
+ * The site's public address for images in emails: `cms.publicUrl` (NUXT_CMS_PUBLIC_URL),
+ * which the emails' links use too (adminLink). Without it (development) the origin of the
+ * email's own link, which then came from the request. Null when neither is known: the
+ * email shows the site's name instead of its logo.
+ */
+export function emailPublicBase(link?: string): string | null {
+  const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '').trim().replace(TRAILING_SLASHES, '')
+  if (configured) return configured
+  if (!link) return null
+  try {
+    const url = new URL(link)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.origin : null
+  }
+  catch {
+    return null
+  }
+}
+
+/** What an email shows of the brand. */
+export interface EmailBrand {
+  /** The site's name: the heading without a logo, the logo's alt text. */
+  site: string
+  /** The absolute address of the full logo as PNG, or null (no full logo, or no public address). */
+  logoUrl: string | null
+  /** The button's colour and the text on it (the accent in light mode). */
+  primary: string
+  onPrimary: string
+  /** The written-out link under the button: the accent as text (readable on white, unlike a light button colour). */
+  link: string
+}
+
+const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
+
+/** The brand of one email, from the theme; the logo's address is made absolute with `base`. */
+export function emailBrand(theme: CmsAdminTheme, site: string, base: string | null): EmailBrand {
+  const scheme = theme.accent.light
+  return {
+    site,
+    // `files.full` is null when the server could not read the full logo: the name, not a broken picture.
+    logoUrl: theme.logo.full && base && theme.logo.files?.full !== null ? base + brandFileUrl('full-email.png', theme) : null,
+    primary: HEX.test(scheme.primary) ? scheme.primary : '#2E3035',
+    onPrimary: HEX.test(scheme.onPrimary) ? scheme.onPrimary : '#FFFFFF',
+    link: HEX.test(scheme.text) ? scheme.text : HEX.test(scheme.primary) ? scheme.primary : '#2E3035',
+  }
+}
+
+/**
+ * The HTML and text of one email. HTML: the brand at the top (the full logo, else the
+ * site's name), the message, the button in the brand colour, and the link written out for
+ * when the button does not work. Everything given is escaped here. The text version has
+ * no brand: it is the message and the link.
+ */
+export function emailLayout(opts: { brand: EmailBrand; intro: string; action?: string; url?: string; footer: string; fallback: string }) {
+  const { brand } = opts
   const url = opts.url ? escapeHtml(opts.url) : ''
+  const site = escapeHtml(brand.site)
+  const logo = brand.logoUrl ? escapeHtml(brand.logoUrl) : ''
+  const header = logo
+    ? `<p style="margin:0 0 24px"><img src="${logo}" width="160" alt="${site}" style="display:block;width:160px;max-width:100%;height:auto;border:0;outline:none;text-decoration:none"></p>
+`
+    : `<p style="margin:0 0 20px;font-size:17px;line-height:1.3;font-weight:700;color:#171717">${site}</p>
+`
   const button = opts.action && opts.url
-    ? `<p style="margin:0 0 24px"><a href="${url}" style="display:inline-block;background:#171717;color:#fff;text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px;font-weight:600">${escapeHtml(opts.action)}</a></p>
+    ? `<p style="margin:0 0 24px"><a href="${url}" style="display:inline-block;background:${brand.primary};color:${brand.onPrimary};text-decoration:none;padding:10px 16px;border-radius:6px;font-size:14px;font-weight:600">${escapeHtml(opts.action)}</a></p>
 `
     : ''
   const fallback = opts.action && opts.url
-    ? `<p style="margin:0;font-size:12px;line-height:1.5;color:#a3a3a3">${escapeHtml(opts.fallback)}<br><span style="word-break:break-all">${url}</span></p>
+    ? `<p style="margin:0;font-size:12px;line-height:1.5;color:#525252">${escapeHtml(opts.fallback)}<br><a href="${url}" style="color:${brand.link};word-break:break-all">${url}</a></p>
 `
     : ''
-  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#171717">
+  // The viewport keeps phones from shrinking the email to a desktop page; `color-scheme: light` asks mail
+  // apps in dark mode to keep the white card, so a dark logo on transparent stays readable.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"></head><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#171717">
 <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:28px">
-<p style="margin:0 0 20px;font-size:15px;line-height:1.55">${escapeHtml(opts.intro)}</p>
+${header}<p style="margin:0 0 20px;font-size:15px;line-height:1.55">${escapeHtml(opts.intro)}</p>
 ${button}<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#737373">${escapeHtml(opts.footer)}</p>
 ${fallback}</div></body></html>`
   const text = opts.action && opts.url
     ? `${opts.intro}\n\n${opts.action}: ${opts.url}\n\n${opts.footer}\n`
     : `${opts.intro}\n\n${opts.footer}\n`
   return { html, text }
+}
+
+/** The layout with the brand of this email's context; the logo's address from the public URL (or the email's link). */
+function layout(ctx: { site: string; theme: CmsAdminTheme }, opts: { intro: string; action?: string; url?: string; footer: string; fallback: string }) {
+  return emailLayout({ ...opts, brand: emailBrand(ctx.theme, ctx.site, emailPublicBase(opts.url)) })
 }
 
 /** The role as the invitation names it: the built-ins in the sentence's language, a custom role by its own label. */
@@ -194,35 +273,38 @@ function roleInSentence(locale: Locale, role: string | undefined): string {
   return roleNames[locale].editor!
 }
 
-export function inviteEmail(opts: { to: string; inviter: string; url: string; role?: string; locale?: string | null }) {
-  const { locale, site } = emailContext(opts.locale)
+export async function inviteEmail(event: unknown, opts: { to: string; inviter: string; url: string; role?: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
+  const { locale, site } = ctx
   const c = copy[locale]
   const days = Math.round(INVITE_TTL_MS / 86_400_000)
   return {
     to: opts.to,
     subject: c.inviteSubject(site),
-    ...layout({ intro: c.inviteIntro(opts.inviter, site, roleInSentence(locale, opts.role)), action: c.inviteAction, url: opts.url, footer: c.inviteExpiry(days), fallback: c.fallback }),
+    ...layout(ctx, { intro: c.inviteIntro(opts.inviter, site, roleInSentence(locale, opts.role)), action: c.inviteAction, url: opts.url, footer: c.inviteExpiry(days), fallback: c.fallback }),
   }
 }
 
-export function resetEmail(opts: { to: string; url: string; locale?: string | null }) {
-  const { locale, site } = emailContext(opts.locale)
+export async function resetEmail(event: unknown, opts: { to: string; url: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
+  const { locale, site } = ctx
   const c = copy[locale]
   return {
     to: opts.to,
     subject: c.resetSubject(site),
-    ...layout({ intro: c.resetIntro, action: c.resetAction, url: opts.url, footer: c.resetExpiry, fallback: c.fallback }),
+    ...layout(ctx, { intro: c.resetIntro, action: c.resetAction, url: opts.url, footer: c.resetExpiry, fallback: c.fallback }),
   }
 }
 
 // ── a change of email address ──────────────────────────────────────────────────
 
 /** To the new address: the link that makes the change. */
-export function emailConfirmEmail(opts: { to: string; url: string; locale?: string | null }) {
-  const { locale, site } = emailContext(opts.locale)
+export async function emailConfirmEmail(event: unknown, opts: { to: string; url: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
+  const { locale, site } = ctx
   const c = copy[locale]
   const hours = Math.round(EMAIL_CHANGE_TTL_MS / 3_600_000)
-  return { to: opts.to, subject: c.emailConfirmSubject(site), ...layout({ intro: c.emailConfirmIntro(site), action: c.emailConfirmAction, url: opts.url, footer: c.emailConfirmExpiry(hours), fallback: c.fallback }) }
+  return { to: opts.to, subject: c.emailConfirmSubject(site), ...layout(ctx, { intro: c.emailConfirmIntro(site), action: c.emailConfirmAction, url: opts.url, footer: c.emailConfirmExpiry(hours), fallback: c.fallback }) }
 }
 
 /**
@@ -230,32 +312,35 @@ export function emailConfirmEmail(opts: { to: string; url: string; locale?: stri
  * password — a new one cancels the change while it waits; once it is made, the next
  * notice carries the way back.
  */
-export function emailRequestedNotice(opts: { to: string; newEmail: string; url: string; locale?: string | null }) {
-  const { locale, site } = emailContext(opts.locale)
+export async function emailRequestedNotice(event: unknown, opts: { to: string; newEmail: string; url: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
+  const { locale, site } = ctx
   const c = copy[locale]
-  return { to: opts.to, subject: c.emailRequestedSubject(site), ...layout({ intro: c.emailRequestedIntro(site, maskEmail(opts.newEmail)), action: c.emailRequestedAction, url: opts.url, footer: c.emailRequestedFooter, fallback: c.fallback }) }
+  return { to: opts.to, subject: c.emailRequestedSubject(site), ...layout(ctx, { intro: c.emailRequestedIntro(site, maskEmail(opts.newEmail)), action: c.emailRequestedAction, url: opts.url, footer: c.emailRequestedFooter, fallback: c.fallback }) }
 }
 
 /**
  * To the old address once the change is made (by the person, or by an administrator).
  * With `revertUrl` (a change the person made), it carries the link that undoes it.
  */
-export function emailChangedNotice(opts: { to: string; newEmail: string; byAdmin?: boolean; revertUrl?: string; locale?: string | null }) {
-  const { locale, site } = emailContext(opts.locale)
+export async function emailChangedNotice(event: unknown, opts: { to: string; newEmail: string; byAdmin?: boolean; revertUrl?: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
+  const { locale, site } = ctx
   const c = copy[locale]
   const intro = opts.byAdmin ? c.emailChangedByAdminIntro(site, maskEmail(opts.newEmail)) : c.emailChangedIntro(site, maskEmail(opts.newEmail))
   const days = Math.round(EMAIL_REVERT_TTL_MS / 86_400_000)
   const parts = opts.revertUrl
     ? { action: c.emailRevertAction, url: opts.revertUrl, footer: c.emailRevertFooter(days) }
     : { footer: c.emailChangedFooter }
-  return { to: opts.to, subject: c.emailChangedSubject(site), ...layout({ intro, ...parts, fallback: c.fallback }) }
+  return { to: opts.to, subject: c.emailChangedSubject(site), ...layout(ctx, { intro, ...parts, fallback: c.fallback }) }
 }
 
 /** To the new address when an administrator set it: from now on this is how they sign in. */
-export function emailSetNotice(opts: { to: string; url: string; locale?: string | null }) {
-  const { locale, site } = emailContext(opts.locale)
+export async function emailSetNotice(event: unknown, opts: { to: string; url: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
+  const { locale, site } = ctx
   const c = copy[locale]
-  return { to: opts.to, subject: c.emailSetSubject(site), ...layout({ intro: c.emailSetIntro(site), action: c.emailSetAction, url: opts.url, footer: c.emailSetFooter, fallback: c.fallback }) }
+  return { to: opts.to, subject: c.emailSetSubject(site), ...layout(ctx, { intro: c.emailSetIntro(site), action: c.emailSetAction, url: opts.url, footer: c.emailSetFooter, fallback: c.fallback }) }
 }
 
 /**
@@ -263,18 +348,20 @@ export function emailSetNotice(opts: { to: string; url: string; locale?: string 
  * address. Whoever reads this mailbox may be the owner, locked out by someone who reads
  * the old one now; they must hear of it.
  */
-export function emailRevertedNotice(opts: { to: string; restoredEmail: string; locale?: string | null }) {
-  const { locale, site } = emailContext(opts.locale)
+export async function emailRevertedNotice(event: unknown, opts: { to: string; restoredEmail: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
+  const { locale, site } = ctx
   const c = copy[locale]
-  return { to: opts.to, subject: c.emailRevertedSubject(site), ...layout({ intro: c.emailRevertedIntro(site, maskEmail(opts.restoredEmail)), footer: c.emailRevertedFooter, fallback: c.fallback }) }
+  return { to: opts.to, subject: c.emailRevertedSubject(site), ...layout(ctx, { intro: c.emailRevertedIntro(site, maskEmail(opts.restoredEmail)), footer: c.emailRevertedFooter, fallback: c.fallback }) }
 }
 
 /**
  * To an address someone asked to move to that already has an account: the person asking
  * is not told (it would tell them who has an account), the owner of the address is.
  */
-export function emailInUseNotice(opts: { to: string; locale?: string | null }) {
-  const { locale, site } = emailContext(opts.locale)
+export async function emailInUseNotice(event: unknown, opts: { to: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
+  const { locale, site } = ctx
   const c = copy[locale]
-  return { to: opts.to, subject: c.emailInUseSubject(site), ...layout({ intro: c.emailInUseIntro(site), footer: c.emailInUseFooter, fallback: c.fallback }) }
+  return { to: opts.to, subject: c.emailInUseSubject(site), ...layout(ctx, { intro: c.emailInUseIntro(site), footer: c.emailInUseFooter, fallback: c.fallback }) }
 }

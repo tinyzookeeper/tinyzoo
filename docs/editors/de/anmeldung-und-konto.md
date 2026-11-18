@@ -22,6 +22,10 @@ Sie bekommen Zugang auf einem von zwei Wegen.
 2. Geben Sie **E-Mail** und **Passwort** ein. Mit **Passwort anzeigen** können Sie Ihre Eingabe prüfen.
 3. Klicken Sie auf **Anmelden**.
 
+Die Anmeldeseite kann das Logo und die Farben Ihrer Firma tragen. So sieht sie bei einer erfundenen Bäckerei aus:
+
+![Die Anmeldeseite der erfundenen Bäckerei Novák: oben ein Tier in gedämpftem Ziegelrot und das Logo der Bäckerei, darunter „Willkommen zurück“, die Felder E-Mail und Passwort und eine ziegelrote Schaltfläche Anmelden.](../../screenshots/0.7/admin-brand-signin.png)
+
 Die Anmeldung hält etwa zwei Wochen. Danach fragt die Verwaltung Sie erneut.
 
 > **Tipp:** Legen Sie für die Seite `/admin` ein Lesezeichen im Browser an.

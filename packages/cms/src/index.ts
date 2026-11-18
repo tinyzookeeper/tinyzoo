@@ -40,8 +40,10 @@ export { cmsMedia } from './media'
 export { CMS_WEBHOOK_HEADERS, webhookPayload, type CmsChange, type CmsChangeType, type CmsSitemapEntry, type CmsWebhookPayload } from './changes'
 export type { CmsErrorReport } from './errorReport'
 export type { CmsAdminField, CmsFieldEditProps, CmsFieldCellProps } from './admin'
+export { resolveAdminTheme, brandFileUrl, themeHash, CMS_ACCENT_PRESETS, CMS_BRAND_FILES, type CmsAccent, type CmsAccentPreset, type CmsAdminLogo, type CmsAdminTheme, type CmsAdminThemeInput, type CmsAccentScheme, type CmsMomentScheme, type CmsColorRamp, type CmsThemeNote, type CmsBrandFile } from './theme'
 export type { CmsImageMedia, CmsImageProps, CmsBlocksProps, CmsBlockProps, CmsContentNode, CmsContentProps, CmsNavLink, CmsNavProps, CmsHighlightProps, CmsFormProps, CmsSearchItem, CmsSearchResult } from './frontend'
 export { generateSetupCode, normalizeSetupCode } from './setupCode'
+export { adminBrandLockup, adminIconLinks, brandInitials, logoAddressKind, logoFileNotes, resolveAdminLogo, CMS_ADMIN_MANIFEST_URL, CMS_LOGO_MIN_PX, CMS_LOGO_SLOTS, type CmsAdminIconLink, type CmsLogoFileInfo, type CmsLogoSlot } from './themeLogo'
 export {
   defineRoles, resolveRole, roleName, rolesDefOf, allRoleNames, fieldReadable, fieldEditable, normalizeFieldAccess, CMS_ENTITY_OPS, CMS_MEDIA_ACCESS, CMS_ROLE_BASES,
   type CmsRoleDef, type CmsRoleRef, type CmsRoleInput, type CmsRoles, type CmsRolesDef, type CmsResolvedRole, type CmsFieldAccess, type CmsFieldRule, type CmsEntityOp, type CmsMediaAccess, type CmsRoleBase, type CmsAccessUser,

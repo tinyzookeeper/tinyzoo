@@ -14,14 +14,14 @@ const config = useCmsAdminConfig()
 const { t, tl, locale, locales, setLocale, entityLabel } = useCmsI18n()
 
 // The admin's own look (cms-admin.css) applies while this layout is mounted.
-const { productName, unbranded } = useCmsAdminHead()
+const { unbranded, signature } = useCmsAdminHead()
 
 // Focus mode (the Write and Preview editors) folds the sidebar to icons. The
 // person's own choice is kept apart, so leaving an editor brings back what they had.
 const focus = useCmsFocus()
 // The person's own choice lives in a cookie, so the server draws the same sidebar the
 // browser will (no jump, no hydration mismatch). Focus folds it on top, after load.
-const pref = useCookie<string | null>('cms_sidebar_folded', { maxAge: 60 * 60 * 24 * 365, sameSite: 'lax', path: '/' })
+const pref = useCookie<string | number | boolean | null>('cms_sidebar_folded', { maxAge: 60 * 60 * 24 * 365, sameSite: 'lax', path: '/' })
 // The Write and Preview editors fold it (on wide screens, where the sidebar shows):
 // start folded there already, so the page does not jump once the editor mounts.
 const editorFolds = computed(() => {
@@ -38,10 +38,17 @@ const mobileHint = (() => {
   const h = useRequestHeaders(['sec-ch-ua-mobile', 'user-agent'])
   return h['sec-ch-ua-mobile'] === '?1' || /Mobi|Android|iPhone|iPad/i.test(h['user-agent'] ?? '')
 })()
-const startFolded = useState('cms-sidebar-start-folded', () => pref.value === '1' || (editorFolds.value && !mobileHint))
+const startFolded = useState('cms-sidebar-start-folded', () => cmsSidebarFolded(pref.value) || (editorFolds.value && !mobileHint))
 const collapsed = ref(startFolded.value)
+// Nuxt UI keeps the sidebar's width and fold in a cookie of its own (for the browser session)
+// and draws the fold it holds. Left alone it can disagree with the choice above (a tab closed
+// in an editor's focus mode), and the page jumps once the browser takes over: start it from ours.
+const sidebarLayout = useCookie<{ size?: number; collapsed?: boolean } | null>(CMS_SIDEBAR_LAYOUT_COOKIE)
+if (sidebarLayout.value && typeof sidebarLayout.value === 'object' && !!sidebarLayout.value.collapsed !== startFolded.value) {
+  sidebarLayout.value = { ...sidebarLayout.value, collapsed: startFolded.value }
+}
 onMounted(() => {
-  watch(focus, (on) => { collapsed.value = on || pref.value === '1' }, { immediate: true })
+  watch(focus, (on) => { collapsed.value = on || cmsSidebarFolded(pref.value) }, { immediate: true })
   watch(collapsed, (v) => {
     if (focus.value) return
     pref.value = v ? '1' : '0'
@@ -169,18 +176,15 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
       href="#cms-main" class="cms-skip-link" @click.prevent="focusMain"
     >{{ t('app.skipToContent') }}</a>
     <UDashboardSidebar
-      v-model:collapsed="collapsed"
+      id="main" v-model:collapsed="collapsed"
       collapsible resizable :default-size="16" :min-size="14" :max-size="20" :collapsed-size="4.25"
       class="cms-sidebar"
       :ui="{ root: 'bg-(--cms-sidebar-bg) border-r border-default', header: 'h-(--ui-header-height)', footer: 'border-t border-default flex-col items-stretch gap-0 py-2' }"
     >
       <template #header="{ collapsed }">
-        <NuxtLink to="/admin" class="flex items-center gap-2.5 min-w-0" :class="collapsed ? 'mx-auto' : ''">
-          <CmsMascot v-if="unbranded" class="h-6 w-auto shrink-0" />
-          <span v-else class="size-7 shrink-0 rounded-lg bg-inverted text-inverted grid place-items-center text-xs font-bold leading-none cms-display tracking-normal" aria-hidden="true">
-            {{ initialsOf(productName) }}
-          </span>
-          <span v-if="!collapsed" class="truncate font-semibold text-highlighted">{{ productName }}</span>
+        <!-- the client's brand: the full logo, the mark with the name, or the initials (CmsBrandLogo) -->
+        <NuxtLink to="/admin" class="flex items-center min-w-0 rounded-md" :class="collapsed ? 'mx-auto' : ''">
+          <CmsBrandLogo :room="collapsed ? 'compact' : 'wide'" />
         </NuxtLink>
       </template>
 
@@ -216,8 +220,8 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
             <UIcon v-if="!collapsed" name="i-lucide-chevrons-up-down" class="size-4 text-dimmed shrink-0" />
           </UButton>
         </UDropdownMenu>
-        <!-- tinyzoo signs the admin, quietly (the client's name leads at the top) -->
-        <div v-if="!unbranded && !collapsed" class="flex items-center gap-1.5 px-2.5 pt-2 pb-0.5 opacity-70">
+        <!-- tinyzoo signs the admin, quietly (the client's name leads at the top); `signature: false` hides it -->
+        <div v-if="signature && !unbranded && !collapsed" class="flex items-center gap-1.5 px-2.5 pt-2 pb-0.5 opacity-70">
           <CmsMascot class="h-3 w-auto" />
           <CmsWordmark class="h-2.5 w-auto" />
           <span class="sr-only">{{ cmsBrand.name }}</span>

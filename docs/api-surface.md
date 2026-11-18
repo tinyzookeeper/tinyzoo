@@ -176,6 +176,7 @@ Use these to search your own content outside the CMS, such as static pages or do
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
+| Admin branding (`cms.admin`) | `CmsAccent` (a built-in accent or a hex), `CmsAccentPreset` (`'mono' \| 'indigo' \| 'blue' \| 'violet' \| 'emerald'`), `CmsAdminLogo` (`full`, `mark`, `fullDark`, `markDark`) |
 | Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsSearchItem`, `CmsSearchResult` |
 
 **`Entity` or `CmsEntity`?** They are two views of the same thing.
@@ -231,7 +232,7 @@ Every option reaches the runtime config as `cms.<option>`. Every runtime value c
 | `config` | | path of the config, relative to the site (`cms.config.ts`; build time) |
 | `databaseUrl` | `NUXT_CMS_DATABASE_URL` | deprecated: set `DATABASE_URL` or `NUXT_CMS_DATABASE_URL` in the environment instead |
 | `migrations.dir`, `migrations.onStart` | `NUXT_CMS_MIGRATIONS_ON_START` | the migrations bundled into the build; apply them when the server starts |
-| `publicUrl` | `NUXT_CMS_PUBLIC_URL` | the public address of the site (links in emails, the sitemap, and the OpenAPI server address unless `content.publicUrl` says otherwise) |
+| `publicUrl` | `NUXT_CMS_PUBLIC_URL` | the public address of the site (links and the logo in emails, the sitemap, and the OpenAPI server address unless `content.publicUrl` says otherwise) |
 | `auth.mode`, `auth.trustedProxies`, `auth.ipHeader` | `NUXT_CMS_AUTH_MODE`, `NUXT_CMS_AUTH_TRUSTED_PROXIES`, `NUXT_CMS_AUTH_IP_HEADER` | `builtin` or `external` sign-in; proxies in front of the app; the client-IP header |
 | | `NUXT_CMS_AUTH_SETUP_TOKEN` | the code first-run setup asks for. It is an environment variable only, on purpose: it is a secret, and an option would write it into the build and into `nuxt.config.ts`, which is committed |
 | `mail.transport`, `mail.from`, `mail.smtp.*`, `mail.file.dir` | `NUXT_CMS_MAIL_TRANSPORT`, `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `NUXT_CMS_MAIL_SMTP_PORT`, `NUXT_CMS_MAIL_SMTP_SECURE`, `NUXT_CMS_MAIL_SMTP_USER`, `NUXT_CMS_MAIL_SMTP_PASS`, `NUXT_CMS_MAIL_FILE_DIR` | `log`, `file` or `smtp` |
@@ -419,7 +420,7 @@ export default defineAppConfig({
 | The default components | `CmsFieldText`, `CmsFieldSlug`, `CmsFieldNumber`, `CmsFieldBoolean`, `CmsFieldDate`, `CmsFieldSelect`, `CmsFieldRichText`, `CmsFieldBlocks`, `CmsFieldGroup`, `CmsFieldMedia`, `CmsFieldGallery`, `CmsFieldColor`, `CmsFieldRelationOne`, `CmsFieldRelationMany`, and `CmsCellText`, `CmsCellCode`, `CmsCellNumber`, `CmsCellBoolean`, `CmsCellDate`, `CmsCellBadge`, `CmsCellExcerpt`, `CmsCellBlocks`, `CmsCellGroup`, `CmsCellThumb`, `CmsCellGallery`, `CmsCellColor`, `CmsCellRelation`. These names are what `field.ui` carries (`surface.admin-graph.json`), and you can use them as renderers by name |
 | Props of an editor | `CmsFieldEditProps`: `field` (a `CmsAdminField`), `entity`, `id`, `readOnly` and `v-model`. Every renderer the registry resolves gets `readOnly`, built-in ones too. It means the person may see the value but not change it: their role may only read the field (`field.readOnly`), or the whole entry is read-only for them |
 | Props of a cell | `CmsFieldCellProps`: `field`, `row`, `entity` |
-| `cms.admin` | the admin's `name`, `siteUrl`, `accent`, `locales`, `defaultLocale` and `timeZone` |
+| `cms.admin` | the admin's `name`, `siteUrl`, `accent` (`CmsAccent`: a built-in accent, `CmsAccentPreset`, or a hex), `logo` (`CmsAdminLogo`), `signature` (boolean, default `true`), `animals` (boolean, default `true`), `locales`, `defaultLocale` and `timeZone` ([the admin guide](guide/admin.md#what-you-can-brand)). The server resolves name, accent, logos, signature and animals into the theme the admin reads (`GET /api/cms/_theme`, internal) |
 
 The rest of the admin (the other `Cms*` components, the pages, `/api/cms/**`) is internal.
 
