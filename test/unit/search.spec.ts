@@ -11,6 +11,23 @@ describe('search terms', () => {
     expect(searchTerms('"náhled"!')).toEqual(['nahled'])
     expect(searchTerms('   ')).toEqual([])
   })
+
+  it('folds a non-breaking or other Unicode space to a plain one, one character for one', () => {
+    expect(foldSearchText('Obrázky v\u00a0textu')).toBe('obrazky v textu')
+    expect(foldSearchText('a\u202fb\u2009c\u3000d')).toBe('a b c d')
+    expect(searchTerms('obrázky\u00a0v\u00a0textu')).toEqual(['obrazky', 'v', 'textu'])
+  })
+
+  it('ranks a title written with non-breaking spaces as high as one with plain spaces (Czech typography)', () => {
+    const query = 'obrázky v textu'
+    const terms = searchTerms(query)
+    const plain = matchEntry('Obrázky v textu', [], terms, query)!
+    const nbsp = matchEntry('Obrázky v\u00a0textu', [], terms, query)!
+    expect(nbsp.score).toBe(plain.score)
+    expect(nbsp.score).toBeGreaterThanOrEqual(190) // the whole query is the title
+    // the highlights still land on the title's own characters
+    expect(highlightRanges('Obrázky v\u00a0textu', terms)).toEqual(highlightRanges('Obrázky v textu', terms))
+  })
 })
 
 describe('what an entry says', () => {

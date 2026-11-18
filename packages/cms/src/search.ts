@@ -10,13 +10,19 @@ import type { FieldDescriptor } from './descriptor'
  * Meant for the size of a typical client site (hundreds to a few thousand entries).
  */
 
+/** Unicode spaces other than the plain one: a non-breaking space ("v\u00a0textu" in Czech typography), thin ones, and so on. */
+const UNICODE_SPACES = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g
+
 /**
  * Lowercase, without accents ("Zimní" → "zimni"): the same folding as the SQL side.
+ * A non-breaking or other Unicode space becomes a plain one, as a visitor types it, so a
+ * title written with them still matches the query as a whole. One character stays one
+ * character (the highlights depend on it).
  *
  * @internal
  */
 export function foldSearchText(text: string): string {
-  return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l').replace(/đ/g, 'd')
+  return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l').replace(/đ/g, 'd').replace(UNICODE_SPACES, ' ')
 }
 
 /**

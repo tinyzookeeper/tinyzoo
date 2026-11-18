@@ -207,13 +207,17 @@ describe.each(combos)('a site with $name', ({ languages, presets, demo, regenera
       expect(read(site, 'nuxt.config.ts')).toContain(`${languages[0]}: '/${word(languages[0]!)}'`)
       if (languages[1]) expect(read(site, 'nuxt.config.ts')).toContain(`${languages[1]}: '/${languages[1]}/${word(languages[1])}'`)
     }
-    else expect(read(site, 'nuxt.config.ts')).not.toContain('sitemap')
+    else expect(read(site, 'nuxt.config.ts')).not.toContain('cms: { sitemap')
     if (has('search')) {
       const search = read(site, 'app/pages/search.vue')
       const word = (l: string) => (ADDRESS_WORDS as Record<string, { search: string }>)[l]?.search ?? 'search'
       expect(search).toContain(`path: '/${word(languages[0]!)}'`)
       expect(search.includes('alias')).toBe(languages.length > 1)
+      // The search page stays out of /sitemap.xml, at its address in every language.
+      const addresses = languages.map((l, i) => `'${i ? `/${l}` : ''}/${word(l)}'`).join(', ')
+      expect(read(site, 'nuxt.config.ts')).toContain(`sitemap: { exclude: [${addresses}] }`)
     }
+    else expect(read(site, 'nuxt.config.ts')).not.toContain('sitemap: { exclude')
   })
 
   it('pins the released versions and names itself after its folder', () => {

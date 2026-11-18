@@ -182,7 +182,10 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
   const pageOfFile = new Map<string, Source>()
   for (const lang of DOCS_LANGS) for (const s of [...editorsBy[lang], ...developers]) pageOfFile.set(s.file, s)
 
-  for (const lang of DOCS_LANGS) {
+  // The English website first: the Czech and German contents list its developer pages, with
+  // the title and description it rendered where docs/README.md gives none.
+  const devPages = new Map<Source, DocsPage>()
+  for (const lang of [DEV_LANG, ...DOCS_LANGS.filter((l) => l !== DEV_LANG)]) {
     const parts = partsOf(lang)
     const text = TEXT[lang]
     const nav: DocsNav = { lang, sections: {} as DocsNav['sections'] }
@@ -249,6 +252,7 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
           prev: null, next: null, source: src.generated?.source ?? src.file,
         }
         rendered.set(src, doc)
+        if (section === 'developers') devPages.set(src, doc)
         for (const s of page.sections) search.push({ ...s, path, page: title, section })
       }
       // Previous and next, in the part's order.
@@ -265,8 +269,8 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
       for (const src of all.slice(1)) {
         let g = groups.find((x) => x.id === src.group)
         if (!g) groups.push(g = { id: src.group, title: text[src.group as 'chapters' | 'guides' | 'reference'] ?? src.group, pages: [] })
-        const doc = rendered.get(src)
-        g.pages.push({ slug: src.slug, title: src.navTitle || doc!.title, description: src.navDescription || doc!.description, path: addressOf(lang, src).path })
+        const doc = rendered.get(src) ?? devPages.get(src)
+        g.pages.push({ slug: src.slug, title: src.navTitle || doc?.title || src.slug, description: src.navDescription || doc?.description || '', path: addressOf(lang, src).path })
       }
       nav.sections[section] = { section, title: text[section], path: addressOf(lang, all[0]!).path, textLang: all[0]!.textLang, groups }
     }

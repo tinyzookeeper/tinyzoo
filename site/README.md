@@ -32,8 +32,11 @@ last, with each version. The block itself keeps only its heading, text and note 
 fixed `items` are dropped on read since block version 2).
 
 The plans the site starts with are in `seed/plans.mjs`. `pnpm seed` adds them, and
-`pnpm seed:plans` (same variables, an existing administrator) adds only them, **only when
-the collection is empty**, so it never touches plans editors have written.
+`pnpm seed:plans` (same variables, an existing administrator) adds only them. It adds
+**only the plans the site is missing** (matched by their Czech title), and the English or
+German text of a seeded plan that has none. It never changes or deletes a plan, so a run
+that stopped halfway can simply be run again. A plan an editor deleted, or whose Czech title
+they changed, counts as missing and comes back, so use it to fill a new site, not later.
 
 ## Settings
 

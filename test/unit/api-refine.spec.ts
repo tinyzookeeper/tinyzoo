@@ -97,6 +97,14 @@ describe('a field of a public collection named like a list parameter (an error f
   it('is allowed in a collection that is not public', () => {
     expect(defineEntity('notes', { label: 'Notes', titleField: 'title', fields: { title: f.text(), sort: f.number() } }).name).toBe('notes')
   })
+
+  it('is allowed in a public global, which has no list', () => {
+    for (const key of ['page', 'limit', 'sort', 'dir', 'q']) {
+      const settings = defineSingleton('settings', { label: 'Settings', titleField: 'title', content: { public: true }, fields: { title: f.text(), [key]: f.text() } })
+      expect(settings.singleton).toBe(true)
+      expect(Object.keys(settings.fields)).toContain(key)
+    }
+  })
 })
 
 describe('what sites show', () => {
