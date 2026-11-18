@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { adminAccentCss, CMS_ACCENT_PRESETS, resolveAdminTheme, type CmsAccentScheme } from '../../packages/cms/src/theme'
 
 // The admin's colour tokens (cms-admin.css) against the surfaces they are read on:
 // text is AA (4.5:1) in both themes — on white, on cream (the sign-in, the current page
@@ -10,9 +11,9 @@ import { describe, expect, it } from 'vitest'
 const css = readFileSync(join(import.meta.dirname, '../../packages/cms/app/assets/css/cms-admin.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
 
 /** The custom properties declared by rules whose selector is exactly `selector`, later rules winning. */
-function declared(selector: string): Record<string, string> {
+function declared(selector: string, source = css): Record<string, string> {
   const out: Record<string, string> = {}
-  for (const m of css.matchAll(/(?<=^|\})\s*([^{}@]+?)\s*\{([^{}]*)\}/g)) {
+  for (const m of source.matchAll(/(?<=^|\})\s*([^{}@]+?)\s*\{([^{}]*)\}/g)) {
     if (m[1]!.trim() !== selector) continue
     for (const d of m[2]!.matchAll(/(--[\w-]+)\s*:\s*([^;]+);?/g)) out[d[1]!] = d[2]!.trim()
   }
@@ -37,6 +38,20 @@ type RGB = [number, number, number]
 function tokens(dark: boolean) {
   const light = declared('html[data-cms-admin]')
   return { ...palette, ...(dark ? nuxtUiDark : nuxtUiLight), ...light, ...(dark ? declared('html[data-cms-admin].dark') : {}) }
+}
+/** The tokens with a built-in accent drawn (data-cms-accent='…'), as the stylesheet's cascade gives them. */
+function presetTokens(preset: string, dark: boolean) {
+  const vars = tokens(dark)
+  if (preset === 'mono') return vars
+  Object.assign(vars, declared(`html[data-cms-admin][data-cms-accent='${preset}']`))
+  if (dark) Object.assign(vars, declared(`html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono'], [data-cms-accent='brand'])`))
+  return vars
+}
+/** The tokens with a brand colour drawn: the <style> the admin writes (adminAccentCss) over the stylesheet. */
+function brandTokens(accent: string, dark: boolean) {
+  const style = adminAccentCss(resolveAdminTheme({ accent }))
+  const sel = `html[data-cms-admin][data-cms-accent='brand']`
+  return { ...tokens(dark), ...declared(sel, style), ...(dark ? declared(`${sel}.dark`, style) : {}) }
 }
 function resolve(name: string, vars: Record<string, string>, depth = 0): RGB {
   const raw = vars[name]
@@ -117,3 +132,59 @@ for (const dark of [false, true]) {
     })
   })
 }
+
+// The built-in accents: src/theme.ts carries the hexes cms-admin.css draws for them (the emails use
+// them), so the two must agree. Drawn here from the stylesheet itself, rounded to 8 bits.
+describe('the built-in accents in src/theme.ts are what cms-admin.css draws', () => {
+  const shades = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950'] as const
+  const near = (a: RGB, hex: string) => {
+    const b = parse(hex, {})
+    return a.every((c, i) => Math.abs(Math.round(Math.min(255, Math.max(0, c))) - b[i]!) <= 1)
+  }
+  for (const preset of CMS_ACCENT_PRESETS) {
+    for (const dark of [false, true]) {
+      it(`${preset}, ${dark ? 'dark' : 'light'}`, () => {
+        const vars = presetTokens(preset, dark)
+        const theme = resolveAdminTheme({ accent: preset }).accent
+        const scheme: CmsAccentScheme = dark ? theme.dark : theme.light
+        for (const s of shades) expect(near(resolve(`--ui-color-primary-${s}`, vars), scheme.ramp[s]), `${preset} ${s}: ${scheme.ramp[s]}`).toBe(true)
+        expect(near(resolve('--ui-primary', vars), scheme.primary), `--ui-primary ${scheme.primary}`).toBe(true)
+        expect(near(resolve('--ui-primary', vars), scheme.text)).toBe(true)
+        expect(near(resolve('--ui-text-inverted', vars), scheme.onPrimary), `--ui-text-inverted ${scheme.onPrimary}`).toBe(true)
+      })
+    }
+  }
+})
+
+// A brand colour (cms.admin.accent: '#…'): the variables the admin writes, read against the
+// stylesheet's real surfaces. The guard in src/theme.ts has its own list of surfaces; this catches
+// a surface that changes here without the guard hearing of it. admin-accent.spec.ts covers many more colours.
+describe('a brand colour on the admin\'s real surfaces', () => {
+  const brands = ['#B4532A', '#FFD500', '#3B82F6', '#A8E6CF', '#FFFFFF', '#000000', '#808080', '#FF0000', '#00FF00', '#0000FF', '#FCE4EC', '#7A2E0E', '#6D28D9', '#0E7490']
+  for (const dark of [false, true]) {
+    for (const accent of brands) {
+      it(`${accent}, ${dark ? 'dark' : 'light'}`, () => {
+        const vars = brandTokens(accent, dark)
+        const at = (name: string) => resolve(name, vars)
+        // The accent as text (links, the active menu item, soft and ghost buttons) on every surface.
+        for (const surface of ['--ui-bg', '--cms-page-bg', '--cms-surface', '--cms-sunken', '--cms-moment-bg', '--cms-nav-active', '--ui-bg-elevated', '--cms-auth-bg']) {
+          expect(contrast(at('--ui-primary'), at(surface)), `--ui-primary on ${surface}`).toBeGreaterThanOrEqual(4.5)
+        }
+        expect(contrast(at('--ui-primary'), over(at('--ui-primary'), 0.1, at('--ui-bg'))), 'on its own tint').toBeGreaterThanOrEqual(4.5)
+        // A checked box, a selected day: the theme's inverted text on the accent.
+        expect(contrast(at('--ui-text-inverted'), at('--ui-primary')), '--ui-text-inverted on --ui-primary').toBeGreaterThanOrEqual(4.5)
+        // A solid button: its own fill and text (cms-admin.css points them at these for [data-cms-accent='brand']).
+        expect(contrast(at('--cms-accent-on-fill'), at('--cms-accent-fill')), 'button text').toBeGreaterThanOrEqual(4.5)
+        // Focus rings and selected borders against the page.
+        expect(contrast(at('--ui-primary'), at('--cms-page-bg')), 'ring').toBeGreaterThanOrEqual(3)
+      })
+    }
+  }
+
+  it('the stylesheet points solid buttons at the brand fill, and leaves the built-in accents to themselves', () => {
+    expect(declared(`html[data-cms-admin][data-cms-accent='brand'] [data-slot='base'][class~='bg-primary']`)).toEqual({
+      '--ui-primary': 'var(--cms-accent-fill)',
+      '--ui-text-inverted': 'var(--cms-accent-on-fill)',
+    })
+  })
+})

@@ -1590,6 +1590,45 @@ Decisions and slices above ("0.7: the client's brand in the admin"). Research wr
 
 | Slice | Branch | State |
 |---|---|---|
-| C — brand colour and contrast guard | `feat/0.7-colour` | in progress |
+| C — brand colour and contrast guard | `feat/0.7-colour` | ready to merge |
 | L — logos in the admin | `feat/0.7-logo` | in progress |
 | E — PNG logos, manifest, emails | `feat/0.7-mail` | in progress |
+
+#### C — Brand colour and contrast guard
+
+**Built.** `cms.admin.accent` takes any hex (`#rgb`, `#rrggbb`, any case, spaces around); built-in names are read in any case too. Anything else falls back to `mono` with a note.
+- **`src/theme.ts`:** the colour maths. sRGB ↔ OKLCH, gamut mapping by chroma, WCAG 2 contrast, the ramp 50…950 (`brandRamp`), the guard (`brandAccent`) and the CSS the admin writes (`adminAccentCss`, `adminAccentName`). It is pure and has no dependencies. Built-in accents now carry the real hexes `cms-admin.css` draws (OKLCH numbers copied from the stylesheet; a test parses the CSS and checks them to ±1 per channel).
+- **The admin:** `useCmsAdminHead` sets `data-cms-accent` to the preset name or `brand`. For a brand colour it writes a `<style>` scoped to `html[data-cms-admin][data-cms-accent='brand']` (light and `.dark`) with the ramp, `--ui-primary`, `--cms-accent-fill` and `--cms-accent-on-fill`. The admin has no `style-src` CSP, and only hexes are ever written. The five presets are drawn exactly as before (the dark preset rule now excludes `brand`).
+- **Development notes:** at server start (`server/plugins/cms-theme-notes.ts`, all of the theme's notes) and once in the browser console (`cmsShowThemeNotes`). Production stays quiet.
+- **The website:** `/design-system` has a hex field (with a native colour picker) next to the five presets. It runs `resolveAdminTheme` in the browser, draws every component in the colour, shows the button, link and dark colours with their ratios, and says in cs/en/de what the guard changed.
+
+**Decisions.**
+- **Two roles in light mode.** `primary` (the fill of solid buttons and badges) keeps the brand colour whenever white or ink text reads on it at 4.5:1. `text` (new, additive on `CmsAccentScheme`) is `--ui-primary`: links, the active menu item, focus rings, checked boxes, switches, selected borders. It is the brand colour or the nearest darker shade that reads at 4.5:1 on white, cream, the hover grey `#F5F5F5` and its own 10 % tint (soft and ghost buttons). Nuxt UI uses `--ui-primary` for both background and text, so `cms-admin.css` re-points only `[data-slot='base'].bg-primary` (UButton and UBadge solid) at the fill. Checkboxes, switches, radios and the calendar's selected day use the text shade with white on it: their outline has to show against the page, and a yellow does not.
+- **A button has to show.** The fill must differ from white and cream by 1.25:1. This is not a WCAG number; it stops `#FFFFFF` or a pastel from drawing invisible buttons. Yellow (#FFD500 is 1.4:1 on white) keeps its buttons.
+- **Dark mode** uses one colour for both roles: the 400 shade, or the brand colour when that is lighter, raised until it reads on `#18191C`, `#1E1F23`, `#2E3035` and its tint. The text on it is always ink: on anything that light, ink beats white. Dark changes are not noted, because the dark version is always derived.
+- **Moves:** OKLCH lightness only, in steps of 0.002, checked on the rounded hex, so feeding a result back in returns it unchanged (tested). The fill may move either way; the text shade only darker; dark only lighter.
+- **A note only when the light colours changed.** One sentence per colour, e.g. `accent #FFD500: links and other accent text would be 1.3:1 on the hover grey; they use #826C00 (4.5:1); buttons keep #FFD500 with ink text (13.0:1).` Even `#B4532A` gets one: it reads 4.9:1 on white but 4.3:1 on its own tint, so its links use `#B15127`.
+- **Mid tones get ink text.** `onPrimary` is whichever of white and ink reads better (as specified), so `#3B82F6` or `#FF0000` buttons carry ink text: white is 3.7:1 and 4.0:1 there.
+
+**Tests.** `test/unit/admin-accent.spec.ts`: 31 tests covering parsing, presets, maths, the ramp, and the guard over 388 colours (an OKLCH grid of 12 hues × 9 lightnesses × 5 chromas, the sRGB cube in 4 steps, named edge cases). They check every bar, the hue, idempotence and notes-iff-changed, at under 1 ms per colour. `test/unit/admin-contrast.spec.ts`: +32 tests. The presets agree with the CSS, and 14 brand colours are checked light and dark against the stylesheet's real surfaces. `test/api/admin-accent.spec.ts`: `GET /api/cms/_theme` and the admin page's `data-cms-accent`. `pnpm check` green: 126 files, 1819 tests passed, 26 skipped, 5 min 35 s (typecheck included). `pnpm check:starter` green: all four combinations (defaults, english-empty, all-with-german, english-first), 3 min 18 s.
+
+**In the browser** (the playground built into a scratch dir with a temporary `accent: '#E8B10C'` and the name "Pekárna Novák", not committed; then the site's design-system page in dev). The chrome-devtools browser was in use, so the screens came from a headless Chromium script. Sign-in, home, list, settings and post editor, light and dark, 1280 and 390 px:
+- Solid buttons are `#E8B10C` with ink text (sign-in, "+ Článek", "Uložit", "Dokončit").
+- The current page in the sidebar and links are `#8A6800` on cream.
+- Checked boxes are `#8A6800` with a white tick, and focus rings are the dark yellow.
+- In dark mode, buttons and the active item are `#E8B10C`.
+- Production sent no notes. A dev server printed the note once in the log and once in the browser console.
+- The design-system page worked with `#FFD500` (en, 1280), `#B4532A` (cs, dark, 390) and `#ffffff` (de, 390).
+
+**For the merge.**
+- **Contract fix:** the contract's `packages/cms/app/app.config.ts` did not compile. The `import type` sat inside the header comment, and a stray `export default defineAppConfig({` broke the playground typecheck. Fixed by moving the import to the top and restoring the comment line. L and E probably fixed the same thing, so expect a trivial conflict there.
+- **`useCmsAdminHead.ts` (shared with L):** mine adds `const theme = useCmsAdminTheme()`, `watchEffect(() => cmsShowThemeNotes(theme.value))`, `'data-cms-accent': cmsAccentName(theme.value)` and the `style` entry. L's logo notes are printed by the same server plugin and console helper, so L should not print its own.
+- **E:** for the email button use `accent.light.primary` with `accent.light.onPrimary`; for links in emails use `accent.light.text`.
+- **Contract change:** `CmsAccentScheme.text` is additive. The new helpers in `src/theme.ts` are `@internal` and not exported from the package index, and the golden contracts are unchanged. New auto-imported utils: `cmsAccentName`, `cmsAccentCss`, `cmsResolveAccent`, `cmsShowThemeNotes`, `cmsContrastRatio` (`app/utils/cmsAccent.ts`).
+- **Changeset:** `.changeset/admin-accent-hex.md` (minor). For "From 0.6 to 0.7": nothing to do; the hex is optional and `mono` stays the default. An accent that is not a preset and not a hex (a typo) used to give mono greys with an odd dark primary; now it gives `mono` and a development warning.
+
+**Left open.**
+- **Built-in colour accents in dark mode** draw white text on their 400 shade: indigo 3.1:1, blue 2.6:1, violet 2.8:1, emerald 1.9:1. That fails AA, but they are locked to "as drawn today". Dropping `--ui-text-inverted: #fff` from the dark preset rule would give ink (6.0–9.6:1). That is a visual change and needs a decision.
+- **Hover on a solid button** is Nuxt UI's `bg-primary/75`. For a dark fill with white text at about 4.6:1, the hovered state drops to about 3:1. This is the same as the presets today.
+- **Nuxt UI's own focus outline** on buttons is `outline-primary/25`, not 3:1. The admin's own rings use `--ui-primary` at full strength.
+
