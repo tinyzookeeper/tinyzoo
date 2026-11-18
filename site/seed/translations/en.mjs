@@ -78,7 +78,7 @@ export default (h) => {
         sections: [
           {
             id: id(), type: 'roadmap', eyebrow: null,
-            heading: 'What’s ready and what’s coming',
+            heading: 'What’s ready and what’s coming.',
             text: 'Your feedback from trying the demo or editing your website helps us decide what to work on next.',
             note: 'Tell us what takes the most time when you look after your website.',
           },

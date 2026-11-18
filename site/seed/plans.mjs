@@ -64,9 +64,9 @@ export const PLANS = [
   },
   {
     stage: 'later', animal: 'fox',
-    cs: { title: 'Web z hotových šablon', text: 'Tuto verzi tinyzoo budeme provozovat za vás. Stránky si v ní poskládáte z hotových šablon bez pomoci vývojáře.' },
-    en: { title: 'Build a website from templates', text: 'We’ll run this version of tinyzoo for you. You’ll build your pages from ready-made templates without a developer.' },
-    de: { title: 'Ihre Website aus Vorlagen', text: 'Wir betreiben diese Version von tinyzoo für Sie. Mit fertigen Vorlagen erstellen Sie Ihre Seiten ohne Hilfe eines Entwicklers.' },
+    cs: { title: 'Web z hotových šablon', text: 'Verze tinyzoo, kterou provozujeme za vás. Stránky si v ní poskládáte z hotových šablon bez pomoci vývojáře.' },
+    en: { title: 'Build a website from templates', text: 'A version of tinyzoo that we run for you. You build your pages from ready-made templates, without a developer.' },
+    de: { title: 'Ihre Website aus Vorlagen', text: 'Eine Version von tinyzoo, die wir für Sie betreiben. Mit fertigen Vorlagen erstellen Sie Ihre Seiten ohne Hilfe eines Entwicklers.' },
   },
   // ── done, newest first ──
   {

@@ -165,7 +165,7 @@ await page('Úvod', 'home', [
 await page('Plány', 'plany', [
   {
     id: id(), type: 'roadmap', eyebrow: null,
-    heading: 'Co je hotové a co chystáme',
+    heading: 'Co je hotové a co chystáme.',
     text: 'Vaše zkušenosti s ukázkou i s úpravami webu nám pomáhají určit, co přijde na řadu.',
     note: 'Napište nám, co vám při správě webu zabírá nejvíc času.',
   },
