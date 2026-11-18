@@ -80,14 +80,6 @@ export default (h) => {
             id: id(), type: 'roadmap', eyebrow: null,
             heading: 'What we are working on and where tinyzoo is heading.',
             text: 'These are our plans for tinyzoo. We choose the order based on what people tell us while trying the demo and working with content.',
-            items: [
-              item({ title: 'Pilot on our first client website', text: 'We are preparing a pilot on our first client website. We want to learn how real editors work with their own content and where they need help.', stage: 'now', animal: 'bunny' }),
-              item({ title: 'Improvements from demo feedback', text: 'We are gathering the thoughts you send us from the demo. We want to use them to make the admin area easier to work in.', stage: 'now', animal: 'bird' }),
-              item({ title: 'Add-on modules', text: 'We plan to build add-on modules so your website can grow as your needs change.', stage: 'next', animal: 'frog' }),
-              item({ title: 'Custom roles and permissions', text: 'We want to let you create your own roles and decide who may change which parts of the content. This helps larger teams and websites with several editors.', stage: 'next', animal: 'fox' }),
-              item({ title: 'A mobile app for managing content', text: 'More people expect to manage content straight from their phone. We plan an app where you could write a news post, add photos directly from your phone and publish from anywhere.', stage: 'later', animal: 'octopus' }),
-              item({ title: 'Moving content from your existing website', text: 'We want to make it easier to bring text and pictures from your existing website into tinyzoo.', stage: 'later', animal: 'elephant' }),
-            ],
             note: 'Plans can change. Tell us what you would need for your website.',
           },
           {
@@ -96,7 +88,7 @@ export default (h) => {
             primaryLabel: 'Try the demo', primaryUrl: '/en/demo', secondaryLabel: 'Tell us what you need', secondaryUrl: '/en/feedback', animal: 'fox',
           },
         ],
-        metaDescription: 'Where is tinyzoo heading? See our plans, from the first pilot to a mobile app. Try the demo and tell us what you would need.',
+        metaDescription: 'Where is tinyzoo heading? See what is done, what we are working on and what comes next. Try the demo and tell us what you would need.',
       },
       demo: {
         title: 'Try the admin area', slug: 'demo',

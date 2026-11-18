@@ -22,6 +22,19 @@ first administrator with those details.
 `pnpm reset` (same variables) deletes every entry and file and seeds again. The demo
 deployment runs it every night.
 
+## Plans
+
+The "Plány" page (`/plany`, `/en/roadmap`, `/de/roadmap`) lists the **Plan** collection
+(Plány / Roadmap in the admin): title and text per language, a stage (done, now, next,
+later), an optional version and an animal. Editors arrange them by dragging ("Seřadit");
+the roadmap block (`BlockRoadmap.vue`) groups them by stage in that order and shows Done
+last, with each version. The block itself keeps only its heading, text and note (its old
+fixed `items` are dropped on read since block version 2).
+
+The plans the site starts with are in `seed/plans.mjs`. `pnpm seed` adds them, and
+`pnpm seed:plans` (same variables, an existing administrator) adds only them, **only when
+the collection is empty**, so it never touches plans editors have written.
+
 ## Settings
 
 | Variable | |
@@ -95,11 +108,11 @@ pnpm db:migrate             # applies it
 
 | | |
 |---|---|
-| `cms.config.ts` | content model: languages, settings, page blocks, news, menus, the feedback form |
+| `cms.config.ts` | content model: languages, settings, page blocks, news, plans, menus, the feedback form |
 | `app/components/global/Block*.vue` | how each block looks (`hero` → `BlockHero.vue`) |
 | `app/pages/[...slug].vue` | every address: pages, the news list and news items, in all languages |
 | `modules/docs/`, `app/pages/dokumentace/`, `server/api/site-docs/`, `shared/docs.ts` | the documentation, rendered from `docs/` (above) |
 | `app/lib/site-i18n.ts` | the languages, their address prefixes and the few texts that live in code |
 | `app/layouts/default.vue` | header (menu, language switcher), footer |
 | `app/pages/design-system.vue`, `app/lib/design-system-i18n.ts` | the admin's design system in the admin's own look (`/design-system`, `/en/design-system`, `/de/designsystem`): in the footer menu, or right-click (long-press) the logo in the header |
-| `scripts/seed.mjs`, `seed/` | the content, its translations and media |
+| `scripts/seed.mjs`, `seed/` | the content, its translations and media; `seed/plans.mjs` the starting plans (`scripts/seed-plans.mjs`) |
