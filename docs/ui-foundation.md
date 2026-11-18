@@ -96,7 +96,8 @@ How the colours are derived, in OKLCH:
   re-points `--ui-primary` keeps it. Every Nuxt UI focus outline (its `focus-visible:outline-3`, 25 %
   of the accent, 1.1–1.6:1 on white) is redrawn at full strength: 2 px, 2 px off the control, so it
   sits on the page; text fields hug theirs (2 px, or 1 px against the field's own 1 px ring); the
-  menu's links draw it around their highlight.
+  menu's links draw it around their highlight. A plain link keeps the browser's own ring, in
+  `--cms-accent-ring` (only `outline-color` is set, so nothing that had no ring gains one).
 
 **The contrast guard** checks the hexes the admin draws (WCAG 2 ratios):
 

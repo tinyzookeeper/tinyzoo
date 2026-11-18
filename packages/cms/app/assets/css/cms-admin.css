@@ -244,7 +244,9 @@ html[data-cms-admin] [class~='active:bg-primary/75']:not(:disabled, [aria-disabl
    surface (test/unit/admin-contrast.spec.ts): 2 px, 2 px off the control, so the ring sits on the
    page and not on the button. A text field's ring hugs it instead (no offset): 2 px, or 1 px where the
    field already draws its own full-strength 1 px ring inside the border (the outlined fields), a 2 px
-   line in all. The menu's links draw theirs around the highlight behind them. */
+   line in all. The menu's links draw theirs around the highlight behind them. Anything else that
+   shows the browser's own ring (a plain link, "Forgot password?") gets it in the accent too. */
+html[data-cms-admin] :focus-visible { outline-color: var(--cms-accent-ring); }
 html[data-cms-admin] [class~='focus-visible:outline-3']:focus-visible {
   outline: 2px solid var(--cms-accent-ring);
   outline-offset: 2px;

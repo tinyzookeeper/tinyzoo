@@ -251,6 +251,8 @@ describe('accent states in the stylesheet', () => {
     expect(body(`[class~='focus-visible:before:outline-3']:focus-visible::before`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: 0;')
     expect(body(`[class*='has-focus-visible:ring-']:has(:focus-visible)`)).toBe('outline-width: 1px;')
     expect(body('.cms-peek__resize:focus-visible::after')).toBe('background: var(--cms-accent-ring);')
+    // the browser's own ring (plain links) in the accent: its colour only, so an element without a ring stays without
+    expect(body('html[data-cms-admin] :focus-visible {')).toBe('outline-color: var(--cms-accent-ring);')
     // never a translucent ring
     expect(css.match(/outline[^;{}]*var\(--cms-accent-ring\)[^;]*/g)?.every((d) => !d.includes('%') && !d.includes('/'))).toBe(true)
   })
