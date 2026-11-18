@@ -140,6 +140,8 @@ The full logo carries the name, so the admin uses `name` as its text for screen 
 
 **Dark mode.** Without `fullDark` or `markDark`, the light logo sits on a small cream tile in dark mode, so a dark logo never disappears on charcoal. A dark version without its light one is not used.
 
+**A logo that does not load** (a wrong address, a file that is gone) gives way: a full logo to the mark with the name, a mark to the initials, in light and dark mode. A dark version that does not load leaves its light one in place, on the cream tile, as if no dark version had been given. An SVG needs no `width` or `height`: one with only a `viewBox`, as design tools export it, works.
+
 **Tab and home-screen icons.** With a mark, the browser tab shows it, and tinyzoo makes PNG copies of it for browsers that need them: a 32 px tab icon, the 180 px home-screen icon and the icons of the admin's web manifest (`/api/cms/_brand/…`). Without a mark the tab keeps tinyzoo's icon. This happens on the admin's pages only; the website keeps its own.
 
 **Checks in development.** When the dev server starts, tinyzoo looks at each logo and warns in the log about an address it cannot use (it must start with `/` or `https://`), a file that is missing, a mark that is not square, or a PNG that is too small. A logo never stops the start, and production does not check.
