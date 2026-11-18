@@ -239,7 +239,9 @@ export function emailLayout(opts: { brand: EmailBrand; intro: string; action?: s
     ? `<p style="margin:0;font-size:12px;line-height:1.5;color:#525252">${escapeHtml(opts.fallback)}<br><a href="${url}" style="color:${brand.primary};word-break:break-all">${url}</a></p>
 `
     : ''
-  const html = `<!doctype html><html><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#171717">
+  // The viewport keeps phones from shrinking the email to a desktop page; `color-scheme: light` asks mail
+  // apps in dark mode to keep the white card, so a dark logo on transparent stays readable.
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"></head><body style="margin:0;padding:24px;background:#fafafa;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#171717">
 <div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:28px">
 ${header}<p style="margin:0 0 20px;font-size:15px;line-height:1.55">${escapeHtml(opts.intro)}</p>
 ${button}<p style="margin:0 0 16px;font-size:13px;line-height:1.5;color:#737373">${escapeHtml(opts.footer)}</p>

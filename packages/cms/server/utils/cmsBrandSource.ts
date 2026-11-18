@@ -5,9 +5,10 @@ import type { CmsAdminTheme, CmsBrandFile } from 'tinyzoo'
 //
 // Only the logos in the theme (cmsAdminTheme) are ever read, never an address from the
 // request: the request only says which of the five files it wants.
-//  - `/brand/logo.svg`: one of the site's public files, read through the server's own
-//    static file handler (an internal request, no network), so it works the same in
-//    development and in a production build (.output/public).
+//  - `/brand/logo.svg`: one of the site's public files. In a production build, read through
+//    the app's own static file handler (an internal request, no network), which serves
+//    .output/public; in development, where the dev server serves public files in front of
+//    the app, from the dev server's own address.
 //  - `https://…`: downloaded with a short timeout and at most 2 MB.
 // A logo that cannot be read or drawn answers 404 and is logged once; it is tried again
 // a minute later (the file may have been fixed), not on every request.
@@ -49,24 +50,20 @@ async function loadBrandSource(event: any, address: string): Promise<Buffer> {
     if (!res.ok) throw new Error(`the server answered ${res.status}`)
     return readCapped(res.body, Number(res.headers.get('content-length') || 0))
   }
-  // A public file: through the app itself (Nitro serves .output/public in production), and
-  // in development, where public files are served in front of the app, from this server's own address.
   const path = address.split('#')[0]!
-  try {
-    const res = await (globalThis as any).$fetch.raw(path, { responseType: 'arrayBuffer', ignoreResponseError: true, timeout: REMOTE_TIMEOUT_MS })
-    if (res.status === 200 && res._data) {
-      const data = Buffer.from(res._data as ArrayBuffer)
-      if (data.byteLength > BRAND_SOURCE_MAX_BYTES) throw new Error(`the file is larger than ${BRAND_SOURCE_MAX_BYTES} bytes`)
-      if (!/text\/html/i.test(String(res.headers.get('content-type') || ''))) return data
-    }
-    if (!import.meta.dev) throw new Error(`the site answered ${res.status} for ${path}`)
+  if (import.meta.dev) {
+    // Development serves public files in front of the app (the app itself would render a 404 page): this server's own address.
+    const res = await fetch(new URL(path, getRequestURL(event).origin), { signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS) })
+    if (!res.ok) throw new Error(`the site answered ${res.status} for ${path}`)
+    return readCapped(res.body, Number(res.headers.get('content-length') || 0))
   }
-  catch (err) {
-    if (!import.meta.dev) throw err
-  }
-  const res = await fetch(new URL(path, getRequestURL(event).origin), { signal: AbortSignal.timeout(REMOTE_TIMEOUT_MS) })
-  if (!res.ok) throw new Error(`the site answered ${res.status} for ${path}`)
-  return readCapped(res.body, Number(res.headers.get('content-length') || 0))
+  // Production: through the app itself, whose static handler serves .output/public (no network, no Host header involved).
+  const res = await (globalThis as any).$fetch.raw(path, { responseType: 'arrayBuffer', ignoreResponseError: true, timeout: REMOTE_TIMEOUT_MS })
+  const html = /text\/html/i.test(String(res.headers.get('content-type') || ''))
+  if (res.status !== 200 || !res._data || html) throw new Error(`the site has no file at ${path} (it answered ${res.status}${html ? ' with a page' : ''})`)
+  const data = Buffer.from(res._data as ArrayBuffer)
+  if (data.byteLength > BRAND_SOURCE_MAX_BYTES) throw new Error(`the file is larger than ${BRAND_SOURCE_MAX_BYTES} bytes`)
+  return data
 }
 
 function remember(key: string, value: Made) {
