@@ -402,5 +402,8 @@ export {}
     nuxt.options.runtimeConfig.public.cmsTurnstileSiteKey ||= options.forms?.turnstileSiteKey || ''
     // The demo admin's sign-in details are public (they are printed on the sign-in page).
     nuxt.options.runtimeConfig.public.cmsDemo ||= { email: options.demo?.email || '', password: options.demo?.password || '' }
+    // Development only: the site's public/ folder, where the logo check at start looks for
+    // cms.admin.logo files (server/plugins/cms-logo-check.ts). A build never carries it.
+    if (nuxt.options.dev) (nuxt.options.runtimeConfig.cms as Record<string, unknown>).devPublicDir = resolve(nuxt.options.rootDir, nuxt.options.dir?.public || 'public')
   },
 })

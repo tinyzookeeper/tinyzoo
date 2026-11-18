@@ -1,4 +1,5 @@
 import type { LocalizedText } from './i18n'
+import { resolveAdminLogo } from './themeLogo'
 
 /**
  * The admin's theme: the client's name, brand colour and logos, resolved into one
@@ -123,25 +124,14 @@ const WHITE = '#FFFFFF'
  * @internal
  */
 export function resolveAdminTheme(input: CmsAdminThemeInput = {}): CmsAdminTheme {
-  const notes: CmsThemeNote[] = []
-  const logo = input.logo ?? {}
-  const clean = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null)
-  const full = clean(logo.full)
-  const mark = clean(logo.mark)
-  const fullDark = clean(logo.fullDark)
-  const markDark = clean(logo.markDark)
+  // The logos and their address checks: src/themeLogo.ts. Logo notes first, then the accent's.
+  const { logo, notes: logoNotes } = resolveAdminLogo(input.logo)
+  const notes: CmsThemeNote[] = [...logoNotes]
   return {
     version: 1,
     name: input.name ?? 'tinyzoo',
     accent: resolveAccent(input.accent, notes),
-    logo: {
-      full,
-      mark,
-      fullDark: fullDark ?? full,
-      markDark: markDark ?? mark,
-      fullDarkPlate: !fullDark && !!full,
-      markDarkPlate: !markDark && !!mark,
-    },
+    logo,
     signature: input.signature !== false,
     notes,
   }

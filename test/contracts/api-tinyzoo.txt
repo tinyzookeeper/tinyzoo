@@ -910,16 +910,20 @@ alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, 
 FormOptions
 EntityDef.singleton
 
-// ── internal (180): exported, not part of the frozen API, may change in any minor ──
+// ── internal (192): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
+const CMS_ADMIN_MANIFEST_URL
 const CMS_BRAND_FILES
 const CMS_ENTITY_OPS
+const CMS_LOGO_MIN_PX
+const CMS_LOGO_SLOTS
 const CMS_MEDIA_ACCESS
 const CMS_ROLES
 const CMS_ROLE_BASES
 const CORE_UPGRADE_STEPS
 interface CmsAccentScheme
+type CmsAdminIconLink
 interface CmsAdminTheme
 interface CmsAdminThemeInput
 type CmsBrandFile
@@ -927,6 +931,8 @@ type CmsColorRamp
 interface CmsDeprecatedOptions
 interface CmsDeprecation
 interface CmsFieldRule
+type CmsLogoFileInfo
+type CmsLogoSlot
 interface CmsPluginRequirement
 interface CmsResolvedRole
 interface CmsRolesDef
@@ -976,6 +982,8 @@ interface UpgradeOptions
 interface UpgradeResult
 interface ValidationContext
 type ValidationMode
+function adminBrandLockup
+function adminIconLinks
 function allRoleNames
 function allUpgradeSteps
 function allowedTypos
@@ -985,6 +993,7 @@ function blockMediaKeys
 const blockVersion
 function blocksSchema
 function brandFileUrl
+function brandInitials
 function buildColumn
 function buildContentModel
 function buildOpenApiDocument
@@ -1036,6 +1045,8 @@ function linkRef
 function linkRefsOf
 function listLayout
 function logUpgradeFailure
+function logoAddressKind
+function logoFileNotes
 const looksLikeLinkRef
 function mapDocLinks
 function mapFieldLinks
@@ -1062,6 +1073,7 @@ function pluginUpgradeSteps
 function prefixedTemplates
 function propOf
 function resetCmsDeprecations
+function resolveAdminLogo
 function resolveAdminTheme
 function resolveRole
 function resolveText

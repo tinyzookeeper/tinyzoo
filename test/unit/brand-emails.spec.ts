@@ -113,19 +113,19 @@ describe('the button', () => {
     expect(mail.html).toContain(`background:${theme.accent.light.primary};color:${theme.accent.light.onPrimary};`)
   })
 
-  it('follows the theme’s colours, and the written-out link is a readable link in the same colour', () => {
+  it('follows the theme’s colours, and the written-out link is a readable link in the accent’s text colour', () => {
     const theme = resolveAdminTheme()
-    const brand = m.emailBrand({ ...theme, accent: { ...theme.accent, light: { ...theme.accent.light, primary: '#8F3F1E', onPrimary: '#FFFFFF' } } }, 'Pekárna Novák', null)
+    const brand = m.emailBrand({ ...theme, accent: { ...theme.accent, light: { ...theme.accent.light, primary: '#8F3F1E', onPrimary: '#FFFFFF', text: '#7A3519' } } }, 'Pekárna Novák', null)
     const { html } = m.emailLayout({ brand, intro: 'Hi', action: 'Go', url: LINK, footer: 'Bye', fallback: 'Copy this:' })
     expect(html).toContain('background:#8F3F1E;color:#FFFFFF;')
-    expect(html).toContain(`<a href="${LINK}" style="color:#8F3F1E;word-break:break-all">${LINK}</a>`)
+    expect(html).toContain(`<a href="${LINK}" style="color:#7A3519;word-break:break-all">${LINK}</a>`)
     expect(html).toContain('color:#525252">Copy this:') // 7.8:1 on white (it was a pale grey)
   })
 
   it('never puts a colour that is not a hex into the style', () => {
     const theme = resolveAdminTheme()
-    const brand = m.emailBrand({ ...theme, accent: { ...theme.accent, light: { ...theme.accent.light, primary: 'red;background:url(x)', onPrimary: '"><script>' } } }, 'x', null)
-    expect(brand).toMatchObject({ primary: '#2E3035', onPrimary: '#FFFFFF' })
+    const brand = m.emailBrand({ ...theme, accent: { ...theme.accent, light: { ...theme.accent.light, primary: 'red;background:url(x)', onPrimary: '"><script>', text: 'x;y' } } }, 'x', null)
+    expect(brand).toMatchObject({ primary: '#2E3035', onPrimary: '#FFFFFF', link: '#2E3035' })
   })
 
   it('is left out with its link when the email has nothing to click', () => {

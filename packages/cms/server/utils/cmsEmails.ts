@@ -200,6 +200,8 @@ export interface EmailBrand {
   /** The button's colour and the text on it (the accent in light mode). */
   primary: string
   onPrimary: string
+  /** The written-out link under the button: the accent as text (readable on white, unlike a light button colour). */
+  link: string
 }
 
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i
@@ -212,6 +214,7 @@ export function emailBrand(theme: CmsAdminTheme, site: string, base: string | nu
     logoUrl: theme.logo.full && base ? base + brandFileUrl('full-email.png', theme) : null,
     primary: HEX.test(scheme.primary) ? scheme.primary : '#2E3035',
     onPrimary: HEX.test(scheme.onPrimary) ? scheme.onPrimary : '#FFFFFF',
+    link: HEX.test(scheme.text) ? scheme.text : HEX.test(scheme.primary) ? scheme.primary : '#2E3035',
   }
 }
 
@@ -236,7 +239,7 @@ export function emailLayout(opts: { brand: EmailBrand; intro: string; action?: s
 `
     : ''
   const fallback = opts.action && opts.url
-    ? `<p style="margin:0;font-size:12px;line-height:1.5;color:#525252">${escapeHtml(opts.fallback)}<br><a href="${url}" style="color:${brand.primary};word-break:break-all">${url}</a></p>
+    ? `<p style="margin:0;font-size:12px;line-height:1.5;color:#525252">${escapeHtml(opts.fallback)}<br><a href="${url}" style="color:${brand.link};word-break:break-all">${url}</a></p>
 `
     : ''
   // The viewport keeps phones from shrinking the email to a desktop page; `color-scheme: light` asks mail
