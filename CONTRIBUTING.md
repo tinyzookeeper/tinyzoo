@@ -292,7 +292,7 @@ the **first** publish is a placeholder, made by hand once by an owner of the pac
    only what npm does not have yet, and gives every package that npm has at this version its git
    tag and GitHub release (it skips a tag and a release that exist). A failed run already tags and
    releases what it did publish, so `tinyzoo` and `@tinyzoo/client` are not left without. It waits
-   up to two minutes for npm to list a version it just published before tagging it, and every later
+   up to ten minutes for npm to list a version it just published before tagging it, and every later
    push to `main` tags (on the commit that set the version) and releases whatever still has no tag.
 4. After the release, check the package page: the **Provenance** badge, and `pnpm create tinyzoo
    scratch --yes` from an empty folder.
