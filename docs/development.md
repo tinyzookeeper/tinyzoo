@@ -176,7 +176,7 @@ the version policy and how deprecations work (`cmsDeprecated()`): [CONTRIBUTING.
 ## Decisions that shaped the code
 
 - **Stack:** Nuxt 4, Tailwind 4, Nuxt UI v4, Zod 4, Drizzle (Postgres dialect).
-- **Runtime:** a Node server (Node 22+) — Pushbase, Docker or any VM. Cloudflare Workers
+- **Runtime:** a Node server (`^22.22.3 || ^24.15.0 || >=26.0.0`, the lines Nuxt supports) — Pushbase, Docker or any VM. Cloudflare Workers
   support was dropped in Phase 5b; see docs/production-plan.md.
 - `select` → native `pgEnum`; rich text → `jsonb` (TipTap doc); ids → `uuid`; media → `cms_media` FK.
 

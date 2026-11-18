@@ -12,7 +12,7 @@ You will:
 4. show it on the website with the typed client;
 5. know what to commit, and what to do before launch.
 
-**You need** Node 22 or newer, [pnpm](https://pnpm.io) 10, and
+**You need** Node 22 (22.22.3 or later), 24 (24.15.0 or later) or 26+, [pnpm](https://pnpm.io) 10, and
 [Docker](https://www.docker.com) for the local database. Any Postgres 16+ works instead:
 see [step 3](#3-the-database).
 

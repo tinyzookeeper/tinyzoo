@@ -31,11 +31,13 @@ node .output/server/index.mjs
 
 It listens on `PORT` (Pushbase: 3000, with `HOST=0.0.0.0`). It serves the website, `/admin`, the admin API and the public content API.
 
+The Node version must fit `^22.22.3 || ^24.15.0 || >=26.0.0`. These are the lines that both Node.js and Nuxt support ([which lines 1.x keeps](stability.md#platform-and-dependencies)).
+
 The site needs four things next to it:
 
 | Needs | Why | On Pushbase |
 |---|---|---|
-| Postgres 16+ | all content, accounts, audit log | managed Postgres, linked → `DATABASE_URL` |
+| Postgres 16+ (for all of 1.x) | all content, accounts, audit log | managed Postgres, linked → `DATABASE_URL` |
 | Redis (or Valkey) | rate limits shared by replicas, change fan-out (caches, realtime) | managed Redis, linked → `REDIS_URL` |
 | S3-compatible bucket | media (containers have no lasting disk) | external — see [Media](#media) |
 | SMTP | invitations, password resets, email-change links and notices | external (any provider) |
@@ -341,7 +343,7 @@ This section lists what the app sends, so a CDN in front of it can be set up for
 | Response | `Cache-Control` | Notes |
 |---|---|---|
 | Content API (`/api/content/…`) | `public, max-age=0, must-revalidate, s-maxage=300` | a **shared cache (CDN) may keep it 5 minutes** (`s-maxage`). See [The content API](#the-content-api) |
-| Media files and picture sizes (`/api/cms/_media/raw/…`, `/api/cms/_media/img/…`) | `public, max-age=31536000, immutable` | a new upload has a new address, so they never change under it |
+| Media files and picture sizes (`/api/cms/_media/raw/…`, `/api/cms/_media/img/…`) | `public, max-age=31536000, immutable` | a new upload has a new address, so they never change under it. These addresses are frozen ([media and logo addresses](api-surface.md#media-and-logo-addresses)) |
 | The logo's PNG versions (`/api/cms/_brand/…png?v=…`) | `public, max-age=31536000, immutable` | with the current `v`; a new logo has a new `v`. Without it, or with an old one: `public, max-age=300` |
 | `/sitemap.xml` | `public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600` | the server's own copy is cleared at once when content changes; a CDN may keep it an hour. Change it with `sitemap.cacheMaxAgeSeconds` |
 | `/robots.txt` of the starter | `public, max-age=3600` | |
@@ -363,7 +365,7 @@ curl -sI https://www.example.cz/api/content/page
 
 - A shared cache (CDN) may keep a response 5 minutes (`s-maxage`).
 - A browser asks again every time. It gets a quick `304` through the `ETag` while nothing changed. So a published change shows at once for visitors who reach the origin.
-- Change the header with `cms.content.cacheControl`.
+- Change the header with `cms.content.cacheControl`. The 5 minutes are a default that a minor release may change ([tuning](api-surface.md#numbers-promised-and-numbers-tuned)), so set it yourself when your site depends on it.
 - Behind a content token, and for an editor's draft preview, the header is `private, no-store`.
 
 ## Media
@@ -420,18 +422,29 @@ Check the signature before you trust a request. Each request carries these heade
 - `X-CMS-Delivery`
 - `X-CMS-Signature: t=<unix>,v1=<hex>`, an HMAC-SHA256 of `` `${t}.${rawBody}` `` with `NUXT_CMS_WEBHOOKS_SECRET`
 
+The signature header is a list of parts, split by commas. Today it holds one `t=` and one `v1=`. A later 1.x may send more than one `v1=`, or parts of a new kind. So read it like this:
+
+- split the header on `,`;
+- accept the request when **any** `v1=` value matches;
+- ignore parts you do not know;
+- refuse a `t` more than five minutes away from now.
+
 ```ts
 // server/api/cms-hook.post.ts
 import { createHmac, timingSafeEqual } from 'node:crypto'
 
 export default defineEventHandler(async (event) => {
   const raw = (await readRawBody(event)) ?? ''
-  const [, t, sig] = /^t=(\d+),v1=([0-9a-f]{64})$/.exec(getHeader(event, 'x-cms-signature') ?? '') ?? []
-  const expected = createHmac('sha256', process.env.CMS_WEBHOOK_SECRET!).update(`${t}.${raw}`).digest('hex')
-  if (!sig || Math.abs(Date.now() / 1000 - Number(t)) > 300
-    || !timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
-    throw createError({ statusCode: 401 })
-  }
+  const parts = (getHeader(event, 'x-cms-signature') ?? '').split(',').map((p) => p.trim())
+  const t = parts.find((p) => p.startsWith('t='))?.slice(2) ?? ''
+  // CMS_WEBHOOK_SECRET holds the same value as the CMS's NUXT_CMS_WEBHOOKS_SECRET
+  const expected = Buffer.from(createHmac('sha256', process.env.CMS_WEBHOOK_SECRET!).update(`${t}.${raw}`).digest('hex'))
+  const fresh = /^\d+$/.test(t) && Math.abs(Date.now() / 1000 - Number(t)) <= 300
+  const valid = parts.filter((p) => p.startsWith('v1=')).some((p) => {
+    const sig = Buffer.from(p.slice(3))
+    return sig.length === expected.length && timingSafeEqual(sig, expected)
+  })
+  if (!fresh || !valid) throw createError({ statusCode: 401 })
   const change = JSON.parse(raw)
   // e.g. purge the route cache for change.paths
   return { ok: true }
@@ -458,7 +471,8 @@ The default language gates the others. So unpublishing it (or its date coming) n
 **Deliveries and retries.**
 
 - `delivery` is unique per change and the same on every retry. Deduplicate on it. It is inside the signed body.
-- A request is tried up to three times. The second attempt is 1 s after the first fails, and the third is 5 s later.
+- A request is tried up to three times. The second attempt is 1 s after the first fails, and the third is 5 s later. These numbers are tuning: a minor release may change them ([what a minor may change](api-surface.md#numbers-promised-and-numbers-tuned)).
+- A body may carry keys and `type` values a later 1.x adds. Ignore what you do not know.
 - Failures are logged. They are also reported through the `cms:error` hook (see [Error reporting](#error-reporting)).
 - The log shows the address shortened to its origin and a hash of the path, because a webhook's secret often sits in the path.
 

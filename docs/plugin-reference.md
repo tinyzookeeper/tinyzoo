@@ -50,7 +50,7 @@ In entity names, dashes become underscores. The plugin `my-shop` names its entit
 | `method` | `CmsHttpMethod` | `'get'` | `'get'`, `'post'`, `'put'`, `'patch'` or `'delete'` |
 | `route` | `string` | | The address under `/api/cms/_p/<name>`. It starts with `/` and does not end with one. `:param` matches one segment |
 | `access` | `CmsRouteAccess` | `'user'` | Who may call `route`: `'user'` (anyone signed in), `'admin'` or `'public'`. Checked before the handler runs |
-| `contentPath` | `string` | | Also serves the handler at `/api/content/<contentPath>`, open to anyone. The first segment starts with `_` and is not `_global`, `_search` or `_sitemap` |
+| `contentPath` | `string` | | Also serves the handler at `/api/content/<contentPath>`, open to anyone. The first segment starts with `_<plugin name>`, as in `_events/next`. The forms plugin's `_form` is the one exception |
 
 An address under `/api/cms/_p/<name>/` that no route declares gets the strictest `access` the plugin uses.
 
@@ -62,7 +62,7 @@ Handlers can use these server helpers without an import:
 | `requireCmsUser(event)` | yes | Returns the signed-in person (`CmsUser`: `id`, `role`, `email?`, `name?`, `locale?`). Throws 401 when nobody is signed in, 403 `role-removed` when their role is gone from the config |
 | `audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` | no | The server's own. They can change in a minor release, so test a plugin that uses them with each new minor version of tinyzoo |
 
-`db` and the columns of an entity's `table` are drizzle's. Their types follow `drizzle-orm` ([the public API](api-surface.md#query-helpers)).
+`db` and the columns of an entity's `table` are drizzle's. Their types follow `drizzle-orm` ([the public API](api-surface.md#query-helpers)). The driver under `db` is not promised: use drizzle's API, not `db.$client`.
 
 ## Admin pages
 

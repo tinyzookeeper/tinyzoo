@@ -85,7 +85,13 @@ Every row also gets `id` (uuid), `createdAt`, `updatedAt`, `createdBy` and `upda
 
 The name is the address in the content API (`/api/content/<name>`), the key in the typed client, and the table in `snake_case` (`teamMember` becomes `team_member`).
 
-Reserved entity names: anything starting with `_`, and `media`, `graph`, `login`, `setup`, `forgot`, `reset`, `invite`, `team`, `account`, `p`. Reserved field names: `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`, `parentId`, `locale`, `locales`.
+A name starts with a letter, then letters, digits and `_`. That holds for entities and fields alike. Names that start with `_` are tinyzoo's.
+
+Reserved entity names: `media`, `graph`, `login`, `setup`, `forgot`, `reset`, `invite`, `team`, `account`, `p`, `email`, `privacy`, and any name that starts with `cms`.
+
+Reserved field names: `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`, `parentId`, `locale`, `locales`, `path`, `paths`, `breadcrumbs` and `preview`. A public collection also cannot have a field called `page`, `limit`, `sort`, `dir` or `q`.
+
+`defineEntity` stops with an error on each. The full list is in [the public API](../api-surface.md#names-tinyzoo-keeps).
 
 ## Fields
 
@@ -152,11 +158,11 @@ Fields in the admin read as a few titled sections. Name them with `admin.section
 
 **Boolean.** `mustBeTrue: true` refuses `false`. Use it for a consent on a [website form](recipes.md#1-a-contact-form) that must be ticked. The form marks it required and tells the visitor, in their language, to tick it.
 
-**Datetime.** `allDay: true` adds an "All day" switch and stores the time as 0:00.
+**Datetime.** `allDay: true` adds an "All day" switch and stores the time as 0:00 in the admin's time zone (`cms.admin.timeZone`, `Europe/Prague` unless you set another). The content API sends it in UTC, so a frontend in another zone must format it in the admin's zone. See [all-day dates](content-api-reference.md#all-day-dates).
 
 **Select.** `options` must be `as const`. `labels` give each option a name per admin language, and `icons` give it an icon.
 
-**Rich text.** The TipTap document is sanitised on write and at render. Draw it with `<CmsContent :doc="…" />`.
+**Rich text.** The TipTap document is sanitised on write and at render. Draw it with `<CmsContent :doc="…" />`. Its node and mark names are frozen for 1.x, and a minor release may add new ones ([rich text](content-api-reference.md#rich-text)).
 
 **Media and file.** Use `accept: 'image/*'` for pictures. The API returns `{ id, url, width, height, alt, mime, focal }`, or `null` when there is none. **The generated type is `… | null` also for a required field**, so write `d.photo?.url` (and `d.file?.url` for a file).
 

@@ -53,6 +53,10 @@ In a page tree, the item's key is its whole address, for example `o-nas%2Ftym`.
 
 Render stored rich text with the shipped `<CmsContent :doc="post.body" />`. It is safe: it builds VNodes from the structured doc and uses no `v-html`.
 
+If you draw rich text yourself, expect node and mark types you do not know yet: a minor release may add one. Draw an unknown node's children, or skip it ([rich text](content-api-reference.md#rich-text)).
+
+An all-day date arrives as midnight in the admin's time zone, in UTC. Format it in that zone ([all-day dates](content-api-reference.md#all-day-dates)).
+
 The playground's `/blog` and `/blog/[slug]` pages are a complete consumer demo.
 
 ![blog list](../screenshots/blog-list.png)
@@ -72,7 +76,7 @@ Responses are CDN-cacheable:
 Cache-Control: public, max-age=0, must-revalidate, s-maxage=300
 ```
 
-- A CDN may keep a response for 5 minutes.
+- A CDN may keep a response for 5 minutes. That default is tuning and may change in a minor release; set your own with `cms.content.cacheControl`.
 - Browsers check back every time. While nothing changed, they get a quick `304` via `ETag`, so a published change shows at once.
 
 More in [Caching](../deploying.md#caching).
@@ -153,6 +157,8 @@ const settings = await cms.global('siteSettings', { locale: 'en' }) // SiteSetti
 ```
 
 Sort keys, filters and enum values are type-checked per collection. An invalid sort key or filter value is a compile error.
+
+The client's own methods (`global`, `search`, `openapi`, `collection`) never collide with a collection's name. A collection named like one of them is reached with `cms.collection('search')` ([the reserved names](../api-surface.md#names-tinyzoo-keeps)).
 
 The playground's `/blog/typed` page is a working consumer.
 

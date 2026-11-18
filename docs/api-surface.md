@@ -12,9 +12,11 @@ This page lists what tinyzoo promises not to break. Check it before you depend o
 | [The config API](#the-config-api-tinyzoo): `defineEntity`, `f.*`, blocks, presets, seeds, plugins | `tinyzoo`, [`tinyzoo/forms`](#forms-tinyzooforms) |
 | [The Nuxt layer and its options](#the-nuxt-layer-and-the-cms-options) and [environment variables](#environment-variables) | `tinyzoo/layer`, `tinyzoo/module`, `nuxt.config`, `NUXT_CMS_*` |
 | [The content API](#the-content-api-http) (HTTP) and [the client](#the-client-tinyzooclient) | `/api/content/*`, `@tinyzoo/client` |
+| [The media and logo addresses](#media-and-logo-addresses) stored in content and emails | `/api/cms/_media/raw/<key>`, `/api/cms/_media/img/<id>/<width>.webp`, `/api/cms/_brand/<file>` |
 | [The frontend kit](#the-frontend-kit): `<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()` | `Cms*` components and composables of the layer |
 | [The webhook](#the-webhook) and [the Nitro hooks](#the-nitro-hooks) | `cms:*` |
 | [The server helpers for plugins](#server-helpers-for-plugins): `useCms()` and `requireCmsUser(event)` | a plugin's server routes |
+| [External sign-in](#external-sign-in): what the host sets with `auth.mode: 'external'` | `event.context.cmsUser` |
 | [The CLI](#the-cli) | `tinyzoo <command>` |
 | [The admin's extension points](#the-admins-extension-points) | `cms.fields` in `app.config.ts` |
 
@@ -24,9 +26,13 @@ Anything that is not on this page is internal. For example:
 
 - The admin's own components (the other `Cms*` components). [The frontend kit](#the-frontend-kit) lists the ones a website uses.
 - The server's other utilities (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest). Only [the two helpers for plugins](#server-helpers-for-plugins) are covered.
-- The admin's API (`/api/cms/**`).
+- The admin's API (`/api/cms/**`), apart from the three [media and logo addresses](#media-and-logo-addresses).
 - Anything marked `@internal`.
-- The SQL tables and their column names. tinyzoo migrates them for you, and [upgrading.md](upgrading.md) lists the steps. An entity's `table` object is frozen for reading (see [Types](#types)).
+- The SQL tables and their column names. tinyzoo migrates them for you, and [upgrading.md](upgrading.md) lists the steps. An entity's `table` object is frozen for reading (see [Types](#types)). tinyzoo's own `cms_*` tables only gain things within 1.x, so a site can skip minor releases ([upgrading](upgrading.md#skipping-minor-versions)).
+- The driver under `useCms().db` (today node-postgres, `db.$client`). See [server helpers](#server-helpers-for-plugins).
+- The text the CLI prints. Its commands, flags and exit codes are covered.
+- How the admin looks.
+- Performance, and the numbers listed as [tuning](#numbers-promised-and-numbers-tuned).
 
 These can change in any minor release, and the changeset always says so.
 
@@ -44,7 +50,7 @@ Every surface above is written down as a golden file in `test/contracts/`.
 |---|---|
 | `api-tinyzoo.txt`, `api-tinyzoo-forms.txt`, `api-tinyzoo-module.txt`, `api-client.txt` | the exported declarations of each entry point (what is `@internal` is listed by name only) |
 | `module-options.json` | the options of the `cms` key with their defaults, and the environment variables that follow |
-| `nitro-hooks.d.ts` | the Nitro hooks with their argument types |
+| `nitro-hooks.d.ts` | the Nitro hooks with their argument types, and what tinyzoo adds to nuxt-auth-utils' `User` and `UserSession` |
 | `server-helpers.d.ts` | `useCms()` and `requireCmsUser(event)` with their types |
 | `cli-usage.txt` | the commands and flags of `tinyzoo` |
 | `webhook.json` | the headers and body of a publish webhook |
@@ -57,6 +63,54 @@ Every surface above is written down as a golden file in `test/contracts/`.
 `test/unit/surface-types.spec.ts` asserts the inferred `Row`, `Insert` and `Update` types, the role references and the client's types of that same config. A type regression fails `pnpm typecheck`.
 
 `test/unit/api-surface.spec.ts` also checks that this page names every public export, command, flag, route, hook and variable.
+
+## What a minor release may add
+
+A minor release adds things. Code that reads what tinyzoo sends must expect them.
+
+**New keys.** In the content API's answers, the webhook's body, the hooks' arguments (`CmsChange`, `CmsSitemapEntry`, `CmsErrorReport`), the forms' answers and what `useCms()` returns. Ignore keys you do not know.
+
+**New members of the unions you receive.** For example:
+
+- the change types (`CmsChangeType`, the webhook's `type` and `x-cms-event`);
+- a form's `status` (today `new`, `read`, `done`);
+- `CmsErrorReport.source` (today `request`, `task`, `webhook`);
+- the built-in roles (`CmsRole`, `CmsRoleBase`);
+- the field kinds (`FieldKind`);
+- the accents (`CmsAccentPreset`);
+- rich text's node and mark types ([rich text](#rich-text)).
+
+Handle a value you do not know. A `switch` over one needs a `default`. An exhaustive check (`const unreachable: never = value`) fails to compile on the next minor.
+
+**New routes and parameters that start with `_`.** For example `/api/content/_x` or `?_x=`. That is why such names are tinyzoo's ([names tinyzoo keeps](#names-tinyzoo-keeps)).
+
+**New hooks, CLI commands and flags, `cms` options and variables.**
+
+**New picture widths** for [`/api/cms/_media/img/<id>/<width>.webp`](#media-and-logo-addresses). The list only grows.
+
+**New parts in the webhook's signature header** ([the webhook](#the-webhook)).
+
+## Numbers promised and numbers tuned
+
+Some numbers in these pages are part of the contract. Others are tuning: a minor release may change them, and its changelog says so.
+
+| Promised | Value |
+|---|---|
+| a list's page size | default 20, at most 100 (`limit`) |
+| the website search's `limit` | default 10, 1 to 50 |
+| header names | `x-cms-event`, `x-cms-delivery`, `x-cms-signature` (`CMS_WEBHOOK_HEADERS`); `x-api-key` and `Authorization: Bearer` for the content token |
+| the webhook's signature scheme | HMAC-SHA256 of `<t>.<raw body>`, hex, in a `v1=` part ([the webhook](#the-webhook)) |
+| picture widths | 320, 640, 960, 1280 and 1920 are always there; more may be added |
+
+| Tuning | Today |
+|---|---|
+| the website search's rate limit | 120 searches a minute per visitor |
+| a form's rate limits | 30 attempts and 8 accepted messages per visitor and form, in 10 minutes |
+| webhook delivery | up to 3 attempts, after 1 s and 5 s; 5 s to answer |
+| the content API's `Cache-Control` | `s-maxage=300` (set your own with `cms.content.cacheControl`) |
+| how deep a list pages | the offset stops at 10,000 items |
+| the `cms:sitemap` hook | runs at most once a minute |
+| the website search's query | the first 100 characters are read |
 
 ---
 
@@ -146,7 +200,21 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 
 `definePages`, `defineNavigation` and `defineRedirects` take `name`, `label`, `localized` and the like, as listed in their declarations (`api-tinyzoo.txt`).
 
-Do not name a field of a public collection `page`, `limit`, `sort`, `dir` or `q`. They are parameters of the list, and `defineEntity` stops with an error. A global has no list, so its fields may use these names.
+### Names tinyzoo keeps
+
+`defineEntity`, `defineSingleton` and `defineCmsPlugin` stop with an error on each of these.
+
+**Field names** start with a letter, then letters, digits and `_`. Names that start with `_` are tinyzoo's: for future query parameters, keys on items and columns.
+
+- Every entity: `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`, `parentId`, `locale`, `locales`, `path`, `paths`, `breadcrumbs` and `preview`.
+- A public collection, also: `page`, `limit`, `sort`, `dir` and `q`. They are parameters of the list. A global has no list, so its fields may use these names.
+- A translated field of an entity with `publish.perLocale`, also: `published`, `publishedAt` and `firstLiveAt`.
+
+**Entity names** start with a letter, then letters, digits and `_`. These are taken: `media`, `graph`, `login`, `setup`, `forgot`, `reset`, `invite`, `team`, `account`, `p`, `email`, `privacy`, and any name that starts with `cms`.
+
+**A plugin** names its entities like itself, or `<plugin>_â€¦` ([plugins](plugins.md#entities)). A route it serves on the content API (`contentPath`) starts with `_<plugin>`. The forms plugin's `_form` is the one exception.
+
+**The client.** The client's own methods never collide with a collection's name; see [the client](#the-client-tinyzooclient).
 
 ### Query helpers
 
@@ -304,7 +372,48 @@ When `cms.content.token` is set, requests carry the token as `x-api-key` or `Aut
 
 The shape of each item follows from the config. `surface.openapi.json` and `surface.client-types.ts` show it for a config that uses every field.
 
-Names of the form `/api/content/_x` belong to tinyzoo, which is why an entity name cannot start with `_`.
+Names of the form `/api/content/_x` belong to tinyzoo, which is why an entity name cannot start with `_` ([names tinyzoo keeps](#names-tinyzoo-keeps)).
+
+### Errors
+
+What is promised of an error: its **status code** and its **`message`**, a short text that says what went wrong.
+
+- Decide on the status. Show or log the `message`.
+- A form's `422` also has `data`: a list with one entry per refused field. Each entry has at least a `path`, which starts with the field's key, and a `message` in the visitor's language.
+- The rest of the body (`statusMessage`, `error`, `url`, `stack` and the like) is the framework's, Nitro's. It may change with it.
+
+### Media and logo addresses
+
+These three live under `/api/cms`, but their addresses are stored in content or sent in emails. So they are frozen, like the content API:
+
+| Route | What it serves |
+|---|---|
+| `GET /api/cms/_media/raw/<key>` | an uploaded file. A file's `url` in the content API and a picture in rich text point here (unless the bucket is public) |
+| `GET /api/cms/_media/img/<id>/<width>.webp` | a smaller copy of a picture. `<width>` is 320, 640, 960, 1280 or 1920; the list only grows |
+| `GET /api/cms/_brand/<file>` | the logo's PNG versions (`full-email.png`, `mark-32.png`, `mark-180.png`, `mark-192.png`, `mark-512.png`) and `admin.webmanifest`. Emails already sent point here. The list only grows |
+
+Everything else under `/api/cms/**` is internal.
+
+### Rich text
+
+A rich-text field comes as the editor's JSON: a ProseMirror document, `{ type: 'doc', content: [...] }`.
+
+The node and mark names it uses today are frozen, with the attributes in brackets:
+
+- nodes: `doc`, `paragraph`, `text`, `heading` (`level`), `bulletList`, `orderedList` (`start`), `listItem`, `blockquote`, `codeBlock` (`language`), `horizontalRule`, `hardBreak`, `image` (`src`, `alt`, `title`, `width`, `height`, `mediaId`);
+- marks: `bold`, `italic`, `underline`, `strike`, `code`, `link` (`href`, `target`, `rel`, `class`, `title`).
+
+A minor release may add a node or mark type. A renderer of your own must cope: draw an unknown node's children (or its text), or skip it; draw an unknown mark's text without it. `<CmsContent>` does that already.
+
+A node or mark is renamed only in a major release.
+
+### All-day dates
+
+An all-day `f.datetime({ allDay: true })` is stored as midnight in `cms.admin.timeZone`. That is `Europe/Prague` unless the site sets another zone.
+
+- The content API sends it as an ISO date-time in UTC: midnight in Prague is `2026-07-14T22:00:00.000Z` in summer.
+- A frontend in another zone must format it in the admin's zone, or it shows the day before. For example `toLocaleDateString('cs', { timeZone: 'Europe/Prague' })`.
+- The default zone stays `Europe/Prague` for all of 1.x.
 
 ## The client: `@tinyzoo/client`
 
@@ -333,6 +442,10 @@ Neither has an alias: the package keeps its `Cms` prefix, and the generated file
 
 The types of the client keep the names they have (`CmsClient`, `CmsError` next to `ClientOptions`, `ListParams`, `Collection` and so on). There are no aliases, and what the generated file imports does not change.
 
+**The client's own methods never collide with a collection's name; see [the reserved names](#names-tinyzoo-keeps).** A collection named like one of today's methods (`search`, `global`, `openapi`, `collection`) is reached with `cms.collection('search')`.
+
+> TODO(parent): settle before 1.0 with the code branch, then replace this note with one sentence. Option A: a list of collection names reserved for the client's future methods, listed in [names tinyzoo keeps](#names-tinyzoo-keeps) and refused by `defineEntity`. Option B: every future member of the client starts with `$` (`cms.$health()`), so no collection name is reserved.
+
 ## The webhook
 
 Every change visible on the website is `POST`ed as JSON to `cms.webhooks.urls`. It is signed with `cms.webhooks.secret`, and nothing is sent unsigned in production.
@@ -356,7 +469,9 @@ Headers (`CMS_WEBHOOK_HEADERS`):
 - `x-cms-delivery`: the delivery id again.
 - `x-cms-signature`: `t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">`.
 
-Delivery makes up to three attempts, after 1 s and 5 s. A `4xx` other than `408` and `429` is final. Details: [deploying](deploying.md#publish-webhooks).
+The signature header is a list of `key=value` parts, split by commas. A minor release may send more than one `v1=`, or parts of a new kind. A receiver accepts the request when any `v1=` matches, and ignores parts it does not know ([the example](deploying.md#verifying-in-a-nuxt-site)).
+
+Delivery makes up to three attempts, after 1 s and 5 s. A `4xx` other than `408` and `429` is final. The timing is [tuning](#numbers-promised-and-numbers-tuned). Details: [deploying](deploying.md#publish-webhooks).
 
 ## The Nitro hooks
 
@@ -365,7 +480,7 @@ Subscribe in a server plugin with `nitro.hooks.hook('cms:change', (change) => â€
 | Hook | Argument | When |
 |---|---|---|
 | `cms:change` | `CmsChange` | a content change was saved, on the instance that saved it |
-| `cms:sitemap` | `CmsSitemapEntry[]` | the sitemap is being built: push the addresses that are not entries (at most once a minute) |
+| `cms:sitemap` | `CmsSitemapEntry[]` | the sitemap is being built: push the addresses that are not entries (at most once a minute, a [tuned](#numbers-promised-and-numbers-tuned) number) |
 | `cms:error` | `CmsErrorReport` | a server error (a 5xx request, a failed task, a webhook that gave up), after the response |
 
 ## Server helpers for plugins
@@ -374,10 +489,42 @@ A plugin's server route (`serverHandlers`, [plugins](plugins.md#writing-a-handle
 
 | Helper | What is promised |
 |---|---|
-| `useCms()` | returns at least `{ db, reg }`. `db` is the site's drizzle database (node-postgres), with the entities' tables in its schema. `reg` is the `CmsRegistry`: `entities`, `byName`, `locales`, `plugins` and `pluginOf`. More keys may be added in a minor release |
+| `useCms()` | returns at least `{ db, reg }`. `db` is the site's drizzle database for Postgres, with the entities' tables in its schema. `reg` is the `CmsRegistry`: `entities`, `byName`, `locales`, `plugins` and `pluginOf`. More keys may be added in a minor release |
 | `requireCmsUser(event)` | returns the signed-in person: `{ id, role, email?, name?, locale? }` (`CmsUser`). Throws 401 when nobody is signed in, and 403 (`data.code: 'role-removed'`) when the person's role is no longer in the config |
 
-`db`'s type comes from `drizzle-orm` and follows it ([query helpers](#query-helpers)). Every other helper of the server (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest) is internal: a plugin can use it, but it can change in a minor release.
+`db`'s whole API is drizzle's own, and its type comes from `drizzle-orm` and follows it ([query helpers](#query-helpers)). The driver under it is not promised. Today it is node-postgres, and `db.$client` is its `Pool`. Use drizzle's API, not `$client` ([platform and dependencies](stability.md#platform-and-dependencies)).
+
+Every other helper of the server (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest) is internal: a plugin can use it, but it can change in a minor release.
+
+## External sign-in
+
+With `cms.auth.mode: 'external'` (`NUXT_CMS_AUTH_MODE=external`), your app signs people in, not tinyzoo. What your app has to set is frozen.
+
+- Set `event.context.cmsUser` on each request of a signed-in person, before tinyzoo's handlers run: in a server middleware. It matters for `/api/**` and `/admin`. Without it, the request is signed out.
+- Its shape is `CmsUser`, the same that `requireCmsUser(event)` returns:
+
+| Key | Type | What it is |
+|---|---|---|
+| `id` | `string`, required | who it is. Stored as `createdBy` and `updatedBy` when it is a UUID; another id leaves them empty |
+| `role` | `string`, required | a built-in role or one from `defineRoles` ([external sign-in and roles](guide/roles.md#external-sign-in)) |
+| `email` | `string`, optional | an `access` rule gets `''` when it is missing |
+| `name` | `string`, optional | an `access` rule gets `''` when it is missing |
+| `locale` | `string \| null`, optional | an `access` rule gets `null` when it is missing |
+
+Anything else you put on it reaches an `access` rule's `user` as `unknown` (`CmsAccessUser`).
+
+Shared editing needs the built-in sign-in, and is off with an external one.
+
+### nuxt-auth-utils' `User` type
+
+tinyzoo's module adds to nuxt-auth-utils' types (`declare module '#auth-utils'`, in `nitro-hooks.d.ts`):
+
+- `User` gets `id`, `email`, `name`, `role` and `locale`. The built-in sign-in writes these five.
+- `UserSession` gets a `cms` key, which is tinyzoo's own bookkeeping.
+
+These are covered only as far as tinyzoo's own fields go. The five `User` fields keep their names and types in 1.x. `UserSession.cms` is internal: do not read or write it.
+
+A site's own nuxt-auth-utils fields (a member's plan, an OAuth id) are its own. Declare them in your own `declare module '#auth-utils'`, next to tinyzoo's five, and do not give those five another type.
 
 ## The CLI
 
@@ -405,6 +552,8 @@ Exit codes:
 - `0`: success.
 - `1`: a failure, or, for `status`, something pending.
 - `2`: for `status`, the database could not be read.
+
+What the CLI prints is not covered: its wording can change in any release. A script reads the exit code.
 
 ## The admin's extension points
 

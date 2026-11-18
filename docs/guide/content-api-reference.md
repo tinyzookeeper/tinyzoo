@@ -8,7 +8,9 @@ The routes, parameters and answers are the same for every site. Which collection
 
 The API is **public and read-only**: `GET` only, JSON, no account. It serves published content and never drafts, except for an editor's [preview](#drafts-and-preview).
 
-The admin's own API (`/api/cms/**`) is a different thing. It is not described here and may change in any minor release.
+The admin's own API (`/api/cms/**`) is a different thing. It is not described here and may change in any minor release. Three of its addresses are the exception, because content and emails store them: a file, a picture's smaller copy and the logo's PNG versions ([media and logo addresses](../api-surface.md#media-and-logo-addresses)).
+
+A minor release may add keys to an answer, and new routes and parameters that start with `_`. Ignore what you do not know ([what a minor may add](../api-surface.md#what-a-minor-release-may-add)).
 
 ## The routes
 
@@ -46,7 +48,7 @@ curl 'https://cms.example.com/api/content/post?limit=2&sort=publishedAt&dir=desc
 
 | Parameter | What it does |
 |---|---|
-| `page` | The page, from 1 (the default). Deep offsets are capped at 10 000 items: narrow with a filter instead of paging that far |
+| `page` | The page, from 1 (the default). Deep offsets are capped at 10,000 items: narrow with a filter instead of paging that far. The cap is [tuning](../api-surface.md#numbers-promised-and-numbers-tuned) and may change in a minor release |
 | `limit` | Items per page: 1 to 100, default 20 |
 | `sort` | A field to order by: `createdAt` (the default), `updatedAt`, or any of the collection's own text, number, yes/no, date, choice and slug fields that are not `hidden`. Relations, files, rich text, blocks, lists and groups cannot be sorted by. An unknown key is ignored. A collection that editors arrange by dragging (`admin.list.orderField`) comes in that order unless you ask for another |
 | `dir` | `asc` or `desc` (the default). Items with an empty value come last either way. Ties keep a fixed order, so no item repeats or is skipped from one page to the next |
@@ -143,13 +145,37 @@ How each kind of field arrives:
 - A relation to a collection that is public (and listed in `content.populate`) comes as a nested item without its own relations. A relation to a collection that is not public comes as `{ id, title }`.
 - A file is `{ id, url, width, height, alt, mime, focal }`. The alt text is in the language served. The focal point is in percentages (`{ x, y }`) or `null`. The storage key is never in it.
 - A gallery is a list of files, each with a `caption`.
-- Rich text is a ProseMirror document (`{ type: 'doc', content: [...] }`). Draw it with `<CmsContent :doc="item.body" />`, never as HTML.
+- Rich text is a ProseMirror document (`{ type: 'doc', content: [...] }`). Draw it with `<CmsContent :doc="item.body" />`, never as HTML. See [rich text](#rich-text) below.
 - A block list is `[{ id, type, …the block's fields }]`.
 - A list field is `[{ id, type, … }]`, with the item type from the config.
 - A group is an object.
+- An all-day date is midnight in the admin's time zone, sent in UTC. See [all-day dates](#all-day-dates) below.
 - Links to other pages (`cms:` references, [links that follow their page](content-model.md#links-that-follow-their-page)) arrive as the page's current address in the language served. They are `null` when the page is gone or unpublished.
 
 Hidden fields are not in a public answer, on the item or on a relation it embeds. That covers fields marked `hidden` in `content.hidden`, and fields a role-restricted `access` rule hides.
+
+### Rich text
+
+A rich-text field is the editor's JSON. These node and mark names are frozen for 1.x:
+
+- nodes: `doc`, `paragraph`, `text`, `heading`, `bulletList`, `orderedList`, `listItem`, `blockquote`, `codeBlock`, `horizontalRule`, `hardBreak`, `image`;
+- marks: `bold`, `italic`, `underline`, `strike`, `code`, `link`.
+
+Their attributes are in [the public API](../api-surface.md#rich-text).
+
+A minor release may add a node or mark type. If you draw rich text yourself, draw an unknown node's children (or its text), or skip it. Draw an unknown mark's text without it. `<CmsContent>` does that already.
+
+A name changes only in a major release.
+
+### All-day dates
+
+An all-day date (`f.datetime({ allDay: true })`) is stored as midnight in the admin's time zone, `cms.admin.timeZone`. That is `Europe/Prague` unless the site sets another, for all of 1.x.
+
+The API sends it in UTC. Midnight of 15 July in Prague is `"2026-07-14T22:00:00.000Z"`. Format it in the admin's zone, or a visitor elsewhere sees the day before:
+
+```ts
+new Date(item.startsAt).toLocaleDateString('en', { timeZone: 'Europe/Prague' })
+```
 
 ## A page tree
 
@@ -215,7 +241,7 @@ Before anyone has saved it, `item` is `null`. The answer is still a `200`.
 
 How it matches (accents, typos, endings) and how to leave a collection out is in [the content API](content-api.md#search).
 
-**Errors:** `429` when the search is **rate limited** to 120 searches a minute per visitor. Queries shorter than 2 letters are not counted. The answer carries `Retry-After`. `400` for a language the site does not have. `401` when a token is required.
+**Errors:** `429` when the search is **rate limited**, today to 120 searches a minute per visitor (a [tuned](../api-surface.md#numbers-promised-and-numbers-tuned) number). Queries shorter than 2 letters are not counted. The answer carries `Retry-After`. `400` for a language the site does not have. `401` when a token is required.
 
 ## The sitemap as JSON
 
@@ -310,19 +336,33 @@ Content answers carry a weak `ETag`. Send it back as `If-None-Match`, and an unc
 
 ## Errors
 
-Every error is JSON, with the status code and a short message in `statusMessage`:
+Every error is JSON. Two things in it are promised:
+
+- the **status code**;
+- **`message`**, a short text that says what went wrong.
+
+Decide on the status. Show or log the `message`.
 
 ```json
 { "error": true, "url": "https://cms.example.com/api/content/post/nope", "statusCode": 404, "statusMessage": "Not found", "message": "Not found" }
 ```
 
-In development the answer also has a `stack`. Errors are not cached.
+The other keys (`error`, `url`, `statusCode`, `statusMessage`, and `stack` in development) come from the framework, Nitro. They may change with it.
+
+A form's `422` also has `data`: a list with one entry per refused field. Each entry has at least a `path`, which starts with the field's key, and a `message` in the visitor's language:
+
+```json
+{ "statusCode": 422, "message": "Validation failed", "data": [ { "path": ["email"], "message": "Please enter a valid email." } ] }
+```
+
+Errors are not cached.
 
 | Status | When |
 |---|---|
 | `400` | a language the site does not have (a site with one language ignores `locale`); a date filter that is not a date |
 | `401` | a content token is set and the request has none, or a wrong one |
 | `404` | an unknown or non-public collection or global; an item that does not exist or is not published; a tree route on a collection that is not a tree; `/api/openapi` when it is off |
+| `422` | a form's submission with a refused field; `data` lists them |
 | `429` | the search's limit (and a form's); `Retry-After` says how many seconds to wait |
 | `304` | the `ETag` you sent still matches: use what you have |
 
