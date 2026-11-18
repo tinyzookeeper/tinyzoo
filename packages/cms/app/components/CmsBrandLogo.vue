@@ -42,7 +42,7 @@ onMounted(() => {
         data-logo="full" :src="logo.full!" :alt="productName"
         class="block h-full w-auto max-w-full object-contain object-left dark:hidden" draggable="false" @error="failed.full = true"
       >
-      <span v-if="logo.fullDarkPlate" class="cms-brand-plate hidden dark:flex h-full max-w-full -ml-2 px-2 -my-1.5 py-1.5 box-content rounded-lg">
+      <span v-if="logo.fullDarkPlate" class="cms-brand-plate hidden dark:flex h-full max-w-full -mx-2 px-2 -my-1.5 py-1.5 box-content rounded-lg">
         <img data-logo="full" :src="logo.full!" :alt="productName" class="block h-full w-auto max-w-full object-contain object-left" draggable="false" @error="failed.full = true">
       </span>
       <img
