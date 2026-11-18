@@ -1,9 +1,10 @@
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CMS_BRAND_FILES, brandFileUrl, resolveAdminTheme } from 'tinyzoo'
-import { EMAIL_LOGO_MAX_HEIGHT, EMAIL_LOGO_WIDTH, TINYZOO_MARK_SVG, adminWebManifest, brandFileSource, brandFileVersion, isBrandSourceAddress, renderBrandFile } from '../../packages/cms/server/utils/cmsBrandFiles'
+import { BRAND_RENDER_VERSION, EMAIL_LOGO_MAX_HEIGHT, EMAIL_LOGO_WIDTH, TINYZOO_MARK_SVG, adminWebManifest, brandFileCacheControl, brandFileSource, brandFileVersion, brandSourcePath, isBrandSourceAddress, publicFilePath, renderBrandFile, svgHasText } from '../../packages/cms/server/utils/cmsBrandFiles'
 
 // The PNG versions of the client's logo (GET /api/cms/_brand/<file>) as a pure function:
 // a logo's bytes in, a PNG out. The route and the caching are covered in test/api/brand.spec.ts.
@@ -97,16 +98,63 @@ describe('which logo a file comes from', () => {
     expect(brandFileSource('full-email.png', resolveAdminTheme())).toBeNull()
   })
 
-  it('the version is the one in the file’s address, and changes with the logo', () => {
-    const v = brandFileVersion('mark-180.png', theme)
-    expect(brandFileUrl('mark-180.png', theme)).toBe(`/api/cms/_brand/mark-180.png?v=${v}`)
-    expect(brandFileVersion('mark-180.png', resolveAdminTheme({ logo: { mark: '/brand/other.svg' } }))).not.toBe(v)
+  it('the version is a hash of the logo’s bytes and of how tinyzoo draws them, not of its address', () => {
+    const bytes = fixture('mark.svg')
+    expect(brandFileVersion(bytes)).toBe(brandFileVersion(Buffer.from(bytes))) // the same file, wherever it is
+    expect(brandFileVersion(Buffer.concat([bytes, Buffer.from(' ')]))).not.toBe(brandFileVersion(bytes)) // one byte more: a new version
+    expect(brandFileVersion(bytes)).toBe(createHash('sha256').update(`tinyzoo-brand-${BRAND_RENDER_VERSION}\0`).update(bytes).digest('base64url').slice(0, 16))
+    expect(brandFileVersion(bytes)).toMatch(/^[\w-]{16}$/)
+  })
+
+  it('the address carries the version the server filled in, and none without it', () => {
+    const files = { full: 'fullV1', mark: 'markV1', markFallback: false }
+    const filled = { ...theme, logo: { ...theme.logo, files } }
+    expect(brandFileUrl('mark-180.png', filled)).toBe('/api/cms/_brand/mark-180.png?v=markV1')
+    expect(brandFileUrl('full-email.png', filled)).toBe('/api/cms/_brand/full-email.png?v=fullV1')
+    // Resolved without reading the files (the browser's fallback): no version, so nothing may cache it for good.
+    expect(brandFileUrl('mark-180.png', theme)).toBe('/api/cms/_brand/mark-180.png')
+  })
+
+  it('a year only for the version of the file sent, never in development', () => {
+    expect(brandFileCacheControl({ dev: false, asked: 'abc', version: 'abc' })).toBe('public, max-age=31536000, immutable')
+    expect(brandFileCacheControl({ dev: false, asked: 'old', version: 'abc' })).toBe('public, max-age=300')
+    expect(brandFileCacheControl({ dev: false, asked: undefined, version: 'abc' })).toBe('public, max-age=300')
+    expect(brandFileCacheControl({ dev: false, asked: ['abc', 'abc'], version: 'abc' })).toBe('public, max-age=300')
+    expect(brandFileCacheControl({ dev: true, asked: 'abc', version: 'abc' })).toBe('no-cache')
   })
 
   it('reads only a path on the site or an https:// URL', () => {
     for (const ok of ['/brand/logo.svg', '/logo.png?x=1', 'https://cdn.example.test/logo.svg']) expect(isBrandSourceAddress(ok), ok).toBe(true)
     for (const bad of ['//evil.test/logo.svg', '/\\evil.test', 'http://cdn.example.test/logo.svg', 'file:///etc/passwd', 'logo.svg', '/api/cms/_brand/mark-32.png', '/API/cms/_theme', '/brand/../secret', 'https://', 'data:image/png;base64,AAAA'])
       expect(isBrandSourceAddress(bad), bad).toBe(false)
+  })
+
+  it('decodes a site path before checking it: no /api/ in disguise, no .., pictures only', () => {
+    expect(brandSourcePath('/brand/logo%20new.svg?v=2#x')).toBe('/brand/logo new.svg')
+    expect(brandSourcePath('/brand/Logo.PNG')).toBe('/brand/Logo.PNG')
+    for (const ext of ['svg', 'png', 'webp', 'jpg', 'jpeg', 'avif']) expect(brandSourcePath(`/b/l.${ext}`), ext).toBe(`/b/l.${ext}`)
+    for (const bad of [
+      '/%61pi/cms/_theme', '/%61pi/cms/_brand/mark-32.png', '/%41PI/x.png', // /api/ percent-encoded
+      '/%2561pi/x.png', '/brand/%252e%252e/x.png', // encoded twice
+      '/brand/%2e%2e/%2e%2e/etc/x.png', '/brand/%2E%2E%2Fsecret.png', '/brand/./x.png', '/brand//x.png', // dots and empty segments
+      '/brand%5c..%5cx.png', '/brand/x%00.png', // a backslash, a NUL
+      '/brand/100%.svg', // a % that is not an encoding: decoding fails
+      '/brand/logo', '/brand/logo.svg.txt', '/brand/logo.html', '/favicon.ico', '/api', // not a picture
+    ]) expect(brandSourcePath(bad), bad).toBeNull()
+  })
+
+  it('finds a site path’s file only inside the public folder', () => {
+    expect(publicFilePath('/srv/site/public', '/brand/logo.svg')).toBe(join('/srv/site/public', 'brand/logo.svg'))
+    expect(publicFilePath('/srv/site/public', '/../secret.png')).toBeNull()
+    expect(publicFilePath('/srv/site/public', '/')).toBeNull()
+    expect(publicFilePath('', '/brand/logo.svg')).toBeNull()
+  })
+
+  it('tells an SVG with text from one with outlines', () => {
+    expect(svgHasText(Buffer.from('<svg><text x="0">Pekárna</text></svg>'))).toBe(true)
+    expect(svgHasText(Buffer.from('<svg:svg><svg:text>A</svg:text></svg:svg>'))).toBe(true)
+    expect(svgHasText(Buffer.from('<svg><path d="M0 0"/><textPath/></svg>'))).toBe(false) // a textPath only inside a text
+    expect(svgHasText(fixture('mark.svg'))).toBe(false)
   })
 })
 

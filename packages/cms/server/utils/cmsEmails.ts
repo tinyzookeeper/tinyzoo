@@ -1,5 +1,5 @@
 import { EMAIL_CHANGE_TTL_MS, EMAIL_REVERT_TTL_MS, INVITE_TTL_MS } from './cmsAuth'
-import { cmsAdminTheme } from './cmsAdminTheme'
+import { cmsAdminSettings } from './cmsAdminTheme'
 import { maskEmail } from './cmsEmailChangeRules'
 import { brandFileUrl, resolveRole, resolveText, type CmsAdminTheme } from 'tinyzoo'
 
@@ -8,7 +8,8 @@ import { brandFileUrl, resolveRole, resolveText, type CmsAdminTheme } from 'tiny
 // HTML that survives every mail client, with a text version. Czech, English and German,
 // chosen by the recipient's interface language (or the admin's default).
 //
-// They carry the client's brand from the admin's theme (cmsAdminTheme): the site's name,
+// They carry the client's brand from the admin's theme (cmsAdminSettings, for the request
+// that sends the email: a per-site theme would come from it): the site's name,
 // the full logo at the top (as PNG, GET /api/cms/_brand/full-email.png, because Gmail and
 // Outlook do not show SVG) and the button in the brand colour. Never tinyzoo's signature.
 
@@ -160,11 +161,13 @@ export function requestLocale(event: any): Locale | null {
   return null
 }
 
-/** The admin's settings that emails need: the site's name (from the theme), the language, and the theme itself. */
-export function emailContext(locale?: string | null): { locale: Locale; site: string; theme: CmsAdminTheme } {
-  const admin = ((useAppConfig() as any)?.cms?.admin ?? {}) as Record<string, any>
-  const theme = cmsAdminTheme()
-  const wanted = (locale || admin.defaultLocale || 'en') as string
+/**
+ * The admin's settings that emails need, for the site of `event` (the request that sends the
+ * email): the site's name (from the theme), the language, and the theme itself.
+ */
+export async function emailContext(event: unknown, locale?: string | null): Promise<{ locale: Locale; site: string; theme: CmsAdminTheme }> {
+  const { theme, defaultLocale } = await cmsAdminSettings(event)
+  const wanted = (locale || defaultLocale || 'en') as string
   const base = wanted.toLowerCase().split('-')[0]
   const lang: Locale = base === 'cs' || base === 'de' ? base : 'en'
   return { locale: lang, site: resolveText(theme.name, lang, ['en']) || 'CMS', theme }
@@ -211,7 +214,8 @@ export function emailBrand(theme: CmsAdminTheme, site: string, base: string | nu
   const scheme = theme.accent.light
   return {
     site,
-    logoUrl: theme.logo.full && base ? base + brandFileUrl('full-email.png', theme) : null,
+    // `files.full` is null when the server could not read the full logo: the name, not a broken picture.
+    logoUrl: theme.logo.full && base && theme.logo.files?.full !== null ? base + brandFileUrl('full-email.png', theme) : null,
     primary: HEX.test(scheme.primary) ? scheme.primary : '#2E3035',
     onPrimary: HEX.test(scheme.onPrimary) ? scheme.onPrimary : '#FFFFFF',
     link: HEX.test(scheme.text) ? scheme.text : HEX.test(scheme.primary) ? scheme.primary : '#2E3035',
@@ -269,8 +273,8 @@ function roleInSentence(locale: Locale, role: string | undefined): string {
   return roleNames[locale].editor!
 }
 
-export function inviteEmail(opts: { to: string; inviter: string; url: string; role?: string; locale?: string | null }) {
-  const ctx = emailContext(opts.locale)
+export async function inviteEmail(event: unknown, opts: { to: string; inviter: string; url: string; role?: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
   const days = Math.round(INVITE_TTL_MS / 86_400_000)
@@ -281,8 +285,8 @@ export function inviteEmail(opts: { to: string; inviter: string; url: string; ro
   }
 }
 
-export function resetEmail(opts: { to: string; url: string; locale?: string | null }) {
-  const ctx = emailContext(opts.locale)
+export async function resetEmail(event: unknown, opts: { to: string; url: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
   return {
@@ -295,8 +299,8 @@ export function resetEmail(opts: { to: string; url: string; locale?: string | nu
 // ── a change of email address ──────────────────────────────────────────────────
 
 /** To the new address: the link that makes the change. */
-export function emailConfirmEmail(opts: { to: string; url: string; locale?: string | null }) {
-  const ctx = emailContext(opts.locale)
+export async function emailConfirmEmail(event: unknown, opts: { to: string; url: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
   const hours = Math.round(EMAIL_CHANGE_TTL_MS / 3_600_000)
@@ -308,8 +312,8 @@ export function emailConfirmEmail(opts: { to: string; url: string; locale?: stri
  * password — a new one cancels the change while it waits; once it is made, the next
  * notice carries the way back.
  */
-export function emailRequestedNotice(opts: { to: string; newEmail: string; url: string; locale?: string | null }) {
-  const ctx = emailContext(opts.locale)
+export async function emailRequestedNotice(event: unknown, opts: { to: string; newEmail: string; url: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
   return { to: opts.to, subject: c.emailRequestedSubject(site), ...layout(ctx, { intro: c.emailRequestedIntro(site, maskEmail(opts.newEmail)), action: c.emailRequestedAction, url: opts.url, footer: c.emailRequestedFooter, fallback: c.fallback }) }
@@ -319,8 +323,8 @@ export function emailRequestedNotice(opts: { to: string; newEmail: string; url: 
  * To the old address once the change is made (by the person, or by an administrator).
  * With `revertUrl` (a change the person made), it carries the link that undoes it.
  */
-export function emailChangedNotice(opts: { to: string; newEmail: string; byAdmin?: boolean; revertUrl?: string; locale?: string | null }) {
-  const ctx = emailContext(opts.locale)
+export async function emailChangedNotice(event: unknown, opts: { to: string; newEmail: string; byAdmin?: boolean; revertUrl?: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
   const intro = opts.byAdmin ? c.emailChangedByAdminIntro(site, maskEmail(opts.newEmail)) : c.emailChangedIntro(site, maskEmail(opts.newEmail))
@@ -332,8 +336,8 @@ export function emailChangedNotice(opts: { to: string; newEmail: string; byAdmin
 }
 
 /** To the new address when an administrator set it: from now on this is how they sign in. */
-export function emailSetNotice(opts: { to: string; url: string; locale?: string | null }) {
-  const ctx = emailContext(opts.locale)
+export async function emailSetNotice(event: unknown, opts: { to: string; url: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
   return { to: opts.to, subject: c.emailSetSubject(site), ...layout(ctx, { intro: c.emailSetIntro(site), action: c.emailSetAction, url: opts.url, footer: c.emailSetFooter, fallback: c.fallback }) }
@@ -344,8 +348,8 @@ export function emailSetNotice(opts: { to: string; url: string; locale?: string 
  * address. Whoever reads this mailbox may be the owner, locked out by someone who reads
  * the old one now; they must hear of it.
  */
-export function emailRevertedNotice(opts: { to: string; restoredEmail: string; locale?: string | null }) {
-  const ctx = emailContext(opts.locale)
+export async function emailRevertedNotice(event: unknown, opts: { to: string; restoredEmail: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
   return { to: opts.to, subject: c.emailRevertedSubject(site), ...layout(ctx, { intro: c.emailRevertedIntro(site, maskEmail(opts.restoredEmail)), footer: c.emailRevertedFooter, fallback: c.fallback }) }
@@ -355,8 +359,8 @@ export function emailRevertedNotice(opts: { to: string; restoredEmail: string; l
  * To an address someone asked to move to that already has an account: the person asking
  * is not told (it would tell them who has an account), the owner of the address is.
  */
-export function emailInUseNotice(opts: { to: string; locale?: string | null }) {
-  const ctx = emailContext(opts.locale)
+export async function emailInUseNotice(event: unknown, opts: { to: string; locale?: string | null }) {
+  const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
   return { to: opts.to, subject: c.emailInUseSubject(site), ...layout(ctx, { intro: c.emailInUseIntro(site), footer: c.emailInUseFooter, fallback: c.fallback }) }

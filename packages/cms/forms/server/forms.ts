@@ -77,8 +77,8 @@ export async function formRecipients(db: any, reg: CmsRegistry, e: CmsEntity): P
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' }[c]!))
 
 /** The email about a new submission: every field, and a link to it in the admin. */
-export function submissionEmail(opts: { to: string; e: CmsEntity; row: Record<string, any>; adminUrl: string | null }) {
-  const { locale, site } = emailContext()
+export async function submissionEmail(event: unknown, opts: { to: string; e: CmsEntity; row: Record<string, any>; adminUrl: string | null }) {
+  const { locale, site } = await emailContext(event)
   const schema = formSchema(opts.e, locale)
   const lines = schema.fields.map((f: any) => {
     const v = opts.row[f.key]

@@ -77,8 +77,8 @@ export default defineEventHandler(async (event) => {
       }
     }
     // The old address first: its owner hears before the link can be opened.
-    await send(emailRequestedNotice({ to: u.email, newEmail: data.email, url: forgotUrl, locale }), 'email change notice')
-    await send(inUse ? emailInUseNotice({ to: data.email, locale }) : emailConfirmEmail({ to: data.email, url: linkBase + secret, locale }), inUse ? 'address-in-use' : 'email confirmation')
+    await send(await emailRequestedNotice(event, { to: u.email, newEmail: data.email, url: forgotUrl, locale }), 'email change notice')
+    await send(inUse ? await emailInUseNotice(event, { to: data.email, locale }) : await emailConfirmEmail(event, { to: data.email, url: linkBase + secret, locale }), inUse ? 'address-in-use' : 'email confirmation')
   })().catch((err) => console.error('[cms] email change request failed', redactEmails(safeErrorMessage(err))))
   event.waitUntil(work)
 

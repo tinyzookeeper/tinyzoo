@@ -4,7 +4,12 @@ import { resolveAdminTheme, type CmsAdminTheme } from '../../src/theme'
  * The admin's theme (src/theme.ts), resolved on the server at runtime and fetched once:
  * the server render puts it in the page's payload, later pages reuse it. Until it arrives
  * (a page rendered only in the browser) the admin resolves `cms.admin` from app.config
- * itself, which is what the server does today too.
+ * itself, which is what the server does today too (one site per server, its app.config).
+ * That fallback has no logo file versions (`theme.logo.files`), so its icon addresses carry
+ * no `v` until the server's theme arrives.
+ *
+ * A hosted version that serves several sites from stored settings must not rely on this
+ * fallback: app.config would not be the site's theme there. It would wait for the server's.
  */
 export function useCmsAdminTheme() {
   const appConfig = useAppConfig()

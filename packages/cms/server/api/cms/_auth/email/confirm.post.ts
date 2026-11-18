@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
   await audit(event, 'account.email', { userId: updated.id, meta: { email: updated.email, previousEmail: before.email } })
 
   const locale = updated.locale || requestLocale(event)
-  event.waitUntil(sendCmsMail(emailChangedNotice({ to: before.email, newEmail: updated.email, revertUrl: revertBase + revertSecret, locale }))
+  event.waitUntil(emailChangedNotice(event, { to: before.email, newEmail: updated.email, revertUrl: revertBase + revertSecret, locale }).then(sendCmsMail)
     .catch((err) => console.error('[cms] could not send the email changed notice', redactEmails(safeErrorMessage(err)))))
   return { email: updated.email, signedIn: sameAccount }
 })

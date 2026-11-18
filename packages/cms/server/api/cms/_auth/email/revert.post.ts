@@ -62,7 +62,7 @@ export default defineEventHandler(async (event) => {
   await startCmsSession(event, user)
   await audit(event, 'account.email_revert', { userId: user.id, meta: { email: user.email, previousEmail: before.email } })
   const locale = user.locale || requestLocale(event)
-  event.waitUntil(sendCmsMail(emailRevertedNotice({ to: before.email, restoredEmail: user.email, locale }))
+  event.waitUntil(emailRevertedNotice(event, { to: before.email, restoredEmail: user.email, locale }).then(sendCmsMail)
     .catch((err) => console.error('[cms] could not send the email reverted notice', redactEmails(safeErrorMessage(err)))))
   return { user: sessionUser(user) }
 })

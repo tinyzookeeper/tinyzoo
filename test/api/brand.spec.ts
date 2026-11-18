@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { brandFileUrl, resolveAdminTheme } from 'tinyzoo'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { brandFileUrl, resolveAdminTheme, type CmsAdminTheme } from 'tinyzoo'
 import { anonymous, signIn, waitForMail } from '../helpers/api'
 
 // GET /api/cms/_brand/<file> on the built playground, which has no logo (the demo stays
@@ -11,8 +11,14 @@ import { anonymous, signIn, waitForMail } from '../helpers/api'
 
 const sharp = createRequire(join(import.meta.dirname, '../../packages/cms/package.json'))('sharp') as (input: Buffer) => any
 const base = () => anonymous().baseURL
-/** The address the admin links (the playground has no logo: the version of an empty one). */
-const current = (file: Parameters<typeof brandFileUrl>[0]) => brandFileUrl(file, resolveAdminTheme())
+/** The theme the server hands the admin: with the files' versions it filled in. */
+const served = async (): Promise<CmsAdminTheme> => (await anonymous().get('/api/cms/_theme')).body
+let theme: CmsAdminTheme
+beforeAll(async () => {
+  theme = await served()
+})
+/** The address the admin links (the playground has no logo: tinyzoo's mark, with its version). */
+const current = (file: Parameters<typeof brandFileUrl>[0]) => brandFileUrl(file, theme)
 
 describe('the PNG files without a logo', () => {
   it('mark-180.png is tinyzoo’s mark, 180 × 180 and opaque, without a session', async () => {
@@ -43,10 +49,17 @@ describe('the PNG files without a logo', () => {
 })
 
 describe('caching', () => {
+  it('the theme carries the files’ versions: tinyzoo’s own mark, a hash of its bytes', async () => {
+    expect(theme.logo.files).toEqual({ full: null, mark: expect.stringMatching(/^[\w-]{16}$/), markFallback: true })
+    expect(current('mark-32.png')).toBe(`/api/cms/_brand/mark-32.png?v=${theme.logo.files!.mark}`)
+  })
+
   it('keeps a file for a year with the current version, briefly without it or with an old one', async () => {
     const long = await fetch(base() + current('mark-32.png'))
     expect(long.headers.get('cache-control')).toBe('public, max-age=31536000, immutable')
-    for (const path of ['/api/cms/_brand/mark-32.png', '/api/cms/_brand/mark-32.png?v=old']) {
+    // `v` was a hash of the logo's address before (an empty one here): no longer a version.
+    const addressHash = (2166136261).toString(36)
+    for (const path of ['/api/cms/_brand/mark-32.png', '/api/cms/_brand/mark-32.png?v=old', `/api/cms/_brand/mark-32.png?v=${addressHash}`]) {
       const res = await fetch(base() + path)
       expect(res.status).toBe(200)
       expect(res.headers.get('cache-control'), path).toBe('public, max-age=300')
