@@ -214,6 +214,23 @@ describe('a brand colour on the admin\'s real surfaces', () => {
     }
   }
 
+  it('the brand\'s moments (its tint, its charcoal): every text role, the quiet text and the initials read on them', () => {
+    const textRoles = ['--ui-text-dimmed', '--ui-text-muted', '--ui-text-toned', '--ui-text', '--ui-text-highlighted']
+    for (const accent of [...brands, '#2563EB', '#15803D', '#6B7280', '#DB2777']) {
+      for (const dark of [false, true]) {
+        const vars = brandTokens(accent, dark)
+        const at = (name: string) => resolve(name, vars)
+        // The brand's <style> really sets them: not cream or charcoal.
+        expect(vars['--cms-moment-bg'], `${accent} moment`).toMatch(/^#[0-9A-F]{6}$/)
+        for (const surface of ['--cms-moment-bg', '--cms-nav-active', '--cms-auth-bg']) {
+          for (const role of textRoles) expect(contrast(at(role), at(surface)), `${accent} ${dark ? 'dark' : 'light'}: ${role} on ${surface}`).toBeGreaterThanOrEqual(4.5)
+        }
+        expect(contrast(at('--cms-moment-text'), at('--cms-moment-bg')), `${accent}: quiet text in a moment`).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(at('--ui-text-highlighted'), at('--cms-moment-strong')), `${accent}: initials on the stronger tint`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+  })
+
   it('the reviews\' colours: #B4532A, #777777, #FFD500 and the mid tones keep 4.5:1 under the pointer and 3:1 rings', () => {
     for (const accent of ['#B4532A', '#777777', '#FFD500', '#6366F1', '#3B82F6', '#10B981']) {
       for (const dark of [false, true]) {
