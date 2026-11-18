@@ -18,7 +18,8 @@
  *
  * Re-skin for a client: set `cms.admin.accent` in app.config.ts to one of the
  * built-in accents (mono — tinyzoo's charcoal, the default —, indigo, blue, violet,
- * emerald), or override the variables below in the host's CSS under html[data-cms-admin].
+ * emerald) or to the client's brand colour as a hex ('#B4532A'). A brand colour is drawn
+ * by the admin itself (data-cms-accent="brand", see the end of the accent section).
  */
 
 /* Tailwind resets buttons to the arrow cursor; in the admin anything you can click
@@ -203,7 +204,18 @@ html[data-cms-admin][data-cms-accent='emerald'] {
   --ui-color-primary-950: oklch(26.2% 0.051 173);
   --ui-primary: var(--ui-color-primary-700);
 }
-html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono']) { --ui-primary: var(--ui-color-primary-400); --ui-text-inverted: #fff; }
+html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono'], [data-cms-accent='brand']) { --ui-primary: var(--ui-color-primary-400); --ui-text-inverted: #fff; }
+
+/* A brand colour (cms.admin.accent: '#B4532A'): the admin writes its shades, --ui-primary (the
+   accent as text: links, the active menu item, focus rings, checked boxes) and the fill of solid
+   buttons for light and dark itself, in a <style> scoped to [data-cms-accent='brand'] (src/theme.ts,
+   adminAccentCss; the contrast guard there keeps every pair readable). Solid buttons and badges are
+   filled with the brand colour and its own text colour, which may differ from the text shade: a
+   yellow brand keeps yellow buttons with ink text, while its links are a darker yellow. */
+html[data-cms-admin][data-cms-accent='brand'] [data-slot='base'][class~='bg-primary'] {
+  --ui-primary: var(--cms-accent-fill);
+  --ui-text-inverted: var(--cms-accent-on-fill);
+}
 
 /* ── Base ── */
 html[data-cms-admin] body {
