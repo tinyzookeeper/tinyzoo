@@ -1856,8 +1856,8 @@ Decisions above ("Decisions locked for Wave 5"). Integration branch `feat/1.0` (
 | R2 — Accessibility: lighter preset tints, keyboard focus on menu items, rich text and title, a keyboard pass | `fix/1.0-a11y` | merged into `feat/1.0` |
 | Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | merged into `feat/1.0` |
 | R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | `test/1.0-upgrade` | merged into `feat/1.0` |
-| W — Plans on the website: a Plans collection edited in the website's admin, `/plany` lists it with a Done stage (owner's request, 2026-11-18) | `feat/site-roadmap` | merged into `feat/1.0` |
-| Reviews — two independent reviews of the merged wave (A: server, security, freeze; B: UX, accessibility, docs, upgrade), fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | on `feat/1.0` at `acacf0b` | reviews running |
+| W — Plans on the website: a Plans collection edited in the website's admin, `/plany` lists it with a Done stage (owner's request, 2026-11-18) | `feat/site-roadmap`, `feat/site-roadmap-timeline` (design A, chosen by the owner) | merged into `feat/1.0` |
+| Reviews — two independent reviews of the merged wave (A: server, security, freeze; B: UX, accessibility, docs, upgrade), fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | `fix/1.0-review-a`, `fix/1.0-review-b` | reviews done (no High), both fix branches merged into `feat/1.0`; final checks next |
 | S — Release 1.0.0, deploy the website and the demo; the pilot and the Tábor site upgraded (with the owner) | last | waiting |
 
 

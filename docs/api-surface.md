@@ -26,7 +26,7 @@ Anything that is not on this page is internal. For example:
 - The server's other utilities (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest). Only [the two helpers for plugins](#server-helpers-for-plugins) are covered.
 - The admin's API (`/api/cms/**`).
 - Anything marked `@internal`.
-- The database tables. tinyzoo migrates them for you, and [upgrading.md](upgrading.md) lists the steps.
+- The SQL tables and their column names. tinyzoo migrates them for you, and [upgrading.md](upgrading.md) lists the steps. An entity's `table` object is frozen for reading (see [Types](#types)).
 
 These can change in any minor release, and the changeset always says so.
 
