@@ -104,8 +104,8 @@ How the colours are derived, in OKLCH:
 | What | On | Bar |
 |---|---|---|
 | Text on a solid button | the fill, and the hover fill | 4.5:1 |
-| The text shade | white, cream, the hover grey `#F5F5F5`, its own tint up to 20 % over white | 4.5:1 |
-| The dark colour | `#18191C`, `#1E1F23`, `#2E3035`, its own tint up to 20 % over the page and cards | 4.5:1 |
+| The text shade | white, the brand's own light moment (in place of cream), the hover grey `#F5F5F5`, its own tint up to 20 % over white | 4.5:1 |
+| The dark colour | `#18191C`, `#1E1F23`, `#2E3035`, the brand's own dark moment, its own tint up to 20 % over the page and cards | 4.5:1 |
 | Focus rings, borders | every surface (the stronger cream `#F1EADF` and dark `#383B41` included) | 3:1 (follows from the text bar) |
 | A button that shows | white and cream | 1.25:1 (not a WCAG bar; it stops a white brand from drawing invisible buttons) |
 
@@ -121,6 +121,43 @@ colour only lighter. A colour the guard produced passes as it is, so resolving i
 What changed goes into the theme's `notes`, printed in development (the server log at start, the browser
 console once per browser session, again when the notes change) and dropped in production. Tests: `test/unit/admin-accent.spec.ts` (a few hundred colours)
 and `test/unit/admin-contrast.spec.ts` (against the stylesheet's real surfaces).
+
+### Brand moments and animals
+
+With a brand colour the whole look follows it (decided 2026-11-18): where tinyzoo draws cream (light) and
+charcoal (dark), a brand draws calm paper with a hint of itself. `brandMoments()` in `src/theme.ts` derives
+every token the stylesheet sets for the moments, light and dark, and `adminAccentCss` writes them in the same
+`<style>` as the accent: `--cms-moment-bg`, `--cms-moment-strong`, `--cms-moment-line`, `--cms-moment-text`,
+`--cms-nav-active`, `--cms-auth-bg`, and the animals' `--cms-animal-body` and `--cms-animal-face`.
+
+- **Hue and chroma.** The brand's OKLCH hue, and 7 % of its chroma, capped at 0.009 in light mode (cream's
+  own chroma; 0.02 read as peach for a terracotta) and 0.008 in dark mode (charcoal is 0.0094; more read as
+  brown). The stronger tint and the line keep cream's ratios (1.8× and 2.6× the chroma), the dark ones
+  charcoal's. A near-grey brand gives near-grey moments.
+- **Lightness.** Cream's and charcoal's: light `0.975` (strong `0.94`, line `0.90`, quiet text `0.517`), dark
+  `0.309` (strong `0.352`, line `0.394`, quiet text `0.752`). Two clamps by WCAG luminance: a light moment is
+  never darker than the hover grey `#F5F5F5`, a dark one never lighter than charcoal `#2E3035`. Every text
+  role and the accent already read at 4.5:1 on those, so they read on the moments too, and the accent a
+  colour gets is the same with or without them (the guard stays idempotent). The quiet text inside a moment
+  is checked on its own and moves by lightness until it reads at 4.5:1.
+- **What stays cream.** Dark mode's highlighted text (`--ui-text-highlighted`) and inverted surfaces
+  (`--ui-bg-inverted`), and the light end of the dark grey ramp, stay tinyzoo's cream: they are text and
+  the reversed primary of mono, not moments, and tinting every heading toward the brand would colour the
+  workspace, which stays neutral. The light-logo tile in dark mode stays cream too (the logo reads as on paper).
+- **Animals.** Every animal file (`app/assets/brand/characters/{muted,bright}`) is drawn in exactly two
+  colours: a body and a near-white face (`#F9F7F3`, `#F9F7F4`, `#F9F8F4`; a test fails if a new animal breaks
+  this). A brand admin draws them inline (`CmsAnimal`, `src/themeAnimals.ts`) with those two fills replaced
+  by classes coloured from the two variables, so the server renders them in colour and they follow light
+  and dark. The body is one muted shade of the brand: lightness around the family's `0.68` (it follows the
+  brand a little, `0.65`–`0.74`; a yellow stays light), chroma at most `0.09` (70 % of the brand's), `0.04`
+  lighter in dark mode; the face is a near-white tint (`0.977`, chroma at most `0.006`). The bright six on the
+  first-run setup take the same shade. The drawings are loaded lazily (one small chunk each, only in a brand
+  admin), before the first render; tinyzoo's own look and the built-in accents keep the `<img>`.
+- **`cms.admin.animals: false`** (`theme.animals`) leaves every animal out, for any accent; each place closes
+  up around it (an empty place shows its plain icon tile).
+
+Mono and the four colour presets have no `moments` and write no `<style>`: cream, charcoal and the colourful
+family, exactly as before.
 
 ## Type
 
@@ -144,13 +181,14 @@ sentence per screen; labels, errors and delete confirmations stay plain.
 
 | Moment | Animal | Where |
 |---|---|---|
-| Sign-in, reset, invitation | hedgehog (setup: the bright six) | `layouts/cms-auth.vue` — cream, no card |
+| Sign-in, reset, invitation | hedgehog (setup: the bright six) | `layouts/cms-auth.vue` — cream (a brand's tint), no card |
 | Welcome | owl | home page, with the quick-add buttons |
 | Empty place | a muted animal per collection (always the same) | `CmsEmptyState` (80 px) |
 | Before publishing | bird | `CmsPublishReview` |
 | Live / scheduled | whale / turtle | `CmsMoment` (corner card, leaves by itself) |
 
-"No results" and errors get no animal.
+"No results" and errors get no animal. Every animal is a `CmsAnimal` behind `useCmsAnimals()`
+(`cms.admin.animals`); with a brand colour it is drawn in the brand's muted shade (see Brand moments and animals).
 
 ## Shell
 
