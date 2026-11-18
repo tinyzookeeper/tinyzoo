@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cmsShowThemeNotes } from '../../packages/cms/app/utils/cmsAccent'
+
+// cmsAccent.ts reads Nuxt's import.meta.dev / .client; the root type-check has no Nuxt types.
+declare global { interface ImportMeta { dev?: boolean; client?: boolean } }
 import { accentFillHover, accentTextContrast, adminAccentCss, adminAccentName, brandAccent, brandRamp, CMS_ACCENT_PRESETS, contrastRatio, gamutMap, oklchToRgb, parseHex, resolveAdminTheme, rgbToOklch, type CmsAdminTheme } from '../../packages/cms/src/theme'
 
 // `cms.admin.accent` as a hex: the colour maths of src/theme.ts (parsing, OKLCH, the shades)
