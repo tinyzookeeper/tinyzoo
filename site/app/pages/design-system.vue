@@ -23,6 +23,8 @@ const brand = computed(() => {
   return r.accent.kind === 'brand' ? r.accent : null
 })
 watch(brand, (b) => { if (b) accent.value = 'brand'; else if (accent.value === 'brand') accent.value = 'mono' })
+// Every animal on the page (CmsAnimal, the empty state's too) in the brand's shade, as a brand admin draws it.
+provide('cms-animal-tint', computed(() => !!brand.value))
 const pickPreset = (a: (typeof accents)[number]) => { brandInput.value = ''; accent.value = a }
 const fill = (text: string, vars: Record<string, string>) => text.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? '')
 // What the guard did, in the page's language (the admin tells developers the same in English).
@@ -226,13 +228,13 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
             <!-- With a brand colour: the family as a brand admin draws it (CmsAnimal, the brand's muted shade). -->
             <ul class="flex flex-wrap items-end gap-x-5 gap-y-4">
               <li v-for="c in cmsCharacters.muted" :key="c.name" class="flex flex-col items-center gap-1.5">
-                <CmsAnimal :name="c.name" :tint="!!brand" class="h-10 w-auto" />
+                <CmsAnimal :name="c.name" class="h-10 w-auto" />
                 <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
               </li>
             </ul>
             <ul class="mt-6 flex flex-wrap items-end gap-x-5 gap-y-4">
               <li v-for="c in cmsCharacters.bright" :key="c.name" class="flex flex-col items-center gap-1.5">
-                <CmsAnimal :name="c.name" set="bright" :tint="!!brand" class="h-10 w-auto" />
+                <CmsAnimal :name="c.name" set="bright" class="h-10 w-auto" />
                 <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
               </li>
             </ul>
@@ -292,17 +294,17 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
 
         <section id="moments" class="space-y-4 scroll-mt-20">
           <h2 class="cms-display text-lg font-semibold text-highlighted">{{ tx.toc.moments }}</h2>
-          <p class="max-w-2xl text-muted">{{ tx.moments }}<template v-if="brand"> {{ tx.momentsBrand }}</template></p>
+          <p class="max-w-2xl text-muted">{{ brand ? `${tx.moments} ${tx.momentsBrand}` : tx.moments }}</p>
           <div class="cms-moment flex items-center justify-between gap-6 p-6">
             <div>
               <p class="cms-display text-2xl text-highlighted">{{ tx.momentGreeting }}</p>
               <p class="cms-moment__muted mt-1 text-sm">{{ tx.momentText }}</p>
               <div class="mt-4 flex gap-2"><UButton icon="i-lucide-pen">{{ tx.momentWrite }}</UButton><UButton color="neutral" variant="outline" class="bg-(--cms-surface)">{{ tx.momentAdd }}</UButton></div>
             </div>
-            <CmsAnimal name="owl" :tint="!!brand" class="h-20 w-auto max-sm:hidden" />
+            <CmsAnimal name="owl" class="h-20 w-auto max-sm:hidden" />
           </div>
           <div class="cms-card flex max-w-md items-start gap-4 p-4 shadow-[0_18px_40px_-14px_rgba(0,0,0,.35)]">
-            <CmsAnimal name="whale" :tint="!!brand" class="h-12 w-auto shrink-0" />
+            <CmsAnimal name="whale" class="h-12 w-auto shrink-0" />
             <div><p class="cms-display text-base text-highlighted">{{ tx.momentLiveTitle }}</p><p class="text-sm text-muted">{{ tx.momentLiveText }}</p></div>
           </div>
         </section>

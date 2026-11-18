@@ -10,12 +10,14 @@
 const props = withDefaults(defineProps<{
   name: string
   set?: 'muted' | 'bright'
-  /** Draw it in the brand's colours. Default: when the admin's accent is a brand colour (the design-system page sets it itself). */
+  /** Draw it in the brand's colours. Default: what a page above provides (`cms-animal-tint`), else whether the admin's accent is a brand colour. */
   tint?: boolean
 }>(), { set: 'muted', tint: undefined })
 
-const theme = props.tint === undefined ? useCmsAdminTheme() : null
-const tinted = computed(() => props.tint ?? theme?.value.accent.kind === 'brand')
+// A page that draws its own accent (the website's design-system page) provides whether animals take it.
+const provided = inject<Ref<boolean> | null>('cms-animal-tint', null)
+const theme = props.tint === undefined && !provided ? useCmsAdminTheme() : null
+const tinted = computed(() => props.tint ?? provided?.value ?? theme?.value.accent.kind === 'brand')
 const character = computed(() => cmsCharacter(props.name, props.set))
 
 // Loaded before the first render (the server and the hydrating browser draw the same thing);
