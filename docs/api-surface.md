@@ -68,7 +68,7 @@ Import these in `cms.config.ts` and in code that uses the config's types. Anythi
 | Export | What it is |
 |---|---|
 | `defineEntity(name, def)` | a collection: fields, admin, access, content API, publishing. Returns an `Entity` whose fields are typed end to end |
-| `defineSingleton(name, def)` | a global with one record (site settings, a home page). This is the way to make one: `singleton: true` on `defineEntity` is deprecated |
+| `defineSingleton(name, def)` | a global with one record (site settings, a home page) |
 | `defineBlock(def)` | one type of block for `f.blocks()`: label, fields, `version` and `upgrade` |
 | `defineLocales(def)` | the content languages: default, list, labels, address prefix |
 | `defineRoles(roles)` | the site's own roles, each extending `editor` or `author`: per-collection operations, `publish`, `media` ([roles](guide/roles.md)) |
@@ -134,7 +134,6 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | `label`, `labelSingular`, `description`, `icon` | how the admin names it |
 | `titleField` | the field that names an entry |
 | `fields` | the `f.*` fields |
-| `singleton` | **deprecated**, removed in 1.0: use `defineSingleton` (a warning at start says so) |
 | `live` | every write is live at once (redirects) |
 | `admin.list` | `columns`, `searchable`, `orderField` (arranged by dragging), `layout` (`CmsListLayout`) |
 | `admin.editor` | `'write' \| 'form' \| 'preview'` (`CmsEditorLayout`) |
@@ -146,18 +145,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 
 `definePages`, `defineNavigation` and `defineRedirects` take `name`, `label`, `localized` and the like, as listed in their declarations (`api-tinyzoo.txt`).
 
-Do not name a field of a public collection `page`, `limit`, `sort`, `dir` or `q`. They are parameters of the list. A deprecation warning says so today, and from 1.0 it is an error.
-
-### Search helpers
-
-Use these to search your own content outside the CMS, such as static pages or documentation. They match the way the website search and the admin's ⌘K do: words in any order, with accents and small typos forgiven.
-
-| Export | What it is |
-|---|---|
-| `searchTerms(query)` | the words of a query, folded; empty when there is nothing to look for |
-| `matchEntry(title, texts, terms, query?)` | whether an entry matches every term, with its score, excerpt and highlight ranges (`SearchMatch`), or `null` |
-| `highlightRanges(text, terms)` | the `[start, end]` ranges of the terms in a text, for highlighting a title |
-| `SEARCH_MAX_QUERY` | the longest query the search reads |
+Do not name a field of a public collection `page`, `limit`, `sort`, `dir` or `q`. They are parameters of the list, and `defineEntity` stops with an error.
 
 ### Query helpers
 
@@ -192,8 +180,6 @@ An `Entity` is assignable to a `CmsEntity`, not the other way round.
 - the registry: `entities`, `byName`, `locales`, `plugins` and `pluginOf`.
 
 The tables and generated pieces on them are internal.
-
-`FormOptions` is still exported from `tinyzoo`, deprecated. Import it from `tinyzoo/forms`.
 
 ---
 
@@ -230,7 +216,6 @@ Every option reaches the runtime config as `cms.<option>`. Every runtime value c
 | Option | Env | What it is |
 |---|---|---|
 | `config` | | path of the config, relative to the site (`cms.config.ts`; build time) |
-| `databaseUrl` | `NUXT_CMS_DATABASE_URL` | deprecated: set `DATABASE_URL` or `NUXT_CMS_DATABASE_URL` in the environment instead |
 | `migrations.dir`, `migrations.onStart` | `NUXT_CMS_MIGRATIONS_ON_START` | the migrations bundled into the build; apply them when the server starts |
 | `publicUrl` | `NUXT_CMS_PUBLIC_URL` | the public address of the site (links and the logo in emails, the sitemap, and the OpenAPI server address unless `content.publicUrl` says otherwise) |
 | `auth.mode`, `auth.trustedProxies`, `auth.ipHeader` | `NUXT_CMS_AUTH_MODE`, `NUXT_CMS_AUTH_TRUSTED_PROXIES`, `NUXT_CMS_AUTH_IP_HEADER` | `builtin` or `external` sign-in; proxies in front of the app; the client-IP header |
@@ -240,8 +225,8 @@ Every option reaches the runtime config as `cms.<option>`. Every runtime value c
 | `storage.s3.endpoint`, `.region`, `.bucket`, `.accessKeyId`, `.secretAccessKey`, `.publicBaseUrl`, `.delivery` | `NUXT_CMS_STORAGE_S3_ENDPOINT`, `NUXT_CMS_STORAGE_S3_REGION`, `NUXT_CMS_STORAGE_S3_BUCKET`, `NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID`, `NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY`, `NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL`, `NUXT_CMS_STORAGE_S3_DELIVERY` | the S3-compatible store; `delivery` is `public`, `proxy` or `redirect` |
 | `storage.maxSizeMb`, `storage.maxBytesPerUser`, `storage.uploadRatePerMin` | `NUXT_CMS_STORAGE_MAX_SIZE_MB`, `NUXT_CMS_STORAGE_MAX_BYTES_PER_USER`, `NUXT_CMS_STORAGE_UPLOAD_RATE_PER_MIN` | upload limits |
 | `redis.url`, `redis.prefix` | `NUXT_CMS_REDIS_URL`, `NUXT_CMS_REDIS_PREFIX` | state shared by several instances (`REDIS_URL` too) |
-| `scheduler.cron` | | how often scheduled entries are checked, as a cron expression. Build time (see below). `CMS_SCHEDULER_CRON` still works as a deprecated alias |
-| `retention.cron` | | when the daily retention task runs, as a cron expression (default `17 3 * * *`). Build time (see below). `CMS_RETENTION_CRON` still works as a deprecated alias |
+| `scheduler.cron` | | how often scheduled entries are checked, as a cron expression. Build time (see below) |
+| `retention.cron` | | when the daily retention task runs, as a cron expression (default `17 3 * * *`). Build time (see below) |
 | `retention.auditDays` | `NUXT_CMS_RETENTION_AUDIT_DAYS` | how long audit entries are kept |
 | `revisions.keep` | `NUXT_CMS_REVISIONS_KEEP` | versions kept per entry and language (0 = off) |
 | `webhooks.urls`, `webhooks.secret` | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | [the webhook](#the-webhook) |
@@ -263,7 +248,6 @@ The `NUXT_CMS_*` and `NUXT_PUBLIC_CMS_*` variables above, and:
 | `REDIS_URL` | Redis, when `NUXT_CMS_REDIS_URL` is not set |
 | `NUXT_SITE_URL`, `NUXT_SITE_INDEXABLE` | Nuxt SEO's site configuration (the sitemap's address; keeping a copy out of search engines) |
 | `NUXT_SESSION_MAX_AGE` | the admin session's lifetime in seconds (default 14 days) |
-| `CMS_SCHEDULER_CRON`, `CMS_RETENTION_CRON` | **deprecated** (removed in 1.0): the build-time cron expressions of the scheduled tasks. Use `cms.scheduler.cron` and `cms.retention.cron` |
 | `CMS_ALLOW_REQUEST_ORIGIN` | `1` lets the admin write links in emails (invites, password resets) from the address of the request. It applies when `cms.publicUrl` is not set, in production too (see below) |
 | `TINYZOO_DEPRECATIONS` | `1` prints deprecation warnings under `NODE_ENV=test`, `0` silences them |
 | `TINYZOO_PG_DUMP`, `TINYZOO_PG_RESTORE`, `TINYZOO_PSQL` | the `pg_dump`, `pg_restore` and `psql` that `tinyzoo backup` and `restore` run |
@@ -277,10 +261,6 @@ Not part of the surface: the test-only `CMS_TEST_*` variables.
 
 - The server does not start without it, nor with the example value of the starter's `.env.example`.
 - `NUXT_SESSION_PASSWORD` is not read (removed in 0.6). When only it is set, the message says to rename it.
-
-**`CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON`**
-
-- Like the options, they are read when the site is built, not when it starts.
 
 **`CMS_ALLOW_REQUEST_ORIGIN`**
 
@@ -449,15 +429,18 @@ Every other `Cms*` component and `useCms*` composable (`CmsPage`, `CmsField`, `C
 
 ## Deprecated
 
-These still work. Each is removed in the release named, and a deprecation warning at start or build says so (`cmsDeprecated`, [CONTRIBUTING.md](../CONTRIBUTING.md#deprecations)).
+Nothing is deprecated right now. When something is, it is listed here with the release that removes it, and a warning at start or build says so (`cmsDeprecated`, [CONTRIBUTING.md](../CONTRIBUTING.md#deprecations)).
 
-| What | Use instead | Removed in |
-|---|---|---|
-| `cms.databaseUrl` | `DATABASE_URL` or `NUXT_CMS_DATABASE_URL` in the environment | 1.0 |
-| `FormOptions` imported from `tinyzoo` | `import type { FormOptions } from 'tinyzoo/forms'` | 1.0 |
-| a field named `page`, `limit`, `sort`, `dir` or `q` in a public collection | another name | 1.0 (an error) |
-| `defineEntity(name, { singleton: true })` | `defineSingleton(name, { … })` | 1.0 |
-| the variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` | the `cms.scheduler.cron` and `cms.retention.cron` options | 1.0 |
+Removed in 1.0 ([upgrading](upgrading.md#from-07-to-10)):
+
+| What | Use instead |
+|---|---|
+| `cms.databaseUrl` | `DATABASE_URL` or `NUXT_CMS_DATABASE_URL` in the environment |
+| `FormOptions` imported from `tinyzoo` | `import type { FormOptions } from 'tinyzoo/forms'` |
+| a field named `page`, `limit`, `sort`, `dir` or `q` in a public collection | another name (now an error) |
+| `defineEntity(name, { singleton: true })` | `defineSingleton(name, { … })` |
+| the variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` | the `cms.scheduler.cron` and `cms.retention.cron` options |
+| the search helpers `searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch` | nothing: they are internal now. `useCmsSearch()` and `<CmsHighlight>` stay |
 
 Removed in 0.6: `NUXT_SESSION_PASSWORD` as a stand-in for `NUXT_APP_SECRET`
 ([upgrading](upgrading.md#from-05-to-06)).

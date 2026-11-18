@@ -6,7 +6,6 @@
 
 export interface CmsModuleOptions {
     config?: string;
-    databaseUrl?: string;
     storage?: {
         driver?: 'local' | 's3' | 'r2';
         local?: {
@@ -89,8 +88,5 @@ export interface CmsModuleOptions {
 }
 
 export default: the Nuxt module: meta { name: 'tinyzoo', configKey: 'cms' }, options CmsModuleOptions
-
-// ── deprecated (1): still part of the API, to be removed in the release named in its @deprecated tag ──
-CmsModuleOptions.databaseUrl
 
 // ── internal (0): exported, not part of the frozen API, may change in any minor ──

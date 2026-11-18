@@ -62,7 +62,7 @@ export function cmsStorePrefix(configured: string = (useRuntimeConfig().cms as a
   if (configured) return String(configured)
   try {
     const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
-    const url = env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || (useRuntimeConfig().cms as any)?.databaseUrl
+    const url = env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL
     const name = url ? decodeURIComponent(new URL(url).pathname.slice(1)) : ''
     return name ? `cms:${name}` : 'cms'
   }

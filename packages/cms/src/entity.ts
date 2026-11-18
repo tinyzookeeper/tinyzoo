@@ -1,6 +1,5 @@
 import { boolean, type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
-import { cmsDeprecated } from './deprecate'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
@@ -123,12 +122,6 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
   icon?: string
   titleField: keyof F & string
   fields: F
-  /**
-   * A single-row global (Settings/Homepage) — admin shows one form, no list.
-   *
-   * @deprecated Use `defineSingleton(name, def)`, which makes the same thing. Removed in 1.0.
-   */
-  singleton?: boolean
   /**
    * Every write takes effect on the website at once (e.g. redirects). People who may
    * not publish (authors) cannot write such content.
@@ -327,18 +320,21 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: EntityDef<F>,
 ): Entity<F> {
-  if (def.singleton) {
-    cmsDeprecated('option:defineEntity.singleton', `\`defineEntity('${name}', { singleton: true })\` is replaced by \`defineSingleton('${name}', { … })\`.`, { removeIn: '1.0.0' })
+  // `singleton: true` was removed in 1.0 (deprecated in 0.6): a config that still sets it would
+  // otherwise make a collection of its global, with a list and a new table.
+  if ((def as { singleton?: unknown }).singleton) {
+    throw new Error(`defineEntity('${name}', { singleton: true }) was removed in 1.0: write defineSingleton('${name}', { … }) with the same options.`)
   }
-  return buildEntity(name, def)
+  return buildEntity(name, def, false)
 }
 
 /**
- * `defineEntity` without the deprecation: what `defineSingleton` builds on.
+ * What `defineEntity` and `defineSingleton` build on.
  */
 function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: EntityDef<F>,
+  singleton: boolean,
 ): Entity<F> {
   // Reserve `_`-prefixed names and built-ins so an entity can never shadow the
   // internal API routes (/api/cms/_media, /api/cms/_graph).
@@ -364,7 +360,7 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
   }
   if (def.content?.public) {
     for (const key of Object.keys(fields).filter((k) => LIST_PARAMS.includes(k))) {
-      cmsDeprecated(`field-name:${name}.${key}`, `The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=), so it cannot be used as a filter. Rename the field`, { removeIn: '1.0.0' })
+      throw new Error(`The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=). Rename the field (${LIST_PARAMS.join(', ')} cannot be field names of a public collection).`)
     }
   }
   if (def.publish?.perLocale) {
@@ -484,7 +480,7 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
     name, label: def.label, titleField: def.titleField, localesTable, localized,
     labelSingular: def.labelSingular, description: def.description, icon: def.icon,
     table, admin: def.admin, access: def.access, content: def.content, fields: def.fields,
-    singleton: def.singleton, publish: def.publish, live: def.live, tree,
+    singleton: singleton || undefined, publish: def.publish, live: def.live, tree,
     enums,
     insertSchema: z.object(createShape),
     updateSchema: z.object(updateShape),
@@ -494,9 +490,9 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
 /** Define a single-row global (Settings, Homepage). One editable record, no list. */
 export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
-  def: Omit<EntityDef<F>, 'singleton' | 'admin'> & { admin?: Pick<NonNullable<EntityDef<F>['admin']>, 'editor' | 'preview' | 'tabs' | 'sections'> },
+  def: Omit<EntityDef<F>, 'admin'> & { admin?: Pick<NonNullable<EntityDef<F>['admin']>, 'editor' | 'preview' | 'tabs' | 'sections'> },
 ): Entity<F> {
-  return buildEntity(name, { ...def, singleton: true } as EntityDef<F>)
+  return buildEntity(name, def as EntityDef<F>, true)
 }
 
 // ── registry: junctions + serializable graph, memoized per config module ────────

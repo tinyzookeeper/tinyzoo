@@ -591,6 +591,64 @@ The server resolves the name, colour and logos and the admin uses what it sends.
 
 The server's email builders (`inviteEmail`, `resetEmail`, the ones for a changed sign-in address, and `emailContext`) are internal. They are now async and take the request first: `await inviteEmail(event, { … })`, `await emailContext(event, locale)`. Only a site that calls them from its own server code has to change that call.
 
+## From 0.7 to 1.0
+
+1.0 freezes the public API ([what that covers](api-surface.md)). Before the freeze, it removes what 0.6 deprecated. No schema change and no migration.
+
+> **What you have to do**
+>
+> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 2. If your site saw no deprecation warning on 0.6 or 0.7, that is all.
+> 3. Otherwise, change what is left over. Each step is below. The build, `defineEntity` or `pnpm typecheck` stops on anything you missed, and says what to write instead.
+
+### `cms.databaseUrl` is gone
+
+Delete `databaseUrl` from the `cms` options in `nuxt.config.ts`. The build stops while it is there.
+
+Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) where the site runs, and in `.env` for the CLI. The CLI no longer reads the address from `nuxt.config.ts`.
+
+### `singleton: true` on `defineEntity` is gone
+
+Write `defineSingleton` instead. It takes the same options:
+
+```ts
+// before
+export const Settings = defineEntity('settings', { singleton: true, label: 'Settings', titleField: 'siteName', fields })
+// after
+export const Settings = defineSingleton('settings', { label: 'Settings', titleField: 'siteName', fields })
+```
+
+Same table, same address, same admin. With `singleton: true`, `defineEntity` now throws, and the option is a type error.
+
+### `FormOptions` comes from `tinyzoo/forms` only
+
+Change `import type { FormOptions } from 'tinyzoo'` to `import type { FormOptions } from 'tinyzoo/forms'`.
+
+### The cron variables are gone
+
+`CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` are no longer read. If your build sets one, the build stops and names the option to write:
+
+```ts
+export default defineNuxtConfig({
+  cms: { scheduler: { cron: '*/5 * * * *' }, retention: { cron: '30 2 * * *' } },
+})
+```
+
+Then remove the variables. The options are read when the site is built, as the variables were.
+
+### A field named like a list parameter is an error
+
+A public collection cannot have a field called `page`, `limit`, `sort`, `dir` or `q`. These are parameters of the content API's list. 0.6 warned; 1.0 stops at the config.
+
+Rename the field. A rename is a migration: see [Renaming a field](#renaming-a-field).
+
+### The search helpers are internal again
+
+`searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch` are `@internal`. 0.6 made them public. They are not frozen, because the search may change how it matches.
+
+- They are still exported, so code that imports them keeps working for now.
+- They can change in any release. Use `useCmsSearch()` and `<CmsHighlight>`, which stay public.
+
 ## The two-step rule
 
 > A release that changes the shape of the database never removes what the

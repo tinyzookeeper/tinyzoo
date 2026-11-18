@@ -140,7 +140,8 @@ The test server waits less than a deployed one: the realtime and shared-editing 
 through `CMS_TEST_LIVE_HEARTBEAT_MS`, `CMS_TEST_COLLAB_HEARTBEAT_MS` and `CMS_TEST_WEBHOOK_RETRY_MS`
 (`packages/cms/server/utils/cmsTiming.ts`; the values are in `test/setup/timers.ts`), which every
 server the suites start gets, and the scheduler runs every second instead of every minute (a cron
-fixed when the test build is made, `CMS_SCHEDULER_CRON`). Production reads none of these unless it is
+fixed when the test build is made: `CMS_TEST_SCHEDULER_CRON` and `CMS_TEST_RETENTION_CRON` become the
+`cms.scheduler.cron` and `cms.retention.cron` options in `test/setup/build-playground.mjs`). Production reads none of these unless it is
 told to; a spec waits for the condition (poll, don't sleep) rather than for as long as it takes.
 
 Codegen drift is a test: the committed `playground/server/db/schema.ts` and
