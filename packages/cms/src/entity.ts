@@ -375,7 +375,9 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
       throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}).`)
     }
   }
-  if (def.content?.public) {
+  // Only a collection has a list. A global (`defineSingleton`) is read whole at `/api/content/_global/:name`,
+  // which takes none of these parameters, so its fields may use the names.
+  if (def.content?.public && !singleton) {
     for (const key of Object.keys(fields).filter((k) => LIST_PARAMS.includes(k))) {
       throw new Error(`The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=). Rename the field (${LIST_PARAMS.join(', ')} cannot be field names of a public collection).`)
     }
