@@ -1,5 +1,145 @@
 # tinyzoo
 
+## 0.6.0
+
+### Minor Changes
+
+- The admin is easier to use with roles and languages:
+
+  - **Roles say what they do.** A role you define without a `description` is described from its definition, in the admin's language ("Edits Posts and Pages. Only reads Authors and Tags. Cannot publish: drafts only. Changes only the files they uploaded."): in the invitation, in "Change role", and in a new **What can each role do?** overview on the Team page that shows every role side by side, the built-in ones too, with how many people have each.
+  - **A field someone may not change looks locked**: a grey fill, a lock in the field, and one sentence saying who can change it ("Only Editor and Administrator can change this").
+  - **Translating with the original in view.** An empty translated field shows the default language's text greyed inside it, with "Use it as a start" right at the field; one line at the top of the translation says what the grey text is. On a wide screen the main text can show the original beside it.
+  - **Every state names its language and uses the same words everywhere**: "English · Draft", "English · On the website", "English · Waiting for Czech", in the editor's bar, the language menu, the list, the home page and the search (a search result found in another language opens in it). On a phone the status is the language switcher.
+  - **Publishing one language**: the review is titled for it ("Publish the English version"), says that visitors see the default language's text in an empty translated field (and no longer blocks on it), and, while the default language is a draft, says the version goes live together with it.
+  - **The list shows each language's state in words** (a tooltip, and for screen readers), on phones too.
+  - **An address that is not on the website yet** is no longer drawn as a link: it says so and offers the preview.
+
+  **Upgrade**
+
+  Nothing to do.
+- **Breaking:** a decimal (`f.number({ int: false })`) is typed `string` in `Row`, as the database and the content API have always returned it (`"19.99"`); `Insert` and `Update` take `number | string`. Typed code that read a decimal as a number stops compiling: use `Number(row.price)`. The column, the content API, the OpenAPI document and the generated client types do not change, and a decimal sent to a write may now be a number or a numeric string (the admin used to fail on one it had not touched).
+
+  API refinements before the 1.0 freeze:
+
+  - The frontend kit is part of the frozen API: `<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()` and `useCmsUiLocale()` are listed with their props, slots, events and return values in `docs/api-surface.md` and guarded by a golden file (`frontend-kit.txt`). Their props are exported types (`CmsImageProps`, `CmsBlocksProps`, `CmsBlockProps` for a site's own block components, `CmsContentProps`, `CmsNavProps`, `CmsHighlightProps`, `CmsFormProps`…). Every other `Cms*` component is the admin's and internal.
+  - `createClient` (generated, typed for your config) and `createCmsClient` (the untyped runtime of `@tinyzoo/client`) keep their names, and the docs now say which is which.
+  - `cms.content.publicUrl` falls back to `cms.publicUrl` for the OpenAPI `servers[].url`.
+  - New options `cms.retention.cron` (and `cms.scheduler.cron`, which existed) for the build-time cron of the scheduled tasks. `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` still work as deprecated aliases (a warning names them; removed in 1.0). They are read at build time.
+  - `defineEntity(name, { singleton: true })` is deprecated (a warning at start; removed in 1.0): use `defineSingleton(name, …)`.
+  - `defineForm` returns an `Entity` typed from the form's fields and its `status`, so `Row<typeof ContactForm>` is no longer loose (new type `FormStatusField`).
+  - `cms.forms.notifyTo` also takes a list of addresses.
+  - An `access` rule's `user` is typed `CmsAccessUser` (`id`, `email`, `name`, `role`, `base`, `locale`, and what an external sign-in adds as `unknown`), exported from `tinyzoo`. With external sign-in, `email`, `name` and `locale` are `''`, `''` and `null` where the sign-in sent none.
+  - `NUXT_CMS_AUTH_SETUP_TOKEN` stays an environment variable only (a secret: an option would be written into the build) and `CMS_ALLOW_REQUEST_ORIGIN` is documented, both with their reasons. The guides write `Entity`; `CmsEntity` is for plugin hooks only.
+  - One line in the roles guide: publish rights are role-wide, so a role cannot be allowed to publish one language only.
+
+  **Upgrade**
+
+  1. **Run your type check after updating** (`tsc`, `nuxt typecheck`) and wrap every decimal you read as a number: `Number(row.price)`, `Number(price).toFixed(2)`. A decimal inside a block, list or group is typed `string` too; items saved before 0.6 may still hold a number there, which `Number(...)` also covers. A `.withDefault()` on a decimal takes a string (`.withDefault('0')`). Nothing changes at run time, and there is no migration.
+  2. Replace `defineEntity('name', { singleton: true, … })` with `defineSingleton('name', { … })` (same options, same table).
+  3. Replace the variables `CMS_SCHEDULER_CRON` / `CMS_RETENTION_CRON` with `cms: { scheduler: { cron }, retention: { cron } }` in `nuxt.config.ts`. They are still build time: a change needs a rebuild.
+  4. If an `access` rule reads a claim your external sign-in adds to the person, it is `unknown` now: check it (`typeof user.tenant === 'string'`) before you use it. Rules that read `id`, `email`, `name`, `role`, `base` or `locale` compile unchanged.
+  5. Nothing else needs a change: the rest is documentation, types and fallbacks. See "A decimal is a string in your types", "An `access` rule's `user` is typed" and "Smaller changes, nothing to do" under "From 0.5 to 0.6" in docs/upgrading.md.
+- The public API is written down before 1.0 ([docs/api-surface.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/api-surface.md)): the config API, the `cms` options and `NUXT_CMS_*` variables, the content API and client, the webhook and the Nitro hooks, the CLI, and the admin's extension points. They follow semver from 1.0; everything else is internal and can change in any minor. Nothing in the content API or the generated client types changes.
+
+  - Exports of `tinyzoo` that only the server, the admin and the CLI use (the tree, search, link and migration helpers, the system tables, `buildRegistry`, `snake`, `buildColumn`…) are tagged `@internal`. They are still exported and still work, but are not promised: use what the page above lists.
+  - New types: `CmsWebhookPayload` and `CMS_WEBHOOK_HEADERS` (the body and headers of a publish webhook), `CmsAdminField`, `CmsFieldEditProps` and `CmsFieldCellProps` (what a custom field renderer in `cms.fields` receives). `SqlRunner`, the type of an upgrade step's `ctx.run`, is now documented as public.
+  - `tinyzoo help` (also `--help` and `-h`) prints every command and flag.
+  - The contract snapshots grew from the two files of the content API to the whole frozen surface (what each entry point exports, the `cms` options with their defaults, the hooks, the webhook, the CLI, a typed config that uses every field): a change to any of them fails a test until it is accepted on purpose, and its changeset says whether it breaks sites.
+  - Deprecated, removed in 1.0 (a warning at build or start names each): `cms.databaseUrl` in `nuxt.config.ts` (it writes the database address, password included, into the build: set `DATABASE_URL` in the environment); importing the `FormOptions` type from `tinyzoo` (import it from `tinyzoo/forms`); a field named `page`, `limit`, `sort`, `dir` or `q` in a collection of the public content API (it has the name of a parameter of the list, so it cannot be a filter: rename the field).
+
+  **Upgrade**
+
+  Nothing is required. During 0.6, change what the warnings name, so 1.0 does not stop your site:
+
+  1. Delete `cms.databaseUrl` from `nuxt.config.ts` and set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) in the environment.
+  2. Replace `import type { FormOptions } from 'tinyzoo'` with `import type { FormOptions } from 'tinyzoo/forms'`.
+  3. Rename a field called `page`, `limit`, `sort`, `dir` or `q` in a public collection (a rename needs a migration: see "Renaming a field" in docs/upgrading.md).
+  4. If your code imports an `@internal` name from `tinyzoo`, use the documented API instead, or tell us what is missing.
+- **Breaking:** a production server (`NODE_ENV=production`) refuses to start when `NUXT_APP_SECRET` is the example value of the starter's `.env.example`, `change-me-to-a-long-random-string-32-chars-min`. Anyone can read that value, so a site that kept it sealed its sign-in cookies with a key the whole world knows, and anyone could forge an administrator's session. The start check names the variable and says how to make a real one (`openssl rand -base64 32`). A development server still starts and prints a warning. `tinyzoo init` and `pnpm create tinyzoo` now write a `.env` with a random `NUXT_APP_SECRET` of its own, so a new site does not have the problem (`.env.example` stays as the documentation and is no longer copied: the next steps do not tell you to). An existing `.env` is never overwritten.
+
+  **Upgrade**
+
+  1. Look at the `NUXT_APP_SECRET` your server runs with (the platform's environment, not only `.env`). If it is `change-me-to-a-long-random-string-32-chars-min`, **set a new one before you deploy 0.6**: `openssl rand -base64 32`, at least 32 characters. This includes a `NUXT_SESSION_PASSWORD` with that value that you rename to `NUXT_APP_SECRET` for 0.6: keep the value of the old variable only when it is a secret of your own.
+  2. Changing the secret signs everyone out once; accounts and passwords are not touched. Any other value is accepted as before.
+  3. In development nothing breaks: if your `.env` was copied from the old `.env.example`, replace its `NUXT_APP_SECRET` to get rid of the warning.
+- **Breaking:** `NUXT_SESSION_PASSWORD` no longer stands in for `NUXT_APP_SECRET`: the server needs `NUXT_APP_SECRET` (at least 32 characters) and refuses to start without it. 0.4 and 0.5 used the old variable (or `runtimeConfig.session.password` in `nuxt.config.ts`) as the app secret when no other was set, and warned; that stand-in is removed, with the Rollup transform that did it. A site that has only the old variable now stops at start with a message that says `NUXT_APP_SECRET is not set`, names the old variable, and says to rename it. The value is never printed.
+
+  **Upgrade**
+
+  1. If the log of your deploy shows `[tinyzoo] deprecated: NUXT_SESSION_PASSWORD is used as the app secret…`, or your site has `NUXT_SESSION_PASSWORD` and no `NUXT_APP_SECRET`: **before you deploy 0.6**, rename the variable on your platform and in `.env`, keeping its value: `NUXT_SESSION_PASSWORD=…` becomes `NUXT_APP_SECRET=…`. Nobody is signed out.
+  2. If you set `runtimeConfig.session.password` in `nuxt.config.ts`, move the value to `NUXT_APP_SECRET` in the environment and remove it from the config.
+  3. If your site already sets `NUXT_APP_SECRET`, there is nothing to do; delete the old `NUXT_SESSION_PASSWORD`, which is ignored now.
+  4. The value must be at least 32 characters (`openssl rand -base64 32` makes one).
+- `pnpm create tinyzoo` makes a new website. It asks for the languages of the content, which parts the site has (news, a contact form, redirects, a search page), whether to add the demo content, and whether to install the dependencies, then copies the starter with those choices. Every question has an option (`--languages cs,en,de`, `--presets news,forms`, `--no-demo`, `--install`, `--package-manager`, `--yes`), so it also runs in CI. `npm create tinyzoo@latest` and `yarn create tinyzoo` work too.
+
+  `tinyzoo init <folder>` takes the same options (except installing and `--yes`, which only `create-tinyzoo` has) and makes the same site: `--languages` (the first one is the default), `--presets news,forms,redirects,search` or `none`, `--no-demo`, `--package-manager`. Without options it makes what it always did. Both work in the current folder when it is empty (`pnpm create tinyzoo .`, `tinyzoo init .`): the folder itself is kept, the site is made inside it. A site made with other languages or parts than the starter's own (Czech and English, every part) needs `pnpm db:generate` and `pnpm cms:client` before its first `pnpm db:migrate`; `create-tinyzoo --install` and the next steps `init` prints say so.
+
+  The starter's website now takes its languages from `app/utils/site.ts` (with the words it draws itself in Czech, English and German, and English for any other language), and its search page is `app/pages/search.vue`. The demo content is in Czech and English, so a new site gets it only when its first language is Czech or English (`--demo` with any other first language stops with a message).
+
+  **Upgrade**
+
+  Nothing. A site you already have is not changed: the starter's files are yours. To see what a fresh starter looks like now, `pnpm dlx tinyzoo init ../scratch` and compare.
+- **Breaking:** roles of your own and per-field permissions. `defineRoles({ translator: { from: 'editor', entities: { post: ['read', 'update'] }, publish: false, media: 'own' } })` adds a role that extends the built-in editor or author and narrows it (or, for an author, widens it) per collection, with its own `publish` setting and `media` access (`'all'`, `'own'` or `'none'`); only the built-in admin manages people, and a role can never be or extend it. `.access({ read: ['editor'], edit: ['editor', roles.translator] })` on a field says who reads and who edits it: the server leaves a field a role may not read out of every admin answer (lists, entries, history, CSV export, search results and excerpts, "used by", the schema the admin loads, the draft preview) and refuses with `403 field_forbidden` a write that names a field the role may not edit, without ever overwriting an omitted field; the admin shows such a field read-only, or not at all. A rich-text field with a rule is edited alone instead of together with others in real time. A role is offered **Publish** only if it may also edit the entity's status field and its publish date (a publish writes both): with `.access({ edit })` on one of them the editor does not show a button the server would refuse. Administrators assign the new roles in Team and in invitations (with the role's own, translated name). A role removed from the config fails closed: the person signs in and sees "Your role no longer exists", gets `403 role-removed` everywhere else, is flagged in Team, and `tinyzoo status` warns. The public content API is not changed. Guide: `docs/guide/roles.md`.
+
+  **Upgrade**
+
+  Nothing, if you define no roles and no field rules: a site behaves as before, and there is no migration (`cms_users.role` is a text column). To use them, see "From 0.5 to 0.6" in `docs/upgrading.md`. Four details:
+
+  1. Your own row-level `access` rules now also get `user.base`, the built-in role a person has or extends. A rule that tests `user.role === 'author'` does not see a custom role built on author: test `user.base === 'author'` once you add one.
+  2. An account whose stored role is not `admin`, `editor` or `author` (only possible by editing the database by hand, or after you remove a role) now has no access. Before, anything but `author` acted as an editor. `tinyzoo status` lists such accounts.
+  3. With `cms.auth.mode: 'external'`: on a site that defines roles, a role name from your sign-in that you did not define has no access; a site that defines none keeps the old behaviour.
+  4. If you put an `.access({ edit })` rule on an entity's publish status or date field, a role that is not in it is not offered Publish (a publish writes both fields, and a save that names a field the role may not edit is `403 field_forbidden`). Add the role to the rule if it should publish.
+- A custom field renderer is told when it must not change its value. `CmsAdminField` has `readOnly` (set when the person's role may read the field but not edit it, `.access({ edit })`), and `CmsFieldEditProps` has a `readOnly` prop, `true` when that is so or when the whole entry is read-only for the person. Every renderer the registry resolves gets it, the built-in ones too; the built-in gallery and blocks fields no longer let a read-only field be reordered by dragging. This is part of the admin extension points that 1.0 freezes (`test/contracts/api-tinyzoo.txt`: two optional members added).
+
+  **Upgrade**
+
+  Nothing is required: a renderer that does not declare the prop works as before. If your renderer is made of anything but native form controls (buttons that are not disabled, a drag handle, a canvas), declare `readOnly` (`defineProps<CmsFieldEditProps>()`) and stop editing when it is set; the server refuses a write to a field the role may not edit in any case ([the admin guide](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/admin.md#extensibility--the-field--view-registry)).
+- Entities can publish each language on its own: add `perLocale: true` to an entity's `publish`. A translation then has a state and a schedule of its own (draft, published, scheduled), and the editor's Publish, Unpublish and Schedule act on the language being edited. The default language keeps its state on the entry, and a translation **follows it until someone publishes or unpublishes that language**, so turning the option on changes nothing on the website, for entries with a translation and for entries without one (served in other languages through the fallback) alike.
+
+  **A translation that has never been published is being translated.** Start the translation of an entry that is already live, and it is a draft of its own that has never been on the website: visitors keep getting exactly what they got before (the default language through fallback, while that one is live); the item, the lists and filters, the search, the sitemap, `hreflang` and link addresses treat it as if there were no translation, and no webhook reports a change. An editor's `?preview` shows it. Whoever may edit the entry can start, write and remove it, a role with `publish: false` included (field rules still apply); publishing it (or its date coming) makes it that language's own published state, sent as `entry.published` with its `locale` and `paths`. A language taken off the website on purpose (a draft after it was on the website, also one that was there through the default language) stays a `404`. Through the API: a first translation of an entry whose status is published, written without a status, is being translated; `"status": null` with it makes it follow the default language instead (a seed's translation without a status does that). The admin calls it "Being translated" ("Překládá se", "Wird übersetzt") in the editor, the language menu, the list's marks, the dashboard, the search and the review step.
+
+  A language that is not published is not there: the item answers `404` with `?locale=` for it, and it is left out of that language's list, of the sitemap and its `hreflang` alternates, of the website search and of links (a link to it is `null` there, as for a draft). Inside a published translation, fields left empty still show the default language's text. An editor's `?preview` (or the content token) still sees the draft. **The default language gates every language:** a translation is on the website only while the default language is live too, so unpublishing the default language takes every language off (a language keeps its own state and applies it again when the default language is published), and a translation of a draft never shows the draft's shared fields or fallback text. A language can still be unpublished or scheduled on its own, and is then live from the later of its date and the default language's; a language that follows is live exactly when the default language is. Scheduled go-lives and unpublishing are announced per language: `entry.published` and `entry.unpublished` carry that language in `locale` and only its addresses in `paths` (the payload keeps its shape; fields are only added); a change to the default language names every language it takes along that has a translation or a state of its own, and when the default language goes live on its date the scheduler announces each language that was waiting for it too. The admin shows each language's state in the editor, the list, the dashboard and the search (a published language held back by a draft default language reads "Waiting for the default language"); whoever may not publish cannot publish, unpublish or reschedule a language, cannot remove a translation that holds a state of its own unless it is being translated (the language would follow the default language and could go live), and cannot change a language that is marked published; the editor's read-only switch, shared editing and the save all judge a translation by its own state. Export and import, seeds (`translations: { en: { status: 'draft' } }`), the history of a language and its restore carry the state; an archive's content model says which entities publish per language, an archive without states (from 0.5) leaves the states already in a site alone on `--merge`, and one with states into a site that cannot keep them is reported (an archive from 0.6 with per-language states cannot be imported into 0.5 faithfully). `definePages({ perLocale: true })` turns it on for pages (not yet for page trees: the config check says so). `PATCH /api/cms/<entity>/<id>?locale=en` takes the entry's own status and date keys for it (`{ "status": null }` follows the default language again).
+
+  **Nothing changes for an entity that does not set `perLocale`**, and the content API's shape and `@tinyzoo/client`'s types are the same (the contract snapshots did not change).
+
+  **Upgrade**
+
+  1. Only if you want it: add `perLocale: true` to the `publish` of an entity that has `.localized()` fields, run `tinyzoo generate` and commit the migration (three nullable columns on its `<entity>_locales` table: `published`, `published_at` and `first_live_at`), then `tinyzoo up`. There is no data to move and no upgrade step: every language starts by following the default one, so every page, list, sitemap entry and `hreflang` alternate stays as it is.
+  2. Without it, nothing: no migration, no change. If you do turn it on, note the default language's gate above: a language published while the default language is a draft waits for it, and a webhook receiver that purges by `paths` needs nothing new (unpublishing the default language names every language that went off).
+  3. Export and import between two sites: keep both on 0.6 when states are involved (0.5 drops them without a word).
+- `searchTerms`, `matchEntry`, `highlightRanges` and `SEARCH_MAX_QUERY` (and the `SearchMatch` type) are public: a site can search its own content outside the CMS, such as static pages or documentation, with the same matching as the website search (words in any order, accents and small typos forgiven). They were exported before, marked internal.
+
+  **Upgrade**
+
+  Nothing to do.
+- Every new site has an `AGENTS.md`: a short guide for the coding assistant a developer works with. It says where the content model is and that it is code-first, the field types and options, the change workflow (`db:generate`, review the migration, `db:migrate`, `cms:client`; `tinyzoo upgrade` after updating), roles and `.access()`, `publish.perLocale`, the typed client and the frontend kit, what 1.0 freezes and what is `@internal`, and what not to do (`drizzle-kit push`, editing generated files, importing internals). `tinyzoo init` and `pnpm create tinyzoo` copy it with the rest of the starter. The repository also has an `llms.txt` that indexes the docs.
+
+  **Upgrade**
+
+  Nothing is required. To give an existing site the same guide, copy `AGENTS.md` from the starter (`node_modules/tinyzoo/starter/AGENTS.md` after updating) into the site's root, and add your own project's notes to it.
+- Translators find their work:
+
+  - **Needs translating** on the admin's home page: entries that are on the website (or scheduled) in the default language but not yet in another one, with the language and its state ("English · Not translated", "Being translated", "Draft"), newest first, each opening that language's editor. It shows only what the person may translate (their role, the collection's own rules, the fields they may edit, and for someone who may not publish, a language that is not live). People who may publish see translations someone has started in it too, with **Review**. The greeting says how many texts need translating instead of "Everything is on the website." Nothing changes on a site with one language.
+  - **Filter by language** in every list of translated content (the Filter panel, one choice per language: Needs translating, Not translated, Being translated, Draft, On the website), done on the server, so counts, pages and the CSV export follow it: `filter.lang:en=missing` in the admin API. "View all" on the home page opens the list filtered this way.
+  - Whether a language counts as translated is judged by the fields the person may read: a field hidden from them by `.access({ read })` no longer marks a row as translated in the list's Languages column.
+
+  **Upgrade**
+
+  Nothing to do.
+
+### Patch Changes
+
+- Quotes in rich text no longer have a line down their left side, on the website (`CmsContent`) or in the editor. They are now indented and set in italics. A site that styles `.cms-content blockquote` itself is not affected, and there is nothing to do.
+- Polish for the translation editor:
+
+  - **"Saved … ago" is the translation's own time.** It used to show the original's: a translation saved a moment ago said "Saved 38 seconds ago" (or "weeks ago"), and one nobody had saved yet said "saved" too. The bar now shows when the translation itself was saved, and nothing until it is.
+  - **On a phone the language's state fits in the bar.** It is the state's mark and the language code ("○ EN ▾") instead of words that were cut off ("EN · Kon…"); the full words ("English · Draft") are the button's name and the lines of the language menu.
+  - **What the grey text is, said once.** The line "Shown in Czech until you translate it" no longer repeats under every empty field. One line at the top of the translation says it ("Empty fields show the Czech text in grey until you translate them"), and each empty field keeps only "Use it as a start".
+
+  **Upgrade**
+
+  Nothing to do.
+
 ## 0.5.0
 
 ### Minor Changes
