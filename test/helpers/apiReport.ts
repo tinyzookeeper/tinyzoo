@@ -114,8 +114,21 @@ function constText(symbol: ts.Symbol, decl: ts.Declaration, checker: ts.TypeChec
   return `export const ${symbol.name}: ${node ? printer.printNode(ts.EmitHint.Unspecified, node, decl.getSourceFile()) : 'unknown'};`
 }
 
-/** What the module exports, sorted by name. */
+const exportsSeen = new Map<string, ApiExport[]>()
+
+/**
+ * What the module exports, sorted by name. Building the TypeScript program takes seconds, so
+ * each entry is read once per test file (several tests ask for the same entries).
+ */
 export function apiExports(entry: ApiEntry): ApiExport[] {
+  const seen = exportsSeen.get(entry.file)
+  if (seen) return seen
+  const found = readExports(entry)
+  exportsSeen.set(entry.file, found)
+  return found
+}
+
+function readExports(entry: ApiEntry): ApiExport[] {
   const file = resolve(root, entry.file)
   const program = createProgram([file])
   const checker = program.getTypeChecker()
