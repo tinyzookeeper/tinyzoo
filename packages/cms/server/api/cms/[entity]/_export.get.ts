@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
     .filter(([k]) => !hidden.has(k))
     .filter(([, f]) => (PLAIN.has(f.type) && !f.relation) || f.relation?.kind === 'many-to-one')
     .map(([k, f]) => ({ key: k, prop: f.relation ? `${k}Id` : propOf(k, f), target: f.relation ? (f.relation.to() as any) : null }))
-  const conds = listConditions(e, reg, getQuery(event), rowFilter, hidden)
+  const conds = listConditions(e, reg, getQuery(event), rowFilter, hidden, user)
   const rows: any[] = await db.select().from(e.table).where(conds.length ? and(...conds) : undefined).orderBy(desc(e.table.createdAt)).limit(MAX_ROWS)
 
   // Related items by their title, not their id.

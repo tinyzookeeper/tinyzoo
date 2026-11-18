@@ -299,7 +299,7 @@ const tools = computed<Tool[]>(() => {
 :deep(.ProseMirror h3) { font-size: 1.0625rem; font-weight: 600; line-height: 1.35; margin-top: 0.75rem; }
 :deep(.ProseMirror ul) { list-style: disc; padding-left: 1.5rem; }
 :deep(.ProseMirror ol) { list-style: decimal; padding-left: 1.5rem; }
-:deep(.ProseMirror blockquote) { border-left: 3px solid currentColor; opacity: 0.85; padding-left: 0.75rem; }
+:deep(.ProseMirror blockquote) { font-style: italic; opacity: 0.85; padding-left: 1.25rem; }
 :deep(.ProseMirror code) { font-family: ui-monospace, monospace; background: rgb(127 127 127 / 0.15); padding: 0.1em 0.3em; border-radius: 0.25rem; font-size: 0.9em; }
 :deep(.ProseMirror pre) { background: rgb(127 127 127 / 0.12); padding: 0.5rem 0.75rem; border-radius: 0.375rem; overflow-x: auto; }
 :deep(.ProseMirror pre code) { background: none; padding: 0; }

@@ -154,7 +154,7 @@ await page('Úvod', 'home', [
       item({ question: 'Můžu se vrátit ke starší verzi?', answer: 'Ano. V historii verzí se můžete vrátit k dřívější podobě obsahu.' }),
       item({ question: 'Jak rychle najdu starší článek?', answer: 'Stiskněte ⌘K (ve Windows Ctrl+K) nebo klikněte na Hledat a napište kterékoli slovo z článku. Vyhledávání najde i koncepty a poradí si s překlepem.' }),
       item({ question: 'Funguje administrace na telefonu?', answer: 'Ano, obsah můžete upravovat i na telefonu. Náhled stránky navíc přepnete na zobrazení pro telefon, abyste viděli, jak bude vypadat návštěvníkům. Do budoucna plánujeme i samostatnou mobilní aplikaci.' }),
-      item({ question: 'Je tinyzoo hotové? Můžu ho už zkusit?', answer: 'Ukázka je otevřená všem a každou noc se obnovuje. tinyzoo je nové. Má přes 350 automatických testů a před pilotem jsme v něm podrobně prošli všechny běžné úkoly editora. Nalezené chyby jsme opravili. Klienti ho při své práci zatím nepoužívali, to teprve ověříme v pilotu. O další vývoj i opravy se staráme sami.' }),
+      item({ question: 'Je tinyzoo hotové? Můžu ho už zkusit?', answer: 'Ukázka je otevřená všem a každou noc se obnovuje. tinyzoo je nové. Má přes 1 600 automatických testů a před pilotem jsme v něm podrobně prošli všechny běžné úkoly editora. Nalezené chyby jsme opravili. Klienti ho při své práci zatím nepoužívali, to teprve ověříme v pilotu. O další vývoj i opravy se staráme sami.' }),
       item({ question: 'Co když potřebuji něco navíc?', answer: 'Řekněte nám, co potřebujete na webu dělat. Katalog hotových doplňků nemáme. Další možnosti připravujeme pro konkrétní web.' }),
     ],
   },
@@ -263,7 +263,7 @@ await page('Pro vývojáře', 'pro-vyvojare', [
       item({ question: 'Co už je součástí tinyzoo?', answer: 'Stránky z bloků, seznamy uvnitř bloků a formuláře. Dále menu s podpoložkami, přesměrování, SEO pole a překlady. Knihovna médií připravuje obrázky v potřebných velikostech na vyžádání. Při úpravách je k dispozici živý náhled, společné psaní v reálném čase, plánování zveřejnění a historie verzí. Návštěvníci webu i editoři mohou obsah prohledávat a vyhledávání si poradí i s překlepy.' }),
       item({ question: 'Co když potřebujeme něco navíc?', answer: 'Další možnosti píšeme jako vlastní moduly v kódu. Řekněte nám, co váš web potřebuje. Společně projdeme, jak ho rozšířit.' }),
       item({ question: 'Jak se dostaneme k obsahu?', answer: 'Obsah je uložený v běžných tabulkách Postgresu. K dispozici je také obsahové API popsané v OpenAPI. Ve Vue šablonách pracujete s typy z generovaného klientského souboru.' }),
-      item({ question: 'Kdo se stará o údržbu?', answer: 'Vývoj i opravy zajišťujeme sami. Napříč weby aktualizujeme jeden balíček. tinyzoo je mladé. Přes 350 automatických testů a podrobná zkouška všech běžných úkolů editora nám pomáhají ověřovat jeho fungování. Zkušenosti z dalšího používání budeme sbírat postupně.' }),
+      item({ question: 'Kdo se stará o údržbu?', answer: 'Vývoj i opravy zajišťujeme sami. Napříč weby aktualizujeme jeden balíček. tinyzoo je mladé. Přes 1 600 automatických testů a podrobná zkouška všech běžných úkolů editora nám pomáhají ověřovat jeho fungování. Zkušenosti z dalšího používání budeme sbírat postupně.' }),
     ],
   },
   {

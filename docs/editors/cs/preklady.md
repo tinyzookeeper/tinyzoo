@@ -16,7 +16,7 @@ Zpátky do výchozího jazyka se vrátíte stejně: tlačítkem s jazykem v horn
 
 ## Překládání s originálem před očima
 
-Když otevřete jazyk, který ještě není přeložený, nejsou pole prázdná. **V každém nepřeloženém poli je šedě český text.** Je to přesně to, co by návštěvník v tom jazyce na místě viděl, než to přeložíte. U pole je napsáno **Než to přeložíte, ukazuje se tu čeština**.
+Když otevřete jazyk, který ještě není přeložený, nejsou pole prázdná. **V každém nepřeloženém poli je šedě český text.** Je to přesně to, co by návštěvník v tom jazyce na místě viděl, než to přeložíte. Nad formulářem je to napsané jednou větou: **Prázdná pole ukazují šedě výchozí jazyk (čeština), dokud je nepřeložíte.**
 
 ![Editor anglické verze článku: v nadpisu a v textu je šedě původní český text, u každého pole je napsáno „Než to přeložíte, ukazuje se tu čeština“ a odkaz „Vzít jako základ“, nad textem článku je i odkaz „Ukázat originál vedle“.](../../screenshots/0.6/translate-empty.png)
 
@@ -119,13 +119,45 @@ Zkratka je světlejší, když jazyk ještě není přeložený (ukazuje se v n�
 
 U obsahu, kde se zveřejňuje všechno společně, je ve sloupci **Jazyky** buď **Všechny jazyky**, nebo **Chybí EN** (podle toho, co chybí). Hodí se to, abyste rychle našli věci, které ještě nejsou přeložené.
 
+## Co čeká na překlad
+
+Na **Přehledu** (první stránka po přihlášení) je seznam **Čeká na překlad**. Jsou v něm položky, které jsou v češtině na webu (nebo naplánované) a v jiném jazyce zatím ne:
+
+- **Nepřeloženo**: v tom jazyce zatím nikdo nic nenapsal;
+- **Překládá se**: překlad je rozepsaný a ještě nebyl na webu;
+- **Koncept**: překlad editor stáhl z webu.
+
+U každé položky je jazyk a jeho stav, třeba **Angličtina · Nepřeloženo**, a tlačítko **Přeložit**, které otevře rovnou ten jazyk. Nahoře jsou položky, na kterých se pracovalo naposledy. Seznam ukazuje pět položek; **Zobrazit vše** otevře celý seznam článků (nebo stránek, štítků…) s filtrem **Angličtina: Čeká na překlad**. Pozdrav nahoře to řekne i slovy, třeba „3 texty čekají na překlad.“
+
+![Přehled překladatelky: seznam Čeká na překlad s položkami jako „Angličtina · Nepřeloženo“ a tlačítkem Přeložit u každé](../../screenshots/0.6/needs-translating.png)
+
+V seznamu je jen to, co můžete přeložit vy. Překladatel tu nevidí třeba štítky, které smí jen číst, ani stránky, které jsou na webu (u stránek se všechny jazyky zveřejňují společně, a ty smí měnit jen ten, kdo zveřejňuje). Když je všechno přeložené, seznam na Přehledu není.
+
+Kdo smí zveřejňovat (**Editor**, **Administrátor**), vidí v tom samém seznamu i překlady, které někdo rozepsal. U takového překladu je tlačítko **Zkontrolovat**: otevřete ho, prohlédněte si ho v **Náhledu** a zveřejněte (**Zveřejnit…**).
+
+### Filtr podle jazyka
+
+V seznamu položek najdete pod **Filtr** pro každý jazyk kromě výchozího jednu volbu (třeba **Angličtina**):
+
+![Seznam článků s filtrem „Angličtina: Čeká na překlad“; nepřeložené jazyky mají ve sloupci Jazyky čárkovaný kroužek](../../screenshots/0.6/list-language-filter.png)
+
+| Volba | Co ukáže |
+|---|---|
+| **Čeká na překlad** | totéž co Přehled: v češtině na webu nebo naplánované, v tomto jazyce nepřeložené, rozepsané nebo stažené, a jen to, co můžete přeložit vy |
+| **Nepřeloženo** | v tomto jazyce zatím nic není |
+| **Překládá se** | rozepsaný překlad, který ještě nebyl na webu |
+| **Koncept** | jazyk není na webu: editor ho stáhl, nebo je koncept celá položka |
+| **Na webu** | návštěvníci ho čtou v tomto jazyce |
+
+U obsahu, kde se zveřejňuje všechno společně, jsou volby **Čeká na překlad**, **Nepřeloženo**, **Koncept** a **Na webu**; u obsahu bez konceptů (třeba štítky) jen **Nepřeloženo** a **Přeloženo**. Filtr se dá kombinovat se záložkami (**Na webu**, **Koncept**…) a s hledáním. Pole, které nesmíte číst, se do toho, jestli je položka přeložená, nepočítá.
+
 ## Na telefonu
 
 V seznamu na telefonu jsou jazyky u každé položky pod jejím stavem, se stejnými značkami jako na počítači.
 
 ![Seznam článků na telefonu: pod názvem každého článku je jeho stav a pod ním zkratka EN se značkou jazyka.](../../screenshots/0.6/phone-list.png)
 
-V otevřené položce je na telefonu jazyk a jeho stav vlevo nahoře, hned vedle šipky zpět (třeba **EN · Koncept**, na úzkém displeji jen kolečko a začátek zkratky). **Klepněte na něj a otevře se nabídka jazyků** se stavem každého z nich. Stejnou nabídku najdete i v **Další akce** (tři tečky) pod **Jazyk**.
+V otevřené položce je na telefonu jazyk a jeho stav vlevo nahoře, hned vedle šipky zpět, jako značka stavu a zkratka jazyka (třeba šedé kolečko a **EN** u konceptu, zelená tečka u jazyka na webu). **Klepněte na něj a otevře se nabídka jazyků** se stavem každého z nich slovy. Stejnou nabídku najdete i v **Další akce** (tři tečky) pod **Jazyk**.
 
 ![Nabídka jazyků na telefonu: pod lištou s jazykem a tlačítkem „Uložit překlad“ je nabídka „Čeština (výchozí) – Na webu“ a „English – Koncept“.](../../screenshots/0.6/phone-language-menu.png)
 

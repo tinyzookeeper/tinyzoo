@@ -16,7 +16,7 @@ Zurück zur Standardsprache kommen Sie genauso: mit der Sprachschaltfläche in d
 
 ## Übersetzen mit dem Original vor Augen
 
-Öffnen Sie eine Sprache, die noch nicht übersetzt ist, sind die Felder nicht leer. **In jedem nicht übersetzten Feld steht grau der tschechische Text.** Genau das würden Besucher in dieser Sprache an dieser Stelle sehen, bis Sie es übersetzen. Beim Feld steht **Bis Sie übersetzen, steht hier der Text auf Tschechisch**.
+Öffnen Sie eine Sprache, die noch nicht übersetzt ist, sind die Felder nicht leer. **In jedem nicht übersetzten Feld steht grau der tschechische Text.** Genau das würden Besucher in dieser Sprache an dieser Stelle sehen, bis Sie es übersetzen. Über dem Formular steht das in einem Satz: **Leere Felder zeigen den Text auf Tschechisch grau, bis Sie sie übersetzen.**
 
 ![Der Editor der englischen Fassung eines Artikels: In der Überschrift und im Text steht grau der ursprüngliche tschechische Text, bei jedem Feld steht „Bis Sie übersetzen, steht hier der Text auf Tschechisch“ und der Link „Als Vorlage übernehmen“, über dem Artikeltext außerdem der Link „Original daneben zeigen“.](../../screenshots/0.6/translate-empty.png)
 
@@ -119,13 +119,45 @@ Das Kürzel ist heller, wenn die Sprache noch nicht übersetzt ist (in ihr ersch
 
 Bei Inhalten, die für alle Sprachen gemeinsam veröffentlicht werden, steht in der Spalte **Sprachen** entweder **Alle Sprachen** oder **EN fehlt** (je nachdem, was fehlt). So finden Sie schnell, was noch nicht übersetzt ist.
 
+## Was auf eine Übersetzung wartet
+
+Auf der **Übersicht** (der ersten Seite nach der Anmeldung) gibt es die Liste **Wartet auf Übersetzung**. Darin stehen Einträge, die auf Tschechisch auf der Website (oder geplant) sind, in einer anderen Sprache aber noch nicht:
+
+- **Nicht übersetzt**: In dieser Sprache hat noch niemand etwas geschrieben;
+- **Wird übersetzt**: Eine Übersetzung ist begonnen und war noch nie auf der Website;
+- **Entwurf**: Eine Redakteurin oder ein Redakteur hat die Übersetzung von der Website genommen.
+
+Bei jedem Eintrag stehen die Sprache und ihr Status, zum Beispiel **Englisch · Nicht übersetzt**, und die Schaltfläche **Übersetzen**, die direkt diese Sprache öffnet. Oben stehen die Einträge, an denen zuletzt gearbeitet wurde. Die Liste zeigt fünf Einträge; **Alle ansehen** öffnet die ganze Liste der Beiträge (oder Seiten, Schlagwörter …) mit dem Filter **Englisch: Wartet auf Übersetzung**. Die Begrüßung oben sagt es auch in Worten, zum Beispiel „3 Texte warten auf Übersetzung.“
+
+![Die Übersicht einer Übersetzerin: die Liste „Wartet auf Übersetzung“ mit Einträgen wie „Englisch · Nicht übersetzt“ und je einer Schaltfläche zum Übersetzen](../../screenshots/0.6/needs-translating.png)
+
+In der Liste steht nur, was Sie selbst übersetzen können. Wer übersetzt, sieht dort zum Beispiel keine Schlagwörter, die er nur lesen darf, und keine Seiten, die auf der Website sind (bei Seiten werden alle Sprachen gemeinsam veröffentlicht, und ändern darf sie nur, wer veröffentlicht). Wenn alles übersetzt ist, fehlt die Liste auf der Übersicht.
+
+Wer veröffentlichen darf (**Redakteur**, **Administrator**), sieht in derselben Liste auch Übersetzungen, die jemand begonnen hat. Bei einer solchen Übersetzung steht die Schaltfläche **Prüfen**: Öffnen Sie sie, sehen Sie sie in der **Vorschau** an und veröffentlichen Sie sie (**Veröffentlichen…**).
+
+### Nach Sprache filtern
+
+In einer Liste von Einträgen gibt es unter **Filter** für jede Sprache außer der Standardsprache eine Auswahl (zum Beispiel **Englisch**):
+
+![Die Beitragsliste mit dem Filter „Englisch: Wartet auf Übersetzung“; nicht übersetzte Sprachen haben in der Spalte Sprachen einen gestrichelten Ring](../../screenshots/0.6/list-language-filter.png)
+
+| Auswahl | Was sie zeigt |
+|---|---|
+| **Wartet auf Übersetzung** | dasselbe wie die Übersicht: auf Tschechisch online oder geplant, in dieser Sprache nicht übersetzt, begonnen oder von der Website genommen, und nur, was Sie übersetzen können |
+| **Nicht übersetzt** | in dieser Sprache gibt es noch nichts |
+| **Wird übersetzt** | eine begonnene Übersetzung, die noch nie auf der Website war |
+| **Entwurf** | die Sprache ist nicht auf der Website: Sie wurde von der Website genommen, oder der ganze Eintrag ist ein Entwurf |
+| **Auf der Website** | Besucher lesen den Eintrag in dieser Sprache |
+
+Bei Inhalten, die für alle Sprachen gemeinsam veröffentlicht werden, gibt es **Wartet auf Übersetzung**, **Nicht übersetzt**, **Entwurf** und **Auf der Website**; bei Inhalten ohne Entwürfe (etwa Schlagwörtern) nur **Nicht übersetzt** und **Übersetzt**. Der Filter lässt sich mit den Reitern (**Auf der Website**, **Entwurf** …) und der Suche kombinieren. Ein Feld, das Sie nicht lesen dürfen, zählt nicht dafür, ob ein Eintrag übersetzt ist.
+
 ## Auf dem Smartphone
 
 In der Liste auf dem Smartphone stehen die Sprachen bei jedem Eintrag unter seinem Status, mit denselben Zeichen wie am Computer.
 
 ![Eine Liste von Artikeln auf dem Smartphone: Unter dem Titel jedes Artikels steht sein Status und darunter das Kürzel EN mit dem Zeichen der Sprache.](../../screenshots/0.6/phone-list.png)
 
-In einem geöffneten Eintrag stehen auf dem Smartphone die Sprache und ihr Status links oben, direkt neben dem Zurück-Pfeil (etwa **EN · Entwurf**, auf einem schmalen Display nur der Kreis und der Anfang des Kürzels). **Tippen Sie darauf, öffnet sich das Sprachmenü** mit dem Status jeder Sprache. Dasselbe Menü finden Sie auch unter **Weitere Aktionen** (drei Punkte) bei **Sprache**.
+In einem geöffneten Eintrag stehen auf dem Smartphone die Sprache und ihr Status links oben, direkt neben dem Zurück-Pfeil, als Statuszeichen und Sprachkürzel (etwa ein grauer Ring und **EN** bei einem Entwurf, ein grüner Punkt bei einer Sprache auf der Website). **Tippen Sie darauf, öffnet sich das Sprachmenü** mit dem Status jeder Sprache in Worten. Dasselbe Menü finden Sie auch unter **Weitere Aktionen** (drei Punkte) bei **Sprache**.
 
 ![Das Sprachmenü auf dem Smartphone: Unter der Leiste mit der Sprache und der Schaltfläche „Übersetzung speichern“ steht das Menü mit „Čeština (Standard) – Auf der Website“ und „English – Entwurf“.](../../screenshots/0.6/phone-language-menu.png)
 

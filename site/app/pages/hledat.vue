@@ -2,10 +2,19 @@
 // The website search: /hledat, /en/search, /de/suche (?q=…). Pages and news, in the
 // page's language, best matches first, then what the documentation says (/api/site-docs/search). Works without JavaScript (a plain form); with
 // it, results follow the typing.
-import { LANGS, SEARCH_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
+import { SEARCH_SEGMENT } from '~/lib/site-i18n'
+import { searchAlternates } from '~/lib/content-route'
 import type { DocsSearchHit } from '#shared/docs'
 
-definePageMeta({ alias: ['/en/search', '/de/suche'] })
+// The language switcher (in the layout, which renders before this page) needs the same
+// search in each language before anything is drawn.
+definePageMeta({
+  alias: ['/en/search', '/de/suche'],
+  middleware: (route) => {
+    useAlternates().value = searchAlternates(String(route.query.q ?? '').trim().slice(0, 100))
+    useAlternatesFallback().value = null
+  },
+})
 
 const route = useRoute()
 const router = useRouter()
@@ -53,11 +62,7 @@ const showResults = computed(() => q.value.length >= 2)
 
 // The same search in the other languages.
 const alternates = useAlternates()
-watchEffect(() => {
-  const out: Partial<Record<Lang, string>> = {}
-  for (const l of LANGS) out[l] = localePath(`/${SEARCH_SEGMENT[l]}`, l) + (q.value ? `?q=${encodeURIComponent(q.value)}` : '')
-  alternates.value = out
-})
+watchEffect(() => { alternates.value = searchAlternates(q.value) })
 useHead({
   htmlAttrs: { lang },
   title: () => [q.value ? `${q.value} · ${t('searchTitle')}` : t('searchTitle'), settings.value?.siteName].filter(Boolean).join(' · '),

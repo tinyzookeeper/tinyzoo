@@ -14,7 +14,8 @@ import { createAuthor, createPost } from '../helpers/fixtures'
 //   author.email     read: editor, curator   edit: editor
 //   author.bio       read: editor            (rich text)
 //   author.position  edit: editor
-//   post.location    edit: editor, proofreader  (a translatable group; proofreader is a translator-like role that may edit it)
+//   post.location    edit: editor, proofreader  (a translatable group; proofreader is a translator-like role that may edit it);
+//                    read: everyone but curator
 //   siteSettings.siteName, .brandColor  edit: editor
 // Administrators always pass.
 const db = testDb()
@@ -138,7 +139,7 @@ describe('fields a role may not read: the admin API strips them everywhere', () 
   })
 
   it('what the form attaches goes too: a related name or a file preview of a hidden field', async () => {
-    // post.location is a group (readable), so use the translation's defaults on a field that is hidden: author.bio
+    // post.location is a group (readable here), so use the translation's defaults on a field that is hidden: author.bio
     const a = await authorWithBio()
     const en = (await translator.get(`/api/cms/author/${a.id}?locale=en`)).body.row
     expect(keysOf(en)).not.toContain('bio')

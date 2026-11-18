@@ -8,6 +8,9 @@ import { CLI_COMMANDS, usage } from '../../packages/cms/cli/usage'
 import { API_ENTRIES, apiExports, apiReport, repoRoot } from '../helpers/apiReport'
 import { goldenTests } from '../helpers/golden'
 
+// Several checks build TypeScript programs or start the CLI; a busy CI runner needs more than 5 s.
+vi.setConfig({ testTimeout: 60_000 })
+
 // The 1.0 freeze, as golden files in test/contracts (docs/api-surface.md lists the same
 // surfaces in words). A change to any of them is a change to what a site, a plugin or a
 // deploy depends on: the test fails with the lines that differ, `pnpm contracts:update`

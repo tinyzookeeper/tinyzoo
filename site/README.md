@@ -63,6 +63,10 @@ note saying so). Nothing of it is in the database.
   language when the site is built (`marked`, plus a small highlighter) and hands the JSON to Nitro as server assets,
   so it is inside `.output` and read from memory. The pictures the pages show are copied next to it and served
   at `/docs/img/…`. In `pnpm dev` the Markdown, the pictures and the clips are watched and rendered again.
+- **Generated pages.** One developer page is not a Markdown file: "Example: the API of one site" (`/en/docs/developers/api-example`)
+  is made by `modules/docs/openapi.ts` from `test/contracts/openapi.playground.json`, the OpenAPI document the contract
+  tests keep equal to what `buildOpenApiDocument` writes for the playground's config. `GENERATED` in `modules/docs/build.ts`
+  says which page it follows (`content-api-reference`); a new generated page is one more entry there.
 - **Read by** `server/api/site-docs/` (`page`, `nav`, `search`) and drawn by `app/pages/dokumentace/[...path].vue`
   with `components/DocsSidebar.vue`. The addresses are in `shared/docs.ts`.
 - **Search.** The website search (the search page and the ⌘K palette) also asks `/api/site-docs/search`, which

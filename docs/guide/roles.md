@@ -294,8 +294,7 @@ then give the person the role in Settings → Team.
 
 **What the translator sees.** Under their name, *Translator*. In a post's English version:
 
-- every field not translated yet shows the Czech text greyed inside it, with *Shown in Czech until you translate
-  it · Use it as a start* (which copies the Czech text in), and the body offers *Show the original beside it* (Czech
+- every field not translated yet shows the Czech text greyed inside it, with one line at the top saying so (*Empty fields show the Czech text in grey until you translate them*) and *Use it as a start* at each field (which copies the Czech text in), and the body offers *Show the original beside it* (Czech
   on the left, the translation on the right, on a wide screen);
 - the category has a grey fill and a lock, and under it *Only Editor and Administrator can change this*;
 - the top bar says *English · Being translated* for an English version that has never been on the website (the

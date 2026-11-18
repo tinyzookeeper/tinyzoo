@@ -56,7 +56,7 @@ search): *Draft*, *On the website* (cs *Na webu*, de *Auf der Website*), *Schedu
 translation held back by the default language *Waiting for Czech*, and for a translation that has never
 been on the website *Being translated* (cs *Překládá se*, de *Wird übersetzt*; a muted languages mark,
 with "Visitors see the Czech version until an editor publishes this one." in its tooltip). With content languages the state
-names its language: "English · Draft" (on a phone "EN · Draft").
+names its language: "English · Draft" (on a phone the bar has room for the mark and the code only, "○ EN ▾"; the words are the menu's lines and the button's name).
 
 Client accents: `cms.admin.accent` = `indigo`, `blue`, `violet` or `emerald` replaces
 charcoal; or override `--ui-color-primary-*` under `html[data-cms-admin]`.
@@ -109,7 +109,10 @@ them restores what the person chose (kept apart in `localStorage`).
   Words for the actions that matter ("Preview", "Publish…", "Details"); icon-only only
   for secondary tools (history).
 - With content languages the status names whose it is ("English · Draft"); on a phone the status is also
-  the language switcher (tap it for the other languages and their states).
+  the language switcher, drawn as the state's mark and the language's code ("○ EN ▾", "● EN ▾", a clock, an
+  hourglass or the languages mark for scheduled, waiting and being translated): the words would be cut off, so
+  they are the button's accessible name and the lines of the menu it opens (tap it for the other languages and
+  their states). "Saved … ago" is the translation's own time, never the original's.
 - Phones: back, status, the primary action and "…" (which then also holds Save draft,
   Preview, History and Language).
 
@@ -160,9 +163,10 @@ inside it, and one sentence under it naming who can change it ("Only Editor and 
 this", the roles by their labels). No "Read only" tag beside the label: it is said once.
 
 **Translating.** An empty translated field shows the default language's text greyed inside it (the
-placeholder of a text, the original behind an empty rich text), with one line at the field: "Shown in
-Czech until you translate it · Use it as a start" (above a text body, under a short field). A field already
-translated shows the original quietly under it ("Czech: …"). On 1280 px and wider the main text can show
+placeholder of a text, the original behind an empty rich text). That is said **once**, in one line at the top
+of the form while any field is empty ("Empty fields show the Czech text in grey until you translate them."),
+and each empty field keeps only its action, "Use it as a start" (above a text body, under a short field). A
+field already translated shows the original quietly under it ("Czech: …"). On 1280 px and wider the main text can show
 the original beside it ("Show the original beside it", remembered in the browser).
 
 **An address that is not live** (a draft, a scheduled or a waiting language) is never drawn as a link: it
@@ -204,6 +208,11 @@ the browser tab with unsaved changes still gets the browser's own prompt.
 
 Override with `admin.list.layout`.
 
+- **Language filters** (content with translations): the Filter panel has one choice per other language, in the
+  state words (*Needs translating*, *Not translated*, *Being translated*, *Draft*, *On the website*); the chip reads
+  "English: Not translated". The home page's **Needs translating** (after "Waiting for you", the same rows: the
+  language and its state, *Translate*, or *Review* for someone who publishes a translation with text) links to the
+  list filtered by *Needs translating* ("View all", one link per collection and language when there are several).
 - **Table** (default). Above it, an **"In progress"** strip with drafts and scheduled
   entries (unfiltered first page), each with its verb (Finish / Edit). Rows: thumbnail,
   title and address; columns from `admin.list.columns`; languages say only what is

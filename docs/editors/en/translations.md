@@ -16,7 +16,7 @@ You go back to the default language the same way: with the language button in th
 
 ## Translating with the original in view
 
-When you open a language that hasn't been translated yet, the fields aren't empty. **Every untranslated field shows the Czech text in grey.** That's exactly what a visitor reading in that language would see there until you translate it. Each field says **Shown in Czech until you translate it**.
+When you open a language that hasn't been translated yet, the fields aren't empty. **Every untranslated field shows the Czech text in grey.** That's exactly what a visitor reading in that language would see there until you translate it. One line above the form says so: **Empty fields show the Czech text in grey until you translate them.**
 
 ![The editor for the English version of a post: the title and the text show the original Czech text in grey, each field says "Shown in Czech until you translate it" with a "Use it as a start" link, and above the post's text there's also a "Show the original beside it" link.](../../screenshots/0.6/translate-empty.png)
 
@@ -119,13 +119,45 @@ The code is paler when the language hasn't been translated yet (it shows Czech).
 
 For content where everything is published together, the **Languages** column shows either **All languages** or **EN missing** (depending on what's missing). It helps you quickly find things that haven't been translated yet.
 
+## What needs translating
+
+The **Home** page (the first page after you sign in) has a list called **Needs translating**. It holds items that are on the website in Czech (or scheduled) but not yet in another language:
+
+- **Not translated**: nobody has written anything in that language yet;
+- **Being translated**: a translation has been started and has never been on the website;
+- **Draft**: an editor took the translation off the website.
+
+Each item shows the language and its status, for example **English · Not translated**, and a **Translate** button that opens that language straight away. The items worked on most recently come first. The list shows five items; **View all** opens the whole list of posts (or pages, tags…) with the filter **English: Needs translating**. The greeting at the top says it in words too, for example "3 texts need translating."
+
+![A translator's Home: the Needs translating list with items like "English · Not translated" and a Translate button on each](../../screenshots/0.6/needs-translating.png)
+
+The list holds only what you can translate. A translator doesn't see tags, for example, if they may only read them, nor pages that are on the website (all of a page's languages are published together, and only someone who publishes may change those). When everything is translated, the list isn't on the Home page.
+
+People who can publish (**Editor**, **Administrator**) also see translations someone has started in the same list. Such a translation has a **Review** button: open it, look at it in **Preview** and publish it (**Publish…**).
+
+### Filtering by language
+
+In a list of items, **Filter** has one choice for each language other than the default one (for example **English**):
+
+![The posts list filtered by "English: Needs translating"; languages nobody translated have a dashed ring in the Languages column](../../screenshots/0.6/list-language-filter.png)
+
+| Choice | What it shows |
+|---|---|
+| **Needs translating** | the same as the Home page: on the website or scheduled in Czech, and in this language not translated, being translated or taken off, only what you can translate |
+| **Not translated** | nothing in this language yet |
+| **Being translated** | a translation that has been started and has never been on the website |
+| **Draft** | the language isn't on the website: an editor took it off, or the whole item is a draft |
+| **On the website** | visitors read it in this language |
+
+For content where everything is published together, the choices are **Needs translating**, **Not translated**, **Draft** and **On the website**; for content without drafts (such as tags), only **Not translated** and **Translated**. The filter works together with the tabs (**On the website**, **Draft**…) and with search. A field you may not read doesn't count towards whether an item is translated.
+
 ## On a phone
 
 In the list on a phone, the languages for each entry are below its status, with the same marks as on a computer.
 
 ![A list of posts on a phone: below each post's title is its status, and below that the code EN with the language's mark.](../../screenshots/0.6/phone-list.png)
 
-In an open entry on a phone, the language and its status are at the top left, right next to the back arrow (for example **EN · Draft**; on a narrow screen, just the circle and the start of the code). **Tap it and the language menu opens**, showing the status of each language. You'll find the same menu under **More actions** (the three dots), under **Language**.
+In an open entry on a phone, the language and its status are at the top left, right next to the back arrow, as the status mark and the language code (for example a grey ring and **EN** for a draft, a green dot for a language on the website). **Tap it and the language menu opens**, with the status of each language in words. You'll find the same menu under **More actions** (the three dots), under **Language**.
 
 ![The language menu on a phone: below the bar with the language and the "Save translation" button, a menu with "Čeština (default) – On the website" and "English – Draft".](../../screenshots/0.6/phone-language-menu.png)
 

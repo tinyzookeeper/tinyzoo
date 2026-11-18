@@ -1435,6 +1435,47 @@ Branch `feat/1.0-docs-site` (from `feat/1.0-wave4` at `2a97b6a`). The documentat
   German, at 1440 px and 390 px, light: landing, part pages, guide pages, the drawer, zoom, copy, a clip (a
   stand-in file, removed), search, the language switcher, navigation between pages.
 
+**Second part: the content API reference** (branch `feat/1.0-docs-reference`, from `d1ce36c`). Two new developer pages,
+after "The content API" in the sidebar and in previous/next:
+
+- **"The content API reference"** (`docs/guide/content-api-reference.md`, `/en/docs/developers/content-api-reference`):
+  every route of the public content API (list, one item, page tree, global, search, sitemap JSON, forms, health, the
+  OpenAPI document and the client's types), the query parameters (`page`, `limit`, `sort`, `dir`, `q`, filters, `from`/`to`
+  date ranges, `locale`, `preview`) with their limits and what is ignored, how a key is looked up (translated slug, slug,
+  id, a page tree's address chain), the shape of an item (resolved relations and files, rich text, blocks, `locale`,
+  `locales`, `paths`), languages and fallback, drafts and preview (who may, what it changes), the token, caching headers
+  and `ETag`, errors by status, and how a site gets its own OpenAPI document (`/api/openapi.json`, `/api/openapi` with
+  Scalar, `tinyzoo openapi`, the typed client). Written from the route handlers and `buildOpenApiDocument`, and checked
+  against a running site (error bodies, headers, locale and date errors, search, sitemap).
+- **"Example: the API of one site"** (`/en/docs/developers/api-example`): **generated when the website is built**.
+  `site/modules/docs/openapi.ts` turns the OpenAPI document of the playground (`test/contracts/openapi.playground.json`,
+  which `contracts.spec.ts` keeps equal to what `buildOpenApiDocument` writes) into Markdown, and `build.ts` renders that
+  like any other page: the routes at a glance, the shapes every collection shares (a file, rich text, a list), then per
+  collection its list and single operations (parameters with types, limits and defaults, filters, status codes), its
+  fields (type, nullability, notes) and an example response made from the schema (deterministic sample values, so the
+  page is the same on every build), then the page tree, the globals and the search. Nothing on it is written by hand
+  except the intro, so it cannot drift from the generator. A page of this kind is one entry in `GENERATED` in
+  `build.ts` (which page it follows); its "source" link goes to the JSON. It is English on `/dokumentace` and
+  `/de/dokumentation` like the other developer pages. Tested on the playground's and the 1.0 surface config's documents
+  (every route, parameter and field present, examples carry exactly the schema's fields, tables keep their columns).
+- **The plugin API** (`docs/plugins.md`) and the public API (`docs/api-surface.md`) were already on the website with the
+  first part (in the table of `docs/README.md`, in "Reference"); nothing else in `docs/` is for site builders and
+  unpublished. `docs-site.spec.ts` now fails when a page of `docs/guide` or `docs/` is neither published nor named there as
+  for people working on tinyzoo, and checks that the sidebar's order is the previous/next order, so a new page cannot be
+  left out of either.
+- **Seen in a browser** (own dev server on port 3184, database `tinyzoo_web_ref_test`, seeded): the reference and the example
+  at 1280 px and 390 px (tables scroll inside their frame, no page overflow), the sidebar and "On this page".
+
+**Left for the rest of Q:** the plugin API as a reference rather than a guide (`plugins.md` is one long guide; a table of
+every hook and option, like `api-surface.md` for the rest, would help a plugin author); the example page for a site's own
+config (a site could publish its `/api/openapi.json` rendered the same way: the renderer is a pure function, so a
+`tinyzoo docs` command is a small step); the developer pages in Czech and German (first `getting-started`,
+`content-model`, `upgrading`); English and German screenshots (`docs/screenshots/0.6/<lang>/`) and the two clips; a
+"what's new in this version" page per release from the changesets; per-version docs once 1.x has more than one line
+people use; Czech non-breaking spaces after one-letter words when rendering (the seed's texts have them, the Markdown
+does not); the older screenshots in `docs/screenshots/*.png` (0.2) used by the developer pages could be retaken. The
+German starter labels (Neuigkeiten, Website-Einstellungen…) the guide uses are translations of labels the starter only
+has in Czech and English.
 **Left for the rest of Q:** the API reference from the OpenAPI document (`/api/openapi.json`) as pages of
 its own; the plugin API as a reference rather than a guide; the developer pages in Czech and German (first
 `getting-started`, `content-model`, `upgrading`); English and German screenshots (`docs/screenshots/0.6/<lang>/`)
@@ -1443,3 +1484,34 @@ has more than one line people use; Czech non-breaking spaces after one-letter wo
 have them, the Markdown does not); the older screenshots in `docs/screenshots/*.png` (0.2) used by the developer
 pages could be retaken. The German starter labels (Neuigkeiten, Website-Einstellungen…) the guide uses are
 translations of labels the starter only has in Czech and English.
+
+### 1.0 — Translators find their work
+
+Branch `feat/1.0-translation-work` (from `d1ce36c`). The problem, from the UX pass ("translator's path"): a translator signed in to "Everything is on the website." and nothing said what needed translating; the post list had no "missing in English" filter, so finding work meant scanning the Languages column.
+
+- **One definition, two places.** `server/utils/cmsTranslationWork.ts` says where the translation of an entry into one language stands, as SQL: `missing` (nothing translated; per language: and no draft of its own), `translating` (a draft of its own never on the website), `draft` (taken off on its own, or translated under a draft default language), `published` (its translated text is what visitors read: shown, and live in that language by `publishedCond`), `translated`, and `todo` (live or scheduled in the default language, and here missing, being translated or a draft of its own). The first four never overlap; scheduled and "waiting for Czech" are in none. "Translated" mirrors the admin's own `isEmpty` in SQL (text columns, and for JSON a rich text with a node that is not an empty paragraph, a list with items, a group with a filled value; an API test runs 22 values through Postgres against `hasTranslatedText`). `cmsTranslationTodo.ts` narrows `todo` to the person: `update` on the entity (role and the entity's rule: an author's own entries), a translated field they may edit, and for a role that may not publish `notLiveInLanguage` (the translation write's own rule). **Decision:** `todo` in the list is person-specific too, so the home page's count and the list behind "View all" are the same number.
+- **Home page.** `GET /api/cms/_overview` returns `translate: { items, total, groups }` (entity, id, title, changed, locale, state, `review`). The page shows **Needs translating** / **Čeká na překlad** / **Wartet auf Übersetzung** after "Waiting for you", in its style: icon, title, "English · Not translated · Posts · 2 minutes ago", a **Translate** button (hidden on phones; the row is the link) to `?locale=en`; five items; the count beside the title; "View all" to the list filtered by `todo` (one link per collection and language, with counts, when there are several). The greeting says "3 texts need translating." instead of "Everything is on the website." Newest first by the later of the entry's and the translation's last change, so a translation just saved rises. Hidden when there is nothing, and on a site with one language; globals are left out (a translation of one is live on save). **Decision for publishers:** one list, not a second section: a translation that already holds text offers **Review** (cs *Zkontrolovat*, de *Prüfen*) instead of Translate, and the same states say where it stands. Calmer than a separate "waiting for you to publish" block, and honest: nothing tells us the translator is done (see notifications below).
+- **List filter.** `filter.lang:<code>=<state>[,<state>…]` (a field key never holds a colon, so it cannot clash with `filter.<field>`), parsed in `listConditions`, so the list, its count, its pages and the CSV export follow it, together with the status tabs, search and other filters. The Filter panel has one choice per other language with the state words (*Needs translating* offered to people who may update the collection; per-language entities add *Being translated*; collections without drafts get *Not translated* / *Translated*); the chip reads "English: Not translated". A page tree with a language filter shows as a flat table (the tree has no filters); removing the chip brings the tree back.
+- **Field rules.** Whether a language is translated is judged by the translated fields the person may read, in the filter and now also in the list's Languages column (`availableLocales(…, { fields })`), so a field hidden by `.access({ read })` never tells them it has text. Playground: `post.location` is now hidden from the curator (read for everyone else), so the suite has a translated field someone cannot read.
+- **Also:** the Drizzle gotcha met on the way: in a one-table select Drizzle writes the top-level columns of an `sql` field without their table, so a correlated subquery there must be a fragment of its own (`cmsTranslationTodo.ts` says so where it happens).
+- **Docs.** `content-model.md` ("Finding what needs translating"), `ui-foundation.md` (lists), editors' guides `preklady.md` / `translations.md` / `uebersetzungen.md` ("Co čeká na překlad" with "Filtr podle jazyka", same place and labels in all three). Changeset `translation-work.md` (minor; Upgrade: nothing). No migration.
+- **Tests.** `test/api/translation-work.spec.ts` (33): every filter state on one set of posts and that they do not overlap, combined states, with the status tabs, pagination with the filtered total, unknown language/state/default language ignored, a collection without drafts and a page tree; the field rule (the curator's `missing` and Languages column ignore `location`, rows carry no `location`, the CSV agrees); the home page for a translator (newest first, groups, "View all" gives the same posts), an editor (Review, tags and pages, each group's count equals its filtered list), a translator not seeing tags it only reads or live pages, a read-only role seeing nothing, an author seeing only their own post, a scheduled post counted and drafts left out, a language dropping out once published; the SQL emptiness against the admin's JS. `test/unit/translation-work.spec.ts` (11): parsing and the SQL asked for each state.
+- **Seen in a browser** (the built playground on port 3183, database `cms_test_trwork_view`, seeded with nine posts in every state, three tags and a page): the translator's home page (Czech, light, 1280 px; "7 textů čeká na překlad", the list, "Zobrazit vše"), the post list filtered by "Angličtina: Čeká na překlad" (7, the same posts) with the Filter panel open, the home page at 390 px in dark (no sideways scroll; the buttons give way to the row link), the editor's home page (11, *Zkontrolovat* on the started translation, "Zobrazit vše: Stránky 1 · Články 7 · Štítky 3") and the page tree's filtered table.
+- **Result** (`TEST_DATABASE_URL=…/cms_test_trwork`): `pnpm check` green, 119 files / 1725 tests passed, 3 files / 26 tests skipped (typecheck included, 4 min 28 s). `pnpm check:upgrade` (server from `…/cms_test_trwork_upgrade`; the script makes and drops its own `cms_upcheck_*` databases there) green from `2506403` and `tinyzoo@0.5.0` (151 s).
+
+**Notifications (proposed, not built).** "Tell the editor it's ready" needs a step the translator takes and a channel. Proposal: (1) a **Ready for review** action in the editor of a translation being translated (or a draft), for people who may not publish, stored on the translation row (`ready_at`, `ready_by`; cleared by the next save of the text, by publishing or by removal), so the state itself says it: "English · Ready for review", and the home page's list puts those first for publishers with *Review*. (2) **In the admin**: a count on the home page's section and on the sidebar's collection for people who may publish; the live channel (`useCmsLiveTopic`) refreshes it. (3) **By e-mail**, opt-in per person on the account page ("E-mail me when a translation is ready", default off; editors and administrators only), through the existing mail transport and templates in the person's admin language, at most one message per translation per day and a daily digest when there are several, never to the person who marked it; the link opens the language's editor. (4) **For sites with their own tools**: a webhook `translation.ready` (`entity`, `id`, `locale`, no content) on the existing webhook queue, so Slack or a ticket system can pick it up. Open questions for Vojtěch: whether authors (not only translators) get the action, whether "ready" survives a later edit by a publisher, and whether the e-mail needs a "who reviews which language" setting before sites with several editors use it.
+
+### 1.0 — Polish after Wave 4 (2026-11-18)
+
+Branch `feat/1.0-polish`, on top of `feat/1.0-wave4` (PR #25). Four branches and two small fixes:
+
+- `fix/1.0-translation-editor`: the editor showed the default language's saved time on a translation ("Saved 38 seconds ago" right after saving); a translation now shows its own, and none until it is saved. On a phone the language state is the state's mark and the code ("○ EN ▾"), with the words in the menu and the accessible name. "Shown in Czech until you translate it" is said once at the top of a translation instead of under every field. The reported "unsaved changes" prompt after a save was not reproduced (also not by hand afterwards: it came from a recording setup that deleted the translation on the server while the page was open).
+- `fix/site-language-switch`: the website's language switcher goes to the same news item or page in the other language (fallback: that language's news or home, with a hint); the FAQ says over 1,600 automated tests.
+- `feat/1.0-translation-work`: **Čeká na překlad / Needs translating** on the admin home page for whoever may translate (the language, its state, Přeložit or Zkontrolovat), and a per-language filter on lists (Čeká na překlad, Nepřeloženo, Překládá se, Koncept, Na webu), server-side. A notification to editors is proposed, not built (see its write-up above).
+- `feat/1.0-docs-reference`: the content API reference and an example generated from the playground's OpenAPI document, on the website's developer docs.
+- `fix/list-not-translated-mark`: in lists, a language nobody translated has a dashed ring instead of a green dot.
+- Screenshots for the guides in cs, en and de: needs translating, the language filter, the empty translation with its one hint, side by side, phones.
+
+**Result** (`TEST_DATABASE_URL=…/cms_test_wave4`, starter and upgrade databases likewise, `TEST_REDIS_URL` on a throwaway Valkey 8): `pnpm check` green, 122 files / 1748 tests passed, 2 files / 23 tests skipped (271 s); `check:starter` green (181 s); `check:upgrade` green from `2506403` and `tinyzoo@0.5.0` (139 s); `check:consumer` green (43 s).
+
+Noted, not changed: a translator's welcome card offers "Akce" (create an event) as its main button, because the playground's translator role falls back to editor for collections it does not name. A site that wants translators to translate only should list those collections as read-only in the role.

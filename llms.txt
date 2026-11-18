@@ -14,6 +14,7 @@ The same documentation, rendered from the Markdown linked below, is on the websi
 - [Roles and permissions](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/roles.md): `defineRoles`, per-field `.access()`, the media library per role, a removed role, a worked translator example
 - [Recipes](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/recipes.md): complete configs and pages for common client requests (contact form, news, team, FAQ, opening hours, gallery, downloads, events, menus)
 - [The content API](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-api.md): endpoints, preview, caching, search, the typed client, OpenAPI, sitemap, the frontend components
+- [The content API reference](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-api-reference.md): every route to look things up on: parameters, filters and date ranges, languages and `paths`, drafts and preview, the token, caching headers, errors
 - [Media](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/media.md): uploads, storage drivers, drawing pictures
 - [The admin](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/admin.md): branding, form layouts, custom field renderers
 - [Seeding](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/seeding.md): starting content in code, `tinyzoo seed`

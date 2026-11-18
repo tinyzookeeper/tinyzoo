@@ -61,7 +61,8 @@ const createdAt = ref<string | null>(null)
 const version = ref<string | null>(null)
 const rowUrl = (): string => `/api/cms/${entity.value}/${id.value}${isTranslation.value ? `?locale=${currentLocale.value}` : ''}`
 function adopt(row: Record<string, any> | null | undefined) {
-  savedAt.value = row?.updatedAt ?? null
+  // A translation is saved apart from the entry: its own time, not the original's (nothing yet for one never saved).
+  savedAt.value = cmsSavedAt(row, isTranslation.value)
   createdAt.value = row?.createdAt ?? null
   // A translation has its own version.
   version.value = (isTranslation.value ? row?.__version : row?.updatedAt) ?? null
@@ -378,6 +379,13 @@ watch(compareOriginal, (v) => {
   catch { /* for this visit only */ }
 })
 
+/**
+ * Said once for the whole translation, not under every field: where a translated field is empty, the default
+ * language's text shows greyed in it. Only while some field is like that and there is something to show.
+ */
+const showsDefault = computed(() => isTranslation.value
+  && editable.value.some((f: any) => f.localized && cmsBlank(state[f.key]) && !cmsBlank(defaults.value[f.key])))
+
 /** Copy the default language's value into this translation's field (shared text: for everyone). */
 function copyDefault(key: string) {
   const value = structuredClone(toRaw(defaults.value[key]))
@@ -632,7 +640,8 @@ async function saveTranslation(successTitle?: string | null) {
     const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
     const res: any = await $fetch(url, { method: 'PATCH', body, headers })
     redirectsMade = Number(res?.row?.__redirects) || 0
-    savedAt.value = res?.row?.updatedAt ?? new Date().toISOString()
+    // The translation's own time (`updatedAt` on this row is the entry's: the original's, saved long before).
+    savedAt.value = cmsSavedAt(res?.row, true) ?? new Date().toISOString()
     version.value = res?.row?.__version ?? null
     if (live) live.incoming.value = null
     // Saved with nothing in it, the language is not translated (the server kept no row).
@@ -938,8 +947,9 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           type="button" class="inline-flex min-w-0 items-center gap-1 rounded-md -mx-1 px-1 py-0.5 hover:bg-elevated/60"
           :class="saving || dirty ? 'max-md:hidden' : ''" :aria-label="`${t('translation.language')}: ${cmsLanguageState(stateLang ?? '', shownStateWord, adminLocale)}`"
         >
-          <!-- the bar is short on a phone: the language by its code ("EN · Draft"); its name is read out -->
-          <CmsStatusBadge :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" :translating="shownState.translating" :lang="stateLang ? (currentLocale ?? '').toUpperCase() : null" />
+          <!-- the bar is short on a phone: the state's mark and the language's code ("○ EN ▾"), never its words, which
+               would be cut off; the full words are the button's name and the menu's lines -->
+          <CmsStatusBadge compact :published="shownState.published" :scheduled-for="shownState.date" :waiting-for="shownState.waitingFor" :translating="shownState.translating" :lang="(currentLocale ?? '').toUpperCase()" />
           <UIcon name="i-lucide-chevron-down" class="size-3.5 shrink-0 text-dimmed" aria-hidden="true" />
         </button>
       </UDropdownMenu>
@@ -1033,6 +1043,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
             :title="t('redirects.shadowsTitle', { title: shadowed.title })" :description="t('redirects.shadowsBody')"
           />
           <CmsUnsavedText :collab="collab" @keep="keepUnsaved" />
+          <!-- translating: what the grey text in the empty fields is, said once (each field only offers "Use it as a start") -->
+          <p v-if="showsDefault" class="mb-6 flex items-start gap-2 text-sm text-muted">
+            <UIcon name="i-lucide-languages" class="size-4 shrink-0 mt-0.5 text-dimmed" aria-hidden="true" />
+            <span>{{ t('translation.shownUntil', { lang: defaultLabel }) }}</span>
+          </p>
           <CmsLiveNotice
             :deleted="live?.deleted.value" :conflict="conflict" :incoming="live?.incoming.value"
             :list-to="`/admin/${entity}`"
