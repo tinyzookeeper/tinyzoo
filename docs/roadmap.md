@@ -1852,7 +1852,8 @@ Decisions above ("Decisions locked for Wave 5"). Integration branch `feat/1.0` (
 | R1 — API freeze: remove what 0.6 deprecated, search helpers back to `@internal`, `api-surface.md` and the contracts agree, "From 0.7 to 1.0" | `feat/1.0-freeze` | merged into `feat/1.0` |
 | R2 — Accessibility: lighter preset tints, keyboard focus on menu items, rich text and title, a keyboard pass | `fix/1.0-a11y` | in progress |
 | Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | in progress |
-| R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | after R1 | waiting |
+| R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | `test/1.0-upgrade` | in progress |
+| W — Plans on the website: a Plans collection edited in the website's admin, `/plany` lists it with a Done stage (owner's request, 2026-11-18) | `feat/site-roadmap` | in progress |
 | Reviews — two independent reviews of the merged wave, fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | after the slices | waiting |
 | S — Release 1.0.0, deploy the website and the demo; the pilot and the Tábor site upgraded (with the owner) | last | waiting |
 
