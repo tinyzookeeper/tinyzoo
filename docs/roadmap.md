@@ -180,6 +180,8 @@ survived an upgrade and a restore, and the audit has no open High or Medium.
 
 All three start from the contract on `feat/0.7-theming` (`src/theme.ts`, `server/utils/cmsAdminTheme.ts`, `GET /api/cms/_theme`, `useCmsAdminTheme()`, the widened `app.config` types). Afterwards: docs and screenshots (cs/en/de), the changeset and "From 0.6 to 0.7" in `docs/upgrading.md`, two independent reviews of the merged wave, fix branches, then `check`, `check:starter`, `check:upgrade` and `check:consumer` green before the pull request. No schema change is planned; if a slice needs one, it comes with an upgrade step.
 
+**Later, not in 0.7: a Look page in the admin** (decided 2026-11-18). In 0.7 a site's developer sets the brand in `app.config.ts`, and the admin has no page to change it. 0.7 prepares for one: the server reads the theme in one place (`cmsAdminTheme(event)`), and the theme is plain data. A later release can add Settings → Look, where an administrator sets the colour, the logos (from the media library), and the signature and animals switches, with the guard's notes and a preview. The stored values would override the code's defaults, with a way back to them. Whether a developer can lock the page is decided then.
+
 ## 1.0: the stability promise
 
 From 1.0 the **content API, the `@tinyzoo/client` types and the config API**
