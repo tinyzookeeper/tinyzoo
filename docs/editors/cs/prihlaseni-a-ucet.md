@@ -22,6 +22,10 @@ Přístup dostanete jedním ze dvou způsobů.
 2. Napište **E-mail** a **Heslo**. Tlačítkem **Zobrazit heslo** si ho můžete zkontrolovat.
 3. Klikněte na **Přihlásit se**.
 
+Přihlašovací stránka může nést logo a barvy vaší firmy. Takhle vypadá u vymyšlené pekárny:
+
+![Přihlašovací stránka vymyšlené Pekárny Novák: nahoře zvířátko v tlumené cihlové barvě a logo pekárny, pod nimi „Vítejte zpět“, pole E-mail a Heslo a cihlové tlačítko Přihlásit se.](../../screenshots/0.7/admin-brand-signin.png)
+
 Přihlášení vydrží zhruba dva týdny. Pak se vás správa zeptá znovu.
 
 > **Tip:** Přidejte si stránku `/admin` do záložek prohlížeče.

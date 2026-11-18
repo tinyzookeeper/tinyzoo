@@ -1809,6 +1809,6 @@ Branch `feat/0.7-moments` from `feat/0.7-theming` (`5f0b928`). With a brand colo
 - Changeset `.changeset/admin-brand-moments.md` (minor). For "From 0.6 to 0.7": nothing to do; hex-accent sites see brand-tinted moments and animals, `animals: false` is optional.
 
 **Left open.**
-- The light-logo tile in dark mode stays tinyzoo's cream (`CmsBrandLogo.vue`, owned by the parallel branch); with a brand it could take `--cms-moment-bg` of the light scheme, a one-line change there.
+- The light-logo tile in dark mode stays tinyzoo's cream (`CmsBrandLogo.vue`, owned by the parallel branch); with a brand it could take `--cms-moment-bg` of the light scheme, a one-line change there. Done afterwards in `557df9c` (`--cms-logo-plate`).
 - `--cms-sunken` (behind a preview, `oklch(98.5% 0.002 85)`) is a warm near-white, not a moment; left as it is.
 - A brand admin loads one small chunk per animal on first view (a few hundred bytes to 3.6 kB each); a page change to a new animal keeps the old drawing (or nothing) for that moment on a slow connection.
