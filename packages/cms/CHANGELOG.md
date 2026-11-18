@@ -1,5 +1,58 @@
 # tinyzoo
 
+## 0.7.0
+
+### Minor Changes
+
+- `cms.admin.accent` takes any hex. Set it to the client's brand colour (`accent: '#B4532A'`) and the admin uses it for main buttons, the current page in the menu, links and focus rings, in light and dark mode. tinyzoo derives the shades, a lighter version for dark mode, a button's colour under the pointer and the text colour on buttons: white or ink, whichever reads better, so mid tones such as `#3B82F6` get ink text (5.0:1 against 3.7:1 for white). A contrast guard keeps everything readable (4.5:1 for text, at rest and under the pointer; 3:1 for focus rings): a colour that falls short is moved to the nearest readable one, and development prints what changed and why, in the server log at start and once per browser session in the console. A light colour keeps its buttons (yellow buttons with ink text) while links use a darker shade. Built-in names are read in any case. An accent tinyzoo cannot read falls back to `mono` with a warning in development.
+
+  Accessibility fixes for every accent, built-in ones included:
+
+  - **Focus rings** are a solid 2 px ring in the accent's link colour, 3:1 or more on every surface. They were the accent at 25 % (1.1–1.6:1 on white), and a yellow brand's ring was a pale yellow.
+  - **Buttons under the pointer** take a shade of their own, one step away from their text, instead of the button colour at 75 %, which took white text down to 2.9:1.
+  - **In dark mode the colour presets' buttons** (`indigo`, `blue`, `violet`, `emerald`) now carry dark text, readable at 6:1 or more; white was 1.9–3.1:1. Light mode and `mono` look as before.
+
+  **Upgrade**
+
+  Nothing to do. The hex is optional and `mono` stays the default.
+
+  - A site on `indigo`, `blue`, `violet` or `emerald` sees dark text on its main buttons in dark mode.
+  - An accent that is neither a built-in name nor a hex (a typo) now gives `mono`; before, it gave mono greys with an odd dark-mode button.
+  - `data-cms-accent` on the admin's `<html>` is only `mono`, `indigo`, `blue`, `violet`, `emerald` or `brand`. Host CSS keyed to another value (a capitalised name, a hex) stops matching.
+  - With a hex accent, host CSS that sets `--ui-primary` or `--ui-color-primary-*` under `html[data-cms-admin]` loses to the brand's own `<style>`. Nothing checks the contrast of what a host sets.
+  - A site that styled the admin's focus rings or button hover itself in its own CSS should check that its rules still apply.
+- Emails carry the client's logo and colour; the admin can be added to a phone's home screen. Invitations, password resets and the emails about a changed sign-in address show the full logo at the top (as a PNG, since Gmail and Outlook do not show SVG), or the site's name when there is no full logo. Their button is in the accent colour, and the link under it is now readable. They never carry tinyzoo's signature. tinyzoo makes PNG versions of the logo on the server (`/api/cms/_brand/full-email.png`, `mark-32.png`, `mark-180.png`, `mark-192.png`, `mark-512.png`) and a web manifest for the admin (`/api/cms/_brand/admin.webmanifest`). Without a mark, or with one that cannot be read, the icons are tinyzoo's own; a full logo that cannot be read leaves the name in the emails. The files' addresses carry a hash of the logo file, so they can be cached for a year and change as soon as the logo does, even under the same name; tinyzoo reads each logo again every 15 minutes. An `https://` logo is downloaded only from hosts on the public internet, with at most two redirects, each to `https://`.
+
+  **Upgrade**
+
+  Nothing to do for most sites.
+
+  - The logo in emails is loaded from `NUXT_CMS_PUBLIC_URL`, which production already needs for the links in them. Mail clients must reach it from the internet.
+  - `GET /api/cms/_brand/<file>` (and `GET /api/cms/_theme`, which the admin reads) need no sign-in. A proxy, basic auth or IP rule in front of `/api/cms` must let them through.
+  - A logo in `public/` must be a picture file (`.svg`, `.png`, `.webp`, `.jpg`, `.jpeg` or `.avif`). A logo on a server inside your own network cannot be made into the PNG versions, so put it in `public/`; an `http://` logo is never downloaded.
+  - A replaced logo reaches the icons and new emails within 15 minutes in production.
+  - The server-side email builders are now async and take the request first. They are internal; only a site that calls them from its own server code has to change that call.
+- With a brand colour (`cms.admin.accent: '#B4532A'`) the whole admin follows it, not only the accent. The moments that are cream in tinyzoo's own look (the sign-in, setup, reset and invitation pages, the welcome card, the current page in the sidebar and in a form's section menu, the section tiles) become a faint tint of the brand in light mode and charcoal leaning toward it in dark mode, and every text on them stays readable at 4.5:1. tinyzoo's animals are drawn in one muted shade of the brand with a near-white face. A near-grey brand gives near-grey moments and animals. `mono` and the built-in colour accents keep cream and the colourful animals, exactly as before.
+
+  New option **`cms.admin.animals`** (default `true`): `animals: false` hides the animals everywhere, for any accent (sign-in, welcome, empty places, the review before publishing, the card after it, first-run setup), and each place closes up around them. With your logo, colour and `signature: false`, nothing of tinyzoo's own look is left.
+
+  **Upgrade**
+
+  Nothing to do. Sites with a hex accent see brand-tinted moments and animals after the upgrade; sites on `mono` or a built-in colour accent see no change. `animals: false` is new and optional.
+- The admin carries the client's logo. Give `cms.admin.logo` a full logo and a square mark (`logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }`, files in the site's `public/` folder or `https://` URLs), and optionally `fullDark` and `markDark`. The full logo shows in the open sidebar, the phone's menu and on the sign-in pages; the mark in the folded sidebar, the phone's top bar, the browser tab and the phone's home screen. In dark mode a logo without its dark version, or whose dark version does not load, sits on a small light tile (cream, or the brand's light tint with a hex accent), so it never disappears. A logo that does not load gives way to the mark or the initials. Without a mark the initials stay. `cms.admin.signature: false` hides tinyzoo's quiet signature under the sidebar and on the sign-in pages. In development, tinyzoo warns at start about a logo address it cannot use, a missing file, a mark that is not square, a picture too small to stay sharp and an SVG with text in it (convert the text to outlines: the PNG versions are drawn with the server's fonts).
+
+  **Upgrade**
+
+  Nothing to do. `logo` and `signature` are optional; without them the admin looks as before. Set `name` with a logo: it is the logo's text for screen readers. The server now decides the admin's name, colour and logos and sends them to the admin, so changing `cms.admin` in the browser at run time (`updateAppConfig`) no longer changes them.
+
+### Patch Changes
+
+- The folded sidebar stays folded after a reload. The admin did not recognise its own saved choice when the cookie held a plain `1`, and the sidebar could open on the first frame and fold a moment later (or the other way round) on editor pages and after an editor tab was closed. The server and the browser now draw the same sidebar from the start.
+
+  **Upgrade**
+
+  Nothing to do. The admin's sidebar cookie for Nuxt UI was renamed, so a sidebar width someone dragged in the current browser session is forgotten once.
+
 ## 0.6.0
 
 ### Minor Changes
