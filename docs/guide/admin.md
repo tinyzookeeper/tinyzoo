@@ -68,53 +68,79 @@ Without Mailpit, emails are printed to the server log.
 
 The admin has its own design system, scoped so it never touches the host website's theme. It has:
 
-- a white workspace, charcoal actions, and cream for the brand's moments (with one of the animals; a brand colour tints them)
+- a white workspace, charcoal actions, and cream for the brand's **moments**: the sign-in pages, the welcome card, the current page in the sidebar; most of them with one of tinyzoo's animals
 - Manrope titles and Inter text
 - a "charcoal night" dark mode
 - a layout that works on phones
 
-It speaks Czech and English (cookie, then browser language, then default). Brand it per client in `app.config.ts`:
+All of it can carry the client's brand instead of tinyzoo's: a name, a colour and a logo set.
+
+### What you can brand
+
+Everything is in `cms.admin`, in the site's `app.config.ts`, and everything is optional. Without it the admin is tinyzoo's own, as before 0.7.
 
 ```ts
-cms: { admin: {
-  name: { cs: 'Pekárna Novák', en: 'Novák Bakery' },
-  siteUrl: 'https://pekarna-novak.cz',
-  accent: '#B4532A',           // the client's brand colour, or mono (default) | indigo | blue | violet | emerald
-  locales: ['cs', 'en'], defaultLocale: 'cs',
-  timeZone: 'Europe/Prague',   // dates are shown and edited in this zone
-  logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }, // optional, see below
-  signature: true,             // tinyzoo's quiet signature; false hides it
-  animals: true,               // tinyzoo's animals at the moments; false hides them all
-} }
+export default defineAppConfig({
+  cms: { admin: {
+    name: { cs: 'Pekárna Novák', en: 'Novák Bakery' }, // the sidebar, the tab title, the emails; the logo's text for screen readers
+    siteUrl: 'https://pekarna-novak.cz',                 // "View website"
+    accent: '#B4532A',           // the client's brand colour, or mono (default) | indigo | blue | violet | emerald
+    logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }, // files in public/brand/; fullDark and markDark too
+    signature: true,             // tinyzoo's quiet signature; false hides it
+    animals: true,               // tinyzoo's animals at the moments; false hides them all
+    locales: ['cs', 'en'], defaultLocale: 'cs', // the admin's languages (below)
+    timeZone: 'Europe/Prague',   // dates are shown and edited in this zone
+  } },
+})
 ```
+
+The server reads `cms.admin` when it runs and gives the admin and the emails one resolved theme (`GET /api/cms/_theme`). Name, colour and logos come from there, so changing `cms.admin` in the browser at run time (`updateAppConfig`) does not change them.
+
+![The sign-in page of a made-up bakery: the hedgehog in a muted terracotta, the bakery's logo, a faint warm background and a terracotta "Sign in" button](../screenshots/0.7/en/admin-brand-signin.png)
 
 ### The brand colour
 
-`accent` takes one of the built-in accents (`mono`, tinyzoo's charcoal, is the default; `indigo`, `blue`, `violet`, `emerald`) or the client's brand colour as a hex: `'#B4532A'` or `'#b53'`. The colour goes where the accent goes:
+`accent` takes one of the built-in accents (`mono`, tinyzoo's charcoal, is the default; `indigo`, `blue`, `violet`, `emerald`) or the client's brand colour as a hex: `'#B4532A'` or `'#b53'`. Names are read in any case, and spaces around a value are ignored.
 
-- main buttons
+The colour goes where the accent goes:
+
+- main buttons, and a button under the pointer (a shade of its own, one step away from its text)
 - the current page in the menu
 - links
-- focus rings (a solid 2 px ring in the link colour, never in a light button colour), checked boxes and switches, selected options
+- focus rings: a solid 2 px ring in the link colour, never in a light button colour
+- checked boxes and switches, selected options
 
-**With a brand colour, the whole look follows it.** The moments, which are cream in tinyzoo's own look (the sign-in, setup, reset and invitation pages, the welcome card on the home page, the current page in the sidebar and in a form's section menu, the icon tiles of form sections), become a faint tint of the brand in light mode and charcoal leaning toward it in dark mode: calm paper with a hint of the brand, never a coloured background. A near-grey brand gives near-grey moments. Every text on them is checked like the accent (4.5:1). The animals take one muted shade of the brand with a near-white face, in light and dark mode.
+**With a brand colour, the whole look follows it.** The moments, which are cream in tinyzoo's own look (the sign-in, setup, reset and invitation pages, the welcome card on the home page, the current page in the sidebar and in a form's section menu, the icon tiles of form sections), become a faint tint of the brand in light mode and charcoal leaning toward it in dark mode: calm paper with a hint of the brand, never a coloured background. A near-grey brand gives near-grey moments. The animals take one muted shade of the brand with a near-white face, in light and dark mode.
 
-The white workspace, the greys and the status colours (green "On the website", red errors) stay as they are. With a built-in accent (`mono` and the four colours) the moments stay cream and the animals keep their own colours. tinyzoo works out the rest: the shades, a lighter version for dark mode, a button's colour under the pointer, the text colour on a button, the moments' tints and the animals' shade.
+The white workspace, the greys and the status colours (green "On the website", red errors) stay as they are. With a built-in accent (`mono` and the four colours) the moments stay cream and the animals keep their own colours.
+
+tinyzoo works out the rest: the shades, a lighter version for dark mode, a button's colour under the pointer, the text colour on a button, the moments' tints and the animals' shade.
+
+![The home page of the bakery in light mode: the welcome card on a faint terracotta tint with the owl in a muted terracotta, a terracotta "Page" button and the current page in the sidebar on the same tint](../screenshots/0.7/en/admin-brand-home.png)
 
 **The text on a button is white or ink, whichever reads better.** Dark colours get white text, light ones ink. Mid tones often get ink too: on `#3B82F6` ink reads at 5.0:1 and white at only 3.7:1, so its buttons carry ink text. That is on purpose; there is no option to force white. The built-in colour accents (`indigo`, `blue`, `violet`, `emerald`) have white text in light mode and ink in dark mode.
 
-**The contrast guard.** Every colour has to stay readable, in light and dark mode: 4.5:1 for the text on a button, at rest and under the pointer, and for links and other accent text on the page; 3:1 for focus rings. When the brand colour falls short, tinyzoo moves it to the nearest colour that passes. Only the lightness changes; the hue stays. A light colour keeps its buttons: a yellow brand gets yellow buttons with ink text, while its links use a darker yellow. Links are checked on white, the brand's own moments, the hover grey and the colour's own light tint (the soft buttons, a hovered day in the calendar), so a colour that reads on white can still get a slightly darker shade for its links: `#B4532A` is 4.9:1 on white but 3.7:1 on its own tint, and its links use `#A44419`. In development, the server log and the browser console say what changed and why:
+**The contrast guard.** Every colour has to stay readable, in light and dark mode:
+
+- 4.5:1 for the text on a button, at rest and under the pointer;
+- 4.5:1 for links and other accent text on the page, and for every text on the brand's moments;
+- 3:1 for focus rings.
+
+When the brand colour falls short, tinyzoo moves it to the nearest colour that passes. Only the lightness changes; the hue stays. A light colour keeps its buttons: a yellow brand gets yellow buttons with ink text, while its links use a darker yellow. Links are checked on white, the brand's own moments, the hover grey and the colour's own light tint (the soft buttons, a hovered day in the calendar). So a colour that reads on white can still get a slightly darker shade for its links: `#B4532A` is 4.9:1 on white but 3.7:1 on its own tint, and its links use `#A44419`.
+
+In development, the server log and the browser console say what changed and why:
 
 ```
 [tinyzoo] cms.admin: accent #FFD500: links and other accent text would be 1.3:1 on the hover grey; they use #766100 (4.5:1); buttons keep #FFD500 with ink text (13.0:1).
 ```
 
-The server log says it at every start, the browser console once per browser session (and again when the colour changes). To silence the message, pick a colour that passes, or accept the adjustment: nothing breaks either way. Production adjusts quietly. An accent tinyzoo cannot read (`'red'`, `'#12345'`) falls back to `mono`, with the same kind of message. You can try colours at `/design-system` on the tinyzoo website: it runs the same guard.
+The server log says it at every start, the browser console once per browser session (and again when the colour changes). To silence the message, pick a colour that passes, or accept the adjustment: nothing breaks either way. Production adjusts quietly.
 
-Nuxt UI draws a few words itself ("Close", "Previous month", "Show password"). They follow the admin language when the site's `app/app.vue` hands it over, and the starter does. Add:
-`const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">`. On the website's own pages it is empty, so the site keeps its own.
+An accent tinyzoo cannot read (`'red'`, `'#12345'`) falls back to `mono`, with the same kind of message in development.
 
-Labels in `cms.config.ts` take one string or one per admin language (`label: { en: 'Posts', cs: 'Články' }`). Entities can also set `icon`, `labelSingular` and `description`.
+You can try colours at `/design-system` on the tinyzoo website: it runs the same guard and shows the moments and animals a colour gives.
+
+![The same home page in dark mode: charcoal leaning toward terracotta in the welcome card, a lighter terracotta button with dark text, and the logo on a small light tile in the sidebar](../screenshots/0.7/en/admin-brand-home-dark.png)
 
 ### The client's logo
 
@@ -135,35 +161,44 @@ logo: {
 | `mark` | the folded sidebar, the phone's top bar, the browser tab, the phone's home screen | a square SVG, or a square PNG of 512 × 512 |
 | `fullDark`, `markDark` | the same places in dark mode | light versions of the two above |
 
+The full logo carries the name, so the admin uses `name` as its text for screen readers. Set `name` too.
+
 What the admin shows when a logo is missing:
 
 - no `full`: the mark with the client's name beside it;
 - no `mark`: a tile with the name's initials (the tab keeps tinyzoo's icon);
 - no logo and no `name`: tinyzoo's own mascot, as before.
 
-The full logo carries the name, so the admin uses `name` as its text for screen readers. Set `name` too.
+**Dark mode.** Without `fullDark` or `markDark`, the light logo sits on a small light tile in dark mode, so a dark logo never disappears on charcoal. The tile is tinyzoo's cream, or with a brand colour the brand's own light tint. A dark version without its light one is not used.
 
-**Dark mode.** Without `fullDark` or `markDark`, the light logo sits on a small cream tile in dark mode, so a dark logo never disappears on charcoal. A dark version without its light one is not used.
+**A logo that does not load** (a wrong address, a file that is gone) gives way: a full logo to the mark with the name, a mark to the initials, in light and dark mode. A dark version that does not load leaves its light one in place, on the light tile, as if no dark version had been given. An SVG needs no `width` or `height`: one with only a `viewBox`, as design tools export it, works.
 
-**A logo that does not load** (a wrong address, a file that is gone) gives way: a full logo to the mark with the name, a mark to the initials, in light and dark mode. A dark version that does not load leaves its light one in place, on the cream tile, as if no dark version had been given. An SVG needs no `width` or `height`: one with only a `viewBox`, as design tools export it, works.
+**Tab and home-screen icons.** With a mark, the browser tab shows it, and tinyzoo makes PNG copies of it for browsers that need them (see [Emails and the phone's home screen](#emails-and-the-phones-home-screen)). Without a mark, or with one the server cannot read, the tab keeps tinyzoo's icon. This happens on the admin's pages only; the website keeps its own.
 
-**Tab and home-screen icons.** With a mark, the browser tab shows it, and tinyzoo makes PNG copies of it for browsers that need them: a 32 px tab icon, the 180 px home-screen icon and the icons of the admin's web manifest (`/api/cms/_brand/…`). Without a mark, or with one the server cannot read, the tab keeps tinyzoo's icon. This happens on the admin's pages only; the website keeps its own.
+**Checks in development.** When the dev server starts, tinyzoo looks at each logo and warns in the log about:
 
-**Checks in development.** When the dev server starts, tinyzoo looks at each logo and warns in the log about an address it cannot use (it must start with `/` or `https://`), a file that is missing, a mark that is not square, a PNG that is too small, and an SVG with text in it (`<text>`): the PNG copies are drawn on the server with whatever fonts it has, often none, so convert the text to outlines in your design tool. A logo never stops the start, and production does not check.
+- an address it cannot use (it must start with `/` or `https://`; an `http://` logo is kept with a warning, but an https admin blocks it and the server never downloads it);
+- a file that is missing;
+- a mark that is not square;
+- a PNG that is too small to stay sharp;
+- an SVG with text in it (`<text>`): the PNG copies are drawn on the server with whatever fonts it has, often none, so convert the text to outlines in your design tool.
 
-**`signature: false`** hides tinyzoo's quiet signature under the sidebar and at the foot of the sign-in pages. The emails never carry it.
+A logo never stops the start, and production does not check.
 
-**`animals: false`** hides tinyzoo's animals everywhere, for any accent: the sign-in pages, the welcome card, empty places (they show a plain icon instead), the review before publishing, the card after publishing and the family on the first-run setup page. Each place closes up around it. Together with your logo, your colour and `signature: false`, the admin carries nothing of tinyzoo's own look.
+![The bakery's post list with the sidebar folded to icons: the bakery's mark at the top, the current page on the brand's tint, a terracotta "+ Post" button](../screenshots/0.7/en/admin-brand-folded.png)
 
 ### Emails and the phone's home screen
 
-The emails the admin sends (invitations, password resets, changes of the sign-in address) carry the client's brand:
+The emails the admin sends (invitations, password resets, the emails about a changed sign-in address) carry the client's brand:
 
 - the full logo at the top, 160 px wide. Without `logo.full`, the site's name in bold;
 - the site's name from `cms.admin.name`, in the recipient's language;
-- the main button in the accent colour, with its text colour.
+- the main button in the accent colour, with its text colour;
+- the written-out link under it, a real link in the accent's link colour.
 
-Emails never carry tinyzoo's signature. The text version stays plain: the message and the link.
+Emails never carry tinyzoo's signature. The text version stays plain: the message and the link. The email that a form sends to the site's staff is not branded.
+
+![An invitation email of the bakery: the bakery's logo at the top, one sentence, a terracotta "Accept the invitation" button and the link written out in terracotta](../screenshots/0.7/en/email-brand-invite.png)
 
 Gmail and Outlook do not show SVG, so tinyzoo makes PNG versions of the logo on the server:
 
@@ -179,13 +214,31 @@ Without a mark, the icons show tinyzoo's own. Without a full logo, `full-email.p
 What tinyzoo reads to make them:
 
 - **A file of the site** (`/brand/logo.svg`): a picture in `public/` ending in `.svg`, `.png`, `.webp`, `.jpg`, `.jpeg` or `.avif`, not under `/api/`. In production it is read from the built site; in development from the `public/` folder on disk.
-- **An `https://` URL**: downloaded with a 5 second limit, at most 2 MB, following at most two redirects, each to `https://` again. Only from hosts on the public internet: an address that resolves to the server's own network (localhost, private ranges, link-local, cloud metadata) is refused. A logo on an intranet server belongs in `public/` instead.
+- **An `https://` URL**: downloaded with a 5 second limit, at most 2 MB, following at most two redirects, each to `https://` again. Only from hosts on the public internet: an address that resolves to the server's own network (localhost, private ranges, link-local, cloud metadata) is refused. A logo on an intranet server belongs in `public/` instead. An `http://` logo is never downloaded.
 
-**Caching.** The addresses carry `?v=`, a hash of the logo file and of how tinyzoo draws it. With it, browsers and mail apps may keep a file for a year; replace the logo, even under the same name, and the address changes. In production tinyzoo reads each logo again every 15 minutes, so a new file (a redeploy, a changed `https://` logo) reaches the icons and new emails within that time. Development never lets the browser keep the files.
+**Caching.** The addresses carry `?v=`, a hash of the logo file and of how tinyzoo draws it. With it, browsers and mail apps may keep a file for a year; replace the logo, even under the same name, and the address changes. In production tinyzoo reads each logo again every 15 minutes, so a new file (a redeploy, a changed `https://` logo) reaches the icons and new emails within that time. Emails already sent keep the picture they had. Development never lets the browser keep the files.
 
-`/api/cms/_brand/admin.webmanifest` lets people add the admin to a phone's home screen. It opens `/admin/` as an app, with the site's name in the admin's default language and the mark as its icon.
+`/api/cms/_brand/admin.webmanifest` lets people add the admin to a phone's home screen. It opens `/admin/` as an app, with the site's name in the admin's default language and the mark as its icon. Without a mark there is no manifest.
 
-The logo in emails needs the site's public address, `NUXT_CMS_PUBLIC_URL`. Production needs it anyway for the links. Mail clients load the logo from there, so it must be reachable from the internet.
+**The public address.** The logo in emails needs the site's public address, `NUXT_CMS_PUBLIC_URL`. Production needs it anyway for the links. Mail clients load the logo from there, so it must be reachable from the internet. `GET /api/cms/_theme` and `/api/cms/_brand/*` need no sign-in (the sign-in page and mail clients read them), so a proxy or an access rule in front of `/api/cms` must let them through.
+
+![The bakery's home page on a phone in dark mode: the mark on its light tile beside the menu button, the welcome card with the owl in the corner](../screenshots/0.7/en/admin-brand-phone-dark.png)
+
+### Signature and animals
+
+**`signature: false`** hides tinyzoo's quiet signature under the sidebar and at the foot of the sign-in pages ("Content administration" stays). The emails never carry it.
+
+**`animals: false`** hides tinyzoo's animals everywhere, for any accent: the sign-in pages, the welcome card, empty places (they show a plain icon instead), the review before publishing, the card after publishing and the family on the first-run setup page. Each place closes up around it.
+
+Together with your logo, your colour and `signature: false`, the admin carries nothing of tinyzoo's own look.
+
+### The admin's language
+
+The admin speaks Czech, English and German. It picks the language from a cookie (the person's own choice in the account menu), then the browser's language, then `defaultLocale`. `locales` limits which of them a site offers.
+
+Labels in `cms.config.ts` take one string or one per admin language (`label: { en: 'Posts', cs: 'Články' }`). Entities can also set `icon`, `labelSingular` and `description`.
+
+Nuxt UI draws a few words itself ("Close", "Previous month", "Show password"). They follow the admin language when the site's `app/app.vue` hands it over, and the starter does. Add `const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">`. On the website's own pages it is empty, so the site keeps its own.
 
 ### How editors and lists are arranged
 
@@ -237,11 +290,16 @@ Tokens, rules and building blocks are in [`../ui-foundation.md`](../ui-foundatio
 
 ## Theming (host-owned)
 
-The CMS components use semantic Nuxt UI classes (`bg-primary`, `text-muted`, …). So the host re-skins the whole admin from its own `app.config.ts` and `main.css`, with no package edits.
+The website's theme stays the website's. The CMS components use semantic Nuxt UI classes (`bg-primary`, `text-muted`, …), but the admin sets the variables behind them itself, under `html[data-cms-admin]`, at a higher specificity than Nuxt UI's `:root`. So the site's `ui.colors` in `app.config.ts` and its `main.css` theme its own pages and do not reach the admin.
 
-For the admin's colour, set `cms.admin.accent` (above): a built-in accent or a brand hex, checked by the contrast guard. The admin's tokens live under `html[data-cms-admin]`, so a host can still override them in its CSS, but then nothing checks the contrast.
+To colour the admin, set `cms.admin.accent` ([above](#the-brand-colour)): a built-in accent or a brand hex, checked by the contrast guard.
 
-The playground ships a monochrome theme. `primary` is a custom `ink` ramp anchored at `#555` (defined via `@theme` in `main.css`). `neutral` is a true-neutral gray.
+A host can still override the admin's tokens in its own CSS under `html[data-cms-admin]`, for example a radius. Two limits:
+
+- Nothing checks the contrast of what a host sets.
+- With a hex accent, the admin writes the brand's colours in a `<style>` under `html[data-cms-admin][data-cms-accent='brand']`. It wins over a host rule on `html[data-cms-admin]` that sets the accent (`--ui-primary`, `--ui-color-primary-*`) or the moments' variables. `data-cms-accent` is `mono`, `indigo`, `blue`, `violet`, `emerald` or `brand`, nothing else.
+
+The playground's own pages use a monochrome Nuxt UI theme: `primary` is a custom `ink` ramp anchored at `#555` (defined via `@theme` in `main.css`), and `neutral` is a true-neutral gray. The admin does not take it.
 
 ## Extensibility — the field & view registry
 
