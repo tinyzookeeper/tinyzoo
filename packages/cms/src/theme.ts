@@ -538,7 +538,10 @@ export function adminAccentCss(theme: Pick<CmsAdminTheme, 'accent'>): string {
     return vars.length ? `;${vars.join(';')}` : ''
   }
   const sel = `html[data-cms-admin][data-cms-accent='brand']`
-  return `${sel}{${block(accent.light)}${moments(accent.moments?.light)}}${sel}.dark{${block(accent.dark)}${moments(accent.moments?.dark)}}`
+  // The tile under a light logo in dark mode (CmsBrandLogo): the light moment's paper, the brand's own cream.
+  const plate = ok(accent.moments?.light?.bg)
+  const plateVar = plate ? `;--cms-logo-plate:${plate}` : ''
+  return `${sel}{${block(accent.light)}${moments(accent.moments?.light)}${plateVar}}${sel}.dark{${block(accent.dark)}${moments(accent.moments?.dark)}${plateVar}}`
 }
 
 /** The variables a brand's moments set, and where each comes from. @internal */

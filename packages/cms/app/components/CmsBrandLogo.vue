@@ -3,7 +3,7 @@
 // the full logo; else the mark with the name; else a tile with the initials and the
 // name; else (no client name, no logo) tinyzoo's mascot. Dark mode shows the dark
 // versions; without them (or when a dark version does not load) the light logo sits on a
-// small cream tile, so a dark logo never disappears on charcoal. A light logo that does not
+// small cream tile (the brand's light paper with a brand colour), so a dark logo never disappears on charcoal. A light logo that does not
 // load gives way to the next one.
 import { adminBrandLockup, brandInitials, type CmsLogoSlot } from '../../src/themeLogo'
 import { cmsFailedLogos, cmsShownLogo, type CmsLogoFailures } from '../utils/cmsBrandLogo'
@@ -70,6 +70,6 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-/* The tile under a light logo in dark mode: tinyzoo's cream, so the logo's own colours read as on paper. */
-.cms-brand-plate { background: var(--tz-cream, #F9F5EF); }
+/* The tile under a light logo in dark mode: tinyzoo's cream (with a brand colour, the brand's light paper), so the logo's own colours read as on paper. */
+.cms-brand-plate { background: var(--cms-logo-plate, var(--tz-cream, #F9F5EF)); }
 </style>

@@ -267,3 +267,13 @@ describe('the animals in a brand\'s colours', () => {
     expect(recolourAnimal('<div>no</div>')).toBeNull()
   })
 })
+
+describe('the logo tile in dark mode follows the brand', () => {
+  it('is the light moment paper in both schemes for a brand colour, and not written for presets', () => {
+    const theme = resolveAdminTheme({ accent: '#2563EB' })
+    const paper = theme.accent.kind === 'brand' ? theme.accent.moments!.light.bg : ''
+    const css = adminAccentCss(theme)
+    expect(css.match(/--cms-logo-plate:(#[0-9A-F]{6})/gi)).toEqual([`--cms-logo-plate:${paper}`, `--cms-logo-plate:${paper}`])
+    for (const p of CMS_ACCENT_PRESETS) expect(adminAccentCss(resolveAdminTheme({ accent: p }))).not.toContain('--cms-logo-plate')
+  })
+})
