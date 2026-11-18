@@ -1851,7 +1851,7 @@ Decisions above ("Decisions locked for Wave 5"). Integration branch `feat/1.0` (
 |---|---|---|
 | R1 — API freeze: remove what 0.6 deprecated, search helpers back to `@internal`, `api-surface.md` and the contracts agree, "From 0.7 to 1.0" | `feat/1.0-freeze` | merged into `feat/1.0` |
 | R2 — Accessibility: lighter preset tints, keyboard focus on menu items, rich text and title, a keyboard pass | `fix/1.0-a11y` | in progress |
-| Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | in progress |
+| Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | merged into `feat/1.0` |
 | R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | `test/1.0-upgrade` | in progress |
 | W — Plans on the website: a Plans collection edited in the website's admin, `/plany` lists it with a Done stage (owner's request, 2026-11-18) | `feat/site-roadmap` | in progress |
 | Reviews — two independent reviews of the merged wave, fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | after the slices | waiting |
@@ -1906,3 +1906,45 @@ Branch `feat/1.0-freeze`. The public API is now exactly what 1.0 freezes. Change
 2. **`Entity.insertSchema` and `updateSchema` are public members typed as zod types.** That freezes zod's major version as part of tinyzoo's API: a zod 5 upgrade would be a tinyzoo major. Recommended: tag them `@internal`, since nothing in the docs uses them.
 3. **The search helpers are still exported** (internal, not removed), as with every other internal helper. Removing them from the entry point would mean an internal entry point for the server, the same choice 0.6 P made against. Fine for 1.0 unless you want an `tinyzoo/internal` entry.
 4. **`docs/upgrading.md` "Version policy" still says "0.x (now)"**, and `api-surface.md` still says "Until 1.0, a change to it is a minor release". Both are for the 1.0 release slice (S) to update, with the version bump.
+
+
+### 1.0 Q — Docs for 1.0
+
+Branch `feat/1.0-docs` (from `997ab4d`). The documentation is written for after the release.
+
+- **Stale lines fixed.**
+  - `guide/admin.md`: rate limits are shared by every replica when the site has Redis or Valkey (`REDIS_URL` or `NUXT_CMS_REDIS_URL`). Without it, each instance counts on its own. When Redis does not answer, each instance counts on its own until it does. The "planned (Phase 5)" line is gone.
+  - `plugins.md`: a plugin's peer range is `"tinyzoo": "^1.0.0"` (and `nuxt` `^4.6.4`, tinyzoo's own). A short paragraph says why, when to start higher, and that a plugin using the admin's components or the server helpers should be tested with each minor.
+  - `plugins.md` said a route's `**` matches everything below. `defineCmsPlugin` refuses `*` in a route (checked), so the line is gone.
+  - `upgrading.md`: the version policy opened with "0.x (now)". It now opens with semver since 1.0, then minor and patch versions, then what 0.x meant.
+  - `deploying.md`: the deprecated cron variables. The section is now "When the scheduled tasks run": the `scheduler`/`retention` options, and that the variables were removed in 1.0. The row in the variables table and "still works as a deprecated alias" under Retention are gone.
+  - `guide/content-model.md`: the deprecated `singleton` option of `defineEntity` (removed in 1.0) and a note that `defineForm` from `tinyzoo` "still works" (stale since 0.4) are gone.
+  - `getting-started.md` no longer had a version number (fixed in 0.6). No other page says "until 1.0", "0.x", "planned" or "Phase".
+- **Developer docs in English only**, as decided. The developer pages are built only for the English website (`/en/docs/developers`).
+  - The Czech and German contents list them at their English addresses: the door on the docs' landing page ("Otevřít anglické návody", "Englische Anleitungen öffnen"), the sidebar ("Pro vývojáře · V angličtině") and the search (the Czech and German search finds the developer pages too).
+  - The note says it in the visitor's language: "Návody pro vývojáře jsou v angličtině. Odkazy vedou do anglické části webu." (German likewise). "Zatím" and "vorerst" are gone, here and in the 0.6 news posts' seed.
+  - The old addresses `/dokumentace/pro-vyvojare/…` and `/de/dokumentation/entwicklung/…` redirect to the English page (301), so links already out there keep working.
+  - A developer page has only an English `hreflang`. The language switcher on it goes to the Czech or German docs' landing page, where the door says the developer docs are English. The sitemap lists each developer page once.
+  - Done in `site/modules/docs/build.ts` (`partsOf`, `addressOf`, `DEV_LANG`), the docs page's middleware, `shared/docs.ts` (`alternates` is partial now) and `server/plugins/sitemap.ts`.
+  - Also fixed: the languages icon in front of the note was never drawn (`inline` gave the mask no box).
+- **The plugin API reference** (`docs/plugin-reference.md`, after Plugins in the sidebar). Tables taken from `packages/cms/src/plugin.ts` and `upgrades.ts`: the two functions, every option of `CmsPluginDef`, server routes, admin pages, sidebar entries, field editors, texts, the `retention` hook and its context, list notes, upgrade steps and `UpgradeContext`, with types and defaults. It says the server helpers a handler can use are not frozen.
+- **"tinyzoo 1.0"** (`docs/stability.md`, first in Reference): what stays stable, what that means (patch, minor, breaking, deprecations), what is not covered, and moving to 1.0. It links `api-surface.md` and `upgrading.md`. The developers' index (and `docs/README.md`) points to it in one line.
+- **Czech non-breaking spaces.** `czechSpaces` in `render.ts` puts a non-breaking space after k, s, v, z, o, u, a, i in Czech pages, in plain text only (not code, HTML or a link's address). Anchors stay GitHub's: they are made from the source. The Czech "Překlady" page got 184.
+- **Also:** `docs/README.md` (the two new pages, where the developer pages are, the Czech spaces), `site/README.md`, `llms.txt`.
+- **Tests.** `test/unit/docs-site.spec.ts`: the Czech and German contents lead only to English developer pages and those websites have none of their own; a developer page's alternates are English only; the Czech and German search finds developer pages at their English addresses; links are checked across all websites; the plugin reference follows Plugins; `czechSpaces` and the renderer (code, links, lists, anchors, English left alone).
+- **Seen in a browser** (own dev server on port 3196, database `tinyzoo_web_test_10docs`, seeded; both removed afterwards):
+  - Czech landing at 1440 px: the developers' door with the note and "Otevřít anglické návody", all links to `/en/docs/developers…`.
+  - A Czech editors' page: the sidebar's "Pro vývojáře · V angličtině" leads to the English docs; hreflang cs/en/de as before.
+  - `/en/docs/developers/plugin-reference` at 1440 px: twelve tables, no page overflow; the switcher goes to `/dokumentace` and `/de/dokumentation`, and hreflang is English only.
+  - German landing and the drawer at 390 px (no sideways scroll), and "tinyzoo 1.0" at 390 px.
+  - `curl`: the three old addresses answer 301 to the English page; the Czech search for "webhook" finds `/en/docs/developers/api-surface#the-webhook`; the sitemap has no Czech or German developer pages and no duplicates.
+- **Result** (`TEST_DATABASE_URL=…/cms_test_10docs`): `pnpm check` green, 131 files / 1,985 tests passed, 3 files / 26 tests skipped (typecheck and `docs:check` included, 32 blocks; 4 min 29 s). No changeset: nothing in `packages/` changed.
+
+**Left open:**
+
+- `docs/api-surface.md` belongs to R1 and still says "Until 1.0, a change to it is a minor release…" (line 7), "From **1.0**", and lists the deprecations as still working. R1 should write it for after the release.
+- The deploying and content-model changes assume R1 removes the 0.6 deprecations (`CMS_SCHEDULER_CRON`, `CMS_RETENTION_CRON`, `singleton: true`). `test/setup/timers.ts` and `development.md` still use `CMS_SCHEDULER_CRON` for the test build.
+- `site/server/api/site-docs/search.get.ts` imports `searchTerms`, `matchEntry`, `highlightRanges` and `SEARCH_MAX_QUERY` from `tinyzoo`. R1 makes them internal, so the site needs its own import path or copy.
+- `stability.md` links `upgrading.md` as a whole, not R1's "From 0.7 to 1.0" section, which does not exist on this branch. A link to that anchor can be added once both are merged.
+- `packages/cms/starter/AGENTS.md` says "From 1.0, the public API follows semver". That is right after the release. It was left alone, since a change there needs a changeset.
+- The website's own content (the seed) was not rewritten. Its footer, FAQ and roadmap page talk about preparing the pilot ("Wir bereiten ein Pilotprojekt … vor"; 13–14 mentions of the pilot per language). That may be stale after 1.0 and the pilot's upgrade (slice S).

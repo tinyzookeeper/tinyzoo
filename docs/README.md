@@ -6,6 +6,8 @@ Three kinds of reader, three sets of pages. Pick yours.
 
 Read in this order the first time; come back to any page later.
 
+Since 1.0, tinyzoo follows semver. [tinyzoo 1.0](stability.md) says what stays stable.
+
 | | |
 |---|---|
 | [Getting started](guide/getting-started.md) | From nothing to a running site with content, your first collection and the checklist for going live. Half an hour |
@@ -18,8 +20,10 @@ Read in this order the first time; come back to any page later.
 | [Roles and permissions](guide/roles.md) | Roles of your own, who reads and edits each field, media per role, removed roles, a worked example with a translator |
 | [Seeding](guide/seeding.md) | Content a site starts with, written in code and put into a running site with `tinyzoo seed` |
 | [Content between environments](guide/content-transfer.md) | `tinyzoo export` and `import`: production to staging, a laptop to a server |
+| [tinyzoo 1.0](stability.md) | What the 1.0 promise covers, what it does not, and how to get there |
 | [The public API](api-surface.md) | What 1.0 freezes: the config API, options and environment variables, content API, client, webhook, hooks, CLI, admin extension points. Everything else is internal |
 | [Plugins](plugins.md) | Adding a feature of your own (collections, admin pages, routes, upgrade steps) and shipping it as a package |
+| [The plugin API reference](plugin-reference.md) | Every option and hook of `defineCmsPlugin`, with its type |
 | [Upgrading](upgrading.md) | Moving a site to a newer tinyzoo: the version policy, every upgrade, each version, renaming and removing, upgrade steps |
 | [Deploying](deploying.md) | Running a site in production: environment, first run, migrations, backups and restore, privacy, logs, a worked example on Pushbase |
 | [AGENTS.md](../packages/cms/starter/AGENTS.md) and [llms.txt](../llms.txt) | For the coding assistant you build with: the guide every new site gets, and an index of the pages above |
@@ -43,6 +47,8 @@ The editors' guide (in its three languages) and the developer pages in the table
 - [/dokumentace](https://tinyzoo.pushbase.app/dokumentace) (Czech)
 - [/en/docs](https://tinyzoo.pushbase.app/en/docs) (English)
 - [/de/dokumentation](https://tinyzoo.pushbase.app/de/dokumentation) (German)
+
+The developer pages are in English only, at [/en/docs/developers](https://tinyzoo.pushbase.app/en/docs/developers). The Czech and German docs link there, with a note in their language.
 
 The Markdown here is the source. The website renders it when it is built (`site/modules/docs`), so a change here is on the website with the next deploy.
 
@@ -71,6 +77,7 @@ What that means when you write:
   - The name before `|` is the file: `site/public/docs/clips/roles.<lang>.mp4`, falling back to `roles.cs.mp4`.
   - The text after it says what the clip shows, for screen readers.
   - Until a file exists, the website shows nothing in its place.
+- **Czech text** gets a non-breaking space after a one-letter word (k, s, v, z, o, u, a, i) on the website. Write normal spaces in the Markdown.
 - **Callouts.** `> **Tip:**` and `> **Pozor:**` (`Watch out:`, `Achtung:`) quotes become callouts.
 - **Code block file names.** A code block's `<!-- check: group/file -->` marker gives its file name.
 
@@ -82,7 +89,7 @@ Plans, research and the rules of the project. Not needed to build a site.
 |---|---|
 | [Development](development.md) | Repository layout, running the playground, the tests and CI, decisions that shaped the code |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | Changesets, version bumps, deprecations, releases, the upgrade test, the docs check |
-| [Roadmap](roadmap.md) | The plan to 1.0, with a write-up of every slice as it was finished |
+| [Roadmap](roadmap.md) | The plan to 1.0 and after, with a write-up of every slice as it was finished |
 | [Production plan](production-plan.md), [Pilot plan](pilot-plan.md) | The earlier plans (done, or folded into the roadmap) |
 | [UI foundation](ui-foundation.md) | The admin's design tokens and rules; the live reference is `/design-system` on the website |
 | [Research](research/) | What informed the admin's structure and look |

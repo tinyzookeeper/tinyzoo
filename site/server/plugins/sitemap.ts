@@ -18,11 +18,13 @@ export default defineNitroPlugin((nitro) => {
     // The documentation: the same page in each language pairs up by its place in the contents.
     const navs = (await Promise.all(LANGS.map((l) => docsNav(l)))).filter(Boolean) as DocsNav[]
     if (navs.length !== LANGS.length) return
+    // A part a language does not publish itself (the developer pages, English only) is listed once, at its own address.
     const sets: { locale: string; loc: string }[][] = [LANGS.map((l) => ({ locale: l, loc: docsPath(l) }))]
     for (const section of DOCS_SECTIONS) {
-      sets.push(LANGS.map((l) => ({ locale: l, loc: docsPath(l, section) })))
-      const pages = navs.map((n) => n.sections[section].groups.flatMap((g) => g.pages))
-      pages[0]!.forEach((_, i) => sets.push(LANGS.map((l, j) => ({ locale: l, loc: pages[j]![i]?.path ?? docsPath(l, section) }))))
+      const own = LANGS.filter((l, j) => navs[j]!.sections[section].path === docsPath(l, section))
+      const pages = own.map((l) => navs[LANGS.indexOf(l)]!.sections[section].groups.flatMap((g) => g.pages))
+      sets.push(own.map((l) => ({ locale: l, loc: docsPath(l, section) })))
+      pages[0]?.forEach((_, i) => sets.push(own.map((l, j) => ({ locale: l, loc: pages[j]![i]?.path ?? docsPath(l, section) }))))
     }
     for (const set of sets) for (const a of set) entries.push({ loc: a.loc, locale: a.locale, lastmod: null, alternates: set })
   })

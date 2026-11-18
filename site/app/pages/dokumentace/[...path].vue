@@ -13,13 +13,17 @@ definePageMeta({
     const lang = langOfPath(route.path) as DocsLang
     const path = ([] as string[]).concat((route.params.path as string[] | string | undefined) ?? []).filter(Boolean)
     const section = sectionOfSegment(lang, path[0])
+    // The developer pages are only on the English website: the old Czech and German addresses lead there.
+    if (section === 'developers' && lang !== 'en') return navigateTo(docsPath('en', 'developers', path[1]), { redirectCode: 301 })
     let out: Partial<Record<DocsLang, string>> = Object.fromEntries(DOCS_LANGS.map((l) => [l, docsPath(l)]))
     if (section) {
-      out = Object.fromEntries(DOCS_LANGS.map((l) => [l, docsPath(l, section)]))
+      out = section === 'developers' ? { en: docsPath('en', section) } : Object.fromEntries(DOCS_LANGS.map((l) => [l, docsPath(l, section)]))
       if (path[1]) {
         const res = await $fetch<DocsPageResponse>('/api/site-docs/page', { query: { lang, section, slug: path[1] } }).catch(() => null)
         if (res) out = res.page.alternates
       }
+      // A page only on the English website (a developer page): the other languages' docs, whose door says it is English.
+      out = { ...Object.fromEntries(DOCS_LANGS.map((l) => [l, docsPath(l)])), ...out }
     }
     useAlternates().value = out
     useAlternatesFallback().value = null
@@ -57,10 +61,14 @@ const siteUrl = useSiteConfig().url
 useHead({
   htmlAttrs: { lang },
   title: () => (page.value ? `${title.value} · ${t('docs')} · ${siteName.value}` : `${t('docs')} · ${siteName.value}`),
-  link: () => [
-    ...Object.entries(alternates.value).map(([l, p]) => ({ rel: 'alternate' as const, hreflang: l, href: `${siteUrl}${p}` })),
-    { rel: 'alternate' as const, hreflang: 'x-default', href: `${siteUrl}${alternates.value.cs ?? docsPath('cs')}` },
-  ],
+  // Only the real translations of this page (the switcher may go elsewhere, see the middleware).
+  link: () => {
+    const same: Partial<Record<DocsLang, string>> = page.value?.alternates ?? alternates.value
+    return [
+      ...Object.entries(same).map(([l, p]) => ({ rel: 'alternate' as const, hreflang: l, href: `${siteUrl}${p}` })),
+      { rel: 'alternate' as const, hreflang: 'x-default', href: `${siteUrl}${same.cs ?? same.en ?? docsPath('cs')}` },
+    ]
+  },
 })
 useSeoMeta({ description, ogTitle: title, ogDescription: description })
 useShareImage({ title: page.value ? page.value.title : t('docsTitle'), description: description.value })
@@ -136,7 +144,9 @@ onBeforeUnmount(() => observer?.disconnect())
 
 const doorChapters = (s: 'editors' | 'developers', n: number) => (nav.value?.sections[s].groups.flatMap((g) => g.pages) ?? []).slice(0, n)
 const chapterCount = (s: 'editors' | 'developers') => nav.value?.sections[s].groups.reduce((n, g) => n + g.pages.length, 0) ?? 0
-const otherLang = (l: DocsLang) => l !== lang.value
+// The developer pages are English and only on the English website; the other websites lead there.
+const developersPath = computed(() => nav.value?.sections.developers.path ?? docsPath('en', 'developers'))
+const developersEnglish = computed(() => !!nav.value && nav.value.sections.developers.textLang !== lang.value)
 </script>
 
 <template>
@@ -163,17 +173,17 @@ const otherLang = (l: DocsLang) => l !== lang.value
           <div class="docs-door docs-door--developers">
             <code class="docs-door-chip" aria-hidden="true">pnpm create tinyzoo</code>
             <h2 class="title text-3xl sm:text-4xl">
-              <NuxtLink :to="docsPath(lang, 'developers')" class="docs-door-link">{{ t('docsDevelopersTitle') }}</NuxtLink>
+              <NuxtLink :to="developersPath" class="docs-door-link">{{ t('docsDevelopersTitle') }}</NuxtLink>
             </h2>
             <p class="mt-3 max-w-md text-[1.0625rem] leading-relaxed text-cream/75">{{ t('docsDevelopersText') }}</p>
-            <p v-if="nav && otherLang(nav.sections.developers.textLang)" class="mt-3 text-sm font-semibold text-cream/60">
-              <UIcon name="i-lucide-languages" class="mr-1 inline size-4 align-[-3px]" aria-hidden="true" />{{ t('docsEnglishNote') }}
+            <p v-if="developersEnglish" class="mt-3 text-sm font-semibold text-cream/75">
+              <UIcon name="i-lucide-languages" class="mr-1.5 inline-block size-4 align-[-3px]" aria-hidden="true" />{{ t('docsEnglishNote') }}
             </p>
             <ul class="docs-door-list" lang="en">
               <li v-for="p in doorChapters('developers', 6)" :key="p.path"><NuxtLink :to="p.path">{{ p.title }}</NuxtLink></li>
             </ul>
-            <NuxtLink :to="docsPath(lang, 'developers')" class="btn btn-cream mt-8 self-start">
-              {{ t('docsDevelopersCta') }}<span class="docs-door-count">{{ chapterCount('developers') }}</span><UIcon name="i-lucide-arrow-right" class="size-4" aria-hidden="true" />
+            <NuxtLink :to="developersPath" class="btn btn-cream mt-8 self-start" :hreflang="developersEnglish ? 'en' : undefined">
+              {{ developersEnglish ? t('docsDevelopersCtaEnglish') : t('docsDevelopersCta') }}<span class="docs-door-count">{{ chapterCount('developers') }}</span><UIcon name="i-lucide-arrow-right" class="size-4" aria-hidden="true" />
             </NuxtLink>
           </div>
         </div>

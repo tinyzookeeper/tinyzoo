@@ -464,8 +464,6 @@ export const FormSettings = defineFormSettings() // editors set who gets the ema
 
 `defineForm` returns an `Entity` typed from the form's fields. `Row<typeof ContactForm>` has `name`, `email`, `message` and the state `status`, with their real types.
 
-> Before 0.4, `defineForm` and `defineFormSettings` were also exported from `tinyzoo`. Import them from `tinyzoo/forms` and add `formsPlugin()` ([plugins](../plugins.md)).
-
 **Showing a form.** On a page, use `<CmsForm name="contactForm" />`. It is plain HTML. Its default styles sit in the lowest CSS layer and follow the text colour, so any class of yours wins. Errors appear per field, in the visitor's language. A `f.select` with a `default` opens on it, and a consent is `f.boolean({ mustBeTrue: true })`.
 
 Or post JSON to `POST /api/content/_form/contactForm`. Send `_locale: 'cs'` to get the refused fields' messages in that language; they come back in `data[].message`. `GET` on the same address describes the form.

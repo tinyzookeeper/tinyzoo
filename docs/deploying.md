@@ -203,11 +203,13 @@ Mail clients load the logo in emails from `<NUXT_CMS_PUBLIC_URL>/api/cms/_brand/
 
 It is for a deploy that has no public address, such as an internal tool behind a proxy you trust. It is not a `NUXT_CMS_*` setting on purpose. It is an escape hatch, read when the link is written.
 
-### The cron of the scheduled tasks
+### When the scheduled tasks run
 
-Set it with `scheduler: { cron }` and `retention: { cron }` in nuxt.config's `cms` options. They are read **when the site is built**, so a change needs a rebuild.
+Two tasks run on a schedule: publishing what is scheduled, and the daily [retention](#retention) clean-up. Their cron expressions are the `scheduler: { cron }` and `retention: { cron }` options in nuxt.config's `cms` options.
 
-The old variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` were removed in 1.0. A build that still has one set stops and says which option to write instead.
+They are read **when the site is built**. A change needs a rebuild.
+
+The old variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` were removed in 1.0. Move their values into the options. A build that still has one set stops and says which option to write.
 
 ### The setup token
 
