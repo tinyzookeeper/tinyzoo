@@ -280,7 +280,7 @@ Everything below is also in the changelog of 0.5.0.
 > 3. Open `/sitemap.xml` and check that it is there.
 > 4. If your `nuxt.config.ts` has `sitemap: { enabled: false }`, remove it.
 > 5. If your site has its own `server/routes/sitemap.xml*`, remove it, or keep it and set `sitemap: { enabled: false }`.
-> 6. If your site has a search page (the starter's `/hledat`), leave it out of the sitemap: `sitemap: { exclude: ['/hledat'] }` in `nuxt.config.ts`. The page says `noindex`, but the module lists it anyway.
+> 6. If your site has a search page, leave it out of the sitemap, with its address in every language: `sitemap: { exclude: ['/hledat', '/en/search'] }` in `nuxt.config.ts` for the starter's Czech and English search. The page says `noindex`, but the module lists it anyway.
 
 ### `/sitemap.xml` comes from `@nuxtjs/sitemap`
 
@@ -302,7 +302,7 @@ Open `/sitemap.xml` after the update and check these three things.
 
 - The module adds the site's static pages (`pages/kontakt.vue`). An address you also had in `cms.sitemap.paths` is listed once.
 - A `robots` meta tag in the page (`noindex`) does not keep it out. The starter's search page has one and is listed.
-- To leave a page out, use `sitemap: { exclude: ['/hledat'] }` or a `robots: false` route rule.
+- To leave a page out, use `sitemap: { exclude: ['/hledat', '/en/search'] }` (each language's address) or a `robots: false` route rule.
 
 Nothing else changes: `/api/content/_sitemap`, the tables and the content API are as they were.
 
@@ -617,7 +617,7 @@ The server's email builders (`inviteEmail`, `resetEmail`, the ones for a changed
 
 Delete `databaseUrl` from the `cms` options in `nuxt.config.ts`. The build stops while it is there.
 
-Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) where the site runs, and in `.env` for the CLI. The CLI no longer reads the address from `nuxt.config.ts`.
+Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) where the site runs, and in `.env` for the CLI. The CLI no longer reads the address from `nuxt.config.ts`. If `backup`, `restore`, `export` or `import` finds only the old option, it says so and links here.
 
 ### `singleton: true` on `defineEntity` is gone
 
@@ -650,7 +650,7 @@ Then remove the variables. The options are read when the site is built, as the v
 
 ### A field named like a list parameter is an error
 
-A public collection cannot have a field called `page`, `limit`, `sort`, `dir` or `q`. These are parameters of the content API's list. 0.6 warned; 1.0 stops at the config.
+A public collection cannot have a field called `page`, `limit`, `sort`, `dir` or `q`. These are parameters of the content API's list. 0.6 warned; 1.0 stops at the config. A global (`defineSingleton`) may have such a field, since it has no list. 0.6 and 0.7 warned about a global too, by mistake: you need not rename it.
 
 Rename the field. A rename is a migration: see [Renaming a field](#renaming-a-field).
 
