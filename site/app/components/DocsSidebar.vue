@@ -57,6 +57,6 @@ const order = computed<DocsSection[]>(() => (props.section === 'developers' ? ['
 .docs-nav ul { display: grid; gap: 1px; }
 .docs-nav ul a { display: block; padding: 0.5rem 0.75rem; border-radius: 0.625rem; line-height: 1.35; color: rgb(19 19 19 / 0.72); transition: background-color .15s ease, color .15s ease; }
 .docs-nav ul a:hover { color: var(--color-ink); background: rgb(19 19 19 / 0.04); }
-.docs-nav ul a[aria-current="page"] { color: var(--color-ink); font-weight: 700; background: var(--color-cream); box-shadow: inset 3px 0 0 var(--color-bird); }
+.docs-nav ul a[aria-current="page"] { color: var(--color-ink); font-weight: 700; background: var(--color-cream); }
 .docs-pill { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 999px; background: var(--color-cream); font-family: var(--font-sans, inherit); font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.02em; color: var(--color-mute); white-space: nowrap; }
 </style>

@@ -357,11 +357,11 @@ const otherLang = (l: DocsLang) => l !== lang.value
   .docs-toc { display: block; position: sticky; top: 5.5rem; align-self: start; max-height: calc(100dvh - 6.5rem); overflow-y: auto; padding-top: 0.25rem; font-size: 0.875rem; scrollbar-width: thin; }
 }
 .docs-toc-title { margin-bottom: 0.5rem; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-mute); }
-.docs-toc ul { display: grid; gap: 1px; border-left: 1.5px solid rgb(19 19 19 / 0.08); }
-.docs-toc a { display: block; margin-left: -1.5px; padding: 0.3rem 0 0.3rem 0.875rem; border-left: 1.5px solid transparent; line-height: 1.4; color: rgb(19 19 19 / 0.62); transition: color .15s ease, border-color .15s ease; }
-.docs-toc .docs-toc-sub a { padding-left: 1.625rem; font-size: 0.8125rem; }
+.docs-toc ul { display: grid; gap: 1px; }
+.docs-toc a { display: block; padding: 0.3rem 0; line-height: 1.4; color: rgb(19 19 19 / 0.62); transition: color .15s ease; }
+.docs-toc .docs-toc-sub a { padding-left: 0.75rem; font-size: 0.8125rem; }
 .docs-toc a:hover { color: var(--color-ink); }
-.docs-toc a.docs-toc-on { color: var(--color-ink); font-weight: 700; border-left-color: var(--color-ink); }
+.docs-toc a.docs-toc-on { color: var(--color-ink); font-weight: 700; }
 .docs-toc-inline { margin-top: 1.5rem; border-radius: 1rem; background: var(--color-cream); }
 @media (min-width: 1100px) { .docs-toc-inline { display: none; } }
 .docs-toc-inline summary { display: flex; align-items: center; justify-content: space-between; min-height: 3rem; padding: 0 1.125rem; font-weight: 700; list-style: none; }
@@ -418,12 +418,10 @@ const otherLang = (l: DocsLang) => l !== lang.value
 .doc-body li > ul, .doc-body li > ol { margin-top: 0.4em; }
 .doc-body li::marker { color: var(--color-mute); }
 .doc-body :not(pre) > code { font-family: var(--font-mono); font-size: 0.86em; background: var(--color-cream); padding: 0.12em 0.4em; border-radius: 0.35em; overflow-wrap: anywhere; }
-.doc-body blockquote { border-left: 3px solid var(--color-cream-2); padding-left: 1.1em; color: var(--color-mute); }
-.doc-note { position: relative; padding: 1rem 1.25rem 1rem 1.375rem; border-radius: 1rem; background: var(--color-cream); }
-.doc-note::before { content: ""; position: absolute; left: 0; top: 1rem; bottom: 1rem; width: 3px; border-radius: 3px; }
-.doc-note--tip::before { background: var(--color-frog); }
+.doc-body blockquote { padding-left: 1.25em; font-style: italic; color: var(--color-mute); }
+.doc-note { padding: 1rem 1.25rem; border-radius: 1rem; background: var(--color-cream); }
+.doc-note--tip { background: color-mix(in oklab, var(--color-frog) 16%, #fff); }
 .doc-note--warn { background: color-mix(in oklab, var(--color-bunny) 16%, #fff); }
-.doc-note--warn::before { background: var(--color-fox); }
 .doc-note > * + * { margin-top: 0.6em; }
 .doc-table { overflow-x: auto; border-radius: 1rem; box-shadow: inset 0 0 0 1px rgb(19 19 19 / 0.1); }
 .doc-table table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; line-height: 1.55; }

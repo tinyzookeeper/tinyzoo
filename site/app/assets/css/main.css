@@ -101,7 +101,7 @@
   .prose-zoo ul { list-style: disc; padding-left: 1.25em; }
   .prose-zoo ol { list-style: decimal; padding-left: 1.25em; }
   .prose-zoo li + li { margin-top: 0.35em; }
-  .prose-zoo blockquote { border-left: 3px solid var(--color-bird); padding-left: 1em; color: var(--color-mute); }
+  .prose-zoo blockquote { padding-left: 1.25em; font-style: italic; color: var(--color-mute); }
   .prose-zoo code { font-family: var(--font-mono); font-size: 0.9em; background: var(--color-cream); padding: 0.1em 0.35em; border-radius: 0.3em; }
   .prose-zoo img { border-radius: 1rem; }
 }

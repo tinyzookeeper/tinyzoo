@@ -93,7 +93,7 @@ export default defineComponent({
   .cms-content p { margin: 0.75rem 0; line-height: 1.7; }
   .cms-content ul { list-style: disc; padding-left: 1.5rem; margin: 0.75rem 0; }
   .cms-content ol { list-style: decimal; padding-left: 1.5rem; margin: 0.75rem 0; }
-  .cms-content blockquote { border-left: 3px solid currentColor; opacity: 0.85; padding-left: 1rem; margin: 0.75rem 0; }
+  .cms-content blockquote { font-style: italic; opacity: 0.85; padding-left: 1.25rem; margin: 0.75rem 0; }
   .cms-content code { font-family: ui-monospace, monospace; background: rgb(127 127 127 / 0.15); padding: 0.1em 0.3em; border-radius: 0.25rem; font-size: 0.9em; }
   .cms-content pre { background: rgb(127 127 127 / 0.12); padding: 0.75rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75rem 0; }
   .cms-content pre code { background: none; padding: 0; }
