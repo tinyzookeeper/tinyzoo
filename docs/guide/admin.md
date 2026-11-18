@@ -82,6 +82,8 @@ cms: { admin: {
   accent: 'mono',              // mono (default) | indigo | blue | violet | emerald
   locales: ['cs', 'en'], defaultLocale: 'cs',
   timeZone: 'Europe/Prague',   // dates are shown and edited in this zone
+  logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }, // optional, see below
+  signature: true,             // tinyzoo's quiet signature; false hides it
 } }
 ```
 
@@ -89,6 +91,41 @@ Nuxt UI draws a few words itself ("Close", "Previous month", "Show password"). T
 `const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">`. On the website's own pages it is empty, so the site keeps its own.
 
 Labels in `cms.config.ts` take one string or one per admin language (`label: { en: 'Posts', cs: 'Články' }`). Entities can also set `icon`, `labelSingular` and `description`.
+
+### The client's logo
+
+Give the admin the client's logo set in `cms.admin.logo`. Each value is a file in the site's `public/` folder (`/brand/logo.svg`) or an `https://` URL:
+
+```ts
+logo: {
+  full: '/brand/logo.svg',          // the wide logo with the name
+  mark: '/brand/mark.svg',          // the square mark
+  fullDark: '/brand/logo-dark.svg', // optional: for dark mode
+  markDark: '/brand/mark-dark.svg', // optional
+},
+```
+
+| Logo | Where it shows | Best as |
+|---|---|---|
+| `full` | the open sidebar (28 px high), the phone's menu, the sign-in, reset and invitation pages (40 px high), the emails | SVG, or a PNG at least 320 px wide (640 px is better), on a transparent background |
+| `mark` | the folded sidebar, the phone's top bar, the browser tab, the phone's home screen | a square SVG, or a square PNG of 512 × 512 |
+| `fullDark`, `markDark` | the same places in dark mode | light versions of the two above |
+
+What the admin shows when a logo is missing:
+
+- no `full`: the mark with the client's name beside it;
+- no `mark`: a tile with the name's initials (the tab keeps tinyzoo's icon);
+- no logo and no `name`: tinyzoo's own mascot, as before.
+
+The full logo carries the name, so the admin uses `name` as its text for screen readers. Set `name` too.
+
+**Dark mode.** Without `fullDark` or `markDark`, the light logo sits on a small cream tile in dark mode, so a dark logo never disappears on charcoal. A dark version without its light one is not used.
+
+**Tab and home-screen icons.** With a mark, the browser tab shows it, and tinyzoo makes PNG copies of it for browsers that need them: a 32 px tab icon, the 180 px home-screen icon and the icons of the admin's web manifest (`/api/cms/_brand/…`). Without a mark the tab keeps tinyzoo's icon. This happens on the admin's pages only; the website keeps its own.
+
+**Checks in development.** When the dev server starts, tinyzoo looks at each logo and warns in the log about an address it cannot use (it must start with `/` or `https://`), a file that is missing, a mark that is not square, or a PNG that is too small. A logo never stops the start, and production does not check.
+
+**`signature: false`** hides tinyzoo's quiet signature under the sidebar and at the foot of the sign-in pages. The emails never carry it.
 
 ### How editors and lists are arranged
 

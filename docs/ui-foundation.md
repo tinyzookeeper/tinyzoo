@@ -94,8 +94,11 @@ sentence per screen; labels, errors and delete confirmations stay plain.
 ## Shell
 
 `UDashboardGroup` + `UDashboardSidebar` (16 rem, resizable, collapsible to icons, a
-slide-over menu on phones). The client's name leads at the top; the current page sits
-on cream; **tinyzoo signs** under the account button. Groups: Home, Content,
+slide-over menu on phones). The client's brand leads at the top (`CmsBrandLogo`: the full
+logo, else the mark and the name, else the initials and the name; folded: the mark or the
+initials; on phones the top bar carries the mark too); the current page sits on cream;
+**tinyzoo signs** under the account button (`signature: false` hides it). In dark mode a
+light logo without its dark version sits on a small cream tile. Groups: Home, Content,
 Settings, then View website and the account menu (appearance, language, sign out).
 
 The Write and Preview editors **fold the sidebar to icons** (`useCmsFocus`); leaving
