@@ -99,7 +99,7 @@ The white workspace, the greys, cream, the animals and the status colours (green
 **The contrast guard.** Every colour has to stay readable: 4.5:1 for the text on a button and for links on the page, 3:1 for focus rings, in light and dark mode. When the brand colour falls short, tinyzoo moves it to the nearest colour that passes. Only the lightness changes; the hue stays. A light colour keeps its buttons: a yellow brand gets yellow buttons with ink text, while its links use a darker yellow. In development, the server log and the browser console say what changed and why:
 
 ```
-[tinyzoo] cms.admin: accent #FFD500: links and other accent text would be 1.3:1 on the hover grey; they use #826B00 (4.5:1); buttons keep #FFD500 with ink text (13.0:1).
+[tinyzoo] cms.admin: accent #FFD500: links and other accent text would be 1.3:1 on the hover grey; they use #826C00 (4.5:1); buttons keep #FFD500 with ink text (13.0:1).
 ```
 
 To silence the message, pick a colour that passes, or accept the adjustment: nothing breaks either way. Production adjusts quietly. An accent tinyzoo cannot read (`'red'`, `'#12345'`) falls back to `mono`, with the same kind of message. You can try colours at `/design-system` on the tinyzoo website: it runs the same guard.
