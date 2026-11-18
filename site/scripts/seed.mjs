@@ -4,8 +4,8 @@
 //   SEED_URL=http://localhost:3000 SEED_EMAIL=… SEED_PASSWORD=… pnpm seed
 //
 // On an empty site it creates the first administrator with these details. Run it
-// once on a fresh database; it does not delete anything. The plans (seed/plans.mjs)
-// are added only when the site has none; `pnpm seed:plans` adds just those.
+// once on a fresh database; it does not delete anything. Of the plans (seed/plans.mjs)
+// it adds the ones the site is missing; `pnpm seed:plans` adds just those.
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'

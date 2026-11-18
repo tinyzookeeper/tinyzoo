@@ -1,6 +1,7 @@
-// Fill the Plan collection (the "Plány" page) of a running site, only when it is empty:
-// a site whose editors already have plans keeps them. For a site seeded before the
-// collection existed, such as the live website after the deploy that added it:
+// Fill the Plan collection (the "Plány" page) of a running site with the plans it is
+// missing (by Czech title; see seed/plans.mjs). It never changes or deletes a plan, so a
+// run that stopped halfway can be run again. For a site seeded before the collection
+// existed, such as the live website after the deploy that added it:
 //
 //   SEED_URL=https://tinyzoo.pushbase.app SEED_EMAIL=… SEED_PASSWORD=… pnpm seed:plans
 //

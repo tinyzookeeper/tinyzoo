@@ -1,7 +1,12 @@
 // The plans the website starts with (the Plan collection, shown on the "Plány" page),
 // in Czech, English and German. Editors change them in the admin afterwards, so
-// seedPlans only fills an empty collection: run on a site that already has plans, it
-// leaves them alone. Used by scripts/seed.mjs and, on its own, by scripts/seed-plans.mjs.
+// seedPlans only adds what is missing and never changes or deletes a plan: a plan is
+// matched by its Czech title, a missing one is added at the end of the list, and a
+// matched one that has no English or German text yet gets it. So a run that stopped
+// halfway (5 of 16 added) can be run again and finishes the set. A plan an editor
+// deleted, or whose Czech title they changed, counts as missing and comes back: run
+// it to fill a new or half-filled site, not on a site whose editors keep the plans.
+// Used by scripts/seed.mjs and, on its own, by scripts/seed-plans.mjs.
 //
 // In this order: the page groups them by stage, and the admin's "Arrange" list then
 // reads stage by stage too (now, next, later, done; done newest first).
@@ -109,25 +114,45 @@ export const PLANS = [
 ]
 
 /**
- * Fill the Plan collection, only when it is empty. `req(method, path, body)` is the
- * caller's signed-in admin API request (it throws on an error status).
- * Returns how many plans it added (0 when the site already had some).
+ * Add the plans the site does not have yet (by Czech title), and the English or German
+ * text of a seeded plan that lacks it. `req(method, path, body)` is the caller's signed-in
+ * admin API request (it throws on an error status). Returns how many plans it added.
  */
 export async function seedPlans(req) {
-  const existing = await req('GET', '/api/cms/plan?limit=1')
-  const total = existing?.total ?? existing?.rows?.length ?? 0
-  if (total > 0) {
-    console.log(`· plans: the site already has ${total}, left alone`)
-    return 0
+  // Every plan the site has (the admin API gives at most 100 a page).
+  const existing = []
+  for (let page = 1; ; page++) {
+    const res = await req('GET', `/api/cms/plan?limit=100&page=${page}`)
+    const rows = res?.rows ?? []
+    existing.push(...rows)
+    if (!rows.length || existing.length >= (res?.total ?? 0)) break
   }
-  let position = 0
+  const byTitle = new Map(existing.map((row) => [String(row.title ?? '').trim(), row]))
+  let position = Math.max(0, ...existing.map((row) => Number(row.position) || 0))
+  let added = 0
+  let translated = 0
   for (const plan of PLANS) {
     const { cs, en, de, ...shared } = plan
+    const found = byTitle.get(cs.title)
+    if (found) {
+      // Seeded before: add a translation only where there is none (a run that stopped after the Czech).
+      const { row } = await req('GET', `/api/cms/plan/${found.id}`)
+      const have = new Set(row?.__locales ?? [])
+      for (const [locale, text] of [['en', en], ['de', de]]) {
+        if (have.has(locale)) continue
+        await req('PATCH', `/api/cms/plan/${found.id}?locale=${locale}`, text)
+        translated++
+      }
+      continue
+    }
     const res = await req('POST', '/api/cms/plan', { ...cs, version: null, ...shared, position: ++position })
     const id = (res.row ?? res).id
     await req('PATCH', `/api/cms/plan/${id}?locale=en`, en)
     await req('PATCH', `/api/cms/plan/${id}?locale=de`, de)
+    added++
   }
-  console.log(`✓ plans: ${PLANS.length} added (cs, en, de)`)
-  return PLANS.length
+  const kept = existing.length ? `, ${existing.length} the site had left as they were` : ''
+  const filled = translated ? `, ${translated} missing translation${translated === 1 ? '' : 's'} added` : ''
+  console.log(added || translated ? `✓ plans: ${added} added (cs, en, de)${filled}${kept}` : `· plans: the site has all ${PLANS.length}, left alone`)
+  return added
 }
