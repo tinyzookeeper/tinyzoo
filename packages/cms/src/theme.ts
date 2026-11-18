@@ -66,6 +66,11 @@ export interface CmsAccentScheme {
   /** The text on `primary`: white or ink (#131313), whichever reads better. */
   onPrimary: string
   /**
+   * The fill of a solid button under the pointer or pressed: one step from `primary`, away from
+   * its text (darker under white text, lighter under ink), so `onPrimary` still reads at 4.5:1.
+   */
+  primaryHover: string
+  /**
    * The accent where it is drawn on the page rather than filled: links, the active menu item,
    * focus rings, checked boxes and switches, selected borders. The admin's `--ui-primary`.
    * The same as `primary` unless that is too light to read on white (a yellow brand: the
@@ -165,17 +170,20 @@ function presetAccent(preset: CmsAccentPreset): Extract<CmsAdminTheme['accent'],
   if (preset === 'mono') {
     return {
       kind: 'preset', preset,
-      light: { ramp: lchRamp(MONO_LIGHT), primary: CHARCOAL, onPrimary: WHITE, text: CHARCOAL },
-      dark: { ramp: rampOf(MONO_DARK), primary: CREAM, onPrimary: INK, text: CREAM },
+      // Hover: a darker charcoal under white text; cream has no lighter step, so the next darker one.
+      light: { ramp: lchRamp(MONO_LIGHT), primary: CHARCOAL, onPrimary: WHITE, primaryHover: MONO_DARK[9]!, text: CHARCOAL },
+      dark: { ramp: rampOf(MONO_DARK), primary: CREAM, onPrimary: INK, primaryHover: MONO_DARK[1]!, text: CREAM },
     }
   }
   const def = PRESET_RAMPS[preset]
   const ramp = lchRamp(def.ramp)
-  // Dark mode draws the 400 shade with white text (cms-admin.css), as it always has.
+  // Light: the 600 shade (emerald: 700) with white text, the next darker shade under the pointer.
+  // Dark: the 400 shade with ink text (white was 1.9–3.1:1 there), the 300 shade under the pointer.
+  const next = SHADES[SHADES.indexOf(def.primary) + 1]!
   return {
     kind: 'preset', preset,
-    light: { ramp, primary: ramp[def.primary], onPrimary: WHITE, text: ramp[def.primary] },
-    dark: { ramp, primary: ramp['400'], onPrimary: WHITE, text: ramp['400'] },
+    light: { ramp, primary: ramp[def.primary], onPrimary: WHITE, primaryHover: ramp[next], text: ramp[def.primary] },
+    dark: { ramp, primary: ramp['400'], onPrimary: INK, primaryHover: ramp['300'], text: ramp['400'] },
   }
 }
 
@@ -205,36 +213,64 @@ function resolveAccent(raw: unknown, notes: CmsThemeNote[]): CmsAdminTheme['acce
 // ── The contrast guard ──────────────────────────────────────────────────────────────────────
 //
 // WCAG 2 contrast ratios, checked on the hexes the admin actually draws (after rounding):
-//  - text on a solid button (white or ink, whichever is higher): 4.5:1;
-//  - the accent as text (links, the active menu item, soft buttons) on every light surface it
-//    lands on: white, cream (the moments, the sign-in page, the current page in the sidebar),
-//    the hover grey, and its own 10 % tint (soft buttons and badges): 4.5:1;
-//  - focus rings and the other accent-coloured lines against the page: 3:1 (implied by the text bar);
+//  - text on a solid button (white or ink, whichever is higher): 4.5:1, at rest and under the
+//    pointer (the hover fill is a shade of its own, `primaryHover`, not the fill at 75 %);
+//  - the accent as text (links, the active menu item, ghost and soft buttons) on every light surface
+//    it lands on: white, cream (the moments, the sign-in page, the current page in the sidebar), the
+//    hover grey, and its own tint up to 20 % over white (Nuxt UI's soft buttons and their hover, the
+//    search's matched letters, the calendar's "today" under the pointer): 4.5:1;
+//  - focus rings and the other accent-coloured lines: 3:1 against the page (implied by the text bar;
+//    the admin draws its rings in the text shade, never in the fill, at full strength);
 //  - a button has to show as a button: its fill differs from white and cream by 1.25:1 at least
 //    (not a WCAG number: it only stops a white or near-white brand from drawing invisible buttons).
-// Dark mode does the same on its page (#18191C), cards (#1E1F23) and charcoal (#2E3035) with a lighter
-// version of the colour (around the 400 shade). A colour that fails moves to the nearest one that
-// passes by changing its OKLCH lightness only, keeping its hue and as much chroma as fits in sRGB.
+// Dark mode does the same on its page (#18191C), cards (#1E1F23), the raised charcoal (#2E3035) and
+// its own tint over the page and over cards, with a lighter version of the colour (around the 400
+// shade). A colour that fails moves to the nearest one that passes by changing its OKLCH lightness
+// only, keeping its hue and as much chroma as fits in sRGB.
+//
+// Not checked, because accent text does not sit there in the admin: the stronger cream
+// (--cms-moment-strong), the pressed grey (neutral-200), a tint over cream or charcoal. A site's own
+// component that puts accent text on those is not covered.
 
 /** Surfaces the accent is read on, light mode: the page and cards, cream, the hover grey (neutral-100). */
-const LIGHT_SURFACES: Record<string, string> = { white: WHITE, cream: CREAM, 'the hover grey': '#F5F5F5' }
+const LIGHT_SURFACES = { white: WHITE, cream: CREAM, hoverGrey: '#F5F5F5' } as const
 /** Dark mode: the page, cards, the raised charcoal (the current page, the moments). */
-const DARK_SURFACES: Record<string, string> = { 'the page': '#18191C', 'cards': '#1E1F23', 'charcoal': CHARCOAL }
+const DARK_SURFACES = { page: '#18191C', cards: '#1E1F23', charcoal: CHARCOAL } as const
+/** How the notes name each surface. */
+const SURFACE_NAMES: Record<CmsAccentSurface, string> = { white: 'white', cream: 'cream', hoverGrey: 'the hover grey', page: 'the page', cards: 'cards', charcoal: 'charcoal', tint: 'its own tint' }
+/** The strongest tint of the accent that accent text sits on (Nuxt UI: 10 % soft, 15 % its hover, 20 % the calendar's hover). */
+const TINT = 0.2
 /** The text bar (WCAG AA, normal text), the bar for lines and rings, and the "a button shows" bar. @internal */
 export const CMS_CONTRAST = { text: 4.5, ring: 3, fill: 1.25 } as const
 
-/** The worst ratio of `hex` as text on these surfaces and on its own 10 % tint over the first one. */
-function worstOn(hex: string, surfaces: Record<string, string>): { ratio: number; where: string } {
+/** A surface the guard checks accent text on. `tint`: the accent's own tint (up to 20 %). @internal */
+export type CmsAccentSurface = keyof typeof LIGHT_SURFACES | keyof typeof DARK_SURFACES | 'tint'
+
+/** The worst ratio of `hex` as text on these surfaces and on its own tint over the first `tintOver` of them. */
+function worstOn(hex: string, surfaces: Record<string, string>, tintOver: number): { ratio: number; surface: CmsAccentSurface } {
   const entries = Object.entries(surfaces)
-  let worst = { ratio: Infinity, where: '' }
-  for (const [where, bg] of entries) {
+  let worst = { ratio: Infinity, surface: 'tint' as CmsAccentSurface }
+  for (const [surface, bg] of entries) {
     const r = contrastRatio(hex, bg)
-    if (r < worst.ratio) worst = { ratio: r, where }
+    if (r < worst.ratio) worst = { ratio: r, surface: surface as CmsAccentSurface }
   }
-  const tint = contrastRatio(hex, mix(hex, 0.1, entries[0]![1]))
-  if (tint < worst.ratio) worst = { ratio: tint, where: 'its own soft tint' }
+  for (const [, bg] of entries.slice(0, tintOver)) {
+    const r = contrastRatio(hex, mix(hex, TINT, bg))
+    if (r < worst.ratio) worst = { ratio: r, surface: 'tint' }
+  }
   return worst
 }
+const worstLight = (hex: string) => worstOn(hex, LIGHT_SURFACES, 1)
+const worstDark = (hex: string) => worstOn(hex, DARK_SURFACES, 2)
+
+/**
+ * How `hex` reads as accent text where the guard checks it: the worst ratio and the surface it is
+ * on. The design-system page shows this number, the same one the notes use. @internal
+ */
+export function accentTextContrast(hex: string, scheme: 'light' | 'dark' = 'light'): { ratio: number; surface: CmsAccentSurface } {
+  return scheme === 'dark' ? worstDark(hex) : worstLight(hex)
+}
+
 /** The text on a fill: white or ink, whichever reads better. */
 function onFill(hex: string): { on: string; ratio: number } {
   const w = contrastRatio(WHITE, hex)
@@ -243,8 +279,29 @@ function onFill(hex: string): { on: string; ratio: number } {
 }
 const fillShows = (hex: string) => Math.min(contrastRatio(hex, WHITE), contrastRatio(hex, CREAM)) >= CMS_CONTRAST.fill
 const fillPasses = (hex: string) => onFill(hex).ratio >= CMS_CONTRAST.text && fillShows(hex)
-const textPassesLight = (hex: string) => worstOn(hex, LIGHT_SURFACES).ratio >= CMS_CONTRAST.text
-const textPassesDark = (hex: string) => worstOn(hex, DARK_SURFACES).ratio >= CMS_CONTRAST.text && onFill(hex).ratio >= CMS_CONTRAST.text
+const textPassesLight = (hex: string) => worstLight(hex).ratio >= CMS_CONTRAST.text
+const textPassesDark = (hex: string) => worstDark(hex).ratio >= CMS_CONTRAST.text && onFill(hex).ratio >= CMS_CONTRAST.text
+
+/**
+ * The fill of a solid button under the pointer: one step (about one shade, 0.06 OKLCH lightness)
+ * away from its text, darker under white and lighter under ink, so the text reads better rather
+ * than worse. A fill with no room that way (cream, a pale yellow that would vanish) takes the
+ * nearest step the other way that still reads at 4.5:1 and still shows. The same input always
+ * gives the same output, so it follows the guard's fill. @internal
+ */
+export function accentFillHover(fill: string, on: string, shows: (hex: string) => boolean = fillShows): string {
+  const [L, C, h] = rgbToOklch(hexToRgb(fill))
+  const away = on === WHITE ? -1 : 1
+  for (const dir of [away, -away]) {
+    for (const d of [0.06, 0.045, 0.03, 0.015]) {
+      const l = L + dir * d
+      if (l <= 0 || l >= 1) continue
+      const candidate = toHex(oklchToRgb(gamutMap([l, C, h])))
+      if (candidate !== fill && contrastRatio(on, candidate) >= CMS_CONTRAST.text && shows(candidate)) return candidate
+    }
+  }
+  return fill
+}
 
 /**
  * The nearest colour to `hex` (by OKLCH lightness only) that passes. `direction`: -1 darker,
@@ -301,8 +358,8 @@ export function brandAccent(hex: string): { light: CmsAccentScheme; dark: CmsAcc
       : `buttons would not show on the page (${fmt(Math.min(contrastRatio(hex, WHITE), contrastRatio(hex, CREAM)))}:1 against white and cream); they use ${fill} with ${onName(fillOn.on)} text (${fmt(fillOn.ratio)}:1)`)
   }
   if (text !== hex) {
-    const before = worstOn(hex, LIGHT_SURFACES)
-    parts.push(`links and other accent text would be ${fmt(before.ratio)}:1 on ${before.where}; they use ${text} (${fmt(worstOn(text, LIGHT_SURFACES).ratio)}:1)`)
+    const before = worstLight(hex)
+    parts.push(`links and other accent text would be ${fmt(before.ratio)}:1 on ${SURFACE_NAMES[before.surface]}; they use ${text} (${fmt(worstLight(text).ratio)}:1)`)
     if (fill === hex) parts.push(`buttons keep ${hex} with ${onName(fillOn.on)} text (${fmt(fillOn.ratio)}:1)`)
   }
 
@@ -311,19 +368,22 @@ export function brandAccent(hex: string): { light: CmsAccentScheme; dark: CmsAcc
   // button is ink (on a colour this light, ink always reads better than white).
   const lighter = rgbToOklch(hexToRgb(hex))[0] >= rgbToOklch(hexToRgb(ramp['400']))[0] ? hex : ramp['400']
   const dark = nearestPassing(lighter, textPassesDark, 1)
+  const darkOn = onFill(dark).on
 
   return {
-    light: { ramp, primary: fill, onPrimary: fillOn.on, text },
-    dark: { ramp, primary: dark, onPrimary: onFill(dark).on, text: dark },
+    light: { ramp, primary: fill, onPrimary: fillOn.on, primaryHover: accentFillHover(fill, fillOn.on), text },
+    dark: { ramp, primary: dark, onPrimary: darkOn, primaryHover: accentFillHover(dark, darkOn, () => true), text: dark },
     note: parts.length ? `accent ${hex}: ${parts.join('; ')}.` : null,
   }
 }
 
 /**
  * The CSS that draws a brand accent in the admin, scoped to html[data-cms-admin][data-cms-accent="brand"]:
- * the shades, `--ui-primary` (the accent as text), and the fill and text of solid buttons
- * (`--cms-accent-fill`, `--cms-accent-on-fill`, read by cms-admin.css). Empty for a built-in accent
- * (the stylesheet draws those). Only hexes are written, so it is safe to put in a <style>. @internal
+ * the shades, `--ui-primary` (the accent as text), the focus ring (`--cms-accent-ring`: the text
+ * shade in light mode, the dark colour in dark mode, never the fill), and the fill of solid buttons
+ * at rest and under the pointer with its text (`--cms-accent-fill`, `--cms-accent-fill-hover`,
+ * `--cms-accent-on-fill`, read by cms-admin.css). Empty for a built-in accent (the stylesheet draws
+ * those). Only hexes are written, so it is safe to put in a <style>. @internal
  */
 export function adminAccentCss(theme: Pick<CmsAdminTheme, 'accent'>): string {
   const accent = theme.accent
@@ -335,8 +395,10 @@ export function adminAccentCss(theme: Pick<CmsAdminTheme, 'accent'>): string {
     const text = ok(s.text) ?? ok(s.primary)
     const fill = ok(s.primary)
     const on = ok(s.onPrimary)
-    if (text) vars.push(`--ui-primary:${text}`)
+    const hover = ok(s.primaryHover) ?? fill
+    if (text) vars.push(`--ui-primary:${text}`, `--cms-accent-ring:${text}`)
     if (fill) vars.push(`--cms-accent-fill:${fill}`)
+    if (hover) vars.push(`--cms-accent-fill-hover:${hover}`)
     if (on) vars.push(`--cms-accent-on-fill:${on}`)
     return vars.join(';')
   }

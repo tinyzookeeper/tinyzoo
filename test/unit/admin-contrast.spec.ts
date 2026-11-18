@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { adminAccentCss, CMS_ACCENT_PRESETS, resolveAdminTheme, type CmsAccentScheme } from '../../packages/cms/src/theme'
@@ -21,7 +21,7 @@ function declared(selector: string, source = css): Record<string, string> {
 }
 
 // What Nuxt UI itself defines (its :root / .dark) and the admin does not override.
-const nuxtUiLight: Record<string, string> = { '--ui-text-inverted': '#fff', '--ui-bg': '#fff', '--ui-bg-elevated': 'var(--ui-color-neutral-100)' }
+const nuxtUiLight: Record<string, string> = { '--ui-text-inverted': '#fff', '--ui-bg': '#fff', '--ui-bg-elevated': 'var(--ui-color-neutral-100)', '--ui-bg-accented': 'var(--ui-color-neutral-200)' }
 const nuxtUiDark: Record<string, string> = { '--ui-text-inverted': 'var(--ui-color-neutral-900)', '--ui-bg': 'var(--ui-color-neutral-900)' }
 // Tailwind's palette (what Nuxt UI's colour shades are made of).
 const palette: Record<string, string> = {
@@ -151,9 +151,39 @@ describe('the built-in accents in src/theme.ts are what cms-admin.css draws', ()
         expect(near(resolve('--ui-primary', vars), scheme.primary), `--ui-primary ${scheme.primary}`).toBe(true)
         expect(near(resolve('--ui-primary', vars), scheme.text)).toBe(true)
         expect(near(resolve('--ui-text-inverted', vars), scheme.onPrimary), `--ui-text-inverted ${scheme.onPrimary}`).toBe(true)
+        expect(near(resolve('--cms-accent-fill-hover', vars), scheme.primaryHover), `--cms-accent-fill-hover ${scheme.primaryHover}`).toBe(true)
       })
     }
   }
+})
+
+// Where a focus ring can sit: every surface of the admin, the stronger cream and the pressed grey included.
+const RING_SURFACES = ['--ui-bg', '--cms-page-bg', '--cms-surface', '--cms-sunken', '--cms-moment-bg', '--cms-moment-strong', '--cms-nav-active', '--cms-auth-bg', '--ui-bg-elevated', '--ui-bg-accented']
+
+describe('the built-in accents: buttons under the pointer and focus rings', () => {
+  for (const preset of CMS_ACCENT_PRESETS) {
+    for (const dark of [false, true]) {
+      it(`${preset}, ${dark ? 'dark' : 'light'}`, () => {
+        const vars = presetTokens(preset, dark)
+        const at = (name: string) => resolve(name, vars)
+        // A solid button: its text at rest and on the hover fill (Nuxt UI's fill at 75 % took white under 4.5:1).
+        expect(contrast(at('--ui-text-inverted'), at('--ui-primary')), 'at rest').toBeGreaterThanOrEqual(4.5)
+        expect(contrast(at('--ui-text-inverted'), at('--cms-accent-fill-hover')), 'under the pointer').toBeGreaterThanOrEqual(4.5)
+        // The ring: full strength, 3:1 on everything it can sit on.
+        for (const surface of RING_SURFACES) expect(contrast(at('--cms-accent-ring'), at(surface)), `ring on ${surface}`).toBeGreaterThanOrEqual(3)
+      })
+    }
+  }
+
+  it('dark mode: the colour presets carry ink on their buttons, not white (6:1 or more)', () => {
+    const rule = declared(`html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono'], [data-cms-accent='brand'])`)
+    expect(rule['--ui-text-inverted']).toBeUndefined()
+    for (const preset of CMS_ACCENT_PRESETS.filter((p) => p !== 'mono')) {
+      const vars = presetTokens(preset, true)
+      expect(resolve('--ui-text-inverted', vars)).toEqual(parse('#131313', {}))
+      expect(contrast(resolve('--ui-text-inverted', vars), resolve('--ui-primary', vars)), preset).toBeGreaterThanOrEqual(5.9)
+    }
+  })
 })
 
 // A brand colour (cms.admin.accent: '#…'): the variables the admin writes, read against the
@@ -175,16 +205,69 @@ describe('a brand colour on the admin\'s real surfaces', () => {
         expect(contrast(at('--ui-text-inverted'), at('--ui-primary')), '--ui-text-inverted on --ui-primary').toBeGreaterThanOrEqual(4.5)
         // A solid button: its own fill and text (cms-admin.css points them at these for [data-cms-accent='brand']).
         expect(contrast(at('--cms-accent-on-fill'), at('--cms-accent-fill')), 'button text').toBeGreaterThanOrEqual(4.5)
-        // Focus rings and selected borders against the page.
-        expect(contrast(at('--ui-primary'), at('--cms-page-bg')), 'ring').toBeGreaterThanOrEqual(3)
+        // Focus rings and selected borders against everything they can sit on.
+        for (const surface of RING_SURFACES) expect(contrast(at('--cms-accent-ring'), at(surface)), `ring on ${surface}`).toBeGreaterThanOrEqual(3)
+        expect(at('--cms-accent-ring'), 'the ring is the text shade, not the fill').toEqual(at('--ui-primary'))
+        // A solid button under the pointer: its own fill, its text still readable.
+        expect(contrast(at('--cms-accent-on-fill'), at('--cms-accent-fill-hover')), 'button text under the pointer').toBeGreaterThanOrEqual(4.5)
       })
     }
   }
+
+  it('the reviews\' colours: #B4532A, #777777, #FFD500 and the mid tones keep 4.5:1 under the pointer and 3:1 rings', () => {
+    for (const accent of ['#B4532A', '#777777', '#FFD500', '#6366F1', '#3B82F6', '#10B981']) {
+      for (const dark of [false, true]) {
+        const vars = brandTokens(accent, dark)
+        const at = (name: string) => resolve(name, vars)
+        expect(contrast(at('--cms-accent-on-fill'), at('--cms-accent-fill-hover')), `${accent} hover`).toBeGreaterThanOrEqual(4.5)
+        expect(contrast(at('--cms-accent-ring'), at('--cms-page-bg')), `${accent} ring`).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
 
   it('the stylesheet points solid buttons at the brand fill, and leaves the built-in accents to themselves', () => {
     expect(declared(`html[data-cms-admin][data-cms-accent='brand'] [data-slot='base'][class~='bg-primary']`)).toEqual({
       '--ui-primary': 'var(--cms-accent-fill)',
       '--ui-text-inverted': 'var(--cms-accent-on-fill)',
     })
+  })
+})
+
+// The rules that replace Nuxt UI's hover fill and its 25 % focus outline. They match Nuxt UI's own class
+// names, so a Nuxt UI upgrade that renames them would quietly bring the old states back: the last test
+// reads Nuxt UI's theme and fails first.
+describe('accent states in the stylesheet', () => {
+  /** The declarations of the first rule whose selector list contains `selector`. */
+  const body = (selector: string) => {
+    const i = css.indexOf(selector)
+    if (i < 0) throw new Error(`no rule for ${selector}`)
+    const open = css.indexOf('{', i)
+    return css.slice(open + 1, css.indexOf('}', open)).replace(/\s+/g, ' ').trim()
+  }
+
+  it('focus rings: full strength in --cms-accent-ring, 2 px, off the control (fields and menu links hug theirs)', () => {
+    expect(body(`html[data-cms-admin] [class~='focus-visible:outline-3']:focus-visible`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: 2px;')
+    expect(body(`html[data-cms-admin] [class~='has-focus-visible:outline-3']:has(:focus-visible)`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: 0;')
+    expect(body(`[class~='focus-visible:before:outline-3']:focus-visible::before`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: 0;')
+    expect(body(`[class*='has-focus-visible:ring-']:has(:focus-visible)`)).toBe('outline-width: 1px;')
+    expect(body('.cms-peek__resize:focus-visible::after')).toBe('background: var(--cms-accent-ring);')
+    // never a translucent ring
+    expect(css.match(/outline[^;{}]*var\(--cms-accent-ring\)[^;]*/g)?.every((d) => !d.includes('%') && !d.includes('/'))).toBe(true)
+  })
+
+  it('a solid button under the pointer and pressed: the accent\'s hover fill, not when disabled', () => {
+    expect(body(`[class~='hover:bg-primary/75']:not(:disabled, [aria-disabled='true']):hover`)).toBe('background-color: var(--cms-accent-fill-hover);')
+    expect(body(`[class~='active:bg-primary/75']:not(:disabled, [aria-disabled='true']):active`)).toBe('background-color: var(--cms-accent-fill-hover);')
+  })
+
+  it('Nuxt UI still draws its solid buttons and focus outlines with the classes those rules match', () => {
+    const ui = realpathSync(join(import.meta.dirname, '../../packages/cms/node_modules/@nuxt/ui'))
+    const dir = join(ui, 'dist/shared')
+    const theme = readdirSync(dir).filter((f) => f.endsWith('.mjs')).map((f) => readFileSync(join(dir, f), 'utf8')).find((t) => t.includes('const button = '))
+    expect(theme, 'Nuxt UI\'s theme file').toBeDefined()
+    expect(theme).toContain('hover:bg-${color}/75 active:bg-${color}/75')
+    expect(theme).toContain('outline-${color}/25 focus-visible:outline-3')
+    expect(theme).toContain('focus-visible:before:outline-3')
+    expect(theme).toContain('has-focus-visible:outline-3')
   })
 })
