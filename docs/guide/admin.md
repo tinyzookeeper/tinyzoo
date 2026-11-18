@@ -32,7 +32,7 @@ All of these options can be overridden by env:
 
 ```ts
 cms: {
-  publicUrl: 'https://cms.example.com',   // NUXT_CMS_PUBLIC_URL — required in production: links in emails use it, never the Host header
+  publicUrl: 'https://cms.example.com',   // NUXT_CMS_PUBLIC_URL — required in production: links and the logo in emails use it, never the Host header
   mail: {
     transport: 'smtp',                    // NUXT_CMS_MAIL_TRANSPORT: log (default) | file | smtp (Node only)
     from: 'Pekárna Novák <web@pekarna-novak.cz>',
@@ -89,6 +89,31 @@ Nuxt UI draws a few words itself ("Close", "Previous month", "Show password"). T
 `const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">`. On the website's own pages it is empty, so the site keeps its own.
 
 Labels in `cms.config.ts` take one string or one per admin language (`label: { en: 'Posts', cs: 'Články' }`). Entities can also set `icon`, `labelSingular` and `description`.
+
+### Emails and the phone's home screen
+
+The emails the admin sends (invitations, password resets, changes of the sign-in address) carry the client's brand:
+
+- the full logo at the top, 160 px wide. Without `logo.full`, the site's name in bold;
+- the site's name from `cms.admin.name`, in the recipient's language;
+- the main button in the accent colour, with its text colour.
+
+Emails never carry tinyzoo's signature. The text version stays plain: the message and the link.
+
+Gmail and Outlook do not show SVG, so tinyzoo makes PNG versions of the logo on the server:
+
+| File | Made from | What for |
+|---|---|---|
+| `/api/cms/_brand/full-email.png` | `logo.full` | the emails: 320 px wide, at most 120 px tall, transparent |
+| `/api/cms/_brand/mark-32.png` | `logo.mark` | the PNG tab icon |
+| `/api/cms/_brand/mark-180.png` | `logo.mark` | the phone's home-screen icon (apple-touch-icon): on white, with a little padding |
+| `/api/cms/_brand/mark-192.png`, `mark-512.png` | `logo.mark` | the web manifest |
+
+Without a mark, the icons show tinyzoo's own. Without a full logo, `full-email.png` is a 404 and the emails show the name. A logo that cannot be read is a 404 too, with one line in the server log.
+
+`/api/cms/_brand/admin.webmanifest` lets people add the admin to a phone's home screen. It opens `/admin/` as an app, with the site's name in the admin's default language and the mark as its icon.
+
+The logo in emails needs the site's public address, `NUXT_CMS_PUBLIC_URL`. Production needs it anyway for the links. Mail clients load the logo from there, so it must be reachable from the internet.
 
 ### How editors and lists are arranged
 
