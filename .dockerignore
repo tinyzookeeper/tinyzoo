@@ -11,3 +11,5 @@ node_modules
 .playwright-mcp
 .claude
 test
+# The website's docs module builds the API reference from this file (site/modules/docs/build.ts).
+!test/contracts/openapi.playground.json
