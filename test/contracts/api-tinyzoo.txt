@@ -910,7 +910,7 @@ alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, 
 FormOptions
 EntityDef.singleton
 
-// ── internal (191): exported, not part of the frozen API, may change in any minor ──
+// ── internal (192): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
@@ -923,6 +923,7 @@ const CMS_ROLES
 const CMS_ROLE_BASES
 const CORE_UPGRADE_STEPS
 interface CmsAccentScheme
+type CmsAdminIconLink
 interface CmsAdminTheme
 interface CmsAdminThemeInput
 type CmsBrandFile
