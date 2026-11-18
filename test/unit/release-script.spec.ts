@@ -90,7 +90,7 @@ function release(initial: Partial<State>) {
   const file = join(dir, `state-${++n}.json`)
   writeFileSync(file, JSON.stringify({ npm: [], localTags: [], remoteTags: [], releases: [], publishes: [], lag: {}, log: [], ...initial }))
   const run = spawnSync(process.execPath, [join(root, 'scripts/release.mjs')], {
-    cwd: root, encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH}`, RELEASE_STATE: file, HOME: process.env.HOME, RELEASE_NPM_POLL_MS: '10' },
+    cwd: root, encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH}`, RELEASE_STATE: file, HOME: process.env.HOME, RELEASE_NPM_POLL_MS: '10', RELEASE_NPM_TRIES: '8' },
   })
   const state = JSON.parse(readFileSync(file, 'utf8')) as State
   return { status: run.status, out: run.stdout + run.stderr, state }

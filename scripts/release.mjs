@@ -10,7 +10,7 @@
 // package, with provenance when NPM_CONFIG_PROVENANCE=true), then the git tags and GitHub
 // releases (tagAndRelease) of every package that is on npm at its version, also when the
 // publish failed halfway (a re-run publishes what is missing and tags what has no tag yet).
-// After a publish it waits for npm to list the new versions (waitForNpm): asked at once,
+// After a publish it waits up to ten minutes for npm to list the new versions (waitForNpm): asked at once,
 // npm still answered 404 for 0.6.0, and the run passed without tags. The "Nothing to
 // publish" path (every push to main) also tags what has no tag yet, so a run that lost its
 // tags is repaired by the next push. A tag goes on the commit that set the version, not on HEAD.
@@ -70,11 +70,11 @@ else {
 }
 
 /**
- * The packages of `wanted` that npm lists, asking again every 5 seconds for up to two minutes
- * while some are missing: the registry lists a version a few seconds after `npm publish`
- * returns, and a 404 asked too early would leave that version without its tag.
+ * The packages of `wanted` that npm lists, asking again every 5 seconds for up to ten minutes
+ * while some are missing: the registry lists a version some time after `npm publish` returns
+ * (0.7.0: about three minutes for tinyzoo), and a 404 asked too early would leave it untagged.
  */
-function waitForNpm(wanted, { tries = 24, pauseMs = Number(process.env.RELEASE_NPM_POLL_MS) || 5000 } = {}) {
+function waitForNpm(wanted, { tries = Number(process.env.RELEASE_NPM_TRIES) || 120, pauseMs = Number(process.env.RELEASE_NPM_POLL_MS) || 5000 } = {}) {
   let left = wanted
   for (let i = 0; ; i++) {
     left = left.filter((p) => !onNpm(p))

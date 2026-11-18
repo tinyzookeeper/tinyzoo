@@ -1831,7 +1831,14 @@ Branch `feat/0.7-moments` from `feat/0.7-theming` (`5f0b928`). With a brand colo
 
 Branch `fix/release-tags-docker`. The two to-dos from the 0.6 release, done before 0.7.0 goes out:
 
-- **Tags no longer depend on timing.** `scripts/release.mjs` waits up to two minutes (every 5 s) for npm to list each version it just published before tagging it. The "Nothing to publish" path, which runs on every push to `main`, now tags and releases whatever has no tag yet, so a run that lost its tags is repaired by the next push. A tag goes on the commit that set the version (the merge of the Version packages pull request, found on `main`'s first-parent line), not on `HEAD`; checked against the hand-made 0.6.0 tags (`3828d61`). `release.yml` checks out the full history for that.
+- **Tags no longer depend on timing.** `scripts/release.mjs` waits up to ten minutes (every 5 s; two at first, see 0.7 below) for npm to list each version it just published before tagging it. The "Nothing to publish" path, which runs on every push to `main`, now tags and releases whatever has no tag yet, so a run that lost its tags is repaired by the next push. A tag goes on the commit that set the version (the merge of the Version packages pull request, found on `main`'s first-parent line), not on `HEAD`; checked against the hand-made 0.6.0 tags (`3828d61`). `release.yml` checks out the full history for that.
 - **The website's image is built in CI.** A new heavy job, `site-image`, runs `docker build --file site/Dockerfile .` from the repo root, as the deploy does, and checks that the image holds the server and the seed. It runs on the Version packages pull request, nightly, and on pull requests that touch the site, the docs, `packages/cms`, `.dockerignore` or the lockfile. CONTRIBUTING.md lists it.
 - No package changes, so no changeset and no upgrade step.
+
+### 0.7 — Released (2026-11-18)
+
+`tinyzoo`, `@tinyzoo/client` and `create-tinyzoo` 0.7.0 (the client's logo and brand colour in the admin, branded emails, the admin's web manifest, brand-tinted moments and animals), from the Version packages pull request #33 (merged as `b492960`). Before merging, #33 was closed and reopened to run CI and Heavy checks on its head; all passed, `site-image` included.
+
+- **Tags.** The release run published all three, but npm listed `@tinyzoo/client` within the script's two minutes and `create-tinyzoo` and `tinyzoo` only after about three. The run tagged and released the client, said which two npm did not list yet, and failed. A re-run of the job took the "Nothing to publish" path and tagged and released the other two on `b492960` (`tinyzoo@0.7.0` is Latest on GitHub). The wait is now ten minutes.
+- **Deployed.** The website (`tinyzoo.pushbase.app`) and the demo (`tinyzoo-demo.pushbase.app`) from `main` (`b492960`) with `scripts/deploy-site.mjs`; no migration, content kept. Both answer on `/`, `/admin/login`, `/en/docs` and the new `/api/cms/_theme`.
 
