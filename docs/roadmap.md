@@ -1882,4 +1882,4 @@ Branch `feat/1.0-docs` (from `997ab4d`). The documentation is written for after 
 - `site/server/api/site-docs/search.get.ts` imports `searchTerms`, `matchEntry`, `highlightRanges` and `SEARCH_MAX_QUERY` from `tinyzoo`. R1 makes them internal, so the site needs its own import path or copy.
 - `stability.md` links `upgrading.md` as a whole, not R1's "From 0.7 to 1.0" section, which does not exist on this branch. A link to that anchor can be added once both are merged.
 - `packages/cms/starter/AGENTS.md` says "From 1.0, the public API follows semver". That is right after the release. It was left alone, since a change there needs a changeset.
-- The website's own pages (seed) were not checked for pre-1.0 wording beyond the docs links. The footer says "Wir bereiten ein Pilotprojekt … vor" (and likewise in Czech and English), which may be stale after 1.0 and the pilot's upgrade (slice S).
+- The website's own content (the seed) was not rewritten. Its footer, FAQ and roadmap page talk about preparing the pilot ("Wir bereiten ein Pilotprojekt … vor"; 13–14 mentions of the pilot per language). That may be stale after 1.0 and the pilot's upgrade (slice S).
