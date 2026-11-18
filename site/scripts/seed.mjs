@@ -1,13 +1,15 @@
 // Fill the website with its content through the admin API (the same way an editor
-// would): pages, updates, menus, settings and the videos.
+// would): pages, updates, plans, menus, settings and the videos.
 //
 //   SEED_URL=http://localhost:3000 SEED_EMAIL=… SEED_PASSWORD=… pnpm seed
 //
 // On an empty site it creates the first administrator with these details. Run it
-// once on a fresh database; it does not delete anything.
+// once on a fresh database; it does not delete anything. The plans (seed/plans.mjs)
+// are added only when the site has none; `pnpm seed:plans` adds just those.
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { seedPlans } from '../seed/plans.mjs'
 
 const base = (process.env.SEED_URL ?? 'http://localhost:3000').replace(/\/+$/, '')
 const email = process.env.SEED_EMAIL ?? 'admin@example.com'
@@ -165,14 +167,6 @@ await page('Plány', 'plany', [
     id: id(), type: 'roadmap', eyebrow: null,
     heading: 'Na čem pracujeme a kam tinyzoo míří.',
     text: 'Tady jsou naše plány pro další vývoj tinyzoo. Pořadí vybíráme podle toho, co nám lidé říkají při zkoušení ukázky a při práci s obsahem.',
-    items: [
-      item({ title: 'Pilot na prvním klientském webu', text: 'Chystáme pilot na prvním klientském webu. Chceme poznat, jak skuteční editoři pracují s vlastním obsahem a kde potřebují pomoc.', stage: 'now', animal: 'bunny' }),
-      item({ title: 'Úpravy podle postřehů z ukázky', text: 'Sbíráme postřehy, které nám posíláte z ukázky. Podle nich chceme dál upravovat administraci, aby se vám v ní dobře pracovalo.', stage: 'now', animal: 'bird' }),
-      item({ title: 'Doplňkové moduly', text: 'Chceme připravit doplňkové moduly, se kterými by váš web mohl růst podle nových potřeb.', stage: 'next', animal: 'frog' }),
-      item({ title: 'Role a oprávnění na míru', text: 'Chceme umožnit vlastní role a určit, kdo smí měnit které části obsahu. Pomůže to větším týmům a webům s více editory.', stage: 'next', animal: 'fox' }),
-      item({ title: 'Mobilní aplikace pro správu obsahu', text: 'Stále víc lidí chce spravovat obsah rovnou z telefonu. Plánujeme aplikaci, ve které byste mohli napsat novinku, přidat fotky přímo z telefonu a zveřejnit ji odkudkoli.', stage: 'later', animal: 'octopus' }),
-      item({ title: 'Přenos obsahu ze stávajícího webu', text: 'Chceme usnadnit přenos textů a obrázků z vašeho stávajícího webu do tinyzoo.', stage: 'later', animal: 'elephant' }),
-    ],
     note: 'Plány se mohou měnit. Napište nám, co byste pro svůj web potřebovali.',
   },
   {
@@ -180,7 +174,10 @@ await page('Plány', 'plany', [
     text: 'Zkuste si ukázku tinyzoo nebo nám napište, co při úpravách webu potřebujete. Vaše zkušenost nám pomůže vybrat další kroky.',
     primaryLabel: 'Vyzkoušet ukázku', primaryUrl: '/demo', secondaryLabel: 'Napsat nám', secondaryUrl: '/zpetna-vazba', animal: 'fox',
   },
-], { metaDescription: 'Kam míří tinyzoo? Podívejte se na plány od prvního pilotu po mobilní aplikaci. Zkuste ukázku a napište nám, co byste potřebovali.' })
+], { metaDescription: 'Kam míří tinyzoo? Podívejte se, co je hotové, na čem pracujeme a co chystáme dál. Zkuste ukázku a napište nám, co byste potřebovali.' })
+
+// The plans the roadmap block lists (the Plan collection), in all three languages.
+await seedPlans(req)
 
 await page('Vyzkoušejte administraci', 'demo', [{
   id: id(), type: 'demo', heading: 'Zkuste si upravit web.',

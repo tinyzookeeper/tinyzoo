@@ -8,6 +8,8 @@ export const feedbackStatus = pgEnum('feedback_status', ["new","read","done"])
 export const newsStatus = pgEnum('news_status', ["draft","published"])
 export const newsKind = pgEnum('news_kind', ["feature","improvement","fix"])
 export const pageStatus = pgEnum('page_status', ["draft","published"])
+export const planStage = pgEnum('plan_stage', ["done","now","next","later"])
+export const planAnimal = pgEnum('plan_animal', ["bunny","bird","fox","frog","octopus","elephant","owl","whale","turtle","hedgehog","koala","penguin"])
 
 export const cmsMedia = pgTable('cms_media', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -214,6 +216,30 @@ export const pageLocales = pgTable('page_locales', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('page_locales_parent_locale_unique').on(t.parentId, t.locale), uniqueIndex('page_locales_slug_unique').on(t.locale, t.slug)])
+
+export const plan = pgTable('plan', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title').notNull(),
+  text: text('text'),
+  stage: planStage('stage').$type<'done' | 'now' | 'next' | 'later'>().notNull().default("next"),
+  version: text('version'),
+  animal: planAnimal('animal').$type<'bunny' | 'bird' | 'fox' | 'frog' | 'octopus' | 'elephant' | 'owl' | 'whale' | 'turtle' | 'hedgehog' | 'koala' | 'penguin'>(),
+  position: integer('position'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+})
+
+export const planLocales = pgTable('plan_locales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  parentId: uuid('parent_id').notNull().references(() => plan.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  title: text('title'),
+  text: text('text'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('plan_locales_parent_locale_unique').on(t.parentId, t.locale)])
 
 export const redirect = pgTable('redirect', {
   id: uuid('id').primaryKey().defaultRandom(),

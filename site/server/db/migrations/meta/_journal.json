@@ -43,6 +43,13 @@
       "when": 1794952381098,
       "tag": "0005_news_clip",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795027477730,
+      "tag": "0006_plans",
+      "breakpoints": true
     }
   ]
 }

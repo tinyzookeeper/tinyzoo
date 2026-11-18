@@ -12,6 +12,7 @@
     "db:migrate": "tsx node_modules/tinyzoo/cli/index.ts up",
     "cms:client": "tsx node_modules/tinyzoo/cli/index.ts client app/lib/cms-content.ts",
     "seed": "node scripts/seed.mjs",
+    "seed:plans": "node scripts/seed-plans.mjs",
     "reset": "node scripts/reset.mjs"
   },
   "dependencies": {

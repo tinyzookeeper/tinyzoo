@@ -4,9 +4,9 @@ import {
 } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 
-// The tinyzoo website: what it is, how it compares with October CMS, and the way
-// into the demo. Built with tinyzoo itself, from the starter. Change the model here,
-// then `pnpm db:generate` (review the SQL) and `pnpm db:migrate`.
+// The tinyzoo website: what it is, where it is heading, and the way into the demo.
+// Built with tinyzoo itself, from the starter. Change the model here, then
+// `pnpm db:generate` (review the SQL) and `pnpm db:migrate`.
 
 // Czech is the default (no prefix); English and German live under /en and /de.
 export const locales = defineLocales({ default: 'cs', locales: ['cs', 'en', 'de'] })
@@ -135,28 +135,20 @@ const steps = defineBlock({
   },
 })
 
-// Where tinyzoo is heading: plans grouped as now / next / later (the column names are in the site's code).
+// Where tinyzoo is heading: the heading, text and note of the "Plány" page. The plans
+// themselves are the Plan collection below, which the block lists grouped by stage
+// (BlockRoadmap.vue). Version 1 kept its own fixed `items`; version 2 drops them on
+// read and on the next save, so stored pages keep working.
 const roadmap = defineBlock({
   label: { cs: 'Plány', en: 'Roadmap', de: 'Roadmap' },
-  description: { cs: 'Co děláme teď, co přijde brzy a co později.', en: 'What we are doing now, what comes next and what comes later.', de: 'Woran wir jetzt arbeiten, was als Nächstes kommt und was später.' },
+  description: { cs: 'Nadpis a text nad plány. Plány samotné upravíte v sekci Plány.', en: 'The heading and text above the plans. The plans themselves are edited under Roadmap.', de: 'Überschrift und Text über den Vorhaben. Die Vorhaben selbst bearbeiten Sie unter Roadmap.' },
   icon: 'i-lucide-map',
+  version: 2,
+  upgrade: ({ items: _items, ...rest }) => rest,
   fields: {
     eyebrow: eyebrow(),
     heading: f.text({ required: true }).label({ cs: 'Nadpis', en: 'Heading', de: 'Überschrift' }),
     text: f.text({ multiline: true }).label({ cs: 'Text', en: 'Text', de: 'Text' }),
-    items: f.list({
-      fields: {
-        title: f.text({ required: true }).label({ cs: 'Nadpis', en: 'Title', de: 'Titel' }),
-        text: f.text({ multiline: true }).label({ cs: 'Text', en: 'Text', de: 'Text' }),
-        stage: f.select({
-          options: ['now', 'next', 'later'] as const, default: 'next',
-          labels: { now: { cs: 'Právě teď', en: 'Now', de: 'Jetzt' }, next: { cs: 'Brzy', en: 'Next', de: 'Als Nächstes' }, later: { cs: 'Později', en: 'Later', de: 'Später' } },
-        }).label({ cs: 'Kdy', en: 'When', de: 'Wann' }),
-        animal: animal(),
-      },
-      max: 12,
-      itemLabel: { cs: 'Plán', en: 'Plan', de: 'Vorhaben' },
-    }).label({ cs: 'Plány', en: 'Plans', de: 'Vorhaben' }),
     note: f.text({ multiline: true }).label({ cs: 'Poznámka pod plány', en: 'Note under the plans', de: 'Hinweis unter den Vorhaben' }),
   },
 })
@@ -275,6 +267,39 @@ export const News = defineEntity('news', {
     path: NEWS_PATH,
     populate: ['cover', 'ogImage'],
   },
+})
+
+// ── the roadmap: what is done, what we work on now, what comes next and later ──
+// Listed by the roadmap block (the "Plány" page), grouped by stage. Editors arrange the
+// order by dragging; within a stage the block keeps that order. No drafts: a saved plan
+// is on the website at once.
+const STAGE_LABELS = {
+  done: { cs: 'Hotovo', en: 'Done', de: 'Erledigt' },
+  now: { cs: 'Právě teď', en: 'Now', de: 'Jetzt' },
+  next: { cs: 'Brzy', en: 'Next', de: 'Als Nächstes' },
+  later: { cs: 'Později', en: 'Later', de: 'Später' },
+}
+export const Plan = defineEntity('plan', {
+  label: { cs: 'Plány', en: 'Roadmap', de: 'Roadmap' },
+  labelSingular: { cs: 'Plán', en: 'Plan', de: 'Vorhaben' },
+  description: { cs: 'Co je hotové, na čem pracujeme a co přijde. Ukazuje se na stránce Plány.', en: 'What is done, what we are working on and what comes next. Shown on the Roadmap page.', de: 'Was erledigt ist, woran wir arbeiten und was als Nächstes kommt. Erscheint auf der Roadmap-Seite.' },
+  icon: 'i-lucide-map',
+  titleField: 'title',
+  live: true,
+  admin: { list: { columns: ['title', 'stage', 'version'], orderField: 'position' } },
+  fields: {
+    title: f.text({ required: true, max: 120 }).localized().label({ cs: 'Nadpis', en: 'Title', de: 'Titel' }),
+    text: f.text({ multiline: true, max: 600 }).optional().localized().label({ cs: 'Text', en: 'Text', de: 'Text' }),
+    stage: f.select({ options: ['done', 'now', 'next', 'later'] as const, default: 'next', labels: STAGE_LABELS })
+      .label({ cs: 'Kdy', en: 'When', de: 'Wann' }),
+    version: f.text({ max: 20 }).optional().label({ cs: 'Verze', en: 'Version', de: 'Version' })
+      .help({ cs: 'Třeba 0.6 nebo 1.1. U hotových plánů se ukáže na webu.', en: 'For example 0.6 or 1.1. Shown on the website for done plans.', de: 'Zum Beispiel 0.6 oder 1.1. Bei erledigten Vorhaben auf der Website sichtbar.' }),
+    animal: animal().optional(),
+    position: f.number().optional().label({ cs: 'Pořadí', en: 'Order', de: 'Reihenfolge' }),
+  },
+  // Public: the page reads it from the browser too, when a visitor comes from another page.
+  // Not in the website search: a plan has no page of its own.
+  content: { public: true, search: false },
 })
 
 // ── menus, redirects, the feedback form ──
