@@ -78,9 +78,9 @@ export default (h) => {
         sections: [
           {
             id: id(), type: 'roadmap', eyebrow: null,
-            heading: 'What we are working on and where tinyzoo is heading.',
-            text: 'These are our plans for tinyzoo. We choose the order based on what people tell us while trying the demo and working with content.',
-            note: 'Plans can change. Tell us what you would need for your website.',
+            heading: 'What’s ready and what’s coming',
+            text: 'Your feedback from trying the demo or editing your website helps us decide what to work on next.',
+            note: 'Tell us what takes the most time when you look after your website.',
           },
           {
             id: id(), type: 'cta', heading: 'What would help you?',
@@ -88,7 +88,7 @@ export default (h) => {
             primaryLabel: 'Try the demo', primaryUrl: '/en/demo', secondaryLabel: 'Tell us what you need', secondaryUrl: '/en/feedback', animal: 'fox',
           },
         ],
-        metaDescription: 'Where is tinyzoo heading? See what is done, what we are working on and what comes next. Try the demo and tell us what you would need.',
+        metaDescription: 'See what tinyzoo can already do and what version 1.0 means for your website. Find out what’s coming in 1.1 and beyond.',
       },
       demo: {
         title: 'Try the admin area', slug: 'demo',
