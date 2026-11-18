@@ -3,5 +3,10 @@
 // what it finds in the files. Production adjusts quietly (cmsPublicAdminTheme sends no notes either).
 export default defineNitroPlugin(() => {
   if (!import.meta.dev || import.meta.prerender) return
-  for (const note of cmsAdminTheme().notes.filter((n) => n.kind === 'accent')) console.warn(`[tinyzoo] cms.admin: ${note.message}`)
+  // At start there is no request: the site's own settings (one site per server today).
+  void cmsAdminTheme()
+    .then((theme) => {
+      for (const note of theme.notes.filter((n) => n.kind === 'accent')) console.warn(`[tinyzoo] cms.admin: ${note.message}`)
+    })
+    .catch(() => {})
 })

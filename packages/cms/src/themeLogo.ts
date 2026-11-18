@@ -93,7 +93,7 @@ export function resolveAdminLogo(logo: CmsAdminLogo | undefined | null): { logo:
 export type CmsLogoFileInfo =
   | { missing: true; where: string }
   | { unreadable: true }
-  | { missing?: false; unreadable?: false; width: number; height: number; vector: boolean }
+  | { missing?: false; unreadable?: false; width: number; height: number; vector: boolean; /** An SVG with `<text>`: drawn with the server's fonts in the PNG files. */ text?: boolean }
 
 /** The smallest raster logos that still look sharp: the mark becomes the 180 px home-screen icon; the full logo fills a 160 px slot at 2×. @internal */
 export const CMS_LOGO_MIN_PX = { mark: 180, full: 320 } as const
@@ -108,7 +108,10 @@ export function logoFileNotes(slot: CmsLogoSlot, address: string, info: CmsLogoF
   if ('missing' in info && info.missing) return [note(`${key(slot)} "${address}" was not found (${info.where}). The admin shows the next logo, or the initials, in its place.`)]
   if ('unreadable' in info && info.unreadable) return [note(`${key(slot)} "${address}" is not a picture tinyzoo can read. Use an SVG or a PNG (WebP and JPEG work too).`)]
   const notes: CmsThemeNote[] = []
-  const { width, height, vector } = info as Extract<CmsLogoFileInfo, { width: number }>
+  const { width, height, vector, text } = info as Extract<CmsLogoFileInfo, { width: number }>
+  // The browser draws an SVG's text in the admin with the visitor's fonts, but the PNG files (the
+  // emails, the home-screen icon) are drawn on the server, which often has no fonts at all (Docker).
+  if (vector && text) notes.push(note(`${key(slot)} "${address}" has text in it (<text>): the PNG versions (the email logo, the home-screen icon) are drawn on the server with whatever fonts it has, often none. Convert the text to outlines (paths) in your design tool.`))
   if (!(width > 0 && height > 0)) return notes
   const isMark = slot === 'mark' || slot === 'markDark'
   if (isMark && Math.abs(width / height - 1) > 0.05) {
@@ -166,12 +169,13 @@ export type CmsAdminIconLink =
  * The admin's tab and home-screen icons as `<link>`s. With a mark: a 32 px PNG made from it
  * (for browsers that do not take an SVG icon), the mark itself (listed last, so browsers that
  * can use it prefer it), the 180 px PNG for the phone's home screen and the web manifest.
- * Without one: tinyzoo's mascot (`fallback`), as before 0.7.
+ * Without one, or when the server could not read it (`logo.files.markFallback`): tinyzoo's
+ * mascot (`fallback`), as before 0.7, so the tab never shows a broken icon.
  *
  * @internal
  */
 export function adminIconLinks(theme: CmsAdminTheme, fallback: string): CmsAdminIconLink[] {
-  const mark = theme.logo.mark
+  const mark = theme.logo.files?.markFallback ? null : theme.logo.mark
   if (!mark) return [{ rel: 'icon', type: 'image/svg+xml', href: fallback, key: 'cms-admin-icon' }]
   const type = imageType(mark)
   return [

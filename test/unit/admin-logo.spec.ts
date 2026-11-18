@@ -120,8 +120,18 @@ describe('adminIconLinks: the tab and home-screen icons', () => {
       { rel: 'apple-touch-icon', href: brandFileUrl('mark-180.png', theme), key: 'cms-admin-touch-icon' },
       { rel: 'manifest', href: CMS_ADMIN_MANIFEST_URL, key: 'cms-admin-manifest' },
     ])
-    expect(links[0]!.href).toMatch(/^\/api\/cms\/_brand\/mark-32\.png\?v=/)
+    expect(links[0]!.href).toBe('/api/cms/_brand/mark-32.png') // no version until the server fills it in
+    const served = { ...theme, logo: { ...theme.logo, files: { full: null, mark: 'm4rk', markFallback: false } } }
+    expect(adminIconLinks(served, '/fallback.svg')[0]!.href).toBe('/api/cms/_brand/mark-32.png?v=m4rk')
     expect(CMS_ADMIN_MANIFEST_URL).toBe('/api/cms/_brand/admin.webmanifest')
+  })
+
+  it("keeps tinyzoo's icon when the server could not read the mark, so the tab never shows a broken one", () => {
+    const theme = resolveAdminTheme({ logo: { mark: '/brand/gone.svg' } })
+    const unread = { ...theme, logo: { ...theme.logo, files: { full: null, mark: 'tz', markFallback: true } } }
+    expect(adminIconLinks(unread, '/_nuxt/favicon.svg')).toEqual([
+      { rel: 'icon', type: 'image/svg+xml', href: '/_nuxt/favicon.svg', key: 'cms-admin-icon' },
+    ])
   })
 
   it('gives a PNG mark its type, and an address without an extension none', () => {
@@ -163,25 +173,46 @@ describe('checkAdminLogos: the files, as development reads them at start', () =>
   })
   afterAll(() => rmSync(publicDir, { recursive: true, force: true }))
 
-  it('is quiet about the bakery fixtures', async () => {
+  it('is quiet about logos drawn in outlines, and says when an SVG has text in it', async () => {
     const theme = resolveAdminTheme({ logo: { full: '/brand/full.svg', mark: '/brand/mark.png', fullDark: '/brand/full-dark.svg' } })
-    expect(await checkAdminLogos(theme, publicDir)).toEqual([])
+    // The bakery's wordmarks are set in Georgia: the PNG files would use whatever fonts the server has.
+    expect((await checkAdminLogos(theme, publicDir)).map((n) => n.message)).toEqual([
+      expect.stringMatching(/logo\.full "\/brand\/full\.svg" has text in it \(<text>\).*Convert the text to outlines/),
+      expect.stringMatching(/logo\.fullDark "\/brand\/full-dark\.svg" has text in it/),
+    ])
     expect(await checkAdminLogos(resolveAdminTheme({ logo: { mark: '/brand/mark.svg' } }), publicDir)).toEqual([])
   })
 
-  it('reports a missing file, a mark that is not square and a small full logo, with the address notes', async () => {
+  it('reports a missing file, a mark that is not square and a small full logo (the address notes are the theme’s own)', async () => {
     const theme = resolveAdminTheme({ logo: { full: '/brand/small-full.png', mark: '/brand/wide-mark.png', markDark: '/brand/gone.svg', fullDark: 'oops.svg' } })
     const messages = (await checkAdminLogos(theme, publicDir)).map((n) => n.message)
     expect(messages).toEqual([
-      expect.stringMatching(/logo\.fullDark "oops\.svg" is not an address/),
       expect.stringMatching(/logo\.full "\/brand\/small-full\.png" is 200 px wide/),
       expect.stringMatching(/logo\.mark "\/brand\/wide-mark\.png" is 300×200, not square/),
       expect.stringMatching(/logo\.markDark "\/brand\/gone\.svg" was not found \(no file at public\/brand\/gone\.svg\)/),
     ])
+    expect(theme.notes.map((n) => n.message)).toEqual([expect.stringMatching(/logo\.fullDark "oops\.svg" is not an address/)])
+  })
+
+  it('checks each logo on its own: a % in one address never hides the notes on the others', async () => {
+    const theme = resolveAdminTheme({ logo: { full: '/brand/100%.svg', mark: '/brand/wide-mark.png' } })
+    const messages = (await checkAdminLogos(theme, publicDir)).map((n) => n.message)
+    expect(messages).toEqual([
+      expect.stringMatching(/logo\.full "\/brand\/100%\.svg" cannot be made into the PNG files.*%25/),
+      expect.stringMatching(/logo\.full "\/brand\/100%\.svg" was not found \(the address is not a valid path: write a % in a file name as %25\)/),
+      expect.stringMatching(/logo\.mark "\/brand\/wide-mark\.png" is 300×200, not square/),
+    ])
+  })
+
+  it('says when a site path cannot be made into the PNG files (not a picture, or under /api/)', async () => {
+    const theme = resolveAdminTheme({ logo: { full: '/%61pi/cms/_theme', mark: '/brand/mark' } })
+    const messages = (await checkAdminLogos(theme, publicDir)).map((n) => n.message)
+    expect(messages).toContainEqual(expect.stringMatching(/logo\.full "\/%61pi\/cms\/_theme" cannot be made into the PNG files \(the email logo\)/))
+    expect(messages).toContainEqual(expect.stringMatching(/logo\.mark "\/brand\/mark" cannot be made into the PNG files \(the tab and home-screen icons\)/))
   })
 
   it('never reads outside the public folder', async () => {
-    const theme = resolveAdminTheme({ logo: { mark: '/../../etc/hosts' } })
+    const theme = resolveAdminTheme({ logo: { markDark: '/../../etc/hosts.png', mark: '/brand/mark.svg' } })
     expect(await checkAdminLogos(theme, publicDir)).toEqual([])
   })
 })

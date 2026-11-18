@@ -292,8 +292,9 @@ with the client's mark as the icon.
 Emails are plain on purpose: one white card on a light grey page, system fonts, no tables
 for layout. At the top, the client's full logo as a PNG 160 px wide (`full-email.png`), or
 the site's name in bold. One main button in the accent's light colour with its text colour.
-The written-out link under it is a real link in the same colour, on a readable grey
-(#525252). They ask mail apps for light mode (`color-scheme: light`), so a dark logo on
+The written-out link under it is a real link in the accent's text colour (the shade that
+reads on white, darker than the button for a light brand colour), under a line in a readable
+grey (#525252). They ask mail apps for light mode (`color-scheme: light`), so a dark logo on
 transparent stays on white. No tinyzoo signature.
 
 ## Building blocks

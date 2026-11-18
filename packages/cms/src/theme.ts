@@ -11,8 +11,10 @@ import { resolveAdminLogo } from './themeLogo'
  * emails read it on the server. Nothing about the theme is baked in at build time.
  *
  * Why runtime and JSON: a hosted tinyzoo could later fill the same input from stored
- * settings (per site) and hand out the same object, with no change to the config API or
- * to the admin. Only `cmsAdminTheme()` on the server would read somewhere else.
+ * settings (per site) and hand out the same object, with no change to the config API.
+ * Inside tinyzoo it would still take work: `cmsAdminTheme(event)` on the server would read
+ * the site's settings for each request, and the admin's fallback that resolves `app.config`
+ * in the browser (`useCmsAdminTheme`) could no longer be relied on.
  *
  * 0.7 contract (slice C fills in the colour maths, slice L the logos in the admin,
  * slice E the emails and the PNG versions of the logos). The colour maths (OKLCH ramps, the
@@ -105,6 +107,16 @@ export interface CmsAdminTheme {
     markDark: string | null
     fullDarkPlate: boolean
     markDarkPlate: boolean
+    /**
+     * The versions of the PNG files made from the logos (`brandFileUrl`'s `v`): a hash of the
+     * logo's bytes and of how tinyzoo draws them, so `v` changes when the file does, even under
+     * the same address. Filled by the server (`cmsAdminTheme`, which reads the files); absent where
+     * the theme was resolved without reading them (the admin's fallback in the browser, the
+     * website's design-system page), and then the addresses carry no `v`.
+     * `full: null`: no full logo, or it cannot be read (the emails show the name instead).
+     * `markFallback`: no mark, or it cannot be read; the mark files are tinyzoo's own mark.
+     */
+    files?: { full: string | null; mark: string; markFallback: boolean }
   }
   signature: boolean
   /** What the contrast guard and the logo checks changed or found. Empty in a clean config. Not sent to the browser in production. */
@@ -441,10 +453,16 @@ export const CMS_BRAND_FILES = ['full-email.png', 'mark-32.png', 'mark-180.png',
 /** @internal */
 export type CmsBrandFile = (typeof CMS_BRAND_FILES)[number]
 
-/** The address of one PNG version of the logo, relative to the site (`/api/cms/_brand/mark-180.png?v=…`). `v` changes when the theme does, so caches can keep it long. @internal */
+/**
+ * The address of one PNG version of the logo, relative to the site (`/api/cms/_brand/mark-180.png?v=…`).
+ * `v` is the server's version of the file (`theme.logo.files`: the logo's bytes and how tinyzoo draws
+ * them), so caches may keep the file for good. Without it (a theme the server did not fill) the
+ * address has no `v` and is cached briefly.
+ * @internal
+ */
 export function brandFileUrl(file: CmsBrandFile, theme: CmsAdminTheme): string {
-  const source = file.startsWith('full') ? theme.logo.full : theme.logo.mark
-  return `/api/cms/_brand/${file}?v=${themeHash(source ?? '')}`
+  const v = file === 'full-email.png' ? theme.logo.files?.full : theme.logo.files?.mark
+  return v ? `/api/cms/_brand/${file}?v=${encodeURIComponent(v)}` : `/api/cms/_brand/${file}`
 }
 
 /** A short, stable hash of a string (FNV-1a), for cache-busting addresses. @internal */

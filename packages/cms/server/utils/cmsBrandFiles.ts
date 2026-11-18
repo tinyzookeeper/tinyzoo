@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+import { relative, resolve, sep } from 'node:path'
 import sharp from 'sharp'
 import { brandFileUrl, resolveText, type CmsAdminTheme, type CmsBrandFile } from 'tinyzoo'
 
@@ -26,11 +28,75 @@ const TOUCH_ICON_PADDING = 16
  */
 export const TINYZOO_MARK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" viewBox="0 0 580 404"><path fill="#2E3035" d="M508.01 131.16c9.14-13.45 14.49-29.68 14.49-47.16 0-46.39-37.61-84-84-84-38.28 0-70.55 25.61-80.68 60.62C336.33 56.93 313.67 55 290 55s-46.33 1.93-67.82 5.62C212.05 25.61 179.78 0 141.5 0c-46.39 0-84 37.61-84 84 0 17.48 5.35 33.72 14.49 47.16C26.31 173.78 0 232.01 0 300v16c0 48.6 39.4 88 88 88h404c48.6 0 88-39.4 88-88v-16c0-67.99-26.31-126.22-71.99-168.84"/><circle cx="188" cy="251.5" r="90" fill="#F9F5EF"/><circle cx="230" cy="218" r="30" fill="#2E3035"/><circle cx="392" cy="251.5" r="90" fill="#F9F5EF"/><circle cx="434" cy="218" r="30" fill="#2E3035"/></svg>'
 
-/** Whether a logo address is one tinyzoo reads: a path on this site or an `https://` URL. */
+/**
+ * How tinyzoo draws the PNG files. Part of every file's version (`brandFileVersion`): raise it
+ * when a change here makes the files look different, so caches that keep them for good
+ * (browsers, Gmail's image proxy) fetch the new ones.
+ */
+export const BRAND_RENDER_VERSION = 1
+
+/**
+ * The version of the PNG files made from a logo's bytes: a hash of the bytes and of
+ * `BRAND_RENDER_VERSION`. It is the `v` in the files' addresses (`brandFileUrl`), so it
+ * changes when the file changes, even under the same address.
+ */
+export function brandFileVersion(bytes: Buffer | string): string {
+  return createHash('sha256').update(`tinyzoo-brand-${BRAND_RENDER_VERSION}\0`).update(bytes).digest('base64url').slice(0, 16)
+}
+
+/** The picture formats a logo on the site may have: what sharp reads and a browser shows. */
+const IMAGE_FILE = /\.(?:svg|png|webp|jpe?g|avif)$/i
+
+/**
+ * A logo address on this site as the file path tinyzoo reads (`/brand/logo%20new.svg` →
+ * `/brand/logo new.svg`), or `null` when it is not one: not a `/…` path, `//host`, a
+ * backslash, a bad or double percent-encoding, an empty, `.` or `..` segment, anything under
+ * `/api/` (the server would ask itself), or a name that does not end in .svg, .png, .webp,
+ * .jpg, .jpeg or .avif. The query and fragment are dropped. Decoding comes first, so
+ * `/%61pi/…` is `/api/…`.
+ */
+export function brandSourcePath(address: string): string | null {
+  if (!address.startsWith('/') || address.startsWith('//') || address.includes('\\')) return null
+  let path: string
+  try {
+    path = decodeURIComponent(address.split(/[?#]/)[0]!)
+  }
+  catch {
+    return null
+  }
+  // After one decoding: no % left (a double encoding), no backslash, no control characters.
+  // eslint-disable-next-line no-control-regex
+  if (/[%\\\u0000-\u001F\u007F]/.test(path)) return null
+  const segments = path.split('/').slice(1)
+  if (segments.some((s) => s === '' || s === '.' || s === '..')) return null
+  if (segments[0]!.toLowerCase() === 'api') return null
+  return IMAGE_FILE.test(path) ? path : null
+}
+
+/** Whether a logo address is one tinyzoo reads: a picture file on this site (`brandSourcePath`) or an `https://` URL. */
 export function isBrandSourceAddress(address: string): boolean {
   if (/^https:\/\/[^/]/i.test(address)) return true
-  // A site path, but not protocol-relative (//host) and not one of the API's own routes (it would ask itself).
-  return address.startsWith('/') && !address.startsWith('//') && !address.startsWith('/\\') && !/^\/api\//i.test(address) && !address.split(/[?#]/)[0]!.split('/').includes('..')
+  return brandSourcePath(address) !== null
+}
+
+/** The file in `publicDir` that a checked site path names, or `null` when it would be outside the folder. */
+export function publicFilePath(publicDir: string, path: string): string | null {
+  if (!publicDir) return null
+  const root = resolve(publicDir)
+  const file = resolve(root, `.${path}`)
+  const inside = relative(root, file)
+  return inside && !inside.startsWith('..') && !inside.startsWith(sep) ? file : null
+}
+
+/**
+ * The `Cache-Control` of a PNG file. Asked for with the version of the file it gets (`v`), it is
+ * kept for a year: the version is a hash of the logo's bytes, so a changed logo is a new address.
+ * Without it, or with an old one, briefly. Development: never kept (the logo may change under the
+ * running server).
+ */
+export function brandFileCacheControl(opts: { dev: boolean; asked: unknown; version: string }): string {
+  if (opts.dev) return 'no-cache'
+  return opts.asked === opts.version ? 'public, max-age=31536000, immutable' : 'public, max-age=300'
 }
 
 /** Which logo a file is made from: the full logo for the email, the mark for the icons. `null`: none configured. */
@@ -38,9 +104,21 @@ export function brandFileSource(file: CmsBrandFile, theme: CmsAdminTheme): strin
   return file === 'full-email.png' ? theme.logo.full : theme.logo.mark
 }
 
-/** The `v` a file's address carries for this theme (`brandFileUrl`): when a request names it, the answer may be cached for good. */
-export function brandFileVersion(file: CmsBrandFile, theme: CmsAdminTheme): string {
-  return new URL(brandFileUrl(file, theme), 'http://x').searchParams.get('v') ?? ''
+/** Whether an SVG has text in it (`<text>`), which the PNG files draw with the server's fonts. */
+export function svgHasText(bytes: Buffer): boolean {
+  return /<(?:[a-z][\w-]*:)?text[\s>/]/i.test(bytes.toString('utf8'))
+}
+
+/** Throws with a short reason when the bytes are not a picture tinyzoo can draw (checked when a logo is read). */
+export async function checkLogoBytes(bytes: Buffer): Promise<void> {
+  let meta: Awaited<ReturnType<ReturnType<typeof sharp>['metadata']>>
+  try {
+    meta = await sharp(bytes, { failOn: 'error', limitInputPixels: MAX_LOGO_PIXELS }).metadata()
+  }
+  catch {
+    throw new Error('it is not a picture tinyzoo can read (use an SVG or a PNG; WebP, JPEG and AVIF work too)')
+  }
+  if (!meta.width || !meta.height) throw new Error('the picture has no size')
 }
 
 /** The square size of a mark file (`mark-180.png` → 180). */

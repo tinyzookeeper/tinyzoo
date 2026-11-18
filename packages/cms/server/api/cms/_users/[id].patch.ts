@@ -102,7 +102,7 @@ export default defineEventHandler(async (event) => {
       const inviteUrl = links.invite + secret
       let emailed = false
       try {
-        emailed = await sendCmsMail(inviteEmail({ to: newEmail, inviter: me.name || me.email || 'An administrator', url: inviteUrl, role: updated.role, locale }))
+        emailed = await sendCmsMail(await inviteEmail(event, { to: newEmail, inviter: me.name || me.email || 'An administrator', url: inviteUrl, role: updated.role, locale }))
       }
       catch (err) {
         console.error('[cms] could not send the invitation email', redactEmails(safeErrorMessage(err)))
@@ -112,7 +112,7 @@ export default defineEventHandler(async (event) => {
     else if (links.signIn && updated.status === 'active') {
       const signInUrl = links.signIn
       event.waitUntil((async () => {
-        for (const msg of [emailChangedNotice({ to: target.email, newEmail, byAdmin: true, locale }), emailSetNotice({ to: newEmail, url: signInUrl, locale })]) {
+        for (const msg of [await emailChangedNotice(event, { to: target.email, newEmail, byAdmin: true, locale }), await emailSetNotice(event, { to: newEmail, url: signInUrl, locale })]) {
           await sendCmsMail(msg).catch((err) => console.error('[cms] could not send the email change notice', redactEmails(safeErrorMessage(err))))
         }
       })())
