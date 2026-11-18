@@ -167,6 +167,7 @@ survived an upgrade and a restore, and the audit has no open High or Medium.
 | Logos where SVG does not work | tinyzoo makes **PNG versions on the server** with sharp (already a dependency): the email logo, the PNG tab icon, the phone's home-screen icon and the web manifest icons, from `GET /api/cms/_brand/<file>`. |
 | Dark mode without dark versions | The light logo is shown on a small light tile, so a dark logo never disappears on charcoal. |
 | Demo | **Stays unbranded.** The docs show theming with screenshots of a made-up bakery, from a separate build. |
+| The whole look follows the brand (decided 2026-11-18, after the first slices) | With a **brand colour (hex accent)**, the moments (sign-in background, welcome card, current page in the sidebar, empty states) become a **faint tint of the brand** in light mode and charcoal tinted toward it in dark mode, derived and contrast-checked like the accent; the **animals take one muted shade of the brand** with a near-white face. Mono and the four colour presets stay as they are (cream, the colourful family). One new key, **`animals: false`**, hides the animals for a fully white-label admin. |
 
 ### Slices (parallel)
 
@@ -175,6 +176,7 @@ survived an upgrade and a restore, and the audit has no open High or Medium.
 | C — `feat/0.7-colour` | Colour maths in `src/theme.ts` (OKLCH ramps, dark version, text colour on it, the contrast guard, notes); the admin applies a brand colour (`data-cms-accent="brand"` and its variables); development warnings; `admin-contrast` tests over many colours; the website's design-system page takes any hex | M |
 | L — `feat/0.7-logo` | The logo set in the admin: sidebar (full open, mark folded), phone top bar, sign-in page, tab icon and home-screen icon (from E's PNG files), dark versions and the light tile, initials without a mark, `signature: false`, logo checks (missing file, not square) as notes | M |
 | E — `feat/0.7-mail` | `GET /api/cms/_brand/<file>` (sharp, cached by the theme's hash, safe sources only); the admin's web manifest; emails with the full logo as PNG and the button in the brand colour with its text colour; tests of the HTML in every email | M |
+| M — `feat/0.7-moments` | After the review fixes: the brand-tinted moments (`src/theme.ts` derives them, the admin writes them with the accent's `<style>`, every text on them checked), the animals in the brand's shade (inline SVG or a recoloured file, decorative), `animals: false`, the design-system page, tests and docs | M |
 
 All three start from the contract on `feat/0.7-theming` (`src/theme.ts`, `server/utils/cmsAdminTheme.ts`, `GET /api/cms/_theme`, `useCmsAdminTheme()`, the widened `app.config` types). Afterwards: docs and screenshots (cs/en/de), the changeset and "From 0.6 to 0.7" in `docs/upgrading.md`, two independent reviews of the merged wave, fix branches, then `check`, `check:starter`, `check:upgrade` and `check:consumer` green before the pull request. No schema change is planned; if a slice needs one, it comes with an upgrade step.
 
