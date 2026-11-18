@@ -47,6 +47,10 @@ const sidebarLayout = useCookie<{ size?: number; collapsed?: boolean } | null>(C
 if (sidebarLayout.value && typeof sidebarLayout.value === 'object' && !!sidebarLayout.value.collapsed !== startFolded.value) {
   sidebarLayout.value = { ...sidebarLayout.value, collapsed: startFolded.value }
 }
+// A select menu's or the search's option reached with the arrow keys shows the focus ring (cms-admin.css);
+// keyboard focus that lands off screen (Tab wrapping round a dialog) is scrolled into view.
+onMounted(() => onBeforeUnmount(cmsTrackKeys()))
+
 onMounted(() => {
   watch(focus, (on) => { collapsed.value = on || cmsSidebarFolded(pref.value) }, { immediate: true })
   watch(collapsed, (v) => {
