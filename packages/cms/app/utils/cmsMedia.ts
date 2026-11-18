@@ -1,5 +1,6 @@
 // What the admin knows about a library file: its kind, a small copy to draw in a grid, and
 // uploading several files in turns (the server takes a limited number a minute).
+import { CMS_IMAGE_WIDTHS } from '../../shared/image-widths'
 
 export type CmsMediaKind = 'image' | 'video' | 'audio' | 'pdf' | 'file'
 
@@ -18,7 +19,6 @@ export const cmsMediaIcon = (m: { mime?: string | null } | null | undefined) => 
 // The kinds the server makes smaller WebP copies of (server/utils/cmsImageSizes.ts); a GIF
 // (it would stop moving) or an SVG has only its original.
 const RESIZABLE = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
-const WIDTHS = [320, 640, 960, 1280, 1920]
 
 /**
  * What to put in an `<img>` that shows the file small: the matching smaller copy
@@ -28,7 +28,7 @@ const WIDTHS = [320, 640, 960, 1280, 1920]
  */
 export function cmsThumbUrl(m: { id?: string; url: string; mime?: string | null; width?: number | null } | null | undefined, width = 320): string {
   if (!m) return ''
-  if (!m.id || !RESIZABLE.has(String(m.mime)) || !WIDTHS.includes(width)) return m.url
+  if (!m.id || !RESIZABLE.has(String(m.mime)) || !(CMS_IMAGE_WIDTHS as readonly number[]).includes(width)) return m.url
   if (m.width && m.width <= width) return m.url
   return `/api/cms/_media/img/${m.id}/${width}.webp`
 }

@@ -6,7 +6,8 @@ import type { MigrationStatus } from 'tinyzoo'
 import { isRisky, removeMigrations, scanBreaking } from '../../packages/cms/cli/breaking'
 import { generateMigration, NEEDS_TERMINAL_MESSAGE, type GenerateOptions } from '../../packages/cms/cli/generate'
 import { formatStatus } from '../../packages/cms/cli/status'
-import { checkVersions, satisfiesRange } from '../../packages/cms/cli/versions'
+import { checkVersions, satisfiesRange, versionWarnings } from '../../packages/cms/cli/versions'
+import { addCommand, execArgs, sitePackageManager } from '../../packages/cms/cli/package-manager'
 import { nextSteps } from '../../packages/cms/cli/upgrade'
 
 const BP = '--> statement-breakpoint\n'
@@ -298,6 +299,35 @@ describe('version checks', () => {
     expect(satisfiesRange('20.0.0', '>=22')).toBe(false)
     expect(satisfiesRange('3.1.0', '^2.0.0 || ^3.0.0')).toBe(true)
     expect(satisfiesRange('4.0.0-rc.1', '^4.0.0')).toBe(true)
+    // several comparators: all must hold
+    expect(satisfiesRange('0.31.11', '>=0.31 <1')).toBe(true)
+    expect(satisfiesRange('0.40.0', '>=0.31 <1')).toBe(true)
+    expect(satisfiesRange('0.30.6', '>=0.31 <1')).toBe(false)
+    expect(satisfiesRange('1.0.0', '>=0.31 <1')).toBe(false)
+    expect(satisfiesRange('1.0.0-beta.2', '>=0.31 <1')).toBe(false)
+    expect(satisfiesRange('0.31.0', '>= 0.31 < 1')).toBe(true)
+    expect(satisfiesRange('24.15.0', '^22.22.3 || ^24.15.0 || >=26.0.0')).toBe(true)
+    expect(satisfiesRange('24.11.1', '^22.22.3 || ^24.15.0 || >=26.0.0')).toBe(false)
+  })
+
+  it('checks drizzle-kit against 0.x: a site that installs drizzle-kit 1.0 is warned', () => {
+    const root = mkdtempSync(join(tmpdir(), 'tz-ver-'))
+    try {
+      const install = (name: string, version: string) => {
+        mkdirSync(join(root, 'node_modules', name), { recursive: true })
+        writeFileSync(join(root, 'node_modules', name, 'package.json'), JSON.stringify({ name, version }))
+      }
+      const own = { peerDependencies: { 'nuxt': '^4.6.0', '@nuxt/ui': '^4.9.0', 'nuxt-auth-utils': '^0.6.2' }, dependencies: { 'drizzle-orm': '^0.45.4', 'zod': '^4.0.0' }, devDependencies: { 'drizzle-kit': '^0.31.11' } }
+      install('nuxt', '4.6.4'); install('@nuxt/ui', '4.9.0'); install('nuxt-auth-utils', '0.6.2'); install('drizzle-orm', '0.45.4'); install('zod', '4.1.0')
+      install('drizzle-kit', '0.31.11')
+      expect(checkVersions(root, own)).toEqual([])
+      install('drizzle-kit', '1.0.0')
+      const problems = checkVersions(root, own)
+      expect(problems).toEqual([{ name: 'drizzle-kit', installed: '1.0.0', wanted: '>=0.31 <1' }])
+      expect(versionWarnings(problems, '1.0.0', 'pnpm')).toEqual(['⚠ drizzle-kit: 1.0.0 is installed, tinyzoo 1.0.0 wants >=0.31 <1 — install a version that fits (`pnpm add -D "drizzle-kit@>=0.31 <1"`) before deploying'])
+      expect(versionWarnings(problems, '1.0.0', 'npm')[0]).toContain('`npm install -D "drizzle-kit@>=0.31 <1"`')
+    }
+    finally { rmSync(root, { recursive: true, force: true }) }
   })
 
   it('reports installed packages outside tinyzoo\'s ranges and missing ones', () => {
@@ -307,7 +337,7 @@ describe('version checks', () => {
         mkdirSync(join(root, 'node_modules', name), { recursive: true })
         writeFileSync(join(root, 'node_modules', name, 'package.json'), JSON.stringify({ name, version }))
       }
-      install('nuxt', '4.1.0'); install('@nuxt/ui', '3.3.0'); install('drizzle-orm', '0.44.7')
+      install('nuxt', '4.1.0'); install('@nuxt/ui', '3.3.0'); install('drizzle-orm', '0.44.7'); install('drizzle-kit', '0.31.11')
       const problems = checkVersions(root, { peerDependencies: { nuxt: '^4.0.0', '@nuxt/ui': '^4.0.0' }, dependencies: { 'drizzle-orm': '^0.44.0', zod: '^4.0.0' } })
       expect(problems).toEqual([
         { name: '@nuxt/ui', installed: '3.3.0', wanted: '^4.0.0' },
@@ -324,7 +354,7 @@ describe('version checks', () => {
         mkdirSync(join(root, 'node_modules', name), { recursive: true })
         writeFileSync(join(root, 'node_modules', name, 'package.json'), JSON.stringify({ name, version }))
       }
-      install('nuxt', '4.4.8'); install('@nuxt/ui', '4.9.0'); install('nuxt-auth-utils', '0.5.29'); install('drizzle-orm', '0.45.4'); install('zod', '4.1.0')
+      install('nuxt', '4.4.8'); install('@nuxt/ui', '4.9.0'); install('nuxt-auth-utils', '0.5.29'); install('drizzle-orm', '0.45.4'); install('zod', '4.1.0'); install('drizzle-kit', '0.31.11')
       const problems = checkVersions(root, { peerDependencies: { 'nuxt': '^4.6.0', '@nuxt/ui': '^4.9.0', 'nuxt-auth-utils': '^0.6.2' }, dependencies: { 'drizzle-orm': '^0.45.4', 'zod': '^4.0.0' } })
       expect(problems).toEqual([
         { name: 'nuxt', installed: '4.4.8', wanted: '^4.6.0' },
@@ -366,7 +396,45 @@ describe('status report', () => {
   })
 })
 
+describe('the site\'s package manager', () => {
+  let root: string
+  beforeEach(() => { root = mkdtempSync(join(tmpdir(), 'tz-pm-')) })
+  afterEach(() => rmSync(root, { recursive: true, force: true }))
+
+  it.each([['pnpm-lock.yaml', 'pnpm'], ['package-lock.json', 'npm'], ['yarn.lock', 'yarn'], ['bun.lock', 'bun'], ['bun.lockb', 'bun']])('is told by %s', (lockfile, pm) => {
+    writeFileSync(join(root, lockfile), '')
+    expect(sitePackageManager(root, 'bun/1.2.0 node/v22')).toBe(pm)
+    // a monorepo: the lockfile is above the site
+    mkdirSync(join(root, 'apps/web'), { recursive: true })
+    expect(sitePackageManager(join(root, 'apps/web'), undefined)).toBe(pm)
+  })
+
+  it('without a lockfile: the packageManager field, then who started the command, then pnpm', () => {
+    // (the temporary folder has no lockfile above it)
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ packageManager: 'yarn@4.5.0' }))
+    expect(sitePackageManager(root, 'npm/10.0.0 node/v22')).toBe('yarn')
+    writeFileSync(join(root, 'package.json'), '{}')
+    expect(sitePackageManager(root, 'bun/1.2.0 npm/? node/v22')).toBe('bun')
+    expect(sitePackageManager(root, undefined)).toBe('pnpm')
+  })
+
+  it('runs drizzle-kit and writes the install command in its words', () => {
+    expect(execArgs('pnpm', 'drizzle-kit', ['generate'])).toEqual(['pnpm', ['exec', 'drizzle-kit', 'generate']])
+    expect(execArgs('npm', 'drizzle-kit', ['generate'])).toEqual(['npm', ['exec', '--', 'drizzle-kit', 'generate']])
+    expect(execArgs('yarn', 'drizzle-kit', ['generate'])).toEqual(['yarn', ['drizzle-kit', 'generate']])
+    expect(execArgs('bun', 'drizzle-kit', ['generate'])).toEqual(['bun', ['x', 'drizzle-kit', 'generate']])
+    expect(addCommand('yarn', 'nuxt', '^4.6.4')).toBe('yarn add "nuxt@^4.6.4"')
+    expect(addCommand('bun', 'drizzle-kit', '>=0.31 <1', true)).toBe('bun add -D "drizzle-kit@>=0.31 <1"')
+  })
+})
+
 describe('what `tinyzoo upgrade` says to do next', () => {
+  it('in the site\'s package manager', () => {
+    expect(nextSteps([], 'npm')).toContain('2. npm run typecheck')
+    expect(nextSteps([], 'yarn')).toContain('2. yarn typecheck')
+    expect(nextSteps([])).toContain('2. pnpm typecheck')
+  })
+
   it('without a new migration, does not send you to read one', () => {
     const text = nextSteps([])
     expect(text).toContain('No new migration')

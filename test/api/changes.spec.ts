@@ -1,8 +1,8 @@
-import { createHmac } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, inject, it } from 'vitest'
 import { anonymous, type Client, hooksMark, type ReceivedHook, receivedHooks, signIn, testDb, truncateAll, waitForHooks } from '../helpers/api'
 import { createAuthor, createPost, createTag } from '../helpers/fixtures'
 import { WEBHOOK_SECRET } from '../setup/server'
+import { verifyWebhookSignature } from '../helpers/webhookSignature'
 
 const db = testDb()
 let admin: Client
@@ -31,11 +31,11 @@ describe('publish webhooks', () => {
     expect(ok.headers['x-cms-event']).toBe('entry.published')
     expect(ok.headers['content-type']).toBe('application/json')
 
-    // Signature: HMAC-SHA256 over `${t}.${raw body}`.
-    const m = /^t=(\d+),v1=([0-9a-f]{64})$/.exec(ok.headers['x-cms-signature']!)
-    expect(m).toBeTruthy()
-    expect(Math.abs(Date.now() / 1000 - Number(m![1]))).toBeLessThan(60)
-    expect(m![2]).toBe(createHmac('sha256', WEBHOOK_SECRET).update(`${m![1]}.${ok.body}`).digest('hex'))
+    // Signature: HMAC-SHA256 over `${t}.${raw body}`, checked the way a receiver should (test/helpers/webhookSignature.ts).
+    expect(ok.headers['x-cms-signature']).toMatch(/^t=\d+,v1=[0-9a-f]{64}$/)
+    expect(verifyWebhookSignature(ok.headers['x-cms-signature'], ok.body, WEBHOOK_SECRET)).toBe(true)
+    expect(verifyWebhookSignature(ok.headers['x-cms-signature'], `${ok.body} `, WEBHOOK_SECRET)).toBe(false)
+    expect(verifyWebhookSignature(ok.headers['x-cms-signature'], ok.body, 'another secret')).toBe(false)
   })
 
   it('retries a failed delivery under the same delivery id', async () => {
