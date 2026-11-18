@@ -315,6 +315,8 @@ function shape(root, { version, languages, presets, demo, packageManager, folder
     const alias = languages.slice(1).map((l) => `'${inLanguage(languages, l, `/${wordsOf(l).search}`)}'`)
     edit('app/pages/search.vue', "definePageMeta({ name: 'search', path: '/hledat', alias: ['/en/search'] })",
       `definePageMeta({ name: 'search', path: '/${wordsOf(first).search}'${alias.length ? `, alias: [${alias.join(', ')}]` : ''} })`)
+    edit('nuxt.config.ts', "exclude: ['/hledat', '/en/search']",
+      `exclude: [${[`'/${wordsOf(first).search}'`, ...alias].join(', ')}]`)
     edit('app/pages/search.vue', '// Search the website: /hledat (and /en/search).', `// Search the website: /${wordsOf(first).search}${alias.length ? ` (and ${alias.map((a) => a.slice(1, -1)).join(', ')})` : ''}.`)
   }
 

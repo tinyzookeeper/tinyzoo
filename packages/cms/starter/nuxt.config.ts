@@ -11,5 +11,9 @@ export default defineNuxtConfig({
   // The pages and news items are added by the CMS (the home page as / and /en: server/plugins/sitemap.ts).
   cms: { sitemap: { paths: [{ cs: '/aktuality', en: '/en/news' }] } },
   // #endif
+  // #if search
+  // The search page says noindex; keep it out of /sitemap.xml as well.
+  sitemap: { exclude: ['/hledat', '/en/search'] },
+  // #endif
   compatibilityDate: '2025-06-01',
 })
