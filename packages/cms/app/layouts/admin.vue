@@ -40,6 +40,13 @@ const mobileHint = (() => {
 })()
 const startFolded = useState('cms-sidebar-start-folded', () => cmsSidebarFolded(pref.value) || (editorFolds.value && !mobileHint))
 const collapsed = ref(startFolded.value)
+// Nuxt UI keeps the sidebar's width and fold in a cookie of its own (for the browser session)
+// and draws the fold it holds. Left alone it can disagree with the choice above (a tab closed
+// in an editor's focus mode), and the page jumps once the browser takes over: start it from ours.
+const sidebarLayout = useCookie<{ size?: number; collapsed?: boolean } | null>(CMS_SIDEBAR_LAYOUT_COOKIE)
+if (sidebarLayout.value && typeof sidebarLayout.value === 'object' && !!sidebarLayout.value.collapsed !== startFolded.value) {
+  sidebarLayout.value = { ...sidebarLayout.value, collapsed: startFolded.value }
+}
 onMounted(() => {
   watch(focus, (on) => { collapsed.value = on || cmsSidebarFolded(pref.value) }, { immediate: true })
   watch(collapsed, (v) => {
@@ -169,7 +176,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
       href="#cms-main" class="cms-skip-link" @click.prevent="focusMain"
     >{{ t('app.skipToContent') }}</a>
     <UDashboardSidebar
-      v-model:collapsed="collapsed"
+      id="main" v-model:collapsed="collapsed"
       collapsible resizable :default-size="16" :min-size="14" :max-size="20" :collapsed-size="4.25"
       class="cms-sidebar"
       :ui="{ root: 'bg-(--cms-sidebar-bg) border-r border-default', header: 'h-(--ui-header-height)', footer: 'border-t border-default flex-col items-stretch gap-0 py-2' }"

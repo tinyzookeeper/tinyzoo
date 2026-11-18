@@ -7,3 +7,9 @@
 export function cmsSidebarFolded(value: unknown): boolean {
   return value === true || String(value) === '1'
 }
+
+/**
+ * Nuxt UI's own cookie for the sidebar: `<UDashboardGroup storage-key="cms-admin">` +
+ * `-sidebar-` + the sidebar's `id` ("main"). It holds the width and the fold as drawn.
+ */
+export const CMS_SIDEBAR_LAYOUT_COOKIE = 'cms-admin-sidebar-main'

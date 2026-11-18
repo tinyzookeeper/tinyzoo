@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { defineBlock, defineEntity, defineSingleton, editorLayout, f, listLayout, type CmsEntity } from 'tinyzoo'
-import { cmsSidebarFolded } from '../../packages/cms/app/utils/cmsSidebar'
+import { CMS_SIDEBAR_LAYOUT_COOKIE, cmsSidebarFolded } from '../../packages/cms/app/utils/cmsSidebar'
 
 // The admin picks how an editor and a list look from what the content is; the
 // developer can say otherwise with admin.editor / admin.list.layout.
@@ -82,5 +82,14 @@ describe('cmsSidebarFolded: the folded sidebar after a reload', () => {
     const vue = readFileSync(join(import.meta.dirname, '../../packages/cms/app/layouts/admin.vue'), 'utf8')
     expect(vue).not.toMatch(/pref\.value === '1'/)
     expect(vue.match(/cmsSidebarFolded\(pref\.value\)/g)).toHaveLength(2)
+  })
+
+  it("starts Nuxt UI's own sidebar cookie from the same fold, so the first frame does not jump", () => {
+    const vue = readFileSync(join(import.meta.dirname, '../../packages/cms/app/layouts/admin.vue'), 'utf8')
+    // Nuxt UI names its cookie `${storageKey}-sidebar-${id}`.
+    const key = /<UDashboardGroup[^>]*storage-key="([^"]+)"/.exec(vue)?.[1]
+    const id = /<UDashboardSidebar\s[^>]*\bid="([^"]+)"/.exec(vue)?.[1]
+    expect(`${key}-sidebar-${id}`).toBe(CMS_SIDEBAR_LAYOUT_COOKIE)
+    expect(vue).toMatch(/useCookie<[^>]+>\(CMS_SIDEBAR_LAYOUT_COOKIE\)/)
   })
 })
