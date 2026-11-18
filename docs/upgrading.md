@@ -6,15 +6,16 @@ It is written for people who build sites with tinyzoo. The last section is for t
 
 ## Version policy
 
-- **0.x (now):** a minor version (0.2 → 0.3) may break things. Every such change is in the package's `CHANGELOG.md` under an **Upgrade** heading that says what your site has to do.
-- **Patch versions** (0.2.1 → 0.2.2) never need anything from you.
-- **From 1.0:** [semver](https://semver.org). These only break in a new major version, and anything that goes away is marked deprecated for at least one minor version first:
+- **Since 1.0:** [semver](https://semver.org). These only break in a new major version, and anything that goes away is marked deprecated for at least one minor version first:
   - the content API and the types of `@tinyzoo/client`
   - the config API (`defineEntity`, `f.*`, presets, plugins)
   - the webhook and the Nitro hooks
   - the CLI, the `cms` options and the `NUXT_CMS_*` variables
   - the admin's extension points
 - **[The public API](api-surface.md)** lists every one of them. Everything else can change in any minor release, with a changeset. That covers the other `Cms*` components, the server utilities, anything tagged `@internal` and the database tables. tinyzoo migrates the tables for you.
+- **Minor versions** (1.1, 1.2) add things. When one asks something of your site, such as a new migration, its `CHANGELOG.md` entry has an **Upgrade** heading that says what to do.
+- **Patch versions** (1.0.1 → 1.0.2) never need anything from you.
+- **Before 1.0 (0.x)**, a minor version (0.2 → 0.3) could break things. Each break is under the **Upgrade** heading of that version, and each one has its section below.
 
 ## On every upgrade
 

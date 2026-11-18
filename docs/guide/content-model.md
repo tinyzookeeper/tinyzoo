@@ -322,7 +322,6 @@ It takes the same options as `defineEntity`, except `admin.list`.
 
 - Read a global with `GET /api/content/_global/<name>`, or `cms.global('siteSettings')` in the typed client. It answers `null` until it is first saved.
 - A global with `admin.preview: '/'` is edited beside the live page.
-- The `singleton` option of `defineEntity` makes the same thing, but it is deprecated and warns at start. Use `defineSingleton`.
 
 ## Presets
 
@@ -463,8 +462,6 @@ export const FormSettings = defineFormSettings() // editors set who gets the ema
 ```
 
 `defineForm` returns an `Entity` typed from the form's fields. `Row<typeof ContactForm>` has `name`, `email`, `message` and the state `status`, with their real types.
-
-> `defineForm` and `defineFormSettings` imported from `tinyzoo` still work (same tables, same endpoints, same `<CmsForm>`) and register the plugin by themselves. They are deprecated and removed in 0.4: import them from `tinyzoo/forms` and add `formsPlugin()`. No migration is needed.
 
 **Showing a form.** On a page, use `<CmsForm name="contactForm" />`. It is plain HTML. Its default styles sit in the lowest CSS layer and follow the text colour, so any class of yours wins. Errors appear per field, in the visitor's language. A `f.select` with a `default` opens on it, and a consent is `f.boolean({ mustBeTrue: true })`.
 

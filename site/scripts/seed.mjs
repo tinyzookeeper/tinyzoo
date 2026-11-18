@@ -291,7 +291,7 @@ await update('Nový web jedním příkazem: pnpm create tinyzoo', 'pnpm-create-t
     picture(shots.cs.terminal, 'Terminál s příkazem pnpm create tinyzoo: otázky na složku, jazyky, části webu, ukázkový obsah a instalaci, pak vytvořený projekt a příkazy, kterými ho spustíte'),
     p('Každá otázka má i přepínač, takže příkaz spustíte i bez ptaní: pnpm create tinyzoo muj-web --languages cs,en --presets news,search --no-demo --yes.'),
     p('Nový projekt má také soubor AGENTS.md. Je to krátký návod pro asistenta, se kterým programujete: kde je model obsahu, jak se mění a na co nesahat.'),
-    p('Krok za krokem to popisuje ', a('návod Getting started', '/dokumentace/pro-vyvojare/getting-started'), ' v dokumentaci (zatím v angličtině).')), { cover: img.desk.id })
+    p('Krok za krokem to popisuje ', a('návod Getting started', '/en/docs/developers/getting-started'), ' v dokumentaci (je v angličtině).')), { cover: img.desk.id })
 await update('Každý jazyk se zveřejňuje zvlášť, s originálem po ruce', 'jazyky-zvlast', 'feature', 0,
   'Anglickou verzi článku v klidu dopíšete a zveřejníte, až bude hotová. Při překládání máte český text pořád na očích.',
   doc(p('Každý jazyk má svůj stav: koncept, naplánováno, nebo na webu. Překlad jde na web vždy spolu s českou verzí, takže se tam nedostane nic z nehotového českého textu. Vývojář to zapne tam, kde to dává smysl, třeba u článků.'),

@@ -54,7 +54,8 @@ cms: {
 - Every content row records `createdBy` / `updatedBy`.
 - Sessions last 14 days from sign-in (`runtimeConfig.session.maxAge`).
 - State-changing requests to `/api/cms/**` must send JSON (multipart only for media uploads). When the browser reports it, they must also come from the same origin. So a form on another page of the site, or on a sibling subdomain, cannot act as a signed-in editor (CSRF).
-- Rate limits are in memory per instance today. A shared store for several replicas is planned (Phase 5).
+- Rate limits are shared by every replica when the site has Redis or Valkey (`REDIS_URL`, or `NUXT_CMS_REDIS_URL`). Without it, each instance counts on its own, which is right for one instance ([deploying](../deploying.md#what-runs)).
+- When Redis does not answer, each instance counts on its own until it does. An outage neither locks people out nor turns the limits off.
 
 ### Email while developing
 

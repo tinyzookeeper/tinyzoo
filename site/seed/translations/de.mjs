@@ -202,7 +202,7 @@ export default (h) => {
           picture(shots.terminal, 'Ein Terminal mit pnpm create tinyzoo: Fragen nach dem Ordner, den Sprachen, den Teilen der Website, Beispielinhalten und der Installation, danach das erstellte Projekt und die Befehle zum Starten'),
           p('Jede Frage hat auch eine Option, so läuft der Befehl auch ohne Rückfragen: pnpm create tinyzoo meine-website --languages de,en --presets news,search --no-demo --yes.'),
           p('Jedes neue Projekt hat außerdem eine Datei AGENTS.md. Sie ist eine kurze Anleitung für den Assistenten, mit dem Sie programmieren: wo das Inhaltsmodell liegt, wie man es ändert und was man nicht anfassen sollte.'),
-          p('Schritt für Schritt erklärt es die Anleitung ', a('Getting started', '/de/dokumentation/entwicklung/getting-started'), ' in der Dokumentation (vorerst auf Englisch).')),
+          p('Schritt für Schritt erklärt es die Anleitung ', a('Getting started', '/en/docs/developers/getting-started'), ' in der Dokumentation (auf Englisch).')),
       },
       vyhledavani: {
         title: 'Suche auf der Website und in der Verwaltung', slug: 'suche',

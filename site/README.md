@@ -56,8 +56,13 @@ pages; `sitemap.exclude` keeps the search pages out).
 ## Documentation
 
 `/dokumentace`, `/en/docs` and `/de/dokumentation` show the Markdown in the repository's `docs/`: the editors'
-guide in its three languages and the developer pages (English; on `/dokumentace` and `/de/dokumentation` with a
-note saying so). Nothing of it is in the database.
+guide in its three languages and the developer pages. Nothing of it is in the database.
+
+- **Developer pages are English only** (decided for 1.0), at `/en/docs/developers`. The Czech and German contents,
+  doors and search lead there, with a note in their language; the old `/dokumentace/pro-vyvojare/…` and
+  `/de/dokumentation/entwicklung/…` addresses redirect there (301). They have only an English `hreflang`.
+- **Czech text** gets a non-breaking space after a one-letter word (`czechSpaces` in `modules/docs/render.ts`),
+  outside code and links.
 
 - **Built, not stored.** `modules/docs` (Nuxt loads it from `modules/` by itself) renders every page once per
   language when the site is built (`marked`, plus a small highlighter) and hands the JSON to Nitro as server assets,
