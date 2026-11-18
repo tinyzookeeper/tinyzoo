@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { defineBlock, defineEntity, defineSingleton, editorLayout, f, listLayout, type CmsEntity } from 'tinyzoo'
+import { cmsSidebarFolded } from '../../packages/cms/app/utils/cmsSidebar'
 
 // The admin picks how an editor and a list look from what the content is; the
 // developer can say otherwise with admin.editor / admin.list.layout.
@@ -60,5 +63,24 @@ describe('listLayout', () => {
   it('lets the developer choose', () => {
     const Event = defineEntity('event', { label: 'Events', titleField: 'title', fields: { title: f.text(), startsAt: f.datetime() }, admin: { list: { columns: ['title', 'startsAt'], layout: 'table' } } })
     expect(listLayout(e(Event))).toBe('table')
+  })
+})
+
+describe('cmsSidebarFolded: the folded sidebar after a reload', () => {
+  it('reads the cookie as useCookie hands it over: the number 1, the string "1" or true', () => {
+    // useCookie parses a value that looks like JSON: the `1` the admin stores comes back as a number.
+    expect(cmsSidebarFolded(1)).toBe(true)
+    expect(cmsSidebarFolded('1')).toBe(true)
+    expect(cmsSidebarFolded(true)).toBe(true)
+  })
+
+  it('keeps the sidebar open otherwise', () => {
+    for (const v of [0, '0', false, null, undefined, '', 'yes', 2]) expect(cmsSidebarFolded(v), String(v)).toBe(false)
+  })
+
+  it('is what the admin layout reads, on the server and in the browser', () => {
+    const vue = readFileSync(join(import.meta.dirname, '../../packages/cms/app/layouts/admin.vue'), 'utf8')
+    expect(vue).not.toMatch(/pref\.value === '1'/)
+    expect(vue.match(/cmsSidebarFolded\(pref\.value\)/g)).toHaveLength(2)
   })
 })

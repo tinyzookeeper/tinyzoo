@@ -21,7 +21,7 @@ const { unbranded, signature } = useCmsAdminHead()
 const focus = useCmsFocus()
 // The person's own choice lives in a cookie, so the server draws the same sidebar the
 // browser will (no jump, no hydration mismatch). Focus folds it on top, after load.
-const pref = useCookie<string | null>('cms_sidebar_folded', { maxAge: 60 * 60 * 24 * 365, sameSite: 'lax', path: '/' })
+const pref = useCookie<string | number | boolean | null>('cms_sidebar_folded', { maxAge: 60 * 60 * 24 * 365, sameSite: 'lax', path: '/' })
 // The Write and Preview editors fold it (on wide screens, where the sidebar shows):
 // start folded there already, so the page does not jump once the editor mounts.
 const editorFolds = computed(() => {
@@ -38,10 +38,10 @@ const mobileHint = (() => {
   const h = useRequestHeaders(['sec-ch-ua-mobile', 'user-agent'])
   return h['sec-ch-ua-mobile'] === '?1' || /Mobi|Android|iPhone|iPad/i.test(h['user-agent'] ?? '')
 })()
-const startFolded = useState('cms-sidebar-start-folded', () => pref.value === '1' || (editorFolds.value && !mobileHint))
+const startFolded = useState('cms-sidebar-start-folded', () => cmsSidebarFolded(pref.value) || (editorFolds.value && !mobileHint))
 const collapsed = ref(startFolded.value)
 onMounted(() => {
-  watch(focus, (on) => { collapsed.value = on || pref.value === '1' }, { immediate: true })
+  watch(focus, (on) => { collapsed.value = on || cmsSidebarFolded(pref.value) }, { immediate: true })
   watch(collapsed, (v) => {
     if (focus.value) return
     pref.value = v ? '1' : '0'
