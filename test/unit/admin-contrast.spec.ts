@@ -44,7 +44,7 @@ function presetTokens(preset: string, dark: boolean) {
   const vars = tokens(dark)
   if (preset === 'mono') return vars
   Object.assign(vars, declared(`html[data-cms-admin][data-cms-accent='${preset}']`))
-  if (dark) Object.assign(vars, declared(`html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono'], [data-cms-accent='brand'])`))
+  if (dark) Object.assign(vars, declared(`html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono'], [data-cms-accent='brand'])`), declared(`html[data-cms-admin].dark[data-cms-accent='${preset}']`))
   return vars
 }
 /** The tokens with a brand colour drawn: the <style> the admin writes (adminAccentCss) over the stylesheet. */
@@ -250,6 +250,65 @@ describe('a brand colour on the admin\'s real surfaces', () => {
   })
 })
 
+// The accent's soft tints (cms-admin.css, "Soft tints"): accent text on its own tint, as Nuxt UI paints it
+// on soft and subtle buttons (10 %, 15 % under the pointer), the search's matched letters (15 %) and the
+// calendar's hovered day (20 %). Nuxt UI's numbers put the built-in blue, violet and emerald (and indigo in
+// dark mode) at 3.9-4.2:1; those presets draw the tints lighter. The surfaces are the guard's: white in light
+// mode, the page and cards in dark mode.
+describe('accent text on the accent\'s own tints', () => {
+  const TINTS = ['--cms-accent-tint', '--cms-accent-tint-hover', '--cms-accent-tint-strong'] as const
+  const NUXT_UI = [10, 15, 20]
+  const percent = (vars: Record<string, string>, name: string) => {
+    const m = /^([\d.]+)%$/.exec(vars[name] ?? '')
+    if (!m) throw new Error(`${name} is not a percentage: ${vars[name]}`)
+    return Number(m[1])
+  }
+  const tintSurfaces = (dark: boolean) => (dark ? ['--cms-page-bg', '--cms-surface'] : ['--ui-bg', '--cms-surface'])
+  const brands = ['#B4532A', '#FFD500', '#3B82F6', '#6366F1', '#10B981', '#8B5CF6', '#A8E6CF', '#000000', '#808080', '#FF0000', '#0E7490', '#6D28D9']
+  const cases = [
+    ...CMS_ACCENT_PRESETS.flatMap((p) => [false, true].map((dark) => ({ name: p, dark, vars: presetTokens(p, dark) }))),
+    ...brands.flatMap((b) => [false, true].map((dark) => ({ name: b, dark, vars: brandTokens(b, dark) }))),
+  ]
+
+  for (const { name, dark, vars } of cases) {
+    it(`${name}, ${dark ? 'dark' : 'light'}: 4.5:1 on every tint, never stronger than Nuxt UI's, the hover still shows`, () => {
+      const text = resolve('--ui-primary', vars)
+      const [rest, hover, strong] = TINTS.map((t) => percent(vars, t))
+      for (const [i, tint] of [rest!, hover!, strong!].entries()) {
+        expect(tint, `${TINTS[i]} ${tint}%`).toBeLessThanOrEqual(NUXT_UI[i]!)
+        for (const surface of tintSurfaces(dark)) {
+          const ratio = contrast(text, over(text, tint / 100, resolve(surface, vars)))
+          expect(ratio, `${name}: text on ${TINTS[i]} (${tint}%) over ${surface}`).toBeGreaterThanOrEqual(4.5)
+        }
+      }
+      expect(hover! - rest!, 'the hover is 3 points or more above the rest').toBeGreaterThanOrEqual(3)
+      expect(strong!, 'the calendar\'s hover is no lighter than a button\'s').toBeGreaterThanOrEqual(hover!)
+    })
+  }
+
+  it('the presets that fell short draw them lighter; mono, indigo (light), emerald (dark) and a brand keep Nuxt UI\'s', () => {
+    const drawn = (vars: Record<string, string>) => TINTS.map((t) => percent(vars, t))
+    // Measured with Nuxt UI's 20 %: blue 3.90, emerald 4.02, violet 4.24 (light); indigo 3.89, blue 4.44, violet 4.20 (dark).
+    expect(drawn(presetTokens('blue', false))).toEqual([6.5, 9.5, 9.5])
+    expect(drawn(presetTokens('emerald', false))).toEqual([8.5, 11.5, 11.5])
+    expect(drawn(presetTokens('violet', false))).toEqual([10, 15, 16])
+    expect(drawn(presetTokens('indigo', true))).toEqual([7.5, 10.5, 10.5])
+    expect(drawn(presetTokens('blue', true))).toEqual([10, 15, 18.5])
+    expect(drawn(presetTokens('violet', true))).toEqual([10, 15, 15.5])
+    for (const vars of [presetTokens('mono', false), presetTokens('mono', true), presetTokens('indigo', false), presetTokens('emerald', true), brandTokens('#3B82F6', false), brandTokens('#3B82F6', true)]) {
+      expect(drawn(vars)).toEqual(NUXT_UI)
+    }
+    // Nuxt UI's 20 % really falls short for them (else the lighter tints would be for nothing).
+    for (const [preset, dark] of [['blue', false], ['emerald', false], ['violet', false], ['indigo', true]] as const) {
+      const vars = presetTokens(preset, dark)
+      const text = resolve('--ui-primary', vars)
+      expect(contrast(text, over(text, 0.2, resolve(dark ? '--cms-page-bg' : '--ui-bg', vars))), preset).toBeLessThan(4.5)
+    }
+    // A brand colour's <style> leaves the tints to the stylesheet: the guard checks its text on 20 %.
+    expect(adminAccentCss(resolveAdminTheme({ accent: '#3B82F6' }))).not.toContain('--cms-accent-tint')
+  })
+})
+
 // The rules that replace Nuxt UI's hover fill and its 25 % focus outline. They match Nuxt UI's own class
 // names, so a Nuxt UI upgrade that renames them would quietly bring the old states back: the last test
 // reads Nuxt UI's theme and fails first.
@@ -274,6 +333,49 @@ describe('accent states in the stylesheet', () => {
     expect(css.match(/outline[^;{}]*var\(--cms-accent-ring\)[^;]*/g)?.every((d) => !d.includes('%') && !d.includes('/'))).toBe(true)
   })
 
+  it('keyboard focus that showed no ring: menu items, the title and summary, a rich-text field, the address title', () => {
+    // Menu items: the ring on their highlight, 2 px inside it; a marked option (select menu, search) only after a key.
+    expect(body(`html[data-cms-admin] [class~='before:inset-px']:is([role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option']):focus-visible::before`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: -2px;')
+    expect(body(`html[data-cms-admin][data-cms-keys] [class~='before:inset-px'][data-highlighted]:not([data-disabled])::before`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: -2px;')
+    // No item ring under the pointer: every rule that rings a highlighted item asks for data-cms-keys.
+    for (const m of css.matchAll(/([^{}]*\[data-highlighted\][^{}]*)\{([^{}]*)\}/g)) {
+      if (m[2]!.includes('outline')) expect(m[1], 'a highlighted item is ringed only after a key').toContain('[data-cms-keys]')
+    }
+    expect(body(`html[data-cms-admin] :is(.cms-title-input, .cms-lead-input):focus-visible`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: 0.375rem; border-radius: 0.25rem;')
+    expect(body(`html[data-cms-admin] .cms-title-input--address:focus-visible`)).toBe('box-shadow: inset 0 0 0 1px var(--cms-accent-ring); outline-width: 1px; outline-offset: 0; border-radius: var(--ui-radius);')
+    expect(body(`html[data-cms-admin] .cms-rte:has(.ProseMirror:focus-visible)`)).toBe('border-color: var(--cms-accent-ring); outline: 1px solid var(--cms-accent-ring); outline-offset: 0;')
+    expect(body(`html[data-cms-admin] .cms-write-body .cms-rte:has(.ProseMirror:focus-visible)`)).toBe('outline-width: 2px; outline-offset: 0.375rem; border-radius: 0.25rem;')
+    // The pale 20 % halo the address title had is gone.
+    expect(css).not.toMatch(/cms-title-input--address:focus\s*\{/)
+  })
+
+  it('the ring reads at 3:1 on a menu item\'s highlight (bg-elevated/50 over the menu), every accent', () => {
+    const cases = [
+      ...CMS_ACCENT_PRESETS.flatMap((p) => [false, true].map((dark) => ({ name: p, dark, vars: presetTokens(p, dark) }))),
+      ...['#B4532A', '#FFD500', '#3B82F6', '#A8E6CF', '#FFFFFF', '#000000'].flatMap((b) => [false, true].map((dark) => ({ name: b, dark, vars: brandTokens(b, dark) }))),
+    ]
+    for (const { name, dark, vars } of cases) {
+      const at = (n: string) => resolve(n, vars)
+      const highlight = over(at('--ui-bg-elevated'), 0.5, at('--ui-bg'))
+      expect(contrast(at('--cms-accent-ring'), highlight), `${name} ${dark ? 'dark' : 'light'}: ring on the highlight`).toBeGreaterThanOrEqual(3)
+      // Nuxt UI's highlight alone barely shows (this is why the ring is there).
+      expect(contrast(highlight, at('--ui-bg'))).toBeLessThan(1.2)
+    }
+  })
+
+  it('the soft tints: Nuxt UI\'s tint classes drawn with the accent\'s own --cms-accent-tint*, the hover not when disabled', () => {
+    const mix = (v: string) => `background-color: color-mix(in oklab, var(--ui-primary) var(${v}), transparent);`
+    expect(body(`html[data-cms-admin] [class~='bg-primary/10'][class~='hover:bg-primary/15']`)).toBe(mix('--cms-accent-tint'))
+    expect(body(`[class~='hover:bg-primary/15']:not(:disabled, [aria-disabled='true']):hover`)).toBe(mix('--cms-accent-tint-hover'))
+    expect(body(`[class~='active:bg-primary/15']:not(:disabled, [aria-disabled='true']):active`)).toBe(mix('--cms-accent-tint-hover'))
+    expect(body(`[class~='[&>mark]:bg-primary/15'] > mark`)).toBe(mix('--cms-accent-tint-hover'))
+    expect(body(`[class~='hover:not-data-selected:bg-primary/20']:not([data-selected]):hover`)).toBe(mix('--cms-accent-tint-strong'))
+    // A selected day keeps Nuxt UI's own fill when the keyboard is on it.
+    expect(body(`[class~='data-highlighted:bg-primary/20'][data-highlighted]:not([data-selected])`)).toBe(mix('--cms-accent-tint-strong'))
+    // The defaults are Nuxt UI's.
+    expect(declared('html[data-cms-admin]')).toMatchObject({ '--cms-accent-tint': '10%', '--cms-accent-tint-hover': '15%', '--cms-accent-tint-strong': '20%' })
+  })
+
   it('a solid button under the pointer and pressed: the accent\'s hover fill, not when disabled', () => {
     expect(body(`[class~='hover:bg-primary/75']:not(:disabled, [aria-disabled='true']):hover`)).toBe('background-color: var(--cms-accent-fill-hover);')
     expect(body(`[class~='active:bg-primary/75']:not(:disabled, [aria-disabled='true']):active`)).toBe('background-color: var(--cms-accent-fill-hover);')
@@ -288,5 +390,12 @@ describe('accent states in the stylesheet', () => {
     expect(theme).toContain('outline-${color}/25 focus-visible:outline-3')
     expect(theme).toContain('focus-visible:before:outline-3')
     expect(theme).toContain('has-focus-visible:outline-3')
+    // the soft tints
+    expect(theme).toContain('bg-${color}/10 hover:bg-${color}/15 active:bg-${color}/15')
+    expect(theme).toContain('[&>mark]:bg-primary/15')
+    expect(theme).toContain('data-highlighted:bg-${color}/20 hover:not-data-selected:bg-${color}/20')
+    // menu items: a pill drawn by ::before, highlighted as the keyboard or the pointer reaches the item
+    expect(theme).toContain('outline-none before:absolute before:z-[-1] before:inset-px before:rounded-md')
+    expect(theme).toContain('data-highlighted:not-data-disabled:before:bg-elevated/50')
   })
 })

@@ -1850,7 +1850,7 @@ Decisions above ("Decisions locked for Wave 5"). Integration branch `feat/1.0` (
 | Slice | Branch | State |
 |---|---|---|
 | R1 — API freeze: remove what 0.6 deprecated, search helpers back to `@internal`, `api-surface.md` and the contracts agree, "From 0.7 to 1.0" | `feat/1.0-freeze` | merged into `feat/1.0` |
-| R2 — Accessibility: lighter preset tints, keyboard focus on menu items, rich text and title, a keyboard pass | `fix/1.0-a11y` | in progress |
+| R2 — Accessibility: lighter preset tints, keyboard focus on menu items, rich text and title, a keyboard pass | `fix/1.0-a11y` | merged into `feat/1.0` |
 | Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | merged into `feat/1.0` |
 | R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | `test/1.0-upgrade` | merged into `feat/1.0` |
 | W — Plans on the website: a Plans collection edited in the website's admin, `/plany` lists it with a Done stage (owner's request, 2026-11-18) | `feat/site-roadmap` | merged into `feat/1.0` |

@@ -99,6 +99,17 @@ How the colours are derived, in OKLCH:
   sits on the page; text fields hug theirs (2 px, or 1 px against the field's own 1 px ring); the
   menu's links draw it around their highlight. A plain link keeps the browser's own ring, in
   `--cms-accent-ring` (only `outline-color` is set, so nothing that had no ring gains one).
+- **Menu items** (dropdowns, selects, select menus, the search) draw the ring 2 px inside their highlight
+  when the keyboard reaches them; Nuxt UI's highlight alone (`bg-elevated/50`) is 1.04:1 on the menu (1.09:1
+  in dark mode). A dropdown or a plain select moves the focus to the item (`:focus-visible`); a select menu
+  and the search keep it in their search box and mark the item with `data-highlighted`, as the pointer
+  does, so the admin layout notes whether the keyboard was the last thing used (`data-cms-keys` on
+  `<html>`, `cmsTrackKeys`: set by a key, cleared when the pointer moves or presses). Under the pointer an
+  item looks as before.
+- **Borderless text** (the big title, the summary under it) and a **rich-text field** take the ring when
+  they have the cursor, from a click too, as every field does: the title and summary 2 px, 0.375 rem off the
+  text; a rich-text field's own line turns the accent with 1 px of outline on it (2 px in all); in the
+  writing column, where the text has no box, 2 px round the text and its toolbar.
 
 **The contrast guard** checks the hexes the admin draws (WCAG 2 ratios):
 
@@ -114,7 +125,23 @@ The tint is Nuxt UI's: soft buttons at 10 %, their hover and the search's matche
 calendar's hovered "today" at 20 %. Accent text does not sit on the stronger cream (`#F1EADF`), the
 pressed grey (neutral-200), or a tint over cream or charcoal anywhere in the admin, so the guard does not
 check those; a site's own component that puts it there is not covered. The five built-in accents are
-not run through the guard: blue, violet and emerald read 3.9–4.3:1 as text on their own 15–20 % tint.
+not run through the guard. With Nuxt UI's 15–20 %, blue, violet and emerald (and indigo in dark mode) read
+3.9–4.4:1 as text on their own tint, so `cms-admin.css` draws those tints lighter for them
+(`--cms-accent-tint`, `-hover`, `-strong`, set with each preset): each as strong as it can be with the
+text at 4.5:1 on white (light) or on the page and cards (dark), half a point to spare, never stronger than
+Nuxt UI's; where the hover would then sit less than 3 points above the rest, the rest steps down too.
+
+| Preset | Light: rest / hover / strong | Dark |
+|---|---|---|
+| mono, a brand colour | 10 / 15 / 20 % (Nuxt UI's) | 10 / 15 / 20 % |
+| indigo | 10 / 15 / 20 % | 7.5 / 10.5 / 10.5 % |
+| blue | 6.5 / 9.5 / 9.5 % | 10 / 15 / 18.5 % |
+| violet | 10 / 15 / 16 % | 10 / 15 / 15.5 % |
+| emerald | 8.5 / 11.5 / 11.5 % | 10 / 15 / 20 % |
+
+The rules match Nuxt UI's classes (`bg-primary/10` with `hover:bg-primary/15`, `active:bg-primary/15`,
+`[&>mark]:bg-primary/15`, the calendar's `data-highlighted:` and `hover:not-data-selected:bg-primary/20`), so
+a soft or subtle button, the search's matched letters and the calendar's hovered day follow them.
 
 A colour that fails moves to the nearest one that passes, by OKLCH lightness only: the hue stays and
 the chroma stays as far as sRGB allows. The fill may go either way, the text shade only darker, the dark
@@ -447,8 +474,14 @@ touch by hand — if a control comes out smaller than 44 px on a phone, the rule
   same key made the form's generated ids differ after hydration (label `for` ≠ input `id`: an unlabelled
   field).
 - Focus rings: Nuxt UI's, redrawn by `cms-admin.css` at full strength in `--cms-accent-ring` (2 px,
-  3:1 or more on every surface, light and dark; see Brand colours). The editor-side resize handle's line
-  turns the accent from the keyboard. `prefers-reduced-motion` turns transitions and the moment's rise off.
+  3:1 or more on every surface, light and dark; see Brand colours), menu items, the title and rich text
+  included. The editor-side resize handle's line turns the accent from the keyboard.
+  `prefers-reduced-motion` turns transitions and the moment's rise off.
+- Keyboard focus stays on screen: a dialog's focus trap (Reka) moves the focus without scrolling when Tab
+  wraps round, so while the keyboard is in use the admin scrolls a control that takes the focus entirely
+  out of view to the nearest edge (`cmsTrackKeys`; the publish review on a phone).
+- A hand-made radio group (the review's "when") is one Tab stop, the chosen card; the arrow keys change
+  the choice. Its focus ring sits 2 px off the card, so it never looks like the chosen card's border.
 - Icon-only buttons carry translated, full `aria-label`s ("Export CSV", "New post" — not "Post"); toggles
   (Details, Preview) carry `aria-pressed`; sortable headers are buttons with `aria-sort` on the column.
 - The review's "when" choice is a `radiogroup`; the success card is `role="status"`.
