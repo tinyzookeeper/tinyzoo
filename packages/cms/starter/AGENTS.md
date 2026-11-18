@@ -57,8 +57,9 @@ Other CLI commands: `tinyzoo status` (applied and pending; exit 1 when something
 Renames, removals, type changes and adding required fields have recipes in
 [upgrading.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#recipes): read the one you need first.
 
-**After updating tinyzoo** (`tinyzoo` and `@tinyzoo/client` always on the same version, updated with
-`--latest`): read the **Upgrade** section of the release in the changelog, run `typecheck`, then
+**After updating tinyzoo** (`tinyzoo` and `@tinyzoo/client` always on the same version;
+`pnpm up tinyzoo @tinyzoo/client` within 1.x; to a new major, name it, e.g.
+`pnpm up tinyzoo@^2.0.0 @tinyzoo/client@^2.0.0`, never `--latest`): read the **Upgrade** section of the release in the changelog, run `typecheck`, then
 `tinyzoo upgrade` (checks versions, writes the schema and the migration, regenerates the client, prints the status).
 Review and commit what it wrote. Files this site was made with are never updated for you.
 

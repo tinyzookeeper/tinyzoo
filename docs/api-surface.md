@@ -2,9 +2,8 @@
 
 This page lists what tinyzoo promises not to break. Check it before you depend on something, or before you upgrade.
 
-- From **1.0**, everything on this page follows [semantic versioning](https://semver.org). A breaking change waits for 2.0.
+- Since **1.0**, everything on this page follows [semantic versioning](https://semver.org). A breaking change waits for 2.0.
 - Anything removed was deprecated for at least one minor release first ([how](../CONTRIBUTING.md#deprecations)).
-- Until 1.0, a change to it is a minor release with an `### Upgrade` section in its changeset.
 
 ## Covered
 
