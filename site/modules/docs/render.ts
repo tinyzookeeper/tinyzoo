@@ -42,7 +42,11 @@ export const plainText = (html: string) => html
 export const CLIP = /^<!--\s*clip:\s*([a-z0-9-]+)\s*(?:\|\s*([\s\S]*?))?\s*-->\s*$/
 /** `<!-- check: group/path -->` before a code block (scripts/docs-check.ts): the file the code is. */
 const CHECK = /^<!--\s*check:\s*[^\s/]+\/(\S+?)(?:\s+\S+)?\s*-->\s*$/
-/** A callout: a quote that starts with **Tip:**, **Pozor:** and the like. */
+/**
+ * A callout: a quote that starts with a bold lead. **Tip:**, **Pozor:** and the like get their colour;
+ * any other lead (**What you have to do**, **Not covered by tests yet:**) is a plain box. A quote
+ * without a bold lead stays a quote.
+ */
 const NOTES: Record<string, 'tip' | 'warn'> = { 'tip': 'tip', 'tipp': 'tip', 'pozor': 'warn', 'watch out': 'warn', 'achtung': 'warn' }
 
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -110,9 +114,10 @@ export function renderPage(source: string, ctx: RenderContext): RenderedPage {
       blockquote(this: any, { tokens }: Tokens.Blockquote) {
         const inner = this.parser.parse(tokens)
         const first = tokens[0]
-        const lead = first?.type === 'paragraph' ? /^\*\*([^*]+?):\*\*/.exec(first.raw) : null
-        const kind = lead ? NOTES[lead[1]!.trim().toLowerCase()] : undefined
-        return kind ? `<aside class="doc-note doc-note--${kind}">${inner}</aside>\n` : `<blockquote>${inner}</blockquote>\n`
+        const lead = first?.type === 'paragraph' ? /^\*\*([^*]+?)\*\*/.exec(first.raw) : null
+        if (!lead) return `<blockquote>${inner}</blockquote>\n`
+        const kind = NOTES[lead[1]!.replace(/:\s*$/, '').trim().toLowerCase()]
+        return `<aside class="doc-note${kind ? ` doc-note--${kind}` : ''}">${inner}</aside>\n`
       },
       table(this: any, token: Tokens.Table) {
         const cell = (c: Tokens.TableCell, tag: 'th' | 'td') => {

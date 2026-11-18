@@ -1,12 +1,8 @@
 # Roles and permissions
 
-Who may do what in the admin: the three built-in roles, roles of your own, what a role may
-do with each collection and each field, the media library, and what happens to a person
-whose role you take out of the config.
+This page covers who may do what in the admin. You need it when the three built-in roles are not enough, or when some fields should be read-only for some people.
 
-Editors change data, developers change structure, and **roles are structure**: they are written in
-`cms.config.ts`, in TypeScript, and checked as the config loads. Which role a *person* has is
-data: an administrator sets it in Settings → Team.
+Editors change data, developers change structure, and **roles are structure**. You write them in `cms.config.ts`, in TypeScript, and the config is checked as it loads. Which role a *person* has is data: an administrator sets it in Settings → Team.
 
 [The built-in roles](#the-built-in-roles) · [Roles of your own](#roles-of-your-own) ·
 [Per-field permissions](#per-field-permissions) · [The media library](#the-media-library) ·
@@ -16,21 +12,31 @@ data: an administrator sets it in Settings → Team.
 
 ## The built-in roles
 
-Every site has these, whatever the config says:
+Every site has these three, whatever the config says:
 
 | Role | Can |
 |---|---|
 | **Administrator** | everything, plus people (invite, change role, disable, remove), the audit log and privacy |
 | **Editor** | create, edit, publish and delete all content; edit site settings; every file in the media library |
-| **Author** | create drafts; edit and delete only what they created; never publish, never touch settings or content that is live the moment it is saved; change only the files they uploaded |
+| **Author** | create drafts; edit and delete only what they created; change only the files they uploaded |
 
-**Only the administrator manages people.** That does not depend on a role's name or on what it
-is based on: no role you define can invite, remove or change anyone.
+An author never publishes and never touches settings. An author also cannot change content that is live the moment it is saved.
+
+**Only the administrator manages people.** This does not depend on a role's name or on what it is based on. No role you define can invite, remove or change anyone.
 
 ## Roles of your own
 
-A custom role **extends a built-in one** (`from: 'editor'` or `from: 'author'`) and narrows it,
-or for an author widens it, one collection at a time. It can never be, or extend, `admin`.
+A custom role **extends a built-in one**: `from: 'editor'` or `from: 'author'`. It narrows the parent one collection at a time, or for an author it widens it. It can never be, or extend, `admin`.
+
+The shortest role:
+
+```ts
+export const roles = defineRoles({
+  translator: { from: 'editor', entities: { post: ['read', 'update'] }, publish: false },
+})
+```
+
+A fuller example. Export `roles` from `cms.config.ts`, above the entities that name the roles.
 
 <!-- check: roles/cms.config.ts -->
 ```ts
@@ -80,42 +86,55 @@ export const Page = defineEntity('page', { label: 'Pages', titleField: 'title', 
 export const Settings = defineSingleton('settings', { label: 'Settings', titleField: 'name', fields: { name: f.text({ required: true }).access({ edit: ['editor'] }) } })
 ```
 
+### Settings of a role
+
 | Setting | Meaning |
 |---|---|
 | `from` | `'editor'` (every entry of every collection) or `'author'` (drafts, and only own entries). Required |
-| `label`, `description` | the role's name and one sentence, one string or one per admin language. Without a `description` the admin describes the role from this definition ([below](#how-the-admin-shows-a-role)) |
-| `entities` | what the role may do with a collection, by its name: `read`, `create`, `update`, `delete`. A collection listed gets **exactly** these operations (`['read']` reads, `[]` does not see it at all); one left out is **what `from` allows**. Anything but `read` needs `read` too. A global has `read` and `update` only |
-| `publish` | may publish and unpublish, and change what is live. Default: what `from` has (editor yes, author no). A role that may not publish writes drafts only, and cannot change an entry that is live, or write content that is live the moment it is saved (a global, redirects). Publish is also offered only to a role that may edit the entity's status field and its publish date (a publish writes both): put a field rule on one of them and add the roles that should publish |
-| `media` | the media library: `'all'`, `'own'` or `'none'` ([below](#the-media-library)). Default: what `from` has |
+| `label`, `description` | The role's name and one sentence. Each is one string or one per admin language. Without a `description` the admin describes the role from this definition ([below](#how-the-admin-shows-a-role)) |
+| `entities` | What the role may do with a collection, by its name: `read`, `create`, `update`, `delete`. See the rules below |
+| `publish` | May publish and unpublish, and change what is live. Default: what `from` has (editor yes, author no). See the rules below |
+| `media` | The media library: `'all'`, `'own'` or `'none'` ([below](#the-media-library)). Default: what `from` has |
 
-**Publish rights are role-wide.** `publish` is one switch for the whole site, also when an entity [publishes each language on its own](content-model.md#publishing-each-language-on-its-own): a role cannot be allowed to publish one language only.
+Rules for `entities`:
 
-A few things follow from "extends":
+- A collection you list gets **exactly** these operations. `['read']` reads, and `[]` does not see the collection at all.
+- A collection you leave out gets **what `from` allows**.
+- Anything but `read` needs `read` too.
+- A global has `read` and `update` only.
 
-- **A role based on `author` keeps "own entries only".** It changes and deletes only what it created, on every collection it
-  can write. A grant on a global has no owner to ask, so it applies to the one row.
-- **A role left out of an entity's list gets what its parent has.** A translator based on editor that does not
-  list `tag` can read tags; list `tag: []` to take them away, or `tag: ['read']` to say so. Form messages
-  are an editor's to read, so a role based on editor reads them unless you narrow it.
+Rules for `publish`:
+
+- A role that may not publish writes drafts only. It cannot change an entry that is live, or write content that is live the moment it is saved (a global, redirects).
+- Publish is offered only to a role that may edit the entity's status field and its publish date, because a publish writes both. If you put a field rule on one of them, add the roles that should publish.
+
+**Publish rights are role-wide.** `publish` is one switch for the whole site. That holds even when an entity [publishes each language on its own](content-model.md#publishing-each-language-on-its-own). A role cannot be allowed to publish one language only.
+
+### What "extends" means
+
+- **A role based on `author` keeps "own entries only".** It changes and deletes only what it created, on every collection it can write. A grant on a global has no owner to ask, so it applies to the one row.
+- **A role left out of an entity's list gets what its parent has.** A translator based on editor that does not list `tag` can read tags. List `tag: []` to take them away, or `tag: ['read']` to say so. Form messages are an editor's to read, so a role based on editor reads them unless you narrow it.
 - **The entity's own `access` rule still applies on top** of all this ([row-level rules](#row-level-rules)).
 
-The names are checked when the config loads, with the collection or the field in the message:
-a role named like a built-in, one that extends `admin`, a collection the site does not have, an
-operation a global cannot have, or `update` without `read`.
+### Checks when the config loads
+
+The config is refused, with the collection or the field in the message, for:
+
+- a role named like a built-in
+- a role that extends `admin`
+- a collection the site does not have
+- an operation a global cannot have
+- `update` without `read`
 
 ### How the admin shows a role
 
-Settings → Team names each role in the invitation and in "Change role" with one sentence: your `description`, or,
-when you wrote none, a sentence made from the definition, in the admin's language: what the role changes, what it
-only reads, whether it publishes, and its files. For the translator above without its description:
+Settings → Team names each role in the invitation and in "Change role" with one sentence. That is your `description`. When you wrote none, the admin makes a sentence from the definition, in the admin's language. It says what the role changes, what it only reads, whether it publishes, and its files. For the translator above without its description:
 
 > Edits Posts and Pages. Only reads Authors, Tags and 2 more. Cannot publish: drafts only. Changes only the files they uploaded.
 
-It is worked out from the same rules the server applies (the role, then each entity's own `access` rule), so it
-also says what a role reaches through what it inherits: a role based on editor that does not list a collection
-edits it, and a role that may not publish only reads content that is live the moment it is saved (a global, the
-redirects). **What can each role do?** on the Team page shows every role side by side, built-in ones included:
-what it changes, what it only reads, whether it publishes, its files, and how many people have it.
+The sentence is worked out from the same rules the server applies: the role, then each entity's own `access` rule. So it also covers what a role reaches through what it inherits. A role based on editor that does not list a collection edits it. A role that may not publish only reads content that is live the moment it is saved (a global, the redirects).
+
+**What can each role do?** on the Team page shows every role side by side, built-in ones included. For each it shows what it changes, what it only reads, whether it publishes, its files, and how many people have it.
 
 ## Per-field permissions
 
@@ -126,27 +145,31 @@ body:  f.richtext().access({ edit: ['editor', roles.translator] }),   // the oth
 cost:  f.number().access({ read: ['editor'], edit: ['editor'] }),     // the others do not see it at all
 ```
 
-- A list names the roles that may. A role missing from it does not see the field (`read`) or sees it
-  read-only (`edit`). A rule left out means everyone who may read (or write) the collection.
-- A read-only field looks locked in the admin (a grey fill and a lock in the field) and says who can change it,
-  by the roles' labels: "Only Editor and Administrator can change this." Name the roles you want people to ask.
-- **Administrators always may.** Editing needs reading: a role in `edit` must be able to read, and the
-  config is refused when it names one that cannot.
-- Your own roles are named by their reference (`roles.translator`, so a typo is a compile error); the
-  built-ins are plain strings (`'editor'`). A role is named exactly: a custom role that extends editor does
-  not get a field because `'editor'` is listed. That is on purpose: a new role starts with nothing a field
-  is closed to.
-- It is for a field of a collection or global, not for one inside a block, a list or a group. Put it on the
-  group, list or blocks field itself.
-- **The title, the publish state and date, the address (`content.slug` and what `content.path` uses), the place in a
-  tree and the list's order field cannot be hidden** (`read`): every screen of the admin shows them. They can be
-  made read-only.
+- A list names the roles that may. A role missing from it does not see the field (`read`) or sees it read-only (`edit`).
+- A rule left out means everyone who may read (or write) the collection.
+- **Administrators always may.**
+- Editing needs reading. A role in `edit` must be able to read, and the config is refused when it names one that cannot.
+- Name your own roles by their reference (`roles.translator`), so a typo is a compile error. Name the built-ins as plain strings (`'editor'`).
+- A role is named exactly. A custom role that extends editor does not get a field because `'editor'` is listed. This is on purpose: a new role starts with nothing a field is closed to.
+- A rule is for a field of a collection or global, not for one inside a block, a list or a group. Put it on the group, list or blocks field itself.
+
+A read-only field looks locked in the admin, with a grey fill and a lock in the field. It says who can change it, by the roles' labels: "Only Editor and Administrator can change this." Name the roles you want people to ask.
+
+**Some fields cannot be hidden** (`read`), because every screen of the admin shows them:
+
+- the title
+- the publish state and date
+- the address (`content.slug` and what `content.path` uses)
+- the place in a tree
+- the list's order field
+
+They can be made read-only.
 
 ### What the server does
 
-It enforces the rules on everything the admin does; the form only follows.
+The server enforces the rules on everything the admin does. The form only follows.
 
-**Reading** — a field a role may not read is left out of the answer, and out of everything that could show it:
+**Reading.** A field a role may not read is left out of the answer, and out of everything that could show it:
 
 | Where | What |
 |---|---|
@@ -159,25 +182,21 @@ It enforces the rules on everything the admin does; the form only follows.
 | the admin's schema (`/api/cms/_graph`) | the field is not in it, nor in the list columns, tabs and sections; one that is read-only is marked `readOnly: true` (a `CmsAdminField`), and a [custom field renderer](admin.md#extensibility--the-field--view-registry) receives it as its `readOnly` prop |
 | a draft preview through the content API (`?preview`, signed in) | the page without those fields |
 
-**Writing** — a request that names a field the person may not edit is **refused with `403`** and
-`{ code: 'field_forbidden', fields: [...] }`, and nothing in it is saved. It is refused even when the value is the one
-the field has now: a client leaves the fields it may not change out (the admin does), instead of having
-a value dropped without a word. This covers creating, saving, a translation, the position a drag writes (arranging a
-list, moving a page), and removing a translation (which removes every translated field of it).
+**Writing.** A request that names a field the person may not edit is **refused with `403`** and `{ code: 'field_forbidden', fields: [...] }`. Nothing in it is saved.
 
-An omitted field is never overwritten: saving an entry changes the fields it names; saving a global
-(which replaces it) leaves a field the person may not edit as it is, with no default put in its place. Creating an entry
-is the one place a default applies to such a field (a new post starts as a draft), and a required field with no
-default that the person may not write makes creating refuse with a normal validation error: the person
-cannot make that kind of entry.
+- It is refused even when the value is the one the field has now. A client leaves out the fields it may not change (the admin does), instead of having a value dropped without a word.
+- This covers creating, saving, a translation, the position a drag writes (arranging a list, moving a page), and removing a translation (which removes every translated field of it).
 
-**Shared editing** — a rich-text field with an `.access()` rule is **not edited together** with others: the
-shared document is one for everyone who has the entry open, so it would show the field to people who may not read
-it. Such a field is edited alone and saved the usual way. (A shared document made before a field got a rule is
-started afresh the next time it is opened.)
+An omitted field is never overwritten:
 
-**The public content API is not touched.** It follows `content.hidden` and `content.published`, as before: a field
-that visitors must not see is hidden there, whatever the admin's rules say.
+- Saving an entry changes the fields it names.
+- Saving a global replaces it, but leaves a field the person may not edit as it is, with no default put in its place.
+- Creating an entry is the one place a default applies to such a field (a new post starts as a draft).
+- A required field with no default that the person may not write makes creating refuse with a normal validation error. The person cannot make that kind of entry.
+
+**Shared editing.** A rich-text field with an `.access()` rule is **not edited together** with others. The shared document is one for everyone who has the entry open, so it would show the field to people who may not read it. Such a field is edited alone and saved the usual way. A shared document made before a field got a rule is started afresh the next time it is opened.
+
+**The public content API is not touched.** It follows `content.hidden` and `content.published`. To keep a field from visitors, hide it there, whatever the admin's rules say.
 
 ## The media library
 
@@ -189,15 +208,15 @@ that visitors must not see is hidden there, whatever the admin's rules say.
 | `'own'` | every file | yes | only the files they uploaded | yes |
 | `'none'` | no | no | no | no |
 
-`'none'` closes the library (and its page in the admin): nothing to list, upload, change or delete. Pictures
-already on an entry stay as they are, shown with it, and are not cleaned up on that person's behalf. Whoever may
-not change every file (`'own'`, `'none'`) can only clean up the files they uploaded themselves.
+`'none'` closes the library and its page in the admin: nothing to list, upload, change or delete. Pictures already on an entry stay as they are, shown with it. They are not cleaned up on that person's behalf.
+
+Whoever may not change every file (`'own'`, `'none'`) can only clean up the files they uploaded themselves.
 
 ## Row-level rules
 
-An entity's `access` still adds rules about *which* entries, on top of the role. Each is a function of the
-signed-in person and the table. The person has `role` (the name stored for them) and **`base`**, the built-in
-role they are or extend. Test `base` to treat a custom role like its parent:
+An entity's `access` adds rules about *which* entries, on top of the role. Each rule is a function of the signed-in person and the table.
+
+The person has `role` (the name stored for them) and **`base`**, the built-in role they are or extend. Test `base` to treat a custom role like its parent:
 
 ```ts
 access: {
@@ -205,44 +224,42 @@ access: {
 },
 ```
 
-A rule on `user.role === 'author'` does not see a custom role built on author; `user.base === 'author'` does.
+A rule on `user.role === 'author'` does not see a custom role built on author. `user.base === 'author'` does.
 
 ## A role that is removed
 
-Take a role out of `cms.config.ts` and the people who had it keep their accounts and **lose all access**
-(it fails closed, nothing is guessed):
+Take a role out of `cms.config.ts` and the people who had it keep their accounts but **lose all access**. It fails closed, and nothing is guessed:
 
-- they sign in, and the admin shows **"Your role no longer exists"** with their account page and sign-out; every
-  other request is refused with `403` and `{ code: 'role-removed' }` (the content API does not show them drafts either);
-- **Settings → Team** marks each of them, and an administrator gives them another role;
+- They sign in, and the admin shows **"Your role no longer exists"** with their account page and sign-out. Every other request is refused with `403` and `{ code: 'role-removed' }`. The content API does not show them drafts either.
+- **Settings → Team** marks each of them, and an administrator gives them another role.
 - `tinyzoo status` warns, with how many people hold the missing role, before anyone finds out by being locked out.
 
-Define the role again and they are back, as they were: the name stored with a person is all that connects them.
-(The roles are not stored anywhere else: `cms_users.role` is a text column, so adding or removing a role needs no migration.)
+Define the role again and they have it back, exactly as they were. The name stored with a person is all that connects them.
+
+Roles are not stored anywhere else. `cms_users.role` is a text column, so adding or removing a role needs no migration.
 
 ## Changing someone's role
 
-An administrator changes a role in Settings → Team (**Change role**, with the same sentence per role as the
-invitation). The change **signs the person out on every device**: their sessions end, an open realtime or
-shared-editing connection is closed, and they sign in again with the new role. Unsaved changes in an editor they had
-open are lost, so tell them first. Nobody can change their own role, and the last active administrator cannot be
-moved to another role. The audit log records the change (`user.role`, from and to).
+An administrator changes a role in Settings → Team (**Change role**, with the same sentence per role as the invitation). The change **signs the person out on every device**:
+
+- Their sessions end.
+- An open realtime or shared-editing connection is closed.
+- They sign in again with the new role.
+
+Unsaved changes in an editor they had open are lost, so tell them first.
+
+Nobody can change their own role, and the last active administrator cannot be moved to another role. The audit log records the change (`user.role`, from and to).
 
 ## External sign-in
 
-With `cms.auth.mode: 'external'` your app signs people in and sets their `role`; the names it uses map onto the
-same definitions: the built-ins, and the roles from `defineRoles`.
+With `cms.auth.mode: 'external'` your app signs people in and sets their `role`. The names it uses map onto the same definitions: the built-ins, and the roles from `defineRoles`.
 
 - On a site that **defines roles**, every name must be known. A name the site does not define has no access, like a removed role.
-- On a site that **defines none**, a name the CMS does not know acts as it always did: it reaches every
-  collection and the entities' own `access` rules decide, it may publish, and it is never an administrator.
-  Add `defineRoles` to get the stricter behaviour.
+- On a site that **defines none**, a name the CMS does not know keeps the behaviour it had before 0.6. It reaches every collection, limited only by the entities' own `access` rules. It may publish. It is never an administrator. Add `defineRoles` to get the stricter behaviour.
 
 ## Worked example: a translator
 
-A site in Czech and English. Editors write posts in Czech and publish them. A translator writes the English
-versions, and an editor decides when they go live. The translator must not change what all languages share (the
-category), nor touch anything else on the site.
+A site in Czech and English. Editors write posts in Czech and publish them. A translator writes the English versions, and an editor decides when they go live. The translator must not change what all languages share (the category), nor touch anything else on the site.
 
 <!-- check: translator/cms.config.ts -->
 ```ts
@@ -289,42 +306,57 @@ export const Post = defineEntity('post', {
 })
 ```
 
-`perLocale` adds three columns to `post_locales`: run `pnpm db:generate`, read the migration, `pnpm db:migrate`,
-then give the person the role in Settings → Team.
+`perLocale` adds three columns to `post_locales`. Then:
 
-**What the translator sees.** Under their name, *Translator*. In a post's English version:
+1. Run `pnpm db:generate` and read the migration.
+2. Run `pnpm db:migrate`.
+3. Give the person the role in Settings → Team.
 
-- every field not translated yet shows the Czech text greyed inside it, with one line at the top saying so (*Empty fields show the Czech text in grey until you translate them*) and *Use it as a start* at each field (which copies the Czech text in), and the body offers *Show the original beside it* (Czech
-  on the left, the translation on the right, on a wide screen);
-- the category has a grey fill and a lock, and under it *Only Editor and Administrator can change this*;
-- the top bar says *English · Being translated* for an English version that has never been on the website (the
-  tooltip: *Visitors see the Czech version until an editor publishes this one.*), or *English · Draft* once an editor
-  took it off, or *English · Waiting for Czech*, with *Save translation*, and no Publish;
-- the media library is not in the sidebar, and pictures already on a post still show.
+### What the translator sees
 
-**What the editor sees.** The list's Languages column shows EN with a mark (a dot when it is on the website, a
-ring for a draft, a clock when scheduled, an hourglass when it is published but waiting for Czech, a languages mark
-when it is being translated; the tooltip says it in words). The home page's drafts and the search say *English · Being
-translated* too. In the English version, Publish… opens *Publish the English version* (*Until now visitors see the
-Czech version here. The other languages stay as they are.* for one being translated), with the fields still in Czech
-listed, and, while Czech is a draft, *Czech is still a draft*: the English goes on the website together with Czech. Settings → Team → *What can each role do?* shows the translator's row: *Changes*
-Posts, *Only reads* Tags, *Publishes* No, drafts only, *Files* None.
+Under their name, *Translator*. In a post's English version:
 
-**Two things to know before you set this up:**
+- Every field not translated yet shows the Czech text greyed inside it. One line at the top says so (*Empty fields show the Czech text in grey until you translate them*). Each field offers *Use it as a start*, which copies the Czech text in.
+- The body offers *Show the original beside it*: Czech on the left, the translation on the right, on a wide screen.
+- The category has a grey fill and a lock, and under it *Only Editor and Administrator can change this*.
+- The top bar shows one of three states, with *Save translation* and no Publish:
+  - *English · Being translated*, for an English version that has never been on the website (the tooltip: *Visitors see the Czech version until an editor publishes this one.*)
+  - *English · Draft*, once an editor took it off
+  - *English · Waiting for Czech*
+- The media library is not in the sidebar, and pictures already on a post still show.
 
-- **A role cannot be limited to one language.** `entities` and `.access()` hold for an entry in every language, so
-  the translator above can also change the Czech text of a post **while it is a draft**. A live Czech version they
-  cannot change: a role that may not publish never changes what is live.
-- **Translating a post that is already live just works.** The translator opens its English version and saves: the
-  English is *being translated*, a draft that has never been on the website. Visitors on `/en` keep reading the Czech
-  text exactly as before (the item, the lists, the search, the sitemap, links to it), and no webhook says anything
-  changed. The translator saves as often as needed (and may remove it again); an editor reads it in the preview and
-  publishes it, and from then on English is live on its own, so it is the editors' to change or take off. A post that
-  is still a draft works as before: the English follows the draft and goes live with Czech. What stays locked for the
-  translator is what visitors see: an English version that is live (published, or a translation that follows a live
-  Czech version), publishing, scheduling, unpublishing, and removing an English version an editor took off (that
-  would put the Czech text back on `/en`). Without `perLocale` none of this exists: every language of a live post is
-  live, and a role with `publish: false` can only translate drafts.
+### What the editor sees
+
+- The list's Languages column shows EN with a mark. The tooltip says it in words.
+  - A dot: it is on the website.
+  - A ring: a draft.
+  - A clock: scheduled.
+  - An hourglass: published but waiting for Czech.
+  - A languages mark: being translated.
+- The home page's drafts and the search say *English · Being translated* too.
+- In the English version, Publish… opens *Publish the English version*. For one being translated it says *Until now visitors see the Czech version here. The other languages stay as they are.* It lists the fields still in Czech.
+- While Czech is a draft, it also says *Czech is still a draft*: the English goes on the website together with Czech.
+- Settings → Team → *What can each role do?* shows the translator's row: *Changes* Posts, *Only reads* Tags, *Publishes* No, drafts only, *Files* None.
+
+### Two things to know before you set this up
+
+**A role cannot be limited to one language.** `entities` and `.access()` hold for an entry in every language. The translator above can also change the Czech text of a post **while it is a draft**. A live Czech version they cannot change, because a role that may not publish never changes what is live.
+
+**Translating a post that is already live just works.**
+
+- The translator opens its English version and saves. The English is *being translated*: a draft that has never been on the website.
+- Visitors on `/en` keep reading the Czech text unchanged: the item, the lists, the search, the sitemap and links to it. No webhook says anything changed.
+- The translator saves as often as needed, and may remove it again.
+- An editor reads it in the preview and publishes it. From then on English is live on its own, so it is the editors' to change or take off.
+- A post that is still a draft is simpler: the English follows the draft and goes live with Czech.
+
+What stays locked for the translator is what visitors see:
+
+- an English version that is live (published, or a translation that follows a live Czech version)
+- publishing, scheduling and unpublishing
+- removing an English version an editor took off, because that would put the Czech text back on `/en`
+
+Without `perLocale` none of this exists. Every language of a live post is live, and a role with `publish: false` can only translate drafts.
 
 The editors' guide says the same for the people doing it: [Překlady](../editors/cs/preklady.md#každý-jazyk-zvlášť) and
 [Role a oprávnění](../editors/cs/role-a-opravneni.md).
@@ -341,5 +373,4 @@ The editors' guide says the same for the people doing it: [Překlady](../editors
 | the media library and where a file is used | | ✓ (public details of a live file) | ✓ | read ✓ |
 | people, privacy, audit | administrator only | | | |
 
-Every request re-reads the account: changing someone's role, removing the role from the config or disabling them takes effect
-on their next request, and ends an open realtime or shared-editing connection.
+Every request re-reads the account. Changing someone's role, removing the role from the config or disabling them takes effect on their next request. It also ends an open realtime or shared-editing connection.

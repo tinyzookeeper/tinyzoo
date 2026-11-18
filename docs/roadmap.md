@@ -1515,3 +1515,34 @@ Branch `feat/1.0-polish`, on top of `feat/1.0-wave4` (PR #25). Four branches and
 **Result** (`TEST_DATABASE_URL=…/cms_test_wave4`, starter and upgrade databases likewise, `TEST_REDIS_URL` on a throwaway Valkey 8): `pnpm check` green, 122 files / 1748 tests passed, 2 files / 23 tests skipped (271 s); `check:starter` green (181 s); `check:upgrade` green from `2506403` and `tinyzoo@0.5.0` (139 s); `check:consumer` green (43 s).
 
 Noted, not changed: a translator's welcome card offers "Akce" (create an event) as its main button, because the playground's translator role falls back to editor for collections it does not name. A site that wants translators to translate only should list those collections as read-only in the role.
+
+
+### 1.0 — Clearer developer docs (2026-11-18)
+
+Branch `feat/1.0-docs-clarity`, on top of `feat/1.0-polish` (PR #26). Vojtěch found the developer docs "complex and chaotic". The editors' guide averaged 15–24 words a sentence, the developer pages 34–60, and three pages ran to 7,000–8,000 words.
+
+- **Rewritten:** all fifteen developer pages (`docs/guide/*`, `api-surface.md`, `plugins.md`, `upgrading.md`, `deploying.md`, the index). Each page opens with what it is for, the common case comes first, there is one idea per paragraph, and lists and tables replace packed sentences. Edge cases and internals moved to "Details" sections. Review-note wording ("as before", "before:") became present tense.
+- **Kept, not split:**
+  - **Pages:** error messages in published packages and old changelogs link to anchors in `upgrading.md` and `deploying.md`, so the pages stay whole and every linked heading keeps its exact text. The anchors were listed before the rewrite.
+  - **Code:** every checked code block is unchanged.
+- **New structure:**
+  - Upgrading opens with the version policy and "On every upgrade" as numbered steps. Each version starts with a **What you have to do** box.
+  - Deploying opens with **The short version**, a ten-step checklist.
+  - The public API opens with the promise, then what is covered and what is not.
+- **Callouts:** on the website (`site/modules/docs/render.ts`), a quote that starts with any bold lead is now a box (coloured for Tip/Pozor/Watch out, plain otherwise). A quote without a lead stays a quote.
+- **Fact check:** three independent reviewers compared every page with the original. They found no lost facts and seventeen smaller problems, all fixed:
+  - the upgrade order (check production with the new CLI installed, and migrate before the new version starts);
+  - the 0.3 → 0.4 secret cases;
+  - the stored-role step for 0.6;
+  - the sitemap URL for 0.5;
+  - a plugin example without `label`;
+  - wording that widened or narrowed a rule.
+- **Old mistake fixed:** the API reference said the content token could be sent as `?preview=<token>`. From outside, the gate reads only the header (`assertContentAuth`). Only the website's own server-side requests can use the query.
+- **Left as they were, noted by the writers:**
+  - `admin.md` still mentions a shared store "planned (Phase 5)";
+  - `plugins.md` shows `"tinyzoo": ">=0.2.0"` as a plugin's peer range;
+  - `getting-started.md` says `tinyzoo init` writes `^0.2.0`.
+  
+  All three are for Wave 5's Q/R pass.
+
+**Result:** `pnpm docs:check` green (32 blocks), unit tests 1,040 passed. By the same rough measure (a table counts as one sentence), the pages fell from 34–60 words a sentence to 19–34. Fourteen prose sentences over 30 words are left, across all fifteen pages.

@@ -1,16 +1,18 @@
 # Seeding: content a site starts with
 
-`seed/index.ts` holds the content a new site starts with (demo pages, the first menus, its
-settings), written in code, and `tinyzoo seed` puts it into a running site. The starter has
-one (a small bakery in Czech and English, with pictures): after `pnpm dev` is running,
+`seed/index.ts` holds the content a new site starts with: demo pages, the first menus and its settings. You write it in code, and `tinyzoo seed` puts it into a running site.
+
+The starter has one seed, a small bakery in Czech and English, with pictures. With `pnpm dev` running, seed it like this:
 
 ```bash
 SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed
 ```
 
-On a site with no administrator yet it creates the first one with these details (a deployed
-site asks for its setup code first: `SEED_SETUP_CODE`, or `--setup-code`, which shows in the
-process list while the command runs, so prefer the variable; the server's log prints it). Otherwise it signs in as that administrator.
+On a site with no administrator yet, the command creates the first one with these details. Otherwise it signs in as that administrator.
+
+A deployed site asks for its setup code first. Pass it as `SEED_SETUP_CODE`, or as `--setup-code`. The server's log prints the code. Prefer the variable, because `--setup-code` shows in the process list while the command runs.
+
+## Writing a seed
 
 ```ts
 // seed/index.ts
@@ -32,6 +34,8 @@ export default defineSeed(async (s) => {
 })
 ```
 
+Each call is a method on `s`:
+
 | In the seed | What it does |
 |---|---|
 | `s.create(Entity, data, { by?, translations? })` | makes the entry when nothing has its key yet; otherwise leaves it **exactly as it is** (editors' changes stay) |
@@ -42,32 +46,11 @@ export default defineSeed(async (s) => {
 | `s.link(label, '/address' \| entry, { locale?, newTab?, sub? })` | a menu link; for an entry (a page the website links to) it stores a reference, so the menu follows the page when it is renamed or moved |
 | `s.rich.doc / p / h2 / ul / quote / bold / link / image` | rich-text builders |
 
-- **Typed from `cms.config.ts`** when you pass the entity (`s.create(Post, …)`): a wrong field,
-  a missing required one or a wrong choice is a type error. A name (`s.create('post', …)`) works
-  too, without the types.
-- **Running it twice changes nothing.** An entry is recognised by its **key**: `by`, which
-  defaults to the entity's address field (`content.slug`, else its only `f.slug()`); an entity
-  without one needs `by: 'email'` (or several fields). A file is recognised by its name, folder
-  and size. Before an update the stored values are read and compared with the seed's, and only a
-  real difference is written, so a second run makes no save, no new saved version and no
-  upload. Blocks and list items need no `id` and no `type` when there is one: the runner makes
-  stable ids, so the same seed gives the same ones every time. Write dates as fixed values
-  (`'2026-03-01T09:00:00Z'`), not "now".
-- **Fields you leave out are left alone** by `s.upsert` (it cannot clear a field: give `null`).
-  A global is saved whole, so give every required field.
-- **Links to your own pages: write references, not typed addresses.** A button or link field
-  that leads to a page the seed made should hold what the admin's link picker stores,
-  `cms:page/<id>`, which follows the page when it is renamed or moved and gives each
-  language its own address. In a menu `s.link(label, entry)` does that; in a block or field
-  write the same with `s.link('', entry).url`. A typed address (`buttonUrl: '/kontakt'`)
-  works, but `s.upsert` then compares it with what is stored: after `tinyzoo links:convert`
-  (or an editor picking the page in the picker) the stored value is a reference, the seed
-  sees a difference, and the next run writes the typed address back over it. Pages the
-  website draws itself (`/aktuality`, `/hledat`) are not entries and stay typed. (`s.create`
-  never touches an entry that exists, so for content editors own from the start it avoids the
-  question altogether.) The starter's seed does it this way.
-- Relations take the id a call returned (`author: jana.id`); a seed that goes through
-  `s.upsert` can be changed and run again to update a live site's pages.
+- **Typed from `cms.config.ts`.** Pass the entity (`s.create(Post, …)`) and a wrong field, a missing required one or a wrong choice is a type error. A name (`s.create('post', …)`) works too, without the types.
+- **Relations take the id a call returned** (`author: jana.id`).
+- **A seed that goes through `s.upsert`** can be changed and run again to update a live site's pages.
+
+## Running it
 
 ```bash
 tinyzoo seed                      # seed/index.ts, http://localhost:3000, $SEED_EMAIL / $SEED_PASSWORD (or --url / $SEED_URL)
@@ -77,26 +60,75 @@ tinyzoo seed --reset              # first remove what this seed made (found by k
 tinyzoo seed --verbose            # also list what was already up to date
 ```
 
-**Which site?** Without `--url` / `SEED_URL` the command talks to `http://localhost:3000`, whatever
-answers there. `nuxt dev` moves to another port when 3000 is taken (it says so when it starts):
-give the address it printed, or you would sign in to, and with an empty database create the first
-administrator of, some other project.
+- Without `--url` or `SEED_URL`, the command talks to `http://localhost:3000`.
+- The password is only ever read from `SEED_PASSWORD`.
 
-`--reset` removes only what the seed made: an entry found by its key counts only when the account
-the seed signs in with created it (a page an editor made with the same address stays, and so does
-an entry somebody else changed after `s.create` left it alone), plus the seed's files (unless
-something still uses them, such as a global's logo: it stays and is found again). It lists every
-entry and file by name first and asks (`--yes` skips the question, and is needed without a
-terminal). Menus and settings the seed writes first lose their links to the pages that go (the
-seed writes them again afterwards), and entries are removed in an order the site accepts. If a
-delete would still be refused (a page the seed did not make links to one of its pages), it says
-which and stops before removing anything. Globals are not removed: the seed overwrites them. The
-password is only ever read from `SEED_PASSWORD`.
+**Which site?** The command talks to `http://localhost:3000` whatever answers there. `nuxt dev` moves to another port when 3000 is taken, and says so when it starts. Give the address it printed. Otherwise you would sign in to some other project. With an empty database you would even create that project's first administrator.
 
-**Why over HTTP.** The seed goes through the admin's own API, with an administrator's
-session, so every write meets the rules an editor's save does: validation, translations,
-the media pipeline (sizes, the library), the search index, saved versions, webhooks and
-access. A seeded site cannot differ from one an editor filled in, and it works against a
-deployed site, where the database is not reachable from your laptop. The cost: the site has
-to be running, and sign-in limits apply (ten tries per address per fifteen minutes; uploads
-wait when the minute's limit of 60 is reached).
+## Details
+
+### Running it twice changes nothing
+
+An entry is recognised by its **key**.
+
+- The key is `by`. It defaults to the entity's address field (`content.slug`, else its only `f.slug()`).
+- An entity without one needs `by: 'email'` (or several fields).
+- A file is recognised by its name, folder and size.
+
+Before an update, the stored values are read and compared with the seed's. Only a real difference is written. So a second run makes no save, no new saved version and no upload.
+
+Blocks and list items need no `id`, and no `type` when there is one. The runner makes stable ids, so the same seed gives the same ones every time.
+
+Write dates as fixed values (`'2026-03-01T09:00:00Z'`), not "now".
+
+### Fields you leave out
+
+- `s.upsert` leaves a field you leave out alone. It cannot clear a field. Give `null` to clear one.
+- A global is saved whole, so give every required field.
+
+### Links to your own pages
+
+Write references, not typed addresses. A button or link field that leads to a page the seed made should hold what the admin's link picker stores: `cms:page/<id>`. A reference follows the page when it is renamed or moved, and gives each language its own address.
+
+- In a menu, `s.link(label, entry)` does this.
+- In a block or field, write the same with `s.link('', entry).url`.
+
+A typed address (`buttonUrl: '/kontakt'`) works, but `s.upsert` then compares it with what is stored:
+
+1. After `tinyzoo links:convert`, or after an editor picks the page in the picker, the stored value is a reference.
+2. The seed sees a difference.
+3. The next run writes the typed address back over the reference.
+
+Pages the website draws itself (`/aktuality`, `/hledat`) are not entries and stay typed.
+
+`s.create` never touches an entry that exists. For content editors own from the start, it avoids the question altogether. The starter's seed uses references.
+
+### `--reset`
+
+`--reset` removes only what the seed made.
+
+- An entry found by its key counts only when the account the seed signs in with created it. A page an editor made with the same address stays. So does an entry somebody else changed after `s.create` left it alone.
+- The seed's files go too, unless something still uses them, such as a global's logo. That file stays and is found again.
+- Globals are not removed, because the seed overwrites them.
+
+The command lists every entry and file by name first and asks. `--yes` skips the question, and is needed without a terminal.
+
+Menus and settings the seed writes first lose their links to the pages that go. The seed writes them again afterwards. Entries are removed in an order the site accepts.
+
+If a delete would still be refused, because a page the seed did not make links to one of its pages, the command says which and stops before removing anything.
+
+### Why it goes over HTTP
+
+The seed goes through the admin's own API, with an administrator's session. Every write meets the rules an editor's save does:
+
+- validation
+- translations
+- the media pipeline (sizes, the library)
+- the search index
+- saved versions
+- webhooks
+- access
+
+So a seeded site cannot differ from one an editor filled in. It also works against a deployed site, where the database is not reachable from your laptop.
+
+The cost is that the site has to be running, and sign-in limits apply. You get ten tries per address per fifteen minutes. Uploads wait when the minute's limit of 60 is reached.
