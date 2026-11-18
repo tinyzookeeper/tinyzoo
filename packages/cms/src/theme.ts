@@ -51,6 +51,8 @@ export interface CmsAdminThemeInput {
   logo?: CmsAdminLogo
   /** tinyzoo's quiet signature under the sidebar and on the sign-in page. Default `true`. */
   signature?: boolean
+  /** tinyzoo's animals at the admin's moments (sign-in, welcome, empty places, success). Default `true`; `false` hides them all. */
+  animals?: boolean
 }
 
 /** The shades of one colour, 50 (lightest) to 950 (darkest), as CSS colours. @internal */
@@ -81,6 +83,31 @@ export interface CmsAccentScheme {
   text: string
 }
 
+/**
+ * The brand's moments in one colour scheme: where cream (light) and charcoal (dark) sit for
+ * tinyzoo's own look, a brand colour draws a faint tint of itself (light) or charcoal tinted
+ * toward it (dark). Each field is one variable of cms-admin.css. All hexes.
+ * @internal
+ */
+export interface CmsMomentScheme {
+  /** `--cms-moment-bg`: the welcome card, the section tiles, the radio cards' checked state. */
+  bg: string
+  /** `--cms-moment-strong`: a stronger tint (the initials and the confirm dialog's icon). */
+  strong: string
+  /** `--cms-moment-line`: a line on a moment. */
+  line: string
+  /** `--cms-moment-text`: the quiet text inside a moment (4.5:1 on `bg`). */
+  text: string
+  /** `--cms-nav-active`: the current page in the sidebar and the form's section menu. */
+  navActive: string
+  /** `--cms-auth-bg`: the sign-in, setup, reset and invitation pages. */
+  authBg: string
+  /** `--cms-animal-body`: the animals' body, one muted shade of the brand. */
+  animalBody: string
+  /** `--cms-animal-face`: the animals' face, a near-white tint. */
+  animalFace: string
+}
+
 /** Something the contrast guard or the logo checks changed or found: shown to the developer in development. @internal */
 export interface CmsThemeNote {
   /** `accent`: the colour was adjusted or could not be read; `logo`: a logo is missing, too small or not square. */
@@ -102,8 +129,11 @@ export interface CmsAdminTheme {
   accent:
     /** A built-in accent: the admin stylesheet draws it (`data-cms-accent`). `light`/`dark` hold the hexes it draws, for the emails. */
     | { kind: 'preset'; preset: CmsAccentPreset; light: CmsAccentScheme; dark: CmsAccentScheme }
-    /** A brand colour: the admin sets the variables itself (`data-cms-accent="brand"`). `hex` is what the site gave, normalised to `#rrggbb`. */
-    | { kind: 'brand'; hex: string; light: CmsAccentScheme; dark: CmsAccentScheme }
+    /**
+     * A brand colour: the admin sets the variables itself (`data-cms-accent="brand"`). `hex` is what the site gave, normalised to `#rrggbb`.
+     * `moments`: the whole look follows the brand: the moments and the animals in tints and a muted shade of it (`brandMoments`).
+     */
+    | { kind: 'brand'; hex: string; light: CmsAccentScheme; dark: CmsAccentScheme; moments: { light: CmsMomentScheme; dark: CmsMomentScheme } }
   /** Logo addresses, `null` when not given. `fullDark`/`markDark` fall back to the light ones; `dark*Plate` says the light one is shown in dark mode on a light tile. */
   logo: {
     full: string | null
@@ -124,6 +154,8 @@ export interface CmsAdminTheme {
     files?: { full: string | null; mark: string; markFallback: boolean }
   }
   signature: boolean
+  /** tinyzoo's animals at the moments (`cms.admin.animals`, default `true`). `false`: none anywhere, for any accent. */
+  animals: boolean
   /** What the contrast guard and the logo checks changed or found. Empty in a clean config. Not sent to the browser in production. */
   notes: CmsThemeNote[]
 }
@@ -150,6 +182,7 @@ export function resolveAdminTheme(input: CmsAdminThemeInput = {}): CmsAdminTheme
     accent: resolveAccent(input.accent, notes),
     logo,
     signature: input.signature !== false,
+    animals: input.animals !== false,
     notes,
   }
 }
@@ -219,7 +252,7 @@ function resolveAccent(raw: unknown, notes: CmsThemeNote[]): CmsAdminTheme['acce
   }
   const brand = brandAccent(hex)
   if (brand.note) notes.push({ kind: 'accent', message: brand.note })
-  return { kind: 'brand', hex, light: brand.light, dark: brand.dark }
+  return { kind: 'brand', hex, light: brand.light, dark: brand.dark, moments: brand.moments }
 }
 
 // ── The contrast guard ──────────────────────────────────────────────────────────────────────
@@ -249,14 +282,17 @@ const LIGHT_SURFACES = { white: WHITE, cream: CREAM, hoverGrey: '#F5F5F5' } as c
 /** Dark mode: the page, cards, the raised charcoal (the current page, the moments). */
 const DARK_SURFACES = { page: '#18191C', cards: '#1E1F23', charcoal: CHARCOAL } as const
 /** How the notes name each surface. */
-const SURFACE_NAMES: Record<CmsAccentSurface, string> = { white: 'white', cream: 'cream', hoverGrey: 'the hover grey', page: 'the page', cards: 'cards', charcoal: 'charcoal', tint: 'its own tint' }
+const SURFACE_NAMES: Record<CmsAccentSurface, string> = { white: 'white', cream: 'cream', hoverGrey: 'the hover grey', page: 'the page', cards: 'cards', charcoal: 'charcoal', moment: 'its own moments', tint: 'its own tint' }
 /** The strongest tint of the accent that accent text sits on (Nuxt UI: 10 % soft, 15 % its hover, 20 % the calendar's hover). */
 const TINT = 0.2
 /** The text bar (WCAG AA, normal text), the bar for lines and rings, and the "a button shows" bar. @internal */
 export const CMS_CONTRAST = { text: 4.5, ring: 3, fill: 1.25 } as const
 
-/** A surface the guard checks accent text on. `tint`: the accent's own tint (up to 20 %). @internal */
-export type CmsAccentSurface = keyof typeof LIGHT_SURFACES | keyof typeof DARK_SURFACES | 'tint'
+/**
+ * A surface the guard checks accent text on. `tint`: the accent's own tint (up to 20 %); `moment`: a brand
+ * colour's own moments (its tint in light mode, its charcoal in dark mode), checked instead of cream. @internal
+ */
+export type CmsAccentSurface = keyof typeof LIGHT_SURFACES | keyof typeof DARK_SURFACES | 'moment' | 'tint'
 
 /** The worst ratio of `hex` as text on these surfaces and on its own tint over the first `tintOver` of them. */
 function worstOn(hex: string, surfaces: Record<string, string>, tintOver: number): { ratio: number; surface: CmsAccentSurface } {
@@ -272,15 +308,20 @@ function worstOn(hex: string, surfaces: Record<string, string>, tintOver: number
   }
   return worst
 }
-const worstLight = (hex: string) => worstOn(hex, LIGHT_SURFACES, 1)
-const worstDark = (hex: string) => worstOn(hex, DARK_SURFACES, 2)
+/** The light surfaces: a brand's own moment (its tint) takes cream's place; tinyzoo's cream otherwise. */
+const lightSurfaces = (moment?: string): Record<string, string> => (moment ? { white: WHITE, moment, hoverGrey: LIGHT_SURFACES.hoverGrey } : LIGHT_SURFACES)
+/** The dark surfaces: a brand's own moment (its charcoal) joins them (charcoal stays, the raised grey is still drawn). */
+const darkSurfaces = (moment?: string): Record<string, string> => (moment ? { ...DARK_SURFACES, moment } : DARK_SURFACES)
+const worstLight = (hex: string, moment?: string) => worstOn(hex, lightSurfaces(moment), 1)
+const worstDark = (hex: string, moment?: string) => worstOn(hex, darkSurfaces(moment), 2)
 
 /**
  * How `hex` reads as accent text where the guard checks it: the worst ratio and the surface it is
- * on. The design-system page shows this number, the same one the notes use. @internal
+ * on. The design-system page shows this number, the same one the notes use. `moment`: the brand's
+ * own moment in that scheme (`moments.light.bg` / `moments.dark.bg`), checked instead of cream. @internal
  */
-export function accentTextContrast(hex: string, scheme: 'light' | 'dark' = 'light'): { ratio: number; surface: CmsAccentSurface } {
-  return scheme === 'dark' ? worstDark(hex) : worstLight(hex)
+export function accentTextContrast(hex: string, scheme: 'light' | 'dark' = 'light', moment?: string): { ratio: number; surface: CmsAccentSurface } {
+  return scheme === 'dark' ? worstDark(hex, moment) : worstLight(hex, moment)
 }
 
 /** The text on a fill: white or ink, whichever reads better. */
@@ -291,8 +332,8 @@ function onFill(hex: string): { on: string; ratio: number } {
 }
 const fillShows = (hex: string) => Math.min(contrastRatio(hex, WHITE), contrastRatio(hex, CREAM)) >= CMS_CONTRAST.fill
 const fillPasses = (hex: string) => onFill(hex).ratio >= CMS_CONTRAST.text && fillShows(hex)
-const textPassesLight = (hex: string) => worstLight(hex).ratio >= CMS_CONTRAST.text
-const textPassesDark = (hex: string) => worstDark(hex).ratio >= CMS_CONTRAST.text && onFill(hex).ratio >= CMS_CONTRAST.text
+const textPassesLight = (moment?: string) => (hex: string) => worstLight(hex, moment).ratio >= CMS_CONTRAST.text
+const textPassesDark = (moment?: string) => (hex: string) => worstDark(hex, moment).ratio >= CMS_CONTRAST.text && onFill(hex).ratio >= CMS_CONTRAST.text
 
 /**
  * The fill of a solid button under the pointer: one step (about one shade, 0.06 OKLCH lightness)
@@ -353,14 +394,16 @@ export function brandRamp(hex: string): CmsColorRamp {
 const fmt = (r: number) => (Math.floor(r * 10) / 10).toFixed(1)
 
 /** The brand accent: both schemes, each passing the guard, and a note for the developer when the light one changed. @internal */
-export function brandAccent(hex: string): { light: CmsAccentScheme; dark: CmsAccentScheme; note: string | null } {
+export function brandAccent(hex: string): { light: CmsAccentScheme; dark: CmsAccentScheme; moments: { light: CmsMomentScheme; dark: CmsMomentScheme }; note: string | null } {
   const ramp = brandRamp(hex)
+  const moments = brandMoments(hex)
   const parts: string[] = []
 
   // Light: the button keeps the brand when its text can be read on it; the text shade is the brand,
-  // or the nearest darker shade of it that reads on every light surface.
+  // or the nearest darker shade of it that reads on every light surface (the brand's own moments
+  // instead of cream: the current page in the sidebar is one).
   const fill = nearestPassing(hex, fillPasses, 0)
-  const text = nearestPassing(hex, textPassesLight, -1)
+  const text = nearestPassing(hex, textPassesLight(moments.light.bg), -1)
   const fillOn = onFill(fill)
   const onName = (on: string) => (on === WHITE ? 'white' : 'ink')
   if (fill !== hex) {
@@ -370,8 +413,8 @@ export function brandAccent(hex: string): { light: CmsAccentScheme; dark: CmsAcc
       : `buttons would not show on the page (${fmt(Math.min(contrastRatio(hex, WHITE), contrastRatio(hex, CREAM)))}:1 against white and cream); they use ${fill} with ${onName(fillOn.on)} text (${fmt(fillOn.ratio)}:1)`)
   }
   if (text !== hex) {
-    const before = worstLight(hex)
-    parts.push(`links and other accent text would be ${fmt(before.ratio)}:1 on ${SURFACE_NAMES[before.surface]}; they use ${text} (${fmt(worstLight(text).ratio)}:1)`)
+    const before = worstLight(hex, moments.light.bg)
+    parts.push(`links and other accent text would be ${fmt(before.ratio)}:1 on ${SURFACE_NAMES[before.surface]}; they use ${text} (${fmt(worstLight(text, moments.light.bg).ratio)}:1)`)
     if (fill === hex) parts.push(`buttons keep ${hex} with ${onName(fillOn.on)} text (${fmt(fillOn.ratio)}:1)`)
   }
 
@@ -379,13 +422,84 @@ export function brandAccent(hex: string): { light: CmsAccentScheme; dark: CmsAcc
   // until it reads on the dark surfaces. One colour for the button and the text; the text on the
   // button is ink (on a colour this light, ink always reads better than white).
   const lighter = rgbToOklch(hexToRgb(hex))[0] >= rgbToOklch(hexToRgb(ramp['400']))[0] ? hex : ramp['400']
-  const dark = nearestPassing(lighter, textPassesDark, 1)
+  const dark = nearestPassing(lighter, textPassesDark(moments.dark.bg), 1)
   const darkOn = onFill(dark).on
 
   return {
     light: { ramp, primary: fill, onPrimary: fillOn.on, primaryHover: accentFillHover(fill, fillOn.on), text },
     dark: { ramp, primary: dark, onPrimary: darkOn, primaryHover: accentFillHover(dark, darkOn, () => true), text: dark },
+    moments,
     note: parts.length ? `accent ${hex}: ${parts.join('; ')}.` : null,
+  }
+}
+
+// ── The brand's moments and animals ────────────────────────────────────────────────────────
+//
+// With a brand colour the whole look follows it, not only the accent. Where tinyzoo draws cream
+// (light) and charcoal (dark), a brand draws calm paper with a hint of itself: its OKLCH hue, and a
+// small share of its chroma, capped so a strong colour does not turn the paper peachy or brown
+// (a near-grey brand gives near-grey moments). The lightness of each token is cream's or charcoal's
+// (cms-admin.css), and two clamps keep every text readable without moving the accent:
+//  - light: the moment is never darker (by WCAG luminance) than the hover grey #F5F5F5, which every
+//    text role and the accent's text shade already read on at 4.5:1;
+//  - dark: the moment is never lighter than charcoal #2E3035, which every dark text role and the
+//    accent's dark colour already read on.
+// So the guard (which checks the moments in place of cream) passes them by construction, and the
+// accent a colour gets is the same with or without them: the guard stays idempotent. The quiet text
+// inside a moment is checked on its own (4.5:1 on the moment, moved by lightness until it passes).
+//
+// The animals (app/assets/brand/characters/*.svg) are drawn in two colours, a body and a near-white
+// face. A brand admin redraws them in one muted shade of the brand (lightness around the family's
+// 0.68, a little lighter in dark mode; chroma at most 0.09, the family's middle) with a near-white
+// face tinted toward it. Decorative only: no contrast bar.
+
+/**
+ * How much of the brand's chroma the moments keep, and the caps: light at cream's own chroma (0.009;
+ * 0.02 read as peach for a terracotta), dark a little under charcoal's (0.0094; more read as brown).
+ */
+const MOMENT_CHROMA = { share: 0.07, light: 0.009, dark: 0.008 }
+/** Cream's and charcoal's tokens in OKLCH (lightness, and chroma relative to the moment's own). */
+const MOMENT_LIGHT = { bg: 0.975, strong: [0.94, 1.8], line: [0.901, 2.6], text: [0.517, 2] } as const
+const MOMENT_DARK = { bg: 0.309, strong: [0.352, 1.2], line: [0.394, 1.3], text: [0.752, 1.2] } as const
+/** The animals: the family's muted lightness (it follows the brand a little), the chroma share and cap, the face. */
+const ANIMAL = { lightness: 0.68, follow: 0.25, range: [-0.03, 0.06], darkLift: 0.04, share: 0.7, max: 0.09, face: 0.977, faceShare: 0.04, faceMax: 0.006 } as const
+
+/**
+ * The moments and the animals of a brand colour, light and dark: every token cms-admin.css draws
+ * cream or charcoal with, tinted toward the brand. Pure and quick (a few dozen conversions). @internal
+ */
+export function brandMoments(hex: string): { light: CmsMomentScheme; dark: CmsMomentScheme } {
+  const [Lb, Cb, h] = rgbToOklch(hexToRgb(hex))
+  const yHoverGrey = relativeLuminance(LIGHT_SURFACES.hoverGrey)
+  const yCharcoal = relativeLuminance(CHARCOAL)
+  const at = (L: number, C: number) => toHex(oklchToRgb(gamutMap([Math.min(1, Math.max(0, L)), C, h])))
+  const c = Math.min(Cb * MOMENT_CHROMA.share, MOMENT_CHROMA.light)
+  const cd = Math.min(Cb * MOMENT_CHROMA.share, MOMENT_CHROMA.dark)
+  /** Moves `L` by `step` from `start` until `ok` holds on the hex (or the end of the range). */
+  const walk = (start: number, C: number, step: number, ok: (hex: string) => boolean) => {
+    for (let L = start; L >= 0 && L <= 1; L += step) { const v = at(L, C); if (ok(v)) return v }
+    return step > 0 ? WHITE : '#000000'
+  }
+
+  // Light: the tint, no darker than the hover grey; the quiet text darkened until it reads on it.
+  const lightBg = walk(MOMENT_LIGHT.bg, c, 0.002, (v) => relativeLuminance(v) >= yHoverGrey)
+  const lightText = walk(MOMENT_LIGHT.text[0], c * MOMENT_LIGHT.text[1], -0.002, (v) => contrastRatio(v, lightBg) >= CMS_CONTRAST.text)
+  // Dark: charcoal toward the brand, no lighter than charcoal; the quiet text lightened until it reads.
+  const darkBg = walk(MOMENT_DARK.bg, cd, -0.002, (v) => relativeLuminance(v) <= yCharcoal)
+  const darkText = walk(MOMENT_DARK.text[0], cd * MOMENT_DARK.text[1], 0.002, (v) => contrastRatio(v, darkBg) >= CMS_CONTRAST.text)
+
+  const shift = Math.min(ANIMAL.range[1], Math.max(ANIMAL.range[0], (Lb - 0.6) * ANIMAL.follow))
+  const bodyC = Math.min(Cb * ANIMAL.share, ANIMAL.max)
+  const face = at(ANIMAL.face, Math.min(Cb * ANIMAL.faceShare, ANIMAL.faceMax))
+  return {
+    light: {
+      bg: lightBg, strong: at(MOMENT_LIGHT.strong[0], c * MOMENT_LIGHT.strong[1]), line: at(MOMENT_LIGHT.line[0], c * MOMENT_LIGHT.line[1]), text: lightText,
+      navActive: lightBg, authBg: lightBg, animalBody: at(ANIMAL.lightness + shift, bodyC), animalFace: face,
+    },
+    dark: {
+      bg: darkBg, strong: at(MOMENT_DARK.strong[0], cd * MOMENT_DARK.strong[1]), line: at(MOMENT_DARK.line[0], cd * MOMENT_DARK.line[1]), text: darkText,
+      navActive: darkBg, authBg: darkBg, animalBody: at(ANIMAL.lightness + shift + ANIMAL.darkLift, bodyC), animalFace: face,
+    },
   }
 }
 
@@ -395,7 +509,9 @@ export function brandAccent(hex: string): { light: CmsAccentScheme; dark: CmsAcc
  * shade in light mode, the dark colour in dark mode, never the fill), and the fill of solid buttons
  * at rest and under the pointer with its text (`--cms-accent-fill`, `--cms-accent-fill-hover`,
  * `--cms-accent-on-fill`, read by cms-admin.css). Empty for a built-in accent (the stylesheet draws
- * those). Only hexes are written, so it is safe to put in a <style>. @internal
+ * those). With them, the brand's moments and animals (`brandMoments`, `MOMENT_VARS`): the tokens
+ * cms-admin.css draws in cream and charcoal for tinyzoo's own look. Only hexes are written, so it is
+ * safe to put in a <style>. @internal
  */
 export function adminAccentCss(theme: Pick<CmsAdminTheme, 'accent'>): string {
   const accent = theme.accent
@@ -414,9 +530,22 @@ export function adminAccentCss(theme: Pick<CmsAdminTheme, 'accent'>): string {
     if (on) vars.push(`--cms-accent-on-fill:${on}`)
     return vars.join(';')
   }
+  // The moments and the animals (brandMoments): the same variables cms-admin.css sets to cream and charcoal.
+  const moments = (m: CmsMomentScheme | undefined) => {
+    if (!m) return ''
+    const vars: string[] = []
+    for (const [name, key] of MOMENT_VARS) { const v = ok(m[key]); if (v) vars.push(`${name}:${v}`) }
+    return vars.length ? `;${vars.join(';')}` : ''
+  }
   const sel = `html[data-cms-admin][data-cms-accent='brand']`
-  return `${sel}{${block(accent.light)}}${sel}.dark{${block(accent.dark)}}`
+  return `${sel}{${block(accent.light)}${moments(accent.moments?.light)}}${sel}.dark{${block(accent.dark)}${moments(accent.moments?.dark)}}`
 }
+
+/** The variables a brand's moments set, and where each comes from. @internal */
+export const MOMENT_VARS: ReadonlyArray<readonly [string, keyof CmsMomentScheme]> = [
+  ['--cms-moment-bg', 'bg'], ['--cms-moment-strong', 'strong'], ['--cms-moment-line', 'line'], ['--cms-moment-text', 'text'],
+  ['--cms-nav-active', 'navActive'], ['--cms-auth-bg', 'authBg'], ['--cms-animal-body', 'animalBody'], ['--cms-animal-face', 'animalFace'],
+]
 
 /** What the admin puts in `data-cms-accent`: the built-in accent's name, or `brand`. @internal */
 export const adminAccentName = (theme: Pick<CmsAdminTheme, 'accent'>): string => (theme.accent.kind === 'brand' ? 'brand' : theme.accent.preset)
