@@ -16,6 +16,7 @@ name: Heavy checks
 #   backup     tinyzoo backup / restore with pg_dump, pg_restore and psql of 16, 17 and 18
 #              against a 16 server — strict: a runner without the tools fails
 #   s3-minio   the S3 delivery modes against a real MinIO
+#   site-image the website's Docker image (site/Dockerfile) builds from the repo, as the deploy does
 #   result     one check that is green when every heavy job that ran passed (skipped = nothing relevant)
 on:
   schedule:
@@ -45,6 +46,7 @@ jobs:
       consumer: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.consumer == 'true' || steps.filter.outputs.workflow == 'true' }}
       starter: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.starter == 'true' || steps.filter.outputs.workflow == 'true' }}
       minio: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.minio == 'true' || steps.filter.outputs.workflow == 'true' }}
+      site-image: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.site-image == 'true' || steps.filter.outputs.workflow == 'true' }}
     steps:
       - id: everything
         if: github.event_name != 'pull_request' || github.head_ref == 'changeset-release/main'
@@ -94,6 +96,15 @@ jobs:
               - 'packages/cms/server/api/cms/_media/**'
               - 'packages/cms/cli/transfer*'
               - 'test/api/s3-minio.spec.ts'
+            site-image:
+              - 'site/**'
+              - 'docs/**'
+              - 'packages/cms/**'
+              - '.dockerignore'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'test/contracts/openapi.playground.json'
 
   # A site made on an older tinyzoo moves to this one: scripts/upgrade-check.mjs builds each
   # baseline in .github/upgrade-baseline (and the latest release tag), seeds a site from it,
@@ -289,10 +300,25 @@ jobs:
         env:
           CMS_TEST_REUSE_BUILD: ${{ steps.build-cache.outputs.reuse }}
 
+  # The website's image, built the way scripts/deploy-site.mjs has Pushbase build it: from the
+  # repo root with site/Dockerfile, through .dockerignore. CI builds the site outside Docker, so
+  # a file the build needs but .dockerignore leaves out (0.6's deploy: test/contracts/…) fails here.
+  site-image:
+    needs: changes
+    if: needs.changes.outputs.site-image == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build site/Dockerfile
+        run: docker build --file site/Dockerfile --tag tinyzoo-site:ci .
+      - name: The image holds the server and the seed
+        run: docker run --rm --entrypoint sh tinyzoo-site:ci -c 'test -f .output/server/index.mjs && test -f scripts/seed.mjs && ls seed >/dev/null'
+
   # One check for "the heavy jobs this event needed passed": skipped jobs (nothing relevant
   # changed) are fine, a failed or cancelled one is not.
   result:
-    needs: [changes, upgrade, consumer, starter, backup, s3-minio]
+    needs: [changes, upgrade, consumer, starter, backup, s3-minio, site-image]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
