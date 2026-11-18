@@ -1842,3 +1842,52 @@ Branch `fix/release-tags-docker`. The two to-dos from the 0.6 release, done befo
 - **Tags.** The release run published all three, but npm listed `@tinyzoo/client` within the script's two minutes and `create-tinyzoo` and `tinyzoo` only after about three. The run tagged and released the client, said which two npm did not list yet, and failed. A re-run of the job took the "Nothing to publish" path and tagged and released the other two on `b492960` (`tinyzoo@0.7.0` is Latest on GitHub). The wait is now ten minutes.
 - **Deployed.** The website (`tinyzoo.pushbase.app`) and the demo (`tinyzoo-demo.pushbase.app`) from `main` (`b492960`) with `scripts/deploy-site.mjs`; no migration, content kept. Both answer on `/`, `/admin/login`, `/en/docs` and the new `/api/cms/_theme`.
 
+
+### 1.0 R1 — API freeze
+
+Branch `feat/1.0-freeze`. The public API is now exactly what 1.0 freezes. Changesets: `remove-0-6-deprecations.md` and `search-helpers-internal.md`, both **major**, so the next release is 1.0.0. The version bump itself is not part of this slice. `docs/upgrading.md` has a new "From 0.7 to 1.0" section.
+
+**Removed** (deprecated in 0.6 with `removeIn: '1.0.0'`; these were all of them in `src`, `cli`, `server`, `app`, `module.ts` and the starter). Each one now fails loudly and says what to write instead:
+
+- **`cms.databaseUrl`.** The option is gone from `CmsModuleOptions`. The build stops if it is set. The server (`cmsDb`, `cmsStore`, the start check) and the CLI (`backup`, `export`/`import` settings) read only `NUXT_CMS_DATABASE_URL` or `DATABASE_URL` now, never `nuxt.config.ts`. `runtimeConfig.cms.databaseUrl` stays, always `''` in the build, so `NUXT_CMS_DATABASE_URL` is still a bound runtime variable (`module-options.json` is unchanged).
+- **`defineEntity(name, { singleton: true })`.** `singleton` is gone from `EntityDef`, so it is a type error, and `defineEntity` throws. `defineSingleton` now passes the flag to the shared builder itself, so its type no longer omits `singleton`. `Entity.singleton` and `CmsEntity.singleton` (what the entity *is*) stay.
+- **`FormOptions` from `tinyzoo`.** It is only in `tinyzoo/forms` now.
+- **`CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON`.** They are no longer read. If one is set, the build stops and the message gives the exact `cms: { scheduler: { cron: '…' } }` to write. The test build got its fast cron from these variables. It now uses `CMS_TEST_SCHEDULER_CRON` and `CMS_TEST_RETENTION_CRON` (`test/setup/timers.ts`), which `test/setup/build-playground.mjs` passes on as the `cms.*.cron` options.
+- **A field named `page`, `limit`, `sort`, `dir` or `q` in a public collection** is now an error in `defineEntity`, not a warning. It is still allowed in a collection that is not public.
+- The `cmsDeprecated` machinery stays, unused for now. `docs/api-surface.md` "Deprecated" says nothing is deprecated, and lists what 1.0 removed.
+
+**Made `@internal` again** (owner's decision): `searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch`. They stay exported from `tinyzoo`, because the server imports them through that entry point, like the other ~190 internal helpers (see 0.6 P). They are tagged and drop out of the API report's public part. The "Search helpers" section is gone from `api-surface.md`. `useCmsSearch()`, `<CmsHighlight>` and `GET /api/content/_search` stay public. tinyzoo's own website (`site/server/api/site-docs/search.get.ts`) keeps using the matcher. It is the one allow-listed file in the "sites import nothing internal" test, with the reason: it is built and type-checked from the same commit as the package.
+
+**Docs.** `api-surface.md` (entity options, the `cms` options table, environment variables, the Deprecated section), `deploying.md` (the variable table; "Deprecated cron variables" became "The cron of the scheduled tasks"), `guide/content-model.md` (the `singleton` line, and a stale note that still said the 0.4-removed form helpers "still work"), `development.md` (the test cron).
+
+**Audit: page against exports against snapshots.** I compared the public part of the four API reports with every backticked name on `api-surface.md`:
+
+- Every public export is on the page. `api-surface.spec.ts` checks this too.
+- Every export name on the page is a public export, except the generated `createClient`, `ContentSchema` and `GlobalSchema` (documented as the generated file's) and `cmsDeprecated` (named as the mechanism).
+- Before this slice, the page listed five internal-to-be names and the deprecated rows. They are fixed above.
+
+`pnpm contracts:update` changed only `api-tinyzoo.txt` (public 114 → 108: `FormOptions`, the four search helpers and `SearchMatch` moved out; `EntityDef.singleton` and the deprecated block gone; internal 193 → 198) and `api-tinyzoo-module.txt` (`databaseUrl` and its deprecated block gone). Every line of both diffs is intended. No other golden file changed, so the content API, client types, webhook, hooks, CLI and frontend kit are untouched.
+
+**Tests.**
+
+- `api-refine.spec.ts`:
+  - `singleton: true` is a `@ts-expect-error` and throws the exact message; `defineSingleton` and a plain collection are unchanged.
+  - A list-parameter field name throws for each of the five names in a public collection, and is fine in a private one.
+  - A cron variable stops the module's setup with the exact message, for each variable.
+  - `cms.databaseUrl` stops the setup; the runtime `databaseUrl` is `''`.
+  - `FormOptions` from `tinyzoo` is a `@ts-expect-error`, and the one from `tinyzoo/forms` resolves.
+- `ops.spec.ts` and `cli-hardening.spec.ts`: the CLI ignores a `databaseUrl` left in `nuxt.config.ts` and reads the environment.
+- The old "still works, warns" tests are gone.
+
+**Result** (`TEST_DATABASE_URL=…/cms_test_10freeze`, `TEST_REDIS_URL=redis://localhost:6383`, `UPGRADE_CHECK_DATABASE_URL=…/cms_test_10freeze_upgrade`):
+
+- `pnpm check` green: typecheck (tsc; docs check with 32 blocks in 16 groups; playground, starter, website), then 132 files and 1990 tests passed, with 2 files and 23 tests skipped (232 s).
+- `pnpm check:consumer` green.
+- `pnpm check:upgrade` green: `2506403` (75 s) and `tinyzoo@0.7.0` (69 s). Neither baseline's starter uses anything removed, so no hook file was needed, and there is no migration.
+
+**Open questions for the owner** (not changed):
+
+1. **`Entity.table` is public, but the page says "the tables … are internal".** Access rules get `{ user, table }`, and `plugins.md` reads `reg.byName.get('events')!.table`. So a site's code does use the drizzle table and its columns. Either say on the page that `table` and its column properties are frozen (for reading in access rules and plugin routes), or tag `table` `@internal` and give access rules and plugins another way in.
+2. **`Entity.insertSchema` and `updateSchema` are public members typed as zod types.** That freezes zod's major version as part of tinyzoo's API: a zod 5 upgrade would be a tinyzoo major. Recommended: tag them `@internal`, since nothing in the docs uses them.
+3. **The search helpers are still exported** (internal, not removed), as with every other internal helper. Removing them from the entry point would mean an internal entry point for the server, the same choice 0.6 P made against. Fine for 1.0 unless you want an `tinyzoo/internal` entry.
+4. **`docs/upgrading.md` "Version policy" still says "0.x (now)"**, and `api-surface.md` still says "Until 1.0, a change to it is a minor release". Both are for the 1.0 release slice (S) to update, with the version bump.

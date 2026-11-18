@@ -12,11 +12,11 @@ let _db: ReturnType<typeof createCmsDb> | undefined
 export function useCms(): { db: ReturnType<typeof createCmsDb>; reg: CmsRegistry } {
   const reg = buildRegistry(cmsConfig as Record<string, any>)
   if (!_db) {
-    // The runtime environment wins over anything set at build time (the platform
+    // Read from the runtime environment only, never from the build (the platform
     // injects DATABASE_URL for a linked database).
     const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
-    const url = env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || (useRuntimeConfig().cms as any)?.databaseUrl
-    if (!url) throw createError({ statusCode: 500, statusMessage: 'No database address: set DATABASE_URL (or NUXT_CMS_DATABASE_URL), or cms.databaseUrl in nuxt.config' })
+    const url = env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL
+    if (!url) throw createError({ statusCode: 500, statusMessage: 'No database address: set DATABASE_URL (or NUXT_CMS_DATABASE_URL)' })
     _db = createCmsDb(url, reg.schema)
   }
   return { db: _db, reg }

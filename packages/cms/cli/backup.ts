@@ -73,7 +73,7 @@ export function settingsFrom(cwd: string, env: NodeJS.ProcessEnv, cms: any): Bac
   const driver = (env.NUXT_CMS_STORAGE_DRIVER || s.driver || 'local') as StorageSettings['driver']
   const s3 = s.s3 ?? {}
   return {
-    databaseUrl: env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || cms?.databaseUrl || '',
+    databaseUrl: env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || '',
     storage: {
       driver,
       localDir: resolve(cwd, env.NUXT_CMS_STORAGE_LOCAL_DIR || s.local?.dir || '.cms-uploads'),

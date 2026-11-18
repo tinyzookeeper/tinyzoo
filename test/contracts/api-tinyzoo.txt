@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (114) ─────────────────────────────────────────────────
+// ── public (108) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -481,7 +481,6 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
     icon?: string;
     titleField: keyof F & string;
     fields: F;
-    singleton?: boolean;
     live?: boolean;
     admin?: {
         list?: {
@@ -548,9 +547,6 @@ export interface FieldUi {
     cell: string;
 }
 
-/** @deprecated */
-export type FormOptions<F extends Record<string, any>> = import('../forms').FormOptions<F>;
-
 export type GroupValue<F> = Prettify<{
     [P in keyof F & string]?: KindOf<F[P]>['out'] | null;
 }>;
@@ -605,17 +601,6 @@ export type RichTextDoc = {
 };
 
 export type Row<E> = E extends Entity<infer F> ? RowFields<F> : never;
-
-export const SEARCH_MAX_QUERY: 100;
-
-export interface SearchMatch {
-    score: number;
-    excerpt: string;
-    highlights: [
-        number,
-        number
-    ][];
-}
 
 export interface SeedContext {
     create<E extends EntityLike>(entity: E, data: SeedInsert<E>, options?: SeedWriteOptions<SeedInsert<E>>): Promise<SeedEntry>;
@@ -809,7 +794,7 @@ export function defineRoles<const R extends Record<string, CmsRoleDef>>(roles: R
 
 export function defineSeed(run: (s: SeedContext) => Promise<void> | void): SeedDefinition;
 
-export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(name: string, def: Omit<EntityDef<F>, "singleton" | "admin"> & {
+export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(name: string, def: Omit<EntityDef<F>, "admin"> & {
     admin?: Pick<NonNullable<EntityDef<F>["admin"]>, "editor" | "preview" | "tabs" | "sections">;
 }): Entity<F>;
 
@@ -880,8 +865,6 @@ export const f: {
     }) => FieldDescriptor<RelationFieldKind<Kind, Req>>;
 };
 
-export function highlightRanges(text: string, terms: string[]): [number, number][];
-
 export function linkBlock(): BlockDef<{
     label: FieldDescriptor<ScalarKind<string, string, false>>;
     url: FieldDescriptor<ScalarKind<string, string, false>>;
@@ -889,11 +872,7 @@ export function linkBlock(): BlockDef<{
     sub: FieldDescriptor<ScalarKind<boolean, boolean, true>>;
 }>;
 
-export function matchEntry(title: string, texts: string[], terms: string[], query?: string): SearchMatch | null;
-
 export function pluginFile(base: string | URL, relative: string): string;
-
-export function searchTerms(query: string): string[];
 
 export function seo(opts?: {
     localized?: boolean;
@@ -906,11 +885,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── deprecated (2): still part of the API, to be removed in the release named in its @deprecated tag ──
-FormOptions
-EntityDef.singleton
-
-// ── internal (193): exported, not part of the frozen API, may change in any minor ──
+// ── internal (198): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
@@ -965,7 +940,9 @@ interface OpenApiOptions
 interface PluginPlan
 interface RefShape
 interface RichTextUpgrade
+const SEARCH_MAX_QUERY
 interface SdkOptions
+interface SearchMatch
 interface StepStatus
 const TREE_DEFAULT_MAX_DEPTH
 const TREE_MAX_DEPTH_LIMIT
@@ -1032,6 +1009,7 @@ function fillPathTemplate
 function foldSearchText
 function generateSetupCode
 function heightOf
+function highlightRanges
 function holdsLinks
 function indexTree
 function inspectMigrations
@@ -1052,6 +1030,7 @@ const looksLikeLinkRef
 function mapDocLinks
 function mapFieldLinks
 function mapRowLinks
+function matchEntry
 function matchRoute
 function mediaIdsInBlocks
 function mediaIdsInFields
@@ -1085,6 +1064,7 @@ function roleName
 function rolesDefOf
 function runUpgrade
 function sanitizeRichText
+function searchTerms
 function serializeColumn
 function sitePath
 function sitePrefix

@@ -71,26 +71,31 @@ describe('f.number({ int: false }): a decimal', () => {
   })
 })
 
-describe('`singleton: true` on defineEntity', () => {
-  beforeEach(() => resetCmsDeprecations())
-  afterEach(() => resetCmsDeprecations())
+describe('`singleton: true` on defineEntity (removed in 1.0)', () => {
   const fields = { name: f.text({ required: true }) }
 
-  it('still works, and says it is replaced by defineSingleton (removed in 1.0)', () => {
-    const e = defineEntity('settings', { label: 'Settings', titleField: 'name', singleton: true, fields })
-    expect(e.singleton).toBe(true)
-    expect(cmsDeprecations()).toEqual([{
-      id: 'option:defineEntity.singleton',
-      message: "`defineEntity('settings', { singleton: true })` is replaced by `defineSingleton('settings', { … })`.",
-      removeIn: '1.0.0',
-    }])
+  it('is a type error, and fails at once with what to write instead', () => {
+    // @ts-expect-error the option is gone: defineSingleton makes a global
+    expect(() => defineEntity('settings', { label: 'Settings', titleField: 'name', singleton: true, fields }))
+      .toThrow("defineEntity('settings', { singleton: true }) was removed in 1.0: write defineSingleton('settings', { … }) with the same options.")
   })
 
-  it('is silent for defineSingleton and for a collection', () => {
-    const e = defineSingleton('settings', { label: 'Settings', titleField: 'name', fields })
-    expect(e.singleton).toBe(true)
-    defineEntity('posts', { label: 'Posts', titleField: 'name', fields })
-    expect(cmsDeprecations()).toEqual([])
+  it('leaves defineSingleton and a collection as they were', () => {
+    expect(defineSingleton('settings', { label: 'Settings', titleField: 'name', fields }).singleton).toBe(true)
+    expect(defineEntity('posts', { label: 'Posts', titleField: 'name', fields }).singleton).toBeUndefined()
+  })
+})
+
+describe('a field of a public collection named like a list parameter (an error from 1.0)', () => {
+  it('fails at once, naming the field and the parameter', () => {
+    for (const key of ['page', 'limit', 'sort', 'dir', 'q']) {
+      expect(() => defineEntity('posts', { label: 'Posts', titleField: 'title', content: { public: true }, fields: { title: f.text(), [key]: f.text() } }))
+        .toThrow(`The field "${key}" of the public collection "posts" has the name of a parameter of the content API's list (?${key}=). Rename the field`)
+    }
+  })
+
+  it('is allowed in a collection that is not public', () => {
+    expect(defineEntity('notes', { label: 'Notes', titleField: 'title', fields: { title: f.text(), sort: f.number() } }).name).toBe('notes')
   })
 })
 
@@ -157,18 +162,40 @@ describe('the cron of the scheduled tasks', () => {
     expect(cmsDeprecations()).toEqual([])
   })
 
-  it('still reads the old variables, as deprecated aliases (removed in 1.0)', async () => {
-    process.env.CMS_SCHEDULER_CRON = '*/2 * * * *'; process.env.CMS_RETENTION_CRON = '0 4 * * *'
-    expect(await tasks()).toEqual({ 'cms:scheduled': '*/2 * * * *', 'cms:retention': '0 4 * * *' })
-    expect(cmsDeprecations()).toEqual([
-      { id: 'env:CMS_SCHEDULER_CRON', message: 'CMS_SCHEDULER_CRON is replaced by the `cms.scheduler.cron` option in nuxt.config.ts (both are read at build time).', removeIn: '1.0.0' },
-      { id: 'env:CMS_RETENTION_CRON', message: 'CMS_RETENTION_CRON is replaced by the `cms.retention.cron` option in nuxt.config.ts (both are read at build time).', removeIn: '1.0.0' },
-    ])
+  it('stops the build when an old variable is still set (removed in 1.0), naming the option to write instead', async () => {
+    process.env.CMS_SCHEDULER_CRON = '*/2 * * * *'; delete process.env.CMS_RETENTION_CRON
+    await expect(tasks()).rejects.toThrow("The variable CMS_SCHEDULER_CRON was removed in 1.0: set `cms: { scheduler: { cron: '*/2 * * * *' } }` in nuxt.config.ts and remove the variable.")
+    delete process.env.CMS_SCHEDULER_CRON; process.env.CMS_RETENTION_CRON = '0 4 * * *'
+    await expect(tasks({ retention: { cron: '0 4 * * *' } })).rejects.toThrow("The variable CMS_RETENTION_CRON was removed in 1.0: set `cms: { retention: { cron: '0 4 * * *' } }` in nuxt.config.ts and remove the variable.")
+  })
+})
+
+describe('`FormOptions` from `tinyzoo` (removed in 1.0)', () => {
+  it('is only in tinyzoo/forms', () => {
+    // @ts-expect-error the re-export from tinyzoo is gone
+    type Old = import('tinyzoo').FormOptions<Record<string, never>>
+    type New = import('tinyzoo/forms').FormOptions<Record<string, never>>
+    const old: Old | undefined = undefined
+    const current: New | undefined = undefined
+    expect([old, current]).toEqual([undefined, undefined])
+  })
+})
+
+describe('`cms.databaseUrl` (removed in 1.0)', () => {
+  async function setup(options: Record<string, unknown>) {
+    const mod = (await import(/* @vite-ignore */ join(root, 'packages/cms/module'))).default as any
+    const nuxt = { options: { rootDir: '/nonexistent-tinyzoo-site', alias: {}, runtimeConfig: { public: {} as Record<string, any> } as Record<string, any> }, hook: () => {} }
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try { await mod.setup({ ...mod.defaults, ...options }, nuxt) } finally { warn.mockRestore() }
+    return nuxt.options.runtimeConfig.cms
+  }
+
+  it('stops the build with what to do instead', async () => {
+    await expect(setup({ databaseUrl: 'postgres://cfg/db' })).rejects.toThrow('`cms.databaseUrl` was removed in 1.0: delete it from nuxt.config.ts and set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment.')
   })
 
-  it('lets the option win over the variable', async () => {
-    process.env.CMS_SCHEDULER_CRON = '*/2 * * * *'; process.env.CMS_RETENTION_CRON = '0 4 * * *'
-    expect(await tasks({ scheduler: { cron: '*/10 * * * *' }, retention: { cron: '5 5 * * *' } })).toEqual({ 'cms:scheduled': '*/10 * * * *', 'cms:retention': '5 5 * * *' })
+  it('leaves the runtime value empty in the build, so NUXT_CMS_DATABASE_URL still binds at runtime', async () => {
+    expect((await setup({})).databaseUrl).toBe('')
   })
 })
 

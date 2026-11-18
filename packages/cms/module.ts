@@ -3,7 +3,6 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addComponentsDir, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
 import { createJiti } from 'jiti'
-import { cmsDeprecated } from './src/deprecate'
 import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
@@ -11,14 +10,6 @@ const layerDir = dirname(fileURLToPath(import.meta.url))
 export interface CmsModuleOptions {
   /** Path to the host config, relative to rootDir. Default: 'cms.config.ts'. */
   config?: string
-  /**
-   * Postgres connection string. The server reads NUXT_CMS_DATABASE_URL or DATABASE_URL at
-   * runtime, which win over this value; a value here is written into the build, password
-   * included.
-   *
-   * @deprecated Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) in the environment instead. Removed in 1.0.
-   */
-  databaseUrl?: string
   /** Blob storage for uploaded media. Defaults to the local filesystem driver. */
   storage?: {
     /** 'local' (default) writes to disk; 's3'/'r2' use an S3-compatible store. */
@@ -106,7 +97,6 @@ export interface CmsModuleOptions {
    * time**: it is written into the build, so a change needs a rebuild and there is no
    * `NUXT_CMS_*` variable). Their content is live on time regardless — this only sends the
    * webhooks and live updates for that moment. Default every minute.
-   * The variable `CMS_SCHEDULER_CRON` still works at build time as a deprecated alias.
    */
   scheduler?: { cron?: string }
   /**
@@ -115,8 +105,7 @@ export interface CmsModuleOptions {
    *    Env NUXT_CMS_RETENTION_AUDIT_DAYS.
    * Form submissions have their own: `defineForm(name, { retentionDays })`.
    * The task runs daily at `cron` (a cron expression; **build time**, like `scheduler.cron`:
-   * a change needs a rebuild; default '17 3 * * *'). The variable `CMS_RETENTION_CRON` still
-   * works at build time as a deprecated alias.
+   * a change needs a rebuild; default '17 3 * * *').
    */
   retention?: { auditDays?: number; cron?: string }
   /** Revisions (history, compare, restore): how many to keep per entry and language. 0 = off. */
@@ -213,14 +202,18 @@ function sitemapPaths(paths: (string | Record<string, string>)[] | undefined): (
 }
 
 /**
- * The cron of a scheduled task from its old build-time variable (`CMS_SCHEDULER_CRON`,
- * `CMS_RETENTION_CRON`), kept as a deprecated alias of `cms.<task>.cron`. The option wins when both are set.
+ * What 0.6 deprecated and 1.0 removed, refused at build time with what to do instead: a site
+ * that still sets one would otherwise build without its database address or on another schedule.
  */
-function deprecatedCronVariable(name: string, option: 'scheduler' | 'retention'): string | undefined {
-  const value = process.env[name]
-  if (!value) return undefined
-  cmsDeprecated(`env:${name}`, `${name} is replaced by the \`cms.${option}.cron\` option in nuxt.config.ts (both are read at build time).`, { removeIn: '1.0.0' })
-  return value
+function refuseRemoved(options: CmsModuleOptions): void {
+  const problems: string[] = []
+  if ((options as { databaseUrl?: unknown }).databaseUrl !== undefined) {
+    problems.push('`cms.databaseUrl` was removed in 1.0: delete it from nuxt.config.ts and set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment.')
+  }
+  for (const [name, option] of [['CMS_SCHEDULER_CRON', 'scheduler'], ['CMS_RETENTION_CRON', 'retention']] as const) {
+    if (process.env[name]) problems.push(`The variable ${name} was removed in 1.0: set \`cms: { ${option}: { cron: '${process.env[name]}' } }\` in nuxt.config.ts and remove the variable.`)
+  }
+  if (problems.length) throw new Error(`[tinyzoo] ${problems.join('\n[tinyzoo] ')}\nSee "From 0.7 to 1.0" in tinyzoo's docs/upgrading.md.`)
 }
 
 export default defineNuxtModule<CmsModuleOptions>({
@@ -244,9 +237,7 @@ export default defineNuxtModule<CmsModuleOptions>({
   },
   async setup(options, nuxt) {
     const configPath = resolve(nuxt.options.rootDir, options.config || 'cms.config.ts')
-    if (options.databaseUrl) {
-      cmsDeprecated('option:cms.databaseUrl', '`cms.databaseUrl` writes the database address, password included, into the build: set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment instead.', { removeIn: '1.0.0' })
-    }
+    refuseRemoved(options)
     if (!existsSync(configPath)) {
       console.warn(`[tinyzoo] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
     }
@@ -262,10 +253,10 @@ export default defineNuxtModule<CmsModuleOptions>({
       }
       // Scheduled publishing: announce entries whose publish time has come.
       nitro.experimental = { ...(nitro.experimental || {}), tasks: true }
-      const cron = options.scheduler?.cron || deprecatedCronVariable('CMS_SCHEDULER_CRON', 'scheduler') || '* * * * *'
+      const cron = options.scheduler?.cron || '* * * * *'
       nitro.scheduledTasks = { ...(nitro.scheduledTasks || {}), [cron]: [...((nitro.scheduledTasks as any)?.[cron] ?? []), 'cms:scheduled'] }
       // Retention (GDPR): delete form submissions and audit entries past their time, daily.
-      const retentionCron = options.retention?.cron || deprecatedCronVariable('CMS_RETENTION_CRON', 'retention') || '17 3 * * *'
+      const retentionCron = options.retention?.cron || '17 3 * * *'
       nitro.scheduledTasks = { ...nitro.scheduledTasks, [retentionCron]: [...((nitro.scheduledTasks as any)?.[retentionCron] ?? []), 'cms:retention'] }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
@@ -324,11 +315,12 @@ export {}
       fields: plan.fields,
       messages: plan.messages,
     } as any
-    // Runtime config consumed by the server DataSource (env override: NUXT_CMS_DATABASE_URL).
+    // Runtime config consumed by the server.
     nuxt.options.runtimeConfig.cms = {
-      // Never read DATABASE_URL here: this runs at BUILD time and would bake the build
-      // machine's database into the output. useCms() reads the env at runtime.
-      databaseUrl: options.databaseUrl || '',
+      // Always empty in the build: the address comes from NUXT_CMS_DATABASE_URL or DATABASE_URL
+      // at runtime (useCms() reads them). Never read DATABASE_URL here: this runs at BUILD time
+      // and would bake the build machine's database into the output.
+      databaseUrl: '',
       migrations: { onStart: options.migrations?.onStart ?? false },
       redis: { url: options.redis?.url || '', prefix: options.redis?.prefix || '' },
       // Revisions kept per entry and language (0 = off). Env NUXT_CMS_REVISIONS_KEEP.

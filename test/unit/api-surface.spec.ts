@@ -212,6 +212,9 @@ describe('what sites import', () => {
     const internal = new Map(API_ENTRIES.map((entry) => [entry.name, new Set(apiExports(entry).filter((e) => e.internal).map((e) => e.name))]))
     const used: string[] = []
     let seen = 0
+    // tinyzoo's own website searches its docs with the matcher the content search uses. It is built and
+    // type-checked from the same commit as the package, so an internal change cannot strand it.
+    const allowed = new Set(['site/server/api/site-docs/search.get.ts'])
     const re = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"](tinyzoo|tinyzoo\/forms|tinyzoo\/module|@tinyzoo\/client)['"]/g
     for (const file of sourcesUnder(['docs', 'README.md', 'packages/cms/README.md', 'packages/client/README.md', 'site', 'playground', 'packages/cms/starter', 'test/docs'])) {
       if (/docs[\\/](roadmap|production-plan|pilot-plan)\.md$/.test(file)) continue // the history of the project
@@ -219,7 +222,7 @@ describe('what sites import', () => {
         for (const raw of m[1]!.split(',')) {
           const name = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]!.trim()
           seen++
-          if (internal.get(m[2]!)?.has(name)) used.push(`${relative(repoRoot, file)} imports the @internal ${name} from ${m[2]}`)
+          if (internal.get(m[2]!)?.has(name) && !allowed.has(relative(repoRoot, file).split('\\').join('/'))) used.push(`${relative(repoRoot, file)} imports the @internal ${name} from ${m[2]}`)
         }
       }
     }

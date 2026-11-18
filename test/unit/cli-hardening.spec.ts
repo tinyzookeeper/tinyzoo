@@ -212,9 +212,9 @@ describe('storage settings come from nuxt.config too', () => {
   it('reads the host\'s nuxt.config.ts (export and import used to look at the environment only)', async () => {
     const host = join(dir, 'host')
     mkdirSync(host)
-    writeFileSync(join(host, 'nuxt.config.ts'), `export default { cms: { databaseUrl: 'postgres://cfg/db', storage: { local: { dir: 'uploads-from-config' } } } }\n`)
-    const settings = await hostSettings(host, {})
-    expect(settings.databaseUrl).toBe('postgres://cfg/db')
+    writeFileSync(join(host, 'nuxt.config.ts'), `export default { cms: { storage: { local: { dir: 'uploads-from-config' } } } }\n`)
+    const settings = await hostSettings(host, { DATABASE_URL: 'postgres://env/db' })
+    expect(settings.databaseUrl).toBe('postgres://env/db')
     expect(storageFromSettings(settings.storage).describe).toBe(`the folder ${join(host, 'uploads-from-config')}`)
     // --uploads still wins over the config.
     expect(storageFromSettings(settings.storage, { dir: 'other', cwd: host }).describe).toBe(`the folder ${join(host, 'other')}`)

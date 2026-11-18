@@ -33,7 +33,7 @@ beforeAll(async () => {
   // The playground as a site that has not switched it on has it.
   const built = spawnSync(process.execPath, [join(repoRoot, 'test/setup/build-playground.mjs'), playgroundDir, join(buildDir, 'nuxt'), join(buildDir, 'output')], {
     cwd: playgroundDir, stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8',
-    env: { ...process.env, NODE_ENV: 'production', CMS_TEST_NO_PER_LOCALE: '1', CMS_SCHEDULER_CRON: '* * * * * *' },
+    env: { ...process.env, NODE_ENV: 'production', CMS_TEST_NO_PER_LOCALE: '1', CMS_TEST_SCHEDULER_CRON: '* * * * * *' },
   })
   if (built.status !== 0 || !existsSync(offEntry)) throw new Error(`The build without perLocale failed:\n${built.stdout}\n${built.stderr}`)
   off = await startServer(inject('databaseUrl'), { NUXT_CMS_MIGRATIONS_ON_START: 'false', CMS_TEST_NO_PER_LOCALE: '1' }, offEntry)

@@ -34,6 +34,10 @@ if (!existsSync(join(rootDir, '.nuxt', 'tsconfig.server.json'))) {
 const require = createRequire(join(rootDir, 'package.json'))
 const { loadNuxt, buildNuxt } = await import(pathToFileURL(require.resolve('nuxt/kit')).href)
 
+// The scheduled tasks' cron is a build-time option; the tests run them every second or so
+// (test/setup/timers.ts, BUILD_CRON). Unset, the playground's own (the defaults) stay.
+const cron = (name) => (process.env[name] ? { cron: process.env[name] } : undefined)
+
 const nuxt = await loadNuxt({
   cwd: rootDir,
   dev: false,
@@ -41,6 +45,7 @@ const nuxt = await loadNuxt({
     buildDir,
     nitro: { output: { dir: outputDir } },
     devtools: { enabled: false },
+    cms: { scheduler: cron('CMS_TEST_SCHEDULER_CRON'), retention: cron('CMS_TEST_RETENTION_CRON') },
   },
 })
 await buildNuxt(nuxt)

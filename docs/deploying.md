@@ -150,7 +150,6 @@ Generate secrets with `openssl rand -base64 32` and set them on the platform, ne
 | `NUXT_CMS_CONTENT_DOCS` | optional | `true` publishes the interactive API reference at `/api/openapi` (off in production by default, see [Content API token](#content-api-token)) |
 | `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). See [First run](#first-run-the-setup-code) |
 | `CMS_ALLOW_REQUEST_ORIGIN` | almost never | `1` lets email links use the address of the request. See [Email links without a public address](#email-links-without-a-public-address) |
-| `CMS_SCHEDULER_CRON`, `CMS_RETENTION_CRON` | deprecated | build-time cron expressions of the scheduled tasks. See [Deprecated cron variables](#deprecated-cron-variables) |
 | `NUXT_CMS_RETENTION_AUDIT_DAYS` | optional | delete audit-log entries older than this many days (default 365, `0` = keep). See [Privacy](#privacy-gdpr) |
 | `NUXT_CMS_AUTH_TRUSTED_PROXIES` | optional | proxy hops in front of the app (default 1, Pushbase's ingress). Set `0` when the app is reached directly. See [Trusted proxies](#trusted-proxies) |
 
@@ -204,11 +203,11 @@ Mail clients load the logo in emails from `<NUXT_CMS_PUBLIC_URL>/api/cms/_brand/
 
 It is for a deploy that has no public address, such as an internal tool behind a proxy you trust. It is not a `NUXT_CMS_*` setting on purpose. It is an escape hatch, read when the link is written.
 
-### Deprecated cron variables
+### The cron of the scheduled tasks
 
-`CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` set the cron expressions of the scheduled tasks. They are replaced by `scheduler: { cron }` and `retention: { cron }` in nuxt.config's `cms` options, and are removed in 1.0.
+Set it with `scheduler: { cron }` and `retention: { cron }` in nuxt.config's `cms` options. They are read **when the site is built**, so a change needs a rebuild.
 
-They are read **when the site is built**. Setting them on a running server changes nothing.
+The old variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` were removed in 1.0. A build that still has one set stops and says which option to write instead.
 
 ### The setup token
 
@@ -779,7 +778,7 @@ It works in batches and on one instance at a time. It writes one audit entry, `r
 
 The admin says it under the form's list: "Messages are deleted automatically after 180 days."
 
-To change the schedule, set `retention: { cron: '…' }` in nuxt.config's `cms` options. This is **at build time**: it is written into the build, so there is no runtime variable and a change needs a rebuild. The old `CMS_RETENTION_CRON` still works as a deprecated alias.
+To change the schedule, set `retention: { cron: '…' }` in nuxt.config's `cms` options. This is **at build time**: it is written into the build, so there is no runtime variable and a change needs a rebuild.
 
 ### One person's data
 

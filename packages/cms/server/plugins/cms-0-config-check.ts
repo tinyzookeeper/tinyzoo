@@ -55,7 +55,7 @@ export default defineNitroPlugin(() => {
       problems.push(message)
     }
   }
-  if (!(process.env.NUXT_CMS_DATABASE_URL || process.env.DATABASE_URL || cms.databaseUrl)) {
+  if (!(process.env.NUXT_CMS_DATABASE_URL || process.env.DATABASE_URL)) {
     problems.push('No database address: set DATABASE_URL (or NUXT_CMS_DATABASE_URL) to a Postgres connection string, e.g. postgres://user:password@host:5432/dbname')
   }
   if (problems.length) {

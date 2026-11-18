@@ -56,10 +56,12 @@ describe('defineForm retentionDays', () => {
 })
 
 describe('backup settings', () => {
-  it('reads the database and storage the way the server does: environment, then nuxt config, then defaults', () => {
+  it('reads the database from the environment only, and storage the way the server does: environment, then nuxt config, then defaults', () => {
+    // `cms.databaseUrl` was removed in 1.0: a value left in nuxt.config is not read.
     const cms = { databaseUrl: 'postgres://cfg/db', storage: { driver: 's3', local: { dir: 'cfg-uploads' }, s3: { endpoint: 'https://cfg', bucket: 'cfg-bucket', accessKeyId: 'k', secretAccessKey: 's' } } }
     const fromConfig = settingsFrom('/site', {}, cms)
-    expect(fromConfig.databaseUrl).toBe('postgres://cfg/db')
+    expect(fromConfig.databaseUrl).toBe('')
+    expect(settingsFrom('/site', { DATABASE_URL: 'postgres://env/db' }, cms).databaseUrl).toBe('postgres://env/db')
     expect(fromConfig.storage).toMatchObject({ driver: 's3', localDir: '/site/cfg-uploads', s3: { bucket: 'cfg-bucket', region: 'us-east-1' } })
 
     const env = { DATABASE_URL: 'postgres://env/db', NUXT_CMS_DATABASE_URL: 'postgres://nuxt-env/db', NUXT_CMS_STORAGE_DRIVER: 'r2', NUXT_CMS_STORAGE_S3_BUCKET: 'env-bucket', NUXT_CMS_STORAGE_LOCAL_DIR: '/data/up' }
