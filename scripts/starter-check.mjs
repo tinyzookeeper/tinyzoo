@@ -186,7 +186,12 @@ async function checkScenario(sc, tarballs) {
       if (i > 200) fail(`the site did not start:\n${logs.join('')}`)
       await new Promise((r) => setTimeout(r, 250))
     }
-    const setupCode = /Setup code: ([A-Z0-9]{4}(?:-[A-Z0-9]{4}){3})/.exec(logs.join(''))?.[1]
+    // The setup code is printed by a server plugin after the server is up, so "ready" can come first: wait for it (up to 5 s).
+    let setupCode
+    for (let i = 0; i < 20 && !setupCode; i++) {
+      setupCode = /Setup code: ([A-Z0-9]{4}(?:-[A-Z0-9]{4}){3})/.exec(logs.join(''))?.[1]
+      if (!setupCode) await new Promise((r) => setTimeout(r, 250))
+    }
     ok(setupCode, 'the site did not print a setup code (a new production site must)')
 
     const get = async (path, init) => { const res = await fetch(base + path, { redirect: 'manual', ...init }); return { res, text: await res.text() } }
