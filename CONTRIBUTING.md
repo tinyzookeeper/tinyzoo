@@ -28,6 +28,7 @@ when it touches what they cover**:
 | `starter` | the starter in four combinations (languages, parts, demo content), each made by the packed `tinyzoo init` or `create-tinyzoo`, installed from the tarballs, migrated, built, started and checked (about ten minutes) | `packages/cms/starter/**`, `packages/cms/cli/init*`, `packages/create-tinyzoo/**`, `scripts/starter-check*` |
 | `backup (client tools 16 / 17 / 18, server 16)` | `tinyzoo backup` and `restore` with `pg_dump`, `pg_restore` and `psql` of each version; fails where the tools are missing | `packages/cms/cli/backup*`, `cli/tar*`, `src/migrate*`, `.github/actions/pg-client/**`, `test/api/backup.spec.ts` |
 | `s3-minio` | the S3 delivery modes against a real MinIO | `server/utils/cmsStorage*`, `server/api/cms/_media/**`, `cli/transfer*`, `test/api/s3-minio.spec.ts` |
+| `site-image` | the website's Docker image builds from the repo root with `site/Dockerfile`, as the deploy does (catches a file `.dockerignore` leaves out) | `site/**`, `docs/**`, `packages/cms/**`, `.dockerignore`, the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `test/contracts/openapi.playground.json` |
 | `result` | green when every heavy job that ran passed (skipped ones are nothing relevant) | every pull request |
 
 Changing `heavy.yml` itself runs all of them. To run them by hand on any branch: **Actions → Heavy checks →
@@ -290,7 +291,9 @@ the **first** publish is a placeholder, made by hand once by an owner of the pac
    If it did fail, set the publisher, then re-run the failed job: `scripts/release.mjs` publishes
    only what npm does not have yet, and gives every package that npm has at this version its git
    tag and GitHub release (it skips a tag and a release that exist). A failed run already tags and
-   releases what it did publish, so `tinyzoo` and `@tinyzoo/client` are not left without.
+   releases what it did publish, so `tinyzoo` and `@tinyzoo/client` are not left without. It waits
+   up to two minutes for npm to list a version it just published before tagging it, and every later
+   push to `main` tags (on the commit that set the version) and releases whatever still has no tag.
 4. After the release, check the package page: the **Provenance** badge, and `pnpm create tinyzoo
    scratch --yes` from an empty folder.
 

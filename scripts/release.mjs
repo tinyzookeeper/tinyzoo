@@ -10,6 +10,10 @@
 // package, with provenance when NPM_CONFIG_PROVENANCE=true), then the git tags and GitHub
 // releases (tagAndRelease) of every package that is on npm at its version, also when the
 // publish failed halfway (a re-run publishes what is missing and tags what has no tag yet).
+// After a publish it waits for npm to list the new versions (waitForNpm): asked at once,
+// npm still answered 404 for 0.6.0, and the run passed without tags. The "Nothing to
+// publish" path (every push to main) also tags what has no tag yet, so a run that lost its
+// tags is repaired by the next push. A tag goes on the commit that set the version, not on HEAD.
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -17,6 +21,7 @@ import { join } from 'node:path'
 const root = join(import.meta.dirname, '..')
 const dry = process.argv.includes('--dry-run')
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit' })
+const sh = (cmd, args) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
 
 const packages = ['packages/cms', 'packages/client', 'packages/create-tinyzoo'].map((dir) => {
   const { name, version } = JSON.parse(readFileSync(join(root, dir, 'package.json'), 'utf8'))
@@ -38,7 +43,9 @@ function onNpm({ name, version }) {
 const missing = packages.filter((p) => !onNpm(p))
 if (!missing.length && !dry) {
   console.log(`Nothing to publish: ${packages.map((p) => `${p.name}@${p.version}`).join(', ')} already on npm.`)
-  process.exit(0)
+  // Repairs a release whose tags or GitHub releases are missing; a no-op when they exist.
+  tagAndRelease(packages)
+  process.exit()
 }
 console.log(`To publish: ${(missing.length ? missing : packages).map((p) => `${p.name}@${p.version}`).join(', ')}${dry ? ' (dry run)' : ''}`)
 
@@ -51,12 +58,52 @@ else {
     // Not only what this run published: a run that died after `changeset publish` put tinyzoo
     // and @tinyzoo/client on npm, but before create-tinyzoo, left them without a tag, and the
     // re-run has only create-tinyzoo missing. Whatever npm has at this version gets its tag and release.
-    try { tagAndRelease(packages.filter(onNpm)) }
+    try {
+      const listed = waitForNpm(missing)
+      tagAndRelease(packages.filter((p) => listed.includes(p) || (!missing.includes(p) && onNpm(p))))
+    }
     catch (err) {
       console.error(`Could not tag or release: ${err.message}`)
       process.exitCode = 1
     }
   }
+}
+
+/**
+ * The packages of `wanted` that npm lists, asking again every 5 seconds for up to two minutes
+ * while some are missing: the registry lists a version a few seconds after `npm publish`
+ * returns, and a 404 asked too early would leave that version without its tag.
+ */
+function waitForNpm(wanted, { tries = 24, pauseMs = Number(process.env.RELEASE_NPM_POLL_MS) || 5000 } = {}) {
+  let left = wanted
+  for (let i = 0; ; i++) {
+    left = left.filter((p) => !onNpm(p))
+    if (!left.length || i === tries - 1) break
+    console.log(`Waiting for npm to list ${left.map((p) => `${p.name}@${p.version}`).join(', ')}…`)
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, pauseMs)
+  }
+  if (left.length) {
+    console.error(`npm does not list ${left.map((p) => `${p.name}@${p.version}`).join(', ')}: no tag or release for it. The next push to main tags it once npm does.`)
+    process.exitCode = 1
+  }
+  return wanted.filter((p) => !left.includes(p))
+}
+
+/**
+ * The commit that set a package's current version: the oldest commit on main's first-parent
+ * line, among those that touched a `version` line of its package.json, that already holds it
+ * (the merge of the Version packages pull request). Null when HEAD holds another version.
+ */
+function versionCommit({ dir, version }) {
+  const file = `${dir}/package.json`
+  const shas = sh('git', ['log', '--first-parent', '--format=%H', '-G', '"version"', 'HEAD', '--', file]).split('\n').filter(Boolean)
+  // Newest first: walk back while the version is still this one; the last such commit set it.
+  let found = null
+  for (const sha of shas) {
+    if (JSON.parse(sh('git', ['show', `${sha}:${file}`])).version !== version) break
+    found = sha
+  }
+  return found
 }
 
 /**
@@ -66,15 +113,20 @@ else {
  * either. Skips a tag the remote has and a release that exists, so it never doubles up.
  */
 function tagAndRelease(published) {
-  const sh = (cmd, args) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
   const remote = sh('git', ['ls-remote', '--tags', 'origin'])
   let failed = false
   for (const p of published) {
     const tag = `${p.name}@${p.version}`
     try {
-      try { sh('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`]) }
-      catch { run('git', ['tag', tag]) }
-      if (!remote.includes(`refs/tags/${tag}\n`)) run('git', ['push', 'origin', `refs/tags/${tag}`])
+      if (!remote.includes(`refs/tags/${tag}\n`)) {
+        try { sh('git', ['rev-parse', '-q', '--verify', `refs/tags/${tag}`]) }
+        catch {
+          const sha = versionCommit(p)
+          if (!sha) throw new Error(`no commit on main sets ${p.dir}/package.json to ${p.version}`)
+          run('git', ['tag', tag, sha])
+        }
+        run('git', ['push', 'origin', `refs/tags/${tag}`])
+      }
       try { sh('gh', ['release', 'view', tag]); continue }
       catch { /* no release yet */ }
       // "Latest" on GitHub goes to the CMS itself, not to whichever release was made last.

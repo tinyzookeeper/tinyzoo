@@ -22,6 +22,8 @@ interface State {
   releases: string[]
   /** `changeset publish` puts these on npm, in order, and fails (exit 1) when one of them is `FAIL:<name>`. */
   publishes: string[]
+  /** npm answers 404 for a version this many more times after it is published (the registry's lag). */
+  lag: Record<string, number>
   log: string[]
 }
 
@@ -36,6 +38,7 @@ const fail = (message = '', code = 1) => { record(); save(); process.stderr.writ
 const done = (out = '') => { record(); save(); process.stdout.write(out); process.exit(0) }
 if (tool === 'npm') {
   const spec = args[1]
+  if (state.npm.includes(spec) && state.lag[spec] > 0) { state.lag[spec]--; fail('npm error code E404\\n404 Not Found - GET https://registry.npmjs.org/x') }
   if (state.npm.includes(spec)) done(spec + '\\n')
   fail('npm error code E404\\n404 Not Found - GET https://registry.npmjs.org/x')
 }
@@ -53,6 +56,9 @@ else if (tool === 'git') {
   if (args[0] === 'ls-remote') done(state.remoteTags.map((t) => 'abc123\\trefs/tags/' + t + '\\n').join(''))
   if (args[0] === 'rev-parse') (state.localTags.includes(args[3].replace('refs/tags/', '')) ? done : fail)('')
   if (args[0] === 'tag') { state.localTags.push(args[1]); done() }
+  // the commit that set the version: one stand-in commit, holding the package.json of the work tree
+  if (args[0] === 'log') done('v1sha\\n')
+  if (args[0] === 'show') done(readFileSync(args[1].replace('v1sha:', ''), 'utf8'))
   if (args[0] === 'push') { state.remoteTags.push(args[2].replace('refs/tags/', '')); done() }
   fail('unexpected git ' + args.join(' '))
 }
@@ -82,9 +88,9 @@ afterAll(() => { rmSync(dir, { recursive: true, force: true }) })
 let n = 0
 function release(initial: Partial<State>) {
   const file = join(dir, `state-${++n}.json`)
-  writeFileSync(file, JSON.stringify({ npm: [], localTags: [], remoteTags: [], releases: [], publishes: [], log: [], ...initial }))
+  writeFileSync(file, JSON.stringify({ npm: [], localTags: [], remoteTags: [], releases: [], publishes: [], lag: {}, log: [], ...initial }))
   const run = spawnSync(process.execPath, [join(root, 'scripts/release.mjs')], {
-    cwd: root, encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH}`, RELEASE_STATE: file, HOME: process.env.HOME },
+    cwd: root, encoding: 'utf8', env: { PATH: `${bin}:${process.env.PATH}`, RELEASE_STATE: file, HOME: process.env.HOME, RELEASE_NPM_POLL_MS: '10' },
   })
   const state = JSON.parse(readFileSync(file, 'utf8')) as State
   return { status: run.status, out: run.stdout + run.stderr, state }
@@ -100,11 +106,36 @@ describe('scripts/release.mjs', () => {
     expect(created(state).sort()).toEqual([...packages].sort())
   })
 
-  it('does nothing when every package is on npm already', () => {
+  it('publishes nothing and changes nothing when every package is on npm, tagged and released', () => {
+    const { status, out, state } = release({ npm: packages, remoteTags: packages, releases: packages })
+    expect(status, out).toBe(0)
+    expect(out).toContain('Nothing to publish')
+    expect(state.log.filter((l) => /^(pnpm|git (tag|push)|gh release create)/.test(l))).toEqual([])
+  })
+
+  it('every package on npm but without tags (a run that lost them): tags the commit that set the version and releases all three', () => {
     const { status, out, state } = release({ npm: packages })
     expect(status, out).toBe(0)
     expect(out).toContain('Nothing to publish')
-    expect(state.log.filter((l) => /^(git|gh)/.test(l))).toEqual([])
+    expect(state.log.filter((l) => l.startsWith('pnpm'))).toEqual([])
+    expect(state.log.filter((l) => l.startsWith('git tag')).sort()).toEqual(packages.map((p) => `git tag ${p} v1sha`).sort())
+    expect(state.remoteTags.sort()).toEqual([...packages].sort())
+    expect(created(state).sort()).toEqual([...packages].sort())
+  })
+
+  it('waits for npm to list what it just published before tagging it (0.6.0 asked too early)', () => {
+    const { status, out, state } = release({ publishes: [CMS, CLIENT, CREATE], lag: { [CMS]: 3, [CREATE]: 1 } })
+    expect(status, out).toBe(0)
+    expect(out).toContain('Waiting for npm')
+    expect(state.remoteTags.sort()).toEqual([...packages].sort())
+    expect(created(state).sort()).toEqual([...packages].sort())
+  })
+
+  it('a version npm never lists in time gets no tag and fails the run, the others are tagged', () => {
+    const { status, out, state } = release({ publishes: [CMS, CLIENT, CREATE], lag: { [CREATE]: 1000 } })
+    expect(status).not.toBe(0)
+    expect(out).toContain(`npm does not list ${CREATE}`)
+    expect(state.remoteTags.sort()).toEqual([CMS, CLIENT].sort())
   })
 
   it('tags and releases what the publish got to npm even when the publish then fails (create-tinyzoo refused)', () => {
@@ -132,7 +163,7 @@ describe('scripts/release.mjs', () => {
       localTags: [CMS, CLIENT], remoteTags: [CMS, CLIENT], releases: [CMS, CLIENT],
     })
     expect(status, out).toBe(0)
-    expect(state.log.filter((l) => l.startsWith('git tag'))).toEqual([`git tag ${CREATE}`])
+    expect(state.log.filter((l) => l.startsWith('git tag'))).toEqual([`git tag ${CREATE} v1sha`])
     expect(state.log.filter((l) => l.startsWith('git push'))).toEqual([`git push origin refs/tags/${CREATE}`])
     expect(created(state)).toEqual([CREATE])
   })
@@ -140,6 +171,6 @@ describe('scripts/release.mjs', () => {
   it('a tag that is local but was never pushed is pushed', () => {
     const { state } = release({ npm: [CMS, CLIENT], publishes: [CREATE], localTags: [CMS] })
     expect(state.remoteTags.sort()).toEqual([...packages].sort())
-    expect(state.log.filter((l) => l.startsWith('git tag'))).toEqual([`git tag ${CLIENT}`, `git tag ${CREATE}`])
+    expect(state.log.filter((l) => l.startsWith('git tag'))).toEqual([`git tag ${CLIENT} v1sha`, `git tag ${CREATE} v1sha`])
   })
 })

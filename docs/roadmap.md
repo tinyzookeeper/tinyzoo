@@ -225,6 +225,16 @@ Branches `feat/1.0-<slice>`, test databases with `test` in their names.
 **1.0 is done when:** a site goes from 0.2 to 1.0 by following `docs/upgrading.md`,
 and the audit has no open High or Medium.
 
+#### Decisions locked for Wave 5 (2026-11-18)
+
+| Decision | Choice |
+|---|---|
+| Before the wave | **0.7.0 is released and deployed first**, after the release script waits for npm before tagging (and tags on later pushes what has no tag) and a heavy check builds `site/Dockerfile`, the two to-dos from the 0.6 release. |
+| Translation notifications | **Built in 1.1, not in 1.0** (all additive; a `translation.ready` webhook would be frozen with 1.0). Rules for then: anyone who may edit a translation but not publish it can mark it **Ready for review**; the mark **survives edits** and is cleared only by publishing, removing the translation or taking the mark back; the e-mail goes to **every publisher who opted in**, with no per-language reviewer setting yet (one can be added later without a break). |
+| Search helpers | `searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch` go **back to `@internal`** before the freeze (made public in 0.6, nothing outside tinyzoo uses them, and pg_trgm search may change how matching works). A changeset with an Upgrade note says so. |
+| Developer docs' languages (Q) | **English only for 1.0.** The editors' guide stays in cs/en/de; the Czech and German websites link to the English developer docs with a note. |
+| Preset tints (R) | The soft hover tints under the blue, emerald and violet accents (3.9–4.2:1) are **drawn lighter** in `cms-admin.css` to reach 4.5:1; the preset colours and their text stay. |
+
 ---
 
 ## How the work is run
@@ -1816,3 +1826,12 @@ Branch `feat/0.7-moments` from `feat/0.7-theming` (`5f0b928`). With a brand colo
 - A brand admin loads one small chunk per animal on first view (a few hundred bytes to 3.6 kB each); a page change to a new animal keeps the old drawing (or nothing) for that moment on a slow connection.
 
 **Result on `feat/0.7-theming`** (2026-11-18; `TEST_DATABASE_URL=…/cms_test_07int`, starter and upgrade databases likewise): `pnpm check` green, 131 files / 1,980 tests passed, 3 files / 26 tests skipped (4 min 50 s, typecheck included); `check:starter` green on defaults, english-empty, all-with-german and english-first (3 min 11 s; a first run failed once in english-empty because the check read the server's log before the setup code was printed, so the check now waits for that line, `483d009`); `check:upgrade` green from `2506403` (0.1) and `tinyzoo@0.5.0` (160 s); `check:consumer` green, create-tinyzoo included (57 s).
+
+### 1.0 — Before Wave 5 (2026-11-18)
+
+Branch `fix/release-tags-docker`. The two to-dos from the 0.6 release, done before 0.7.0 goes out:
+
+- **Tags no longer depend on timing.** `scripts/release.mjs` waits up to two minutes (every 5 s) for npm to list each version it just published before tagging it. The "Nothing to publish" path, which runs on every push to `main`, now tags and releases whatever has no tag yet, so a run that lost its tags is repaired by the next push. A tag goes on the commit that set the version (the merge of the Version packages pull request, found on `main`'s first-parent line), not on `HEAD`; checked against the hand-made 0.6.0 tags (`3828d61`). `release.yml` checks out the full history for that.
+- **The website's image is built in CI.** A new heavy job, `site-image`, runs `docker build --file site/Dockerfile .` from the repo root, as the deploy does, and checks that the image holds the server and the seed. It runs on the Version packages pull request, nightly, and on pull requests that touch the site, the docs, `packages/cms`, `.dockerignore` or the lockfile. CONTRIBUTING.md lists it.
+- No package changes, so no changeset and no upgrade step.
+
