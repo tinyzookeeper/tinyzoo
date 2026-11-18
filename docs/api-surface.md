@@ -231,7 +231,7 @@ Every option reaches the runtime config as `cms.<option>`. Every runtime value c
 | `config` | | path of the config, relative to the site (`cms.config.ts`; build time) |
 | `databaseUrl` | `NUXT_CMS_DATABASE_URL` | deprecated: set `DATABASE_URL` or `NUXT_CMS_DATABASE_URL` in the environment instead |
 | `migrations.dir`, `migrations.onStart` | `NUXT_CMS_MIGRATIONS_ON_START` | the migrations bundled into the build; apply them when the server starts |
-| `publicUrl` | `NUXT_CMS_PUBLIC_URL` | the public address of the site (links in emails, the sitemap, and the OpenAPI server address unless `content.publicUrl` says otherwise) |
+| `publicUrl` | `NUXT_CMS_PUBLIC_URL` | the public address of the site (links and the logo in emails, the sitemap, and the OpenAPI server address unless `content.publicUrl` says otherwise) |
 | `auth.mode`, `auth.trustedProxies`, `auth.ipHeader` | `NUXT_CMS_AUTH_MODE`, `NUXT_CMS_AUTH_TRUSTED_PROXIES`, `NUXT_CMS_AUTH_IP_HEADER` | `builtin` or `external` sign-in; proxies in front of the app; the client-IP header |
 | | `NUXT_CMS_AUTH_SETUP_TOKEN` | the code first-run setup asks for. It is an environment variable only, on purpose: it is a secret, and an option would write it into the build and into `nuxt.config.ts`, which is committed |
 | `mail.transport`, `mail.from`, `mail.smtp.*`, `mail.file.dir` | `NUXT_CMS_MAIL_TRANSPORT`, `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `NUXT_CMS_MAIL_SMTP_PORT`, `NUXT_CMS_MAIL_SMTP_SECURE`, `NUXT_CMS_MAIL_SMTP_USER`, `NUXT_CMS_MAIL_SMTP_PASS`, `NUXT_CMS_MAIL_FILE_DIR` | `log`, `file` or `smtp` |

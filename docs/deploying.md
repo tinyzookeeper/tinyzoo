@@ -176,7 +176,7 @@ A site set up before 0.4 has `NUXT_SESSION_PASSWORD` instead. 0.4 and 0.5 used t
 
 `NUXT_CMS_PUBLIC_URL` is the admin's public address. It is used for:
 
-- links in emails;
+- links in emails, and the logo in them (mail clients load it from this address);
 - the server address of `/api/openapi.json`, unless `cms.content.publicUrl` / `NUXT_CMS_CONTENT_PUBLIC_URL` is set;
 - the address `/sitemap.xml` starts with. `NUXT_SITE_URL` wins when it is set.
 
@@ -339,6 +339,7 @@ This section lists what the app sends, so a CDN in front of it can be set up for
 |---|---|---|
 | Content API (`/api/content/…`) | `public, max-age=0, must-revalidate, s-maxage=300` | a **shared cache (CDN) may keep it 5 minutes** (`s-maxage`). See [The content API](#the-content-api) |
 | Media files and picture sizes (`/api/cms/_media/raw/…`, `/api/cms/_media/img/…`) | `public, max-age=31536000, immutable` | a new upload has a new address, so they never change under it |
+| The logo's PNG versions (`/api/cms/_brand/…png?v=…`) | `public, max-age=31536000, immutable` | with the current `v`; a new logo has a new `v`. Without it, or with an old one: `public, max-age=300` |
 | `/sitemap.xml` | `public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600` | the server's own copy is cleared at once when content changes; a CDN may keep it an hour. Change it with `sitemap.cacheMaxAgeSeconds` |
 | `/robots.txt` of the starter | `public, max-age=3600` | |
 | The admin and its API (`/admin`, `/api/cms/…`) | `no-store` | never cache |
