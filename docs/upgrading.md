@@ -523,6 +523,74 @@ With external sign-in, `email` and `name` are now `''` and `locale` is `null` wh
 - `CMS_WEBHOOK_HEADERS` is exported as a constant: the names of the webhook's headers.
 - A custom field renderer now gets a `readOnly` prop. It is `true` when the person's role may read the field but not edit it, or when the entry is read-only for them. A renderer that is not made of native form controls should stop editing when it is set ([the admin guide](guide/admin.md#extensibility--the-field--view-registry)).
 
+## From 0.6 to 0.7
+
+Everything below is also in the changelog of 0.7.0. 0.7 lets the admin carry the client's brand: a colour, a logo set and the emails. No schema change and no migration.
+
+> **What you have to do**
+>
+> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 2. Nothing else is required. A site that sets none of the new options looks as before, apart from the accessibility fixes under [What changes by itself](#what-changes-by-itself).
+> 3. If something sits in front of `/api/cms` (a proxy rule, basic auth, an IP allowlist), let `GET /api/cms/_theme` and `/api/cms/_brand/*` through without a sign-in. See [New public routes](#new-public-routes).
+
+### Optional: brand the admin
+
+All of it goes in `cms.admin` in `app.config.ts` ([the admin guide](guide/admin.md#what-you-can-brand)):
+
+- **A brand colour:** `accent: '#B4532A'`, any hex. tinyzoo derives the shades, dark mode and the text on buttons, and keeps everything readable. The built-in accents stay.
+- **Logos:** put the files in `public/brand/` and set `logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }` (`fullDark` and `markDark` are optional). Set `name` too: it is the logo's text for screen readers.
+- **`signature: false`** hides tinyzoo's quiet signature under the sidebar and on the sign-in pages.
+- **`animals: false`** hides tinyzoo's animals everywhere.
+
+### What changes by itself
+
+These apply to every site, with or without a brand:
+
+- **Focus rings** are a solid 2 px ring in the accent's link colour, 3:1 or more on every surface. They were the accent at 25 %, which was hard to see.
+- **A button under the pointer** takes a shade of its own instead of the button colour at 75 %, so its text stays readable.
+- **In dark mode the colour presets' buttons** (`indigo`, `blue`, `violet`, `emerald`) carry dark text instead of white. Light mode and `mono` look as before.
+- **Emails** (invitations, password resets, a changed sign-in address) carry the full logo (or the site's name in bold), a button in the accent colour and a readable, coloured link under it. Without a logo and with `mono` they look much as before.
+- **The folded sidebar** stays folded after a reload. The admin's Nuxt UI sidebar cookie was renamed, so a sidebar width someone dragged in the current browser session is forgotten once.
+
+### An accent is read strictly
+
+`accent` takes a built-in name or a hex. Names are read in any case, with spaces around them ignored.
+
+- An accent that is neither (a typo, `'red'`) now falls back to `mono`, with a warning in development. Before, it gave mono greys with an odd dark-mode button.
+- `data-cms-accent` on the admin's `<html>` is only ever `mono`, `indigo`, `blue`, `violet`, `emerald` or `brand`. Before, it held whatever the config said. Host CSS keyed to another value, such as `[data-cms-accent='Indigo']` or a hex, stops matching.
+
+### With a hex accent, the moments follow the brand
+
+The sign-in pages, the welcome card and the current page in the sidebar become a faint tint of the brand instead of cream, and the animals take a muted shade of it. A site that already had a hex accent in 0.6 sees this after the upgrade. `mono` and the built-in colour accents keep cream and the colourful animals.
+
+### Host CSS in the admin
+
+- With a hex accent the admin writes the brand's colours in a `<style>` under `html[data-cms-admin][data-cms-accent='brand']`. Host CSS that sets `--ui-primary`, `--ui-color-primary-*` or the moments' variables under `html[data-cms-admin]` loses to it.
+- What a host sets is never checked for contrast. Use `accent` for the colour.
+- A site that styled the admin's focus rings or the hover of its buttons itself should check that its rules still apply.
+
+### New public routes
+
+- `GET /api/cms/_theme` gives the admin its theme (name, colour, logos). The sign-in page needs it before anyone signs in.
+- `GET /api/cms/_brand/<file>` serves the PNG versions of the logo (for emails, the tab and the phone's home screen) and the admin's web manifest.
+
+Neither needs a sign-in, and neither holds anything the sign-in page does not show. A proxy or access rule in front of `/api/cms` must let them through. Otherwise the PNG tab icons, the home-screen icon and the logo in emails do not load.
+
+### Logos and where they are read from
+
+- Mail clients load the logo from `NUXT_CMS_PUBLIC_URL`, so that address must be reachable from the internet. Production already needs it for the links in emails.
+- A logo in `public/` must be a picture file: `.svg`, `.png`, `.webp`, `.jpg`, `.jpeg` or `.avif`.
+- An `https://` logo on a host inside your own network cannot be made into the PNG versions; put it in `public/`. An `http://` logo is never downloaded.
+- A replaced logo reaches the tab icons and new emails within 15 minutes in production. Emails already sent keep the old picture.
+
+### Changing `cms.admin` in the browser
+
+The server resolves the name, colour and logos and the admin uses what it sends. A site that changes `cms.admin` in the browser at run time (`updateAppConfig`) no longer changes them.
+
+### The email helpers take the request first
+
+The server's email builders (`inviteEmail`, `resetEmail`, the ones for a changed sign-in address, and `emailContext`) are internal. They are now async and take the request first: `await inviteEmail(event, { … })`, `await emailContext(event, locale)`. Only a site that calls them from its own server code has to change that call.
+
 ## The two-step rule
 
 > A release that changes the shape of the database never removes what the
