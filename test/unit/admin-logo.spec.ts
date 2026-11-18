@@ -1,10 +1,11 @@
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from '../../packages/cms/node_modules/sharp'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { adminBrandLockup, adminIconLinks, brandFileUrl, brandInitials, CMS_ADMIN_MANIFEST_URL, logoAddressKind, logoFileNotes, resolveAdminTheme } from 'tinyzoo'
 import { checkAdminLogos } from '../../packages/cms/server/utils/cmsLogoCheck'
+import { cmsFailedLogos, cmsShownLogo, type CmsLogoImage } from '../../packages/cms/app/utils/cmsBrandLogo'
 
 // The client's logo set in the admin (0.7): which addresses are used, what each place
 // shows, the tab icons, and the checks a developer sees in development.
@@ -167,7 +168,7 @@ describe('checkAdminLogos: the files, as development reads them at start', () =>
   beforeAll(async () => {
     publicDir = mkdtempSync(join(tmpdir(), 'tz-logo-'))
     mkdirSync(join(publicDir, 'brand'))
-    for (const f of ['full.svg', 'mark.svg', 'mark.png', 'full-dark.svg']) copyFileSync(join(fixtures, f), join(publicDir, 'brand', f))
+    for (const f of ['full.svg', 'mark.svg', 'mark.png', 'full-dark.svg', 'full-viewbox.svg', 'mark-viewbox.svg']) copyFileSync(join(fixtures, f), join(publicDir, 'brand', f))
     await sharp({ create: { width: 300, height: 200, channels: 4, background: '#7A3A17' } }).png().toFile(join(publicDir, 'brand', 'wide-mark.png'))
     await sharp({ create: { width: 200, height: 50, channels: 4, background: '#7A3A17' } }).png().toFile(join(publicDir, 'brand', 'small-full.png'))
   })
@@ -181,6 +182,18 @@ describe('checkAdminLogos: the files, as development reads them at start', () =>
       expect.stringMatching(/logo\.fullDark "\/brand\/full-dark\.svg" has text in it/),
     ])
     expect(await checkAdminLogos(resolveAdminTheme({ logo: { mark: '/brand/mark.svg' } }), publicDir)).toEqual([])
+  })
+
+  it('reads an SVG with only a viewBox (no width or height, as design tools export it)', async () => {
+    for (const f of ['full-viewbox.svg', 'mark-viewbox.svg']) {
+      const svg = readFileSync(join(fixtures, f), 'utf8')
+      expect(svg, f).toMatch(/<svg[^>]* viewBox="0 0 \d+ 64"/)
+      expect(svg, f).not.toMatch(/<svg[^>]* (width|height)=/)
+    }
+    const theme = resolveAdminTheme({ logo: { full: '/brand/full-viewbox.svg', mark: '/brand/mark-viewbox.svg' } })
+    // Read and measured without complaint; the only note is the wordmark's <text> (its own check).
+    const notes = (await checkAdminLogos(theme, publicDir)).map((n) => n.message)
+    expect(notes.filter((m) => !m.includes('has text in it'))).toEqual([])
   })
 
   it('reports a missing file, a mark that is not square and a small full logo (the address notes are the theme’s own)', async () => {
@@ -214,5 +227,83 @@ describe('checkAdminLogos: the files, as development reads them at start', () =>
   it('never reads outside the public folder', async () => {
     const theme = resolveAdminTheme({ logo: { markDark: '/../../etc/hosts.png', mark: '/brand/mark.svg' } })
     expect(await checkAdminLogos(theme, publicDir)).toEqual([])
+  })
+})
+
+describe('CmsBrandLogo: a logo that does not load', () => {
+  const bakery = resolveAdminTheme({ logo: { full: '/brand/full.svg', fullDark: '/brand/full-dark.svg', mark: '/brand/mark.svg', markDark: '/brand/mark-dark.svg' } }).logo
+  const lightOnly = resolveAdminTheme({ logo: { full: '/brand/full.svg', mark: '/brand/mark.svg' } }).logo
+
+  it('shows the theme\'s logos while all of them load', () => {
+    expect(cmsShownLogo(bakery, {})).toEqual(bakery)
+    expect(cmsShownLogo(lightOnly, {})).toEqual(lightOnly)
+    const none = resolveAdminTheme().logo
+    expect(cmsShownLogo(none, { full: true, mark: true })).toEqual(none)
+  })
+
+  it('keeps the light logo when only its dark version is broken, on the cream tile in dark mode', () => {
+    // logo { full, fullDark: a typo, mark }: the dark file is a 404 even in light mode (hidden images load too).
+    const theme = resolveAdminTheme({ logo: { full: '/brand/full.svg', fullDark: '/brand/typo.svg', mark: '/brand/mark.svg' } }).logo
+    const shown = cmsShownLogo(theme, { fullDark: true })
+    expect(shown).toMatchObject({ full: '/brand/full.svg', fullDark: '/brand/full.svg', fullDarkPlate: true, mark: '/brand/mark.svg', markDarkPlate: true })
+    expect(adminBrandLockup({ logo: shown }, false, 'wide')).toBe('full')
+    expect(cmsShownLogo(bakery, { markDark: true })).toMatchObject({ mark: '/brand/mark.svg', markDark: '/brand/mark.svg', markDarkPlate: true, fullDark: '/brand/full-dark.svg', fullDarkPlate: false })
+  })
+
+  it('lets a broken light logo give way to the next one in both modes, as before', () => {
+    const noFull = cmsShownLogo(bakery, { full: true })
+    expect(noFull).toMatchObject({ full: null, fullDark: null, fullDarkPlate: false, mark: '/brand/mark.svg', markDark: '/brand/mark-dark.svg' })
+    expect(adminBrandLockup({ logo: noFull }, false, 'wide')).toBe('mark')
+    const noMark = cmsShownLogo(bakery, { mark: true })
+    expect(noMark).toMatchObject({ mark: null, markDark: null, markDarkPlate: false })
+    expect(adminBrandLockup({ logo: noMark }, false, 'compact')).toBe('initials')
+    expect(adminBrandLockup({ logo: cmsShownLogo(bakery, { full: true, fullDark: true, mark: true, markDark: true }) }, false, 'wide')).toBe('initials')
+  })
+
+  // A server-rendered <img> that already finished before hydration: complete, and its natural
+  // width says nothing (an SVG with only a viewBox can report 0 and still be on screen).
+  const img = (logo: string, opts: { loaded: boolean; complete?: boolean; src?: string | null }): CmsLogoImage & { naturalWidth: number } => ({
+    complete: opts.complete ?? true,
+    naturalWidth: 0,
+    dataset: { logo },
+    getAttribute: (name) => (name === 'src' ? (opts.src === undefined ? `/brand/${logo}.svg` : opts.src) : null),
+    decode: () => (opts.loaded ? Promise.resolve() : Promise.reject(new DOMException('The source image cannot be decoded.', 'EncodingError'))),
+  })
+
+  it('does not take an SVG without a natural size for a failed load', async () => {
+    expect(await cmsFailedLogos([img('full', { loaded: true }), img('mark', { loaded: true }), img('fullDark', { loaded: true }), img('markDark', { loaded: true })])).toEqual([])
+  })
+
+  it('finds the images that failed before the page came alive, by slot', async () => {
+    expect(await cmsFailedLogos([img('full', { loaded: true }), img('fullDark', { loaded: false }), img('mark', { loaded: true })])).toEqual(['fullDark'])
+    expect(await cmsFailedLogos([img('full', { loaded: false }), img('markDark', { loaded: false })])).toEqual(['full', 'markDark'])
+  })
+
+  it('leaves images still loading to their own error event, and images without an address alone', async () => {
+    expect(await cmsFailedLogos([img('full', { loaded: false, complete: false }), img('mark', { loaded: false, src: null })])).toEqual([])
+    expect(await cmsFailedLogos([])).toEqual([])
+  })
+
+  it('marks each <img> with the slot whose file it shows', () => {
+    const vue = readFileSync(join(import.meta.dirname, '../../packages/cms/app/components/CmsBrandLogo.vue'), 'utf8')
+    const imgs = [...vue.matchAll(/<img\b[^>]*>/g)].map((m) => m[0])
+    expect(imgs).toHaveLength(6)
+    for (const tag of imgs) {
+      const slot = /data-logo="(\w+)"/.exec(tag)?.[1]
+      const src = /:src="logo\.(\w+)!"/.exec(tag)?.[1]
+      const failed = /@error="fail\('(\w+)'\)"/.exec(tag)?.[1]
+      expect(slot, tag).toBe(src)
+      expect(failed, tag).toBe(slot)
+    }
+    expect(imgs.filter((t) => t.includes('data-logo="fullDark"'))).toHaveLength(1)
+    expect(imgs.filter((t) => t.includes('data-logo="markDark"'))).toHaveLength(1)
+    expect(vue).not.toMatch(/naturalWidth/)
+  })
+
+  it('keeps the sign-in page\'s initials tile as drawn before 0.7 (leading-none only in the sidebar)', () => {
+    const vue = readFileSync(join(import.meta.dirname, '../../packages/cms/app/components/CmsBrandLogo.vue'), 'utf8')
+    const tile = /v-else-if="lockup === 'initials'"[\s\S]*?>\{\{ initials \}\}/.exec(vue)?.[0] ?? ''
+    expect(tile).toContain(`:class="auth ? 'size-6 rounded-md text-[0.625rem]' : 'size-7 rounded-lg text-xs leading-none'"`)
+    expect(/\bclass="([^"]*)"/.exec(tile)?.[1]).not.toContain('leading-none')
   })
 })
