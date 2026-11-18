@@ -1,3 +1,5 @@
+import type { CmsAccent, CmsAdminLogo } from '../src/theme'
+
 // Default CMS app config (merged into the host; host values win).
 //
 // `cms.fields` is the field/view registry: map a field TYPE to override its edit
@@ -6,9 +8,7 @@
 // hint (e.g. text → CmsFieldText / CmsCellText). A host extends or overrides by
 // adding entries in its own app.config.ts and shipping same-named components:
 //
-//   import type { CmsAccent, CmsAdminLogo } from '../src/theme'
-
-export default defineAppConfig({
+//   export default defineAppConfig({
 //     cms: { fields: { select: { edit: 'MySegmentedSelect' } } },
 //   })
 //
