@@ -1,27 +1,39 @@
 import { readFile } from 'node:fs/promises'
-import { join, relative, resolve, sep } from 'node:path'
 import sharp from 'sharp'
 import { logoAddressKind, logoFileNotes, type CmsAdminTheme, type CmsLogoFileInfo, type CmsLogoSlot, type CmsThemeNote } from 'tinyzoo'
+import { BRAND_SOURCE_MAX_BYTES, brandSourcePath, publicFilePath, svgHasText } from './cmsBrandFiles'
+import { fetchRemoteLogo } from './cmsRemoteLogo'
 
 // The logo checks that need the files (development, at start: server/plugins/cms-logo-check.ts).
 // The rules are pure and live in src/themeLogo.ts; this reads what they need: a `/…`
-// address from the site's public/ folder, an https:// one over the network (4 s at most).
+// address from the site's public/ folder, an https:// one over the network (4 s at most,
+// public addresses only, like the PNG files). The address notes the theme already has are
+// printed by the plugin first; these are only what the files are like.
 
-/** The notes on the theme's logos: the address notes the theme already has, then what the files are like. */
-export async function checkAdminLogos(theme: CmsAdminTheme, publicDir: string): Promise<CmsThemeNote[]> {
-  const notes = theme.notes.filter((n) => n.kind === 'logo')
+/** The notes on the theme's logo files. Each logo is checked on its own: one that cannot be checked never hides the others. */
+export async function checkAdminLogos(theme: Pick<CmsAdminTheme, 'logo'>, publicDir: string): Promise<CmsThemeNote[]> {
   const slots: Array<[CmsLogoSlot, string | null]> = [
     ['full', theme.logo.full],
     ['mark', theme.logo.mark],
     ['fullDark', theme.logo.fullDarkPlate ? null : theme.logo.fullDark],
     ['markDark', theme.logo.markDarkPlate ? null : theme.logo.markDark],
   ]
-  const checked = await Promise.all(slots.map(async ([slot, address]) => {
+  const checked = await Promise.all(slots.map(async ([slot, address]): Promise<CmsThemeNote[]> => {
     if (!address) return []
-    const info = await logoFileInfo(address, publicDir)
-    return info ? logoFileNotes(slot, address, info) : []
+    try {
+      const notes: CmsThemeNote[] = []
+      // The full logo and the mark are also made into PNG files on the server, which reads only pictures on the site or https.
+      if ((slot === 'full' || slot === 'mark') && logoAddressKind(address) === 'path' && !brandSourcePath(address)) {
+        notes.push({ kind: 'logo', message: `cms.admin.logo.${slot} "${address}" cannot be made into the PNG files (${slot === 'full' ? 'the email logo' : 'the tab and home-screen icons'}): tinyzoo reads only a picture file of the site, a path ending in .svg, .png, .webp, .jpg or .avif, outside /api/, with any % written as %25.` })
+      }
+      const info = await logoFileInfo(address, publicDir)
+      return info ? [...notes, ...logoFileNotes(slot, address, info)] : notes
+    }
+    catch {
+      return [] // a check that cannot run says nothing
+    }
   }))
-  return [...notes, ...checked.flat()]
+  return checked.flat()
 }
 
 /** What the logo at `address` is: its size, or that it is missing. `null` when it cannot be told (offline, no public folder). */
@@ -30,10 +42,15 @@ export async function logoFileInfo(address: string, publicDir: string): Promise<
   const kind = logoAddressKind(address)
   if (kind === 'path') {
     if (!publicDir) return null
-    const path = decodeURIComponent(address.replace(/[?#].*$/, ''))
-    const file = resolve(join(publicDir, path))
-    const inside = relative(publicDir, file)
-    if (!inside || inside.startsWith('..') || inside.startsWith(sep)) return null
+    let path: string
+    try {
+      path = decodeURIComponent(address.replace(/[?#].*$/, ''))
+    }
+    catch {
+      return { missing: true, where: 'the address is not a valid path: write a % in a file name as %25' }
+    }
+    const file = publicFilePath(publicDir, path)
+    if (!file) return null
     try {
       body = await readFile(file)
     }
@@ -41,22 +58,22 @@ export async function logoFileInfo(address: string, publicDir: string): Promise<
       return { missing: true, where: `no file at public${path}` }
     }
   }
-  else if (kind === 'https' || kind === 'http') {
+  else if (kind === 'https') {
     try {
-      const res = await fetch(address, { signal: AbortSignal.timeout(4000), redirect: 'follow' })
-      if (!res.ok) return { missing: true, where: `the server answered ${res.status}` }
-      body = Buffer.from(await res.arrayBuffer())
+      body = await fetchRemoteLogo(address, { timeoutMs: 4000, maxBytes: BRAND_SOURCE_MAX_BYTES })
     }
-    catch {
-      return null
+    catch (err) {
+      const answered = /the server answered (\d+)/.exec(err instanceof Error ? err.message : '')
+      return answered ? { missing: true, where: `the server answered ${answered[1]}` } : null
     }
   }
   else {
-    return null
+    return null // http:// and invalid addresses have their note already
   }
   try {
     const meta = await sharp(body, { limitInputPixels: 80_000_000 }).metadata()
-    return { width: meta.width ?? 0, height: meta.height ?? 0, vector: meta.format === 'svg' }
+    const vector = meta.format === 'svg'
+    return { width: meta.width ?? 0, height: meta.height ?? 0, vector, ...(vector && svgHasText(body) ? { text: true } : {}) }
   }
   catch {
     return { unreadable: true }
