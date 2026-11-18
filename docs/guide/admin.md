@@ -77,7 +77,7 @@ All of it can carry the client's brand instead of tinyzoo's: a name, a colour an
 
 ### What you can brand
 
-Everything is in `cms.admin`, in the site's `app.config.ts`, and everything is optional. Without it the admin is tinyzoo's own, as before 0.7.
+Everything is in `cms.admin`, in the site's `app.config.ts`, and every key is optional. Without `name`, `accent` and `logo`, the admin is tinyzoo's own.
 
 ```ts
 export default defineAppConfig({
