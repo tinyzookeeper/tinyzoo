@@ -59,8 +59,8 @@ onMounted(async () => {
       </span>
       <span
         v-else-if="lockup === 'initials'" aria-hidden="true"
-        class="shrink-0 bg-inverted text-inverted grid place-items-center font-bold leading-none cms-display tracking-normal"
-        :class="auth ? 'size-6 rounded-md text-[0.625rem]' : 'size-7 rounded-lg text-xs'"
+        class="shrink-0 bg-inverted text-inverted grid place-items-center font-bold cms-display tracking-normal"
+        :class="auth ? 'size-6 rounded-md text-[0.625rem]' : 'size-7 rounded-lg text-xs leading-none'"
       >{{ initials }}</span>
       <CmsMascot v-else class="h-6 w-auto shrink-0" />
       <span v-if="room === 'wide'" class="truncate font-semibold text-highlighted" :class="auth ? 'text-sm' : ''">{{ productName }}</span>
