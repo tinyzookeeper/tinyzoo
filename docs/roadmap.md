@@ -1857,7 +1857,7 @@ Decisions above ("Decisions locked for Wave 5"). Integration branch `feat/1.0` (
 | Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | merged into `feat/1.0` |
 | R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | `test/1.0-upgrade` | merged into `feat/1.0` |
 | W — Plans on the website: a Plans collection edited in the website's admin, `/plany` lists it with a Done stage (owner's request, 2026-11-18) | `feat/site-roadmap`, `feat/site-roadmap-timeline` (design A, chosen by the owner) | merged into `feat/1.0` |
-| Reviews — two independent reviews of the merged wave (A: server, security, freeze; B: UX, accessibility, docs, upgrade), fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | `fix/1.0-review-a`, `fix/1.0-review-b` | reviews done (no High), both fix branches merged into `feat/1.0`; final checks next |
+| Reviews — two independent reviews of the merged wave (A: server, security, freeze; B: UX, accessibility, docs, upgrade), fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | `fix/1.0-review-a`, `fix/1.0-review-b` | done: no High; both fix branches merged; all four checks green on `a5de708` (below) |
 | S — Release 1.0.0, deploy the website and the demo; the pilot and the Tábor site upgraded (with the owner) | last | waiting |
 
 
@@ -2187,3 +2187,16 @@ Branch `fix/1.0-review-b`, rebased on `feat/1.0` after review A was merged (`9c9
 - `pnpm check:starter` green (`…/cms_test_fixb_starter`): defaults, english-empty, all-with-german, english-first (185 s).
 
 **Changesets.** `1-0-stable.md` (major, new), `review-b-fixes.md` (patch: the error links and the starter's `AGENTS.md`; Upgrade: nothing to do, an older site may edit its own `AGENTS.md`), `admin-a11y-focus-tints.md` (R2's, patch: L1, L2 and L8 folded in; Upgrade names `data-cms-key-focus`), `remove-0-6-deprecations.md` (L6).
+
+### 1.0 — Wave 5 checks before the pull request (2026-11-18)
+
+On `feat/1.0` at `a5de708` (R1, R2, Q, R3, W, the timeline and both review fix branches merged), in a separate worktree with `TEST_DATABASE_URL=…/cms_test_10final`, starter and upgrade databases likewise, and `TEST_REDIS_URL` on a throwaway Valkey 8:
+
+- `pnpm check` green: 136 files / 2,065 tests passed, 2 files / 23 tests skipped (266 s, typecheck included).
+- `pnpm check:consumer` green (44 s).
+- `pnpm check:starter` green on defaults, english-empty, all-with-german and english-first (192 s).
+- `pnpm check:upgrade` green from `2506403`, `npm:tinyzoo@0.2.0` and the latest release tag `tinyzoo@0.7.0` (227 s).
+- `pnpm changeset status`: `tinyzoo`, `@tinyzoo/client` and `create-tinyzoo` go to **1.0.0**; `1-0-stable.md` is the first entry of the changelog.
+
+Left for S: the "Version packages" pull request (1.0.0), the release, the website and demo deploy, `pnpm seed:plans` once on the website, the website's footer and FAQ wording about the pilot, and the pilot and Tábor sites (with the owner).
+
