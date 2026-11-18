@@ -140,9 +140,9 @@ The full logo carries the name, so the admin uses `name` as its text for screen 
 
 **Dark mode.** Without `fullDark` or `markDark`, the light logo sits on a small cream tile in dark mode, so a dark logo never disappears on charcoal. A dark version without its light one is not used.
 
-**Tab and home-screen icons.** With a mark, the browser tab shows it, and tinyzoo makes PNG copies of it for browsers that need them: a 32 px tab icon, the 180 px home-screen icon and the icons of the admin's web manifest (`/api/cms/_brand/…`). Without a mark the tab keeps tinyzoo's icon. This happens on the admin's pages only; the website keeps its own.
+**Tab and home-screen icons.** With a mark, the browser tab shows it, and tinyzoo makes PNG copies of it for browsers that need them: a 32 px tab icon, the 180 px home-screen icon and the icons of the admin's web manifest (`/api/cms/_brand/…`). Without a mark, or with one the server cannot read, the tab keeps tinyzoo's icon. This happens on the admin's pages only; the website keeps its own.
 
-**Checks in development.** When the dev server starts, tinyzoo looks at each logo and warns in the log about an address it cannot use (it must start with `/` or `https://`), a file that is missing, a mark that is not square, or a PNG that is too small. A logo never stops the start, and production does not check.
+**Checks in development.** When the dev server starts, tinyzoo looks at each logo and warns in the log about an address it cannot use (it must start with `/` or `https://`), a file that is missing, a mark that is not square, a PNG that is too small, and an SVG with text in it (`<text>`): the PNG copies are drawn on the server with whatever fonts it has, often none, so convert the text to outlines in your design tool. A logo never stops the start, and production does not check.
 
 **`signature: false`** hides tinyzoo's quiet signature under the sidebar and at the foot of the sign-in pages. The emails never carry it.
 
@@ -165,7 +165,14 @@ Gmail and Outlook do not show SVG, so tinyzoo makes PNG versions of the logo on 
 | `/api/cms/_brand/mark-180.png` | `logo.mark` | the phone's home-screen icon (apple-touch-icon): on white, with a little padding |
 | `/api/cms/_brand/mark-192.png`, `mark-512.png` | `logo.mark` | the web manifest |
 
-Without a mark, the icons show tinyzoo's own. Without a full logo, `full-email.png` is a 404 and the emails show the name. A logo that cannot be read is a 404 too, with one line in the server log.
+Without a mark, the icons show tinyzoo's own. Without a full logo, `full-email.png` is a 404 and the emails show the name. A logo that cannot be read is left out, with one line in the server log: the emails show the name, and the mark files and the tab show tinyzoo's mark.
+
+What tinyzoo reads to make them:
+
+- **A file of the site** (`/brand/logo.svg`): a picture in `public/` ending in `.svg`, `.png`, `.webp`, `.jpg`, `.jpeg` or `.avif`, not under `/api/`. In production it is read from the built site; in development from the `public/` folder on disk.
+- **An `https://` URL**: downloaded with a 5 second limit, at most 2 MB, following at most two redirects, each to `https://` again. Only from hosts on the public internet: an address that resolves to the server's own network (localhost, private ranges, link-local, cloud metadata) is refused. A logo on an intranet server belongs in `public/` instead.
+
+**Caching.** The addresses carry `?v=`, a hash of the logo file and of how tinyzoo draws it. With it, browsers and mail apps may keep a file for a year; replace the logo, even under the same name, and the address changes. In production tinyzoo reads each logo again every 15 minutes, so a new file (a redeploy, a changed `https://` logo) reaches the icons and new emails within that time. Development never lets the browser keep the files.
 
 `/api/cms/_brand/admin.webmanifest` lets people add the admin to a phone's home screen. It opens `/admin/` as an app, with the site's name in the admin's default language and the mark as its icon.
 
