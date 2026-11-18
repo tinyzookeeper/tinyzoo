@@ -21,8 +21,8 @@ The same documentation, rendered from the Markdown linked below, is on the websi
 
 ## Stability and upgrades
 
-- [tinyzoo 1.0](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/stability.md): what the 1.0 stability promise covers and what it does not
-- [The public API](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/api-surface.md): what 1.0 freezes (config API, `cms` options and variables, content API and client, webhook and hooks, CLI with every flag, frontend kit, admin extension points); everything else is internal
+- [tinyzoo 1.0](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/stability.md): what the 1.0 stability promise covers and what it does not, what a minor may add, and the Nuxt, Node, Postgres and drizzle versions 1.x stays on
+- [The public API](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/api-surface.md): what 1.0 freezes (config API, `cms` options and variables, content API and client, webhook and hooks, CLI with every flag, frontend kit, admin extension points, the media addresses, external sign-in); the names tinyzoo keeps; which numbers are promised and which are tuning; everything else is internal
 - [Upgrading](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md): the version policy, the steps per release, recipes for renaming, removing and changing fields, the migration guard
 - [Deploying](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/deploying.md): environment variables, migrations at start, backups and restore
 

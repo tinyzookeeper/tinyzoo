@@ -149,7 +149,7 @@ serverHandlers: [
   { method: 'get', route: '/summary', handler: pluginFile(import.meta.url, './server/summary.get.ts') },
   // POST /api/cms/_p/events/orders/42/ship — administrators only
   { method: 'post', route: '/orders/:id/ship', access: 'admin', handler: … },
-  // GET /api/cms/_p/events/next and GET /api/content/_events/next — anyone
+  // GET /api/cms/_p/events/next and GET /api/content/_events/next — anyone (the content path starts with `_events`)
   { method: 'get', route: '/next', contentPath: '_events/next', access: 'public', handler: … },
 ]
 ```
@@ -177,7 +177,7 @@ Inside a handler you still decide what the person may see or do. Use `useCms()`,
 
 Use `contentPath` for a plugin that gives the website something to call, such as the forms plugin's `_form/:name`.
 
-- The first segment must start with `_` and cannot be `_global`, `_search` or `_sitemap`.
+- The first segment must start with `_` and the plugin's name, as in `_events/next`. So two plugins, and tinyzoo's own routes, never meet. The forms plugin's `_form` is the one exception.
 - These routes are open, so `access` does not apply. The handler checks what it needs, such as the content token or a spam check.
 
 #### Writing a handler
@@ -194,7 +194,7 @@ Two of the server helpers are part of [the public API](api-surface.md#server-hel
 - `useCms()` returns at least `{ db, reg }`: the site's drizzle database and the registry (`CmsRegistry`).
 - `requireCmsUser(event)` returns the signed-in person (`id`, `role`, `email`, `name`, `locale`). It throws 401 when nobody is signed in, and 403 when their role is no longer in the config.
 
-The others (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail`) are tinyzoo's own and can change in a minor release. The types of `db` and of an entity's table come from `drizzle-orm` and follow it ([query helpers](api-surface.md#query-helpers)).
+The others (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail`) are tinyzoo's own and can change in a minor release. The types of `db` and of an entity's table come from `drizzle-orm` and follow it ([query helpers](api-surface.md#query-helpers)). The driver under `db` is not promised: use drizzle's API, not `db.$client`.
 
 ```ts
 // server/summary.get.ts

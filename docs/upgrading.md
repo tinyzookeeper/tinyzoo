@@ -12,8 +12,9 @@ It is written for people who build sites with tinyzoo. The last section is for t
   - the webhook and the Nitro hooks
   - the CLI, the `cms` options and the `NUXT_CMS_*` variables
   - the admin's extension points
-- **[The public API](api-surface.md)** lists every one of them. Everything else can change in any minor release, with a changeset. That covers the other `Cms*` components, the server utilities, anything tagged `@internal`, and the SQL tables and their column names (an entity's `table` object is frozen for reading, see [the public API](api-surface.md#types)). tinyzoo migrates the tables for you.
+- **[The public API](api-surface.md)** lists every one of them. Everything else can change in any minor release, with a changeset. That covers the other `Cms*` components, the server utilities, anything tagged `@internal`, and the SQL tables and their column names (an entity's `table` object is frozen for reading, see [the public API](api-surface.md#types)). tinyzoo migrates the tables for you, and its own `cms_*` tables only gain things within 1.x.
 - **Minor versions** (1.1, 1.2) add things. When one asks something of your site, such as a new migration, its `CHANGELOG.md` entry has an **Upgrade** heading that says what to do.
+- **You can skip minor versions** within 1.x. See [Skipping minor versions](#skipping-minor-versions).
 - **Patch versions** (1.0.1 → 1.0.2) never need anything from you.
 - **Before 1.0 (0.x)**, a minor version (0.2 → 0.3) could break things. Each break is under the **Upgrade** heading of that version, and each one has its section below.
 
@@ -35,6 +36,15 @@ git diff                             # read the new migration (server/db/migrati
 git commit                           # package update, migration, schema.ts and typed client in one commit
 git push                             # deploy
 ```
+
+### Skipping minor versions
+
+Within 1.x you can go from any version to any later one in one step: 1.1 straight to 1.4 is safe.
+
+- tinyzoo's own tables (`cms_*`) only gain things within 1.x. No column that holds data is dropped, renamed or given a new type before 2.0.
+- Upgrade steps are never removed within 1.x. Each one still works on every later 1.x schema.
+
+So `tinyzoo upgrade` and the start of the new version catch up on everything in between. Read the **Upgrade** headings of every version you skip, oldest first.
 
 ### Why `--latest`
 
@@ -78,7 +88,7 @@ Also read the new migration for statements the guard flagged (see [the guard](#t
 
 It does five things and stops at the first that fails:
 
-1. It checks that your `nuxt`, `@nuxt/ui`, `drizzle-orm` and `zod` fit what this tinyzoo asks for. It warns and does not stop.
+1. It checks that your `nuxt`, `@nuxt/ui`, `drizzle-orm` and `zod` fit what this tinyzoo asks for. It also warns when the site has `drizzle-kit` 1.0, which 1.x does not support ([why](stability.md#platform-and-dependencies)). It warns and does not stop.
 2. It writes `server/db/schema.ts` from `cms.config.ts`.
 3. It generates the migration for the difference, with the [guard against statements that lose data](#the-guard-in-tinyzoo-generate).
 4. It regenerates the typed client when your `package.json` has a `cms:client` script.
@@ -616,8 +626,9 @@ The server's email builders (`inviteEmail`, `resetEmail`, the ones for a changed
 > **What you have to do**
 >
 > 1. Update both packages: `pnpm up tinyzoo@^1.0.0 @tinyzoo/client@^1.0.0`.
-> 2. If your site saw no deprecation warning on 0.6 or 0.7, that is all. They are lines that start with `[tinyzoo] deprecated:`, in the output of `nuxt build` or in the server's log.
-> 3. Otherwise, change what is left over. Each step is below. The build, `defineEntity` or `pnpm typecheck` stops on anything you missed, and says what to write instead.
+> 2. Check that Node fits `^22.22.3 || ^24.15.0 || >=26.0.0`, where the site is built and where it runs ([below](#node-drizzle-orm-and-the-starters-scripts)).
+> 3. If your site saw no deprecation warning on 0.6 or 0.7, that is all. They are lines that start with `[tinyzoo] deprecated:`, in the output of `nuxt build` or in the server's log.
+> 4. Otherwise, change what is left over. Each step is below. The build, `defineEntity` or `pnpm typecheck` stops on anything you missed, and says what to write instead.
 
 ### `cms.databaseUrl` is gone
 
@@ -666,6 +677,13 @@ Rename the field. A rename is a migration: see [Renaming a field](#renaming-a-fi
 
 - They are still exported, so code that imports them keeps working for now.
 - They can change in any release. Use `useCmsSearch()` and `<CmsHighlight>`, which stay public.
+
+### Node, drizzle-orm and the starter's scripts
+
+- **Node.** tinyzoo 1.0 asks for `^22.22.3 || ^24.15.0 || >=26.0.0`, the same as Nuxt. An older Node 22 or 24 gets a warning from the package manager. Update Node where the site is built and where it runs.
+- **`drizzle-orm` is a peer dependency.** A site made by `tinyzoo init` already lists it in `package.json`. Keep it there, in the range `tinyzoo upgrade` checks.
+- **`drizzle-kit` stays on 0.x.** `tinyzoo status` and `tinyzoo upgrade` warn when it is 1.0 ([why](stability.md#platform-and-dependencies)).
+- **The starter's scripts call `tinyzoo`.** A new site's `db:generate` is `tinyzoo generate`, and so on. Your own scripts may still run the CLI's file inside the package. That path is not part of the public API, so change them to call `tinyzoo` too.
 
 ### An entity's zod schemas are internal
 
@@ -1083,6 +1101,14 @@ Write one whenever existing sites need something done that `tinyzoo generate` ca
 Schema changes alone need no step. The site's own `tinyzoo generate` writes the migration.
 
 Never write a step that depends on the names of the site's own entity tables. Those are the site's to name. Steps may only touch `cms_*` tables.
+
+### Within 1.x, tinyzoo's tables only grow
+
+A site may skip minor versions ([Skipping minor versions](#skipping-minor-versions)). So, until 2.0:
+
+- A change to a `cms_*` table only adds: a table, a nullable column, a column with a default, an index.
+- A column that holds data is never dropped, renamed or given another type. Stop writing to it instead, and drop it in 2.0.
+- An upgrade step stays in `CORE_UPGRADE_STEPS` for all of 1.x. It must still work against every later 1.x schema. Since nothing is taken away, it can rely on what existed when it was written.
 
 ### Writing one
 
