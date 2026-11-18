@@ -12,10 +12,10 @@ All 12 references below are saved in the Mobbin collection **"my-cms — admin r
 
 ### References
 
-- [Linear: issue view](https://mobbin.com/screens/f00cc4fb-4083-43fc-a0fb-703a6c4ef771?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). The title *is* the H1 and can be edited in place. The description sits directly beneath it with no label. On the right, a narrow "Properties" panel holds status, priority, assignee and estimate as one-line `icon + value` rows with **no field labels**, and empty values read as "Set priority" / "Assign" in muted text. The top bar carries only a breadcrumb and small icon actions.
-- [Linear: project overview with properties](https://mobbin.com/screens/e2106805-ecc7-40a4-a35c-e2c315b24954?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). The right panel uses a two-column `label | value` list (Status, Priority, Lead, Dates, Labels) in small grey labels. The date range is one row ("Mar 30th → Apr 15th"). The main column is title, one-line summary, then the body.
-- [Attio: record page](https://mobbin.com/screens/b4729369-cc37-4b1d-b51e-75954a6ff5c7?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). "Record details" is a dense `icon · label · value` list. Empty values are inline placeholders ("Set Description…", "Set a value…") instead of empty input boxes. "View all values" collapses the rarely used ones.
-- Also worth a look: [Notion: page with title as content](https://mobbin.com/screens/eb0b0242-8e97-41c0-b2b0-f7446a6f7b3c?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). There is no page heading above the document, only a quiet "Edited 1d ago" plus Share in the top bar.
+- [Linear: issue view](https://mobbin.com/screens/f00cc4fb-4083-43fc-a0fb-703a6c4ef771). The title *is* the H1 and can be edited in place. The description sits directly beneath it with no label. On the right, a narrow "Properties" panel holds status, priority, assignee and estimate as one-line `icon + value` rows with **no field labels**, and empty values read as "Set priority" / "Assign" in muted text. The top bar carries only a breadcrumb and small icon actions.
+- [Linear: project overview with properties](https://mobbin.com/screens/e2106805-ecc7-40a4-a35c-e2c315b24954). The right panel uses a two-column `label | value` list (Status, Priority, Lead, Dates, Labels) in small grey labels. The date range is one row ("Mar 30th → Apr 15th"). The main column is title, one-line summary, then the body.
+- [Attio: record page](https://mobbin.com/screens/b4729369-cc37-4b1d-b51e-75954a6ff5c7). "Record details" is a dense `icon · label · value` list. Empty values are inline placeholders ("Set Description…", "Set a value…") instead of empty input boxes. "View all values" collapses the rarely used ones.
+- Also worth a look: [Notion: page with title as content](https://mobbin.com/screens/eb0b0242-8e97-41c0-b2b0-f7446a6f7b3c). There is no page heading above the document, only a quiet "Edited 1d ago" plus Share in the top bar.
 
 ### Do
 
@@ -42,10 +42,10 @@ All 12 references below are saved in the Mobbin collection **"my-cms — admin r
 
 ### References
 
-- [Resend: Emails list](https://mobbin.com/screens/d07d0212-56ee-444d-b2e1-011736dd8119?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). The page has a title, small segmented tabs, then **one toolbar row** (search input that grows, followed by compact filter selects), all without a card. The table has small grey headers, only 4 columns, a relative time right-aligned in muted text, and a single `…` menu at the row end.
-- [Linear: issue list](https://mobbin.com/screens/d4e0a8da-a387-49c7-8940-b64521bd3809?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). There are no column headers at all. The title is bold on the left and metadata (avatar, date) sits right-aligned and muted. The group header ("Todo 5") carries the count. Rows are ~36px. Filter and display controls are icon buttons in the top-right.
-- [Flodesk: My emails](https://mobbin.com/screens/2d75e0ef-fc12-4600-90b6-973bcab18141?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). Search, Sort and Status sit as text buttons on the title row. A tiny thumbnail is **merged into the name cell**. Status is a quiet outline pill with a date inside it ("Draft last edited 5 days ago"). Each row has one `…`. "1–3 of 3 total" sits at the bottom.
-- Also: [Vercel: deployments filter row](https://mobbin.com/screens/d1dee152-f0ee-4fde-95b2-ff5dacc05125?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp) and [Attio: count in table footer](https://mobbin.com/screens/5fc7fb8b-bc6c-4c92-bfd9-e9f2ce4dd812?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp).
+- [Resend: Emails list](https://mobbin.com/screens/d07d0212-56ee-444d-b2e1-011736dd8119). The page has a title, small segmented tabs, then **one toolbar row** (search input that grows, followed by compact filter selects), all without a card. The table has small grey headers, only 4 columns, a relative time right-aligned in muted text, and a single `…` menu at the row end.
+- [Linear: issue list](https://mobbin.com/screens/d4e0a8da-a387-49c7-8940-b64521bd3809). There are no column headers at all. The title is bold on the left and metadata (avatar, date) sits right-aligned and muted. The group header ("Todo 5") carries the count. Rows are ~36px. Filter and display controls are icon buttons in the top-right.
+- [Flodesk: My emails](https://mobbin.com/screens/2d75e0ef-fc12-4600-90b6-973bcab18141). Search, Sort and Status sit as text buttons on the title row. A tiny thumbnail is **merged into the name cell**. Status is a quiet outline pill with a date inside it ("Draft last edited 5 days ago"). Each row has one `…`. "1–3 of 3 total" sits at the bottom.
+- Also: [Vercel: deployments filter row](https://mobbin.com/screens/d1dee152-f0ee-4fde-95b2-ff5dacc05125) and [Attio: count in table footer](https://mobbin.com/screens/5fc7fb8b-bc6c-4c92-bfd9-e9f2ce4dd812).
 
 ### Do
 
@@ -71,9 +71,9 @@ All 12 references below are saved in the Mobbin collection **"my-cms — admin r
 
 ### References
 
-- [Plane: home](https://mobbin.com/screens/e918626d-1fd2-472a-a5fd-197da26e55f2?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). A centred greeting with the date beneath it, then one "Recents" list: doc icon · title · "about 11 hours ago" muted · avatar on the far right. Single column, generous whitespace, no cards around the list.
-- [Snowflake: home](https://mobbin.com/screens/99e544b2-ecc6-46d9-9147-c742c694b1e4?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). Search, then **one row of 4 quick-action tiles** (icon, title, one-line description), then a "Recent" table with tabs by type. This is the structure to copy.
-- [Airtable: home](https://mobbin.com/screens/480cc1d5-ec9c-413d-a871-d7ce22565022?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). Recents grouped by time ("Today", "Past 7 days") under a single "Opened anytime" filter, with nothing else on the page.
+- [Plane: home](https://mobbin.com/screens/e918626d-1fd2-472a-a5fd-197da26e55f2). A centred greeting with the date beneath it, then one "Recents" list: doc icon · title · "about 11 hours ago" muted · avatar on the far right. Single column, generous whitespace, no cards around the list.
+- [Snowflake: home](https://mobbin.com/screens/99e544b2-ecc6-46d9-9147-c742c694b1e4). Search, then **one row of 4 quick-action tiles** (icon, title, one-line description), then a "Recent" table with tabs by type. This is the structure to copy.
+- [Airtable: home](https://mobbin.com/screens/480cc1d5-ec9c-413d-a871-d7ce22565022). Recents grouped by time ("Today", "Past 7 days") under a single "Opened anytime" filter, with nothing else on the page.
 
 ### Do
 
@@ -93,9 +93,9 @@ All 12 references below are saved in the Mobbin collection **"my-cms — admin r
 
 ### References
 
-- [Plain: profile settings](https://mobbin.com/screens/88c63447-0078-4e58-b308-02b68b744358?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). The label is bold-small, with one short muted description line **between label and input**. The image field is a thumbnail with "Upload" and "Delete" ghost buttons beside it and size/format hints as one muted sentence. There are no boxes around groups.
-- [Gumloop: profile](https://mobbin.com/screens/440207ae-e3bd-4e74-bb07-b127f9a09cdb?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). A horizontal layout with label and help on the left and the control on the right, with hairline row dividers. The image row is a thumbnail, "PNGs, JPEGs under 10MB", and Upload/Remove. The read-only ID is shown as a muted, copyable field.
-- [Unify: profile form](https://mobbin.com/screens/a948a9a5-f239-4374-a57c-b52736269570?utm_source=claude&utm_medium=ai-assistant&utm_source_platform=mcp). Labels above the input, short related fields paired in a 2-column grid (First / Last name, Title / Job function), and a single Save/Cancel pair for the whole section.
+- [Plain: profile settings](https://mobbin.com/screens/88c63447-0078-4e58-b308-02b68b744358). The label is bold-small, with one short muted description line **between label and input**. The image field is a thumbnail with "Upload" and "Delete" ghost buttons beside it and size/format hints as one muted sentence. There are no boxes around groups.
+- [Gumloop: profile](https://mobbin.com/screens/440207ae-e3bd-4e74-bb07-b127f9a09cdb). A horizontal layout with label and help on the left and the control on the right, with hairline row dividers. The image row is a thumbnail, "PNGs, JPEGs under 10MB", and Upload/Remove. The read-only ID is shown as a muted, copyable field.
+- [Unify: profile form](https://mobbin.com/screens/a948a9a5-f239-4374-a57c-b52736269570). Labels above the input, short related fields paired in a 2-column grid (First / Last name, Title / Job function), and a single Save/Cancel pair for the whole section.
 
 ### Do
 

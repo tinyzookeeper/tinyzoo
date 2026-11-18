@@ -227,7 +227,7 @@ and the audit has no open High or Medium.
 
 ## How the work is run
 
-- One branch per slice (`feat/0.2-<slice>`), made by a separate agent in its own
+- One branch per slice (`feat/0.2-<slice>`), made in its own
   worktree, with its own databases (`cms_<slice>`, `TEST_DATABASE_URL=…/cms_test_<slice>`),
   so parallel slices never share data.
 - Schema changes in parallel slices collide in the drizzle journal: a slice
@@ -1259,7 +1259,7 @@ Branch `chore/0.4-remove-old-form-helpers`. `defineForm` and `defineFormSettings
 
 ### 1.0 — Wave 4 (started 2026-11-17)
 
-Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, one agent each in its own worktree and branch: M `feat/1.0-roles`, N `feat/1.0-locale-publishing`, O `feat/1.0-create`, P `feat/1.0-api-review`. Each uses its own databases (`cms_test_<slice>`, `cms_test_<slice>_starter`, `cms_test_<slice>_upgrade`). After they merge: two independent reviews of the merged wave, fix branches for what they find, then `check`, `check:starter`, `check:upgrade` and `check:consumer` green before the pull requests.
+Decisions above ("Decisions locked for Wave 4"). Four slices in parallel, each in its own worktree and branch: M `feat/1.0-roles`, N `feat/1.0-locale-publishing`, O `feat/1.0-create`, P `feat/1.0-api-review`. Each uses its own databases (`cms_test_<slice>`, `cms_test_<slice>_starter`, `cms_test_<slice>_upgrade`). After they merge: two independent reviews of the merged wave, fix branches for what they find, then `check`, `check:starter`, `check:upgrade` and `check:consumer` green before the pull requests.
 
 | Slice | Branch | State |
 |---|---|---|
@@ -1588,7 +1588,7 @@ Branch `feat/1.0-docs-clarity`, on top of `feat/1.0-polish` (PR #26). Vojtěch f
 
 ### 0.7 — Admin theming (started 2026-11-18)
 
-Decisions and slices above ("0.7: the client's brand in the admin"). Research written up in `docs/research/admin-ux-references.md`. Contract on `feat/0.7-theming`; three slices in parallel, one agent each in its own worktree, with their own databases (`cms_test_07<slice>`, `…_starter`, `…_upgrade`).
+Decisions and slices above ("0.7: the client's brand in the admin"). Research written up in `docs/research/admin-ux-references.md`. Contract on `feat/0.7-theming`; three slices in parallel, each in its own worktree and database (`cms_test_07<slice>`, `…_starter`, `…_upgrade`).
 
 | Slice | Branch | State |
 |---|---|---|
@@ -1596,6 +1596,10 @@ Decisions and slices above ("0.7: the client's brand in the admin"). Research wr
 | L — logos in the admin | `feat/0.7-logo` | merged into `feat/0.7-theming` |
 | E — PNG logos, manifest, emails | `feat/0.7-mail` | merged into `feat/0.7-theming` |
 | M — brand moments and animals | `feat/0.7-moments` | merged into `feat/0.7-theming` |
+| Fix — brand files, the theme seam | `fix/0.7-brand-files` | merged into `feat/0.7-theming` |
+| Fix — accent states and contrast | `fix/0.7-accent-states` | merged into `feat/0.7-theming` |
+| Fix — logo component, sidebar fold | `fix/0.7-logo-component` | merged into `feat/0.7-theming` |
+| Docs, screenshots, upgrade notes | `docs/0.7-theming` | pushed, to merge into `feat/0.7-theming` |
 
 #### C — Brand colour and contrast guard
 
@@ -1676,6 +1680,20 @@ Emails (`server/utils/cmsEmails.ts`): `emailContext` reads the site's name from 
 - Logo notes go to the server log only. The browser console shows whatever C prints from `theme.notes`; my plugin prints only `kind: 'logo'`, so C should print only `accent` to avoid printing twice.
 - Seen while testing, not changed: setting the `cms_sidebar_folded` cookie by hand (`1` or `"1"`) did not fold the sidebar on reload. Fixed in `fix/0.7-logo-component` (below).
 - **For "From 0.6 to 0.7" in `docs/upgrading.md`:** nothing to do. `logo` and `signature` are optional. A site that wants its logo puts the files in `public/brand/` and sets `cms.admin.logo` (and `name`, which becomes the logo's text for screen readers).
+
+#### Reviews and fixes (2026-11-18)
+
+After C, L and E merged, two independent reviews read the merged wave. **Review A** (security, the server, runtime) found no High, 3 Medium and 6 Low. **Review B** (UX, accessibility, docs, upgrade and API) found 1 High, the focus rings (Nuxt UI's 25 % outline, 1.1–1.6:1 on white), 6 Medium and several Low. Their findings were fixed on three branches, each from `feat/0.7-theming`, each in its own worktree and database, with a write-up below. Slice M (the brand's moments and animals, decided after the first slices) followed on top of the fixes. A last commit made the logo's dark-mode tile take the brand's light paper, which M had left open.
+
+| What | Scope | State |
+|---|---|---|
+| Review A | security, the server, runtime: the theme seam, the PNG logo files, the https fetch, the emails, the development checks | no High, 3 Medium, 6 Low; fixed |
+| Review B | UX, accessibility, docs, upgrade and API | 1 High (focus rings), 6 Medium, Lows; fixed |
+| `fix/0.7-brand-files` | logo file versions from the bytes and the 15-minute reread, https only to public addresses, the async theme seam, path checks, development notes | merged |
+| `fix/0.7-accent-states` | full-strength focus rings, a hover fill of its own, ink on the dark presets, the guard on the accent's tints, notes once per session, the design-system page | merged |
+| `fix/0.7-logo-component` | logo fallbacks by slot and with `decode()`, the sign-in initials tile, the folded sidebar after a reload | merged |
+| M — `feat/0.7-moments` | the moments and animals follow a brand colour, `cms.admin.animals` | merged |
+| `557df9c` | the dark-mode logo tile takes the brand's light moment (`--cms-logo-plate`) instead of cream | on `feat/0.7-theming` |
 
 #### Fix — fix/0.7-brand-files
 
@@ -1783,7 +1801,7 @@ Branch `feat/0.7-moments` from `feat/0.7-theming` (`5f0b928`). With a brand colo
 
 **Tests.** New `test/unit/admin-moments.spec.ts` (22): over 387 brand colours (OKLCH grid 12 hues × 9 lightnesses × 5 chromas, the sRGB cube in 4 steps, named cases) every text role of the stylesheet, the quiet text, ink/cream on the stronger tint and the accent read at 4.5:1 on the moments, light and dark; the luminance clamps; one surface per scheme; the moments never are the guard's worst surface; chroma caps and hue; lightness near cream's and charcoal's; near-grey brands give near-grey moments and a grey animal; the animals' lightness, chroma, dark lift and face; pure, idempotent, under 1 ms a colour; the `<style>` carries all eight variables in both schemes and drops a tampered value; mono, the four presets and an unreadable accent have no `moments` and no `<style>`; the stylesheet's two animal rules; `animals` default and `false` for any accent; every animal in the admin goes through `CmsAnimal` behind `useCmsAnimals()`; the family is 26 + 6; **every animal file has exactly two colours, one of them a known face** (fails for a new animal that breaks it); recolouring replaces the two fills and nothing else (byte for byte once the colours are put back); malformed or active SVGs are refused. `test/unit/admin-contrast.spec.ts` +1 (79): 18 brand colours, light and dark, every text role on `--cms-moment-bg`, `--cms-nav-active`, `--cms-auth-bg`, the quiet text, and highlighted text on `--cms-moment-strong`, as the stylesheet resolves them with the brand `<style>`. `test/api/admin-accent.spec.ts` +1: the unbranded playground serves `animals: true`, no `moments`, the sign-in's hedgehog as the `<img>` and no moment variables. A brand config's SSR is not an API test (the API suite builds the playground once, unbranded); it is covered at unit level and was checked on a brand build with curl (the `<style>` with all eight variables, inline `<svg … data-character="bird">` with `class="cms-animal__body"` on the setup page). `pnpm check` (`cms_test_07m`) green: 131 files passed, 3 skipped; 1,966 tests passed, 26 skipped; tests 292 s, the whole check 5 min 31 s (typecheck included).
 
-**Seen in the browser.** Production builds of a copy of the playground with a temporary `accent` (not committed; the copy deleted), served against `cms_test_07m_browser`, screenshots from a headless Chromium script (the shared chrome-devtools browser was not used), light and dark, 1280 and 390 px: setup, sign-in, home, an empty list (`tag`), the site settings form with its section menu. `#B4532A` (all pages, setup included); `#2563EB`, `#15803D`, `#FFD500`, `#6B7280` (the same build with the hex swapped in the output). Moments read as paper with a hint of the brand: terracotta a faint warm blush, blue a cool white, yellow close to cream, grey neutral; the dark ones a charcoal barely leaning to the hue. The current page in the sidebar and the section menu sit on the tint; animals are one muted shade (setup's six too), sized as before (the owl 129 × 96 / 54 × 40 on a phone, the hedgehog 132 × 96 / 110 × 80), fills switching with dark mode; no console errors. **Unchanged:** mono and `emerald` (swapped into the same build) compared pixel by pixel with a build of `5f0b928`, the same five pages, light and dark, 1280 and 390: 40 screenshots, identical except 8–13 pixels on two rounded corners (the website preview card, the password field) in three of them, which a second run of the `5f0b928` build alone shows too (rendering noise). **`animals: false`** (green and mono): no animal anywhere, setup without the family, sign-in without the hedgehog, the phone's welcome without the corner padding, the empty list with its plain icon tile; nothing left as a gap. **Design-system page** (`nuxt dev` of the site): `#B4532A` en 1280 light, `#2563EB` cs 390 dark, `#6B7280` de 390 light: the summary shows Moments and Animals, the welcome, the live card, the family and the empty state in the brand's shade, no `<img>` animals left. Found and fixed there: the empty state still used the website's theme (now the page provides the tint), and the added moments sentence lacked a space.
+**Seen in the browser.** Production builds of a copy of the playground with a temporary `accent` (not committed; the copy deleted), served against `cms_test_07m_browser`, screenshots from a headless Chromium script, light and dark, 1280 and 390 px: setup, sign-in, home, an empty list (`tag`), the site settings form with its section menu. `#B4532A` (all pages, setup included); `#2563EB`, `#15803D`, `#FFD500`, `#6B7280` (the same build with the hex swapped in the output). Moments read as paper with a hint of the brand: terracotta a faint warm blush, blue a cool white, yellow close to cream, grey neutral; the dark ones a charcoal barely leaning to the hue. The current page in the sidebar and the section menu sit on the tint; animals are one muted shade (setup's six too), sized as before (the owl 129 × 96 / 54 × 40 on a phone, the hedgehog 132 × 96 / 110 × 80), fills switching with dark mode; no console errors. **Unchanged:** mono and `emerald` (swapped into the same build) compared pixel by pixel with a build of `5f0b928`, the same five pages, light and dark, 1280 and 390: 40 screenshots, identical except 8–13 pixels on two rounded corners (the website preview card, the password field) in three of them, which a second run of the `5f0b928` build alone shows too (rendering noise). **`animals: false`** (green and mono): no animal anywhere, setup without the family, sign-in without the hedgehog, the phone's welcome without the corner padding, the empty list with its plain icon tile; nothing left as a gap. **Design-system page** (`nuxt dev` of the site): `#B4532A` en 1280 light, `#2563EB` cs 390 dark, `#6B7280` de 390 light: the summary shows Moments and Animals, the welcome, the live card, the family and the empty state in the brand's shade, no `<img>` animals left. Found and fixed there: the empty state still used the website's theme (now the page provides the tint), and the added moments sentence lacked a space.
 
 **For the integrator.**
 - Shared files with `fix/0.7-logo-component`: `layouts/cms-auth.vue` (only the hedgehog line and its `computed`), nothing in `CmsBrandLogo.vue` or `layouts/admin.vue`.

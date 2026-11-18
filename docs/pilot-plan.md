@@ -11,7 +11,7 @@ client's editors can run without calling us. The comparison the company makes is
   only the docs.
 - Every task an editor does on a typical site works on desktop and phone, in light
   and dark, in Czech and English.
-- The final multi-agent test (Track C) finds no High issues, and every Medium is
+- The final audit (Track C) finds no High issues, and every Medium is
   fixed or written down as a known issue.
 
 Sizes: **S** ≤ 1 day · **M** 2–4 days · **L** 1–2 weeks.
@@ -122,7 +122,7 @@ preset, site search, multisite, dashboard widgets, CSV import into collections.
 
 ## Track B: UX/UI (from the baseline audit, 2026-11-15)
 
-One Sonnet agent worked through 12 editor tasks in the playground at 1440 px and
+One audit run worked through 12 editor tasks in the playground at 1440 px and
 390 px. It didn't get to dark mode, because the dev server stopped answering (see
 B4).
 
@@ -188,23 +188,23 @@ picker, and the editor top bar on phone.
 
 ---
 
-## Track C: the final test, a multi-agent run
+## Track C: the final test, a parallel audit
 
-Run twice: a **baseline** now (a single agent, done 2026-11-15) and the **final
+Run twice: a **baseline** now (a single run, done 2026-11-15) and the **final
 test** when Tracks A and B are done. The same scenarios both times give a
 before/after comparison.
 
 **Setup**
 
-- Each agent gets its own app instance and its own database (separate port, a DB
-  created from the migrations plus a seed), so agents never break each other's
+- Each area gets its own app instance and its own database (separate port, a DB
+  created from the migrations plus a seed), so the runs never break each other's
   data.
-- Sonnet agents drive a real browser (chrome-devtools) at desktop (1440) and phone
+- Each run drives a real browser at desktop (1440) and phone
   (390) widths, light and dark, in Czech and English.
-- The rule for every agent: report only what it saw, with steps, expected vs
+- The rule for every run: report only what it saw, with steps, expected vs
   actual, a screenshot, and the console output.
 
-**Areas, one agent each**
+**Areas, one run each**
 
 1. Content editing: entries, rich text, relations, slugs, autosave and unsaved
    changes.
@@ -226,7 +226,7 @@ before/after comparison.
 
 **Then**
 
-- A verify pass: a separate agent reproduces each finding and drops the ones it
+- A verify pass: a separate run reproduces each finding and drops the ones it
   can't reproduce.
 - One report, sorted by severity: Bugs, UX/UI issues, Missing.
 - Fix all Highs and Mediums, then re-run only the failed scenarios.
@@ -238,12 +238,11 @@ before/after comparison.
 
 ## Track C results: second audit (2026-11-15)
 
-Six Sonnet auditors ran in parallel. Each had its own production build, database and
-headless browser (Playwright scripts; the shared chrome-devtools browser can't serve
-parallel agents). The areas were: editing and publishing, pages and menus (starter),
+Six audits ran in parallel. Each had its own production build, database and
+headless browser (Playwright scripts). The areas were: editing and publishing, pages and menus (starter),
 media and lists, languages and forms (starter), accounts with phone and dark mode,
 and mistakes and edge cases. Brief: one shared file with the rules and report format,
-plus a short area list per auditor.
+plus a short area list per audit.
 
 **Found and fixed**
 
@@ -270,7 +269,7 @@ plus a short area list per auditor.
 | Low | Unknown admin address showed a blank editor; a redirect circle had the self-redirect wording; the bulk delete text was singular and named nothing; the undo toast was too long; "Add: Opening hours"; new form messages didn't stand out; amber text failed AA | each fixed |
 | Low | Starter: `/home` duplicated `/`, an English-and-Nuxt 404, no news title, a "Draft preview" banner on published pages, misaligned text block | 301 to `/`, the site's own Czech/English error page, titles, banner only for drafts, aligned |
 
-**Re-check:** one more Sonnet agent ran a 21-item checklist on fresh builds. 19 items
+**Re-check:** one more run went through a 21-item checklist on fresh builds. 19 items
 were fixed; 4 leftovers it found are now fixed too (`#red` colour, a deleted entry's
 address opening a blank editor, the starter's menu button showing on desktop, an
 English "file is empty").
