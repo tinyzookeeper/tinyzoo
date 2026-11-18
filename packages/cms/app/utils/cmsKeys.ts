@@ -16,6 +16,15 @@ import { onBeforeUnmount, onMounted } from 'vue'
 /** The attribute on <html> while the keyboard was the last thing used. */
 export const CMS_KEYS_ATTR = 'data-cms-keys'
 
+/**
+ * The attribute on <html> while the focus is where the keyboard put it: set when a control takes the focus
+ * while `data-cms-keys` is set, cleared when the pointer presses. Typing does not set it. The writing
+ * column (the big title, the summary, the text) rings only with it, so a click into the text stays quiet
+ * while you type, and Tab still shows where you are. A text field always matches :focus-visible, so that
+ * cannot tell the two apart.
+ */
+export const CMS_KEY_FOCUS_ATTR = 'data-cms-key-focus'
+
 const MODIFIERS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'AltGraph', 'CapsLock', 'Fn', 'OS'])
 
 /** Start noting it on `doc`'s <html>; returns the function that stops (and removes the attribute). */
@@ -24,13 +33,17 @@ export function cmsTrackKeys(doc: Document = document): () => void {
   const onKey = (e: KeyboardEvent) => {
     if (!MODIFIERS.has(e.key) && !root.hasAttribute(CMS_KEYS_ATTR)) root.setAttribute(CMS_KEYS_ATTR, '')
   }
-  const onPointer = () => {
+  const onPointer = (e: Event) => {
     if (root.hasAttribute(CMS_KEYS_ATTR)) root.removeAttribute(CMS_KEYS_ATTR)
+    if (e.type === 'pointerdown' && root.hasAttribute(CMS_KEY_FOCUS_ATTR)) root.removeAttribute(CMS_KEY_FOCUS_ATTR)
   }
   const onFocus = (e: FocusEvent) => {
     const el = e.target as HTMLElement | null
     const view = doc.defaultView
-    if (!view || !root.hasAttribute(CMS_KEYS_ATTR) || typeof el?.getBoundingClientRect !== 'function') return
+    const keys = root.hasAttribute(CMS_KEYS_ATTR)
+    if (keys) root.setAttribute(CMS_KEY_FOCUS_ATTR, '')
+    else if (root.hasAttribute(CMS_KEY_FOCUS_ATTR)) root.removeAttribute(CMS_KEY_FOCUS_ATTR)
+    if (!view || !keys || typeof el?.getBoundingClientRect !== 'function') return
     const r = el.getBoundingClientRect()
     if (!r.width && !r.height) return
     if (r.bottom <= 0 || r.top >= view.innerHeight || r.right <= 0 || r.left >= view.innerWidth) el.scrollIntoView?.({ block: 'nearest', inline: 'nearest' })
@@ -46,6 +59,7 @@ export function cmsTrackKeys(doc: Document = document): () => void {
     doc.removeEventListener('pointermove', onPointer, opts)
     doc.removeEventListener('focusin', onFocus, opts)
     root.removeAttribute(CMS_KEYS_ATTR)
+    root.removeAttribute(CMS_KEY_FOCUS_ATTR)
   }
 }
 

@@ -77,7 +77,7 @@ describe('`singleton: true` on defineEntity (removed in 1.0)', () => {
   it('is a type error, and fails at once with what to write instead', () => {
     // @ts-expect-error the option is gone: defineSingleton makes a global
     expect(() => defineEntity('settings', { label: 'Settings', titleField: 'name', singleton: true, fields }))
-      .toThrow("defineEntity('settings', { singleton: true }) was removed in 1.0: write defineSingleton('settings', { … }) with the same options.")
+      .toThrow(`defineEntity('settings', { singleton: true }) was removed in 1.0: write defineSingleton('settings', { … }) with the same options. See "From 0.7 to 1.0": https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#from-07-to-10`)
   })
 
   it('leaves defineSingleton and a collection as they were', () => {
@@ -91,6 +91,8 @@ describe('a field of a public collection named like a list parameter (an error f
     for (const key of ['page', 'limit', 'sort', 'dir', 'q']) {
       expect(() => defineEntity('posts', { label: 'Posts', titleField: 'title', content: { public: true }, fields: { title: f.text(), [key]: f.text() } }))
         .toThrow(`The field "${key}" of the public collection "posts" has the name of a parameter of the content API's list (?${key}=). Rename the field`)
+      expect(() => defineEntity('posts', { label: 'Posts', titleField: 'title', content: { public: true }, fields: { title: f.text(), [key]: f.text() } }))
+        .toThrow('A rename is a migration: see "Renaming a field": https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#renaming-a-field')
     }
   })
 
@@ -175,6 +177,8 @@ describe('the cron of the scheduled tasks', () => {
     await expect(tasks()).rejects.toThrow("The variable CMS_SCHEDULER_CRON was removed in 1.0: set `cms: { scheduler: { cron: '*/2 * * * *' } }` in nuxt.config.ts and remove the variable.")
     delete process.env.CMS_SCHEDULER_CRON; process.env.CMS_RETENTION_CRON = '0 4 * * *'
     await expect(tasks({ retention: { cron: '0 4 * * *' } })).rejects.toThrow("The variable CMS_RETENTION_CRON was removed in 1.0: set `cms: { retention: { cron: '0 4 * * *' } }` in nuxt.config.ts and remove the variable.")
+    // the address works from a site's terminal, not a path inside tinyzoo's repository
+    await expect(tasks({ retention: { cron: '0 4 * * *' } })).rejects.toThrow('See "From 0.7 to 1.0": https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#from-07-to-10')
   })
 })
 
@@ -199,7 +203,7 @@ describe('`cms.databaseUrl` (removed in 1.0)', () => {
   }
 
   it('stops the build with what to do instead', async () => {
-    await expect(setup({ databaseUrl: 'postgres://cfg/db' })).rejects.toThrow('`cms.databaseUrl` was removed in 1.0: delete it from nuxt.config.ts and set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment.')
+    await expect(setup({ databaseUrl: 'postgres://cfg/db' })).rejects.toThrow('`cms.databaseUrl` was removed in 1.0: delete it from nuxt.config.ts and set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment.\nSee "From 0.7 to 1.0": https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#from-07-to-10')
   })
 
   it('leaves the runtime value empty in the build, so NUXT_CMS_DATABASE_URL still binds at runtime', async () => {

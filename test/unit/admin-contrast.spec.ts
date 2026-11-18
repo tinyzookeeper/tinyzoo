@@ -335,16 +335,21 @@ describe('accent states in the stylesheet', () => {
 
   it('keyboard focus that showed no ring: menu items, the title and summary, a rich-text field, the address title', () => {
     // Menu items: the ring on their highlight, 2 px inside it; a marked option (select menu, search) only after a key.
-    expect(body(`html[data-cms-admin] [class~='before:inset-px']:is([role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option']):focus-visible::before`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: -2px;')
+    expect(body(`html[data-cms-admin][data-cms-keys] [class~='before:inset-px']:is([role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option']):focus-visible::before`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: -2px;')
     expect(body(`html[data-cms-admin][data-cms-keys] [class~='before:inset-px'][data-highlighted]:not([data-disabled])::before`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: -2px;')
-    // No item ring under the pointer: every rule that rings a highlighted item asks for data-cms-keys.
-    for (const m of css.matchAll(/([^{}]*\[data-highlighted\][^{}]*)\{([^{}]*)\}/g)) {
-      if (m[2]!.includes('outline')) expect(m[1], 'a highlighted item is ringed only after a key').toContain('[data-cms-keys]')
+    // No item ring under the pointer: every rule that rings a highlighted or focused item asks for data-cms-keys
+    // (after Escape, Chromium keeps :focus-visible on the item the mouse focuses next).
+    for (const m of css.matchAll(/([^{}]*(?:\[data-highlighted\]|\[role='menuitem'\])[^{}]*)\{([^{}]*)\}/g)) {
+      if (m[2]!.includes('outline')) {
+        for (const selector of m[1]!.split(/,\s*(?=html)/)) expect(selector, 'a menu item is ringed only after a key').toContain('[data-cms-keys]')
+      }
     }
     expect(body(`html[data-cms-admin] :is(.cms-title-input, .cms-lead-input):focus-visible`)).toBe('outline: 2px solid var(--cms-accent-ring); outline-offset: 0.375rem; border-radius: 0.25rem;')
     expect(body(`html[data-cms-admin] .cms-title-input--address:focus-visible`)).toBe('box-shadow: inset 0 0 0 1px var(--cms-accent-ring); outline-width: 1px; outline-offset: 0; border-radius: var(--ui-radius);')
     expect(body(`html[data-cms-admin] .cms-rte:has(.ProseMirror:focus-visible)`)).toBe('border-color: var(--cms-accent-ring); outline: 1px solid var(--cms-accent-ring); outline-offset: 0;')
     expect(body(`html[data-cms-admin] .cms-write-body .cms-rte:has(.ProseMirror:focus-visible)`)).toBe('outline-width: 2px; outline-offset: 0.375rem; border-radius: 0.25rem;')
+    // A control in a dialog keeps room for its ring when the focus scrolls it to the edge of the screen.
+    expect(body(`html[data-cms-admin] [role='dialog'] :is(button, a[href], input, textarea, select, [tabindex])`)).toBe('scroll-margin-block: 0.5rem;')
     // The pale 20 % halo the address title had is gone.
     expect(css).not.toMatch(/cms-title-input--address:focus\s*\{/)
   })

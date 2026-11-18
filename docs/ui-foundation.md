@@ -104,12 +104,19 @@ How the colours are derived, in OKLCH:
   in dark mode). A dropdown or a plain select moves the focus to the item (`:focus-visible`); a select menu
   and the search keep it in their search box and mark the item with `data-highlighted`, as the pointer
   does, so the admin layout notes whether the keyboard was the last thing used (`data-cms-keys` on
-  `<html>`, `cmsTrackKeys`: set by a key, cleared when the pointer moves or presses). Under the pointer an
-  item looks as before.
+  `<html>`, `cmsTrackKeys`: set by a key, cleared when the pointer moves or presses). Both kinds ask for
+  it: after Escape, Chromium keeps `:focus-visible` on the item the mouse focuses next. Under the pointer
+  an item looks as before.
 - **Borderless text** (the big title, the summary under it) and a **rich-text field** take the ring when
-  they have the cursor, from a click too, as every field does: the title and summary 2 px, 0.375 rem off the
-  text; a rich-text field's own line turns the accent with 1 px of outline on it (2 px in all); in the
-  writing column, where the text has no box, 2 px round the text and its toolbar.
+  they have the cursor: the title and summary 2 px, 0.375 rem off the text; a rich-text field's own line
+  turns the accent with 1 px of outline on it (2 px in all); in the writing column, where the text has no
+  box, 2 px round the text and its toolbar. In a form, a click shows it too, as on every field.
+- **The writing column stays quiet while you type** (decided by the owner, 2026-11-18). In the Write
+  layout (`.cms-write`) the big title, the summary and the text ring only when the keyboard put the focus
+  there: `cmsTrackKeys` sets `data-cms-key-focus` on `<html>` when a control takes the focus while
+  `data-cms-keys` is set, and a press of the pointer clears it. Typing does not set it, so a click and then
+  typing shows no ring, and Tab does. (`:focus-visible` cannot tell: a text field always matches it.) The
+  address title is a boxed field and rings as the others do.
 
 **The contrast guard** checks the hexes the admin draws (WCAG 2 ratios):
 
@@ -479,7 +486,8 @@ touch by hand — if a control comes out smaller than 44 px on a phone, the rule
   `prefers-reduced-motion` turns transitions and the moment's rise off.
 - Keyboard focus stays on screen: a dialog's focus trap (Reka) moves the focus without scrolling when Tab
   wraps round, so while the keyboard is in use the admin scrolls a control that takes the focus entirely
-  out of view to the nearest edge (`cmsTrackKeys`; the publish review on a phone).
+  out of view to the nearest edge (`cmsTrackKeys`; the publish review on a phone). A control in a dialog
+  has `scroll-margin-block: 0.5rem`, so a ring 2 px off it (the review's cards) is not cut at that edge.
 - A hand-made radio group (the review's "when") is one Tab stop, the chosen card; the arrow keys change
   the choice. Its focus ring sits 2 px off the card, so it never looks like the chosen card's border.
 - Icon-only buttons carry translated, full `aria-label`s ("Export CSV", "New post" — not "Post"); toggles

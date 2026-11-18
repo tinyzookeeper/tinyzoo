@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addComponentsDir, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
 import { createJiti } from 'jiti'
+import { docsUrl } from './src/docs'
 import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
@@ -213,7 +214,7 @@ function refuseRemoved(options: CmsModuleOptions): void {
   for (const [name, option] of [['CMS_SCHEDULER_CRON', 'scheduler'], ['CMS_RETENTION_CRON', 'retention']] as const) {
     if (process.env[name]) problems.push(`The variable ${name} was removed in 1.0: set \`cms: { ${option}: { cron: '${process.env[name]}' } }\` in nuxt.config.ts and remove the variable.`)
   }
-  if (problems.length) throw new Error(`[tinyzoo] ${problems.join('\n[tinyzoo] ')}\nSee "From 0.7 to 1.0" in tinyzoo's docs/upgrading.md.`)
+  if (problems.length) throw new Error(`[tinyzoo] ${problems.join('\n[tinyzoo] ')}\nSee "From 0.7 to 1.0": ${docsUrl('from07to10')}`)
 }
 
 export default defineNuxtModule<CmsModuleOptions>({

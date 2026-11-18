@@ -11,6 +11,7 @@ import type { CmsAdminField } from './admin'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
 import { collectPlugins, pluginEntities, type CmsPlugin, type CmsPluginRequirement } from './plugin'
+import { docsUrl } from './docs'
 
 // ── type-level inference helpers ────────────────────────────────────────────────
 type Prettify<T> = { [K in keyof T]: T[K] } & {}
@@ -340,7 +341,7 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   // `singleton: true` was removed in 1.0 (deprecated in 0.6): a config that still sets it would
   // otherwise make a collection of its global, with a list and a new table.
   if ((def as { singleton?: unknown }).singleton) {
-    throw new Error(`defineEntity('${name}', { singleton: true }) was removed in 1.0: write defineSingleton('${name}', { … }) with the same options.`)
+    throw new Error(`defineEntity('${name}', { singleton: true }) was removed in 1.0: write defineSingleton('${name}', { … }) with the same options. See "From 0.7 to 1.0": ${docsUrl('from07to10')}`)
   }
   return buildEntity(name, def, false)
 }
@@ -379,7 +380,7 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
   // which takes none of these parameters, so its fields may use the names.
   if (def.content?.public && !singleton) {
     for (const key of Object.keys(fields).filter((k) => LIST_PARAMS.includes(k))) {
-      throw new Error(`The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=). Rename the field (${LIST_PARAMS.join(', ')} cannot be field names of a public collection).`)
+      throw new Error(`The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=). Rename the field (${LIST_PARAMS.join(', ')} cannot be field names of a public collection). A rename is a migration: see "Renaming a field": ${docsUrl('renamingField')}`)
     }
   }
   if (def.publish?.perLocale) {

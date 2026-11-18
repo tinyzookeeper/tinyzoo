@@ -12,7 +12,7 @@ It is written for people who build sites with tinyzoo. The last section is for t
   - the webhook and the Nitro hooks
   - the CLI, the `cms` options and the `NUXT_CMS_*` variables
   - the admin's extension points
-- **[The public API](api-surface.md)** lists every one of them. Everything else can change in any minor release, with a changeset. That covers the other `Cms*` components, the server utilities, anything tagged `@internal` and the database tables. tinyzoo migrates the tables for you.
+- **[The public API](api-surface.md)** lists every one of them. Everything else can change in any minor release, with a changeset. That covers the other `Cms*` components, the server utilities, anything tagged `@internal`, and the SQL tables and their column names (an entity's `table` object is frozen for reading, see [the public API](api-surface.md#types)). tinyzoo migrates the tables for you.
 - **Minor versions** (1.1, 1.2) add things. When one asks something of your site, such as a new migration, its `CHANGELOG.md` entry has an **Upgrade** heading that says what to do.
 - **Patch versions** (1.0.1 → 1.0.2) never need anything from you.
 - **Before 1.0 (0.x)**, a minor version (0.2 → 0.3) could break things. Each break is under the **Upgrade** heading of that version, and each one has its section below.
@@ -20,14 +20,14 @@ It is written for people who build sites with tinyzoo. The last section is for t
 ## On every upgrade
 
 1. **Read the changelog.** Open the new version's entry in `CHANGELOG.md` and read its **Upgrade** headings. The file is in the repository and on each release, not inside the package.
-2. **Update, check, upgrade.** Run the first four commands below. `tinyzoo upgrade` may rewrite the typed client, so the compiler runs once more after it.
+2. **Update, check, upgrade.** Run the first four commands below. `tinyzoo upgrade` may rewrite the typed client, so the compiler runs once more after it. The first command stays within 1.x. To a new major, or from 0.x, name the version instead ([how](#why---latest)).
 3. **Read the result.** Run `git diff` and read the new migration and the schema.
 4. **Look at production.** With the new version installed, run `pnpm exec tinyzoo status` against the production database. An older CLI may not see what the new version refuses. See [Before you deploy, look at production](#before-you-deploy-look-at-production).
 5. **Commit.** Put the package update, the migration, `schema.ts` and the typed client in one commit.
 6. **Deploy.** The migrations must run before the new version starts. [Deploy](#deploy) says how; on a host that deploys on every push, set that up before you push.
 
 ```bash
-pnpm up tinyzoo @tinyzoo/client --latest   # update both packages together
+pnpm up tinyzoo @tinyzoo/client      # update both packages together, within 1.x
 pnpm typecheck                       # the compiler finds what changed in the config API and client types
 pnpm exec tinyzoo upgrade            # versions, migration, typed client, what is pending
 pnpm typecheck                       # again, against the new typed client
@@ -38,16 +38,22 @@ git push                             # deploy
 
 ### Why `--latest`
 
-`tinyzoo init` writes `^0.2.0`. On 0.x a caret range stops at the next minor: `^0.2.0` means `>=0.2.0 <0.3.0`. So a plain `pnpm up` never moves a site from 0.2 to 0.3, and that is exactly where breaking changes live.
+Since 1.0 you do not need `--latest`.
 
-`--latest` ignores the range and rewrites it. The two packages always share one version number. Keep them on the same one.
+`tinyzoo init` writes `^1.0.0`. A caret range takes every 1.x minor and patch, so a plain `pnpm up tinyzoo @tinyzoo/client` gets the newest 1.x. It never moves you to 2.0 by itself.
 
-`--latest` goes to the newest version. If your site is more than one minor behind, pick one of these:
+The two packages always share one version number. Keep them on the same one.
 
-- **One minor at a time.** Name the next minor instead of `--latest`: `pnpm up tinyzoo@^0.4.0 @tinyzoo/client@^0.4.0`. Do that version's section below, build, start and check the site, then take the next one.
-- **All at once.** Update with `--latest`, then do every section from your version up to the new one, oldest first, before you deploy.
+**To a new major, or from 0.x,** name the version: `pnpm up tinyzoo@^1.0.0 @tinyzoo/client@^1.0.0`. Then do every section below from your version up to the new one, oldest first. Do not use `--latest` for this. It jumps to the newest major before you have read its section.
+
+If your site is more than one version behind, pick one of these:
+
+- **One version at a time.** Name the next one: `pnpm up tinyzoo@^0.4.0 @tinyzoo/client@^0.4.0`. Do that version's section below, build, start and check the site, then take the next one.
+- **All at once.** Name the version you want, then do every section from your version up to it, oldest first, before you deploy.
 
 Both work. A site made with 0.2.0 has been taken to 1.0 both ways.
+
+**Before 1.0.** `tinyzoo init` wrote `^0.2.0`. On 0.x a caret range stops at the next minor: `^0.2.0` means `>=0.2.0 <0.3.0`. So a plain `pnpm up` never moved a site from 0.2 to 0.3, where the breaking changes were. That is why these notes used to say `--latest`.
 
 ### The files `tinyzoo init` made are yours
 
@@ -108,7 +114,7 @@ Everything below is also in the changelog of 0.2.0. Do the steps in this order, 
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.2.0 @tinyzoo/client@^0.2.0`.
 > 2. If an entity has a camelCase name, run `pnpm exec tinyzoo generate` in a terminal. Answer **renamed** for every table and enum drizzle-kit asks about.
 > 3. Read the migration. It must hold only renames.
 > 4. Apply it with `pnpm exec tinyzoo up`, or at start with `NUXT_CMS_MIGRATIONS_ON_START=true`. Stop the old instances first.
@@ -200,7 +206,7 @@ Everything below is also in the changelog of 0.3.0.
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.3.0 @tinyzoo/client@^0.3.0`.
 > 2. In your `package.json`, set `drizzle-orm` to `^0.45.4` and `drizzle-kit` to `^0.31.11`, then run `pnpm install`.
 
 Your schema and migrations stay as they are. `tinyzoo generate` writes no new migration for this.
@@ -211,7 +217,7 @@ Everything below is also in the changelog of 0.4.0. tinyzoo 0.4 runs on nuxt-aut
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.4.0 @tinyzoo/client@^0.4.0`.
 > 2. In your `package.json`, set `nuxt` to `^4.6.4` and `nuxt-auth-utils` to `^0.6.2`, then run `pnpm install`.
 > 3. Move the sign-in secret to `NUXT_APP_SECRET`, on your platform, in `.env` and in your `.env.example`. Which step depends on what you have now; see the `NUXT_APP_SECRET` section below. A site that already sets `NUXT_APP_SECRET` keeps it, and does not copy the old password over it.
 > 4. If your `cms.config.ts` still imports `defineForm` or `defineFormSettings` from `tinyzoo`, import them from `tinyzoo/forms` and register the plugin.
@@ -275,7 +281,7 @@ Everything below is also in the changelog of 0.5.0.
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.5.0 @tinyzoo/client@^0.5.0`.
 > 2. Make sure production sets `NUXT_SITE_URL` (or `NUXT_CMS_PUBLIC_URL`). Without either, `/sitemap.xml` is a `404` in production.
 > 3. Open `/sitemap.xml` and check that it is there.
 > 4. If your `nuxt.config.ts` has `sitemap: { enabled: false }`, remove it.
@@ -314,7 +320,7 @@ Everything below is also in the changelog of 0.6.0. 0.6 is the last minor before
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.6.0 @tinyzoo/client@^0.6.0`.
 > 2. Before you deploy, check that the server runs with `NUXT_APP_SECRET`: set, at least 32 characters, and not the example value from `.env.example`. Rename `NUXT_SESSION_PASSWORD` if that is all you have, in `.env.example` too.
 > 3. Remove the deprecated settings: `cms.databaseUrl`, `FormOptions` imported from `tinyzoo`, `defineEntity(…, { singleton: true })` and the `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` variables. Rename a field called `page`, `limit`, `sort`, `dir` or `q` in a public collection.
 > 4. Run `pnpm typecheck`. Wrap each decimal you read as a number in `Number(...)`, and check the `access` rules that read the signed-in person.
@@ -541,7 +547,7 @@ Everything below is also in the changelog of 0.7.0. 0.7 lets the admin carry the
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.7.0 @tinyzoo/client@^0.7.0`.
 > 2. Nothing else is required. A site that sets none of the new options looks as before, apart from the accessibility fixes under [What changes by itself](#what-changes-by-itself).
 > 3. If something sits in front of `/api/cms` (a proxy rule, basic auth, an IP allowlist), let `GET /api/cms/_theme` and `/api/cms/_brand/*` through without a sign-in. See [New public routes](#new-public-routes).
 
@@ -609,7 +615,7 @@ The server's email builders (`inviteEmail`, `resetEmail`, the ones for a changed
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^1.0.0 @tinyzoo/client@^1.0.0`.
 > 2. If your site saw no deprecation warning on 0.6 or 0.7, that is all. They are lines that start with `[tinyzoo] deprecated:`, in the output of `nuxt build` or in the server's log.
 > 3. Otherwise, change what is left over. Each step is below. The build, `defineEntity` or `pnpm typecheck` stops on anything you missed, and says what to write instead.
 

@@ -35,7 +35,7 @@ These are tinyzoo's own and can change in any minor version:
 - the admin's screens and its own components;
 - the admin's API (`/api/cms/**`);
 - the server's other utilities, and anything marked `@internal`;
-- the database tables. tinyzoo migrates them for you.
+- the SQL tables and their column names (an entity's `table` object is frozen for reading, see [the public API](api-surface.md#types)). tinyzoo migrates them for you.
 
 **Drizzle's types.** An entity's `table`, the query helpers (`eq`, `and`, `sql` and the rest) and the `db` of `useCms()` come from `drizzle-orm`, which is still 0.x. Their names and what they do are frozen. Their TypeScript types come from drizzle-orm and follow it. When tinyzoo moves to a new drizzle major, the changelog says so, with an **Upgrade** section.
 

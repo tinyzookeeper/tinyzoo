@@ -300,11 +300,20 @@ html[data-cms-admin] [class~='focus-visible:before:outline-3']:focus-visible::be
    that highlight gets the ring too, 2 px inside its edge. A dropdown or a plain select moves the focus to
    the item (:focus-visible); a select menu and the search keep it in their search box and only mark the
    item (data-highlighted, the same under the pointer), so the admin layout notes whether the last thing
-   used was the keyboard (data-cms-keys on <html>, cmsTrackKeys). Under the pointer the items look as before. */
-html[data-cms-admin] [class~='before:inset-px']:is([role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option']):focus-visible::before,
+   used was the keyboard (data-cms-keys on <html>, cmsTrackKeys). Under the pointer the items look as before.
+   Both rules ask for data-cms-keys: after Escape, Chromium keeps :focus-visible on the item the mouse
+   hovers next (the pointer focuses it), which would ring it under the mouse. */
+html[data-cms-admin][data-cms-keys] [class~='before:inset-px']:is([role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option']):focus-visible::before,
 html[data-cms-admin][data-cms-keys] [class~='before:inset-px'][data-highlighted]:not([data-disabled])::before {
   outline: 2px solid var(--cms-accent-ring);
   outline-offset: -2px;
+}
+
+/* A control in a dialog keeps a little room to the edge of the screen when the focus scrolls it into view
+   (Tab, or cmsTrackKeys after Tab wraps round). On a phone the publish review's "when" card, whose ring
+   sits 2 px off it, landed flush with the bottom and lost the ring's last 4 px. */
+html[data-cms-admin] [role='dialog'] :is(button, a[href], input, textarea, select, [tabindex]) {
+  scroll-margin-block: 0.5rem;
 }
 
 /* ── Base ── */
@@ -439,6 +448,13 @@ html[data-cms-admin] :is(.cms-title-input, .cms-lead-input):focus-visible {
   outline: 2px solid var(--cms-accent-ring);
   outline-offset: 0.375rem;
   border-radius: 0.25rem;
+}
+/* The writing column (the Write layout) stays quiet while you type: its big title, summary and text ring
+   only when the keyboard put the focus there (data-cms-key-focus on <html>, cmsTrackKeys), not after a
+   click. The address title is a boxed field and rings as the other fields do. */
+html[data-cms-admin]:not([data-cms-key-focus]) .cms-write :is(.cms-title-input:not(.cms-title-input--address), .cms-lead-input):focus-visible,
+html[data-cms-admin]:not([data-cms-key-focus]) .cms-write .cms-rte:has(.ProseMirror:focus-visible) {
+  outline: none;
 }
 
 /* The text in the writing column: no box; the toolbar is a quiet line that stays in
