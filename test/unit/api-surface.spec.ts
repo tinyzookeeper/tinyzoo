@@ -359,7 +359,10 @@ describe('docs/api-surface.md', () => {
     const hooks = [...(kit.templates.find((t) => t.filename === 'types/cms-auth.d.ts')?.getContents() ?? '').matchAll(/'(cms:[a-z]+)'/g)].map((m) => m[1]!)
     expect(hooks.length).toBeGreaterThan(0)
     const body = Object.keys(webhookPayload(fullChange, 'd'))
-    const missing = [...routes, ...hooks, ...body, ...Object.values(CMS_WEBHOOK_HEADERS)].filter((x) => !doc.includes(x))
+    // The addresses stored in content are written as people read them (`/api/cms/_brand/<file>`):
+    // check those by their fixed part, up to the first parameter.
+    const named = routes.map((r) => (r.startsWith('/api/cms/') ? r.replace(/\/:.*$/, '/') : r))
+    const missing = [...named, ...hooks, ...body, ...Object.values(CMS_WEBHOOK_HEADERS)].filter((x) => !doc.includes(x))
     expect(missing).toEqual([])
   })
 
