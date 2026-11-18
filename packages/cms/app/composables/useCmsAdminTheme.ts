@@ -16,7 +16,7 @@ export function useCmsAdminTheme() {
   const { data } = useAsyncData<CmsAdminTheme>('cms-admin-theme', () => $fetch<CmsAdminTheme>('/api/cms/_theme'), { dedupe: 'defer' })
   const local = computed(() => {
     const admin = ((appConfig.cms as any)?.admin ?? {}) as Record<string, any>
-    return resolveAdminTheme({ name: admin.name, accent: admin.accent, logo: admin.logo, signature: admin.signature })
+    return resolveAdminTheme({ name: admin.name, accent: admin.accent, logo: admin.logo, signature: admin.signature, animals: admin.animals })
   })
   return computed<CmsAdminTheme>(() => data.value ?? local.value)
 }

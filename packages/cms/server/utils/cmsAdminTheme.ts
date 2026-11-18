@@ -32,7 +32,7 @@ export async function cmsAdminSettings(_event?: unknown): Promise<CmsAdminSettin
   const admin = (config && typeof config === 'object' ? config : {}) as Record<string, any>
   let theme = resolved.get(admin)
   if (!theme) {
-    theme = resolveAdminTheme({ name: admin.name, accent: admin.accent, logo: admin.logo, signature: admin.signature })
+    theme = resolveAdminTheme({ name: admin.name, accent: admin.accent, logo: admin.logo, signature: admin.signature, animals: admin.animals })
     resolved.set(admin, theme)
   }
   const files = await brandLogoFiles(theme.logo)

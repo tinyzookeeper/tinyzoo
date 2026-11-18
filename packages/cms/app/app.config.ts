@@ -20,6 +20,7 @@ import type { CmsAccent, CmsAdminLogo } from '../src/theme'
 //     accent: 'mono',                                     // mono | indigo | blue | violet | emerald, or any hex ('#B4532A')
 //     logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }, // optional; fullDark / markDark too
 //     signature: true,                                    // tinyzoo's quiet signature; false hides it
+//     animals: true,                                      // tinyzoo's animals at the moments; false hides them all
 //     locales: ['cs', 'en'], defaultLocale: 'cs',         // admin interface languages
 //     timeZone: 'Europe/Prague',                          // how dates are shown
 //   } }
@@ -33,6 +34,9 @@ export default defineAppConfig({
       accent: 'mono' as CmsAccent,
       logo: {} as CmsAdminLogo,
       signature: true as boolean,
+      // tinyzoo's animals at the moments (sign-in, welcome, empty places, success). With a brand
+      // colour they are drawn in a muted shade of it. false: no animals anywhere (a white-label admin).
+      animals: true as boolean,
       locales: ['cs', 'en', 'de'] as string[],
       defaultLocale: 'en',
       timeZone: 'Europe/Prague',

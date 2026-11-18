@@ -94,7 +94,7 @@ const inLanguage = (item: { entity: string; locale?: string }, state: string) =>
 /** A title inside a sentence: long ones end with an ellipsis. */
 const short = (s: string, max = 60) => (s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s)
 
-const owl = cmsCharacter('owl')
+const animals = useCmsAnimals()
 const siteHref = computed(() => config.value.siteUrl || '/')
 // The site's host name needs the browser's address: shown after mount, so the page
 // the server drew (the configured link) and the first browser render agree.
@@ -121,7 +121,8 @@ const leaf = (d: string) => ({
       <!-- the welcome: the one brand moment on this page -->
       <section class="cms-moment relative flex items-center justify-between gap-6 overflow-hidden p-5 sm:px-8 sm:py-7">
         <div class="min-w-0">
-          <div class="pr-14 sm:pr-0">
+          <!-- room for the owl in the corner on phones (none without animals) -->
+          <div :class="animals ? 'pr-14 sm:pr-0' : ''">
             <h1 class="cms-display text-2xl sm:text-[1.75rem] leading-tight text-highlighted">{{ greeting }}</h1>
             <p class="cms-moment__muted mt-1 text-sm sm:text-[0.9375rem] text-pretty">{{ summary }}</p>
           </div>
@@ -136,7 +137,7 @@ const leaf = (d: string) => ({
             </UDropdownMenu>
           </div>
         </div>
-        <img :src="owl.url" alt="" class="absolute right-4 top-5 h-10 sm:static sm:h-24 w-auto shrink-0 select-none" draggable="false">
+        <CmsAnimal v-if="animals" name="owl" class="absolute right-4 top-5 h-10 sm:static sm:h-24 w-auto shrink-0" />
       </section>
 
       <div class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
