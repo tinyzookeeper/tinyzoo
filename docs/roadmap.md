@@ -1981,6 +1981,26 @@ It prints `✓ plans: 16 added (cs, en, de)` the first time. If it stops halfway
 - **The live page's meta description** still says "od prvního pilotu po mobilní aplikaci" (and the en/de equivalents); an editor can update it under Stránky → Plány. The page's heading and text still fit.
 - **Plans are not in the website search** (`search: false`); before, the block's items were found as text of the Plány page. Turn it on with a `path` to the page if visitors should find plans by search.
 
+### 1.0 — Plány as a timeline
+
+Branch `feat/site-roadmap-timeline`. The owner chose design "A · Timeline" for the Plány page. `BlockRoadmap.vue` is rebuilt to match it. Only `site/` changed: no schema change, no migration, no changeset. The data still comes from `/api/content/plan`.
+
+- **One timeline, top to bottom:** Done, one group per version, oldest first (0.2, 0.6, 0.7); then Now; then Next, one group per version; then Later. Within a group, the editors' order. Versions sort by their numbers, so 0.10 comes after 0.9. A Done or Next plan without a version comes after the versioned ones in its stage. Now is always one group, and it lists every version its plans have.
+- **The left column** shows the version in mono: "verze 0.6" / "version 0.6" / "Version 0.6". Later shows "později" / "later" / "später". In `site-i18n`, `roadmapVersion` is now lower case in cs and en, and `roadmapUndated` is new.
+- **The rail.** Done has a sage dot with a white check and a solid line. Now has a frog-green dot with a soft halo. Next has a bird-yellow ring. Later has an empty ring. The line is dashed from Now on. Each group has its small stage label (Hotovo / Právě teď / Brzy / Později, and the en/de words). "Právě teď" is `#2F7A2F`, 5.32:1 on white.
+- **Now** is a charcoal card per plan, with cream text and the plan's animal large at the bottom right. **Next** plans are rows with the animal, a bold title and the text. **Later** plans are a two-column grid of cream cards. **Done** rows are smaller and quieter. No card has a coloured left edge.
+- **Narrow layout.** The timeline responds to its own width (a container query at 640 px). On phones it is one column, the version sits above its group beside the rail, Later is one column, and the Now animal moves under the text.
+- **Semantics.** Each group is a `<ul>` with its stage label as a heading. The visible version column is `aria-hidden`, so the heading carries the version for screen readers ("Hotovo, verze 0.6"). The block's heading is the page's `<h1>` when the block is the page's first block (`index === 0`, which `CmsBlocks` passes). Otherwise it stays an `h2`, and the stage labels sit one level below. Before this change, Plány had no `<h1>`, and nothing else on the page renders one. The block has nothing focusable.
+
+**Seen in a browser** (`nuxt dev` on port 3347, database `tinyzoo_web_test_timeline`, fully seeded; headless Chromium): `/plany`, `/en/roadmap` and `/de/roadmap` at 1280 and 390 px, next to the mockup's desktop and phone frames. Layout, rail, dots, Now card and Later grid match the mockup. Each page has one `h1`, then the stage `h2`s (Hotovo, verze 0.2 … Později), then the CTA's `h2`. There is no sideways scroll at 390 px and no console errors. Measured contrast is at least 4.99:1 everywhere: plan text on cream 4.99, stage labels 5.41 (Právě teď `#2F7A2F` 5.32), versions 5.41, Now card text 8.38. I also visited the page client-side (English home → Roadmap in the menu) with the plan feed changed in the browser: a second Now plan without a version or animal, a Done plan without a version, and Next plans at 0.10 and 1.2. That gave one Now group with two cards, the version-less Done group after 0.7 (no version label; on phones the label row collapses), and Next in the order 0.10 → 1.1 → 1.2.
+
+**Results:** `pnpm --filter tinyzoo-web typecheck` is clean. `pnpm check` (`TEST_DATABASE_URL=…/cms_test_timeline`, no Redis): the typecheck part passed (tsc, docs check, playground, starter, website). Tests: 131 files and 2036 tests passed, 3 files and 26 tests skipped, **1 failed**: `test/unit/init.spec.ts` › "a site with 'German first (no demo), search only' › writes its languages where the site reads them". That failure comes from `feat/1.0`, not this branch. `38408ab` ("fix(starter): keep the search page out of the sitemap") writes a `sitemap` entry into the starter's `nuxt.config.ts` for a site with search, and `init.spec.ts:210` still expects no `sitemap` when the site has no news.
+
+**Open:**
+
+- `init.spec.ts:210` needs updating for `38408ab` on `feat/1.0`. Outside `site/`, so left alone here.
+- The version label uses JetBrains Mono 500, the heaviest weight the site loads. The mockup used 700. Adding 700 means one more font file.
+
 ### 1.0 R3 — Upgrade from 0.2 to 1.0
 
 Branch `test/1.0-upgrade` (from `feat/1.0` at `d933eda`, R1 merged). **The site made it from 0.2.0 to 1.0 by following `docs/upgrading.md` alone.** No step failed and no content was lost. The guide had six gaps, all fixed on this branch. `pnpm check:upgrade` now also starts from `tinyzoo@0.2.0` as published on npm.

@@ -26,10 +26,12 @@ deployment runs it every night.
 
 The "Plány" page (`/plany`, `/en/roadmap`, `/de/roadmap`) lists the **Plan** collection
 (Plány / Roadmap in the admin): title and text per language, a stage (done, now, next,
-later), an optional version and an animal. Editors arrange them by dragging ("Seřadit");
-the roadmap block (`BlockRoadmap.vue`) groups them by stage in that order and shows Done
-last, with each version. The block itself keeps only its heading, text and note (its old
-fixed `items` are dropped on read since block version 2).
+later), an optional version and an animal. Editors arrange them by dragging ("Seřadit").
+The roadmap block (`BlockRoadmap.vue`) draws them as a timeline: Done first, one group per
+version (oldest first), then Now (a dark card per plan), Next (per version) and Later (a
+grid of cards); within a group, the editors' order. The block itself keeps only its
+heading, text and note (its old fixed `items` are dropped on read since block version 2).
+When it is the page's first block, its heading is the page's `<h1>`.
 
 The plans the site starts with are in `seed/plans.mjs`. `pnpm seed` adds them, and
 `pnpm seed:plans` (same variables, an existing administrator) adds only them. It adds
