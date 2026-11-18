@@ -4,7 +4,7 @@
 
 **Breaking:** a decimal (`f.number({ int: false })`) is typed `string` in `Row`, as the database and the content API have always returned it (`"19.99"`); `Insert` and `Update` take `number | string`. Typed code that read a decimal as a number stops compiling: use `Number(row.price)`. The column, the content API, the OpenAPI document and the generated client types do not change, and a decimal sent to a write may now be a number or a numeric string (the admin used to fail on one it had not touched).
 
-API refinements before the 1.0 freeze (what each is, and why, in `docs/roadmap.md`, "0.6 P"):
+API refinements before the 1.0 freeze:
 
 - The frontend kit is part of the frozen API: `<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()` and `useCmsUiLocale()` are listed with their props, slots, events and return values in `docs/api-surface.md` and guarded by a golden file (`frontend-kit.txt`). Their props are exported types (`CmsImageProps`, `CmsBlocksProps`, `CmsBlockProps` for a site's own block components, `CmsContentProps`, `CmsNavProps`, `CmsHighlightProps`, `CmsFormProps`…). Every other `Cms*` component is the admin's and internal.
 - `createClient` (generated, typed for your config) and `createCmsClient` (the untyped runtime of `@tinyzoo/client`) keep their names, and the docs now say which is which.
@@ -23,4 +23,4 @@ API refinements before the 1.0 freeze (what each is, and why, in `docs/roadmap.m
 2. Replace `defineEntity('name', { singleton: true, … })` with `defineSingleton('name', { … })` (same options, same table).
 3. Replace the variables `CMS_SCHEDULER_CRON` / `CMS_RETENTION_CRON` with `cms: { scheduler: { cron }, retention: { cron } }` in `nuxt.config.ts`. They are still build time: a change needs a rebuild.
 4. If an `access` rule reads a claim your external sign-in adds to the person, it is `unknown` now: check it (`typeof user.tenant === 'string'`) before you use it. Rules that read `id`, `email`, `name`, `role`, `base` or `locale` compile unchanged.
-5. Nothing else needs a change: the rest is documentation, types and fallbacks. See "From 0.5 to 0.6", steps 8 to 11, in docs/upgrading.md.
+5. Nothing else needs a change: the rest is documentation, types and fallbacks. See "A decimal is a string in your types", "An `access` rule's `user` is typed" and "Smaller changes, nothing to do" under "From 0.5 to 0.6" in docs/upgrading.md.
