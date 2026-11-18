@@ -216,3 +216,31 @@ An audit of the screens Wave 4 added, against Mobbin references (web). The scree
 6. **Icons alone in the list.** The language column shows EN ●/○/⏳ with no words: give each a tooltip and an accessible name in words, and show it on phones too (the card list drops it).
 7. **An address that isn't live yet** (/en/blog/summer-camp ↗) looks like a link to the live page. Say "not on the website yet" and point to the preview instead.
 8. **Phones**: the language switcher is not in the editor's top bar at phone width; it must be reachable.
+
+---
+
+## 0.7: the client's logo and colour in the admin (researched 2026-11-18)
+
+How admins let a customer put their own logo and colour on screens other people use, for 0.7 (admin theming). Web, Mobbin.
+
+### References
+- Brand settings: [Stripe: Branding](https://mobbin.com/screens/bb1a2f30-5b95-4ad8-9366-57f255cae3de) (an **Icon** and a **Logo**, "Prefer logo over icon", a brand colour and an accent colour; one preview per surface: email receipts, checkout, customer portal, invoice), [Stripe: Customer portal](https://mobbin.com/screens/cfd50149-0fe1-44c6-b7ee-6784c5519677) (the same two colours reach every surface), [Shopify: Brand, logos](https://mobbin.com/screens/069d7eeb-28bb-4323-8f1c-699864c37bba) (a **Default** logo, "512 px wide minimum", and a **Square** logo, "512×512, may be cropped into a circle"), [Shopify: Brand, small logo warning](https://mobbin.com/screens/fc31e4d8-0782-4107-a896-07561e84c320) ("less than 512 px … may not be used by some apps and channels", said under the picture, not as an error), [Shopify: Brand, colours](https://mobbin.com/screens/679f840d-adfc-4996-bb96-1d4102d6acee) (a **Primary colour** and its **Contrasting colour**, the text on it, filled in for you).
+- White-label settings: [Searchable: White-labelling](https://mobbin.com/screens/ac13f794-e37f-4ff0-a2b8-6b9017c516ac) (**Full logo** "shown in the header", **Icon / favicon** "for compact branding and browser icons"), [Hex: Workspace styling](https://mobbin.com/screens/05334f76-c5e6-4cdb-9ecd-2639cdf51774) (the logo "replaces the Hex logo in the top left corner", "Use logo as favicon", a preview in light and dark), [Okta: Brand theme](https://mobbin.com/screens/8737c147-e992-4323-9a11-bfd5cf02bd41) (logo "landscape, transparent background, min 420×120", favicon "512×512, 1:1", one **Primary colour** "for primary actions, buttons, text links"; the same theme for the sign-in page and the emails), [Langdock: Customizations](https://mobbin.com/screens/45b742c2-0164-4431-994f-d5f90d9c6a2e) (one custom colour, "main color for buttons and highlights"), [Bonsai: Brand](https://mobbin.com/screens/5b0ded3b-6d7e-491f-a1b4-04f78f4f830e) (brand colour "for client-facing buttons and links. Dark color recommended"; three levels of the provider's own branding: show, show both, remove).
+- Contrast: [Canny: Brand colour](https://mobbin.com/screens/c79654e5-2bbe-430e-8383-94cc6d2f0813) (a brand colour with a contrast check in light and dark: the ratio, pass or fail for small and large text).
+- Sign-in: [HoneyBook: Customize portal](https://mobbin.com/screens/dd6c5fb0-3929-4a3d-b7e2-2fce4760983d) (a sign-in card with the client's logo, "Logo shape: Square / Full"), [Employment Hero: Login logo](https://mobbin.com/screens/22efc406-50b1-4922-a7e0-3517c3e2b9e8) ("horizontal PNG or JPG, 400×60, transparent background", previewed on the sign-in page).
+- Emails: [Shopify: Email templates](https://mobbin.com/screens/b510efcc-7336-4456-aa9b-79f45f7d5275) (a logo with a size slider and one accent colour for the buttons), [PandaDoc: Branding and emails](https://mobbin.com/screens/95bddda6-07dd-45c1-ac36-a082c66ce437) (company logo, button colour, button text colour, a small email preview).
+
+### What holds up
+- **Two logos is the norm.** A wide one for headers and sign-in, a square one where there is little room (Stripe's icon, Shopify's square, Searchable's icon / favicon). The favicon comes from the square one (Hex, Searchable), not as a third upload.
+- **One colour, used for actions.** Okta and Langdock say it plainly: buttons, highlights, links. Nobody asks for shades. Shopify fills in the contrasting text colour itself.
+- **Contrast is checked, not trusted.** Canny shows the ratio in light and dark. Bonsai's hint ("dark colour recommended") is the cheap version of the same thing.
+- **Size guidance is a sentence, not an error** (Shopify, Okta, Employment Hero): what the logo should be, and a warning when it is too small.
+- **The emails follow the brand** (Shopify, PandaDoc, Okta): the logo at the top, the button in the brand colour, the text on it readable.
+
+### What this means for tinyzoo 0.7
+1. **A logo set, not one picture.** A full logo (sign-in, the open sidebar, emails) and a square mark (the folded sidebar, the phone's top bar, the tab icon, the phone's home-screen icon). Each may have a dark version. Without a mark, the initials tile stays.
+2. **One brand colour, any hex.** tinyzoo derives the shades, a dark-mode version and the text colour on it, and uses them only where the accent is today: main buttons, the active menu item, focus rings, links. Status colours, the greys, cream and the animals stay.
+3. **A contrast guard** in place of Canny's checker: in a code-first admin nobody picks the colour on a screen, so tinyzoo adjusts an unreadable colour to the nearest readable one (WCAG AA, 4.5:1 for text and links, 3:1 for focus rings) and tells the developer in development what it changed and why.
+4. **Emails carry the brand** the way Shopify's do: the full logo as a PNG (Gmail and Outlook do not show SVG), the button in the brand colour with its derived text colour.
+5. **Guidance in the docs, warnings in development**: the sizes and formats each logo should have, and a warning when a file is missing or the mark is not square.
+6. **Previews come later.** Stripe and Okta preview each surface because people change their brand in the browser. A code-first site changes it in `app.config.ts` and sees the admin. A hosted tinyzoo would need the preview, so the theme is one serialisable object resolved at runtime: stored settings could fill it later without an API change.

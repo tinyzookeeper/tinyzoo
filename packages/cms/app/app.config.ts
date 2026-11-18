@@ -6,7 +6,9 @@
 // hint (e.g. text → CmsFieldText / CmsCellText). A host extends or overrides by
 // adding entries in its own app.config.ts and shipping same-named components:
 //
-//   export default defineAppConfig({
+//   import type { CmsAccent, CmsAdminLogo } from '../src/theme'
+
+export default defineAppConfig({
 //     cms: { fields: { select: { edit: 'MySegmentedSelect' } } },
 //   })
 //
@@ -15,7 +17,9 @@
 //   cms: { admin: {
 //     name: { cs: 'Pekárna Novák', en: 'Novák Bakery' }, // shown in the sidebar and tab title
 //     siteUrl: 'https://pekarna-novak.cz',                // "View website" link
-//     accent: 'mono',                                     // mono | indigo | blue | violet | emerald
+//     accent: 'mono',                                     // mono | indigo | blue | violet | emerald, or any hex ('#B4532A')
+//     logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }, // optional; fullDark / markDark too
+//     signature: true,                                    // tinyzoo's quiet signature; false hides it
 //     locales: ['cs', 'en'], defaultLocale: 'cs',         // admin interface languages
 //     timeZone: 'Europe/Prague',                          // how dates are shown
 //   } }
@@ -26,7 +30,9 @@ export default defineAppConfig({
       // Unset: the admin is called tinyzoo. A client's name makes it theirs.
       name: 'tinyzoo' as string | Record<string, string>,
       siteUrl: '/',
-      accent: 'mono' as 'mono' | 'indigo' | 'blue' | 'violet' | 'emerald',
+      accent: 'mono' as CmsAccent,
+      logo: {} as CmsAdminLogo,
+      signature: true as boolean,
       locales: ['cs', 'en', 'de'] as string[],
       defaultLocale: 'en',
       timeZone: 'Europe/Prague',

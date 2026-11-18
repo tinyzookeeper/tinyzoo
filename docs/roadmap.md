@@ -152,6 +152,32 @@ survived an upgrade and a restore, and the audit has no open High or Medium.
 
 ---
 
+## 0.7: the client's brand in the admin
+
+**Goal (2026-11-18):** each client's admin carries their logo and colour. A logo set (a full logo for the sign-in page, the open sidebar and the emails; a square mark for the folded sidebar, phones and the tab icon; optional dark versions) and one brand colour, any hex. tinyzoo derives the shades, a dark-mode version and the text colour on it, and uses them for the accent only: main buttons, the active menu item, focus rings, links. The rest of the admin's design stays. Research: `docs/research/admin-ux-references.md` ("0.7").
+
+### Decisions locked for 0.7 (2026-11-18)
+
+| Decision | Choice |
+|---|---|
+| Config shape | **`accent` takes a built-in name or any hex** (`accent: '#B4532A'`); one key, nothing deprecated. Logos in a new **`logo: { full, mark, fullDark?, markDark? }`**: addresses under the site's `public/` or `https://` URLs. Public types `CmsAccent`, `CmsAccentPreset`, `CmsAdminLogo`. |
+| Resolved at runtime | `cms.admin` resolves into **one serialisable theme object** (`CmsAdminTheme`, `src/theme.ts`, `@internal`) on the server (`cmsAdminTheme(event)`, the one place that decides where it comes from), served at `GET /api/cms/_theme` and read by the admin (`useCmsAdminTheme()`) and the emails. A hosted version could fill it from stored settings later; nothing is built for that now. |
+| Contrast guard | The brand colour is adjusted to the nearest readable one: **4.5:1** for its text colour on a solid button and for links on the page, **3:1** for focus rings, light and dark. Development prints what was changed and why (server log and browser console); production adjusts quietly. The five built-in accents stay as they are drawn today. |
+| Signature | tinyzoo's quiet signature (under the sidebar, on the sign-in page) **stays by default; `signature: false` hides it**. Emails never carry it. |
+| Logos where SVG does not work | tinyzoo makes **PNG versions on the server** with sharp (already a dependency): the email logo, the PNG tab icon, the phone's home-screen icon and the web manifest icons, from `GET /api/cms/_brand/<file>`. |
+| Dark mode without dark versions | The light logo is shown on a small light tile, so a dark logo never disappears on charcoal. |
+| Demo | **Stays unbranded.** The docs show theming with screenshots of a made-up bakery, from a separate build. |
+
+### Slices (parallel)
+
+| Slice | What | Size |
+|---|---|---|
+| C — `feat/0.7-colour` | Colour maths in `src/theme.ts` (OKLCH ramps, dark version, text colour on it, the contrast guard, notes); the admin applies a brand colour (`data-cms-accent="brand"` and its variables); development warnings; `admin-contrast` tests over many colours; the website's design-system page takes any hex | M |
+| L — `feat/0.7-logo` | The logo set in the admin: sidebar (full open, mark folded), phone top bar, sign-in page, tab icon and home-screen icon (from E's PNG files), dark versions and the light tile, initials without a mark, `signature: false`, logo checks (missing file, not square) as notes | M |
+| E — `feat/0.7-mail` | `GET /api/cms/_brand/<file>` (sharp, cached by the theme's hash, safe sources only); the admin's web manifest; emails with the full logo as PNG and the button in the brand colour with its text colour; tests of the HTML in every email | M |
+
+All three start from the contract on `feat/0.7-theming` (`src/theme.ts`, `server/utils/cmsAdminTheme.ts`, `GET /api/cms/_theme`, `useCmsAdminTheme()`, the widened `app.config` types). Afterwards: docs and screenshots (cs/en/de), the changeset and "From 0.6 to 0.7" in `docs/upgrading.md`, two independent reviews of the merged wave, fix branches, then `check`, `check:starter`, `check:upgrade` and `check:consumer` green before the pull request. No schema change is planned; if a slice needs one, it comes with an upgrade step.
+
 ## 1.0: the stability promise
 
 From 1.0 the **content API, the `@tinyzoo/client` types and the config API**
@@ -1557,3 +1583,13 @@ Branch `feat/1.0-docs-clarity`, on top of `feat/1.0-polish` (PR #26). Vojtěch f
 - **Tags and releases made by hand.** `scripts/release.mjs` tags only what `npm view` already returns, and it asked a fraction of a second after `changeset publish`, before the registry listed the new versions, so the run passed without tags or GitHub releases. They were made afterwards from the release commit (`3828d61`) with the CHANGELOG sections as notes, `tinyzoo@0.6.0` as Latest. **To do:** let `tagAndRelease` wait for the registry (retry `onNpm` for a minute) instead of skipping, and tag on the "Nothing to publish" path too, so a re-run repairs missing tags.
 - **Deploy fix (#30).** The website's docs module reads `test/contracts/openapi.playground.json` at build time (since #27), but `.dockerignore` leaves out `test/`, so the first Pushbase build of the website and the demo failed with `ENOENT`. CI builds the site outside Docker and did not show it. `.dockerignore` now keeps that one file. **To do:** a CI job that builds `site/Dockerfile`, so the next such gap fails a pull request, not a deploy.
 - **Deployed.** The website (`tinyzoo.pushbase.app`) and the demo (`tinyzoo-demo.pushbase.app`) from `main` (`fc28b9d`) with `scripts/deploy-site.mjs`; both applied `0005_news_clip` at start and run with `NUXT_APP_SECRET` (already set, not the example value, so nobody was signed out). The website was reset and seeded again (it had no feedback messages or redirects to lose): the new docs and their screenshots, the clips, the news covers, and the FAQ's "over 1,600 automated tests" in Czech, English and German. The three 0.6 news posts were seeded as drafts on the website, to be published by hand; the demo seeds them published at its nightly reset.
+
+### 0.7 — Admin theming (started 2026-11-18)
+
+Decisions and slices above ("0.7: the client's brand in the admin"). Research written up in `docs/research/admin-ux-references.md`. Contract on `feat/0.7-theming`; three slices in parallel, one agent each in its own worktree, with their own databases (`cms_test_07<slice>`, `…_starter`, `…_upgrade`).
+
+| Slice | Branch | State |
+|---|---|---|
+| C — brand colour and contrast guard | `feat/0.7-colour` | in progress |
+| L — logos in the admin | `feat/0.7-logo` | in progress |
+| E — PNG logos, manifest, emails | `feat/0.7-mail` | in progress |

@@ -419,7 +419,7 @@ export default defineAppConfig({
 | The default components | `CmsFieldText`, `CmsFieldSlug`, `CmsFieldNumber`, `CmsFieldBoolean`, `CmsFieldDate`, `CmsFieldSelect`, `CmsFieldRichText`, `CmsFieldBlocks`, `CmsFieldGroup`, `CmsFieldMedia`, `CmsFieldGallery`, `CmsFieldColor`, `CmsFieldRelationOne`, `CmsFieldRelationMany`, and `CmsCellText`, `CmsCellCode`, `CmsCellNumber`, `CmsCellBoolean`, `CmsCellDate`, `CmsCellBadge`, `CmsCellExcerpt`, `CmsCellBlocks`, `CmsCellGroup`, `CmsCellThumb`, `CmsCellGallery`, `CmsCellColor`, `CmsCellRelation`. These names are what `field.ui` carries (`surface.admin-graph.json`), and you can use them as renderers by name |
 | Props of an editor | `CmsFieldEditProps`: `field` (a `CmsAdminField`), `entity`, `id`, `readOnly` and `v-model`. Every renderer the registry resolves gets `readOnly`, built-in ones too. It means the person may see the value but not change it: their role may only read the field (`field.readOnly`), or the whole entry is read-only for them |
 | Props of a cell | `CmsFieldCellProps`: `field`, `row`, `entity` |
-| `cms.admin` | the admin's `name`, `siteUrl`, `accent`, `locales`, `defaultLocale` and `timeZone` |
+| `cms.admin` | the admin's `name`, `siteUrl`, `accent` (`CmsAccent`: a built-in accent, `CmsAccentPreset`, or a hex), `logo` (`CmsAdminLogo`), `signature`, `locales`, `defaultLocale` and `timeZone` |
 
 The rest of the admin (the other `Cms*` components, the pages, `/api/cms/**`) is internal.
 

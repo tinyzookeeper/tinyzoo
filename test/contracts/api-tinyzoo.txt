@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (111) ─────────────────────────────────────────────────
+// ── public (114) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -34,6 +34,10 @@ export const CMS_WEBHOOK_HEADERS: {
     readonly signature: "x-cms-signature";
 };
 
+export type CmsAccent = CmsAccentPreset | `#${string}`;
+
+export type CmsAccentPreset = 'mono' | 'indigo' | 'blue' | 'violet' | 'emerald';
+
 export type CmsAccessUser = {
     id: string;
     email: string;
@@ -59,6 +63,13 @@ export interface CmsAdminField {
         required: boolean;
     };
     readOnly?: boolean;
+}
+
+export interface CmsAdminLogo {
+    full?: string;
+    mark?: string;
+    fullDark?: string;
+    markDark?: string;
 }
 
 export interface CmsBlock {
@@ -899,19 +910,27 @@ alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, 
 FormOptions
 EntityDef.singleton
 
-// ── internal (169): exported, not part of the frozen API, may change in any minor ──
+// ── internal (180): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
+const CMS_ACCENT_PRESETS
+const CMS_BRAND_FILES
 const CMS_ENTITY_OPS
 const CMS_MEDIA_ACCESS
 const CMS_ROLES
 const CMS_ROLE_BASES
 const CORE_UPGRADE_STEPS
+interface CmsAccentScheme
+interface CmsAdminTheme
+interface CmsAdminThemeInput
+type CmsBrandFile
+type CmsColorRamp
 interface CmsDeprecatedOptions
 interface CmsDeprecation
 interface CmsFieldRule
 interface CmsPluginRequirement
 interface CmsResolvedRole
 interface CmsRolesDef
+interface CmsThemeNote
 type ColumnBase
 type ColumnDefault
 interface ColumnReference
@@ -965,6 +984,7 @@ function applyMigrations
 function blockMediaKeys
 const blockVersion
 function blocksSchema
+function brandFileUrl
 function buildColumn
 function buildContentModel
 function buildOpenApiDocument
@@ -1042,6 +1062,7 @@ function pluginUpgradeSteps
 function prefixedTemplates
 function propOf
 function resetCmsDeprecations
+function resolveAdminTheme
 function resolveRole
 function resolveText
 function richTextPlain
@@ -1060,6 +1081,7 @@ const snake
 function sortSiblings
 function sqlWithParams
 function storedBlockVersion
+function themeHash
 function titleIn
 function treeAddress
 function upgradeBlock
