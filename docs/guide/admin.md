@@ -79,11 +79,30 @@ It speaks Czech and English (cookie, then browser language, then default). Brand
 cms: { admin: {
   name: { cs: 'Pekárna Novák', en: 'Novák Bakery' },
   siteUrl: 'https://pekarna-novak.cz',
-  accent: 'mono',              // mono (default) | indigo | blue | violet | emerald
+  accent: '#B4532A',           // the client's brand colour, or mono (default) | indigo | blue | violet | emerald
   locales: ['cs', 'en'], defaultLocale: 'cs',
   timeZone: 'Europe/Prague',   // dates are shown and edited in this zone
 } }
 ```
+
+### The brand colour
+
+`accent` takes one of the built-in accents (`mono`, tinyzoo's charcoal, is the default; `indigo`, `blue`, `violet`, `emerald`) or the client's brand colour as a hex: `'#B4532A'` or `'#b53'`. The colour goes where the accent goes, and nowhere else:
+
+- main buttons
+- the current page in the menu
+- links
+- focus rings, checked boxes and switches, selected options
+
+The white workspace, the greys, cream, the animals and the status colours (green "On the website", red errors) stay as they are. tinyzoo works out the rest: the shades, a lighter version for dark mode, and the text colour on a button (white or ink, whichever reads better).
+
+**The contrast guard.** Every colour has to stay readable: 4.5:1 for the text on a button and for links on the page, 3:1 for focus rings, in light and dark mode. When the brand colour falls short, tinyzoo moves it to the nearest colour that passes. Only the lightness changes; the hue stays. A light colour keeps its buttons: a yellow brand gets yellow buttons with ink text, while its links use a darker yellow. In development, the server log and the browser console say what changed and why:
+
+```
+[tinyzoo] cms.admin: accent #FFD500: links and other accent text would be 1.3:1 on the hover grey; they use #826B00 (4.5:1); buttons keep #FFD500 with ink text (13.0:1).
+```
+
+To silence the message, pick a colour that passes, or accept the adjustment: nothing breaks either way. Production adjusts quietly. An accent tinyzoo cannot read (`'red'`, `'#12345'`) falls back to `mono`, with the same kind of message. You can try colours at `/design-system` on the tinyzoo website: it runs the same guard.
 
 Nuxt UI draws a few words itself ("Close", "Previous month", "Show password"). They follow the admin language when the site's `app/app.vue` hands it over, and the starter does. Add:
 `const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">`. On the website's own pages it is empty, so the site keeps its own.
@@ -141,6 +160,8 @@ Tokens, rules and building blocks are in [`../ui-foundation.md`](../ui-foundatio
 ## Theming (host-owned)
 
 The CMS components use semantic Nuxt UI classes (`bg-primary`, `text-muted`, …). So the host re-skins the whole admin from its own `app.config.ts` and `main.css`, with no package edits.
+
+For the admin's colour, set `cms.admin.accent` (above): a built-in accent or a brand hex, checked by the contrast guard. The admin's tokens live under `html[data-cms-admin]`, so a host can still override them in its CSS, but then nothing checks the contrast.
 
 The playground ships a monochrome theme. `primary` is a custom `ink` ramp anchored at `#555` (defined via `@theme` in `main.css`). `neutral` is a true-neutral gray.
 

@@ -14,10 +14,48 @@ definePageMeta({ layout: false, alias: ['/en/design-system', '/de/designsystem']
 const { lang, to } = useLang()
 const tx = computed(() => DESIGN_SYSTEM_TEXT[lang.value])
 const accents = ['mono', 'indigo', 'blue', 'violet', 'emerald'] as const
-const accent = ref<(typeof accents)[number]>('mono')
+const accent = ref<(typeof accents)[number] | 'brand'>('mono')
+// Any brand colour, resolved in the browser as the admin resolves `cms.admin.accent` (the same
+// shades, dark version and contrast guard), and drawn with the same <style> the admin writes.
+const brandInput = ref('')
+const brand = computed(() => {
+  const r = cmsResolveAccent(brandInput.value)
+  return r.accent.kind === 'brand' ? r.accent : null
+})
+watch(brand, (b) => { if (b) accent.value = 'brand'; else if (accent.value === 'brand') accent.value = 'mono' })
+const pickPreset = (a: (typeof accents)[number]) => { brandInput.value = ''; accent.value = a }
+const fill = (text: string, vars: Record<string, string>) => text.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? '')
+// What the guard did, in the page's language (the admin tells developers the same in English).
+const brandNotes = computed(() => {
+  const b = brand.value
+  if (!b) return []
+  const on = b.light.onPrimary === '#FFFFFF' ? 'white' : 'ink'
+  const out: string[] = []
+  if (b.light.primary !== b.hex) {
+    const shows = Math.min(cmsContrastRatio(b.hex, '#FFFFFF'), cmsContrastRatio(b.hex, '#F9F5EF')) >= 1.25
+    out.push(fill(shows ? tx.value.brandUnreadable : tx.value.brandHidden, { hex: b.hex, fill: b.light.primary }))
+  }
+  if (b.light.text !== b.hex) {
+    out.push(fill(tx.value.brandLinks, { hex: b.hex, text: b.light.text }))
+    if (b.light.primary === b.hex) out.push(fill(tx.value.brandKeep, { hex: b.hex, on: tx.value.brandOnWith[on] }))
+  }
+  return out
+})
+const ratio = (a: string, b: string) => `${(Math.floor(cmsContrastRatio(a, b) * 10) / 10).toLocaleString(lang.value)}:1`
+const brandParts = computed(() => {
+  const b = brand.value
+  if (!b) return []
+  return [
+    { key: 'button', fill: b.light.primary, on: b.light.onPrimary, label: `${b.light.primary} · ${tx.value.brandOn[b.light.onPrimary === '#FFFFFF' ? 'white' : 'ink']}`, ratio: ratio(b.light.onPrimary, b.light.primary) },
+    { key: 'links', fill: b.light.text, label: b.light.text, ratio: ratio(b.light.text, '#FFFFFF') },
+    { key: 'dark', fill: b.dark.primary, label: b.dark.primary, ratio: ratio(b.dark.primary, '#18191C') },
+  ] as const
+})
+const brandSwatch = computed(() => brand.value?.hex ?? '#B4532A')
 useHead({
   title: () => `${tx.value.title} · tinyzoo`,
   htmlAttrs: { 'lang': lang, 'data-cms-admin': '', 'data-cms-accent': accent },
+  style: () => (brand.value ? [{ key: 'cms-accent', innerHTML: cmsAccentCss({ accent: brand.value }) }] : []),
   meta: [{ name: 'description', content: () => tx.value.description }],
 })
 // The same page in each language, for the switcher in the bar.
@@ -103,13 +141,35 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
           <h1 class="cms-display text-[1.75rem] leading-tight text-highlighted">{{ tx.title }}</h1>
           <p class="mt-1 max-w-2xl text-sm text-muted text-pretty">{{ tx.description }}</p>
         </div>
-        <UFieldGroup :aria-label="tx.accent">
-          <UButton
-            v-for="a in accents" :key="a" color="neutral" :variant="accent === a ? 'solid' : 'outline'"
-            size="sm" class="capitalize" :aria-pressed="accent === a" @click="() => { accent = a }"
-          >{{ a }}</UButton>
-        </UFieldGroup>
+        <div class="flex flex-wrap items-center gap-2">
+          <UFieldGroup :aria-label="tx.accent">
+            <UButton
+              v-for="a in accents" :key="a" color="neutral" :variant="accent === a ? 'solid' : 'outline'"
+              size="sm" class="capitalize" :aria-pressed="accent === a" @click="pickPreset(a)"
+            >{{ a }}</UButton>
+          </UFieldGroup>
+          <UInput
+            v-model.trim="brandInput" size="sm" class="w-36" placeholder="#B4532A" :aria-label="tx.brandColor"
+            spellcheck="false" autocomplete="off" :ui="{ base: 'font-mono', leading: 'ps-1' }"
+          >
+            <template #leading>
+              <label class="relative grid size-6 cursor-pointer place-items-center rounded-[0.3125rem] border border-default" :style="{ backgroundColor: brandSwatch }" :title="tx.brandPick">
+                <input type="color" class="absolute inset-0 size-full cursor-pointer opacity-0" :value="brandSwatch" :aria-label="tx.brandPick" @input="brandInput = ($event.target as HTMLInputElement).value.toUpperCase()">
+              </label>
+            </template>
+          </UInput>
+        </div>
       </header>
+
+      <div v-if="brand" class="mb-8 -mt-2 space-y-3 rounded-(--ui-radius) bg-elevated px-4 py-3 text-sm" aria-live="polite">
+        <ul class="flex flex-wrap gap-x-6 gap-y-2">
+          <li v-for="p in brandParts" :key="p.key" class="flex items-center gap-2">
+            <span class="grid size-6 shrink-0 place-items-center rounded-[0.3125rem] border border-default text-[0.625rem] font-semibold" :style="{ backgroundColor: p.fill, color: 'on' in p ? p.on : undefined }">{{ 'on' in p ? 'Aa' : '' }}</span>
+            <span><span class="text-muted">{{ tx.brandParts[p.key] }}</span> <span class="font-mono text-xs text-highlighted">{{ p.label }}</span> <span class="text-xs text-muted tabular-nums">{{ p.ratio }}</span></span>
+          </li>
+        </ul>
+        <p v-if="brandNotes.length" class="text-muted text-pretty"><span class="font-medium text-highlighted">{{ tx.brandAdjusted }}</span> {{ brandNotes.join(' ') }}</p>
+      </div>
 
       <nav :aria-label="tx.sections" class="mb-8 flex flex-wrap gap-2">
         <UButton v-for="id in toc" :key="id" :to="`#${id}`" color="neutral" variant="soft" size="sm">{{ tx.toc[id] }}</UButton>

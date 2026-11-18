@@ -59,7 +59,46 @@ with "Visitors see the Czech version until an editor publishes this one." in its
 names its language: "English · Draft" (on a phone the bar has room for the mark and the code only, "○ EN ▾"; the words are the menu's lines and the button's name).
 
 Client accents: `cms.admin.accent` = `indigo`, `blue`, `violet` or `emerald` replaces
-charcoal; or override `--ui-color-primary-*` under `html[data-cms-admin]`.
+charcoal, or the client's brand colour as a hex (below).
+
+### Brand colours
+
+`cms.admin.accent: '#B4532A'` is resolved by `resolveAdminTheme()` (`packages/cms/src/theme.ts`),
+on the server at runtime. The admin sets `data-cms-accent="brand"` and writes the variables in a
+`<style>` scoped to `html[data-cms-admin][data-cms-accent='brand']` (light and `.dark`). The five built-in
+accents are drawn by `cms-admin.css` as before; `src/theme.ts` carries their hexes for the emails, and
+a test checks the two agree.
+
+How the colours are derived, in OKLCH:
+
+- **Shades 50…950** (`--ui-color-primary-*`): the lightness of each shade as in the built-in ramps
+  (97 % … 28 %), the hue kept, the chroma tapering toward both ends. The shade nearest the brand
+  colour's own lightness is the brand colour itself.
+- **Light mode** has two roles. The **fill** of solid buttons and badges (`--cms-accent-fill`) is the
+  brand colour, with white or ink text (`--cms-accent-on-fill`), whichever reads better.
+  The **text shade** (`--ui-primary`) is used for links, the active menu item, focus rings, checked
+  boxes, switches and selected borders. It is the brand colour when that reads on white, otherwise
+  a darker shade of it. `cms-admin.css` points solid buttons and badges (`[data-slot='base'].bg-primary`)
+  at the fill. Everything else uses `--ui-primary`.
+- **Dark mode**: one lighter colour for both roles. It is the 400 shade, or the brand colour when that is
+  lighter still, with ink text.
+
+**The contrast guard** checks the hexes the admin draws (WCAG 2 ratios):
+
+| What | On | Bar |
+|---|---|---|
+| Text on a solid button | the fill | 4.5:1 |
+| The text shade | white, cream, the hover grey `#F5F5F5`, its own 10 % tint | 4.5:1 |
+| The dark colour | `#18191C`, `#1E1F23`, `#2E3035`, its own 10 % tint | 4.5:1 |
+| Focus rings, borders | the page | 3:1 (follows from the text bar) |
+| A button that shows | white and cream | 1.25:1 (not a WCAG bar; it stops a white brand from drawing invisible buttons) |
+
+A colour that fails moves to the nearest one that passes, by OKLCH lightness only: the hue stays and
+the chroma stays as far as sRGB allows. The fill may go either way, the text shade only darker, the dark
+colour only lighter. A colour the guard produced passes as it is, so resolving it again changes nothing.
+What changed goes into the theme's `notes`, printed in development (the server log at start, the browser
+console once) and dropped in production. Tests: `test/unit/admin-accent.spec.ts` (a few hundred colours)
+and `test/unit/admin-contrast.spec.ts` (against the stylesheet's real surfaces).
 
 ## Type
 

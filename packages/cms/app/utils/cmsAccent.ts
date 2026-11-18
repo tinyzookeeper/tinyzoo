@@ -1,4 +1,4 @@
-import { adminAccentCss, adminAccentName, resolveAdminTheme, type CmsAdminTheme } from '../../src/theme'
+import { adminAccentCss, adminAccentName, contrastRatio, resolveAdminTheme, type CmsAdminTheme } from '../../src/theme'
 
 // The admin's accent in the browser (src/theme.ts does the maths): what goes in
 // data-cms-accent, the <style> that draws a brand colour, and the development notes.
@@ -21,3 +21,6 @@ export function cmsShowThemeNotes(theme: Pick<CmsAdminTheme, 'notes'>) {
   notesShown = true
   for (const note of theme.notes) console.warn(`[tinyzoo] cms.admin: ${note.message}`)
 }
+
+/** The WCAG 2 contrast ratio of two hexes (the design-system page shows the guard's numbers). */
+export const cmsContrastRatio = (a: string, b: string) => contrastRatio(a, b)
