@@ -1842,3 +1842,16 @@ Branch `fix/release-tags-docker`. The two to-dos from the 0.6 release, done befo
 - **Tags.** The release run published all three, but npm listed `@tinyzoo/client` within the script's two minutes and `create-tinyzoo` and `tinyzoo` only after about three. The run tagged and released the client, said which two npm did not list yet, and failed. A re-run of the job took the "Nothing to publish" path and tagged and released the other two on `b492960` (`tinyzoo@0.7.0` is Latest on GitHub). The wait is now ten minutes.
 - **Deployed.** The website (`tinyzoo.pushbase.app`) and the demo (`tinyzoo-demo.pushbase.app`) from `main` (`b492960`) with `scripts/deploy-site.mjs`; no migration, content kept. Both answer on `/`, `/admin/login`, `/en/docs` and the new `/api/cms/_theme`.
 
+### 1.0 — Wave 5 (started 2026-11-18)
+
+Decisions above ("Decisions locked for Wave 5"). Integration branch `feat/1.0` (from `997ab4d`); slices in parallel, each in its own worktree and databases (`cms_test_10<slice>`, `…_starter`, `…_upgrade`).
+
+| Slice | Branch | State |
+|---|---|---|
+| R1 — API freeze: remove what 0.6 deprecated, search helpers back to `@internal`, `api-surface.md` and the contracts agree, "From 0.7 to 1.0" | `feat/1.0-freeze` | in progress |
+| R2 — Accessibility: lighter preset tints, keyboard focus on menu items, rich text and title, a keyboard pass | `fix/1.0-a11y` | in progress |
+| Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | in progress |
+| R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | after R1 | waiting |
+| Reviews — two independent reviews of the merged wave, fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | after the slices | waiting |
+| S — Release 1.0.0, deploy the website and the demo; the pilot and the Tábor site upgraded (with the owner) | last | waiting |
+
