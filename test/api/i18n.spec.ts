@@ -106,9 +106,12 @@ describe('writing translations (admin)', () => {
 })
 
 describe('reading translations (public content API)', () => {
+  // Posts publish each language on its own: a first translation of a live post is being translated (visitors do not see
+  // it yet). These say `status: null`, so the translation follows the live Czech version and is on the website at once.
+  const translateLive = (id: string, body: Record<string, unknown>) => translate(id, { ...body, status: null })
   it('serves a language with per-field fallback and says which languages exist', async () => {
     const post = await live()
-    await translate(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })
+    await translateLive(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })
     const en = (await anonymous().get('/api/content/post/christmas-cookies?locale=en')).body.item
     expect(en).toMatchObject({ title: 'Christmas cookies', slug: 'christmas-cookies', body: doc('Česky'), locale: 'en', locales: ['cs', 'en'] })
     const cs = (await anonymous().get('/api/content/post/vanocni-cukrovi')).body.item
@@ -135,7 +138,7 @@ describe('reading translations (public content API)', () => {
 
   it('searches and filters in the requested language', async () => {
     const post = await live()
-    await translate(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })
+    await translateLive(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })
     expect((await anonymous().get('/api/content/post?locale=en&q=cookies')).body.total).toBe(1)
     expect((await anonymous().get('/api/content/post?q=cookies')).body.total).toBe(0)
     expect((await anonymous().get('/api/content/post?locale=en&slug=christmas-cookies')).body.total).toBe(1)
@@ -161,7 +164,7 @@ describe('reading translations (public content API)', () => {
     const post = await live()
     const before = (await anonymous().get('/api/content/post/vanocni-cukrovi')).body.item
     expect(before.paths).toEqual({ cs: '/blog/vanocni-cukrovi' })
-    await translate(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })
+    await translateLive(post.id, { title: 'Christmas cookies', slug: 'christmas-cookies' })
     const expected = { cs: '/blog/vanocni-cukrovi', en: '/en/blog/christmas-cookies' }
     // The same in either language, in a list and for one item.
     expect((await anonymous().get('/api/content/post/christmas-cookies?locale=en')).body.item.paths).toEqual(expected)

@@ -19,6 +19,9 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   provide('cmsForm', { state, isNew, issues, quiet: (fn: () => void) => quiet(fn) })
 
   const editable = computed(() => fields.value.filter((f: any) => f.relation?.kind !== 'one-to-many'))
+  // The fields this person may change: one their role may read but not edit (`readOnly` in the graph)
+  // is shown but never sent, never counts as an edit and is never merged — the server refuses a write that names it.
+  const writable = computed(() => editable.value.filter((f: any) => !f.readOnly))
 
   function blankFor(f: any) {
     // A new entry starts with the field's default (e.g. a select's first choice).
@@ -47,7 +50,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   /** The fields whose value differs from what was last loaded, with this tab's values. */
   function changedFields(): Record<string, any> {
     const out: Record<string, any> = {}
-    for (const f of editable.value) {
+    for (const f of writable.value) {
       if (json(state[f.key]) !== loaded[f.key]) out[f.key] = structuredClone(toRaw(state[f.key]))
     }
     return out
@@ -56,7 +59,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   /** The request body: every editable field, minus empty optional values. */
   function body(): Record<string, any> {
     const out: Record<string, any> = {}
-    for (const f of editable.value) {
+    for (const f of writable.value) {
       const v = state[f.key]
       if ((v === '' || v === undefined) && (f.optional || f.relation?.kind === 'many-to-many')) continue
       out[f.key] = v
@@ -71,7 +74,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
   let revision = 0
   // Unsaved = differs from what was last loaded or saved (editing a field back to its
   // saved value, or discarding, makes the form clean again).
-  const differs = () => editable.value.some((f: any) => json(state[f.key]) !== loaded[f.key])
+  const differs = () => writable.value.some((f: any) => json(state[f.key]) !== loaded[f.key])
   // A field's error goes away as soon as its value changes (the save checks again).
   const erroredAt: Record<string, string> = {}
   function clearFixedErrors() {
@@ -155,7 +158,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
    */
   async function merge(row: Record<string, any>, skip: Set<string> = new Set()): Promise<boolean> {
     const theirs: Record<string, any> = {}
-    for (const f of editable.value) {
+    for (const f of writable.value) {
       const k = f.key
       if (skip.has(k) || !(k in row)) continue
       const base = loaded[k]
@@ -166,12 +169,12 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
       theirs[k] = row[k]
     }
     ready = false
-    const keys = new Set(editable.value.map((f: any) => f.key))
-    // Their values, plus everything that is not a field (version, languages…).
+    const keys = new Set(writable.value.map((f: any) => f.key))
+    // Their values, plus everything that is not a field this person edits (version, languages, a read-only field…).
     for (const [k, v] of Object.entries(row)) if (!keys.has(k) || k in theirs) state[k] = v
     await nextTick()
     loaded = Object.fromEntries(editable.value.map((f: any) => [f.key, json(row[f.key])]))
-    dirty.value = editable.value.some((f: any) => json(state[f.key]) !== loaded[f.key])
+    dirty.value = writable.value.some((f: any) => json(state[f.key]) !== loaded[f.key])
     ready = true
     return true
   }
@@ -260,7 +263,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     shared = s
   }
 
-  return { state, fieldErrors, issues, editable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields, setSharedText, quiet }
+  return { state, fieldErrors, issues, editable, writable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields, setSharedText, quiet }
 }
 
 export interface CmsSharedText {

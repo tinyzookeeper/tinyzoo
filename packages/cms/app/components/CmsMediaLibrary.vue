@@ -6,6 +6,9 @@ const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ select: [media: any] }>()
 const toast = useToast()
 const { t } = useCmsI18n()
+// A role with `media: 'none'` has no library: the picker says so instead of failing to load (the server refuses it too).
+const { data: me } = useNuxtData<any>('cms-access')
+const closed = computed(() => me.value?.access?.media === 'none')
 
 const items = ref<any[]>([])
 const total = ref(0)
@@ -29,7 +32,7 @@ async function load(reset = false) {
   }
 }
 
-watch(open, (o) => { if (o) { page.value = 1; load(true) } })
+watch(open, (o) => { if (o && !closed.value) { page.value = 1; load(true) } })
 let debounce: ReturnType<typeof setTimeout>
 watch(q, () => { clearTimeout(debounce); debounce = setTimeout(() => { page.value = 1; load(true) }, 250) })
 
@@ -77,6 +80,8 @@ async function onUpload(e: Event) {
 <template>
   <UModal v-model:open="open" :title="t('media.libraryTitle')" :ui="{ content: 'sm:max-w-3xl' }">
     <template #body>
+      <CmsEmptyState v-if="closed" plain icon="i-lucide-lock" :title="t('media.closedTitle')" :description="t('media.closedBody')" />
+      <template v-else>
       <input ref="fileInput" type="file" class="hidden" :accept="accept" @change="onUpload">
 
       <div class="flex items-center gap-2 mb-4">
@@ -109,6 +114,7 @@ async function onUpload(e: Event) {
       <div v-if="canLoadMore" class="mt-4 text-center">
         <UButton variant="outline" color="neutral" size="sm" :loading="loading" @click="more">{{ t('media.loadMore') }}</UButton>
       </div>
+      </template>
     </template>
   </UModal>
 </template>

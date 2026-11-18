@@ -19,7 +19,9 @@ claimed by whoever opens the page first.
 | Editor | create, edit, publish and delete all content; edit site settings |
 | Author | create drafts; edit and delete only what they created; never publish, never touch settings |
 
-An entity's own `access` rules still apply on top (AND-ed). Every request re-reads
+A site can define roles of its own on top of these three (a translator that edits only posts, an editor with
+no media library) and say per field who reads and who edits it: [Roles and permissions](roles.md). An
+entity's own `access` rules still apply on top (AND-ed). Every request re-reads
 the account, so disabling someone, changing their role or changing a password takes
 effect immediately, not when a cookie expires. Sign-in is rate-limited, failures look
 identical whether or not the address exists, and writes, sign-ins and people changes go
@@ -160,8 +162,37 @@ export default defineAppConfig({
 ```
 
 ```vue
-<!-- components/global/MySegmentedSelect.vue  (props: { field }, v-model) -->
+<!-- components/global/MySegmentedSelect.vue -->
+<script setup lang="ts">
+import type { CmsFieldEditProps } from 'tinyzoo'
+
+const props = defineProps<CmsFieldEditProps>()   // field, entity, id, readOnly
+const model = defineModel<string | null>()
+</script>
+
+<template>
+  <div class="flex gap-1.5">
+    <button
+      v-for="option in props.field.meta.options as string[]" :key="option" type="button"
+      :disabled="props.readOnly" :aria-pressed="model === option" @click="model = option"
+    >
+      {{ option }}
+    </button>
+  </div>
+</template>
 ```
+
+**What a renderer receives** (`CmsFieldEditProps`): `field` (what the admin knows about it: its type, `meta`,
+`required`, `readOnly`…), `entity`, `id` (the DOM id the control should take, so the label finds it) and the
+value through `v-model`.
+
+**`readOnly`.** It is `true` when the person cannot change the field: their role may read it but not edit it
+(`.access({ edit: [...] })`, [Roles and permissions](roles.md), also `field.readOnly`), or the whole entry is
+read-only for them (their role cannot update it). The admin disables the native controls inside such a field,
+but a renderer made of anything else (buttons that are not disabled, a drag handle, a canvas, a color wheel)
+has to stop editing itself when `readOnly` is set. It is passed to every renderer the registry resolves, the
+built-in ones too. The server refuses a write to a locked field in any case; `readOnly` only keeps the screen
+honest.
 
 > Custom renderers must be **globally registered** (put them in `components/global/`
 > or use the `.global.vue` suffix) — the registry resolves them at runtime, and

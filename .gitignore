@@ -13,3 +13,6 @@ dist
 
 # docs check output (scripts/docs-check.ts)
 test/docs/.generated
+
+# create-tinyzoo: copied from packages/cms at pack time (scripts/bundle.mjs)
+packages/create-tinyzoo/bundle

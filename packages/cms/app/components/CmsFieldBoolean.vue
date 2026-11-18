@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ field: any; entity?: string }>()
+defineProps<{ field: any; entity?: string; readOnly?: boolean }>()
 const model = defineModel<any>()
 </script>
 

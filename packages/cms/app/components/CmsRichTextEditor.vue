@@ -21,6 +21,8 @@ const props = defineProps<{
   label?: string
   /** Or the id of the element that shows it. */
   labelledby?: string
+  /** Translating: the default language's text, shown greyed behind the editor while it is empty. */
+  fallback?: unknown
 }>()
 const model = defineModel<any>()
 const libraryOpen = ref(false)
@@ -31,6 +33,8 @@ const shared = props.collab ? inject<CmsCollab | null>('cmsCollab', null) : null
 // A page that opens read-only (the person may not save here) says so; typing is off.
 const readOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
 const canType = () => !props.collab?.readOnly && !readOnly?.value
+// What visitors see while this translation is empty: the default language's text, behind the editor.
+const showFallback = computed(() => (props.fallback as any)?.type === 'doc' && !isEmptyRichText(props.fallback) && (model.value == null || isEmptyRichText(model.value)))
 
 /**
  * Is this the same text as that? The editor fills in attribute defaults and adds an
@@ -262,7 +266,10 @@ const tools = computed<Tool[]>(() => {
           <UButton icon="i-lucide-redo-2" size="xs" variant="ghost" color="neutral" :aria-label="t('fields.toolbar.redo')" @click="() => { editor?.chain().focus().redo().run() }" />
         </div>
       </div>
-      <EditorContent :editor="editor" class="cms-prose" />
+      <div class="cms-rte__body" :class="showFallback ? 'cms-rte__body--fallback' : ''">
+        <EditorContent :editor="editor" class="cms-prose cms-rte__editor" />
+        <CmsContent v-if="showFallback" :doc="props.fallback as any" class="cms-prose cms-rte__fallback" aria-hidden="true" />
+      </div>
       <template #fallback>
         <div class="min-h-32 px-3 py-2 text-sm text-muted">{{ t('fields.loadingEditor') }}</div>
       </template>
@@ -272,6 +279,21 @@ const tools = computed<Tool[]>(() => {
 
 <style scoped>
 :deep(.ProseMirror) { min-height: 10rem; padding: 0.75rem 1rem; outline: none; }
+/* Translating an empty text: the original greyed in the same place, under the editor (which stays on top
+   and takes the clicks); the box grows to the original's height. */
+.cms-rte__body { display: grid; }
+.cms-rte__body > * { grid-area: 1 / 1; min-width: 0; }
+.cms-rte__body--fallback .cms-rte__editor { position: relative; z-index: 1; display: flex; flex-direction: column; }
+.cms-rte__body--fallback .cms-rte__editor :deep(.ProseMirror) { flex: 1; }
+/* The original's blocks spaced as the editor spaces its own. */
+.cms-rte__fallback :deep(> * + *) { margin-top: 0.5rem; }
+.cms-rte__fallback :deep(h2) { font-size: 1.25rem; font-weight: 600; line-height: 1.3; margin-top: 1rem; }
+.cms-rte__fallback :deep(h3) { font-size: 1.0625rem; font-weight: 600; line-height: 1.35; margin-top: 0.75rem; }
+.cms-rte__fallback :deep(ul) { list-style: disc; padding-left: 1.5rem; }
+.cms-rte__fallback :deep(ol) { list-style: decimal; padding-left: 1.5rem; }
+.cms-rte__fallback { padding: 0.75rem 1rem; color: var(--ui-text-dimmed); pointer-events: none; user-select: none; overflow: hidden; }
+.cms-rte__fallback :deep(*) { color: inherit !important; }
+.cms-rte__fallback :deep(img) { opacity: 0.4; }
 :deep(.ProseMirror > * + *) { margin-top: 0.5rem; }
 :deep(.ProseMirror h2) { font-size: 1.25rem; font-weight: 600; line-height: 1.3; letter-spacing: -0.01em; margin-top: 1rem; }
 :deep(.ProseMirror h3) { font-size: 1.0625rem; font-weight: 600; line-height: 1.35; margin-top: 0.75rem; }

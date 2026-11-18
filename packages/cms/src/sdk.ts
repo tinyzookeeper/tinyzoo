@@ -8,6 +8,7 @@ import { buildContentModel, type ContentField, type ContentFieldType, type Embed
 // A separate frontend (any framework) drops this one file in, `npm i @tinyzoo/client`,
 // and gets fully-typed `cms.<collection>.list()/.get()` with zero schema coupling.
 
+/** @internal */
 export interface SdkOptions {
   /** Import specifier for the runtime client. Default '@tinyzoo/client'. */
   clientModule?: string
@@ -79,6 +80,7 @@ function refInterface(r: RefShape): string {
   return `export interface ${r.pascal}Ref {\n  id: string\n${titleLine}\n}`
 }
 
+/** @internal */
 export function emitContentTypes(config: Record<string, any>, opts: SdkOptions = {}): string {
   const model = buildContentModel(config)
   const clientModule = opts.clientModule ?? '@tinyzoo/client'

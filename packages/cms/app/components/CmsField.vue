@@ -16,12 +16,26 @@
 // The label is ours, linked to the control by a STABLE id derived from the field
 // key (not useId): pages that await data render ids differently on the server and
 // in the browser, which left server-rendered labels pointing at nothing.
+import type { Ref } from 'vue'
 const props = defineProps<{
   field: any; entity: string; error?: string; placement?: 'main' | 'sidebar'; idPrefix?: string; hideOptional?: boolean
   /** A details row: the label on the left, a quiet control on the right (the writing editor's details). */
   row?: boolean
+  /**
+   * Translating: what the default language has in this field. An empty text field shows it greyed inside
+   * (its placeholder), an empty rich text shows it behind the editor: what visitors see until it is translated.
+   */
+  fallback?: unknown
 }>()
 const model = defineModel<any>()
+// A field this person may read but not edit (`.access({ edit })`, `readOnly` in the graph): its controls are
+// disabled, and the rich-text editor inside reads the same switch the whole form uses when it is read-only.
+const formReadOnly = inject<Ref<boolean> | null>('cmsReadOnly', null)
+const readOnly = computed(() => !!formReadOnly?.value || !!props.field.readOnly)
+provide('cmsReadOnly', readOnly)
+// What the renderer is told (`CmsFieldEditProps.readOnly`): not `false` when it is not, so a renderer that
+// declares no such prop gets no attribute in the page.
+const readOnlyProp = computed(() => readOnly.value || undefined)
 
 const appConfig = useAppConfig()
 const pluginFields = (useRuntimeConfig().public.cmsPlugins as any)?.fields as Record<string, { edit?: string }> | undefined
@@ -48,9 +62,11 @@ const isSwitch = computed(() => props.field.type === 'boolean' && !override.valu
 provide('cmsFieldPlacement', computed(() => props.placement ?? 'main'))
 const inRow = computed(() => !!props.row && !composite.value)
 provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
+provide('cmsFieldFallback', computed(() => props.fallback))
 </script>
 
 <template>
+  <CmsFieldLock :locked="!!field.readOnly" :editable-by="field.editableBy" :id="inputId">
   <!-- a switch: one row, the sentence says what it does -->
   <UFormField v-if="isSwitch" :name="field.key" :error="shownError" :ui="{ error: 'text-error' }">
     <div
@@ -61,7 +77,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
         <span class="block" :class="compact ? 'text-xs font-medium text-muted' : 'text-sm font-medium text-highlighted'">{{ label }}</span>
         <span v-if="help && !compact" class="block text-sm text-muted text-pretty">{{ help }}</span>
       </label>
-      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" />
+      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" :read-only="readOnlyProp" />
     </div>
   </UFormField>
 
@@ -77,7 +93,7 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
       </button>
     </label>
     <UFormField :name="field.key" :error="shownError" :help="showHelp ? help : undefined" :ui="{ help: 'text-muted text-xs', error: 'text-error text-xs' }" class="min-w-0">
-      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" />
+      <component :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" :read-only="readOnlyProp" />
     </UFormField>
   </div>
 
@@ -96,16 +112,18 @@ provide('cmsFieldVariant', computed(() => (inRow.value ? 'ghost' : 'outline')))
           <UIcon name="i-lucide-info" class="size-3.5 block" />
         </button>
       </component>
-      <span v-if="field.optional && !hideOptional" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
+      <!-- a locked field says so under itself (CmsFieldLock), once -->
+      <span v-if="field.optional && !hideOptional && !field.readOnly" class="text-xs text-dimmed">{{ t('common.optional') }}</span>
     </div>
     <UFormField
       :name="field.key" :error="shownError" :help="compact ? (showHelp ? help : undefined) : help"
       :ui="{ help: 'text-muted', error: 'text-error' }"
     >
       <component
-        :is="component" :id="inputId" v-model="model" :field="field" :entity="entity"
+        :is="component" :id="inputId" v-model="model" :field="field" :entity="entity" :read-only="readOnlyProp"
         :aria-labelledby="composite ? `${inputId}-label` : undefined"
       />
     </UFormField>
   </div>
+  </CmsFieldLock>
 </template>

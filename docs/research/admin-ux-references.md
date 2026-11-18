@@ -190,3 +190,29 @@ Recommendations, with the references behind them:
 - **Feedback:** every save, publish and bulk action gets a `UToast` with an undo or "View" action where possible (Circle "Draft saved", Wix "Writer added", Customer.io "Invite sent"). Show save state in the editor header at all times.
 - **Copy:** verbs on buttons ("Publish page", "Invite people"), consequences in confirms, no jargon ("slug" → "URL address", "global" → "settings", "entry" → the collection's singular label). All of it goes through i18n with Czech as a first-class locale, since the clients are Czech. Watch for longer Czech/German strings in buttons and tabs.
 - **Dark mode:** support it through Nuxt UI tokens, but default to light. Client editors overwhelmingly expect light, document-like UIs (every CMS reference above is light).
+
+---
+
+## 0.6: roles, per-field permissions, per-language publishing (researched 2026-11-17)
+
+An audit of the screens Wave 4 added, against Mobbin references (web). The screens were built on the existing admin language but had not been checked against references before.
+
+### References
+- Roles in an invitation: [Deel: Select access level](https://mobbin.com/screens/15fb662e-c13b-4a92-96c6-4e7b6a0eadf5) (radio cards, one sentence of what each level can do, "View" for the detail), [Braintrust: Invite members](https://mobbin.com/screens/8dcc5502-c679-491b-b9be-ed05142b3a66) (each group says what it can and cannot do), [Stripe: Invite team members](https://mobbin.com/screens/ff4ca78e-bf55-4da3-aecc-0de33734fb3d) (a "Role description" panel next to the picker), [Whop: Add team member](https://mobbin.com/screens/f9f7c91a-1c02-4eb1-938e-4d376917be46) (a role on the left, the areas it reaches on the right, each with one line).
+- Roles overview: [Ditto: Permission groups](https://mobbin.com/screens/1ce613fa-cc7a-465b-b7ab-1963d02fd398) (a small table: role, what it reaches, level, number of people).
+- Fields someone cannot change: [Workable: Edit](https://mobbin.com/screens/37176881-d027-402b-8f1a-2e3fc965020c) (the reason in one sentence above the greyed fields), [Hers: Change account details](https://mobbin.com/screens/015cd00e-9165-4758-b631-afa678cb0f32) (greyed fields plus who to ask), [Revolut Business: Unable to edit](https://mobbin.com/screens/dd1bd214-13a7-4d8f-b08f-3fb2195e6072) (why, and the way out).
+- Translating: [Framer: Localization](https://mobbin.com/screens/cab90995-61cb-40c7-be45-0a5ba01dee45) (the source text and the translation side by side, row by row), [Arcade: Translations](https://mobbin.com/screens/35876cc2-3566-486f-b26a-98877bfc3d19) (source column next to the language column), [ElevenLabs: Dubbing](https://mobbin.com/screens/a9a9128a-7790-4f2c-8e38-9dd63d3cce9d) (original → translation per block).
+- A language's state: [Shopify: Localized content](https://mobbin.com/screens/9c2f3c90-c11a-4366-b32a-22fefc86a863) (a side card: "Unpublished — translations aren't visible to customers until the language is published"), [Better Stack: Translations](https://mobbin.com/screens/fc282a1b-ebdd-4d88-a535-4024d3bc0e69) (each language: "Published ↗" or nothing, "Original translation" under the source), [Webflow: CMS bulk](https://mobbin.com/screens/dd515b44-e526-45f0-9150-cf4bd2a411e6) (states in words: "Staged for publish", "Not published"), [Wix: Multilingual](https://mobbin.com/screens/900d1216-8419-4f42-aa51-7792675243e1) (the main language explained in one sentence).
+
+### What holds up
+- The invitation already follows Deel/Braintrust: radio cards, each role with one sentence. The removed-role screen and the Team warning say what happened and what to do (Revolut's pattern). The closed media library explains itself.
+
+### What to change
+1. **Custom roles say nothing about themselves.** A role without a `description` reads "Jako Editor, s úpravami" ("like Editor, with changes"). Write the sentence from the definition instead (Whop, Braintrust): what it edits, what it only reads, whether it publishes, which files. Show it in the invitation, the role menu and in a "What can each role do?" overview on Team (Ditto).
+2. **A locked field looks editable.** Fields under `.access({ edit })` are only dimmed to 85 %. Make them read as locked (muted fill, a lock in the field) and say why and who can change it, once, next to the group (Workable, Hers): "Only Editor and Administrator can change this."
+3. **Translating is blind.** An empty translated field is blank, and the note "Empty — the default language shows" sits under the editor. Show the default language's text in the empty field, greyed, with "Shown in Czech until you translate it", and keep the copy action next to it (Framer, Arcade). Long texts: a "Show Czech next to it" view on wide screens.
+4. **Whose state is it?** The top bar says "Koncept" on an English page while Czech is live. Name the language: "English · Draft"; under a draft default: "English · waiting for Czech". One word for each state everywhere (the list says "Na webu", the language menu "Zveřejněno").
+5. **The review step for a translation.** It says an empty field means "visitors see the page without it", but they see the Czech text. Title it "Publish the English version", and when the default is a draft say it goes live together with Czech (Shopify's side card).
+6. **Icons alone in the list.** The language column shows EN ●/○/⏳ with no words: give each a tooltip and an accessible name in words, and show it on phones too (the card list drops it).
+7. **An address that isn't live yet** (/en/blog/summer-camp ↗) looks like a link to the live page. Say "not on the website yet" and point to the preview instead.
+8. **Phones**: the language switcher is not in the editor's top bar at phone width; it must be reachable.

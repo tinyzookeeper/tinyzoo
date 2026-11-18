@@ -6,7 +6,9 @@
 //
 // NB: lives in components/global/ so it is globally registered — the registry
 // resolves renderers by name at runtime, which only works for global components.
-const props = defineProps<{ field: any; entity?: string }>()
+// `readOnly`: the person's role may read this field but not edit it (CmsFieldEditProps.readOnly). These
+// buttons are not a form control the admin could disable for us, so we do.
+const props = defineProps<{ field: any; entity?: string; readOnly?: boolean }>()
 const model = defineModel<any>()
 const { tl } = useCmsI18n()
 </script>
@@ -15,7 +17,7 @@ const { tl } = useCmsI18n()
   <div class="flex gap-1.5">
     <UButton
       v-for="opt in props.field.meta.options" :key="opt"
-      size="sm"
+      size="sm" :disabled="props.readOnly"
       :color="model === opt ? 'primary' : 'neutral'"
       :variant="model === opt ? 'solid' : 'outline'"
       @click="model = opt"

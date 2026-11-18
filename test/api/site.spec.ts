@@ -40,7 +40,8 @@ describe('sitemap', () => {
   it('lists published items at their website address, per language, with alternates', async () => {
     const author = await createAuthor(admin)
     const post = await createPost(admin, { author: author.id, status: 'published', slug: 'kvaskovy-chleb', body: doc('x') })
-    await admin.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { slug: 'sourdough-bread' } })
+    // `status: null`: the translation follows the live Czech version (a first translation is otherwise being translated, not on the website).
+    await admin.request('PATCH', `/api/cms/post/${post.id}?locale=en`, { json: { slug: 'sourdough-bread', status: null } })
     await createPost(admin, { author: author.id, slug: 'koncept' }) // draft: not listed
 
     const json = (await anonymous().get('/api/content/_sitemap')).body.entries.filter((e: any) => !FIXED.has(e.loc))

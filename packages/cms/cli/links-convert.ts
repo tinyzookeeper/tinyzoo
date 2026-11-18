@@ -97,14 +97,15 @@ export async function addressIndex(db: any, reg: CmsRegistry, batch = 500): Prom
     if (!isLinkable(e)) continue
     const cols: Record<string, any> = { id: e.table.id }
     for (const k of addressKeys(e)) cols[k] = (e.table as any)[k]
-    const published = publishedCond(e)
     for (let after: string | null = null; ;) {
       const rows: any[] = await db.select(cols).from(e.table).where(after ? gt(e.table.id, after) : undefined).orderBy(asc(e.table.id)).limit(batch)
       if (!rows.length) break
-      const live = published
-        ? new Set<string>((await db.select({ id: e.table.id }).from(e.table).where(and(inArray(e.table.id, rows.map((r) => r.id)), published)) as any[]).map((r) => r.id))
-        : null
       for (const locale of reg.locales?.locales ?? [null]) {
+        // Live in this language (an entity that publishes per language can differ between them).
+        const published = publishedCond(e, locale)
+        const live = published
+          ? new Set<string>((await db.select({ id: e.table.id }).from(e.table).where(and(inArray(e.table.id, rows.map((r) => r.id)), published)) as any[]).map((r) => r.id))
+          : null
         for (const [id, address] of await entryAddresses(db, reg, e, rows, locale)) {
           if (!address) continue
           const key = normalizeAddress(address)

@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addComponentsDir, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
 import { createJiti } from 'jiti'
-import { appSecretFallbackCode, NITRO_CONFIG_MODULE, planAppSecretFallback, prependedLinesMap } from './src/appSecret'
+import { cmsDeprecated } from './src/deprecate'
 import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
@@ -12,8 +12,11 @@ export interface CmsModuleOptions {
   /** Path to the host config, relative to rootDir. Default: 'cms.config.ts'. */
   config?: string
   /**
-   * Postgres connection string. Leave it out in production: the server reads
-   * NUXT_CMS_DATABASE_URL or DATABASE_URL at runtime, which win over this value.
+   * Postgres connection string. The server reads NUXT_CMS_DATABASE_URL or DATABASE_URL at
+   * runtime, which win over this value; a value here is written into the build, password
+   * included.
+   *
+   * @deprecated Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) in the environment instead. Removed in 1.0.
    */
   databaseUrl?: string
   /** Blob storage for uploaded media. Defaults to the local filesystem driver. */
@@ -99,9 +102,11 @@ export interface CmsModuleOptions {
    */
   redis?: { url?: string; prefix?: string }
   /**
-   * How often scheduled entries are checked for going live (a cron expression; build
-   * time, env CMS_SCHEDULER_CRON). Their content is live on time regardless — this
-   * only sends the webhooks and live updates for that moment. Default every minute.
+   * How often scheduled entries are checked for going live (a cron expression; **build
+   * time**: it is written into the build, so a change needs a rebuild and there is no
+   * `NUXT_CMS_*` variable). Their content is live on time regardless — this only sends the
+   * webhooks and live updates for that moment. Default every minute.
+   * The variable `CMS_SCHEDULER_CRON` still works at build time as a deprecated alias.
    */
   scheduler?: { cron?: string }
   /**
@@ -109,9 +114,11 @@ export interface CmsModuleOptions {
    *  - auditDays: delete audit-log entries older than this (default 365, 0 = keep forever).
    *    Env NUXT_CMS_RETENTION_AUDIT_DAYS.
    * Form submissions have their own: `defineForm(name, { retentionDays })`.
-   * The task runs daily (build-time cron: env CMS_RETENTION_CRON, default '17 3 * * *').
+   * The task runs daily at `cron` (a cron expression; **build time**, like `scheduler.cron`:
+   * a change needs a rebuild; default '17 3 * * *'). The variable `CMS_RETENTION_CRON` still
+   * works at build time as a deprecated alias.
    */
-  retention?: { auditDays?: number }
+  retention?: { auditDays?: number; cron?: string }
   /** Revisions (history, compare, restore): how many to keep per entry and language. 0 = off. */
   revisions?: { keep?: number }
   /**
@@ -134,12 +141,13 @@ export interface CmsModuleOptions {
   sitemap?: { paths?: (string | Record<string, string>)[] }
   /**
    * Website forms (defineForm):
-   *  - notifyTo: fallback recipients of new submissions, comma separated (env NUXT_CMS_FORMS_NOTIFY_TO)
+   *  - notifyTo: fallback recipients of new submissions: an address, or a list of them
+   *    (env NUXT_CMS_FORMS_NOTIFY_TO, comma separated)
    *  - turnstileSecret: Cloudflare Turnstile secret; when set, every submission must
    *    pass it (env NUXT_CMS_FORMS_TURNSTILE_SECRET). The site key goes to
    *    `public.cmsTurnstileSiteKey` (env NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY).
    */
-  forms?: { notifyTo?: string; turnstileSecret?: string; turnstileSiteKey?: string }
+  forms?: { notifyTo?: string | string[]; turnstileSecret?: string; turnstileSiteKey?: string }
   /**
    * A public demo admin: the sign-in page shows these details, the account is created
    * (as an editor) the first time someone signs in with them, and it cannot change
@@ -163,8 +171,9 @@ export interface CmsModuleOptions {
     cacheControl?: string
     /**
      * Absolute public origin of this CMS (e.g. 'https://cms.example.com'), used as the
-     * OpenAPI `servers[].url`. Left blank, the spec uses a relative '/' server — never
-     * the request Host (which is attacker-controlled and would poison the cached spec).
+     * OpenAPI `servers[].url`. Left blank, it falls back to `cms.publicUrl`; with neither
+     * set, the spec uses a relative '/' server — never the request Host (which is
+     * attacker-controlled and would poison the cached spec).
      */
     publicUrl?: string
     /**
@@ -204,19 +213,14 @@ function sitemapPaths(paths: (string | Record<string, string>)[] | undefined): (
 }
 
 /**
- * NUXT_SESSION_PASSWORD (or a nuxt.config `runtimeConfig.session.password`) standing in for
- * NUXT_APP_SECRET until 0.5: the lines of src/appSecret.ts put at the top of Nitro's runtime
- * config module, before Nitro reads the environment.
+ * The cron of a scheduled task from its old build-time variable (`CMS_SCHEDULER_CRON`,
+ * `CMS_RETENTION_CRON`), kept as a deprecated alias of `cms.<task>.cron`. The option wins when both are set.
  */
-function appSecretFallback(code: string, onInstalled: () => void) {
-  return {
-    name: 'tinyzoo:app-secret-fallback',
-    transform(source: string, id: string) {
-      if (!NITRO_CONFIG_MODULE.test(id.split('?')[0]!)) return null
-      onInstalled()
-      return { code: code + source, map: prependedLinesMap(code, source, id) }
-    },
-  }
+function deprecatedCronVariable(name: string, option: 'scheduler' | 'retention'): string | undefined {
+  const value = process.env[name]
+  if (!value) return undefined
+  cmsDeprecated(`env:${name}`, `${name} is replaced by the \`cms.${option}.cron\` option in nuxt.config.ts (both are read at build time).`, { removeIn: '1.0.0' })
+  return value
 }
 
 export default defineNuxtModule<CmsModuleOptions>({
@@ -240,6 +244,9 @@ export default defineNuxtModule<CmsModuleOptions>({
   },
   async setup(options, nuxt) {
     const configPath = resolve(nuxt.options.rootDir, options.config || 'cms.config.ts')
+    if (options.databaseUrl) {
+      cmsDeprecated('option:cms.databaseUrl', '`cms.databaseUrl` writes the database address, password included, into the build: set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment instead.', { removeIn: '1.0.0' })
+    }
     if (!existsSync(configPath)) {
       console.warn(`[tinyzoo] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
     }
@@ -248,21 +255,6 @@ export default defineNuxtModule<CmsModuleOptions>({
     nuxt.options.alias['#cms/config'] = configPath
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
-    // NUXT_SESSION_PASSWORD as the app secret while a site has not set NUXT_APP_SECRET yet
-    // (src/appSecret.ts).
-    nuxt.hook('nitro:init', (nitro) => {
-      const plan = planAppSecretFallback(nitro.options.runtimeConfig as any)
-      if (!plan.install) return
-      let installed = false
-      nitro.hooks.hook('rollup:before', (_nitro, rollupConfig) => {
-        const plugins = (rollupConfig.plugins ||= []) as any[]
-        plugins.push(appSecretFallback(appSecretFallbackCode(plan.envPrefix, plan.fromConfig), () => { installed = true }))
-      })
-      // After the server is built, whichever bundler built it: was the module found?
-      nitro.hooks.hook('compiled', () => {
-        if (!installed) console.warn('[tinyzoo] Nitro\'s runtime config module was not found in the server bundle, so NUXT_SESSION_PASSWORD will not stand in for NUXT_APP_SECRET: set NUXT_APP_SECRET.')
-      })
-    })
     nuxt.hook('nitro:config', (nitro) => {
       if (existsSync(migrationsDir)) {
         nitro.serverAssets = nitro.serverAssets || []
@@ -270,10 +262,10 @@ export default defineNuxtModule<CmsModuleOptions>({
       }
       // Scheduled publishing: announce entries whose publish time has come.
       nitro.experimental = { ...(nitro.experimental || {}), tasks: true }
-      const cron = options.scheduler?.cron || process.env.CMS_SCHEDULER_CRON || '* * * * *'
+      const cron = options.scheduler?.cron || deprecatedCronVariable('CMS_SCHEDULER_CRON', 'scheduler') || '* * * * *'
       nitro.scheduledTasks = { ...(nitro.scheduledTasks || {}), [cron]: [...((nitro.scheduledTasks as any)?.[cron] ?? []), 'cms:scheduled'] }
       // Retention (GDPR): delete form submissions and audit entries past their time, daily.
-      const retentionCron = process.env.CMS_RETENTION_CRON || '17 3 * * *'
+      const retentionCron = options.retention?.cron || deprecatedCronVariable('CMS_RETENTION_CRON', 'retention') || '17 3 * * *'
       nitro.scheduledTasks = { ...nitro.scheduledTasks, [retentionCron]: [...((nitro.scheduledTasks as any)?.[retentionCron] ?? []), 'cms:retention'] }
       nitro.alias = nitro.alias || {}
       nitro.alias['#cms/config'] = configPath
@@ -393,7 +385,7 @@ export {}
       },
       // Empty defaults so NUXT_CMS_FORMS_* bind at runtime.
       forms: {
-        notifyTo: options.forms?.notifyTo || '',
+        notifyTo: (Array.isArray(options.forms?.notifyTo) ? options.forms.notifyTo.join(',') : options.forms?.notifyTo) || '',
         turnstileSecret: options.forms?.turnstileSecret || '',
       },
       content: {

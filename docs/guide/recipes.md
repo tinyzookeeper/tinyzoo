@@ -24,7 +24,7 @@ turned into a schema and a typed client, and type-checked, so these examples do 
 drift from the code. (How: [CONTRIBUTING.md](../../CONTRIBUTING.md#the-docs-check).)
 
 The recipes that translate content use the starter's `useSiteLocale()` (in
-`app/composables/useSite.ts`), which says `'en'` under `/en/…` and `'cs'` otherwise.
+`app/composables/useSite.ts`), which says `'en'` under `/en/…` and the site's first language (`'cs'` in the starter) otherwise; the languages are in `app/utils/site.ts`.
 Replace it with your own if your site is not made from the starter. The recipes that
 show one language leave it out.
 
@@ -1103,7 +1103,7 @@ const main = computed(() => cmsMenuTree(nav.value?.main))
 </template>
 ```
 
-`siteHref()` is the starter's (`app/composables/useSite.ts`): the page whose address is
+`siteHref()` is the starter's (`app/utils/site.ts`): the page whose address is
 `home` is at `/home` in the content API, so a menu link picked from the page list comes
 out as `/home`, and the website sends the visitor on to `/` with a redirect (and `/en/home`
 to `/en`). Writing the link as `/` instead of `/home` saves the hop and keeps the menu's

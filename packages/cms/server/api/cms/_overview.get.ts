@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
 
   const counts: Record<string, number> = {}
-  type Item = { entity: string; id: string; title: string | null; updatedAt: Date; published: boolean | null; publishAt?: Date | null }
+  type Item = { entity: string; id: string; title: string | null; updatedAt: Date; published: boolean | null; publishAt?: Date | null; locale?: string; translating?: true }
   const recent: Item[] = []
   const drafts: Item[] = []
   const scheduled: Item[] = []
@@ -55,11 +55,32 @@ export default defineEventHandler(async (event) => {
           .orderBy(asc(dateCol)).limit(RECENT)
         for (const r of next) scheduled.push({ entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), updatedAt: r.updatedAt, published: true, publishAt: r.date })
       }
+      // Publishing per language: a language with a state of its own is a draft, or goes live, on its own.
+      const lt = e.localesTable
+      if (p.perLocale && lt && reg.locales) {
+        const tbase = { id: e.table.id, title: titleCol, updatedAt: lt.updatedAt, locale: lt.locale, date: lt.publishedAt, translating: sql<boolean>`coalesce(not (${lt.firstLiveAt} <= now()), true)` }
+        const draftIn: any[] = me
+          ? await db.select(tbase).from(lt).innerJoin(e.table, eq(e.table.id, lt.parentId))
+            .where(both(where, and(eq(lt.published, false), or(eq(e.table.createdBy, me), eq(e.table.updatedBy, me)))))
+            .orderBy(desc(lt.updatedAt)).limit(RECENT)
+          : []
+        // A draft that was never on the website is a translation being worked on (visitors see the default language meanwhile).
+        for (const r of draftIn) drafts.push({ entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), updatedAt: r.updatedAt, published: false, locale: r.locale, ...(r.translating ? { translating: true } : {}) })
+        // Scheduled by its own date while the default language is live (a language held back by the default language is not scheduled: it waits for it).
+        const sched = scheduleCond(e)
+        if (sched && dateCol) {
+          const nextIn: any[] = await db.select(tbase).from(lt).innerJoin(e.table, eq(e.table.id, lt.parentId))
+            .where(both(where, and(eq(lt.published, true), gt(lt.publishedAt, sql`now()`), ownPublishedCond(e))))
+            .orderBy(asc(lt.publishedAt)).limit(RECENT)
+          for (const r of nextIn) scheduled.push({ entity: e.name, id: r.id, title: r.title == null ? null : String(r.title), updatedAt: r.updatedAt, published: true, publishAt: r.date, locale: r.locale })
+        }
+      }
     }
     // Dated collections (no drafts, a date column): the next few by their date.
     if (listLayout(e) === 'dated') {
       const columns = e.admin?.list?.columns ?? Object.keys(e.fields).slice(0, 4)
-      const key = columns.find((k) => e.fields[k]?.type === 'datetime')
+      const hidden = unreadableFields(e, user)
+      const key = columns.find((k) => e.fields[k]?.type === 'datetime' && !hidden.has(k))
       const col = key ? e.table[propOf(key, e.fields[key]!)] : undefined
       if (col) {
         const next: any[] = await db.select({ id: e.table.id, title: titleCol, at: col }).from(e.table)

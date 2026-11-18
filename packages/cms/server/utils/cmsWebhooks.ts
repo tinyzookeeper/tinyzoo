@@ -1,16 +1,18 @@
-import type { CmsChange } from 'tinyzoo'
+import { CMS_WEBHOOK_HEADERS, webhookPayload, type CmsChange } from 'tinyzoo'
 
 /**
  * Publish webhooks: POST each public content change to the configured URLs so the
  * website can purge its cache (`cms.webhooks.urls`, env NUXT_CMS_WEBHOOKS_URLS — comma
  * separated; `cms.webhooks.secret` / NUXT_CMS_WEBHOOKS_SECRET signs them).
  *
- * Body: { delivery, type, entity, id, locale, public, paths, moved?, version, at } as JSON.
- * `paths` are the website addresses to purge (old and new); in a page tree `moved` lists
- * each address that changed with the write, `[{ id, locale, from, to }]`, the page's subpages included.
+ * Body (`CmsWebhookPayload`): { delivery, type, entity, id, locale, public, paths, globals?, moved?,
+ * version, at } as JSON.
+ * `paths` are the website addresses to purge (old and new); `globals` the public globals that
+ * read differently now; in a page tree `moved` lists each address that changed with the write,
+ * `[{ id, locale, from, to }]`, the page's subpages included.
  * `delivery` is unique per change and the same on every retry: deduplicate on it
  * (it is inside the signed body, so a replay cannot pass as a new delivery).
- * Headers:
+ * Headers (`CMS_WEBHOOK_HEADERS`):
  *   X-CMS-Event      the change type, e.g. entry.published
  *   X-CMS-Delivery   the delivery id again, for logs
  *   X-CMS-Signature  t=<unix seconds>,v1=<hex HMAC-SHA256 of `${t}.${body}` with the secret>
@@ -65,9 +67,8 @@ export async function sendWebhooks(change: CmsChange): Promise<void> {
     if (production) return
   }
   const delivery = crypto.randomUUID()
-  // Who made the change stays inside the admin.
-  const { by: _by, ...rest } = change
-  const body = JSON.stringify({ delivery, ...rest })
+  // Who made the change stays inside the admin (webhookPayload leaves `by` out).
+  const body = JSON.stringify(webhookPayload(change, delivery))
   await Promise.all(urls.map((url) => deliver(url, secret, change.type, delivery, body).catch(() => {})))
 }
 
@@ -81,10 +82,10 @@ async function deliver(url: string, secret: string, type: string, delivery: stri
       const headers: Record<string, string> = {
         'content-type': 'application/json',
         'user-agent': 'cms-webhooks/1',
-        'x-cms-event': type,
-        'x-cms-delivery': delivery,
+        [CMS_WEBHOOK_HEADERS.event]: type,
+        [CMS_WEBHOOK_HEADERS.delivery]: delivery,
       }
-      if (secret) headers['x-cms-signature'] = `t=${t},v1=${await signWebhook(secret, t, body)}`
+      if (secret) headers[CMS_WEBHOOK_HEADERS.signature] = `t=${t},v1=${await signWebhook(secret, t, body)}`
       const res = await fetch(url, { method: 'POST', headers, body, redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS) })
       // Drain the body so the connection can be reused.
       await res.arrayBuffer().catch(() => {})

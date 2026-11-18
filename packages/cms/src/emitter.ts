@@ -3,7 +3,11 @@ import { camel, serializeColumn, snake } from './fields'
 import { CMS_MEDIA_SOURCE } from './media'
 import { CMS_SYSTEM_SOURCE } from './system'
 
-/** Emit the on-disk db/schema.ts source from the entity descriptors. */
+/**
+ * Emit the on-disk db/schema.ts source from the entity descriptors.
+ *
+ * @internal
+ */
 export function emitSchema(config: Record<string, any>): string {
   const reg = buildRegistry(config)
   const usesRich = reg.entities.some((e) => Object.values(e.fields).some((fl) => fl.type === 'richtext'))
@@ -82,6 +86,12 @@ function emitLocalesTable(e: CmsEntity): string {
   for (const key of e.localized) {
     const fld = e.fields[key]!
     lines.push(`  ${key}: ${serializeColumn(translationSpec(fld.spec!), snake(key))},`)
+  }
+  // Per-language publishing: this language's own state; null while it follows the default language.
+  if (e.publish?.perLocale) {
+    lines.push(`  published: boolean('published'),`)
+    lines.push(`  publishedAt: timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 }),`)
+    lines.push(`  firstLiveAt: timestamp('first_live_at', { withTimezone: true, mode: 'date', precision: 3 }),`)
   }
   lines.push(`  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)
   lines.push(`  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),`)

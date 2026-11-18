@@ -117,9 +117,21 @@ a bare date is a whole day in UTC, a time without an offset is UTC), e.g. upcomi
 `cms.event.list({ filter: { 'startsAt.from': new Date() }, sort: 'startsAt', dir: 'asc' })`.
 
 Per-collection sort keys, filters and enum values are type-checked; an invalid sort key or
-filter value is a compile error. Set `cms.content.publicUrl` to stamp the spec's `servers`
-URL (it stays relative otherwise — the request Host is never reflected). The playground's
-`/blog/typed` page is a working consumer.
+filter value is a compile error. The spec's `servers` URL is `cms.content.publicUrl` when
+that is set, otherwise `cms.publicUrl` (`NUXT_CMS_PUBLIC_URL`, the address the emails and the
+sitemap use), and stays relative (`/`) when neither is: the request Host is never reflected. The
+playground's `/blog/typed` page is a working consumer.
+
+**`createClient` or `createCmsClient`?** They are the same client; one is typed for your site and
+the other is not.
+
+| | From | Typed | Use it |
+|---|---|---|---|
+| `createClient(options)` | your generated `cms-content.ts` (`tinyzoo client`, or `GET /api/content-types.ts`) | **Yes**: every collection, field, sort key, filter and global of *your* config | Always, in a site |
+| `createCmsClient<Schema>(options)` | `@tinyzoo/client` | Only as far as the schema you hand it | Rarely: in tooling that has no generated file, or to build your own wrapper. `createClient` is `createCmsClient<ContentSchema, GlobalSchema>` and nothing else |
+
+Both take the same `options` (`baseUrl`, `token`, `headers`, `fetch`) and return the same `CmsClient`. There is no
+other name for either: the package keeps its `Cms` prefix, the generated file is the site's own.
 
 ![OpenAPI reference](../screenshots/openapi-docs.png)
 
@@ -174,13 +186,22 @@ computed. An address in both, or already an entry's, is listed once. `lastmod` m
 
 ## The frontend kit
 
+These components and composables are what a website draws its content with. They are **frozen
+from 1.0** like the config API ([the public API](../api-surface.md#the-frontend-kit)): their props, slots,
+events and return values change only in a major release. Other `Cms*` components belong to the admin and
+can change in any minor.
+
 | | |
 |---|---|
-| `<CmsBlocks :blocks="page.sections" />` | each block drawn by the site's `Block<Type>` component |
-| `<CmsImage :media="post.hero" />` | alt text, real size, lazy loading, the editor's focal point |
+| `<CmsBlocks :blocks="page.sections" />` | each block drawn by the site's `Block<Type>` component (`prefix="Section"` for `<SectionHero>`), which receives `block` and `index` |
+| `<CmsImage :media="post.hero" />` | alt text, real size, lazy loading, the editor's focal point (`eager`, `sizes`, `alt`) |
 | `<CmsContent :doc="post.body" />` | rich text, sanitised |
 | `<CmsNav :links="nav.main" />` | a menu with dropdowns, as nested lists |
-| `<CmsForm name="contactForm" />` | a website form (needs `formsPlugin()`) |
-| `useCmsSeo(() => item, { siteName, defaultLocale })` | title, description, sharing image from the `seo()` fields, and the page's `canonical`, `hreflang` alternates (+ `x-default`), `og:url` and `og:locale` from the item's `paths` (absolute: they need `NUXT_CMS_PUBLIC_URL`; `path` option rewrites addresses such as the home page's `/home` → `/`) |
-| `useCmsSearch(() => route.query.q, { locale })` | the website search: results with address and snippet |
+| `<CmsForm name="contactForm" />` | a website form (needs `formsPlugin()`); `locale`, event `sent`, slot `success` |
+| `useCmsSeo(() => item, { siteName, defaultLocale })` | title, description, sharing image from the `seo()` fields, and the page's `canonical`, `hreflang` alternates (+ `x-default`), `og:url` and `og:locale` from the item's `paths` (absolute: they need `NUXT_CMS_PUBLIC_URL`; `path` option rewrites addresses such as the home page's `/home` → `/`). Returns `{ title, description, image, canonical }` |
+| `useCmsSearch(() => route.query.q, { locale })` | the website search: results with address and snippet. Returns `{ items, total, searched, pending, error }` |
 | `<CmsHighlight :text="r.excerpt" :ranges="r.highlights" />` | text with the searched words in `<mark>` |
+| `useCmsUiLocale()` | Nuxt UI's own words in the admin's language on `/admin` pages: `<UApp :locale="uiLocale">` |
+
+Every prop, slot, event and return value is listed in [the public API](../api-surface.md#the-frontend-kit), and the
+prop types (`CmsImageProps`, `CmsBlocksProps`, `CmsBlockProps` for your own block components, …) are exported from `tinyzoo`.

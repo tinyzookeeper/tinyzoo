@@ -1,9 +1,11 @@
 <script setup lang="ts">
 // Search in a palette over the page: the header's search button, ⌘K / Ctrl+K or "/".
-// Results follow the typing (pages and news, in the page's language, typos forgiven);
+// Results follow the typing (pages and news, in the page's language, typos forgiven, then
+// the documentation);
 // ↑↓ and Enter open one, "All results" opens the full search page with the same words.
 import type { ButtonProps, CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 import { SEARCH_SEGMENT } from '~/lib/site-i18n'
+import type { DocsSearchHit } from '#shared/docs'
 
 const open = defineModel<boolean>('open', { default: false })
 const { lang, t, to } = useLang()
@@ -12,6 +14,7 @@ interface Hit { entity: string; id: string; title: string; titleHighlights: [num
 
 const term = ref('')
 const hits = ref<Hit[]>([])
+const docHits = ref<DocsSearchHit[]>([])
 const total = ref(0)
 // Nuxt UI types the close button as ButtonProps only, yet v-binds it, so HTML attributes reach the button.
 const closeButton = computed(() => ({ color: 'neutral', variant: 'ghost', 'aria-label': t('close') }) as ButtonProps)
@@ -27,6 +30,7 @@ watch(term, (value) => {
   if (q.length < 2) {
     seq++
     hits.value = []
+    docHits.value = []
     total.value = 0
     searched.value = ''
     loading.value = false
@@ -36,15 +40,20 @@ watch(term, (value) => {
   timer = setTimeout(async () => {
     const mine = ++seq
     try {
-      const res = await $fetch<{ items: Hit[]; total: number }>('/api/content/_search', { query: { q, locale: lang.value, limit: 8 } })
+      const [res, docs] = await Promise.all([
+        $fetch<{ items: Hit[]; total: number }>('/api/content/_search', { query: { q, locale: lang.value, limit: 8 } }),
+        // The documentation too (it is not in the database: /api/site-docs/search).
+        $fetch<{ items: DocsSearchHit[]; total: number }>('/api/site-docs/search', { query: { q, lang: lang.value, limit: 6 } }).catch(() => ({ items: [], total: 0 })),
+      ])
       if (mine !== seq) return
       hits.value = res.items
-      total.value = res.total
+      docHits.value = docs.items
+      total.value = res.total + docs.total
       searched.value = q
       failed.value = false
     }
     catch {
-      if (mine === seq) { hits.value = []; failed.value = true }
+      if (mine === seq) { hits.value = []; docHits.value = []; failed.value = true }
     }
     finally {
       if (mine === seq) loading.value = false
@@ -73,6 +82,23 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
         icon: h.entity === 'news' ? 'i-lucide-sparkles' : 'i-lucide-file-text',
         to: homeOf(h.path!),
         // Not marked as "the page you are on": only the keyboard/mouse choice is highlighted.
+        active: false,
+        slot: 'hit' as const,
+        hit: h,
+      })),
+    })
+  }
+  if (docHits.value.length) {
+    out.push({
+      id: 'docs',
+      label: t('searchInDocs'),
+      ignoreFilter: true,
+      items: docHits.value.map((h) => ({
+        id: `docs:${h.id}`,
+        label: h.title,
+        suffix: h.page || t('searchKindDocs'),
+        icon: 'i-lucide-book-open',
+        to: h.path,
         active: false,
         slot: 'hit' as const,
         hit: h,

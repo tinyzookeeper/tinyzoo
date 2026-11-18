@@ -47,9 +47,10 @@ export interface SpawnedServer {
 /**
  * Another instance of the built playground, pointed at its own database and with its own
  * environment — for behaviour the shared test server cannot show (no setup token, a
- * broken storage driver…). Only the process started here is ever stopped.
+ * broken storage driver…). Only the process started here is ever stopped. `entry`: another build
+ * of the playground than the shared one.
  */
-export async function startServer(databaseUrl: string, env: Record<string, string> = {}): Promise<SpawnedServer> {
+export async function startServer(databaseUrl: string, env: Record<string, string> = {}, entry: string = builtServer): Promise<SpawnedServer> {
   const port = await freePort()
   const baseURL = `http://127.0.0.1:${port}`
   const logs: string[] = []
@@ -60,7 +61,7 @@ export async function startServer(databaseUrl: string, env: Record<string, strin
     NUXT_APP_SECRET: _a, NITRO_APP_SECRET: _na, NUXT_SESSION_PASSWORD: _p, NITRO_SESSION_PASSWORD: _np,
     ...parentEnv
   } = process.env
-  const child = spawn(process.execPath, [builtServer], {
+  const child = spawn(process.execPath, [entry], {
     cwd: join(repoRoot, 'playground'),
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {

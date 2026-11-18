@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest'
 import { Client } from '../helpers/api'
 import { scratchDatabase, startServer } from '../helpers/server'
+import { CMS_EXAMPLE_APP_SECRET } from '../../packages/cms/server/utils/cmsAppSecret'
 import { BUILD_SECRETS } from '../setup/timers'
 
 // A production server that is misconfigured does not start: it says which variable is
@@ -29,6 +30,13 @@ describe('start-up checks (production)', () => {
     }
     // Nitro parses the environment as JSON where it can: JSON is not a secret.
     expect(await failure({ NUXT_APP_SECRET: '{"secret":"0123456789abcdef0123456789abcdef"}' })).toMatch(/NUXT_APP_SECRET was read as an object/)
+  })
+
+  it('refuses the example secret of the starter\'s .env.example, naming the variable and how to make a real one', async () => {
+    const message = await failure({ NUXT_APP_SECRET: CMS_EXAMPLE_APP_SECRET })
+    expect(message).toContain('NUXT_APP_SECRET is the example value')
+    expect(message).toContain('openssl rand -base64 32')
+    expect(message).not.toContain(CMS_EXAMPLE_APP_SECRET)
   })
 
   it('names NITRO_APP_SECRET when that is the one Nitro read (it wins over NUXT_APP_SECRET)', async () => {
@@ -68,51 +76,61 @@ describe('start-up checks (production)', () => {
 })
 
 // nuxt-auth-utils 0.6 seals the sign-in cookie with a key derived from NUXT_APP_SECRET and
-// ignores NUXT_SESSION_PASSWORD. Until 0.5, a deploy that still has only the old variable
-// keeps working: the old value stands in for the app secret, with a deprecation warning.
-describe('NUXT_SESSION_PASSWORD standing in for NUXT_APP_SECRET (deprecated)', () => {
+// ignores NUXT_SESSION_PASSWORD. Until 0.5 the old value stood in for the app secret, with a
+// deprecation warning; from 0.6 a site that has only the old variable does not start, and the
+// message says what to do.
+describe('NUXT_SESSION_PASSWORD is not read any more', () => {
   const PASSWORD = 'the-old-session-password-of-this-site-0123456789'
+  const SECRET = 'the-app-secret-of-this-site-at-least-32-characters'
   const SETUP = 'start-checks-setup-code'
   const account = { name: 'Old Admin', email: 'old-admin@test.local', password: 'a long enough password' }
   let cookie = ''
 
-  it('starts with only NUXT_SESSION_PASSWORD, says once that it is deprecated, and signs people in', async () => {
-    const s = await startServer(db.url, { NUXT_APP_SECRET: '', NUXT_SESSION_PASSWORD: PASSWORD, NUXT_CMS_AUTH_SETUP_TOKEN: SETUP })
+  it('refuses to start with only NUXT_SESSION_PASSWORD, naming NUXT_APP_SECRET and saying to rename it', async () => {
+    const message = await failure({ NUXT_APP_SECRET: '', NUXT_SESSION_PASSWORD: PASSWORD })
+    expect(message).toContain('NUXT_APP_SECRET is not set')
+    expect(message).toMatch(/NUXT_SESSION_PASSWORD is set, but no longer used/)
+    expect(message).toMatch(/Rename the variable to NUXT_APP_SECRET and keep its value/)
+    // The old value itself is never printed.
+    expect(message).not.toContain(PASSWORD)
+  })
+
+  it('names NUXT_APP_SECRET for a short old password too (it is not read, so its length does not matter)', async () => {
+    const message = await failure({ NUXT_APP_SECRET: '', NUXT_SESSION_PASSWORD: 'too-short-for-a-session' })
+    expect(message).toContain('NUXT_APP_SECRET is not set')
+    expect(message).toMatch(/Rename the variable to NUXT_APP_SECRET/)
+  })
+
+  it('refuses a NITRO_SESSION_PASSWORD the same way', async () => {
+    const message = await failure({ NUXT_APP_SECRET: '', NITRO_SESSION_PASSWORD: PASSWORD })
+    expect(message).toMatch(/NITRO_SESSION_PASSWORD is set, but no longer used/)
+  })
+
+  it('a set NUXT_APP_SECRET is all it needs: signs people in, and an old NUXT_SESSION_PASSWORD next to it changes nothing', async () => {
+    const s = await startServer(db.url, { NUXT_APP_SECRET: SECRET, NUXT_CMS_AUTH_SETUP_TOKEN: SETUP })
     try {
-      const logs = s.logs.join('')
-      expect(logs.match(/\[tinyzoo\] deprecated: NUXT_SESSION_PASSWORD is used as the app secret/g) ?? []).toHaveLength(1)
-      expect(logs).toMatch(/Rename the variable to NUXT_APP_SECRET/)
-      // nuxt-auth-utils prints its own "is not used anymore" next to it: tinyzoo's line says that one can be ignored for now.
-      expect(logs).toMatch(/nuxt-auth-utils' own warning that it "is not used anymore" can be ignored/)
       const c = new Client(s.baseURL)
       expect((await c.post('/api/cms/_auth/setup', { ...account, token: SETUP })).status).toBe(201)
       expect(c.cookie).toContain('nuxt-auth-session=')
       expect((await c.get('/api/cms/_auth/me')).body.user.email).toBe(account.email)
       cookie = c.cookie
-      // The same signing in again, as a browser would.
-      const again = new Client(s.baseURL)
-      expect((await again.post('/api/cms/_auth/login', { email: account.email, password: account.password })).status).toBe(200)
-      expect((await again.get('/api/cms/_auth/me')).status).toBe(200)
     }
     finally { await s.stop() }
-  })
-
-  it('renaming the variable to NUXT_APP_SECRET with the same value keeps everyone signed in, without the warning', async () => {
-    expect(cookie).not.toBe('')
-    const s = await startServer(db.url, { NUXT_APP_SECRET: PASSWORD })
+    const again = await startServer(db.url, { NUXT_APP_SECRET: SECRET, NUXT_SESSION_PASSWORD: PASSWORD })
     try {
-      expect(s.logs.join('')).not.toContain('deprecated')
-      const c = new Client(s.baseURL)
+      const logs = again.logs.join('')
+      expect(logs).not.toMatch(/deprecated|SESSION_PASSWORD/)
+      const c = new Client(again.baseURL)
       c.cookie = cookie
       expect((await c.get('/api/cms/_auth/me')).body.user.email).toBe(account.email)
     }
-    finally { await s.stop() }
+    finally { await again.stop() }
   })
 
-  it('a set NUXT_APP_SECRET always wins: NUXT_SESSION_PASSWORD is not used', async () => {
-    const s = await startServer(db.url, { NUXT_APP_SECRET: 'a-different-app-secret-of-at-least-32-characters', NUXT_SESSION_PASSWORD: PASSWORD })
+  it('a different NUXT_APP_SECRET does not open the old session (the secret is the key)', async () => {
+    expect(cookie).not.toBe('')
+    const s = await startServer(db.url, { NUXT_APP_SECRET: 'a-different-app-secret-of-at-least-32-characters', NUXT_SESSION_PASSWORD: SECRET })
     try {
-      expect(s.logs.join('')).not.toMatch(/\[tinyzoo\] deprecated/)
       const c = new Client(s.baseURL)
       c.cookie = cookie
       expect((await c.get('/api/cms/_auth/me')).status).toBe(401)
@@ -120,21 +138,15 @@ describe('NUXT_SESSION_PASSWORD standing in for NUXT_APP_SECRET (deprecated)', (
     finally { await s.stop() }
   })
 
-  it('a set NITRO_APP_SECRET wins as well: NUXT_SESSION_PASSWORD is not used', async () => {
+  it('a set NITRO_APP_SECRET wins over the old variable as well', async () => {
     const s = await startServer(db.url, { NUXT_APP_SECRET: '', NITRO_APP_SECRET: 'a-nitro-app-secret-of-at-least-32-characters', NUXT_SESSION_PASSWORD: PASSWORD })
     try {
-      expect(s.logs.join('')).not.toMatch(/\[tinyzoo\] deprecated/)
+      expect(s.logs.join('')).not.toMatch(/deprecated/)
       const c = new Client(s.baseURL)
       c.cookie = cookie
       expect((await c.get('/api/cms/_auth/me')).status).toBe(401)
     }
     finally { await s.stop() }
-  })
-
-  it('a NUXT_SESSION_PASSWORD under 32 characters is refused like a short NUXT_APP_SECRET, naming both', async () => {
-    const message = await failure({ NUXT_APP_SECRET: '', NUXT_SESSION_PASSWORD: 'too-short-for-a-session' })
-    expect(message).toContain('NUXT_SESSION_PASSWORD (used because NUXT_APP_SECRET is not set)')
-    expect(message).toMatch(/32 characters/)
   })
 })
 
@@ -146,18 +158,18 @@ describe('the build', () => {
   const files = (dir: string): string[] => readdirSync(dir, { withFileTypes: true })
     .flatMap((e) => e.isDirectory() ? files(join(dir, e.name)) : e.isFile() ? [join(dir, e.name)] : [])
 
-  it('writes no secret from its environment into the output, and still carries the NUXT_SESSION_PASSWORD stand-in', () => {
+  it('writes no secret from its environment into the output, and nothing that stands in for the app secret', () => {
     const all = files(inject('outputDir'))
     expect(all.length).toBeGreaterThan(10)
     const found: string[] = []
-    let fallback = 0
+    let standIn = 0
     for (const file of all) {
       const text = readFileSync(file).toString('latin1')
       for (const [name, value] of Object.entries(BUILD_SECRETS)) if (text.includes(value)) found.push(`${name} in ${file}`)
-      if (text.includes('tinyzoo.appSecretFrom')) fallback++
+      // 0.4 and 0.5 put a copy of NUXT_SESSION_PASSWORD to the app secret into the server bundle; 0.6 has none.
+      if (text.includes('tinyzoo.appSecretFrom')) standIn++
     }
     expect(found).toEqual([])
-    // An app secret in the build's environment does not drop the stand-in (only runtimeConfig.appSecret in nuxt.config does).
-    expect(fallback).toBeGreaterThan(0)
+    expect(standIn).toBe(0)
   })
 })

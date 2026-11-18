@@ -1,11 +1,14 @@
-import { type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { boolean, type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
+import { cmsDeprecated } from './deprecate'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
+import { checkRoles, isRolesExport, rolesDefOf, type CmsAccessUser, type CmsRolesDef } from './roles'
 import { pathTemplateProblem, pathTemplateKeys, prefixedTemplates, type PathTemplate } from './paths'
 import { TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, type TreeConfig } from './tree'
+import type { CmsAdminField } from './admin'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
 import { collectPlugins, pluginEntities, type CmsPlugin, type CmsPluginRequirement } from './plugin'
@@ -98,6 +101,15 @@ export interface PublishConfig<F extends Record<string, AnyFieldDescriptor>> {
    * opens it (language prefix added) with `?preview` so an editor can see a draft.
    */
   preview?: PathTemplate
+  /**
+   * Publish each language on its own. Without it (the default) the status and the
+   * publish date on the entry hold for every language. With it a translation can have its
+   * own state and schedule: until someone publishes or unpublishes a language it follows
+   * the default language, so switching it on changes nothing on the website. A language
+   * that is a draft is not there: 404 for the item, left out of lists, the sitemap,
+   * `hreflang` and search. Needs `.localized()` fields; not for page trees.
+   */
+  perLocale?: boolean
 }
 
 export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
@@ -111,7 +123,11 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
   icon?: string
   titleField: keyof F & string
   fields: F
-  /** A single-row global (Settings/Homepage) — admin shows one form, no list. */
+  /**
+   * A single-row global (Settings/Homepage) — admin shows one form, no list.
+   *
+   * @deprecated Use `defineSingleton(name, def)`, which makes the same thing. Removed in 1.0.
+   */
   singleton?: boolean
   /**
    * Every write takes effect on the website at once (e.g. redirects). People who may
@@ -159,7 +175,7 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
      */
     sections?: CmsFormSection<keyof F & string>[]
   }
-  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: TableColumns<F> }) => unknown>>
+  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: CmsAccessUser; table: TableColumns<F> }) => unknown>>
   content?: ContentConfig<F>
   publish?: PublishConfig<F>
   /**
@@ -200,11 +216,16 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   icon?: string
   titleField: keyof F & string
   table: TableColumns<F>
-  /** Translations of the `.localized()` fields (`<name>_locales`), or undefined. */
+  /**
+   * Translations of the `.localized()` fields (`<name>_locales`), or undefined.
+   *
+   * @internal
+   */
   localesTable?: any
   /** Keys of the `.localized()` fields. */
   localized: string[]
   fields: F
+  /** @internal */
   enums: EntityEnum[]
   insertSchema: z.ZodType<InsertFields<F>>
   updateSchema: z.ZodType<Partial<InsertFields<F>>>
@@ -232,9 +253,11 @@ export interface CmsEntity {
   icon?: string
   titleField: string
   table: any
+  /** @internal */
   localesTable?: any
   localized: string[]
   fields: Record<string, FieldDescriptor>
+  /** @internal */
   enums: EntityEnum[]
   insertSchema: z.ZodTypeAny
   updateSchema: z.ZodTypeAny
@@ -246,7 +269,7 @@ export interface CmsEntity {
     tabs?: { label: LocalizedText; fields: string[] }[]
     sections?: CmsFormSection[]
   }
-  access?: Record<string, (ctx: { user: any; table: any }) => unknown>
+  access?: Record<string, (ctx: { user: CmsAccessUser; table: any }) => unknown>
   content?: {
     public?: boolean
     published?: (table: any) => unknown
@@ -256,12 +279,20 @@ export interface CmsEntity {
     hidden?: string[]
     search?: false | { fields?: string[] }
   }
-  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: PathTemplate }
+  publish?: { field: string; publishedValue: string; draftValue: string; dateField?: string; schedule?: boolean; preview?: PathTemplate; perLocale?: boolean }
   live?: boolean
   tree?: TreeConfig
-  /** Set by built-in presets (e.g. 'redirects') so the runtime can find them. */
+  /**
+   * Set by built-in presets (e.g. 'redirects') so the runtime can find them.
+   *
+   * @internal
+   */
   preset?: string
-  /** Set by a plugin's helpers (`defineForm`): the plugin this entity cannot work without. */
+  /**
+   * Set by a plugin's helpers (`defineForm`): the plugin this entity cannot work without.
+   *
+   * @internal
+   */
   requiresPlugin?: CmsPluginRequirement
 }
 
@@ -272,7 +303,11 @@ export function translationSpec(spec: import('./descriptor').ColumnSpec): import
   return { ...spec, notNull: false, unique: false, default: undefined, reference: undefined }
 }
 
-/** DB column property name for a field (FKs become `${key}Id`). */
+/**
+ * DB column property name for a field (FKs become `${key}Id`).
+ *
+ * @internal
+ */
 export function propOf(key: string, fld: FieldDescriptor): string {
   return fld.spec?.nameSuffix === '_id' ? key + 'Id' : key
 }
@@ -280,10 +315,28 @@ export function propOf(key: string, fld: FieldDescriptor): string {
 /** Field names the CMS uses itself (system columns, translations, public item keys). */
 const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales'])
 
+/** Query parameters of the content API's list (`/api/content/:entity?page=…`): a field of that name cannot be filtered by. */
+const LIST_PARAMS = ['page', 'limit', 'sort', 'dir', 'q']
+/** The columns of `<entity>_locales` that hold a language's own publish state (`publish.perLocale`). */
+export const PUBLISH_STATE_COLUMNS = ['published', 'publishedAt', 'firstLiveAt']
+
 /** Entity names the CMS uses internally; user entities may not take them. */
 const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
 
 export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
+  name: string,
+  def: EntityDef<F>,
+): Entity<F> {
+  if (def.singleton) {
+    cmsDeprecated('option:defineEntity.singleton', `\`defineEntity('${name}', { singleton: true })\` is replaced by \`defineSingleton('${name}', { … })\`.`, { removeIn: '1.0.0' })
+  }
+  return buildEntity(name, def)
+}
+
+/**
+ * `defineEntity` without the deprecation: what `defineSingleton` builds on.
+ */
+function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: EntityDef<F>,
 ): Entity<F> {
@@ -307,6 +360,23 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   for (const key of Object.keys(fields)) {
     if (RESERVED_FIELD_NAMES.has(key)) {
       throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}).`)
+    }
+  }
+  if (def.content?.public) {
+    for (const key of Object.keys(fields).filter((k) => LIST_PARAMS.includes(k))) {
+      cmsDeprecated(`field-name:${name}.${key}`, `The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=), so it cannot be used as a filter. Rename the field`, { removeIn: '1.0.0' })
+    }
+  }
+  if (def.publish?.perLocale) {
+    const localizedKeys = Object.entries(fields).filter(([, f]) => f.isLocalized).map(([k]) => k)
+    if (!localizedKeys.length) {
+      throw new Error(`publish.perLocale of "${name}" needs at least one field marked .localized(): without translations there is no language to publish on its own.`)
+    }
+    if (def.tree) {
+      throw new Error(`publish.perLocale of "${name}" is not available for a page tree yet: the pages under a page follow its state, which would then differ per language.`)
+    }
+    for (const key of localizedKeys) {
+      if (PUBLISH_STATE_COLUMNS.includes(key)) throw new Error(`A localized field of "${name}" cannot be called "${key}" with publish.perLocale: the translation table keeps each language's state in a column of that name.`)
     }
   }
   const orderField = def.admin?.list?.orderField as string | undefined
@@ -381,6 +451,15 @@ export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
       const fld = fields[key]!
       lcols[key] = buildColumn(translationSpec(fld.spec!), snake(key))
     }
+    // Per-language publishing: this language's own state, `null` while it follows the
+    // default language (see PUBLISH_STATE_COLUMNS). `firstLiveAt`: when the language was first on
+    // the website in its own right; null while it never was (a draft then is a translation being
+    // worked on, which visitors do not see).
+    if (def.publish?.perLocale) {
+      lcols.published = boolean('published')
+      lcols.publishedAt = timestamp('published_at', { withTimezone: true, mode: 'date', precision: 3 })
+      lcols.firstLiveAt = timestamp('first_live_at', { withTimezone: true, mode: 'date', precision: 3 })
+    }
     lcols.createdAt = timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
     lcols.updatedAt = timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow()
     const uniqueLocalized = localized.filter((k) => fields[k]!.isUnique)
@@ -417,10 +496,11 @@ export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: Omit<EntityDef<F>, 'singleton' | 'admin'> & { admin?: Pick<NonNullable<EntityDef<F>['admin']>, 'editor' | 'preview' | 'tabs' | 'sections'> },
 ): Entity<F> {
-  return defineEntity(name, { ...def, singleton: true } as EntityDef<F>)
+  return buildEntity(name, { ...def, singleton: true } as EntityDef<F>)
 }
 
 // ── registry: junctions + serializable graph, memoized per config module ────────
+/** @internal */
 export interface Junction {
   /** Schema key and TS export name (camelCase entity names); not the SQL table name. */
   name: string
@@ -437,19 +517,37 @@ export interface Junction {
 export interface CmsRegistry {
   entities: CmsEntity[]
   byName: Map<string, CmsEntity>
+  /** @internal */
   junctions: Junction[]
+  /** @internal */
   junctionByOwnerField: Map<string, Junction>
+  /** @internal */
   schema: Record<string, any>
+  /** @internal */
   graph: any[]
   /** Content languages (defineLocales), or null when content is single-language. */
   locales: LocalesDef | null
+  /**
+   * The site's own roles (`export const roles = defineRoles(…)`), or null: only admin, editor and author.
+   *
+   * @internal
+   */
+  roles: CmsRolesDef | null
+  /** @internal */
   cmsMedia: typeof cmsMedia
+  /** @internal */
   cmsUsers: typeof cmsUsers
+  /** @internal */
   cmsTokens: typeof cmsTokens
+  /** @internal */
   cmsAudit: typeof cmsAudit
+  /** @internal */
   cmsCollab: typeof cmsCollab
+  /** @internal */
   cmsRevisions: typeof cmsRevisions
+  /** @internal */
   cmsState: typeof cmsState
+  /** @internal */
   cmsSearch: typeof cmsSearch
   /** Registered plugins (`export const plugins = [...]`), in order. */
   plugins: CmsPlugin[]
@@ -464,6 +562,7 @@ function isEntity(v: any): v is CmsEntity {
   return v && typeof v === 'object' && v.__cms === 'entity'
 }
 
+/** @internal */
 export function buildRegistry(config: Record<string, any>): CmsRegistry {
   const cached = _regCache.get(config)
   if (cached) return cached
@@ -514,6 +613,11 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     throw new Error(`${withLocalized.map((e) => e.name).join(', ')} ha${withLocalized.length > 1 ? 've' : 's'} localized fields, but no languages are defined. Export \`locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })\` from cms.config.ts.`)
   }
 
+  const rolesExports = Object.values(config).filter(isRolesExport)
+  if (rolesExports.length > 1) throw new Error('cms.config.ts exports more than one `defineRoles(…)`: a site has one set of roles.')
+  const roles = rolesExports.length ? rolesDefOf(rolesExports[0]) : null
+  checkRoles(roles, entities as any, (e: CmsEntity) => (e.content?.path ? pathTemplateKeys(e.content.path) : []))
+
   for (const e of entities) {
     if (e.tree && (e.fields[e.tree.parent]!.relation!.to() as CmsEntity).name !== e.name) {
       throw new Error(`tree.parent of "${e.name}" must point at "${e.name}" itself.`)
@@ -533,7 +637,7 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   for (const j of junctions) schema[j.name] = j.table
 
   const graph = entities.map((e) => withPlugins(entityGraph(e, locales), e, plugins, pluginOf))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, roles, cmsMedia, cmsUsers, cmsTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf }
   _regCache.set(config, reg)
   return reg
 }
@@ -542,6 +646,8 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
  * The editor's arrangement, from what the content is (the developer can say otherwise
  * with `admin.editor`): the layout is the point → `preview`; a text to write → `write`;
  * facts to fill in → `form`.
+ *
+ * @internal
  */
 export function editorLayout(e: CmsEntity): CmsEditorLayout {
   if (e.admin?.editor) return e.admin.editor
@@ -552,7 +658,11 @@ export function editorLayout(e: CmsEntity): CmsEditorLayout {
   return 'form'
 }
 
-/** The list's look, from what the content is (or `admin.list.layout`). */
+/**
+ * The list's look, from what the content is (or `admin.list.layout`).
+ *
+ * @internal
+ */
 export function listLayout(e: CmsEntity): CmsListLayout {
   if (e.admin?.list?.layout) return e.admin.list.layout
   if (e.tree) return 'tree'
@@ -605,7 +715,7 @@ function entityGraph(e: CmsEntity, locales: LocalesDef | null) {
     tree: e.tree ?? null,
     tabs: e.admin?.tabs ?? null,
     sections: e.admin?.sections ?? null,
-    fields: Object.entries(e.fields).map(([key, fld]) => ({
+    fields: Object.entries(e.fields).map(([key, fld]): CmsAdminField => ({
       key,
       type: fld.type,
       optional: fld.isOptional,

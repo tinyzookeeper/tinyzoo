@@ -1,0 +1,59 @@
+usage: tinyzoo <command> [options]
+
+Run from the root of the website. Commands:
+
+  init <dir>            a new website with the CMS inside (the starter: pages, news, menus, a contact form, search)
+                          --languages <a,b>       the content languages, the first one is the default (default: cs,en)
+                          --presets <a,b|none>    which optional parts the site has: news, forms, redirects, search (default: all)
+                          --demo                  with the demo content, a small bakery (the default when cs or en is the first language)
+                          --no-demo               an empty site instead of the demo content
+                          --package-manager <pm>  the commands to show and put in the README (default: the one that ran this)
+  generate              emit server/db/schema.ts from cms.config.ts and write the migration (drizzle-kit)
+                          --allow-drop   keep a migration that drops data (a removed or renamed field)
+                          --allow-risky  keep a migration that may fail on existing rows
+  up                    apply the migrations and upgrade steps to DATABASE_URL (what the app does at start with NUXT_CMS_MIGRATIONS_ON_START)
+  status                what DATABASE_URL has applied and has pending (exit 1 when something is pending, 2 when it cannot be read)
+  upgrade               after updating tinyzoo: check versions, generate, regenerate the client, show the status
+                          --allow-drop   as for generate
+                          --allow-risky  as for generate
+  client [out]          emit the typed @tinyzoo/client bindings (default cms-content.ts)
+                          --stdout  print instead of writing a file
+  openapi [out]         emit the OpenAPI 3.1 document of the content API (default openapi.json)
+                          --stdout  print instead of writing a file
+  content:migrate       rewrite stored blocks, lists and rich text to their current versions
+                          --dry-run    report only
+                          --batch <n>  rows per batch
+  links:convert         turn stored page addresses into links that follow their page
+                          --dry-run    report only
+                          --batch <n>  rows per batch
+  export <file.tar.gz>  the site's content (entries, translations, links, globals, media files) in one archive
+                          --only a,b          only these entities (and the media they use)
+                          --no-media          media rows without the files
+                          --with-revisions    saved versions too
+                          --with-submissions  form submissions too (personal data)
+                          --force             overwrite an existing file
+  import <file.tar.gz>  put such an archive into this site (the target must be empty of content)
+                          --replace          delete this site's content first (asks)
+                          --merge            add and update entries by id, delete nothing
+                          --allow-mismatch   the content models differ: skip what doesn't fit
+                          --dry-run          check and report, write nothing
+                          --yes              do not ask
+                          --no-search-index  do not rebuild the search index afterwards
+  backup [file]         the database (pg_dump) and the media files in one tar archive
+  restore <file>        put such an archive back (into a clean database, all or nothing)
+                          --yes    do not ask
+                          --force  replace a database that has tables
+  seed [file]           put the site's seed content (seed/index.ts, defineSeed) into a running site through the admin API; the password is $SEED_PASSWORD
+                          --url <url>          where the site runs (default $SEED_URL, else http://localhost:3000)
+                          --email <email>      the administrator to sign in as ($SEED_EMAIL)
+                          --name <name>        the first administrator's name when the site has none yet ($SEED_NAME)
+                          --setup-code <code>  the code a new production site asks for first ($SEED_SETUP_CODE)
+                          --wait <sec>         how long to wait for the site to answer (default 30)
+                          --dry-run            say what would be created, changed or uploaded
+                          --reset              first remove what this seed made
+                          --yes                do not ask before --reset
+                          --verbose            also list what was already up to date
+
+  help, --help, -h   this text
+
+More: https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/README.md

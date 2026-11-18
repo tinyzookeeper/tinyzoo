@@ -7,7 +7,9 @@
 //
 //   const { data: nav } = await useFetch('/api/content/_global/navigation')
 //   <CmsNav :links="nav?.item?.main" aria-label="Hlavní menu" />
-const props = defineProps<{ links: { id: string; label: string; url: string | null; newTab?: boolean | null; sub?: boolean | null }[] | null | undefined }>()
+import type { CmsNavProps } from '../../src/frontend'
+
+const props = defineProps<CmsNavProps>()
 const tree = computed(() => {
   const out: any[] = []
   for (const l of props.links ?? []) {

@@ -14,5 +14,6 @@ export default defineEventHandler(async (event) => {
     const [by] = await db.select({ name: reg.cmsUsers.name, email: reg.cmsUsers.email }).from(reg.cmsUsers).where(eq(reg.cmsUsers.id, found.token.createdBy))
     inviter = by ? (by.name || by.email) : null
   }
-  return { email: found.user.email, name: found.user.name, role: found.user.role, inviter }
+  // A role the site defined carries its own name, in the admin's languages.
+  return { email: found.user.email, name: found.user.name, role: found.user.role, ...(roleOf(found.user)?.label ? { roleLabel: roleOf(found.user)!.label } : {}), inviter }
 })

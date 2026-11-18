@@ -11,9 +11,13 @@ who work on tinyzoo itself.
   in the package's `CHANGELOG.md` under an **Upgrade** heading that says what your
   site has to do. A patch version (0.2.1 → 0.2.2) never needs anything from you.
 - **From 1.0:** [semver](https://semver.org). The content API, the types of
-  `@tinyzoo/client` and the config API (`defineEntity`, `f.*`, presets, plugins)
-  only break in a new major version, and anything that goes away is marked
-  deprecated for at least one minor version first.
+  `@tinyzoo/client`, the config API (`defineEntity`, `f.*`, presets, plugins), the webhook and
+  the Nitro hooks, the CLI, the `cms` options and `NUXT_CMS_*` variables, and the admin's
+  extension points only break in a new major version, and anything that goes away is marked
+  deprecated for at least one minor version first. **[The public API](api-surface.md)** lists
+  every one of them; everything else (other `Cms*` components, server utilities, anything
+  tagged `@internal`, the database tables) can change in any minor release, with its
+  changeset, and tinyzoo migrates the tables for you.
 
 ## From 0.1 to 0.2
 
@@ -117,13 +121,12 @@ which needs Nuxt 4.6 and seals the sign-in cookie differently.
      (`openssl rand -base64 32`). Everything signed with the old one changes with it:
      `nuxt-og-image`'s signed image URLs change, and everyone signs in again.
 
-   Until 0.5, a deploy that still has only `NUXT_SESSION_PASSWORD` (or the `nuxt.config` password)
-   keeps working: its value stands in for `NUXT_APP_SECRET`, and the log says once, at start,
-   that the old name is deprecated. nuxt-auth-utils logs its own line next to it, that
-   `NUXT_SESSION_PASSWORD` "is not used anymore": until you rename the variable that line can be
-   ignored, as tinyzoo still uses the value. With no app secret (or with one shorter than 32
-   characters), the server does not start and names the variable. In development Nuxt makes an
-   app secret by itself when there is none.
+   Tinyzoo 0.4 and 0.5 let a deploy that still had only `NUXT_SESSION_PASSWORD` (or the
+   `nuxt.config` password) keep working, with a deprecation warning: its value stood in for
+   `NUXT_APP_SECRET`. **0.6 removed that** ([From 0.5 to 0.6](#from-05-to-06)): rename the variable
+   before you update to it. With no app secret (or with one shorter than 32 characters), the
+   server does not start and names the variable. In development Nuxt makes an app secret by
+   itself when there is none.
 4. **Everyone signs in again, once.** The sign-in cookie has a new name (`nuxt-auth-session`, was
    `nuxt-session`) and a new format, so the sessions from before the update no longer open the
    admin. Accounts and passwords are unchanged. Renaming the variable later, with the same value,
@@ -163,6 +166,190 @@ Everything below is also in the changelog of 0.5.0.
    The sitemap now carries `x-default` next to the languages, and it is cached for an hour
    (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`); a content
    change clears the server's copy at once.
+
+## From 0.5 to 0.6
+
+Everything below is also in the changelog of 0.6.0. 0.6 is the last minor before 1.0: it removes what was
+deprecated, marks what is internal, and writes down [the public API](api-surface.md) that 1.0 freezes.
+
+1. **Update** both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+2. **`NUXT_APP_SECRET` is required; `NUXT_SESSION_PASSWORD` is no longer read.** A site that was set up
+   before 0.4 may still have only `NUXT_SESSION_PASSWORD` (or `runtimeConfig.session.password` in
+   `nuxt.config.ts`): 0.4 and 0.5 used it as the app secret and warned. 0.6 does not: the server
+   **refuses to start** and says `NUXT_APP_SECRET is not set` and to rename the variable. **Before you
+   deploy 0.6**, on your platform and in `.env`:
+   - rename `NUXT_SESSION_PASSWORD=…` to `NUXT_APP_SECRET=…`, **keeping the value**: nobody is
+     signed out;
+   - or move `runtimeConfig.session.password` from `nuxt.config.ts` to `NUXT_APP_SECRET` in the
+     environment and remove it from the config;
+   - the value is at least 32 characters (`openssl rand -base64 32` makes one). A site that
+     already sets `NUXT_APP_SECRET` needs nothing: an old `NUXT_SESSION_PASSWORD` next to it is
+     ignored, and can be deleted.
+
+   A site that already runs 0.5 without the deprecation warning (`[tinyzoo] deprecated:
+   NUXT_SESSION_PASSWORD is used as the app secret…`) in its log has nothing to do, **unless its secret
+   is the example value** (next point).
+
+   **The example secret is refused in production.** The starter's `.env.example` has always held
+   `NUXT_APP_SECRET=change-me-to-a-long-random-string-32-chars-min` (before 0.4 as `NUXT_SESSION_PASSWORD`),
+   and `cp .env.example .env` followed by a deploy with it set a secret that anyone can read: with it, anyone
+   can forge a sign-in cookie. With `NODE_ENV=production` the server now **refuses to start** with that exact
+   value, naming the variable. Look at what your server runs with (the platform's environment, not
+   only `.env`); if it is the example, set a new one **before you deploy 0.6** (`openssl rand -base64 32`).
+   That signs everyone out once, accounts and passwords stay. Do not "keep the value" when renaming
+   `NUXT_SESSION_PASSWORD` if it is this one. In development the server starts and warns. A site made by
+   0.6's `tinyzoo init` or `pnpm create tinyzoo` has a `.env` with a random secret of its own, and its next steps
+   no longer say to copy `.env.example`.
+3. **Deprecations that start now** (a warning at build or start; removed in 1.0, so change them
+   during 0.6):
+   - `cms.databaseUrl` in `nuxt.config.ts` writes the database address, password included, into the
+     build. Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) in the environment and delete the option.
+   - `import type { FormOptions } from 'tinyzoo'`: import it from `tinyzoo/forms`.
+   - A field named `page`, `limit`, `sort`, `dir` or `q` in a collection of the public content API has the
+     name of a parameter of its list, so it cannot be a filter. Rename the field (a rename is a
+     migration: [Renaming a field](#renaming-a-field)).
+4. **Internal exports.** Many helpers exported from `tinyzoo` (the tree, search, link and migration
+   functions, the system tables, `buildRegistry`…) are tagged `@internal`: the server, the admin and
+   the CLI use them, a site should not. They still work, and can change in any minor release. Everything
+   else that `tinyzoo`, `tinyzoo/forms`, `tinyzoo/module` and `@tinyzoo/client` export is listed in
+   [the public API](api-surface.md). If your code imports an `@internal` name, tell us what it needs
+   and use the documented API meanwhile.
+5. **Custom roles and per-field permissions.** A site can now define roles of its own and say, per
+   field, who reads and who edits it ([Roles and permissions](guide/roles.md)). **A site that does neither
+   behaves exactly as before: there is nothing to do, and no migration** (`cms_users.role` is a text column; the
+   roles live in `cms.config.ts`). To use them:
+   - `export const roles = defineRoles({ translator: { from: 'editor', … } })` from `cms.config.ts`, above the
+     entities that name it; `f.text().access({ read: [...], edit: [...] })` on a field. Then give people the
+     new role in Settings → Team.
+   - Your own row-level `access` rules get the person with a new `base` (the built-in role they are or
+     extend, `'admin' | 'editor' | 'author'`) next to `role`. If a rule says `user.role === 'author'` and you add a
+     role built on author, change it to `user.base === 'author'`, or that role is not held to it.
+   - Two behaviours differ from 0.5, in cases that did not arise through the admin:
+     an account whose stored role is **not** `admin`, `editor` or `author` (typed into the database by hand, or
+     left by a role you removed) now has **no access** and sees "Your role no longer exists", where before it was
+     treated as an editor; and with `cms.auth.mode: 'external'`, once you define roles, a role name from your
+     sign-in that you did not define has no access either (a site without `defineRoles` keeps the old behaviour).
+     `tinyzoo status` lists accounts whose role the config does not know.
+
+6. **Per-language publishing (optional).** An entity can now publish each language on its own:
+   `publish: { …, perLocale: true }` ([the guide](guide/content-model.md#publishing-each-language-on-its-own)).
+   **If you do not turn it on, nothing changes**: no step, no migration, the same pages, lists,
+   sitemap and webhooks as in 0.5. To turn it on for an entity with `.localized()` fields:
+
+   1. Add `perLocale: true` to its `publish` in `cms.config.ts`.
+   2. `tinyzoo generate`, review and commit the migration. It adds three nullable columns to the
+      entity's translation table (`<entity>_locales`: `published`, `published_at`, `first_live_at`),
+      nothing else.
+   3. `tinyzoo up` (or start with `NUXT_CMS_MIGRATIONS_ON_START`).
+
+   There is no data to move. Every language starts **following the default language**, so every
+   page, list, sitemap entry and `hreflang` alternate is exactly as before, translations and
+   entries without a translation alike. A language gets a state of its own when an editor
+   publishes, unpublishes or schedules it. Not for page trees (`tree`) yet; the config check
+   says so when the option is combined with one.
+
+   What is new for a site that turns it on: a language that is not published answers `404` for
+   the item and is left out of its list, the sitemap, the `hreflang` alternates, the search and
+   links; the webhook for it names the language in `locale` (`entry.published` and
+   `entry.unpublished`, the payload keeps its shape). A site that had its own code deciding
+   what to show per language can drop it.
+
+   **A translation that has never been published is being translated.** A first translation of
+   an entry that is already live starts as one: visitors keep getting the default language there
+   (through fallback, as before it existed) until an editor publishes it, and people who may not
+   publish can write it. This holds for a translation written through the admin API too: a first
+   translation of a published entry, without a status, is not on the website yet. A script that
+   should put a translation on the website at once sends `"status": null` with it (it then follows
+   the default language, as before); seeds do that for a translation without a status.
+
+   **The default language gates every language.** A translation is on the website only while the
+   default language is too: unpublish the default language and every language goes off (the
+   translations' own states are kept and apply again when it is published); a language can still be
+   unpublished or scheduled on its own, and a scheduled one is live from the later of its date and
+   the default language's. A language that follows is live exactly when the default language is.
+   A webhook for the default language going off names the address of each language that went off
+   with it (as for any change to the default language, one served only through it, with no
+   translation row, is not listed), and the editor says **Waiting for the default language** for a language that is published
+   but held back. Whoever may not publish also cannot remove a translation that holds a state of its
+   own (the language would follow the default language again and could go live), and shared editing
+   and the editor's read-only switch judge a translation by its own state, as saving does. If you
+   run an integration that reads `locales` or `paths` of a published item, there is nothing to change:
+   a draft is as private as before.
+
+   Export and import: the content model of an archive now says which entities publish per language
+   (a `perLocale` key, only where it is on, so every other site keeps its fingerprint). An archive
+   from 0.5 (or from a site without the option) imports into a site that has it as before: its
+   translations follow the default language, and `--merge` leaves the states already there alone.
+   An archive that carries per-language states into a site where
+   the entity does not publish per language is reported as a difference, and `--allow-mismatch`
+   imports it with a warning that the states were left out. An archive made by 0.6 with per-language
+   states cannot be imported into 0.5 faithfully: 0.5 does not know the key and drops the states
+   without a word, so keep both sites on 0.6 for it.
+
+   No migration comes with this beyond the three columns above.
+
+   With roles (step 5) one more thing: **Publish is offered to a role only if it may edit the
+   publish status field and the date field of that entity** (`.access({ edit })` on them), because a
+   publish writes both. If you put such a rule on those fields, add the roles that should publish.
+
+7. **`pnpm create tinyzoo`: nothing to do.** A new package, `create-tinyzoo`, makes a site and
+   asks for the languages, the parts (news, contact form, redirects, search) and the demo content.
+   `tinyzoo init <folder>` gets the same options (`--languages`, `--presets`, `--demo` /
+   `--no-demo`, `--package-manager`) and makes the same site as before without them. A site you already
+   have is not touched: its files are yours. If you want what a fresh starter does now (its
+   website reads the languages and its own few words from `app/utils/site.ts`, the search page
+   is `app/pages/search.vue`), make a scratch site and compare it with yours
+   (`pnpm dlx tinyzoo init ../scratch`, then `diff -r app ../scratch/app`).
+   A new site also gets an `AGENTS.md`, a short guide for the coding assistant you work with (the content
+   model workflow, the commands, what is frozen, what not to touch). To give your site the same, copy
+   `node_modules/tinyzoo/starter/AGENTS.md` into its root after updating, and add your own notes to it.
+
+8. **A decimal is a string in your types (`f.number({ int: false })`).** The column is `numeric`, and a select and
+   the content API have always returned a string (`"19.99"`), but `Row`, `Insert` and `Update` said `number`.
+   In 0.6 the types tell the truth: a `Row` has `string`, and an `Insert` or `Update` takes `number | string`.
+   **Typed code that reads a decimal as a number stops compiling** (`row.price * 2`, `price.toFixed(2)`). Run
+   `tsc` / `nuxt typecheck` after updating and fix each place with `Number(...)`:
+
+   ```ts
+   const total = Number(row.price) * quantity      // was: row.price * quantity
+   const shown = Number(row.price).toFixed(2)      // was: row.price.toFixed(2)
+   ```
+
+   Nothing changes at run time: no migration, and the content API, the OpenAPI document and the generated client
+   types are the same (they already said string). Two small things that are new: a decimal sent to a write
+   may be a number or a numeric string (the admin used to fail on a decimal it had not touched), and it is
+   stored as the string; a default is now written as a string (`.withDefault('0')`). A decimal inside a block, a list or a
+   group is typed `string` too; items saved before 0.6 may hold a number there, so read it with `Number(...)` as well.
+   A whole number (`f.number()`, `int: true`) is a number, as before.
+9. **More deprecations** (a warning at build or start; removed in 1.0, so change them during 0.6):
+   - `defineEntity('settings', { singleton: true, … })`: write `defineSingleton('settings', { … })`, which takes the same options.
+     Nothing else changes (same table, same address, same admin).
+   - The variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON`: set `scheduler: { cron: '…' }` and
+     `retention: { cron: '…' }` in the `cms` options of `nuxt.config.ts` (new). They are read **when the site is built**,
+     as before: a change needs a rebuild, and setting them on a running server does nothing. The option wins over the variable.
+10. **An `access` rule's `user` is typed** (`CmsAccessUser`: `id`, `email`, `name`, `role`, `base`, `locale`; it was `any`).
+    Rules that read those fields compile unchanged. A rule that reads something your external sign-in adds to the person
+    (a tenant, groups) gets it as `unknown`: check it before you use it (`typeof user.tenant === 'string'`), or write
+    `(user as { tenant?: string }).tenant`. With external sign-in, `email` and `name` are now `''` and `locale` is `null`
+    where your sign-in did not send them (they were missing).
+11. **Smaller changes, nothing to do:**
+    - `cms.content.publicUrl` falls back to `cms.publicUrl` (the OpenAPI `servers[].url` was relative when only the second was set).
+    - `cms.forms.notifyTo` also takes a list of addresses (`NUXT_CMS_FORMS_NOTIFY_TO` stays one comma-separated string).
+    - `defineForm` returns an `Entity` typed from its fields (and `status`): `Row<typeof ContactForm>` is no longer loose.
+    - The [frontend kit](api-surface.md#the-frontend-kit) (`<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`,
+      `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()`) is part of what 1.0 freezes; their props
+      are exported as types (`CmsImageProps`…). Other `Cms*` components are the admin's and internal.
+    - `createClient` (generated, typed) and `createCmsClient` (the untyped runtime in `@tinyzoo/client`) keep their names; the
+      [client guide](guide/content-api.md#typed-clients--openapi) says which is which.
+    - `CMS_ALLOW_REQUEST_ORIGIN` and why `NUXT_CMS_AUTH_SETUP_TOKEN` is an environment variable only are documented
+      ([deploying](deploying.md)).
+
+**Also new:** `tinyzoo help` prints every command and flag. `CmsWebhookPayload`, `CmsAdminField`,
+`CmsFieldEditProps` and `CmsFieldCellProps` are exported as types for webhook receivers and your own
+field renderers, and `CMS_WEBHOOK_HEADERS` as a constant (the names of the webhook's headers). A custom
+field renderer now gets a `readOnly` prop (`true` when the person's role may read the field but not edit
+it, or the entry is read-only for them): a renderer that is not made of native form controls should stop
+editing when it is set ([the admin guide](guide/admin.md#extensibility--the-field--view-registry)).
 
 ## On every upgrade
 

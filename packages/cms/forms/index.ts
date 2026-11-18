@@ -15,11 +15,9 @@
  * submissions (`retentionDays`) and the admin's form bits (no "New" button, the retention
  * note under the list). The forms and the settings stay the site's own entities: the
  * tables and their names are exactly what `defineForm` has always made.
- *
- * `defineForm` and `defineFormSettings` are also exported from `tinyzoo`, deprecated:
- * they still work, register this plugin by themselves and say so once.
  */
-import { defineEntity, defineSingleton, type EntityDef } from '../src/entity'
+import { defineEntity, defineSingleton, type Entity, type EntityDef } from '../src/entity'
+import type { AnyFieldDescriptor, FieldDescriptor } from '../src/descriptor'
 import { f } from '../src/fields'
 import type { LocalizedText } from '../src/i18n'
 import { defineCmsPlugin, pluginFile, type CmsPlugin, type CmsPluginRequirement } from '../src/plugin'
@@ -30,13 +28,27 @@ import { retainForms } from './retention'
  * Who may read a form's messages (list, open, export, search) and the recipients in the
  * Forms settings, unless the site says otherwise with `defineForm({ access })`: administrators
  * and editors. Messages are personal data of people who are not users of the site — an
- * author, who writes posts, has no business reading them. (A custom role of an external
- * sign-in gets no access either, until the form's `access.read` names it.)
+ * author, who writes posts, has no business reading them. A role defined with `defineRoles`
+ * follows the built-in it extends (`user.base`); a role name of an external sign-in the site
+ * does not define gets no access, until the form's `access.read` names it.
+ *
+ * @internal
  */
-export const formsReadAccess: NonNullable<EntityDef<any>['access']>['read'] = ({ user }) => user?.role === 'admin' || user?.role === 'editor'
+export const formsReadAccess: NonNullable<EntityDef<any>['access']>['read'] = ({ user }) => {
+  // `base`: the built-in role a custom role extends, so one built on editor reads too (narrow it with `entities`).
+  const base = user?.base ?? user?.role
+  return base === 'admin' || base === 'editor'
+}
 
-/** Field types a visitor can fill in on a website form. */
+/**
+ * Field types a visitor can fill in on a website form.
+ *
+ * @internal
+ */
 export const FORM_FIELD_TYPES = new Set(['text', 'number', 'boolean', 'select', 'datetime'])
+
+/** The state of a submission (`new`, `read`, `done`), the one field `defineForm` adds to the form's own. */
+export type FormStatusField = FieldDescriptor<{ out: 'new' | 'read' | 'done'; in: 'new' | 'read' | 'done'; col: 'scalar'; optionalIn: true }>
 
 export interface FormOptions<F extends Record<string, any>> {
   /** The form's name in the admin ("Contact form", { cs: 'Kontaktní formulář' }). */
@@ -68,7 +80,7 @@ export interface FormOptions<F extends Record<string, any>> {
    * editors read them (authors do not, whatever else they may do): write a rule to widen
    * or narrow that, the same rules entities have everywhere:
    *
-   *   access: { read: ({ user }) => user.role !== 'author' || user.id === '…' }
+   *   access: { read: ({ user }) => user.base !== 'author' || user.id === '…' }
    *
    * A rule given here for `read` replaces the default; `update` and `delete` narrow what the
    * roles allow, as always. It decides the list, a message, the CSV export, search and the
@@ -77,7 +89,11 @@ export interface FormOptions<F extends Record<string, any>> {
   access?: EntityDef<F>['access']
 }
 
-/** What an entity made by this plugin's helpers says about the plugin it needs. */
+/**
+ * What an entity made by this plugin's helpers says about the plugin it needs.
+ *
+ * @internal
+ */
 export const FORMS_REQUIREMENT: CmsPluginRequirement = {
   plugin: 'forms',
   hint: 'add `export const plugins = [formsPlugin()]` to cms.config.ts (`import { formsPlugin } from \'tinyzoo/forms\'`).',
@@ -101,8 +117,11 @@ export const FORMS_REQUIREMENT: CmsPluginRequirement = {
  *   // or POST /api/content/_form/contactForm { name, email, message }
  *
  * Needs `formsPlugin()` in the site's `plugins`.
+ *
+ * The entity is typed from the form's fields plus `status`, so `Row<typeof ContactForm>` has
+ * `name`, `email`, `message` and `status` with their real types.
  */
-export function defineForm<F extends Record<string, any>>(name: string, opts: FormOptions<F>) {
+export function defineForm<F extends Record<string, AnyFieldDescriptor>>(name: string, opts: FormOptions<F>): Entity<F & { status: FormStatusField }> {
   if (opts.retentionDays !== undefined && (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1)) {
     throw new Error(`Form "${name}": retentionDays must be a whole number of days, at least 1 (leave it out to keep submissions).`)
   }
@@ -140,7 +159,7 @@ export function defineForm<F extends Record<string, any>>(name: string, opts: Fo
     notify: { to: opts.notify?.to ?? [] },
     retentionDays: opts.retentionDays ?? null,
   }
-  return e
+  return e as unknown as Entity<F & { status: FormStatusField }>
 }
 
 /**

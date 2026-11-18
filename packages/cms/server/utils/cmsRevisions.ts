@@ -12,8 +12,10 @@ import { and, desc, eq, inArray, isNull, notInArray, type CmsEntity } from 'tiny
 
 /** The values a snapshot holds: the editable fields (+ media records for previews). */
 function snapshotOf(e: CmsEntity, row: Record<string, any>, locale: string | null): Record<string, any> {
+  // A language that publishes on its own keeps its state in the snapshot too (status and date).
+  const state = locale && e.publish?.perLocale ? [e.publish.field, e.publish.dateField] : []
   const keys = Object.entries(e.fields)
-    .filter(([key, f]) => (f as any).relation?.kind !== 'one-to-many' && (!locale || e.localized.includes(key)))
+    .filter(([key, f]) => (f as any).relation?.kind !== 'one-to-many' && (!locale || e.localized.includes(key) || state.includes(key)))
     .map(([key]) => key)
   const out: Record<string, any> = {}
   for (const k of keys) {
@@ -43,6 +45,7 @@ export async function recordRevision(event: any, e: CmsEntity, id: string, local
       const found = (await translationRows(db, e, [id], locale)).get(id)
       const tr = found ? upgradedCopy(e, found, { recordId: id }) : found
       for (const k of e.localized) row[k] = tr?.[k] ?? null
+      if (tr) applyTranslationState(e, row, tr)
       version = tr?.updatedAt ?? null
     }
     const data = snapshotOf(e, row, locale)

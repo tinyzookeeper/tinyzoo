@@ -7,9 +7,17 @@ import { sitePath, type PathTemplate } from './paths'
  * No database here: the server loads the nodes and asks these functions.
  */
 
-/** The deepest a tree may be configured to go (a page at the top is depth 1). */
+/**
+ * The deepest a tree may be configured to go (a page at the top is depth 1).
+ *
+ * @internal
+ */
 export const TREE_MAX_DEPTH_LIMIT = 10
-/** Depth limit when `definePages({ tree: true })` says nothing else. */
+/**
+ * Depth limit when `definePages({ tree: true })` says nothing else.
+ *
+ * @internal
+ */
 export const TREE_DEFAULT_MAX_DEPTH = 4
 
 /** What the tree needs of an entity (from `defineEntity({ tree })`). */
@@ -22,7 +30,11 @@ export interface TreeConfig {
   maxDepth: number
 }
 
-/** One entry as the tree sees it. */
+/**
+ * One entry as the tree sees it.
+ *
+ * @internal
+ */
 export interface TreeNode {
   id: string
   parentId: string | null
@@ -37,18 +49,28 @@ export interface TreeNode {
   position?: number
 }
 
+/** @internal */
 export type TreeIndex = Map<string, TreeNode>
 
-/** Does the node have an address in this language? The default language always; others when translated. */
+/**
+ * Does the node have an address in this language? The default language always; others when translated.
+ *
+ * @internal
+ */
 export function existsIn(node: TreeNode, locale: string | null, defaultLocale: string | null): boolean {
   return !locale || locale === defaultLocale || !!node.locales?.includes(locale)
 }
 
+/** @internal */
 export function indexTree(nodes: TreeNode[]): TreeIndex {
   return new Map(nodes.map((n) => [n.id, n]))
 }
 
-/** The address part of a node in a language: its translation, else the default one. */
+/**
+ * The address part of a node in a language: its translation, else the default one.
+ *
+ * @internal
+ */
 export function slugIn(node: TreeNode, locale: string | null, defaultLocale: string | null): string {
   if (locale && locale !== defaultLocale) {
     const t = node.slugs?.[locale]
@@ -57,7 +79,11 @@ export function slugIn(node: TreeNode, locale: string | null, defaultLocale: str
   return node.slug
 }
 
-/** The title of a node in a language, falling back to the default. */
+/**
+ * The title of a node in a language, falling back to the default.
+ *
+ * @internal
+ */
 export function titleIn(node: TreeNode, locale: string | null, defaultLocale: string | null): string {
   if (locale && locale !== defaultLocale) {
     const t = node.titles?.[locale]
@@ -69,6 +95,8 @@ export function titleIn(node: TreeNode, locale: string | null, defaultLocale: st
 /**
  * The nodes from the top of the tree down to `id` (the node itself last). Stops at an
  * unknown parent or a loop (a stored loop cannot be made through the API).
+ *
+ * @internal
  */
 export function chainOf(index: TreeIndex, id: string): TreeNode[] {
   const out: TreeNode[] = []
@@ -82,11 +110,16 @@ export function chainOf(index: TreeIndex, id: string): TreeNode[] {
   return out
 }
 
-/** Level of a node: 1 for a top-level page. */
+/**
+ * Level of a node: 1 for a top-level page.
+ *
+ * @internal
+ */
 export function depthOf(index: TreeIndex, id: string): number {
   return chainOf(index, id).length
 }
 
+/** @internal */
 export function childrenMap(nodes: Iterable<TreeNode>): Map<string | null, TreeNode[]> {
   const out = new Map<string | null, TreeNode[]>()
   for (const n of nodes) {
@@ -97,7 +130,11 @@ export function childrenMap(nodes: Iterable<TreeNode>): Map<string | null, TreeN
   return out
 }
 
-/** Siblings in their order (position, then title, then id so the order never wobbles). */
+/**
+ * Siblings in their order (position, then title, then id so the order never wobbles).
+ *
+ * @internal
+ */
 export function sortSiblings(list: TreeNode[]): TreeNode[] {
   return [...list].sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || (a.title ?? '').localeCompare(b.title ?? '') || (a.id < b.id ? -1 : 1))
 }
@@ -106,6 +143,8 @@ export function sortSiblings(list: TreeNode[]): TreeNode[] {
  * Gap between neighbouring positions. Positions are left sparse so that putting a page
  * between two others only writes that page; the siblings are renumbered (`placeAmong`) only
  * when two neighbours have no whole number between them.
+ *
+ * @internal
  */
 export const TREE_POSITION_STEP = 1024
 /** Positions stay well inside a 32-bit integer column. */
@@ -121,6 +160,8 @@ const TREE_POSITION_LIMIT = 1_000_000_000
  * neighbours (or the numbers have grown too large), `renumbered`: new positions for every
  * page under the parent (the page included) so the caller can rewrite them in one go.
  * Otherwise `renumbered` is empty and only the page itself is written.
+ *
+ * @internal
  */
 export function placeAmong(siblings: TreeNode[], id: string, index: number | undefined, keep: number | null): { position: number; renumbered: Map<string, number> } {
   const at = Math.min(Math.max(index ?? siblings.length, 0), siblings.length)
@@ -143,7 +184,11 @@ export function placeAmong(siblings: TreeNode[], id: string, index: number | und
   return { position: renumbered.get(id)!, renumbered }
 }
 
-/** Everything below a node (not the node), parents before children, siblings in order. */
+/**
+ * Everything below a node (not the node), parents before children, siblings in order.
+ *
+ * @internal
+ */
 export function descendantsOf(index: TreeIndex, id: string, children = childrenMap(index.values())): TreeNode[] {
   const out: TreeNode[] = []
   const seen = new Set<string>([id])
@@ -159,7 +204,11 @@ export function descendantsOf(index: TreeIndex, id: string, children = childrenM
   return out
 }
 
-/** Levels below a node: 0 for a page without children. */
+/**
+ * Levels below a node: 0 for a page without children.
+ *
+ * @internal
+ */
 export function heightOf(index: TreeIndex, id: string, children = childrenMap(index.values())): number {
   const walk = (cur: string, seen: Set<string>): number => {
     let h = 0
@@ -172,7 +221,11 @@ export function heightOf(index: TreeIndex, id: string, children = childrenMap(in
   return walk(id, new Set([id]))
 }
 
-/** One node's chain of address parts in a language: ['o-nas', 'tym']. */
+/**
+ * One node's chain of address parts in a language: ['o-nas', 'tym'].
+ *
+ * @internal
+ */
 export function slugChain(index: TreeIndex, id: string, locale: string | null, defaultLocale: string | null): string[] {
   return chainOf(index, id).map((n) => slugIn(n, locale, defaultLocale))
 }
@@ -181,6 +234,8 @@ export function slugChain(index: TreeIndex, id: string, locale: string | null, d
  * The address of a node in a language, prefix included ('/en/about/team'), or null
  * when the collection has no page in that language. The ancestors' address parts are
  * joined with '/', each escaped for a URL.
+ *
+ * @internal
  */
 export function treeAddress(
   locales: LocalesDef | null, template: PathTemplate | undefined | null, key: string,
@@ -192,13 +247,18 @@ export function treeAddress(
   return sitePath(locales, template, locale, { [key]: parts })
 }
 
-/** What is wrong with a proposed change of a tree; the server turns it into a 422 or 409. */
+/**
+ * What is wrong with a proposed change of a tree; the server turns it into a 422 or 409.
+ *
+ * @internal
+ */
 export type TreeProblem =
   | { code: 'tree_cycle'; message: string; loop: string[] }
   | { code: 'tree_depth'; message: string; depth: number; maxDepth: number }
   | { code: 'tree_parent_missing'; message: string }
   | { code: 'tree_address_taken'; message: string; locale: string | null; path: string; otherId: string; otherTitle: string }
 
+/** @internal */
 export interface TreeChange {
   /** The entry being created (its id is already chosen) or changed. */
   id: string
@@ -213,7 +273,11 @@ export interface TreeChange {
   locales?: string[]
 }
 
-/** The tree as it would be after a change (the node added or replaced). */
+/**
+ * The tree as it would be after a change (the node added or replaced).
+ *
+ * @internal
+ */
 export function applyChange(nodes: TreeNode[], change: TreeChange): TreeNode[] {
   const existing = nodes.find((n) => n.id === change.id)
   const next: TreeNode = {
@@ -228,6 +292,7 @@ export function applyChange(nodes: TreeNode[], change: TreeChange): TreeNode[] {
   return [...nodes.filter((n) => n.id !== change.id), next]
 }
 
+/** @internal */
 export interface TreeCheckOptions {
   maxDepth: number
   locales: LocalesDef | null
@@ -247,6 +312,8 @@ export interface TreeCheckOptions {
  * the addresses of the entry and everything below it must stay unique per language.
  * Addresses that were already shared before (older data) do not block an unrelated edit:
  * only the entry and what is below it are compared, and only against others.
+ *
+ * @internal
  */
 export function checkTreeChange(nodes: TreeNode[], change: TreeChange, opts: TreeCheckOptions): TreeProblem | null {
   const titleOf = (n: TreeNode | undefined) => (n && opts.visible && !opts.visible(n.id) ? '…' : n?.title || '…')
@@ -303,7 +370,11 @@ export function checkTreeChange(nodes: TreeNode[], change: TreeChange, opts: Tre
   return null
 }
 
-/** An address that changed with a write: where it was and where it is now. */
+/**
+ * An address that changed with a write: where it was and where it is now.
+ *
+ * @internal
+ */
 export interface MovedPath { id: string; locale: string | null; from: string; to: string }
 
 /**
@@ -313,6 +384,8 @@ export interface MovedPath { id: string; locale: string | null; from: string; to
  * nothing to move from; one that lost its translation moves to the address it now falls
  * back to; one that got its first translation does not move (its default-language address
  * still finds it).
+ *
+ * @internal
  */
 export function movedPaths(
   before: TreeNode[], after: TreeNode[], ids: string[],
@@ -337,7 +410,11 @@ export function movedPaths(
   return out
 }
 
-/** A problem found in a whole tree (see `checkTree`); `ids` are the pages it involves. */
+/**
+ * A problem found in a whole tree (see `checkTree`); `ids` are the pages it involves.
+ *
+ * @internal
+ */
 export type TreeIssue =
   | { code: 'tree_cycle'; message: string; ids: string[]; loop: string[] }
   | { code: 'tree_depth'; message: string; ids: string[]; depth: number; maxDepth: number }
@@ -349,6 +426,8 @@ export type TreeIssue =
  * is its own ancestor, nothing is deeper than `maxDepth`, every page has an address of
  * its own in each language. For data that did not come through the API (an import).
  * Lists up to `limit` problems; each says which pages it involves.
+ *
+ * @internal
  */
 export function checkTree(nodes: TreeNode[], opts: TreeCheckOptions, limit = 50): TreeIssue[] {
   const issues: TreeIssue[] = []

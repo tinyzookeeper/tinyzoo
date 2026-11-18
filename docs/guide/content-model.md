@@ -79,7 +79,7 @@ these are all the types.
 |---|---|---|---|
 | `f.text(opts)` | a line of text (or a growing box with `multiline: true`) | `text` | names, titles, short texts. `max` caps the length. `format: 'email'`, `'url'` (a full `https://…` address), `'path'` (an address on this site, `/old-page`) or `'link'` (a page, `https://…`, `mailto:`, `tel:` or an anchor; the only one that can hold a [reference to a page](#links-that-follow-their-page)) checks the value. Spaces around it are trimmed |
 | `f.slug({ from, unique })` | a lowercase-and-dashes address part, filled in from the `from` field until edited | `text` | the part of a web address (`/blog/:slug`). `unique: true` adds a unique index. Can be `.localized()` |
-| `f.number({ int, min, max })` | a number box | `integer` (`int: false`: `numeric(12,2)`) | counts, positions, prices |
+| `f.number({ int, min, max })` | a number box | `integer` (`int: false`: `numeric(12,2)`) | counts, positions, prices. **A decimal (`int: false`) is a string** in a `Row`, in a select and in the content API (`"19.99"`: a number could not hold it exactly): read it with `Number(row.price)`. `Insert` and `Update` take a number or a numeric string. A whole number is a number everywhere |
 | `f.boolean({ default, mustBeTrue })` | a switch | `boolean`, never null (default `false`) | "Show on the home page", "Open in a new tab". `mustBeTrue: true` refuses `false`: a consent on a [website form](recipes.md#1-a-contact-form) that must be ticked (the form marks it required and tells the visitor, in their language, to tick it) |
 | `f.datetime({ default: 'now', allDay })` | a date and time picker in the admin's time zone; `allDay: true` adds an "All day" switch (stored at 0:00) | `timestamptz` | when something happens or goes live |
 | `f.select({ options, default, labels, icons })` | a choice | a Postgres enum | status, kind, category. `options` must be `as const`; `labels` give each option a name per admin language, `icons` an icon |
@@ -279,7 +279,8 @@ and how to draw a picture on the website: [Media](media.md).
 
 `defineSingleton(name, options)` makes a **global**: a single-row record like site settings or
 the home page, edited as one form under **Settings** in the admin (no list, no "new", no delete). It takes the
-same options as `defineEntity` except `admin.list`:
+same options as `defineEntity` except `admin.list`. (The `singleton` option of `defineEntity` makes the same thing
+but is deprecated and warns at start: use `defineSingleton`.)
 
 ```ts
 export const SiteSettings = defineSingleton('siteSettings', {
@@ -463,7 +464,8 @@ visitor's language). A `f.select` with a `default` opens on it, a consent is
 (send `_locale: 'cs'` for the refused fields' messages in that language; they come back in
 `data[].message`); `GET` on the same address describes the form.
 Each submission becomes an entry (state New / Read / Done) and the people in Forms
-settings get an email (fallback: `notify.to` in code, then `NUXT_CMS_FORMS_NOTIFY_TO`).
+settings get an email (fallback: `notify.to` in code, then `cms.forms.notifyTo` / `NUXT_CMS_FORMS_NOTIFY_TO`: an address, a list, or in the variable a comma-separated string).
+`defineForm` returns an `Entity` typed from the form's fields, so `Row<typeof ContactForm>` has `name`, `email`, `message` and the state `status` with their real types.
 Spam protection: a hidden field, a minimum fill-in time, a rate limit per visitor,
 same-site Origin, and Cloudflare Turnstile when `NUXT_CMS_FORMS_TURNSTILE_SECRET` and
 `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` are set. Robots get the same `201` as a real
@@ -510,7 +512,8 @@ URL addresses unique per language) and fall back per field to the default. The
 admin edits a translation with the language switcher (default text shown as
 reference). The content API takes `?locale=en`, finds items by translated URL
 addresses, searches in the language, translates related items, and adds `locale` +
-`locales` to each item. Publishing applies to all languages.
+`locales` to each item. Publishing applies to all languages, unless the entity
+[publishes each language on its own](#publishing-each-language-on-its-own).
 
 `defineLocales` also takes `prefix`, which says which languages get a `/xx/` in their addresses:
 `'except-default'` (the default: `/en/about`, but Czech stays `/o-nas`), `'all'` or `'none'`, and
@@ -592,9 +595,114 @@ date in the future is "scheduled", and the entry is live only from that moment o
 content API, the sitemap and the webhooks all follow it). `schedule: false` turns that
 off: a date in the future no longer holds a published entry back.
 
+### Publishing each language on its own
+
+By default the status and the publish date of an entry hold for every language: publish a post and
+it is live in all of them. Add `perLocale: true` to an entity's `publish` and each translation
+can have a state and a schedule of its own:
+
+```ts
+publish: {
+  field: 'status', publishedValue: 'published', draftValue: 'draft',
+  dateField: 'publishedAt',
+  perLocale: true,
+},
+```
+
+The default language's state stays on the entry. A translation **follows the default language
+until someone publishes or unpublishes it on its own** (the editor's Publish, Unpublish and
+Schedule act on the language being edited; "Follow the default language again" gives the choice
+back). So switching `perLocale` on changes nothing on the website, including for entries that have
+no translation at all and are served in other languages through the fallback.
+
+**A translation that has never been published is being translated.** Start the English translation of
+a post that is already live, and it is a draft of its own that has never been on the website: visitors
+keep getting exactly what they got before, the default language through fallback (while that one is
+live), and none of the draft's text, address or state. It stays like that, however often it is saved,
+until someone who may publish publishes it (or schedules it: until its date the fallback stays); from
+then on it is that language's own published state. Whoever may edit the entry can start, write and remove
+such a translation, a role that may not publish included, because nothing visitors see changes. A
+translation of a post that is still a draft follows it, as before, and goes live with it.
+
+A language that is **not published is not there** in that language:
+
+| Where | What visitors get |
+|---|---|
+| `GET /api/content/<entity>/<slug>?locale=en` | `404`, by the translated address and by the default one |
+| the list, `?locale=en` | left out (and from `total`) |
+| the item's `locales` and `paths` | only the languages it is live in |
+| the sitemap and its `hreflang` alternates | no entry for it, and not among the others' alternates |
+| the website search, `?locale=en` | not found |
+| links to it (rich text, link fields, menus) | resolve to `null` in that language, like a link to a draft |
+
+Unpublishing a language takes it off, also one that had no translation of its own and was served
+through the default language: that one is a `404` from then on, not being translated. A translation
+being translated is different: for visitors it is not there at all, so they get the default language
+as if it had no translation (the item by its default address, the lists, the search, the sitemap
+and the addresses of links, all in the default language's words).
+
+An editor's `?preview` (a signed-in session, or the content token) still sees the draft
+translation, a translation being translated included. Inside a published translation the per-field fallback to the default language
+applies as before: a field left empty shows the default language's text.
+
+**The default language gates every other language.** A translation is live only while the default
+language is live too. Unpublish the default language and every language goes off the website, whatever
+its own state says; the translation's own state is kept, and it is back when the default language is
+published again. A language can still be unpublished on its own, and scheduled on its own: it is live
+from the later of its date and the default language's. A language that follows is live exactly when the
+default language is. The reason is the translation's untranslated fields: they show the default
+language's text, so a translation of a draft would show the draft (and its fallback text) to the public.
+In the admin a language that is published but held back says **Waiting for <default language>**, and one being
+translated says **Being translated**.
+
+**What editors see.** The editor's top bar names the language and its state (*English · Draft*), and Publish…,
+Update, Unpublish and Schedule act on that language only; its review step is *Publish the English version* and says
+when the default language is still a draft. The menu has *Follow the default language again*. The language switcher and
+the side panel list every language with its state, and the list's Languages column shows a mark per language (a dot
+on the website, a ring for a draft, a clock when scheduled, an hourglass when waiting for the default language, a
+languages mark when being translated). The dashboard's drafts and the admin's search say *Being translated* too, and the
+review step of one says that visitors see the default language there until now. On a phone the language and its state in the top bar open the language switcher. The editors' guide explains it in their
+words: [Překlady](../editors/cs/preklady.md#každý-jazyk-zvlášť).
+
+**Translators who may not publish.** A role with `publish: false` can start the translation of a live post: it is
+being translated, and an editor publishes it when it is ready. It can write a language that is not live (being
+translated, or taken off by an editor, or following a draft), not one that is live (published on its own, or a
+translation that follows a live default language). The [worked example](roles.md#worked-example-a-translator) sets up
+such a role, a field only editors may change, and `perLocale` together.
+
+**Schedules and webhooks follow.** A translation with its own date goes live at that moment (the
+scheduler announces `entry.published` with that `locale`). Publishing or unpublishing one language
+sends `entry.published` / `entry.unpublished` with its `locale` and `paths` for that language
+only. A change to the default language names every language that is live (`locale: null`, the
+addresses of all of them that have a translation or a state of their own), so unpublishing the
+default language purges the languages that went off with it; publishing a language while the default
+language is a draft is not public and sends nothing. Saving a translation being translated, or removing
+one, sends nothing public either (visitors see no change); publishing it sends `entry.published` with its
+`locale`, and `paths` both its own address and the one visitors read the default language at until then.
+When the default language goes live on its date
+the scheduler announces it, and then each language that was only waiting for it. Those who may not
+publish cannot publish, unpublish or reschedule a language, cannot remove a translation that holds a
+state of its own (the language would follow the default language again, which can put it on the
+website) unless it is being translated, and cannot change a language that is marked published (or follows
+a live default language).
+
+In the admin API (`PATCH /api/cms/<entity>/<id>?locale=en`) the state is written with the entry's
+own keys: `{ "status": "draft" }`, `{ "status": "published", "publishedAt": "2026-12-01T09:00:00Z" }`,
+or `{ "status": null }` to follow the default language again. A date needs its status. A first
+translation of an entry whose status is published, written without a status, is being translated;
+send `"status": null` with it to have it follow the default language (and go live) at once. The
+translation table keeps when the language was first on the website in its own right
+(`first_live_at`; null while it is being translated). Export and import (`translations[].publish`,
+`firstLiveAt` included), seeds (`translations: { en: { title: 'Home', status: 'draft' } }`; a seed's
+translation without a status follows the default language) and the history of a language carry the
+state. Not available for page trees (`tree`) yet.
+
+Turning it on is one migration: [upgrading](../upgrading.md#from-05-to-06).
+
 ## Access rules
 
-Three roles come with every site, whatever the config says:
+Three roles come with every site, whatever the config says (a site can add its own, and set who
+reads and edits each field: [Roles and permissions](roles.md)):
 
 | Role | Can |
 |---|---|
@@ -609,18 +717,23 @@ signed-in person and the table and returns a Drizzle condition (or `true`); it i
 import { eq, ilike, not } from 'tinyzoo'
 
 access: {
-  read: ({ user, table }) => (user.role === 'author' ? not(ilike(table.title, 'Interní%')) : true),
+  read: ({ user, table }) => (user.base === 'author' ? not(ilike(table.title, 'Interní%')) : true),
   update: ({ user, table }) => eq(table.authorId, user.id),
 },
 ```
 
 `read`, `create`, `update` and `delete` can each be given; `eq`, `ne`, `gt`, `and`, `or`,
 `not`, `ilike`, `inArray`, `isNull`, `sql` and the rest of Drizzle's helpers are exported
-from `tinyzoo`. Rules apply to everything a signed-in person does in the admin (lists, forms, search, the
+from `tinyzoo`. `user` is a `CmsAccessUser`: `id`, `email`, `name`, `locale`, `role` (the role's name as stored for the
+person) and `base` (the built-in role it is or extends: `'admin'`, `'editor'`, `'author'`, or `null` for a role name of an
+external sign-in that the site did not define). Test `base` to hold a custom role to its parent's rules. With an external
+sign-in, anything else your sign-in puts on the person is there too, typed `unknown`: check it before you use it
+(`typeof user.tenant === 'string'`); `email` and `name` are `''` and `locale` is `null` when it did not send them. Rules apply to everything a signed-in person does in the admin (lists, forms, search, the
 link picker, `?preview`); they do not change the public content API, which serves what
 `content.published` allows. Every request re-reads the
-account, so a disabled person or a changed role takes effect at once. Custom roles and
-per-field permissions are not built yet.
+account, so a disabled person or a changed role takes effect at once. Roles of your own
+(`defineRoles`), `.access({ read, edit })` per field and the media library per role are in
+[Roles and permissions](roles.md).
 
 ## Reading content
 

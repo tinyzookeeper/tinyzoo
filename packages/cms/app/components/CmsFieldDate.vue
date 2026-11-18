@@ -8,7 +8,7 @@
 import type { ButtonProps } from '@nuxt/ui'
 import { CalendarDate } from '@internationalized/date'
 
-const props = defineProps<{ field: any; entity?: string; id?: string }>()
+const props = defineProps<{ field: any; entity?: string; id?: string; readOnly?: boolean }>()
 // The field's own id belongs to the date button the label points at; the other controls inside
 // would all take the form field's generated id (and each other's): one id on the page, once.
 const timeId = computed(() => (props.id ? `${props.id}-time` : undefined))

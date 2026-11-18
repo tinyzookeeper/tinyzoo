@@ -388,8 +388,10 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
     if (locale === defaultLocale) throw new SeedError(`${label}: ${locale} is the default language; give those values to s.create / s.upsert / s.global itself.`)
     if (!locales.locales.includes(locale)) throw new SeedError(`${label}: ${locale} is not one of the site's languages (${locales.locales.join(', ')}).`)
     if (!e.localized.length) throw new SeedError(`${e.name} has nothing to translate (no field is .localized()).`)
-    const wrong = Object.keys(data ?? {}).filter((k) => !e.localized.includes(k))
-    if (wrong.length) throw new SeedError(`${label}: ${wrong.join(', ')} ${wrong.length > 1 ? 'are' : 'is'} not translated per language; translatable fields: ${e.localized.join(', ')}.`)
+    // With publish.perLocale a language also has a state of its own: the entry's status and publish date, said per language.
+    const stateKeys = e.publish?.perLocale ? [e.publish.field, ...(e.publish.dateField ? [e.publish.dateField] : [])] : []
+    const wrong = Object.keys(data ?? {}).filter((k) => !e.localized.includes(k) && !stateKeys.includes(k))
+    if (wrong.length) throw new SeedError(`${label}: ${wrong.join(', ')} ${wrong.length > 1 ? 'are' : 'is'} not translated per language; translatable fields: ${[...e.localized, ...stateKeys].join(', ')}.`)
     const scope = `${e.name}/${entry.kind === 'entry' ? describe(entry.key) : '-'}/${locale}`
     const wanted = prepare(e, data, scope, label)
     await doing(label, async () => {
@@ -400,11 +402,21 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
         note({ action: 'kept', kind: 'translation', entity: e.name, label })
         return
       }
-      const changed = changedKeys(translated ? stored : null, wanted)
+      // A language that follows the default one has no state of its own yet: what the seed says about it is a change,
+      // even where the state it follows is the same. A language with a state but no text is a row the seed may fill in.
+      const known = translated || !!stored?.__stateOwn
+      const compared = known && stored ? { ...stored } : null
+      if (compared && !stored!.__stateOwn) for (const k of stateKeys) delete compared[k]
+      const changed = changedKeys(compared, wanted)
       if (!changed.length) { note({ action: 'unchanged', kind: 'translation', entity: e.name, label }); return }
       if (apply) {
         if (entry.kind === 'global') await backend.putGlobal(e.name, wanted, locale)
-        else await backend.update(e.name, entry.id, wanted, locale)
+        else {
+          // A seed's translation is content as it should be: one without a state of its own follows the default language
+          // (a first translation written through the API otherwise starts as being translated: not on the website yet).
+          const follows = !!e.publish?.perLocale && !known && !stateKeys.some((k) => k in wanted)
+          await backend.update(e.name, entry.id, follows ? { ...wanted, [e.publish!.field]: null } : wanted, locale)
+        }
       }
       note({ action: translated ? 'updated' : 'created', kind: 'translation', entity: e.name, label, fields: changed })
     })

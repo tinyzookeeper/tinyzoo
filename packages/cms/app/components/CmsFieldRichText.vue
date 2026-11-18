@@ -9,7 +9,12 @@ import type { CmsCollab } from '../composables/useCmsCollab'
 // blocks, on a new entry, or when the shared document cannot be reached — the field
 // edits on its own, as always.
 defineOptions({ inheritAttrs: false })
-const props = defineProps<{ field?: any }>()
+const props = defineProps<{
+  field?: any
+  readOnly?: boolean
+  /** Translating: the default language's text, greyed behind the empty editor (else CmsField's `fallback`). */
+  fallback?: unknown
+}>()
 const model = defineModel<any>()
 const { t, fieldLabel } = useCmsI18n()
 const label = computed(() => (props.field ? fieldLabel(props.field) : undefined))
@@ -19,6 +24,9 @@ const labelledby = computed(() => (attrs['aria-labelledby'] as string | undefine
 // Everything else (the id) stays on the box; the label belongs to the textbox inside, not to the wrapper.
 const rest = computed(() => { const { 'aria-labelledby': _l, ...r } = attrs; return r })
 const collab = inject<CmsCollab | null>('cmsCollab', null)
+// Translating: the default language's text, shown greyed behind the empty editor (CmsField's `fallback`).
+const fallbackRef = inject<Ref<unknown> | null>('cmsFieldFallback', null)
+const fallback = computed(() => props.fallback ?? fallbackRef?.value ?? null)
 
 const shared = computed(() => !!collab && !!props.field?.key && collab.status.value !== 'off'
   && (collab.status.value === 'connecting' || collab.fields.value.has(props.field.key)))
@@ -32,7 +40,7 @@ const current = computed(() => {
 </script>
 
 <template>
-  <CmsRichTextEditor v-if="ready && current" :key="`shared-${collab!.generation.value}`" v-model="model" :collab="current" :label="label" :labelledby="labelledby" v-bind="rest" />
+  <CmsRichTextEditor v-if="ready && current" :key="`shared-${collab!.generation.value}`" v-model="model" :collab="current" :label="label" :labelledby="labelledby" :fallback="fallback" v-bind="rest" />
   <!-- while the shared text connects: the saved text, dimmed and not yet editable -->
   <div v-else-if="shared" v-bind="rest" class="w-full rounded-lg border border-default bg-default" aria-busy="true">
     <div class="flex h-9 items-center gap-2 border-b border-default bg-elevated/30 px-3 text-xs text-muted">
@@ -41,5 +49,5 @@ const current = computed(() => {
     <CmsContent v-if="model" :doc="model" class="cms-prose min-h-32 px-4 py-3 opacity-60" />
     <div v-else class="min-h-32" />
   </div>
-  <CmsRichTextEditor v-else key="alone" v-model="model" :label="label" :labelledby="labelledby" v-bind="rest" />
+  <CmsRichTextEditor v-else key="alone" v-model="model" :label="label" :labelledby="labelledby" :fallback="fallback" v-bind="rest" />
 </template>

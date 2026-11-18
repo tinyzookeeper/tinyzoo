@@ -1,0 +1,2572 @@
+[
+  {
+    "name": "category",
+    "locales": {
+      "default": "cs",
+      "all": [
+        "cs",
+        "en",
+        "de"
+      ],
+      "labels": {
+        "cs": "Čeština",
+        "en": "English",
+        "de": "Deutsch"
+      }
+    },
+    "label": {
+      "en": "Categories",
+      "cs": "Kategorie"
+    },
+    "labelSingular": "Category",
+    "description": "Groups events.",
+    "icon": "i-lucide-tag",
+    "titleField": "name",
+    "preset": null,
+    "adminCreate": true,
+    "notices": [],
+    "plugin": null,
+    "singleton": false,
+    "previewPaths": null,
+    "editor": "form",
+    "listLayout": "table",
+    "listColumns": [
+      "name",
+      "color"
+    ],
+    "searchable": [
+      "name"
+    ],
+    "orderField": "order",
+    "tree": null,
+    "tabs": null,
+    "sections": null,
+    "fields": [
+      {
+        "key": "name",
+        "type": "text",
+        "optional": false,
+        "localized": true,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Name"
+          }
+        }
+      },
+      {
+        "key": "slug",
+        "type": "slug",
+        "optional": false,
+        "localized": true,
+        "required": true,
+        "unique": true,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldSlug",
+          "cell": "CmsCellCode"
+        },
+        "meta": {
+          "from": "name"
+        }
+      },
+      {
+        "key": "color",
+        "type": "text",
+        "optional": false,
+        "localized": false,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldColor",
+          "cell": "CmsCellColor"
+        },
+        "meta": {
+          "format": "color"
+        }
+      },
+      {
+        "key": "order",
+        "type": "number",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldNumber",
+          "cell": "CmsCellNumber"
+        },
+        "meta": {}
+      },
+      {
+        "key": "events",
+        "type": "relation",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldRelationOne",
+          "cell": "CmsCellRelation"
+        },
+        "meta": {
+          "kind": "one-to-many"
+        },
+        "relation": {
+          "to": "event",
+          "kind": "one-to-many",
+          "required": false
+        }
+      }
+    ]
+  },
+  {
+    "name": "event",
+    "locales": {
+      "default": "cs",
+      "all": [
+        "cs",
+        "en",
+        "de"
+      ],
+      "labels": {
+        "cs": "Čeština",
+        "en": "English",
+        "de": "Deutsch"
+      }
+    },
+    "label": {
+      "en": "Events",
+      "cs": "Akce"
+    },
+    "labelSingular": {
+      "en": "Event",
+      "cs": "Akce"
+    },
+    "description": {
+      "en": "What happens, and when.",
+      "cs": "Co se děje a kdy."
+    },
+    "icon": "i-lucide-calendar",
+    "titleField": "title",
+    "preset": null,
+    "adminCreate": true,
+    "notices": [],
+    "plugin": null,
+    "singleton": false,
+    "publish": {
+      "field": "status",
+      "publishedValue": "published",
+      "draftValue": "draft",
+      "dateField": "publishedAt",
+      "schedule": true,
+      "preview": "/events/:slug",
+      "perLocale": true
+    },
+    "previewPaths": {
+      "cs": "/events/:slug",
+      "en": "/en/events/:slug",
+      "de": "/de/events/:slug"
+    },
+    "editor": "form",
+    "listLayout": "dated",
+    "listColumns": [
+      "title",
+      "status",
+      "startsAt",
+      "category"
+    ],
+    "searchable": [
+      "title",
+      "place"
+    ],
+    "orderField": null,
+    "tree": null,
+    "tabs": [
+      {
+        "label": {
+          "en": "Text"
+        },
+        "fields": [
+          "body",
+          "blocks"
+        ]
+      },
+      {
+        "label": "Pictures",
+        "fields": [
+          "cover",
+          "gallery"
+        ]
+      }
+    ],
+    "sections": [
+      {
+        "label": {
+          "en": "When?"
+        },
+        "icon": "i-lucide-calendar",
+        "description": "Date and time.",
+        "fields": [
+          "startsAt",
+          "allDayFrom"
+        ],
+        "columns": 2
+      },
+      {
+        "label": {
+          "en": "Where?"
+        },
+        "fields": [
+          "place",
+          "contact"
+        ],
+        "columns": 1
+      }
+    ],
+    "fields": [
+      {
+        "key": "title",
+        "type": "text",
+        "optional": false,
+        "localized": true,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "max": 120,
+          "label": {
+            "en": "Title",
+            "cs": "Název"
+          },
+          "help": "Shown everywhere.",
+          "position": "main"
+        }
+      },
+      {
+        "key": "perex",
+        "type": "text",
+        "optional": true,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "multiline": true,
+          "max": 300
+        }
+      },
+      {
+        "key": "email",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "format": "email"
+        }
+      },
+      {
+        "key": "web",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "format": "url",
+          "icon": "i-lucide-globe"
+        }
+      },
+      {
+        "key": "oldPath",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "format": "path"
+        }
+      },
+      {
+        "key": "link",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "format": "link"
+        }
+      },
+      {
+        "key": "place",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {}
+      },
+      {
+        "key": "internalNote",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Internal note"
+          },
+          "access": {
+            "read": [
+              "editor",
+              "translator"
+            ],
+            "edit": [
+              "editor"
+            ]
+          }
+        }
+      },
+      {
+        "key": "slug",
+        "type": "slug",
+        "optional": false,
+        "localized": true,
+        "required": true,
+        "unique": true,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldSlug",
+          "cell": "CmsCellCode"
+        },
+        "meta": {
+          "from": "title",
+          "position": "sidebar"
+        }
+      },
+      {
+        "key": "seats",
+        "type": "number",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldNumber",
+          "cell": "CmsCellNumber"
+        },
+        "meta": {}
+      },
+      {
+        "key": "price",
+        "type": "number",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldNumber",
+          "cell": "CmsCellNumber"
+        },
+        "meta": {}
+      },
+      {
+        "key": "rating",
+        "type": "number",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": 3,
+        "ui": {
+          "edit": "CmsFieldNumber",
+          "cell": "CmsCellNumber"
+        },
+        "meta": {}
+      },
+      {
+        "key": "free",
+        "type": "boolean",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": true,
+        "ui": {
+          "edit": "CmsFieldBoolean",
+          "cell": "CmsCellBoolean"
+        },
+        "meta": {}
+      },
+      {
+        "key": "consent",
+        "type": "boolean",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": false,
+        "ui": {
+          "edit": "CmsFieldBoolean",
+          "cell": "CmsCellBoolean"
+        },
+        "meta": {
+          "mustBeTrue": true
+        }
+      },
+      {
+        "key": "startsAt",
+        "type": "datetime",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldDate",
+          "cell": "CmsCellDate"
+        },
+        "meta": {}
+      },
+      {
+        "key": "publishedAt",
+        "type": "datetime",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldDate",
+          "cell": "CmsCellDate"
+        },
+        "meta": {}
+      },
+      {
+        "key": "allDayFrom",
+        "type": "datetime",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldDate",
+          "cell": "CmsCellDate"
+        },
+        "meta": {
+          "allDay": true
+        }
+      },
+      {
+        "key": "status",
+        "type": "select",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": "draft",
+        "ui": {
+          "edit": "CmsFieldSelect",
+          "cell": "CmsCellBadge"
+        },
+        "meta": {
+          "options": [
+            "draft",
+            "published",
+            "cancelled"
+          ],
+          "labels": {
+            "draft": {
+              "en": "Draft",
+              "cs": "Koncept"
+            },
+            "published": "Published"
+          },
+          "icons": {
+            "cancelled": "i-lucide-ban"
+          }
+        }
+      },
+      {
+        "key": "kind",
+        "type": "select",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldSelect",
+          "cell": "CmsCellBadge"
+        },
+        "meta": {
+          "options": [
+            "talk",
+            "workshop"
+          ]
+        }
+      },
+      {
+        "key": "level",
+        "type": "select",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldSelect",
+          "cell": "CmsCellBadge"
+        },
+        "meta": {
+          "options": [
+            "easy",
+            "hard"
+          ]
+        }
+      },
+      {
+        "key": "body",
+        "type": "richtext",
+        "optional": false,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldRichText",
+          "cell": "CmsCellExcerpt"
+        },
+        "meta": {}
+      },
+      {
+        "key": "blocks",
+        "type": "blocks",
+        "optional": false,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": [],
+        "ui": {
+          "edit": "CmsFieldBlocks",
+          "cell": "CmsCellBlocks"
+        },
+        "meta": {
+          "blocks": {
+            "feature": {
+              "label": {
+                "en": "Feature",
+                "cs": "Vlastnost"
+              },
+              "description": "A picture with a heading and a few bullet points.",
+              "icon": "i-lucide-sparkles",
+              "fields": [
+                {
+                  "key": "heading",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "level",
+                  "type": "number",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldNumber",
+                    "cell": "CmsCellNumber"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "featured",
+                  "type": "boolean",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBoolean",
+                    "cell": "CmsCellBoolean"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "shownFrom",
+                  "type": "datetime",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldDate",
+                    "cell": "CmsCellDate"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "tone",
+                  "type": "select",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldSelect",
+                    "cell": "CmsCellBadge"
+                  },
+                  "meta": {
+                    "options": [
+                      "plain",
+                      "accent"
+                    ]
+                  }
+                },
+                {
+                  "key": "text",
+                  "type": "richtext",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldRichText",
+                    "cell": "CmsCellExcerpt"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "picture",
+                  "type": "media",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldMedia",
+                    "cell": "CmsCellThumb"
+                  },
+                  "meta": {
+                    "accept": "image/*"
+                  }
+                },
+                {
+                  "key": "bullets",
+                  "type": "blocks",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBlocks",
+                    "cell": "CmsCellBlocks"
+                  },
+                  "meta": {
+                    "blocks": {
+                      "bullet": {
+                        "label": {
+                          "en": "Item",
+                          "cs": "Položka",
+                          "de": "Eintrag"
+                        },
+                        "description": null,
+                        "icon": "i-lucide-list",
+                        "fields": [
+                          {
+                            "key": "line",
+                            "type": "text",
+                            "optional": false,
+                            "required": true,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldText",
+                              "cell": "CmsCellText"
+                            },
+                            "meta": {}
+                          },
+                          {
+                            "key": "strong",
+                            "type": "boolean",
+                            "optional": true,
+                            "required": false,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldBoolean",
+                              "cell": "CmsCellBoolean"
+                            },
+                            "meta": {}
+                          }
+                        ]
+                      }
+                    },
+                    "list": {
+                      "max": 12,
+                      "itemLabel": null
+                    }
+                  }
+                },
+                {
+                  "key": "cta",
+                  "type": "group",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldGroup",
+                    "cell": "CmsCellGroup"
+                  },
+                  "meta": {
+                    "fields": [
+                      {
+                        "key": "label",
+                        "type": "text",
+                        "optional": false,
+                        "required": true,
+                        "unique": false,
+                        "ui": {
+                          "edit": "CmsFieldText",
+                          "cell": "CmsCellText"
+                        },
+                        "meta": {}
+                      },
+                      {
+                        "key": "url",
+                        "type": "text",
+                        "optional": true,
+                        "required": false,
+                        "unique": false,
+                        "ui": {
+                          "edit": "CmsFieldText",
+                          "cell": "CmsCellText"
+                        },
+                        "meta": {
+                          "format": "link"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "quote": {
+              "label": "Quote",
+              "description": null,
+              "icon": "i-lucide-square",
+              "fields": [
+                {
+                  "key": "text",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {
+                    "multiline": true,
+                    "max": 400
+                  }
+                },
+                {
+                  "key": "by",
+                  "type": "text",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {}
+                }
+              ]
+            }
+          },
+          "group": "Content"
+        }
+      },
+      {
+        "key": "schedule",
+        "type": "blocks",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": [],
+        "ui": {
+          "edit": "CmsFieldBlocks",
+          "cell": "CmsCellBlocks"
+        },
+        "meta": {
+          "blocks": {
+            "item": {
+              "label": {
+                "en": "Slot",
+                "cs": "Položka"
+              },
+              "description": null,
+              "icon": "i-lucide-list",
+              "fields": [
+                {
+                  "key": "at",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "what",
+                  "type": "text",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "room",
+                  "type": "select",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldSelect",
+                    "cell": "CmsCellBadge"
+                  },
+                  "meta": {
+                    "options": [
+                      "a",
+                      "b"
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "list": {
+            "max": 30,
+            "itemLabel": {
+              "en": "Slot",
+              "cs": "Položka"
+            }
+          }
+        }
+      },
+      {
+        "key": "faq",
+        "type": "blocks",
+        "optional": false,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": [],
+        "ui": {
+          "edit": "CmsFieldBlocks",
+          "cell": "CmsCellBlocks"
+        },
+        "meta": {
+          "blocks": {
+            "qa": {
+              "label": {
+                "en": "Item",
+                "cs": "Položka",
+                "de": "Eintrag"
+              },
+              "description": null,
+              "icon": "i-lucide-list",
+              "fields": [
+                {
+                  "key": "q",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "a",
+                  "type": "richtext",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldRichText",
+                    "cell": "CmsCellExcerpt"
+                  },
+                  "meta": {}
+                }
+              ]
+            }
+          },
+          "list": {
+            "max": null,
+            "itemLabel": null
+          }
+        }
+      },
+      {
+        "key": "contact",
+        "type": "group",
+        "optional": true,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldGroup",
+          "cell": "CmsCellGroup"
+        },
+        "meta": {
+          "fields": [
+            {
+              "key": "phone",
+              "type": "text",
+              "optional": true,
+              "required": false,
+              "unique": false,
+              "ui": {
+                "edit": "CmsFieldText",
+                "cell": "CmsCellText"
+              },
+              "meta": {}
+            },
+            {
+              "key": "address",
+              "type": "group",
+              "optional": true,
+              "required": false,
+              "unique": false,
+              "ui": {
+                "edit": "CmsFieldGroup",
+                "cell": "CmsCellGroup"
+              },
+              "meta": {
+                "fields": [
+                  {
+                    "key": "street",
+                    "type": "text",
+                    "optional": false,
+                    "required": true,
+                    "unique": false,
+                    "ui": {
+                      "edit": "CmsFieldText",
+                      "cell": "CmsCellText"
+                    },
+                    "meta": {}
+                  },
+                  {
+                    "key": "city",
+                    "type": "text",
+                    "optional": false,
+                    "required": true,
+                    "unique": false,
+                    "ui": {
+                      "edit": "CmsFieldText",
+                      "cell": "CmsCellText"
+                    },
+                    "meta": {}
+                  }
+                ]
+              }
+            },
+            {
+              "key": "photo",
+              "type": "media",
+              "optional": true,
+              "required": false,
+              "unique": false,
+              "ui": {
+                "edit": "CmsFieldMedia",
+                "cell": "CmsCellThumb"
+              },
+              "meta": {}
+            },
+            {
+              "key": "hours",
+              "type": "blocks",
+              "optional": true,
+              "required": false,
+              "unique": false,
+              "ui": {
+                "edit": "CmsFieldBlocks",
+                "cell": "CmsCellBlocks"
+              },
+              "meta": {
+                "blocks": {
+                  "item": {
+                    "label": {
+                      "en": "Item",
+                      "cs": "Položka",
+                      "de": "Eintrag"
+                    },
+                    "description": null,
+                    "icon": "i-lucide-list",
+                    "fields": [
+                      {
+                        "key": "days",
+                        "type": "text",
+                        "optional": false,
+                        "required": true,
+                        "unique": false,
+                        "ui": {
+                          "edit": "CmsFieldText",
+                          "cell": "CmsCellText"
+                        },
+                        "meta": {}
+                      },
+                      {
+                        "key": "hours",
+                        "type": "text",
+                        "optional": true,
+                        "required": false,
+                        "unique": false,
+                        "ui": {
+                          "edit": "CmsFieldText",
+                          "cell": "CmsCellText"
+                        },
+                        "meta": {}
+                      }
+                    ]
+                  }
+                },
+                "list": {
+                  "max": null,
+                  "itemLabel": null
+                }
+              }
+            }
+          ]
+        }
+      },
+      {
+        "key": "cover",
+        "type": "media",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldMedia",
+          "cell": "CmsCellThumb"
+        },
+        "meta": {
+          "accept": "image/*"
+        }
+      },
+      {
+        "key": "mandatoryCover",
+        "type": "media",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldMedia",
+          "cell": "CmsCellThumb"
+        },
+        "meta": {}
+      },
+      {
+        "key": "file",
+        "type": "media",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldMedia",
+          "cell": "CmsCellThumb"
+        },
+        "meta": {
+          "accept": "application/pdf",
+          "file": true
+        }
+      },
+      {
+        "key": "gallery",
+        "type": "gallery",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": [],
+        "ui": {
+          "edit": "CmsFieldGallery",
+          "cell": "CmsCellGallery"
+        },
+        "meta": {
+          "accept": "image/*"
+        }
+      },
+      {
+        "key": "color",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldColor",
+          "cell": "CmsCellColor"
+        },
+        "meta": {
+          "format": "color"
+        }
+      },
+      {
+        "key": "category",
+        "type": "relation",
+        "optional": false,
+        "localized": false,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldRelationOne",
+          "cell": "CmsCellRelation"
+        },
+        "meta": {
+          "kind": "many-to-one"
+        },
+        "relation": {
+          "to": "category",
+          "kind": "many-to-one",
+          "required": true
+        }
+      },
+      {
+        "key": "venue",
+        "type": "relation",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldRelationOne",
+          "cell": "CmsCellRelation"
+        },
+        "meta": {
+          "kind": "many-to-one"
+        },
+        "relation": {
+          "to": "venue",
+          "kind": "many-to-one",
+          "required": false
+        }
+      },
+      {
+        "key": "tags",
+        "type": "relation",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldRelationMany",
+          "cell": "CmsCellRelation"
+        },
+        "meta": {
+          "kind": "many-to-many"
+        },
+        "relation": {
+          "to": "category",
+          "kind": "many-to-many",
+          "required": false
+        }
+      },
+      {
+        "key": "related",
+        "type": "relation",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldRelationMany",
+          "cell": "CmsCellRelation"
+        },
+        "meta": {
+          "kind": "many-to-many"
+        },
+        "relation": {
+          "to": "event",
+          "kind": "many-to-many",
+          "required": false
+        }
+      },
+      {
+        "key": "metaTitle",
+        "type": "text",
+        "optional": true,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Search title",
+            "cs": "Titulek pro vyhledávače",
+            "de": "Titel für Suchmaschinen"
+          },
+          "help": {
+            "en": "Shown in Google results and browser tabs instead of the title. Around 60 characters.",
+            "cs": "Zobrazí se ve výsledcích Googlu a v záložce prohlížeče místo názvu. Zhruba 60 znaků.",
+            "de": "Erscheint statt des Titels in Google-Ergebnissen und Browser-Tabs. Etwa 60 Zeichen."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      },
+      {
+        "key": "metaDescription",
+        "type": "text",
+        "optional": true,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Search description",
+            "cs": "Popis pro vyhledávače",
+            "de": "Beschreibung für Suchmaschinen"
+          },
+          "help": {
+            "en": "The short text under the title in Google results and when shared. Around 155 characters.",
+            "cs": "Krátký text pod titulkem ve výsledcích Googlu a při sdílení. Zhruba 155 znaků.",
+            "de": "Kurzer Text unter dem Titel in Google-Ergebnissen und beim Teilen. Etwa 155 Zeichen."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      },
+      {
+        "key": "ogImage",
+        "type": "media",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldMedia",
+          "cell": "CmsCellThumb"
+        },
+        "meta": {
+          "accept": "image/*",
+          "label": {
+            "en": "Sharing image",
+            "cs": "Obrázek pro sdílení",
+            "de": "Bild zum Teilen"
+          },
+          "help": {
+            "en": "Shown when the page is shared on social networks and in messages.",
+            "cs": "Zobrazí se při sdílení stránky na sociálních sítích a ve zprávách.",
+            "de": "Erscheint beim Teilen der Seite in sozialen Netzwerken und Nachrichten."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "navigation",
+    "locales": {
+      "default": "cs",
+      "all": [
+        "cs",
+        "en",
+        "de"
+      ],
+      "labels": {
+        "cs": "Čeština",
+        "en": "English",
+        "de": "Deutsch"
+      }
+    },
+    "label": {
+      "en": "Navigation",
+      "cs": "Navigace",
+      "de": "Navigation"
+    },
+    "labelSingular": {
+      "en": "Navigation",
+      "cs": "Navigace",
+      "de": "Navigation"
+    },
+    "description": {
+      "en": "The menus of the website.",
+      "cs": "Menu webu.",
+      "de": "Die Menüs der Website."
+    },
+    "icon": "i-lucide-menu",
+    "titleField": "main",
+    "preset": null,
+    "adminCreate": true,
+    "notices": [],
+    "plugin": null,
+    "singleton": true,
+    "previewPaths": null,
+    "editor": "form",
+    "listLayout": "table",
+    "listColumns": [
+      "main",
+      "footer"
+    ],
+    "searchable": [],
+    "orderField": null,
+    "tree": null,
+    "tabs": null,
+    "sections": null,
+    "fields": [
+      {
+        "key": "main",
+        "type": "blocks",
+        "optional": false,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": [],
+        "ui": {
+          "edit": "CmsFieldBlocks",
+          "cell": "CmsCellBlocks"
+        },
+        "meta": {
+          "blocks": {
+            "link": {
+              "label": {
+                "en": "Link",
+                "cs": "Odkaz",
+                "de": "Link"
+              },
+              "description": null,
+              "icon": "i-lucide-list",
+              "fields": [
+                {
+                  "key": "label",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {
+                    "label": {
+                      "en": "Label",
+                      "cs": "Text odkazu",
+                      "de": "Linktext"
+                    }
+                  }
+                },
+                {
+                  "key": "url",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {
+                    "format": "link",
+                    "label": {
+                      "en": "Address",
+                      "cs": "Adresa",
+                      "de": "Adresse"
+                    },
+                    "help": {
+                      "en": "A page on this site (/contact) or a full address (https://…).",
+                      "cs": "Stránka tohoto webu (/kontakt) nebo celá adresa (https://…).",
+                      "de": "Eine Seite dieser Website (/kontakt) oder eine vollständige Adresse (https://…)."
+                    }
+                  }
+                },
+                {
+                  "key": "newTab",
+                  "type": "boolean",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBoolean",
+                    "cell": "CmsCellBoolean"
+                  },
+                  "meta": {
+                    "label": {
+                      "en": "Open in a new tab",
+                      "cs": "Otevřít v nové záložce",
+                      "de": "In neuem Tab öffnen"
+                    }
+                  }
+                },
+                {
+                  "key": "sub",
+                  "type": "boolean",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBoolean",
+                    "cell": "CmsCellBoolean"
+                  },
+                  "meta": {
+                    "needsPrevious": true,
+                    "label": {
+                      "en": "Under the link above",
+                      "cs": "Pod odkazem nad ním",
+                      "de": "Unter dem vorherigen Link"
+                    },
+                    "help": {
+                      "en": "Shows in the dropdown of the link above it.",
+                      "cs": "Zobrazí se v rozbalovacím menu odkazu nad ním.",
+                      "de": "Erscheint im Untermenü des vorherigen Links."
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "list": {
+            "max": null,
+            "itemLabel": {
+              "en": "Link",
+              "cs": "Odkaz",
+              "de": "Link"
+            }
+          },
+          "label": {
+            "en": "Main menu",
+            "cs": "Hlavní menu"
+          }
+        }
+      },
+      {
+        "key": "footer",
+        "type": "blocks",
+        "optional": false,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": [],
+        "ui": {
+          "edit": "CmsFieldBlocks",
+          "cell": "CmsCellBlocks"
+        },
+        "meta": {
+          "blocks": {
+            "link": {
+              "label": {
+                "en": "Link",
+                "cs": "Odkaz",
+                "de": "Link"
+              },
+              "description": null,
+              "icon": "i-lucide-list",
+              "fields": [
+                {
+                  "key": "label",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {
+                    "label": {
+                      "en": "Label",
+                      "cs": "Text odkazu",
+                      "de": "Linktext"
+                    }
+                  }
+                },
+                {
+                  "key": "url",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {
+                    "format": "link",
+                    "label": {
+                      "en": "Address",
+                      "cs": "Adresa",
+                      "de": "Adresse"
+                    },
+                    "help": {
+                      "en": "A page on this site (/contact) or a full address (https://…).",
+                      "cs": "Stránka tohoto webu (/kontakt) nebo celá adresa (https://…).",
+                      "de": "Eine Seite dieser Website (/kontakt) oder eine vollständige Adresse (https://…)."
+                    }
+                  }
+                },
+                {
+                  "key": "newTab",
+                  "type": "boolean",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBoolean",
+                    "cell": "CmsCellBoolean"
+                  },
+                  "meta": {
+                    "label": {
+                      "en": "Open in a new tab",
+                      "cs": "Otevřít v nové záložce",
+                      "de": "In neuem Tab öffnen"
+                    }
+                  }
+                },
+                {
+                  "key": "sub",
+                  "type": "boolean",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBoolean",
+                    "cell": "CmsCellBoolean"
+                  },
+                  "meta": {
+                    "needsPrevious": true,
+                    "label": {
+                      "en": "Under the link above",
+                      "cs": "Pod odkazem nad ním",
+                      "de": "Unter dem vorherigen Link"
+                    },
+                    "help": {
+                      "en": "Shows in the dropdown of the link above it.",
+                      "cs": "Zobrazí se v rozbalovacím menu odkazu nad ním.",
+                      "de": "Erscheint im Untermenü des vorherigen Links."
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "list": {
+            "max": null,
+            "itemLabel": {
+              "en": "Link",
+              "cs": "Odkaz",
+              "de": "Link"
+            }
+          },
+          "label": "Footer"
+        }
+      }
+    ]
+  },
+  {
+    "name": "page",
+    "locales": {
+      "default": "cs",
+      "all": [
+        "cs",
+        "en",
+        "de"
+      ],
+      "labels": {
+        "cs": "Čeština",
+        "en": "English",
+        "de": "Deutsch"
+      }
+    },
+    "label": {
+      "en": "Pages",
+      "cs": "Stránky",
+      "de": "Seiten"
+    },
+    "labelSingular": {
+      "en": "Page",
+      "cs": "Stránka",
+      "de": "Seite"
+    },
+    "description": {
+      "en": "Pages of the website, built from blocks.",
+      "cs": "Stránky webu poskládané z bloků.",
+      "de": "Die Seiten der Website, aus Blöcken aufgebaut."
+    },
+    "icon": "i-lucide-file",
+    "titleField": "title",
+    "preset": null,
+    "adminCreate": true,
+    "notices": [],
+    "plugin": null,
+    "singleton": false,
+    "publish": {
+      "field": "status",
+      "publishedValue": "published",
+      "draftValue": "draft",
+      "preview": {
+        "cs": "/:slug",
+        "en": "/en/:slug",
+        "de": "/de/:slug"
+      }
+    },
+    "previewPaths": {
+      "cs": "/:slug",
+      "en": "/en/en/:slug",
+      "de": "/de/de/:slug"
+    },
+    "editor": "preview",
+    "listLayout": "tree",
+    "listColumns": [
+      "title",
+      "status"
+    ],
+    "searchable": [],
+    "orderField": "position",
+    "tree": {
+      "parent": "parent",
+      "order": "position",
+      "maxDepth": 5
+    },
+    "tabs": null,
+    "sections": null,
+    "fields": [
+      {
+        "key": "title",
+        "type": "text",
+        "optional": false,
+        "localized": true,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Title",
+            "cs": "Název",
+            "de": "Titel"
+          }
+        }
+      },
+      {
+        "key": "slug",
+        "type": "slug",
+        "optional": false,
+        "localized": true,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldSlug",
+          "cell": "CmsCellCode"
+        },
+        "meta": {
+          "from": "title",
+          "label": {
+            "en": "URL address",
+            "cs": "Adresa (URL)",
+            "de": "Adresse (URL)"
+          }
+        }
+      },
+      {
+        "key": "status",
+        "type": "select",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": "draft",
+        "ui": {
+          "edit": "CmsFieldSelect",
+          "cell": "CmsCellBadge"
+        },
+        "meta": {
+          "options": [
+            "draft",
+            "published"
+          ],
+          "labels": {
+            "draft": {
+              "en": "Draft",
+              "cs": "Koncept",
+              "de": "Entwurf"
+            },
+            "published": {
+              "en": "Published",
+              "cs": "Zveřejněno",
+              "de": "Veröffentlicht"
+            }
+          }
+        }
+      },
+      {
+        "key": "sections",
+        "type": "blocks",
+        "optional": false,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": [],
+        "ui": {
+          "edit": "CmsFieldBlocks",
+          "cell": "CmsCellBlocks"
+        },
+        "meta": {
+          "blocks": {
+            "feature": {
+              "label": {
+                "en": "Feature",
+                "cs": "Vlastnost"
+              },
+              "description": "A picture with a heading and a few bullet points.",
+              "icon": "i-lucide-sparkles",
+              "fields": [
+                {
+                  "key": "heading",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "level",
+                  "type": "number",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldNumber",
+                    "cell": "CmsCellNumber"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "featured",
+                  "type": "boolean",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBoolean",
+                    "cell": "CmsCellBoolean"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "shownFrom",
+                  "type": "datetime",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldDate",
+                    "cell": "CmsCellDate"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "tone",
+                  "type": "select",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldSelect",
+                    "cell": "CmsCellBadge"
+                  },
+                  "meta": {
+                    "options": [
+                      "plain",
+                      "accent"
+                    ]
+                  }
+                },
+                {
+                  "key": "text",
+                  "type": "richtext",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldRichText",
+                    "cell": "CmsCellExcerpt"
+                  },
+                  "meta": {}
+                },
+                {
+                  "key": "picture",
+                  "type": "media",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldMedia",
+                    "cell": "CmsCellThumb"
+                  },
+                  "meta": {
+                    "accept": "image/*"
+                  }
+                },
+                {
+                  "key": "bullets",
+                  "type": "blocks",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldBlocks",
+                    "cell": "CmsCellBlocks"
+                  },
+                  "meta": {
+                    "blocks": {
+                      "bullet": {
+                        "label": {
+                          "en": "Item",
+                          "cs": "Položka",
+                          "de": "Eintrag"
+                        },
+                        "description": null,
+                        "icon": "i-lucide-list",
+                        "fields": [
+                          {
+                            "key": "line",
+                            "type": "text",
+                            "optional": false,
+                            "required": true,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldText",
+                              "cell": "CmsCellText"
+                            },
+                            "meta": {}
+                          },
+                          {
+                            "key": "strong",
+                            "type": "boolean",
+                            "optional": true,
+                            "required": false,
+                            "unique": false,
+                            "ui": {
+                              "edit": "CmsFieldBoolean",
+                              "cell": "CmsCellBoolean"
+                            },
+                            "meta": {}
+                          }
+                        ]
+                      }
+                    },
+                    "list": {
+                      "max": 12,
+                      "itemLabel": null
+                    }
+                  }
+                },
+                {
+                  "key": "cta",
+                  "type": "group",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldGroup",
+                    "cell": "CmsCellGroup"
+                  },
+                  "meta": {
+                    "fields": [
+                      {
+                        "key": "label",
+                        "type": "text",
+                        "optional": false,
+                        "required": true,
+                        "unique": false,
+                        "ui": {
+                          "edit": "CmsFieldText",
+                          "cell": "CmsCellText"
+                        },
+                        "meta": {}
+                      },
+                      {
+                        "key": "url",
+                        "type": "text",
+                        "optional": true,
+                        "required": false,
+                        "unique": false,
+                        "ui": {
+                          "edit": "CmsFieldText",
+                          "cell": "CmsCellText"
+                        },
+                        "meta": {
+                          "format": "link"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "quote": {
+              "label": "Quote",
+              "description": null,
+              "icon": "i-lucide-square",
+              "fields": [
+                {
+                  "key": "text",
+                  "type": "text",
+                  "optional": false,
+                  "required": true,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {
+                    "multiline": true,
+                    "max": 400
+                  }
+                },
+                {
+                  "key": "by",
+                  "type": "text",
+                  "optional": true,
+                  "required": false,
+                  "unique": false,
+                  "ui": {
+                    "edit": "CmsFieldText",
+                    "cell": "CmsCellText"
+                  },
+                  "meta": {}
+                }
+              ]
+            }
+          },
+          "label": {
+            "en": "Content",
+            "cs": "Obsah",
+            "de": "Inhalte"
+          }
+        }
+      },
+      {
+        "key": "parent",
+        "type": "relation",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldRelationOne",
+          "cell": "CmsCellRelation"
+        },
+        "meta": {
+          "kind": "many-to-one",
+          "label": {
+            "en": "Parent page",
+            "cs": "Nadřazená stránka",
+            "de": "Übergeordnete Seite"
+          },
+          "help": {
+            "en": "The page this one sits under. Its address continues the parent’s: /about/team.",
+            "cs": "Stránka, pod kterou tato leží. Adresa pokračuje za adresou nadřazené: /o-nas/tym.",
+            "de": "Die Seite, unter der diese liegt. Die Adresse setzt die der übergeordneten fort: /ueber-uns/team."
+          },
+          "position": "sidebar"
+        },
+        "relation": {
+          "to": "page",
+          "kind": "many-to-one",
+          "required": false
+        }
+      },
+      {
+        "key": "position",
+        "type": "number",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": 0,
+        "ui": {
+          "edit": "CmsFieldNumber",
+          "cell": "CmsCellNumber"
+        },
+        "meta": {
+          "label": {
+            "en": "Position",
+            "cs": "Pořadí",
+            "de": "Reihenfolge"
+          }
+        }
+      },
+      {
+        "key": "metaTitle",
+        "type": "text",
+        "optional": true,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Search title",
+            "cs": "Titulek pro vyhledávače",
+            "de": "Titel für Suchmaschinen"
+          },
+          "help": {
+            "en": "Shown in Google results and browser tabs instead of the title. Around 60 characters.",
+            "cs": "Zobrazí se ve výsledcích Googlu a v záložce prohlížeče místo názvu. Zhruba 60 znaků.",
+            "de": "Erscheint statt des Titels in Google-Ergebnissen und Browser-Tabs. Etwa 60 Zeichen."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      },
+      {
+        "key": "metaDescription",
+        "type": "text",
+        "optional": true,
+        "localized": true,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Search description",
+            "cs": "Popis pro vyhledávače",
+            "de": "Beschreibung für Suchmaschinen"
+          },
+          "help": {
+            "en": "The short text under the title in Google results and when shared. Around 155 characters.",
+            "cs": "Krátký text pod titulkem ve výsledcích Googlu a při sdílení. Zhruba 155 znaků.",
+            "de": "Kurzer Text unter dem Titel in Google-Ergebnissen und beim Teilen. Etwa 155 Zeichen."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      },
+      {
+        "key": "ogImage",
+        "type": "media",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldMedia",
+          "cell": "CmsCellThumb"
+        },
+        "meta": {
+          "accept": "image/*",
+          "label": {
+            "en": "Sharing image",
+            "cs": "Obrázek pro sdílení",
+            "de": "Bild zum Teilen"
+          },
+          "help": {
+            "en": "Shown when the page is shared on social networks and in messages.",
+            "cs": "Zobrazí se při sdílení stránky na sociálních sítích a ve zprávách.",
+            "de": "Erscheint beim Teilen der Seite in sozialen Netzwerken und Nachrichten."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "redirect",
+    "locales": null,
+    "label": {
+      "en": "Redirects",
+      "cs": "Přesměrování",
+      "de": "Weiterleitungen"
+    },
+    "labelSingular": {
+      "en": "Redirect",
+      "cs": "Přesměrování",
+      "de": "Weiterleitung"
+    },
+    "description": {
+      "en": "Send visitors from an old address to a new one — keeps old links and search results working.",
+      "cs": "Pošle návštěvníky ze staré adresy na novou — staré odkazy i výsledky vyhledávání dál fungují.",
+      "de": "Leitet Besucher von einer alten Adresse auf eine neue weiter. Alte Links und Suchergebnisse funktionieren weiterhin."
+    },
+    "icon": "i-lucide-corner-down-right",
+    "titleField": "from",
+    "preset": "redirects",
+    "adminCreate": true,
+    "notices": [],
+    "plugin": null,
+    "singleton": false,
+    "previewPaths": null,
+    "editor": "form",
+    "listLayout": "table",
+    "listColumns": [
+      "from",
+      "to",
+      "permanent"
+    ],
+    "searchable": [],
+    "orderField": null,
+    "tree": null,
+    "tabs": null,
+    "sections": null,
+    "fields": [
+      {
+        "key": "from",
+        "type": "text",
+        "optional": false,
+        "localized": false,
+        "required": true,
+        "unique": true,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "format": "path",
+          "label": {
+            "en": "From",
+            "cs": "Z adresy",
+            "de": "Von"
+          },
+          "help": {
+            "en": "The old address on this site, e.g. /old-page.",
+            "cs": "Stará adresa na tomto webu, např. /stara-stranka.",
+            "de": "Die alte Adresse auf dieser Website, z. B. /alte-seite."
+          }
+        }
+      },
+      {
+        "key": "to",
+        "type": "text",
+        "optional": false,
+        "localized": false,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "format": "link",
+          "label": {
+            "en": "To",
+            "cs": "Na adresu",
+            "de": "Nach"
+          },
+          "help": {
+            "en": "Where to send visitors: /new-page or https://…",
+            "cs": "Kam návštěvníky poslat: /nova-stranka nebo https://…",
+            "de": "Zieladresse für Besucher: /neue-seite oder https://…"
+          }
+        }
+      },
+      {
+        "key": "permanent",
+        "type": "boolean",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": true,
+        "ui": {
+          "edit": "CmsFieldBoolean",
+          "cell": "CmsCellBoolean"
+        },
+        "meta": {
+          "label": {
+            "en": "Permanent",
+            "cs": "Trvalé",
+            "de": "Dauerhaft"
+          },
+          "help": {
+            "en": "Tells search engines the page moved for good (301).",
+            "cs": "Řekne vyhledávačům, že se stránka přesunula natrvalo (301).",
+            "de": "Teilt Suchmaschinen mit, dass die Seite dauerhaft umgezogen ist (301)."
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "settings",
+    "locales": null,
+    "label": {
+      "en": "Settings"
+    },
+    "labelSingular": {
+      "en": "Settings"
+    },
+    "description": null,
+    "icon": "i-lucide-settings-2",
+    "titleField": "siteName",
+    "preset": null,
+    "adminCreate": true,
+    "notices": [],
+    "plugin": null,
+    "singleton": true,
+    "previewPaths": {
+      "cs": "/",
+      "en": "/en/",
+      "de": "/de/"
+    },
+    "editor": "preview",
+    "listLayout": "table",
+    "listColumns": [
+      "siteName",
+      "logo",
+      "accent",
+      "metaTitle"
+    ],
+    "searchable": [],
+    "orderField": null,
+    "tree": null,
+    "tabs": null,
+    "sections": [
+      {
+        "label": "General",
+        "fields": [
+          "siteName"
+        ]
+      }
+    ],
+    "fields": [
+      {
+        "key": "siteName",
+        "type": "text",
+        "optional": false,
+        "localized": false,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {}
+      },
+      {
+        "key": "logo",
+        "type": "media",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldMedia",
+          "cell": "CmsCellThumb"
+        },
+        "meta": {
+          "accept": "image/*"
+        }
+      },
+      {
+        "key": "accent",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldColor",
+          "cell": "CmsCellColor"
+        },
+        "meta": {
+          "format": "color"
+        }
+      },
+      {
+        "key": "metaTitle",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Search title",
+            "cs": "Titulek pro vyhledávače",
+            "de": "Titel für Suchmaschinen"
+          },
+          "help": {
+            "en": "Shown in Google results and browser tabs instead of the title. Around 60 characters.",
+            "cs": "Zobrazí se ve výsledcích Googlu a v záložce prohlížeče místo názvu. Zhruba 60 znaků.",
+            "de": "Erscheint statt des Titels in Google-Ergebnissen und Browser-Tabs. Etwa 60 Zeichen."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      },
+      {
+        "key": "metaDescription",
+        "type": "text",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {
+          "label": {
+            "en": "Search description",
+            "cs": "Popis pro vyhledávače",
+            "de": "Beschreibung für Suchmaschinen"
+          },
+          "help": {
+            "en": "The short text under the title in Google results and when shared. Around 155 characters.",
+            "cs": "Krátký text pod titulkem ve výsledcích Googlu a při sdílení. Zhruba 155 znaků.",
+            "de": "Kurzer Text unter dem Titel in Google-Ergebnissen und beim Teilen. Etwa 155 Zeichen."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      },
+      {
+        "key": "ogImage",
+        "type": "media",
+        "optional": true,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldMedia",
+          "cell": "CmsCellThumb"
+        },
+        "meta": {
+          "accept": "image/*",
+          "label": {
+            "en": "Sharing image",
+            "cs": "Obrázek pro sdílení",
+            "de": "Bild zum Teilen"
+          },
+          "help": {
+            "en": "Shown when the page is shared on social networks and in messages.",
+            "cs": "Zobrazí se při sdílení stránky na sociálních sítích a ve zprávách.",
+            "de": "Erscheint beim Teilen der Seite in sozialen Netzwerken und Nachrichten."
+          },
+          "position": "sidebar",
+          "group": {
+            "en": "Search & sharing",
+            "cs": "Vyhledávače a sdílení",
+            "de": "Suche & Teilen"
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "venue",
+    "locales": null,
+    "label": "Venues",
+    "labelSingular": "Venues",
+    "description": null,
+    "icon": "i-lucide-folder",
+    "titleField": "name",
+    "preset": null,
+    "adminCreate": true,
+    "notices": [],
+    "plugin": null,
+    "singleton": false,
+    "previewPaths": null,
+    "editor": "form",
+    "listLayout": "table",
+    "listColumns": [
+      "name",
+      "events"
+    ],
+    "searchable": [],
+    "orderField": null,
+    "tree": null,
+    "tabs": null,
+    "sections": null,
+    "fields": [
+      {
+        "key": "name",
+        "type": "text",
+        "optional": false,
+        "localized": false,
+        "required": true,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldText",
+          "cell": "CmsCellText"
+        },
+        "meta": {}
+      },
+      {
+        "key": "events",
+        "type": "relation",
+        "optional": false,
+        "localized": false,
+        "required": false,
+        "unique": false,
+        "default": null,
+        "ui": {
+          "edit": "CmsFieldRelationOne",
+          "cell": "CmsCellRelation"
+        },
+        "meta": {
+          "kind": "one-to-many"
+        },
+        "relation": {
+          "to": "event",
+          "kind": "one-to-many",
+          "required": false
+        }
+      }
+    ]
+  }
+]

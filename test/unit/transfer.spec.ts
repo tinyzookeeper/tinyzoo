@@ -132,7 +132,8 @@ async function seed(db: any) {
     await put(db, entity('post'), { title: 'Druhý', slug: 'druhy', status: 'draft', author: authors[1], body: doc('Koncept'), gallery: [] }),
     await put(db, entity('post'), { title: 'Třetí', slug: 'treti', status: 'draft', author: authors[0], body: doc(''), gallery: [] }),
   ]
-  await translate(db, entity('post'), posts[0]!, 'en', { title: 'First', slug: 'first', body: doc('English text', image(m('inline'))) })
+  // The English version publishes on its own (post: publish.perLocale): its state travels with it.
+  await translate(db, entity('post'), posts[0]!, 'en', { title: 'First', slug: 'first', body: doc('English text', image(m('inline'))), published: true, publishedAt: new Date('2026-03-04T09:00:00.000Z'), firstLiveAt: new Date('2026-03-04T09:00:00.000Z') })
   await link(db, 'post', 'tags', posts[0]!, tags[0]!)
   await link(db, 'post', 'tags', posts[0]!, tags[1]!)
   await link(db, 'post', 'tags', posts[1]!, tags[1]!)
@@ -330,6 +331,27 @@ describe('content model', () => {
     expect(diffSchemas(describeSchema(reg), describeSchema(reg))).toEqual([])
   })
 
+  it('says that an entity publishes each language on its own only when it does, so other sites keep their fingerprint', () => {
+    const shape = describeSchema(reg)
+    expect(shape.entities.post!.perLocale).toBe(true)
+    // Nothing but the entities with the option carry the key.
+    for (const [name, e] of Object.entries(shape.entities)) if (name !== 'post') expect(Object.keys(e).sort(), name).toEqual(['fields', 'singleton'])
+    const without = JSON.parse(JSON.stringify(shape))
+    delete without.entities.post.perLocale
+    expect(fingerprintOf(without)).not.toBe(fingerprintOf(shape))
+  })
+
+  it('reports an archive that carries the state of each language to a site that cannot keep it, and takes an archive without it as it is', () => {
+    const target = describeSchema(reg)
+    const without = JSON.parse(JSON.stringify(target))
+    delete without.entities.post.perLocale
+    // From 0.6 (with states) into a site without the option: a difference (the translations still import, following the default language).
+    const toPlain = diffSchemas(target, without)
+    expect(toPlain).toEqual([expect.objectContaining({ scope: 'entity', entity: 'post', skip: false, message: expect.stringContaining('publishes each language on its own in the archive, but not here') })])
+    // From a site without it (0.5) into one that has it: nothing to report.
+    expect(diffSchemas(without, target)).toEqual([])
+  })
+
   it('orders tables by their links, and leaves back-links to be filled in', () => {
     const { order, deferred } = dependencyOrder(reg, reg.entities.filter((e) => ['post', 'author', 'tag', 'category'].includes(e.name)))
     const names = order.map((e) => e.name)
@@ -392,7 +414,7 @@ describe('round trip', () => {
     expect(first).toMatchObject({
       id: ids.posts[0], createdAt: T0.toISOString(), updatedAt: T1.toISOString(),
       fields: { title: 'První', status: 'published', publishedAt: '2026-03-03T08:00:00.000Z', hero: ids['media.hero'], author: ids.authors[0] },
-      translations: [{ locale: 'en', fields: { title: 'First', slug: 'first' } }],
+      translations: [{ locale: 'en', fields: { title: 'First', slug: 'first' }, publish: { published: true, publishedAt: '2026-03-04T09:00:00.000Z', firstLiveAt: '2026-03-04T09:00:00.000Z' } }],
       relations: { tags: [...ids.tags.slice(0, 2)].sort() },
     })
     // Keyed by field names; nothing about accounts.
@@ -704,6 +726,117 @@ describe('checks on import', () => {
     const report = await importInto(other, { allowMismatch: true })
     expect(report.skipped.translations).toBe(1)
     expect(report.entries.post!.translations).toBe(0)
+  })
+
+  it('imports the state of each language, and an archive without it as languages that follow the default one', async () => {
+    const state = async () => (await B.db.select().from(entity('post').localesTable)).map((r: any) => [r.locale, r.published, r.publishedAt?.toISOString() ?? null, r.firstLiveAt?.toISOString() ?? null])
+    await wipe(B.db)
+    await importInto(full)
+    expect(await state()).toEqual([['en', true, '2026-03-04T09:00:00.000Z', '2026-03-04T09:00:00.000Z']])
+    // A translation being worked on (a draft never on the website) stays one; an archive that does not say when a language was
+    // first on the website reads a state of its own as having been there (a draft as taken off: it stays off).
+    const withPublish = (name: string, publish: Record<string, unknown>) => {
+      const out = archive(name)
+      return repack(full, out, (dir) => {
+        const posts = join(dir, 'content/post.jsonl')
+        writeFileSync(posts, readFileSync(posts, 'utf8').trim().split('\n').map((l) => {
+          const e = JSON.parse(l)
+          e.translations = e.translations.map((t: any) => ({ ...t, publish }))
+          return JSON.stringify(e)
+        }).join('\n') + '\n')
+      }).then(() => out)
+    }
+    await wipe(B.db)
+    await importInto(await withPublish('being-translated.tar.gz', { published: false, publishedAt: null, firstLiveAt: null }))
+    expect(await state()).toEqual([['en', false, null, null]])
+    await wipe(B.db)
+    await importInto(await withPublish('taken-off-unsaid.tar.gz', { published: false, publishedAt: null }))
+    const [[, published, , firstLive]] = await state() as any[]
+    expect(published).toBe(false)
+    expect(firstLive).not.toBeNull()
+    // An archive of a site that did not publish per language has no state in it.
+    const plain = archive('no-language-state.tar.gz')
+    await repack(full, plain, (dir) => {
+      const posts = join(dir, 'content/post.jsonl')
+      writeFileSync(posts, readFileSync(posts, 'utf8').trim().split('\n').map((l) => {
+        const e = JSON.parse(l)
+        e.translations = e.translations.map(({ publish: _p, ...t }: any) => t)
+        return JSON.stringify(e)
+      }).join('\n') + '\n')
+    })
+    await wipe(B.db)
+    await importInto(plain)
+    expect(await state()).toEqual([['en', null, null, null]])
+  })
+
+  it('refuses an archive with states of each language into a site that cannot keep them, and with --allow-mismatch imports it and says so', async () => {
+    // The playground's `page` does not publish per language: pretend the archive came from a site where it did.
+    const states = archive('states-for-page.tar.gz')
+    await repack(full, states, (dir) => {
+      const path = join(dir, ARCHIVE_FILES.manifest)
+      const m: Manifest = JSON.parse(readFileSync(path, 'utf8'))
+      m.schema.entities.page!.perLocale = true
+      m.fingerprint = fingerprintOf(m.schema)
+      writeFileSync(path, JSON.stringify(m))
+      const pages = join(dir, ARCHIVE_FILES.content('page'))
+      writeFileSync(pages, readFileSync(pages, 'utf8').trim().split('\n').map((l) => {
+        const e = JSON.parse(l)
+        e.translations = e.translations.map((t: any) => ({ ...t, publish: { published: false, publishedAt: null } }))
+        return JSON.stringify(e)
+      }).join('\n') + '\n')
+    })
+    await wipe(B.db)
+    const refused: ImportRefused = await importInto(states).catch((e) => e)
+    expect(refused.code).toBe('mismatch')
+    expect(refused.message).toContain('"page" publishes each language on its own in the archive, but not here')
+    expect(await B.db.select().from(entity('page').table)).toHaveLength(0)
+    const report = await importInto(states, { allowMismatch: true })
+    expect(report.entries.page!.translations).toBeGreaterThan(0)
+    expect(report.warnings.join('\n')).toMatch(/translations? of page had a publish state of their own in the archive/)
+  })
+
+  it('--merge leaves the state of a language alone when the archive says nothing about it, and takes the archive\'s when it does', async () => {
+    const T = entity('post').localesTable
+    // An archive with two English translations: one with its state (as exported), one from a site that had none to give.
+    const second = randomUUID()
+    const mixed = archive('mixed-states.tar.gz')
+    await repack(full, mixed, (dir) => {
+      const posts = join(dir, 'content/post.jsonl')
+      writeFileSync(posts, readFileSync(posts, 'utf8').trim().split('\n').map((l) => {
+        const e = JSON.parse(l)
+        if (e.id === ids.posts[1]) e.translations = [{ id: second, locale: 'en', createdAt: T0.toISOString(), updatedAt: T1.toISOString(), fields: { title: 'Second', slug: 'second', body: null } }]
+        return JSON.stringify(e)
+      }).join('\n') + '\n')
+    })
+    await wipe(B.db)
+    await importInto(mixed)
+    const state = async () => Object.fromEntries((await B.db.select().from(T)).map((r: any) => [r.parentId, [r.published, r.publishedAt?.toISOString() ?? null]]))
+    expect(await state()).toEqual({ [ids.posts[0]]: [true, '2026-03-04T09:00:00.000Z'], [ids.posts[1]]: [null, null] })
+    // The people here changed both: one language is a draft now, the other is scheduled.
+    await B.db.execute(sql`update ${T} set published = false, published_at = null where parent_id = ${ids.posts[0]}`)
+    await B.db.execute(sql`update ${T} set published = true, published_at = '2027-01-01T00:00:00.000Z' where parent_id = ${ids.posts[1]}`)
+    await importInto(mixed, { mode: 'merge' as ImportMode })
+    // The one the archive carries a state for is the archive's again; the one it carries none for keeps what it has.
+    expect(await state()).toEqual({ [ids.posts[0]]: [true, '2026-03-04T09:00:00.000Z'], [ids.posts[1]]: [true, '2027-01-01T00:00:00.000Z'] })
+    // And an archive made before per-language publishing (no state anywhere) changes no state at all.
+    const old = archive('before-states.tar.gz')
+    await repack(full, old, (dir) => {
+      const path = join(dir, ARCHIVE_FILES.manifest)
+      const m: Manifest = JSON.parse(readFileSync(path, 'utf8'))
+      delete m.schema.entities.post!.perLocale
+      m.fingerprint = fingerprintOf(m.schema)
+      writeFileSync(path, JSON.stringify(m))
+      const posts = join(dir, 'content/post.jsonl')
+      writeFileSync(posts, readFileSync(posts, 'utf8').trim().split('\n').map((l) => {
+        const e = JSON.parse(l)
+        e.translations = e.translations.map(({ publish: _p, ...t }: any) => t)
+        return JSON.stringify(e)
+      }).join('\n') + '\n')
+    })
+    await B.db.execute(sql`update ${T} set published = false where parent_id = ${ids.posts[0]}`)
+    const report = await importInto(old, { mode: 'merge' as ImportMode })
+    expect(report.differences).toEqual([])
+    expect(await state()).toEqual({ [ids.posts[0]]: [false, '2026-03-04T09:00:00.000Z'], [ids.posts[1]]: [true, '2027-01-01T00:00:00.000Z'] })
   })
 
   it('brings blocks stored at an older version up to the current one', async () => {

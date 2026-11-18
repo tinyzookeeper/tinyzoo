@@ -10,12 +10,18 @@ import type { FieldDescriptor } from './descriptor'
  * Meant for the size of a typical client site (hundreds to a few thousand entries).
  */
 
-/** Lowercase, without accents ("Zimní" → "zimni"): the same folding as the SQL side. */
+/**
+ * Lowercase, without accents ("Zimní" → "zimni"): the same folding as the SQL side.
+ *
+ * @internal
+ */
 export function foldSearchText(text: string): string {
   return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l').replace(/đ/g, 'd')
 }
 
-/** Longest query the search reads, and most words it matches on. */
+/**
+ * Longest query the search reads, and most words it matches on.
+ */
 export const SEARCH_MAX_QUERY = 100
 const MAX_TERMS = 8
 
@@ -34,14 +40,22 @@ export function searchTerms(query: string): string[] {
 /** Text fields that hold an address or a code, not words a visitor reads. */
 const NOT_PROSE = new Set(['email', 'url', 'path', 'link', 'color'])
 
-/** Is this field something people read (and so something to search)? */
+/**
+ * Is this field something people read (and so something to search)?
+ *
+ * @internal
+ */
 export function isSearchableField(fld: FieldDescriptor): boolean {
   if (fld.relation) return false
   if (fld.type === 'text') return !NOT_PROSE.has(String((fld.meta as any)?.format ?? ''))
   return fld.type === 'richtext' || fld.type === 'blocks' || fld.type === 'group'
 }
 
-/** The words of a rich-text document, one line per paragraph, heading or list item. */
+/**
+ * The words of a rich-text document, one line per paragraph, heading or list item.
+ *
+ * @internal
+ */
 export function richTextPlain(doc: unknown): string {
   const lines: string[] = []
   let line = ''
@@ -67,6 +81,8 @@ export function richTextPlain(doc: unknown): string {
  * Everything an entry says, field by field in the order the fields are defined: text,
  * rich text, and inside blocks their own text fields (lists included). Fields in
  * `skip` (e.g. hidden from the public) and anything that is not prose are left out.
+ *
+ * @internal
  */
 export function entryTexts(fields: Record<string, FieldDescriptor>, row: Record<string, any>, skip: ReadonlySet<string> = new Set()): string[] {
   const out: string[] = []
@@ -110,6 +126,8 @@ function collect(fld: FieldDescriptor, value: unknown, out: string[]) {
 /**
  * How many typos a word may have and still match: none under 4 letters, one up to 7,
  * two from 8 ("sousterdeni" → "soustředění", "preveiw" → "preview").
+ *
+ * @internal
  */
 export function allowedTypos(term: string): number {
   return term.length >= 8 ? 2 : term.length >= 4 ? 1 : 0
@@ -118,6 +136,8 @@ export function allowedTypos(term: string): number {
 /**
  * Edit distance with swapped neighbours counting as one edit (optimal string
  * alignment), giving up once it is over `max` (returns max + 1).
+ *
+ * @internal
  */
 export function editDistance(a: string, b: string, max = Infinity): number {
   if (Math.abs(a.length - b.length) > max) return max + 1
@@ -150,6 +170,8 @@ export function editDistance(a: string, b: string, max = Infinity): number {
  * 'typo' when it or its beginning is within the allowed typos — so a word's other
  * forms match too ("priprava" ~ "priprave", "zima" ~ "zimni"). Like most search
  * engines, a typo match keeps the first letter (or swaps the first two).
+ *
+ * @internal
  */
 export function wordMatch(term: string, word: string): 'exact' | 'typo' | null {
   if (word.includes(term)) return 'exact'
@@ -185,7 +207,9 @@ function termHits(folded: string, term: string): { exact: boolean; ranges: [numb
   return { exact, ranges }
 }
 
-/** One found entry: how well it matches, and a snippet of its text around the words. */
+/**
+ * One found entry: how well it matches, and a snippet of its text around the words.
+ */
 export interface SearchMatch {
   score: number
   /** A sentence or two around the first match (empty when only the title matched). */
@@ -261,6 +285,8 @@ const EXCERPT_LENGTH = 180
 /**
  * About `length` characters of `text` around the first word found (exactly or with a
  * typo), cut at word boundaries, with "…" where it was cut, and where the words are.
+ *
+ * @internal
  */
 export function excerptOf(text: string, terms: string[], length = EXCERPT_LENGTH): Pick<SearchMatch, 'excerpt' | 'highlights'> {
   // One line per heading, paragraph or field: a line that does not end a sentence
@@ -306,7 +332,9 @@ function mergeRanges(ranges: [number, number][]): [number, number][] {
   return out
 }
 
-/** Highlight ranges of `terms` (exact or with a typo) in a short text (a title), as [start, end) pairs. */
+/**
+ * Highlight ranges of `terms` (exact or with a typo) in a short text (a title), as [start, end) pairs.
+ */
 export function highlightRanges(text: string, terms: string[]): [number, number][] {
   return hitsIn(text, terms)
 }

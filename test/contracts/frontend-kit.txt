@@ -1,0 +1,148 @@
+// The frontend kit: the components and composables every website draws its content with.
+// Part of the frozen API from 1.0 (docs/api-surface.md, CONTRIBUTING.md "Contracts"). Accept a change with `pnpm contracts:update`.
+// Props are the interfaces of packages/cms/src/frontend.ts (exported from `tinyzoo`); the components declare their props with them.
+
+// ── components ─────────────────────────────────────────────────
+
+// <CmsBlocks> (app/components/CmsBlocks.vue): A page's blocks, each drawn by the site's own global component `<prefix><Type>`, which receives `block` and `index` (CmsBlockProps).
+export interface CmsBlocksProps {
+    blocks: CmsBlock[] | null | undefined;
+    prefix?: string;
+}
+defaults: { prefix: 'Block' }
+emits: none
+slots: none
+
+// <CmsImage> (app/components/CmsImage.vue): A picture with its alt text, real size, lazy loading, `srcset` and focal point.
+export interface CmsImageProps {
+    media: CmsImageMedia | null | undefined;
+    eager?: boolean;
+    sizes?: string;
+    alt?: string;
+}
+export interface CmsImageMedia {
+    id?: string;
+    url: string;
+    alt?: string | null;
+    width?: number | null;
+    height?: number | null;
+    mime?: string | null;
+    focal?: {
+        x: number;
+        y: number;
+    } | null;
+}
+emits: none
+slots: none
+
+// <CmsContent> (app/components/CmsContent.vue): A rich-text value as sanitised HTML in a `div.cms-content`.
+export interface CmsContentProps {
+    doc: CmsContentNode | null;
+}
+export interface CmsContentNode {
+    type: string;
+    content?: CmsContentNode[];
+    text?: string;
+    marks?: any[];
+    attrs?: any;
+}
+props: { doc: { type: Object as PropType<CmsContentProps['doc']>, default: null } }
+emits: none
+slots: none
+
+// <CmsNav> (app/components/CmsNav.vue): A menu as a `nav.cms-nav` with nested lists.
+export interface CmsNavProps {
+    links: CmsNavLink[] | null | undefined;
+}
+export interface CmsNavLink {
+    id: string;
+    label: string;
+    url: string | null;
+    newTab?: boolean | null;
+    sub?: boolean | null;
+}
+emits: none
+slots: none
+
+// <CmsHighlight> (app/components/CmsHighlight.vue): Text with `<mark>` around the searched words.
+export interface CmsHighlightProps {
+    text: string;
+    ranges?: [
+        number,
+        number
+    ][] | null;
+}
+emits: none
+slots: none
+
+// <CmsForm> (forms/components/CmsForm.vue): A website form by name (`tinyzoo/forms`; needs `formsPlugin()`).
+export interface CmsFormProps {
+    name: string;
+    locale?: string;
+}
+emits: sent: []
+slots: success
+
+// ── what a component of the site receives ──────────────────────
+
+export interface CmsBlockProps<B extends CmsBlock = CmsBlock> {
+    block: B;
+    index: number;
+}
+
+// ── composables ────────────────────────────────────────────────
+
+// useCmsSeo (app/composables/useCmsSeo.ts): The page's head from a content item: title, description, image, canonical, hreflang, og:*.
+export function useCmsSeo(item: MaybeRefOrGetter<Record<string, any> | null | undefined>, opts: { siteName?: string; titleField?: string; descriptionField?: string; imageField?: string; fallback?: MaybeRefOrGetter<{ metaDescription?: string | null; ogImage?: { url?: string; } | null; } | null | undefined>; defaultLocale?: string; path?: (path: string, locale: string) => string; ogLocales?: Record<string, string>; } = {})
+returns: { title, description, image, canonical }
+
+// useCmsSearch (app/composables/useCmsSearch.ts): The website search: reactive results with address and snippet.
+export async function useCmsSearch(query: MaybeRefOrGetter<string>, opts: { locale?: MaybeRefOrGetter<string | null | undefined>; limit?: number; entities?: string[]; } = {})
+returns: { items, total, searched, pending, error }
+
+// useCmsUiLocale (app/composables/useCmsUiLocale.ts): Nuxt UI's own words in the admin's language on /admin pages; for `<UApp :locale>`.
+export function useCmsUiLocale()
+returns: a value (see the signature)
+
+// ── the data types of the kit ───────────────────────────────────
+
+export interface CmsSearchItem {
+    entity: string;
+    id: string;
+    title: string;
+    titleHighlights: [
+        number,
+        number
+    ][];
+    excerpt: string;
+    highlights: [
+        number,
+        number
+    ][];
+    path: string | null;
+    locale: string | null;
+    updatedAt: string;
+}
+
+export interface CmsSearchResult {
+    query: string;
+    items: CmsSearchItem[];
+    total: number;
+}
+export interface CmsSearchItem {
+    entity: string;
+    id: string;
+    title: string;
+    titleHighlights: [
+        number,
+        number
+    ][];
+    excerpt: string;
+    highlights: [
+        number,
+        number
+    ][];
+    path: string | null;
+    locale: string | null;
+    updatedAt: string;
+}

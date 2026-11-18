@@ -2,7 +2,7 @@
 // A choice. A few options in the content column are buttons (with the developer's
 // icons, see `f.select({ icons })`), so every option is visible at once; elsewhere
 // and for longer lists, a dropdown.
-const props = defineProps<{ field: any; entity?: string; id?: string }>()
+const props = defineProps<{ field: any; entity?: string; id?: string; readOnly?: boolean }>()
 const model = defineModel<any>()
 const { t, tl } = useCmsI18n()
 const placement = inject<Ref<'main' | 'sidebar'> | null>('cmsFieldPlacement', null)

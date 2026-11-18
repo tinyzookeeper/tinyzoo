@@ -1,5 +1,5 @@
 import { and, eq, inArray, isNull, ne, or, sql } from 'tinyzoo'
-import { propOf, snake, type CmsEntity, type CmsRegistry } from 'tinyzoo'
+import { propOf, snake, type CmsAccessUser, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 import type { CmsUser } from './cmsSession'
 
 export function getEntity(reg: CmsRegistry, name: string | undefined): CmsEntity {
@@ -122,33 +122,52 @@ export async function assertMediaAccepted(db: any, reg: CmsRegistry, e: CmsEntit
 export function accessWhere(
   e: CmsEntity, op: 'read' | 'create' | 'update' | 'delete', user: CmsUser,
 ): { allowed: boolean; where: any } {
-  // 1. The built-in role decides first …
+  // 1. The person's role decides first …
   const byRole = roleAccess(e, op, user)
   if (!byRole.allowed) return byRole
-  // 2. … then the entity's own `access` rule narrows it further (AND).
+  // 2. … then the entity's own `access` rule narrows it further (AND). The rule sees the
+  // role's name (`user.role`) and the built-in it is (or extends) as `user.base`: write
+  // `user.base === 'author'` to treat a custom role like its parent.
   const rule = (e.access as any)?.[op]
   if (!rule) return byRole
-  const res = rule({ user, table: e.table })
+  // A role name of an external sign-in on a site without `defineRoles` (legacy) gets no
+  // `base`: it reaches what the entity rules allow, as before roles existed, but a rule that
+  // trusts `base === 'editor'` (the forms' messages) must not take it for an editor.
+  const role = roleOf(user)
+  // What the rule gets is `CmsAccessUser`: the fields a host's external sign-in left out are filled in empty.
+  const ruleUser: CmsAccessUser = { ...user, email: user.email ?? '', name: user.name ?? user.email ?? '', locale: user.locale ?? null, base: role?.legacy ? null : role?.base ?? null }
+  const res = rule({ user: ruleUser, table: e.table })
   if (res === false || res === null || res === undefined) return { allowed: false, where: undefined }
   return { allowed: true, where: both(byRole.where, res === true ? undefined : res) }
 }
 
 /**
- * Built-in roles (cms_users.role):
- *  - admin, editor: everything (admins also manage people — see requireCmsAdmin)
- *  - author: reads everything, creates entries, changes and deletes only entries
- *    they created, never touches settings (singletons), cannot publish
- * Any other role (e.g. from an external auth provider) is left to the entities'
- * own `access` rules, as before roles existed.
+ * What a role may do (see `defineRoles`; cms_users.role):
+ *  - admin: everything (and, only admin, manages people — see requireCmsAdmin)
+ *  - editor: every entry of every collection and global
+ *  - author: reads everything, creates entries, changes and deletes only entries they
+ *    created, never touches settings (globals)
+ *  - a role the site defined: the one it extends, with the operations it lists per
+ *    collection (a listed collection gets exactly those) and its `publish` setting
+ *  - a role the site does not know (removed from the config): nothing at all. With an
+ *    external sign-in on a site that defines no roles: as before roles could be defined,
+ *    everything, and the entities' own `access` rules decide.
+ * People who may not publish cannot write content that is live the moment it is saved.
  */
 export function roleAccess(e: CmsEntity, op: 'read' | 'create' | 'update' | 'delete', user: CmsUser): { allowed: boolean; where: any } {
-  if (user.role !== 'author') return { allowed: true, where: undefined }
+  const role = roleOf(user)
+  if (!role) return { allowed: false, where: undefined }
+  if (role.base === 'admin') return { allowed: true, where: undefined }
+  const listed = role.entities.get(e.name)
+  if (listed && !listed.has(op)) return { allowed: false, where: undefined }
   if (op === 'read') return { allowed: true, where: undefined }
-  if (e.singleton) return { allowed: false, where: undefined }
+  const ownOnly = role.base === 'author'
+  // Settings are an editor's: an author-based role has them only where its definition says so.
+  if (ownOnly && e.singleton && !listed) return { allowed: false, where: undefined }
   // Content that is live the moment it is saved (public without a publish workflow,
   // or marked `live`, e.g. redirects) — writing it would be publishing.
-  if (e.live || (e.content?.public && !e.publish)) return { allowed: false, where: undefined }
-  if (op === 'create') return { allowed: true, where: undefined }
+  if (!role.publish && (e.live || (e.content?.public && !e.publish))) return { allowed: false, where: undefined }
+  if (!ownOnly || op === 'create' || e.singleton) return { allowed: true, where: undefined }
   return { allowed: true, where: eq(e.table.createdBy, user.id) }
 }
 
@@ -161,16 +180,41 @@ export function notLiveCond(e: CmsEntity, user: CmsUser): any {
 }
 
 /**
+ * "Not live" for a write by someone who may not publish, judged for what is being written:
+ * the entry itself, or (`locale`: a translation language, for an entity that publishes per
+ * language) that language by **its own state**: its own while it has one, else the entry's
+ * (it follows). A language that is published on its own is live for this purpose even while
+ * the default language is a draft and holds it back: it is marked live, and the default
+ * language going live would put it on the website. A language with no translation yet is not:
+ * writing it starts a translation that visitors do not see (it is made "being translated" when
+ * the default language is published; see writeTranslation), so nothing on the website changes.
+ * A language with a draft of its own is not either, being translated or taken off the website.
+ * One rule for the translation write, shared editing and the editor's read-only switch, so what
+ * the form says is what a save does.
+ */
+export function notLiveInLanguage(e: CmsEntity, user: CmsUser, locale?: string | null): any {
+  const p = e.publish
+  if (!p?.perLocale || !locale || canPublish(user)) return notLiveCond(e, user)
+  const lt = e.localesTable
+  const status = e.table[propOf(p.field, e.fields[p.field]!)]
+  // Live for this purpose: published on its own, or a translation that follows a published default language.
+  return sql`not exists (select 1 from ${lt} where ${lt.parentId} = ${e.table.id} and ${lt.locale} = ${locale}
+    and (${lt.published} is true or (${lt.published} is null and coalesce(${status} = ${p.publishedValue}, false))))`
+}
+
+/**
  * May this person change this entry (or, with no id, the entity's one global)? The same
  * rules a save applies, told to the form beforehand so it opens read-only instead of
  * failing on save. `why` says which rule says no: the role, somebody else's entry,
  * or an entry that is live (people who may not publish cannot change what is live).
+ * `locale`: a translation language being edited (for an entity that publishes per language
+ * the language's own state counts, as in the translation write: `notLiveInLanguage`).
  */
-export async function updateVerdict(db: any, e: CmsEntity, user: CmsUser, id?: string | null): Promise<{ update: boolean; why?: 'role' | 'owner' | 'published' }> {
+export async function updateVerdict(db: any, e: CmsEntity, user: CmsUser, id?: string | null, locale?: string | null): Promise<{ update: boolean; why?: 'role' | 'owner' | 'published' }> {
   const a = accessWhere(e, 'update', user)
   if (!a.allowed) return { update: false, why: 'role' }
   if (!id) return { update: true }
-  const [ok] = await db.select({ id: e.table.id }).from(e.table).where(both(both(eq(e.table.id, id), a.where), notLiveCond(e, user)))
+  const [ok] = await db.select({ id: e.table.id }).from(e.table).where(both(both(eq(e.table.id, id), a.where), notLiveInLanguage(e, user, locale)))
   if (ok) return { update: true }
   const [mine] = await db.select({ id: e.table.id }).from(e.table).where(both(eq(e.table.id, id), a.where))
   return { update: false, why: mine ? 'published' : 'owner' }
@@ -181,9 +225,9 @@ export function actorId(user: CmsUser): string | null {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id) ? user.id : null
 }
 
-/** May this person publish (or unpublish) entries? Authors write drafts only. */
+/** May this person publish (or unpublish) entries? Authors write drafts only; a custom role says so with `publish`. */
 export function canPublish(user: CmsUser): boolean {
-  return user.role !== 'author'
+  return roleOf(user)?.publish ?? false
 }
 
 /**
@@ -212,17 +256,27 @@ export function publishAction(e: CmsEntity, before: Record<string, any> | null, 
   return is ? 'entry.publish' : 'entry.unpublish'
 }
 
-/** Authors may change or delete only files they uploaded themselves. */
+/**
+ * Who may change or delete a file: with the library open to every file (`media: 'all'`),
+ * anyone; with `'own'` (authors), only the person who uploaded it; with `'none'`, nobody.
+ */
 export function assertMediaOwner(user: CmsUser, media: { uploadedBy?: string | null }) {
-  if (user.role === 'author' && media.uploadedBy !== user.id) {
+  const mode = mediaAccess(user)
+  if (mode === 'none') throw createError({ statusCode: 403, statusMessage: 'Your role cannot use the media library' })
+  if (mode === 'own' && media.uploadedBy !== user.id) {
     throw createError({ statusCode: 403, statusMessage: 'You can only change files you uploaded' })
   }
 }
 
-/** Admin-only endpoints (people management, audit log). */
+/** The media library is closed to a role with `media: 'none'` (listing, uploading, changing, deleting). */
+export function assertMediaLibrary(user: CmsUser) {
+  if (mediaAccess(user) === 'none') throw createError({ statusCode: 403, statusMessage: 'Your role cannot use the media library' })
+}
+
+/** Admin-only endpoints (people management, audit log, privacy). Only the built-in admin, whatever other roles are defined. */
 export function requireCmsAdmin(event: any): CmsUser {
   const user = requireCmsUser(event)
-  if (user.role !== 'admin') throw createError({ statusCode: 403, statusMessage: 'Administrators only' })
+  if (!roleOf(user)?.manage) throw createError({ statusCode: 403, statusMessage: 'Administrators only' })
   return user
 }
 
@@ -345,8 +399,8 @@ export function stampPublishDate(e: CmsEntity, values: Record<string, any>, befo
  * What still points at an entry (many-to-one relations of other collections), so a
  * refused delete can say where it is used: a few titles per collection.
  */
-export async function usedBy(db: any, reg: CmsRegistry, target: CmsEntity, id: string): Promise<{ entity: string; id: string; title: string }[]> {
-  const out: { entity: string; id: string; title: string }[] = []
+export async function usedBy(db: any, reg: CmsRegistry, target: CmsEntity, id: string): Promise<{ entity: string; id: string; title: string; fields: string[] }[]> {
+  const out: { entity: string; id: string; title: string; fields: string[] }[] = []
   for (const e of reg.entities) {
     for (const [key, fld] of Object.entries(e.fields) as [string, any][]) {
       if (fld.type !== 'relation' || fld.relation?.kind !== 'many-to-one') continue
@@ -354,7 +408,7 @@ export async function usedBy(db: any, reg: CmsRegistry, target: CmsEntity, id: s
       const col = e.table[`${key}Id`]
       if (!col) continue
       const rows: any[] = await db.select({ id: e.table.id, title: e.table[e.titleField] ?? e.table.id }).from(e.table).where(eq(col, id)).limit(5)
-      for (const r of rows) out.push({ entity: e.name, id: r.id, title: r.title == null ? '' : String(r.title) })
+      for (const r of rows) out.push({ entity: e.name, id: r.id, title: r.title == null ? '' : String(r.title), fields: [key] })
     }
   }
   return out

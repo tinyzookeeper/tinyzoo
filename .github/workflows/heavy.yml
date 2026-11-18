@@ -10,6 +10,9 @@ name: Heavy checks
 #
 #   upgrade    a site made on an older tinyzoo moves to this one (scripts/upgrade-check.mjs)
 #   consumer   the packages as a client app gets them: packed, installed, built
+#   starter    the starter in four combinations made by the packed `tinyzoo init` and
+#              `create-tinyzoo`, installed from the tarballs, migrated, built, started, checked
+#              (scripts/starter-check.mjs)
 #   backup     tinyzoo backup / restore with pg_dump, pg_restore and psql of 16, 17 and 18
 #              against a 16 server — strict: a runner without the tools fails
 #   s3-minio   the S3 delivery modes against a real MinIO
@@ -40,6 +43,7 @@ jobs:
       backup: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.backup == 'true' || steps.filter.outputs.workflow == 'true' }}
       upgrade: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.upgrade == 'true' || steps.filter.outputs.workflow == 'true' }}
       consumer: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.consumer == 'true' || steps.filter.outputs.workflow == 'true' }}
+      starter: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.starter == 'true' || steps.filter.outputs.workflow == 'true' }}
       minio: ${{ steps.everything.outputs.all == 'true' || steps.filter.outputs.minio == 'true' || steps.filter.outputs.workflow == 'true' }}
     steps:
       - id: everything
@@ -72,11 +76,19 @@ jobs:
               - 'packages/*/package.json'
               - 'packages/cms/module.ts'
               - 'packages/cms/nuxt.config.ts'
+              - 'packages/cms/cli/init.mjs'
+              - 'packages/cms/starter/**'
+              - 'packages/create-tinyzoo/**'
               - 'scripts/consumer-check*'
               - 'test/consumer/**'
               - 'playground/package.json'
               - 'playground/cms.config.ts'
               - 'playground/cms-plugins/**'
+            starter:
+              - 'packages/cms/starter/**'
+              - 'packages/cms/cli/init*'
+              - 'packages/create-tinyzoo/**'
+              - 'scripts/starter-check*'
             minio:
               - 'packages/cms/server/utils/cmsStorage*'
               - 'packages/cms/server/api/cms/_media/**'
@@ -147,6 +159,40 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm check:consumer
+
+  # The starter as a new site gets it, in four combinations of languages, parts and demo content
+  # (scripts/starter-check.mjs): each site is made by the packed package, installed from the
+  # tarballs, migrated, type-checked, built, started and checked. About ten minutes on a laptop;
+  # it needs a Postgres server and makes (and drops) its own databases on it.
+  starter:
+    needs: changes
+    if: needs.changes.outputs.starter == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: cms
+          POSTGRES_DB: cms
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U cms -d cms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      STARTER_CHECK_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test_starter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm # the store also holds what the four sites' installs download
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:starter
 
   # `tinyzoo restore` with client tools of each major version against the 16 server: the same
   # version (what the compose file runs), and newer, which writes settings 16 does not know
@@ -246,7 +292,7 @@ jobs:
   # One check for "the heavy jobs this event needed passed": skipped jobs (nothing relevant
   # changed) are fine, a failed or cancelled one is not.
   result:
-    needs: [changes, upgrade, consumer, backup, s3-minio]
+    needs: [changes, upgrade, consumer, starter, backup, s3-minio]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

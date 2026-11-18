@@ -43,7 +43,7 @@ Viz [Obrázky a soubory](obrazky-a-soubory.md).
 
 ## Nemůžu zveřejnit
 
-Uvidíte **Zveřejní ho editor** nebo nevidíte tlačítko **Zveřejnit…**. Máte roli **Autor**, která píše jen koncepty. Řekněte editorovi nebo administrátorovi, ať položku zveřejní, nebo ať vám roli změní (**Tým → Změnit roli**).
+Uvidíte **Zveřejní ho editor** nebo nevidíte tlačítko **Zveřejnit…**. Máte roli, která píše jen koncepty (třeba **Autor** nebo **Překladatel**). Řekněte editorovi nebo administrátorovi, ať položku zveřejní, nebo ať vám roli změní (**Tým → Změnit roli**).
 
 ## Chybí mi tlačítko nebo položka v menu
 
@@ -55,6 +55,10 @@ Za to nejčastěji může role:
 | **Nastavení webu**, **Přesměrování**, jiná nastavení | Autoři je nemohou měnit. |
 | Úpravy cizí položky | Autor mění jen to, co sám vytvořil. |
 | **Tým**, **Soukromí** | Vidí je jen **Administrátor**. |
+| Pole se šedým pozadím a zámkem, nebo pole, které chybí | Vaše role ho smí jen číst, nebo vůbec ne (nastavuje to vývojář webu). Pod zamčeným polem je, kdo ho smí měnit. Viz [Role a oprávnění](role-a-opravneni.md#pole-které-nejde-změnit). |
+| Celá položka **Jen ke čtení** | Vaše role ji nemůže měnit. Proč, je napsáno v rámečku nad formulářem. |
+| **Vaše role už neexistuje** | Role, kterou jste měli, už web nemá. Požádejte administrátora o jinou. |
+| **Knihovna médií není pro vaši roli otevřená** | Vaše role nesmí pracovat se soubory. Obrázky, které už jsou u záznamů, zůstávají. |
 | Tlačítko **+** u zpráv z formuláře | Zprávy přicházejí jen z webu. Vytvořit je ručně nejde. |
 
 Chybí-li vám přístup, o který jste žádali, napište administrátorovi. Na jeho stránce **Tým** se role mění jedním kliknutím. Správa také napíše **Na tohle nemáte oprávnění. Požádejte administrátora.**
@@ -88,7 +92,9 @@ Chcete něco smazat (stránku, obrázek, soubor), ale správa to odmítne: **Po�
 
 ## Anglická verze chybí
 
-V angličtině (nebo jiném jazyce) se ukazuje český text? Překlad zatím nikdo nenapsal nebo není uložený. Přepněte v panelu **Jazyky** na jazyk, vyplňte pole a klikněte na **Uložit překlad**. Postup je v kapitole [Překlady](preklady.md). Na seznamu poznáte chybějící překlady podle **Chybí EN**.
+V angličtině (nebo jiném jazyce) se ukazuje český text? Překlad zatím nikdo nenapsal nebo není uložený. Přepněte tlačítkem s jazykem v horní liště na jazyk, vyplňte pole a klikněte na **Uložit překlad**. Postup je v kapitole [Překlady](preklady.md). Na seznamu poznáte chybějící překlady podle **Chybí EN** (nebo podle světlejší zkratky jazyka ve sloupci **Jazyky**).
+
+Anglická stránka na webu úplně chybí (návštěvník dostane „stránka nenalezena“)? Pokud se na vašem webu zveřejňuje každý jazyk zvlášť, je angličtina nejspíš **Koncept**, nebo **Čeká, až bude na webu čeština**. Překlad jde na web jen spolu s českou verzí. Viz [Každý jazyk zvlášť](preklady.md#každý-jazyk-zvlášť).
 
 ## Odkaz v menu se nezobrazuje
 

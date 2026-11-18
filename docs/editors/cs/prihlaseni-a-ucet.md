@@ -44,7 +44,7 @@ Pokud odkaz mezitím vypršel, ukáže se **Tento odkaz už nefunguje**. Klikně
 Vlevo dole (na telefonu v menu) otevřete nabídku se svým jménem a vyberte **Váš účet**.
 
 - **Profil.** Tady si změníte jméno. Vaše jméno uvidí kolegové v historii změn.
-- **Jazyk rozhraní.** Správa mluví česky nebo anglicky. Tohle nastavení se týká jen toho, jak vypadají tlačítka a hlášky. Na jazyk webu pro návštěvníky nemá vliv.
+- **Jazyk rozhraní.** Správa mluví česky, anglicky nebo německy. Tohle nastavení se týká jen toho, jak vypadají tlačítka a hlášky. Na jazyk webu pro návštěvníky nemá vliv.
 - **Přihlašovací e-mail.** Adresa, kterou se přihlašujete. Jak ji změnit, je hned níže.
 - **Heslo.** Napište **Současné heslo** a **Nové heslo** a klikněte na **Změnit heslo**. Po změně vás správa odhlásí na všech ostatních zařízeních.
 
@@ -95,20 +95,22 @@ Každý člověk má jednu roli. Kdo vás pozval, vybral ji. Roli změní jen ad
 | **Editor** | Vytváří, upravuje, zveřejňuje a maže veškerý obsah. Upravuje **Nastavení webu**. Nespravuje lidi. |
 | **Autor** | Píše koncepty a upravuje a maže jen to, co sám vytvořil. Nezveřejňuje. Nemůže měnit nastavení webu ani obsah, který se na web dostává hned po uložení (třeba **Přesměrování**). Soubory mění a maže jen ty, které sám nahrál. Nevidí **zprávy z formulářů** (jsou v nich osobní údaje návštěvníků) ani seznam příjemců těchto zpráv. |
 
+Web může mít i **vlastní role** (třeba **Překladatel**): vycházejí z role Editor nebo Autor a mají to, co jim vývojář webu nastavil. Co přesně role smí, vám řekne administrátor (v **Týmu** to vidí pod **Co která role může?**). Pole, které vaše role smí jen číst, má šedé pozadí a zámek a pod ním je, kdo ho smí měnit. Pole, které vaše role číst nesmí, ve formuláři vůbec není. Podrobně je to v kapitole [Role a oprávnění](role-a-opravneni.md).
+
 Kdo je **Autor**, u položky vidí místo tlačítka **Zveřejnit** poznámku **Zveřejní ho editor**. Co dělat, když potřebujete něco, na co nemáte oprávnění, je v kapitole [Co dělat, když něco nefunguje](kdyz-neco-nefunguje.md).
 
 ## Pozvání kolegů (jen administrátor)
 
 1. V nabídce vlevo v části **Nastavení** otevřete **Tým**.
 2. Klikněte na **Pozvat kolegu**.
-3. Napište e-mail, volitelně jméno, a vyberte **Roli**.
+3. Napište e-mail, volitelně jméno, a vyberte **Roli**. U každé role je jednou větou, co smí, a odkaz **Co která role může?** ukáže všechny role vedle sebe.
 4. Klikněte na **Poslat pozvánku**.
 
 Kolegovi přijde e-mail, který říká, kdo ho zve a **jako kdo** (v jaké roli). Je ve vašem jazyce rozhraní (nebo v jazyce vašeho prohlížeče, pokud jste si žádný neuložili). Pokud se e-mail nepodaří odeslat, správa to napíše a ukáže **Odkaz s pozvánkou**. Klikněte na **Kopírovat odkaz** a pošlete ho sami, ale jen tomu jednomu člověku. Kdokoli s odkazem se totiž může připojit.
 
 V seznamu **Tým** vidíte u každého stav (**Aktivní**, **Pozvánka odeslána**, **Přístup zablokován**) a kdy byl člověk **Naposledy aktivní**. U jména je nabídka s těmito volbami:
 
-- **Změnit roli**
+- **Změnit roli** (vedle tří základních rolí nabídne i role, které web definuje, u každé s větou o tom, co smí). Člověk se tím **odhlásí na všech zařízeních** a při dalším přihlášení má novou roli. U člověka, jehož role už na webu neexistuje (vývojář ji z nastavení odebral), je v seznamu **Tým** poznámka **Tato role už neexistuje**. Přihlásit se může, ale nic neuvidí a ukáže se mu **Vaše role už neexistuje**. Stačí mu přidělit jinou roli. Víc v kapitole [Role a oprávnění](role-a-opravneni.md#pro-administrátory).
 - **Změnit e-mail**: napište novou adresu a do pole **Vaše heslo** své vlastní heslo (to, kterým se přihlašujete vy). Pak klikněte na **Změnit e-mail**. Heslo je pojistka: kdyby od vašeho počítače někdo odešel přihlášený, nemůže přesunout cizí účet na svou adresu. Změna platí hned, bez potvrzovacího odkazu. Člověk se odhlásí na všech zařízeních a přihlásí se novou adresou a svým dosavadním heslem. Na starou i novou adresu mu přijde e-mail o změně (v tom na starou adresu není odkaz na vrácení změny: stará schránka už často patří někomu jinému, a právě proto adresu měníte). Kdo má **Přístup zablokován**, tomu nepřijde nic; novou adresou se přihlásí, až mu přístup obnovíte. Kdo ještě nepřijal pozvánku, dostane novou pozvánku na novou adresu a ta stará přestane platit. Hodí se, když se v pozvánce překlepnete.
 - **Poslat novou pozvánku**
 - **Zrušit pozvánku**
@@ -122,5 +124,6 @@ Svůj vlastní řádek v seznamu **Tým** nabídku nemá: svou roli si měnit ne
 ## Viz také
 
 - [Stránky a bloky](stranky-a-bloky.md): co dělat po přihlášení
+- [Role a oprávnění](role-a-opravneni.md): co která role smí, zamčená pole, změna role
 - [Soukromí](soukromi.md): další část jen pro administrátory
 - [Co dělat, když něco nefunguje](kdyz-neco-nefunguje.md)

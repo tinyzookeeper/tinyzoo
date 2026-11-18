@@ -1,4 +1,4 @@
-import { and, eq, fillPathTemplate, indexTree, inArray, pathTemplateKeys, sitePath, sitePrefix, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from 'tinyzoo'
+import { and, eq, fillPathTemplate, indexTree, inArray, pathTemplateKeys, sitePath, sitePrefix, sql, type CmsChange, type CmsChangeType, type CmsEntity, type CmsRegistry } from 'tinyzoo'
 
 /**
  * One place every content write reports to. A change:
@@ -40,8 +40,22 @@ export const pathKeys = pathTemplateKeys
  * API applies, scheduling included) and its addresses in every language.
  */
 export interface ChangeSnapshot {
+  /** Live (for an entity that publishes per language: in the default language, which gates every other, so in at least one). */
   live: boolean
-  paths: { locale: string | null; path: string }[]
+  /** Only for an entity that publishes per language: the languages it is live in. */
+  locales?: string[]
+  /**
+   * Only for an entity that publishes per language: the live languages visitors read in a translation of
+   * their own (the others among `locales` are served through the default language: no translation, or
+   * one being worked on, which visitors do not see).
+   */
+  translated?: string[]
+  /**
+   * `fallback`: a language that follows the default one without a translation of its own (only for
+   * an entity that publishes per language). It is served, so it is purged when a change is about that
+   * language; it is not part of "the address changed" or of a change to the entry itself.
+   */
+  paths: { locale: string | null; path: string; fallback?: boolean }[]
   /** Page tree: which of the entry and everything below it are live (the entry's own pages' addresses are in `paths`). */
   liveIds?: string[]
 }
@@ -69,6 +83,7 @@ export async function changeSnapshot(e: CmsEntity, id: string, tx?: any): Promis
   const keys = !e.singleton ? pathKeys(e.content.path).filter((k) => e.table[k]) : []
   const cols: Record<string, any> = { id: e.table.id }
   for (const k of keys) cols[k] = e.table[k]
+  if (perLocalePublishing(e) && reg.locales) return localeSnapshot(db, e, id, keys, cols)
   const [row] = await db.select(cols).from(e.table).where(both(eq(e.table.id, id), publishedCond(e)))
   if (!row) return none
   const out: ChangeSnapshot = { live: true, paths: [] }
@@ -93,9 +108,47 @@ export async function changeSnapshot(e: CmsEntity, id: string, tx?: any): Promis
   return out
 }
 
+/**
+ * The snapshot of an entry that publishes per language: which languages it is live in, and
+ * the address in each of them — a language without a translation row of its own too, marked
+ * `fallback` (it is served through the default language, and is purged when that language
+ * is what changed).
+ */
+async function localeSnapshot(db: any, e: CmsEntity, id: string, keys: string[], cols: Record<string, any>): Promise<ChangeSnapshot> {
+  const { reg } = useCms()
+  const languages = reg.locales!.locales
+  const defaultLocale = reg.locales!.default
+  languages.forEach((l, i) => { cols[`live${i}`] = sql<boolean>`coalesce(${publishedCond(e, l) ?? sql`true`}, false)` })
+  const [row] = await db.select(cols).from(e.table).where(eq(e.table.id, id))
+  const live = row ? languages.filter((_, i) => row[`live${i}`] === true) : []
+  if (!live.length) return { live: false, paths: [] }
+  const out: ChangeSnapshot = { live: true, locales: live, paths: [] }
+  const translated = new Map<string, any>()
+  const t = e.localesTable
+  const others = live.filter((l) => l !== defaultLocale)
+  if (t && others.length) {
+    const tcols: Record<string, any> = { locale: t.locale }
+    for (const k of keys) if (e.localized.includes(k)) tcols[k] = t[k]
+    // Only what visitors see: a translation being worked on is not there for them.
+    const rows: any[] = await db.select(tcols).from(t).where(and(eq(t.parentId, id), inArray(t.locale, others), shownTranslationCond(e, t)))
+    for (const tr of rows) translated.set(tr.locale, tr)
+  }
+  out.translated = [...translated.keys()]
+  if (!keys.length) return out
+  for (const l of live) {
+    const merged = { ...row }
+    const tr = translated.get(l)
+    // Untranslated parts of the address fall back to the default language.
+    if (tr) for (const k of keys) if (tr[k] !== null && tr[k] !== undefined && tr[k] !== '') merged[k] = tr[k]
+    const p = sitePath(reg.locales, e.content!.path, l, merged)
+    if (p) out.paths.push({ locale: l, path: p, ...(l !== defaultLocale && !tr ? { fallback: true } : {}) })
+  }
+  return out
+}
+
 /** Did what visitors could reach change: live or not, or the address in some language? */
 export function addressesDiffer(before: ChangeSnapshot, after: ChangeSnapshot): boolean {
-  const key = (s: ChangeSnapshot) => JSON.stringify(s.live ? [...s.paths].map((p) => `${p.locale ?? ''}=${p.path}`).sort() : null)
+  const key = (s: ChangeSnapshot) => JSON.stringify(s.live ? s.paths.filter((p) => !p.fallback).map((p) => `${p.locale ?? ''}=${p.path}`).sort() : null)
   return key(before) !== key(after)
 }
 
@@ -120,13 +173,24 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     const e = r.entity
     const locale = r.locale ?? null
     const deleted = r.type === 'entry.deleted'
+    // Publishing per language: a change about one language is public when that language is live.
+    const liveFor = (snap: ChangeSnapshot) => (locale && snap.locales ? snap.locales.includes(locale) : snap.live)
     const before = r.before ?? { live: false, paths: [] }
     const after = deleted ? { live: false, paths: [] } : await changeSnapshot(e, r.id)
     // Only addresses a visitor could have reached, in the language the change is about.
     const paths = new Set<string>()
+    // Publishing per language: a language that went live or off. Its address is purged even where it is only served through the default language, and what links to it reads differently.
+    // A language that publishes on its own also flips when visitors switch between the default language's text (fallback, or a
+    // translation being worked on) and a translation of its own, while it stays live: publishing a translation being worked on.
+    const ownFor = (snap: ChangeSnapshot) => !!locale && liveFor(snap) && !!snap.translated?.includes(locale)
+    const perLanguage = !!locale && (!!before.locales || !!after.locales)
+    const languageFlipped = !!locale && (liveFor(before) !== liveFor(after) || (perLanguage && ownFor(before) !== ownFor(after)))
+    // (The default language gates every other: when it goes live or off, the languages it takes along are in `before` and
+    // `after` as live ones, so a change to it names each of their addresses. A language served only through the default
+    // language, with no row of its own, is `fallback` and stays out of a change to the default language, as it always did.)
     for (const snap of [before, after]) {
       if (!snap.live) continue
-      for (const p of snap.paths) if (!locale || p.locale === locale) paths.add(p.path)
+      for (const p of snap.paths) if (locale ? p.locale === locale && (!p.fallback || languageFlipped) : !p.fallback) paths.add(p.path)
     }
     // Links follow their target: when this entry's address (or whether it can be reached at
     // all) changed, everything that links to it reads differently now. Those pages go in
@@ -134,7 +198,7 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     // whatever shows them — usually every page — is stale too.
     const globals = new Set<string>()
     const { db, reg } = useCms()
-    const addressChanged = !deleted && !!e.content?.path && !e.singleton && addressesDiffer(before, after)
+    const addressChanged = !deleted && !!e.content?.path && !e.singleton && (addressesDiffer(before, after) || languageFlipped)
     // An entry that went live at an address a redirect leaves from would be hidden by it: the redirect goes.
     // (Writes that can do it in their own transaction have done so already; this catches every other path.)
     if (addressChanged && after.live) {
@@ -155,7 +219,9 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
       entity: e.name,
       id: r.id,
       locale,
-      public: before.live || after.live,
+      // Publishing per language: a change about a language is public when visitors could see what changed — its own
+      // translation, before or after, or a flip. Saving a translation being worked on changes nothing they see.
+      public: perLanguage ? ownFor(before) || ownFor(after) || languageFlipped : liveFor(before) || liveFor(after),
       paths: [...paths],
       ...(globals.size ? { globals: [...globals] } : {}),
       ...(r.moved?.length ? { moved: r.moved } : {}),
@@ -165,7 +231,7 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     }
     // What was saved, for the history (not for deletions).
     if (!r.noRevision && r.type !== 'entry.deleted' && r.type !== 'translation.deleted') {
-      await recordRevision(event, e, r.id, r.type === 'translation.updated' ? locale : null, r.type)
+      await recordRevision(event, e, r.id, locale && (r.type === 'translation.updated' || r.type === 'entry.published' || r.type === 'entry.unpublished') ? locale : null, r.type)
     }
     // The search index follows every write (its own failure never stops the rest).
     if (r.type !== 'global.updated') {

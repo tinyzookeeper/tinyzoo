@@ -142,6 +142,8 @@ interface Plan {
   skippedFields: Set<string>
   locales: Set<string> | null
   deferred: Map<string, FkEdge[]>
+  /** Translations whose own publish state (published, draft or scheduled) this site cannot keep, by entity. */
+  droppedStates: Map<string, number>
 }
 
 function decodeValue(plan: Plan, e: CmsEntity, f: LayoutField, raw: unknown, id: string): unknown {
@@ -195,6 +197,24 @@ function decodeEntry(plan: Plan, layout: EntityLayout, entry: Entry) {
     for (const key of e.localized) {
       const f = layout.byKey.get(key)
       if (f && key in tr.fields && !skip?.has(key)) t[key] = decodeValue(plan, e, f, tr.fields[key], tr.id)
+    }
+    // Per-language publishing: the language's own state travels with it (an archive of a site without it has none: it follows the default language).
+    // An archive without it (from before 0.6, or from a site that does not publish per language) says nothing about the
+    // state: the keys are left out, so a new row follows and a `--merge` onto a row that has a state keeps it.
+    if (e.publish?.perLocale) {
+      if (tr.publish) {
+        t.published = tr.publish.published ?? null
+        t.publishedAt = tr.publish.publishedAt ? new Date(tr.publish.publishedAt) : null
+        // When it was first on the website. An archive that does not say (made before this was kept) is read the careful way:
+        // a language with a state of its own has been on the website (published: from its date; a draft: it was taken off),
+        // so nothing that was off the website comes back on it through the default language.
+        const firstLive = tr.publish.firstLiveAt !== undefined ? tr.publish.firstLiveAt
+          : t.published === null ? null : (tr.publish.publishedAt ?? tr.updatedAt)
+        t.firstLiveAt = firstLive ? new Date(firstLive) : null
+      }
+    }
+    else if (tr.publish && tr.publish.published !== null && tr.publish.published !== undefined) {
+      plan.droppedStates.set(e.name, (plan.droppedStates.get(e.name) ?? 0) + 1)
     }
     translations.push(t)
   }
@@ -399,7 +419,7 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
       }))
     }
 
-    const plan: Plan = { reg, manifest, urls, skipFields, skippedFields: new Set(), locales, deferred }
+    const plan: Plan = { reg, manifest, urls, skipFields, skippedFields: new Set(), locales, deferred, droppedStates: new Map() }
     const write: Write = mode === 'merge' ? 'upsert' : 'insert'
     // Replacing with an --only archive keeps the media that other content still uses: those rows are updated, not re-created.
     const mediaWrite: Write = mode === 'merge' || (mode === 'replace' && !fullMedia) ? 'upsert' : 'insert'
@@ -466,7 +486,11 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
         let trs: Record<string, unknown>[] = []
         const flush = async () => {
           await writeRows(tx, e.table, rows, write)
-          if (trs.length) await writeRows(tx, e.localesTable, trs, write === 'upsert' ? 'upsert' : 'insert', write === 'upsert' ? [e.localesTable.parentId, e.localesTable.locale] : undefined)
+          // A translation that carries no publish state (an archive from before per-language publishing) is written apart from
+          // the ones that do: an upsert sets every column any row of a batch names, so it would reset the states already here.
+          for (const group of [trs.filter((t) => 'published' in t), trs.filter((t) => !('published' in t))]) {
+            if (group.length) await writeRows(tx, e.localesTable, group, write === 'upsert' ? 'upsert' : 'insert', write === 'upsert' ? [e.localesTable.parentId, e.localesTable.locale] : undefined)
+          }
           counts.rows += rows.length
           counts.translations += trs.length
           rows = []
@@ -573,6 +597,11 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
       }
     })
     report.skipped.fields = [...plan.skippedFields].sort()
+    for (const [entity, n] of plan.droppedStates) {
+      const warning = `${n} translation${n === 1 ? '' : 's'} of ${entity} had a publish state of their own in the archive (published, draft or scheduled per language); ${entity} does not publish each language on its own here, so ${n === 1 ? 'it follows' : 'they follow'} the default language. Set \`publish.perLocale\` on ${entity} and import again to keep them.`
+      report.warnings.push(warning)
+      log(`\n  !! ${warning}\n`)
+    }
 
     // ── the search index ──────────────────────────────────────────────────────
     if (opts.searchIndex !== false) {

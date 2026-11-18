@@ -4,7 +4,7 @@ import { defineEntity, defineSingleton } from './entity'
 import { f } from './fields'
 import type { LocalizedText } from './i18n'
 import type { PathTemplate } from './paths'
-import { cmsDeprecated } from './deprecate'
+import type { CmsAccessUser } from './roles'
 import { TREE_DEFAULT_MAX_DEPTH } from './tree'
 
 const SEO_GROUP = { en: 'Search & sharing', cs: 'Vyhledávače a sdílení', de: 'Suche & Teilen' }
@@ -78,7 +78,12 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
   path?: PathTemplate
   tree?: T
   /** Row-level rules on top of the roles (as `defineEntity({ access })`): who may read, create, change or delete which pages. */
-  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: any; table: any }) => unknown>>
+  access?: Partial<Record<'read' | 'create' | 'update' | 'delete', (ctx: { user: CmsAccessUser; table: any }) => unknown>>
+  /**
+   * Publish each language on its own (`publish.perLocale`): a translation can be a draft or
+   * scheduled while the default language is live. Needs `localized: true`; not yet for `tree`.
+   */
+  perLocale?: boolean
 }) {
   const loc = <T extends { localized: () => any }>(d: T): T => (opts.localized ? d.localized() : d)
   const path = opts.path ?? '/:slug'
@@ -106,7 +111,7 @@ export function definePages<const B extends Record<string, BlockDef<any>>, const
       ...treeFields,
       ...seo({ localized: opts.localized }),
     },
-    publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', preview: path },
+    publish: { field: 'status', publishedValue: 'published', draftValue: 'draft', preview: path, ...(opts.perLocale ? { perLocale: true } : {}) },
     ...(opts.access ? { access: opts.access as {} } : {}),
     content: {
       public: true,
@@ -194,5 +199,7 @@ export function defineRedirects(opts: { name?: string } = {}) {
   return e
 }
 
-// ── forms: in the forms plugin (`tinyzoo/forms`); the field types and options stay importable from here ──
-export { FORM_FIELD_TYPES, type FormOptions } from '../forms'
+// ── forms: in the forms plugin (`tinyzoo/forms`) ──
+export { FORM_FIELD_TYPES } from '../forms'
+/** @deprecated Import `FormOptions` from `tinyzoo/forms`. Removed in 1.0. */
+export type FormOptions<F extends Record<string, any>> = import('../forms').FormOptions<F>

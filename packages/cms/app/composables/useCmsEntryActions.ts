@@ -16,7 +16,8 @@ export function useCmsEntryActions() {
       const { row } = await cmsFetch<{ row: Record<string, any> }>(`/api/cms/${entity}/${id}`)
       const body: Record<string, any> = {}
       for (const f of (meta?.fields ?? []) as any[]) {
-        if (f.relation?.kind === 'one-to-many' || f.key === meta?.orderField) continue
+        // Not a field this person may not edit (the server refuses a write that names one): the copy starts without it.
+        if (f.relation?.kind === 'one-to-many' || f.key === meta?.orderField || f.readOnly) continue
         const v = row[f.key]
         if (v === undefined || (v === null && f.optional)) continue
         body[f.key] = v

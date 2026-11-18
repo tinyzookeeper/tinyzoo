@@ -6,6 +6,6 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "fixed": [["tinyzoo", "@tinyzoo/client"]],
+  "fixed": [["tinyzoo", "@tinyzoo/client", "create-tinyzoo"]],
   "ignore": ["playground", "tinyzoo-web", "tinyzoo-starter"]
 }

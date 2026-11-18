@@ -51,6 +51,13 @@ as an interface. No pure black or white.
 Status is the only other colour: Draft = grey ring, On the website = green,
 Scheduled = blue clock, warnings = amber, errors = red.
 
+**One word per state, everywhere** (the editor's bar, the language menu, the list, the home page, the
+search): *Draft*, *On the website* (cs *Na webu*, de *Auf der Website*), *Scheduled*, for a
+translation held back by the default language *Waiting for Czech*, and for a translation that has never
+been on the website *Being translated* (cs *Překládá se*, de *Wird übersetzt*; a muted languages mark,
+with "Visitors see the Czech version until an editor publishes this one." in its tooltip). With content languages the state
+names its language: "English · Draft" (on a phone "EN · Draft").
+
 Client accents: `cms.admin.accent` = `indigo`, `blue`, `violet` or `emerald` replaces
 charcoal; or override `--ui-color-primary-*` under `html[data-cms-admin]`.
 
@@ -101,6 +108,8 @@ them restores what the person chose (kept apart in `localStorage`).
   language, history, Details (Write), Preview, the primary action and "…" on the right.
   Words for the actions that matter ("Preview", "Publish…", "Details"); icon-only only
   for secondary tools (history).
+- With content languages the status names whose it is ("English · Draft"); on a phone the status is also
+  the language switcher (tap it for the other languages and their states).
 - Phones: back, status, the primary action and "…" (which then also holds Save draft,
   Preview, History and Language).
 
@@ -146,11 +155,35 @@ values are laid over the entry for this editor's `?preview` requests, and the pa
 refetches its content in place, keeping its scroll. The live page is available as **Preview** wherever there is a page; it is on by
 default only in the Preview arrangement, and each collection remembers the choice.
 
+**A field someone may not change** (`.access({ edit })`) looks locked: the raised grey as its fill, a lock
+inside it, and one sentence under it naming who can change it ("Only Editor and Administrator can change
+this", the roles by their labels). No "Read only" tag beside the label: it is said once.
+
+**Translating.** An empty translated field shows the default language's text greyed inside it (the
+placeholder of a text, the original behind an empty rich text), with one line at the field: "Shown in
+Czech until you translate it · Use it as a start" (above a text body, under a short field). A field already
+translated shows the original quietly under it ("Czech: …"). On 1280 px and wider the main text can show
+the original beside it ("Show the original beside it", remembered in the browser).
+
+**An address that is not live** (a draft, a scheduled or a waiting language) is never drawn as a link: it
+says "Not on the website yet" and offers the preview. "View on the website" appears only for a live page.
+
 **Publishing** goes through `CmsPublishReview`: what is ready, what is missing (the
 text body, the main picture, other languages — each with the fix), now or scheduled.
 Warnings never block; the form's validation still does. Afterwards `CmsMoment`
 confirms it ("It's on the website.") with "View on the website". Settings (globals)
 have no drafts: **Save** puts them on the website and says so.
+For one language (publishing per language) the review is titled for it ("Publish the English version";
+"The other languages stay as they are"); an empty translated field says visitors see the default
+language's text there (a warning with "Translate", never blocking, a required field included); and while
+the default language is a draft it says first that this version goes live together with it, "Right now"
+says so too, and the moment after is "Ready to go." (the turtle), not "It's on the website."
+
+**Roles in words.** The Team page names each role with one sentence (the invitation's cards, the "Change
+role" menu): the built-ins' own, a site role's `description`, or one made from its definition ("Edits Posts
+and Pages. Only reads Authors… Cannot publish: drafts only. Changes only the files they uploaded.").
+**What can each role do?** (Team's top bar and the invitation) shows them side by side, built-ins included:
+changes, only reads, publishes, files, and how many people have each; one card per role on a phone.
 
 ### An item beside its list (peek)
 
@@ -174,7 +207,9 @@ Override with `admin.list.layout`.
 - **Table** (default). Above it, an **"In progress"** strip with drafts and scheduled
   entries (unfiltered first page), each with its verb (Finish / Edit). Rows: thumbnail,
   title and address; columns from `admin.list.columns`; languages say only what is
-  missing ("EN missing"). Phones: title, status and time in one cell.
+  missing ("EN missing"), or, publishing per language, each language's state as a code and
+  a mark ("EN ●"; a languages mark when being translated) with its words in a tooltip and for screen readers. Phones: title, status,
+  time and the languages' marks in one cell.
 - **Grid** when the first column is a picture and there is no text body (albums,
   partner logos). Content pictures fill the card; logos sit whole on a light tile; with
   no picture the name stands in.

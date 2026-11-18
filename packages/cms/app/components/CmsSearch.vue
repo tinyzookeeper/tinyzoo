@@ -5,9 +5,9 @@
 import type { CommandPaletteGroup, CommandPaletteItem } from '@nuxt/ui'
 
 const props = defineProps<{ graph: any[]; places: CommandPaletteItem[] }>()
-const { t, entitySingular } = useCmsI18n()
+const { t, entitySingular, languageName, locale } = useCmsI18n()
 
-interface Hit { entity: string; id: string; title: string; excerpt: string; status: string | null }
+interface Hit { entity: string; id: string; title: string; excerpt: string; status: string | null; locale?: string }
 
 const term = ref('')
 const hits = ref<Hit[]>([])
@@ -47,7 +47,15 @@ watch(term, (value) => {
 onBeforeUnmount(() => clearTimeout(timer))
 
 const byName = computed(() => new Map(props.graph.map((e) => [e.name, e])))
-const statusLabel = (s: string | null) => (s === 'draft' ? t('editor.draft') : s === 'scheduled' ? t('editor.scheduled') : '')
+// The same words as the list and the editor; a hit found in another language names it ("English · Draft").
+const statusLabel = (h: Hit, e: any) => {
+  const langName = (code: string) => languageName(code, e?.locales?.labels?.[code])
+  const s = h.status
+  const word = s === 'draft' ? t('editor.draft') : s === 'translating' ? t('translation.state.translating') : s === 'scheduled' ? t('editor.scheduled')
+    : s === 'waiting' ? (e?.locales?.default ? t('translation.waitingFor', { lang: langName(e.locales.default) }) : t('translation.waiting'))
+      : s === 'published' && h.locale ? t('editor.published') : ''
+  return h.locale && word ? cmsLanguageState(langName(h.locale), word, locale.value) : word
+}
 
 const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
   const out: CommandPaletteGroup<CommandPaletteItem>[] = []
@@ -66,9 +74,10 @@ const groups = computed<CommandPaletteGroup<CommandPaletteItem>[]>(() => {
           id: `${h.entity}:${h.id}`,
           label: h.title || t('search.untitled'),
           description: excerpt || undefined,
-          suffix: [kind, statusLabel(h.status)].filter(Boolean).join(' · '),
+          suffix: [kind, statusLabel(h, e)].filter(Boolean).join(' · '),
           icon: e?.icon ?? 'i-lucide-file',
-          to: `/admin/${h.entity}/${h.id}`,
+          // Found in another language: opened in it.
+          to: `/admin/${h.entity}/${h.id}${h.locale ? `?locale=${h.locale}` : ''}`,
         }
       }),
     })

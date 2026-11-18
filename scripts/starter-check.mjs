@@ -1,16 +1,26 @@
-// The starter as a new site gets it: `tinyzoo init` from the PACKED package into a fresh
-// folder, installed from the tarballs (no workspace links), migrated, built, started, then
-// seeded twice with `pnpm seed`. Checks that the demo content arrives once, in both
-// languages, that the website serves it, that the menus follow their pages (a page renamed
-// in the admin changes the menu), and that `pnpm seed --reset` goes through.
+// The starter as a new site gets it, in four combinations of languages, parts and demo content.
+// Every site is made by the PACKED package (`tinyzoo init`, or `create-tinyzoo` for one of them),
+// installed from the tarballs (no workspace links), has its generated files written where the
+// choices call for it (`db:generate`, `cms:client`), is migrated, type-checked, built and started,
+// and then checked for what it should and should not have:
 //
-//   STARTER_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5434/cms_starter_scratch node scripts/starter-check.mjs
+//   defaults            `tinyzoo init`, no options: Czech and English, every part, the demo content.
+//                       The deep check: the demo content arrives once (a second seed changes nothing),
+//                       the pages, the head, the sitemap, the menus follow renamed pages, `seed --reset`,
+//                       and only `.output` ships.
+//   english, empty      one language, no demo content, no parts but pages: an empty site that says so
+//   all, with German    `create-tinyzoo --yes` with cs,en,de and every part: German has its own words and addresses
+//   english first       en,cs with news and redirects only: the demo content written English first
 //
-// The database is created for the run and dropped at the end; its name must not be one of
-// a real site's (it has to contain "scratch" or "test"). Without the variable the name is
-// derived from TEST_DATABASE_URL (`<name>_starter`). KEEP_STARTER=1 keeps the folder.
+//   STARTER_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5434/cms_test_starter node scripts/starter-check.mjs
+//   node scripts/starter-check.mjs --only defaults     (one combination; names above, or the first word)
+//
+// The databases are created for the run and dropped at the end; the name must not be one of
+// a real site's (it has to contain "scratch" or "test"); each combination adds a suffix to it.
+// Without the variable the name is derived from TEST_DATABASE_URL (`<name>_starter`).
+// KEEP_STARTER=1 keeps the folders.
 import { execFileSync, spawn, spawnSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -27,18 +37,14 @@ function databaseUrl() {
   }
   throw new Error('Set STARTER_CHECK_DATABASE_URL (or TEST_DATABASE_URL) to a scratch database on a development Postgres.')
 }
-const dbUrl = databaseUrl()
-const dbName = new URL(dbUrl).pathname.slice(1)
-if (!/^[a-z0-9_]+$/.test(dbName) || !/(scratch|test)/.test(dbName)) throw new Error(`Refusing database "${dbName}": the name must contain "scratch" or "test".`)
-const adminUrl = (() => { const u = new URL(dbUrl); u.pathname = '/postgres'; return u.toString() })()
+const baseUrl = databaseUrl()
+const baseName = new URL(baseUrl).pathname.slice(1)
+if (!/^[a-z0-9_]+$/.test(baseName) || !/(scratch|test)/.test(baseName)) throw new Error(`Refusing database "${baseName}": the name must contain "scratch" or "test".`)
+const urlOf = (name) => { const u = new URL(baseUrl); u.pathname = `/${name}`; return u.toString() }
+const adminUrl = urlOf('postgres')
 
 const work = mkdtempSync(join(tmpdir(), 'cms-starter-'))
 const packs = join(work, 'packs')
-const site = join(work, 'site')
-const uploads = join(work, 'uploads')
-let server = null
-let dbCreated = false
-const logs = []
 const run = (cmd, args, cwd, env = {}) => execFileSync(cmd, args, { cwd, stdio: 'inherit', env: { ...process.env, ...env } })
 const fail = (message) => { throw new Error(message) }
 const ok = (cond, message) => { if (!cond) fail(message) }
@@ -48,11 +54,6 @@ const withAdmin = async (fn) => {
   await c.connect()
   try { return await fn(c) } finally { await c.end() }
 }
-const query = async (text) => {
-  const c = new pg.Client({ connectionString: dbUrl })
-  await c.connect()
-  try { return (await c.query(text)).rows } finally { await c.end() }
-}
 const freePort = () => new Promise((resolve, reject) => {
   const srv = createServer()
   srv.unref()
@@ -60,70 +61,233 @@ const freePort = () => new Promise((resolve, reject) => {
   srv.listen(0, '127.0.0.1', () => { const { port } = srv.address(); srv.close(() => resolve(port)) })
 })
 
-try {
-  mkdirSync(packs, { recursive: true })
-  run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/cms'))
-  run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/client'))
-  const tgz = (prefix) => join(packs, readdirSync(packs).find((f) => f.startsWith(prefix)))
+const ALL_PARTS = ['news', 'forms', 'redirects', 'search']
+const SCENARIOS = [
+  { id: 'defaults', via: 'init', args: [], languages: ['cs', 'en'], presets: ALL_PARTS, demo: true, deep: true },
+  { id: 'english-empty', via: 'init', args: ['--languages', 'en', '--no-demo', '--presets', 'none'], languages: ['en'], presets: [], demo: false },
+  { id: 'all-with-german', via: 'create', args: ['--languages', 'cs,en,de', '--presets', ALL_PARTS.join(',')], languages: ['cs', 'en', 'de'], presets: ALL_PARTS, demo: true },
+  { id: 'english-first', via: 'init', args: ['--languages', 'en,cs', '--presets', 'news,redirects'], languages: ['en', 'cs'], presets: ['news', 'redirects'], demo: true },
+]
+const only = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1] : process.env.STARTER_CHECK_ONLY
+const chosen = SCENARIOS.filter((sc) => !only || sc.id === only || sc.id.startsWith(only))
+ok(chosen.length, `no combination called "${only}" (${SCENARIOS.map((s) => s.id).join(', ')})`)
 
-  // `tinyzoo init` out of the packed files: unpack the tarball and run ITS cli (the
-  // workspace's installed dependencies are linked in, so it can load).
-  const unpacked = join(work, 'unpacked')
-  mkdirSync(unpacked)
-  run('tar', ['-xzf', tgz('tinyzoo-0'), '-C', unpacked], work)
-  symlinkSync(join(root, 'packages/cms/node_modules'), join(unpacked, 'package/node_modules'), 'dir')
-  const init = spawnSync(join(root, 'packages/cms/node_modules/.bin/tsx'), [join(unpacked, 'package/cli/index.ts'), 'init', site], { cwd: root, encoding: 'utf8' })
-  process.stdout.write(init.stdout)
-  process.stderr.write(init.stderr)
-  ok(init.status === 0, 'tinyzoo init failed')
-  ok(/pnpm seed/.test(init.stdout), 'tinyzoo init does not mention `pnpm seed` in its next steps')
-  ok(existsSync(join(site, 'seed/index.ts')) && existsSync(join(site, 'seed/media/hero.jpg')), 'the starter in the package has no seed/ with its pictures')
-
-  // Tarballs instead of version ranges, and one copy of the editor stack (as in the workspace).
-  const pkgPath = join(site, 'package.json')
-  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
-  // `tinyzoo init` writes the package's own version as the range (a released 0.2.0 writes ^0.2.0).
-  const packed = JSON.parse(readFileSync(join(root, 'packages/cms/package.json'), 'utf8')).version
-  ok(pkg.dependencies.tinyzoo === `^${packed}` && pkg.dependencies['@tinyzoo/client'] === `^${packed}`, `tinyzoo init should write ^${packed} for tinyzoo and @tinyzoo/client, got ${pkg.dependencies.tinyzoo} and ${pkg.dependencies['@tinyzoo/client']}`)
-  pkg.dependencies.tinyzoo = `file:${tgz('tinyzoo-0')}`
-  pkg.dependencies['@tinyzoo/client'] = `file:${tgz('tinyzoo-client-')}`
-  pkg.pnpm = { overrides: { '@tiptap/core': '3.34.0', '@tiptap/pm': '3.34.0', 'prosemirror-model': '^1.25.13', 'prosemirror-state': '^1.4.4', 'prosemirror-view': '^1.41.0' } }
-  writeFileSync(pkgPath, JSON.stringify(pkg, null, 2))
-  run('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], site)
-
-  // A database of its own, migrated by the starter's own script.
-  await withAdmin(async (c) => {
-    await c.query(`drop database if exists "${dbName}" with (force)`)
-    await c.query(`create database "${dbName}"`)
-  })
-  dbCreated = true
-  const env = { DATABASE_URL: dbUrl, NUXT_APP_SECRET: 'starter-check-app-secret-of-32-characters', NUXT_CMS_STORAGE_LOCAL_DIR: uploads, NUXT_CMS_MAIL_TRANSPORT: 'log' }
-  run('pnpm', ['db:migrate'], site, env)
-
-  // The site's own files type-check as shipped, templates included (the blocks are typed from the generated client).
-  run('pnpm', ['typecheck'], site, env)
-
-  run('pnpm', ['exec', 'nuxi', 'build'], site, { ...env, NODE_ENV: 'production' })
-  const port = await freePort()
-  const base = `http://127.0.0.1:${port}`
-  server = spawn(process.execPath, [join(site, '.output/server/index.mjs')], {
-    cwd: site, stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, ...env, NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(port), NUXT_CMS_PUBLIC_URL: base, NUXT_CMS_AUTH_SETUP_TOKEN: undefined },
-  })
-  server.stdout.on('data', (d) => logs.push(String(d)))
-  server.stderr.on('data', (d) => logs.push(String(d)))
-  for (let i = 0; ; i++) {
-    if (server.exitCode !== null) fail(`the site exited with ${server.exitCode}:\n${logs.join('')}`)
-    try { if ((await fetch(`${base}/api/health/ready`)).ok) break } catch { /* not up yet */ }
-    if (i > 200) fail(`the site did not start:\n${logs.join('')}`)
-    await new Promise((r) => setTimeout(r, 250))
+/** Every text file of a site (not what an install or a build made). */
+function* textFiles(dir, base = dir) {
+  for (const name of readdirSync(dir)) {
+    if (['node_modules', '.nuxt', '.output', '.data', '.cms-uploads', 'media'].includes(name)) continue
+    const path = join(dir, name)
+    if (statSync(path).isDirectory()) yield* textFiles(path, base)
+    else if (/\.(ts|vue|md|mjs|css|json|sql|example|txt)$/.test(name)) yield path
   }
-  const setupCode = /Setup code: ([A-Z0-9]{4}(?:-[A-Z0-9]{4}){3})/.exec(logs.join(''))?.[1]
-  ok(setupCode, 'the site did not print a setup code (a new production site must)')
+}
 
+/** The site made, with what a combination should have and should not have. */
+function checkTheSite({ site, sc, stdout }) {
+  const has = (path) => existsSync(join(site, path))
+  const wantPart = (part) => sc.presets.includes(part)
+  const regenerate = { schema: sc.presets.length !== ALL_PARTS.length, client: sc.presets.length !== ALL_PARTS.length || sc.languages.join() !== 'cs,en' }
+  for (const file of textFiles(site)) {
+    ok(!/^\s*(?:\/\/|#|<!--|\/\*)\s*#(?:if|endif)\b/m.test(readFileSync(file, 'utf8')), `${file.slice(site.length + 1)} still has an #if marker`)
+  }
+  ok(has('seed/index.ts') === sc.demo && has('seed/media/hero.jpg') === sc.demo, `seed/ should ${sc.demo ? '' : 'not '}be there`)
+  ok(has('app/pages/search.vue') === wantPart('search'), `the search page should ${wantPart('search') ? '' : 'not '}be there`)
+  ok(has('app/components/global/BlockContact.vue') === wantPart('forms'), `the contact block should ${wantPart('forms') ? '' : 'not '}be there`)
+  ok(has('server/db/schema.ts') === !regenerate.schema && has('server/db/migrations/0000_init.sql') === !regenerate.schema, `the starter's schema and migrations should ${regenerate.schema ? 'not ' : ''}ship with this site`)
+  ok(has('app/lib/cms-content.ts') === !regenerate.client, `the starter's typed client should ${regenerate.client ? 'not ' : ''}ship with this site`)
+  const config = readFileSync(join(site, 'cms.config.ts'), 'utf8')
+  ok(config.includes(`defineLocales({ default: '${sc.languages[0]}', locales: [${sc.languages.map((l) => `'${l}'`).join(', ')}] })`), `cms.config.ts has other languages than ${sc.languages}`)
+  for (const [part, needle] of [['news', "defineEntity('news'"], ['forms', 'formsPlugin()'], ['redirects', 'defineRedirects()']]) {
+    ok(config.includes(needle) === wantPart(part), `cms.config.ts should ${wantPart(part) ? '' : 'not '}have ${part}`)
+  }
+  const pkg = JSON.parse(readFileSync(join(site, 'package.json'), 'utf8'))
+  ok(!!pkg.scripts.seed === sc.demo, `package.json should ${sc.demo ? '' : 'not '}have a seed script`)
+  // .env comes with a secret of its own, not the example's (a production server refuses that one)
+  const secret = /^NUXT_APP_SECRET=(.+)$/m.exec(existsSync(join(site, '.env')) ? readFileSync(join(site, '.env'), 'utf8') : '')?.[1]
+  const example = /^NUXT_APP_SECRET=(.+)$/m.exec(readFileSync(join(site, '.env.example'), 'utf8'))?.[1]
+  ok(!!secret && secret.length >= 32 && secret !== example, `the site's .env should have a NUXT_APP_SECRET of its own (got ${secret ? 'the example or a short one' : 'none'})`)
+  ok(/^\.env$/m.test(readFileSync(join(site, '.gitignore'), 'utf8')), 'the site\'s .gitignore should list .env')
+  ok(!/cp \.env\.example/.test(stdout), 'the next steps should not tell people to copy .env.example over the .env that was made')
+  ok(/db:generate/.test(stdout) === regenerate.schema && /cms:client/.test(stdout) === regenerate.client, `the next steps should${regenerate.schema ? '' : ' not'} say db:generate and${regenerate.client ? '' : ' not'} cms:client:\n${stdout}`)
+  ok(/pnpm seed/.test(stdout) === sc.demo, `the next steps should${sc.demo ? '' : ' not'} mention \`pnpm seed\``)
+  return regenerate
+}
+
+async function checkScenario(sc, tarballs) {
+  const dir = join(work, sc.id)
+  const site = join(dir, 'site')
+  const uploads = join(dir, 'uploads')
+  mkdirSync(dir)
+  const dbName = sc.id === 'defaults' ? baseName : `${baseName}_${sc.id.replace(/[^a-z0-9]+/g, '_')}`
+  const dbUrl = urlOf(dbName)
+  const query = async (text) => {
+    const c = new pg.Client({ connectionString: dbUrl })
+    await c.connect()
+    try { return (await c.query(text)).rows } finally { await c.end() }
+  }
+  const logs = []
+  let server = null
+  let dbCreated = false
+  console.log(`\n━━ ${sc.id}: ${sc.via === 'create' ? 'create-tinyzoo' : 'tinyzoo init'} ${sc.args.join(' ')} ━━`)
+  try {
+    // The site, made by the packed package.
+    const made = sc.via === 'create'
+      ? spawnSync(process.execPath, [join(tarballs.create, 'bin/create-tinyzoo.mjs'), site, ...sc.args, '--yes'], { cwd: dir, encoding: 'utf8', env: { ...process.env, npm_config_user_agent: 'pnpm/10.0.0 npm/? node/v22' } })
+      : spawnSync(join(root, 'packages/cms/node_modules/.bin/tsx'), [join(tarballs.cms, 'cli/index.ts'), 'init', site, ...sc.args], { cwd: dir, encoding: 'utf8' })
+    process.stdout.write(made.stdout)
+    process.stderr.write(made.stderr)
+    ok(made.status === 0, `${sc.via === 'create' ? 'create-tinyzoo' : 'tinyzoo init'} failed`)
+    const regenerate = checkTheSite({ site, sc, stdout: made.stdout })
+
+    // Tarballs instead of version ranges, and one copy of the editor stack (as in the workspace).
+    const pkgPath = join(site, 'package.json')
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'))
+    // The init writes the package's own version as the range (a released 0.2.0 writes ^0.2.0).
+    const packed = JSON.parse(readFileSync(join(root, 'packages/cms/package.json'), 'utf8')).version
+    ok(pkg.dependencies.tinyzoo === `^${packed}` && pkg.dependencies['@tinyzoo/client'] === `^${packed}`, `the init should write ^${packed} for tinyzoo and @tinyzoo/client, got ${pkg.dependencies.tinyzoo} and ${pkg.dependencies['@tinyzoo/client']}`)
+    pkg.dependencies.tinyzoo = `file:${tarballs.files.cms}`
+    pkg.dependencies['@tinyzoo/client'] = `file:${tarballs.files.client}`
+    pkg.pnpm = { overrides: { '@tiptap/core': '3.34.0', '@tiptap/pm': '3.34.0', 'prosemirror-model': '^1.25.13', 'prosemirror-state': '^1.4.4', 'prosemirror-view': '^1.41.0' } }
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2))
+    run('pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], site)
+
+    // What the starter's own generated files do not cover (other parts: the schema and its first
+    // migration; other parts or languages: the typed client), the site writes itself.
+    if (regenerate.schema) {
+      run('pnpm', ['db:generate'], site)
+      ok(readdirSync(join(site, 'server/db/migrations')).some((f) => /^0000_.*\.sql$/.test(f)), 'db:generate wrote no first migration')
+    }
+    if (regenerate.client) run('pnpm', ['cms:client'], site)
+
+    // A database of its own, migrated by the starter's own script.
+    await withAdmin(async (c) => {
+      await c.query(`drop database if exists "${dbName}" with (force)`)
+      await c.query(`create database "${dbName}"`)
+    })
+    dbCreated = true
+    const env = { DATABASE_URL: dbUrl, NUXT_APP_SECRET: 'starter-check-app-secret-of-32-characters', NUXT_CMS_STORAGE_LOCAL_DIR: uploads, NUXT_CMS_MAIL_TRANSPORT: 'log' }
+    run('pnpm', ['db:migrate'], site, env)
+
+    // The site's own files type-check as shipped, templates included (the blocks are typed from the generated client).
+    run('pnpm', ['typecheck'], site, env)
+
+    run('pnpm', ['exec', 'nuxi', 'build'], site, { ...env, NODE_ENV: 'production' })
+    const port = await freePort()
+    const base = `http://127.0.0.1:${port}`
+    server = spawn(process.execPath, [join(site, '.output/server/index.mjs')], {
+      cwd: site, stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...env, NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(port), NUXT_CMS_PUBLIC_URL: base, NUXT_CMS_AUTH_SETUP_TOKEN: undefined },
+    })
+    server.stdout.on('data', (d) => logs.push(String(d)))
+    server.stderr.on('data', (d) => logs.push(String(d)))
+    for (let i = 0; ; i++) {
+      if (server.exitCode !== null) fail(`the site exited with ${server.exitCode}:\n${logs.join('')}`)
+      try { if ((await fetch(`${base}/api/health/ready`)).ok) break } catch { /* not up yet */ }
+      if (i > 200) fail(`the site did not start:\n${logs.join('')}`)
+      await new Promise((r) => setTimeout(r, 250))
+    }
+    const setupCode = /Setup code: ([A-Z0-9]{4}(?:-[A-Z0-9]{4}){3})/.exec(logs.join(''))?.[1]
+    ok(setupCode, 'the site did not print a setup code (a new production site must)')
+
+    const get = async (path, init) => { const res = await fetch(base + path, { redirect: 'manual', ...init }); return { res, text: await res.text() } }
+    const json = async (path) => JSON.parse((await get(path)).text)
+    const seedEnv = { SEED_URL: base, SEED_EMAIL: 'starter@example.com', SEED_PASSWORD: 'correct horse battery', SEED_SETUP_CODE: setupCode }
+    const seedRun = () => spawnSync('pnpm', ['seed'], { cwd: site, encoding: 'utf8', env: { ...process.env, ...seedEnv } })
+    const ctx = { sc, site, base, dbName, dbUrl, env, work, query, get, json, seedEnv, seedRun, setupCode }
+
+    if (sc.deep) await deepChecks(ctx)
+    else await lightChecks(ctx)
+    console.log(`✓ ${sc.id}`)
+  }
+  finally {
+    if (server && server.exitCode === null) { server.kill('SIGTERM'); await new Promise((r) => server.once('exit', r)) }
+    if (dbCreated) await withAdmin((c) => c.query(`drop database if exists "${dbName}" with (force)`)).catch((e) => console.error('could not drop', dbName, e.message))
+  }
+}
+
+/** The other combinations: what they serve, and that a second seed changes nothing. */
+async function lightChecks({ sc, base, query, get, json, seedRun }) {
+  const lang = sc.languages[0]
+  const [firstHome] = lang === 'cs' ? ['Chléb, který voní po ránu'] : ['Bread that smells like morning']
+  const wants = (part) => sc.presets.includes(part)
+
+  if (!sc.demo) {
+    // An empty site: it says so, in its language, and serves nothing it does not have.
+    const home = await get('/')
+    ok(home.res.status === 200 && home.text.includes('The website is ready.'), `an empty English site should say it is ready: ${home.res.status}`)
+    ok((await json('/api/content/page')).total === 0, 'an empty site has pages')
+    ok((await get('/hledat')).res.status === 404 && (await get('/search')).res.status === 404, 'a site without search has a search page')
+    ok((await get('/api/content/news')).res.status === 404, 'a site without news has a news API')
+    ok((await get('/sitemap.xml')).res.status === 200 && (await get('/robots.txt')).text.includes('Disallow: /admin'), 'sitemap.xml or robots.txt is missing')
+    ok(!(await get('/')).text.includes('hreflang="cs"'), 'a one-language site lists a second language')
+    return
+  }
+
+  const first = seedRun()
+  process.stdout.write(first.stdout)
+  ok(first.status === 0 && /created the first administrator/.test(first.stdout), `the first seed failed:\n${first.stdout}${first.stderr}`)
+  const count = async (table) => (await query(`select count(*)::int as n from ${table}`))[0].n
+  ok(await count('page') === 3, 'the seed should make three pages')
+  ok(wants('news') ? await count('news') === 4 : (await query(`select to_regclass('public.news') as t`))[0].t === null, 'the news are there, or not, as asked')
+  ok(wants('redirects') ? await count('redirect') === 1 : (await query(`select to_regclass('public.redirect') as t`))[0].t === null, 'the redirect is there, or not, as asked')
+  ok(wants('forms') ? await count('form_settings') === 1 : (await query(`select to_regclass('public.contact_form') as t`))[0].t === null, 'the form is there, or not, as asked')
+  const second = seedRun()
+  ok(second.status === 0 && !/✓ (created|updated|uploaded)/.test(second.stdout), `the second seed changed something:\n${second.stdout}${second.stderr}`)
+
+  const homeOf = async (l) => (await json(`/api/content/page/home?locale=${l}`)).item
+  const heroOf = (item) => item.sections[0].heading
+  ok(heroOf(await homeOf('cs')) === 'Chléb, který voní po ránu.' && heroOf(await homeOf('en')) === 'Bread that smells like morning.', 'the home page is not in both languages')
+  const home = await get('/')
+  ok(home.res.status === 200 && home.text.includes(firstHome), `/ should say "${firstHome}"`)
+  for (const l of sc.languages.slice(1)) {
+    const res = await get(`/${l}`)
+    ok(res.res.status === 200, `/${l}: ${res.res.status}`)
+    ok(res.text.includes(`hreflang="${l}"`), `the head has no hreflang for ${l}`)
+    if (l === 'cs') ok(res.text.includes('Chléb, který voní po ránu'), '/cs should be Czech')
+    if (l === 'en') ok(res.text.includes('Bread that smells like morning'), '/en should be English')
+  }
+  // the language switcher offers every language, each in its own name
+  const names = { cs: 'Čeština', en: 'English', de: 'Deutsch' }
+  for (const l of sc.languages) ok(home.text.includes(names[l]), `the switcher has no ${names[l]}`)
+
+  // the site's own words and addresses, per language
+  const words = { cs: { news: 'Aktuality', newsPath: 'aktuality', search: 'Hledání', searchPath: 'hledat' }, en: { news: 'News', newsPath: 'news', search: 'Search', searchPath: 'search' }, de: { news: 'Neuigkeiten', newsPath: 'neuigkeiten', search: 'Suche', searchPath: 'suche' } }
+  const at = (l, path) => (l === lang ? path : `/${l}${path}`)
+  for (const l of sc.languages) {
+    if (wants('news')) {
+      const list = await get(at(l, `/${words[l].newsPath}`))
+      ok(list.res.status === 200 && list.text.includes(`>${words[l].news}</h1>`), `${at(l, `/${words[l].newsPath}`)}: ${list.res.status}, the news list should be headed ${words[l].news}`)
+    }
+    else ok((await get(at(l, `/${words[l].newsPath}`))).res.status === 404, 'a site without news has a news list')
+    if (wants('search')) {
+      const page = await get(at(l, `/${words[l].searchPath}`))
+      ok(page.res.status === 200 && page.text.includes(`>${words[l].search}</h1>`), `${at(l, `/${words[l].searchPath}`)}: ${page.res.status}, the search page should be headed ${words[l].search}`)
+    }
+    else ok((await get(at(l, `/${words[l].searchPath}`))).res.status === 404, 'a site without search has a search page')
+  }
+  if (wants('news')) {
+    // a news item in the first language, with its address
+    const cover = (await json(`/api/content/news?locale=${lang}`)).items[0]
+    ok((await get(`${at(lang, `/${words[lang].newsPath}`)}/${cover.slug}`)).res.status === 200, 'a news item is not served')
+  }
+  // the contact page: a form only when the site has the Forms part
+  const contactPath = lang === 'cs' ? '/kontakt' : '/contact'
+  const contact = await get(contactPath)
+  ok(contact.res.status === 200 && (contact.text.includes('name="email"') === wants('forms')), `${contactPath} should ${wants('forms') ? '' : 'not '}have the contact form`)
+  // the sitemap lists the home page of every language that has content, as the website serves it (/, /en)
+  const locs = [...(await get('/sitemap.xml')).text.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1].replace(base, ''))
+  for (const l of sc.languages.filter((x) => x === 'cs' || x === 'en')) ok(locs.includes(l === lang ? '/' : `/${l}`), `the sitemap misses the home page in ${l}: ${locs}`)
+  ok(!locs.some((x) => /\/home$/.test(x)), `the sitemap lists a /home address: ${locs}`)
+  if (wants('redirects')) {
+    const from = lang === 'cs' ? '/pekarna' : '/bakery'
+    const moved = await get(from)
+    ok(moved.res.status === 301 && moved.res.headers.get('location') === (lang === 'cs' ? '/o-nas' : '/about'), `${from} should send visitors to the about page, got ${moved.res.status} ${moved.res.headers.get('location')}`)
+  }
+}
+
+/** The defaults: the demo content in cs and en, checked in depth. */
+async function deepChecks({ base, dbName, dbUrl, env, work, query, get, json, seedEnv, seedRun, site, setupCode }) {
   // ── seed twice ──
-  const seedEnv = { SEED_URL: base, SEED_EMAIL: 'starter@example.com', SEED_PASSWORD: 'correct horse battery', SEED_SETUP_CODE: setupCode }
-  const seedRun = () => spawnSync('pnpm', ['seed'], { cwd: site, encoding: 'utf8', env: { ...process.env, ...seedEnv } })
   const first = seedRun()
   process.stdout.write(first.stdout)
   ok(first.status === 0, `the first seed failed:\n${first.stdout}${first.stderr}`)
@@ -149,8 +313,6 @@ try {
   ok(JSON.stringify(afterSecond) === JSON.stringify(afterFirst), `the second seed changed the database: ${JSON.stringify(afterFirst)} → ${JSON.stringify(afterSecond)}`)
 
   // ── what the site serves ──
-  const get = async (path, init) => { const res = await fetch(base + path, { redirect: 'manual', ...init }); return { res, text: await res.text() } }
-  const json = async (path) => JSON.parse((await get(path)).text)
   const pages = await json('/api/content/page?limit=50')
   ok(pages.total === 3, `content API: ${pages.total} pages, expected 3`)
   const home = (await json('/api/content/page/home')).item
@@ -280,12 +442,35 @@ try {
     if (lone.exitCode === null) { lone.kill('SIGTERM'); await new Promise((r) => lone.once('exit', r)) }
     await withAdmin((c) => c.query(`drop database if exists "${runDb}" with (force)`)).catch(() => {})
   }
+console.log('  the demo content in both languages, seeded twice (the second run changed nothing), served, its menus follow renamed pages, and a reset goes through')
+}
 
-  console.log('✓ starter initialised from the packed package, seeded twice (second run changed nothing), served the demo content, its menus follow renamed pages, and a reset goes through')
+try {
+  mkdirSync(packs, { recursive: true })
+  run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/cms'))
+  run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/client'))
+  run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/create-tinyzoo'))
+  const tgz = (prefix) => join(packs, readdirSync(packs).find((f) => f.startsWith(prefix)))
+  const files = { cms: tgz('tinyzoo-0'), client: tgz('tinyzoo-client-'), create: tgz('create-tinyzoo-') }
+
+  // The packages out of the packed files: unpack the tarballs and run THEIR code (the workspace's
+  // installed dependencies are linked in, so they can load).
+  const unpack = (tarball, name, modules) => {
+    const into = join(work, 'unpacked', name)
+    mkdirSync(into, { recursive: true })
+    run('tar', ['-xzf', tarball, '-C', into], work)
+    symlinkSync(join(root, modules, 'node_modules'), join(into, 'package/node_modules'), 'dir')
+    return join(into, 'package')
+  }
+  const tarballs = { files, cms: unpack(files.cms, 'cms', 'packages/cms'), create: unpack(files.create, 'create', 'packages/create-tinyzoo') }
+  ok(existsSync(join(tarballs.cms, 'starter/seed/index.ts')) && existsSync(join(tarballs.cms, 'cli/init.mjs')), 'tinyzoo in the package has no starter/seed or cli/init.mjs')
+  ok(existsSync(join(tarballs.create, 'bundle/starter/cms.config.ts')) && existsSync(join(tarballs.create, 'bundle/init.mjs')), 'create-tinyzoo in the package has no bundled starter or init.mjs')
+  ok(!existsSync(join(tarballs.create, 'bundle/starter/node_modules')), 'create-tinyzoo bundles a node_modules')
+
+  for (const sc of chosen) await checkScenario(sc, tarballs)
+  console.log(`\n✓ starter: ${chosen.map((sc) => sc.id).join(', ')}`)
 }
 finally {
-  if (server && server.exitCode === null) { server.kill('SIGTERM'); await new Promise((r) => server.once('exit', r)) }
-  if (dbCreated) await withAdmin((c) => c.query(`drop database if exists "${dbName}" with (force)`)).catch((e) => console.error('could not drop', dbName, e.message))
   if (!process.env.KEEP_STARTER) rmSync(work, { recursive: true, force: true })
   else console.log(`kept: ${work}`)
 }

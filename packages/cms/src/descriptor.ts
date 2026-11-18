@@ -1,11 +1,17 @@
 import type { LocalizedText } from './i18n'
 import type { ZodTypeAny } from 'zod'
+import type { CmsFieldAccess } from './roles'
 
 export type OnDelete = 'cascade' | 'restrict' | 'set null' | 'no action'
 export type RelationKind = 'many-to-one' | 'one-to-many' | 'many-to-many'
+/** @internal */
 export type ValidationMode = 'create' | 'update'
 
-/** What a write is checked against besides the payload. */
+/**
+ * What a write is checked against besides the payload.
+ *
+ * @internal
+ */
 export interface ValidationContext {
   /**
    * What the field holds in the row being written, as stored (nothing on create).
@@ -36,6 +42,7 @@ export interface FieldUi {
 }
 
 // ── the serializable column IR (one source for live builder + emitted source) ──
+/** @internal */
 export type ColumnBase =
   | { kind: 'uuid' }
   | { kind: 'text' }
@@ -46,16 +53,19 @@ export type ColumnBase =
   | { kind: 'jsonb' }
   | { kind: 'enum'; values: readonly string[] }
 
+/** @internal */
 export type ColumnDefault =
   | { kind: 'value'; value: unknown }
   | { kind: 'now' }
   | { kind: 'random' }
 
+/** @internal */
 export interface ColumnReference {
   target: 'media' | 'relation'
   onDelete: OnDelete
 }
 
+/** @internal */
 export interface ColumnSpec {
   base: ColumnBase
   notNull: boolean
@@ -104,6 +114,7 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   /** Has a value per language (see `.localized()` and `defineLocales`). */
   isLocalized: boolean
   default?: unknown
+  /** @internal */
   dbDefault?: 'now' | 'random'
   ui: FieldUi
   meta: Record<string, unknown>
@@ -112,8 +123,13 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   blocks?: Record<string, import('./blocks').BlockDef>
   /** The fields a group holds (group fields only). */
   fields?: Record<string, FieldDescriptor>
-  /** null ⇒ owns no DB column (many-to-many, one-to-many). */
+  /**
+   * The column this field owns (null ⇒ none: many-to-many, one-to-many).
+   *
+   * @internal
+   */
   spec: ColumnSpec | null
+  /** @internal */
   zod(mode?: ValidationMode, context?: ValidationContext): ZodTypeAny
   optional(): FieldDescriptor<Nullable<K>>
   unique(): FieldDescriptor<K>
@@ -143,6 +159,15 @@ export interface FieldDescriptor<K extends FieldKind = FieldKind> {
   icon(name: string): FieldDescriptor<K>
   /** Put the field in a named, collapsible group in the editor (e.g. 'Search & sharing'). */
   group(label: LocalizedText): FieldDescriptor<K>
+  /**
+   * Who may read and who may edit the field in the admin, by role:
+   * `.access({ read: ['editor', roles.translator], edit: ['editor'] })`. A role not listed does not
+   * see the field (`read`) or sees it read-only (`edit`); a rule left out means everyone who may
+   * read (write) the collection; administrators always may. Enforced by the server on every
+   * read and write of the admin API; the public content API follows `content.hidden`, not this.
+   * Only on a field of a collection or global — not on a field inside a block, a list or a group.
+   */
+  access(rules: CmsFieldAccess): FieldDescriptor<K>
 }
 
 /** Any descriptor, regardless of kind. */

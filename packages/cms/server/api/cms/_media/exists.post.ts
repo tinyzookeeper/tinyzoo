@@ -6,7 +6,7 @@ import { z } from 'zod'
 const body = z.object({ ids: z.array(z.string().uuid()).max(500) })
 
 export default defineEventHandler(async (event) => {
-  requireCmsUser(event)
+  assertMediaLibrary(requireCmsUser(event))
   const { ids } = parseOr422(body, await readBody(event))
   if (!ids.length) return { ids: [] }
   const { db, reg } = useCms()

@@ -1,6 +1,10 @@
 import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core'
 
-/** Built-in media entity. Blobs live in a StorageDriver; only metadata is in the DB. */
+/**
+ * Built-in media entity. Blobs live in a StorageDriver; only metadata is in the DB.
+ *
+ * @internal
+ */
 export const cmsMedia = pgTable('cms_media', {
   id: uuid('id').primaryKey().defaultRandom(),
   url: text('url').notNull(),

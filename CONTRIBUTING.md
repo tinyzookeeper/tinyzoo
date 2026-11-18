@@ -24,7 +24,8 @@ when it touches what they cover**:
 | Job | What | Runs on a pull request that changes |
 |---|---|---|
 | `upgrade` | a site made on an older tinyzoo moves to this one (below) | `packages/cms/{src,cli,server,starter}/**`, `scripts/upgrade-check*`, `.github/upgrade-baseline/**` |
-| `consumer` | the packages packed, installed into a fresh app and built | `packages/*/package.json`, `packages/cms/module.ts`, `packages/cms/nuxt.config.ts`, `scripts/consumer-check*`, `test/consumer/**`, the playground's `package.json`, `cms.config.ts` and `cms-plugins/` |
+| `consumer` | the packages packed, installed into a fresh app and built; `create-tinyzoo` installed from its tarball makes a site | `packages/*/package.json`, `packages/cms/module.ts`, `packages/cms/nuxt.config.ts`, `packages/cms/cli/init.mjs`, `packages/cms/starter/**`, `packages/create-tinyzoo/**`, `scripts/consumer-check*`, `test/consumer/**`, the playground's `package.json`, `cms.config.ts` and `cms-plugins/` |
+| `starter` | the starter in four combinations (languages, parts, demo content), each made by the packed `tinyzoo init` or `create-tinyzoo`, installed from the tarballs, migrated, built, started and checked (about ten minutes) | `packages/cms/starter/**`, `packages/cms/cli/init*`, `packages/create-tinyzoo/**`, `scripts/starter-check*` |
 | `backup (client tools 16 / 17 / 18, server 16)` | `tinyzoo backup` and `restore` with `pg_dump`, `pg_restore` and `psql` of each version; fails where the tools are missing | `packages/cms/cli/backup*`, `cli/tar*`, `src/migrate*`, `.github/actions/pg-client/**`, `test/api/backup.spec.ts` |
 | `s3-minio` | the S3 delivery modes against a real MinIO | `server/utils/cmsStorage*`, `server/api/cms/_media/**`, `cli/transfer*`, `test/api/s3-minio.spec.ts` |
 | `result` | green when every heavy job that ran passed (skipped ones are nothing relevant) | every pull request |
@@ -37,7 +38,10 @@ Locally, the same checks:
 
 ```sh
 pnpm check:upgrade          # needs UPGRADE_CHECK_DATABASE_URL and the network, see "The upgrade test"
-pnpm check:consumer         # packs both packages and builds a fresh app from the tarballs
+pnpm check:consumer         # packs the packages, builds a fresh app from the tarballs, makes a site with create-tinyzoo's
+# the starter in four combinations (languages, parts, demo content), each made by the packed package, installed,
+# built, started and checked: tinyzoo init, and create-tinyzoo (needs a scratch Postgres database, see docs/development.md)
+STARTER_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5434/cms_test_starter pnpm check:starter
 pnpm build                  # a plain production build of the playground (the API tests already make one)
 # backup: needs pg_dump, pg_restore and psql (or TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE / TINYZOO_PSQL);
 # TINYZOO_REQUIRE_PG_TOOLS=1 makes missing tools a failure instead of a skip, as in CI
@@ -54,10 +58,11 @@ personal token).
 
 ## Changesets: every change to a package gets one
 
-`tinyzoo` and `@tinyzoo/client` are released together, with the same version
-number. Every pull request that changes something inside `packages/` adds a
-changeset (the playground, the website and the starter are not published, so
-changes only to them need none):
+`tinyzoo`, `@tinyzoo/client` and `create-tinyzoo` are released together, with the same version
+number (`fixed` in `.changeset/config.json`). Every pull request that changes something inside
+`packages/` adds a changeset (the playground, the website and the starter are not published, so
+changes only to them need none; `create-tinyzoo` carries a copy of the starter, so a change to
+the starter that sites should hear about gets one on `tinyzoo`):
 
 ```sh
 pnpm changeset
@@ -72,8 +77,7 @@ The entries end up in each package's `CHANGELOG.md`.
 | New feature, or a deprecation | minor | minor |
 | Fix, no change to what a site sees or has to do | patch | patch |
 
-A breaking change on 0.x is a minor bump. Both packages follow the higher bump of
-the two.
+A breaking change on 0.x is a minor bump. The packages follow the highest bump of them.
 
 ### `### Upgrade`: when a site has to do something
 
@@ -129,18 +133,19 @@ Handling them:
 
 ## Deprecations
 
-The API a site's code touches (`cms.config.ts` options, the `f.*` and `define*`
-helpers, `tinyzoo` CLI commands, the content API) is retired in two steps, never
-removed at once:
+The API a site's code touches (everything in [docs/api-surface.md](docs/api-surface.md): `cms.config.ts` options, the
+`f.*` and `define*` helpers, the frontend kit, the `cms` options and `NUXT_CMS_*` variables, `tinyzoo` CLI commands, the content
+API, the webhook and hooks) is retired in two steps, never removed at once:
 
 1. Mark it with a `@deprecated` JSDoc line that names the replacement, and call
    `cmsDeprecated(id, message, { removeIn })` at the use site. It prints
    `[tinyzoo] deprecated: …` once per process (not under `NODE_ENV=test`, unless
    `TINYZOO_DEPRECATIONS=1`; `TINYZOO_DEPRECATIONS=0` silences it). Tests can read
    what was hit with `cmsDeprecations()`.
-2. Keep it working for **at least one minor release**, then remove it. The
-   removal is a breaking change: it gets a changeset with an `### Upgrade`
-   section. The release that deprecates something says so in its changelog.
+2. Keep it working for **at least one minor release**, then remove it (on 0.x in a minor, from 1.0 in a
+   major). The removal is a breaking change: it gets a changeset with an `### Upgrade`
+   section. The release that deprecates something says so in its changelog. A deprecated export, option
+   or member is listed under "deprecated" in its golden API report, so the diff shows it.
 
 ```ts
 /** @deprecated Use `slugField` instead. Removed in 0.4. */
@@ -152,24 +157,45 @@ export function slugOf(…) {
 
 ## Contracts
 
-The public content API is what site frontends depend on, so its shape is guarded
-by two committed files in `test/contracts/`, both made from
-`playground/cms.config.ts`:
+The surfaces a site, a plugin or a deploy depends on are written down as golden files in
+`test/contracts/`, and a test fails with the lines that differ when the code stops producing them.
+**[docs/api-surface.md](docs/api-surface.md)** says in words what is frozen from 1.0 and what is
+internal; the golden files are how it is kept true:
 
-- `openapi.playground.json`: the OpenAPI document of the content API.
-- `client-types.playground.ts`: the types generated for `@tinyzoo/client`.
+| Golden file | Test | A change to it is… |
+|---|---|---|
+| `openapi.playground.json`, `client-types.playground.ts` | `test/unit/contracts.spec.ts` | a change to the public **content API** as the playground's config produces it |
+| `api-tinyzoo.txt`, `api-tinyzoo-forms.txt`, `api-tinyzoo-module.txt`, `api-client.txt` | `test/unit/api-surface.spec.ts` | a change to what an entry point **exports**: every declaration, with `@internal` exports and members left out |
+| `module-options.json` | | a change to the `cms` options, their defaults, or the `NUXT_CMS_*` variables that follow |
+| `nitro-hooks.d.ts`, `webhook.json` | | a change to the **Nitro hooks** and their arguments, or the webhook's headers and body |
+| `cli-usage.txt` | | a change to the **CLI**'s commands and flags (`packages/cms/cli/usage.ts`) |
+| `content-routes.txt`, `layer-config.json` | | a new or removed content API route, or something the layer sets up |
+| `frontend-kit.txt` | `test/unit/frontend-kit.spec.ts` | a change to the **frontend kit** (`<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()`): a prop, slot, event, signature or returned key. A component's props are an interface of `packages/cms/src/frontend.ts`; add the prop to it, not inline in the `.vue` file |
+| `surface.client-types.ts`, `surface.openapi.json`, `surface.admin-graph.json` | | the content API, the client types and the admin graph (what a field renderer receives) of `test/contracts/surface/cms.config.ts`, a config that uses every field and option |
 
-`test/unit/contracts.spec.ts` fails with the lines that differ when either one
-changes. If the change is intended, accept it and commit the file:
+`test/unit/surface-types.spec.ts` also asserts the types a site's code sees for that config (`Row`, `Insert`,
+`Update`, the field kinds, the client): its assertions are checked by `pnpm typecheck`, so a regression fails
+there. When you add a field type, an option or an export, add it to `test/contracts/surface/cms.config.ts` and
+to `docs/api-surface.md` (a test checks that the page names every public export, command, flag, route, hook
+and variable). An export that is only for the server, the admin or the CLI gets `@internal` in its JSDoc and
+stays out of the page; do not tag something the docs show a site using.
+
+If a golden file fails because the change is intended, accept it and commit the file:
 
 ```sh
 pnpm contracts:update
 ```
 
-A changed golden file in a pull request means the public content API changed.
-The reviewer reads that diff, and the changeset says whether it **breaks sites**
-(a removed or renamed field, a changed type, a stricter filter: breaking; a new
-optional field or a new route: not).
+A changed golden file in a pull request means a frozen surface changed. The reviewer reads that diff, and the
+changeset says whether it **breaks sites**:
+
+- **Breaking** (a major bump from 1.0, so it waits for 2.0): a removed or renamed export, option, field type,
+  command, flag, route, hook, webhook key or variable; a narrower type, a stricter filter or validation; a
+  changed default; a field that is no longer in a response.
+- **Not breaking** (a minor bump): something added (an optional option, a new export, a new route, a new key
+  in a response, an optional field), a looser type, a fix that makes the code do what the docs said.
+- A change to an `@internal` export shows in `api-tinyzoo.txt` only as its name; it needs a changeset (it
+  changes the package) but is never breaking.
 
 ## The upgrade test
 
@@ -225,7 +251,47 @@ not its template. Details: `test/docs/README.md`.
 ## Releasing
 
 Merging to `main` makes the release workflow open (or update) a "Version
-packages" pull request that bumps both versions and writes the changelogs.
+packages" pull request that bumps the versions and writes the changelogs.
 Merging that pull request builds the packages, runs the consumer check (packed
-tarballs installed into a fresh app, then built), and publishes both packages to
-npm with provenance. Nothing is published by hand.
+tarballs installed into a fresh app, then built), and publishes `tinyzoo`,
+`@tinyzoo/client` and `create-tinyzoo` to npm with provenance. Nothing is
+published by hand, except the one-time placeholder of a new package.
+
+### `create-tinyzoo`: how it is made, and its first publish
+
+`create-tinyzoo` (`pnpm create tinyzoo`) does not depend on `tinyzoo`: that would install the whole
+CMS (Nuxt, the editor, 700+ packages) to copy a folder. Its `prepack` (`scripts/bundle.mjs`, run by
+`pnpm pack` and `pnpm publish`) copies `packages/cms/cli/init.mjs` and `packages/cms/starter` into
+`bundle/` (not committed), so the package always carries the init code and the starter of the same
+commit, and the version `tinyzoo` has. The code that makes a site is `cli/init.mjs`: `tinyzoo init`
+and `create-tinyzoo` both run it. Markers in the starter (`// #if news` … `// #endif`) mark the parts
+a site can leave out; the head of `init.mjs` says how they work.
+
+npm trusted publishing is set on the package's page, which exists only once the package does. So
+the **first** publish is a placeholder, made by hand once by an owner of the package name:
+
+1. From a clean checkout of `main`, signed in to npm (`npm login`, with the account's second factor):
+
+   ```sh
+   pnpm install
+   cd packages/create-tinyzoo
+   npm publish --access public --ignore-scripts     # publishes 0.0.0 as it is in package.json
+   ```
+
+   `--ignore-scripts` skips `prepack`, so the placeholder has no starter inside: it exits with a
+   message instead of making a site. (The version stays `0.0.0`; the next release makes it the
+   version of the other two, as `fixed` in `.changeset/config.json` says.)
+2. On npmjs.com open **create-tinyzoo → Settings → Trusted publisher**, choose **GitHub Actions** and
+   fill in: organization or user `tinyzookeeper`, repository `tinyzoo`, workflow filename
+   `release.yml`, environment: empty. Save.
+3. Do both **before** merging the first "Version packages" pull request that contains
+   `create-tinyzoo`: without a trusted publisher (and without the `NPM_TOKEN` secret allowed to
+   publish it) that release publishes `tinyzoo` and `@tinyzoo/client` and fails on the third.
+   If it did fail, set the publisher, then re-run the failed job: `scripts/release.mjs` publishes
+   only what npm does not have yet, and gives every package that npm has at this version its git
+   tag and GitHub release (it skips a tag and a release that exist). A failed run already tags and
+   releases what it did publish, so `tinyzoo` and `@tinyzoo/client` are not left without.
+4. After the release, check the package page: the **Provenance** badge, and `pnpm create tinyzoo
+   scratch --yes` from an empty folder.
+
+The same applies to any package added to the repository later.

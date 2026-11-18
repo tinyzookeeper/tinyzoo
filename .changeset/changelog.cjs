@@ -1,4 +1,4 @@
-// Changelog format for tinyzoo and @tinyzoo/client.
+// Changelog format for tinyzoo, @tinyzoo/client and create-tinyzoo.
 //
 // Changesets already groups entries by bump (Major / Minor / Patch Changes). This
 // generator keeps the entry itself readable: the first line becomes the bullet, and

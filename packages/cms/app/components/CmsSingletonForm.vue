@@ -36,6 +36,8 @@ form.load(data.value?.row)
 const exists = computed(() => !!data.value?.row?.id)
 const available = ref<string[]>(data.value?.row?.__locales ?? [])
 const defaults = computed<Record<string, any>>(() => data.value?.row?.__defaults ?? {})
+/** A field whose original is long (a text body, blocks): the note about it goes above it. */
+const refAbove = (f: any) => ['richtext', 'blocks', 'gallery', 'group'].includes(f?.type)
 // The version this form edits (a translation has its own); see the entry editor.
 const versionOf = (row: Record<string, any> | null | undefined) => (isTranslation.value ? row?.__version : row?.updatedAt) ?? null
 const version = ref<string | null>(versionOf(data.value?.row))
@@ -174,7 +176,7 @@ const localeItems = computed(() => (locales.value?.all ?? []).map((code) => {
 function save() {
   return form.submit(async () => {
     if (isTranslation.value) {
-      const body = Object.fromEntries(editable.value.filter((f: any) => f.localized).map((f: any) => [f.key, state[f.key] ?? null]))
+      const body = Object.fromEntries(editable.value.filter((f: any) => f.localized && !f.readOnly).map((f: any) => [f.key, state[f.key] ?? null]))
       const url: string = `/api/cms/_singleton/${props.entity}?locale=${currentLocale.value}`
       const headers: Record<string, string> = { ...(version.value ? { 'x-cms-version': version.value } : {}), ...collabHeaders() }
       const res: any = await $fetch(url, { method: 'PUT', body, headers })
@@ -246,10 +248,16 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               </p>
             </template>
             <template #field="{ field: f }">
-              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" hide-optional />
+              <!-- translating: the default language's text greyed in the empty field, the line about it at the field -->
               <CmsTranslationRef
-                v-if="isTranslation" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
-                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length)"
+                v-if="isTranslation && refAbove(f)" :field="f" :value="defaults[f.key]" :lang="defaultLabel" above
+                :empty="state[f.key] == null || (Array.isArray(state[f.key]) && !state[f.key].length) || (f.type === 'richtext' && isEmptyRichText(state[f.key]))"
+                @copy="copyDefault(f.key)"
+              />
+              <CmsField v-model="state[f.key]" :field="f" :entity="entity" :error="fieldErrors[f.key]" placement="main" hide-optional :fallback="isTranslation && f.localized ? defaults[f.key] : undefined" />
+              <CmsTranslationRef
+                v-if="isTranslation && !refAbove(f)" :field="f" :value="defaults[f.key]" :lang="defaultLabel"
+                :empty="state[f.key] == null || state[f.key] === ''"
                 @copy="copyDefault(f.key)"
               />
             </template>

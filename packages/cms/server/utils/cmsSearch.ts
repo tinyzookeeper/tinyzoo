@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
 import { and, desc, eq, indexTree, inArray, or, pathTemplateKeys, propOf, sitePath, sql, entryTexts, foldSearchText, isSearchableField, matchEntry, highlightRanges } from 'tinyzoo'
 import type { CmsEntity, CmsRegistry } from 'tinyzoo'
-import { mergeTranslation } from './cmsLocales'
+import { hasTranslatedText, isTranslationLocale, mergeTranslation, translationStates } from './cmsLocales'
+import { shownTranslationCond } from './cmsPublished'
+import type { LanguageState } from './cmsLocales'
 // Explicit (not Nitro's auto-import): the CLI's import rebuilds the index outside Nitro.
 import { upgradedCopy } from './cmsBlocks'
 
@@ -40,7 +42,7 @@ interface SearchDoc { title: string; body: string; extra: string }
  * `content.search.fields` when set); `extra` the rest, for the admin only —
  * hidden or left-out prose and the list's searchable fields (an email address).
  */
-function documentOf(e: CmsEntity, source: Record<string, any>): SearchDoc {
+function documentOf(e: CmsEntity, source: Record<string, any>, unreadable?: ReadonlySet<string>): SearchDoc {
   // Read blocks in their current shape (a renamed field is still found).
   const row = upgradedCopy(e, source)
   const cfg = e.content?.search
@@ -49,12 +51,13 @@ function documentOf(e: CmsEntity, source: Record<string, any>): SearchDoc {
   const publicFields: Record<string, any> = {}
   const privateFields: Record<string, any> = {}
   for (const [k, fld] of Object.entries(e.fields)) {
-    if (k === e.titleField) continue
+    if (k === e.titleField || unreadable?.has(k)) continue
     if (hidden.has(k) || (picked && !picked.has(k))) privateFields[k] = fld
     else publicFields[k] = fld
   }
   const extra = entryTexts(privateFields, row)
   for (const k of e.admin?.list?.searchable ?? []) {
+    if (unreadable?.has(k)) continue
     const fld = e.fields[k]
     if (k !== e.titleField && fld && !fld.relation && !isSearchableField(fld) && row[k] != null && row[k] !== '') extra.push(String(row[k]))
   }
@@ -82,6 +85,8 @@ function indexRows(reg: CmsRegistry, e: CmsEntity, row: Record<string, any>, tra
     add(def, row, pathOf(def, row))
     for (const tr of translations) {
       if (tr.locale === def || !reg.locales.locales.includes(tr.locale)) continue
+      // A row that only holds a language's publish state is not a translation: nothing to find in it.
+      if (e.publish?.perLocale && !hasTranslatedText(e, tr)) continue
       const merged = mergeTranslation(e, { ...row }, tr)
       add(tr.locale, merged, pathOf(tr.locale, merged))
     }
@@ -258,7 +263,7 @@ export async function searchPublic(db: any, reg: CmsRegistry, terms: string[], q
       const pathCols: Record<string, any> = {}
       for (const k of pathTemplateKeys(e.content!.path)) if (e.table[k]) pathCols[k] = e.table[k]
       const score = closeness(s.titleFolded, [s.bodyFolded], terms)
-      const conds = [eq(s.entity, e.name), inArray(s.locale, langs), termsCond([s.titleFolded, s.bodyFolded], terms), publishedCond(e)]
+      const conds = [eq(s.entity, e.name), inArray(s.locale, langs), termsCond([s.titleFolded, s.bodyFolded], terms), publishedCond(e, liveLocale(reg, locale)), notBeingTranslated(e, reg, locale)]
       const rows: any[] = await tx.select({ id: s.recordId, title: s.title, body: s.body, path: s.path, updatedAt: e.table.updatedAt, rank: score, ...pathCols })
         .from(s).innerJoin(e.table, eq(e.table.id, s.recordId))
         .where(and(...conds.filter(Boolean))).orderBy(desc(score)).limit(CANDIDATES)
@@ -284,6 +289,18 @@ export async function searchPublic(db: any, reg: CmsRegistry, terms: string[], q
   return out.sort(byScore)
 }
 
+/**
+ * Publishing per language: the index holds a translation being worked on (the admin finds it), but
+ * visitors searching in its language must not: for them it is not there yet (see `shownTranslationCond`).
+ */
+function notBeingTranslated(e: CmsEntity, reg: CmsRegistry, locale: string | null): any {
+  const lt = e.localesTable
+  const shown = shownTranslationCond(e, lt)
+  if (!shown || !isTranslationLocale(reg, locale)) return undefined
+  // (`coalesce`: the condition is null, not false, for a row whose first_live_at is null.)
+  return sql`not exists (select 1 from ${lt} where ${lt.parentId} = ${e.table.id} and ${lt.locale} = ${locale} and not coalesce(${shown}, false))`
+}
+
 export interface AdminSearchItem {
   entity: string
   id: string
@@ -291,8 +308,10 @@ export interface AdminSearchItem {
   titleHighlights: [number, number][]
   excerpt: string
   highlights: [number, number][]
-  /** 'published' | 'scheduled' | 'draft' for collections with publishing, else null. */
+  /** 'published' | 'scheduled' | 'draft' for collections with publishing (per language: of the language the hit is in; 'waiting' = published, held back by the default language; 'translating' = a draft never on the website, being translated), else null. */
   status: string | null
+  /** Publishing per language: the language the hit was found in, when it is not the default one (its state is `status`; the admin opens that language). */
+  locale?: string
   updatedAt: string
   score: number
 }
@@ -322,9 +341,20 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
         .where(both(and(eq(s.entity, e.name), termsCond([s.titleFolded, s.bodyFolded, s.extraFolded], terms)), access.where))
         .orderBy(desc(score)).limit(CANDIDATES)
 
+      // The index holds all of an entry's text, a field this person may not read included. It only
+      // finds candidates: for a collection with such a field the texts are made again from the
+      // fields they may read, so an entry that matches through the other one is dropped (and no
+      // excerpt shows it).
+      const unreadable = unreadableFields(e, user)
+      if (unreadable.size && rows.length) await readableTexts(tx, reg, e, rows, unreadable)
+
       // One result per entry, read across its languages.
       const byId = new Map<string, any[]>()
       for (const r of rows) byId.set(r.id, [...(byId.get(r.id) ?? []), r])
+      // Publishing per language: the state of the language a hit was found in (its own, or the entry's), not always the default language's.
+      const states = e.publish?.perLocale && reg.locales && byId.size
+        ? await translationStates(tx, reg, e, await tx.select().from(e.table).where(inArray(e.table.id, [...byId.keys()])))
+        : null
       const found: AdminSearchItem[] = []
       for (const [id, versions] of byId) {
         const first = versions[0]
@@ -339,7 +369,8 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
           titleHighlights: highlightRanges(title, terms),
           excerpt: match.excerpt,
           highlights: match.highlights,
-          status: !p ? null : first.status !== p.publishedValue ? 'draft' : first.due ? 'published' : 'scheduled',
+          status: !p ? null : languageStatus(states?.get(id)?.[first.locale]) ?? (first.status !== p.publishedValue ? 'draft' : first.due ? 'published' : 'scheduled'),
+          ...(states && first.locale && first.locale !== reg.locales!.default ? { locale: first.locale as string } : {}),
           updatedAt: new Date(first.updatedAt).toISOString(),
           score: match.score,
         })
@@ -348,6 +379,28 @@ export async function searchAdmin(db: any, reg: CmsRegistry, user: any, terms: s
     }
   })
   return out.sort(byScore)
+}
+
+/** The admin search's word for one language's state: 'waiting' is published but held back by the default language; 'translating' a draft never on the website. */
+function languageStatus(s: LanguageState | undefined): string | null {
+  return !s ? null : s.waitingFor ? 'waiting' : s.translating ? 'translating' : s.state
+}
+
+/** Replace each candidate's indexed text by the text of the fields `unreadable` leaves (title, body, extra), in its language. */
+async function readableTexts(db: any, reg: CmsRegistry, e: CmsEntity, rows: any[], unreadable: ReadonlySet<string>): Promise<void> {
+  const ids = [...new Set(rows.map((r) => r.id))]
+  const sources = new Map<string, any>((await db.select().from(e.table).where(inArray(e.table.id, ids)) as any[]).map((r) => [r.id, r]))
+  const trs = new Map<string, any>()
+  if (e.localesTable && e.localized.length) {
+    for (const tr of await db.select().from(e.localesTable).where(inArray(e.localesTable.parentId, ids)) as any[]) trs.set(`${tr.parentId}:${tr.locale}`, tr)
+  }
+  for (const r of rows) {
+    const row = sources.get(r.id)
+    if (!row) { r.title = ''; r.body = ''; r.extra = ''; continue }
+    const tr = r.locale && reg.locales && r.locale !== reg.locales.default ? trs.get(`${r.id}:${r.locale}`) : null
+    const d = documentOf(e, tr ? mergeTranslation(e, { ...row }, tr) : row, unreadable)
+    r.title = d.title; r.body = d.body; r.extra = d.extra
+  }
 }
 
 const byScore = (a: { score: number; updatedAt: string }, b: { score: number; updatedAt: string }) =>

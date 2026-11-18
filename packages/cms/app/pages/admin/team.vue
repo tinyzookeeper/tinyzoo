@@ -1,25 +1,63 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
+import type { CmsRoleChoice } from '../../utils/cmsRoles'
 
 // Team: who can sign in, with what role. Administrators invite people, change
 // roles, disable access or remove someone; the server enforces every guard
 // (not yourself, never the last administrator).
 definePageMeta({ layout: 'admin' })
-const { t } = useCmsI18n()
+const { t, tl, locale, entityLabel } = useCmsI18n()
 const toast = useToast()
 const { user: me } = useUserSession()
 useHead({ title: () => t('team.title') })
 
 const isAdmin = computed(() => me.value?.role === 'admin')
-const { data, refresh, error } = await useFetch<{ users: any[] }>('/api/cms/_users', { immediate: isAdmin.value })
+const { data, refresh, error } = await useFetch<{ users: any[]; roles: CmsRoleChoice[] }>('/api/cms/_users', { immediate: isAdmin.value })
 const users = computed(() => data.value?.users ?? [])
+// The site's areas (collections and globals), in the sidebar's order: what a role's reach is told against.
+const { data: graph } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
+const areas = computed(() => (graph.value ?? []).map((g: any) => g.name as string))
+const areaLabel = (name: string) => entityLabel((graph.value ?? []).find((g: any) => g.name === name)) || name
 
-const ROLES = ['admin', 'editor', 'author'] as const
-const roleName = (r: string) => (ROLES as readonly string[]).includes(r) ? t(`roles.${r as typeof ROLES[number]}.name`) : r
+// The roles to pick from: the built-ins, then the site's own (`defineRoles`), named in the admin's language.
+const BUILT_IN = ['admin', 'editor', 'author'] as const
+const roles = computed<CmsRoleChoice[]>(() => data.value?.roles ?? BUILT_IN.map((name) => ({ name, custom: false, from: name, label: null, description: null })))
+const roleName = (r: string) => {
+  if ((BUILT_IN as readonly string[]).includes(r)) return t(`roles.${r as typeof BUILT_IN[number]}.name`)
+  const own = roles.value.find((x) => x.name === r)
+  return own ? tl(own.label as any, r) : r
+}
+// One sentence per role: the built-ins have their own; a role of the site says what its developer
+// wrote, or what its definition does ("Edits Posts and Pages. Only reads Authors…").
+const roleHint = (r: CmsRoleChoice) => (r.custom
+  ? (r.description ? tl(r.description as any) : cmsRoleSentence(r, areas.value, { t: t as any, locale: locale.value, label: areaLabel, max: 3 }))
+  : t(`roles.${r.name as typeof BUILT_IN[number]}.description`))
+
+// "What can each role do?": every role side by side, with how many people have it.
+const overviewOpen = ref(false)
+const peopleWith = (name: string) => users.value.filter((u) => u.role === name && u.status !== 'disabled').length
+const overview = computed(() => roles.value.map((r) => {
+  const reach = cmsRoleReach(r, areas.value)
+  const list = (names: string[]) => cmsNameList(names.map(areaLabel), locale.value, t as any, 6)
+  return {
+    name: r.name,
+    label: roleName(r.name),
+    // A written description only: the columns already say what a generated one would.
+    hint: r.custom ? (r.description ? tl(r.description as any) : '') : roleHint(r),
+    people: peopleWith(r.name),
+    edits: reach.editsAll ? t('roles.summary.allContent') : reach.edits.length ? list(reach.edits) : t('roles.summary.nothingShort'),
+    editsNone: !reach.editsAll && !reach.edits.length,
+    own: reach.own,
+    readsNone: !reach.reads.length,
+    reads: reach.reads.length ? list(reach.reads) : t('roles.summary.nothingShort'),
+    publish: r.publish === undefined ? null : r.publish,
+    media: r.media ?? null,
+  }
+}))
 
 // ── invite ──
 const inviteOpen = ref(false)
-const invite = reactive({ email: '', name: '', role: 'editor' as typeof ROLES[number] })
+const invite = reactive({ email: '', name: '', role: 'editor' })
 const inviteErrors = reactive<Record<string, string>>({})
 const inviting = ref(false)
 const inviteForm = ref<HTMLElement | null>(null)
@@ -159,9 +197,11 @@ async function disable(u: any) {
 function rowMenu(u: any): DropdownMenuItem[][] {
   const groups: DropdownMenuItem[][] = [[{
     label: t('team.changeRole'), icon: 'i-lucide-shield',
-    children: ROLES.map((r) => ({
-      label: roleName(r), type: 'checkbox' as const, checked: u.role === r,
-      onSelect: () => { if (u.role !== r) act(() => patch(u.id, { role: r }), t('team.roleChanged')) },
+    children: roles.value.map((r) => ({
+      label: roleName(r.name), type: 'checkbox' as const, checked: u.role === r.name,
+      // What the role does, under its name (as in the invitation), so the choice is not made blind.
+      description: roleHint(r), ui: { itemDescription: 'whitespace-normal text-xs text-muted max-w-72' },
+      onSelect: () => { if (u.role !== r.name) act(() => patch(u.id, { role: r.name }), t('team.roleChanged')) },
     })),
   }]]
   groups[0]!.push({ label: t('team.changeEmail'), icon: 'i-lucide-mail', onSelect: () => openEmail(u) })
@@ -180,6 +220,9 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
 <template>
   <CmsPage :title="t('team.title')" :description="t('team.description')" :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: t('team.title') }]">
     <template v-if="isAdmin" #actions>
+      <UButton color="neutral" variant="ghost" icon="i-lucide-shield-question" :aria-label="t('team.rolesOverview')" @click="() => { overviewOpen = true }">
+        <span class="max-sm:hidden">{{ t('team.rolesOverview') }}</span>
+      </UButton>
       <UButton icon="i-lucide-user-plus" @click="openInvite">{{ t('team.invite') }}</UButton>
     </template>
 
@@ -212,7 +255,13 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
                   </span>
                 </div>
               </td>
-              <td class="px-4 py-3 whitespace-nowrap max-sm:col-start-1 max-sm:p-0 max-sm:pl-11 max-sm:text-muted">{{ roleName(u.role) }}</td>
+              <td class="px-4 py-3 whitespace-nowrap max-sm:col-start-1 max-sm:p-0 max-sm:pl-11 max-sm:text-muted">
+                {{ roleName(u.role) }}
+                <!-- a role the site no longer defines: the person signs in and sees nothing -->
+                <span v-if="u.roleRemoved" class="mt-1 flex items-start gap-1.5 text-xs cms-unsaved whitespace-normal max-w-60" role="status">
+                  <UIcon name="i-lucide-triangle-alert" class="size-3.5 mt-px shrink-0" aria-hidden="true" />{{ t('team.roleRemoved') }}
+                </span>
+              </td>
               <td class="px-4 py-3 whitespace-nowrap max-sm:col-start-1 max-sm:p-0 max-sm:pl-11">
                 <!-- a dot and a word, as every status in the admin -->
                 <span v-if="u.status === 'active'" class="inline-flex items-center gap-2 text-default">
@@ -268,8 +317,9 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
             <URadioGroup
               v-model="invite.role" variant="card" indicator="start" :aria-label="t('team.role')"
               :ui="{ item: 'has-data-[state=checked]:bg-(--cms-moment-bg) has-data-[state=checked]:border-(--cms-moment-line)' }"
-              :items="ROLES.map((r: typeof ROLES[number]) => ({ value: r, label: t(`roles.${r}.name`), description: t(`roles.${r}.description`) }))"
+              :items="roles.map((r) => ({ value: r.name, label: roleName(r.name), description: roleHint(r) }))"
             />
+            <button type="button" class="mt-2 text-sm text-muted underline underline-offset-2 hover:text-highlighted" @click="() => { overviewOpen = true }">{{ t('team.rolesOverview') }}</button>
           </UFormField>
           <UAlert v-if="inviteFailed" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="inviteFailed" role="alert" data-cms-error-summary />
         </form>
@@ -285,6 +335,55 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
             <UButton type="submit" form="cms-invite" icon="i-lucide-send" :loading="inviting">{{ t('team.sendInvite') }}</UButton>
           </template>
         </div>
+      </template>
+    </UModal>
+
+    <!-- What can each role do? Every role side by side (Ditto's permission groups): what it changes, what it only
+         reads, whether it publishes, its files, and how many people have it. Phones: one card per role. -->
+    <UModal v-model:open="overviewOpen" :title="t('team.rolesOverview')" :description="t('team.rolesOverviewBody')" :ui="{ content: 'sm:max-w-4xl', description: 'pe-10' }">
+      <template #body>
+        <table class="w-full text-sm max-md:block">
+          <thead class="max-md:hidden">
+            <tr class="border-b border-default text-left text-muted">
+              <th scope="col" class="font-medium py-2 pr-4">{{ t('team.role') }}</th>
+              <th scope="col" class="font-medium py-2 pr-4">{{ t('roles.summary.colEdits') }}</th>
+              <th scope="col" class="font-medium py-2 pr-4">{{ t('roles.summary.colReads') }}</th>
+              <th scope="col" class="font-medium py-2 pr-4 whitespace-nowrap">{{ t('roles.summary.colPublish') }}</th>
+              <th scope="col" class="font-medium py-2">{{ t('roles.summary.colFiles') }}</th>
+            </tr>
+          </thead>
+          <tbody class="max-md:block max-md:space-y-3">
+            <tr v-for="r in overview" :key="r.name" class="align-top border-b border-default last:border-0 max-md:block max-md:rounded-xl max-md:border max-md:last:border max-md:p-4">
+              <th scope="row" class="py-3 pr-4 text-left font-normal max-md:block max-md:p-0 md:w-64">
+                <span class="flex flex-wrap items-baseline gap-x-2">
+                  <span class="font-medium text-highlighted">{{ r.label }}</span>
+                  <span class="text-xs text-muted tabular-nums">{{ t('team.peopleCount', { count: r.people }) }}</span>
+                </span>
+                <span v-if="r.hint" class="mt-0.5 block text-xs text-muted text-pretty">{{ r.hint }}</span>
+              </th>
+              <!-- phones: each line names what it is -->
+              <td class="py-3 pr-4 max-md:flex max-md:gap-2 max-md:p-0 max-md:pt-3">
+                <span class="md:hidden w-28 shrink-0 text-muted">{{ t('roles.summary.colEdits') }}</span>
+                <span class="text-pretty" :class="r.editsNone ? 'text-dimmed' : ''">{{ r.edits }}<span v-if="r.own" class="block text-xs text-muted">{{ t('roles.summary.ownShort') }}</span></span>
+              </td>
+              <td class="py-3 pr-4 max-md:flex max-md:gap-2 max-md:p-0 max-md:pt-1.5">
+                <span class="md:hidden w-28 shrink-0 text-muted">{{ t('roles.summary.colReads') }}</span>
+                <span class="text-pretty" :class="r.readsNone ? 'text-dimmed' : ''">{{ r.reads }}</span>
+              </td>
+              <td class="py-3 pr-4 whitespace-nowrap max-md:flex max-md:gap-2 max-md:p-0 max-md:pt-1.5">
+                <span class="md:hidden w-28 shrink-0 text-muted">{{ t('roles.summary.colPublish') }}</span>
+                <span v-if="r.publish !== null" class="inline-flex items-center gap-1.5">
+                  <UIcon :name="r.publish ? 'i-lucide-check' : 'i-lucide-minus'" class="size-4 shrink-0" :class="r.publish ? 'text-success' : 'text-dimmed'" aria-hidden="true" />
+                  {{ r.publish ? t('roles.summary.publishYes') : t('roles.summary.publishNo') }}
+                </span>
+              </td>
+              <td class="py-3 whitespace-nowrap max-md:flex max-md:gap-2 max-md:p-0 max-md:pt-1.5">
+                <span class="md:hidden w-28 shrink-0 text-muted">{{ t('roles.summary.colFiles') }}</span>
+                <span v-if="r.media">{{ t(`roles.summary.mediaShort.${r.media}`) }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </template>
     </UModal>
 

@@ -117,8 +117,8 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | Variable | Required | |
 |---|---|---|
 | `DATABASE_URL` | yes | Postgres connection (`NUXT_CMS_DATABASE_URL` overrides). The server refuses to start without one |
-| `NUXT_APP_SECRET` | yes | Nuxt's app secret, ≥ 32 characters: the sign-in cookie is sealed with a key derived from it, and other modules derive their keys from it too (signed image URLs, for example). Changing it signs everyone out. **The server refuses to start** without it (or with a shorter one) and says so in the log. A site set up before 0.4 has `NUXT_SESSION_PASSWORD` instead: until 0.5 that value stands in for `NUXT_APP_SECRET` when it is not set, with a deprecation warning in the log (nuxt-auth-utils' own "is not used anymore" line next to it can be ignored until then); rename the variable, keeping the value, and the rename signs nobody out ([upgrading](upgrading.md#from-03-to-04)) |
-| `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails, and the address `/sitemap.xml` starts with (`NUXT_SITE_URL` wins when it is set). Without it the server starts but logs one warning saying what is missing |
+| `NUXT_APP_SECRET` | yes | Nuxt's app secret, ≥ 32 characters: the sign-in cookie is sealed with a key derived from it, and other modules derive their keys from it too (signed image URLs, for example). Changing it signs everyone out. **The server refuses to start** without it, with a shorter one, or with the example value of the starter's `.env.example` (`change-me-to-a-long-random-string-32-chars-min`: anyone can read it), and says so in the log. A site set up before 0.4 has `NUXT_SESSION_PASSWORD` instead: 0.4 and 0.5 used that value as a stand-in, 0.6 does not read it, and the start check says to rename the variable; keeping the value signs nobody out ([upgrading](upgrading.md#from-05-to-06)) |
+| `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz` — links in emails, the server address of `/api/openapi.json` (unless `cms.content.publicUrl` / `NUXT_CMS_CONTENT_PUBLIC_URL` is set), and the address `/sitemap.xml` starts with (`NUXT_SITE_URL` wins when it is set). Without it the server starts but logs one warning saying what is missing |
 | `NUXT_SITE_URL`, `NUXT_SITE_INDEXABLE` | optional | [Nuxt SEO's site config](https://nuxtseo.com/docs/site-config): `NUXT_SITE_URL` is the address `/sitemap.xml` starts with when the website's address is not `NUXT_CMS_PUBLIC_URL`; `NUXT_SITE_INDEXABLE=false` keeps a copy of a site (a demo, a staging site) out of search engines, with `@nuxtjs/robots` |
 | `NUXT_CMS_MIGRATIONS_ON_START` | recommended | `true`: apply bundled migrations at start (below) |
 | `REDIS_URL` | with > 1 replica | `NUXT_CMS_REDIS_URL` overrides |
@@ -132,7 +132,9 @@ the repo. Everything below is read at runtime — no rebuild to change it.
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (below) |
 | `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API (`x-api-key` or `Authorization: Bearer`). The website's own server-side requests need none, see [Content API token](#content-api-token) |
 | `NUXT_CMS_CONTENT_DOCS` | optional | `true` publishes the interactive API reference at `/api/openapi` (off in production by default, see [Content API token](#content-api-token)) |
-| `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). Without it the server makes a one-time code and prints it in the log — see [First run](#first-run-the-setup-code) |
+| `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). Without it the server makes a one-time code and prints it in the log — see [First run](#first-run-the-setup-code). It is a secret, so it is an environment variable only (there is no `cms` option: an option would be written into the build and into a committed `nuxt.config.ts`) |
+| `CMS_ALLOW_REQUEST_ORIGIN` | almost never | `1` lets links in emails (invitations, password resets) use the address of the request when `NUXT_CMS_PUBLIC_URL` is not set, also in production. **Do not set it on a site with a public address**: the request's `Host` is chosen by whoever makes it, so a forged one would put an attacker's domain in a reset link. For a deploy that has no public address (an internal tool behind a proxy you trust). Not a `NUXT_CMS_*` setting on purpose: it is an escape hatch, read when the link is written |
+| `CMS_SCHEDULER_CRON`, `CMS_RETENTION_CRON` | deprecated | build-time cron expressions of the scheduled tasks, replaced by `scheduler: { cron }` and `retention: { cron }` in nuxt.config's `cms` options (removed in 1.0). They are read **when the site is built**, so setting them on a running server changes nothing |
 | `NUXT_CMS_RETENTION_AUDIT_DAYS` | optional | delete audit-log entries older than this many days (default 365, `0` = keep). See [Privacy](#privacy-gdpr) |
 | `NUXT_CMS_AUTH_TRUSTED_PROXIES` | optional | proxy hops in front of the app (default 1 — Pushbase's ingress). Too few and rate limits count the proxy instead of visitors; too many (e.g. 1 with no proxy at all) and visitors can fake their address in `X-Forwarded-For` to dodge limits. Set `0` when the app is reached directly |
 
@@ -252,7 +254,7 @@ For a deploy script or CI step. `0` is success everywhere; what else a command a
 | `tinyzoo content:migrate` | `1`: some blocks could not be upgraded (they stay as stored), the arguments are wrong, or there is no `DATABASE_URL` |
 | `tinyzoo links:convert` | `1`: wrong arguments, or no `DATABASE_URL`. Addresses it could not convert are reported, not an error: the exit code is `0` |
 | `tinyzoo seed`, `export`, `import`, `backup`, `restore` | `1`: the command failed or refused (a non-empty database without `--force`, a missing Postgres tool, a wrong password); one line says why |
-| `tinyzoo init` | `1`: no folder given, or the folder exists and is not empty |
+| `tinyzoo init` | `1`: no folder given, an option it does not know or that does not fit (`--demo` with a first language that is not `cs` or `en`), or the folder exists and is not empty |
 | anything else | an unknown command prints the usage and exits `1` |
 
 ## Health
@@ -321,7 +323,13 @@ deleted, translations, globals. Drafts stay quiet.
 
 `paths` are the addresses from `content.path` that visitors could reach before or
 after the change, in every language (a renamed slug gives both; a translation
-change only that language's). `delivery` is unique per change and the same on
+change only that language's). With `publish.perLocale`, publishing, unpublishing or
+a scheduled go-live of one language is `entry.published` / `entry.unpublished` with
+that language in `locale` and only its addresses in `paths` (an address served through
+the default language included): purge exactly those. The default language gates the others,
+so unpublishing it (or its date coming) names the languages it takes with it: one event with
+`locale: null` and the address of each language that was live and has a translation or a state
+of its own. `delivery` is unique per change and the same on
 every retry — deduplicate on it; it is inside the signed body. Each request
 carries `X-CMS-Event`, `X-CMS-Delivery` and `X-CMS-Signature: t=<unix>,v1=<hex>`, an
 HMAC-SHA256 of `` `${t}.${rawBody}` `` with `NUXT_CMS_WEBHOOKS_SECRET`. In production
@@ -667,8 +675,9 @@ export const ContactForm = defineForm('contactForm', { /* … */ retentionDays: 
 NUXT_CMS_RETENTION_AUDIT_DAYS=365   # or retention: { auditDays: 365 } in nuxt.config's cms options
 ```
 
-A scheduled task (`cms:retention`, daily at 03:17; `CMS_RETENTION_CRON` at build time
-changes it) deletes form messages older than their form's `retentionDays`, with their
+A scheduled task (`cms:retention`, daily at 03:17; `retention: { cron: '…' }` in nuxt.config's `cms` options
+changes it, **at build time**: it is written into the build, so there is no runtime variable and a change needs a rebuild;
+the old `CMS_RETENTION_CRON` still works as a deprecated alias) deletes form messages older than their form's `retentionDays`, with their
 saved versions and search rows, and audit entries older than `auditDays`, in batches
 and on one instance at a time. It writes one audit entry, `retention.purge`, with the
 counts (never the content). The admin says it under the form's list: "Messages are

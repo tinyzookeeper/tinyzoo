@@ -1,0 +1,58 @@
+{
+  "modules": [
+    "<repo>/packages/cms/module"
+  ],
+  "components": [
+    {
+      "path": "<repo>/packages/cms/app/components",
+      "pathPrefix": false,
+      "global": true
+    }
+  ],
+  "css": [
+    "<repo>/packages/cms/app/assets/css/cms-admin.css"
+  ],
+  "runtimeConfig": {
+    "session": {
+      "maxAge": 1209600
+    }
+  },
+  "nitro": {
+    "experimental": {
+      "websocket": true
+    }
+  },
+  "fonts": {
+    "families": [
+      {
+        "name": "Inter",
+        "provider": "google",
+        "weights": [
+          400,
+          500,
+          600
+        ],
+        "global": true
+      },
+      {
+        "name": "Manrope",
+        "provider": "google",
+        "weights": [
+          600,
+          700,
+          800
+        ],
+        "global": true
+      },
+      {
+        "name": "Geist Mono",
+        "provider": "google",
+        "weights": [
+          400,
+          500
+        ],
+        "global": true
+      }
+    ]
+  }
+}

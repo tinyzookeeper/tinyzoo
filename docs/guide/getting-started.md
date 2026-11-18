@@ -5,7 +5,7 @@ list of what to do before it goes live. About half an hour.
 
 You will:
 
-1. make a site with `tinyzoo init`, start its database and open it;
+1. make a site with `pnpm create tinyzoo`, start its database and open it;
 2. fill it with demo content and sign in to the admin;
 3. add a collection of your own, **Team members** (a photo, a role, a hand-made order);
 4. show it on the website with the typed client;
@@ -17,18 +17,54 @@ for the local database (any Postgres 16+ works instead: see [step 3](#3-the-data
 ## 1. Make the site
 
 ```bash
-pnpm dlx tinyzoo init my-site
+pnpm create tinyzoo my-site
 cd my-site
-pnpm install
+pnpm install        # unless you let the questions install for you
 ```
 
-`tinyzoo init` copies the **starter**: a small bakery's website with the CMS inside, in
-Czech and English. It has pages built from blocks (opening, text, picture, call to action,
-contact form), news, menus with dropdowns, redirects, site settings with opening hours, a
-contact form and a search page. The files are yours from now on; nothing in them is
-updated behind your back.
+`pnpm create tinyzoo` asks a few questions: the **languages** the content is written in (the
+first one is the default), which **parts** the site has (news, a contact form, redirects, a
+search page), whether to fill it with **demo content**, and whether to install the
+dependencies now. Then it copies the **starter**: a small bakery's website with the CMS
+inside. By default that is Czech and English with everything on: pages built from blocks
+(opening, text, picture, call to action, contact form), news, menus with dropdowns, redirects,
+site settings with opening hours, a contact form and a search page. The files are yours from
+now on; nothing in them is updated behind your back.
 
-`pnpm dlx` and `pnpm install` may end with a yellow box, *Ignored build scripts: esbuild,
+Every question has an option, so it runs without a terminal too (`npm create tinyzoo@latest
+my-site -- …` and `yarn create tinyzoo` work the same; with npm the options come after `--`):
+
+```bash
+pnpm create tinyzoo my-site --languages de,en --presets news,search --no-demo --yes
+```
+
+| Option | |
+|---|---|
+| `--languages cs,en,de` | the content languages; the **first is the default** (its addresses have no prefix: `/o-nas`, the others have one: `/en/about`). Default `cs,en` |
+| `--presets news,forms,redirects,search` | the parts of the site, or `none` / `all`. Pages, menus, site settings and SEO are always there. Default: all |
+| `--demo` / `--no-demo` | the demo content (a small bakery, written in Czech and English: it needs `cs` or `en` first). `--no-demo` makes an empty site, without `seed/` |
+| `--install` / `--no-install` | install the dependencies right away, and write the typed files the site needs (below) |
+| `--package-manager pnpm` | `pnpm`, `npm`, `yarn` or `bun`: the commands it prints and the README use it. Default: the one you ran it with |
+| `--yes`, `-y` | ask nothing: the defaults for what is not given |
+
+`tinyzoo init <folder>` makes the same site with the same options (except the installing and
+`--yes`), without asking anything: `pnpm dlx tinyzoo init my-site --languages de,en --no-demo`. It is
+what `create-tinyzoo` runs. The folder may be `.`, the current folder, when it is empty: it stays as it is
+(it is not deleted and made again) and the site is made inside it. A folder with anything in it is
+refused.
+
+**A site that differs from the starter's defaults needs two more commands.** The starter
+ships the database schema, its first migration and the typed client for its own choices (cs and
+en, every part). For any other choice, `create-tinyzoo --install` writes them for you; without
+installing, the next steps it prints include `pnpm db:generate` (the first migration) and
+`pnpm cms:client` (the typed client), to run after `pnpm install` and before `pnpm db:migrate`.
+More languages than it knows words for (`de` has them; `fr` shows English ones) need an entry in
+`app/utils/site.ts`.
+
+Every new site has an `AGENTS.md`: a short guide for a coding assistant working in it (where the content model
+is, the change workflow, the commands, what not to touch). Keep it, and add your own project's notes to it.
+
+`pnpm create` and `pnpm install` may end with a yellow box, *Ignored build scripts: esbuild,
 sharp, …*. It is harmless: nothing here needs those scripts.
 
 What is where:
@@ -39,19 +75,21 @@ What is where:
 | `app/pages/` | the website's pages. `[...slug].vue` serves every CMS page, the news list and news items |
 | `app/components/global/Block<Type>.vue` | how each page block looks (`hero` → `BlockHero.vue`) |
 | `app/layouts/default.vue` | header with the menu, footer with contacts and opening hours |
-| `seed/` | the demo content and its pictures |
+| `app/utils/site.ts` | the website's languages, and the few words it draws itself (headings, buttons, the address of the news list and search) in each |
+| `seed/` | the demo content and its pictures (only with demo content) |
 | `server/db/` | `schema.ts` and `migrations/`, **generated** from `cms.config.ts`; you commit them, you do not edit them |
 | `.env` | your settings on this machine (not committed) |
 
 ## 2. Settings
 
-```bash
-cp .env.example .env
-```
+The site already has a `.env`: `pnpm create tinyzoo` (and `tinyzoo init`) write it from `.env.example`
+with a random `NUXT_APP_SECRET` of its own. It has two lines you need now: `DATABASE_URL` (where the
+database is) and `NUXT_APP_SECRET` (a long secret the admin's sign-in cookie is sealed with). That secret
+is for your machine: a server needs one of its own (`openssl rand -base64 32`), and refuses the example
+value of `.env.example` (`change-me-to-a-long-random-string-32-chars-min`: anyone can read it).
 
-`.env` has two lines you need now: `DATABASE_URL` (where the database is) and
-`NUXT_APP_SECRET` (a long secret the admin's sign-in cookie is sealed with; the example
-value is fine on your machine, never on a server).
+If you have no `.env` (a folder you copied), `cp .env.example .env` and put a secret of your own on the
+`NUXT_APP_SECRET` line.
 
 ## 3. The database
 
@@ -298,7 +336,7 @@ environment (never in git). The whole list, with the reasons, is in
 | | Do | Why |
 |---|---|---|
 | ☐ | **Setup code.** Deploy, open the project's log, find `Setup code: XXXX-XXXX-XXXX-XXXX`, open `/admin/setup`, type it, make the first account. Or set `NUXT_CMS_AUTH_SETUP_TOKEN` to a code of your own | a fresh deploy has no administrator; without a code, whoever opens the page first would become one. In production the code is always required |
-| ☐ | **`NUXT_APP_SECRET`**: 32+ random characters (`openssl rand -base64 32`) | the sign-in cookie is sealed with a key derived from it (other modules use it too). Changing it signs everyone out. A production server will not start without it |
+| ☐ | **`NUXT_APP_SECRET`**: 32+ random characters (`openssl rand -base64 32`) | the sign-in cookie is sealed with a key derived from it (other modules use it too). Changing it signs everyone out. A production server will not start without it, or with the example value from `.env.example` |
 | ☐ | **`NUXT_CMS_PUBLIC_URL`**: the site's real address (`https://www.example.cz`) | links in emails (invitations, password resets) and the sitemap use it, never the request's `Host` header |
 | ☐ | **Storage**: `NUXT_CMS_STORAGE_DRIVER=s3` (or `r2`) and the bucket's `NUXT_CMS_STORAGE_S3_*` variables, one bucket per environment | a container's disk is lost on every deploy; uploads must live in a bucket |
 | ☐ | **Email**: `NUXT_CMS_MAIL_TRANSPORT=smtp`, `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_*` | invitations, password resets and "new message" notifications; `log` only prints them |

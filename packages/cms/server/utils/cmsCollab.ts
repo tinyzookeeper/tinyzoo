@@ -91,11 +91,29 @@ export function parseCollabName(name: string): CollabTarget | null {
   return { entity, id, locale, name: collabName(entity.name, id, locale) }
 }
 
-/** The fields edited together: top-level rich text (in a translation, the translatable ones). */
+/**
+ * The fields edited together: top-level rich text (in a translation, the translatable ones).
+ * Not a field with an `.access()` rule: the shared document is one for everyone who has the
+ * entry open, so it would hand a field to people who may not read it, or let people who may
+ * not edit it type into it. Such a field is edited alone and saved the usual way, where the
+ * server checks the person.
+ */
 export function collabFields(e: CmsEntity, locale: string | null): string[] {
   return Object.entries(e.fields)
-    .filter(([key, f]) => (f as any).type === 'richtext' && (!locale || e.localized.includes(key)))
+    .filter(([key, f]) => (f as any).type === 'richtext' && !(f as any).meta?.access && (!locale || e.localized.includes(key)))
     .map(([key]) => key)
+}
+
+/** The shared texts a stored document holds that are not among `allowed` (a field that has an access rule now, or is gone). */
+function documentKeysOutside(state: string, allowed: ReadonlySet<string>): string[] {
+  const doc = new Y.Doc()
+  try {
+    Y.applyUpdate(doc, decodeState(state))
+    return [...doc.share.keys()].filter((k) => !allowed.has(k))
+  }
+  finally {
+    doc.destroy()
+  }
 }
 
 /**
@@ -118,7 +136,7 @@ export async function collabAccess(user: CmsUser, t: CollabTarget): Promise<'wri
   try {
     const writeFilter = authorize(e, 'update', user)
     const [ok] = await db.select({ id: e.table.id }).from(e.table)
-      .where(both(both(eq(e.table.id, t.id), writeFilter), notLiveCond(e, user)))
+      .where(both(both(eq(e.table.id, t.id), writeFilter), notLiveInLanguage(e, user, t.locale)))
     return ok ? 'write' : 'read'
   }
   catch {
@@ -202,8 +220,11 @@ export async function ensureCollabDocument(t: CollabTarget): Promise<{ epoch: st
     const saved = await savedContent(t, tx)
     if (!saved) throw createError({ statusCode: 404, statusMessage: 'Not found' })
     const sameBase = row && (row.baseVersion?.getTime() ?? null) === (saved.version?.getTime() ?? null)
-    if (row?.active) return { epoch: row.epoch }
-    if (row && sameBase && row.fresh) {
+    // A document made before a field got an access rule still holds that field's text: it is not
+    // reused (everyone is sent to a fresh one), so the text goes to nobody who may not read it.
+    const outdated = !!row && documentKeysOutside(row.state, new Set(collabFields(t.entity, t.locale))).length > 0
+    if (row?.active && !outdated) return { epoch: row.epoch }
+    if (row && sameBase && row.fresh && !outdated) {
       // Nobody has it open. Text in it that was never saved (a tab closed or crashed)
       // is not this person's work: it waits aside, and they start from the saved entry.
       // (A document stored before the entry's last save is behind it, not ahead: the

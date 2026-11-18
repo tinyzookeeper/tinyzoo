@@ -19,7 +19,8 @@
  *   { "id": "…", "createdAt": "…", "updatedAt": "…",
  *     "fields":       { "title": "…", "author": "<id>", "hero": "<media id>", "body": {…} },
  *     "translations": [ { "id": "…", "locale": "en", "createdAt": "…", "updatedAt": "…",
- *                         "fields": { "title": "…", "body": {…} } } ],
+ *                         "fields": { "title": "…", "body": {…} },
+ *                         "publish": { "published": true, "publishedAt": "…", "firstLiveAt": "…" } } ],  // only with publish.perLocale; null follows the default language
  *     "relations":    { "tags": ["<id>", …] } }          // many-to-many, by field
  *
  * Not in the archive, on purpose: accounts (users, invitation and reset links),
@@ -110,7 +111,8 @@ export interface FieldShape {
 }
 
 export interface SchemaShape {
-  entities: Record<string, { singleton: boolean; fields: Record<string, FieldShape> }>
+  /** `perLocale`: the entity publishes each language on its own (`publish.perLocale`); only present when it does, so every other site keeps its fingerprint. */
+  entities: Record<string, { singleton: boolean; fields: Record<string, FieldShape>; perLocale?: true }>
 }
 
 function fieldShape(fld: any): FieldShape {
@@ -139,6 +141,7 @@ export function describeSchema(reg: CmsRegistry): SchemaShape {
     entities: Object.fromEntries(reg.entities.map((e) => [e.name, {
       singleton: !!e.singleton,
       fields: Object.fromEntries(Object.entries(e.fields).map(([k, f]) => [k, fieldShape(f)])),
+      ...(e.publish?.perLocale ? { perLocale: true as const } : {}),
     }])),
   }
 }
@@ -232,6 +235,12 @@ export function diffSchemas(archive: SchemaShape, target: SchemaShape): Differen
       out.push({ scope: 'entity', entity: name, message: `"${name}" is ${a.singleton ? 'a global' : 'a collection'} in the archive but ${b.singleton ? 'a global' : 'a collection'} here`, skip: true })
       continue
     }
+    // Per-language publishing: an archive that carries each language's own state does not fit a site that cannot keep it.
+    // The other way round (an archive from before 0.6, or from a site that does not have it, into one that does) is fine:
+    // its translations carry no state, so they follow the default language and a merge leaves the states already here alone.
+    if (a.perLocale && !b.perLocale) {
+      out.push({ scope: 'entity', entity: name, message: `"${name}" publishes each language on its own in the archive, but not here (the state of each language is left out: every language follows the default language)`, skip: false })
+    }
     const keys = [...new Set([...Object.keys(a.fields), ...Object.keys(b.fields)])].sort()
     for (const key of keys) {
       const fa = a.fields[key]
@@ -303,7 +312,14 @@ export interface Entry {
   createdAt: string
   updatedAt: string
   fields: Record<string, unknown>
-  translations: { id: string; locale: string; createdAt: string; updatedAt: string; fields: Record<string, unknown> }[]
+  translations: {
+    id: string; locale: string; createdAt: string; updatedAt: string; fields: Record<string, unknown>
+    /**
+     * Per-language publishing (`publish.perLocale`): this language's own state; `published: null` follows the default language.
+     * `firstLiveAt`: when it was first on the website in its own right (null: never — a draft then is being translated). Left out for entities without it.
+     */
+    publish?: { published: boolean | null; publishedAt: string | null; firstLiveAt?: string | null }
+  }[]
   relations: Record<string, string[]>
 }
 
@@ -321,6 +337,7 @@ export function encodeEntry(layout: EntityLayout, row: any, translations: any[],
       createdAt: iso(t.createdAt) as string,
       updatedAt: iso(t.updatedAt) as string,
       fields: Object.fromEntries(layout.e.localized.map((k) => [k, iso(t[k])])),
+      ...(layout.e.publish?.perLocale ? { publish: { published: t.published ?? null, publishedAt: (iso(t.publishedAt) as string | null) ?? null, firstLiveAt: (iso(t.firstLiveAt) as string | null) ?? null } } : {}),
     })),
     relations,
   }

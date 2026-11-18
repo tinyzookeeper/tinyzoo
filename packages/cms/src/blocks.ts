@@ -1,4 +1,5 @@
 import { z, type ZodTypeAny } from 'zod'
+import type { CmsAdminField } from './admin'
 import type { AnyFieldDescriptor, FieldDescriptor, FieldKind } from './descriptor'
 import type { LocalizedText } from './i18n'
 import { upgradeRichText } from './richtext'
@@ -32,6 +33,8 @@ import { upgradeRichText } from './richtext'
 /**
  * Field types allowed inside a block, a list item or a group ('blocks' = a list, one
  * level deep; 'group' = a named object of fields).
+ *
+ * @internal
  */
 export const BLOCK_FIELD_TYPES = new Set(['text', 'slug', 'number', 'boolean', 'datetime', 'select', 'richtext', 'media', 'blocks', 'group'])
 
@@ -62,7 +65,11 @@ export interface BlockDef<F extends Record<string, AnyFieldDescriptor> = Record<
 /** Keys of a stored block that are not its fields. */
 const BLOCK_META_KEYS = new Set(['id', 'type', 'v'])
 
-/** The version a block definition is at. */
+/**
+ * The version a block definition is at.
+ *
+ * @internal
+ */
 export const blockVersion = (def: Pick<BlockDef, 'version'>): number => def.version ?? 1
 
 export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: BlockDef<F>): BlockDef<F> {
@@ -85,6 +92,9 @@ export function holdsList(fields: Record<string, AnyFieldDescriptor>): boolean {
 export function checkContainedFields(what: string, fields: Record<string, AnyFieldDescriptor>, opts: { reserved?: boolean } = { reserved: true }) {
   for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
     if (opts.reserved && (key === 'id' || key === 'type' || key === 'v')) throw new Error(`${what} field "${key}" is reserved (every block has an id, a type and a version).`)
+    if (fld.meta?.access) {
+      throw new Error(`${what} field "${key}" has .access(): per-field access belongs to the fields of a collection or global, not to a field inside a block, a list or a group. Put it on the blocks, list or group field itself.`)
+    }
     if (!BLOCK_FIELD_TYPES.has(fld.type)) {
       throw new Error(`${what} field "${key}" has type "${fld.type}", which blocks, lists and groups do not support (allowed: ${[...BLOCK_FIELD_TYPES].join(', ')}).`)
     }
@@ -136,15 +146,24 @@ export interface CmsBlock { id: string; type: string; [field: string]: unknown }
 
 // ── stored versions ──────────────────────────────────────────────────────────
 
-/** The stored value of a block's `v`: a whole number from 1; anything else (or nothing) reads as 1. */
+/**
+ * The stored value of a block's `v`: a whole number from 1; anything else (or nothing) reads as 1.
+ *
+ * @internal
+ */
 export function storedBlockVersion(block: object): number {
   const v = (block as { v?: unknown }).v
   return typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : 1
 }
 
-/** Marks a block whose `upgrade` threw (admin only): shown as needing attention, kept as stored. */
+/**
+ * Marks a block whose `upgrade` threw (admin only): shown as needing attention, kept as stored.
+ *
+ * @internal
+ */
 export const UPGRADE_FAILED_KEY = '__upgradeFailed'
 
+/** @internal */
 export interface UpgradeIssue {
   type: string
   /** The block's id, when it has one. */
@@ -156,6 +175,7 @@ export interface UpgradeIssue {
   error: unknown
 }
 
+/** @internal */
 export interface UpgradeOptions {
   /** Called for each block whose `upgrade` threw; that block is then left as it was stored. */
   onError?: (issue: UpgradeIssue) => void
@@ -175,6 +195,8 @@ const isPlainObject = (v: unknown): v is Record<string, any> => !!v && typeof v 
  * Bring ONE block (not the lists inside it) from its stored version to the current
  * one, by calling `upgrade` once per step, and stamp `v` (left out at version 1).
  * Returns the block itself when it is not behind. Throws when a step does.
+ *
+ * @internal
  */
 export function upgradeBlock<B extends Record<string, any>>(def: BlockDef, block: B): B {
   const to = blockVersion(def)
@@ -199,7 +221,11 @@ const once = (key: string, fn: () => void) => {
   fn()
 }
 
-/** Log a failed upgrade once per block (not on every request). */
+/**
+ * Log a failed upgrade once per block (not on every request).
+ *
+ * @internal
+ */
 export function logUpgradeFailure(issue: UpgradeIssue, where = ''): void {
   const at = issue.path.join('.')
   once(`fail|${where}|${at}|${issue.id}|${issue.type}|${issue.from}`, () => {
@@ -252,6 +278,8 @@ function upgradeFieldValue(fld: FieldDescriptor, value: unknown, opts: UpgradeOp
  * object. Blocks of a type that is not in `defs` pass through untouched (the config
  * dropped them; they are kept, not fatal). A block whose `upgrade` throws is left as
  * it was stored and reported through `onError`, so one bad block never takes a page down.
+ *
+ * @internal
  */
 export function upgradeBlocks<T = unknown>(value: T, defs: Record<string, BlockDef>, opts: UpgradeOptions = {}, path: (string | number)[] = []): T {
   if (!Array.isArray(value)) return value
@@ -282,13 +310,19 @@ export function upgradeBlocks<T = unknown>(value: T, defs: Record<string, BlockD
   return (changed ? out : value) as T
 }
 
-/** The same for the items of an `f.list` (a blocks field with one item type): `upgradeBlocks` on its definition. */
+/**
+ * The same for the items of an `f.list` (a blocks field with one item type): `upgradeBlocks` on its definition.
+ *
+ * @internal
+ */
 export const upgradeListItems = upgradeBlocks
 
 /**
  * Upgrade the stored JSON of a row in place: blocks and lists (to their current
  * versions) and rich text (`richTextUpgrades`). Keys the row does not have (a
  * translation holds only the localized ones) are left alone.
+ *
+ * @internal
  */
 export function upgradeStoredRow<R extends Record<string, any>>(
   fields: Record<string, { type: string; blocks?: Record<string, BlockDef>; fields?: Record<string, any> }>, row: R, opts: UpgradeOptions = {},
@@ -308,6 +342,8 @@ export function upgradeStoredRow<R extends Record<string, any>>(
  * What an unknown block type (one the config no longer has) may be called: lower
  * case, digits, `_` and `-`, starting with a letter or digit. Anything else
  * (`Link`, `_hero`, `-hero`) could be drawn as the component of a known type.
+ *
+ * @internal
  */
 export const UNKNOWN_BLOCK_TYPE = /^[a-z0-9][a-z0-9_-]*$/
 const squash = (type: string) => type.toLowerCase().replace(/[_-]/g, '')
@@ -523,6 +559,8 @@ function validateBlockList(
  * only when `stored` (what the field holds now) has the same block; a block without
  * `v` is checked as the current shape, and as version 1 only when it does not fit. With
  * no `stored` (a new row) none of those exist.
+ *
+ * @internal
  */
 export function blocksSchema(blocks: Record<string, BlockDef>, max = 500, stored?: unknown): ZodTypeAny {
   return z.array(z.any()).max(max).transform((list, ctx) => {
@@ -534,7 +572,7 @@ export function blocksSchema(blocks: Record<string, BlockDef>, max = 500, stored
 }
 
 /** The admin graph's description of one field inside a block, list item or group. */
-export function innerFieldGraph(key: string, fld: FieldDescriptor) {
+export function innerFieldGraph(key: string, fld: FieldDescriptor): CmsAdminField {
   return {
     key,
     type: fld.type,
@@ -561,7 +599,11 @@ export function groupGraph(fields: Record<string, AnyFieldDescriptor>) {
   return (Object.entries(fields) as [string, FieldDescriptor][]).map(([key, fld]) => innerFieldGraph(key, fld))
 }
 
-/** For each block type, the keys of its media fields (for population and cleanup). */
+/**
+ * For each block type, the keys of its media fields (for population and cleanup).
+ *
+ * @internal
+ */
 export function blockMediaKeys(blocks: Record<string, BlockDef>): Map<string, string[]> {
   return new Map(Object.entries(blocks).map(([type, def]) => [
     type,
@@ -569,7 +611,11 @@ export function blockMediaKeys(blocks: Record<string, BlockDef>): Map<string, st
   ]))
 }
 
-/** Every media id referenced by a stored blocks array (media fields, images in rich text, and both inside a block's lists). */
+/**
+ * Every media id referenced by a stored blocks array (media fields, images in rich text, and both inside a block's lists).
+ *
+ * @internal
+ */
 export function mediaIdsInBlocks(value: unknown, blocks: Record<string, BlockDef>, out: string[] = []): string[] {
   if (!Array.isArray(value)) return out
   for (const block of value as CmsBlock[]) {
@@ -586,7 +632,11 @@ export function mediaIdsInBlocks(value: unknown, blocks: Record<string, BlockDef
   return out
 }
 
-/** Every media id in the values of a set of fields (a block's, or a group's): media fields, images in rich text, lists and groups inside. */
+/**
+ * Every media id in the values of a set of fields (a block's, or a group's): media fields, images in rich text, lists and groups inside.
+ *
+ * @internal
+ */
 export function mediaIdsInFields(fields: Record<string, AnyFieldDescriptor>, values: Record<string, any>, out: string[] = []): string[] {
   for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
     const v = values[key]

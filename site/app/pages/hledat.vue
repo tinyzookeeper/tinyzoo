@@ -1,8 +1,9 @@
 <script setup lang="ts">
 // The website search: /hledat, /en/search, /de/suche (?q=…). Pages and news, in the
-// page's language, best matches first. Works without JavaScript (a plain form); with
+// page's language, best matches first, then what the documentation says (/api/site-docs/search). Works without JavaScript (a plain form); with
 // it, results follow the typing.
 import { LANGS, SEARCH_SEGMENT, localePath, type Lang } from '~/lib/site-i18n'
+import type { DocsSearchHit } from '#shared/docs'
 
 definePageMeta({ alias: ['/en/search', '/de/suche'] })
 
@@ -12,7 +13,15 @@ const { lang, t, to } = useLang()
 const { settings } = await useSite()
 
 const q = computed(() => String(route.query.q ?? '').trim().slice(0, 100))
-const { items, total, searched, pending, error } = await useCmsSearch(q, { locale: lang, limit: 30 })
+const [{ items, total, searched, pending, error }, { data: docsFound }] = await Promise.all([
+  useCmsSearch(q, { locale: lang, limit: 30 }),
+  useFetch<{ items: DocsSearchHit[]; total: number }>('/api/site-docs/search', {
+    query: computed(() => ({ q: q.value, lang: lang.value, limit: 20 })),
+    key: computed(() => `docs-search:${lang.value}:${q.value}`),
+    default: () => ({ items: [], total: 0 }),
+  }),
+])
+const docsItems = computed(() => (q.value.length >= 2 ? docsFound.value?.items ?? [] : []))
 
 // What is in the box; the address (and so the results) follows once typing settles.
 const draft = ref(q.value)
@@ -34,7 +43,7 @@ onMounted(() => { if (!q.value) input.value?.focus() })
 const homeOf = (p: string) => p.replace(/\/home$/, '') || '/'
 const kindOf = (entity: string) => (entity === 'news' ? t('searchKindNews') : t('searchKindPage'))
 const count = computed(() => {
-  const n = total.value
+  const n = total.value + docsItems.value.length
   const rule = new Intl.PluralRules(lang.value).select(n)
   const text = n === 1 ? t('searchCountOne') : rule === 'few' ? t('searchCountFew') : t('searchCount')
   return text.replace('{n}', String(n))
@@ -81,7 +90,7 @@ useShareImage({ title: t('searchTitle'), description: settings.value?.metaDescri
         <p v-if="!showResults" class="text-mute">{{ t('searchHint') }}</p>
         <p v-else-if="error" class="text-mute">{{ t('searchError') }}</p>
         <template v-else-if="!pending || items.length">
-          <p v-if="items.length" class="search-count">{{ count }}</p>
+          <p v-if="items.length || docsItems.length" class="search-count">{{ count }}</p>
           <p v-else-if="!pending" class="text-mute">{{ nothing }}</p>
         </template>
       </div>
@@ -97,6 +106,21 @@ useShareImage({ title: t('searchTitle'), description: settings.value?.metaDescri
           </NuxtLink>
         </li>
       </ol>
+
+      <template v-if="showResults && docsItems.length">
+        <h2 class="search-group">{{ t('searchInDocs') }}</h2>
+        <ol class="search-results mt-4" :class="pending ? 'opacity-60' : ''">
+          <li v-for="r in docsItems" :key="r.id">
+            <NuxtLink :to="r.path" class="search-hit search-hit--docs group">
+              <span class="search-kind">{{ t('searchKindDocs') }}<template v-if="r.page"> · {{ r.page }}</template></span>
+              <h3 class="search-hit-title group-hover:underline decoration-2 underline-offset-4">
+                <CmsHighlight :text="r.title" :ranges="r.titleHighlights" />
+              </h3>
+              <p v-if="r.excerpt" class="search-excerpt"><CmsHighlight :text="r.excerpt" :ranges="r.highlights" /></p>
+            </NuxtLink>
+          </li>
+        </ol>
+      </template>
     </div>
   </section>
 </template>
@@ -118,5 +142,8 @@ useShareImage({ title: t('searchTitle'), description: settings.value?.metaDescri
 .search-kind { font-size: 0.75rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-mute); }
 .search-hit-title { margin-top: 0.375rem; font-family: var(--font-display); font-size: 1.375rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.25; }
 .search-excerpt { margin-top: 0.5rem; line-height: 1.6; color: rgb(19 19 19 / 0.72); text-wrap: pretty; }
+.search-group { margin-top: 2.5rem; font-family: var(--font-display); font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+.search-hit--docs { background: #fff; box-shadow: inset 0 0 0 1.5px rgb(19 19 19 / 0.08); }
+.search-hit--docs:hover { box-shadow: inset 0 0 0 1.5px rgb(19 19 19 / 0.25); }
 .search-hit mark { background: color-mix(in oklab, var(--color-bird) 45%, transparent); color: inherit; border-radius: 0.2em; padding: 0 0.1em; }
 </style>
