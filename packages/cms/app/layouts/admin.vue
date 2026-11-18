@@ -14,7 +14,7 @@ const config = useCmsAdminConfig()
 const { t, tl, locale, locales, setLocale, entityLabel } = useCmsI18n()
 
 // The admin's own look (cms-admin.css) applies while this layout is mounted.
-const { productName, unbranded } = useCmsAdminHead()
+const { unbranded, signature } = useCmsAdminHead()
 
 // Focus mode (the Write and Preview editors) folds the sidebar to icons. The
 // person's own choice is kept apart, so leaving an editor brings back what they had.
@@ -175,12 +175,9 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
       :ui="{ root: 'bg-(--cms-sidebar-bg) border-r border-default', header: 'h-(--ui-header-height)', footer: 'border-t border-default flex-col items-stretch gap-0 py-2' }"
     >
       <template #header="{ collapsed }">
-        <NuxtLink to="/admin" class="flex items-center gap-2.5 min-w-0" :class="collapsed ? 'mx-auto' : ''">
-          <CmsMascot v-if="unbranded" class="h-6 w-auto shrink-0" />
-          <span v-else class="size-7 shrink-0 rounded-lg bg-inverted text-inverted grid place-items-center text-xs font-bold leading-none cms-display tracking-normal" aria-hidden="true">
-            {{ initialsOf(productName) }}
-          </span>
-          <span v-if="!collapsed" class="truncate font-semibold text-highlighted">{{ productName }}</span>
+        <!-- the client's brand: the full logo, the mark with the name, or the initials (CmsBrandLogo) -->
+        <NuxtLink to="/admin" class="flex items-center min-w-0 rounded-md" :class="collapsed ? 'mx-auto' : ''">
+          <CmsBrandLogo :room="collapsed ? 'compact' : 'wide'" />
         </NuxtLink>
       </template>
 
@@ -216,8 +213,8 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
             <UIcon v-if="!collapsed" name="i-lucide-chevrons-up-down" class="size-4 text-dimmed shrink-0" />
           </UButton>
         </UDropdownMenu>
-        <!-- tinyzoo signs the admin, quietly (the client's name leads at the top) -->
-        <div v-if="!unbranded && !collapsed" class="flex items-center gap-1.5 px-2.5 pt-2 pb-0.5 opacity-70">
+        <!-- tinyzoo signs the admin, quietly (the client's name leads at the top); `signature: false` hides it -->
+        <div v-if="signature && !unbranded && !collapsed" class="flex items-center gap-1.5 px-2.5 pt-2 pb-0.5 opacity-70">
           <CmsMascot class="h-3 w-auto" />
           <CmsWordmark class="h-2.5 w-auto" />
           <span class="sr-only">{{ cmsBrand.name }}</span>
