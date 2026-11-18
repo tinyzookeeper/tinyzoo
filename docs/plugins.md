@@ -189,7 +189,12 @@ A handler file is an ordinary Nitro handler. These work in it without an import:
 
 Import anything from `tinyzoo` or `drizzle-orm` (`eq`, `sql`, `gte`) yourself.
 
-The server helpers are tinyzoo's own. They are not part of [the public API](api-surface.md), so they can change in a minor release.
+Two of the server helpers are part of [the public API](api-surface.md#server-helpers-for-plugins) and frozen since 1.0:
+
+- `useCms()` returns at least `{ db, reg }`: the site's drizzle database and the registry (`CmsRegistry`).
+- `requireCmsUser(event)` returns the signed-in person (`id`, `role`, `email`, `name`, `locale`). It throws 401 when nobody is signed in, and 403 when their role is no longer in the config.
+
+The others (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail`) are tinyzoo's own and can change in a minor release. The types of `db` and of an entity's table come from `drizzle-orm` and follow it ([query helpers](api-surface.md#query-helpers)).
 
 ```ts
 // server/summary.get.ts
@@ -371,7 +376,7 @@ A plugin is a function that returns `defineCmsPlugin(…)`. Nothing about it is 
 **The peer range.** `^1.0.0` accepts every 1.x version. The plugin API is part of [the public API](api-surface.md), so a 1.x update does not break it.
 
 - If the plugin needs something added in a later minor, start the range there (`^1.2.0`).
-- The admin's own components and the server helpers are not frozen ([admin pages](#admin-pages-and-navigation), [writing a handler](#writing-a-handler)). A plugin that uses them should be tested with each new minor version of tinyzoo.
+- `useCms()` and `requireCmsUser(event)` are frozen. The admin's own components and the other server helpers are not ([admin pages](#admin-pages-and-navigation), [writing a handler](#writing-a-handler)). A plugin that uses those should be tested with each new minor version of tinyzoo.
 
 ```ts
 // the site's cms.config.ts

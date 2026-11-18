@@ -15,6 +15,7 @@ This page lists what tinyzoo promises not to break. Check it before you depend o
 | [The content API](#the-content-api-http) (HTTP) and [the client](#the-client-tinyzooclient) | `/api/content/*`, `@tinyzoo/client` |
 | [The frontend kit](#the-frontend-kit): `<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()` | `Cms*` components and composables of the layer |
 | [The webhook](#the-webhook) and [the Nitro hooks](#the-nitro-hooks) | `cms:*` |
+| [The server helpers for plugins](#server-helpers-for-plugins): `useCms()` and `requireCmsUser(event)` | a plugin's server routes |
 | [The CLI](#the-cli) | `tinyzoo <command>` |
 | [The admin's extension points](#the-admins-extension-points) | `cms.fields` in `app.config.ts` |
 
@@ -23,7 +24,7 @@ This page lists what tinyzoo promises not to break. Check it before you depend o
 Anything that is not on this page is internal. For example:
 
 - The admin's own components (the other `Cms*` components). [The frontend kit](#the-frontend-kit) lists the ones a website uses.
-- The server's internal utilities.
+- The server's other utilities (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest). Only [the two helpers for plugins](#server-helpers-for-plugins) are covered.
 - The admin's API (`/api/cms/**`).
 - Anything marked `@internal`.
 - The database tables. tinyzoo migrates them for you, and [upgrading.md](upgrading.md) lists the steps.
@@ -45,6 +46,7 @@ Every surface above is written down as a golden file in `test/contracts/`.
 | `api-tinyzoo.txt`, `api-tinyzoo-forms.txt`, `api-tinyzoo-module.txt`, `api-client.txt` | the exported declarations of each entry point (what is `@internal` is listed by name only) |
 | `module-options.json` | the options of the `cms` key with their defaults, and the environment variables that follow |
 | `nitro-hooks.d.ts` | the Nitro hooks with their argument types |
+| `server-helpers.d.ts` | `useCms()` and `requireCmsUser(event)` with their types |
 | `cli-usage.txt` | the commands and flags of `tinyzoo` |
 | `webhook.json` | the headers and body of a publish webhook |
 | `content-routes.txt` | the routes of the content API |
@@ -145,11 +147,13 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 
 `definePages`, `defineNavigation` and `defineRedirects` take `name`, `label`, `localized` and the like, as listed in their declarations (`api-tinyzoo.txt`).
 
-Do not name a field of a public collection `page`, `limit`, `sort`, `dir` or `q`. They are parameters of the list, and `defineEntity` stops with an error.
+Do not name a field of a public collection `page`, `limit`, `sort`, `dir` or `q`. They are parameters of the list, and `defineEntity` stops with an error. A global has no list, so its fields may use these names.
 
 ### Query helpers
 
-`alias`, `and`, `asc`, `desc`, `eq`, `gt`, `gte`, `ilike`, `inArray`, `isNotNull`, `isNull`, `lt`, `lte`, `ne`, `not`, `notInArray`, `or` and `sql` are drizzle's own. They are re-exported for access rules and plugin routes, and their types belong to `drizzle-orm`.
+`alias`, `and`, `asc`, `desc`, `eq`, `gt`, `gte`, `ilike`, `inArray`, `isNotNull`, `isNull`, `lt`, `lte`, `ne`, `not`, `notInArray`, `or` and `sql` are drizzle's own. They are re-exported for access rules and plugin routes.
+
+**Drizzle's types follow drizzle-orm.** The names above and what they do are frozen. Their TypeScript types come from `drizzle-orm`, which is still 0.x. The same goes for the columns of an entity's [`table`](#types) and the `db` of [`useCms()`](#server-helpers-for-plugins). When tinyzoo moves to a new drizzle major (while drizzle is 0.x, a new minor), its changelog says so, with an **Upgrade** section for the code that has to change.
 
 ### Types
 
@@ -185,6 +189,8 @@ An `Entity` is assignable to a `CmsEntity`, not the other way round.
 - tinyzoo's own columns `id`, `createdAt`, `updatedAt`, `createdBy` and `updatedBy`.
 
 Use these with the [query helpers](#query-helpers) to read. What is not promised: the SQL names of the tables and columns, the translations' table, and writing to the table yourself. tinyzoo migrates those with an upgrade step.
+
+The columns are drizzle's `PgColumn`s. Their names are frozen; their TypeScript types come from `drizzle-orm` and follow it ([query helpers](#query-helpers)).
 
 `insertSchema` and `updateSchema` (zod) and the other generated pieces are internal. They follow zod's own versions.
 
@@ -363,6 +369,17 @@ Subscribe in a server plugin with `nitro.hooks.hook('cms:change', (change) => â€
 | `cms:sitemap` | `CmsSitemapEntry[]` | the sitemap is being built: push the addresses that are not entries (at most once a minute) |
 | `cms:error` | `CmsErrorReport` | a server error (a 5xx request, a failed task, a webhook that gave up), after the response |
 
+## Server helpers for plugins
+
+A plugin's server route (`serverHandlers`, [plugins](plugins.md#writing-a-handler)) can call these two without an import. `server-helpers.d.ts` holds their types.
+
+| Helper | What is promised |
+|---|---|
+| `useCms()` | returns at least `{ db, reg }`. `db` is the site's drizzle database (node-postgres), with the entities' tables in its schema. `reg` is the `CmsRegistry`: `entities`, `byName`, `locales`, `plugins` and `pluginOf`. More keys may be added in a minor release |
+| `requireCmsUser(event)` | returns the signed-in person: `{ id, role, email?, name?, locale? }` (`CmsUser`). Throws 401 when nobody is signed in, and 403 (`data.code: 'role-removed'`) when the person's role is no longer in the config |
+
+`db`'s type comes from `drizzle-orm` and follows it ([query helpers](#query-helpers)). Every other helper of the server (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest) is internal: a plugin can use it, but it can change in a minor release.
+
 ## The CLI
 
 Run `tinyzoo <command>` from the root of the website. `tinyzoo help` prints the list below, and the golden file is `cli-usage.txt`.
@@ -438,7 +455,7 @@ Every other `Cms*` component and `useCms*` composable (`CmsPage`, `CmsField`, `C
 
 Nothing is deprecated right now. When something is, it is listed here with the release that removes it, and a warning at start or build says so (`cmsDeprecated`, [CONTRIBUTING.md](../CONTRIBUTING.md#deprecations)).
 
-Removed in 1.0 ([upgrading](upgrading.md#from-07-to-10)):
+Removed from the public API in 1.0 ([upgrading](upgrading.md#from-07-to-10)):
 
 | What | Use instead |
 |---|---|
@@ -447,7 +464,7 @@ Removed in 1.0 ([upgrading](upgrading.md#from-07-to-10)):
 | a field named `page`, `limit`, `sort`, `dir` or `q` in a public collection | another name (now an error) |
 | `defineEntity(name, { singleton: true })` | `defineSingleton(name, { â€¦ })` |
 | the variables `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` | the `cms.scheduler.cron` and `cms.retention.cron` options |
-| the search helpers `searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch` | nothing: they are internal now. `useCmsSearch()` and `<CmsHighlight>` stay |
+| the search helpers `searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch` as public API | nothing: they are internal again since 1.0 (still exported from `tinyzoo`, but not covered). `useCmsSearch()` and `<CmsHighlight>` stay |
 
 Removed in 0.6: `NUXT_SESSION_PASSWORD` as a stand-in for `NUXT_APP_SECRET`
 ([upgrading](upgrading.md#from-05-to-06)).

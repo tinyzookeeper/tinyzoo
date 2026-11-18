@@ -23,8 +23,8 @@ A site registers plugins in `cms.config.ts` with `export const plugins = [events
 |---|---|---|
 | `name` | `string` | Lowercase letters, digits and dashes (`events`, `my-shop`). Everything the plugin adds lives under this name |
 | `version` | `string` | The plugin's own version, as `1.2.3`. Its upgrade steps are recorded with it |
-| `entities` | `Entity[]` | Collections made with `defineEntity`. Each is named `<name>` or `<name>_…` |
-| `singletons` | `Entity[]` | Globals made with `defineSingleton`, named the same way |
+| `entities` | `unknown[]` | Collections made with `defineEntity` (any `Entity` fits). Each is named `<name>` or `<name>_…` |
+| `singletons` | `unknown[]` | Globals made with `defineSingleton`, named the same way |
 | `serverHandlers` | `CmsPluginHandler[]` | Server routes, see [Server routes](#server-routes) |
 | `adminPages` | `CmsPluginAdminPage[]` | Pages in the admin, see [Admin pages](#admin-pages) |
 | `navItems` | `CmsPluginNavItem[]` | Entries in the admin's sidebar, see [Sidebar entries](#sidebar-entries) |
@@ -54,7 +54,15 @@ In entity names, dashes become underscores. The plugin `my-shop` names its entit
 
 An address under `/api/cms/_p/<name>/` that no route declares gets the strictest `access` the plugin uses.
 
-Handlers can use `useCms()`, `requireCmsUser`, `audit`, `parseOr422`, `rateLimit`, `clientIp` and `sendCmsMail` without an import. These helpers are the server's own. They are not part of the public API, so test a plugin that uses them with each new minor version of tinyzoo.
+Handlers can use these server helpers without an import:
+
+| Helper | Frozen | What it does |
+|---|---|---|
+| `useCms()` | yes | Returns at least `{ db, reg }`: the site's drizzle database and the `CmsRegistry` |
+| `requireCmsUser(event)` | yes | Returns the signed-in person (`CmsUser`: `id`, `role`, `email?`, `name?`, `locale?`). Throws 401 when nobody is signed in, 403 `role-removed` when their role is gone from the config |
+| `audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` | no | The server's own. They can change in a minor release, so test a plugin that uses them with each new minor version of tinyzoo |
+
+`db` and the columns of an entity's `table` are drizzle's. Their types follow `drizzle-orm` ([the public API](api-surface.md#query-helpers)).
 
 ## Admin pages
 
@@ -71,7 +79,7 @@ Handlers can use `useCms()`, `requireCmsUser`, `audit`, `parseOr422`, `rateLimit
 
 | Field | Type | Default | What it does |
 |---|---|---|---|
-| `label` | `string \| Record<string, string>` | required | The text, or one text per language (`{ en: 'Events', cs: 'Akce' }`) |
+| `label` | `LocalizedText` (`string \| Record<string, string>`) | required | The text, or one text per language (`{ en: 'Events', cs: 'Akce' }`) |
 | `icon` | `string` | | An Iconify name, such as `i-lucide-calendar` |
 | `page` | `string` | | One of the plugin's own `adminPages`, by its `path` |
 | `to` | `string` | | Any address in the admin, starting with `/admin` |
@@ -110,7 +118,7 @@ The site's own `cms.fields` in `app.config.ts` wins over a plugin. Two plugins c
 
 | Field | Type | What it is |
 |---|---|---|
-| `tx` | the database transaction | The task's transaction. It holds the task's lock, so one instance runs at a time |
+| `tx` | `any` (a drizzle transaction) | The task's transaction. It holds the task's lock, so one instance runs at a time |
 | `reg` | `CmsRegistry` | The site's entities: `entities`, `byName`, `locales`, `plugins` and `pluginOf` |
 | `batch` | `number` | How many rows to delete in one statement |
 
@@ -121,7 +129,7 @@ The site's own `cms.fields` in `app.config.ts` wins over a plugin. Two plugins c
 | Field | Type | What it does |
 |---|---|---|
 | `create` | `boolean` | `false` hides the "New …" button of that collection |
-| `notices` | `{ icon?: string; key: string; params?: Record<string, string \| number> }[]` | Short lines under the collection's list. `key` is one of the plugin's texts, `plugins.<name>.<key>` |
+| `notices` | `` { icon?: string; key: `plugins.${string}`; params?: Record<string, string \| number> }[] `` | Short lines under the collection's list. `key` is one of the plugin's texts, written in full: `plugins.<name>.<key>` |
 
 `entity` is a `CmsEntity`: the entity with its field types erased. It has its `name`, `fields`, `content`, `publish` and so on.
 

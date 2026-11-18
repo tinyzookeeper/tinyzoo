@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildOpenApiDocument, buildRegistry, CMS_WEBHOOK_HEADERS, emitContentTypes, webhookPayload, type CmsChange } from 'tinyzoo'
 import * as surface from '../contracts/surface/cms.config'
 import { CLI_COMMANDS, usage } from '../../packages/cms/cli/usage'
-import { API_ENTRIES, apiExports, apiReport, repoRoot } from '../helpers/apiReport'
+import { API_ENTRIES, apiExports, apiReport, repoRoot, serverHelpersReport } from '../helpers/apiReport'
 import { goldenTests } from '../helpers/golden'
 
 // Several checks build TypeScript programs or start the CLI; a busy CI runner needs more than 5 s.
@@ -21,6 +21,7 @@ vi.setConfig({ testTimeout: 60_000 })
 //   module-options.json      the options of the `cms` key in nuxt.config with their defaults, and the
 //                            NUXT_CMS_* variables that follow from them
 //   nitro-hooks.d.ts         the Nitro hooks (cms:change, cms:sitemap, cms:error) with their argument types
+//   server-helpers.d.ts      the server helpers for plugins: useCms() and requireCmsUser(event)
 //   cli-usage.txt            the commands and flags of the `tinyzoo` CLI
 //   webhook.json             the body and headers of a publish webhook
 //   content-routes.txt       the HTTP routes of the public content API
@@ -162,6 +163,7 @@ goldenTests('frozen API surface (test/contracts)', [
       return t.getContents()
     },
   },
+  { file: 'server-helpers.d.ts', what: 'the server helpers for plugins (useCms, requireCmsUser) with their types', render: serverHelpersReport },
   { file: 'cli-usage.txt', what: 'the commands and flags of the `tinyzoo` CLI', render: usage },
   { file: 'webhook.json', what: 'the publish webhook (headers and body)', render: webhook },
   { file: 'content-routes.txt', what: 'the HTTP routes of the public content API', render: contentRoutes },
