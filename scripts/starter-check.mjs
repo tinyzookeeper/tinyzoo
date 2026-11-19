@@ -283,6 +283,9 @@ async function lightChecks({ sc, base, query, get, json, seedRun }) {
   const locs = [...(await get('/sitemap.xml')).text.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1].replace(base, ''))
   for (const l of sc.languages.filter((x) => x === 'cs' || x === 'en')) ok(locs.includes(l === lang ? '/' : `/${l}`), `the sitemap misses the home page in ${l}: ${locs}`)
   ok(!locs.some((x) => /\/home$/.test(x)), `the sitemap lists a /home address: ${locs}`)
+  // the search page says noindex, so the sitemap leaves it out in every language
+  const searchPaths = sc.languages.map((l) => at(l, `/${words[l].searchPath}`))
+  ok(!locs.some((x) => searchPaths.includes(x)), `the sitemap lists the search page: ${locs}`)
   if (wants('redirects')) {
     const from = lang === 'cs' ? '/pekarna' : '/bakery'
     const moved = await get(from)

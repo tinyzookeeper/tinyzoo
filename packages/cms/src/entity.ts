@@ -1,6 +1,5 @@
 import { boolean, type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
-import { cmsDeprecated } from './deprecate'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
@@ -12,6 +11,7 @@ import type { CmsAdminField } from './admin'
 import type { AnyFieldDescriptor, FieldDescriptor } from './descriptor'
 import type { LocalizedText } from './i18n'
 import { collectPlugins, pluginEntities, type CmsPlugin, type CmsPluginRequirement } from './plugin'
+import { docsUrl } from './docs'
 
 // ── type-level inference helpers ────────────────────────────────────────────────
 type Prettify<T> = { [K in keyof T]: T[K] } & {}
@@ -124,12 +124,6 @@ export interface EntityDef<F extends Record<string, AnyFieldDescriptor>> {
   titleField: keyof F & string
   fields: F
   /**
-   * A single-row global (Settings/Homepage) — admin shows one form, no list.
-   *
-   * @deprecated Use `defineSingleton(name, def)`, which makes the same thing. Removed in 1.0.
-   */
-  singleton?: boolean
-  /**
    * Every write takes effect on the website at once (e.g. redirects). People who may
    * not publish (authors) cannot write such content.
    */
@@ -215,6 +209,11 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   description?: LocalizedText
   icon?: string
   titleField: keyof F & string
+  /**
+   * The entry table's columns, for access rules, `content.published` and plugin queries. Frozen for
+   * reading: one column per field under its config key (a relation's as `<field>Id`), plus `id`,
+   * `createdAt`, `updatedAt`, `createdBy` and `updatedBy`. The SQL names behind them are not frozen.
+   */
   table: TableColumns<F>
   /**
    * Translations of the `.localized()` fields (`<name>_locales`), or undefined.
@@ -227,7 +226,17 @@ export interface Entity<F extends Record<string, AnyFieldDescriptor> = Record<st
   fields: F
   /** @internal */
   enums: EntityEnum[]
+  /**
+   * The zod schema that validates a new entry. Not frozen: it follows zod's own major versions.
+   *
+   * @internal
+   */
   insertSchema: z.ZodType<InsertFields<F>>
+  /**
+   * The zod schema that validates a change. Not frozen: it follows zod's own major versions.
+   *
+   * @internal
+   */
   updateSchema: z.ZodType<Partial<InsertFields<F>>>
   singleton?: boolean
   admin?: EntityDef<F>['admin']
@@ -259,7 +268,9 @@ export interface CmsEntity {
   fields: Record<string, FieldDescriptor>
   /** @internal */
   enums: EntityEnum[]
+  /** @internal */
   insertSchema: z.ZodTypeAny
+  /** @internal */
   updateSchema: z.ZodTypeAny
   singleton?: boolean
   admin?: {
@@ -312,40 +323,54 @@ export function propOf(key: string, fld: FieldDescriptor): string {
   return fld.spec?.nameSuffix === '_id' ? key + 'Id' : key
 }
 
-/** Field names the CMS uses itself (system columns, translations, public item keys). */
-const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales'])
+/**
+ * Field names the CMS uses itself: system columns, and keys tinyzoo writes onto items
+ * (`locale`, `locales`, `paths` of a translated collection; `path`, `breadcrumbs` of a page
+ * tree; `preview` is a parameter of the content API). Names starting with "_" are tinyzoo's too.
+ */
+const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales', 'path', 'paths', 'breadcrumbs', 'preview'])
+/** A field key, like an entity name: a letter first, then letters, digits and "_". */
+const FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]*$/
 
 /** Query parameters of the content API's list (`/api/content/:entity?page=…`): a field of that name cannot be filtered by. */
 const LIST_PARAMS = ['page', 'limit', 'sort', 'dir', 'q']
 /** The columns of `<entity>_locales` that hold a language's own publish state (`publish.perLocale`). */
 export const PUBLISH_STATE_COLUMNS = ['published', 'publishedAt', 'firstLiveAt']
 
-/** Entity names the CMS uses internally; user entities may not take them. */
-const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'p'])
+/**
+ * Entity names the CMS uses internally (admin pages, API routes); user entities may not take them.
+ * Names starting with "_" or "cms" (any case) are tinyzoo's too: "cms" names its own tables (`cms_*`)
+ * and schema names (`Cms*`).
+ */
+const RESERVED_ENTITY_NAMES = new Set(['media', 'graph', 'login', 'setup', 'forgot', 'reset', 'invite', 'team', 'account', 'email', 'privacy', 'p'])
 
 export function defineEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: EntityDef<F>,
 ): Entity<F> {
-  if (def.singleton) {
-    cmsDeprecated('option:defineEntity.singleton', `\`defineEntity('${name}', { singleton: true })\` is replaced by \`defineSingleton('${name}', { … })\`.`, { removeIn: '1.0.0' })
+  // `singleton: true` was removed in 1.0 (deprecated in 0.6): a config that still sets it would
+  // otherwise make a collection of its global, with a list and a new table.
+  if ((def as { singleton?: unknown }).singleton) {
+    throw new Error(`defineEntity('${name}', { singleton: true }) was removed in 1.0: write defineSingleton('${name}', { … }) with the same options. See "From 0.7 to 1.0": ${docsUrl('from07to10')}`)
   }
-  return buildEntity(name, def)
+  return buildEntity(name, def, false)
 }
 
 /**
- * `defineEntity` without the deprecation: what `defineSingleton` builds on.
+ * What `defineEntity` and `defineSingleton` build on.
  */
 function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
   def: EntityDef<F>,
+  singleton: boolean,
 ): Entity<F> {
   // Reserve `_`-prefixed names and built-ins so an entity can never shadow the
   // internal API routes (/api/cms/_media, /api/cms/_graph).
-  if (name.startsWith('_') || RESERVED_ENTITY_NAMES.has(name)) {
+  if (typeof name === 'string' && (name.startsWith('_') || /^cms/i.test(name) || RESERVED_ENTITY_NAMES.has(name))) {
     throw new Error(
-      `Invalid entity name "${name}": names starting with "_" or in `
-      + `{${[...RESERVED_ENTITY_NAMES].join(', ')}} are reserved by the CMS.`,
+      `Invalid entity name "${name}": names starting with "_" or "cms" (any case), and `
+      + `{${[...RESERVED_ENTITY_NAMES].join(', ')}}, are reserved by the CMS. `
+      + `A rename is a migration: see "Renaming an entity": ${docsUrl('renamingEntity')}`,
     )
   }
   // The name becomes a database table, a URL address and a name in the generated schema.ts:
@@ -358,13 +383,21 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
   }
   const fields = def.fields as unknown as Record<string, FieldDescriptor>
   for (const key of Object.keys(fields)) {
+    if (key.startsWith('_')) {
+      throw new Error(`Field "${key}" in "${name}": names starting with "_" are reserved by the CMS. Rename the field; a rename is a migration: see "Renaming a field": ${docsUrl('renamingField')}`)
+    }
+    if (!FIELD_KEY.test(key)) {
+      throw new Error(`Invalid field name "${key}" in "${name}": use letters, digits and underscores, starting with a letter, without spaces or dashes (for example "coverImage" or "cover_image"). The name becomes a database column and a key in the API; the label shown in the admin is separate.`)
+    }
     if (RESERVED_FIELD_NAMES.has(key)) {
-      throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}).`)
+      throw new Error(`Field "${key}" in "${name}" is reserved by the CMS (${[...RESERVED_FIELD_NAMES].join(', ')}, and names starting with "_"). Rename the field; a rename is a migration: see "Renaming a field": ${docsUrl('renamingField')}`)
     }
   }
-  if (def.content?.public) {
+  // Only a collection has a list. A global (`defineSingleton`) is read whole at `/api/content/_global/:name`,
+  // which takes none of these parameters, so its fields may use the names.
+  if (def.content?.public && !singleton) {
     for (const key of Object.keys(fields).filter((k) => LIST_PARAMS.includes(k))) {
-      cmsDeprecated(`field-name:${name}.${key}`, `The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=), so it cannot be used as a filter. Rename the field`, { removeIn: '1.0.0' })
+      throw new Error(`The field "${key}" of the public collection "${name}" has the name of a parameter of the content API's list (?${key}=). Rename the field (${LIST_PARAMS.join(', ')} cannot be field names of a public collection). A rename is a migration: see "Renaming a field": ${docsUrl('renamingField')}`)
     }
   }
   if (def.publish?.perLocale) {
@@ -484,7 +517,7 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
     name, label: def.label, titleField: def.titleField, localesTable, localized,
     labelSingular: def.labelSingular, description: def.description, icon: def.icon,
     table, admin: def.admin, access: def.access, content: def.content, fields: def.fields,
-    singleton: def.singleton, publish: def.publish, live: def.live, tree,
+    singleton: singleton || undefined, publish: def.publish, live: def.live, tree,
     enums,
     insertSchema: z.object(createShape),
     updateSchema: z.object(updateShape),
@@ -494,9 +527,9 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
 /** Define a single-row global (Settings, Homepage). One editable record, no list. */
 export function defineSingleton<F extends Record<string, AnyFieldDescriptor>>(
   name: string,
-  def: Omit<EntityDef<F>, 'singleton' | 'admin'> & { admin?: Pick<NonNullable<EntityDef<F>['admin']>, 'editor' | 'preview' | 'tabs' | 'sections'> },
+  def: Omit<EntityDef<F>, 'admin'> & { admin?: Pick<NonNullable<EntityDef<F>['admin']>, 'editor' | 'preview' | 'tabs' | 'sections'> },
 ): Entity<F> {
-  return buildEntity(name, { ...def, singleton: true } as EntityDef<F>)
+  return buildEntity(name, def as EntityDef<F>, true)
 }
 
 // ── registry: junctions + serializable graph, memoized per config module ────────

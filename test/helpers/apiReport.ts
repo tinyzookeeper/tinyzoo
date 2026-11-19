@@ -211,6 +211,48 @@ export function apiReport(entry: ApiEntry): string {
   return `${lines.join('\n')}\n`
 }
 
+/**
+ * The server helpers a plugin's route may call (docs/api-surface.md, "Server helpers for plugins"): `useCms()`
+ * and `requireCmsUser(event)` with the `CmsUser` it returns. They live in `packages/cms/server/utils` (Nitro
+ * auto-imports them), not in an entry point, so they get their own report. The properties `useCms()` returns
+ * are written out with their full types: `db` is declared as `ReturnType<typeof createCmsDb>`, and a change
+ * to that function should show here too.
+ */
+export const SERVER_HELPERS: { file: string; only: string[] }[] = [
+  { file: 'packages/cms/server/utils/cmsDb.ts', only: ['useCms'] },
+  { file: 'packages/cms/server/utils/cmsSession.ts', only: ['requireCmsUser', 'CmsUser'] },
+]
+
+export function serverHelpersReport(): string {
+  const lines: string[] = [
+    '// The server helpers for plugins: what a plugin\'s route may call without an import (docs/api-surface.md,',
+    '// "Server helpers for plugins"). Frozen from 1.0: useCms() returns at least { db, reg }; requireCmsUser(event)',
+    '// returns the signed-in CmsUser or throws (401 signed out, 403 role-removed). Every other helper in',
+    '// packages/cms/server/utils is the server\'s own and may change in any minor. `db` is drizzle\'s: its type',
+    '// follows drizzle-orm. Accept a change with `pnpm contracts:update`.',
+  ]
+  for (const { file, only } of SERVER_HELPERS) {
+    const exports = apiExports({ name: file, file, about: '', only })
+    const missing = only.filter((n) => !exports.some((e) => e.name === n))
+    if (missing.length) throw new Error(`serverHelpersReport: ${file} no longer exports ${missing.join(', ')}`)
+    lines.push('', `// ${file}`)
+    for (const e of exports) lines.push('', e.text)
+    if (only.includes('useCms')) {
+      const program = createProgram([resolve(root, file)])
+      const checker = program.getTypeChecker()
+      const sf = program.getSourceFile(resolve(root, file))!
+      const symbol = checker.getExportsOfModule(checker.getSymbolAtLocation(sf)!).find((s) => s.name === 'useCms')!
+      const [sig] = checker.getSignaturesOfType(checker.getTypeOfSymbolAtLocation(symbol, sf), ts.SignatureKind.Call)
+      const returned = checker.getReturnTypeOfSignature(sig!)
+      lines.push('// what it returns, in full:')
+      for (const p of returned.getProperties()) {
+        lines.push(`//   ${p.name}: ${checker.typeToString(checker.getTypeOfSymbolAtLocation(p, sf), undefined, ts.TypeFormatFlags.NoTruncation)}`)
+      }
+    }
+  }
+  return `${lines.join('\n')}\n`
+}
+
 /** Names of the public exports of an entry (not `@internal`, not re-exported from another package). */
 export const publicExportNames = (entry: ApiEntry): string[] => apiExports(entry).filter((e) => !e.internal).map((e) => e.name)
 

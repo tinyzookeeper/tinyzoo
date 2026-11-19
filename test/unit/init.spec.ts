@@ -9,6 +9,7 @@ import {
   parseInitArgs, parseLanguages, parsePresets, resolveOptions, scaffold,
 } from '../../packages/cms/cli/init.mjs'
 import { WORDS } from '../../packages/cms/starter/app/utils/site'
+import { CLI_COMMANDS } from '../../packages/cms/cli/usage'
 
 // `tinyzoo init` and `create-tinyzoo`: the options, the markers in the starter and the sites made from it.
 // The sites are checked in full (installed, built, started) by `pnpm check:starter`; here, what is cheap to see.
@@ -207,13 +208,17 @@ describe.each(combos)('a site with $name', ({ languages, presets, demo, regenera
       expect(read(site, 'nuxt.config.ts')).toContain(`${languages[0]}: '/${word(languages[0]!)}'`)
       if (languages[1]) expect(read(site, 'nuxt.config.ts')).toContain(`${languages[1]}: '/${languages[1]}/${word(languages[1])}'`)
     }
-    else expect(read(site, 'nuxt.config.ts')).not.toContain('sitemap')
+    else expect(read(site, 'nuxt.config.ts')).not.toContain('cms: { sitemap')
     if (has('search')) {
       const search = read(site, 'app/pages/search.vue')
       const word = (l: string) => (ADDRESS_WORDS as Record<string, { search: string }>)[l]?.search ?? 'search'
       expect(search).toContain(`path: '/${word(languages[0]!)}'`)
       expect(search.includes('alias')).toBe(languages.length > 1)
+      // The search page stays out of /sitemap.xml, at its address in every language.
+      const addresses = languages.map((l, i) => `'${i ? `/${l}` : ''}/${word(l)}'`).join(', ')
+      expect(read(site, 'nuxt.config.ts')).toContain(`sitemap: { exclude: [${addresses}] }`)
     }
+    else expect(read(site, 'nuxt.config.ts')).not.toContain('sitemap: { exclude')
   })
 
   it('pins the released versions and names itself after its folder', () => {
@@ -224,6 +229,18 @@ describe.each(combos)('a site with $name', ({ languages, presets, demo, regenera
     expect(JSON.stringify(pkg)).not.toContain('workspace:')
     expect('seed' in pkg.scripts).toBe(demo)
     expect(Object.keys(pkg.scripts)).toContain('db:generate')
+    expect(pkg.engines.node).toBe('^22.22.3 || ^24.15.0 || >=26.0.0')
+  })
+
+  it('runs the CLI by its bin, with commands that exist', () => {
+    const pkg = JSON.parse(read(site, 'package.json'))
+    const cli = Object.values(pkg.scripts as Record<string, string>).filter((s) => /\btinyzoo\b/.test(s))
+    expect(cli.length).toBeGreaterThanOrEqual(demo ? 4 : 3)
+    for (const script of cli) {
+      // `tinyzoo <command> …`, not `tsx node_modules/tinyzoo/cli/index.ts …` (a path into the package's files)
+      expect(script).toMatch(/^tinyzoo [a-z:]+/)
+      expect(CLI_COMMANDS.map((c) => c.name)).toContain(script.split(' ')[1])
+    }
   })
 })
 

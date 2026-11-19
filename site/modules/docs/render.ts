@@ -13,6 +13,8 @@ export interface RenderContext {
   /** A clip's name → its address, or null when there is no file for it (yet). */
   clip(name: string): string | null
   text: { copy: string; copied: string; zoom: string }
+  /** The language the Markdown is written in: Czech gets its non-breaking spaces (see czechSpaces). */
+  lang?: string
 }
 
 export interface RenderedPage {
@@ -134,6 +136,10 @@ export function renderPage(source: string, ctx: RenderContext): RenderedPage {
   })
 
   const tokens = marked.lexer(source)
+  if (ctx.lang === 'cs') {
+    // Only plain text: never code, HTML or a link's address. Headings keep their anchors (made from the source).
+    marked.walkTokens(tokens, (t) => { if (t.type === 'text' && !('tokens' in t && t.tokens?.length)) (t as Tokens.Text).text = czechSpaces((t as Tokens.Text).text) })
+  }
   const flush = () => { if (html) { body.push({ html }); html = '' } }
   const parse = (t: Token) => marked.parser(Object.assign([t], { links: tokens.links }) as any)
 
@@ -162,6 +168,14 @@ export function renderPage(source: string, ctx: RenderContext): RenderedPage {
   }
   flush()
   return { title, description, toc, body, sections: sections.filter((s) => s.anchor || s.text) }
+}
+
+/**
+ * Czech typography: a one-letter preposition or conjunction (k, s, v, z, o, u, a, i) is not
+ * left at the end of a line, so the space after it becomes a non-breaking one.
+ */
+export function czechSpaces(text: string): string {
+  return text.replace(/(?<=^|[\s\u00A0(„"'])([ksvzouaiKSVZOUAI])[ \n]+(?=\S|$)/g, '$1\u00A0')
 }
 
 // ── a small highlighter: comments, strings, keywords, tags, calls ──────────────────────

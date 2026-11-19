@@ -19,6 +19,7 @@ describe('the docs addresses in messages', () => {
 
   it('are GitHub addresses', () => {
     expect(docsUrl('changingType')).toBe('https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#changing-a-fields-type')
+    expect(docsUrl('from07to10')).toBe('https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#from-07-to-10')
     expect(DOCS_URL.startsWith('https://github.com/tinyzookeeper/tinyzoo/blob/main/')).toBe(true)
   })
 
@@ -33,6 +34,7 @@ describe('the docs addresses in messages', () => {
       }
     }
     for (const d of ['cli', 'server', 'src', 'forms']) walk(join(root, 'packages/cms', d))
+    files.push(join(root, 'packages/cms/module.ts'))
     const bare: string[] = []
     for (const file of files) {
       readFileSync(file, 'utf8').split('\n').forEach((line, i) => {

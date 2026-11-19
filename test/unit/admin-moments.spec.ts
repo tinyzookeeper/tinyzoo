@@ -84,6 +84,32 @@ describe('brand moments: every text on them reads (light and dark, over the grid
   })
 })
 
+describe('the focus ring and the accent\'s tints over the grid (cms-admin.css draws them for a brand as for mono)', () => {
+  /** `fg` at `alpha` over `bg`, blended as the guard blends it (not rounded to 8 bits; see the roadmap's R2 open points). */
+  const over = (fg: string, alpha: number, bg: string) => rgbOf(fg).map((c, i) => c * alpha + rgbOf(bg)[i]! * (1 - alpha)) as [number, number, number]
+  // A menu item's highlight: Nuxt UI's bg-elevated/50 over the menu (light: neutral-100 on white; dark: #26282C on the page).
+  const HIGHLIGHT = { light: hexOf(over(HOVER_GREY, 0.5, WHITE)), dark: hexOf(over('#26282C', 0.5, '#18191C')) }
+
+  it(`the ring (the accent as text) reads at 3:1 on a menu item's highlight and on the brand's own moments (${COLOURS.length} colours)`, () => {
+    for (const { hex, accent, moments } of RESULTS) {
+      for (const scheme of ['light', 'dark'] as const) {
+        const ring = accent[scheme].text
+        for (const surface of [HIGHLIGHT[scheme], moments[scheme].bg, moments[scheme].strong]) {
+          expect(contrastRatio(ring, surface), `${hex} ${scheme}: ring ${ring} on ${surface}`).toBeGreaterThanOrEqual(3)
+        }
+      }
+    }
+  })
+
+  it('a brand keeps Nuxt UI\'s tints (its <style> sets none), and its text reads on the strongest, 20 %', () => {
+    for (const { hex, accent } of RESULTS) {
+      expect(adminAccentCss(resolveAdminTheme({ accent: hex }))).not.toContain('--cms-accent-tint')
+      expect(contrastRatio(accent.light.text, over(accent.light.text, 0.2, WHITE)), `${hex} light`).toBeGreaterThanOrEqual(4.5)
+      for (const page of ['#18191C', '#1E1F23']) expect(contrastRatio(accent.dark.text, over(accent.dark.text, 0.2, page)), `${hex} dark on ${page}`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+})
+
 describe('brand moments: calm paper with a hint of the brand', () => {
   it('keep the brand\'s hue, at little chroma (light at most cream\'s 0.009, dark at most 0.008)', () => {
     for (const { hex, moments } of RESULTS) {

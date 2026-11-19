@@ -1,13 +1,15 @@
 // Fill the website with its content through the admin API (the same way an editor
-// would): pages, updates, menus, settings and the videos.
+// would): pages, updates, plans, menus, settings and the videos.
 //
 //   SEED_URL=http://localhost:3000 SEED_EMAIL=… SEED_PASSWORD=… pnpm seed
 //
 // On an empty site it creates the first administrator with these details. Run it
-// once on a fresh database; it does not delete anything.
+// once on a fresh database; it does not delete anything. Of the plans (seed/plans.mjs)
+// it adds the ones the site is missing; `pnpm seed:plans` adds just those.
 import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { seedPlans } from '../seed/plans.mjs'
 
 const base = (process.env.SEED_URL ?? 'http://localhost:3000').replace(/\/+$/, '')
 const email = process.env.SEED_EMAIL ?? 'admin@example.com'
@@ -163,24 +165,19 @@ await page('Úvod', 'home', [
 await page('Plány', 'plany', [
   {
     id: id(), type: 'roadmap', eyebrow: null,
-    heading: 'Na čem pracujeme a kam tinyzoo míří.',
-    text: 'Tady jsou naše plány pro další vývoj tinyzoo. Pořadí vybíráme podle toho, co nám lidé říkají při zkoušení ukázky a při práci s obsahem.',
-    items: [
-      item({ title: 'Pilot na prvním klientském webu', text: 'Chystáme pilot na prvním klientském webu. Chceme poznat, jak skuteční editoři pracují s vlastním obsahem a kde potřebují pomoc.', stage: 'now', animal: 'bunny' }),
-      item({ title: 'Úpravy podle postřehů z ukázky', text: 'Sbíráme postřehy, které nám posíláte z ukázky. Podle nich chceme dál upravovat administraci, aby se vám v ní dobře pracovalo.', stage: 'now', animal: 'bird' }),
-      item({ title: 'Doplňkové moduly', text: 'Chceme připravit doplňkové moduly, se kterými by váš web mohl růst podle nových potřeb.', stage: 'next', animal: 'frog' }),
-      item({ title: 'Role a oprávnění na míru', text: 'Chceme umožnit vlastní role a určit, kdo smí měnit které části obsahu. Pomůže to větším týmům a webům s více editory.', stage: 'next', animal: 'fox' }),
-      item({ title: 'Mobilní aplikace pro správu obsahu', text: 'Stále víc lidí chce spravovat obsah rovnou z telefonu. Plánujeme aplikaci, ve které byste mohli napsat novinku, přidat fotky přímo z telefonu a zveřejnit ji odkudkoli.', stage: 'later', animal: 'octopus' }),
-      item({ title: 'Přenos obsahu ze stávajícího webu', text: 'Chceme usnadnit přenos textů a obrázků z vašeho stávajícího webu do tinyzoo.', stage: 'later', animal: 'elephant' }),
-    ],
-    note: 'Plány se mohou měnit. Napište nám, co byste pro svůj web potřebovali.',
+    heading: 'Co je hotové a co chystáme.',
+    text: 'Vaše zkušenosti s ukázkou i s úpravami webu nám pomáhají určit, co přijde na řadu.',
+    note: 'Napište nám, co vám při správě webu zabírá nejvíc času.',
   },
   {
     id: id(), type: 'cta', heading: 'Co by pomohlo vám?',
     text: 'Zkuste si ukázku tinyzoo nebo nám napište, co při úpravách webu potřebujete. Vaše zkušenost nám pomůže vybrat další kroky.',
     primaryLabel: 'Vyzkoušet ukázku', primaryUrl: '/demo', secondaryLabel: 'Napsat nám', secondaryUrl: '/zpetna-vazba', animal: 'fox',
   },
-], { metaDescription: 'Kam míří tinyzoo? Podívejte se na plány od prvního pilotu po mobilní aplikaci. Zkuste ukázku a napište nám, co byste potřebovali.' })
+], { metaDescription: 'Zjistěte, co už tinyzoo umí a co verze 1.0 znamená pro váš web. Podívejte se, co chystáme pro verzi 1.1 a co přijde později.' })
+
+// The plans the roadmap block lists (the Plan collection), in all three languages.
+await seedPlans(req)
 
 await page('Vyzkoušejte administraci', 'demo', [{
   id: id(), type: 'demo', heading: 'Zkuste si upravit web.',
@@ -291,7 +288,7 @@ await update('Nový web jedním příkazem: pnpm create tinyzoo', 'pnpm-create-t
     picture(shots.cs.terminal, 'Terminál s příkazem pnpm create tinyzoo: otázky na složku, jazyky, části webu, ukázkový obsah a instalaci, pak vytvořený projekt a příkazy, kterými ho spustíte'),
     p('Každá otázka má i přepínač, takže příkaz spustíte i bez ptaní: pnpm create tinyzoo muj-web --languages cs,en --presets news,search --no-demo --yes.'),
     p('Nový projekt má také soubor AGENTS.md. Je to krátký návod pro asistenta, se kterým programujete: kde je model obsahu, jak se mění a na co nesahat.'),
-    p('Krok za krokem to popisuje ', a('návod Getting started', '/dokumentace/pro-vyvojare/getting-started'), ' v dokumentaci (zatím v angličtině).')), { cover: img.desk.id })
+    p('Krok za krokem to popisuje ', a('návod Getting started', '/en/docs/developers/getting-started'), ' v dokumentaci (je v angličtině).')), { cover: img.desk.id })
 await update('Každý jazyk se zveřejňuje zvlášť, s originálem po ruce', 'jazyky-zvlast', 'feature', 0,
   'Anglickou verzi článku v klidu dopíšete a zveřejníte, až bude hotová. Při překládání máte český text pořád na očích.',
   doc(p('Každý jazyk má svůj stav: koncept, naplánováno, nebo na webu. Překlad jde na web vždy spolu s českou verzí, takže se tam nedostane nic z nehotového českého textu. Vývojář to zapne tam, kde to dává smysl, třeba u článků.'),

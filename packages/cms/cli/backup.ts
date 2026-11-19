@@ -52,7 +52,12 @@ export interface StorageSettings {
   localPublicBase?: string
   s3: S3Settings
 }
-export interface BackupSettings { databaseUrl: string; storage: StorageSettings }
+export interface BackupSettings {
+  databaseUrl: string
+  storage: StorageSettings
+  /** `cms.databaseUrl` is still in nuxt.config.ts: removed in 1.0 and not read, but named when there is no database. */
+  removedDatabaseUrl?: true
+}
 
 /** The database and media settings the app itself would use, read from the site's folder. */
 export async function loadSettings(cwd: string, env: NodeJS.ProcessEnv = process.env): Promise<BackupSettings> {
@@ -73,7 +78,8 @@ export function settingsFrom(cwd: string, env: NodeJS.ProcessEnv, cms: any): Bac
   const driver = (env.NUXT_CMS_STORAGE_DRIVER || s.driver || 'local') as StorageSettings['driver']
   const s3 = s.s3 ?? {}
   return {
-    databaseUrl: env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || cms?.databaseUrl || '',
+    databaseUrl: env.NUXT_CMS_DATABASE_URL || env.DATABASE_URL || '',
+    ...(cms?.databaseUrl ? { removedDatabaseUrl: true as const } : {}),
     storage: {
       driver,
       localDir: resolve(cwd, env.NUXT_CMS_STORAGE_LOCAL_DIR || s.local?.dir || '.cms-uploads'),
@@ -89,6 +95,18 @@ export function settingsFrom(cwd: string, env: NodeJS.ProcessEnv, cms: any): Bac
       },
     },
   }
+}
+
+/**
+ * What to say when there is no database address. A site that still has `cms.databaseUrl` in
+ * nuxt.config.ts (removed in 1.0, no longer read) hears that, and where the address goes now.
+ */
+export function noDatabaseMessage(settings: Pick<BackupSettings, 'removedDatabaseUrl'>): string {
+  if (settings.removedDatabaseUrl) {
+    return 'No database: `cms.databaseUrl` in nuxt.config.ts was removed in 1.0 and is no longer read. '
+      + `Set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment or .env instead, and delete the option: ${docsUrl('databaseUrlRemoved')}`
+  }
+  return 'No database: set DATABASE_URL (or NUXT_CMS_DATABASE_URL), here or in .env.'
 }
 
 class CliError extends Error {}
@@ -500,7 +518,7 @@ export interface RunIo { log: (line: string) => void }
 
 /** Make the archive. Returns the manifest. */
 export async function runBackup(settings: BackupSettings, outFile: string, io: RunIo = { log: console.log }): Promise<BackupManifest> {
-  if (!settings.databaseUrl) fail('No database: set DATABASE_URL (or NUXT_CMS_DATABASE_URL), here or in .env.')
+  if (!settings.databaseUrl) fail(noDatabaseMessage(settings))
   if (existsSync(outFile)) fail(`${outFile} already exists; choose another name.`)
   const env = pgEnv(settings.databaseUrl)
   const store = mediaStore(settings.storage)
@@ -616,7 +634,7 @@ function restoreFailure(err: Error, dumpMajor: number | null, serverMajor: numbe
 
 /** Put an archive back: the database (replaced as a whole), then the media. */
 export async function runRestore(settings: BackupSettings, file: string, opts: RestoreOptions = {}, io: RunIo = { log: console.log }): Promise<BackupManifest> {
-  if (!settings.databaseUrl) fail('No database: set DATABASE_URL (or NUXT_CMS_DATABASE_URL), here or in .env.')
+  if (!settings.databaseUrl) fail(noDatabaseMessage(settings))
   if (!existsSync(file)) fail(`${file} does not exist.`)
   const staging = mkdtempSync(join(tmpdir(), 'tinyzoo-restore-'))
   try {

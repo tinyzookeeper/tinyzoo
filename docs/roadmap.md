@@ -233,7 +233,13 @@ and the audit has no open High or Medium.
 | Translation notifications | **Built in 1.1, not in 1.0** (all additive; a `translation.ready` webhook would be frozen with 1.0). Rules for then: anyone who may edit a translation but not publish it can mark it **Ready for review**; the mark **survives edits** and is cleared only by publishing, removing the translation or taking the mark back; the e-mail goes to **every publisher who opted in**, with no per-language reviewer setting yet (one can be added later without a break). |
 | Search helpers | `searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch` go **back to `@internal`** before the freeze (made public in 0.6, nothing outside tinyzoo uses them, and pg_trgm search may change how matching works). A changeset with an Upgrade note says so. |
 | Developer docs' languages (Q) | **English only for 1.0.** The editors' guide stays in cs/en/de; the Czech and German websites link to the English developer docs with a note. |
+| Entity internals (after R1, 2026-11-18) | An entity's **`table` is frozen for reading** (one column per field under its config key, a relation's as `<field>Id`, plus `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`; SQL names are not). **`insertSchema` and `updateSchema` are `@internal`** (they follow zod's majors). Internal helpers, the search helpers included, **stay exported from `tinyzoo` under `@internal`**; no `tinyzoo/internal` entry point. Done on `feat/1.0` (`9772d1f`), changeset `entity-schemas-internal.md` (major). |
 | Preset tints (R) | The soft hover tints under the blue, emerald and violet accents (3.9–4.2:1) are **drawn lighter** in `cms-admin.css` to reach 4.5:1; the preset colours and their text stay. |
+| Server helpers for plugins (after review A) | **`useCms()` and `requireCmsUser(event)` are frozen**: `useCms()` returns at least `{ db, reg }` (the drizzle database and the `CmsRegistry`), `requireCmsUser(event)` the signed-in `CmsUser` or throws (401 signed out, 403 `role-removed`). Listed in `api-surface.md` ("Server helpers for plugins"), snapshot `test/contracts/server-helpers.d.ts`. Every other server helper stays internal. |
+| Drizzle's types (after review A) | An entity's `table` columns, the re-exported query helpers and `useCms().db` are drizzle-orm's: **their names and what they do are frozen, their TypeScript types follow drizzle-orm**. When tinyzoo moves to a new drizzle major (while drizzle is 0.x, a new minor), its changelog says so with an Upgrade section. |
+| Nuxt majors (owner, 2026-11-18) | **A new major of Nuxt, Nuxt UI or Nitro, or a new 0.x minor of nuxt-auth-utils, comes with a tinyzoo major.** 2.0 is expected with Nuxt 5. When 2.0 is out, **1.x keeps getting fixes for 6 months**, matching Nuxt 4's own support window. Written in `stability.md` ("Platform and dependencies"). |
+| Drizzle 1.0 (owner, 2026-11-18) | **1.x stays on drizzle-orm 0.x and its migration folder format; drizzle 1.0 comes with tinyzoo 2.0.** `drizzle-orm` is a peer dependency; `tinyzoo status` and `upgrade` warn about drizzle-kit 1.0 in a site. Written in `stability.md` ("Platform and dependencies"). |
+| The writing column's ring (after review B) | **Keyboard only** (decided by the owner): in the Write layout, a click into the big title, the summary or the text draws no ring, and reaching them with the keyboard does. `cmsTrackKeys` notes where the focus came from (`data-cms-key-focus` on `<html>`: set when a control takes the focus while `data-cms-keys` is set, cleared by a press of the pointer, not set by typing). Other fields, the form layout's title included, ring on a click as before. |
 
 ---
 
@@ -1842,3 +1848,403 @@ Branch `fix/release-tags-docker`. The two to-dos from the 0.6 release, done befo
 - **Tags.** The release run published all three, but npm listed `@tinyzoo/client` within the script's two minutes and `create-tinyzoo` and `tinyzoo` only after about three. The run tagged and released the client, said which two npm did not list yet, and failed. A re-run of the job took the "Nothing to publish" path and tagged and released the other two on `b492960` (`tinyzoo@0.7.0` is Latest on GitHub). The wait is now ten minutes.
 - **Deployed.** The website (`tinyzoo.pushbase.app`) and the demo (`tinyzoo-demo.pushbase.app`) from `main` (`b492960`) with `scripts/deploy-site.mjs`; no migration, content kept. Both answer on `/`, `/admin/login`, `/en/docs` and the new `/api/cms/_theme`.
 
+### 1.0 — Wave 5 (started 2026-11-18)
+
+Decisions above ("Decisions locked for Wave 5"). Integration branch `feat/1.0` (from `997ab4d`); slices in parallel, each in its own worktree and databases (`cms_test_10<slice>`, `…_starter`, `…_upgrade`).
+
+| Slice | Branch | State |
+|---|---|---|
+| R1 — API freeze: remove what 0.6 deprecated, search helpers back to `@internal`, `api-surface.md` and the contracts agree, "From 0.7 to 1.0" | `feat/1.0-freeze` | merged into `feat/1.0` |
+| R2 — Accessibility: lighter preset tints, keyboard focus on menu items, rich text and title, a keyboard pass | `fix/1.0-a11y` | merged into `feat/1.0` |
+| Q — Docs for 1.0: stale lines, Czech and German sites lead to the English developer docs, plugin API reference, the 1.0 promise page | `feat/1.0-docs` | merged into `feat/1.0` |
+| R3 — Upgrade test 0.2 → 1.0 by following `docs/upgrading.md` | `test/1.0-upgrade` | merged into `feat/1.0` |
+| W — Plans on the website: a Plans collection edited in the website's admin, `/plany` lists it with a Done stage (owner's request, 2026-11-18) | `feat/site-roadmap`, `feat/site-roadmap-timeline` (design A, chosen by the owner) | merged into `feat/1.0` |
+| Reviews — two independent reviews of the merged wave (A: server, security, freeze; B: UX, accessibility, docs, upgrade), fix branches, `check`, `check:starter`, `check:upgrade`, `check:consumer` | `fix/1.0-review-a`, `fix/1.0-review-b` | done: no High; both fix branches merged; all four checks green on `a5de708` (below) |
+| S — Release 1.0.0, deploy the website and the demo; the pilot and the Tábor site upgraded (with the owner) | last | waiting |
+
+
+### 1.0 R1 — API freeze
+
+Branch `feat/1.0-freeze`. The public API is now exactly what 1.0 freezes. Changesets: `remove-0-6-deprecations.md` and `search-helpers-internal.md`, both **major**, so the next release is 1.0.0. The version bump itself is not part of this slice. `docs/upgrading.md` has a new "From 0.7 to 1.0" section.
+
+**Removed** (deprecated in 0.6 with `removeIn: '1.0.0'`; these were all of them in `src`, `cli`, `server`, `app`, `module.ts` and the starter). Each one now fails loudly and says what to write instead:
+
+- **`cms.databaseUrl`.** The option is gone from `CmsModuleOptions`. The build stops if it is set. The server (`cmsDb`, `cmsStore`, the start check) and the CLI (`backup`, `export`/`import` settings) read only `NUXT_CMS_DATABASE_URL` or `DATABASE_URL` now, never `nuxt.config.ts`. `runtimeConfig.cms.databaseUrl` stays, always `''` in the build, so `NUXT_CMS_DATABASE_URL` is still a bound runtime variable (`module-options.json` is unchanged).
+- **`defineEntity(name, { singleton: true })`.** `singleton` is gone from `EntityDef`, so it is a type error, and `defineEntity` throws. `defineSingleton` now passes the flag to the shared builder itself, so its type no longer omits `singleton`. `Entity.singleton` and `CmsEntity.singleton` (what the entity *is*) stay.
+- **`FormOptions` from `tinyzoo`.** It is only in `tinyzoo/forms` now.
+- **`CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON`.** They are no longer read. If one is set, the build stops and the message gives the exact `cms: { scheduler: { cron: '…' } }` to write. The test build got its fast cron from these variables. It now uses `CMS_TEST_SCHEDULER_CRON` and `CMS_TEST_RETENTION_CRON` (`test/setup/timers.ts`), which `test/setup/build-playground.mjs` passes on as the `cms.*.cron` options.
+- **A field named `page`, `limit`, `sort`, `dir` or `q` in a public collection** is now an error in `defineEntity`, not a warning. It is still allowed in a collection that is not public.
+- The `cmsDeprecated` machinery stays, unused for now. `docs/api-surface.md` "Deprecated" says nothing is deprecated, and lists what 1.0 removed.
+
+**Made `@internal` again** (owner's decision): `searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch`. They stay exported from `tinyzoo`, because the server imports them through that entry point, like the other ~190 internal helpers (see 0.6 P). They are tagged and drop out of the API report's public part. The "Search helpers" section is gone from `api-surface.md`. `useCmsSearch()`, `<CmsHighlight>` and `GET /api/content/_search` stay public. tinyzoo's own website (`site/server/api/site-docs/search.get.ts`) keeps using the matcher. It is the one allow-listed file in the "sites import nothing internal" test, with the reason: it is built and type-checked from the same commit as the package.
+
+**Docs.** `api-surface.md` (entity options, the `cms` options table, environment variables, the Deprecated section), `deploying.md` (the variable table; "Deprecated cron variables" became "The cron of the scheduled tasks"), `guide/content-model.md` (the `singleton` line, and a stale note that still said the 0.4-removed form helpers "still work"), `development.md` (the test cron).
+
+**Audit: page against exports against snapshots.** I compared the public part of the four API reports with every backticked name on `api-surface.md`:
+
+- Every public export is on the page. `api-surface.spec.ts` checks this too.
+- Every export name on the page is a public export, except the generated `createClient`, `ContentSchema` and `GlobalSchema` (documented as the generated file's) and `cmsDeprecated` (named as the mechanism).
+- Before this slice, the page listed five internal-to-be names and the deprecated rows. They are fixed above.
+
+`pnpm contracts:update` changed only `api-tinyzoo.txt` (public 114 → 108: `FormOptions`, the four search helpers and `SearchMatch` moved out; `EntityDef.singleton` and the deprecated block gone; internal 193 → 198) and `api-tinyzoo-module.txt` (`databaseUrl` and its deprecated block gone). Every line of both diffs is intended. No other golden file changed, so the content API, client types, webhook, hooks, CLI and frontend kit are untouched.
+
+**Tests.**
+
+- `api-refine.spec.ts`:
+  - `singleton: true` is a `@ts-expect-error` and throws the exact message; `defineSingleton` and a plain collection are unchanged.
+  - A list-parameter field name throws for each of the five names in a public collection, and is fine in a private one.
+  - A cron variable stops the module's setup with the exact message, for each variable.
+  - `cms.databaseUrl` stops the setup; the runtime `databaseUrl` is `''`.
+  - `FormOptions` from `tinyzoo` is a `@ts-expect-error`, and the one from `tinyzoo/forms` resolves.
+- `ops.spec.ts` and `cli-hardening.spec.ts`: the CLI ignores a `databaseUrl` left in `nuxt.config.ts` and reads the environment.
+- The old "still works, warns" tests are gone.
+
+**Result** (`TEST_DATABASE_URL=…/cms_test_10freeze`, `TEST_REDIS_URL=redis://localhost:6383`, `UPGRADE_CHECK_DATABASE_URL=…/cms_test_10freeze_upgrade`):
+
+- `pnpm check` green: typecheck (tsc; docs check with 32 blocks in 16 groups; playground, starter, website), then 132 files and 1990 tests passed, with 2 files and 23 tests skipped (232 s).
+- `pnpm check:consumer` green.
+- `pnpm check:upgrade` green: `2506403` (75 s) and `tinyzoo@0.7.0` (69 s). Neither baseline's starter uses anything removed, so no hook file was needed, and there is no migration.
+
+**Open questions for the owner** (not changed):
+
+1. **`Entity.table` is public, but the page says "the tables … are internal".** Access rules get `{ user, table }`, and `plugins.md` reads `reg.byName.get('events')!.table`. So a site's code does use the drizzle table and its columns. Either say on the page that `table` and its column properties are frozen (for reading in access rules and plugin routes), or tag `table` `@internal` and give access rules and plugins another way in.
+2. **`Entity.insertSchema` and `updateSchema` are public members typed as zod types.** That freezes zod's major version as part of tinyzoo's API: a zod 5 upgrade would be a tinyzoo major. Recommended: tag them `@internal`, since nothing in the docs uses them.
+3. **The search helpers are still exported** (internal, not removed), as with every other internal helper. Removing them from the entry point would mean an internal entry point for the server, the same choice 0.6 P made against. Fine for 1.0 unless you want an `tinyzoo/internal` entry.
+4. **`docs/upgrading.md` "Version policy" still says "0.x (now)"**, and `api-surface.md` still says "Until 1.0, a change to it is a minor release". Both are for the 1.0 release slice (S) to update, with the version bump.
+
+
+### 1.0 Q — Docs for 1.0
+
+Branch `feat/1.0-docs` (from `997ab4d`). The documentation is written for after the release.
+
+- **Stale lines fixed.**
+  - `guide/admin.md`: rate limits are shared by every replica when the site has Redis or Valkey (`REDIS_URL` or `NUXT_CMS_REDIS_URL`). Without it, each instance counts on its own. When Redis does not answer, each instance counts on its own until it does. The "planned (Phase 5)" line is gone.
+  - `plugins.md`: a plugin's peer range is `"tinyzoo": "^1.0.0"` (and `nuxt` `^4.6.4`, tinyzoo's own). A short paragraph says why, when to start higher, and that a plugin using the admin's components or the server helpers should be tested with each minor.
+  - `plugins.md` said a route's `**` matches everything below. `defineCmsPlugin` refuses `*` in a route (checked), so the line is gone.
+  - `upgrading.md`: the version policy opened with "0.x (now)". It now opens with semver since 1.0, then minor and patch versions, then what 0.x meant.
+  - `deploying.md`: the deprecated cron variables. The section is now "When the scheduled tasks run": the `scheduler`/`retention` options, and that the variables were removed in 1.0. The row in the variables table and "still works as a deprecated alias" under Retention are gone.
+  - `guide/content-model.md`: the deprecated `singleton` option of `defineEntity` (removed in 1.0) and a note that `defineForm` from `tinyzoo` "still works" (stale since 0.4) are gone.
+  - `getting-started.md` no longer had a version number (fixed in 0.6). No other page says "until 1.0", "0.x", "planned" or "Phase".
+- **Developer docs in English only**, as decided. The developer pages are built only for the English website (`/en/docs/developers`).
+  - The Czech and German contents list them at their English addresses: the door on the docs' landing page ("Otevřít anglické návody", "Englische Anleitungen öffnen"), the sidebar ("Pro vývojáře · V angličtině") and the search (the Czech and German search finds the developer pages too).
+  - The note says it in the visitor's language: "Návody pro vývojáře jsou v angličtině. Odkazy vedou do anglické části webu." (German likewise). "Zatím" and "vorerst" are gone, here and in the 0.6 news posts' seed.
+  - The old addresses `/dokumentace/pro-vyvojare/…` and `/de/dokumentation/entwicklung/…` redirect to the English page (301), so links already out there keep working.
+  - A developer page has only an English `hreflang`. The language switcher on it goes to the Czech or German docs' landing page, where the door says the developer docs are English. The sitemap lists each developer page once.
+  - Done in `site/modules/docs/build.ts` (`partsOf`, `addressOf`, `DEV_LANG`), the docs page's middleware, `shared/docs.ts` (`alternates` is partial now) and `server/plugins/sitemap.ts`.
+  - Also fixed: the languages icon in front of the note was never drawn (`inline` gave the mask no box).
+- **The plugin API reference** (`docs/plugin-reference.md`, after Plugins in the sidebar). Tables taken from `packages/cms/src/plugin.ts` and `upgrades.ts`: the two functions, every option of `CmsPluginDef`, server routes, admin pages, sidebar entries, field editors, texts, the `retention` hook and its context, list notes, upgrade steps and `UpgradeContext`, with types and defaults. It says the server helpers a handler can use are not frozen.
+- **"tinyzoo 1.0"** (`docs/stability.md`, first in Reference): what stays stable, what that means (patch, minor, breaking, deprecations), what is not covered, and moving to 1.0. It links `api-surface.md` and `upgrading.md`. The developers' index (and `docs/README.md`) points to it in one line.
+- **Czech non-breaking spaces.** `czechSpaces` in `render.ts` puts a non-breaking space after k, s, v, z, o, u, a, i in Czech pages, in plain text only (not code, HTML or a link's address). Anchors stay GitHub's: they are made from the source. The Czech "Překlady" page got 184.
+- **Also:** `docs/README.md` (the two new pages, where the developer pages are, the Czech spaces), `site/README.md`, `llms.txt`.
+- **Tests.** `test/unit/docs-site.spec.ts`: the Czech and German contents lead only to English developer pages and those websites have none of their own; a developer page's alternates are English only; the Czech and German search finds developer pages at their English addresses; links are checked across all websites; the plugin reference follows Plugins; `czechSpaces` and the renderer (code, links, lists, anchors, English left alone).
+- **Seen in a browser** (own dev server on port 3196, database `tinyzoo_web_test_10docs`, seeded; both removed afterwards):
+  - Czech landing at 1440 px: the developers' door with the note and "Otevřít anglické návody", all links to `/en/docs/developers…`.
+  - A Czech editors' page: the sidebar's "Pro vývojáře · V angličtině" leads to the English docs; hreflang cs/en/de as before.
+  - `/en/docs/developers/plugin-reference` at 1440 px: twelve tables, no page overflow; the switcher goes to `/dokumentace` and `/de/dokumentation`, and hreflang is English only.
+  - German landing and the drawer at 390 px (no sideways scroll), and "tinyzoo 1.0" at 390 px.
+  - `curl`: the three old addresses answer 301 to the English page; the Czech search for "webhook" finds `/en/docs/developers/api-surface#the-webhook`; the sitemap has no Czech or German developer pages and no duplicates.
+- **Result** (`TEST_DATABASE_URL=…/cms_test_10docs`): `pnpm check` green, 131 files / 1,985 tests passed, 3 files / 26 tests skipped (typecheck and `docs:check` included, 32 blocks; 4 min 29 s). No changeset: nothing in `packages/` changed.
+
+**Left open:**
+
+- `docs/api-surface.md` belongs to R1 and still says "Until 1.0, a change to it is a minor release…" (line 7), "From **1.0**", and lists the deprecations as still working. R1 should write it for after the release.
+- The deploying and content-model changes assume R1 removes the 0.6 deprecations (`CMS_SCHEDULER_CRON`, `CMS_RETENTION_CRON`, `singleton: true`). `test/setup/timers.ts` and `development.md` still use `CMS_SCHEDULER_CRON` for the test build.
+- `site/server/api/site-docs/search.get.ts` imports `searchTerms`, `matchEntry`, `highlightRanges` and `SEARCH_MAX_QUERY` from `tinyzoo`. R1 makes them internal, so the site needs its own import path or copy.
+- `stability.md` links `upgrading.md` as a whole, not R1's "From 0.7 to 1.0" section, which does not exist on this branch. A link to that anchor can be added once both are merged.
+- `packages/cms/starter/AGENTS.md` says "From 1.0, the public API follows semver". That is right after the release. It was left alone, since a change there needs a changeset.
+- The website's own content (the seed) was not rewritten. Its footer, FAQ and roadmap page talk about preparing the pilot ("Wir bereiten ein Pilotprojekt … vor"; 13–14 mentions of the pilot per language). That may be stale after 1.0 and the pilot's upgrade (slice S).
+
+### 1.0 — Plans on the website
+
+Branch `feat/site-roadmap`. The owner wanted the project's plans in one place they edit themselves. The "Plány" page (`/plany`, `/en/roadmap`, `/de/roadmap`) showed a roadmap block whose items were fixed in `seed.mjs` and out of date. Only `site/` changed (no package change, so no changeset).
+
+- **A Plan collection** (`plan` in `site/cms.config.ts`; "Plány" / "Roadmap" / "Roadmap" in the admin): title and text per language, stage `done` / `now` / `next` / `later` (Hotovo / Právě teď / Brzy / Později, Done / Now / Next / Later, Erledigt / Jetzt / Als Nächstes / Später), an optional version, the same animal choice the blocks offer, and `position` as `admin.list.orderField`, so editors arrange the plans by dragging ("Seřadit"). No drafts: `live: true`, a saved plan is on the website at once (authors cannot write it). Public in the content API, because the page reads it in the browser too when a visitor comes from another page (client-side navigation runs `useFetch` there); `search: false`, since a plan has no page of its own.
+- **The roadmap block lists the collection.** `BlockRoadmap.vue` fetches `/api/content/plan` (the editors' order, at most 100) and groups it: Now, Next and Later as before (three columns of one grid on wide screens, stacked on phones, same tints and animals), then **Done as its own section** after them. Done reads better apart than as a fourth column: it is the longest group and looks back, so it sits below, on a calm sage wash (the koala's `#879680` at 12 %) with a sage dot, three cards a row (two on tablets, one on phones), each with "Verze 0.7" / "Version 0.7" above the title. The version shows on done plans only (the field's help text says so); a plan moved to Done when its release ships shows its version by itself. The block keeps its heading, text and note; a stage with no plans is left out, and with none at all only the heading, text and note show.
+- **The block's fixed `items` are gone, safely.** The roadmap block is now `version: 2` with `upgrade` dropping `items`. Stored pages (the live website's `/plany` in all three languages) are upgraded wherever they are read, and saved as version 2 on their next save. Checked on the test database by writing the old shape back into `page` and `page_locales` with SQL: the content API and the admin read the block without `items`; a save of the old shape (as an admin tab open during the deploy would send) and a save of what the admin reads both answer 200 and store `v: 2` without `items`, Czech and English alike. No `content:migrate` is needed.
+- **Migration** `site/server/db/migrations/0006_plans.sql`, made with `pnpm db:generate` and renamed like the others: two enums (`plan_stage`, `plan_animal`), `plan` and `plan_locales`. It only creates; the live site applies it at start (`NUXT_CMS_MIGRATIONS_ON_START`).
+- **The starting set** is `site/seed/plans.mjs`, the same 16 plans in cs/en/de, plain sentences for website owners and editors: **Now** tinyzoo 1.0 (the stability promise, the docs on this website); **Next** (1.1) translations ready for review, the admin's look set without a developer; **Later** several websites in one admin, content from a spreadsheet, an admin home page that suits you, the mobile app, moving content from an existing website, and "Under consideration: a website from ready-made templates" ("Nothing is decided yet"); **Done**, newest first: logo and brand colour in the admin and emails (0.7), what needs translating, per-language publishing, custom roles and per-field permissions, a new website with one command (0.6), add-ons with forms as the first (0.2), writing, preview and publishing (0.2). They are seeded in page order (now, next, later, done), so the admin's list and its Arrange list read stage by stage. The export, backup and restore tools of 0.2–0.4 are left out: they are command-line tools for developers, nothing an owner sees.
+- **Filled only when empty.** `seedPlans` adds the set only when the site has no plans, and otherwise says "the site already has N, left alone". (Changed after review A: it now adds the plans that are missing, so a stopped run can be resumed; see "Fixes after review A".) `pnpm seed` calls it (a full seed, as before); the new `pnpm seed:plans` (`scripts/seed-plans.mjs`) signs in as an existing administrator and touches nothing but the plans. `pnpm reset` deletes every entry (plans included) and seeds again, as before, so the demo gets the set at its nightly reset; the website never runs reset. The image already carries `scripts/` and `seed/`.
+- **Seed texts.** The `/plany` page in `seed.mjs` and both translations lost the block's `items`, and their meta descriptions no longer say "from the first pilot to a mobile app". The live page keeps its own description until an editor changes it (open points).
+
+**Seen in a browser** (`nuxt dev` on port 3247, database `tinyzoo_web_test_roadmap`, fully seeded; headless Chromium): the page in cs, en and de, at 1280 and 390 px, in light and dark preference: 1 / 2 / 6 plans in the three columns, 7 in Done with their versions, no sideways scroll at 390. The website is light-only by design (`.site` sets `color-scheme: light`), so the dark preference shows the same page. A client-side visit (English home → Roadmap in the menu) fetched and drew all 16 plans. In the admin: the list in the editors' order with the stage and version columns (1280 light; 390 dark as rows with the stage under the title), the edit form (title, text, stage as four buttons, version with its help text, animal; the order field hidden), and Arrange: dragging the first Next plan above Now and saving changed the content API's order, then it was put back. The second `pnpm seed:plans` against the seeded site left the 16 plans alone.
+
+**Results:** `pnpm --filter tinyzoo-web typecheck` clean. `pnpm check` (`TEST_DATABASE_URL=…/cms_test_roadmap`, `TEST_REDIS_URL=redis://localhost:6383`): green, typecheck included (tsc, the docs check, playground, starter and website), then 132 files and 1990 tests passed, 2 files and 23 tests skipped (259 s).
+
+**After the deploy, on the live website** (the migration runs at start, then the Plány page shows its heading, text and note with no plans until this is run), from `site/` on your machine:
+
+```bash
+SEED_URL=https://tinyzoo.pushbase.app SEED_EMAIL=<an administrator> SEED_PASSWORD=<their password> pnpm seed:plans
+```
+
+It prints `✓ plans: 16 added (cs, en, de)` the first time. If it stops halfway (a network error), run it again: it adds only the plans that are missing, and a missing English or German text, and never changes a plan. Once all 16 are there it says `· plans: the site has all 16, left alone`. Run it right after the deploy, not later: a plan an editor deleted or retitled would come back. Do not run `pnpm seed` or `pnpm reset` on the website. The demo needs nothing: its nightly reset seeds the plans (the same command against `https://tinyzoo-demo.pushbase.app` shows them before then).
+
+**Open:**
+
+- **Arrange shows titles only.** The admin's Arrange list (a tinyzoo admin feature, not the site's) has no stage column, so an editor drags among all 16 plans by title; the seeded order keeps them stage by stage, which helps. A secondary column in Arrange would be a package change.
+- **The live page's meta description** still says "od prvního pilotu po mobilní aplikaci" (and the en/de equivalents); an editor can update it under Stránky → Plány. The page's heading and text still fit.
+- **Plans are not in the website search** (`search: false`); before, the block's items were found as text of the Plány page. Turn it on with a `path` to the page if visitors should find plans by search.
+
+### 1.0 — Plány as a timeline
+
+Branch `feat/site-roadmap-timeline`. The owner chose design "A · Timeline" for the Plány page. `BlockRoadmap.vue` is rebuilt to match it. Only `site/` changed: no schema change, no migration, no changeset. The data still comes from `/api/content/plan`.
+
+- **One timeline, top to bottom:** Done, one group per version, oldest first (0.2, 0.6, 0.7); then Now; then Next, one group per version; then Later. Within a group, the editors' order. Versions sort by their numbers, so 0.10 comes after 0.9. A Done or Next plan without a version comes after the versioned ones in its stage. Now is always one group, and it lists every version its plans have.
+- **The left column** shows the version in mono: "verze 0.6" / "version 0.6" / "Version 0.6". Later shows "později" / "later" / "später". In `site-i18n`, `roadmapVersion` is now lower case in cs and en, and `roadmapUndated` is new.
+- **The rail.** Done has a sage dot with a white check and a solid line. Now has a frog-green dot with a soft halo. Next has a bird-yellow ring. Later has an empty ring. The line is dashed from Now on. Each group has its small stage label (Hotovo / Právě teď / Brzy / Později, and the en/de words). "Právě teď" is `#2F7A2F`, 5.32:1 on white.
+- **Now** is a charcoal card per plan, with cream text and the plan's animal large at the bottom right. **Next** plans are rows with the animal, a bold title and the text. **Later** plans are a two-column grid of cream cards. **Done** rows are smaller and quieter. No card has a coloured left edge.
+- **Narrow layout.** The timeline responds to its own width (a container query at 640 px). On phones it is one column, the version sits above its group beside the rail, Later is one column, and the Now animal moves under the text.
+- **Semantics.** Each group is a `<ul>` with its stage label as a heading. The visible version column is `aria-hidden`, so the heading carries the version for screen readers ("Hotovo, verze 0.6"). The block's heading is the page's `<h1>` when the block is the page's first block (`index === 0`, which `CmsBlocks` passes). Otherwise it stays an `h2`, and the stage labels sit one level below. Before this change, Plány had no `<h1>`, and nothing else on the page renders one. The block has nothing focusable.
+
+**Seen in a browser** (`nuxt dev` on port 3347, database `tinyzoo_web_test_timeline`, fully seeded; headless Chromium): `/plany`, `/en/roadmap` and `/de/roadmap` at 1280 and 390 px, next to the mockup's desktop and phone frames. Layout, rail, dots, Now card and Later grid match the mockup. Each page has one `h1`, then the stage `h2`s (Hotovo, verze 0.2 … Později), then the CTA's `h2`. There is no sideways scroll at 390 px and no console errors. Measured contrast is at least 4.99:1 everywhere: plan text on cream 4.99, stage labels 5.41 (Právě teď `#2F7A2F` 5.32), versions 5.41, Now card text 8.38. I also visited the page client-side (English home → Roadmap in the menu) with the plan feed changed in the browser: a second Now plan without a version or animal, a Done plan without a version, and Next plans at 0.10 and 1.2. That gave one Now group with two cards, the version-less Done group after 0.7 (no version label; on phones the label row collapses), and Next in the order 0.10 → 1.1 → 1.2.
+
+**Results:** `pnpm --filter tinyzoo-web typecheck` is clean. `pnpm check` (`TEST_DATABASE_URL=…/cms_test_timeline`, no Redis): the typecheck part passed (tsc, docs check, playground, starter, website). Tests: 131 files and 2036 tests passed, 3 files and 26 tests skipped, **1 failed**: `test/unit/init.spec.ts` › "a site with 'German first (no demo), search only' › writes its languages where the site reads them". That failure comes from `feat/1.0`, not this branch. `38408ab` ("fix(starter): keep the search page out of the sitemap") writes a `sitemap` entry into the starter's `nuxt.config.ts` for a site with search, and `init.spec.ts:210` still expects no `sitemap` when the site has no news.
+
+**Open:**
+
+- `init.spec.ts:210` needs updating for `38408ab` on `feat/1.0`. Outside `site/`, so left alone here.
+- The version label uses JetBrains Mono 500, the heaviest weight the site loads. The mockup used 700. Adding 700 means one more font file.
+
+### 1.0 R3 — Upgrade from 0.2 to 1.0
+
+Branch `test/1.0-upgrade` (from `feat/1.0` at `d933eda`, R1 merged). **The site made it from 0.2.0 to 1.0 by following `docs/upgrading.md` alone.** No step failed and no content was lost. The guide had six gaps, all fixed on this branch. `pnpm check:upgrade` now also starts from `tinyzoo@0.2.0` as published on npm.
+
+**The site.** Made outside the repository, the way 0.2.0's README said: `pnpm dlx tinyzoo@0.2.0 init site`, `pnpm install` (pinned to 0.2.0; `^0.2.0` would have given 0.2.2), `cp .env.example .env`, `pnpm db:migrate`, then `pnpm seed` with the setup code from the log. It ran as a production build (`node .output/server/index.mjs`) on `cms_test_10upgrade_site`, with local storage, mail to files and a webhook receiver. On top of the starter's demo (bakery, Czech and English) it got what editors would do in the admin:
+
+- 3 accounts: the administrator from the seed, an editor and an author (invited, accepted).
+- Pages as a tree: 6 in all. `o-nas/tym` was written by the editor in two languages and moved under "O nás" (2 redirects). A draft `o-nas/historie` came from the author. `cenik` exists only in Czech and links a PDF.
+- 6 news items, 2 of them drafts: one draft from the seed and one from the author. One published item is translated and was edited later.
+- Site settings with a changed phone, navigation in both languages, form settings, 3 redirects.
+- 7 files in the media library: 5 pictures from the seed, a JPEG and a PDF.
+- 3 form messages from visitors, one marked read.
+- Publish webhooks to a local receiver, signed with `NUXT_CMS_WEBHOOKS_SECRET`.
+
+That is 21 entries and 11 translations in 20 tables, with 35 saved versions.
+
+**Each step.** I went one minor at a time: `pnpm up tinyzoo@^0.N.0 @tinyzoo/client@^0.N.0` (see finding 1), then the version's section, `pnpm typecheck`, `pnpm exec tinyzoo upgrade`, `git diff`, commit, `nuxt build`, and a start with `NUXT_CMS_MIGRATIONS_ON_START=true`. 1.0 was this branch's two packages packed with `pnpm pack`. The installed CLI was checked byte for byte against the branch's.
+
+After each step a recording (`scripts/upgrade-check/site.mjs` `snapshot`, plus more) was compared field by field with the one before. It covered:
+
+- the content API of every entity and setting in both languages, and the admin's view of every entry and translation;
+- the page tree, the search (3 queries) and `/api/content/_sitemap` and `/sitemap.xml`;
+- the media library, with a SHA-256 of every file served;
+- the accounts and their sign-ins;
+- 17 website addresses (status, `<title>`, `<h1>`; drafts 404, the old address 301);
+- the number of saved versions per entry.
+
+A probe then published and deleted a news item and checked that both webhooks arrived with a valid signature. It also sent a form message and removed it again. A session cookie saved before each step was tried after it.
+
+| Step | What the guide said | What happened | Differences |
+|---|---|---|---|
+| 0.2.0 → 0.3.0 | packages; `drizzle-orm` ^0.45.4, `drizzle-kit` ^0.31.11 | typecheck clean; "No schema changes" | 0 |
+| 0.3.0 → 0.4.0 | packages; `nuxt` ^4.6.4, `nuxt-auth-utils` ^0.6.2; `NUXT_SESSION_PASSWORD` → `NUXT_APP_SECRET`, same value; everyone signs in once | as said. The 0.3 session cookie got 401, a new sign-in worked. The site's `.env.example` still named the old variable (finding 3) | 0 |
+| 0.4.0 → 0.5.0 | packages; check `NUXT_CMS_PUBLIC_URL`; open `/sitemap.xml` | sitemap there; it now also lists the noindex search page `/hledat` (finding 4) and is `text/xml` (finding 5) | 5, all in `/sitemap.xml` |
+| 0.5.0 → 0.6.0 | packages; secret checks; no deprecated settings (none in a 0.2 site); `tinyzoo status` lists unknown roles | nothing to change, status clean (exit 0), the 0.5 session kept | 0 |
+| 0.6.0 → 0.7.0 | packages; let `/api/cms/_theme` through a proxy | `_theme` 200 without sign-in, the 0.6 session kept | 0 |
+| 0.7.0 → 1.0 (branch) | packages; nothing else without deprecation warnings | none on 0.6 or 0.7 (the only `deprecated` lines in the builds are Nuxt DevTools' own) | 0 |
+
+Every step: no migration (3 applied from 0.2.0, 1 upgrade step), `tinyzoo status` exit 0, all three accounts sign in with their roles, every file is served with the same bytes, and the 2 probe webhooks are signed and valid. Over the whole run the receiver got 35 deliveries. From 0.2.0 to 1.0 the only differences are the 5 in `/sitemap.xml`. On 1.0 all 32 entries and translations were opened and saved unchanged through the admin API. The only thing that changed was one more saved version each.
+
+Times per step: `pnpm up` 2–3 s; `pnpm typecheck` 11 s; `tinyzoo upgrade` 3 s; `nuxt build` 17–18 s (21 s for the first); ready 1–2 s after start; a recording 1–2 s. The whole hand run took about 40 minutes, most of it reading.
+
+**Findings in the guide, fixed in `docs/upgrading.md`.** No heading or anchor changed.
+
+1. **More than one minor behind.** Every section says `pnpm up tinyzoo @tinyzoo/client --latest`. From 0.2 that goes straight to the newest version, and the guide did not say whether to step through the minors or how. "Why `--latest`" now gives both ways. One way is one minor at a time, with `pnpm up tinyzoo@^0.4.0 @tinyzoo/client@^0.4.0`. The other is all at once, doing every section in between, oldest first, before deploying. Both are proven: this hand run went step by step, and the upgrade check does the jump.
+2. **Typecheck after `tinyzoo upgrade`.** "On every upgrade" ran `pnpm typecheck` only before `tinyzoo upgrade`, which can rewrite the typed client. The command's own "Next" says to typecheck after it. The command list now typechecks again after it.
+3. **`.env.example`.** A site made before 0.4 still has `NUXT_SESSION_PASSWORD=change-me-…` in its own `.env.example` after the rename. The guide only named the platform and `.env`. The next person who copies the file gets a variable 0.6 no longer reads. The 0.4 step 3, the `NUXT_APP_SECRET` section and the 0.6 step 2 now say to rename it there too.
+4. **The search page in the sitemap.** On 0.5, `@nuxtjs/sitemap` lists the starter's `/hledat`, even though the page says `<meta name="robots" content="noindex, follow">`. A noindex address in a sitemap is what Search Console warns about. 0.5 now has a step 6 to exclude it with `sitemap: { exclude: ['/hledat'] }`, and says that a robots meta tag does not keep a page out. Tried on the site: after a rebuild the sitemap had its 19 addresses from 0.2 again.
+5. **The sitemap's content type** changed from `application/xml` to `text/xml` with 0.5. The guide now says so, next to the other two details.
+6. **Where the deprecation warnings are.** "From 0.7 to 1.0" says that a site with no deprecation warning on 0.6 or 0.7 is done. It now says what the warnings look like (`[tinyzoo] deprecated: …`) and where they appear (`nuxt build` output, the server's log).
+
+No step failed because of a bug in tinyzoo, so there is no changeset.
+
+**The upgrade check from npm.** `.github/upgrade-baseline` takes `npm:tinyzoo@<version>` lines, and lists `npm:tinyzoo@0.2.0` next to `2506403` (and `latest-tag`). For such a baseline the check:
+
+- downloads tinyzoo and @tinyzoo/client of that version with `npm pack`;
+- makes the site with `pnpm dlx tinyzoo@<version> init`, as that README said;
+- checks out the release tag `tinyzoo@<version>` only for the starter's pinned versions and `.env.example`;
+- runs everything else as before. The 0.2.0 site runs on `NUXT_SESSION_PASSWORD`, so the check also proves the refusal on 1.0 and the rename.
+
+The parser is `npmBaseline` in `workspace.mjs`, with a test in `upgrade-check.spec.ts`. CONTRIBUTING.md and the folder's README say how to use it. A run from `npm:tinyzoo@0.2.0` passed in 70 s. It made 8 entries, 12 with translations, and 3 files, and found no unexpected difference.
+
+**Result** (`TEST_DATABASE_URL=…/cms_test_10upgrade_unit`, `TEST_REDIS_URL=redis://localhost:6383`, `UPGRADE_CHECK_DATABASE_URL=…/cms_test_10upgrade`, `UPGRADE_CHECK_REDIS_URL` set):
+
+- `pnpm check:upgrade` green, three baselines in 227 s: `2506403` (83 s), `npm:tinyzoo@0.2.0` (73 s) and `tinyzoo@0.7.0` (71 s).
+- `pnpm check` green: typecheck, then 132 files and 1991 tests passed, with 2 files and 23 tests skipped (262 s).
+
+**Left open**
+
+- **The current starter has the same sitemap problem** (finding 4). `tinyzoo init` with the search preset makes `app/pages/search.vue` (`/hledat`, aliases `/en/search`…) with `noindex`, and `/sitemap.xml` lists it. This is not an upgrade problem, so it is not fixed here. The fix belongs in `cli/init.mjs` next to the path it writes: add `sitemap: { exclude: [<the search path and its aliases>] }` to the starter's `nuxt.config.ts` when the preset is on. Then `starter-check.mjs` should check that the search address is not in the sitemap.
+- **The admin in a real browser was not driven.** The shared DevTools browser profile was in use by another session. Sign-in was checked over the API for all three roles at every step, and `/admin` answered 200 with a session.
+- `docs/upgrading.md` "Version policy" still says "0.x (now)" (R1's open point 4, for S).
+
+**Follow-up on `feat/1.0`:** the open point "new sites list their `noindex` search page in the sitemap" is fixed. The starter's `nuxt.config.ts` has `sitemap: { exclude: [...] }` under `#if search`, `tinyzoo init` writes the search page's address in each language, and `check:starter` checks that `/sitemap.xml` leaves it out (green on all four combinations). Changeset `starter-search-sitemap.md` (patch).
+
+### 1.0 R2 — Accessibility pass
+
+Branch `fix/1.0-a11y` (from `main`, `997ab4d`), for `feat/1.0`. The points 0.7 left open on keyboard focus and the presets' tints, and a keyboard-only walk through the admin. Databases `cms_test_10a11y` (the check) and `cms_test_10a11y_view` (the build looked at).
+
+**Preset tints (decided by the owner).** Nuxt UI puts accent text on the accent's own tint: a soft or subtle button at 10 %, 15 % under the pointer and pressed, the search's matched letters at 15 %, the calendar's hovered day at 20 %. Measured on the guard's surfaces (white in light mode, the page and cards in dark mode), before → after:
+
+| Preset | Tints before (rest / hover / strong) | Text on them | Tints now | Text on them |
+|---|---|---|---|---|
+| blue, light | 10 / 15 / 20 % | 4.53 / **4.20 / 3.89** | 6.5 / 9.5 / 9.5 % | 4.77 / 4.57 / 4.57 |
+| emerald, light | 10 / 15 / 20 % | 4.66 / **4.34 / 4.03** | 8.5 / 11.5 / 11.5 % | 4.77 / 4.56 / 4.56 |
+| violet, light | 10 / 15 / 20 % | 5.02 / 4.61 / **4.23** | 10 / 15 / 16 % | 5.02 / 4.61 / 4.54 |
+| indigo, dark | 10 / 15 / 20 % | 4.59 / **4.24 / 3.90** | 7.5 / 10.5 / 10.5 % | 4.76 / 4.55 / 4.55 |
+| blue, dark | 10 / 15 / 20 % | 5.32 / 4.87 / **4.43** | 10 / 15 / 18.5 % | 5.32 / 4.87 / 4.56 |
+| violet, dark | 10 / 15 / 20 % | 4.98 / 4.57 / **4.18** | 10 / 15 / 15.5 % | 4.98 / 4.57 / 4.53 |
+
+- **Checked and unchanged:** indigo light (5.53 / 5.09 / 4.68), emerald dark (7.09 / 6.37 / 5.68), mono (light 11.0 / 10.0 / 9.1, dark 11.4 / 9.7 / 8.2) and every brand colour (the guard already holds its text at 4.5:1 on 20 %; its `<style>` sets no tint). Indigo in dark mode was not on the owner's list but fell short the same way (3.90:1), so it is drawn lighter too.
+- **How:** `--cms-accent-tint`, `--cms-accent-tint-hover`, `--cms-accent-tint-strong` (Nuxt UI's 10 / 15 / 20 % by default) are set with each preset's light rule and a new dark rule per preset (a preset's light rule applies in dark mode too, so the dark ones set all three). Rules matching Nuxt UI's own classes draw the tints from them: `bg-primary/10` together with `hover:bg-primary/15` (soft and subtle buttons; badges and alerts keep 10 %), `hover:`/`active:bg-primary/15` (not when disabled), `[&>mark]:bg-primary/15`, the calendar's `hover:not-data-selected:` and `data-highlighted:bg-primary/20` (a selected day keeps Nuxt UI's fill). The admin's stylesheet is unlayered, so these beat Nuxt UI's `@layer utilities`.
+- **Decisions.** Each tint is as strong as it can be with the text at 4.5:1, at 0.5 % steps, half a point to spare, never stronger than Nuxt UI's. Where the hover would then be less than 3 points above the rest (blue light, emerald light, indigo dark), the rest steps down so the hover still shows. The preset colours and their text are unchanged.
+- **In the built admin** (Chromium, pixels read from screenshots of Nuxt UI's classes on the admin's page): blue light 4.76 / 4.58 / 4.58, emerald light 4.74 / 4.58 / 4.58, violet light 4.99 / 4.62 / 4.51, indigo dark 5.13 / 4.87 / 4.87, blue dark 5.71 / 5.21 / 4.91, violet dark 5.34 / 4.92 / 4.86; mono as before.
+
+**Keyboard focus.**
+- **Menu items** (dropdowns, selects, select menus, the search): Nuxt UI showed the item under the keyboard only as `bg-elevated/50`, which is 1.04:1 on the menu (1.09:1 dark). From the keyboard the item's highlight now carries the admin's ring, 2 px inside its edge (`outline-offset: -2px` on the `::before` pill). A dropdown and a plain select move the focus to the item, so `:focus-visible` does it. A select menu and the search keep the focus in their search box and only mark the item with `data-highlighted`, as the pointer does. For those the admin layout runs `cmsTrackKeys()` (`app/utils/cmsKeys.ts`, new): a key (not a lone modifier) puts `data-cms-keys` on `<html>`, moving or pressing the pointer takes it off, and the ring needs it. Under the mouse the items look exactly as before (checked: no outline, `data-cms-keys` absent).
+- **The big title and the summary** (borderless) take the ring, 2 px, 0.375 rem off the text, rounded. **A rich-text field** in the form: its 1 px line turns the accent with 1 px of outline on it (2 px in all, like the other fields). **In the writing column**, where the text has no box: 2 px round the text and its toolbar, 0.375 rem off. They show it from a click too, as every text field does (`:focus-visible` always matches editable text).
+- **The address title** (a redirect's "From") had a 20 % halo on focus; it now hugs its ring like the other fields (1 px line + 1 px outline).
+
+**Found in the walk and fixed.**
+- **The publish review on a phone.** Tab wraps round inside the review (it is a dialog), and Reka's focus trap focuses with `preventScroll`. At 390 px the review is taller than the screen, so after "Publish on the website" the focus went to "Back to editing" 103 px above the top of the screen and stayed there. `cmsTrackKeys` now scrolls a control that takes the focus while the keyboard is in use, and is entirely out of view, to the nearest edge. A click never scrolls.
+- **The review's "when" choice** (`role="radiogroup"` of two hand-made `role="radio"` buttons) was two Tab stops, the arrow keys did nothing, and a focused card's ring looked like the chosen card's 2 px border. Now the chosen card is the one Tab stop (`tabindex` 0 / −1), the arrow keys change the choice and take the focus with it, and the ring sits 2 px off the card.
+
+**Tests.**
+- `test/unit/admin-contrast.spec.ts` 117 (was 79): accent text on the three tints, as the stylesheet resolves them, for the five presets and 12 brand colours, light and dark, never stronger than Nuxt UI's, a hover 3 points or more above the rest; the tints pinned per preset, Nuxt UI's 20 % shown to fall short for the four that changed, a brand's `<style>` without tints; the tint rules and the focus rules as written; no ring on a highlighted item without `data-cms-keys`; the ring at 3:1 on a menu item's highlight for every preset and six brands; Nuxt UI 4.9 still uses the classes these rules match (the tints, `before:inset-px`, the highlight). A copy of the stylesheet with blue on Nuxt UI's numbers fails two of them.
+- `test/unit/admin-moments.spec.ts` +2 (24): over the 387-colour grid, the ring reads at 3:1 on a menu item's highlight and on the brand's moments (and the stronger tint), light and dark; a brand keeps Nuxt UI's tints and reads at 4.5:1 on 20 %.
+- `test/unit/admin-keys.spec.ts` (new, 7): `data-cms-keys` set by keys, not by a lone modifier, cleared by the pointer; focus off screen scrolled into view from the keyboard only; the layout starts and stops it; the review's radio group (one stop, arrows, the ring off the card).
+
+**Seen in the browser.** A production build of the playground (`cms_test_10a11y_view`, an admin, an author, three tags, four posts with rich text, three pictures), Chromium 145 headless through a script outside the repo: Tab through sign-in, home, the posts list, its filter (a select inside the filter popover) and columns menu, the post editor (tabs, title, rich text, the details column, the calendar), the publish review, the media library, the account page, the user menu and the search, at 1280 and 390 px, light and dark (247 stops each), and again with `blue` switched on (1280 light, 390 dark). For each stop the script read the ring (the element, its `::before`, or a ringed parent), its contrast against the colour behind, and whether the stop was off screen or covered. **First run** (tints and focus rings already in): two problems left, the review's off-screen stop at 390 px and its two radio stops, both fixed below. **Final run:** every stop has a ring; mono 12.0–16.2:1, blue 4.8–6.6:1; nothing off screen or covered. The calendar's days take the ring from the arrow keys (blue dark: a blue circle round "18"). Plain links, the hero picture box, the media tiles and the row titles show the browser's own ring in the accent (`outline: auto`), which Chromium draws about 2 px wide. Screenshots stayed in the scratch area.
+
+**Result.** `pnpm check` (`TEST_DATABASE_URL=…/cms_test_10a11y`): green: typecheck, then 132 files passed, 3 skipped; 2,030 tests passed, 26 skipped; tests 226 s, the whole check 4 min 26 s.
+
+**Changeset.** `.changeset/admin-a11y-focus-tints.md` (patch). Upgrade: nothing to do; the admin puts `data-cms-keys` on `<html>` while the keyboard is in use, and a site's own admin component using Nuxt UI's tint classes gets the lighter tints too.
+
+**Left open.**
+- **The guard blends a brand's tint without rounding.** The browser draws the 20 % tint as an 8-bit pixel, and with that rounding 707 of 4,407 brand colours (the sRGB cube in 16 steps and the OKLCH grid) read 4.475–4.499:1 on it, e.g. `#97271B` in dark mode on cards 4.48:1 (the guard says 4.50). Only the calendar's hovered day uses 20 %; 10 and 15 % pass. Rounding the blend in `src/theme.ts` (`mix`) fixes all of them but moves some brands' link shades by a step and needs the accent tests' blend changed with it; tried and reverted here, for a decision.
+- **Only Chromium was checked.** Firefox and Safari draw `outline: auto` (plain links, the hero box, media tiles) their own way; worth a look in the final audit.
+- **The title and rich-text rings show on a click too**, as on every text field. If the writing column should stay quieter while typing, the ring could be limited to keyboard focus (`[data-cms-keys]`), which WCAG allows; not done, as the admin's other fields ring on a click.
+- **At rest, a blue soft button (6.5 %) is paler than a blue soft badge (10 %)**; badges have no hover and pass at 10 %, so they were left at Nuxt UI's.
+- The sign-in's Tab order is email, "Forgot password?", password (the link sits in the password's label row). Left as it is.
+
+
+### 1.0 — Fixes after review A
+
+Branch `fix/1.0-review-a` (from `feat/1.0` at `9c024de`). Review A (server, security, the freeze) had two Mediums, one owner decision and seven Lows. Each was checked first; one claim (L1) did not hold as written.
+
+- **M1. A public global with a field named `page`, `limit`, `sort`, `dir` or `q` failed to build.** Confirmed: `buildEntity` (shared by `defineSingleton`) checked only `content.public`. 0.6 and 0.7 had the same gap in their warning: they warned about a global too. Now the check runs only for collections (`entity.ts`). `upgrading.md` ("A field named like a list parameter is an error") and `api-surface.md` say a global may use the names and need not be renamed after the old warning. Test: `api-refine.spec.ts`, a public global builds with each of the five names.
+- **M2. `useCms()` and `requireCmsUser(event)` are frozen** (owner's decision). Checked the real code: `useCms()` returns `{ db, reg }`, `db` being `NodePgDatabase<…> & { $client: Pool }`. `requireCmsUser(event)` returns `CmsUser` (`id`, `role`, `email?`, `name?`, `locale?`). That is narrower than `CmsAccessUser`: no `base`, and `email`/`name` optional for an external sign-in. It throws 401 when nobody is signed in and 403 `role-removed` when the role is gone (the review said only 401). The docs freeze that shape.
+  - `api-surface.md`: a "Server helpers for plugins" section, a row in "Covered", a line in "Not covered" naming the other helpers, and the golden file in the table.
+  - `stability.md`, `plugins.md` (writing a handler, the peer range) and `plugin-reference.md` (a table: frozen or not) say which helpers are frozen.
+  - New golden file `test/contracts/server-helpers.d.ts`, rendered by `serverHelpersReport()` in `test/helpers/apiReport.ts`. It has the two signatures and `CmsUser`, plus the full type of what `useCms()` returns: `db` is declared as `ReturnType<typeof createCmsDb>`, so a change to the driver shows too.
+  - `pnpm contracts:update` changed only that new file; the other goldens are untouched.
+  - `test/unit/server-helpers.spec.ts` tests the behaviour (returns the user, 401, 403 `role-removed`).
+  - Changeset `plugin-server-helpers-frozen.md` is **minor**: it adds to the frozen surface, and the release is 1.0.0 anyway, so a separate entry reads better in the changelog than new wording in the major ones.
+- **M3. Drizzle's types follow drizzle-orm** (owner's decision). `api-surface.md` ("Query helpers", the `table` paragraph, the server helpers), `stability.md` ("What is not covered") and the decisions table above. The same changeset says it. No code change.
+- **L1. Czech docs search and non-breaking spaces: not as described.** The website's `plainText` collapses every `\s`, and in JavaScript `\s` includes U+00A0. So `cs/search.json` has no non-breaking space at all (counted: 0; the pages' HTML has 14 to 184 each), and the Czech headings already got the whole-phrase bonus. There is also no heading "Obrázky v textu" in the docs: the repro must have used a heading of its own. The underlying gap is real for sites, though: `foldSearchText` left U+00A0 alone, so an entry title written with one (Czech typography, text pasted from Word) lost the 100-point phrase bonus (90 instead of 190 for that query). `foldSearchText` now folds U+00A0, U+1680, U+2000–200A, U+202F, U+205F and U+3000 to a plain space, one character for one, so highlights stay in place. Terms never contain a space, so the stored search index and the SQL side need no change. Tests: `search.spec.ts` (folding, equal scores ≥ 190, equal highlights) and `docs-site.spec.ts` (the Czech index has plain spaces while the pages keep theirs, and a heading put through `czechSpaces` scores the same). It is a separate commit (`d083c0c`), easy to drop if not wanted.
+- **L2.** Confirmed. `upgrading.md` "From 0.4 to 0.5", step 6, and the "Your own pages are listed too" line now name every language's search address (`['/hledat', '/en/search']`). Headings unchanged. `starter-search-sitemap.md` agreed already, and its Upgrade now gives the example too.
+- **L3.** Confirmed. `seedPlans` now pages through every plan and matches by Czech title. It adds the missing ones at the end of the list, and gives a matched plan its English or German text if it has none (the run stopped between the Czech and the translations). It never changes or deletes a plan. The catch: a plan an editor deleted or retitled counts as missing, so the header comment, `site/README.md` and the post-deploy step in "Plans on the website" say to run it to fill a site, not later. Tests: `test/unit/site-plans.spec.ts` against an in-memory admin API (empty site, a run that failed after 5 plans and a half, a complete site with editors' changes left alone, a list over 100).
+- **L4.** Confirmed. `settingsFrom` notes a `cms.databaseUrl` still in `nuxt.config.ts` (`removedDatabaseUrl`). It still does not read it. `noDatabaseMessage()` says it was removed in 1.0, to set `DATABASE_URL` instead, and links `upgrading.md#cmsdatabaseurl-is-gone` (a new `DOC_LINKS` entry, checked by `docs-urls.spec.ts`). It is used by `backup`, `restore`, `export` and `import`. `up`/`status` (`cli/db.ts`) do not read `nuxt.config.ts`, so they keep their message. Test: `cli-hardening.spec.ts`, a host whose `nuxt.config.ts` has only the old option, through all four commands.
+- **L5.** Confirmed: an empty description cell in `docs/README.md` crashed the build with `TypeError: Cannot read properties of undefined (reading 'description')` (seen by running the new test without the fix). The English website is now built first, and the Czech and German contents fall back to its rendered title and description. Test: `docs-site.spec.ts` empties the "Content model" cell in a copy of `docs/`.
+- **L6.** `api-surface.md`: the search helpers row now says "internal again since 1.0 (still exported from `tinyzoo`, but not covered)", under "Removed from the public API in 1.0". `plugin-reference.md` was checked type by type against `plugin.ts` and `upgrades.ts`, and four more types were off:
+  - `notices[].key` is now `` `plugins.${string}` `` (a double-backtick code span, checked with `marked`);
+  - `entities` and `singletons` are `unknown[]`, not `Entity[]`;
+  - `label` is `LocalizedText`;
+  - `tx` is `any`.
+- **L7.** There is no DOM library or `@vue/test-utils` in the repository. The admin layout and the publish review need Nuxt UI and the admin's auto-imports to mount, so mounting them was not practical. The logic moved into `app/utils/cmsKeys.ts` instead:
+  - `cmsTrackKeysWhileMounted()`, which the layout now calls;
+  - `cmsRadioArrow()`;
+  - `cmsRadioGroupKey()`, which the review's cards now call.
+
+  `admin-keys.spec.ts` mounts a real Vue component through a small custom renderer (`createRenderer` with plain-object nodes): no listener before mounting, the keys tracked while mounted, nothing left after unmounting. It also tests the arrow-key choice (wrapping, other keys ignored), and that the focus moves to the newly checked card only after the change is drawn, with `preventDefault` only for arrows. Two short wiring checks still read the source: that the layout and the review call these helpers, and the roving `tabindex`. `vue` is a root dev dependency now (`^3.5.45`, the version Nuxt already installs; lockfile +3 lines).
+- **Also fixed:** `init.spec.ts` failed on `feat/1.0` since `38408ab` (a search-only site's `nuxt.config.ts` now has `sitemap: { exclude }`, and the test forbade the word `sitemap` without news). It now checks the exclusion with every language's address.
+
+Changesets: `review-a-fixes.md` (patch: M1, L1, L4) and `plugin-server-helpers-frozen.md` (minor: M2, M3). Both have an Upgrade section ("Nothing to do").
+
+**Results** (`TEST_DATABASE_URL=…/cms_test_fixa`, `TEST_REDIS_URL=redis://localhost:6383`):
+
+- `pnpm check` green: typecheck (tsc; docs check with 32 blocks in 16 groups; playground, starter, website), then 135 files and 2,059 tests passed, 2 files and 23 tests skipped (260 s).
+- `pnpm check:consumer` green (46 s).
+
+### 1.0 — Fixes after review B
+
+Branch `fix/1.0-review-b`, rebased on `feat/1.0` after review A was merged (`9c93e10`). Review B (UX, accessibility, docs, upgrade): every finding checked first; all of them held.
+
+- **M1. `api-surface.md` read as before the release.** Now: "Since **1.0**, everything on this page follows semver. A breaking change waits for 2.0." The "Until 1.0" bullet is gone.
+- **M2. The upgrade steps were written for 0.x.** `cli/init.mjs` writes `^<version>`, so a 1.0 site has `^1.0.0` and a plain `pnpm up tinyzoo @tinyzoo/client` takes every 1.x; `--latest` would jump a future major unread. "On every upgrade" now runs the plain command, and its step 2 says to name the version for a new major or from 0.x. "Why `--latest`" keeps its heading (anchor `why---latest`; nothing in `packages/` or `DOC_LINKS` links it, step 2 now does) and says: you do not need it since 1.0; name the version (`pnpm up tinyzoo@^1.0.0 @tinyzoo/client@^1.0.0`) and follow every section in between; one version at a time or all at once; the 0.x caret as a short "Before 1.0" note. Each "From x to y" box named `--latest` in its step 1, which from 0.x would now land on 1.x: each names its own version now (`^0.2.0` … `^1.0.0`). The starter's `AGENTS.md` says the same. No other `--latest` in `docs/`, `packages/`, `site/`, `llms.txt` or the READMEs (the release script's `gh --latest` flag is something else).
+- **M3. The 1.0.0 changelog did not say what 1.0 is.** New major changeset `.changeset/1-0-stable.md` (tinyzoo; the three packages are fixed together): "tinyzoo 1.0: the public API is frozen and follows semver", linking `docs/stability.md` and `api-surface.md`. Upgrade: follow "From 0.7 to 1.0" with the version named; a site that saw no `[tinyzoo] deprecated:` line on 0.6 or 0.7 only updates its packages. Checked with `changeset status --verbose` (it lists it first) and a `changeset version` in a throwaway copy outside the repo: it is the first bullet under "1.0.0 / Major Changes". The copy was deleted.
+- **L1. A menu item rang under the mouse after Escape.** Reproduced in Chromium 145: open "Sloupce" on /admin/post with the mouse, Escape, open again, hover "Autor": the item is `:focus-visible` with `data-cms-keys` absent, and the old rule drew `solid 2px` on its `::before`. The `:focus-visible` menu-item selector now asks for `html[data-cms-keys]` too. After: `none` under the mouse; from the keyboard (Enter, ArrowDown) `solid 2px`.
+- **L2. The writing column's ring is keyboard-only** (owner's decision, in the table above). `data-cms-keys` alone could not do it: typing is a key, so a click and then a letter would bring the ring back. `cmsTrackKeys` now also sets `data-cms-key-focus` on `<html>` when a control takes the focus while `data-cms-keys` is set; a press of the pointer clears it, typing and moving the mouse do not. `cms-admin.css` takes the ring off `.cms-write`'s title (not the boxed address title), summary and rich text without it. The Write layout's block in `[id].vue` has the new class `cms-write` (`.cms-editor--write` is not there while the preview is split). In the browser (the playground's post, Write layout, 1280 px): click title → none, typing → none; click text → none, typing → none; Tab into the title → `solid 2px`, offset 6 px, stays while typing; Tab on to the text → `solid 2px`, stays when the mouse moves; a click into "Místo" in the details column → `solid 1px` as before. The playground has no summary field; it shares the title's selector. R2's changeset and `docs/ui-foundation.md` say so.
+- **L3. The build error named a repository path.** `DOC_LINKS.from07to10` (`upgrading.md#from-07-to-10`, a heading that exists). The build error for `cms.databaseUrl` and the cron variables and the `singleton: true` error end with its GitHub address; the list-parameter error links "Renaming a field" (a new site can hit it too, and a rename is what it asks). `docs-urls.spec.ts` now also scans `module.ts` (the old line would have failed it) and pins the address; `api-refine.spec.ts` checks each message's link.
+- **L4. "Tables" disagreed.** `upgrading.md` ("Version policy") and `stability.md` ("What is not covered", that bullet only) now say "the SQL tables and their column names (an entity's `table` object is frozen for reading, see the public API)". `api-surface.md`'s own "Not covered" bullet ("The database tables. tinyzoo migrates them…") was left, as asked; its "Types" section already says what is frozen.
+- **L6.** `remove-0-6-deprecations.md`'s Upgrade starts with "A site that saw no deprecation warning on 0.6 or 0.7 has nothing to do", says the warning is a line starting `[tinyzoo] deprecated: …` in `nuxt build` output or the server's log, and links "From 0.7 to 1.0".
+- **L8. The review's radio card at the bottom edge.** At 390 × 844, Tab scrolled the "when" card flush with the bottom (card 774–844): its ring, 2 px off, was cut by 4 px. Tab wrapping round put "Back to editing" flush with the top: cut by 5 px. `scroll-margin-block: 0.5rem` on the controls in a dialog (the browser's focus scroll and `cmsTrackKeys`'s `scrollIntoView` both honour it). After: 4 px to spare under the card's ring, 3 px over the button's. Screenshots before and after in the scratch area.
+
+**Tests.** `admin-key-focus.spec.ts` (new, 6; kept apart from `admin-keys.spec.ts`, which review A rewrote): click then typing never sets `data-cms-key-focus`, Tab does and it survives typing and the mouse moving, a press or focus without the keyboard clears it, stopping removes it; the quiet rule as written; only the Write layout has `.cms-write`. `admin-contrast.spec.ts`: the gated menu selector, every rule that rings a menu item asks for `[data-cms-keys]`, the dialog's scroll margin. `docs-urls.spec.ts`, `api-refine.spec.ts` as above.
+
+**Seen in the browser.** A production build of the playground (database `cms_test_fixb_view`, dropped after), an admin, an author and one post, Chromium 145 headless (Playwright 1.58 in a scratch folder outside the repo), built twice: once for L1/L2, again with L8's rule. Only the server started for it was stopped, by its PID.
+
+**Results** (`TEST_DATABASE_URL=…/cms_test_fixb`, `TEST_REDIS_URL=redis://localhost:6383`):
+
+- `pnpm check` green: typecheck (docs check 32 blocks in 16 groups), then 136 files and 2,065 tests passed, 2 files and 23 tests skipped (tests 238 s, the whole check 282 s).
+- `pnpm check:starter` green (`…/cms_test_fixb_starter`): defaults, english-empty, all-with-german, english-first (185 s).
+
+**Changesets.** `1-0-stable.md` (major, new), `review-b-fixes.md` (patch: the error links and the starter's `AGENTS.md`; Upgrade: nothing to do, an older site may edit its own `AGENTS.md`), `admin-a11y-focus-tints.md` (R2's, patch: L1, L2 and L8 folded in; Upgrade names `data-cms-key-focus`), `remove-0-6-deprecations.md` (L6).
+
+### 1.0 — Wave 5 checks before the pull request (2026-11-18)
+
+On `feat/1.0` at `a5de708` (R1, R2, Q, R3, W, the timeline and both review fix branches merged), in a separate worktree with `TEST_DATABASE_URL=…/cms_test_10final`, starter and upgrade databases likewise, and `TEST_REDIS_URL` on a throwaway Valkey 8:
+
+- `pnpm check` green: 136 files / 2,065 tests passed, 2 files / 23 tests skipped (266 s, typecheck included).
+- `pnpm check:consumer` green (44 s).
+- `pnpm check:starter` green on defaults, english-empty, all-with-german and english-first (192 s).
+- `pnpm check:upgrade` green from `2506403`, `npm:tinyzoo@0.2.0` and the latest release tag `tinyzoo@0.7.0` (227 s).
+- `pnpm changeset status`: `tinyzoo`, `@tinyzoo/client` and `create-tinyzoo` go to **1.0.0**; `1-0-stable.md` is the first entry of the changelog.
+
+Left for S: the "Version packages" pull request (1.0.0), the release, the website and demo deploy, `pnpm seed:plans` once on the website, the website's footer and FAQ wording about the pilot, and the pilot and Tábor sites (with the owner).
+
+### 1.0 — Hardening before the release: docs
+
+Branch `fix/1.0-hardening-docs` from `feat/1.0` (`77345de`). Two research passes looked for what would force a 2.0 soon after 1.0. This branch writes the promises into `docs/`; `fix/1.0-hardening-code` changes the code. Docs only (and `llms.txt`); every statement checked against `packages/cms` and `packages/client`.
+
+- **`stability.md`.** New "Platform and dependencies": a Nuxt, Nuxt UI or Nitro major, or a nuxt-auth-utils 0.x minor, comes with a tinyzoo major; 6 months of fixes for 1.x after 2.0; Node lines that Node.js and `nuxt` both support (`^22.22.3 || ^24.15.0 || >=26.0.0`), an end-of-life line dropped in a minor and announced one minor ahead (Node 22: 2027-04-30, endoflife.date); Postgres 16+ for all of 1.x; drizzle-orm 0.x and its migration folder for 1.x, drizzle 1.0 with 2.0, `drizzle-orm` a peer dependency, a drizzle-kit 1.0 warning; `useCms().db`'s API is drizzle's own, the driver (`$client`, node-postgres) is not promised. New "What a minor version may add". "Also not promised": the CLI's printed text, the admin's look, performance and the tuned numbers. Skipping minors is safe.
+- **`api-surface.md`.** New "What a minor release may add" (keys, union members such as `CmsChangeType`, form statuses, `CmsErrorReport.source`, roles, field kinds, accents and rich-text types; routes and parameters starting with `_`; hooks, commands, flags; picture widths; signature parts). New "Numbers promised and numbers tuned" (promised: page size 20/100, search `limit` 10 and 1–50, header names, the signature scheme, the five picture widths; tuning: 120 searches a minute, the forms' 30 and 8 per 10 minutes, webhook retries 1 s and 5 s and the 5 s timeout, `s-maxage=300`, the 10,000 offset cap, the sitemap hook's once a minute, 100 characters of a search). "Names tinyzoo keeps" (field and entity name rules, `path`, `paths`, `breadcrumbs`, `preview`, `email`, `privacy`, `cms…`, a plugin's `_<plugin>` content path, the client). Content API: "Errors" (status and `message`; a form's 422 `data[]`; the rest is Nitro's), "Media and logo addresses" (`_media/raw`, `_media/img/<id>/<width>.webp`, `_brand/<file>` frozen, the rest of `/api/cms/**` internal), "Rich text" (today's nodes, marks and attributes frozen; new types in a minor; renames only in a major), "All-day dates" (midnight in `cms.admin.timeZone`, `Europe/Prague` for 1.x). "External sign-in" (what the host sets on `event.context.cmsUser`) and nuxt-auth-utils' `User` type (covered as far as tinyzoo's five fields go; `UserSession.cms` internal; a site's own fields are its own). The webhook header is a list of parts.
+- **`deploying.md`.** The verification example splits the header on `,`, accepts any matching `v1=`, ignores unknown parts and keeps the five-minute window. Tested in a scratch script against `signWebhook` of `server/utils/cmsWebhooks.ts`: one `v1=`, two (either matching), an unknown part, spaces, and refusals for a wrong secret, a changed body, an old `t`, no header, no `v1=`, no `t`, a short and a multi-byte value (13 cases). Node range, Postgres for all of 1.x, the media addresses frozen, retries and `s-maxage` as tuning.
+- **`upgrading.md`.** "Skipping minor versions" (new heading under "On every upgrade", linked from "Version policy"); "Within 1.x, tinyzoo's tables only grow" for maintainers (additive `cms_*` changes only, no drop, rename or type change of a column that holds data until 2.0; upgrade steps stay for all of 1.x and work against every later schema). "From 0.7 to 1.0": Node in the box, and "Node, drizzle-orm and the starter's scripts". "What `tinyzoo upgrade` does" names the drizzle-kit 1.0 warning. No heading renamed.
+- **Guides.** `content-api-reference.md` (errors, rich text, all-day dates, the three `/api/cms` addresses, tuned numbers, a 422 row), `content-api.md`, `content-model.md` (name rules, all-day dates, rich text), `plugins.md` and `plugin-reference.md` (`contentPath` starts with `_<plugin>`; the driver), `getting-started.md` and `development.md` (Node range).
+- **Left for the parent.** A `TODO(parent)` in `api-surface.md` ("The client"): reserved collection names or `$`-prefixed future client members. The repository `README.md` and `packages/cms/README.md` still say "Node 22+" (outside `docs/`).
+
+**Checks.** `pnpm docs:check` green (32 blocks, 16 groups). `vitest --project unit` on `doc-links`, `docs-urls`, `docs-site`, `api-surface` (49 tests) and `api-refine`, `cli-hardening`, `docs-check`, `docs-openapi`, `upgrade-cli` (113 tests): all passed. `docs-site.spec.ts` needed `nuxt prepare` in `site/` first.
+
+
+### 1.0 — Hardening before the release: code (2026-11-18)
+
+Branch `fix/1.0-hardening-code` (from `feat/1.0` at `77345de`), the code and contract side of the two "what would force a 2.0" passes; the docs side is `fix/1.0-hardening-docs`.
+
+1. **Names that belong to tinyzoo** (`src/entity.ts`, `src/plugin.ts`, `packages/client/src/index.ts`):
+   - Field keys are validated like entity names (`^[A-Za-z][A-Za-z0-9_]*$`); a key starting with `_` is refused as tinyzoo's. `path`, `paths`, `breadcrumbs` and `preview` join the reserved field names of every entity (tinyzoo writes `path`/`breadcrumbs` onto tree items and `paths`/`locale`/`locales` onto translated items, overwriting a field of that name). None was used as a field name in the playground, the starter, `site/`, the tests or the docs.
+   - Entity names: `email` and `privacy` reserved (admin pages), and any name matching `/^cms/i` (tinyzoo's `cms_*` tables and `Cms*` schema names). The messages link "Renaming a field" / "Renaming an entity".
+   - `@tinyzoo/client`: root members added after 1.0 start with `$` (no entity name can), so no list of names is reserved for collections and nothing breaks; `collection`, `global`, `openapi`, `search` stay. `test/unit/client.spec.ts` fails on a new root member without `$`.
+   - A plugin's `contentPath` must have `_<plugin name>` as its first segment (dashes kept: `_my-shop/…`); the forms plugin keeps `_form`. `_tree` and `_form` join `_global`, `_search`, `_sitemap`: a plugin named `global`, `search`, `sitemap`, `tree` or `form` may exist but serves no content routes. `formsPlugin()` and the playground's `eventsPlugin()` comply.
+   - Major changeset `names-and-stored-addresses.md` with an Upgrade section.
+2. **Addresses stored in content frozen**: `test/contracts/content-routes.txt` lists `GET /api/cms/_media/raw/:key*` (and `HEAD`), `GET /api/cms/_media/img/:id/:file`, `GET /api/cms/_brand/:file` as "stored in content", derived from the route files, plus the image widths. The widths live once in `shared/image-widths.ts` (were copied in three places); a test fails when a 1.0 width (320, 640, 960, 1280, 1920) is removed.
+3. **Requirements**: `engines.node` `^22.22.3 || ^24.15.0 || >=26.0.0` (exactly Nuxt 4.6.4's; nuxt-auth-utils 0.6.2 says the same, Nitro, Nuxt UI and Vite ask for less) on `tinyzoo`, `@tinyzoo/client`, `create-tinyzoo` and the starter; the Dockerfiles use `node:22-alpine` (no patch pinned), unchanged. `drizzle-kit` is in `CHECKED_PACKAGES` with `>=0.31 <1` (`satisfiesRange` now takes space-joined comparators); `tinyzoo status` also prints the version warnings (exit code unchanged). `drizzle-orm` is a peer dependency (`^0.45.4`) and a dev dependency of `tinyzoo`, no longer a dependency.
+4. **The starter's scripts call the `tinyzoo` bin** (`tinyzoo generate|up|seed|client …`); `check:starter` ran all four through it. `tinyzoo generate` runs drizzle-kit and `tinyzoo upgrade` runs `cms:client` with the site's package manager (`cli/package-manager.ts`: lockfile, walking up; then `packageManager`; then the user agent; else pnpm), and the commands they print follow it.
+5. **Webhook signature**: the API test parsed `X-CMS-Signature` with an exact regex; it now uses `test/helpers/webhookSignature.ts` (split on `,`, any matching `v1=`, timing-safe, a time window), with unit tests for extra parts and a second `v1=`. The playground and `site/` do not parse it.
+6. **CONTRIBUTING.md**: peer ranges from 1.0 (a new major of Nuxt, Nuxt UI or Nitro, or a 0.x minor of nuxt-auth-utils, is a tinyzoo major; a raised minimum within a major, or a drizzle-orm 0.x minor, is a minor with an Upgrade section; Node follows Nuxt), and a new section: `cms_*` tables additive only in 1.x, upgrade steps valid against every later 1.x schema and never removed, a baseline two minors back once 1.2 exists.
+7. `@tiptap/extension-collaboration-caret` on `^3.34.0` like the other TipTap packages (patch changeset).
+
+Changesets: `names-and-stored-addresses.md` (tinyzoo major, client patch), `requirements-and-cli.md` (minor, all three), `collaboration-caret-range.md` (patch). `pnpm changeset status`: all three packages to 1.0.0.
+
+Checks, under Node 22.23.1 (the local 24.11.1 is below the new range; pnpm then prints an "Unsupported engine" warning, which broke the `tinyzoo help` output test), `TEST_DATABASE_URL=…/cms_test_harden`, `TEST_REDIS_URL` on a throwaway Valkey 8:
+
+- `pnpm check` green: 137 files / 2,137 tests passed, 2 files / 23 tests skipped (323 s, typecheck included).
+- `pnpm check:consumer` green (60 s).
+- `pnpm check:starter` green on defaults, english-empty, all-with-german and english-first (250 s).
+- `pnpm check:upgrade` green from `2506403`, `npm:tinyzoo@0.2.0` and `tinyzoo@0.7.0` (243 s); "drizzle-kit … fit this tinyzoo" on all three.
+
+Left open:
+
+- `test/unit/api-surface.spec.ts` checks that `docs/api-surface.md` names every content route, but leaves the "stored in content" lines out until the docs branch names them; drop that filter when `fix/1.0-hardening-docs` is merged.
+- A core content route added in 1.x (`/api/content/_x`) could meet a plugin named `x`. New core content routes should take a segment no plugin name can be (one with `_` inside, e.g. `_cms_x`: plugin names have no `_`), or a name added to `RESERVED_PLUGIN_NAMES` before it ships.
+- Yarn Plug'n'Play is not tried (`yarn drizzle-kit generate` should work there; nothing checks it). The bin's `#!/usr/bin/env tsx` needs `tsx` reachable from the site, which the starter's dev dependency gives.
+- `site/package.json` (the website) still calls `tsx node_modules/tinyzoo/cli/index.ts …`; it works, and is not a published package.

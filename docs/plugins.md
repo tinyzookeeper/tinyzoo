@@ -4,6 +4,8 @@ A plugin adds a feature to a tinyzoo site without changing tinyzoo. It can bring
 
 Website forms are the first plugin (`tinyzoo/forms`). The playground has a small second one, `events` (`playground/cms-plugins/events/`), that you can read from start to finish.
 
+This page is the guide. [The plugin API reference](plugin-reference.md) lists every option and hook with its type.
+
 - [Using a plugin](#using-a-plugin)
 - [Writing a plugin](#writing-a-plugin): the smallest plugin, then a fuller one
 - [What a plugin can bring](#what-a-plugin-can-bring): entities, routes, pages, navigation, field editors, texts, retention, graph notes, Nitro plugins, upgrade steps
@@ -147,12 +149,12 @@ serverHandlers: [
   { method: 'get', route: '/summary', handler: pluginFile(import.meta.url, './server/summary.get.ts') },
   // POST /api/cms/_p/events/orders/42/ship — administrators only
   { method: 'post', route: '/orders/:id/ship', access: 'admin', handler: … },
-  // GET /api/cms/_p/events/next and GET /api/content/_events/next — anyone
+  // GET /api/cms/_p/events/next and GET /api/content/_events/next — anyone (the content path starts with `_events`)
   { method: 'get', route: '/next', contentPath: '_events/next', access: 'public', handler: … },
 ]
 ```
 
-- `route` is relative to `/api/cms/_p/<plugin>`. `:param` matches one path segment, and `**` matches everything below. A trailing slash reaches the same handler and gets the same rule.
+- `route` is relative to `/api/cms/_p/<plugin>`. `:param` matches one path segment. A trailing slash reaches the same handler and gets the same rule.
 - `access` says who may call the route (see below).
 - State-changing requests under `/api/cms/` must carry JSON (the CMS's CSRF rule). There is nothing to do on your side.
 - `contentPath` serves the handler on the public content API at `/api/content/<contentPath>` (see below). Use it instead of `route`, or next to it.
@@ -175,7 +177,8 @@ Inside a handler you still decide what the person may see or do. Use `useCms()`,
 
 Use `contentPath` for a plugin that gives the website something to call, such as the forms plugin's `_form/:name`.
 
-- The first segment must start with `_` and cannot be `_global`, `_search` or `_sitemap`.
+- The first segment must be exactly `_` and the plugin's name, dashes kept, as in `_events/next` or `_my-shop/feed`. So two plugins, and tinyzoo's own routes, never meet. The forms plugin's `_form` is the one exception.
+- A plugin named `global`, `search`, `sitemap`, `tree` or `form` can exist, but it serves no content routes: those addresses are tinyzoo's.
 - These routes are open, so `access` does not apply. The handler checks what it needs, such as the content token or a spam check.
 
 #### Writing a handler
@@ -186,6 +189,13 @@ A handler file is an ordinary Nitro handler. These work in it without an import:
 - tinyzoo's server helpers: `useCms()` for the database and the registry, `requireCmsUser`, `audit`, `parseOr422`, `rateLimit`, `clientIp` and `sendCmsMail`.
 
 Import anything from `tinyzoo` or `drizzle-orm` (`eq`, `sql`, `gte`) yourself.
+
+Two of the server helpers are part of [the public API](api-surface.md#server-helpers-for-plugins) and frozen since 1.0:
+
+- `useCms()` returns at least `{ db, reg }`: the site's drizzle database and the registry (`CmsRegistry`).
+- `requireCmsUser(event)` returns the signed-in person (`id`, `role`, `email`, `name`, `locale`). It throws 401 when nobody is signed in, and 403 when their role is no longer in the config.
+
+The others (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail`) are tinyzoo's own and can change in a minor release. The types of `db` and of an entity's table come from `drizzle-orm` and follow it ([query helpers](api-surface.md#query-helpers)). The driver under `db` is not promised: use drizzle's API, not `db.$client`.
 
 ```ts
 // server/summary.get.ts
@@ -360,9 +370,14 @@ A plugin is a function that returns `defineCmsPlugin(…)`. Nothing about it is 
   "name": "tinyzoo-plugin-events",
   "exports": { ".": "./index.ts" },
   "files": ["index.ts", "server", "pages", "components"],
-  "peerDependencies": { "tinyzoo": ">=0.2.0", "nuxt": "^4.4.0" }
+  "peerDependencies": { "tinyzoo": "^1.0.0", "nuxt": "^4.6.4" }
 }
 ```
+
+**The peer range.** `^1.0.0` accepts every 1.x version. The plugin API is part of [the public API](api-surface.md), so a 1.x update does not break it.
+
+- If the plugin needs something added in a later minor, start the range there (`^1.2.0`).
+- `useCms()` and `requireCmsUser(event)` are frozen. The admin's own components and the other server helpers are not ([admin pages](#admin-pages-and-navigation), [writing a handler](#writing-a-handler)). A plugin that uses those should be tested with each new minor version of tinyzoo.
 
 ```ts
 // the site's cms.config.ts

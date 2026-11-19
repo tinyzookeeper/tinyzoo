@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { pgEnv, settingsFrom } from '../../packages/cms/cli/backup'
+import { noDatabaseMessage, pgEnv, runBackup, runRestore, settingsFrom } from '../../packages/cms/cli/backup'
+import { runExport } from '../../packages/cms/cli/export'
+import { runImport } from '../../packages/cms/cli/import'
 import { archiveLimit, extractTar, extractTarGz, MAX_HEADER_BODY, writeTarGz } from '../../packages/cms/cli/tar'
 import { hostSettings, storageFromEnv, storageFromSettings } from '../../packages/cms/cli/transfer'
 
@@ -212,11 +214,39 @@ describe('storage settings come from nuxt.config too', () => {
   it('reads the host\'s nuxt.config.ts (export and import used to look at the environment only)', async () => {
     const host = join(dir, 'host')
     mkdirSync(host)
-    writeFileSync(join(host, 'nuxt.config.ts'), `export default { cms: { databaseUrl: 'postgres://cfg/db', storage: { local: { dir: 'uploads-from-config' } } } }\n`)
-    const settings = await hostSettings(host, {})
-    expect(settings.databaseUrl).toBe('postgres://cfg/db')
+    writeFileSync(join(host, 'nuxt.config.ts'), `export default { cms: { storage: { local: { dir: 'uploads-from-config' } } } }\n`)
+    const settings = await hostSettings(host, { DATABASE_URL: 'postgres://env/db' })
+    expect(settings.databaseUrl).toBe('postgres://env/db')
     expect(storageFromSettings(settings.storage).describe).toBe(`the folder ${join(host, 'uploads-from-config')}`)
     // --uploads still wins over the config.
     expect(storageFromSettings(settings.storage, { dir: 'other', cwd: host }).describe).toBe(`the folder ${join(host, 'other')}`)
+  })
+
+  it('says that cms.databaseUrl was removed in 1.0 when it is all a site has (backup, restore, export, import)', async () => {
+    const host = join(dir, 'host-database-url')
+    mkdirSync(host)
+    writeFileSync(join(host, 'nuxt.config.ts'), `export default { cms: { databaseUrl: 'postgres://cfg/db' } }\n`)
+    const saved = { DATABASE_URL: process.env.DATABASE_URL, NUXT_CMS_DATABASE_URL: process.env.NUXT_CMS_DATABASE_URL }
+    delete process.env.DATABASE_URL
+    delete process.env.NUXT_CMS_DATABASE_URL
+    try {
+      const settings = await hostSettings(host, {})
+      expect(settings.databaseUrl).toBe('') // still not read
+      expect(settings.removedDatabaseUrl).toBe(true)
+      const message = 'No database: `cms.databaseUrl` in nuxt.config.ts was removed in 1.0 and is no longer read. '
+        + 'Set DATABASE_URL (or NUXT_CMS_DATABASE_URL) in the environment or .env instead, and delete the option: '
+        + 'https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#cmsdatabaseurl-is-gone'
+      expect(noDatabaseMessage(settings)).toBe(message)
+      await expect(runBackup(settings, join(host, 'b.tar.gz'), { log: () => {} })).rejects.toThrow(message)
+      await expect(runRestore(settings, join(host, 'b.tar.gz'), {}, { log: () => {} })).rejects.toThrow(message)
+      await expect(runExport(['out.tar.gz'], host)).rejects.toThrow(message)
+      await expect(runImport(['in.tar.gz'], host)).rejects.toThrow(message)
+    }
+    finally {
+      for (const [k, v] of Object.entries(saved)) if (v !== undefined) process.env[k] = v
+    }
+    // Without the old option, the message is the plain one.
+    expect(noDatabaseMessage(settingsFrom('/site', {}, {}))).toBe('No database: set DATABASE_URL (or NUXT_CMS_DATABASE_URL), here or in .env.')
+    expect(settingsFrom('/site', {}, {})).not.toHaveProperty('removedDatabaseUrl')
   })
 })

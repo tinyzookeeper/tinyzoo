@@ -1,10 +1,11 @@
 import sharp from 'sharp'
+import { CMS_IMAGE_WIDTHS } from '../../shared/image-widths'
 
 // Smaller copies of uploaded pictures, made when a page first asks for them and kept
 // in storage next to the original: a phone photo shown 300 px wide should not cost
-// the visitor 4 MB. Only these widths exist (nobody can make the server produce
-// thousands of sizes); <CmsImage> lists them in srcset and the browser picks one.
-export const CMS_IMAGE_WIDTHS = [320, 640, 960, 1280, 1920] as const
+// the visitor 4 MB. Only the widths of shared/image-widths.ts exist (nobody can make the
+// server produce thousands of sizes); <CmsImage> lists them in srcset and the browser picks one.
+export { CMS_IMAGE_WIDTHS }
 const RESIZABLE = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
 
 /**

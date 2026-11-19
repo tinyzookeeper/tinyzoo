@@ -201,5 +201,3 @@ export function defineRedirects(opts: { name?: string } = {}) {
 
 // ── forms: in the forms plugin (`tinyzoo/forms`) ──
 export { FORM_FIELD_TYPES } from '../forms'
-/** @deprecated Import `FormOptions` from `tinyzoo/forms`. Removed in 1.0. */
-export type FormOptions<F extends Record<string, any>> = import('../forms').FormOptions<F>

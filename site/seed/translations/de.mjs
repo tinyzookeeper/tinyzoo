@@ -79,17 +79,9 @@ export default (h) => {
         sections: [
           {
             id: id(), type: 'roadmap', eyebrow: null,
-            heading: 'Woran wir arbeiten und wohin tinyzoo sich entwickelt.',
-            text: 'Das sind unsere Pläne für tinyzoo. Die Reihenfolge richtet sich danach, was uns Menschen beim Ausprobieren der Demo und bei der Arbeit mit Inhalten erzählen.',
-            items: [
-              item({ title: 'Pilotprojekt auf unserer ersten Kundenwebsite', text: 'Wir bereiten ein Pilotprojekt auf unserer ersten Kundenwebsite vor. Wir möchten erfahren, wie Menschen ihre eigenen Inhalte im Alltag pflegen und wo sie Hilfe brauchen.', stage: 'now', animal: 'bunny' }),
-              item({ title: 'Verbesserungen aus dem Demo-Feedback', text: 'Wir sammeln die Eindrücke, die Sie uns aus der Demo schicken. Damit möchten wir die Arbeit in der Verwaltung angenehmer machen.', stage: 'now', animal: 'bird' }),
-              item({ title: 'Zusatzmodule', text: 'Wir möchten Zusatzmodule entwickeln, damit Ihre Website mit neuen Anforderungen wachsen kann.', stage: 'next', animal: 'frog' }),
-              item({ title: 'Eigene Rollen und Berechtigungen', text: 'Wir möchten eigene Rollen ermöglichen und festlegen lassen, wer welche Inhalte ändern darf. Das hilft größeren Teams und Websites mit mehreren Redakteuren.', stage: 'next', animal: 'fox' }),
-              item({ title: 'Eine mobile App zur Inhaltspflege', text: 'Immer mehr Menschen erwarten, Inhalte direkt auf dem Smartphone pflegen zu können. Wir planen eine App, mit der Sie eine Neuigkeit schreiben, Fotos direkt vom Smartphone hinzufügen und von überall veröffentlichen könnten.', stage: 'later', animal: 'octopus' }),
-              item({ title: 'Inhalte von Ihrer bisherigen Website übernehmen', text: 'Wir möchten die Übernahme von Texten und Bildern aus Ihrer bisherigen Website in tinyzoo erleichtern.', stage: 'later', animal: 'elephant' }),
-            ],
-            note: 'Pläne können sich ändern. Schreiben Sie uns, was Sie für Ihre Website brauchen würden.',
+            heading: 'Was fertig ist und was kommt.',
+            text: 'Ihre Rückmeldungen zur Demo und zur Arbeit an Ihrer Website helfen uns, die nächsten Schritte festzulegen.',
+            note: 'Schreiben Sie uns, was Sie bei der Pflege Ihrer Website am meisten Zeit kostet.',
           },
           {
             id: id(), type: 'cta', heading: 'Was würde Ihnen helfen?',
@@ -97,7 +89,7 @@ export default (h) => {
             primaryLabel: 'Demo ausprobieren', primaryUrl: '/de/demo', secondaryLabel: 'Schreiben Sie uns', secondaryUrl: '/de/feedback', animal: 'fox',
           },
         ],
-        metaDescription: 'Wohin entwickelt sich tinyzoo? Unsere Pläne reichen vom ersten Pilotprojekt bis zur mobilen App. Probieren Sie die Demo aus und teilen Sie Ihre Wünsche mit uns.',
+        metaDescription: 'Erfahren Sie, was tinyzoo schon kann und was Version 1.0 für Ihre Website bedeutet. Sehen Sie, was Sie ab Version 1.1 erwartet.',
       },
       demo: {
         title: 'Verwaltung ausprobieren', slug: 'demo',
@@ -202,7 +194,7 @@ export default (h) => {
           picture(shots.terminal, 'Ein Terminal mit pnpm create tinyzoo: Fragen nach dem Ordner, den Sprachen, den Teilen der Website, Beispielinhalten und der Installation, danach das erstellte Projekt und die Befehle zum Starten'),
           p('Jede Frage hat auch eine Option, so läuft der Befehl auch ohne Rückfragen: pnpm create tinyzoo meine-website --languages de,en --presets news,search --no-demo --yes.'),
           p('Jedes neue Projekt hat außerdem eine Datei AGENTS.md. Sie ist eine kurze Anleitung für den Assistenten, mit dem Sie programmieren: wo das Inhaltsmodell liegt, wie man es ändert und was man nicht anfassen sollte.'),
-          p('Schritt für Schritt erklärt es die Anleitung ', a('Getting started', '/de/dokumentation/entwicklung/getting-started'), ' in der Dokumentation (vorerst auf Englisch).')),
+          p('Schritt für Schritt erklärt es die Anleitung ', a('Getting started', '/en/docs/developers/getting-started'), ' in der Dokumentation (auf Englisch).')),
       },
       vyhledavani: {
         title: 'Suche auf der Website und in der Verwaltung', slug: 'suche',

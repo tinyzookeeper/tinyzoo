@@ -6,39 +6,64 @@ It is written for people who build sites with tinyzoo. The last section is for t
 
 ## Version policy
 
-- **0.x (now):** a minor version (0.2 → 0.3) may break things. Every such change is in the package's `CHANGELOG.md` under an **Upgrade** heading that says what your site has to do.
-- **Patch versions** (0.2.1 → 0.2.2) never need anything from you.
-- **From 1.0:** [semver](https://semver.org). These only break in a new major version, and anything that goes away is marked deprecated for at least one minor version first:
+- **Since 1.0:** [semver](https://semver.org). These only break in a new major version, and anything that goes away is marked deprecated for at least one minor version first:
   - the content API and the types of `@tinyzoo/client`
   - the config API (`defineEntity`, `f.*`, presets, plugins)
   - the webhook and the Nitro hooks
   - the CLI, the `cms` options and the `NUXT_CMS_*` variables
   - the admin's extension points
-- **[The public API](api-surface.md)** lists every one of them. Everything else can change in any minor release, with a changeset. That covers the other `Cms*` components, the server utilities, anything tagged `@internal` and the database tables. tinyzoo migrates the tables for you.
+- **[The public API](api-surface.md)** lists every one of them. Everything else can change in any minor release, with a changeset. That covers the other `Cms*` components, the server utilities, anything tagged `@internal`, and the SQL tables and their column names (an entity's `table` object is frozen for reading, see [the public API](api-surface.md#types)). tinyzoo migrates the tables for you, and its own `cms_*` tables only gain things within 1.x.
+- **Minor versions** (1.1, 1.2) add things. When one asks something of your site, such as a new migration, its `CHANGELOG.md` entry has an **Upgrade** heading that says what to do.
+- **You can skip minor versions** within 1.x. See [Skipping minor versions](#skipping-minor-versions).
+- **Patch versions** (1.0.1 → 1.0.2) never need anything from you.
+- **Before 1.0 (0.x)**, a minor version (0.2 → 0.3) could break things. Each break is under the **Upgrade** heading of that version, and each one has its section below.
 
 ## On every upgrade
 
 1. **Read the changelog.** Open the new version's entry in `CHANGELOG.md` and read its **Upgrade** headings. The file is in the repository and on each release, not inside the package.
-2. **Update, check, upgrade.** Run the first three commands below.
+2. **Update, check, upgrade.** Run the first four commands below. `tinyzoo upgrade` may rewrite the typed client, so the compiler runs once more after it. The first command stays within 1.x. To a new major, or from 0.x, name the version instead ([how](#why---latest)).
 3. **Read the result.** Run `git diff` and read the new migration and the schema.
 4. **Look at production.** With the new version installed, run `pnpm exec tinyzoo status` against the production database. An older CLI may not see what the new version refuses. See [Before you deploy, look at production](#before-you-deploy-look-at-production).
 5. **Commit.** Put the package update, the migration, `schema.ts` and the typed client in one commit.
 6. **Deploy.** The migrations must run before the new version starts. [Deploy](#deploy) says how; on a host that deploys on every push, set that up before you push.
 
 ```bash
-pnpm up tinyzoo @tinyzoo/client --latest   # update both packages together
+pnpm up tinyzoo @tinyzoo/client      # update both packages together, within 1.x
 pnpm typecheck                       # the compiler finds what changed in the config API and client types
 pnpm exec tinyzoo upgrade            # versions, migration, typed client, what is pending
+pnpm typecheck                       # again, against the new typed client
 git diff                             # read the new migration (server/db/migrations) and the schema
 git commit                           # package update, migration, schema.ts and typed client in one commit
 git push                             # deploy
 ```
 
+### Skipping minor versions
+
+Within 1.x you can go from any version to any later one in one step: 1.1 straight to 1.4 is safe.
+
+- tinyzoo's own tables (`cms_*`) only gain things within 1.x. No column that holds data is dropped, renamed or given a new type before 2.0.
+- Upgrade steps are never removed within 1.x. Each one still works on every later 1.x schema.
+
+So `tinyzoo upgrade` and the start of the new version catch up on everything in between. Read the **Upgrade** headings of every version you skip, oldest first.
+
 ### Why `--latest`
 
-`tinyzoo init` writes `^0.2.0`. On 0.x a caret range stops at the next minor: `^0.2.0` means `>=0.2.0 <0.3.0`. So a plain `pnpm up` never moves a site from 0.2 to 0.3, and that is exactly where breaking changes live.
+Since 1.0 you do not need `--latest`.
 
-`--latest` ignores the range and rewrites it. The two packages always share one version number. Keep them on the same one.
+`tinyzoo init` writes `^1.0.0`. A caret range takes every 1.x minor and patch, so a plain `pnpm up tinyzoo @tinyzoo/client` gets the newest 1.x. It never moves you to 2.0 by itself.
+
+The two packages always share one version number. Keep them on the same one.
+
+**To a new major, or from 0.x,** name the version: `pnpm up tinyzoo@^1.0.0 @tinyzoo/client@^1.0.0`. Then do every section below from your version up to the new one, oldest first. Do not use `--latest` for this. It jumps to the newest major before you have read its section.
+
+If your site is more than one version behind, pick one of these:
+
+- **One version at a time.** Name the next one: `pnpm up tinyzoo@^0.4.0 @tinyzoo/client@^0.4.0`. Do that version's section below, build, start and check the site, then take the next one.
+- **All at once.** Name the version you want, then do every section from your version up to it, oldest first, before you deploy.
+
+Both work. A site made with 0.2.0 has been taken to 1.0 both ways.
+
+**Before 1.0.** `tinyzoo init` wrote `^0.2.0`. On 0.x a caret range stops at the next minor: `^0.2.0` means `>=0.2.0 <0.3.0`. So a plain `pnpm up` never moved a site from 0.2 to 0.3, where the breaking changes were. That is why these notes used to say `--latest`.
 
 ### The files `tinyzoo init` made are yours
 
@@ -63,7 +88,7 @@ Also read the new migration for statements the guard flagged (see [the guard](#t
 
 It does five things and stops at the first that fails:
 
-1. It checks that your `nuxt`, `@nuxt/ui`, `drizzle-orm` and `zod` fit what this tinyzoo asks for. It warns and does not stop.
+1. It checks that your `nuxt`, `@nuxt/ui`, `nuxt-auth-utils`, `drizzle-orm`, `drizzle-kit` and `zod` fit what this tinyzoo asks for. It also warns when the site has `drizzle-kit` 1.0, which 1.x does not support ([why](stability.md#platform-and-dependencies)). It warns and does not stop.
 2. It writes `server/db/schema.ts` from `cms.config.ts`.
 3. It generates the migration for the difference, with the [guard against statements that lose data](#the-guard-in-tinyzoo-generate).
 4. It regenerates the typed client when your `package.json` has a `cms:client` script.
@@ -99,9 +124,10 @@ Everything below is also in the changelog of 0.2.0. Do the steps in this order, 
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
-> 2. If an entity has a camelCase name, run `pnpm exec tinyzoo generate` in a terminal. Answer **renamed** for every table and enum drizzle-kit asks about.
-> 3. Read the migration. It must hold only renames.
+> 1. Update both packages: `pnpm up tinyzoo@^0.2.0 @tinyzoo/client@^0.2.0`.
+>    A site made with 0.1 also has `vue-tsc` 2. Set it to `^3.3.14` in `package.json` now, or `pnpm typecheck` misses the templates in step 6 ([why](#regenerate-the-typed-client)).
+> 2. Run `pnpm exec tinyzoo generate` in a terminal. Every site needs this migration, because search and the media library arrive in it. If an entity has a camelCase name, answer **renamed** for every table and enum drizzle-kit asks about.
+> 3. Read the migration. Apart from the search table and the media column, it must hold only renames. If you stop at a 0.x version instead of going on to 1.0, add the line under [The media library](#the-media-library-keeps-your-files) to it.
 > 4. Apply it with `pnpm exec tinyzoo up`, or at start with `NUXT_CMS_MIGRATIONS_ON_START=true`. Stop the old instances first.
 > 5. Change `import { defineForm } from 'tinyzoo'` to `tinyzoo/forms` and register the forms plugin.
 > 6. Regenerate the typed client (`pnpm cms:client`) and fix what the compiler finds.
@@ -135,6 +161,21 @@ It must **not** hold `DROP TABLE`, `CREATE TABLE` for one of your tables or `DRO
 
 The migration adds the `cms_search` table and the `pg_trgm` extension. The database user needs the right to `CREATE EXTENSION`, or the database owner has to do it once. The index fills itself on the next start.
 
+### The media library keeps your files
+
+On a site made with 0.1.0, the migration also adds `cms_media.in_library`. A file in the library stays until someone deletes it there. A file outside it, one uploaded straight into a field, is deleted once nothing uses it.
+
+The column arrives as `false` for every file, so the files you uploaded on 0.1 have to be put in the library:
+
+- **Going on to 1.0:** nothing to do. tinyzoo 1.0 has an upgrade step (`media-in-library`) that does it in the same run as the migration.
+- **Stopping at 0.2 to 0.7:** those versions lack the step. Add this line at the end of the migration before you apply it:
+
+```sql
+UPDATE "cms_media" SET "in_library" = true;
+```
+
+Without it, an old file is deleted the first time an editor replaces or clears it, even when other pages use it from the library.
+
 ### Apply it
 
 Apply the migration with `pnpm exec tinyzoo up`, or at start with `NUXT_CMS_MIGRATIONS_ON_START=true`.
@@ -158,6 +199,8 @@ Restart `nuxt dev` after adding a plugin.
 ### Regenerate the typed client
 
 Run `pnpm cms:client` and fix what the compiler finds.
+
+Use `vue-tsc` 3 for this (`^3.3.14`, as the starter has). A site made with 0.1 has `vue-tsc` 2, which does not check the templates against these types. `pnpm typecheck` then passes while a template still hands a `null` address on.
 
 A required link field (a menu link's `url`) is `string | null` now, because the page it points at may be gone. Render a link only when it has an address. `cmsMenuTree` and `<CmsNav>` already skip links without one.
 
@@ -191,7 +234,7 @@ Everything below is also in the changelog of 0.3.0.
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.3.0 @tinyzoo/client@^0.3.0`.
 > 2. In your `package.json`, set `drizzle-orm` to `^0.45.4` and `drizzle-kit` to `^0.31.11`, then run `pnpm install`.
 
 Your schema and migrations stay as they are. `tinyzoo generate` writes no new migration for this.
@@ -202,9 +245,9 @@ Everything below is also in the changelog of 0.4.0. tinyzoo 0.4 runs on nuxt-aut
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.4.0 @tinyzoo/client@^0.4.0`.
 > 2. In your `package.json`, set `nuxt` to `^4.6.4` and `nuxt-auth-utils` to `^0.6.2`, then run `pnpm install`.
-> 3. Move the sign-in secret to `NUXT_APP_SECRET`, on your platform and in `.env`. Which step depends on what you have now; see the `NUXT_APP_SECRET` section below. A site that already sets `NUXT_APP_SECRET` keeps it, and does not copy the old password over it.
+> 3. Move the sign-in secret to `NUXT_APP_SECRET`, on your platform, in `.env` and in your `.env.example`. Which step depends on what you have now; see the `NUXT_APP_SECRET` section below. A site that already sets `NUXT_APP_SECRET` keeps it, and does not copy the old password over it.
 > 4. If your `cms.config.ts` still imports `defineForm` or `defineFormSettings` from `tinyzoo`, import them from `tinyzoo/forms` and register the plugin.
 > 5. Tell your editors that everyone signs in again, once.
 
@@ -231,6 +274,7 @@ The changes to expect:
 The sign-in cookie is now sealed with a key derived from Nuxt's app secret, `NUXT_APP_SECRET`. nuxt-auth-utils no longer reads `NUXT_SESSION_PASSWORD`.
 
 - Rename the variable on your platform (and in `.env`), **keeping its value**: `NUXT_SESSION_PASSWORD=…` becomes `NUXT_APP_SECRET=…`.
+- Rename it in your site's `.env.example` too. A site made by `tinyzoo init` before 0.4 still has `NUXT_SESSION_PASSWORD=change-me-…` there, and the next person who copies the file gets the old name. Keep the example value in that file: it is only an example, and from 0.6 production refuses it.
 - If you set `runtimeConfig.session.password` in `nuxt.config.ts`, move that value to `NUXT_APP_SECRET` in the environment and remove it from the config.
 - If your site already sets `NUXT_APP_SECRET` (for `nuxt-og-image`, say), remove `NUXT_SESSION_PASSWORD`. Then check that `NUXT_APP_SECRET` is **at least 32 characters** long.
 
@@ -265,11 +309,12 @@ Everything below is also in the changelog of 0.5.0.
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.5.0 @tinyzoo/client@^0.5.0`.
 > 2. Make sure production sets `NUXT_SITE_URL` (or `NUXT_CMS_PUBLIC_URL`). Without either, `/sitemap.xml` is a `404` in production.
 > 3. Open `/sitemap.xml` and check that it is there.
 > 4. If your `nuxt.config.ts` has `sitemap: { enabled: false }`, remove it.
 > 5. If your site has its own `server/routes/sitemap.xml*`, remove it, or keep it and set `sitemap: { enabled: false }`.
+> 6. If your site has a search page, leave it out of the sitemap, with its address in every language: `sitemap: { exclude: ['/hledat', '/en/search'] }` in `nuxt.config.ts` for the starter's Czech and English search. The page says `noindex`, but the module lists it anyway.
 
 ### `/sitemap.xml` comes from `@nuxtjs/sitemap`
 
@@ -290,11 +335,12 @@ Open `/sitemap.xml` after the update and check these three things.
 **Your own pages are listed too.**
 
 - The module adds the site's static pages (`pages/kontakt.vue`). An address you also had in `cms.sitemap.paths` is listed once.
-- To leave a page out, use `sitemap: { exclude: ['/hledat'] }` or a `robots: false` route rule.
+- A `robots` meta tag in the page (`noindex`) does not keep it out. The starter's search page has one and is listed.
+- To leave a page out, use `sitemap: { exclude: ['/hledat', '/en/search'] }` (each language's address) or a `robots: false` route rule.
 
 Nothing else changes: `/api/content/_sitemap`, the tables and the content API are as they were.
 
-Two details are new. The sitemap now carries `x-default` next to the languages. It is also cached for an hour (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`). A content change clears the server's copy at once.
+Three details are new. The sitemap now carries `x-default` next to the languages. If your `cms:sitemap` hook adds its own `x-default`, remove that line: on 0.5 to 0.7 every entry had two. Since 1.0 tinyzoo keeps the hook's and adds none. It is served as `text/xml` (was `application/xml`). It is also cached for an hour (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`). A content change clears the server's copy at once.
 
 ## From 0.5 to 0.6
 
@@ -302,8 +348,8 @@ Everything below is also in the changelog of 0.6.0. 0.6 is the last minor before
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
-> 2. Before you deploy, check that the server runs with `NUXT_APP_SECRET`: set, at least 32 characters, and not the example value from `.env.example`. Rename `NUXT_SESSION_PASSWORD` if that is all you have.
+> 1. Update both packages: `pnpm up tinyzoo@^0.6.0 @tinyzoo/client@^0.6.0`.
+> 2. Before you deploy, check that the server runs with `NUXT_APP_SECRET`: set, at least 32 characters, and not the example value from `.env.example`. Rename `NUXT_SESSION_PASSWORD` if that is all you have, in `.env.example` too.
 > 3. Remove the deprecated settings: `cms.databaseUrl`, `FormOptions` imported from `tinyzoo`, `defineEntity(…, { singleton: true })` and the `CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` variables. Rename a field called `page`, `limit`, `sort`, `dir` or `q` in a public collection.
 > 4. Run `pnpm typecheck`. Wrap each decimal you read as a number in `Number(...)`, and check the `access` rules that read the signed-in person.
 > 5. Run `pnpm exec tinyzoo status`. It lists accounts whose stored role is not `admin`, `editor` or `author`. From 0.6 those accounts have **no access**, so give each one a role. See [Custom roles](#custom-roles-and-per-field-permissions) below.
@@ -529,7 +575,7 @@ Everything below is also in the changelog of 0.7.0. 0.7 lets the admin carry the
 
 > **What you have to do**
 >
-> 1. Update both packages: `pnpm up tinyzoo @tinyzoo/client --latest`.
+> 1. Update both packages: `pnpm up tinyzoo@^0.7.0 @tinyzoo/client@^0.7.0`.
 > 2. Nothing else is required. A site that sets none of the new options looks as before, apart from the accessibility fixes under [What changes by itself](#what-changes-by-itself).
 > 3. If something sits in front of `/api/cms` (a proxy rule, basic auth, an IP allowlist), let `GET /api/cms/_theme` and `/api/cms/_brand/*` through without a sign-in. See [New public routes](#new-public-routes).
 
@@ -590,6 +636,79 @@ The server resolves the name, colour and logos and the admin uses what it sends.
 ### The email helpers take the request first
 
 The server's email builders (`inviteEmail`, `resetEmail`, the ones for a changed sign-in address, and `emailContext`) are internal. They are now async and take the request first: `await inviteEmail(event, { … })`, `await emailContext(event, locale)`. Only a site that calls them from its own server code has to change that call.
+
+## From 0.7 to 1.0
+
+1.0 freezes the public API ([what that covers](api-surface.md)). Before the freeze, it removes what 0.6 deprecated. No schema change and no migration.
+
+> **What you have to do**
+>
+> 1. Update both packages: `pnpm up tinyzoo@^1.0.0 @tinyzoo/client@^1.0.0`.
+> 2. Check that Node fits `^22.22.3 || ^24.15.0 || >=26.0.0`, where the site is built and where it runs ([below](#node-drizzle-orm-and-the-starters-scripts)).
+> 3. If your site saw no deprecation warning on 0.6 or 0.7, that is all. They are lines that start with `[tinyzoo] deprecated:`, in the output of `nuxt build` or in the server's log.
+> 4. Otherwise, change what is left over. Each step is below. The build, `defineEntity` or `pnpm typecheck` stops on anything you missed, and says what to write instead.
+
+### `cms.databaseUrl` is gone
+
+Delete `databaseUrl` from the `cms` options in `nuxt.config.ts`. The build stops while it is there.
+
+Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) where the site runs, and in `.env` for the CLI. The CLI no longer reads the address from `nuxt.config.ts`. If `backup`, `restore`, `export` or `import` finds only the old option, it says so and links here.
+
+### `singleton: true` on `defineEntity` is gone
+
+Write `defineSingleton` instead. It takes the same options:
+
+```ts
+// before
+export const Settings = defineEntity('settings', { singleton: true, label: 'Settings', titleField: 'siteName', fields })
+// after
+export const Settings = defineSingleton('settings', { label: 'Settings', titleField: 'siteName', fields })
+```
+
+Same table, same address, same admin. With `singleton: true`, `defineEntity` now throws, and the option is a type error.
+
+### `FormOptions` comes from `tinyzoo/forms` only
+
+Change `import type { FormOptions } from 'tinyzoo'` to `import type { FormOptions } from 'tinyzoo/forms'`.
+
+### The cron variables are gone
+
+`CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON` are no longer read. If your build sets one, the build stops and names the option to write:
+
+```ts
+export default defineNuxtConfig({
+  cms: { scheduler: { cron: '*/5 * * * *' }, retention: { cron: '30 2 * * *' } },
+})
+```
+
+Then remove the variables. The options are read when the site is built, as the variables were.
+
+### A field named like a list parameter is an error
+
+A public collection cannot have a field called `page`, `limit`, `sort`, `dir` or `q`. These are parameters of the content API's list. 0.6 warned; 1.0 stops at the config. A global (`defineSingleton`) may have such a field, since it has no list. 0.6 and 0.7 warned about a global too, by mistake: you need not rename it.
+
+Rename the field. A rename is a migration: see [Renaming a field](#renaming-a-field).
+
+### The search helpers are internal again
+
+`searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch` are `@internal`. 0.6 made them public. They are not frozen, because the search may change how it matches.
+
+- They are still exported, so code that imports them keeps working for now.
+- They can change in any release. Use `useCmsSearch()` and `<CmsHighlight>`, which stay public.
+
+### Node, drizzle-orm and the starter's scripts
+
+- **Node.** tinyzoo 1.0 asks for `^22.22.3 || ^24.15.0 || >=26.0.0`, the same as Nuxt. An older Node 22 or 24 gets a warning from the package manager. Update Node where the site is built and where it runs. If your `package.json` has `engines.node`, set it to the same range.
+- **`@internationalized/date` is a peer dependency.** The admin's date fields need it. pnpm installs it by itself. A new site lists it in `package.json` (`^3.12.2`); list it there too if your package manager asks.
+- **`drizzle-orm` is a peer dependency.** A site made by `tinyzoo init` already lists it in `package.json`. Keep it there, in the range `tinyzoo upgrade` checks.
+- **`drizzle-kit` stays on 0.x.** `tinyzoo status` and `tinyzoo upgrade` warn when it is 1.0 ([why](stability.md#platform-and-dependencies)).
+- **The starter's scripts call `tinyzoo`.** A new site's `db:generate` is `tinyzoo generate`, and so on. Your own scripts may still run the CLI's file inside the package. That path is not part of the public API, so change them to call `tinyzoo` too.
+
+### An entity's zod schemas are internal
+
+`insertSchema` and `updateSchema` on an entity are `@internal`. They follow zod's major versions, so they are not frozen. They are still there. If your code validates with them, it keeps working, but it may need a change when tinyzoo moves to a new zod.
+
+An entity's `table` is frozen for reading: its columns under the fields' config keys, and `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`. The access rules you wrote keep working. See [the public API](api-surface.md#types).
 
 ## The two-step rule
 
@@ -1001,6 +1120,14 @@ Write one whenever existing sites need something done that `tinyzoo generate` ca
 Schema changes alone need no step. The site's own `tinyzoo generate` writes the migration.
 
 Never write a step that depends on the names of the site's own entity tables. Those are the site's to name. Steps may only touch `cms_*` tables.
+
+### Within 1.x, tinyzoo's tables only grow
+
+A site may skip minor versions ([Skipping minor versions](#skipping-minor-versions)). So, until 2.0:
+
+- A change to a `cms_*` table only adds: a table, a nullable column, a column with a default, an index.
+- A column that holds data is never dropped, renamed or given another type. Stop writing to it instead, and drop it in 2.0.
+- An upgrade step stays in `CORE_UPGRADE_STEPS` for all of 1.x. It must still work against every later 1.x schema. Since nothing is taken away, it can rely on what existed when it was written.
 
 ### Writing one
 

@@ -6,8 +6,10 @@
 //  - editors: docs/editors/<lang>/README.md and the chapters its numbered list links, in
 //    that order; a language without its own guide shows the Czech one. The chapters pair
 //    up across languages by their place in that list.
-//  - developers: the table under the first heading of docs/README.md (English for now), plus the
-//    pages generated at build time (GENERATED below), each placed after a page of that table.
+//  - developers: the table under the first heading of docs/README.md, plus the pages generated at
+//    build time (GENERATED below), each placed after a page of that table. They are in English
+//    and only on the English website (decided for 1.0): the Czech and German contents, search and
+//    links lead to /en/docs/developers, and the pages say in their language that it is English.
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { dirname, extname, join, posix } from 'node:path'
 import { Marked, type Tokens } from 'marked'
@@ -20,6 +22,8 @@ import { plainText, renderPage } from './render'
 
 const GITHUB = 'https://github.com/tinyzookeeper/tinyzoo'
 const DEFAULT: DocsLang = 'cs'
+/** The developer pages are in English, on the English website only. */
+const DEV_LANG: DocsLang = 'en'
 
 /** The texts the build writes into pages (the rest of the chrome is in app/lib/site-i18n.ts). */
 const TEXT: Record<DocsLang, { copy: string; copied: string; zoom: string; editors: string; developers: string; chapters: string; guides: string; reference: string }> = {
@@ -153,6 +157,7 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
   const files = new Map<string, unknown>()
   const images = new Map<string, string>()
   const sources = new Set<string>(['docs/README.md'])
+  const searchOf = new Map<DocsLang, DocsSearchSection[]>()
 
   const editorsCs = editorSources(root, DEFAULT)
   if (!editorsCs) throw new Error('docs/editors/cs/README.md is missing')
@@ -164,13 +169,23 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
     if (own) editorsBy[lang] = own
   }
   const developers = developerSources(root)
-  const partsOf = (lang: DocsLang): Record<DocsSection, Source[]> => ({ editors: editorsBy[lang], developers })
+  /** The pages each website publishes itself: the developer pages only on the English one. */
+  const partsOf = (lang: DocsLang): Record<DocsSection, Source[]> => ({ editors: editorsBy[lang], developers: lang === DEV_LANG ? developers : [] })
+  /** A page's address on the website of `lang`: a developer page is the English one everywhere. */
+  const addressOf = (lang: DocsLang, src: Source): { path: string; file: string } => {
+    if (src.section === 'developers') return { path: docsPath(DEV_LANG, 'developers', src.slug || undefined), file: src.file }
+    const same = editorsBy[lang][src.index]!
+    return { path: docsPath(lang, 'editors', same.slug || undefined), file: same.file }
+  }
 
   // Every Markdown file that is a page → which page it is (to turn links into website addresses).
   const pageOfFile = new Map<string, Source>()
   for (const lang of DOCS_LANGS) for (const s of [...editorsBy[lang], ...developers]) pageOfFile.set(s.file, s)
 
-  for (const lang of DOCS_LANGS) {
+  // The English website first: the Czech and German contents list its developer pages, with
+  // the title and description it rendered where docs/README.md gives none.
+  const devPages = new Map<Source, DocsPage>()
+  for (const lang of [DEV_LANG, ...DOCS_LANGS.filter((l) => l !== DEV_LANG)]) {
     const parts = partsOf(lang)
     const text = TEXT[lang]
     const nav: DocsNav = { lang, sections: {} as DocsNav['sections'] }
@@ -194,9 +209,8 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
             const page = pageOfFile.get(target)
             if (page) {
               // The page in this website's language; an anchor only when it is the same text.
-              const same = parts[page.section][page.index]!
-              const to = docsPath(lang, page.section, same.slug || undefined)
-              return { href: hash && same.file === target ? `${to}#${hash}` : to, external: false }
+              const same = addressOf(lang, page)
+              return { href: hash && same.file === target ? `${same.path}#${hash}` : same.path, external: false }
             }
             const img = target.startsWith('docs/screenshots/') ? ctx.image(href) : null
             if (img) return { href: img.src, external: false }
@@ -225,16 +239,20 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
         let markdown = src.generated?.markdown ?? read(abs)
         if (src.file === 'docs/README.md') markdown = developersIndexMarkdown(markdown)
         else if (src.slug === '' && section === 'editors') markdown = withoutContentsList(markdown)
-        const page = renderPage(markdown, ctx)
+        const page = renderPage(markdown, { ...ctx, lang: src.textLang })
         const title = src.slug === '' && section === 'developers' ? text.developers : page.title
         const path = docsPath(lang, section, src.slug || undefined)
-        const alternates = Object.fromEntries(DOCS_LANGS.map((l) => [l, docsPath(l, section, partsOf(l)[section][src.index]!.slug || undefined)])) as Record<DocsLang, string>
+        // The same page on the other websites (a developer page has none: it is only on the English one).
+        const alternates = section === 'developers'
+          ? { [DEV_LANG]: path }
+          : Object.fromEntries(DOCS_LANGS.map((l) => [l, docsPath(l, section, editorsBy[l][src.index]!.slug || undefined)]))
         const doc: DocsPage = {
           section, slug: src.slug, path, textLang: src.textLang, title,
           description: page.description, toc: page.toc, body: page.body, alternates,
           prev: null, next: null, source: src.generated?.source ?? src.file,
         }
         rendered.set(src, doc)
+        if (section === 'developers') devPages.set(src, doc)
         for (const s of page.sections) search.push({ ...s, path, page: title, section })
       }
       // Previous and next, in the part's order.
@@ -245,17 +263,24 @@ export function buildDocs(opts: DocsBuildOptions): DocsBuild {
         doc.next = at(i + 1)
         files.set(`${lang}/pages/${section}/${src.slug || '_index'}.json`, doc)
       })
+      // The contents: a website without the part's own pages lists the English ones (with their titles from docs/README.md).
+      const all = list.length ? list : partsOf(DEV_LANG)[section]
       const groups: DocsNavGroup[] = []
-      for (const src of list.slice(1)) {
+      for (const src of all.slice(1)) {
         let g = groups.find((x) => x.id === src.group)
         if (!g) groups.push(g = { id: src.group, title: text[src.group as 'chapters' | 'guides' | 'reference'] ?? src.group, pages: [] })
-        const doc = rendered.get(src)!
-        g.pages.push({ slug: src.slug, title: src.navTitle || doc.title, description: src.navDescription || doc.description, path: doc.path })
+        const doc = rendered.get(src) ?? devPages.get(src)
+        g.pages.push({ slug: src.slug, title: src.navTitle || doc?.title || src.slug, description: src.navDescription || doc?.description || '', path: addressOf(lang, src).path })
       }
-      nav.sections[section] = { section, title: text[section], path: docsPath(lang, section), textLang: list[0]!.textLang, groups }
+      nav.sections[section] = { section, title: text[section], path: addressOf(lang, all[0]!).path, textLang: all[0]!.textLang, groups }
     }
     files.set(`${lang}/nav.json`, nav)
-    files.set(`${lang}/search.json`, search)
+    searchOf.set(lang, search)
+  }
+  // The Czech and German search finds the developer pages too, at their English address.
+  const developerSearch = searchOf.get(DEV_LANG)!.filter((s) => s.section === 'developers')
+  for (const lang of DOCS_LANGS) {
+    files.set(`${lang}/search.json`, lang === DEV_LANG ? searchOf.get(lang) : [...searchOf.get(lang)!, ...developerSearch])
   }
   return { files, images, sources: [...sources] }
 }

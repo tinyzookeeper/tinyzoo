@@ -22,6 +22,24 @@ first administrator with those details.
 `pnpm reset` (same variables) deletes every entry and file and seeds again. The demo
 deployment runs it every night.
 
+## Plans
+
+The "Plány" page (`/plany`, `/en/roadmap`, `/de/roadmap`) lists the **Plan** collection
+(Plány / Roadmap in the admin): title and text per language, a stage (done, now, next,
+later), an optional version and an animal. Editors arrange them by dragging ("Seřadit").
+The roadmap block (`BlockRoadmap.vue`) draws them as a timeline: Done first, one group per
+version (oldest first), then Now (a dark card per plan), Next (per version) and Later (a
+grid of cards); within a group, the editors' order. The block itself keeps only its
+heading, text and note (its old fixed `items` are dropped on read since block version 2).
+When it is the page's first block, its heading is the page's `<h1>`.
+
+The plans the site starts with are in `seed/plans.mjs`. `pnpm seed` adds them, and
+`pnpm seed:plans` (same variables, an existing administrator) adds only them. It adds
+**only the plans the site is missing** (matched by their Czech title), and the English or
+German text of a seeded plan that has none. It never changes or deletes a plan, so a run
+that stopped halfway can simply be run again. A plan an editor deleted, or whose Czech title
+they changed, counts as missing and comes back, so use it to fill a new site, not later.
+
 ## Settings
 
 | Variable | |
@@ -56,8 +74,13 @@ pages; `sitemap.exclude` keeps the search pages out).
 ## Documentation
 
 `/dokumentace`, `/en/docs` and `/de/dokumentation` show the Markdown in the repository's `docs/`: the editors'
-guide in its three languages and the developer pages (English; on `/dokumentace` and `/de/dokumentation` with a
-note saying so). Nothing of it is in the database.
+guide in its three languages and the developer pages. Nothing of it is in the database.
+
+- **Developer pages are English only** (decided for 1.0), at `/en/docs/developers`. The Czech and German contents,
+  doors and search lead there, with a note in their language; the old `/dokumentace/pro-vyvojare/…` and
+  `/de/dokumentation/entwicklung/…` addresses redirect there (301). They have only an English `hreflang`.
+- **Czech text** gets a non-breaking space after a one-letter word (`czechSpaces` in `modules/docs/render.ts`),
+  outside code and links.
 
 - **Built, not stored.** `modules/docs` (Nuxt loads it from `modules/` by itself) renders every page once per
   language when the site is built (`marked`, plus a small highlighter) and hands the JSON to Nitro as server assets,
@@ -90,11 +113,11 @@ pnpm db:migrate             # applies it
 
 | | |
 |---|---|
-| `cms.config.ts` | content model: languages, settings, page blocks, news, menus, the feedback form |
+| `cms.config.ts` | content model: languages, settings, page blocks, news, plans, menus, the feedback form |
 | `app/components/global/Block*.vue` | how each block looks (`hero` → `BlockHero.vue`) |
 | `app/pages/[...slug].vue` | every address: pages, the news list and news items, in all languages |
 | `modules/docs/`, `app/pages/dokumentace/`, `server/api/site-docs/`, `shared/docs.ts` | the documentation, rendered from `docs/` (above) |
 | `app/lib/site-i18n.ts` | the languages, their address prefixes and the few texts that live in code |
 | `app/layouts/default.vue` | header (menu, language switcher), footer |
 | `app/pages/design-system.vue`, `app/lib/design-system-i18n.ts` | the admin's design system in the admin's own look (`/design-system`, `/en/design-system`, `/de/designsystem`): in the footer menu, or right-click (long-press) the logo in the header |
-| `scripts/seed.mjs`, `seed/` | the content, its translations and media |
+| `scripts/seed.mjs`, `seed/` | the content, its translations and media; `seed/plans.mjs` the starting plans (`scripts/seed-plans.mjs`) |

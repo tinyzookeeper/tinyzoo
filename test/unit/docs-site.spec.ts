@@ -2,8 +2,9 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writ
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
+import { matchEntry, searchTerms } from 'tinyzoo'
 import { buildDocs } from '../../site/modules/docs/build'
-import { renderPage } from '../../site/modules/docs/render'
+import { czechSpaces, renderPage } from '../../site/modules/docs/render'
 import { DOCS_LANGS, docsPath, type DocsNav, type DocsPage } from '../../site/shared/docs'
 
 // The documentation on the website (site/modules/docs): docs/ rendered once per website
@@ -12,6 +13,8 @@ import { DOCS_LANGS, docsPath, type DocsNav, type DocsPage } from '../../site/sh
 const root = join(import.meta.dirname, '../..')
 const built = buildDocs({ root, clipsDir: join(root, 'site/public/docs/clips') })
 const pages = (lang: string) => [...built.files].filter(([k]) => k.startsWith(`${lang}/pages/`)).map(([, v]) => v as DocsPage)
+/** Every page of every website, by its address (a Czech page may link to an English developer page). */
+const everyPage = new Map(DOCS_LANGS.flatMap((l) => pages(l)).map((p) => [p.path, p]))
 const htmlOf = (p: DocsPage) => p.body.map((s) => ('html' in s ? s.html : '')).join('')
 
 const ctx = {
@@ -22,7 +25,7 @@ const ctx = {
 }
 
 describe('the docs on the website', () => {
-  it('has every page in every language, the editors in their own language and the developers in English', () => {
+  it('has the editors in every language and the developers in English, on the English website only', () => {
     for (const lang of DOCS_LANGS) {
       const nav = built.files.get(`${lang}/nav.json`) as DocsNav
       expect(nav.sections.editors.textLang).toBe(lang)
@@ -33,7 +36,39 @@ describe('the docs on the website', () => {
         expect(p.title, p.source).toBeTruthy()
         expect(p.path.startsWith(docsPath(lang as any)), p.path).toBe(true)
       }
+      // The Czech and German contents lead to the English developer pages; those websites have none of their own.
+      const devPaths = [nav.sections.developers.path, ...nav.sections.developers.groups.flatMap((g) => g.pages).map((p) => p.path)]
+      for (const path of devPaths) expect(everyPage.get(path)?.textLang, path).toBe('en')
+      expect(devPaths.every((p) => p.startsWith(docsPath('en', 'developers'))), lang).toBe(true)
+      if (lang !== 'en') expect(pages(lang).filter((p) => p.section === 'developers'), lang).toEqual([])
     }
+    // A developer page is the same text everywhere: it names no other language's address.
+    for (const p of pages('en').filter((x) => x.section === 'developers')) expect(p.alternates, p.path).toEqual({ en: p.path })
+  })
+
+  it('finds the developer pages from the Czech and German search, at their English address', () => {
+    for (const lang of ['cs', 'de'] as const) {
+      const search = built.files.get(`${lang}/search.json`) as { path: string; section: string; text: string }[]
+      const dev = search.filter((s) => s.section === 'developers')
+      expect(dev.length, lang).toBeGreaterThan(50)
+      expect(dev.every((s) => s.path.startsWith('/en/docs/developers')), lang).toBe(true)
+      expect(dev.some((s) => s.path === '/en/docs/developers/plugin-reference'), lang).toBe(true)
+    }
+  })
+
+  it('gives the Czech search plain spaces, while the pages keep their non-breaking ones', () => {
+    // czechSpaces puts U+00A0 after one-letter words; a visitor types a normal space. plainText collapses
+    // every \s (U+00A0 included) into a plain space, so headings and text in search.json match the query
+    // as typed, and the whole-phrase bonus applies. (tinyzoo's foldSearchText folds U+00A0 too.)
+    const search = built.files.get('cs/search.json') as { heading: string; page: string; text: string }[]
+    expect(JSON.stringify(search)).not.toContain('\u00a0')
+    expect(pages('cs').some((p) => htmlOf(p).includes('\u00a0'))).toBe(true)
+    const s = search.find((x) => /^\S+ [aikosuvz] \S+/.test(x.heading))!
+    expect(s, 'a heading with a one-letter word').toBeTruthy()
+    const terms = searchTerms(s.heading)
+    const withNbsp = czechSpaces(s.heading)
+    expect(withNbsp).not.toBe(s.heading)
+    expect(matchEntry(withNbsp, [s.text], terms, s.heading)!.score).toBe(matchEntry(s.heading, [s.text], terms, s.heading)!.score)
   })
 
   it('pairs each translated chapter with the Czech one: same pictures, same clips, same place', () => {
@@ -59,7 +94,7 @@ describe('the docs on the website', () => {
 
   it('turns every link between pages into a website address that exists, with its anchor', () => {
     for (const lang of DOCS_LANGS) {
-      const byPath = new Map(pages(lang).map((p) => [p.path, p]))
+      const byPath = everyPage
       const broken: string[] = []
       for (const p of pages(lang)) {
         for (const [, href] of htmlOf(p).matchAll(/href="([^"]+)"/g)) {
@@ -81,24 +116,25 @@ describe('the docs on the website', () => {
       const nav = built.files.get(`${lang}/nav.json`) as DocsNav
       const listed = nav.sections.developers.groups.flatMap((g) => g.pages)
       // The sidebar's order is the reading order: walking "next" from the part's first page visits each page once.
-      const byPath = new Map(pages(lang).map((p) => [p.path, p]))
+      const byPath = everyPage
       const walked: string[] = []
       for (let p: DocsPage | undefined = byPath.get(nav.sections.developers.path); p; p = p.next ? byPath.get(p.next.path) : undefined) walked.push(p.path)
       expect(walked.slice(1), lang).toEqual(listed.map((p) => p.path))
-      for (const p of pages(lang).filter((x) => x.section === 'developers')) expect(p.title, p.path).toBeTruthy()
     }
+    for (const p of pages('en').filter((x) => x.section === 'developers')) expect(p.title, p.path).toBeTruthy()
     // The reference's worked example follows the reference, and is made from the OpenAPI document, in English everywhere.
     const en = built.files.get('en/nav.json') as DocsNav
     const slugs = en.sections.developers.groups.flatMap((g) => g.pages).map((p) => p.slug)
     expect(slugs.indexOf('api-example')).toBe(slugs.indexOf('content-api-reference') + 1)
-    for (const lang of DOCS_LANGS) {
-      const page = built.files.get(`${lang}/pages/developers/api-example.json`) as DocsPage
-      expect(page.textLang).toBe('en')
-      expect(page.source).toBe('test/contracts/openapi.playground.json')
-      expect(htmlOf(page)).toContain('/api/content/post')
-    }
+    const page = built.files.get('en/pages/developers/api-example.json') as DocsPage
+    expect(page.textLang).toBe('en')
+    expect(page.source).toBe('test/contracts/openapi.playground.json')
+    expect(htmlOf(page)).toContain('/api/content/post')
     expect(slugs).toContain('plugins')
+    // The plugin reference follows the plugins guide.
+    expect(slugs.indexOf('plugin-reference')).toBe(slugs.indexOf('plugins') + 1)
     expect(slugs).toContain('api-surface')
+    expect(slugs).toContain('stability')
   })
 
   it('publishes every page of docs/guide and docs/ for developers, except the ones for people working on tinyzoo', () => {
@@ -148,7 +184,44 @@ describe('pictures and clips per language', () => {
   })
 })
 
+describe('the developer pages in the Czech and German contents', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'docs-site-nav-'))
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('take a description docs/README.md leaves empty from the English page, as the English contents do', () => {
+    cpSync(join(root, 'docs'), join(dir, 'docs'), { recursive: true })
+    mkdirSync(join(dir, 'test/contracts'), { recursive: true })
+    cpSync(join(root, 'test/contracts/openapi.playground.json'), join(dir, 'test/contracts/openapi.playground.json'))
+    const readme = join(dir, 'docs/README.md')
+    const row = /^\| \[Content model\]\(guide\/content-model\.md\) \| .* \|$/m
+    expect(readFileSync(readme, 'utf8')).toMatch(row)
+    writeFileSync(readme, readFileSync(readme, 'utf8').replace(row, '| [Content model](guide/content-model.md) | |'))
+    const b = buildDocs({ root: dir, clipsDir: join(root, 'site/public/docs/clips') })
+    const english = b.files.get('en/pages/developers/content-model.json') as DocsPage
+    expect(english.description).toBeTruthy()
+    for (const lang of DOCS_LANGS) {
+      const entry = (b.files.get(`${lang}/nav.json`) as DocsNav).sections.developers.groups.flatMap((g) => g.pages).find((p) => p.slug === 'content-model')
+      expect(entry, lang).toMatchObject({ title: 'Content model', description: english.description, path: english.path })
+    }
+  })
+})
+
 describe('rendering one page', () => {
+  it('keeps a Czech one-letter word on the line of the word after it, outside code and links', () => {
+    const nb = '\u00A0'
+    expect(czechSpaces('Klikněte v menu a k tomu i s obrázkem')).toBe(`Klikněte v${nb}menu a${nb}k${nb}tomu i${nb}s${nb}obrázkem`)
+    expect(czechSpaces('V menu, (a) b, bod a.')).toBe(`V${nb}menu, (a) b, bod a.`)
+    const cs = renderPage('# T\n\n## Co je v menu\n\nOtevřete v adminu `a b` a [s odkazem](x.md) a\nkonec.\n\n- k seznamu\n', { ...ctx, lang: 'cs' })
+    const html = cs.body.map((s) => ('html' in s ? s.html : '')).join('')
+    expect(html).toContain(`Otevřete v${nb}adminu <code>a b</code> a${nb}<a href="x.md">s${nb}odkazem</a> a${nb}konec.`)
+    expect(html).toContain(`<li>k${nb}seznamu</li>`)
+    // The anchor stays GitHub's, made from the source.
+    expect(cs.toc[0]!.id).toBe('co-je-v-menu')
+    // English (and German) text is left alone.
+    const en = renderPage('# T\n\nA b and a c.\n', { ...ctx, lang: 'en' })
+    expect(en.body.map((s) => ('html' in s ? s.html : '')).join('')).toContain('A b and a c.')
+  })
+
   it('takes the title, the first paragraph, the headings (GitHub anchors) and a clip', () => {
     const r = renderPage('# Překlady\n\nJak na to.\n\n## Překládání s originálem\n\ntext\n\n<!-- clip: roles | Short video -->\n\n### Na telefonu\n\n<!-- clip: translate -->\n', ctx)
     expect(r.title).toBe('Překlady')

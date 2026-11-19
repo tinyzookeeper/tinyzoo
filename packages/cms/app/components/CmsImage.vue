@@ -8,12 +8,11 @@
 //   <CmsImage :media="post.hero" eager sizes="100vw" />   // the page's main picture
 //   <CmsImage :media="card.image" sizes="(min-width: 768px) 20rem, 100vw" />   // say how wide it shows
 import type { CmsImageProps } from '../../src/frontend'
+import { CMS_IMAGE_WIDTHS as WIDTHS } from '../../shared/image-widths'
 
 const props = defineProps<CmsImageProps>()
 const style = computed(() => (props.media?.focal ? { objectPosition: `${props.media.focal.x}% ${props.media.focal.y}%` } : undefined))
 
-// The widths the CMS makes smaller copies at (server/utils/cmsImageSizes.ts).
-const WIDTHS = [320, 640, 960, 1280, 1920]
 const RESIZABLE = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
 const srcset = computed(() => {
   const m = props.media

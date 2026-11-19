@@ -5,8 +5,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildOpenApiDocument, buildRegistry, CMS_WEBHOOK_HEADERS, emitContentTypes, webhookPayload, type CmsChange } from 'tinyzoo'
 import * as surface from '../contracts/surface/cms.config'
 import { CLI_COMMANDS, usage } from '../../packages/cms/cli/usage'
-import { API_ENTRIES, apiExports, apiReport, repoRoot } from '../helpers/apiReport'
+import { API_ENTRIES, apiExports, apiReport, repoRoot, serverHelpersReport } from '../helpers/apiReport'
 import { goldenTests } from '../helpers/golden'
+import { CMS_IMAGE_WIDTHS } from '../../packages/cms/shared/image-widths'
 
 // Several checks build TypeScript programs or start the CLI; a busy CI runner needs more than 5 s.
 vi.setConfig({ testTimeout: 60_000 })
@@ -21,6 +22,7 @@ vi.setConfig({ testTimeout: 60_000 })
 //   module-options.json      the options of the `cms` key in nuxt.config with their defaults, and the
 //                            NUXT_CMS_* variables that follow from them
 //   nitro-hooks.d.ts         the Nitro hooks (cms:change, cms:sitemap, cms:error) with their argument types
+//   server-helpers.d.ts      the server helpers for plugins: useCms() and requireCmsUser(event)
 //   cli-usage.txt            the commands and flags of the `tinyzoo` CLI
 //   webhook.json             the body and headers of a publish webhook
 //   content-routes.txt       the HTTP routes of the public content API
@@ -103,12 +105,27 @@ function contentRoutes(): string {
     .map((f) => routeOf(apiDir, f))
   // The forms plugin adds one under /api/content (its handler's `contentPath`).
   routes.push('GET  /api/content/_form/:name   (tinyzoo/forms)', 'POST /api/content/_form/:name   (tinyzoo/forms)')
+  // Addresses under /api/cms that tinyzoo writes into content: a file's address (`cms_media.url`,
+  // the `src` of a picture in rich text), the smaller copies <CmsImage> lists in srcset (cached a
+  // year), the logo in e-mails already sent. Stored and cached, so they are frozen too.
+  const stored = files(apiDir)
+    .filter((f) => /^cms[\\/](_media[\\/](raw|img)[\\/]|_brand[\\/])/.test(relative(apiDir, f)))
+    .map((f) => `${routeOf(apiDir, f)}   (stored in content)`)
   return `${[
     '# The HTTP routes of the public content API (and the documents around it): frozen from 1.0.',
-    '# Everything else under /api (/api/cms/*) is the admin\'s own API and may change in any minor.',
+    '# Everything else under /api (/api/cms/*) is the admin\'s own API and may change in any minor,',
+    '# except the addresses marked "stored in content": tinyzoo writes them into the database, rich',
+    '# text and e-mails (/api/cms/_media/raw/<key>, /api/cms/_media/img/<id>/<width>.webp,',
+    '# /api/cms/_brand/<file>), so they keep working within a major.',
     ...routes.sort(),
+    ...stored.sort(),
+    '',
+    `# The widths of /api/cms/_media/img/<id>/<width>.webp (may only grow): ${CMS_IMAGE_WIDTHS.join(', ')}`,
   ].join('\n')}\n`
 }
+
+/** The widths 1.0 shipped. Pages and CDNs keep srcset addresses for a year: a width may be added, never removed. */
+const IMAGE_WIDTHS_10 = [320, 640, 960, 1280, 1920]
 
 // ── the layer ───────────────────────────────────────────────────────────────────
 
@@ -162,6 +179,7 @@ goldenTests('frozen API surface (test/contracts)', [
       return t.getContents()
     },
   },
+  { file: 'server-helpers.d.ts', what: 'the server helpers for plugins (useCms, requireCmsUser) with their types', render: serverHelpersReport },
   { file: 'cli-usage.txt', what: 'the commands and flags of the `tinyzoo` CLI', render: usage },
   { file: 'webhook.json', what: 'the publish webhook (headers and body)', render: webhook },
   { file: 'content-routes.txt', what: 'the HTTP routes of the public content API', render: contentRoutes },
@@ -172,6 +190,23 @@ goldenTests('frozen API surface (test/contracts)', [
 ], 'The frozen API changed')
 
 // ── the facts the goldens do not say by themselves ───────────────────────────────
+
+describe('addresses stored in content', () => {
+  it('keeps every image width 1.0 shipped (the list may only grow)', () => {
+    const removed = IMAGE_WIDTHS_10.filter((w) => !(CMS_IMAGE_WIDTHS as readonly number[]).includes(w))
+    expect(removed, 'a width was removed: pages and CDNs still ask for its address').toEqual([])
+    expect([...CMS_IMAGE_WIDTHS], 'ascending, no repeats').toEqual([...new Set(CMS_IMAGE_WIDTHS)].sort((a, b) => a - b))
+  })
+
+  it('serves the three stored addresses', () => {
+    const stored = contentRoutes().split('\n').filter((l) => l.includes('(stored in content)')).map((l) => l.replace(/\s+\(.*$/, ''))
+    expect(stored).toEqual(expect.arrayContaining([
+      'GET  /api/cms/_media/raw/:key*',
+      'GET  /api/cms/_media/img/:id/:file',
+      'GET  /api/cms/_brand/:file',
+    ]))
+  })
+})
 
 describe('the API report', () => {
   it('has a public and an internal part for every entry, and nothing public is tagged @internal', () => {
@@ -212,6 +247,9 @@ describe('what sites import', () => {
     const internal = new Map(API_ENTRIES.map((entry) => [entry.name, new Set(apiExports(entry).filter((e) => e.internal).map((e) => e.name))]))
     const used: string[] = []
     let seen = 0
+    // tinyzoo's own website searches its docs with the matcher the content search uses. It is built and
+    // type-checked from the same commit as the package, so an internal change cannot strand it.
+    const allowed = new Set(['site/server/api/site-docs/search.get.ts'])
     const re = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"](tinyzoo|tinyzoo\/forms|tinyzoo\/module|@tinyzoo\/client)['"]/g
     for (const file of sourcesUnder(['docs', 'README.md', 'packages/cms/README.md', 'packages/client/README.md', 'site', 'playground', 'packages/cms/starter', 'test/docs'])) {
       if (/docs[\\/](roadmap|production-plan|pilot-plan)\.md$/.test(file)) continue // the history of the project
@@ -219,7 +257,7 @@ describe('what sites import', () => {
         for (const raw of m[1]!.split(',')) {
           const name = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]!.trim()
           seen++
-          if (internal.get(m[2]!)?.has(name)) used.push(`${relative(repoRoot, file)} imports the @internal ${name} from ${m[2]}`)
+          if (internal.get(m[2]!)?.has(name) && !allowed.has(relative(repoRoot, file).split('\\').join('/'))) used.push(`${relative(repoRoot, file)} imports the @internal ${name} from ${m[2]}`)
         }
       }
     }
@@ -321,7 +359,10 @@ describe('docs/api-surface.md', () => {
     const hooks = [...(kit.templates.find((t) => t.filename === 'types/cms-auth.d.ts')?.getContents() ?? '').matchAll(/'(cms:[a-z]+)'/g)].map((m) => m[1]!)
     expect(hooks.length).toBeGreaterThan(0)
     const body = Object.keys(webhookPayload(fullChange, 'd'))
-    const missing = [...routes, ...hooks, ...body, ...Object.values(CMS_WEBHOOK_HEADERS)].filter((x) => !doc.includes(x))
+    // The addresses stored in content are written as people read them (`/api/cms/_brand/<file>`):
+    // check those by their fixed part, up to the first parameter.
+    const named = routes.map((r) => (r.startsWith('/api/cms/') ? r.replace(/\/:.*$/, '/') : r))
+    const missing = [...named, ...hooks, ...body, ...Object.values(CMS_WEBHOOK_HEADERS)].filter((x) => !doc.includes(x))
     expect(missing).toEqual([])
   })
 

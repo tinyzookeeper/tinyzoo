@@ -5,7 +5,10 @@
 //   /dokumentace                          /en/docs                       /de/dokumentation
 //   /dokumentace/pro-editory              /en/docs/editors               /de/dokumentation/redaktion
 //   /dokumentace/pro-editory/preklady     /en/docs/editors/translations  /de/dokumentation/redaktion/uebersetzungen
-//   /dokumentace/pro-vyvojare/roles       /en/docs/developers/roles      /de/dokumentation/entwicklung/roles
+//                                         /en/docs/developers/roles
+//
+// The developer pages are in English and only on the English website (decided for 1.0). The Czech
+// and German contents list them at their English address, and their old addresses redirect there.
 
 export const DOCS_LANGS = ['cs', 'en', 'de'] as const
 export type DocsLang = (typeof DOCS_LANGS)[number]
@@ -46,15 +49,15 @@ export interface DocsPage {
   /** '' for the part's own first page (its README). */
   slug: string
   path: string
-  /** The language the text is written in (developer pages are English everywhere for now). */
+  /** The language the text is written in (the developer pages: English). */
   textLang: DocsLang
   title: string
   /** The page's first paragraph, as plain text (meta description, cards). */
   description: string
   toc: DocsHeading[]
   body: DocsSegment[]
-  /** The same page in each website language. */
-  alternates: Record<DocsLang, string>
+  /** The same page in each website language that has it (a developer page: English only). */
+  alternates: Partial<Record<DocsLang, string>>
   prev: DocsLinkTo | null
   next: DocsLinkTo | null
   /** Where the Markdown lives in the repository (docs/…). */

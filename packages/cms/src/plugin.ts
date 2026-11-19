@@ -47,9 +47,10 @@ export interface CmsPluginHandler {
   route?: string
   /**
    * Also (or instead) served on the public content API at `/api/content/<contentPath>`,
-   * for plugins that give a website something to call: `'_form/:name'`. The first
-   * segment starts with `_` and is not one of the content API's own. These routes are
-   * open; the handler decides who may use them (a content token, a spam check…).
+   * for plugins that give a website something to call: `'_shop/feed'` for the plugin
+   * `shop`. The first segment is `_<plugin name>` (the forms plugin's is `_form`), so the
+   * route can collide neither with the content API's own nor with another plugin's. These
+   * routes are open; the handler decides who may use them (a content token, a spam check…).
    */
   contentPath?: string
   /** Absolute path of the Nitro handler file (default export: `defineEventHandler(…)`). */
@@ -157,8 +158,12 @@ const VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/
 const STEP_ID = /^[a-z0-9][a-z0-9-]*$/
 const LOCALE = /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/
 const RESERVED_PLUGIN_NAMES = new Set(['cms', 'core', 'tinyzoo', 'admin', 'api', 'content', 'media', 'plugins', 'p', 'auth', 'system'])
-/** Content API addresses tinyzoo uses itself. */
-const RESERVED_CONTENT_SEGMENTS = new Set(['_global', '_search', '_sitemap'])
+/** Content API addresses tinyzoo uses itself (`server/api/content/_*`), and the forms plugin's. */
+const RESERVED_CONTENT_SEGMENTS = new Set(['_global', '_search', '_sitemap', '_tree', '_form'])
+/** First-party plugins whose content routes kept the address they had before plugins existed. */
+const LEGACY_CONTENT_SEGMENTS: Record<string, string> = { forms: '_form' }
+/** The first segment of a plugin's `contentPath`: `_<plugin name>` (dashes kept). */
+const contentSegmentOf = (plugin: string) => LEGACY_CONTENT_SEGMENTS[plugin] ?? `_${plugin}`
 
 /**
  * Where plugin routes and pages live.
@@ -303,8 +308,12 @@ export function defineCmsPlugin(def: CmsPluginDef): CmsPlugin {
     if (h.contentPath !== undefined) {
       checkRoute(name, 'contentPath', `/${h.contentPath}`)
       const first = h.contentPath.split('/')[0]!
-      if (!first.startsWith('_') || RESERVED_CONTENT_SEGMENTS.has(first)) {
-        fail(name, `contentPath "${h.contentPath}": the first segment must start with "_" and not be one of ${[...RESERVED_CONTENT_SEGMENTS].join(', ')}.`)
+      const own = contentSegmentOf(name)
+      if (!LEGACY_CONTENT_SEGMENTS[name] && RESERVED_CONTENT_SEGMENTS.has(own)) {
+        fail(name, `contentPath "${h.contentPath}": a plugin's content routes live under /api/content/_<plugin name>/, and "${own}" is an address tinyzoo uses itself (${[...RESERVED_CONTENT_SEGMENTS].join(', ')}). Rename the plugin to serve content routes.`)
+      }
+      if (first !== own) {
+        fail(name, `contentPath "${h.contentPath}": the first segment must be "${own}" (a plugin's content routes live under /api/content/_<plugin name>/, so they cannot collide with tinyzoo's or another plugin's).`)
       }
       const key = `${method} ${normalizeParams(h.contentPath)}`
       if (contentRoutes.has(key)) fail(name, `serverHandlers: ${method.toUpperCase()} /api/content/${h.contentPath} is declared twice.`)

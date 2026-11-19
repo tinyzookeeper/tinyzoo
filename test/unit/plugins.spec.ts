@@ -97,10 +97,29 @@ describe('defineCmsPlugin: routes, pages, files', () => {
     expect(() => defineCmsPlugin(def({ serverHandlers: [{ route, handler: file }] }))).toThrow(/route "/)
   })
 
-  it('keeps the plugin off the content API paths tinyzoo uses', () => {
-    for (const contentPath of ['_global/x', '_search', '_sitemap/x', 'posts']) {
-      expect(() => defineCmsPlugin(def({ serverHandlers: [{ contentPath, handler: file }] }))).toThrow(/first segment must start with "_"/)
+  it('keeps a plugin\'s content routes under /api/content/_<plugin name>/', () => {
+    for (const contentPath of ['_global/x', '_search', '_sitemap/x', '_tree/pages', '_form/x', 'posts', 'shop/x', '_shopping/x', '_shop_x', '_other/x']) {
+      expect(() => defineCmsPlugin(def({ serverHandlers: [{ contentPath, handler: file }] }))).toThrow(/the first segment must be "_shop"/)
     }
+    // dashes stay in the plugin's segment
+    expect(defineCmsPlugin(def({ name: 'my-shop', serverHandlers: [{ contentPath: '_my-shop/feed', handler: file }] })).serverHandlers).toHaveLength(1)
+    expect(() => defineCmsPlugin(def({ name: 'my-shop', serverHandlers: [{ contentPath: '_my_shop/feed', handler: file }] }))).toThrow(/must be "_my-shop"/)
+  })
+
+  it.each(['global', 'search', 'sitemap', 'tree', 'form'])('refuses content routes to a plugin named %s (tinyzoo\'s own address)', (plugin) => {
+    expect(() => defineCmsPlugin(def({ name: plugin, serverHandlers: [{ contentPath: `_${plugin}/x`, handler: file }] }))).toThrow(/is an address tinyzoo uses itself.*Rename the plugin/)
+    // the plugin itself, and its own routes, are fine
+    expect(defineCmsPlugin(def({ name: plugin, serverHandlers: [{ route: '/x', handler: file }] })).serverHandlers).toHaveLength(1)
+  })
+
+  it('keeps the forms plugin on _form, its address from before plugins existed', () => {
+    expect(defineCmsPlugin(def({ name: 'forms', serverHandlers: [{ contentPath: '_form/:name', handler: file }] })).serverHandlers).toHaveLength(1)
+    expect(() => defineCmsPlugin(def({ name: 'forms', serverHandlers: [{ contentPath: '_forms/:name', handler: file }] }))).toThrow(/must be "_form"/)
+  })
+
+  it('first-party plugins follow the rule', () => {
+    expect(() => formsPlugin()).not.toThrow()
+    expect(() => eventsPlugin()).not.toThrow()
   })
 
   it('refuses the same route twice, whatever the parameter is called', () => {
@@ -313,7 +332,8 @@ describe('planPlugins: what the build registers', () => {
   })
 
   it('refuses two plugins on one content route, or one field type', () => {
-    const rival = defineCmsPlugin(def({ name: 'rival', serverHandlers: [{ contentPath: '_shop/next', handler: '/r/next.ts' }] }))
+    // defineCmsPlugin no longer lets another plugin declare `_shop/…`; registration still checks, for a hand-made object.
+    const rival = { ...defineCmsPlugin(def({ name: 'rival', serverHandlers: [{ contentPath: '_rival/next', handler: '/r/next.ts' }] })), serverHandlers: [{ contentPath: '_shop/next', handler: '/r/next.ts' }] } as any
     expect(() => planPlugins([full, rival])).toThrow(/Plugin "rival": GET \/api\/content\/_shop\/next is already served by the plugin "shop"/)
     const fields = defineCmsPlugin(def({ name: 'rival', components: '/r', fields: { color: { edit: 'RivalColor' } } }))
     expect(() => planPlugins([full, fields])).toThrow(/the field type "color" already has renderers from the plugin "shop"/)

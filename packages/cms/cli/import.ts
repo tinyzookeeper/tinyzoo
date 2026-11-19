@@ -53,6 +53,7 @@ import {
   usedMediaIds,
   type Difference, type Entry, type EntityLayout, type FkEdge, type LayoutField, type Manifest, type TransferStorage,
 } from './transfer'
+import { noDatabaseMessage } from './backup'
 
 export type ImportMode = 'strict' | 'replace' | 'merge'
 
@@ -648,7 +649,7 @@ export async function runImport(argv: string[], cwd = process.cwd()): Promise<Im
   // The same settings the running app uses: environment, .env, then nuxt.config.
   const settings = await hostSettings(cwd)
   const databaseUrl = args.values['database-url'] ?? (settings.databaseUrl || null)
-  if (!databaseUrl) throw new Error('No database: set DATABASE_URL in the environment or the website\'s .env')
+  if (!databaseUrl) throw new Error(noDatabaseMessage(settings))
   const reg = await loadRegistry(cwd)
   const storage = storageFromSettings(settings.storage, { dir: args.values.uploads, cwd })
   const mode: ImportMode = args.flags.has('replace') ? 'replace' : args.flags.has('merge') ? 'merge' : 'strict'

@@ -13,7 +13,9 @@ export const DOC_LINKS = {
   renamingEntity: { file: 'upgrading.md', anchor: 'renaming-an-entity' },
   requiredField: { file: 'upgrading.md', anchor: 'adding-a-required-field' },
   changingType: { file: 'upgrading.md', anchor: 'changing-a-fields-type' },
+  from07to10: { file: 'upgrading.md', anchor: 'from-07-to-10' },
   neverApplied: { file: 'upgrading.md', anchor: 'migration--was-never-applied-but-a-newer-one-was' },
+  databaseUrlRemoved: { file: 'upgrading.md', anchor: 'cmsdatabaseurl-is-gone' },
   backups: { file: 'deploying.md', anchor: 'backups-and-restore' },
   media: { file: 'deploying.md', anchor: 'media' },
 } as const

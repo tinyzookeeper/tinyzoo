@@ -32,6 +32,7 @@ import {
   encodeEntry, fingerprintOf, hostSettings, iso, layoutOf, mediaIdsOfEntry, parseArgs, storageFingerprint, storageFromSettings, tinyzooVersion,
   type Manifest, type ManifestEntity, type TransferStorage,
 } from './transfer'
+import { noDatabaseMessage } from './backup'
 
 export interface ExportOptions {
   reg: CmsRegistry
@@ -312,7 +313,7 @@ export async function runExport(argv: string[], cwd = process.cwd()): Promise<vo
   // The same settings the running app uses: environment, .env, then nuxt.config.
   const settings = await hostSettings(cwd)
   const databaseUrl = args.values['database-url'] ?? (settings.databaseUrl || null)
-  if (!databaseUrl) throw new Error('No database: set DATABASE_URL in the environment or the website\'s .env')
+  if (!databaseUrl) throw new Error(noDatabaseMessage(settings))
   const reg = await loadRegistry(cwd)
   const noMedia = args.flags.has('no-media')
   const override = { dir: args.values.uploads, cwd }

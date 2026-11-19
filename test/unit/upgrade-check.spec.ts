@@ -76,4 +76,10 @@ describe('upgrade check: facts about a checkout', () => {
     expect(workspace.newestTag(['v0.3.0-rc.1', 'v0.3.0'])).toBe('v0.3.0')
     expect(workspace.newestTag(['v0.3.0-rc.1', 'v0.2.9'])).toBe('v0.3.0-rc.1')
   })
+
+  it('reads a baseline from npm', () => {
+    expect(workspace.npmBaseline('npm:tinyzoo@0.2.0')).toEqual({ version: '0.2.0', tag: 'tinyzoo@0.2.0' })
+    expect(workspace.npmBaseline('npm:tinyzoo@1.1.0-rc.1')).toEqual({ version: '1.1.0-rc.1', tag: 'tinyzoo@1.1.0-rc.1' })
+    for (const ref of ['tinyzoo@0.2.0', 'npm:tinyzoo', 'npm:tinyzoo@^0.2.0', 'npm:other@0.2.0', '2506403', 'latest-tag']) expect(workspace.npmBaseline(ref)).toBeNull()
+  })
 })

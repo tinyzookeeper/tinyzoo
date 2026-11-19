@@ -36,6 +36,11 @@ const when = ref<'now' | 'schedule'>('now')
 watch(open, (v) => {
   if (v) when.value = date.value && new Date(date.value).getTime() > Date.now() ? 'schedule' : 'now'
 })
+// "When": a radio group, so one stop for Tab (the chosen card) and the arrow keys change the choice.
+const WHEN = ['now', 'schedule'] as const
+function onWhenKey(e: KeyboardEvent) {
+  cmsRadioGroupKey(e, WHEN, when.value, (v) => { when.value = v }, (fn) => nextTick(fn))
+}
 const scheduleInvalid = computed(() => when.value === 'schedule' && !(date.value && new Date(date.value).getTime() > Date.now()))
 const warnings = computed(() => props.checks.filter((c) => !c.ok).length)
 const blocked = computed(() => props.checks.some((c) => !c.ok && c.blocking))
@@ -80,10 +85,11 @@ const animals = useCmsAnimals()
           <h3 class="cms-label mt-8 mb-2.5">{{ t('review.when') }}</h3>
           <div class="grid gap-2.5 sm:grid-cols-2" role="radiogroup" :aria-label="t('review.when')">
             <button
-              v-for="opt in (['now', 'schedule'] as const)" :key="opt" type="button" role="radio" :aria-checked="when === opt"
-              class="flex items-start gap-3 rounded-xl border p-3.5 text-left transition-colors"
+              v-for="opt in WHEN" :key="opt" type="button" role="radio" :aria-checked="when === opt"
+              :tabindex="when === opt ? 0 : -1"
+              class="flex items-start gap-3 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2"
               :class="when === opt ? 'border-(--ui-primary) ring-1 ring-(--ui-primary)' : 'border-default hover:border-accented'"
-              @click="when = opt"
+              @click="when = opt" @keydown="onWhenKey"
             >
               <span class="mt-0.5 size-4 shrink-0 rounded-full border" :class="when === opt ? 'border-[5px] border-(--ui-primary)' : 'border-accented'" />
               <span>

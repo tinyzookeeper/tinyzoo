@@ -2,7 +2,8 @@
 //
 //   node scripts/upgrade-check.mjs                  every baseline in .github/upgrade-baseline
 //                                                   (plus the latest release tag, when there is one)
-//   node scripts/upgrade-check.mjs --from <ref>     one baseline: a commit, a tag, or `latest-tag`
+//   node scripts/upgrade-check.mjs --from <ref>     one baseline: a commit, a tag, `latest-tag`, or
+//                                                   `npm:tinyzoo@<version>` (the packages as published)
 //   options: --keep           keep the temporary folder and database (paths are printed)
 //            --verbose        stream the output of every command (otherwise only a failing one is shown)
 //            --logs <dir>     copy the command logs there (CI uploads them when the check fails)
@@ -14,6 +15,10 @@
 //      against a fresh database, set up through the API and seeded with content (pages with
 //      blocks and a translation, news with images, settings, navigation, a form message). What
 //      the content API and the admin return is recorded; the server is stopped.
+//      A baseline `npm:tinyzoo@<version>` takes tinyzoo and @tinyzoo/client from npm instead of
+//      packing a checkout, and makes the site with `pnpm dlx tinyzoo@<version> init`, as that
+//      version's README said. Its release tag (`tinyzoo@<version>`) is still checked out, for the
+//      lockfile that pins the starter's other dependencies.
 //   2. Upgrade. The CURRENT workspace packages are packed and installed into the same site
 //      (replacing the tarballs) and `tinyzoo upgrade` runs without a terminal. A migration the
 //      guard refuses (a breaking change without its documented steps) fails the check with the
@@ -41,7 +46,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import pg from 'pg'
 import differences from './upgrade-check/differences.mjs'
-import { lockfileVersions, newestTag, workspaceOverrides } from './upgrade-check/workspace.mjs'
+import { lockfileVersions, newestTag, npmBaseline, workspaceOverrides } from './upgrade-check/workspace.mjs'
 import { ACCOUNT, applyRules, checkMedia, Client, describe, diff, formatDifference, saveEverything, seedViaApi, signIn, snapshot } from './upgrade-check/site.mjs'
 
 const root = join(import.meta.dirname, '..')
@@ -124,13 +129,16 @@ function baselineList() {
 function resolveBaselines() {
   const out = []
   for (const ref of baselineList()) {
+    const npm = npmBaseline(ref)
+    if (!npm && ref.startsWith('npm:')) fail(`baseline "${ref}": write an npm baseline as npm:tinyzoo@<exact version>, e.g. npm:tinyzoo@0.2.0`)
     const actual = ref === 'latest-tag' ? latestTag() : ref
     if (!actual) { console.log('· latest-tag: no release tag yet, nothing to check'); continue }
     let sha
-    try { sha = git('rev-parse', '--verify', `${actual}^{commit}`) }
-    catch { fail(`baseline "${actual}" is not a commit or tag in this clone${process.env.CI ? ' (does the checkout have full history and tags: fetch-depth: 0?)' : ''}`) }
-    if (out.some((b) => b.sha === sha)) continue
-    out.push({ ref, name: actual, sha })
+    try { sha = git('rev-parse', '--verify', `${npm ? npm.tag : actual}^{commit}`) }
+    catch { fail(`baseline "${actual}"${npm ? `: its release tag ${npm.tag}` : ''} is not a commit or tag in this clone${process.env.CI ? ' (does the checkout have full history and tags: fetch-depth: 0?)' : ''}`) }
+    // The same commit from npm and from the checkout are two different checks.
+    if (out.some((b) => b.sha === sha && !!b.npm === !!npm)) continue
+    out.push({ ref, name: actual, sha, npm })
   }
   return out
 }
@@ -303,7 +311,7 @@ async function checkBaseline(baseline) {
     if (hook) note(`hook ${hook.file}: ${hook.description}`)
 
     // 1. The old site ────────────────────────────────────────────────────────────
-    await step(`check out ${baseline.name}`, () => {
+    await step(baseline.npm ? `check out ${baseline.npm.tag} (for its lockfile)` : `check out ${baseline.name}`, () => {
       sh('worktree', 'git', ['worktree', 'add', '--detach', dirs.src, baseline.sha])
       worktree = true
     })
@@ -311,17 +319,27 @@ async function checkBaseline(baseline) {
     const secretVar = /^NUXT_APP_SECRET=/m.test(readFileSync(join(dirs.src, 'packages/cms/starter/.env.example'), 'utf8')) ? 'NUXT_APP_SECRET' : 'NUXT_SESSION_PASSWORD'
     siteEnv[secretVar] = SITE_SECRET
     note(`the site's sign-in secret is ${secretVar}, as the baseline's starter documents it; the upgraded site gets the same environment, except that a baseline on NUXT_SESSION_PASSWORD is first refused and then renamed to NUXT_APP_SECRET, as docs/upgrading.md says`)
-    await step('install and pack the baseline', () => {
-      sh('baseline-install', 'pnpm', ['install', '--frozen-lockfile'], { cwd: dirs.src })
-      sh('baseline-pack-cms', 'pnpm', ['pack', '--pack-destination', dirs.packsOld], { cwd: join(dirs.src, 'packages/cms') })
-      sh('baseline-pack-client', 'pnpm', ['pack', '--pack-destination', dirs.packsOld], { cwd: join(dirs.src, 'packages/client') })
-    })
-    const oldVersion = JSON.parse(readFileSync(join(dirs.src, 'packages/cms/package.json'), 'utf8')).version
-    await step('make a site with the baseline\'s `tinyzoo init` and install the tarballs', () => {
-      sh('init', 'pnpm', ['exec', 'tsx', 'cli/index.ts', 'init', dirs.site], { cwd: join(dirs.src, 'packages/cms') })
+    const npm = baseline.npm
+    if (npm) {
+      await step(`download tinyzoo ${npm.version} and @tinyzoo/client ${npm.version} from npm`, () => {
+        sh('baseline-npm-pack', 'npm', ['pack', `tinyzoo@${npm.version}`, `@tinyzoo/client@${npm.version}`, '--pack-destination', dirs.packsOld], { cwd: dirs.work })
+      })
+    }
+    else {
+      await step('install and pack the baseline', () => {
+        sh('baseline-install', 'pnpm', ['install', '--frozen-lockfile'], { cwd: dirs.src })
+        sh('baseline-pack-cms', 'pnpm', ['pack', '--pack-destination', dirs.packsOld], { cwd: join(dirs.src, 'packages/cms') })
+        sh('baseline-pack-client', 'pnpm', ['pack', '--pack-destination', dirs.packsOld], { cwd: join(dirs.src, 'packages/client') })
+      })
+    }
+    const oldVersion = npm?.version ?? JSON.parse(readFileSync(join(dirs.src, 'packages/cms/package.json'), 'utf8')).version
+    await step(`make a site with the baseline's \`tinyzoo init\`${npm ? ' (from npm)' : ''} and install the tarballs`, () => {
+      // From npm: the command that version's README gives.
+      if (npm) sh('init', 'pnpm', ['dlx', `tinyzoo@${npm.version}`, 'init', dirs.site], { cwd: dirs.work })
+      else sh('init', 'pnpm', ['exec', 'tsx', 'cli/index.ts', 'init', dirs.site], { cwd: join(dirs.src, 'packages/cms') })
       writeSiteManifest(dirs.src, dirs.packsOld)
       sh('site-install', 'pnpm', ['install', '--ignore-workspace', '--no-frozen-lockfile'], { cwd: dirs.site })
-      note(`tinyzoo ${oldVersion} installed from the baseline's tarball`)
+      note(`tinyzoo ${oldVersion} installed from ${npm ? 'the tarball published on npm' : 'the baseline\'s tarball'}`)
     })
     await step('create the database and build the old site', async () => {
       await createDatabase(dbName)

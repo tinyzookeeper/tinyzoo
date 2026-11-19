@@ -10,17 +10,25 @@ import type { FieldDescriptor } from './descriptor'
  * Meant for the size of a typical client site (hundreds to a few thousand entries).
  */
 
+/** Unicode spaces other than the plain one: a non-breaking space ("v\u00a0textu" in Czech typography), thin ones, and so on. */
+const UNICODE_SPACES = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g
+
 /**
  * Lowercase, without accents ("Zimní" → "zimni"): the same folding as the SQL side.
+ * A non-breaking or other Unicode space becomes a plain one, as a visitor types it, so a
+ * title written with them still matches the query as a whole. One character stays one
+ * character (the highlights depend on it).
  *
  * @internal
  */
 export function foldSearchText(text: string): string {
-  return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l').replace(/đ/g, 'd')
+  return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/ł/g, 'l').replace(/đ/g, 'd').replace(UNICODE_SPACES, ' ')
 }
 
 /**
  * Longest query the search reads, and most words it matches on.
+ *
+ * @internal
  */
 export const SEARCH_MAX_QUERY = 100
 const MAX_TERMS = 8
@@ -28,6 +36,8 @@ const MAX_TERMS = 8
 /**
  * The words of a query, folded: each must appear in an entry (in any order, also
  * inside a longer word: "kvas" finds "kvásek"). Empty when there is nothing to look for.
+ *
+ * @internal
  */
 export function searchTerms(query: string): string[] {
   const folded = foldSearchText(String(query ?? '').slice(0, SEARCH_MAX_QUERY))
@@ -209,6 +219,8 @@ function termHits(folded: string, term: string): { exact: boolean; ranges: [numb
 
 /**
  * One found entry: how well it matches, and a snippet of its text around the words.
+ *
+ * @internal
  */
 export interface SearchMatch {
   score: number
@@ -223,6 +235,8 @@ export interface SearchMatch {
  * word is missing. The title counts most (the whole query in it, at its start, each
  * word in it); then how often the words appear in the text. A word found only with a
  * typo counts for less than the same word spelled right.
+ *
+ * @internal
  */
 export function matchEntry(title: string, texts: string[], terms: string[], query = terms.join(' ')): SearchMatch | null {
   if (!terms.length) return null
@@ -334,6 +348,8 @@ function mergeRanges(ranges: [number, number][]): [number, number][] {
 
 /**
  * Highlight ranges of `terms` (exact or with a typo) in a short text (a title), as [start, end) pairs.
+ *
+ * @internal
  */
 export function highlightRanges(text: string, terms: string[]): [number, number][] {
   return hitsIn(text, terms)

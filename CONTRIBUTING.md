@@ -127,7 +127,19 @@ Handling them:
   fails without one. That happens when an update changes `packages/cms/package.json` or
   `packages/client/package.json`: push a changeset to the Renovate branch (Renovate then
   leaves the branch to you). A raised peer dependency range (`nuxt`, `@nuxt/ui`,
-  `nuxt-auth-utils`) means sites must update too: minor, with an `### Upgrade` section.
+  `nuxt-auth-utils`, `drizzle-orm`) means sites must update too:
+  - a **new major** of `nuxt`, `@nuxt/ui` or Nitro, or a **new 0.x minor** of `nuxt-auth-utils`,
+    comes with a **tinyzoo major** (decided 2026-11-18: tinyzoo 2.0 moves to Nuxt 5 and drizzle 1.0
+    together; 1.x stays on drizzle-orm and drizzle-kit 0.x, and `tinyzoo status`/`upgrade` warn
+    about drizzle-kit 1.0);
+  - a **raised minimum within the same major** (`nuxt` `^4.6` → `^4.7`) is a **minor**, with an
+    `### Upgrade` section that names the command;
+  - a **new 0.x minor of `drizzle-orm`** (0.45 → 0.46) is a **minor** with an `### Upgrade` section:
+    its types follow drizzle-orm ("Drizzle's types" in the roadmap's Wave 5 decisions).
+
+  Node.js follows Nuxt: the packages' `engines.node` is the one of the `nuxt` version they ask
+  for (`^22.22.3 || ^24.15.0 || >=26.0.0` for Nuxt 4.6). Raising it within a Node major is a minor
+  with an `### Upgrade` section; dropping a Node major is a tinyzoo major.
 - The **Dependency Dashboard** issue lists what is waiting, what is scheduled and what was
   closed. Closing an update's pull request without merging tells Renovate to skip it (that
   major version, or that one version); to get it back, tick it on the dashboard.
@@ -198,6 +210,25 @@ changeset says whether it **breaks sites**:
 - A change to an `@internal` export shows in `api-tinyzoo.txt` only as its name; it needs a changeset (it
   changes the package) but is never breaking.
 
+## tinyzoo's own tables and upgrade steps within 1.x
+
+A site on any 1.x must reach any later 1.x by updating and running `tinyzoo upgrade`, with no
+step of its own. So, until 2.0:
+
+- **Changes to tinyzoo's own `cms_*` tables are additive only**: a new table, a new nullable column
+  (or one with a default), a new index. No drop, rename or type change of a column that holds data,
+  and no new `NOT NULL` without a default. A column tinyzoo no longer needs stays (unused) until 2.0.
+- **Upgrade steps (`CORE_UPGRADE_STEPS`, a plugin's `upgrades`) stay valid against every later 1.x
+  schema** (a step written for 1.1 still runs on a database that is already at 1.4), and **none is
+  removed in 1.x**: a site that skips versions runs them all.
+- **The upgrade test keeps old baselines**: once 1.2 exists, `.github/upgrade-baseline` gets a
+  baseline two minors back (`npm:tinyzoo@<x.y-2>.0`) next to the latest release tag the script adds
+  by itself, and the 0.2 line stays while 1.0 promises that path.
+
+## New content routes within 1.x
+
+A core route added to the content API in 1.x (`/api/content/_x`) must not be an address a plugin can already take. A plugin's content routes start with `_<plugin name>`, and plugin names have no `_`. So either give the new route a segment with an `_` inside (`_cms_x`), or add its name to `RESERVED_PLUGIN_NAMES` in the release before the route ships.
+
 ## The upgrade test
 
 A change that is fine on its own can still strand a site that is already running. The
@@ -214,13 +245,17 @@ same database and checks that
 - the content API and the admin return the same content, field by field,
 - every file is still served, and the admin can open and save every entry unchanged.
 
-The baselines are listed in `.github/upgrade-baseline` (before the first release a commit,
-not a tag); the latest release tag is added by itself once there is one. Run it yourself
-(about a minute and a half per baseline, needs Postgres and the network):
+The baselines are listed in `.github/upgrade-baseline`: a commit or a tag, or
+`npm:tinyzoo@<version>` for the packages as published (the site is made with
+`pnpm dlx tinyzoo@<version> init`, as that version's README said). The latest release tag is
+added by itself. The list starts from `npm:tinyzoo@0.2.0`: 1.0 promised that a 0.2 site gets to
+the current version by following `docs/upgrading.md`. Run it yourself (about a minute and a
+half per baseline, needs Postgres and the network):
 
 ```sh
 UPGRADE_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5432/postgres pnpm check:upgrade
 node scripts/upgrade-check.mjs --from 2506403 --keep   # one baseline; keeps the site and database to look at
+node scripts/upgrade-check.mjs --from npm:tinyzoo@0.2.0   # the first release, from npm
 ```
 
 When it fails, the message says which step and why. The usual causes:

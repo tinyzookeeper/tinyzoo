@@ -6,6 +6,10 @@
 import { docsUrl } from '../src/docs'
 import { inspectMigrations, ORDER_FIX, type MigrationStatus } from '../src/index'
 import { databaseUrl, describeDatabase, diskSource, errorText, siteRoleNames, siteUpgradeSteps, withDatabase } from './db'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { sitePackageManager } from './package-manager'
+import { checkVersions, versionWarnings } from './versions'
 
 /** Whose step it is: tinyzoo's own, or the plugin named in front of the id. */
 const stepOwner = (id: string) => (id.includes(':') ? id.slice(0, id.indexOf(':')) : 'tinyzoo')
@@ -48,8 +52,17 @@ export function formatRoleWarning(held: { role: string; n: number }[], known: st
   ]
 }
 
-/** Returns the process exit code. */
-export async function status(cwd: string): Promise<number> {
+/**
+ * Returns the process exit code. With `pkgDir` (tinyzoo's own folder; the `status` command
+ * passes it, `upgrade` checks versions itself) packages that do not fit this tinyzoo are named
+ * first, as a warning: they do not change the exit code.
+ */
+export async function status(cwd: string, opts: { pkgDir?: string } = {}): Promise<number> {
+  if (opts.pkgDir) {
+    const own = JSON.parse(readFileSync(join(opts.pkgDir, 'package.json'), 'utf8'))
+    const warnings = versionWarnings(checkVersions(cwd, own), own.version, sitePackageManager(cwd))
+    if (warnings.length) console.warn(`${warnings.join('\n')}\n`)
+  }
   try {
     const url = databaseUrl(cwd)
     const source = diskSource(cwd)

@@ -1,6 +1,7 @@
 // Search the documentation: GET /api/site-docs/search?q=role&lang=cs&limit=8. The same
 // matching as the website search (words in any order, accents and small typos forgiven,
 // see tinyzoo's src/search.ts), over each heading's text; one page gives at most two hits.
+// These helpers are @internal: this website is built from the same commit as tinyzoo, so it may use them.
 import { SEARCH_MAX_QUERY, highlightRanges, matchEntry, searchTerms } from 'tinyzoo'
 import type { DocsSearchHit } from '#shared/docs'
 

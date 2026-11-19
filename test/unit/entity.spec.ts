@@ -100,7 +100,7 @@ describe('content languages', () => {
 })
 
 describe('reserved field names', () => {
-  it.each(['locale', 'locales', 'parentId', 'createdBy', 'id'])('refuses a field named %s', (key) => {
+  it.each(['locale', 'locales', 'parentId', 'createdBy', 'id', 'path', 'paths', 'breadcrumbs', 'preview', '_key', '_type'])('refuses a field named %s', (key) => {
     expect(() => defineEntity('reserved_test', { label: 'R', titleField: 'name', fields: { name: f.text(), [key]: f.text() } as any })).toThrow(/reserved/)
   })
 })
