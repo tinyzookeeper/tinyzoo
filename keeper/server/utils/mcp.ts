@@ -1,5 +1,5 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { createMcpHandler, McpServer } from '@modelcontextprotocol/server'
+import type { CallToolResult, McpHttpHandler } from '@modelcontextprotocol/server'
 import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
@@ -174,7 +174,7 @@ function parseSite<T extends z.ZodTypeAny>(schema: T, data: unknown): z.infer<T>
 // ── the server ─────────────────────────────────────────────────────────────────
 
 export function createKeeperMcp(event: H3Event, access: Access): McpServer {
-  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.2.0' }, { instructions: INSTRUCTIONS })
+  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.2.1' }, { instructions: INSTRUCTIONS })
   const ws = access.workspaceId
   const canWrite = () => (access.scope === 'write' ? null : fail('This access token is read-only. Make a write token in Keeper → Settings → Access tokens.'))
   const readOnlyHints = { readOnlyHint: true, openWorldHint: false }
@@ -182,6 +182,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('fleet_summary', {
     title: 'Fleet summary',
     description: 'What needs attention across all sites, in one call: sites that are down (with the cause), sites behind the newest tinyzoo, TLS certificates expiring within 21 days (or unreadable), sites whose status cannot be read (wrong or missing status token), and sites that reported server errors in the last 24 hours. Start here.',
+    inputSchema: z.object({}),
     annotations: readOnlyHints,
   }, () => run(async () => {
     const { sites, latest } = await loadFleet(ws)
@@ -211,10 +212,10 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('list_sites', {
     title: 'List sites',
     description: 'Every site with its state, tinyzoo version, uptime over 24 hours (percent), last response time (ms), server errors in 24 hours, days until its certificate expires and any problem reading its status. Filter by client and state; "behind" picks sites on an older tinyzoo.',
-    inputSchema: {
+    inputSchema: z.object({
       client: z.string().max(120).optional().describe('Only this client\'s sites (any case, part of the name is enough).'),
       state: z.enum(['up', 'down', 'unknown', 'behind']).optional().describe('up, down, unknown (not checked yet), or behind (older tinyzoo than the newest).'),
-    },
+    }),
     annotations: readOnlyHints,
   }, ({ client, state }) => run(async () => {
     const { sites, latest } = await loadFleet(ws)
@@ -228,13 +229,14 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('get_site', {
     title: 'Get a site',
     description: 'One site in full: its settings, the whole status the site reports (tinyzoo version, Node, database and migrations, collections with entry counts, accounts and sign-ins, media, webhooks, server errors, plugins), a summary of the last 24 hours of uptime checks (count, failures, uptime, average/p95/max response time, the last failure) and its last 20 incidents.',
-    inputSchema: { site: siteRef },
+    inputSchema: z.object({ site: siteRef }),
     annotations: readOnlyHints,
   }, ({ site }) => run(async () => ok(await siteReport(await findSite(ws, site)))))
 
   server.registerTool('list_versions', {
     title: 'List versions',
     description: 'Sites grouped by the tinyzoo version they run, newest first, with the newest release and whether each version is behind it. Sites whose version is unknown (no status yet) are listed apart, with the reason.',
+    inputSchema: z.object({}),
     annotations: readOnlyHints,
   }, () => run(async () => {
     const { sites, latest } = await loadFleet(ws)
@@ -255,12 +257,12 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('list_incidents', {
     title: 'List incidents',
     description: 'Stretches of time sites were down, newest first: when each started and ended, how long it lasted (minutes) and the cause the uptime check saw. Open incidents have no end.',
-    inputSchema: {
+    inputSchema: z.object({
       site: siteRef.optional().describe('Only this site (id, name or address). Leave out for all sites.'),
       open: z.boolean().optional().describe('true: only incidents still going on.'),
       days: z.number().int().min(1).max(365).optional().describe('How far back, in days (default 30).'),
       limit: z.number().int().min(1).max(200).optional().describe('At most this many (default 50).'),
-    },
+    }),
     annotations: readOnlyHints,
   }, ({ site, open, days, limit }) => run(async () => {
     const one = site ? await findSite(ws, site) : null
@@ -297,12 +299,12 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('add_site', {
     title: 'Add a site',
     description: 'Start watching a tinyzoo site. Keeper checks it straight away (uptime, status, certificate) and answers with what it found. The status token is the site\'s NUXT_CMS_STATUS_TOKEN; it is stored encrypted and never shown again. Needs a write token.',
-    inputSchema: {
+    inputSchema: z.object({
       name: z.string().min(1).max(120).describe('What the team calls the site.'),
       url: z.string().min(1).max(500).describe('The site\'s address, e.g. https://example.com (only the origin is kept).'),
       ...fields,
       statusToken: z.string().max(500).optional().describe('The site\'s NUXT_CMS_STATUS_TOKEN, for its status (version, content, errors). Without it Keeper still checks uptime and the certificate.'),
-    },
+    }),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   }, (args) => run(async () => {
     const denied = canWrite()
@@ -319,13 +321,13 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('update_site', {
     title: 'Change a site',
     description: 'Change a site\'s name, client, address, environment, notes, repository or status token. Fields left out stay as they are. statusToken "" removes the stored token. A new address or token is checked straight away. Needs a write token.',
-    inputSchema: {
+    inputSchema: z.object({
       site: siteRef,
       name: z.string().min(1).max(120).optional().describe('A new name.'),
       url: z.string().min(1).max(500).optional().describe('A new address (the checks start over).'),
       ...fields,
       statusToken: z.string().max(500).optional().describe('A new NUXT_CMS_STATUS_TOKEN for the site, or "" to remove it.'),
-    },
+    }),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, ({ site, statusToken, ...rest }) => run(async () => {
     const denied = canWrite()
@@ -341,7 +343,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('check_site', {
     title: 'Check a site now',
     description: 'Run the uptime check and read the status now, instead of waiting for the next round (uptime every minute, status every few minutes). Use it after a deploy to confirm the new tinyzoo version. Answers like get_site. Needs a write token.',
-    inputSchema: { site: siteRef },
+    inputSchema: z.object({ site: siteRef }),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, ({ site }) => run(async () => {
     const denied = canWrite()
@@ -353,10 +355,10 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('remove_site', {
     title: 'Remove a site',
     description: 'Stop watching a site and delete its checks and incidents. This cannot be undone. Pass the site\'s exact name as confirm. The site itself is not touched. Needs a write token.',
-    inputSchema: {
+    inputSchema: z.object({
       site: siteRef,
       confirm: z.string().describe('The site\'s exact name, to confirm.'),
-    },
+    }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   }, ({ site, confirm }) => run(async () => {
     const denied = canWrite()
@@ -368,4 +370,18 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   }))
 
   return server
+}
+
+let handler: McpHttpHandler | undefined
+
+/** One handler for every request: a fresh server per request, for the request's access (passed as authInfo). */
+export function keeperMcpHandler(): McpHttpHandler {
+  handler ??= createMcpHandler(({ authInfo }) => {
+    const { event, access } = authInfo?.extra as { event: H3Event; access: Access }
+    return createKeeperMcp(event, access)
+  }, {
+    responseMode: 'json',
+    onerror: (err) => console.error('[keeper] mcp', err?.message ?? err),
+  })
+  return handler
 }
