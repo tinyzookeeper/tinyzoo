@@ -217,7 +217,7 @@ export async function updateSite(event: H3Event, m: SignedInMember, site: SiteRo
     ...(data.notes !== undefined ? { notes: data.notes } : {}),
     ...(tokenChanged ? { tokenEnc: data.token ? encryptSecret(data.token) : null, statusError: null } : {}),
     // Another address is another site as far as the checks go.
-    ...(urlChanged ? { state: 'unknown' as const, stateSince: null, failStreak: 0, status: null, statusAt: null, statusError: null, certExpiresAt: null, certError: null } : {}),
+    ...(urlChanged ? { state: 'unknown' as const, stateSince: null, failStreak: 0, status: null, statusAt: null, statusError: null, certExpiresAt: null, certError: null, buildId: null } : {}),
     ...(tokenChanged && !data.token ? { status: null, statusAt: null } : {}),
     updatedAt: new Date(),
   }).where(eq(schema.sites.id, site.id))

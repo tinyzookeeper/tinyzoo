@@ -22,6 +22,7 @@ export interface CmsUser {
     name?: string;
     role: string;
     locale?: string | null;
+    token?: CmsTokenGrant;
 }
 
 export function requireCmsUser(event: any): CmsUser;

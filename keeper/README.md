@@ -7,7 +7,7 @@ Self-hosted for now, with one team (a *workspace*). Every table already carries 
 ## What it does
 
 - **Uptime.** Every minute it asks each site for `GET /api/health/ready`. After 2 failed checks in a row the site counts as down: Keeper opens an incident and e-mails the team. It e-mails again when the site is back.
-- **Status.** Every 5 minutes it reads `GET /api/health/status` with the site's token: the tinyzoo version, the database, the collections, accounts, media, errors and plugins.
+- **Status.** Every 5 minutes, and within a minute of a deploy (a new build at `/_nuxt/builds/latest.json`), it reads `GET /api/health/status` with the site's token: the tinyzoo version, the database, the collections, accounts, media, errors and plugins.
 - **Versions.** Sites running an older tinyzoo than the newest release on npm are marked.
 - **Certificates.** Twice a day it reads each site's TLS certificate, and e-mails once when one expires within 14 days.
 - **Into the admin.** Every site has an *Open admin* button.

@@ -1,5 +1,5 @@
 {
-  "id": "8478f4f0-e0d9-4d0a-aa95-c76d52a85808",
+  "id": "a61fa0b4-6e2e-4614-ae73-d4249c511975",
   "prevId": "9c21beb8-abcc-4e74-80fb-2a8136ca1b3b",
   "version": "7",
   "dialect": "postgresql",
@@ -96,88 +96,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.clients": {
-      "name": "clients",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "alert_emails": {
-          "name": "alert_emails",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp (3) with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "clients_workspace_name_unique": {
-          "name": "clients_workspace_name_unique",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "lower(\"name\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "clients_workspace_id_workspaces_id_fk": {
-          "name": "clients_workspace_id_workspaces_id_fk",
-          "tableFrom": "clients",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.incidents": {
       "name": "incidents",
       "schema": "",
@@ -259,91 +177,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.membership_clients": {
-      "name": "membership_clients",
-      "schema": "",
-      "columns": {
-        "workspace_id": {
-          "name": "workspace_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "client_id": {
-          "name": "client_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "membership_clients_client_idx": {
-          "name": "membership_clients_client_idx",
-          "columns": [
-            {
-              "expression": "client_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "membership_clients_client_id_clients_id_fk": {
-          "name": "membership_clients_client_id_clients_id_fk",
-          "tableFrom": "membership_clients",
-          "tableTo": "clients",
-          "columnsFrom": [
-            "client_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "membership_clients_membership_fk": {
-          "name": "membership_clients_membership_fk",
-          "tableFrom": "membership_clients",
-          "tableTo": "memberships",
-          "columnsFrom": [
-            "workspace_id",
-            "user_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "user_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "membership_clients_workspace_id_user_id_client_id_pk": {
-          "name": "membership_clients_workspace_id_user_id_client_id_pk",
-          "columns": [
-            "workspace_id",
-            "user_id",
-            "client_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.memberships": {
       "name": "memberships",
       "schema": "",
@@ -366,13 +199,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'member'"
-        },
-        "all_clients": {
-          "name": "all_clients",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
         },
         "created_at": {
           "name": "created_at",
@@ -744,12 +570,6 @@
           "notNull": true,
           "default": "''"
         },
-        "client_id": {
-          "name": "client_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "url": {
           "name": "url",
           "type": "text",
@@ -870,6 +690,12 @@
           "type": "timestamp (3) with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "build_id": {
+          "name": "build_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -878,21 +704,6 @@
           "columns": [
             {
               "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "sites_client_idx": {
-          "name": "sites_client_idx",
-          "columns": [
-            {
-              "expression": "client_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -916,19 +727,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "sites_client_id_clients_id_fk": {
-          "name": "sites_client_id_clients_id_fk",
-          "tableFrom": "sites",
-          "tableTo": "clients",
-          "columnsFrom": [
-            "client_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

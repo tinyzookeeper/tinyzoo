@@ -248,9 +248,15 @@ and the audit has no open High or Medium.
 
 **Site status for a fleet of sites.** A developer who looks after many tinyzoo sites wants one overview of them: versions, uptime, health, how much each client uses its admin. tinyzoo runs inside each site, so nothing knows about all of them. The first step is in the package: `GET /api/health/status` (`CmsStatus`), off until `NUXT_CMS_STATUS_TOKEN` is set, read-only, numbers and dates only ([deploying](deploying.md#site-status)). **Keeper** (`keeper/`, its own app) reads it from every site: a site list, a version table, uptime checks every minute with e-mails when a site goes down and comes back, certificate expiry and a way into each admin. It is self-hosted first, with one team; its tables carry the team (workspace) already, so a hosted Keeper for many teams can follow on the same code. Next for it: a monthly report per client.
 
-## 1.2: next minor
+## 1.2: the MCP server (2026-11-19)
 
-1.2 adds things and breaks nothing.
+1.2 adds things and breaks nothing ([what a minor release may add](api-surface.md#what-a-minor-release-may-add)). It is one feature, released on its own so the sites can be worked with over MCP now. The two items planned for 1.2 moved to 1.3 unchanged.
+
+**The MCP server.** `/api/mcp`, signed in to with OAuth (the address is the whole setup: discovery, open registration, the admin's `/admin/connect` page, PKCE, an hour's access token and a 60-day refresh token), or with a token made by hand on the account page. Either has rights narrower than the person's role (edit, publish, delete, files, some collections only). The tools go through the admin's own routes, so every rule of the admin applies, and changes are recorded under the person with `via: 'mcp'`. Rich text in and out as Markdown. A new table, `cms_access_tokens`. See [the MCP server](guide/mcp.md).
+
+## 1.3: next minor
+
+1.3 adds things and breaks nothing.
 
 **Planned** (on the website's Plány page as Next):
 

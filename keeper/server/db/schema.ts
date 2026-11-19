@@ -98,6 +98,9 @@ export const sites = pgTable('sites', {
   certError: text('cert_error'),
   // When the "certificate expires soon" e-mail went out (once per certificate).
   certWarnedFor: ts('cert_warned_for'),
+  // The build the site serves (Nuxt's /_nuxt/builds/latest.json): a new one means a deploy,
+  // and the status is read again at once instead of at the next round.
+  buildId: text('build_id'),
 }, (t) => [index('sites_workspace_idx').on(t.workspaceId), index('sites_client_idx').on(t.clientId)])
 
 /** One uptime check: GET /api/health/ready. */

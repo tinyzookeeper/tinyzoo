@@ -22,10 +22,12 @@ export function timeAgo(iso: string | null | undefined, now = Date.now()): strin
 export function duration(fromIso: string, toIso: string | null, now = Date.now()): string {
   const ms = (toIso ? Date.parse(toIso) : now) - Date.parse(fromIso)
   if (!Number.isFinite(ms) || ms < MINUTE) return 'under a minute'
-  if (ms < HOUR) return `${Math.round(ms / MINUTE)} min`
-  if (ms < DAY) {
-    const h = Math.floor(ms / HOUR)
-    const m = Math.round((ms % HOUR) / MINUTE)
+  // Rounded once, to whole minutes, then split: 2 h 59.6 min is "3 h", never "2 h 60 min".
+  const minutes = Math.round(ms / MINUTE)
+  if (minutes < 60) return `${minutes} min`
+  if (minutes < 24 * 60) {
+    const h = Math.floor(minutes / 60)
+    const m = minutes % 60
     return m ? `${h} h ${m} min` : `${h} h`
   }
   const d = Math.round(ms / DAY)
