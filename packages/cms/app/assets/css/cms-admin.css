@@ -836,11 +836,14 @@ html[data-cms-admin] .cms-flash { animation: cms-flash 2s ease-out; border-radiu
    (.cms-touch, the sign-in and setup pages' own wrapper, keeps working: same numbers.) */
 @media (pointer: coarse) {
   html[data-cms-admin] :is(
-    button:not(.cms-dense), [role='button']:not(.cms-dense), [role='tab'], [role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option'], summary,
+    button:not(.cms-dense, [role='switch']), [role='button']:not(.cms-dense), [role='tab'], [role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option'], summary,
     a.inline-flex.font-medium:not(.cms-dense),
     input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file']), select, textarea
   ) { min-height: 2.75rem; }
-  html[data-cms-admin] :is(button, [role='button'], [role='tab'], a.inline-flex.font-medium):not(.cms-dense) { min-width: 2.75rem; justify-content: center; }
+  html[data-cms-admin] :is(button, [role='button'], [role='tab'], a.inline-flex.font-medium):not(.cms-dense, [role='switch']) { min-width: 2.75rem; justify-content: center; }
+  /* A switch keeps its drawn size (stretched to 44 px its thumb drew as a large circle) and gets the 44 px as a tap area around it. */
+  html[data-cms-admin] button[role='switch'] { position: relative; }
+  html[data-cms-admin] button[role='switch']::after { content: ''; position: absolute; inset: 50% auto auto 50%; width: 2.75rem; height: 2.75rem; transform: translate(-50%, -50%); }
   /* A link that is a row's title: a full-height line, not 20 px of text. */
   html[data-cms-admin] a.cms-row-link { display: flex; align-items: center; min-height: 2.75rem; }
   /* A tap area wider than the thing drawn (the x on a chip): an invisible 44 px square around it. */

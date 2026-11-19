@@ -9,7 +9,7 @@ This page lists what tinyzoo promises not to break. Check it before you depend o
 
 | Frozen surface | Where |
 |---|---|
-| [The config API](#the-config-api-tinyzoo): `defineEntity`, `f.*`, blocks, presets, seeds, plugins | `tinyzoo`, [`tinyzoo/forms`](#forms-tinyzooforms) |
+| [The config API](#the-config-api-tinyzoo): `defineEntity`, `f.*`, blocks, presets, seeds, plugins | `tinyzoo`, [`tinyzoo/forms`](#forms-tinyzooforms), [`tinyzoo/analytics`](#analytics-tinyzooanalytics) |
 | [The Nuxt layer and its options](#the-nuxt-layer-and-the-cms-options) and [environment variables](#environment-variables) | `tinyzoo/layer`, `tinyzoo/module`, `nuxt.config`, `NUXT_CMS_*` |
 | [The content API](#the-content-api-http) (HTTP) and [the client](#the-client-tinyzooclient) | `/api/content/*`, `@tinyzoo/client` |
 | [The media and logo addresses](#media-and-logo-addresses) stored in content and emails | `/api/cms/_media/raw/<key>`, `/api/cms/_media/img/<id>/<width>.webp`, `/api/cms/_brand/<file>` |
@@ -48,7 +48,7 @@ Every surface above is written down as a golden file in `test/contracts/`.
 
 | Golden file | What it holds |
 |---|---|
-| `api-tinyzoo.txt`, `api-tinyzoo-forms.txt`, `api-tinyzoo-module.txt`, `api-client.txt` | the exported declarations of each entry point (what is `@internal` is listed by name only) |
+| `api-tinyzoo.txt`, `api-tinyzoo-forms.txt`, `api-tinyzoo-analytics.txt`, `api-tinyzoo-module.txt`, `api-client.txt` | the exported declarations of each entry point (what is `@internal` is listed by name only) |
 | `module-options.json` | the options of the `cms` key with their defaults, and the environment variables that follow |
 | `nitro-hooks.d.ts` | the Nitro hooks with their argument types, and what tinyzoo adds to nuxt-auth-utils' `User` and `UserSession` |
 | `server-helpers.d.ts` | `useCms()` and `requireCmsUser(event)` with their types |
@@ -281,6 +281,19 @@ The plugin also brings:
 - `<CmsForm name="…" />` ([the frontend kit](#the-frontend-kit)), with the props `name` and `locale`, the event `sent` and the slot `success`;
 - `GET` / `POST /api/content/_form/:name`.
 
+## Analytics: `tinyzoo/analytics`
+
+The analytics plugin ([analytics](analytics.md)).
+
+| Export | What it is |
+|---|---|
+| `analyticsPlugin(options)` | the plugin to register: `export const plugins = [analyticsPlugin()]` |
+| `AnalyticsOptions` | its options: `keepRawDays`, `access`, `respectDoNotTrack`, `excludePaths`, `countryHeaders`, `geoipFile`, `timeZone` |
+| `dailyRollups(db, from, to, dimensions?)` | the daily totals of a range of days, as `DailyRollup` rows (`day`, `dimension`, `value`, `visitors`, `visits`, `pageviews`, `bounces`, `engagedMs`). Nothing in them identifies a visitor |
+| `DailyRollup` | one of those rows |
+
+The plugin also brings `POST /api/content/_analytics/e`, where the website's pages send their visits. Its tables (`analytics_events`, `analytics_daily`) are exported for the server's own code, but their columns are not frozen: a minor release may change them, with a migration.
+
 ## The Nuxt layer and the `cms` options
 
 | Entry | What it is |
@@ -366,6 +379,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content/_search` | the website search: `?q=`, `?locale=`, `?limit=` (1 to 50), `?entity=a,b` |
 | `GET /api/content/_sitemap` | the site's public addresses as `{ entries }` (`CmsSitemapEntry`) |
 | `GET`, `POST /api/content/_form/:name` | a website form's definition and its submission (`tinyzoo/forms`) |
+| `POST /api/content/_analytics/e` | a page view, or the time one was looked at, from the website's pages (`tinyzoo/analytics`). Always `202` with no body |
 | `GET /api/openapi.json` | the OpenAPI 3.1 document of all of the above |
 | `GET /api/openapi` | the interactive reference (off in production unless `cms.content.docs`) |
 | `GET /api/content-types.ts` | the generated client types (what `tinyzoo client` writes) |

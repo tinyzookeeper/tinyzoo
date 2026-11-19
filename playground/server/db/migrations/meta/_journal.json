@@ -169,6 +169,13 @@
       "when": 1795116200799,
       "tag": "0023_mcp_access",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795122653371,
+      "tag": "0024_analytics_plugin",
+      "breakpoints": true
     }
   ]
 }

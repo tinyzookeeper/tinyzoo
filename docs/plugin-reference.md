@@ -126,7 +126,7 @@ Widgets sit in the home's main column, before "Recent". The component draws its 
 | `label` | `LocalizedText` | required | The heading above the panel |
 | `entities` | `string[]` | every collection | The collections it is shown for. A name that is not a collection of the site stops the build |
 
-The panel sits in the side column of the entry editor, under the details. Its component gets the props `entity` (`string`), `id` (`string`) and `locale` (`string | null`, the language being edited). It is outside the form, and it is not shown for an entry that has not been saved yet.
+The panel sits in the side column of the entry editor, under the details. Its component gets the props `entity` (`string`), `id` (`string`) and `locale` (`string | null`, the language being edited). It is outside the form, and it is not shown for an entry that has not been saved yet. A panel that renders nothing is left out, heading and all.
 
 ## App plugins
 

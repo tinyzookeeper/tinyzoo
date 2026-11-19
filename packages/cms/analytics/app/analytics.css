@@ -1,0 +1,20 @@
+/*
+ * The analytics plugin's colours, for its chart, bar lists and sparklines. Two hues, checked
+ * for colour-blind readers and contrast on the admin's white page and its charcoal cards
+ * (dataviz validator: every check passes in both modes): visitors blue, pageviews orange. Text
+ * never takes them; it stays in the admin's text colours. Scoped to the admin.
+ */
+html[data-cms-admin] {
+  --cms-an-visitors: #2a78d6;
+  --cms-an-pageviews: #eb6834;
+  /* The bar lists' bars: the visitors' hue as a wash, so the text on it keeps its contrast. */
+  --cms-an-bar: color-mix(in oklab, var(--cms-an-visitors) 10%, transparent);
+  --cms-an-bar-hover: color-mix(in oklab, var(--cms-an-visitors) 16%, transparent);
+  --cms-an-grid: var(--ui-border-muted);
+}
+html[data-cms-admin].dark {
+  --cms-an-visitors: #3987e5;
+  --cms-an-pageviews: #d95926;
+  --cms-an-bar: color-mix(in oklab, var(--cms-an-visitors) 14%, transparent);
+  --cms-an-bar-hover: color-mix(in oklab, var(--cms-an-visitors) 21%, transparent);
+}

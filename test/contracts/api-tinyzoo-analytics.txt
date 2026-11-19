@@ -1,0 +1,38 @@
+// API report: `tinyzoo/analytics` (packages/cms/analytics/index.ts)
+// The analytics plugin: analyticsPlugin, its options, its tables and the daily totals.
+// Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
+
+// ── public (4) ─────────────────────────────────────────────────
+
+export interface AnalyticsOptions {
+    keepRawDays?: number;
+    access?: (ctx: {
+        user: CmsAccessUser;
+    }) => boolean;
+    respectDoNotTrack?: boolean;
+    countryHeaders?: string[];
+    geoipFile?: string;
+    timeZone?: string;
+    excludePaths?: string[];
+}
+
+export interface DailyRollup {
+    day: string;
+    dimension: string;
+    value: string;
+    visitors: number;
+    visits: number;
+    pageviews: number;
+    bounces: number;
+    engagedMs: number;
+}
+
+export function analyticsPlugin(options?: AnalyticsOptions): CmsPlugin;
+
+export function dailyRollups(db: any, from: string, to: string, dimensions?: readonly string[]): Promise<DailyRollup[]>;
+
+// ── internal (4): exported, not part of the frozen API, may change in any minor ──
+type AnalyticsPlugin
+const AnalyticsSettings
+const analyticsDaily
+const analyticsEvents
