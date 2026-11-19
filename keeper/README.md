@@ -29,7 +29,7 @@ People limited to some clients see only those clients' sites, everywhere: the AP
 
 ## Connect a site
 
-1. On the site, set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`) and redeploy. It needs tinyzoo 1.1 or newer; without the token, Keeper still checks uptime and the certificate. For traffic, the site also uses `tinyzoo/analytics` on tinyzoo 1.2 or newer, which shares its daily totals.
+1. On the site, set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`) and redeploy. It needs tinyzoo 1.1 or newer; without the token, Keeper still checks uptime and the certificate. For traffic, the site also uses `tinyzoo/analytics` on tinyzoo 1.3 or newer, which shares its daily totals.
 2. In Keeper, click *Add site*, then paste the site's address and the token. *Test connection* tells you whether both work.
 
 ## The MCP server, OAuth and access tokens
