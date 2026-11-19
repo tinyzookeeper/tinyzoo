@@ -6,6 +6,7 @@ const route = useRoute()
 const id = computed(() => String(route.params.id))
 const toast = useToast()
 const now = useNow()
+const { canWrite } = useKeeperUser()
 
 const { data: site, error, refresh } = await useFetch<SiteDetail>(() => `/api/sites/${id.value}`, { key: `site-${id.value}` })
 if (error.value?.statusCode === 404) throw createError({ statusCode: 404, statusMessage: 'Site not found', fatal: true })
@@ -90,8 +91,8 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
 <template>
   <AppPage :title="site?.name ?? 'Site'" :trail="[{ label: 'Sites', to: '/' }]" :heading="false">
     <template #actions>
-      <UButton v-if="site" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" label="Edit" color="neutral" variant="ghost" class="hidden sm:inline-flex" />
-      <UButton v-if="site" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" aria-label="Edit" color="neutral" variant="ghost" square class="sm:hidden" />
+      <UButton v-if="site && canWrite" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" label="Edit" color="neutral" variant="ghost" class="hidden sm:inline-flex" />
+      <UButton v-if="site && canWrite" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" aria-label="Edit" color="neutral" variant="ghost" square class="sm:hidden" />
     </template>
 
     <div v-if="site" class="flex flex-col gap-8">
@@ -112,7 +113,7 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
           <div class="mt-4 flex flex-wrap gap-2">
             <UButton :to="site.adminUrl" target="_blank" rel="noopener" label="Open admin" trailing-icon="i-lucide-arrow-up-right" />
             <UButton :to="site.url" target="_blank" rel="noopener" label="Open site" trailing-icon="i-lucide-arrow-up-right" color="neutral" variant="outline" class="k-on-moment" />
-            <UButton label="Check now" icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="checking" @click="checkNow" />
+            <UButton v-if="canWrite" label="Check now" icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="checking" @click="checkNow" />
           </div>
           <p class="k-moment__muted mt-3 text-xs">Last checked {{ timeAgo(site.lastCheckAt, now) }}</p>
         </div>

@@ -11,6 +11,7 @@ const input = z.object({
 export default defineEventHandler(async (event): Promise<NewAccessToken> => {
   const me = await requireMember(event)
   const data = await readInput(event, input)
+  if (data.scope === 'write' && !canChangeSites(me)) throw readOnly(me)
   const { token, hash, prefix } = generateToken()
   const [row] = await useDb().insert(schema.tokens).values({
     workspaceId: me.workspaceId, createdBy: me.userId, name: data.name, scope: data.scope, hash, prefix,

@@ -1,9 +1,45 @@
-import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
+import type { SQL } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
 import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
 
-type SiteRow = typeof schema.sites.$inferSelect
+/** A site with the name of its client ('' without one). */
+export type SiteRow = typeof schema.sites.$inferSelect & { clientName: string }
+
+// ── Who sees which sites ───────────────────────────────────────────────────────────────
+
+/** The sites of the workspace this person may see: all of them, or those of their clients. */
+export function visibleSites(m: SignedInMember): SQL {
+  const ws = eq(schema.sites.workspaceId, m.workspaceId)
+  if (seesAllClients(m)) return ws
+  return m.clientIds.length ? and(ws, inArray(schema.sites.clientId, m.clientIds))! : sql`false`
+}
+
+/** The clients of the workspace this person may see. */
+export function visibleClients(m: SignedInMember): SQL {
+  const ws = eq(schema.clients.workspaceId, m.workspaceId)
+  if (seesAllClients(m)) return ws
+  return m.clientIds.length ? and(ws, inArray(schema.clients.id, m.clientIds))! : sql`false`
+}
+
+/** Sites with their client's name, filtered by `where`, by name. */
+export async function selectSites(where: SQL | undefined): Promise<SiteRow[]> {
+  const rows = await useDb().select({ site: schema.sites, clientName: schema.clients.name })
+    .from(schema.sites)
+    .leftJoin(schema.clients, eq(schema.clients.id, schema.sites.clientId))
+    .where(where)
+    .orderBy(schema.sites.name)
+  return rows.map((r) => ({ ...r.site, clientName: r.clientName ?? '' }))
+}
+
+/** The sites this person may see. */
+export const loadSites = (m: SignedInMember) => selectSites(visibleSites(m))
+
+/** One site by id (whoever asks), or undefined. */
+export async function siteById(id: string): Promise<SiteRow | undefined> {
+  return (await selectSites(eq(schema.sites.id, id)))[0]
+}
 
 /** A site's origin: https://example.com (no path, no trailing slash), or null. */
 export function normalizeUrl(input: string): string | null {
@@ -26,6 +62,7 @@ const url = z.string().trim().min(1).max(500).transform((v, ctx) => {
 
 export const siteInput = z.object({
   name: z.string().trim().min(1).max(120),
+  /** The client's name: an existing one (any case), a new one, or '' for none. */
   client: z.string().trim().max(120).optional(),
   url,
   environment: z.enum(['production', 'staging']).optional(),
@@ -34,13 +71,36 @@ export const siteInput = z.object({
   notes: z.string().max(5000).optional(),
 })
 
-/** The workspace's site, or 404. */
-export async function siteOf(event: H3Event, workspaceId: string): Promise<SiteRow> {
+/** The site in the address, if this person may see it; 404 otherwise (a hidden site does not exist for them). */
+export async function siteOf(event: H3Event, m: SignedInMember): Promise<SiteRow> {
   const id = getRouterParam(event, 'id') ?? ''
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw createError({ statusCode: 404, statusMessage: 'No such site' })
-  const [site] = await useDb().select().from(schema.sites).where(and(eq(schema.sites.id, id), eq(schema.sites.workspaceId, workspaceId)))
+  const [site] = await selectSites(and(eq(schema.sites.id, id), visibleSites(m)))
   if (!site) throw createError({ statusCode: 404, statusMessage: 'No such site' })
   return site
+}
+
+/**
+ * The client a site is given, by name (any case): its id, or null for none. A name not yet
+ * used makes a new client. People limited to some clients must pick one of theirs: they can
+ * neither leave a site without a client nor make a new one (they would lose sight of the site).
+ */
+export async function resolveClient(m: SignedInMember, name: string): Promise<string | null> {
+  const wanted = name.trim()
+  const all = seesAllClients(m)
+  if (!wanted) {
+    if (all) return null
+    throw createError({ statusCode: 403, statusMessage: 'Pick one of your clients for the site' })
+  }
+  const db = useDb()
+  const find = async () => (await db.select({ id: schema.clients.id }).from(schema.clients)
+    .where(and(eq(schema.clients.workspaceId, m.workspaceId), sql`lower(${schema.clients.name}) = lower(${wanted})`)))[0]?.id
+  const found = await find()
+  if (found && (all || m.clientIds.includes(found))) return found
+  if (!all) throw createError({ statusCode: 403, statusMessage: `You can only use your own clients${m.clientIds.length ? '' : ' (you have none yet)'}` })
+  // A new client; a twin made at the same moment wins and is used.
+  const [made] = await db.insert(schema.clients).values({ workspaceId: m.workspaceId, name: wanted }).onConflictDoNothing().returning({ id: schema.clients.id })
+  return made?.id ?? (await find())!
 }
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null)
@@ -52,7 +112,8 @@ export function summarize(site: SiteRow, uptime: { d1: number | null; d30: numbe
   return {
     id: site.id,
     name: site.name,
-    client: site.client,
+    client: site.clientName,
+    clientId: site.clientId,
     url: site.url,
     environment: site.environment,
     state: site.state,
@@ -125,11 +186,12 @@ export function checkSoon(event: H3Event, siteId: string): Promise<void> {
 export type SiteInputData = z.infer<typeof siteInput>
 
 /** Add a site to the workspace, and check it straight after. */
-export async function createSite(event: H3Event, workspaceId: string, data: SiteInputData, opts: { wait?: boolean } = {}): Promise<string> {
+export async function createSite(event: H3Event, m: SignedInMember, data: SiteInputData, opts: { wait?: boolean } = {}): Promise<string> {
+  const clientId = await resolveClient(m, data.client ?? '')
   const [row] = await useDb().insert(schema.sites).values({
-    workspaceId,
+    workspaceId: m.workspaceId,
     name: data.name,
-    client: data.client ?? '',
+    clientId,
     url: data.url,
     environment: data.environment ?? 'production',
     tokenEnc: data.token ? encryptSecret(data.token) : null,
@@ -142,12 +204,13 @@ export async function createSite(event: H3Event, workspaceId: string, data: Site
 }
 
 /** Change a site. `token` left out keeps the stored one; '' removes it. A new address or token is checked straight after. */
-export async function updateSite(event: H3Event, site: SiteRow, data: Partial<SiteInputData>, opts: { wait?: boolean } = {}): Promise<void> {
+export async function updateSite(event: H3Event, m: SignedInMember, site: SiteRow, data: Partial<SiteInputData>, opts: { wait?: boolean } = {}): Promise<void> {
   const urlChanged = data.url !== undefined && data.url !== site.url
   const tokenChanged = data.token !== undefined
+  const clientId = data.client !== undefined ? await resolveClient(m, data.client) : undefined
   await useDb().update(schema.sites).set({
     ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(data.client !== undefined ? { client: data.client } : {}),
+    ...(clientId !== undefined ? { clientId } : {}),
     ...(data.url !== undefined ? { url: data.url } : {}),
     ...(data.environment !== undefined ? { environment: data.environment } : {}),
     ...(data.repoUrl !== undefined ? { repoUrl: data.repoUrl } : {}),
@@ -173,6 +236,5 @@ export async function removeSite(site: SiteRow): Promise<void> {
 export async function checkNow(site: SiteRow): Promise<SiteDetail> {
   await checkSite(site.id, { forceStatus: true })
   if (!site.certCheckedAt) await checkCertificate(site)
-  const [fresh] = await useDb().select().from(schema.sites).where(eq(schema.sites.id, site.id))
-  return siteDetail(fresh!)
+  return siteDetail((await siteById(site.id))!)
 }

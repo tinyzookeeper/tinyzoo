@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { AccessToken, Member, NewAccessToken, WorkspaceSettings } from '#keeper/types/keeper'
+import type { AccessToken, Client, ClientList, Member, MemberRole, NewAccessToken, WorkspaceSettings } from '#keeper/types/keeper'
 
 useHead({ title: 'Settings · Keeper' })
 const toast = useToast()
-const { me, isOwner, refresh: refreshSession } = useKeeperUser()
+const { me, isOwner, isManager, canWrite, refresh: refreshSession } = useKeeperUser()
 const now = useNow()
 
 // ── Workspace ──────────────────────────────────────────────────────────────
@@ -32,6 +32,120 @@ async function saveWorkspace() {
   }
 }
 
+// ── Clients ────────────────────────────────────────────────────────────────
+const { data: clientList, refresh: refreshClients } = await useFetch<ClientList>('/api/clients', { key: 'clients', default: () => ({ clients: [], canCreate: false }) })
+const clients = computed(() => clientList.value.clients)
+const clientName = (id: string) => clients.value.find((c) => c.id === id)?.name ?? 'A removed client'
+const splitEmails = (v: string) => v.split(/[\s,;]+/).map((e) => e.trim()).filter(Boolean)
+
+// One dialog adds a client (`editingClient` null) or changes one.
+const clientOpen = ref(false)
+const clientBusy = ref(false)
+const editingClient = ref<Client | null>(null)
+const clientForm = reactive({ name: '', alertEmails: '' })
+function openClient(c: Client | null) {
+  editingClient.value = c
+  clientForm.name = c?.name ?? ''
+  clientForm.alertEmails = (c?.alertEmails ?? []).join(', ')
+  clientOpen.value = true
+}
+function closeClient() { clientOpen.value = false }
+async function saveClient() {
+  clientBusy.value = true
+  try {
+    const body = { name: clientForm.name.trim(), alertEmails: splitEmails(clientForm.alertEmails) }
+    if (editingClient.value) await $fetch(`/api/clients/${editingClient.value.id}`, { method: 'PATCH', body })
+    else await $fetch('/api/clients', { method: 'POST', body })
+    clientOpen.value = false
+    await Promise.all([refreshClients(), refreshNuxtData('overview')])
+  }
+  catch (err) {
+    toast.add({ title: 'Could not save the client', description: errorMessage(err), color: 'error' })
+  }
+  finally {
+    clientBusy.value = false
+  }
+}
+
+const removingClient = ref<Client | null>(null)
+const removeClientBusy = ref(false)
+const removeClientOpen = computed({ get: () => !!removingClient.value, set: (v: boolean) => { if (!v) removingClient.value = null } })
+function askRemoveClient(c: Client) { removingClient.value = c }
+function cancelRemoveClient() { removingClient.value = null }
+async function removeClient() {
+  if (!removingClient.value) return
+  removeClientBusy.value = true
+  try {
+    await $fetch(`/api/clients/${removingClient.value.id}`, { method: 'DELETE' })
+    toast.add({ title: `${removingClient.value.name} removed`, color: 'success' })
+    removingClient.value = null
+    await Promise.all([refreshClients(), refreshTeam(), refreshNuxtData('overview')])
+  }
+  catch (err) {
+    toast.add({ title: 'Could not remove the client', description: errorMessage(err), color: 'error' })
+  }
+  finally {
+    removeClientBusy.value = false
+  }
+}
+
+// ── Roles and client access (adding and changing a person) ────────────────
+const ROLE_HELP: Record<MemberRole, string> = {
+  owner: 'Everything, including making and removing owners.',
+  admin: 'The team, clients and settings, and every site.',
+  member: 'Adds, changes, checks and removes sites.',
+  viewer: 'Only looks: status, uptime, versions. For a client’s own people.',
+}
+const roleItems = computed(() => (['owner', 'admin', 'member', 'viewer'] as const)
+  .filter((r) => r !== 'owner' || isOwner.value)
+  .map((r) => ({ value: r, label: ROLE_LABELS[r], description: ROLE_HELP[r] })))
+const accessItems: { value: 'all' | 'some'; label: string; description: string }[] = [
+  { value: 'all', label: 'Every client', description: 'All sites, also those without a client.' },
+  { value: 'some', label: 'Only some clients', description: 'Just the sites of the clients picked below.' },
+]
+const access = reactive({ role: 'member' as MemberRole, scope: 'all' as 'all' | 'some', clientIds: [] as string[] })
+const clientOptions = computed(() => clients.value.map((c) => ({ label: c.name, value: c.id })))
+const seesEverything = computed(() => access.role === 'owner' || access.role === 'admin')
+function resetAccess(m?: Member) {
+  access.role = m?.role ?? 'member'
+  access.scope = !m || m.allClients ? 'all' : 'some'
+  access.clientIds = [...(m?.clientIds ?? [])]
+}
+const accessBody = () => ({ role: access.role, allClients: seesEverything.value || access.scope === 'all', clientIds: access.scope === 'some' ? access.clientIds : [] })
+const accessInvalid = computed(() => !seesEverything.value && access.scope === 'some' && !access.clientIds.length)
+function accessLine(m: Member): string {
+  if (m.allClients) return 'Every client'
+  if (!m.clientIds.length) return 'No clients yet'
+  return m.clientIds.map(clientName).join(', ')
+}
+/** Whether I may change or remove this person: not myself, and an admin leaves owners alone. */
+const mayManage = (m: Member) => isManager.value && m.id !== me.value?.id && (isOwner.value || m.role !== 'owner')
+
+const editing = ref<Member | null>(null)
+const editBusy = ref(false)
+const editOpen = computed({ get: () => !!editing.value, set: (v: boolean) => { if (!v) editing.value = null } })
+function openEdit(m: Member) {
+  resetAccess(m)
+  editing.value = m
+}
+function closeEdit() { editing.value = null }
+async function saveEdit() {
+  if (!editing.value) return
+  editBusy.value = true
+  try {
+    await $fetch(`/api/team/${editing.value.id}`, { method: 'PATCH', body: accessBody() })
+    toast.add({ title: `${editing.value.name || editing.value.email} updated`, color: 'success', icon: 'i-lucide-check' })
+    editing.value = null
+    await refreshTeam()
+  }
+  catch (err) {
+    toast.add({ title: 'Could not change their access', description: errorMessage(err), color: 'error' })
+  }
+  finally {
+    editBusy.value = false
+  }
+}
+
 // ── Team ───────────────────────────────────────────────────────────────────
 const { data: team, refresh: refreshTeam } = await useFetch<Member[]>('/api/team', { key: 'team', default: () => [] })
 
@@ -45,6 +159,7 @@ function closeAdd() { addOpen.value = false }
 function openAdd() {
   newPerson.name = ''
   newPerson.email = ''
+  resetAccess()
   added.value = null
   copied.value = false
   addOpen.value = true
@@ -52,7 +167,7 @@ function openAdd() {
 async function addPerson() {
   adding.value = true
   try {
-    added.value = await $fetch<{ member: Member; password: string | null }>('/api/team', { method: 'POST', body: { name: newPerson.name.trim(), email: newPerson.email.trim() } })
+    added.value = await $fetch<{ member: Member; password: string | null }>('/api/team', { method: 'POST', body: { name: newPerson.name.trim(), email: newPerson.email.trim(), ...accessBody() } })
     await refreshTeam()
   }
   catch (err) {
@@ -99,10 +214,11 @@ async function removePerson() {
 const { data: tokens, refresh: refreshTokens } = await useFetch<AccessToken[]>('/api/tokens', { key: 'tokens', default: () => [] })
 const mcpUrl = `${useRequestURL().origin}/mcp`
 
-const scopes = [
+// A viewer's tokens only read.
+const scopes = computed(() => [
   { value: 'read', label: 'Read', description: 'Sees sites, versions, checks and incidents.' },
-  { value: 'write', label: 'Read and write', description: 'Can also add, change, check and remove sites.' },
-]
+  ...(canWrite.value ? [{ value: 'write', label: 'Read and write', description: 'Can also add, change, check and remove sites.' }] : []),
+])
 const tokenOpen = ref(false)
 const tokenBusy = ref(false)
 const newToken = reactive({ name: '', scope: 'read' as 'read' | 'write' })
@@ -200,18 +316,18 @@ async function changePassword() {
 </script>
 
 <template>
-  <AppPage title="Settings" description="Your team, who hears about outages, access tokens and your password.">
+  <AppPage title="Settings" description="Your team, your clients, who hears about outages, access tokens and your password.">
     <div class="flex max-w-3xl flex-col gap-6">
       <!-- Workspace -->
       <InfoCard title="Team and alerts">
-        <form v-if="isOwner" class="flex flex-col gap-4" @submit.prevent="saveWorkspace">
+        <form v-if="isManager" class="flex flex-col gap-4" @submit.prevent="saveWorkspace">
           <UFormField label="Team name" name="name">
             <UInput v-model="ws.name" required class="w-full" />
           </UFormField>
           <UFormField
             label="Alert e-mails"
             name="alertEmails"
-            description="Who hears when a site goes down, comes back, or its certificate is about to expire. Separate with commas. Empty: everyone on the team."
+            description="Who hears when a site goes down, comes back, or its certificate is about to expire. Separate with commas. Empty: everyone on the team who works on that site. A client can add its own addresses."
           >
             <UTextarea v-model="ws.alertEmails" :rows="2" autoresize placeholder="ops@example.com, ada@example.com" class="w-full font-mono" />
           </UFormField>
@@ -228,14 +344,38 @@ async function changePassword() {
             <dt class="text-muted">Alert e-mails</dt>
             <dd class="font-mono text-xs text-highlighted">{{ workspace.alertEmails.length ? workspace.alertEmails.join(', ') : 'everyone on the team' }}</dd>
           </div>
-          <p class="text-xs text-muted">Only an owner can change these.</p>
+          <p class="text-xs text-muted">Only an owner or admin can change these.</p>
         </dl>
+      </InfoCard>
+
+      <!-- Clients -->
+      <InfoCard v-if="isManager" title="Clients">
+        <template #aside>
+          <UButton label="Add client" icon="i-lucide-folder-plus" color="neutral" variant="outline" size="sm" @click="openClient(null)" />
+        </template>
+        <p class="mb-3 text-sm text-pretty text-toned">
+          Whose sites they are. Filter the sites by client, and give people access to only some clients.
+        </p>
+        <ul v-if="clients.length" class="divide-y divide-default border-t border-default">
+          <li v-for="c in clients" :key="c.id" class="flex items-center gap-3 py-2.5 last:pb-0">
+            <div class="min-w-0 flex-1">
+              <NuxtLink :to="{ path: '/', query: { client: c.id } }" class="truncate text-sm font-medium text-highlighted hover:underline">{{ c.name }}</NuxtLink>
+              <p class="truncate text-xs text-muted">
+                {{ c.sites === 1 ? '1 site' : `${c.sites} sites` }}
+                <template v-if="c.alertEmails.length"> · alerts also to <span class="font-mono">{{ c.alertEmails.join(', ') }}</span></template>
+              </p>
+            </div>
+            <UButton icon="i-lucide-pencil" color="neutral" variant="ghost" size="sm" square :aria-label="`Change ${c.name}`" @click="openClient(c)" />
+            <UButton icon="i-lucide-trash-2" color="neutral" variant="ghost" size="sm" square :aria-label="`Remove ${c.name}`" @click="askRemoveClient(c)" />
+          </li>
+        </ul>
+        <p v-else class="border-t border-default pt-3 text-sm text-muted">No clients yet. Name one here, or on a site.</p>
       </InfoCard>
 
       <!-- Team -->
       <InfoCard title="People">
         <template #aside>
-          <UButton v-if="isOwner" label="Add person" icon="i-lucide-user-plus" color="neutral" variant="outline" size="sm" @click="openAdd" />
+          <UButton v-if="isManager" label="Add person" icon="i-lucide-user-plus" color="neutral" variant="outline" size="sm" @click="openAdd" />
         </template>
         <ul class="divide-y divide-default">
           <li v-for="m in team" :key="m.id" class="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
@@ -248,10 +388,21 @@ async function changePassword() {
               <p class="truncate text-xs text-muted">
                 {{ m.email }} · {{ m.lastLoginAt ? `signed in ${timeAgo(m.lastLoginAt, now)}` : 'not signed in yet' }}
               </p>
+              <p v-if="m.role !== 'owner' && m.role !== 'admin'" class="truncate text-xs text-muted">{{ accessLine(m) }}</p>
             </div>
-            <UBadge :label="m.role" :color="m.role === 'owner' ? 'primary' : 'neutral'" variant="subtle" size="sm" />
+            <UBadge :label="ROLE_LABELS[m.role]" :color="m.role === 'owner' || m.role === 'admin' ? 'primary' : 'neutral'" variant="subtle" size="sm" />
             <UButton
-              v-if="isOwner && m.id !== me?.id"
+              v-if="mayManage(m)"
+              icon="i-lucide-user-cog"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              square
+              :aria-label="`Change access of ${m.name || m.email}`"
+              @click="openEdit(m)"
+            />
+            <UButton
+              v-if="mayManage(m)"
               icon="i-lucide-user-minus"
               color="neutral"
               variant="ghost"
@@ -343,6 +494,7 @@ async function changePassword() {
           <UFormField label="Email" name="email">
             <UInput v-model="newPerson.email" type="email" required class="w-full" />
           </UFormField>
+          <MemberAccessFields v-model:role="access.role" v-model:scope="access.scope" v-model:client-ids="access.clientIds" :roles="roleItems" :scopes="accessItems" :clients="clientOptions" />
         </form>
         <div v-else-if="added.password" class="flex flex-col gap-3">
           <p class="text-sm text-toned">
@@ -361,7 +513,7 @@ async function changePassword() {
         <div class="flex w-full justify-end gap-2">
           <template v-if="!added">
             <UButton label="Cancel" color="neutral" variant="ghost" @click="closeAdd" />
-            <UButton type="submit" form="add-person" label="Add" :loading="adding" />
+            <UButton type="submit" form="add-person" label="Add" :loading="adding" :disabled="accessInvalid" />
           </template>
           <UButton v-else label="Done" @click="closeAdd" />
         </div>
@@ -380,6 +532,54 @@ async function changePassword() {
         </div>
       </template>
     </UModal>
+    <!-- Change a person's role and clients. -->
+    <UModal v-model:open="editOpen" :title="`Access of ${editing?.name || editing?.email || 'them'}`" :description="editing && access.role !== editing.role ? 'A new role signs them out once.' : undefined">
+      <template #body>
+        <form id="edit-access" class="flex flex-col gap-4" @submit.prevent="saveEdit">
+          <MemberAccessFields v-model:role="access.role" v-model:scope="access.scope" v-model:client-ids="access.clientIds" :roles="roleItems" :scopes="accessItems" :clients="clientOptions" />
+        </form>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton label="Cancel" color="neutral" variant="ghost" @click="closeEdit" />
+          <UButton type="submit" form="edit-access" label="Save" :loading="editBusy" :disabled="accessInvalid" />
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Add or change a client. -->
+    <UModal v-model:open="clientOpen" :title="editingClient ? `Change ${editingClient.name}` : 'Add a client'">
+      <template #body>
+        <form id="client-form" class="flex flex-col gap-4" @submit.prevent="saveClient">
+          <UFormField label="Name" name="name">
+            <UInput v-model="clientForm.name" required maxlength="120" autofocus placeholder="Grand s.r.o." class="w-full" />
+          </UFormField>
+          <UFormField label="Also alert" name="alertEmails" description="Addresses told about this client's sites on top of the team's, e.g. the client's own contact. Separate with commas.">
+            <UTextarea v-model="clientForm.alertEmails" :rows="2" autoresize placeholder="it@client.example" class="w-full font-mono" />
+          </UFormField>
+        </form>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton label="Cancel" color="neutral" variant="ghost" @click="closeClient" />
+          <UButton type="submit" form="client-form" :label="editingClient ? 'Save' : 'Add'" :loading="clientBusy" />
+        </div>
+      </template>
+    </UModal>
+
+    <UModal
+      v-model:open="removeClientOpen"
+      :title="`Remove ${removingClient?.name ?? 'this client'}?`"
+      description="Its sites stay, without a client. People who see only this client no longer see them."
+    >
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton label="Cancel" color="neutral" variant="ghost" @click="cancelRemoveClient" />
+          <UButton label="Remove" color="error" :loading="removeClientBusy" @click="removeClient" />
+        </div>
+      </template>
+    </UModal>
+
     <!-- A new access token; its value is shown once. -->
     <UModal v-model:open="tokenOpen" :title="madeToken ? 'Your new token' : 'New access token'" :dismissible="!madeToken || tokenCopied">
       <template #body>

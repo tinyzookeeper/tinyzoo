@@ -29,6 +29,20 @@
       "when": 1795122401870,
       "tag": "0003_build_id",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795122931239,
+      "tag": "0004_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795122931713,
+      "tag": "0005_drop_site_client",
+      "breakpoints": true
     }
   ]
 }

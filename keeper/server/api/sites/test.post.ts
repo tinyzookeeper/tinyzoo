@@ -14,7 +14,7 @@ export default defineEventHandler(async (event): Promise<ConnectionTest> => {
   let token = data.token || null
   if (!token && data.siteId) {
     const [site] = await useDb().select({ tokenEnc: schema.sites.tokenEnc }).from(schema.sites)
-      .where(and(eq(schema.sites.id, data.siteId), eq(schema.sites.workspaceId, me.workspaceId)))
+      .where(and(eq(schema.sites.id, data.siteId), visibleSites(me)))
     token = decryptSecret(site?.tokenEnc)
   }
   const ready = await probeReady(url)

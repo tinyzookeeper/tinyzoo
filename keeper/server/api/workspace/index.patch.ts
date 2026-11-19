@@ -7,7 +7,7 @@ const input = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const me = await requireOwner(event)
+  const me = await requireManager(event)
   const data = await readInput(event, input)
   await useDb().update(schema.workspaces).set(data).where(eq(schema.workspaces.id, me.workspaceId))
   // The name is in the session too.

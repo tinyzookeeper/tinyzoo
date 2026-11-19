@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { OverviewResponse, SiteSummary } from '#keeper/types/keeper'
 
+const { canWrite } = useKeeperUser()
+
 useHead({ title: 'Versions · Keeper' })
 const { data, status } = await useFetch<OverviewResponse>('/api/sites', {
   key: 'overview',
-  default: () => ({ sites: [], latest: null }),
+  default: () => ({ sites: [], latest: null, clients: [] }),
 })
 
 interface Group { version: string | null; sites: SiteSummary[]; outdated: boolean; latest: boolean }
@@ -38,7 +40,7 @@ const behind = computed(() => groups.value.filter((g) => g.outdated).reduce((n, 
 
     <div v-else-if="!data.sites.length" class="k-card">
       <KEmpty animal="owl" title="No sites yet" description="Once sites are added, here you see which tinyzoo each one runs.">
-        <UButton to="/sites/new" label="Add a site" icon="i-lucide-plus" />
+        <UButton v-if="canWrite" to="/sites/new" label="Add a site" icon="i-lucide-plus" />
       </KEmpty>
     </div>
 

@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   const [row] = await db.select({ createdBy: schema.tokens.createdBy }).from(schema.tokens)
     .where(and(eq(schema.tokens.id, id), eq(schema.tokens.workspaceId, me.workspaceId), isNull(schema.tokens.revokedAt)))
   if (!row) throw createError({ statusCode: 404, statusMessage: 'No such token' })
-  if (me.role !== 'owner' && row.createdBy !== me.userId) throw createError({ statusCode: 403, statusMessage: 'Only its maker or an owner can revoke it' })
+  if (!isManager(me) && row.createdBy !== me.userId) throw createError({ statusCode: 403, statusMessage: 'Only its maker, an owner or an admin can revoke it' })
   await db.update(schema.tokens).set({ revokedAt: new Date() }).where(eq(schema.tokens.id, id))
   return { ok: true }
 })

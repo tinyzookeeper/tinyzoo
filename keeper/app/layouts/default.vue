@@ -56,7 +56,7 @@ const menu = computed<DropdownMenuItem[][]>(() => [
             <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-(--k-moment-bg) text-xs font-semibold text-highlighted">{{ initials(me?.name || me?.email) }}</span>
             <span v-if="!collapsed" class="min-w-0 flex-1 text-left">
               <span class="block truncate text-sm font-medium text-highlighted">{{ me?.name || me?.email }}</span>
-              <span class="block truncate text-xs text-muted">{{ me?.role === 'owner' ? 'Owner' : 'Member' }}</span>
+              <span class="block truncate text-xs text-muted">{{ me ? ROLE_LABELS[me.role] : '' }}</span>
             </span>
             <UIcon v-if="!collapsed" name="i-lucide-chevrons-up-down" class="size-4 shrink-0 text-dimmed" />
           </UButton>

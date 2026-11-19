@@ -1,4 +1,5 @@
-import { bigserial, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { sql } from 'drizzle-orm'
+import { bigserial, boolean, foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import type { CmsStatus } from '../../shared/types/status'
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date', precision: 3 })
@@ -30,16 +31,49 @@ export const users = pgTable('users', {
 export const memberships = pgTable('memberships', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  // owner: manages the team and settings; member: manages sites.
-  role: text('role').$type<'owner' | 'member'>().notNull().default('member'),
+  /**
+   * owner: everything, and the only one who can make or remove owners. admin: the team,
+   * clients and settings. member: works on sites. viewer: only looks (a client's own people).
+   */
+  role: text('role').$type<MemberRole>().notNull().default('member'),
+  // Sees every client's sites (and sites without a client). Otherwise only the clients in
+  // membership_clients. Owners and admins always see everything.
+  allClients: boolean('all_clients').notNull().default(true),
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })])
+
+export type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
+
+/**
+ * Whose sites they are: the team's clients. A site belongs to one client or none; what a
+ * person may see can be narrowed to some clients (membership_clients).
+ */
+export const clients = pgTable('clients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  // Also told when one of the client's sites goes down, comes back or its certificate runs out.
+  alertEmails: jsonb('alert_emails').$type<string[]>().notNull().default([]),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('clients_workspace_name_unique').on(t.workspaceId, sql`lower(${t.name})`)])
+
+/** The clients a person with `all_clients = false` may see. Gone with the membership or the client. */
+export const membershipClients = pgTable('membership_clients', {
+  workspaceId: uuid('workspace_id').notNull(),
+  userId: uuid('user_id').notNull(),
+  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
+}, (t) => [
+  primaryKey({ columns: [t.workspaceId, t.userId, t.clientId] }),
+  foreignKey({ columns: [t.workspaceId, t.userId], foreignColumns: [memberships.workspaceId, memberships.userId], name: 'membership_clients_membership_fk' }).onDelete('cascade'),
+  index('membership_clients_client_idx').on(t.clientId),
+])
 
 export const sites = pgTable('sites', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  client: text('client').notNull().default(''),
+  // Removing the client leaves its sites without one.
+  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'set null' }),
   // The site's origin, no trailing slash (https://example.com).
   url: text('url').notNull(),
   environment: text('environment').$type<'production' | 'staging'>().notNull().default('production'),
@@ -67,7 +101,7 @@ export const sites = pgTable('sites', {
   // The build the site serves (Nuxt's /_nuxt/builds/latest.json): a new one means a deploy,
   // and the status is read again at once instead of at the next round.
   buildId: text('build_id'),
-}, (t) => [index('sites_workspace_idx').on(t.workspaceId)])
+}, (t) => [index('sites_workspace_idx').on(t.workspaceId), index('sites_client_idx').on(t.clientId)])
 
 /** One uptime check: GET /api/health/ready. */
 export const checks = pgTable('checks', {

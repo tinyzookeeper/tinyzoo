@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { SiteInput } from '#keeper/types/keeper'
 
+// Viewers only look: send them back to the sites.
+const { canWrite } = useKeeperUser()
+if (!canWrite.value) await navigateTo('/', { replace: true })
+
 useHead({ title: 'Add site · Keeper' })
 const toast = useToast()
 const busy = ref(false)

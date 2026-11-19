@@ -2,6 +2,12 @@ import type { CmsStatus } from './status'
 
 export type { CmsStatus }
 
+/**
+ * owner: everything, and the only one who makes or removes owners. admin: the team, clients
+ * and settings. member: works on the sites they see. viewer: only looks (a client's people).
+ */
+export type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
+
 /** up: the last checks answered; down: several in a row did not; unknown: not checked yet. */
 export type SiteState = 'up' | 'down' | 'unknown'
 
@@ -9,7 +15,9 @@ export type SiteState = 'up' | 'down' | 'unknown'
 export interface SiteSummary {
   id: string
   name: string
+  /** The client's name, '' without one. */
   client: string
+  clientId: string | null
   url: string
   environment: 'production' | 'staging'
   state: SiteState
@@ -39,6 +47,8 @@ export interface OverviewResponse {
   sites: SiteSummary[]
   /** The newest tinyzoo release (npm), or the newest version in the fleet when npm is out of reach. */
   latest: string | null
+  /** The clients this person sees, by name (for the filter and the site form). */
+  clients: { id: string; name: string }[]
 }
 
 export interface CheckPoint {
@@ -69,6 +79,7 @@ export interface SiteDetail extends SiteSummary {
 /** What the add and edit forms send. `token` left out keeps the stored one; '' removes it. */
 export interface SiteInput {
   name: string
+  /** The client's name: an existing one, a new one, or '' for none. */
   client?: string
   url: string
   environment?: 'production' | 'staging'
@@ -90,8 +101,35 @@ export interface Member {
   id: string
   name: string
   email: string
-  role: 'owner' | 'member'
+  role: MemberRole
+  /** Sees every client's sites (always true for owners and admins). */
+  allClients: boolean
+  /** The clients they see when not all of them. */
+  clientIds: string[]
   lastLoginAt: string | null
+}
+
+/** What adding or changing a person sends. */
+export interface MemberAccessInput {
+  role: MemberRole
+  allClients: boolean
+  clientIds: string[]
+}
+
+/** GET /api/clients: the clients this person sees. */
+export interface ClientList {
+  clients: Client[]
+  /** Whether they may name a new client, or leave a site without one (people who see every client). */
+  canCreate: boolean
+}
+
+/** A client in Settings. */
+export interface Client {
+  id: string
+  name: string
+  /** Also told about this client's sites going down, coming back, or certificates running out. */
+  alertEmails: string[]
+  sites: number
 }
 
 export interface WorkspaceSettings {
