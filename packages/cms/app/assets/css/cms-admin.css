@@ -16,6 +16,14 @@
  * roles (--ui-primary, --ui-text-muted, --ui-bg, …) from those. Overriding them at
  * html[data-cms-admin] (specificity 0,1,1) beats Nuxt UI's :root (0,1,0).
  *
+ * The site's own stylesheet loads in the admin too, and a site often sets these roles
+ * for its pages (`:root { --ui-bg: <its page colour> }`). So the light block declares
+ * every role Nuxt UI has, not only the ones that differ from Nuxt UI's defaults: a role
+ * left out would come from the site (a cream page under the cream moments). The light
+ * block also matches under .dark (0,2,1), so a site's `:root.dark` or `.dark` (0,2,0)
+ * cannot reach a token only the light block sets (--ui-radius); the dark block comes
+ * later at the same specificity and wins where it differs.
+ *
  * Re-skin for a client: set `cms.admin.accent` in app.config.ts to one of the
  * built-in accents (mono — tinyzoo's charcoal, the default —, indigo, blue, violet,
  * emerald) or to the client's brand colour as a hex ('#B4532A'). A brand colour is drawn
@@ -29,8 +37,8 @@
   html[data-cms-admin] :is(button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary) { cursor: pointer; }
 }
 
-/* ── Light ── */
-html[data-cms-admin] {
+/* ── Light (and the base of dark: see the note at the top) ── */
+html[data-cms-admin], html[data-cms-admin].dark {
   /* tinyzoo's brand (docs/brand/brand-guide.md) */
   --tz-ink: #131313;
   --tz-charcoal: #2E3035;
@@ -75,9 +83,16 @@ html[data-cms-admin] {
   --ui-info: var(--ui-color-info-700);
   --ui-secondary: var(--ui-color-secondary-700);
   --ui-text-highlighted: var(--tz-ink);
+  --ui-text-inverted: #fff;
   --ui-border: var(--ui-color-neutral-200);
   --ui-border-muted: var(--ui-color-neutral-100);
+  --ui-border-accented: var(--ui-color-neutral-300);
+  --ui-border-inverted: var(--ui-color-neutral-900);
+  --ui-bg: var(--cms-page-bg);
+  --ui-bg-muted: var(--ui-color-neutral-50);
   --ui-bg-elevated: var(--ui-color-neutral-100);
+  --ui-bg-accented: var(--ui-color-neutral-200);
+  --ui-bg-inverted: var(--ui-color-neutral-900);
 
   /* Surfaces */
   --cms-page-bg: #fff;
@@ -96,6 +111,7 @@ html[data-cms-admin] {
   /* Shape & chrome */
   --ui-radius: 0.5rem;
   --ui-header-height: 3.5rem;
+  --ui-container: 80rem;
   --cms-content-max: 72rem;
 }
 
@@ -135,6 +151,7 @@ html[data-cms-admin].dark {
   --ui-border: #2D2F34;
   --ui-border-muted: #25272B;
   --ui-border-accented: #3A3C42;
+  --ui-border-inverted: var(--tz-cream);
 
   --cms-page-bg: #18191C;
   --cms-surface: #1E1F23;
@@ -317,6 +334,9 @@ html[data-cms-admin] [role='dialog'] :is(button, a[href], input, textarea, selec
 }
 
 /* ── Base ── */
+/* <html> too: a site that paints its own (`html { background: … }`) would show it past the
+   page when it overscrolls. */
+html[data-cms-admin] { background-color: var(--cms-page-bg); }
 html[data-cms-admin] body {
   font-family: var(--font-sans);
   background: var(--cms-page-bg);

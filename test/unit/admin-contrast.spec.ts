@@ -20,9 +20,17 @@ function declared(selector: string, source = css): Record<string, string> {
   return out
 }
 
-// What Nuxt UI itself defines (its :root / .dark) and the admin does not override.
-const nuxtUiLight: Record<string, string> = { '--ui-text-inverted': '#fff', '--ui-bg': '#fff', '--ui-bg-elevated': 'var(--ui-color-neutral-100)', '--ui-bg-accented': 'var(--ui-color-neutral-200)' }
-const nuxtUiDark: Record<string, string> = { '--ui-text-inverted': 'var(--ui-color-neutral-900)', '--ui-bg': 'var(--ui-color-neutral-900)' }
+/** The light block: also matched under .dark, so a site's `:root.dark` cannot outrank it (cms-admin.css, top). */
+const LIGHT = 'html[data-cms-admin], html[data-cms-admin].dark'
+const DARK = 'html[data-cms-admin].dark'
+// Every role Nuxt UI defines on :root / .dark (@nuxt/ui dist/runtime/index.css). The admin declares
+// each one itself: one left to Nuxt UI is one the site's own stylesheet can set for the admin.
+const NUXT_UI_COLOUR_ROLES = [
+  '--ui-text-dimmed', '--ui-text-muted', '--ui-text-toned', '--ui-text', '--ui-text-highlighted', '--ui-text-inverted',
+  '--ui-bg', '--ui-bg-muted', '--ui-bg-elevated', '--ui-bg-accented', '--ui-bg-inverted',
+  '--ui-border', '--ui-border-muted', '--ui-border-accented', '--ui-border-inverted',
+]
+const NUXT_UI_SIZES = ['--ui-radius', '--ui-header-height', '--ui-container']
 // Tailwind's palette (what Nuxt UI's colour shades are made of).
 const palette: Record<string, string> = {
   '--ui-color-success-400': 'oklch(79.2% 0.209 151.711)', '--ui-color-success-700': 'oklch(52.7% 0.154 150.069)', '--ui-color-success-800': 'oklch(44.8% 0.119 151.328)',
@@ -36,8 +44,8 @@ const palette: Record<string, string> = {
 
 type RGB = [number, number, number]
 function tokens(dark: boolean) {
-  const light = declared('html[data-cms-admin]')
-  return { ...palette, ...(dark ? nuxtUiDark : nuxtUiLight), ...light, ...(dark ? declared('html[data-cms-admin].dark') : {}) }
+  const light = { ...declared(LIGHT), ...declared('html[data-cms-admin]') }
+  return { ...palette, ...light, ...(dark ? declared(DARK) : {}) }
 }
 /** The tokens with a built-in accent drawn (data-cms-accent='…'), as the stylesheet's cascade gives them. */
 function presetTokens(preset: string, dark: boolean) {
@@ -84,6 +92,23 @@ const channel = (v: number) => { const c = v / 255; return c <= 0.04045 ? c / 12
 const luminance = ([r, g, b]: RGB) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 export const contrast = (a: RGB, b: RGB) => { const x = luminance(a), y = luminance(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
 const over = (fg: RGB, alpha: number, bg: RGB): RGB => fg.map((c, i) => c * alpha + bg[i]! * (1 - alpha)) as RGB
+
+// The site's stylesheet loads in the admin too. A site with `:root, :root.dark { --ui-bg: #FFF8F3 }` turned
+// the admin's page that cream while --ui-bg was left to Nuxt UI, and the cream welcome card vanished on it.
+describe('the host site cannot re-theme the admin', () => {
+  it('the light block declares every role and size Nuxt UI has', () => {
+    const light = declared(LIGHT)
+    for (const role of [...NUXT_UI_COLOUR_ROLES, ...NUXT_UI_SIZES]) expect(light, role).toHaveProperty(role)
+  })
+  it('the dark block declares every colour role Nuxt UI has', () => {
+    const dark = declared(DARK)
+    for (const role of NUXT_UI_COLOUR_ROLES) expect(dark, role).toHaveProperty(role)
+  })
+  it('the page behind the admin is its own, on <html> and <body>', () => {
+    expect(css).toMatch(/html\[data-cms-admin\]\s*\{\s*background-color:\s*var\(--cms-page-bg\);?\s*\}/)
+    expect(declared(LIGHT)['--ui-bg']).toBe('var(--cms-page-bg)')
+  })
+})
 
 for (const dark of [false, true]) {
   describe(`admin colour tokens — ${dark ? 'dark' : 'light'}`, () => {

@@ -36,6 +36,14 @@ toasts). Nuxt UI reads `--ui-color-*` and the role variables (`--ui-primary`,
 `--ui-text-muted`, …); the admin overrides them at a higher specificity than
 Nuxt UI's `:root`. The website's pages are untouched.
 
+It works the other way too: the website's stylesheet loads in the admin, and a site
+often sets Nuxt UI's roles for its pages (`:root { --ui-bg: … }`). So the admin
+declares every role Nuxt UI has (each text, background and border role, the radius,
+header height and container), not only the ones it changes, and paints `<html>` with
+its own page colour. Its light block also matches under `.dark`, so a site's
+`:root.dark` cannot reach a token only the light block sets.
+`test/unit/admin-contrast.spec.ts` fails when a role is left to Nuxt UI.
+
 ## Colour
 
 **Light** — a white workspace:
