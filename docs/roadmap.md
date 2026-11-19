@@ -242,9 +242,15 @@ and the audit has no open High or Medium.
 | The writing column's ring (after review B) | **Keyboard only** (decided by the owner): in the Write layout, a click into the big title, the summary or the text draws no ring, and reaching them with the keyboard does. `cmsTrackKeys` notes where the focus came from (`data-cms-key-focus` on `<html>`: set when a control takes the focus while `data-cms-keys` is set, cleared by a press of the pointer, not set by typing). Other fields, the form layout's title included, ring on a click as before. |
 
 
-## 1.1: next minor
+## 1.1: site status (2026-11-19)
 
-1.1 adds things and breaks nothing ([what a minor release may add](api-surface.md#what-a-minor-release-may-add)).
+1.1 adds things and breaks nothing ([what a minor release may add](api-surface.md#what-a-minor-release-may-add)). It is one feature, released on its own so the sites can report to Keeper now. The two items planned for 1.1 moved to 1.2 unchanged.
+
+**Site status for a fleet of sites.** A developer who looks after many tinyzoo sites wants one overview of them: versions, uptime, health, how much each client uses its admin. tinyzoo runs inside each site, so nothing knows about all of them. The first step is in the package: `GET /api/health/status` (`CmsStatus`), off until `NUXT_CMS_STATUS_TOKEN` is set, read-only, numbers and dates only ([deploying](deploying.md#site-status)). A separate app that reads it from every site (a site list, a version table, uptime checks and alerts, certificate expiry, a monthly report per client) builds on it and ships on its own.
+
+## 1.2: next minor
+
+1.2 adds things and breaks nothing.
 
 **Planned** (on the website's Plány page as Next):
 
@@ -258,6 +264,7 @@ and the audit has no open High or Medium.
 | **Pictures on embedded entries** | An entry embedded in another (`CoachEmbedded` in a lesson) has only its plain fields: no files, galleries, groups, lists or blocks. studiogrand-web looks coach photos up in a second request. | `projectScalars` (`server/utils/cmsContent.ts`) and `embeddedFields` (`src/content-shape.ts`) deliver media fields as files (`{ id, url, width, height, alt, mime, focal }`), resolved in one query per relation. New keys in answers and in the generated types: allowed in a minor, and the contract goldens (`client-types.playground.ts`, `openapi.playground.json`, `surface.*`) change. Decide whether galleries and groups come along, or only media fields (smaller, and enough for the case seen). `content-api-reference.md` then says what an embedded entry carries. | S–M |
 | **Folders inside folders in the media library** | 6dance-web's seed used `Lektoři/fotky`. Folders have one level: the site stored it as `Lektoři fotky`, and the seed now refuses it (PR #41). A flat name (`Lektoři – fotky`) covers that case. | A folder path (`a/b`) in `cms_media.folder`, a tree in the library's sidebar, the folder filter of `GET /api/cms/_media` matching a folder and the ones under it, moving and renaming a folder, the seed accepting `/`. A folder named `a b` stays what it is. Worth it only when a site needs more than a dozen folders. | M |
 | **`useFetch` typed without a type argument** | `useFetch('/api/content/news/…')` is not typed as the site's `News` unless the site writes `useFetch<{ item: News }>`, while the generated `cms.news.get()` is typed from `cms.config.ts`. The website's sample now shows the client for that reason. | The type generator also writes Nitro route types per collection and global (`/api/content/news/:slug` → `{ item: News }`). First check how Nitro chooses between these routes and the generic `:entity` one. Adds types only. | S |
+
 
 ---
 

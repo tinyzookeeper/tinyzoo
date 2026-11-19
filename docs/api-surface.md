@@ -68,7 +68,7 @@ Every surface above is written down as a golden file in `test/contracts/`.
 
 A minor release adds things. Code that reads what tinyzoo sends must expect them.
 
-**New keys.** In the content API's answers, the webhook's body, the hooks' arguments (`CmsChange`, `CmsSitemapEntry`, `CmsErrorReport`), the forms' answers and what `useCms()` returns. Ignore keys you do not know.
+**New keys.** In the content API's answers, the site status (`CmsStatus`), the webhook's body, the hooks' arguments (`CmsChange`, `CmsSitemapEntry`, `CmsErrorReport`), the forms' answers and what `useCms()` returns. Ignore keys you do not know.
 
 **New members of the unions you receive.** For example:
 
@@ -234,6 +234,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | Seeds | `SeedDefinition`, `SeedContext`, `SeedEntry`, `SeedInsert`, `SeedWriteOptions`, `SeedGlobalOptions`, `SeedUploadOptions`, `SeedLink`, `SeedLinkOptions`, `SeedRich`, `SeedRichNode` |
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
+| Site status | `CmsStatus`, `CmsStatusCollection` (the answer of `/api/health/status`) |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
 | Admin branding (`cms.admin`) | `CmsAccent` (a built-in accent or a hex), `CmsAccentPreset` (`'mono' \| 'indigo' \| 'blue' \| 'violet' \| 'emerald'`), `CmsAdminLogo` (`full`, `mark`, `fullDark`, `markDark`) |
 | Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsSearchItem`, `CmsSearchResult` |
@@ -313,6 +314,7 @@ Every option reaches the runtime config as `cms.<option>`. Every runtime value c
 | `sitemap.paths` | `NUXT_CMS_SITEMAP_PATHS` | addresses that are not entries but belong in `/sitemap.xml` |
 | `forms.notifyTo`, `forms.turnstileSecret`, `forms.turnstileSiteKey` | `NUXT_CMS_FORMS_NOTIFY_TO`, `NUXT_CMS_FORMS_TURNSTILE_SECRET`, `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` | the forms plugin's recipients and Turnstile. `notifyTo` is an address or a list, and the variable is one comma-separated string |
 | `demo.email`, `demo.password` | `NUXT_PUBLIC_CMS_DEMO_EMAIL`, `NUXT_PUBLIC_CMS_DEMO_PASSWORD` | a public demo admin |
+| `status.token` | `NUXT_CMS_STATUS_TOKEN` | turns on `/api/health/status` and is the token it asks for |
 | `content.token`, `content.cacheControl`, `content.publicUrl`, `content.docs` | `NUXT_CMS_CONTENT_TOKEN`, `NUXT_CMS_CONTENT_CACHE_CONTROL`, `NUXT_CMS_CONTENT_PUBLIC_URL`, `NUXT_CMS_CONTENT_DOCS` | the content API: a token, the cache header, the OpenAPI server address (`publicUrl` when empty), the interactive reference |
 
 **Build-time options.** `scheduler.cron` and `retention.cron` are written into the build. They have no `NUXT_CMS_*` variable, and a change needs a rebuild.
@@ -367,6 +369,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/openapi` | the interactive reference (off in production unless `cms.content.docs`) |
 | `GET /api/content-types.ts` | the generated client types (what `tinyzoo client` writes) |
 | `GET /api/health/live`, `GET /api/health/ready` | liveness and readiness (`{ ok }`, `503` when not) |
+| `GET /api/health/status` | a summary of the site for a tool that watches many sites (`CmsStatus`). `404` until `cms.status.token` is set; then it asks for that token (`x-api-key` or `Authorization: Bearer`). See [deploying](deploying.md#site-status) |
 
 When `cms.content.token` is set, requests carry the token as `x-api-key` or `Authorization: Bearer`.
 

@@ -12,6 +12,7 @@ export function reportCmsError(report: Omit<CmsErrorReport, 'message' | 'error' 
   const { error: raw, ...rest } = report
   const error = scrubError(raw)
   const full: CmsErrorReport = { ...rest, error, rawError: raw, message: report.message ?? error.message }
+  noteCmsErrorForStatus(full.source)
   const run = async () => {
     try {
       await useNitroApp().hooks.callHook('cms:error', full)

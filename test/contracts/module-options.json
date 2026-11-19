@@ -86,6 +86,9 @@
       "notifyTo": "",
       "turnstileSecret": ""
     },
+    "status": {
+      "token": ""
+    },
     "content": {
       "token": "",
       "cacheControl": "",
@@ -253,6 +256,10 @@
     },
     {
       "name": "NUXT_CMS_FORMS_TURNSTILE_SECRET",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_STATUS_TOKEN",
       "default": ""
     },
     {

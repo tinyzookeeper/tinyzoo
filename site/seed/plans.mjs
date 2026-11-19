@@ -18,15 +18,15 @@ export const PLANS = [
     en: { title: 'What tinyzoo 1.0 means', text: 'Your website keeps working after updates within version 1, with no rework needed. You’ll find the guide for editors and the developer documentation on this site.' },
     de: { title: 'Was tinyzoo 1.0 bedeutet', text: 'Bei Updates innerhalb der Version 1 läuft Ihre Website ohne Anpassungen weiter. Das Handbuch für Redakteure und die Dokumentation für Entwickler finden Sie auf dieser Website.' },
   },
-  // ── next (1.1) ──
+  // ── next (1.2) ──
   {
-    stage: 'next', version: '1.1', animal: 'bird',
+    stage: 'next', version: '1.2', animal: 'bird',
     cs: { title: 'Překlady ke kontrole', text: 'Překladatel předá hotový překlad ke kontrole. Editor dostane upozornění v administraci a na přání i e-mailem.' },
     en: { title: 'Translations for review', text: 'Translators mark finished translations for review. Editors get a notification in the admin area and can choose to get it by email too.' },
     de: { title: 'Übersetzungen zur Prüfung', text: 'Übersetzer geben fertige Übersetzungen zur Prüfung weiter. Redakteure erhalten eine Benachrichtigung in der Verwaltung und auf Wunsch auch per E-Mail.' },
   },
   {
-    stage: 'next', version: '1.1', animal: 'fox',
+    stage: 'next', version: '1.2', animal: 'fox',
     cs: { title: 'Nastavení vzhledu administrace', text: 'Na nové stránce „Vzhled“ nastaví administrátor barvu i loga bez pomoci vývojáře.' },
     en: { title: 'Customise the admin area', text: 'The new ‘Look’ page lets administrators set the colour and logos without a developer.' },
     de: { title: 'Die Verwaltung selbst gestalten', text: 'Auf der neuen Seite „Aussehen“ legen Administratoren Farbe und Logos ohne Hilfe eines Entwicklers fest.' },

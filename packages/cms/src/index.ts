@@ -39,6 +39,7 @@ export {
 export { cmsMedia } from './media'
 export { CMS_WEBHOOK_HEADERS, webhookPayload, type CmsChange, type CmsChangeType, type CmsSitemapEntry, type CmsWebhookPayload } from './changes'
 export type { CmsErrorReport } from './errorReport'
+export type { CmsStatus, CmsStatusCollection } from './status'
 export type { CmsAdminField, CmsFieldEditProps, CmsFieldCellProps } from './admin'
 export { resolveAdminTheme, brandFileUrl, themeHash, CMS_ACCENT_PRESETS, CMS_BRAND_FILES, type CmsAccent, type CmsAccentPreset, type CmsAdminLogo, type CmsAdminTheme, type CmsAdminThemeInput, type CmsAccentScheme, type CmsMomentScheme, type CmsColorRamp, type CmsThemeNote, type CmsBrandFile } from './theme'
 export type { CmsImageMedia, CmsImageProps, CmsBlocksProps, CmsBlockProps, CmsContentNode, CmsContentProps, CmsNavLink, CmsNavProps, CmsHighlightProps, CmsFormProps, CmsSearchItem, CmsSearchResult } from './frontend'
