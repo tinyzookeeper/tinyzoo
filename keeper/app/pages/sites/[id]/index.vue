@@ -1,0 +1,231 @@
+<script setup lang="ts">
+import type { SiteDetail } from '#shared/types/keeper'
+import type { Fact } from '~/components/FactList.vue'
+
+const route = useRoute()
+const id = computed(() => String(route.params.id))
+const toast = useToast()
+const now = useNow()
+
+const { data: site, error, refresh } = await useFetch<SiteDetail>(() => `/api/sites/${id.value}`, { key: `site-${id.value}` })
+if (error.value?.statusCode === 404) throw createError({ statusCode: 404, statusMessage: 'Site not found', fatal: true })
+useHead({ title: () => `${site.value?.name ?? 'Site'} · Keeper` })
+
+let timer: ReturnType<typeof setInterval> | undefined
+onMounted(() => { timer = setInterval(() => { refresh() }, 60_000) })
+onBeforeUnmount(() => clearInterval(timer))
+
+const checking = ref(false)
+async function checkNow() {
+  checking.value = true
+  try {
+    site.value = await $fetch<SiteDetail>(`/api/sites/${id.value}/check`, { method: 'POST' })
+    toast.add({ title: site.value.state === 'up' ? 'Checked: up' : site.value.state === 'down' ? 'Checked: down' : 'Checked', color: site.value.state === 'down' ? 'error' : 'success', icon: 'i-lucide-refresh-cw' })
+  }
+  catch (err) {
+    toast.add({ title: 'Could not check the site', description: errorMessage(err), color: 'error' })
+  }
+  finally {
+    checking.value = false
+  }
+}
+
+const s = computed(() => site.value?.status ?? null)
+const certDays = computed(() => daysLeft(site.value?.certExpiresAt, now.value))
+
+const tinyzooFacts = computed<Fact[]>(() => {
+  const d = site.value!
+  return [
+    { label: 'Version', value: d.version ?? '—', mono: true, tone: d.outdated ? 'warning' : 'default' },
+    { label: 'Newest release', value: d.latest ?? '—', mono: true, tone: 'muted' },
+    { label: 'Node.js', value: s.value?.node ?? '—', mono: true },
+    { label: 'Instance started', value: s.value ? timeAgo(s.value.instance.startedAt, now.value) : '—' },
+    { label: 'Languages', value: s.value?.site.locales?.join(', ') ?? (s.value ? 'one' : '—') },
+    { label: 'Sign-in', value: s.value?.site.auth === 'external' ? 'the site’s own' : s.value ? 'tinyzoo' : '—' },
+    { label: 'Webhooks', value: s.value ? (s.value.webhooks.urls ? `${s.value.webhooks.urls}${s.value.webhooks.signed ? ', signed' : ', not signed'}` : 'none') : '—', tone: s.value && s.value.webhooks.urls && !s.value.webhooks.signed ? 'warning' : 'default' },
+    { label: 'Status read', value: d.statusAt ? timeAgo(d.statusAt, now.value) : '—', tone: 'muted' },
+  ]
+})
+const peopleFacts = computed<Fact[]>(() => {
+  const p = s.value!.people
+  return [
+    { label: 'Active', value: p.active },
+    { label: 'Invited', value: p.invited, tone: p.invited ? 'default' : 'muted' },
+    { label: 'Disabled', value: p.disabled, tone: 'muted' },
+    { label: 'Signed in, last 30 days', value: p.signedInLast30Days },
+    { label: 'Last sign-in', value: timeAgo(p.lastSignInAt, now.value) },
+  ]
+})
+const databaseFacts = computed<Fact[]>(() => {
+  const db = s.value!.database
+  return [
+    { label: 'Answers', value: db.ok ? 'yes' : 'no', tone: db.ok ? 'success' : 'error' },
+    { label: 'Migrations at start', value: db.migrations, tone: db.migrations === 'failed' ? 'error' : 'default' },
+    { label: 'Size', value: formatBytes(db.bytes) },
+    { label: 'Media', value: `${s.value!.media.files} files · ${formatBytes(s.value!.media.bytes)}` },
+  ]
+})
+const errorFacts = computed<Fact[]>(() => {
+  const e = s.value!.errors
+  const tone = (n: number): Fact['tone'] => (n ? 'error' : 'muted')
+  return [
+    { label: 'Requests', value: e.last24h.request, tone: tone(e.last24h.request) },
+    { label: 'Scheduled tasks', value: e.last24h.task, tone: tone(e.last24h.task) },
+    { label: 'Webhooks', value: e.last24h.webhook, tone: tone(e.last24h.webhook) },
+    { label: 'Last one', value: timeAgo(e.lastAt, now.value), tone: 'muted' },
+  ]
+})
+const collections = computed(() => [...(s.value?.content.collections ?? [])].sort((a, b) => (b.lastEditAt ?? '').localeCompare(a.lastEditAt ?? '')))
+</script>
+
+<template>
+  <AppPage :title="site?.name ?? 'Site'" back="/">
+    <template #actions>
+      <UButton
+        v-if="site"
+        label="Check now"
+        icon="i-lucide-refresh-cw"
+        color="neutral"
+        variant="ghost"
+        :loading="checking"
+        class="hidden sm:inline-flex"
+        @click="checkNow"
+      />
+      <UButton v-if="site" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" label="Edit" color="neutral" variant="outline" class="hidden sm:inline-flex" />
+      <UButton v-if="site" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" aria-label="Edit" color="neutral" variant="ghost" square class="sm:hidden" />
+    </template>
+
+    <div v-if="site" class="flex flex-col gap-4">
+      <!-- Who and where -->
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div class="min-w-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <StateBadge :state="site.state" :since="site.stateSince" />
+            <VersionBadge :version="site.version" :outdated="site.outdated" :latest="site.latest" />
+            <UBadge v-if="site.environment === 'staging'" label="staging" color="neutral" variant="subtle" />
+          </div>
+          <p class="mt-2 text-muted">
+            <span v-if="site.client" class="text-toned">{{ site.client }} · </span>
+            <a :href="site.url" target="_blank" rel="noopener" class="font-mono text-sm hover:underline">{{ hostOf(site.url) }}</a>
+          </p>
+          <p class="mt-1 text-xs text-dimmed">Last checked {{ timeAgo(site.lastCheckAt, now) }}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <UButton label="Check now" icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="checking" class="sm:hidden" @click="checkNow" />
+          <UButton :to="site.url" target="_blank" rel="noopener" label="Open site" trailing-icon="i-lucide-arrow-up-right" color="neutral" variant="outline" />
+          <UButton :to="site.adminUrl" target="_blank" rel="noopener" label="Open admin" trailing-icon="i-lucide-arrow-up-right" />
+        </div>
+      </div>
+
+      <!-- Status missing: how to fix it. -->
+      <div v-if="!site.hasToken || site.statusError" class="flex gap-3 rounded-xl bg-warning/10 p-4 text-sm">
+        <UIcon name="i-lucide-key-round" class="mt-0.5 size-5 shrink-0 text-warning" />
+        <div>
+          <p class="font-medium text-highlighted">
+            {{ !site.hasToken ? 'Keeper checks uptime only: the site has no status token here.' : 'Keeper could not read the site’s status.' }}
+          </p>
+          <p v-if="site.statusError" class="mt-0.5 text-muted">{{ site.statusError }}</p>
+          <p class="mt-1 text-muted">
+            Set <code class="font-mono text-xs">NUXT_CMS_STATUS_TOKEN</code> on the site (tinyzoo 1.1 or newer) to a long random value, redeploy, and paste the same value into
+            <NuxtLink :to="`/sites/${site.id}/edit`" class="font-medium text-highlighted underline">Edit</NuxtLink>.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <InfoCard title="Uptime" icon="i-lucide-activity" class="lg:col-span-2">
+          <template #aside>
+            <span class="text-sm text-muted tabular">
+              24 h <span class="font-semibold text-highlighted">{{ formatUptime(site.uptime24h) }}</span>
+              · 30 d <span class="font-semibold text-highlighted">{{ formatUptime(site.uptime30d) }}</span>
+            </span>
+          </template>
+          <ResponseChart :checks="site.checks" />
+        </InfoCard>
+
+        <InfoCard title="Incidents" icon="i-lucide-siren">
+          <p v-if="!site.incidents.length" class="text-sm text-muted">No downtime recorded.</p>
+          <ul v-else class="flex flex-col divide-y divide-default text-sm">
+            <li v-for="i in site.incidents" :key="i.id" class="py-2 first:pt-0 last:pb-0">
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="text-highlighted"><ClientOnly>{{ formatDateTime(i.startedAt) }}</ClientOnly></span>
+                <span :class="i.endedAt ? 'text-muted' : 'font-medium text-error'" class="tabular">
+                  {{ i.endedAt ? duration(i.startedAt, i.endedAt) : `ongoing · ${duration(i.startedAt, null, now)}` }}
+                </span>
+              </div>
+              <p v-if="i.cause" class="truncate text-muted" :title="i.cause">{{ i.cause }}</p>
+            </li>
+          </ul>
+        </InfoCard>
+
+        <InfoCard title="tinyzoo" icon="i-lucide-package">
+          <FactList :facts="tinyzooFacts" />
+          <div v-if="s?.plugins.length" class="mt-3 flex flex-wrap gap-1.5">
+            <UBadge v-for="p in s.plugins" :key="p.name" color="neutral" variant="outline" class="font-mono">{{ p.name }} {{ p.version }}</UBadge>
+          </div>
+        </InfoCard>
+
+        <InfoCard v-if="s" title="Content" icon="i-lucide-files" class="lg:col-span-2">
+          <template #aside>
+            <span class="text-sm text-muted">Last edit <span class="text-highlighted">{{ timeAgo(s.content.lastEditAt, now) }}</span></span>
+          </template>
+          <div class="-mx-1 overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-left text-xs text-muted">
+                  <th class="px-1 pb-2 font-medium">Collection</th>
+                  <th class="px-1 pb-2 text-right font-medium">Entries</th>
+                  <th class="px-1 pb-2 text-right font-medium">Last edit</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-default">
+                <tr v-for="c in collections" :key="c.name">
+                  <td class="px-1 py-1.5 font-mono text-xs text-highlighted">
+                    {{ c.name }}<span v-if="c.kind === 'global'" class="ml-1.5 font-sans text-muted">global</span>
+                  </td>
+                  <td class="px-1 py-1.5 text-right tabular">{{ c.kind === 'global' ? (c.count ? 'saved' : '—') : c.count }}</td>
+                  <td class="px-1 py-1.5 text-right text-muted">{{ timeAgo(c.lastEditAt, now) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-if="s.content.untranslated" class="mt-3 text-sm text-warning">
+            <UIcon name="i-lucide-languages" class="mr-1 size-4 align-[-3px]" />{{ s.content.untranslated === 1 ? '1 entry waits' : `${s.content.untranslated} entries wait` }} for a translation.
+          </p>
+        </InfoCard>
+
+        <InfoCard v-if="s" title="People" icon="i-lucide-users">
+          <FactList :facts="peopleFacts" />
+          <p v-if="s.site.auth === 'external'" class="mt-2 text-xs text-muted">The site signs people in itself, so there are no accounts to count.</p>
+        </InfoCard>
+
+        <InfoCard v-if="s" title="Database and media" icon="i-lucide-database">
+          <FactList :facts="databaseFacts" />
+        </InfoCard>
+
+        <InfoCard v-if="s" title="Errors, last 24 h" icon="i-lucide-bug">
+          <FactList :facts="errorFacts" />
+          <p class="mt-2 text-xs text-muted">Counted by the instance that answered; a restart starts again from 0.</p>
+        </InfoCard>
+
+        <InfoCard title="Certificate" icon="i-lucide-shield-check">
+          <p v-if="site.certError" class="text-sm text-error">{{ site.certError }}</p>
+          <template v-else-if="site.certExpiresAt">
+            <p class="font-display text-2xl font-bold tabular" :class="certDays != null && certDays < 21 ? 'text-warning' : 'text-highlighted'">
+              {{ certDays != null && certDays < 0 ? 'Expired' : `${certDays} days` }}
+            </p>
+            <p class="text-sm text-muted">Expires <ClientOnly>{{ formatDate(site.certExpiresAt) }}</ClientOnly></p>
+          </template>
+          <p v-else class="text-sm text-muted">Not checked yet.</p>
+        </InfoCard>
+
+        <InfoCard v-if="site.notes || site.repoUrl" title="Notes" icon="i-lucide-notebook-pen" :class="s ? '' : 'lg:col-span-2'">
+          <a v-if="site.repoUrl" :href="site.repoUrl" target="_blank" rel="noopener" class="mb-2 inline-flex items-center gap-1 font-mono text-xs text-highlighted hover:underline">
+            <UIcon name="i-lucide-git-branch" class="size-3.5" />{{ site.repoUrl.replace(/^https?:\/\//, '') }}
+          </a>
+          <p v-if="site.notes" class="whitespace-pre-line text-sm text-toned">{{ site.notes }}</p>
+        </InfoCard>
+      </div>
+    </div>
+  </AppPage>
+</template>

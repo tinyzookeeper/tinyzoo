@@ -1,0 +1,76 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* tinyzoo brand: a neutral core (charcoal, ink, cream); colour only where it means something. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-ink: #131313;
+  --color-charcoal: #2E3035;
+  --color-night: #18191C;
+  --color-night-2: #1E1F23;
+  --color-cream: #F9F5EF;
+  --color-cream-2: #F1EBE1;
+  --color-mute: #6B6A66;
+}
+
+/* Light: white workspace, charcoal buttons, cream only for moments.
+   (html:root and html.dark:root outrank the colour variables Nuxt UI writes into the head.) */
+html:root {
+  --ui-primary: #2E3035;
+  --ui-bg: #FFFFFF;
+  --ui-bg-muted: #FAF9F7;
+  --ui-bg-elevated: #F4F2EE;
+  --ui-bg-accented: #ECE9E3;
+  --ui-text: #131313;
+  --ui-text-muted: #6B6A66;
+  --ui-text-dimmed: #8A8984;
+  --ui-text-toned: #3B3A37;
+  --ui-text-highlighted: #131313;
+  --ui-border: rgb(19 19 19 / 0.1);
+  --ui-border-muted: rgb(19 19 19 / 0.06);
+  --ui-border-accented: rgb(19 19 19 / 0.18);
+  --ui-radius: 0.625rem;
+  --moment: #F9F5EF;
+  --moment-2: #F1EBE1;
+}
+
+/* Dark: charcoal night, cream primary with ink text. */
+html.dark:root {
+  --ui-primary: #F9F5EF;
+  --ui-bg: #18191C;
+  --ui-bg-muted: #1E1F23;
+  --ui-bg-elevated: #26272B;
+  --ui-bg-accented: #2E3035;
+  --ui-text: #ECE9E3;
+  --ui-text-muted: #A9A7A1;
+  --ui-text-dimmed: #85837E;
+  --ui-text-toned: #D6D3CC;
+  --ui-text-highlighted: #F9F5EF;
+  --ui-border: rgb(249 245 239 / 0.1);
+  --ui-border-muted: rgb(249 245 239 / 0.06);
+  --ui-border-accented: rgb(249 245 239 / 0.18);
+  --moment: #2E3035;
+  --moment-2: #26272B;
+}
+/* The cream primary button carries ink text in dark mode. */
+.dark .bg-primary { color: #131313; }
+
+html, body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { background: var(--ui-bg); }
+
+@layer base {
+  h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary { cursor: pointer; }
+  p, li, dd, td, th { overflow-wrap: anywhere; }
+}
+
+/* The current page in the sidebar sits on a cream moment (charcoal in dark mode). */
+[data-slot="link"][aria-current="page"]::before { background-color: var(--moment) !important; }
+
+@layer components {
+  .moment { background: var(--moment); }
+  .tabular { font-variant-numeric: tabular-nums; }
+}
