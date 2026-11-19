@@ -10,6 +10,7 @@ import { CMS_SYSTEM_SOURCE } from './system'
  */
 export function emitSchema(config: Record<string, any>): string {
   const reg = buildRegistry(config)
+  checkContentKeys(reg.entities)
   const usesRich = reg.entities.some((e) => Object.values(e.fields).some((fl) => fl.type === 'richtext'))
   const usesBlocks = reg.entities.some((e) => Object.values(e.fields).some((fl) => fl.type === 'blocks'))
 
@@ -48,6 +49,31 @@ export function emitSchema(config: Record<string, any>): string {
   for (const j of reg.junctions) out.push(emitJunction(j), '')
 
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n'
+}
+
+/**
+ * `content.populate` and `content.hidden` name the entity's own fields; the types say so, and
+ * `generate` (which runs this) refuses what the types refuse. The server ignores a key that is
+ * no field, so a site already running with one keeps working; a hidden key with a typo would leave
+ * the field it meant public, and a nested key ('sister.logo') has nothing to add.
+ */
+function checkContentKeys(entities: CmsEntity[]): void {
+  for (const e of entities) {
+    for (const option of ['populate', 'hidden'] as const) {
+      for (const key of e.content?.[option] ?? []) {
+        if (Object.hasOwn(e.fields, key)) continue
+        const nested = key.includes('.')
+        throw new Error(
+          `"${e.name}": content.${option} names ${JSON.stringify(key)}, which is not a field of "${e.name}" (its fields: ${Object.keys(e.fields).join(', ')}). `
+          + (nested
+            ? (option === 'populate'
+              ? 'It takes the entity\'s own fields only. A picture or file inside a group, a list or blocks is always delivered as one, without populate; a relation is populated one level deep.'
+              : 'It takes the entity\'s own fields only: a whole group, list or blocks field can be hidden, not one field inside it.')
+            : 'Check the spelling.'),
+        )
+      }
+    }
+  }
 }
 
 function emitEntityTable(e: CmsEntity): string {

@@ -194,6 +194,8 @@ posts:  f.relation({ to: () => Post, kind: 'one-to-many', inverseOf: 'author' })
 
 In the content API, relations resolve into nested objects. `populate` chooses which (all by default), and a target that is not public collapses to `{ id, title }`.
 
+`populate` and `hidden` take the entity's own fields, not a field inside one (`'sister.logo'`). A picture or file inside a group, a list or blocks is always delivered, without `populate`. `tinyzoo generate` stops on a key that is not a field, as the types do.
+
 ## Lists
 
 A list holds rows of the same few fields: opening hours, a price list, FAQ items, a row of cards.
