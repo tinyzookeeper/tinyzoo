@@ -24,6 +24,7 @@ import { defineSingleton } from '../src/entity'
 import { f } from '../src/fields'
 import { defineCmsPlugin, pluginFile, type CmsPlugin, type CmsPluginNeed } from '../src/plugin'
 import pkg from '../package.json'
+import { ROLLUPS_CONTENT_PATH } from './format'
 import { ANALYTICS_MESSAGES } from './messages'
 import { type AnalyticsOptions, type ResolvedAnalyticsOptions, resolveAnalyticsOptions } from './options'
 import { analyticsRetention } from './rollup'
@@ -32,6 +33,7 @@ import { ANALYTICS_TABLES_SOURCE, analyticsDaily, analyticsEvents } from './tabl
 export type { AnalyticsMode, AnalyticsOptions } from './options'
 export { analyticsDaily, analyticsEvents } from './tables'
 export { dailyRollups, type DailyRollup } from './rollup'
+export type { AnalyticsRollupDay, AnalyticsRollupItem, AnalyticsRollups } from './format'
 
 /** Administrators switch collecting off and on; everyone else may only see whether it runs. */
 const adminOnly = ({ user }: { user: { base?: string | null; role?: string } }) => (user?.base ?? user?.role) === 'admin'
@@ -83,6 +85,8 @@ export function analyticsPlugin(options: AnalyticsOptions = {}): CmsPlugin {
     serverHandlers: [
       // The tracker's address: neutral, so a blocker's list of tracking words does not stop it.
       { method: 'post', contentPath: '_analytics/e', handler: file('./server/collect.post.ts') },
+      // The daily totals for a fleet monitor, with the status token (format.ts).
+      { method: 'get', contentPath: ROLLUPS_CONTENT_PATH, handler: file('./server/rollups.get.ts') },
       { method: 'get', route: '/stats', handler: file('./server/stats.get.ts') },
       { method: 'get', route: '/live', handler: file('./server/live.get.ts') },
       { method: 'get', route: '/summary', handler: file('./server/summary.get.ts') },

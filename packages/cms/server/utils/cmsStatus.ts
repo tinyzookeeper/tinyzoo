@@ -1,5 +1,6 @@
 import { gte, sql, type CmsErrorReport, type CmsStatus, type CmsStatusCollection } from 'tinyzoo'
 import pkg from '../../package.json'
+import { analyticsStatus } from '../../analytics/server/status'
 
 /**
  * The site summary of `GET /api/health/status` (see CmsStatus): what a tool watching
@@ -36,6 +37,22 @@ const newest = (a: string | null, b: string | null): string | null => (!a ? b : 
 /** The token the status route asks for ('' = the route is off). */
 export function cmsStatusToken(): string {
   return String((useRuntimeConfig().cms as any)?.status?.token || '')
+}
+
+/**
+ * The guard of the routes a fleet monitor reads with the status token (`/api/health/status`,
+ * the analytics plugin's rollups): 404 while no token is set, 30 requests a minute per address
+ * and route (`bucket`), then the token as `x-api-key` or `Authorization: Bearer`, compared in
+ * constant time.
+ */
+export async function requireCmsStatusToken(event: Parameters<typeof getHeader>[0], bucket: string): Promise<void> {
+  const token = cmsStatusToken()
+  if (!token) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  // A watcher asks about once a minute; anything much busier is guessing or a loop.
+  if (!(await rateLimit(`${bucket}:${clientIp(event)}`, 30, 60_000))) throw createError({ statusCode: 429, statusMessage: 'Too many requests' })
+  const header = getHeader(event, 'authorization') || ''
+  const provided = getHeader(event, 'x-api-key') || header.replace(/^Bearer\s+/i, '')
+  if (!provided || !constantTimeEqual(provided, token)) throw createError({ statusCode: 401, statusMessage: 'Invalid status token' })
 }
 
 export async function collectCmsStatus(): Promise<CmsStatus> {
@@ -111,6 +128,10 @@ export async function collectCmsStatus(): Promise<CmsStatus> {
   const m = reg.cmsMedia
   const [media] = await db.select({ n: sql<number>`count(*)::int`, bytes: sql<string>`coalesce(sum(${m.size}), 0)::bigint` }).from(m)
   status.media = { files: Number(media?.n ?? 0), bytes: Number(media?.bytes ?? 0) }
+
+  // The analytics plugin (tinyzoo/analytics), when the site uses it.
+  const analytics = await analyticsStatus(baseURL)
+  if (analytics) status.analytics = analytics
 
   return status
 }

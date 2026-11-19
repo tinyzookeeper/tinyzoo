@@ -2,7 +2,7 @@
 // The analytics plugin: analyticsPlugin, its options, its tables and the daily totals.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (5) ─────────────────────────────────────────────────
+// ── public (8) ─────────────────────────────────────────────────
 
 export type AnalyticsMode = 'cookieless' | 'consent' | 'strict';
 
@@ -17,6 +17,39 @@ export interface AnalyticsOptions {
     geoipFile?: string;
     timeZone?: string;
     excludePaths?: string[];
+}
+
+export interface AnalyticsRollupDay {
+    day: string;
+    visitors: number;
+    visits: number;
+    pageviews: number;
+    bounces: number;
+    engagedMs: number;
+    pages: AnalyticsRollupItem[];
+    sources: AnalyticsRollupItem[];
+    countries: AnalyticsRollupItem[];
+    devices: AnalyticsRollupItem[];
+}
+
+export interface AnalyticsRollupItem {
+    value: string;
+    title?: string;
+    visitors: number;
+    visits: number;
+    pageviews: number;
+}
+
+export interface AnalyticsRollups {
+    format: 'tinyzoo-analytics-rollups';
+    version: 1;
+    at: string;
+    timeZone: string;
+    from: string;
+    to: string;
+    since: string | null;
+    through: string | null;
+    days: AnalyticsRollupDay[];
 }
 
 export interface DailyRollup {

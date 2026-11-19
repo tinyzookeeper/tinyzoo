@@ -107,6 +107,8 @@ function contentRoutes(): string {
   routes.push('GET  /api/content/_form/:name   (tinyzoo/forms)', 'POST /api/content/_form/:name   (tinyzoo/forms)')
   // And the analytics plugin's tracker sends its page views to one.
   routes.push('POST /api/content/_analytics/e   (tinyzoo/analytics)')
+  // And a fleet monitor reads its daily totals from another, with the status token.
+  routes.push('GET  /api/content/_analytics/rollups   (tinyzoo/analytics)')
   // The consent plugin's banner reads its texts from one and sends the visitor's choice to another.
   routes.push('GET  /api/content/_consent/config   (tinyzoo/consent)', 'POST /api/content/_consent/choice   (tinyzoo/consent)')
   // Addresses under /api/cms that tinyzoo writes into content: a file's address (`cms_media.url`,

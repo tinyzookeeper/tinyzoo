@@ -7,5 +7,5 @@
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "fixed": [["tinyzoo", "@tinyzoo/client", "create-tinyzoo"]],
-  "ignore": ["playground", "tinyzoo-web", "tinyzoo-starter"]
+  "ignore": ["playground", "tinyzoo-web", "tinyzoo-starter", "tinyzoo-keeper"]
 }

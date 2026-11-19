@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (120) ─────────────────────────────────────────────────
+// ── public (121) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -571,6 +571,14 @@ export interface CmsStatus {
         name: string;
         version: string;
     }[];
+    analytics?: CmsStatusAnalytics;
+}
+
+export interface CmsStatusAnalytics {
+    enabled: boolean;
+    collecting: boolean;
+    since: string | null;
+    rollupsPath: string;
 }
 
 export interface CmsStatusCollection {

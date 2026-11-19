@@ -315,7 +315,7 @@ describe('the plugin', () => {
     const plugin = analyticsPlugin()
     const plan = planPlugins([plugin], { exists: existsSync })
     expect(plan.handlers.map((h) => `${h.method} ${h.route}`)).toEqual([
-      'post /api/content/_analytics/e',
+      'post /api/content/_analytics/e', 'get /api/content/_analytics/rollups',
       'get /api/cms/_p/analytics/stats', 'get /api/cms/_p/analytics/live', 'get /api/cms/_p/analytics/summary', 'get /api/cms/_p/analytics/entry',
     ])
     expect(plan.appPlugins).toEqual([expect.objectContaining({ mode: 'client', plugin: 'analytics' })])

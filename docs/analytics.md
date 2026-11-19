@@ -13,6 +13,7 @@ A site with a cookie banner ([consent](consent.md)) can go further: it can learn
 - [Cookie banner](#cookie-banner): the modes `cookieless`, `consent` and `strict`
 - [Privacy](#privacy), with a sentence for the site's privacy policy
 - [The tables](#the-tables)
+- [For a fleet monitor](#for-a-fleet-monitor): the daily totals over HTTP, with the status token
 
 ## Switching it on
 
@@ -269,3 +270,53 @@ The plugin's tables are made by the site's own migration (`tinyzoo generate`):
 `tinyzoo backup` holds them with the rest of the database. `tinyzoo export` and `import` carry content only, so the numbers stay where they were counted.
 
 The daily totals hold nothing about a single visitor. Code on the server can read them with `dailyRollups(db, from, to)` from `tinyzoo/analytics`.
+
+## For a fleet monitor
+
+A tool that looks after many sites (tinyzoo's Keeper, or your own) can read the daily totals with the site's status token, the same one `/api/health/status` asks for ([Site status](deploying.md#site-status)):
+
+```sh
+curl -H "x-api-key: $NUXT_CMS_STATUS_TOKEN" \
+  "https://example.com/api/content/_analytics/rollups?from=2026-10-01&to=2026-10-31"
+```
+
+The route is guarded exactly like the status. It is off (`404`) until `NUXT_CMS_STATUS_TOKEN` is set. It asks for the token as `x-api-key` or `Authorization: Bearer`, and a signed-in admin without it gets `401`. One address may ask 30 times a minute. `from` and `to` are days in the site's time zone, both included, at most 400 days apart; anything else is a `400`.
+
+The answer (`AnalyticsRollups` in `tinyzoo/analytics`):
+
+```jsonc
+{
+  "format": "tinyzoo-analytics-rollups",
+  "version": 1,
+  "at": "2026-11-01T06:00:00.000Z",
+  "timeZone": "Europe/Prague",
+  "from": "2026-10-01",
+  "to": "2026-10-31",
+  "since": "2026-09-14",   // the first day with totals; null before the first night
+  "through": "2026-10-31", // the last day whose totals are made (usually yesterday); null when none are
+  "days": [
+    {
+      "day": "2026-10-01",
+      "visitors": 412, "visits": 468, "pageviews": 1031, "bounces": 201, "engagedMs": 23514000,
+      "pages":     [{ "value": "/blog/chleba", "title": "Jak péct chleba", "visitors": 88, "visits": 90, "pageviews": 97 }],
+      "sources":   [{ "value": "Google", "visitors": 240, "visits": 262, "pageviews": 610 }],
+      "countries": [{ "value": "CZ", "visitors": 371, "visits": 420, "pageviews": 940 }],
+      "devices":   [{ "value": "mobile", "visitors": 260, "visits": 291, "pageviews": 588 }]
+    }
+  ]
+}
+```
+
+- `days` has every day of the range from `since` to `through`, oldest first. A day nobody visited is there with zeros. Today is never there: a day's totals are made in the night after it, so ask again for the last few days to get them final.
+- Each list holds the 10 values with the most visitors. `title` is the entry's title, when the address is an entry tinyzoo knows.
+- It holds the [daily totals](#the-tables) only: no single page view, no visitor hash, no visit id, no consent id. Nothing in it tells one visitor from another.
+
+`format` and `version` say how to read it, as with the status. Within version 1, keys are only added, so a reader ignores the ones it does not know; a change that breaks readers is version 2.
+
+The site status says where to look. With the plugin, `/api/health/status` has an `analytics` key:
+
+```json
+{ "enabled": true, "collecting": true, "since": "2026-09-14", "rollupsPath": "/api/content/_analytics/rollups" }
+```
+
+`enabled` is false when `NUXT_CMS_ANALYTICS_ENABLED=false` stops counting on the server. `collecting` is false then too, and when an administrator switched **Counting visits** off. A site without the plugin, or on an older tinyzoo, has no `analytics` key.
