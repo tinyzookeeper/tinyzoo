@@ -31,6 +31,15 @@ async function checkNow() {
 }
 
 const s = computed(() => site.value?.status ?? null)
+
+// Just added: a small moment, once.
+const added = ref(false)
+onMounted(() => {
+  if (route.query.added) {
+    added.value = true
+    navigateTo({ query: {} }, { replace: true })
+  }
+})
 const certDays = computed(() => daysLeft(site.value?.certExpiresAt, now.value))
 
 const tinyzooFacts = computed<Fact[]>(() => {
@@ -79,50 +88,45 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
 </script>
 
 <template>
-  <AppPage :title="site?.name ?? 'Site'" back="/">
+  <AppPage :title="site?.name ?? 'Site'" :trail="[{ label: 'Sites', to: '/' }]" :heading="false">
     <template #actions>
-      <UButton
-        v-if="site"
-        label="Check now"
-        icon="i-lucide-refresh-cw"
-        color="neutral"
-        variant="ghost"
-        :loading="checking"
-        class="hidden sm:inline-flex"
-        @click="checkNow"
-      />
-      <UButton v-if="site" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" label="Edit" color="neutral" variant="outline" class="hidden sm:inline-flex" />
+      <UButton v-if="site" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" label="Edit" color="neutral" variant="ghost" class="hidden sm:inline-flex" />
       <UButton v-if="site" :to="`/sites/${site.id}/edit`" icon="i-lucide-pencil" aria-label="Edit" color="neutral" variant="ghost" square class="sm:hidden" />
     </template>
 
-    <div v-if="site" class="flex flex-col gap-4">
-      <!-- Who and where -->
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div class="min-w-0">
+    <div v-if="site" class="flex flex-col gap-8">
+      <!-- The site, as a moment: its animal, how it is, the ways in. -->
+      <section class="k-moment relative flex items-center justify-between gap-6 overflow-hidden p-5 sm:px-8 sm:py-7">
+        <div class="min-w-0 pr-16 sm:pr-0">
           <div class="flex flex-wrap items-center gap-2">
             <StateBadge :state="site.state" :since="site.stateSince" />
-            <VersionBadge :version="site.version" :outdated="site.outdated" :latest="site.latest" />
+            <VersionBadge v-if="site.version" :version="site.version" :outdated="site.outdated" :latest="site.latest" />
             <UBadge v-if="site.environment === 'staging'" label="staging" color="neutral" variant="subtle" />
           </div>
-          <p class="mt-2 text-muted">
-            <span v-if="site.client" class="text-toned">{{ site.client }} · </span>
-            <a :href="site.url" target="_blank" rel="noopener" class="font-mono text-sm hover:underline">{{ hostOf(site.url) }}</a>
+          <h1 class="k-display mt-3 text-2xl leading-tight text-highlighted sm:text-[1.75rem]">{{ site.name }}</h1>
+          <p class="k-moment__muted mt-1 text-sm sm:text-[0.9375rem]">
+            <template v-if="site.client">{{ site.client }} · </template>
+            <a :href="site.url" target="_blank" rel="noopener" class="font-mono text-[0.8125rem] hover:underline">{{ hostOf(site.url) }}</a>
+            <template v-if="site.responseMs != null"> · answers in {{ site.responseMs }} ms</template>
           </p>
-          <p class="mt-1 text-xs text-dimmed">Last checked {{ timeAgo(site.lastCheckAt, now) }}</p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <UButton :to="site.adminUrl" target="_blank" rel="noopener" label="Open admin" trailing-icon="i-lucide-arrow-up-right" />
+            <UButton :to="site.url" target="_blank" rel="noopener" label="Open site" trailing-icon="i-lucide-arrow-up-right" color="neutral" variant="outline" class="k-on-moment" />
+            <UButton label="Check now" icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="checking" @click="checkNow" />
+          </div>
+          <p class="k-moment__muted mt-3 text-xs">Last checked {{ timeAgo(site.lastCheckAt, now) }}</p>
         </div>
-        <div class="flex flex-wrap gap-2">
-          <UButton label="Check now" icon="i-lucide-refresh-cw" color="neutral" variant="ghost" :loading="checking" class="sm:hidden" @click="checkNow" />
-          <UButton :to="site.url" target="_blank" rel="noopener" label="Open site" trailing-icon="i-lucide-arrow-up-right" color="neutral" variant="outline" />
-          <UButton :to="site.adminUrl" target="_blank" rel="noopener" label="Open admin" trailing-icon="i-lucide-arrow-up-right" />
-        </div>
-      </div>
+        <KAnimal :seed="site.id" class="absolute top-5 right-4 h-12 w-auto shrink-0 sm:static sm:h-28" />
+      </section>
 
       <!-- Status missing: how to fix it. -->
-      <div v-if="!site.hasToken || site.statusError" class="flex gap-3 rounded-xl bg-warning/10 p-4 text-sm">
-        <UIcon name="i-lucide-key-round" class="mt-0.5 size-5 shrink-0 text-warning" />
-        <div>
+      <div v-if="!site.hasToken || site.statusError" class="k-card flex gap-3 p-4 text-sm">
+        <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-md bg-warning/10 text-warning">
+          <UIcon name="i-lucide-key-round" class="size-4" />
+        </span>
+        <div class="min-w-0">
           <p class="font-medium text-highlighted">
-            {{ !site.hasToken ? 'Keeper checks uptime only: the site has no status token here.' : 'Keeper could not read the site’s status.' }}
+            {{ !site.hasToken ? 'Keeper sees uptime only: the site has no status token here.' : 'Keeper could not read the site’s status.' }}
           </p>
           <p v-if="site.statusError" class="mt-0.5 text-muted">{{ site.statusError }}</p>
           <p class="mt-1 text-muted">
@@ -132,8 +136,8 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <InfoCard title="Uptime" icon="i-lucide-activity" class="lg:col-span-2">
+      <div class="grid grid-cols-1 gap-x-4 gap-y-8 lg:grid-cols-3">
+        <InfoCard title="Uptime" class="lg:col-span-2">
           <template #aside>
             <span class="text-sm text-muted tabular">
               24 h <span class="font-semibold text-highlighted">{{ formatUptime(site.uptime24h) }}</span>
@@ -143,7 +147,7 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
           <ResponseChart :checks="site.checks" />
         </InfoCard>
 
-        <InfoCard title="Incidents" icon="i-lucide-siren">
+        <InfoCard title="Incidents">
           <p v-if="!site.incidents.length" class="text-sm text-muted">No downtime recorded.</p>
           <ul v-else class="flex flex-col divide-y divide-default text-sm">
             <li v-for="i in site.incidents" :key="i.id" class="py-2 first:pt-0 last:pb-0">
@@ -158,14 +162,14 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
           </ul>
         </InfoCard>
 
-        <InfoCard title="tinyzoo" icon="i-lucide-package">
+        <InfoCard v-if="s" title="tinyzoo">
           <FactList :facts="tinyzooFacts" />
           <div v-if="s?.plugins.length" class="mt-3 flex flex-wrap gap-1.5">
             <UBadge v-for="p in s.plugins" :key="p.name" color="neutral" variant="outline" class="font-mono">{{ p.name }} {{ p.version }}</UBadge>
           </div>
         </InfoCard>
 
-        <InfoCard v-if="s" title="Content" icon="i-lucide-files" class="lg:col-span-2">
+        <InfoCard v-if="s" title="Content" class="lg:col-span-2">
           <template #aside>
             <span class="text-sm text-muted">Last edit <span class="text-highlighted">{{ timeAgo(s.content.lastEditAt, now) }}</span></span>
           </template>
@@ -194,22 +198,22 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
           </p>
         </InfoCard>
 
-        <InfoCard v-if="s" title="People" icon="i-lucide-users">
+        <InfoCard v-if="s" title="People">
           <FactList :facts="peopleFacts" />
           <p v-if="s.site.auth === 'external'" class="mt-2 text-xs text-muted">The site signs people in itself, so there are no accounts to count.</p>
         </InfoCard>
 
-        <InfoCard v-if="s" title="Database and media" icon="i-lucide-database">
+        <InfoCard v-if="s" title="Database and media">
           <FactList :facts="databaseFacts" />
         </InfoCard>
 
-        <InfoCard v-if="s" title="Errors, last 24 h" icon="i-lucide-bug">
+        <InfoCard v-if="s" title="Errors, last 24 h">
           <FactList :facts="errorFacts" />
           <p class="mt-2 text-xs text-muted">Counted by the instance that answered; a restart starts again from 0.</p>
         </InfoCard>
 
-        <InfoCard title="Certificate" icon="i-lucide-shield-check">
-          <p v-if="site.certError" class="text-sm text-error">{{ site.certError }}</p>
+        <InfoCard title="Certificate">
+          <p v-if="site.certError" class="text-sm" :class="site.url.startsWith('http:') ? 'text-muted' : 'text-error'">{{ site.url.startsWith('http:') ? 'The site is served over plain http, so there is no certificate to watch.' : site.certError }}</p>
           <template v-else-if="site.certExpiresAt">
             <p class="font-display text-2xl font-bold tabular" :class="certDays != null && certDays < 21 ? 'text-warning' : 'text-highlighted'">
               {{ certDays != null && certDays < 0 ? 'Expired' : `${certDays} days` }}
@@ -219,7 +223,7 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
           <p v-else class="text-sm text-muted">Not checked yet.</p>
         </InfoCard>
 
-        <InfoCard v-if="site.notes || site.repoUrl" title="Notes" icon="i-lucide-notebook-pen" :class="s ? '' : 'lg:col-span-2'">
+        <InfoCard v-if="site.notes || site.repoUrl" title="Notes" :class="s ? '' : 'lg:col-span-2'">
           <a v-if="site.repoUrl" :href="site.repoUrl" target="_blank" rel="noopener" class="mb-2 inline-flex items-center gap-1 font-mono text-xs text-highlighted hover:underline">
             <UIcon name="i-lucide-git-branch" class="size-3.5" />{{ site.repoUrl.replace(/^https?:\/\//, '') }}
           </a>
@@ -227,5 +231,12 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
         </InfoCard>
       </div>
     </div>
+    <KMoment
+      v-if="site"
+      v-model:open="added"
+      :seed="site.id"
+      :title="`Keeper is watching ${site.name}`"
+      :description="site.state === 'up' ? `It answered in ${site.responseMs} ms. From now on it is checked every minute.` : 'It is checked every minute from now on; the first results are below.'"
+    />
   </AppPage>
 </template>

@@ -1,16 +1,16 @@
 <script setup lang="ts">
-defineProps<{ title: string; icon: string }>()
+// A section: its name above (and something small on the right), its content in one card.
+withDefaults(defineProps<{ title: string; padded?: boolean }>(), { padded: true })
 </script>
 
 <template>
-  <section class="rounded-xl border border-default bg-default p-4 sm:p-5">
-    <header class="mb-3 flex items-center gap-2">
-      <span class="inline-flex size-7 items-center justify-center rounded-lg bg-elevated text-toned">
-        <UIcon :name="icon" class="size-4" />
-      </span>
-      <h2 class="text-sm font-semibold text-highlighted">{{ title }}</h2>
-      <div class="ml-auto"><slot name="aside" /></div>
+  <section class="flex min-w-0 flex-col">
+    <header class="mb-2 flex min-h-6 items-center gap-2">
+      <h2 class="k-label">{{ title }}</h2>
+      <div class="ml-auto text-sm text-muted"><slot name="aside" /></div>
     </header>
-    <slot />
+    <div class="k-card flex-1" :class="padded ? 'p-4 sm:p-5' : ''">
+      <slot />
+    </div>
   </section>
 </template>

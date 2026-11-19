@@ -122,7 +122,7 @@ const tokenPlaceholder = computed(() => (props.siteId && props.hasToken && !remo
     </UFormField>
 
     <!-- Test the address (and token) before saving. -->
-    <div class="rounded-xl border border-default p-4">
+    <div class="k-moment p-4">
       <div class="flex flex-wrap items-center gap-3">
         <UButton
           label="Test connection"

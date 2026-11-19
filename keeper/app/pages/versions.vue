@@ -29,51 +29,46 @@ const behind = computed(() => groups.value.filter((g) => g.outdated).reduce((n, 
 </script>
 
 <template>
-  <AppPage title="Versions">
+  <AppPage title="Versions" description="Which tinyzoo each site runs, the newest first.">
     <div v-if="status === 'pending' && !data.sites.length" class="flex flex-col gap-3">
       <USkeleton class="h-28 w-full" />
       <USkeleton class="h-28 w-full" />
     </div>
 
-    <div v-else-if="!data.sites.length" class="moment rounded-2xl px-6 py-10 text-center">
-      <h2 class="text-lg font-bold text-highlighted">No sites yet</h2>
-      <p class="mt-1 text-muted">Once sites are added, here you see which tinyzoo each one runs.</p>
-      <UButton to="/sites/new" label="Add a site" icon="i-lucide-plus" class="mt-5" />
+    <div v-else-if="!data.sites.length" class="k-card">
+      <KEmpty animal="owl" title="No sites yet" description="Once sites are added, here you see which tinyzoo each one runs.">
+        <UButton to="/sites/new" label="Add a site" icon="i-lucide-plus" />
+      </KEmpty>
     </div>
 
     <template v-else>
-      <p class="text-muted">
-        <template v-if="data.latest">The newest tinyzoo is <span class="font-mono text-highlighted">{{ data.latest }}</span>. </template>
-        <template v-if="behind">{{ behind }} {{ behind === 1 ? 'site is' : 'sites are' }} behind.</template>
-        <template v-else-if="data.latest">Every site with a status is on it.</template>
-      </p>
+      <div class="k-moment mb-8 flex items-center gap-4 px-5 py-4">
+        <span class="k-tile size-10 bg-(--k-surface)!"><UIcon :name="behind ? 'i-lucide-arrow-up-circle' : 'i-lucide-check'" class="size-5" :class="behind ? 'text-warning' : 'text-success'" /></span>
+        <p class="text-sm text-highlighted sm:text-[0.9375rem]">
+          <template v-if="data.latest">The newest tinyzoo is <span class="font-mono font-medium">{{ data.latest }}</span>. </template>
+          <template v-if="behind">{{ behind }} {{ behind === 1 ? 'site is' : 'sites are' }} behind it.</template>
+          <template v-else-if="data.latest">Every site with a status runs it.</template>
+        </p>
+      </div>
 
-      <div class="mt-5 flex flex-col gap-4">
-        <section
-          v-for="g in groups"
-          :key="g.version ?? 'unknown'"
-          class="rounded-xl border p-4 sm:p-5"
-          :class="g.outdated ? 'border-warning/30 bg-warning/5' : 'border-default bg-default'"
-        >
-          <header class="flex flex-wrap items-center gap-2">
-            <h2 class="font-mono text-lg font-semibold text-highlighted">{{ g.version ?? 'Unknown' }}</h2>
-            <UBadge v-if="g.latest" label="newest" color="success" variant="soft" icon="i-lucide-check" />
-            <UBadge v-else-if="g.outdated" label="behind" color="warning" variant="soft" icon="i-lucide-arrow-up-circle" />
-            <span class="ml-auto text-sm text-muted">{{ g.sites.length }} {{ g.sites.length === 1 ? 'site' : 'sites' }}</span>
-          </header>
-          <p v-if="g.version == null" class="mt-1 text-sm text-muted">No status yet: add each site’s status token to see its version.</p>
-          <ul class="mt-3 flex flex-wrap gap-2">
-            <li v-for="s in g.sites" :key="s.id">
-              <NuxtLink
-                :to="`/sites/${s.id}`"
-                class="inline-flex items-center gap-2 rounded-lg border border-default bg-default px-3 py-1.5 text-sm text-highlighted transition-colors hover:bg-elevated"
-              >
-                <StateDot :state="s.state" size="sm" />
-                {{ s.name }}
-                <span v-if="s.client" class="text-muted">· {{ s.client }}</span>
-              </NuxtLink>
+      <div class="flex flex-col gap-8">
+        <section v-for="g in groups" :key="g.version ?? 'unknown'">
+          <h2 class="k-label mb-2 flex items-center gap-2">
+            <span :class="g.version ? 'font-mono' : ''">{{ g.version ?? 'No status yet' }}</span>
+            <UBadge v-if="g.latest" label="newest" color="success" variant="soft" size="sm" />
+            <UBadge v-else-if="g.outdated" label="behind" color="warning" variant="soft" size="sm" />
+            <span class="k-count">{{ g.sites.length }}</span>
+          </h2>
+          <ul class="k-card divide-y divide-(--ui-border-muted)">
+            <li v-for="site in g.sites" :key="site.id" class="relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-elevated/40">
+              <SiteAnimal :id="site.id" :state="site.state" size="sm" />
+              <div class="min-w-0 flex-1">
+                <NuxtLink :to="`/sites/${site.id}`" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">{{ site.name }}</NuxtLink>
+                <p class="truncate text-xs text-muted"><template v-if="site.client">{{ site.client }} · </template><span class="font-mono">{{ hostOf(site.url) }}</span></p>
+              </div>
             </li>
           </ul>
+          <p v-if="g.version == null" class="mt-2 text-xs text-muted">Add each site’s status token to see its version.</p>
         </section>
       </div>
     </template>

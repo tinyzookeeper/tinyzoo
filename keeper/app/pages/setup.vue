@@ -27,9 +27,12 @@ async function submit() {
 </script>
 
 <template>
-  <UCard :ui="{ body: 'p-6 sm:p-7' }">
-    <h1 class="text-xl font-bold text-highlighted">Welcome to Keeper</h1>
-    <p class="mt-1 text-sm text-muted">Make the first account. You can add your team later.</p>
+  <div>
+    <div class="mb-8 text-center">
+      <KAnimal name="elephant" class="mx-auto mb-6 h-20 w-auto" />
+      <h1 class="k-display text-[1.75rem] leading-tight text-highlighted">Welcome to Keeper</h1>
+      <p class="k-moment__muted mt-1 text-[0.9375rem] text-(--k-moment-text)">Make the first account. Your team can join later.</p>
+    </div>
 
     <form class="mt-6 flex flex-col gap-4" @submit.prevent="submit">
       <UFormField label="Your name" name="name">
@@ -50,5 +53,5 @@ async function submit() {
       <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="error" />
       <UButton type="submit" label="Create account" block size="lg" :loading="busy" />
     </form>
-  </UCard>
+  </div>
 </template>

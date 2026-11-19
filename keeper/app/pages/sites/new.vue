@@ -9,10 +9,9 @@ async function save(input: SiteInput) {
   busy.value = true
   try {
     const { id } = await $fetch<{ id: string }>('/api/sites', { method: 'POST', body: input })
-    toast.add({ title: `${input.name} added`, description: 'The first check runs now.', color: 'success', icon: 'i-lucide-check' })
     // Run the first check straight away, so the page opens with real numbers.
     await $fetch(`/api/sites/${id}/check`, { method: 'POST' }).catch(() => {})
-    await navigateTo(`/sites/${id}`)
+    await navigateTo(`/sites/${id}?added=1`)
   }
   catch (err) {
     toast.add({ title: 'Could not add the site', description: errorMessage(err), color: 'error' })
@@ -24,7 +23,7 @@ async function save(input: SiteInput) {
 </script>
 
 <template>
-  <AppPage title="Add site" back="/">
+  <AppPage title="Add site" :trail="[{ label: 'Sites', to: '/' }]" description="A tinyzoo site Keeper should look after: its address, and its status token for the details.">
     <div class="max-w-2xl">
       <SiteForm submit-label="Add site" :busy="busy" @submit="save" />
     </div>

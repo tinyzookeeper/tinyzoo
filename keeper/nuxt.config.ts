@@ -18,6 +18,7 @@ export default defineNuxtConfig({
     families: [
       { name: 'Manrope', provider: 'google', weights: [500, 600, 700, 800] },
       { name: 'Inter', provider: 'google', weights: [400, 500, 600] },
+      { name: 'Geist Mono', provider: 'google', weights: [400, 500] },
     ],
   },
   runtimeConfig: {

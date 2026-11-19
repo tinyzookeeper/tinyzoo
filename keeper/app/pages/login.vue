@@ -27,12 +27,15 @@ async function submit() {
 </script>
 
 <template>
-  <UCard :ui="{ body: 'p-6 sm:p-7' }">
-    <h1 class="text-xl font-bold text-highlighted">Sign in</h1>
-    <p class="mt-1 text-sm text-muted">Every site you look after, in one place.</p>
+  <div>
+    <div class="mb-8 text-center">
+      <KAnimal name="elephant" class="mx-auto mb-6 h-24 w-auto" />
+      <h1 class="k-display text-[1.75rem] leading-tight text-highlighted">Welcome back</h1>
+      <p class="mt-1 text-[0.9375rem] text-(--k-moment-text)">Every site you look after, in one place.</p>
+    </div>
 
     <form class="mt-6 flex flex-col gap-4" @submit.prevent="submit">
-      <UFormField label="Email" name="email">
+      <UFormField label="E-mail" name="email">
         <UInput v-model="form.email" type="email" autocomplete="username" required autofocus class="w-full" />
       </UFormField>
       <UFormField label="Password" name="password">
@@ -41,5 +44,5 @@ async function submit() {
       <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="error" />
       <UButton type="submit" label="Sign in" block size="lg" :loading="busy" />
     </form>
-  </UCard>
+  </div>
 </template>

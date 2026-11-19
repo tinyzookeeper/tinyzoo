@@ -49,7 +49,7 @@ async function remove() {
 </script>
 
 <template>
-  <AppPage :title="site ? `Edit ${site.name}` : 'Edit site'" :back="`/sites/${id}`">
+  <AppPage title="Edit" :trail="[{ label: 'Sites', to: '/' }, { label: site?.name ?? 'Site', to: `/sites/${id}` }]" :description="site ? `How Keeper reaches ${site.name}.` : undefined">
     <div v-if="site" class="max-w-2xl">
       <SiteForm
         :initial="{ name: site.name, client: site.client, url: site.url, environment: site.environment, repoUrl: site.repoUrl, notes: site.notes }"

@@ -116,10 +116,10 @@ async function changePassword() {
 </script>
 
 <template>
-  <AppPage title="Settings">
+  <AppPage title="Settings" description="Your team, who hears about outages, and your password.">
     <div class="flex max-w-3xl flex-col gap-6">
       <!-- Workspace -->
-      <InfoCard title="Team and alerts" icon="i-lucide-bell">
+      <InfoCard title="Team and alerts">
         <form v-if="isOwner" class="flex flex-col gap-4" @submit.prevent="saveWorkspace">
           <UFormField label="Team name" name="name">
             <UInput v-model="ws.name" required class="w-full" />
@@ -149,7 +149,7 @@ async function changePassword() {
       </InfoCard>
 
       <!-- Team -->
-      <InfoCard title="People" icon="i-lucide-users">
+      <InfoCard title="People">
         <template #aside>
           <UButton v-if="isOwner" label="Add person" icon="i-lucide-user-plus" color="neutral" variant="outline" size="sm" @click="openAdd" />
         </template>
@@ -181,7 +181,7 @@ async function changePassword() {
       </InfoCard>
 
       <!-- My password -->
-      <InfoCard title="Your password" icon="i-lucide-lock">
+      <InfoCard title="Your password">
         <form class="grid grid-cols-1 gap-4 sm:grid-cols-2" @submit.prevent="changePassword">
           <UFormField label="Current password" name="current">
             <UInput v-model="pw.current" type="password" autocomplete="current-password" required class="w-full" />
