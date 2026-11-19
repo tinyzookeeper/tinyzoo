@@ -195,7 +195,6 @@ for 2.0, and anything removed was deprecated for at least one minor first.
 | M | **Custom roles and per-field permissions**: roles defined in config on top of admin/editor/author; per field `read`/`edit` by role; media access per role | L |
 | N | **Per-language publishing**: each translation has its own state and schedule; the content API and webhooks follow it | M |
 | O | **`pnpm create tinyzoo`**: a `create-tinyzoo` package wrapping `tinyzoo init` with questions (languages, which presets, demo content) | S |
-| T | **`useFetch` typed without a type argument**: the type generator also writes Nitro route types per collection and global (`/api/content/news/:slug` → `{ item: News }`), so `useFetch('/api/content/news/…')` infers the item the way `cms.news.get()` does. First check how Nitro chooses between these routes and the generic `:entity` one | S |
 | P | **API review before the freeze**: list the public surface of each API, remove what's deprecated, mark internals as internal, typed-config golden tests | M |
 
 #### Decisions locked for Wave 4 (2026-11-17)
@@ -252,12 +251,13 @@ and the audit has no open High or Medium.
 - **Translations ready for review**, by the rules decided for Wave 5 (above).
 - **The admin's look set without a developer.**
 
-**Candidates from the 1.0.0 site rollout (2026-11-19).** These turned up while moving six sites to 1.0.0. Neither fits a 1.0.x patch (PR #41 has the fixes that did). Neither is decided, so they are not on Plány yet.
+**Candidates.** None is decided, so they are not on Plány yet. The first two turned up while moving six sites to 1.0.0 (2026-11-19); neither fits a 1.0.x patch (PR #41 has the fixes that did). The third came from the website's developer sample (2026-11-17).
 
 | Candidate | Why | What it takes | Size |
 |---|---|---|---|
 | **Pictures on embedded entries** | An entry embedded in another (`CoachEmbedded` in a lesson) has only its plain fields: no files, galleries, groups, lists or blocks. studiogrand-web looks coach photos up in a second request. | `projectScalars` (`server/utils/cmsContent.ts`) and `embeddedFields` (`src/content-shape.ts`) deliver media fields as files (`{ id, url, width, height, alt, mime, focal }`), resolved in one query per relation. New keys in answers and in the generated types: allowed in a minor, and the contract goldens (`client-types.playground.ts`, `openapi.playground.json`, `surface.*`) change. Decide whether galleries and groups come along, or only media fields (smaller, and enough for the case seen). `content-api-reference.md` then says what an embedded entry carries. | S–M |
 | **Folders inside folders in the media library** | 6dance-web's seed used `Lektoři/fotky`. Folders have one level: the site stored it as `Lektoři fotky`, and the seed now refuses it (PR #41). A flat name (`Lektoři – fotky`) covers that case. | A folder path (`a/b`) in `cms_media.folder`, a tree in the library's sidebar, the folder filter of `GET /api/cms/_media` matching a folder and the ones under it, moving and renaming a folder, the seed accepting `/`. A folder named `a b` stays what it is. Worth it only when a site needs more than a dozen folders. | M |
+| **`useFetch` typed without a type argument** | `useFetch('/api/content/news/…')` is not typed as the site's `News` unless the site writes `useFetch<{ item: News }>`, while the generated `cms.news.get()` is typed from `cms.config.ts`. The website's sample now shows the client for that reason. | The type generator also writes Nitro route types per collection and global (`/api/content/news/:slug` → `{ item: News }`). First check how Nitro chooses between these routes and the generic `:entity` one. Adds types only. | S |
 
 ---
 
