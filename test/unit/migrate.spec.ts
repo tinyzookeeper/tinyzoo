@@ -259,6 +259,22 @@ describe('upgrade steps', () => {
     expect(result.steps).toEqual([{ id: 'enable-pg-trgm', ran: true }])
     expect(result.migrations).toEqual(['0000_trgm'])
   })
+
+  it('keeps the files of a site from before 0.2 in the media library when the column arrives', async () => {
+    await reset()
+    const media = [1000, '0000_media', 'CREATE TABLE "cms_media" ("id" text PRIMARY KEY);'] as [number, string, string]
+    await applyMigrations(mini(media), inTransaction, CORE_UPGRADE_STEPS)
+    await pool.query(`insert into "cms_media" ("id") values ('old-1'), ('old-2')`)
+    const add = [2000, '0001_library', 'ALTER TABLE "cms_media" ADD COLUMN "in_library" boolean DEFAULT false NOT NULL;'] as [number, string, string]
+    const result = await runUpgrade(mini(media, add), inTransaction, CORE_UPGRADE_STEPS)
+    expect(result.steps).toEqual([{ id: 'media-in-library', ran: true }])
+    expect((await pool.query('select id, in_library from "cms_media" order by id')).rows).toEqual([{ id: 'old-1', in_library: true }, { id: 'old-2', in_library: true }])
+    // Later runs leave the column alone: a file uploaded into a field stays out of the library.
+    await pool.query(`insert into "cms_media" ("id") values ('field-upload')`)
+    const again = await runUpgrade(mini(media, add, [3000, '0002_next', 'select 1']), inTransaction, CORE_UPGRADE_STEPS)
+    expect(again.steps).toEqual([])
+    expect((await pool.query(`select in_library from "cms_media" where id = 'field-upload'`)).rows[0].in_library).toBe(false)
+  })
 })
 
 describe('inspectMigrations (tinyzoo status)', () => {

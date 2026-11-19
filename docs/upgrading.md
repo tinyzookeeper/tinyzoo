@@ -125,8 +125,9 @@ Everything below is also in the changelog of 0.2.0. Do the steps in this order, 
 > **What you have to do**
 >
 > 1. Update both packages: `pnpm up tinyzoo@^0.2.0 @tinyzoo/client@^0.2.0`.
-> 2. If an entity has a camelCase name, run `pnpm exec tinyzoo generate` in a terminal. Answer **renamed** for every table and enum drizzle-kit asks about.
-> 3. Read the migration. It must hold only renames.
+>    A site made with 0.1 also has `vue-tsc` 2. Set it to `^3.3.14` in `package.json` now, or `pnpm typecheck` misses the templates in step 6 ([why](#regenerate-the-typed-client)).
+> 2. Run `pnpm exec tinyzoo generate` in a terminal. Every site needs this migration, because search and the media library arrive in it. If an entity has a camelCase name, answer **renamed** for every table and enum drizzle-kit asks about.
+> 3. Read the migration. Apart from the search table and the media column, it must hold only renames. If you stop at a 0.x version instead of going on to 1.0, add the line under [The media library](#the-media-library-keeps-your-files) to it.
 > 4. Apply it with `pnpm exec tinyzoo up`, or at start with `NUXT_CMS_MIGRATIONS_ON_START=true`. Stop the old instances first.
 > 5. Change `import { defineForm } from 'tinyzoo'` to `tinyzoo/forms` and register the forms plugin.
 > 6. Regenerate the typed client (`pnpm cms:client`) and fix what the compiler finds.
@@ -160,6 +161,21 @@ It must **not** hold `DROP TABLE`, `CREATE TABLE` for one of your tables or `DRO
 
 The migration adds the `cms_search` table and the `pg_trgm` extension. The database user needs the right to `CREATE EXTENSION`, or the database owner has to do it once. The index fills itself on the next start.
 
+### The media library keeps your files
+
+On a site made with 0.1.0, the migration also adds `cms_media.in_library`. A file in the library stays until someone deletes it there. A file outside it, one uploaded straight into a field, is deleted once nothing uses it.
+
+The column arrives as `false` for every file, so the files you uploaded on 0.1 have to be put in the library:
+
+- **Going on to 1.0:** nothing to do. tinyzoo 1.0 has an upgrade step (`media-in-library`) that does it in the same run as the migration.
+- **Stopping at 0.2 to 0.7:** those versions lack the step. Add this line at the end of the migration before you apply it:
+
+```sql
+UPDATE "cms_media" SET "in_library" = true;
+```
+
+Without it, an old file is deleted the first time an editor replaces or clears it, even when other pages use it from the library.
+
 ### Apply it
 
 Apply the migration with `pnpm exec tinyzoo up`, or at start with `NUXT_CMS_MIGRATIONS_ON_START=true`.
@@ -183,6 +199,8 @@ Restart `nuxt dev` after adding a plugin.
 ### Regenerate the typed client
 
 Run `pnpm cms:client` and fix what the compiler finds.
+
+Use `vue-tsc` 3 for this (`^3.3.14`, as the starter has). A site made with 0.1 has `vue-tsc` 2, which does not check the templates against these types. `pnpm typecheck` then passes while a template still hands a `null` address on.
 
 A required link field (a menu link's `url`) is `string | null` now, because the page it points at may be gone. Render a link only when it has an address. `cmsMenuTree` and `<CmsNav>` already skip links without one.
 
@@ -322,7 +340,7 @@ Open `/sitemap.xml` after the update and check these three things.
 
 Nothing else changes: `/api/content/_sitemap`, the tables and the content API are as they were.
 
-Three details are new. The sitemap now carries `x-default` next to the languages. It is served as `text/xml` (was `application/xml`). It is also cached for an hour (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`). A content change clears the server's copy at once.
+Three details are new. The sitemap now carries `x-default` next to the languages. If your `cms:sitemap` hook adds its own `x-default`, remove that line: on 0.5 to 0.7 every entry had two. Since 1.0 tinyzoo keeps the hook's and adds none. It is served as `text/xml` (was `application/xml`). It is also cached for an hour (`Cache-Control: public, max-age=3600, s-maxage=3600, stale-while-revalidate=3600`). A content change clears the server's copy at once.
 
 ## From 0.5 to 0.6
 
@@ -680,7 +698,8 @@ Rename the field. A rename is a migration: see [Renaming a field](#renaming-a-fi
 
 ### Node, drizzle-orm and the starter's scripts
 
-- **Node.** tinyzoo 1.0 asks for `^22.22.3 || ^24.15.0 || >=26.0.0`, the same as Nuxt. An older Node 22 or 24 gets a warning from the package manager. Update Node where the site is built and where it runs.
+- **Node.** tinyzoo 1.0 asks for `^22.22.3 || ^24.15.0 || >=26.0.0`, the same as Nuxt. An older Node 22 or 24 gets a warning from the package manager. Update Node where the site is built and where it runs. If your `package.json` has `engines.node`, set it to the same range.
+- **`@internationalized/date` is a peer dependency.** The admin's date fields need it. pnpm installs it by itself. A new site lists it in `package.json` (`^3.12.2`); list it there too if your package manager asks.
 - **`drizzle-orm` is a peer dependency.** A site made by `tinyzoo init` already lists it in `package.json`. Keep it there, in the range `tinyzoo upgrade` checks.
 - **`drizzle-kit` stays on 0.x.** `tinyzoo status` and `tinyzoo upgrade` warn when it is 1.0 ([why](stability.md#platform-and-dependencies)).
 - **The starter's scripts call `tinyzoo`.** A new site's `db:generate` is `tinyzoo generate`, and so on. Your own scripts may still run the CLI's file inside the package. That path is not part of the public API, so change them to call `tinyzoo` too.

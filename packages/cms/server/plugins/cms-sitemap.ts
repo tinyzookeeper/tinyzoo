@@ -32,8 +32,11 @@ export default defineNitroPlugin((nitro) => {
       // The versions point at each other (itself included); one version alone has nothing to say.
       if (e.alternates.length > 1) {
         url.alternatives = e.alternates.map((a) => ({ hreflang: a.locale, href: a.loc }))
-        const def = e.alternates.find((a) => a.locale === fallback) ?? e.alternates[0]!
-        url.alternatives.push({ hreflang: 'x-default', href: def.loc })
+        // A site whose cms:sitemap hook already adds x-default (as some did before 0.5) keeps its own.
+        if (!url.alternatives.some((a) => a.hreflang === 'x-default')) {
+          const def = e.alternates.find((a) => a.locale === fallback) ?? e.alternates[0]!
+          url.alternatives.push({ hreflang: 'x-default', href: def.loc })
+        }
       }
       ctx.urls.push(url)
     }
