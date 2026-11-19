@@ -86,7 +86,8 @@ html[data-cms-admin], html[data-cms-admin].dark {
   --ui-text-inverted: #fff;
   --ui-border: var(--ui-color-neutral-200);
   --ui-border-muted: var(--ui-color-neutral-100);
-  --ui-border-accented: var(--ui-color-neutral-300);
+  /* A field's outline (Nuxt UI's ring-accented): 3:1 on the page and on the field fill (WCAG 1.4.11). */
+  --ui-border-accented: #878787;
   --ui-border-inverted: var(--ui-color-neutral-900);
   --ui-bg: var(--cms-page-bg);
   --ui-bg-muted: var(--ui-color-neutral-50);
@@ -98,6 +99,9 @@ html[data-cms-admin], html[data-cms-admin].dark {
   --cms-page-bg: #fff;
   --cms-surface: #fff;             /* cards, tables */
   --cms-sunken: oklch(98.5% 0.002 85); /* behind a preview, under a page of cards */
+  /* What you type into or choose from: the raised grey, so a field never has the page's colour.
+     Declared on <html>, so the sidebar's own --ui-bg-elevated (its current-page pill) does not reach it. */
+  --cms-field-bg: var(--ui-bg-elevated);
   --cms-sidebar-bg: #fff;
 
   /* Cream: the brand's moments. */
@@ -150,7 +154,7 @@ html[data-cms-admin].dark {
   --ui-bg-inverted: var(--tz-cream);
   --ui-border: #2D2F34;
   --ui-border-muted: #25272B;
-  --ui-border-accented: #3A3C42;
+  --ui-border-accented: #74777F;
   --ui-border-inverted: var(--tz-cream);
 
   --cms-page-bg: #18191C;
@@ -615,7 +619,7 @@ html[data-cms-admin] .cms-title-input::placeholder { color: var(--ui-text-dimmed
 html[data-cms-admin] .cms-title-input--address {
   font-family: var(--font-mono); font-size: 1.0625rem; font-weight: 500; letter-spacing: 0;
   padding: 0.5rem 0.75rem; border-radius: var(--ui-radius);
-  box-shadow: inset 0 0 0 1px var(--ui-border-accented); background: var(--ui-bg);
+  box-shadow: inset 0 0 0 1px var(--ui-border-accented);
 }
 /* The address title (a redirect's "From") is a field with its own 1 px line: it hugs its ring as the other
    fields do, 1 px of outline on its 1 px line (it had a pale 20 % halo). */
@@ -625,6 +629,30 @@ html[data-cms-admin] .cms-title-input--address:focus-visible {
   outline-offset: 0;
   border-radius: var(--ui-radius);
 }
+/* Fields stand out from the page: a box you type into or choose from has the raised grey as its fill
+   and a 3:1 outline (--ui-border-accented). Nuxt UI draws its fields in the page's own colour (bg-default),
+   which on the white workspace was a white box on white. The field with the cursor turns to the page
+   colour, so the one you are in stands out from the rest; a chosen option does the same. Containers (a
+   section, a list item's card) keep the page colour: they hold fields. Only the field elements: Nuxt UI's
+   outline buttons share the classes (bg-default ring-accented) and stay as they are. */
+html[data-cms-admin] :is(input, textarea, div, [role='combobox'])[data-slot='base'][class~='bg-default'][class~='ring-accented']:not(.cms-field-locked *),
+html[data-cms-admin] :is(.cms-field-box, .cms-title-input--address, .cms-rte):not(.cms-field-locked *),
+html[data-cms-admin] .cms-choice [data-slot='item']:not(:has([data-state='checked'])) {
+  background-color: var(--cms-field-bg);
+}
+html[data-cms-admin] :is(input, textarea, div, [role='combobox'])[data-slot='base'][class~='bg-default'][class~='ring-accented']:focus-within,
+html[data-cms-admin] button.cms-field-box[aria-expanded='true'],
+html[data-cms-admin] .cms-title-input--address:focus,
+html[data-cms-admin] .cms-rte:focus-within {
+  background-color: var(--cms-page-bg);
+}
+html[data-cms-admin] .cms-field-box,
+html[data-cms-admin] .cms-rte,
+html[data-cms-admin] .cms-choice [data-slot='item']:not(:has([data-state='checked'])) { border-color: var(--ui-border-accented); }
+/* The text column of a page (Write) has no box: the text sits on the page. */
+html[data-cms-admin] .cms-write-body .cms-rte,
+html[data-cms-admin] .cms-write-body .cms-rte:focus-within { background-color: transparent; }
+
 @media (max-width: 639px) {
   html[data-cms-admin] .cms-title-input,
   html[data-cms-admin] .cms-editor--write .cms-title-input { font-size: 1.625rem; }
@@ -759,11 +787,12 @@ html[data-cms-admin] .cms-unsaved { color: color-mix(in oklab, var(--ui-warning)
 html[data-cms-admin].dark .cms-unsaved { color: color-mix(in oklab, var(--ui-warning) 70%, #fff); }
 
 /* A field the person's role may read but not change (.access({ edit }), CmsFieldLock): it reads as
-   locked, not as a field that happens to be pale. Its boxes get the raised grey as a fill and a lock
-   inside on the right; the words stay at full strength (they are still read); one sentence under it
-   says who can change it. The lock is drawn in the quiet text colour of each theme. */
+   locked, not as a field that happens to be pale. An editable field has the raised grey as its fill,
+   so a locked one has none: the page colour, a dashed outline and a lock inside on the right; the words
+   stay at full strength (they are still read); one sentence under it says who can change it. The lock
+   is drawn in the quiet text colour of each theme. */
 html[data-cms-admin] {
-  --cms-locked-bg: var(--ui-bg-elevated);
+  --cms-locked-bg: var(--cms-page-bg);
   --cms-lock-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='11' x='3' y='11' rx='2' ry='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");
 }
 html[data-cms-admin].dark {
@@ -771,11 +800,13 @@ html[data-cms-admin].dark {
 }
 html[data-cms-admin] .cms-field-locked__set { min-width: 0; margin: 0; padding: 0; border: 0; }
 html[data-cms-admin] .cms-field-locked :is(input, textarea, select, button):disabled { opacity: 1; cursor: default; }
-html[data-cms-admin] .cms-field-locked :is(input, textarea, [role='combobox'], .cms-rte) {
+html[data-cms-admin] .cms-field-locked :is(input, textarea, [role='combobox'], .cms-rte, .cms-field-box) {
   background-color: var(--cms-locked-bg);
   border-color: transparent;
   box-shadow: none;
   --tw-ring-shadow: 0 0 #0000;
+  outline: 1px dashed var(--ui-border-accented);
+  outline-offset: -1px;
 }
 html[data-cms-admin] .cms-field-locked :is(input:not([type='checkbox'], [type='radio'], [type='color']), textarea, .cms-rte .ProseMirror) {
   background-image: var(--cms-lock-icon);
