@@ -6,6 +6,7 @@
 GET  /api/content-types.ts
 GET  /api/content/:entity
 GET  /api/content/:entity/:slug
+GET  /api/content/_consent/config   (tinyzoo/consent)
 GET  /api/content/_form/:name   (tinyzoo/forms)
 GET  /api/content/_global/:name
 GET  /api/content/_search
@@ -17,6 +18,7 @@ GET  /api/health/status
 GET  /api/openapi
 GET  /api/openapi.json
 POST /api/content/_analytics/e   (tinyzoo/analytics)
+POST /api/content/_consent/choice   (tinyzoo/consent)
 POST /api/content/_form/:name   (tinyzoo/forms)
 GET  /api/cms/_brand/:file   (stored in content)
 GET  /api/cms/_media/img/:id/:file   (stored in content)

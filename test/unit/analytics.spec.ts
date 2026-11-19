@@ -347,7 +347,8 @@ describe('the plugin', () => {
     expect([analyticsReadAccess(u('admin')), analyticsReadAccess(u('editor')), analyticsReadAccess(u('author')), analyticsReadAccess(u('shopManager', 'editor'))]).toEqual([true, true, false, true])
   })
   it('has every text in Czech and German too', () => {
-    const keys = (o: any, p = ''): string[] => Object.entries(o).flatMap(([k, v]) => (typeof v === 'string' ? [`${p}${k}`] : keys(v, `${p}${k}.`)))
+    // A plural ({ one, few, other }) is one text: each language has the forms it needs.
+    const keys = (o: any, p = ''): string[] => Object.entries(o).flatMap(([k, v]) => (typeof v === 'string' || 'other' in (v as any) ? [`${p}${k}`] : keys(v, `${p}${k}.`)))
     const en = keys(ANALYTICS_MESSAGES.en).sort()
     expect(keys(ANALYTICS_MESSAGES.cs).sort()).toEqual(en)
     expect(keys(ANALYTICS_MESSAGES.de).sort()).toEqual(en)

@@ -8,5 +8,7 @@ const uiLocale = useCmsUiLocale()
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
+    <!-- The cookie banner (tinyzoo/consent): shown on the website until a visitor chooses, never in the admin. -->
+    <CmsConsent />
   </UApp>
 </template>

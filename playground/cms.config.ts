@@ -1,6 +1,7 @@
 import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
 import { defineForm, defineFormSettings, formsPlugin } from "tinyzoo/forms"
 import { analyticsPlugin } from "tinyzoo/analytics"
+import { consentPlugin } from "tinyzoo/consent"
 import { eventsPlugin } from "./cms-plugins/events"
 
 // Content languages: Czech is the default (each entry's own row), English is a
@@ -326,8 +327,9 @@ export const Navigation = defineNavigation({ localized: true })
 export const Redirect = defineRedirects()
 
 // Plugins (forms here, and the example "events" plugin): each adds entities, admin pages,
-// routes or upgrade steps under its own name.
-export const plugins = [formsPlugin(), eventsPlugin(), analyticsPlugin()]
+// routes or upgrade steps under its own name. The cookie banner (consent) asks visitors; the
+// analytics count everyone and, for those who allow statistics, also their consent id.
+export const plugins = [formsPlugin(), eventsPlugin(), analyticsPlugin({ mode: "consent" }), consentPlugin({ localized: true })]
 
 // A form on the website: each message lands here as an entry, and the people in
 // Forms settings get an email. On a page: <CmsForm name="contactForm" />.

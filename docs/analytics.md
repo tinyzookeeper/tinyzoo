@@ -2,12 +2,15 @@
 
 `tinyzoo/analytics` counts the website's visits and shows them in the site's own admin: how many people came, what they read, where they came from, on which devices and in which language. It sets no cookie and stores nothing in the visitor's browser. It keeps no address. A visitor cannot be recognised from one day to the next.
 
+A site with a cookie banner ([consent](consent.md)) can go further: it can learn more about the visitors who agree, or count nobody who has not agreed. See [Cookie banner](#cookie-banner).
+
 - [Switching it on](#switching-it-on)
 - [What the admin shows](#what-the-admin-shows)
 - [What is counted, and how](#what-is-counted-and-how)
 - [Options](#options)
 - [Stopping and starting](#stopping-and-starting)
 - [Countries](#countries)
+- [Cookie banner](#cookie-banner): the modes `cookieless`, `consent` and `strict`
 - [Privacy](#privacy), with a sentence for the site's privacy policy
 - [The tables](#the-tables)
 
@@ -106,6 +109,7 @@ A **visit** is one visitor's page views with gaps under 30 minutes. A visit belo
 
 ```ts
 analyticsPlugin({
+  mode: 'cookieless',
   keepRawDays: 90,
   access: ({ user }) => user.base === 'admin',
   respectDoNotTrack: true,
@@ -118,6 +122,7 @@ analyticsPlugin({
 
 | Option | Default | What it does |
 |---|---|---|
+| `mode` | `'cookieless'` | With a cookie banner or without: `'cookieless'`, `'consent'` or `'strict'`, see [Cookie banner](#cookie-banner) |
 | `keepRawDays` | `90` | Days the single page views are kept. Every night, older ones are deleted and only their daily totals stay. From 2 to 3650 |
 | `access` | administrators and editors | Who reads the reports: a rule like an entity's access rules, `({ user }) => boolean`. `user.base` is the built-in role a custom role extends |
 | `respectDoNotTrack` | `false` | Counts no browser that sends Do Not Track (`DNT: 1`) or Global Privacy Control (`Sec-GPC: 1`) |
@@ -159,6 +164,61 @@ The file is read once, into memory. The address is only looked up, never kept. A
 
 tinyzoo does not ship a database: it would add several megabytes to every site, and it would be out of date within a month.
 
+## Cookie banner
+
+The plugin has three modes. Each counts the headline numbers (visitors, visits, pageviews) the same way, by the day's hash, so nobody is counted twice and switching modes does not make the charts jump.
+
+```ts
+import { analyticsPlugin } from 'tinyzoo/analytics'
+import { consentPlugin } from 'tinyzoo/consent'
+
+export const plugins = [consentPlugin(), analyticsPlugin({ mode: 'consent' })]
+```
+
+`consent` and `strict` need the [consent plugin](consent.md), asking about `analytics`. Without it, the build and the start stop with a message that names both plugins.
+
+| Mode | What is counted | What the admin shows |
+|---|---|---|
+| `cookieless` (default) | Every visit, without a cookie. The banner, if the site has one, does not change it | The report |
+| `consent` | Every visit, as in `cookieless`. A visit of someone who allowed statistics in the banner also carries the consent id from their cookie | The report, and a section "Among visitors who agreed to cookies" |
+| `strict` | Only visits of people who allowed statistics. Before they do, the page sends nothing at all | The report, of those visitors only |
+
+### `cookieless`
+
+Nothing is stored on the visitor's device, so the statistics need no consent ([Privacy](#privacy)). This is right for most sites, and for every site without a cookie banner.
+
+### `consent`
+
+Everyone is still counted by the day's hash. The endpoint also reads the visitor's consent cookie (on the server: it is the same site), and when statistics are allowed, it keeps the cookie's consent id with the view (the column `consent_id`). The consent id lasts as long as the consent, up to 13 months, so these visitors can be followed from one day to the next.
+
+That gives a section of its own on the Analytics page, **Among visitors who agreed to cookies (N % of visits)**. The share is in the heading, so nobody reads the sample as the total:
+
+- **Unique visitors in the whole period**, each person once, not once a day;
+- **new and returning** visitors: first seen in the period, or seen before it;
+- **how often they came back**: visitors by their number of visits (1, 2, 3–5, 6 or more), and visits per visitor.
+
+These reports cover the raw views only (the last `keepRawDays`). The filters apply to them.
+
+Which source brought the people who later sent a form is not shown: form messages are not linked to visits.
+
+When someone takes statistics back, their consent id is removed from every view at once. Their visits stay, counted like everyone's. The consent log records the withdrawal ([consent](consent.md#the-consent-log)).
+
+Use it when the site already has a banner (for ads, videos or maps) and wants to know its regular readers better. It is a sample: people who say yes to cookies are not a random part of the audience.
+
+### `strict`
+
+The page sends nothing, not even the time on a page, until the visitor allows statistics. From then on they are counted by the day's hash, as everyone is in `cookieless`; the consent id is not kept. When they take it back, sending stops at once. The server checks the cookie too, so a page that still runs the old script cannot add views.
+
+This is for a site whose lawyer reads the European Data Protection Board's Guidelines 2/2023 on Article 5(3) of the ePrivacy Directive strictly: as covering any script that sends something from the visitor's device, even without a cookie. The price is the numbers: everyone who rejects, or never answers the banner, is missing, and that is often more than half of the visitors. Trends stay readable; totals do not.
+
+### Which one
+
+- No banner on the site, or a banner for other things and plain statistics enough: `cookieless`.
+- A banner on the site anyway, and wanting to know the people who come back: `consent`.
+- A lawyer who asks for consent before any measuring at all: `strict`.
+
+This page describes what each mode does. Whether a site needs consent for its statistics is a legal question for the site's own lawyer.
+
 ## Privacy
 
 What is stored per page view: the time, the page, the entry, the language, the day's visitor hash, the visit, where it came from (the referring website's name, never its full address), the campaign, the country, the device, the browser, the system, the browser's language and the time on the page.
@@ -167,7 +227,7 @@ What is never stored: the address (IP), the full user agent, a cookie or anythin
 
 The address and the user agent are used once, when the view arrives, for the hash and the country. Then they are forgotten. The hash cannot be linked across days, and the salt that made it is deleted after a day. After `keepRawDays`, only totals per day remain.
 
-Nothing is stored in the visitor's browser, so the rules on cookie consent do not apply to it, and the site needs no consent banner for its analytics. The site still processes the address for a moment, so the privacy policy should mention it. A sentence to start from:
+Nothing is stored in the visitor's browser, so the rules on cookie consent do not apply to it, and the site needs no consent banner for its analytics (in the default `cookieless` mode; see [Cookie banner](#cookie-banner) for the others). The site still processes the address for a moment, so the privacy policy should mention it. A sentence to start from:
 
 > **English.** We count visits to this website to see what people read and how they find us. We use no cookies and store nothing in your browser. Your IP address is used only for a moment, to recognise the same visit during one day and to tell the country; it is never stored. Visits cannot be linked from one day to the next, and the statistics stay on our own server; nobody else receives them. Single page views are deleted after 90 days; after that we keep only daily totals.
 
@@ -177,13 +237,31 @@ Nothing is stored in the visitor's browser, so the rules on cookie consent do no
 
 Change "90 days" when `keepRawDays` is something else. With a country database from DB-IP, add its credit.
 
+That sentence is for `cookieless`. With a cookie banner, add one of these.
+
+For `consent`:
+
+> **English.** If you allow statistics in the cookie settings, we also keep the random identifier of your consent with your visits, for as long as your consent lasts (at most 13 months). It lets us see how often people come back. If you take your consent back, the identifier is removed from your visits at once.
+
+> **Česky.** Pokud v nastavení cookies povolíte statistiky, uchováváme u vašich návštěv také náhodný identifikátor vašeho souhlasu, a to po dobu platnosti souhlasu (nejvýše 13 měsíců). Díky němu vidíme, jak často se lidé vracejí. Když souhlas odvoláte, identifikátor z vašich návštěv hned odstraníme.
+
+> **Deutsch.** Wenn Sie in den Cookie-Einstellungen Statistik erlauben, speichern wir zu Ihren Besuchen auch die zufällige Kennung Ihrer Einwilligung, solange die Einwilligung gilt (höchstens 13 Monate). So sehen wir, wie oft Besucher wiederkommen. Wenn Sie die Einwilligung widerrufen, entfernen wir die Kennung sofort aus Ihren Besuchen.
+
+For `strict`, instead of "We count visits to this website":
+
+> **English.** We count visits to this website only if you allow statistics in the cookie settings.
+
+> **Česky.** Návštěvy tohoto webu počítáme, jen pokud v nastavení cookies povolíte statistiky.
+
+> **Deutsch.** Wir zählen die Besuche dieser Website nur, wenn Sie in den Cookie-Einstellungen Statistik erlauben.
+
 ## The tables
 
 The plugin's tables are made by the site's own migration (`tinyzoo generate`):
 
 | Table | What it holds | Kept |
 |---|---|---|
-| `analytics_events` | One row per page view, with what is listed under [Privacy](#privacy). `consent_id` is empty: it is kept free for a later consent mode | `keepRawDays` |
+| `analytics_events` | One row per page view, with what is listed under [Privacy](#privacy). `consent_id` holds the visitor's consent id in the `consent` mode, when they allowed statistics; it is empty otherwise, and emptied when they take it back | `keepRawDays` |
 | `analytics_daily` | Totals per day, dimension and value: visitors, visits, pageviews, bounces, time. The dimension `total` (value `''`) is the day as a whole | always |
 | `analytics_settings` | The "Counting visits" settings (on or off) | always |
 | `cms_state`, key `analytics:salt` | The day's salt | one day |

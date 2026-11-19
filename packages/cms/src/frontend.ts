@@ -2,8 +2,8 @@ import type { CmsBlock } from './blocks'
 
 /**
  * The frontend kit: the props of the components every website draws its content with
- * (`<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, and `<CmsForm>` from
- * `tinyzoo/forms`). The components declare their props with these types, so the interfaces below
+ * (`<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>` from
+ * `tinyzoo/forms`, and `<CmsConsent>` with `useConsent()` from `tinyzoo/consent`). The components declare their props with these types, so the interfaces below
  * *are* the components' API: it is frozen from 1.0 (docs/api-surface.md), and a change to one shows
  * in `api-tinyzoo.txt` and in `frontend-kit.txt`.
  *
@@ -92,6 +92,36 @@ export interface CmsFormProps {
   name: string
   /** The language of the form's labels and messages. Default: the default language. */
   locale?: string
+}
+
+/** Props of `<CmsConsent>` (needs `consentPlugin()` from `tinyzoo/consent`): the cookie banner and its settings dialog. */
+export interface CmsConsentProps {
+  /** The language of the texts. Default: the page's (`<html lang>`). */
+  locale?: string
+}
+
+/** A visitor's cookie choice: yes or no per category they were asked about. `necessary` is always on and not in it. */
+export type CmsConsentChoice = Record<string, boolean>
+
+/** A read-only reactive value (a Vue `ComputedRef`): `.value` in a script, as it is in a template. */
+export interface CmsReadonlyRef<T> {
+  readonly value: T
+}
+
+/** What `useConsent()` returns (needs `consentPlugin()` from `tinyzoo/consent`). */
+export interface CmsConsentApi {
+  /** The visitor's choice, or null while they have not chosen (or are asked again). */
+  choice: CmsReadonlyRef<CmsConsentChoice | null>
+  /** The visitor has a choice that holds. */
+  decided: CmsReadonlyRef<boolean>
+  /** The browser has read the choice. False while the page is rendered on the server. */
+  ready: CmsReadonlyRef<boolean>
+  /** Whether a category is allowed: `necessary` always, the others once the visitor said yes. Reactive in a template or `computed`. */
+  granted: (category: string) => boolean
+  /** Opens the settings dialog (a "Cookie settings" link). */
+  open: () => void
+  /** Runs `cb` once the choice is known after the page loads, and whenever it changes. Returns a function that stops it (it also stops with the component). */
+  onChange: (cb: (choice: CmsConsentChoice | null) => void) => () => void
 }
 
 /** One result of the website search (`useCmsSearch`, `GET /api/content/_search`). */

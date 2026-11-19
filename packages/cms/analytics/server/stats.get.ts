@@ -2,6 +2,7 @@ import { parseFilters, type Dimension } from '../core/dimensions'
 import { addDays, isPeriod, resolveRange } from '../core/range'
 import { headline } from '../core/rollup'
 import { requireAnalyticsReader, serverAllowsCollecting, settingsAllowCollecting, siteTimeZone, today } from './context'
+import { consentReportOf } from './consentReport'
 import { listOf, seriesOf, totalsOf, type Window } from './queries'
 
 // GET /api/cms/_p/analytics/stats?period=7d&compare=1&f.source=Google — everything the
@@ -25,13 +26,15 @@ export default defineEventHandler(async (event) => {
   const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(new Date()))
   const untilHour = range.bucket === 'hour' && range.to === day ? hour : undefined
 
-  const [totals, series, previousTotals, previousSeries, lists, settingsOn] = await Promise.all([
+  const [totals, series, previousTotals, previousSeries, lists, settingsOn, consent] = await Promise.all([
     totalsOf(db, now),
     seriesOf(db, now, range.bucket, untilHour),
     compare ? totalsOf(db, before) : null,
     compare ? seriesOf(db, before, range.bucket) : null,
     Promise.all(LISTS.map(async (dim) => [dim, await listOf(db, now, dim)] as const)),
     settingsAllowCollecting(),
+    // Among the visitors who allowed statistics: only with a cookie banner in `consent` mode.
+    opts.mode === 'consent' ? consentReportOf(db, now) : null,
   ])
   const serverOn = serverAllowsCollecting()
 
@@ -41,6 +44,7 @@ export default defineEventHandler(async (event) => {
     today: day,
     timeZone: tz,
     keepRawDays: opts.keepRawDays,
+    mode: opts.mode,
     // Filters could not cover the days that only have totals.
     partial: filters.length > 0 && range.from < firstRawDay,
     collecting: { on: serverOn && settingsOn, server: serverOn, settings: settingsOn, canSwitch: (roleOf(user)?.base ?? user.role) === 'admin' },
@@ -49,5 +53,6 @@ export default defineEventHandler(async (event) => {
     series,
     previousSeries,
     lists: Object.fromEntries(lists),
+    consent,
   }
 })

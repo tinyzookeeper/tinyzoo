@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (113) ─────────────────────────────────────────────────
+// ── public (117) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -108,6 +108,21 @@ export interface CmsChange {
 }
 
 export type CmsChangeType = 'entry.created' | 'entry.updated' | 'entry.deleted' | 'entry.published' | 'entry.unpublished' | 'translation.updated' | 'translation.deleted' | 'global.updated';
+
+export interface CmsConsentApi {
+    choice: CmsReadonlyRef<CmsConsentChoice | null>;
+    decided: CmsReadonlyRef<boolean>;
+    ready: CmsReadonlyRef<boolean>;
+    granted: (category: string) => boolean;
+    open: () => void;
+    onChange: (cb: (choice: CmsConsentChoice | null) => void) => () => void;
+}
+
+export type CmsConsentChoice = Record<string, boolean>;
+
+export interface CmsConsentProps {
+    locale?: string;
+}
 
 export interface CmsContentNode {
     type: string;
@@ -334,6 +349,7 @@ export interface CmsPluginDef {
     tables?: PgTable[];
     tablesSource?: string;
     components?: string;
+    composables?: string;
     adminPages?: CmsPluginAdminPage[];
     navItems?: CmsPluginNavItem[];
     dashboardWidgets?: CmsDashboardWidget[];
@@ -371,6 +387,10 @@ export interface CmsPluginNavItem {
 export type CmsPluginUpgradeStep = Omit<UpgradeStep, 'since'> & {
     since?: string;
 };
+
+export interface CmsReadonlyRef<T> {
+    readonly value: T;
+}
 
 export interface CmsRegistry {
     entities: CmsEntity[];

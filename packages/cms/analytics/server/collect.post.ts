@@ -2,6 +2,8 @@ import { cleanUtm, sourceOf } from '../core/source'
 import { cleanPath, countryFromHeaders, deviceOf, excludedPath, languageOf } from '../core/enrich'
 import { parseUserAgent } from '../core/ua'
 import { localDay, visitorHash } from '../core/visitor'
+import { currentChoiceOf } from '../../consent/server/state'
+import { consentDecision } from '../core/consent'
 import { analyticsOptions, saltOf, serverAllowsCollecting, settingsAllowCollecting, siteTimeZone } from './context'
 import { countryOfAddress } from './geoip'
 import { MAX_ENGAGED_MS, queueEngagement, queueView } from './ingest'
@@ -13,6 +15,11 @@ import { MAX_ENGAGED_MS, queueEngagement, queueView } from './ingest'
 //
 // Nothing that identifies the visitor is kept: the address and the user agent only go into
 // the day's hash (core/visitor.ts) and the country lookup, and are then forgotten.
+//
+// With a cookie banner (the consent plugin): in `mode: 'strict'` nothing is counted without the
+// visitor's consent to statistics (the tracker does not send then either); in `mode: 'consent'`
+// everyone is counted as above, and a visitor who allowed statistics also has the consent id of
+// their cookie kept with the view (`consent_id`), for the reports among those who agreed.
 const VIEW_ID = /^[A-Za-z0-9_-]{8,40}$/
 const MAX_BODY = 4096
 
@@ -74,6 +81,10 @@ async function take(event: any): Promise<void> {
   if (!(await rateLimit(`analytics:${ip}`, 300, 60_000))) return
   if (!(await settingsAllowCollecting())) return
 
+  // The consent cookie, read here on the server (same site): the browser sends it with the beacon.
+  const { count, consentId } = consentDecision(opts.mode, opts.mode === 'cookieless' ? null : await currentChoiceOf(event))
+  if (!count) return
+
   const now = new Date()
   const day = localDay(now, siteTimeZone())
   const visitor = visitorHash(await saltOf(day), hosts[0]!, ip, ua)
@@ -113,6 +124,7 @@ async function take(event: any): Promise<void> {
     browser: parsed.browser,
     os: parsed.os,
     language: languageOf(body.l),
+    consentId,
     engagedMs: 0,
   })
 }

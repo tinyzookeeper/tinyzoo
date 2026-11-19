@@ -2,13 +2,13 @@
 
 A plugin adds a feature to a tinyzoo site without changing tinyzoo. It can bring its own collections, admin pages, server routes, field editors, texts, scheduled clean-up and upgrade steps.
 
-Website forms are the first plugin (`tinyzoo/forms`), and [analytics](analytics.md) the second (`tinyzoo/analytics`): it uses tables, an app plugin, a home widget and an entry panel. The playground has a small second one, `events` (`playground/cms-plugins/events/`), that you can read from start to finish.
+Website forms are the first plugin (`tinyzoo/forms`), and [analytics](analytics.md) the second (`tinyzoo/analytics`): it uses tables, an app plugin, a home widget and an entry panel. [Cookie consent](consent.md) (`tinyzoo/consent`) is the third: it brings a component and a composable for the website. The playground has a small second one, `events` (`playground/cms-plugins/events/`), that you can read from start to finish.
 
 This page is the guide. [The plugin API reference](plugin-reference.md) lists every option and hook with its type.
 
 - [Using a plugin](#using-a-plugin)
 - [Writing a plugin](#writing-a-plugin): the smallest plugin, then a fuller one
-- [What a plugin can bring](#what-a-plugin-can-bring): entities, routes, pages, navigation, field editors, texts, retention, graph notes, Nitro plugins, upgrade steps
+- [What a plugin can bring](#what-a-plugin-can-bring): entities, routes, pages, navigation, field editors, composables, texts, retention, graph notes, Nitro plugins, upgrade steps
 - [Names: how plugins stay out of each other's way](#names-how-plugins-stay-out-of-each-others-way)
 - [Shipping a plugin as an npm package](#shipping-a-plugin-as-an-npm-package)
 - [Forms](#forms)
@@ -121,6 +121,7 @@ Paths in a plugin definition are absolute. Build them with `pluginFile(import.me
 | `serverHandlers` | Nitro routes, under `/api/cms/_p/<plugin>/…`, optionally also on the public content API. |
 | `adminPages`, `navItems` | Pages under `/admin/p/<plugin>/…` and their entries in the sidebar. |
 | `components` | Vue components, registered globally: field editors, widgets, panels, and components for the website's pages. |
+| `composables` | Composables, auto-imported in the website and the admin, such as the consent plugin's `useConsent()`. |
 | `fields` | Editors and list cells for field types. |
 | `dashboardWidgets` | Cards on the admin's home page. |
 | `entityPanels` | Panels in the side column of the entry editor. |
@@ -414,6 +415,16 @@ In a site's own code you write `Entity`. `defineEntity` returns it, typed from i
 ### Nitro plugins
 
 `serverPlugins: [pluginFile(import.meta.url, './server/startup.ts')]` lists files with `export default defineNitroPlugin(…)`. They start with the server, for whatever must run at start: a queue, a webhook listener, a hook on `cms:change`. Nitro's own rules apply.
+
+### Composables
+
+```ts
+composables: pluginFile(import.meta.url, './composables')
+```
+
+Every export of every file in the folder is auto-imported, in the website's pages and in the admin, like the site's own `composables/`. The consent plugin brings `useConsent()` this way.
+
+Name them after the plugin (`useEventsCalendar` for the plugin `events`), so they cannot meet the site's own. A composable that the site also has under the same name is the site's.
 
 ### App plugins
 

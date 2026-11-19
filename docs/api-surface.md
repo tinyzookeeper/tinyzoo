@@ -9,11 +9,11 @@ This page lists what tinyzoo promises not to break. Check it before you depend o
 
 | Frozen surface | Where |
 |---|---|
-| [The config API](#the-config-api-tinyzoo): `defineEntity`, `f.*`, blocks, presets, seeds, plugins | `tinyzoo`, [`tinyzoo/forms`](#forms-tinyzooforms), [`tinyzoo/analytics`](#analytics-tinyzooanalytics) |
+| [The config API](#the-config-api-tinyzoo): `defineEntity`, `f.*`, blocks, presets, seeds, plugins | `tinyzoo`, [`tinyzoo/forms`](#forms-tinyzooforms), [`tinyzoo/analytics`](#analytics-tinyzooanalytics), [`tinyzoo/consent`](#cookie-consent-tinyzooconsent) |
 | [The Nuxt layer and its options](#the-nuxt-layer-and-the-cms-options) and [environment variables](#environment-variables) | `tinyzoo/layer`, `tinyzoo/module`, `nuxt.config`, `NUXT_CMS_*` |
 | [The content API](#the-content-api-http) (HTTP) and [the client](#the-client-tinyzooclient) | `/api/content/*`, `@tinyzoo/client` |
 | [The media and logo addresses](#media-and-logo-addresses) stored in content and emails | `/api/cms/_media/raw/<key>`, `/api/cms/_media/img/<id>/<width>.webp`, `/api/cms/_brand/<file>` |
-| [The frontend kit](#the-frontend-kit): `<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()` | `Cms*` components and composables of the layer |
+| [The frontend kit](#the-frontend-kit): `<CmsBlocks>`, `<CmsImage>`, `<CmsContent>`, `<CmsNav>`, `<CmsHighlight>`, `<CmsForm>`, `<CmsConsent>`, `useCmsSeo()`, `useCmsSearch()`, `useCmsUiLocale()`, `useConsent()` | `Cms*` components and composables of the layer and its plugins |
 | [The webhook](#the-webhook) and [the Nitro hooks](#the-nitro-hooks) | `cms:*` |
 | [The server helpers for plugins](#server-helpers-for-plugins): `useCms()` and `requireCmsUser(event)` | a plugin's server routes |
 | [External sign-in](#external-sign-in): what the host sets with `auth.mode: 'external'` | `event.context.cmsUser` |
@@ -48,7 +48,7 @@ Every surface above is written down as a golden file in `test/contracts/`.
 
 | Golden file | What it holds |
 |---|---|
-| `api-tinyzoo.txt`, `api-tinyzoo-forms.txt`, `api-tinyzoo-analytics.txt`, `api-tinyzoo-module.txt`, `api-client.txt` | the exported declarations of each entry point (what is `@internal` is listed by name only) |
+| `api-tinyzoo.txt`, `api-tinyzoo-forms.txt`, `api-tinyzoo-analytics.txt`, `api-tinyzoo-consent.txt`, `api-tinyzoo-module.txt`, `api-client.txt` | the exported declarations of each entry point (what is `@internal` is listed by name only) |
 | `module-options.json` | the options of the `cms` key with their defaults, and the environment variables that follow |
 | `nitro-hooks.d.ts` | the Nitro hooks with their argument types, and what tinyzoo adds to nuxt-auth-utils' `User` and `UserSession` |
 | `server-helpers.d.ts` | `useCms()` and `requireCmsUser(event)` with their types |
@@ -237,7 +237,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | Site status | `CmsStatus`, `CmsStatusCollection` (the answer of `/api/health/status`) |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
 | Admin branding (`cms.admin`) | `CmsAccent` (a built-in accent or a hex), `CmsAccentPreset` (`'mono' \| 'indigo' \| 'blue' \| 'violet' \| 'emerald'`), `CmsAdminLogo` (`full`, `mark`, `fullDark`, `markDark`) |
-| Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsSearchItem`, `CmsSearchResult` |
+| Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsConsentProps`, `CmsConsentChoice`, `CmsConsentApi`, `CmsReadonlyRef`, `CmsSearchItem`, `CmsSearchResult` |
 
 **`Entity` or `CmsEntity`?** They are two views of the same thing.
 
@@ -288,11 +288,30 @@ The analytics plugin ([analytics](analytics.md)).
 | Export | What it is |
 |---|---|
 | `analyticsPlugin(options)` | the plugin to register: `export const plugins = [analyticsPlugin()]` |
-| `AnalyticsOptions` | its options: `keepRawDays`, `access`, `respectDoNotTrack`, `excludePaths`, `countryHeaders`, `geoipFile`, `timeZone` |
+| `AnalyticsOptions` | its options: `mode`, `keepRawDays`, `access`, `respectDoNotTrack`, `excludePaths`, `countryHeaders`, `geoipFile`, `timeZone` |
+| `AnalyticsMode` | `'cookieless'`, `'consent'` or `'strict'` ([cookie banner](analytics.md#cookie-banner)) |
 | `dailyRollups(db, from, to, dimensions?)` | the daily totals of a range of days, as `DailyRollup` rows (`day`, `dimension`, `value`, `visitors`, `visits`, `pageviews`, `bounces`, `engagedMs`). Nothing in them identifies a visitor |
 | `DailyRollup` | one of those rows |
 
 The plugin also brings `POST /api/content/_analytics/e`, where the website's pages send their visits. Its tables (`analytics_events`, `analytics_daily`) are exported for the server's own code, but their columns are not frozen: a minor release may change them, with a migration.
+
+## Cookie consent: `tinyzoo/consent`
+
+The consent plugin ([consent](consent.md)).
+
+| Export | What it is |
+|---|---|
+| `consentPlugin(options)` | the plugin to register: `export const plugins = [consentPlugin()]` |
+| `ConsentOptions` | its options: `categories`, `cookieDays`, `keepLogDays`, `localized`, `access` |
+| `ConsentCategoryDef` | a category of the site's own: `key`, `label`, `description` |
+
+The plugin also brings:
+
+- `<CmsConsent />` and `useConsent()` ([the frontend kit](#the-frontend-kit));
+- `GET /api/content/_consent/config` and `POST /api/content/_consent/choice`;
+- the cookie `tz_consent` ([consent](consent.md#the-cookie)). Read the choice with `useConsent()`: the cookie's value starts with a format number of its own, and a minor release may add a new format.
+
+Its table `consent_log` is exported for the server's own code; its columns are not frozen.
 
 ## The Nuxt layer and the `cms` options
 
@@ -379,6 +398,8 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content/_sitemap` | the site's public addresses as `{ entries }` (`CmsSitemapEntry`) |
 | `GET`, `POST /api/content/_form/:name` | a website form's definition and its submission (`tinyzoo/forms`) |
 | `POST /api/content/_analytics/e` | a page view, or the time one was looked at, from the website's pages (`tinyzoo/analytics`). Always `202` with no body |
+| `GET /api/content/_consent/config` | the cookie banner's texts and categories in a language (`?locale=`), the version of the texts and `cookieDays` (`tinyzoo/consent`) |
+| `POST /api/content/_consent/choice` | a visitor's choice (`{ id?, choice, version }`): logged, and the cookie `tz_consent` set. `{ id, action, version, cookie }` (`tinyzoo/consent`) |
 | `GET /api/openapi.json` | the OpenAPI 3.1 document of all of the above |
 | `GET /api/openapi` | the interactive reference (off in production unless `cms.content.docs`) |
 | `GET /api/content-types.ts` | the generated client types (what `tinyzoo client` writes) |
@@ -605,12 +626,14 @@ Their props are the interfaces of `tinyzoo` named below. `frontend-kit.txt` hold
 | `<CmsNav>` | `CmsNavProps`: `links` (`CmsNavLink`: `id`, `label`, `url`, `newTab`, `sub`; or `null`) | none. Renders a `nav.cms-nav` with nested lists |
 | `<CmsHighlight>` | `CmsHighlightProps`: `text`, `ranges` (`[start, end)` pairs, or `null`) | none. Renders a `span` with `<mark>` around each range |
 | `<CmsForm>` (`tinyzoo/forms`) | `CmsFormProps`: `name`, `locale` | event `sent`; slot `success` (replaces the form after sending) |
+| `<CmsConsent>` (`tinyzoo/consent`) | `CmsConsentProps`: `locale` | none. The cookie banner and its settings dialog, themed with `--cms-consent-*` variables |
 
 | Composable | Takes | Returns |
 |---|---|---|
 | `useCmsSeo(item, options)` | an item or a getter of one, and `{ siteName, titleField, descriptionField, imageField, fallback, defaultLocale, path, ogLocales }` | `{ title, description, image, canonical }` (computed values); sets the page's head |
 | `useCmsSearch(query, options)` | a query (ref or getter) and `{ locale, limit, entities }` | a promise of `{ items, total, searched, pending, error }`; `items` are `CmsSearchItem`s |
 | `useCmsUiLocale()` | nothing | a computed locale for `<UApp :locale>`: Nuxt UI's words in the admin's language on `/admin` pages, `undefined` elsewhere |
+| `useConsent()` (`tinyzoo/consent`) | nothing | `CmsConsentApi`: `{ choice, decided, ready, granted, open, onChange }` |
 
 Every other `Cms*` component and `useCms*` composable (`CmsPage`, `CmsField`, `CmsEmptyState`, `CmsStatusBadge`, `useCmsI18n` and so on) is the admin's own and internal. That includes the ones a plugin's admin page uses ([plugins](plugins.md#admin-pages-and-navigation)). They can change in any minor release.
 
