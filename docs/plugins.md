@@ -117,9 +117,14 @@ Paths in a plugin definition are absolute. Build them with `pluginFile(import.me
 |---|---|
 | `name`, `version` | The plugin's name (`events`, `my-shop`) namespaces everything below. The version is recorded with its upgrade steps. |
 | `entities`, `singletons` | Collections (`defineEntity`) and single-row globals (`defineSingleton`). They behave exactly like the site's own: admin lists and editors, the CMS API, access rules, revisions, search, the content API (`content.public`), the typed client and the OpenAPI document. |
+| `tables`, `tablesSource` | Tables of the plugin's own that are not entries: a log, daily totals. They get migrations with the site's tables. |
 | `serverHandlers` | Nitro routes, under `/api/cms/_p/<plugin>/…`, optionally also on the public content API. |
 | `adminPages`, `navItems` | Pages under `/admin/p/<plugin>/…` and their entries in the sidebar. |
-| `fields`, `components` | Editors and list cells for field types. |
+| `components` | Vue components, registered globally: field editors, widgets, panels, and components for the website's pages. |
+| `fields` | Editors and list cells for field types. |
+| `dashboardWidgets` | Cards on the admin's home page. |
+| `entityPanels` | Panels in the side column of the entry editor. |
+| `appPlugins` | Nuxt app plugins (`defineNuxtPlugin`) for the website and the admin, such as a tracker in the browser. |
 | `i18n` | The plugin's admin texts, per language. |
 | `hooks` | Code tinyzoo calls at defined moments. Today that is `retention`. |
 | `graph` | Notes under a collection's list, or no "New" button. |
@@ -140,6 +145,68 @@ This keeps two plugins, and a plugin and the site, from taking one name. A plugi
 Do not also export a plugin's entity from `cms.config.ts`, because the plugin brings it.
 
 Relations work both ways. A plugin can relate to the site's entities (`f.relation(() => Post)`), and the site can relate to a plugin's entity by importing it from the plugin.
+
+### Tables
+
+Some data is not content. Nobody edits it in the admin, and it does not need a list, revisions or search: a log of raw events, totals per day. A plugin keeps such data in plain Drizzle tables:
+
+```ts
+// tables.ts
+import { bigserial, date, integer, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
+
+export const statsHits = pgTable('stats_hits', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  path: text('path').notNull(),
+  at: timestamp('at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
+export const statsDaily = pgTable('stats_daily', {
+  day: date('day').notNull(),
+  path: text('path').notNull(),
+  views: integer('views').notNull().default(0),
+}, (t) => [primaryKey({ name: 'stats_daily_pk', columns: [t.day, t.path] })])
+
+// The same tables as source, for the site's schema.ts.
+export const STATS_TABLES_SOURCE = `export const statsHits = pgTable('stats_hits', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  path: text('path').notNull(),
+  at: timestamp('at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
+export const statsDaily = pgTable('stats_daily', {
+  day: date('day').notNull(),
+  path: text('path').notNull(),
+  views: integer('views').notNull().default(0),
+}, (t) => [primaryKey({ name: 'stats_daily_pk', columns: [t.day, t.path] })])`
+```
+
+```ts
+defineCmsPlugin({
+  name: 'stats',
+  version: '1.0.0',
+  tables: [statsHits, statsDaily],
+  tablesSource: STATS_TABLES_SOURCE,
+})
+```
+
+Tables are named like entities: `<name>` or `<name>_…`, in the database's default schema.
+
+Each table is written twice, as tinyzoo's own tables are:
+
+- `tables` holds the Drizzle objects. The server queries these.
+- `tablesSource` holds the same tables as source. `tinyzoo generate` pastes it into the site's `server/db/schema.ts`, so drizzle-kit makes their migrations with the site's own. drizzle-kit reads a file, not objects, which is why the source is needed.
+
+The source has rules, because it is pasted as it is:
+
+- Only `export const <name> = pgTable('<name>', …)` statements, one per table. The export is the table's name in camelCase (`stats_daily` → `statsDaily`).
+- Plain JavaScript, without type annotations.
+- It may use every builder of `drizzle-orm/pg-core` and `sql`. `tinyzoo generate` imports what it uses.
+
+`tinyzoo generate` runs the source and compares each table with the one in `tables`: columns, keys, indexes and checks. If they differ, it stops and says what is different. So the two cannot drift apart unnoticed.
+
+On the server, the plugin's code imports its tables from its own module. They are also in the registry, by their SQL name: `useCms().reg.pluginTables.get('stats_hits')`.
+
+Tables are not content. `tinyzoo export` and `tinyzoo import` do not carry them; `tinyzoo backup` does, as it holds the whole database. A plugin that keeps personal data in a table deletes it in its [retention](#retention) hook.
 
 ### Server routes
 
@@ -231,6 +298,49 @@ Pages sit behind the admin's sign-in like every `/admin` page. The data they sho
 
 A plugin's collections already appear in the sidebar by themselves, as any collection does.
 
+### Home widgets
+
+```ts
+defineCmsPlugin({
+  name: 'stats',
+  version: '1.0.0',
+  components: pluginFile(import.meta.url, './components'),
+  dashboardWidgets: [{ component: 'StatsVisitors', order: 10 }],
+})
+```
+
+A widget is a card on the admin's home page. Widgets sit in the main column, after "Waiting for you" and "Needs translating" and before "Recent".
+
+- `component` is the name of a component in the plugin's `components` folder.
+- `order` sorts the widgets of all plugins, smallest first. The default is `0`. Widgets with the same order keep the order the plugins are registered in.
+- `adminOnly: true` shows the widget to administrators only.
+
+The component draws the whole card, heading included. Write it like the home's own sections: a `<section>` with an `h2` of class `cms-label` and a `.cms-card`. It fetches its own data from the plugin's routes.
+
+When a widget has nothing to show, it renders nothing (`v-if` on its root element). The home then leaves no gap where it would be.
+
+### Entry panels
+
+```ts
+entityPanels: [{ component: 'StatsEntryReads', label: { en: 'Reads', cs: 'Přečtení' }, entities: ['post'] }]
+```
+
+A panel sits in the side column of the entry editor, under the entry's details and its folded field groups. It is for things about the entry that are not its fields, such as how often it was read.
+
+- `component` is the name of a component in the plugin's `components` folder.
+- `label` is the heading the editor puts above it.
+- `entities` lists the collections it is shown for. Leave it out for every collection. A name the site does not have, or a singleton, stops the build.
+
+The component gets three props:
+
+```ts
+defineProps<{ entity: string; id: string; locale: string | null }>()
+```
+
+`locale` is the language being edited. It is `null` for a collection that is not translated.
+
+A panel is not part of the form. So it stays usable for someone who may only read the entry. A new entry has no panels until it is saved. In the "write" arrangement the side column is folded on wide screens, so the panels show when the details are opened.
+
 ### Field editors
 
 ```ts
@@ -303,6 +413,19 @@ In a site's own code you write `Entity`. `defineEntity` returns it, typed from i
 
 `serverPlugins: [pluginFile(import.meta.url, './server/startup.ts')]` lists files with `export default defineNitroPlugin(…)`. They start with the server, for whatever must run at start: a queue, a webhook listener, a hook on `cms:change`. Nitro's own rules apply.
 
+### App plugins
+
+```ts
+appPlugins: [{ src: pluginFile(import.meta.url, './app/track.client.ts'), mode: 'client' }]
+```
+
+`appPlugins` lists Nuxt app plugins (`export default defineNuxtPlugin(…)`). They are added after the site's own and tinyzoo's.
+
+- `src` is the absolute path of the file.
+- `mode` is `'client'` (in the browser only), `'server'` (while a page is rendered only) or `'all'` (both, the default).
+
+The website and the admin are one Nuxt app. So an app plugin runs on both. A plugin meant for the website alone, such as a tracker, checks the route itself and skips `/admin` and everything under it.
+
 ### Upgrade steps
 
 An upgrade step is a plugin's own data work. It runs with tinyzoo's, in the same transaction and lock as the site's migrations (`tinyzoo up`, or the app's start with `NUXT_CMS_MIGRATIONS_ON_START`):
@@ -341,7 +464,7 @@ Everything a plugin adds lives under its own name:
 
 | What | Where |
 |---|---|
-| Collections and tables | `<name>` or `<name>_…` |
+| Collections and tables (`entities`, `tables`) | `<name>` or `<name>_…` |
 | Server routes | `/api/cms/_p/<name>/…` |
 | Public routes (optional) | `/api/content/_<segment>/…`, each address served by one plugin |
 | Admin pages | `/admin/p/<name>/…` |
@@ -355,6 +478,9 @@ Mistakes stop the build, or the start, with a message that names the plugin:
 | a reserved or malformed name (`cms`, `admin`, `p`, `My Shop`) | `Plugin "cms": "cms" is reserved by tinyzoo.` |
 | two plugins with one name | `Two plugins are named "events": register it once.` |
 | an entity outside the plugin's names | `the entity "order" must be named "shop" or "shop_…"` |
+| a table outside the plugin's names | `the table "visits" must be named "stats" or "stats_…"` |
+| a table whose source differs (at `tinyzoo generate`) | `the table stats_hits in tablesSource is not the one in tables (columns; …)` |
+| a panel for a collection the site does not have | `entityPanels "StatsEntryReads" names the collection "article", which the site does not have` |
 | the site defines an entity the plugin brings | `The entity "events" of the plugin "events" is also defined by the site` |
 | two plugins on one public route, or one field type | `GET /api/content/_form/:name is already served by the plugin "forms"` |
 | a file that is not there | `server handler "/summary": handler "/…/summary.get.ts" does not exist` |

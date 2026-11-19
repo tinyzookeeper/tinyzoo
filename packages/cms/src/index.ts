@@ -22,6 +22,7 @@ export {
   pluginApiBase, pluginAdminBase, pluginEntityPrefix,
   type CmsPlugin, type CmsPluginDef, type CmsPluginHandler, type CmsPluginAdminPage, type CmsPluginNavItem, type CmsPluginHooks, type CmsPluginUpgradeStep,
   type CmsPluginRequirement, type CmsFieldRenderer, type CmsGraphExtension, type CmsRetentionContext, type CmsRouteAccess, type CmsHttpMethod, type PluginPlan,
+  type CmsPluginAppPlugin, type CmsDashboardWidget, type CmsEntityPanel,
 } from './plugin'
 export { emitSchema } from './emitter'
 export { buildOpenApiDocument, type OpenApiOptions } from './openapi'

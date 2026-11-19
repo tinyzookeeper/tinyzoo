@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { sql } from 'drizzle-orm'
+import { bigserial, date, index, integer, pgSchema, pgTable, primaryKey, text, timestamp } from 'drizzle-orm/pg-core'
 import {
-  allUpgradeSteps, buildRegistry, CORE_UPGRADE_STEPS, cmsDeprecations, collectPlugins, defineCmsPlugin, defineEntity, defineSingleton, f,
+  allUpgradeSteps, buildRegistry, CORE_UPGRADE_STEPS, cmsDeprecations, collectPlugins, defineCmsPlugin, defineEntity, defineSingleton, emitSchema, f,
   matchRoute, planPlugins, pluginFile, pluginRouteAccess, pluginUpgradeSteps, resetCmsDeprecations, type CmsPluginDef,
 } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
@@ -344,7 +346,7 @@ describe('planPlugins: what the build registers', () => {
   })
 
   it('has nothing to register for no plugins', () => {
-    expect(planPlugins([])).toEqual({ pages: [], handlers: [], serverPlugins: [], componentDirs: [], navItems: [], fields: {}, messages: {}, plugins: [] })
+    expect(planPlugins([])).toEqual({ pages: [], handlers: [], serverPlugins: [], componentDirs: [], navItems: [], appPlugins: [], dashboardWidgets: [], entityPanels: [], fields: {}, messages: {}, plugins: [] })
   })
 
   it('plans the forms plugin: its public endpoints keep their address', () => {
@@ -353,6 +355,168 @@ describe('planPlugins: what the build registers', () => {
     expect(plan.componentDirs).toHaveLength(1)
     expect(plan.componentDirs[0]).toMatch(/packages\/cms\/forms\/components$/)
     expect(plan.messages.forms!.cs).toHaveProperty('retention')
+  })
+})
+
+// ── tables, app plugins, home widgets, editor panels ─────────────────────────────
+const shopEvents = pgTable('shop_events', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  kind: text('kind').notNull(),
+  at: timestamp('at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [index('shop_events_at_idx').on(t.at)])
+const shopDaily = pgTable('shop_daily', {
+  day: date('day').notNull(),
+  views: integer('views').notNull().default(0),
+}, (t) => [primaryKey({ name: 'shop_daily_pk', columns: [t.day] })])
+const TABLES_SOURCE = `export const shopEvents = pgTable('shop_events', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  kind: text('kind').notNull(),
+  at: timestamp('at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [index('shop_events_at_idx').on(t.at)])
+
+export const shopDaily = pgTable('shop_daily', {
+  day: date('day').notNull(),
+  views: integer('views').notNull().default(0),
+}, (t) => [primaryKey({ name: 'shop_daily_pk', columns: [t.day] })])`
+const withTables = (over: Partial<CmsPluginDef> = {}) => def({ tables: [shopEvents, shopDaily], tablesSource: TABLES_SOURCE, ...over })
+
+describe('defineCmsPlugin: tables', () => {
+  it('takes Drizzle tables named after the plugin, with their source', () => {
+    expect(defineCmsPlugin(withTables()).tables).toEqual([shopEvents, shopDaily])
+    expect(defineCmsPlugin(def()).tables).toEqual([])
+  })
+
+  it('refuses what is not a table, a name outside the namespace, another schema, a table twice', () => {
+    expect(() => defineCmsPlugin(def({ tables: [{} as any], tablesSource: 'x' }))).toThrow(/tables takes Drizzle tables made with pgTable/)
+    const visits = pgTable('visits', { id: text('id') })
+    expect(() => defineCmsPlugin(def({ tables: [visits], tablesSource: 'x' }))).toThrow(/Plugin "shop": the table "visits" must be named "shop" or "shop_…"/)
+    const elsewhere = pgSchema('stats').table('shop_x', { id: text('id') })
+    expect(() => defineCmsPlugin(def({ tables: [elsewhere], tablesSource: 'x' }))).toThrow(/is in the Postgres schema "stats"/)
+    expect(() => defineCmsPlugin(withTables({ tables: [shopEvents, shopEvents] }))).toThrow(/the table "shop_events" is listed twice/)
+  })
+
+  it('wants the source with the tables, and only the tables in it', () => {
+    expect(() => defineCmsPlugin(def({ tables: [shopEvents] }))).toThrow(/tables need `tablesSource`/)
+    expect(() => defineCmsPlugin(def({ tablesSource: TABLES_SOURCE }))).toThrow(/tablesSource is given but tables is empty/)
+    expect(() => defineCmsPlugin(withTables({ tables: [shopEvents] }))).toThrow(/exports "shopDaily" \(shop_daily\), which is not one of `tables`/)
+    expect(() => defineCmsPlugin(withTables({ tablesSource: TABLES_SOURCE.split('\n\n')[0] }))).toThrow(/has no `export const shopDaily = pgTable\('shop_daily', …\)`/)
+    // pasted into schema.ts next to every other table: no helpers of its own, no imports
+    expect(() => defineCmsPlugin(withTables({ tablesSource: `const ts = (n) => timestamp(n)\n${TABLES_SOURCE}` }))).toThrow(/may hold only `export const <name> = pgTable/)
+    expect(() => defineCmsPlugin(withTables({ tablesSource: `import { sql } from 'drizzle-orm'\n${TABLES_SOURCE}` }))).toThrow(/may hold only/)
+  })
+})
+
+describe('plugin tables: schema.ts and the registry', () => {
+  const shop = defineCmsPlugin(withTables())
+
+  it('writes the source into schema.ts, with the builders it uses imported', () => {
+    const src = emitSchema({ Post: entity('post'), plugins: [shop] })
+    expect(src).toContain(`// the plugin "shop"\n${TABLES_SOURCE}`)
+    const imports = src.split('\n').find((l) => l.includes("from 'drizzle-orm/pg-core'"))!
+    expect(imports).toMatch(/\bbigserial\b/)
+    expect(imports).toMatch(/\bdate\b/)
+    expect(src).not.toContain("from 'drizzle-orm'\n")
+    // a site without plugin tables gets the schema.ts it always had
+    expect(emitSchema({ Post: entity('post') })).not.toMatch(/bigserial|the plugin/)
+  })
+
+  it('imports `sql` when the source uses it, and not a method that shares a builder\'s name', () => {
+    const t = pgTable('shop_x', { at: timestamp('at').default(sql`now()`), code: text('code').unique() })
+    const p = defineCmsPlugin(def({ tables: [t], tablesSource: "export const shopX = pgTable('shop_x', { at: timestamp('at').default(sql`now()`), code: text('code').unique() })" }))
+    const src = emitSchema({ plugins: [p] })
+    expect(src).toContain("import { sql } from 'drizzle-orm'")
+    expect(src.split('\n').find((l) => l.includes("from 'drizzle-orm/pg-core'"))).not.toMatch(/\bunique\b/)
+  })
+
+  it('refuses source that is not the same table as the one the server queries', () => {
+    const drifted = defineCmsPlugin(withTables({ tablesSource: TABLES_SOURCE.replace("kind: text('kind').notNull(),", "kind: text('kind'),") }))
+    expect(() => emitSchema({ plugins: [drifted] })).toThrow(/Plugin "shop": the table shop_events in tablesSource is not the one in tables \(columns; only in tables: kind text not null; only in tablesSource: kind text\)/)
+    const noIndex = defineCmsPlugin(withTables({ tablesSource: TABLES_SOURCE.replace(", (t) => [index('shop_events_at_idx').on(t.at)])", ')') }))
+    expect(() => emitSchema({ plugins: [noIndex] })).toThrow(/shop_events .*\(indexes; only in tables: shop_events_at_idx/)
+  })
+
+  it('refuses source that does not run (it is plain JavaScript)', () => {
+    const typed = defineCmsPlugin(withTables({ tablesSource: TABLES_SOURCE.replace('(t) => [index', '(t: any) => [index') }))
+    expect(() => emitSchema({ plugins: [typed] })).toThrow(/Plugin "shop": tablesSource does not run/)
+  })
+
+  it('puts the tables in the registry for the plugin\'s server code', () => {
+    const reg = buildRegistry({ Post: entity('post'), plugins: [shop] })
+    expect(reg.pluginTables.get('shop_events')).toBe(shopEvents)
+    expect(reg.pluginTables.get('shop_daily')).toBe(shopDaily)
+    expect(reg.schema.shopEvents).toBe(shopEvents)
+    expect(buildRegistry({ Post: entity('post') }).pluginTables.size).toBe(0)
+  })
+
+  it('refuses a table whose name an entity\'s table already has', () => {
+    expect(() => buildRegistry({ Events: entity('shopEvents'), plugins: [shop] })).toThrow(/same name.*the table of "shopEvents" and the table shop_events of the plugin "shop"/)
+  })
+})
+
+describe('defineCmsPlugin: app plugins', () => {
+  it('takes absolute files with where they run, and plans them (default: everywhere)', () => {
+    const p = defineCmsPlugin(def({ appPlugins: [{ src: '/plugins/shop/track.ts', mode: 'client' }, { src: '/plugins/shop/provide.ts' }] }))
+    expect(planPlugins([p]).appPlugins).toEqual([
+      { src: '/plugins/shop/track.ts', mode: 'client', plugin: 'shop' },
+      { src: '/plugins/shop/provide.ts', mode: 'all', plugin: 'shop' },
+    ])
+  })
+
+  it('refuses a relative path, an unknown mode and a missing file', () => {
+    expect(() => defineCmsPlugin(def({ appPlugins: [{ src: './track.ts' }] }))).toThrow(/Plugin "shop": appPlugins: ".\/track.ts" must be an absolute path/)
+    expect(() => defineCmsPlugin(def({ appPlugins: [{ src: '/t.ts', mode: 'browser' as any }] }))).toThrow(/mode is 'client', 'server' or 'all'/)
+    const p = defineCmsPlugin(def({ appPlugins: [{ src: '/plugins/shop/track.ts' }] }))
+    expect(() => planPlugins([p], { exists: () => false })).toThrow(/Plugin "shop": app plugin "\/plugins\/shop\/track.ts" does not exist/)
+  })
+})
+
+describe('defineCmsPlugin: home widgets and editor panels', () => {
+  const components = '/plugins/shop/components'
+
+  it('wants component names from the plugin\'s own components directory', () => {
+    expect(() => defineCmsPlugin(def({ dashboardWidgets: [{ component: 'ShopWidget' }] }))).toThrow(/dashboardWidgets names a component, so the plugin needs `components`/)
+    expect(() => defineCmsPlugin(def({ components, dashboardWidgets: [{ component: 'shop-widget' }] }))).toThrow(/dashboardWidgets: "shop-widget" is not a component name/)
+    expect(() => defineCmsPlugin(def({ components, dashboardWidgets: [{ component: 'ShopWidget' }, { component: 'ShopWidget' }] }))).toThrow(/"ShopWidget" is listed twice/)
+    expect(() => defineCmsPlugin(def({ components, dashboardWidgets: [{ component: 'ShopWidget', order: Number.NaN }] }))).toThrow(/order must be a number/)
+    expect(() => defineCmsPlugin(def({ entityPanels: [{ component: 'ShopPanel', label: 'Sales' }] }))).toThrow(/entityPanels names a component, so the plugin needs `components`/)
+    expect(() => defineCmsPlugin(def({ components, entityPanels: [{ component: 'ShopPanel', label: '' }] }))).toThrow(/a panel needs a label/)
+    expect(() => defineCmsPlugin(def({ components, entityPanels: [{ component: 'ShopPanel', label: 'Sales', entities: [] }] }))).toThrow(/entities is a list of collection names/)
+  })
+
+  it('plans widgets in their order across plugins, and panels for every collection unless named', () => {
+    const shop = defineCmsPlugin(def({
+      components,
+      dashboardWidgets: [{ component: 'ShopSales', order: 20 }, { component: 'ShopStock', adminOnly: true }],
+      entityPanels: [{ component: 'ShopPanel', label: { en: 'Sales', cs: 'Prodeje' } }, { component: 'ShopOrderPanel', label: 'Orders', entities: ['post'] }],
+    }))
+    const stats = defineCmsPlugin(def({ name: 'stats', components: '/plugins/stats/components', dashboardWidgets: [{ component: 'StatsVisitors', order: 10 }] }))
+    const plan = planPlugins([shop, stats])
+    expect(plan.dashboardWidgets).toEqual([
+      { plugin: 'shop', component: 'ShopStock', order: 0, adminOnly: true },
+      { plugin: 'stats', component: 'StatsVisitors', order: 10, adminOnly: false },
+      { plugin: 'shop', component: 'ShopSales', order: 20, adminOnly: false },
+    ])
+    expect(plan.entityPanels).toEqual([
+      { plugin: 'shop', component: 'ShopPanel', label: { en: 'Sales', cs: 'Prodeje' }, entities: null },
+      { plugin: 'shop', component: 'ShopOrderPanel', label: 'Orders', entities: ['post'] },
+    ])
+  })
+
+  it('refuses two plugins drawing a card or panel with one component (components are global)', () => {
+    const shop = defineCmsPlugin(def({ components, dashboardWidgets: [{ component: 'SalesCard' }] }))
+    const rival = defineCmsPlugin(def({ name: 'rival', components: '/r', entityPanels: [{ component: 'SalesCard', label: 'Sales' }] }))
+    expect(() => planPlugins([shop, rival])).toThrow(/Plugin "rival": the component "SalesCard" is also a widget or panel of the plugin "shop"/)
+    // one plugin may use its component for both
+    const both = defineCmsPlugin(def({ components, dashboardWidgets: [{ component: 'SalesCard' }], entityPanels: [{ component: 'SalesCard', label: 'Sales' }] }))
+    expect(() => planPlugins([both])).not.toThrow()
+  })
+
+  it('refuses a panel for a collection the site does not have, or a singleton', () => {
+    const panel = (entities: string[]) => defineCmsPlugin(def({ components, entityPanels: [{ component: 'ShopPanel', label: 'Sales', entities }] }))
+    expect(() => buildRegistry({ Post: entity('post'), plugins: [panel(['post'])] })).not.toThrow()
+    expect(() => buildRegistry({ Post: entity('post'), plugins: [panel(['article'])] })).toThrow(/Plugin "shop": entityPanels "ShopPanel" names the collection "article", which the site does not have/)
+    const Settings = defineSingleton('settings', { label: 'Settings', titleField: 'title', fields: { title: f.text() } } as any)
+    expect(() => buildRegistry({ Settings, plugins: [panel(['settings'])] })).toThrow(/names "settings", a singleton/)
   })
 })
 

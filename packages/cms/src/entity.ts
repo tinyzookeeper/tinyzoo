@@ -1,4 +1,4 @@
-import { boolean, type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { boolean, getTableConfig, type PgColumn, pgEnum, type PgTable, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
@@ -594,6 +594,12 @@ export interface CmsRegistry {
   plugins: CmsPlugin[]
   /** Entity name → the plugin that owns it (only entities a plugin brought). */
   pluginOf: Map<string, string>
+  /**
+   * The tables plugins keep besides entries (`tables` of `defineCmsPlugin`), by SQL name:
+   * `reg.pluginTables.get('analytics_events')`. They are in `schema` too, under the name
+   * schema.ts gives them (`analyticsEvents`).
+   */
+  pluginTables: Map<string, PgTable>
 }
 
 const _regCache = new WeakMap<object, CmsRegistry>()
@@ -609,7 +615,7 @@ function isEntity(v: any): v is CmsEntity {
  * Two equal ones only failed later, in drizzle-kit ("Multiple exports with the same name"):
  * an entity `courseSignup` and the choice field `signup` of `course`, say. Refused here instead.
  */
-function checkSchemaNames(entities: CmsEntity[], junctions: Junction[]): void {
+function checkSchemaNames(entities: CmsEntity[], junctions: Junction[], plugins: CmsPlugin[]): void {
   const byTs = new Map<string, { what: string; sql: string }>()
   const bySql = new Map<string, { what: string; ts: string }>()
   const add = (ts: string, sql: string, what: string) => {
@@ -639,6 +645,25 @@ function checkSchemaNames(entities: CmsEntity[], junctions: Junction[]): void {
     add(camel(j.name), j.tableName, `the relation "${j.fieldKey}" of "${j.ownerEntity}"`)
   }
   for (const e of entities) for (const en of e.enums) add(en.varName, en.enumName, `the choices of the field "${en.key}" of "${e.name}"`)
+  for (const p of plugins) {
+    for (const t of p.tables) {
+      const sql = getTableConfig(t).name
+      add(camel(sql), sql, `the table ${sql} of the plugin "${p.name}"`)
+    }
+  }
+}
+
+/** A plugin's entry panels name collections of this site: refuse a name that is none, at build and at start. */
+function checkEntityPanels(plugins: CmsPlugin[], byName: Map<string, CmsEntity>): void {
+  for (const p of plugins) {
+    for (const panel of p.entityPanels ?? []) {
+      for (const name of panel.entities ?? []) {
+        const e = byName.get(name)
+        if (!e) throw new Error(`Plugin "${p.name}": entityPanels "${panel.component}" names the collection "${name}", which the site does not have.`)
+        if (e.singleton) throw new Error(`Plugin "${p.name}": entityPanels "${panel.component}" names "${name}", a singleton; panels are shown in the editor of a collection's entries.`)
+      }
+    }
+  }
 }
 
 /** @internal */
@@ -686,7 +711,8 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     }
   }
 
-  checkSchemaNames(entities, junctions)
+  checkSchemaNames(entities, junctions, plugins)
+  checkEntityPanels(plugins, byName)
 
   const locales = (Object.values(config).find((v: any) => v && v.__cms === 'locales') as LocalesDef | undefined) ?? null
   const withLocalized = entities.filter((e) => e.localized?.length)
@@ -716,9 +742,17 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   for (const e of entities) schema[e.name] = e.table
   for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
   for (const j of junctions) schema[j.name] = j.table
+  const pluginTables = new Map<string, PgTable>()
+  for (const p of plugins) {
+    for (const t of p.tables) {
+      const sql = getTableConfig(t).name
+      pluginTables.set(sql, t)
+      schema[camel(sql)] = t
+    }
+  }
 
   const graph = entities.map((e) => withPlugins(entityGraph(e, locales), e, plugins, pluginOf))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, roles, cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, roles, cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf, pluginTables }
   _regCache.set(config, reg)
   return reg
 }

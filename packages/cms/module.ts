@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { addComponentsDir, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
+import { addComponentsDir, addPlugin, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
 import { createJiti } from 'jiti'
 import { docsUrl } from './src/docs'
 import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
@@ -308,9 +308,11 @@ export {}
 `,
     }, { nitro: true, nuxt: true })
 
-    // Plugins (defineCmsPlugin): their admin pages, server routes, Nitro plugins, components,
-    // field renderers and admin texts, registered here; their entities, hooks and upgrade
-    // steps reach the server through the registry (src/entity.ts, buildRegistry).
+    // Plugins (defineCmsPlugin): their admin pages, server routes, Nitro plugins, app plugins,
+    // components, field renderers, home widgets, entry panels and admin texts, registered here;
+    // their entities, tables, hooks and upgrade steps reach the server through the registry
+    // (src/entity.ts, buildRegistry), and their tables reach the migrations through
+    // `tinyzoo generate` (src/emitter.ts).
     const plugins = await loadPlugins(configPath, nuxt.options.alias as Record<string, string>)
     const plan = planPlugins(plugins, { exists: existsSync })
     if (plan.pages.length) {
@@ -320,13 +322,17 @@ export {}
     }
     for (const h of plan.handlers) addServerHandler({ method: h.method, route: h.route, handler: h.handler })
     for (const file of plan.serverPlugins) addServerPlugin(file)
+    // After the site's and tinyzoo's own, so a plugin's app plugin can use what they provide.
+    for (const app of plan.appPlugins) addPlugin({ src: app.src, mode: app.mode }, { append: true })
     for (const path of plan.componentDirs) addComponentsDir({ path, pathPrefix: false, global: true })
-    // What the admin needs to know about plugins: the sidebar entries, the field renderers and
-    // the texts (public runtime config: nothing secret in it).
+    // What the admin needs to know about plugins: the sidebar entries, the field renderers, the
+    // home's widgets, the editor's panels and the texts (public runtime config: nothing secret in it).
     nuxt.options.runtimeConfig.public.cmsPlugins = {
       plugins: plan.plugins,
       navItems: plan.navItems,
       fields: plan.fields,
+      dashboardWidgets: plan.dashboardWidgets,
+      entityPanels: plan.entityPanels,
       messages: plan.messages,
     } as any
     // Runtime config consumed by the server.
