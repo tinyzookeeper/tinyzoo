@@ -1,5 +1,60 @@
 # tinyzoo
 
+## 1.0.1
+
+### Patch Changes
+
+- **The admin keeps its own colours when the site sets Nuxt UI's.** A site whose stylesheet sets `--ui-bg` (or another Nuxt UI role) for its own pages no longer changes the admin. Before, a cream page colour turned the admin's page cream too, and the cream welcome card and the current page in the sidebar disappeared into it. The admin now declares every Nuxt UI role itself and paints `<html>` with its own page colour. A site's `:root.dark` no longer changes the admin's radius in dark mode either.
+
+  **Upgrade**
+
+  Nothing to do.
+- **Indigo's links and text in dark mode read as well as the other colours'.** With `accent: 'indigo'`, dark mode drew links, the current page in the sidebar and the buttons in a shade that read at 4.27:1 on charcoal, under the 4.5:1 that text needs and the other built-in colours reach. Dark mode now draws a slightly lighter indigo (4.76:1). Its soft buttons and the search's matched letters get a little more colour too, as they still read on it. Light mode is unchanged.
+
+  **Upgrade**
+
+  Nothing to do.
+- **Changing a picture's alt text works when a global holding it has no `titleField`.** `PATCH /api/cms/_media/:id` answered 500 (`Cannot convert undefined or null to object`) when the picture was used by a global without a `titleField`, or by an entry whose `titleField` is a picture. The file's usage list ("Used in") now shows such an entry without a title instead of failing.
+
+  **Upgrade**
+
+  Nothing to do. A `titleField` added only to get around this can stay or go.
+- **`tinyzoo generate` refuses a `content.populate` or `content.hidden` key that is not a field, as the types do.** A nested key such as `populate: ['sister.logo']` was a type error (TS2322), but `generate` accepted it without a word and the content API ignored it. Now `generate` stops and says why: `populate` and `hidden` take the entity's own fields, and a picture inside a group, a list or blocks is always delivered without `populate`. A misspelt `hidden` key is caught the same way, instead of leaving the field it meant public. The server still ignores such a key, so a site already running with one keeps working.
+
+  **Upgrade**
+
+  If `tinyzoo generate` stops on `content.populate names "…"`: remove that key. A picture inside a group comes in the response anyway.
+- **The four built-in colours tint the whole admin, as a brand colour does.** With `accent: 'indigo'`, `'blue'`, `'violet'` or `'emerald'`, the moments (the sign-in pages, the welcome card, the current page in the sidebar and in a form's section menu) are now a faint tint of that colour instead of tinyzoo's cream. In dark mode they are charcoal leaning toward it, and the animals take one muted shade of it. Before, a preset coloured only the buttons and links, and the pink animal on a cream card looked half-branded next to them. The page and cards stay white (dark in dark mode), and every text on the tinted moments still reads. `mono`, the default, keeps cream and the colourful animals.
+
+  **Upgrade**
+
+  Nothing to do. `animals: false` still hides the animals for any accent.
+- **A redirect to an address with a `#anchor` keeps the visitor's query.** The query of the old address was put after the anchor (`/merch#shop?utm_source=x`), where the browser takes it as part of the anchor and the page never sees it. It now goes before the anchor (`/merch?utm_source=x#shop`). A target with a query of its own is still kept as it is.
+
+  **Upgrade**
+
+  Nothing to do.
+- **Two parts of the content model with the same name are refused when the config loads, with both named.** An entity `courseSignup` and the choice field `signup` of `course` both became `courseSignup` in the generated `schema.ts` (and `course_signup` in the database). Nothing said so until drizzle-kit failed with `Multiple exports with the same name "courseSignup"`. tinyzoo now checks every table, translation table, many-to-many junction and choice field when it reads `cms.config.ts`, and names the two that clash and how to rename one.
+
+  **Upgrade**
+
+  Nothing to do. Such a config never got a migration, so no running site has one.
+- **`tinyzoo seed` compares decimals by their value.** The site gives a decimal (`f.number({ int: false })`) back as text (`"2.50"`, or `"49.13504"` inside a group), and the seed compared that with its own number (`2.5`). So every run printed `✓ updated …` and saved a new version. Now `2.5`, `"2.5"` and `"2.50"` are the same decimal, in a field, a group, a list or a block, and a second run saves nothing, as the seeding guide says.
+
+  **Upgrade**
+
+  Nothing to do. A seed that writes decimals as text (`toFixed(2)`, `String(…)`) only to get around this can write plain numbers again.
+- **`tinyzoo seed` gives the items of a list inside a group their ids.** A seed that wrote a list inside a group (on a global or an entry) failed with `422 … tagline.0.id: Invalid input: expected string, received undefined`. The seed now makes stable ids for those items as it does for blocks and other lists, so the items need no `id` and a second run changes nothing.
+
+  **Upgrade**
+
+  Nothing to do.
+- **`tinyzoo seed` refuses a file folder the site would rename, instead of uploading the files again on every run.** The media library's folders have one level. The site files `Lektoři/fotky` as `Lektoři fotky`, so the seed's second run looked under the name it was given, found nothing and uploaded every file again. The seed now stops on such a folder (`/`, `\`, doubled spaces or spaces at the ends) before uploading anything, says how the site would file it, and suggests a name. An empty folder (`folder: ''`) counts as no folder, as on the site.
+
+  **Upgrade**
+
+  A seed that stops with `the folder "…" cannot be used`: write the folder without `/`, for example `Lektoři – fotky`. Files uploaded earlier under the renamed folder stay in the library. Remove the duplicates there, or move them to the new folder name.
+
 ## 1.0.0
 
 ### Major Changes
