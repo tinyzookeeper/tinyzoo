@@ -194,9 +194,7 @@ describe('the colour presets on their own moments', () => {
         const at = (name: string) => resolve(name, vars)
         expect(vars['--cms-moment-bg'], 'the moment is the preset\'s own').toMatch(/^#[0-9A-F]{6}$/)
         for (const surface of ['--cms-moment-bg', '--cms-nav-active', '--cms-auth-bg']) {
-          // Light: 4.5:1. Dark: no worse than on charcoal, where it sat before (indigo's 400 is 4.24:1 there, a known gap).
-          const floor = dark ? Math.min(4.5, contrast(at('--ui-primary'), parse('#2E3035', {}))) : 4.5
-          expect(contrast(at('--ui-primary'), at(surface)), `accent text on ${surface}`).toBeGreaterThanOrEqual(floor)
+          expect(contrast(at('--ui-primary'), at(surface)), `accent text on ${surface}`).toBeGreaterThanOrEqual(4.5)
           for (const role of ['--ui-text-dimmed', '--ui-text-muted', '--ui-text', '--ui-text-highlighted']) expect(contrast(at(role), at(surface)), `${role} on ${surface}`).toBeGreaterThanOrEqual(4.5)
         }
         expect(contrast(at('--cms-moment-text'), at('--cms-moment-bg')), 'quiet text in a moment').toBeGreaterThanOrEqual(4.5)
@@ -336,18 +334,18 @@ describe('accent text on the accent\'s own tints', () => {
 
   it('the presets that fell short draw them lighter; mono, indigo (light), emerald (dark) and a brand keep Nuxt UI\'s', () => {
     const drawn = (vars: Record<string, string>) => TINTS.map((t) => percent(vars, t))
-    // Measured with Nuxt UI's 20 %: blue 3.90, emerald 4.02, violet 4.24 (light); indigo 3.89, blue 4.44, violet 4.20 (dark).
+    // Measured with Nuxt UI's 20 %: blue 3.90, emerald 4.02, violet 4.24 (light); indigo 4.22 (on cards), blue 4.44, violet 4.20 (dark).
     expect(drawn(presetTokens('blue', false))).toEqual([6.5, 9.5, 9.5])
     expect(drawn(presetTokens('emerald', false))).toEqual([8.5, 11.5, 11.5])
     expect(drawn(presetTokens('violet', false))).toEqual([10, 15, 16])
-    expect(drawn(presetTokens('indigo', true))).toEqual([7.5, 10.5, 10.5])
+    expect(drawn(presetTokens('indigo', true))).toEqual([10, 15, 16])
     expect(drawn(presetTokens('blue', true))).toEqual([10, 15, 18.5])
     expect(drawn(presetTokens('violet', true))).toEqual([10, 15, 15.5])
     for (const vars of [presetTokens('mono', false), presetTokens('mono', true), presetTokens('indigo', false), presetTokens('emerald', true), brandTokens('#3B82F6', false), brandTokens('#3B82F6', true)]) {
       expect(drawn(vars)).toEqual(NUXT_UI)
     }
     // Nuxt UI's 20 % really falls short for them (else the lighter tints would be for nothing).
-    for (const [preset, dark] of [['blue', false], ['emerald', false], ['violet', false], ['indigo', true]] as const) {
+    for (const [preset, dark] of [['blue', false], ['emerald', false], ['violet', false]] as const) {
       const vars = presetTokens(preset, dark)
       const text = resolve('--ui-primary', vars)
       expect(contrast(text, over(text, 0.2, resolve(dark ? '--cms-page-bg' : '--ui-bg', vars))), preset).toBeLessThan(4.5)

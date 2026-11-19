@@ -201,9 +201,10 @@ type Shade = keyof CmsColorRamp
 const SHADES: Shade[] = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900', '950']
 type Lch = [number, number, number]
 
-/** The built-in accents as cms-admin.css draws them (OKLCH, the same numbers). `primary`: the shade of `--ui-primary` in light mode. */
-const PRESET_RAMPS: Record<Exclude<CmsAccentPreset, 'mono'>, { primary: Shade; ramp: Lch[] }> = {
-  indigo: { primary: '600', ramp: [[96.2, 0.018, 272], [93, 0.034, 272], [87, 0.065, 274], [78.5, 0.115, 274], [67.3, 0.182, 276], [58.5, 0.233, 277], [51.1, 0.262, 277], [45.7, 0.24, 277], [39.8, 0.195, 277], [35.9, 0.144, 278], [25.7, 0.09, 281]] },
+/** The built-in accents as cms-admin.css draws them (OKLCH, the same numbers). `primary`: the shade of `--ui-primary` in light mode.
+ *  `dark400`: a lighter 400 for dark mode, where the ramp's own reads under 4.5:1 on charcoal (indigo: 4.27:1, this one 4.76:1). */
+const PRESET_RAMPS: Record<Exclude<CmsAccentPreset, 'mono'>, { primary: Shade; ramp: Lch[]; dark400?: Lch }> = {
+  indigo: { primary: '600', dark400: [70, 0.17, 276], ramp: [[96.2, 0.018, 272], [93, 0.034, 272], [87, 0.065, 274], [78.5, 0.115, 274], [67.3, 0.182, 276], [58.5, 0.233, 277], [51.1, 0.262, 277], [45.7, 0.24, 277], [39.8, 0.195, 277], [35.9, 0.144, 278], [25.7, 0.09, 281]] },
   blue: { primary: '600', ramp: [[97, 0.014, 254], [93.2, 0.032, 255], [88.2, 0.059, 254], [80.9, 0.105, 251], [70.7, 0.165, 254], [62.3, 0.214, 259], [54.6, 0.245, 262], [48.8, 0.243, 264], [42.4, 0.199, 265], [37.9, 0.146, 265], [28.2, 0.091, 267]] },
   violet: { primary: '600', ramp: [[96.9, 0.016, 293], [94.3, 0.029, 295], [89.4, 0.057, 293], [81.1, 0.111, 294], [70.2, 0.183, 294], [60.6, 0.25, 293], [54.1, 0.281, 293], [49.1, 0.27, 293], [43.2, 0.232, 293], [38, 0.189, 294], [28.3, 0.141, 291]] },
   emerald: { primary: '700', ramp: [[97.9, 0.021, 166], [95, 0.052, 163], [90.5, 0.093, 164], [84.5, 0.143, 165], [76.5, 0.177, 163], [69.6, 0.17, 162], [59.6, 0.145, 163], [50.8, 0.118, 165], [43.2, 0.095, 166], [37.8, 0.077, 168], [26.2, 0.051, 173]] },
@@ -226,6 +227,7 @@ function presetAccent(preset: CmsAccentPreset): Extract<CmsAdminTheme['accent'],
   }
   const def = PRESET_RAMPS[preset]
   const ramp = lchRamp(def.ramp)
+  const darkRamp = def.dark400 ? lchRamp(def.ramp.map((lch, i) => (SHADES[i] === '400' ? def.dark400! : lch))) : ramp
   // Light: the 600 shade (emerald: 700) with white text, the next darker shade under the pointer.
   // Dark: the 400 shade with ink text (white was 1.9–3.1:1 there), the 300 shade under the pointer.
   const next = SHADES[SHADES.indexOf(def.primary) + 1]!
@@ -233,7 +235,7 @@ function presetAccent(preset: CmsAccentPreset): Extract<CmsAdminTheme['accent'],
   return {
     kind: 'preset', preset,
     light: { ramp, primary: ramp[def.primary], onPrimary: WHITE, primaryHover: ramp[next], text: ramp[def.primary] },
-    dark: { ramp, primary: ramp['400'], onPrimary: INK, primaryHover: ramp['300'], text: ramp['400'] },
+    dark: { ramp: darkRamp, primary: darkRamp['400'], onPrimary: INK, primaryHover: darkRamp['300'], text: darkRamp['400'] },
     moments: brandMoments(ramp[def.primary]),
   }
 }
