@@ -4,6 +4,7 @@ import { dirname, extname, join, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { DEFAULT_MEDIA_BASE, encodeStorageKey, isSafeStorageKey, resolveS3Delivery, storedMediaUrl, type S3Delivery } from '../../shared/storage-delivery'
+import { cleanMediaFolder } from '../../shared/media-folder'
 import { byteRange, etagMatches, singleRange } from './cmsRange'
 
 /** Result of persisting a blob. */
@@ -574,7 +575,5 @@ export function uploadRatePerMin(): number {
 
 /** A library folder name: one level, trimmed, bounded; empty = no folder. */
 export function cleanFolder(value: unknown): string | null {
-  if (typeof value !== 'string') return null
-  const v = value.replace(/[\u0000-\u001f\u007f/\\]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80)
-  return v || null
+  return cleanMediaFolder(value)
 }
