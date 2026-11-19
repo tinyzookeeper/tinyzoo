@@ -241,6 +241,23 @@ and the audit has no open High or Medium.
 | Drizzle 1.0 (owner, 2026-11-18) | **1.x stays on drizzle-orm 0.x and its migration folder format; drizzle 1.0 comes with tinyzoo 2.0.** `drizzle-orm` is a peer dependency; `tinyzoo status` and `upgrade` warn about drizzle-kit 1.0 in a site. Written in `stability.md` ("Platform and dependencies"). |
 | The writing column's ring (after review B) | **Keyboard only** (decided by the owner): in the Write layout, a click into the big title, the summary or the text draws no ring, and reaching them with the keyboard does. `cmsTrackKeys` notes where the focus came from (`data-cms-key-focus` on `<html>`: set when a control takes the focus while `data-cms-keys` is set, cleared by a press of the pointer, not set by typing). Other fields, the form layout's title included, ring on a click as before. |
 
+
+## 1.1: next minor
+
+1.1 adds things and breaks nothing ([what a minor release may add](api-surface.md#what-a-minor-release-may-add)).
+
+**Planned** (on the website's Plány page as Next):
+
+- **Translations ready for review**, by the rules decided for Wave 5 (above).
+- **The admin's look set without a developer.**
+
+**Candidates from the 1.0.0 site rollout (2026-11-19).** These turned up while moving six sites to 1.0.0. Neither fits a 1.0.x patch (PR #41 has the fixes that did). Neither is decided, so they are not on Plány yet.
+
+| Candidate | Why | What it takes | Size |
+|---|---|---|---|
+| **Pictures on embedded entries** | An entry embedded in another (`CoachEmbedded` in a lesson) has only its plain fields: no files, galleries, groups, lists or blocks. studiogrand-web looks coach photos up in a second request. | `projectScalars` (`server/utils/cmsContent.ts`) and `embeddedFields` (`src/content-shape.ts`) deliver media fields as files (`{ id, url, width, height, alt, mime, focal }`), resolved in one query per relation. New keys in answers and in the generated types: allowed in a minor, and the contract goldens (`client-types.playground.ts`, `openapi.playground.json`, `surface.*`) change. Decide whether galleries and groups come along, or only media fields (smaller, and enough for the case seen). `content-api-reference.md` then says what an embedded entry carries. | S–M |
+| **Folders inside folders in the media library** | 6dance-web's seed used `Lektoři/fotky`. Folders have one level: the site stored it as `Lektoři fotky`, and the seed now refuses it (PR #41). A flat name (`Lektoři – fotky`) covers that case. | A folder path (`a/b`) in `cms_media.folder`, a tree in the library's sidebar, the folder filter of `GET /api/cms/_media` matching a folder and the ones under it, moving and renaming a folder, the seed accepting `/`. A folder named `a b` stays what it is. Worth it only when a site needs more than a dozen folders. | M |
+
 ---
 
 ## How the work is run
