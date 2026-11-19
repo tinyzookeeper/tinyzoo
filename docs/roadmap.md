@@ -254,9 +254,19 @@ and the audit has no open High or Medium.
 
 **The MCP server.** `/api/mcp`, signed in to with OAuth (the address is the whole setup: discovery, open registration, the admin's `/admin/connect` page, PKCE, an hour's access token and a 60-day refresh token), or with a token made by hand on the account page. Either has rights narrower than the person's role (edit, publish, delete, files, some collections only). The tools go through the admin's own routes, so every rule of the admin applies, and changes are recorded under the person with `via: 'mcp'`. Rich text in and out as Markdown. A new table, `cms_access_tokens`. See [the MCP server](guide/mcp.md).
 
-## 1.3: next minor
+## 1.3: visits, cookie consent and plugin additions (2026-11-19)
 
-1.3 adds things and breaks nothing.
+1.3 adds things and breaks nothing ([what a minor release may add](api-surface.md#what-a-minor-release-may-add)). The two items planned for 1.3 moved to 1.4 unchanged.
+
+**What the plugin API gained.** `defineCmsPlugin` takes `tables` (with `tablesSource`, so `tinyzoo generate` writes them into `schema.ts`), `appPlugins` (Nuxt plugins on the website), `dashboardWidgets` (cards on the admin home), `entityPanels` (panels in the entry editor) and `composables` (auto-imported on the website). See [plugins.md](plugins.md) and [plugin-reference.md](plugin-reference.md).
+
+**`tinyzoo/analytics`: website visits in the admin.** A first-party plugin: a small tracker on the website, raw visits and daily totals in the site's own Postgres, an Analytics page (visitors, visits, pageviews, bounce rate, engaged time and "on the website now", each against the previous period; a chart; top pages as entry titles, sources and campaigns, countries, devices, languages; filters from any row), a card on the admin home and a panel in the entry editor. Three modes: `cookieless` (default: a daily-rotating visitor hash, no cookie, no banner), `consent` (the same counts for everyone, plus returning visitors among those who agreed to cookies) and `strict` (nothing without consent). Headline numbers always count the cookieless hash, so the modes never count twice. Daily totals hold no personal data and are kept; raw visits are deleted after `keepRawDays`. A status-token route gives a fleet monitor the daily totals (`tinyzoo-analytics-rollups` v1, frozen like the status), and the status gains an `analytics` key. See [analytics.md](analytics.md).
+
+**`tinyzoo/consent`: cookie consent.** A first-party plugin: the visitor's choice per category in a first-party cookie set by the server, a consent log without IP addresses, the texts edited in the admin, "ask everyone again". `useConsent()` gives a site everything a banner needs, so a site builds its own banner and settings in its own markup; `<CmsConsent />` is the ready-made one, with slots and its own styles that a site can drop. Sites add their own categories and list the services and cookies of each. See [consent.md](consent.md).
+
+## 1.4: next minor
+
+1.4 adds things and breaks nothing.
 
 **Planned** (on the website's Plány page as Next):
 
