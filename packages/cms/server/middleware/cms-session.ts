@@ -14,6 +14,16 @@ export default defineEventHandler(async (event) => {
   if (!path.startsWith('/api/') && !page) return
   if (event.context.cmsUser) return
 
+  // A tool of the MCP server (/api/mcp) calling an admin route inside this process, with a
+  // personal access token (cmsAccessTokens.ts). Such a request never opens a session, and a
+  // header that is not this process's own makes it anonymous.
+  const mcp = getRequestHeader(event, MCP_INTERNAL_HEADER)
+  if (mcp) {
+    const user = mcpRouteAllowed(path) ? await mcpInternalUser(mcp) : null
+    if (user) event.context.cmsUser = user
+    return
+  }
+
   // No session cookie: nobody to look up. Reading the session anyway would create one and
   // put a cookie on the response of every anonymous visitor (public content, pages, media).
   if (!hasSessionCookie(event)) {

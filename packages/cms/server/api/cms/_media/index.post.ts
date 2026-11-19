@@ -31,6 +31,7 @@ const ALLOWED_KIND: Record<string, string> = {
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
   assertMediaLibrary(user)
+  assertTokenMedia(user)
   const { db, reg } = useCms()
   const storage = useCmsStorage()
 
