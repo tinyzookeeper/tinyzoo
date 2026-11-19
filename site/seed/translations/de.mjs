@@ -56,20 +56,20 @@ export default (h) => {
           },
           {
             id: id(), type: 'cta', heading: 'Bearbeiten Sie einen eigenen Beitrag.',
-            text: 'In der Demo können Sie in Ruhe ausprobieren. Wir setzen sie jede Nacht zurück. Ihre Eindrücke helfen uns bei der Vorbereitung des Pilotprojekts auf unserer ersten Kundenwebsite.',
+            text: 'In der Demo können Sie in Ruhe ausprobieren. Wir setzen sie jede Nacht zurück. Ihre Eindrücke helfen uns zu entscheiden, was wir als Nächstes verbessern.',
             primaryLabel: 'Demo öffnen', primaryUrl: '/de/demo', secondaryLabel: 'Erfahrungen teilen', secondaryUrl: '/de/feedback', animal: 'fox',
           },
           {
             id: id(), type: 'faq', heading: 'Bevor Sie mit dem Bearbeiten beginnen',
             text: 'Ein paar Antworten auf Fragen, die Sie vielleicht haben.',
             items: [
-              item({ question: 'Brauche ich zuerst eine Schulung?', answer: 'Sie können die Demo öffnen und gleich Ihren ersten Beitrag ausprobieren. Auf der Demoseite finden Sie ein paar konkrete Aufgaben. Im Pilotprojekt möchten wir auch herausfinden, wo Menschen eine Erklärung brauchen. Falls Sie nicht weiterkommen, schreiben Sie uns.' }),
+              item({ question: 'Brauche ich zuerst eine Schulung?', answer: 'Sie können die Demo öffnen und gleich Ihren ersten Beitrag ausprobieren. Auf der Demoseite finden Sie ein paar konkrete Aufgaben. Falls Sie nicht weiterkommen, schreiben Sie uns.' }),
               item({ question: 'Kann ich beim Ausprobieren etwas kaputtmachen?', answer: 'Die Demo ist zum Ausprobieren da. Wir setzen sie jede Nacht auf den Ausgangszustand zurück. Sie können also nichts dauerhaft kaputtmachen. Auch Ihre Änderungen bleiben dort nicht erhalten. Auf Ihrer eigenen Website können Sie unfertige Inhalte vor dem Veröffentlichen in der Vorschau ansehen.' }),
               item({ question: 'Was passiert, wenn wir zu zweit denselben Beitrag bearbeiten?', answer: 'Sie können gleichzeitig darin schreiben. Beide sehen, wo die andere Person gerade schreibt. Die Änderungen überschreiben sich nicht gegenseitig.' }),
               item({ question: 'Kann ich zu einer früheren Version zurückkehren?', answer: 'Ja. Im Versionsverlauf können Sie eine frühere Fassung Ihrer Inhalte wiederherstellen.' }),
               item({ question: 'Wie finde ich schnell einen älteren Artikel?', answer: 'Drücken Sie ⌘K (unter Windows Strg+K) oder klicken Sie auf Suchen und geben Sie ein beliebiges Wort aus dem Artikel ein. Die Suche findet auch Entwürfe und kommt mit Tippfehlern zurecht.' }),
               item({ question: 'Funktioniert die Verwaltung auf dem Smartphone?', answer: 'Ja, Sie können Inhalte auch auf dem Smartphone bearbeiten. Außerdem lässt sich die Seitenvorschau auf die Smartphone-Ansicht umstellen. So sehen Sie, wie die Seite für Besucher aussehen wird. Wir planen auch eine eigene mobile App.' }),
-              item({ question: 'Ist tinyzoo fertig? Kann ich es schon ausprobieren?', answer: 'Die Demo ist für alle offen und wird jede Nacht zurückgesetzt. tinyzoo ist neu. Es hat über 1.600 automatisierte Tests. Vor dem Pilotprojekt haben wir außerdem alle üblichen Aufgaben bei der Inhaltspflege gründlich durchgespielt. Die gefundenen Fehler haben wir behoben. Kunden haben es bisher noch nicht im Arbeitsalltag genutzt. Das werden wir im Pilotprojekt erproben. Um die Weiterentwicklung und Fehlerbehebung kümmern wir uns selbst.' }),
+              item({ question: 'Ist tinyzoo fertig? Kann ich es schon ausprobieren?', answer: 'Ja. Version 1.0 ist im November 2026 erschienen, und die Demo ist für alle offen. Sie wird jede Nacht zurückgesetzt. tinyzoo hat über 1.600 automatisierte Tests, und wir haben alle üblichen Aufgaben bei der Inhaltspflege darin gründlich durchgespielt. Um die Weiterentwicklung und Fehlerbehebung kümmern wir uns selbst.' }),
               item({ question: 'Was ist, wenn ich mehr brauche?', answer: 'Sagen Sie uns, was Sie auf Ihrer Website machen möchten. Einen Katalog fertiger Erweiterungen haben wir nicht. Zusätzliche Möglichkeiten entwickeln wir für die jeweilige Website.' }),
             ],
           },
@@ -113,9 +113,9 @@ export default (h) => {
         title: 'Feedback', slug: 'feedback',
         sections: [{
           id: id(), type: 'feedback', heading: 'Wie sind Sie mit tinyzoo zurechtgekommen?',
-          text: 'Schreiben Sie uns, was leichtging, wo Sie nicht weiterkamen oder was Ihnen gefehlt hat. Auch eine kleine Beobachtung bei einer einzelnen Aufgabe hilft. Ihre Erfahrungen helfen uns, das Pilotprojekt auf unserer ersten Kundenwebsite vorzubereiten.',
+          text: 'Schreiben Sie uns, was leichtging, wo Sie nicht weiterkamen oder was Ihnen gefehlt hat. Auch eine kleine Beobachtung bei einer einzelnen Aufgabe hilft. Nach Ihren Erfahrungen entscheiden wir, was wir als Nächstes verbessern.',
         }],
-        metaDescription: 'Haben Sie tinyzoo ausprobiert? Erzählen Sie uns, was beim Bearbeiten gut lief und wo Sie nicht weiterkamen. Ihre Eindrücke helfen bei der Vorbereitung des Pilotprojekts.',
+        metaDescription: 'Haben Sie tinyzoo ausprobiert? Erzählen Sie uns, was beim Bearbeiten gut lief und wo Sie nicht weiterkamen.',
       },
       'pro-vyvojare': {
         title: 'Für Entwickler', slug: 'entwickler',
@@ -263,7 +263,7 @@ export default (h) => {
     },
     settings: {
       tagline: 'Damit Sie Ihre Website gerne pflegen.',
-      footerNote: 'Wir bereiten ein Pilotprojekt auf unserer ersten Kundenwebsite vor. Probieren Sie die Demo aus und erzählen Sie uns, wie Sie zurechtkommen.',
+      footerNote: 'Version 1.0 ist erschienen. Probieren Sie die Demo aus und erzählen Sie uns, wie Sie zurechtkommen.',
       metaDescription: 'tinyzoo ist eine Website-Verwaltung in Ihrer Sprache. Schreiben Sie Beiträge, stellen Sie Seiten zusammen und prüfen Sie die Vorschau. Teilen Sie Ihre Erfahrungen mit uns.',
     },
   }
