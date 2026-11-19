@@ -248,18 +248,20 @@ and the audit has no open High or Medium.
 
 **Site status for a fleet of sites.** A developer who looks after many tinyzoo sites wants one overview of them: versions, uptime, health, how much each client uses its admin. tinyzoo runs inside each site, so nothing knows about all of them. The first step is in the package: `GET /api/health/status` (`CmsStatus`), off until `NUXT_CMS_STATUS_TOKEN` is set, read-only, numbers and dates only ([deploying](deploying.md#site-status)). A separate app that reads it from every site (a site list, a version table, uptime checks and alerts, certificate expiry, a monthly report per client) builds on it and ships on its own.
 
-## 1.2: next minor
+## 1.2: the MCP server (2026-11-19)
 
-1.2 adds things and breaks nothing.
+1.2 adds things and breaks nothing ([what a minor release may add](api-surface.md#what-a-minor-release-may-add)). It is one feature, released on its own so the sites can be worked with over MCP now. The two items planned for 1.2 moved to 1.3 unchanged.
+
+**The MCP server.** `/api/mcp`, signed in to with OAuth (the address is the whole setup: discovery, open registration, the admin's `/admin/connect` page, PKCE, an hour's access token and a 60-day refresh token), or with a token made by hand on the account page. Either has rights narrower than the person's role (edit, publish, delete, files, some collections only). The tools go through the admin's own routes, so every rule of the admin applies, and changes are recorded under the person with `via: 'mcp'`. Rich text in and out as Markdown. A new table, `cms_access_tokens`. See [the MCP server](guide/mcp.md).
+
+## 1.3: next minor
+
+1.3 adds things and breaks nothing.
 
 **Planned** (on the website's Plány page as Next):
 
 - **Translations ready for review**, by the rules decided for Wave 5 (above).
 - **The admin's look set without a developer.**
-
-**Done for 1.2:**
-
-- **The MCP server** (owner, 2026-11-19). `/api/mcp`, signed in to with OAuth (the address is the whole setup: discovery, open registration, the admin's `/admin/connect` page, PKCE, an hour's access token and a 60-day refresh token), or with a token made by hand on the account page. Either has rights narrower than the person's role (edit, publish, delete, files, some collections only). The tools go through the admin's own routes, so every rule of the admin applies, and changes are recorded under the person with `via: 'mcp'`. Rich text in and out as Markdown. A new table, `cms_access_tokens`. See [the MCP server](guide/mcp.md).
 
 **Candidates.** None is decided, so they are not on Plány yet. The first two turned up while moving six sites to 1.0.0 (2026-11-19); neither fits a 1.0.x patch (PR #41 has the fixes that did). The third came from the website's developer sample (2026-11-17).
 
