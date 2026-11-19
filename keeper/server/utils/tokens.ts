@@ -12,7 +12,7 @@ import type { AccessToken } from '#keeper/types/keeper'
 export type TokenScope = 'read' | 'write'
 
 export interface Access extends SignedInMember {
-  /** What this request may do: a session may do everything a member can. */
+  /** What this request may do: a session may do everything its role can (a viewer only reads). */
   scope: TokenScope
   via: 'session' | 'token'
   tokenId: string | null
@@ -56,7 +56,7 @@ async function memberForToken(event: H3Event, token: string): Promise<Access> {
   const db = useDb()
   const [row] = await db.select({
     id: schema.tokens.id, workspaceId: schema.tokens.workspaceId, userId: schema.tokens.createdBy,
-    scope: schema.tokens.scope, lastUsedAt: schema.tokens.lastUsedAt, role: schema.memberships.role,
+    scope: schema.tokens.scope, lastUsedAt: schema.tokens.lastUsedAt, role: schema.memberships.role, allClients: schema.memberships.allClients,
     accessExpiresAt: schema.tokens.accessExpiresAt,
   })
     .from(schema.tokens)
@@ -72,7 +72,9 @@ async function memberForToken(event: H3Event, token: string): Promise<Access> {
     await db.update(schema.tokens).set({ lastUsedAt: now })
       .where(and(eq(schema.tokens.id, row.id), or(isNull(schema.tokens.lastUsedAt), lt(schema.tokens.lastUsedAt, new Date(now.getTime() - 60_000)))))
   }
-  return { userId: row.userId, workspaceId: row.workspaceId, role: row.role, scope: row.scope, via: 'token', tokenId: row.id }
+  const member = await memberAccess(row.workspaceId, row.userId, row.role, row.allClients)
+  // A token never does more than its maker may do now: a viewer's token only reads.
+  return { ...member, scope: canChangeSites(member) ? row.scope : 'read', via: 'token', tokenId: row.id }
 }
 
 /**
@@ -91,13 +93,19 @@ export async function requireAccess(event: H3Event, need: TokenScope = 'read', o
     throw unauthorized(event, 'Send an access token as: Authorization: Bearer kpr_… (Keeper → Settings → Access tokens)')
   }
   else {
-    access = { ...(await requireMember(event)), scope: 'write', via: 'session', tokenId: null }
+    const member = await requireMember(event)
+    access = { ...member, scope: canChangeSites(member) ? 'write' : 'read', via: 'session', tokenId: null }
   }
-  if (need === 'write' && access.scope !== 'write') throw readOnly()
+  if (need === 'write' && access.scope !== 'write') throw readOnly(access)
   return access
 }
 
-export const readOnly = () => createError({ statusCode: 403, statusMessage: 'This access token is read-only. Make a write token in Settings → Access tokens.' })
+export const readOnly = (access?: Pick<Access, 'role'>) => createError({
+  statusCode: 403,
+  statusMessage: access?.role === 'viewer'
+    ? 'Your role only looks at sites. Ask an owner or admin for more.'
+    : 'This access token is read-only. Make a write token in Settings → Access tokens.',
+})
 
 /** A token row as the list shows it. */
 export function toAccessToken(
@@ -114,6 +122,6 @@ export function toAccessToken(
     createdAt: r.createdAt.toISOString(),
     lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
     createdBy: r.userName || r.userEmail || null,
-    canRevoke: me.role === 'owner' || r.userId === me.userId,
+    canRevoke: isManager(me) || r.userId === me.userId,
   }
 }

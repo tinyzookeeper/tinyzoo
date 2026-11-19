@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import nodemailer, { type Transporter } from 'nodemailer'
 
 let transporter: Transporter | undefined
@@ -25,21 +25,39 @@ export async function sendMail(to: string[], subject: string, text: string): Pro
   }
 }
 
-/** Who hears about a workspace's sites: its alert addresses, or every member. */
-async function recipients(workspaceId: string): Promise<string[]> {
+interface AlertSite { id: string; workspaceId: string; name: string; clientId?: string | null }
+
+/**
+ * Who hears about a site: the team's alert addresses, or, without them, everyone on the team
+ * who works on sites and sees this one (owners, admins, members of its client; not viewers).
+ * The site's client adds its own addresses on top.
+ */
+async function recipients(site: AlertSite): Promise<string[]> {
   const db = useDb()
-  const [ws] = await db.select({ alertEmails: schema.workspaces.alertEmails }).from(schema.workspaces).where(eq(schema.workspaces.id, workspaceId))
-  if (ws?.alertEmails?.length) return ws.alertEmails
-  const members = await db.select({ email: schema.users.email }).from(schema.users)
-    .innerJoin(schema.memberships, eq(schema.memberships.userId, schema.users.id))
-    .where(eq(schema.memberships.workspaceId, workspaceId))
-  return members.map((m) => m.email)
+  const [ws] = await db.select({ alertEmails: schema.workspaces.alertEmails }).from(schema.workspaces).where(eq(schema.workspaces.id, site.workspaceId))
+  let team = ws?.alertEmails ?? []
+  if (!team.length) {
+    const members = await db.select({ email: schema.users.email, role: schema.memberships.role, allClients: schema.memberships.allClients, userId: schema.users.id })
+      .from(schema.users)
+      .innerJoin(schema.memberships, eq(schema.memberships.userId, schema.users.id))
+      .where(and(eq(schema.memberships.workspaceId, site.workspaceId), ne(schema.memberships.role, 'viewer')))
+    const ofClient = site.clientId
+      ? new Set((await db.select({ userId: schema.membershipClients.userId }).from(schema.membershipClients)
+          .where(and(eq(schema.membershipClients.workspaceId, site.workspaceId), eq(schema.membershipClients.clientId, site.clientId)))).map((r) => r.userId))
+      : new Set<string>()
+    team = members.filter((m) => m.role === 'owner' || m.role === 'admin' || m.allClients || ofClient.has(m.userId)).map((m) => m.email)
+  }
+  const [client] = site.clientId
+    ? await db.select({ alertEmails: schema.clients.alertEmails }).from(schema.clients).where(eq(schema.clients.id, site.clientId))
+    : []
+  return [...new Set([...team, ...(client?.alertEmails ?? [])].map((e) => e.toLowerCase()))]
 }
 
-/** E-mail the team about a site (down, back up, certificate). */
-export async function alertTeam(site: { id: string; workspaceId: string; name: string }, kind: 'down' | 'up' | 'cert', subject: string, text: string): Promise<void> {
+/** E-mail the team (and the site's client) about a site: down, back up, certificate. */
+export async function alertTeam(site: AlertSite, kind: 'down' | 'up' | 'cert', subject: string, text: string): Promise<void> {
   const base = String(useRuntimeConfig().publicUrl || '').replace(/\/+$/, '')
   const link = base ? `\n\n${base}/sites/${site.id}` : ''
   const icon = kind === 'down' ? '🔴' : kind === 'up' ? '🟢' : '🟡'
-  await sendMail(await recipients(site.workspaceId), `${icon} ${subject}`, `${text}${link}\n\n— Keeper`)
+  const to = await recipients(site)
+  if (to.length) await sendMail(to, `${icon} ${subject}`, `${text}${link}\n\n— Keeper`)
 }

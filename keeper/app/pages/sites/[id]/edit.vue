@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { SiteDetail, SiteInput } from '#keeper/types/keeper'
 
+// Viewers only look: send them back to the sites.
+const { canWrite } = useKeeperUser()
+if (!canWrite.value) await navigateTo('/', { replace: true })
+
 const route = useRoute()
 const id = computed(() => String(route.params.id))
 const toast = useToast()

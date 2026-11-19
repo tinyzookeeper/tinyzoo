@@ -22,6 +22,20 @@
       "when": 1795115614975,
       "tag": "0002_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795117019582,
+      "tag": "0003_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795117027709,
+      "tag": "0004_drop_site_client",
+      "breakpoints": true
     }
   ]
 }

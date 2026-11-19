@@ -12,6 +12,19 @@ Self-hosted for now, with one team (a *workspace*). Every table already carries 
 - **Certificates.** Twice a day it reads each site's TLS certificate, and e-mails once when one expires within 14 days.
 - **Into the admin.** Every site has an *Open admin* button.
 
+## Clients, roles and access
+
+Sites belong to a client (or none): name one on the site form, or add clients in Settings. The site list filters by client (`/?client=<id>`), and a client can have its own alert addresses, told on top of the team's.
+
+| Role | Sees | Can do |
+|---|---|---|
+| Owner | every site | everything; the only one who makes or removes owners |
+| Admin | every site | the team, clients, settings and sites |
+| Member | every client, or only some | add, change, check and remove the sites they see |
+| Viewer | every client, or only some | only look: for a client's own people |
+
+People limited to some clients see only those clients' sites, everywhere: the API, the MCP server and alert e-mails (without the team's alert addresses, alerts go to everyone who works on that site, not to viewers). Tokens act as their maker, so a viewer's token only reads.
+
 ## Connect a site
 
 1. On the site, set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`) and redeploy. It needs tinyzoo 1.1 or newer; without the token, Keeper still checks uptime and the certificate.

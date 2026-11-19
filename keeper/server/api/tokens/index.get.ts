@@ -1,7 +1,8 @@
 import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { AccessToken } from '#keeper/types/keeper'
 
-// The workspace's working tokens (session only: a token cannot list tokens).
+// The workspace's working tokens (session only: a token cannot list tokens). People limited
+// to some clients, and viewers, see only their own.
 export default defineEventHandler(async (event): Promise<AccessToken[]> => {
   const me = await requireMember(event)
   const rows = await useDb().select({
@@ -13,7 +14,11 @@ export default defineEventHandler(async (event): Promise<AccessToken[]> => {
     .from(schema.tokens)
     .leftJoin(schema.users, eq(schema.users.id, schema.tokens.createdBy))
     .leftJoin(schema.oauthClients, eq(schema.oauthClients.id, schema.tokens.clientId))
-    .where(and(eq(schema.tokens.workspaceId, me.workspaceId), isNull(schema.tokens.revokedAt)))
+    .where(and(
+      eq(schema.tokens.workspaceId, me.workspaceId),
+      isNull(schema.tokens.revokedAt),
+      seesAllClients(me) && me.role !== 'viewer' ? undefined : eq(schema.tokens.createdBy, me.userId),
+    ))
     .orderBy(desc(schema.tokens.createdAt))
   // A connection whose refresh token has run out is over.
   const now = Date.now()

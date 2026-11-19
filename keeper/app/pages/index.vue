@@ -4,10 +4,12 @@ import type { OverviewResponse, SiteSummary } from '#keeper/types/keeper'
 useHead({ title: 'Sites · Keeper' })
 
 const toast = useToast()
-const { me } = useKeeperUser()
+const { me, canWrite } = useKeeperUser()
+const route = useRoute()
+const router = useRouter()
 const { data, status, refresh, error } = await useFetch<OverviewResponse>('/api/sites', {
   key: 'overview',
-  default: () => ({ sites: [], latest: null }),
+  default: () => ({ sites: [], latest: null, clients: [] }),
 })
 watch(error, (e) => { if (e) toast.add({ title: 'Could not load the sites', description: errorMessage(e), color: 'error' }) })
 
@@ -32,7 +34,7 @@ const down = computed(() => all.value.filter((s) => s.state === 'down'))
 const outdated = computed(() => all.value.filter((s) => s.outdated))
 const summary = computed(() => {
   const n = all.value.length
-  if (!n) return 'Add your first site and Keeper starts watching it within a minute.'
+  if (!n) return canWrite.value ? 'Add your first site and Keeper starts watching it within a minute.' : 'There are no sites for you to see yet.'
   const parts: string[] = []
   if (down.value.length === 1) parts.push(`${down.value[0]!.name} is down.`)
   else if (down.value.length) parts.push(`${down.value.length} sites are down.`)
@@ -59,16 +61,22 @@ const needs = computed<Need[]>(() => {
 
 // ── the list ──
 const q = ref('')
-const client = ref('all')
-const clients = computed(() => {
-  const names = [...new Set(all.value.map((s) => s.client).filter(Boolean))].sort((a, b) => a.localeCompare(b))
-  return [{ label: 'All clients', value: 'all' }, ...names.map((n) => ({ label: n, value: n }))]
+// The client filter, kept in the address (?client=<id>, or none) so a filtered list can be shared.
+const client = computed<string>({
+  get: () => (typeof route.query.client === 'string' ? route.query.client : 'all'),
+  set: (v) => { router.replace({ query: { ...route.query, client: v === 'all' ? undefined : v } }) },
 })
+const clients = computed(() => {
+  const items = [{ label: 'All clients', value: 'all' }, ...data.value.clients.map((c) => ({ label: c.name, value: c.id }))]
+  if (all.value.some((s) => !s.clientId)) items.push({ label: 'No client', value: 'none' })
+  return items
+})
+const clientMatches = (s: SiteSummary) => client.value === 'all' || (client.value === 'none' ? !s.clientId : s.clientId === client.value)
 const ORDER = { down: 0, unknown: 1, up: 2 } as const
 const sites = computed<SiteSummary[]>(() => {
   const needle = q.value.trim().toLowerCase()
   return all.value
-    .filter((s) => client.value === 'all' || s.client === client.value)
+    .filter(clientMatches)
     .filter((s) => !needle || [s.name, s.client, s.url].some((v) => v.toLowerCase().includes(needle)))
     .sort((a, b) => ORDER[a.state] - ORDER[b.state] || a.name.localeCompare(b.name))
 })
@@ -83,8 +91,10 @@ function stateLine(s: SiteSummary): string {
 <template>
   <AppPage title="Sites" :heading="false">
     <template #actions>
-      <UButton to="/sites/new" icon="i-lucide-plus" label="Add site" class="hidden sm:inline-flex" />
-      <UButton to="/sites/new" icon="i-lucide-plus" aria-label="Add site" square class="sm:hidden" />
+      <template v-if="canWrite">
+        <UButton to="/sites/new" icon="i-lucide-plus" label="Add site" class="hidden sm:inline-flex" />
+        <UButton to="/sites/new" icon="i-lucide-plus" aria-label="Add site" square class="sm:hidden" />
+      </template>
     </template>
 
     <!-- The greeting: who is up, who needs you. -->
@@ -96,7 +106,7 @@ function stateLine(s: SiteSummary): string {
           <template v-else>{{ summary }}</template>
         </p>
         <div class="mt-4 flex flex-wrap gap-2">
-          <UButton to="/sites/new" icon="i-lucide-plus" label="Add site" />
+          <UButton v-if="canWrite" to="/sites/new" icon="i-lucide-plus" label="Add site" />
           <UButton v-if="all.length" to="/versions" icon="i-lucide-git-branch" label="Versions" color="neutral" variant="outline" class="k-on-moment" />
         </div>
       </div>
@@ -109,7 +119,7 @@ function stateLine(s: SiteSummary): string {
     </div>
 
     <!-- Nothing yet: how to add the first site. -->
-    <section v-else-if="!all.length" class="mt-8">
+    <section v-else-if="!all.length && canWrite" class="mt-8">
       <h2 class="k-label mb-2">Three steps to your first site</h2>
       <ol class="k-card divide-y divide-(--ui-border-muted)">
         <li v-for="(step, i) in [

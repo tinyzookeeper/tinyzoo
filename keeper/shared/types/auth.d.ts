@@ -4,7 +4,7 @@ declare module '#auth-utils' {
     id: string
     name: string
     email: string
-    role: 'owner' | 'member'
+    role: 'owner' | 'admin' | 'member' | 'viewer'
     workspaceId: string
     workspaceName: string
   }
