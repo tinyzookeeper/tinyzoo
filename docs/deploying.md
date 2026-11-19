@@ -149,6 +149,7 @@ Generate secrets with `openssl rand -base64 32` and set them on the platform, ne
 | `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASS` | with smtp | |
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (see [Publish webhooks](#publish-webhooks)) |
 | `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API (`x-api-key` or `Authorization: Bearer`). The website's own server-side requests need none, see [Content API token](#content-api-token) |
+| `NUXT_CMS_STATUS_TOKEN` | optional | turns on `/api/health/status`, a summary of the site for a tool that watches many sites, and is the token it asks for. See [Site status](#site-status) |
 | `NUXT_CMS_CONTENT_DOCS` | optional | `true` publishes the interactive API reference at `/api/openapi` (off in production by default, see [Content API token](#content-api-token)) |
 | `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). See [First run](#first-run-the-setup-code) |
 | `CMS_ALLOW_REQUEST_ORIGIN` | almost never | `1` lets email links use the address of the request. See [Email links without a public address](#email-links-without-a-public-address) |
@@ -335,6 +336,30 @@ Probe these two endpoints on the container's port:
 
 - `GET /api/health/live` says the process is up (liveness). It fails when start-up migrations gave up.
 - `GET /api/health/ready` says migrations are done and the database answers (readiness).
+
+### Site status
+
+When you look after several sites, `GET /api/health/status` tells a monitoring tool what it needs to list this one. It is off (`404`) until you set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`). The request then carries the token as `x-api-key: <token>` or `Authorization: Bearer <token>`. A signed-in admin without the token gets `401` as well, and one address may ask 30 times a minute.
+
+```sh
+curl -H "x-api-key: $NUXT_CMS_STATUS_TOKEN" https://example.com/api/health/status
+```
+
+The answer (`CmsStatus` in `tinyzoo`) has:
+
+- the tinyzoo and Node.js versions, and when this instance started;
+- the site's public address, where its admin is, the sign-in mode and the content languages;
+- whether the database answers, the state of start-up migrations and the database's size;
+- every collection and global with how many entries it holds and when one was last saved, and how many entries wait for a translation;
+- how many accounts are active, invited and disabled, how many signed in during the last 30 days, and the last sign-in;
+- how many media files there are and their total size;
+- how many webhook addresses are set and whether a secret signs them;
+- the server errors this instance reported in the last 24 hours, by request, task and webhook;
+- the plugins and their versions.
+
+It holds numbers, dates, versions and names from `cms.config.ts`. It never holds content, anyone's name or email, or a secret. The error counts are kept in memory, so a restart starts them again from 0, and each replica counts its own.
+
+`format: 'tinyzoo-status'` and `version: 1` say how to read it. Within version 1, keys are only added, so a reader ignores the ones it does not know.
 
 ## Caching
 

@@ -132,6 +132,7 @@ export default async function setup(project: TestProject) {
       // Publish webhooks go to a receiver in this process (see startWebhookReceiver).
       NUXT_CMS_WEBHOOKS_URLS: `${hooks.url}/ok, ${hooks.url}/flaky`,
       NUXT_CMS_WEBHOOKS_SECRET: WEBHOOK_SECRET,
+      NUXT_CMS_STATUS_TOKEN: STATUS_TOKEN,
       // First-run setup needs this code (seedAccounts sends it).
       NUXT_CMS_AUTH_SETUP_TOKEN: SETUP_TOKEN,
       // A public demo account (cms.demo): created on its first sign-in (demo.spec.ts).
@@ -187,6 +188,7 @@ export default async function setup(project: TestProject) {
 
 export const WEBHOOK_SECRET = 'test-webhook-secret'
 export const SETUP_TOKEN = 'test-setup-code'
+export const STATUS_TOKEN = 'test-status-token-0123456789'
 
 /**
  * Receives the server's publish webhooks and writes each request into a temp dir as

@@ -13,6 +13,7 @@ GET  /api/content/_sitemap
 GET  /api/content/_tree/:entity
 GET  /api/health/live
 GET  /api/health/ready
+GET  /api/health/status
 GET  /api/openapi
 GET  /api/openapi.json
 POST /api/content/_form/:name   (tinyzoo/forms)

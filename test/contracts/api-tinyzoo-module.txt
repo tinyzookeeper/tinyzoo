@@ -79,6 +79,9 @@ export interface CmsModuleOptions {
         dir?: string;
         onStart?: boolean;
     };
+    status?: {
+        token?: string;
+    };
     content?: {
         token?: string;
         cacheControl?: string;

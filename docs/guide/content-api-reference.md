@@ -27,6 +27,7 @@ A minor release may add keys to an answer, and new routes and parameters that st
 | `GET /api/openapi` | the same as an interactive reference (Scalar) |
 | `GET /api/content-types.ts` | the typed client's bindings for this site |
 | `GET /api/health/live`, `GET /api/health/ready` | liveness and readiness: `{ ok: true }`, or `503` |
+| `GET /api/health/status` | a summary of the site for a tool that watches many sites; off until `NUXT_CMS_STATUS_TOKEN` is set ([site status](../deploying.md#site-status)) |
 
 `:entity` is the collection's name in `cms.config.ts` (`post`, `event`). `:name` is a global's name.
 
