@@ -1,4 +1,5 @@
 import type { CmsStatus } from './status'
+import type { TrafficGlance } from './traffic'
 
 export type { CmsStatus }
 
@@ -41,6 +42,10 @@ export interface SiteSummary {
   /** The status could not be read: why. Null when it was read or no token is set. */
   statusError: string | null
   hasToken: boolean
+  /** Visits of the last 30 days, for a site that counts them; null before the first read. */
+  traffic: TrafficGlance | null
+  /** Why its visits could not be read last time (a site that counts them), or null. */
+  trafficError: string | null
 }
 
 export interface OverviewResponse {

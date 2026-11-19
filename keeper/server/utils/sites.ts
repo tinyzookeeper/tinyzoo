@@ -3,6 +3,7 @@ import type { SQL } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
 import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
+import type { TrafficGlance } from '#keeper/types/traffic'
 
 /** A site with the name of its client ('' without one). */
 export type SiteRow = typeof schema.sites.$inferSelect & { clientName: string }
@@ -105,7 +106,7 @@ export async function resolveClient(m: SignedInMember, name: string): Promise<st
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null)
 
-export function summarize(site: SiteRow, uptime: { d1: number | null; d30: number | null } | undefined, latest: string | null): SiteSummary {
+export function summarize(site: SiteRow, uptime: { d1: number | null; d30: number | null } | undefined, latest: string | null, traffic: TrafficGlance | null = null): SiteSummary {
   const s = site.status
   const version = s?.tinyzoo ?? null
   const errors = s?.errors?.last24h
@@ -131,6 +132,8 @@ export function summarize(site: SiteRow, uptime: { d1: number | null; d30: numbe
     certExpiresAt: iso(site.certExpiresAt),
     statusError: site.statusError,
     hasToken: !!site.tokenEnc,
+    traffic,
+    trafficError: hasAnalytics(s) ? site.trafficError : null,
   }
 }
 
@@ -144,16 +147,17 @@ export async function latestKnown(rows: SiteRow[]): Promise<string | null> {
 
 export async function siteDetail(site: SiteRow): Promise<SiteDetail> {
   const db = useDb()
-  const [uptime, latest, checks, incidents] = await Promise.all([
+  const [uptime, latest, traffic, checks, incidents] = await Promise.all([
     uptimeFor([site.id]),
     latestKnown([site]),
+    trafficGlances([site]),
     db.select({ at: schema.checks.at, ok: schema.checks.ok, ms: schema.checks.ms }).from(schema.checks)
       .where(and(eq(schema.checks.siteId, site.id), gte(schema.checks.at, sql`now() - interval '24 hours'`)))
       .orderBy(schema.checks.at),
     db.select().from(schema.incidents).where(eq(schema.incidents.siteId, site.id)).orderBy(desc(schema.incidents.startedAt)).limit(20),
   ])
   return {
-    ...summarize(site, uptime.get(site.id), latest),
+    ...summarize(site, uptime.get(site.id), latest, traffic.get(site.id) ?? null),
     repoUrl: site.repoUrl,
     notes: site.notes,
     statusAt: iso(site.statusAt),
@@ -234,7 +238,7 @@ export async function removeSite(site: SiteRow): Promise<void> {
 
 /** Check a site now (uptime and status; the certificate when it was never read), and answer with the fresh detail. */
 export async function checkNow(site: SiteRow): Promise<SiteDetail> {
-  await checkSite(site.id, { forceStatus: true })
+  await checkSite(site.id, { forceStatus: true, forceTraffic: true })
   if (!site.certCheckedAt) await checkCertificate(site)
   return siteDetail((await siteById(site.id))!)
 }

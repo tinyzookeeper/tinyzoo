@@ -10,6 +10,8 @@ Self-hosted for now, with one team (a *workspace*). Every table already carries 
 - **Status.** Every 5 minutes it reads `GET /api/health/status` with the site's token: the tinyzoo version, the database, the collections, accounts, media, errors and plugins.
 - **Versions.** Sites running an older tinyzoo than the newest release on npm are marked.
 - **Certificates.** Twice a day it reads each site's TLS certificate, and e-mails once when one expires within 14 days.
+- **Traffic.** For a site with tinyzoo's analytics plugin (its status lists `analytics`), about once an hour it reads the daily visits with the same token (`GET /api/content/_analytics/rollups`): 90 days the first time, then the last 3 days again, since yesterday's totals become final overnight. The site list shows a 30-day line of visitors and this week against last on wide screens. A site's page has a Traffic section: visitors and pageviews over 30 or 90 days, the numbers against the period before, and the top pages, sources, countries and devices. The visits are daily totals: no visitor, address or cookie ever reaches Keeper. A site without the plugin shows no Traffic section. A site on an older tinyzoo shows a short note there.
+- **Traffic drops.** When a site's last 7 complete days have fewer than 40 % of the visitors a day of the 4 weeks before, Keeper e-mails once and lists the site under *Needs you*. This only applies to sites with at least 20 visitors a day in those 4 weeks and 5 weeks of counting. Keeper e-mails again when visits are back to 60 % of the usual level. After 4 weeks the lower level counts as the new usual one, and the site leaves *Needs you* without an e-mail. A drop like that is often a broken deploy, a tracker left out of the pages, or a site that lost its place in search.
 - **Into the admin.** Every site has an *Open admin* button.
 
 ## Clients, roles and access
@@ -23,16 +25,16 @@ Sites belong to a client (or none): name one on the site form, or add clients in
 | Member | every client, or only some | add, change, check and remove the sites they see |
 | Viewer | every client, or only some | only look: for a client's own people |
 
-People limited to some clients see only those clients' sites, everywhere: the API, the MCP server and alert e-mails (without the team's alert addresses, alerts go to everyone who works on that site, not to viewers). Tokens act as their maker, so a viewer's token only reads.
+People limited to some clients see only those clients' sites, everywhere: the API, traffic, the MCP server and alert e-mails (without the team's alert addresses, alerts go to everyone who works on that site, not to viewers). Tokens act as their maker, so a viewer's token only reads.
 
 ## Connect a site
 
-1. On the site, set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`) and redeploy. It needs tinyzoo 1.1 or newer; without the token, Keeper still checks uptime and the certificate.
+1. On the site, set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`) and redeploy. It needs tinyzoo 1.1 or newer; without the token, Keeper still checks uptime and the certificate. For traffic, the site also uses `tinyzoo/analytics` on tinyzoo 1.2 or newer, which shares its daily totals.
 2. In Keeper, click *Add site*, then paste the site's address and the token. *Test connection* tells you whether both work.
 
 ## The MCP server, OAuth and access tokens
 
-`POST /mcp` is an MCP server (Streamable HTTP, stateless, both protocol eras). Read tools: `fleet_summary`, `list_sites`, `get_site`, `list_versions`, `list_incidents`. Write tools, for a write grant: `add_site`, `update_site`, `check_site`, `remove_site`. They go through the same code as the API, and no tool ever returns a site's status token.
+`POST /mcp` is an MCP server (Streamable HTTP, stateless, both protocol eras). Read tools: `fleet_summary` (also traffic drops), `list_sites`, `list_clients`, `get_site` (also this week's visitors against last), `site_traffic` (visitors, pageviews, the trend and the top lists over 7 to 365 days), `list_versions`, `list_incidents`. Write tools, for a write grant: `add_site`, `update_site`, `check_site`, `remove_site`. They go through the same code as the API, and no tool ever returns a site's status token.
 
 **Signing in (OAuth).** A program that speaks OAuth needs only the address. It finds Keeper's sign-in from the 401 (`/.well-known/oauth-protected-resource`, RFC 9728), registers itself (RFC 7591) and sends you to Keeper's consent page. You choose read or read and write; it gets an access token for an hour and a refresh token that lasts 60 days from its last use. PKCE (S256) is required. Codes and tokens are stored only as SHA-256. Each connection shows in *Settings → Access tokens* as "Signed in from …" and is disconnected there (or by the program, RFC 7009).
 

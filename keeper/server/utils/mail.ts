@@ -53,11 +53,15 @@ async function recipients(site: AlertSite): Promise<string[]> {
   return [...new Set([...team, ...(client?.alertEmails ?? [])].map((e) => e.toLowerCase()))]
 }
 
-/** E-mail the team (and the site's client) about a site: down, back up, certificate. */
-export async function alertTeam(site: AlertSite, kind: 'down' | 'up' | 'cert', subject: string, text: string): Promise<void> {
+export type AlertKind = 'down' | 'up' | 'cert' | 'traffic' | 'traffic-back'
+
+const ICONS: Record<AlertKind, string> = { 'down': '🔴', 'up': '🟢', 'cert': '🟡', 'traffic': '🟡', 'traffic-back': '🟢' }
+
+/** E-mail the team (and the site's client) about a site: down, back up, certificate, a drop in visitors and its end. */
+export async function alertTeam(site: AlertSite, kind: AlertKind, subject: string, text: string): Promise<void> {
   const base = String(useRuntimeConfig().publicUrl || '').replace(/\/+$/, '')
   const link = base ? `\n\n${base}/sites/${site.id}` : ''
-  const icon = kind === 'down' ? '🔴' : kind === 'up' ? '🟢' : '🟡'
+  const icon = ICONS[kind]
   const to = await recipients(site)
   if (to.length) await sendMail(to, `${icon} ${subject}`, `${text}${link}\n\n— Keeper`)
 }

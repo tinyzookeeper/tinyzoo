@@ -84,6 +84,17 @@ export interface CmsStatus {
   }
   /** The site's plugins (`defineCmsPlugin`) and their versions. */
   plugins: { name: string; version: string }[]
+  /** Website analytics (the `tinyzoo/analytics` plugin), when the site uses it; absent on an older tinyzoo. */
+  analytics?: {
+    /** The server may count visits (`NUXT_CMS_ANALYTICS_ENABLED` is not `false`). */
+    enabled: boolean
+    /** It counts them now (enabled, and not switched off in the admin). */
+    collecting: boolean
+    /** The first day with totals, or null before the first night. */
+    since: string | null
+    /** Where the daily totals are read with the status token (`/api/content/_analytics/rollups`). */
+    rollupsPath: string
+  }
 }
 
 export interface CmsStatusCollection {
