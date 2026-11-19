@@ -22,6 +22,13 @@
       "when": 1795115614975,
       "tag": "0002_oauth",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795122401870,
+      "tag": "0003_build_id",
+      "breakpoints": true
     }
   ]
 }
