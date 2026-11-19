@@ -71,7 +71,7 @@ provide('cmsFieldFallback', computed(() => props.fallback))
   <UFormField v-if="isSwitch" :name="field.key" :error="shownError" :ui="{ error: 'text-error' }">
     <div
       class="flex items-center justify-between gap-4"
-      :class="compact ? '' : 'rounded-(--ui-radius) border border-default bg-default px-3.5 py-3'"
+      :class="compact ? '' : 'cms-field-box rounded-(--ui-radius) border border-default bg-default px-3.5 py-3'"
     >
       <label :for="inputId" :id="`${inputId}-label`" class="min-w-0 cursor-pointer">
         <span class="block" :class="compact ? 'text-xs font-medium text-muted' : 'text-sm font-medium text-highlighted'">{{ label }}</span>

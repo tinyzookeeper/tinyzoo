@@ -42,7 +42,7 @@ const current = computed(() => {
 <template>
   <CmsRichTextEditor v-if="ready && current" :key="`shared-${collab!.generation.value}`" v-model="model" :collab="current" :label="label" :labelledby="labelledby" :fallback="fallback" v-bind="rest" />
   <!-- while the shared text connects: the saved text, dimmed and not yet editable -->
-  <div v-else-if="shared" v-bind="rest" class="w-full rounded-lg border border-default bg-default" aria-busy="true">
+  <div v-else-if="shared" v-bind="rest" class="cms-field-box w-full rounded-lg border border-default bg-default" aria-busy="true">
     <div class="flex h-9 items-center gap-2 border-b border-default bg-elevated/30 px-3 text-xs text-muted">
       <UIcon name="i-lucide-loader-circle" class="size-3.5 animate-spin" />{{ t('live.connecting') }}
     </div>
