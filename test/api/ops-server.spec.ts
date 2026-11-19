@@ -43,6 +43,8 @@ describe('setup code in production', () => {
     expect((await c.get('/api/cms/_auth/status')).body).toEqual({ mode: 'builtin', needsSetup: true, needsToken: true, codeIn: 'log' })
     // Without NUXT_CMS_STATUS_TOKEN the site summary is not there at all.
     expect((await c.get('/api/health/status')).status).toBe(404)
+    // Nor the analytics totals that the same token reads.
+    expect((await c.get('/api/content/_analytics/rollups?from=2026-01-01&to=2026-01-02')).status).toBe(404)
     // Only a hash is stored.
     const [row] = await sql(db.url, `select value from cms_state where key = 'setup_code'`)
     expect(row.value.hash).toMatch(/^[0-9a-f]{64}$/)
