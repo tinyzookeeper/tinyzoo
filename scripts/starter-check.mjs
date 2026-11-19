@@ -458,8 +458,9 @@ try {
   run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/cms'))
   run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/client'))
   run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/create-tinyzoo'))
-  const tgz = (prefix) => join(packs, readdirSync(packs).find((f) => f.startsWith(prefix)))
-  const files = { cms: tgz('tinyzoo-0'), client: tgz('tinyzoo-client-'), create: tgz('create-tinyzoo-') }
+  // `tinyzoo-<version>.tgz`, `tinyzoo-client-<version>.tgz`, `create-tinyzoo-<version>.tgz`: a name, a dash, a digit.
+  const tgz = (name) => join(packs, readdirSync(packs).find((f) => f.startsWith(`${name}-`) && /^\d/.test(f.slice(name.length + 1))))
+  const files = { cms: tgz('tinyzoo'), client: tgz('tinyzoo-client'), create: tgz('create-tinyzoo') }
 
   // The packages out of the packed files: unpack the tarballs and run THEIR code (the workspace's
   // installed dependencies are linked in, so they can load).
