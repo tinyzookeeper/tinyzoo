@@ -7,7 +7,9 @@
  * account.email_failed, account.email_cancel, account.email, account.email_revert, user.invite, user.resend,
  * user.role, user.email, user.disable, user.enable, user.delete, entry.create,
  * entry.update, entry.delete, entry.publish, entry.unpublish, settings.update,
- * media.upload, media.delete, retention.purge, privacy.export, privacy.delete.
+ * media.upload, media.delete, retention.purge, privacy.export, privacy.delete, token.create, token.revoke.
+ * A change made through the MCP server with a personal access token carries `meta.via: 'mcp'`
+ * and the token's `meta.tokenId`.
  *
  * A change of sign-in email names the new address as `meta.email` and the old one as
  * `meta.previousEmail` (`account.email_request`: asked for, by the person; `account.email`:
@@ -23,12 +25,14 @@ export async function audit(
 ): Promise<void> {
   try {
     const { db, reg } = useCms()
+    // Done through the MCP server with a personal access token: which one.
+    const token = data.userId === undefined ? event?.context?.cmsUser?.token?.id : undefined
     await db.insert(reg.cmsAudit).values({
       userId: data.userId !== undefined ? data.userId : (event?.context?.cmsUser?.id ?? null),
       action,
       entity: data.entity ?? null,
       recordId: data.recordId ?? null,
-      meta: data.meta ?? null,
+      meta: token ? { ...data.meta, via: 'mcp', tokenId: token } : data.meta ?? null,
     })
   }
   catch (err) {

@@ -12,10 +12,12 @@ import type { CmsEntity, CmsFieldRule, CmsMediaAccess, CmsResolvedRole } from 't
  * the entities' own `access` rules decide. As soon as the site defines roles, every name must
  * be known: an unknown one fails closed, like a removed role.
  */
-export function roleOf(user: { role?: unknown } | null | undefined): CmsResolvedRole | null {
+export function roleOf(user: { role?: unknown; token?: CmsTokenGrant } | null | undefined): CmsResolvedRole | null {
   if (!user) return null
   const { reg } = useCms()
-  return resolveRole(reg.roles, user.role, { legacyUnknown: cmsAuthMode() === 'external' })
+  const role = resolveRole(reg.roles, user.role, { legacyUnknown: cmsAuthMode() === 'external' })
+  // A personal access token: the role, narrowed to what the token was given (cmsAccessTokens.ts).
+  return role && user.token ? narrowRole(role, user.token.rights) : role
 }
 
 /** The person's media library access ('none' for a role the site does not know). */

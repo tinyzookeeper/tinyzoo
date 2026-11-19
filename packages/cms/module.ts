@@ -159,6 +159,13 @@ export interface CmsModuleOptions {
    * NUXT_CMS_STATUS_TOKEN); the request then carries it as `x-api-key` or `Authorization: Bearer`.
    */
   status?: { token?: string }
+  /**
+   * The MCP server at `/api/mcp`: tools that read and edit the content for a program that speaks
+   * MCP, with a personal access token each person makes on their account page (it acts as them,
+   * with the rights they gave it). Built-in sign-in only. On by default; `false` (env
+   * NUXT_CMS_MCP_ENABLED=false) turns off the route and the tokens.
+   */
+  mcp?: { enabled?: boolean } | false
   /** Public content-delivery API (`/api/content/*`). */
   content?: {
     /** If set, every content request must carry this token (x-api-key or Bearer). Default: open. */
@@ -395,6 +402,8 @@ export {}
       },
       // Empty so NUXT_CMS_STATUS_TOKEN binds at runtime; '' = /api/health/status is off.
       status: { token: options.status?.token || '' },
+      // NUXT_CMS_MCP_ENABLED=false turns the MCP server (/api/mcp) and the access tokens off.
+      mcp: { enabled: options.mcp === false ? false : options.mcp?.enabled !== false },
       content: {
         // Empty so NUXT_CMS_CONTENT_TOKEN can bind at runtime; '' = open API.
         token: options.content?.token || '',
