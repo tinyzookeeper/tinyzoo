@@ -149,7 +149,7 @@ Nuxt UI's; where the hover would then sit less than 3 points above the rest, the
 | Preset | Light: rest / hover / strong | Dark |
 |---|---|---|
 | mono, a brand colour | 10 / 15 / 20 % (Nuxt UI's) | 10 / 15 / 20 % |
-| indigo | 10 / 15 / 20 % | 7.5 / 10.5 / 10.5 % |
+| indigo | 10 / 15 / 20 % | 10 / 15 / 16 % |
 | blue | 6.5 / 9.5 / 9.5 % | 10 / 15 / 18.5 % |
 | violet | 10 / 15 / 16 % | 10 / 15 / 15.5 % |
 | emerald | 8.5 / 11.5 / 11.5 % | 10 / 15 / 20 % |
@@ -206,9 +206,9 @@ every token the stylesheet sets for the moments, light and dark, and `adminAccen
 The four colour presets get `moments` too: `brandMoments()` of the preset's light button shade (indigo,
 blue and violet 600, emerald 700), the same tints a brand colour of that shade gets. `adminAccentCss` writes
 only those, scoped to `[data-cms-accent='<preset>']`; the stylesheet still draws the preset's shades and
-buttons. Mono has no `moments` and writes no `<style>`: cream, charcoal and the colourful family. One gap
-predates this: indigo's dark text (its 400 shade) reads at 4.24:1 on charcoal and 4.28:1 on its own dark
-moment, under the 4.5:1 the other presets reach.
+buttons. Mono has no `moments` and writes no `<style>`: cream, charcoal and the colourful family. In dark mode
+indigo draws a lighter 400 (`oklch(70% 0.17 276)`, only there): its own 400 read at 4.27:1 on charcoal, under
+the 4.5:1 the other presets reach; the lighter one reads at 4.76:1 and 4.82:1 on its dark moment.
 
 ## Type
 

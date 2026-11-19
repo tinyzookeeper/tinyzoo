@@ -245,8 +245,9 @@ html[data-cms-admin][data-cms-accent='emerald'] {
 }
 html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono'], [data-cms-accent='brand']) { --ui-primary: var(--ui-color-primary-400); --cms-accent-fill-hover: var(--ui-color-primary-300); }
 /* Dark mode's 400 shades on their own tints (over the page and cards). The dark rules set all three,
-   because a preset's light rule applies in dark mode too. */
-html[data-cms-admin].dark[data-cms-accent='indigo'] { --cms-accent-tint: 7.5%; --cms-accent-tint-hover: 10.5%; --cms-accent-tint-strong: 10.5%; }
+   because a preset's light rule applies in dark mode too. Indigo's own 400 reads at 4.27:1 on charcoal,
+   so dark mode draws a lighter one (4.76:1; src/theme.ts has the same number). */
+html[data-cms-admin].dark[data-cms-accent='indigo'] { --ui-color-primary-400: oklch(70% 0.17 276); --cms-accent-tint: 10%; --cms-accent-tint-hover: 15%; --cms-accent-tint-strong: 16%; }
 html[data-cms-admin].dark[data-cms-accent='blue'] { --cms-accent-tint: 10%; --cms-accent-tint-hover: 15%; --cms-accent-tint-strong: 18.5%; }
 html[data-cms-admin].dark[data-cms-accent='violet'] { --cms-accent-tint: 10%; --cms-accent-tint-hover: 15%; --cms-accent-tint-strong: 15.5%; }
 html[data-cms-admin].dark[data-cms-accent='emerald'] { --cms-accent-tint: 10%; --cms-accent-tint-hover: 15%; --cms-accent-tint-strong: 20%; }
