@@ -110,7 +110,7 @@ const shortShown = computed(() => {
       <UPopover v-model:open="open">
         <UButton
           :id="id" color="neutral" variant="outline" icon="i-lucide-calendar"
-          class="flex-1 min-w-48 justify-start font-normal bg-default"
+          class="cms-field-box flex-1 min-w-48 justify-start font-normal bg-default"
           :class="shown ? 'text-highlighted' : 'text-dimmed'" :title="tz"
         >
           <span class="truncate first-letter:uppercase">{{ shown || t('fields.pickDate') }}</span>

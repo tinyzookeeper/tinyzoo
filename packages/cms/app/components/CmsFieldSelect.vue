@@ -27,7 +27,7 @@ const current = computed(() => items.value.find((i) => i.value === model.value))
 
 <template>
   <URadioGroup
-    v-if="asButtons" :id="id" v-model="choice" :items="choices" orientation="horizontal" variant="card" indicator="hidden"
+    v-if="asButtons" :id="id" v-model="choice" :items="choices" orientation="horizontal" variant="card" indicator="hidden" class="cms-choice"
     :ui="{ fieldset: 'flex-wrap gap-2', item: 'py-2 px-3 rounded-(--ui-radius) has-data-[state=checked]:ring-1 has-data-[state=checked]:ring-inset has-data-[state=checked]:ring-(--ui-primary)', label: 'flex items-center gap-2 font-normal has-data-[state=checked]:font-medium' }"
   >
     <template #label="{ item }">

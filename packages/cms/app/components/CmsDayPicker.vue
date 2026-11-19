@@ -30,7 +30,7 @@ const shown = computed(() => (model.value ? formatDateWith(`${model.value}T12:00
 <template>
   <UPopover v-model:open="open">
     <UButton
-      color="neutral" variant="outline" size="sm" icon="i-lucide-calendar" class="w-full justify-start min-w-0"
+      color="neutral" variant="outline" size="sm" icon="i-lucide-calendar" class="cms-field-box w-full justify-start min-w-0"
       :aria-label="shown ? `${label}: ${shown}` : label"
     ><span class="truncate" :class="shown ? '' : 'text-dimmed'">{{ shown || placeholder || t('fields.pickDate') }}</span></UButton>
     <template #content>
