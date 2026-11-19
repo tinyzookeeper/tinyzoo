@@ -213,18 +213,18 @@ export const News = defineEntity('news', {
   content: { public: true, path: '/aktuality/:slug' },
 })`
 const pageCode = `<script setup lang="ts">
-import type { News } from '~/lib/cms-content'
+import { createClient } from '~/lib/cms-content'
 
-const { slug } = useRoute().params
-const { data } = await useFetch<{ item: News }>(
-  \`/api/content/news/\${slug}\`,
-)
+const cms = createClient({ baseUrl: useRequestURL().origin })
+const slug = String(useRoute().params.slug)
+// news má typ News, odvozený z cms.config.ts
+const { data: news } = await useAsyncData(\`news:\${slug}\`, () => cms.news.get(slug))
 </script>
 
 <template>
-  <h1>{{ data?.item.title }}</h1>
-  <CmsImage :media="data?.item.cover" />
-  <CmsContent :doc="data?.item.body" />
+  <h1>{{ news?.title }}</h1>
+  <CmsImage :media="news?.cover" />
+  <CmsContent :doc="news?.body" />
 </template>`
 
 await page('Pro vývojáře', 'pro-vyvojare', [
