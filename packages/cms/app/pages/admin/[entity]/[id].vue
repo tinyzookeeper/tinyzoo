@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Entry editor. The title is the page heading; content fields fill the main column;
 // properties (status, URL, dates, relations…) sit in a side panel; grouped fields
-// (e.g. "Search & sharing") collapse at the bottom of the panel. Status is shown once
+// (e.g. "Search & sharing") collapse at the bottom of the panel, and plugins' panels
+// (entityPanels) follow under it. Status is shown once
 // and changed through the header's single primary action.
 //
 // Remount per record so state/dirty/guard fully reset when switching records
@@ -457,6 +458,16 @@ const formSectionConfig = computed(() => {
   return tabs.length ? tabs.map((tab) => ({ label: tab.label, fields: tab.fields })) : null
 })
 const showAside = computed(() => !wide.value || arrangement.value !== 'write' || detailsOpen.value || split.value)
+
+// Panels plugins add under the details (defineCmsPlugin `entityPanels`), for this collection: about
+// the entry, not part of it, so none until it is saved. A component that is not registered (a
+// typo, a plugin's file gone) is left out rather than drawn as an unknown tag.
+type PluginPanel = { plugin: string; component: string; label: any; entities: string[] | null }
+const pluginPanels = (((useRuntimeConfig().public.cmsPlugins as any)?.entityPanels ?? []) as PluginPanel[])
+  .filter((p) => !p.entities || p.entities.includes(entity.value))
+  .map((p) => ({ ...p, is: resolveComponent(p.component) }))
+  .filter((p) => typeof p.is !== 'string')
+const panels = computed(() => (isNew.value ? [] : pluginPanels))
 // The sidebar folds to icons while writing or looking at the page.
 useCmsFocus(computed(() => wide.value && (arrangement.value !== 'form' || split.value)))
 const groups = computed(() => {
@@ -1167,8 +1178,11 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
         </div>
       </div>
 
+      </fieldset>
+
       <aside v-if="showAside" class="cms-editor__aside" :aria-label="t('editor.details')">
         <div class="cms-editor__aside-inner space-y-5">
+          <fieldset class="cms-fieldset min-w-0 space-y-5" :disabled="readOnly">
           <!-- the status itself is in the top bar; here only what it does not say -->
           <div v-if="publish && !isNew && (asideNote || (isTranslation && (!perLocale || !stateOwn)))" class="flex items-start gap-2 text-sm text-muted">
             <UIcon :name="isScheduled ? 'i-lucide-clock' : isPublished ? 'i-lucide-globe' : 'i-lucide-pencil-line'" class="size-4 shrink-0 mt-0.5" />
@@ -1261,9 +1275,19 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
               </template>
             </UCollapsible>
           </div>
+          </fieldset>
+
+          <!-- what plugins tell about the entry (defineCmsPlugin entityPanels): outside the form, so
+               someone who may only read the entry can still use them -->
+          <section
+            v-for="p in panels" :key="`${p.plugin}:${p.component}`"
+            class="min-w-0 border-t border-default pt-5" :aria-label="tl(p.label)"
+          >
+            <h2 class="cms-label mb-3">{{ tl(p.label) }}</h2>
+            <component :is="p.is" :entity="entity" :id="id" :locale="currentLocale" />
+          </section>
         </div>
       </aside>
-      </fieldset>
       <div v-if="split && previewUrl" class="cms-editor__preview">
         <CmsPreviewPanel
           :url="previewUrl" :entity="entity" :id="id"

@@ -133,7 +133,7 @@ Import these in `cms.config.ts` and in code that uses the config's types. Anythi
 | `seo(opts)` | `metaTitle`, `metaDescription` and `ogImage` fields to spread into an entity |
 | `linkBlock()` | the block of one menu link (`defineNavigation` uses it) |
 | `defineSeed(run)` | the site's demo content, for `tinyzoo seed` ([seeding](guide/seeding.md)) |
-| `defineCmsPlugin(def)` | a plugin: collections, admin pages, server routes, hooks, upgrade steps ([plugins](plugins.md)) |
+| `defineCmsPlugin(def)` | a plugin: collections, tables, admin pages, server routes, app plugins, home widgets, editor panels, hooks, upgrade steps ([plugins](plugins.md)) |
 | `pluginFile(base, relative)` | the absolute path of a file next to a plugin's module, for its `serverHandlers` and `adminPages` |
 
 A config exports its entities, globals, `locales`, `roles`, the pages, navigation and redirects presets, and `plugins`. The module finds them by what they are.
@@ -232,7 +232,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | Languages and text | `LocalesDef`, `LocalizedText`, `PathTemplate` |
 | Users and roles | `CmsAccessUser` (what an `access` rule is given: `id`, `email`, `name`, `role`, `base`, `locale`, and what an external sign-in adds as `unknown`), `CmsRole` (`'admin' \| 'editor' \| 'author'`), `CmsRoleBase`, `CmsRoleDef`, `CmsRoleRef`, `CmsRoleInput`, `CmsRoles`, `CmsEntityOp`, `CmsMediaAccess`, `CmsFieldAccess` |
 | Seeds | `SeedDefinition`, `SeedContext`, `SeedEntry`, `SeedInsert`, `SeedWriteOptions`, `SeedGlobalOptions`, `SeedUploadOptions`, `SeedLink`, `SeedLinkOptions`, `SeedRich`, `SeedRichNode` |
-| Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
+| Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginAppPlugin`, `CmsDashboardWidget`, `CmsEntityPanel`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
 | Site status | `CmsStatus`, `CmsStatusCollection` (the answer of `/api/health/status`) |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |

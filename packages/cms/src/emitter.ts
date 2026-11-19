@@ -1,6 +1,9 @@
+import { is, sql } from 'drizzle-orm'
+import * as pgCore from 'drizzle-orm/pg-core'
 import { buildRegistry, type CmsEntity, type Junction, propOf, translationSpec } from './entity'
 import { camel, serializeColumn, snake } from './fields'
 import { CMS_MEDIA_SOURCE } from './media'
+import { sourceTables, type CmsPlugin } from './plugin'
 import { CMS_SYSTEM_SOURCE } from './system'
 
 /**
@@ -19,7 +22,13 @@ export function emitSchema(config: Record<string, any>): string {
   out.push('// Source: cms.config.ts. Regenerate with `pnpm db:generate`.')
   // A table that points at itself (a page tree's parent) needs the column type spelled out for TypeScript.
   const selfReferencing = reg.entities.some((e) => Object.values(e.fields).some((fl) => fl.spec?.reference?.target === 'relation' && fl.relation?.to().name === e.name))
-  out.push(`import { pgTable, pgEnum, uuid, text, integer, numeric, boolean, timestamp, jsonb, primaryKey, index, uniqueIndex${selfReferencing ? ', type AnyPgColumn' : ''} } from 'drizzle-orm/pg-core'`)
+  const withTables = reg.plugins.filter((p) => p.tables.length)
+  for (const p of withTables) checkTablesSource(p)
+  const builders = ['pgTable', 'pgEnum', 'uuid', 'text', 'integer', 'numeric', 'boolean', 'timestamp', 'jsonb', 'primaryKey', 'index', 'uniqueIndex']
+  const pluginSource = withTables.map((p) => p.tablesSource!).join('\n')
+  builders.push(...sourceBuilders(pluginSource).filter((b) => !builders.includes(b)))
+  out.push(`import { ${builders.join(', ')}${selfReferencing ? ', type AnyPgColumn' : ''} } from 'drizzle-orm/pg-core'`)
+  if (/\bsql\s*[`.(]/.test(pluginSource)) out.push(`import { sql } from 'drizzle-orm'`)
   const usesGallery = reg.entities.some((e) => Object.values(e.fields).some((fl) => fl.type === 'gallery'))
   const typeImports = [usesBlocks && 'CmsBlock', usesRich && 'RichTextDoc', usesGallery && 'CmsGalleryValue'].filter(Boolean)
   if (typeImports.length) out.push(`import type { ${typeImports.join(', ')} } from 'tinyzoo'`)
@@ -47,6 +56,9 @@ export function emitSchema(config: Record<string, any>): string {
 
   // m2m junctions
   for (const j of reg.junctions) out.push(emitJunction(j), '')
+
+  // tables plugins keep besides entries (defineCmsPlugin `tables`), as the plugin wrote them
+  for (const p of withTables) out.push(`// the plugin "${p.name}"`, p.tablesSource!.trim(), '')
 
   return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n'
 }
@@ -127,4 +139,65 @@ function emitLocalesTable(e: CmsEntity): string {
     if (e.fields[key]!.isUnique) idx.push(`uniqueIndex('${lname}_${snake(key)}_unique').on(t.locale, t.${key})`)
   }
   return `export const ${v}Locales = pgTable('${lname}', {\n${lines.join('\n')}\n}, (t) => [${idx.join(', ')}])`
+}
+
+/** The `drizzle-orm/pg-core` builders a plugin's tables source calls (`bigint(`, `date(`…; not methods like `.unique()`), for the import line. */
+function sourceBuilders(source: string): string[] {
+  if (!source) return []
+  return Object.keys(pgCore).filter((name) => /^[a-z][A-Za-z0-9]*$/.test(name) && new RegExp(`(?<![.\\w$])${name}\\s*\\(`).test(source)).sort()
+}
+
+/** What drizzle-kit makes a migration from, as one comparable value: columns, keys, indexes, checks. */
+function tableShape(t: pgCore.PgTable) {
+  const c = pgCore.getTableConfig(t)
+  return {
+    columns: c.columns.map((col) => `${col.name} ${col.getSQLType()}${col.notNull ? ' not null' : ''}${col.hasDefault ? ' default' : ''}${col.primary ? ' primary key' : ''}${col.isUnique ? ' unique' : ''}`).sort(),
+    indexes: c.indexes.map((i) => `${i.config.name ?? '?'}${i.config.unique ? ' unique' : ''} ${i.config.method ?? 'btree'} (${i.config.columns.map((col: any) => col?.name ?? '?').join(', ')})`).sort(),
+    primaryKeys: c.primaryKeys.map((k) => `${k.getName()} (${k.columns.map((col) => col.name).join(', ')})`).sort(),
+    foreignKeys: c.foreignKeys.map((k) => { const r = k.reference(); return `(${r.columns.map((col) => col.name).join(', ')}) → ${pgCore.getTableConfig(r.foreignTable).name}` }).sort(),
+    uniques: c.uniqueConstraints.map((u) => `${u.getName()} (${u.columns.map((col) => col.name).join(', ')})`).sort(),
+    checks: c.checks.map((k) => k.name).sort(),
+  }
+}
+
+/**
+ * A plugin's tables exist twice, like tinyzoo's own: as Drizzle objects the server queries
+ * (`tables`) and as source pasted into schema.ts (`tablesSource`), from which drizzle-kit makes
+ * the migrations. Run the source and compare: a column the source lacks would be queried on a
+ * database that never got it. Only `tinyzoo generate` runs this (it writes schema.ts).
+ */
+function checkTablesSource(p: CmsPlugin): void {
+  const source = p.tablesSource ?? ''
+  const exported = sourceTables(p.name, source)
+  const names = Object.keys(pgCore).filter((n) => /^[A-Za-z_$][\w$]*$/.test(n) && n !== 'sql')
+  let made: Record<string, unknown>
+  try {
+    // eslint-disable-next-line no-new-func -- the plugin's own source, run once by the CLI to check it
+    made = new Function(...names, 'sql', `${source.replace(/^export const /gm, 'const ')}\nreturn { ${[...exported.keys()].join(', ')} }`)(
+      ...names.map((n) => (pgCore as Record<string, unknown>)[n]), sql,
+    )
+  }
+  catch (err: any) {
+    throw new Error(`Plugin "${p.name}": tablesSource does not run (${err?.message ?? err}). It is plain JavaScript without type annotations, using only drizzle-orm/pg-core's builders and \`sql\`.`, { cause: err })
+  }
+  for (const t of p.tables) {
+    const sqlName = pgCore.getTableConfig(t).name
+    const written = made[camel(sqlName)]
+    if (!is(written, pgCore.PgTable) || pgCore.getTableConfig(written).name !== sqlName) {
+      throw new Error(`Plugin "${p.name}": tablesSource does not make the table ${sqlName}.`)
+    }
+    const want = tableShape(t)
+    const got = tableShape(written)
+    for (const key of Object.keys(want) as (keyof typeof want)[]) {
+      const missing = want[key].filter((x) => !got[key].includes(x))
+      const extra = got[key].filter((x) => !want[key].includes(x))
+      if (missing.length || extra.length) {
+        throw new Error(
+          `Plugin "${p.name}": the table ${sqlName} in tablesSource is not the one in tables (${key}`
+          + `${missing.length ? `; only in tables: ${missing.join(', ')}` : ''}${extra.length ? `; only in tablesSource: ${extra.join(', ')}` : ''}). `
+          + 'The migrations are made from tablesSource and the server queries tables: make them the same.',
+        )
+      }
+    }
+  }
 }

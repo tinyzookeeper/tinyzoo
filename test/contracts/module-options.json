@@ -101,6 +101,8 @@
       "plugins": [],
       "navItems": [],
       "fields": {},
+      "dashboardWidgets": [],
+      "entityPanels": [],
       "messages": {}
     },
     "cmsTurnstileSiteKey": "",

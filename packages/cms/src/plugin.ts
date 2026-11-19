@@ -8,22 +8,27 @@
  *   export const plugins = [formsPlugin(), eventsPlugin()]
  *
  * The parts split by when they are needed:
- *  - at **runtime** (entities, singletons, hooks, upgrade steps, the admin graph) they flow
- *    through the registry (`buildRegistry`) like the site's own definitions;
- *  - at **build time** (admin pages, server routes, Nitro plugins, components, texts,
- *    field renderers) the Nuxt module reads the same config and registers them
- *    (`planPlugins` computes what, `module.ts` does it).
+ *  - at **runtime** (entities, singletons, tables, hooks, upgrade steps, the admin graph)
+ *    they flow through the registry (`buildRegistry`) like the site's own definitions;
+ *  - at **build time** (admin pages, server routes, Nitro plugins, Nuxt app plugins,
+ *    components, texts, field renderers, dashboard widgets, entry panels) the Nuxt module
+ *    reads the same config and registers them (`planPlugins` computes what, `module.ts`
+ *    does it);
+ *  - at **`tinyzoo generate`** (tables) the CLI writes them into the site's schema.ts, so
+ *    drizzle-kit makes their migrations with the site's own.
  *
  * Everything a plugin adds lives under its own name, so two plugins and the site never
- * collide: entities are `<plugin>` or `<plugin>_<name>`, routes `/api/cms/_p/<plugin>/…`,
+ * collide: entities and tables are `<plugin>` or `<plugin>_<name>`, routes `/api/cms/_p/<plugin>/…`,
  * admin pages `/admin/p/<plugin>/…`, upgrade steps `<plugin>:<id>`, texts
  * `plugins.<plugin>.…`. Mistakes (a taken name, a missing file, a route on someone
  * else's address) stop the build or the start with a message that names the plugin.
  *
- * File paths in a definition (`handler`, `file`, `components`, `serverPlugins`) are
+ * File paths in a definition (`handler`, `file`, `components`, `serverPlugins`, `appPlugins`) are
  * absolute: build them with `pluginFile(import.meta.url, './server/ping.ts')`, so a
  * plugin works from `node_modules` as it does from a folder of the site.
  */
+import { is } from 'drizzle-orm'
+import { getTableConfig, PgTable } from 'drizzle-orm/pg-core'
 import type { CmsEntity, CmsRegistry } from './entity'
 import type { LocalizedText } from './i18n'
 import type { UpgradeStep } from './upgrades'
@@ -87,6 +92,51 @@ export interface CmsFieldRenderer {
   cell?: string
 }
 
+/**
+ * A Nuxt app plugin (`defineNuxtPlugin`) the plugin adds to the site: a tracker on the
+ * website, a directive, a provide. The website and the admin are one Nuxt app, so it runs
+ * on both; a plugin meant for the website alone checks the route itself (`/admin` and below
+ * is the admin).
+ */
+export interface CmsPluginAppPlugin {
+  /** Absolute path of the file (`pluginFile(import.meta.url, './app/track.client.ts')`). */
+  src: string
+  /** Where it runs: `client` in the browser only, `server` while rendering only, `all` both (default, as in Nuxt). */
+  mode?: 'client' | 'server' | 'all'
+}
+
+/**
+ * A card on the admin's home page, between what is waiting for people and what they edited
+ * last. The component draws the whole card, heading included (`<section>` with an
+ * `h2.cms-label` and a `.cms-card`, like the home's own), and fetches its own data. When it
+ * has nothing to say it renders nothing (`v-if` on its root): the home then leaves no gap.
+ */
+export interface CmsDashboardWidget {
+  /** Name of a component in the plugin's `components` directory (its file name: `AnalyticsWidget`). */
+  component: string
+  /** Where among the widgets of all plugins, smallest first (default 0; equal ones keep the order plugins are registered in). */
+  order?: number
+  /** Shown to administrators only. */
+  adminOnly?: boolean
+}
+
+/**
+ * A panel in the side column of the entry editor, under the entry's own details: something
+ * about the entry that is not one of its fields (how often it was read, where it is shared).
+ * The editor gives it a heading (`label`); the component gets the props `entity` (its name),
+ * `id` and `locale` (the language being edited, `null` for a collection that is not translated) and fetches
+ * what it shows itself. It is not part of the form, so it stays usable for people who may
+ * only read the entry, and it is not shown while a new entry has not been saved yet.
+ */
+export interface CmsEntityPanel {
+  /** Name of a component in the plugin's `components` directory. */
+  component: string
+  /** The heading above the panel. */
+  label: LocalizedText
+  /** The collections it is shown for, by name (default: every collection). Singletons have no entry editor. */
+  entities?: string[]
+}
+
 /** What a plugin adds to an entity's entry in the admin graph (see `graph`). */
 export interface CmsGraphExtension {
   /** `false`: the admin offers no "New …" button for this collection (entries arrive some other way). */
@@ -126,13 +176,44 @@ export interface CmsPluginDef {
   singletons?: unknown[]
   /** Renderers for field types, by type (`{ color: { edit: 'EventsColorField' } }`); the site's own `app.config` still wins. */
   fields?: Record<string, CmsFieldRenderer>
-  /** Directory of Vue components, registered globally under their file names. Needed for `fields` and nothing else. */
+  /**
+   * Tables the plugin keeps that are not entries, so the admin has no list or editor for
+   * them: a log of raw events, daily totals. Plain Drizzle tables (`pgTable` from
+   * `drizzle-orm/pg-core`), each named `<prefix>` or `<prefix>_…` (the plugin's name, dashes as
+   * underscores) like entities, in the database's default schema. `tinyzoo generate` writes
+   * them into the site's schema.ts from `tablesSource`, so drizzle-kit makes their migrations
+   * along with the site's own and a deploy creates them like any other table. On the server
+   * they are in the registry (`useCms().reg.pluginTables`, by their SQL name), or the plugin's
+   * code imports them from its own module: the same objects.
+   */
+  tables?: PgTable[]
+  /**
+   * `tables` once more, as source: what `tinyzoo generate` pastes into schema.ts, the way
+   * tinyzoo's own tables get there (drizzle-kit reads a source file, not objects, and the
+   * plugin's module may not be loadable from where schema.ts is). One
+   * `export const <name in camelCase> = pgTable('<name>', …)` per table and nothing else, in
+   * plain JavaScript (no type annotations); `drizzle-orm/pg-core`'s builders and `sql` are
+   * imported for it. `tinyzoo generate` runs it and refuses a table that differs from the one
+   * in `tables`, so the two cannot drift apart unnoticed.
+   */
+  tablesSource?: string
+  /**
+   * Directory of Vue components, registered globally under their file names: field renderers
+   * (`fields`), dashboard widgets, entry panels, and components for the website's pages (the
+   * forms plugin's `<CmsForm>`).
+   */
   components?: string
   adminPages?: CmsPluginAdminPage[]
   navItems?: CmsPluginNavItem[]
+  /** Cards on the admin's home page (components from `components`). */
+  dashboardWidgets?: CmsDashboardWidget[]
+  /** Panels in the side column of the entry editor (components from `components`). */
+  entityPanels?: CmsEntityPanel[]
   serverHandlers?: CmsPluginHandler[]
   /** Absolute paths of Nitro plugin files (`defineNitroPlugin`). */
   serverPlugins?: string[]
+  /** Nuxt app plugins for the website and the admin (`defineNuxtPlugin`), e.g. a tracker in the browser. */
+  appPlugins?: CmsPluginAppPlugin[]
   hooks?: CmsPluginHooks
   /**
    * Admin texts by language: `{ en: { retention: '…' }, cs: { … } }`, nested objects of strings.
@@ -146,16 +227,21 @@ export interface CmsPluginDef {
   graph?: (entity: CmsEntity) => CmsGraphExtension | void
 }
 
-export interface CmsPlugin extends Readonly<Omit<CmsPluginDef, 'entities' | 'singletons'>> {
+export interface CmsPlugin extends Readonly<Omit<CmsPluginDef, 'entities' | 'singletons' | 'tables'>> {
   readonly __cms: 'plugin'
   readonly entities: readonly CmsEntity[]
   readonly singletons: readonly CmsEntity[]
+  readonly tables: readonly PgTable[]
 }
 
 // ── names ───────────────────────────────────────────────────────────────────────
 const NAME = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/
 const VERSION = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/
 const STEP_ID = /^[a-z0-9][a-z0-9-]*$/
+/** A Postgres table name tinyzoo writes without quoting trouble (63 bytes is Postgres' limit). */
+const TABLE_NAME = /^[a-z][a-z0-9_]{0,62}$/
+/** A global component's name as Nuxt registers it from a file name. */
+const COMPONENT_NAME = /^[A-Z][A-Za-z0-9]*$/
 const LOCALE = /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/
 const RESERVED_PLUGIN_NAMES = new Set(['cms', 'core', 'tinyzoo', 'admin', 'api', 'content', 'media', 'plugins', 'p', 'auth', 'system'])
 /** Content API addresses tinyzoo uses itself (`server/api/content/_*`), and the forms plugin's. */
@@ -198,6 +284,28 @@ export function pluginFile(base: string | URL, relative: string): string {
 }
 
 const isAbsolute = (p: string) => p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p)
+
+/** `analytics_events` → `analyticsEvents`: a plugin table's name in schema.ts, as entities are named there. */
+const camelName = (s: string) => s.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase())
+
+/**
+ * The tables a plugin's `tablesSource` exports, by export name → SQL name, checked to be only
+ * `export const x = pgTable('x_…', …)` statements (it is pasted into schema.ts as it is, next to
+ * every other table, so a helper of its own could collide with one there).
+ *
+ * @internal
+ */
+export function sourceTables(plugin: string, source: string): Map<string, string> {
+  const out = new Map<string, string>()
+  for (const line of source.split('\n')) {
+    if (!/^(export|import|const|let|var|function|class|type|interface|enum|declare)\b/.test(line)) continue
+    const m = /^export const ([A-Za-z_$][\w$]*)\s*=\s*pgTable\(\s*(['"])([^'"]+)\2/.exec(line)
+    if (!m) fail(plugin, `tablesSource may hold only \`export const <name> = pgTable('<name>', …)\` statements (it is pasted into schema.ts as it is), got: ${line.trim()}`)
+    if (out.has(m![1]!)) fail(plugin, `tablesSource exports "${m![1]}" twice.`)
+    out.set(m![1]!, m![3]!)
+  }
+  return out
+}
 
 function checkRoute(name: string, what: string, route: string) {
   if (!route.startsWith('/')) fail(name, `${what} "${route}" must start with "/".`)
@@ -274,6 +382,56 @@ export function defineCmsPlugin(def: CmsPluginDef): CmsPlugin {
   if (def.components !== undefined && !isAbsolute(def.components)) fail(name, 'components must be an absolute directory (use pluginFile(import.meta.url, "./components")).')
   if (Object.keys(def.fields ?? {}).length && !def.components) fail(name, 'fields name components, so the plugin needs `components` (the directory they are in).')
 
+  const checkComponent = (what: string, component: unknown) => {
+    if (typeof component !== 'string' || !COMPONENT_NAME.test(component)) fail(name, `${what}: "${component}" is not a component name (its file name in \`components\`, e.g. "ShopWidget").`)
+    if (!def.components) fail(name, `${what} names a component, so the plugin needs \`components\` (the directory it is in).`)
+  }
+  const widgets = new Set<string>()
+  for (const w of def.dashboardWidgets ?? []) {
+    checkComponent('dashboardWidgets', w?.component)
+    if (widgets.has(w.component)) fail(name, `dashboardWidgets: "${w.component}" is listed twice.`)
+    widgets.add(w.component)
+    if (w.order !== undefined && !Number.isFinite(w.order)) fail(name, `dashboardWidgets "${w.component}": order must be a number.`)
+  }
+  const panels = new Set<string>()
+  for (const panel of def.entityPanels ?? []) {
+    checkComponent('entityPanels', panel?.component)
+    if (panels.has(panel.component)) fail(name, `entityPanels: "${panel.component}" is listed twice.`)
+    panels.add(panel.component)
+    if (!panel.label) fail(name, `entityPanels "${panel.component}": a panel needs a label (its heading in the editor).`)
+    if (panel.entities !== undefined && (!Array.isArray(panel.entities) || !panel.entities.length || panel.entities.some((e) => typeof e !== 'string' || !e))) {
+      fail(name, `entityPanels "${panel.component}": entities is a list of collection names (leave it out for every collection).`)
+    }
+  }
+
+  const tables: PgTable[] = []
+  const tableNames = new Set<string>()
+  for (const t of def.tables ?? []) {
+    if (!is(t, PgTable)) fail(name, 'tables takes Drizzle tables made with pgTable() from drizzle-orm/pg-core.')
+    const config = getTableConfig(t)
+    if (config.schema) fail(name, `the table "${config.name}" is in the Postgres schema "${config.schema}"; plugin tables live in the default schema, with the site's.`)
+    if (!TABLE_NAME.test(config.name)) fail(name, `the table "${config.name}" needs a name of lowercase letters, digits and "_" (at most 63).`)
+    if (config.name !== prefix && !config.name.startsWith(`${prefix}_`)) {
+      fail(name, `the table "${config.name}" must be named "${prefix}" or "${prefix}_…", so it cannot collide with the site or another plugin.`)
+    }
+    if (tableNames.has(config.name)) fail(name, `the table "${config.name}" is listed twice.`)
+    tableNames.add(config.name)
+    tables.push(t)
+  }
+  if (tables.length && (typeof def.tablesSource !== 'string' || !def.tablesSource.trim())) {
+    fail(name, 'tables need `tablesSource`: the same tables as source, which `tinyzoo generate` writes into schema.ts so drizzle-kit makes their migrations.')
+  }
+  if (def.tablesSource !== undefined) {
+    if (!tables.length) fail(name, 'tablesSource is given but tables is empty: list the Drizzle tables in `tables` as well (the server uses those).')
+    const exported = sourceTables(name, String(def.tablesSource))
+    for (const sqlName of tableNames) {
+      if (exported.get(camelName(sqlName)) !== sqlName) fail(name, `tablesSource has no \`export const ${camelName(sqlName)} = pgTable('${sqlName}', …)\` (each table is exported under its name in camelCase).`)
+    }
+    for (const [exportName, sqlName] of exported) {
+      if (!tableNames.has(sqlName) || exportName !== camelName(sqlName)) fail(name, `tablesSource exports "${exportName}" (${sqlName}), which is not one of \`tables\`.`)
+    }
+  }
+
   const pages = new Set<string>()
   for (const page of def.adminPages ?? []) {
     if (typeof page.path !== 'string' || (page.path !== '' && !/^[A-Za-z0-9_\-:]+(\/[A-Za-z0-9_\-:]+)*$/.test(page.path))) {
@@ -321,6 +479,10 @@ export function defineCmsPlugin(def: CmsPluginDef): CmsPlugin {
     }
   }
   for (const p of def.serverPlugins ?? []) if (!isAbsolute(p)) fail(name, `serverPlugins: "${p}" must be an absolute path.`)
+  for (const p of def.appPlugins ?? []) {
+    if (!p || !isAbsolute(String(p.src ?? ''))) fail(name, `appPlugins: "${p?.src}" must be an absolute path (use pluginFile(import.meta.url, "./app/….ts")).`)
+    if (p.mode !== undefined && !['client', 'server', 'all'].includes(p.mode)) fail(name, `appPlugins "${p.src}": mode is 'client', 'server' or 'all', got "${p.mode}".`)
+  }
 
   for (const key of Object.keys(def.hooks ?? {})) {
     if (key !== 'retention') fail(name, `hooks: "${key}" is not a hook (available: retention).`)
@@ -336,7 +498,7 @@ export function defineCmsPlugin(def: CmsPluginDef): CmsPlugin {
     if (s.since !== undefined && !VERSION.test(s.since)) fail(name, `upgrade step "${s.id}": since must look like 1.2.3.`)
   }
 
-  return Object.freeze({ ...def, __cms: 'plugin' as const, entities, singletons }) as CmsPlugin
+  return Object.freeze({ ...def, __cms: 'plugin' as const, entities, singletons, tables }) as CmsPlugin
 }
 
 /** `:id` and `:slug` are the same address: compare routes without the parameter names. */
@@ -477,6 +639,11 @@ export interface PluginPlan {
   serverPlugins: string[]
   componentDirs: string[]
   navItems: { plugin: string; label: LocalizedText; icon?: string; to: string; group: 'content' | 'settings'; adminOnly: boolean }[]
+  appPlugins: { src: string; mode: 'client' | 'server' | 'all'; plugin: string }[]
+  /** Sorted by `order`, then the order the plugins are registered in. */
+  dashboardWidgets: { plugin: string; component: string; order: number; adminOnly: boolean }[]
+  /** `entities: null`: every collection. */
+  entityPanels: { plugin: string; component: string; label: LocalizedText; entities: string[] | null }[]
   fields: Record<string, { edit?: string; cell?: string; plugin: string }>
   messages: Record<string, Record<string, Record<string, unknown>>>
   plugins: { name: string; version: string }[]
@@ -491,7 +658,7 @@ export interface PluginPlan {
  */
 export function planPlugins(plugins: readonly CmsPlugin[], opts: { exists?: (file: string) => boolean } = {}): PluginPlan {
   const exists = opts.exists ?? (() => true)
-  const plan: PluginPlan = { pages: [], handlers: [], serverPlugins: [], componentDirs: [], navItems: [], fields: {}, messages: {}, plugins: [] }
+  const plan: PluginPlan = { pages: [], handlers: [], serverPlugins: [], componentDirs: [], navItems: [], appPlugins: [], dashboardWidgets: [], entityPanels: [], fields: {}, messages: {}, plugins: [] }
   const names = new Set<string>()
   const taken = new Map<string, string>() // "get /api/cms/_p/x/y" → plugin
   const need = (plugin: string, what: string, file: string) => {
@@ -501,6 +668,12 @@ export function planPlugins(plugins: readonly CmsPlugin[], opts: { exists?: (fil
     const other = taken.get(key)
     if (other) fail(plugin, `${shown} is already served by the plugin "${other}".`)
     taken.set(key, plugin)
+  }
+  const components = new Map<string, string>() // widget or panel component → plugin
+  const ownComponent = (plugin: string, component: string) => {
+    const other = components.get(component)
+    if (other && other !== plugin) fail(plugin, `the component "${component}" is also a widget or panel of the plugin "${other}" (components are global: give each plugin's its own name).`)
+    components.set(component, plugin)
   }
   for (const p of plugins) {
     if (names.has(p.name)) throw new Error(`Two plugins are named "${p.name}": register it once.`)
@@ -530,6 +703,10 @@ export function planPlugins(plugins: readonly CmsPlugin[], opts: { exists?: (fil
       need(p.name, 'server plugin', file)
       plan.serverPlugins.push(file)
     }
+    for (const app of p.appPlugins ?? []) {
+      need(p.name, 'app plugin', app.src)
+      plan.appPlugins.push({ src: app.src, mode: app.mode ?? 'all', plugin: p.name })
+    }
     if (p.components) {
       need(p.name, 'components directory', p.components)
       plan.componentDirs.push(p.components)
@@ -543,7 +720,19 @@ export function planPlugins(plugins: readonly CmsPlugin[], opts: { exists?: (fil
       const to = item.page !== undefined ? (item.page ? `${pluginAdminBase(p.name)}/${item.page}` : pluginAdminBase(p.name)) : item.to!
       plan.navItems.push({ plugin: p.name, label: item.label, icon: item.icon, to, group: item.group ?? 'content', adminOnly: !!item.adminOnly })
     }
+    // Components are global, so a widget or panel of one plugin could be drawn by another's
+    // component of the same name: refuse that here rather than show the wrong card.
+    for (const w of p.dashboardWidgets ?? []) {
+      ownComponent(p.name, w.component)
+      plan.dashboardWidgets.push({ plugin: p.name, component: w.component, order: w.order ?? 0, adminOnly: !!w.adminOnly })
+    }
+    for (const panel of p.entityPanels ?? []) {
+      ownComponent(p.name, panel.component)
+      plan.entityPanels.push({ plugin: p.name, component: panel.component, label: panel.label, entities: panel.entities ? [...panel.entities] : null })
+    }
     if (p.i18n) plan.messages[p.name] = p.i18n as Record<string, Record<string, unknown>>
   }
+  // A stable sort: equal orders keep the plugins' order.
+  plan.dashboardWidgets.sort((a, b) => a.order - b.order)
   return plan
 }

@@ -25,20 +25,38 @@ A site registers plugins in `cms.config.ts` with `export const plugins = [events
 | `version` | `string` | The plugin's own version, as `1.2.3`. Its upgrade steps are recorded with it |
 | `entities` | `unknown[]` | Collections made with `defineEntity` (any `Entity` fits). Each is named `<name>` or `<name>_…` |
 | `singletons` | `unknown[]` | Globals made with `defineSingleton`, named the same way |
+| `tables` | `PgTable[]` | Drizzle tables that are not entries, see [Tables](#tables) |
+| `tablesSource` | `string` | The same tables as source, for the site's schema.ts, see [Tables](#tables) |
 | `serverHandlers` | `CmsPluginHandler[]` | Server routes, see [Server routes](#server-routes) |
 | `adminPages` | `CmsPluginAdminPage[]` | Pages in the admin, see [Admin pages](#admin-pages) |
 | `navItems` | `CmsPluginNavItem[]` | Entries in the admin's sidebar, see [Sidebar entries](#sidebar-entries) |
+| `dashboardWidgets` | `CmsDashboardWidget[]` | Cards on the admin's home page, see [Home widgets](#home-widgets) |
+| `entityPanels` | `CmsEntityPanel[]` | Panels in the entry editor, see [Entry panels](#entry-panels) |
 | `fields` | `Record<string, CmsFieldRenderer>` | Components for a field type, see [Field editors](#field-editors) |
-| `components` | `string` | An absolute folder. Every `.vue` file in it becomes a global component, named after its file. `fields` needs it |
+| `components` | `string` | An absolute folder. Every `.vue` file in it becomes a global component, named after its file. `fields`, `dashboardWidgets` and `entityPanels` need it |
 | `i18n` | `Record<string, Record<string, unknown>>` | The plugin's admin texts per language, see [Texts](#texts) |
 | `hooks` | `CmsPluginHooks` | Code tinyzoo calls at set moments, see [Hooks](#hooks) |
 | `graph` | `(entity: CmsEntity) => CmsGraphExtension \| void` | Changes to a collection's list in the admin, see [List notes](#list-notes) |
 | `serverPlugins` | `string[]` | Absolute paths of Nitro plugin files (`export default defineNitroPlugin(…)`). They start with the server |
+| `appPlugins` | `CmsPluginAppPlugin[]` | Nuxt app plugins for the website and the admin, see [App plugins](#app-plugins) |
 | `upgrades` | `CmsPluginUpgradeStep[]` | Data work a migration cannot do, see [Upgrade steps](#upgrade-steps) |
 
 Names a plugin cannot take: `cms`, `core`, `tinyzoo`, `admin`, `api`, `content`, `media`, `plugins`, `p`, `auth` and `system`.
 
 In entity names, dashes become underscores. The plugin `my-shop` names its entities `my_shop` or `my_shop_…`.
+
+## Tables
+
+`tables` and `tablesSource` go together: give both or neither.
+
+| Option | Type | What it is |
+|---|---|---|
+| `tables` | `PgTable[]` | Tables made with `pgTable` from `drizzle-orm/pg-core`. Each is named `<name>` or `<name>_…` (dashes as underscores), in the default schema |
+| `tablesSource` | `string` | The same tables as source. Only `export const <name in camelCase> = pgTable('<name>', …)` statements, in plain JavaScript. `drizzle-orm/pg-core`'s builders and `sql` are imported for it |
+
+`tinyzoo generate` pastes `tablesSource` into the site's `server/db/schema.ts`, so drizzle-kit makes the tables' migrations. Before that it runs the source and compares every table with the one in `tables`: columns, primary keys, foreign keys, unique constraints, indexes and checks. A difference stops it.
+
+On the server the tables are in the registry: `useCms().reg.pluginTables` is a `Map` from the SQL name to the table. A table's name cannot be one an entity's table already has.
 
 ## Server routes
 
@@ -86,6 +104,41 @@ Handlers can use these server helpers without an import:
 | `group` | `'content' \| 'settings'` | `'content'` | Where in the sidebar the entry goes |
 | `adminOnly` | `boolean` | `false` | Shows the entry to administrators only |
 
+## Home widgets
+
+`CmsDashboardWidget`, one item of `dashboardWidgets`.
+
+| Field | Type | Default | What it does |
+|---|---|---|---|
+| `component` | `string` | required | A component of the plugin's `components` folder, by its file name (`StatsVisitors`) |
+| `order` | `number` | `0` | Sorts the widgets of all plugins, smallest first. Equal orders keep the order the plugins are registered in |
+| `adminOnly` | `boolean` | `false` | Shows the widget to administrators only |
+
+Widgets sit in the home's main column, before "Recent". The component draws its own card and heading. When it renders nothing, the home leaves no gap. Two plugins cannot use one component name for a widget or a panel.
+
+## Entry panels
+
+`CmsEntityPanel`, one item of `entityPanels`.
+
+| Field | Type | Default | What it does |
+|---|---|---|---|
+| `component` | `string` | required | A component of the plugin's `components` folder |
+| `label` | `LocalizedText` | required | The heading above the panel |
+| `entities` | `string[]` | every collection | The collections it is shown for. A name that is not a collection of the site stops the build |
+
+The panel sits in the side column of the entry editor, under the details. Its component gets the props `entity` (`string`), `id` (`string`) and `locale` (`string | null`, the language being edited). It is outside the form, and it is not shown for an entry that has not been saved yet.
+
+## App plugins
+
+`CmsPluginAppPlugin`, one item of `appPlugins`.
+
+| Field | Type | Default | What it does |
+|---|---|---|---|
+| `src` | `string` | required | The absolute path of a Nuxt plugin file (`export default defineNuxtPlugin(…)`) |
+| `mode` | `'client' \| 'server' \| 'all'` | `'all'` | Where it runs: in the browser, while rendering, or both |
+
+They are added after the site's and tinyzoo's own plugins. The website and the admin are one app, so they run on both.
+
 ## Field editors
 
 `CmsFieldRenderer`, the value for one field type in `fields`. Give it at least one of the two.
@@ -119,7 +172,7 @@ The site's own `cms.fields` in `app.config.ts` wins over a plugin. Two plugins c
 | Field | Type | What it is |
 |---|---|---|
 | `tx` | `any` (a drizzle transaction) | The task's transaction. It holds the task's lock, so one instance runs at a time |
-| `reg` | `CmsRegistry` | The site's entities: `entities`, `byName`, `locales`, `plugins` and `pluginOf` |
+| `reg` | `CmsRegistry` | The site's entities: `entities`, `byName`, `locales`, `plugins`, `pluginOf` and `pluginTables` |
 | `batch` | `number` | How many rows to delete in one statement |
 
 ## List notes

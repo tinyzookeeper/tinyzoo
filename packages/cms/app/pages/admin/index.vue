@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Admin home. One brand moment (the cream welcome with an animal and the few things
 // people come to add), then what needs them ("Waiting for you", "Needs translating"),
-// what they touched last, their website and what is coming up. Sections with nothing in
-// them stay away.
+// the cards plugins add (dashboardWidgets), what they touched last, their website and what
+// is coming up. Sections with nothing in them stay away.
 definePageMeta({ layout: 'admin' })
 
 const { t, entitySingular, entityLabel, formatDate, formatDateWith, languageName, locale } = useCmsI18n()
@@ -82,6 +82,14 @@ const summary = computed(() => {
   if (next) parts.push(t('home.summaryNext', { title: short(next.title || t('common.untitled')), date: formatDate(next.at, { time: false }) }))
   return parts.join(' ')
 })
+
+// Cards plugins add (defineCmsPlugin `dashboardWidgets`), already in their order. A component that
+// is not registered (a typo, a plugin's file gone) is left out rather than drawn as an unknown tag.
+type PluginWidget = { plugin: string; component: string; order: number; adminOnly: boolean }
+const pluginWidgets = (((useRuntimeConfig().public.cmsPlugins as any)?.dashboardWidgets ?? []) as PluginWidget[])
+  .map((w) => ({ ...w, is: resolveComponent(w.component) }))
+  .filter((w) => typeof w.is !== 'string')
+const widgets = computed(() => pluginWidgets.filter((w) => !w.adminOnly || user.value?.role === 'admin'))
 
 /** The editor of an item; for one language of an entry that publishes per language, in that language. */
 const itemTo = (item: { entity: string; id: string; locale?: string }) => `/admin/${item.entity}/${item.id}${item.locale ? `?locale=${item.locale}` : ''}`
@@ -189,6 +197,12 @@ const leaf = (d: string) => ({
               </NuxtLink>
             </p>
           </section>
+
+          <!-- plugins' cards: each draws its own section; one with nothing to show renders nothing,
+               and its empty wrapper (comments only) is hidden, so it leaves no gap -->
+          <div v-for="w in widgets" :key="`${w.plugin}:${w.component}`" class="min-w-0 empty:hidden">
+            <component :is="w.is" />
+          </div>
 
           <section>
             <h2 class="cms-label mb-2">{{ t('home.recent') }}</h2>

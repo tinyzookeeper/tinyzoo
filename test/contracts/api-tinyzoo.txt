@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (110) ─────────────────────────────────────────────────
+// ── public (113) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -121,6 +121,12 @@ export interface CmsContentProps {
     doc: CmsContentNode | null;
 }
 
+export interface CmsDashboardWidget {
+    component: string;
+    order?: number;
+    adminOnly?: boolean;
+}
+
 export type CmsEditorLayout = 'write' | 'form' | 'preview';
 
 export interface CmsEntity {
@@ -179,6 +185,12 @@ export interface CmsEntity {
 }
 
 export type CmsEntityOp = 'read' | 'create' | 'update' | 'delete';
+
+export interface CmsEntityPanel {
+    component: string;
+    label: LocalizedText;
+    entities?: string[];
+}
 
 export interface CmsErrorReport {
     source: 'request' | 'task' | 'webhook';
@@ -296,15 +308,21 @@ export interface CmsNavProps {
     links: CmsNavLink[] | null | undefined;
 }
 
-export interface CmsPlugin extends Readonly<Omit<CmsPluginDef, 'entities' | 'singletons'>> {
+export interface CmsPlugin extends Readonly<Omit<CmsPluginDef, 'entities' | 'singletons' | 'tables'>> {
     readonly __cms: 'plugin';
     readonly entities: readonly CmsEntity[];
     readonly singletons: readonly CmsEntity[];
+    readonly tables: readonly PgTable[];
 }
 
 export interface CmsPluginAdminPage {
     path: string;
     file: string;
+}
+
+export interface CmsPluginAppPlugin {
+    src: string;
+    mode?: 'client' | 'server' | 'all';
 }
 
 export interface CmsPluginDef {
@@ -313,11 +331,16 @@ export interface CmsPluginDef {
     entities?: unknown[];
     singletons?: unknown[];
     fields?: Record<string, CmsFieldRenderer>;
+    tables?: PgTable[];
+    tablesSource?: string;
     components?: string;
     adminPages?: CmsPluginAdminPage[];
     navItems?: CmsPluginNavItem[];
+    dashboardWidgets?: CmsDashboardWidget[];
+    entityPanels?: CmsEntityPanel[];
     serverHandlers?: CmsPluginHandler[];
     serverPlugins?: string[];
+    appPlugins?: CmsPluginAppPlugin[];
     hooks?: CmsPluginHooks;
     i18n?: Record<string, Record<string, unknown>>;
     upgrades?: CmsPluginUpgradeStep[];
@@ -355,6 +378,7 @@ export interface CmsRegistry {
     locales: LocalesDef | null;
     plugins: CmsPlugin[];
     pluginOf: Map<string, string>;
+    pluginTables: Map<string, PgTable>;
 }
 
 export interface CmsRetentionContext {
