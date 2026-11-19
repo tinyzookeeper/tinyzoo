@@ -37,7 +37,7 @@ describe('the status route', () => {
     expect(s.database).toMatchObject({ ok: true })
     expect(s.database.bytes).toBeGreaterThan(0)
     expect(s.webhooks).toEqual({ urls: 2, signed: true })
-    expect(s.plugins.map((p) => p.name)).toEqual(['forms', 'events'])
+    expect(s.plugins.map((p) => p.name)).toEqual(['forms', 'events', 'analytics', 'consent'])
 
     const tag = s.content.collections.find((c) => c.name === 'tag')!
     expect(tag).toMatchObject({ kind: 'collection' })

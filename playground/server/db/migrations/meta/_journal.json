@@ -166,15 +166,22 @@
     {
       "idx": 23,
       "version": "7",
-      "when": 1795118697326,
-      "tag": "0023_analytics_plugin",
+      "when": 1795116200799,
+      "tag": "0023_mcp_access",
       "breakpoints": true
     },
     {
       "idx": 24,
       "version": "7",
-      "when": 1795121801735,
-      "tag": "0024_consent_plugin",
+      "when": 1795122653371,
+      "tag": "0024_analytics_plugin",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795122774723,
+      "tag": "0025_consent_plugin",
       "breakpoints": true
     }
   ]

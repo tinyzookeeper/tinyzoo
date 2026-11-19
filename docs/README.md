@@ -17,6 +17,7 @@ Since 1.0, tinyzoo follows semver. [tinyzoo 1.0](stability.md) says what stays s
 | [The content API reference](guide/content-api-reference.md) | Every route to look things up on: parameters, filters, languages, preview, the token, caching and errors |
 | [Media](guide/media.md) | Uploads, limits, the storage drivers (local disk, S3, Cloudflare R2) and drawing pictures on the website |
 | [The admin](guide/admin.md) | Accounts and roles, branding the admin, form layouts and replacing how a field is drawn |
+| [The MCP server](guide/mcp.md) | Programs that read and edit the content over MCP: access tokens, their rights, the tools |
 | [Roles and permissions](guide/roles.md) | Roles of your own, who reads and edits each field, media per role, removed roles, a worked example with a translator |
 | [Seeding](guide/seeding.md) | Content a site starts with, written in code and put into a running site with `tinyzoo seed` |
 | [Content between environments](guide/content-transfer.md) | `tinyzoo export` and `import`: production to staging, a laptop to a server |

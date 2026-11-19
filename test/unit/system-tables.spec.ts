@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { getTableConfig } from 'drizzle-orm/pg-core'
-import { cmsAudit, cmsMedia, cmsSearch, cmsTokens, cmsUsers } from 'tinyzoo'
+import { cmsAccessTokens, cmsAudit, cmsOauthClients, cmsOauthCodes, cmsOauthRequests, cmsMedia, cmsSearch, cmsTokens, cmsUsers } from 'tinyzoo'
 import * as emitted from '../../playground/server/db/schema'
 
 // The CMS's own tables exist twice: as runtime Drizzle tables and as source
@@ -22,6 +22,10 @@ describe('system tables: runtime definition = emitted schema', () => {
     ['cms_media', cmsMedia, emitted.cmsMedia],
     ['cms_users', cmsUsers, emitted.cmsUsers],
     ['cms_tokens', cmsTokens, emitted.cmsTokens],
+    ['cms_access_tokens', cmsAccessTokens, emitted.cmsAccessTokens],
+    ['cms_oauth_clients', cmsOauthClients, emitted.cmsOauthClients],
+    ['cms_oauth_requests', cmsOauthRequests, emitted.cmsOauthRequests],
+    ['cms_oauth_codes', cmsOauthCodes, emitted.cmsOauthCodes],
     ['cms_audit', cmsAudit, emitted.cmsAudit],
     ['cms_search', cmsSearch, emitted.cmsSearch],
   ])('%s', (_, runtime, source) => {

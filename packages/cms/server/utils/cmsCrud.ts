@@ -155,6 +155,8 @@ export function accessWhere(
  * People who may not publish cannot write content that is live the moment it is saved.
  */
 export function roleAccess(e: CmsEntity, op: 'read' | 'create' | 'update' | 'delete', user: CmsUser): { allowed: boolean; where: any } {
+  // A personal access token reaches only the collections and operations it was given.
+  if (!tokenAllows(user, e, op)) return { allowed: false, where: undefined }
   const role = roleOf(user)
   if (!role) return { allowed: false, where: undefined }
   if (role.base === 'admin') return { allowed: true, where: undefined }
