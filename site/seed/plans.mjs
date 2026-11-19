@@ -8,12 +8,18 @@
 // it to fill a new or half-filled site, not on a site whose editors keep the plans.
 // Used by scripts/seed.mjs and, on its own, by scripts/seed-plans.mjs.
 //
+// After a release changes the plans, `seedPlans(req, { update: true })` (`pnpm seed:plans
+// --update`) also brings the plans the site has up to this file: stage, version, animal and
+// the texts in all three languages. A plan whose Czech title changed names its old titles
+// in `was`, so it is updated instead of added twice. Only the plans listed here are touched,
+// and their order is kept; a plan an editor added stays as it is.
+//
 // In this order: the page groups them by stage, and the admin's "Arrange" list then
 // reads stage by stage too (now, next, later, done; done newest first).
 export const PLANS = [
   // ── now ──
   {
-    stage: 'now', animal: 'bunny',
+    stage: 'now', animal: 'bunny', was: ['Co znamená tinyzoo 1.0'],
     cs: { title: 'Co znamená verze 1', text: 'Po aktualizaci v rámci verze 1 bude váš web dál fungovat bez úprav. Příručku pro editory i dokumentaci pro vývojáře najdete na tomto webu.' },
     en: { title: 'What version 1 means', text: 'Your website keeps working after updates within version 1, with no rework needed. You’ll find the guide for editors and the developer documentation on this site.' },
     de: { title: 'Was Version 1 bedeutet', text: 'Bei Updates innerhalb der Version 1 läuft Ihre Website ohne Anpassungen weiter. Das Handbuch für Redakteure und die Dokumentation für Entwickler finden Sie auf dieser Website.' },
@@ -136,7 +142,7 @@ export const PLANS = [
  * text of a seeded plan that lacks it. `req(method, path, body)` is the caller's signed-in
  * admin API request (it throws on an error status). Returns how many plans it added.
  */
-export async function seedPlans(req) {
+export async function seedPlans(req, { update = false } = {}) {
   // Every plan the site has (the admin API gives at most 100 a page).
   const existing = []
   for (let page = 1; ; page++) {
@@ -149,9 +155,18 @@ export async function seedPlans(req) {
   let position = Math.max(0, ...existing.map((row) => Number(row.position) || 0))
   let added = 0
   let translated = 0
+  let updated = 0
   for (const plan of PLANS) {
-    const { cs, en, de, ...shared } = plan
-    const found = byTitle.get(cs.title)
+    const { cs, en, de, was = [], ...shared } = plan
+    const found = [cs.title, ...was].map((t) => byTitle.get(t)).find(Boolean)
+    if (found && update) {
+      // Bring it up to this file: the shared fields and the Czech text, then each translation.
+      await req('PATCH', `/api/cms/plan/${found.id}`, { ...cs, version: null, animal: null, ...shared })
+      await req('PATCH', `/api/cms/plan/${found.id}?locale=en`, en)
+      await req('PATCH', `/api/cms/plan/${found.id}?locale=de`, de)
+      updated++
+      continue
+    }
     if (found) {
       // Seeded before: add a translation only where there is none (a run that stopped after the Czech).
       const { row } = await req('GET', `/api/cms/plan/${found.id}`)
@@ -171,6 +186,7 @@ export async function seedPlans(req) {
   }
   const kept = existing.length ? `, ${existing.length} the site had left as they were` : ''
   const filled = translated ? `, ${translated} missing translation${translated === 1 ? '' : 's'} added` : ''
-  console.log(added || translated ? `✓ plans: ${added} added (cs, en, de)${filled}${kept}` : `· plans: the site has all ${PLANS.length}, left alone`)
+  if (update) console.log(`✓ plans: ${updated} brought up to date, ${added} added (cs, en, de)`)
+  else console.log(added || translated ? `✓ plans: ${added} added (cs, en, de)${filled}${kept}` : `· plans: the site has all ${PLANS.length}, left alone`)
   return added
 }
