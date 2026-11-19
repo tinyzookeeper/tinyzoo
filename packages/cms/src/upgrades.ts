@@ -131,6 +131,19 @@ export const CORE_UPGRADE_STEPS: UpgradeStep[] = [
     when: ({ pendingStatements }) => pendingStatements.some((s) => s.includes('gin_trgm_ops')),
     run: async ({ run }) => { await run('CREATE EXTENSION IF NOT EXISTS pg_trgm') },
   },
+  {
+    id: 'media-in-library',
+    since: '1.0.0',
+    description: 'Keep the files uploaded before the media library came in 0.2 in the library',
+    phase: 'after',
+    // Only a site from before 0.2 gains the column: its migration adds it as `false` for
+    // every file, and a file that is not in the library is deleted once nothing uses it.
+    // 0.2's own playground migration set every existing file to `true`; sites got neither
+    // that line nor this step until 1.0. On the run that adds the column every file is an
+    // old one, so marking all of them is exact.
+    when: ({ pendingStatements }) => pendingStatements.some((s) => /ALTER TABLE\s+(?:"[^"]+"\.)?"cms_media"\s+ADD COLUMN\s+"in_library"/i.test(s)),
+    run: async ({ run }) => { await run('UPDATE "cms_media" SET "in_library" = true WHERE "in_library" = false') },
+  },
 ]
 
 /**
