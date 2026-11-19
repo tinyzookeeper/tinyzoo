@@ -153,6 +153,7 @@ export async function erasePerson(db: any, reg: CmsRegistry, email: string, acto
         sessionVersion: sql`${u.sessionVersion} + 1`, updatedAt: new Date(),
       }).where(eq(u.id, account.id))
       await tx.delete(reg.cmsTokens).where(eq(reg.cmsTokens.userId, account.id))
+      await tx.delete(reg.cmsAccessTokens).where(eq(reg.cmsAccessTokens.userId, account.id))
       await tx.delete(reg.cmsState).where(eq(reg.cmsState.key, emailChangeStateKey(account.id)))
       await tx.delete(reg.cmsState).where(sql`${reg.cmsState.key} like ${emailRevertStatePattern(account.id)}`)
     }

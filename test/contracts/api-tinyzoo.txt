@@ -942,7 +942,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (198): exported, not part of the frozen API, may change in any minor ──
+// ── internal (199): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
@@ -1039,6 +1039,7 @@ function checkTree
 function checkTreeChange
 function childrenMap
 function classifyMigrations
+const cmsAccessTokens
 const cmsAudit
 const cmsCollab
 function cmsDeprecated

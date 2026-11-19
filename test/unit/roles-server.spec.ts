@@ -20,6 +20,8 @@ g.cmsAuthMode = () => mode
 g.createError = (o: any) => Object.assign(new Error(o.statusMessage), o)
 g.requireCmsUser = (event: any) => event.user
 for (const [k, v] of Object.entries(rolesUtil)) g[k] = v
+// A personal access token narrows the role (cmsAccessTokens.ts): roleOf and roleAccess ask it.
+for (const [k, v] of Object.entries(await load('cmsAccessTokens.ts'))) g[k] = v
 
 const post = defineEntity('post', { label: 'Posts', titleField: 'title', fields: { title: f.text(), status: f.select({ options: ['draft', 'live'] as const, default: 'draft' }) }, content: { public: true }, publish: { field: 'status', publishedValue: 'live', draftValue: 'draft' } }) as any
 const tag = defineEntity('tag', { label: 'Tags', titleField: 'name', fields: { name: f.text() }, content: { public: true } }) as any // live the moment it is saved

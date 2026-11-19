@@ -55,6 +55,30 @@ export const cmsTokens = pgTable('cms_tokens', {
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('cms_tokens_hash_unique').on(t.tokenHash), index('cms_tokens_user_idx').on(t.userId)])
 
+/**
+ * Personal access tokens (`tzp_…`) for the MCP server (`/api/mcp`). A token acts as the person
+ * who made it, with their role, narrowed to the `rights` they chose (see CmsTokenRights). Only
+ * the SHA-256 is stored; the token itself is shown once. It stops working when it is revoked,
+ * when it expires, or when its person is disabled or deleted.
+ *
+ * @internal
+ */
+export const cmsAccessTokens = pgTable('cms_access_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => cmsUsers.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  // SHA-256 of the whole token, hex.
+  tokenHash: text('token_hash').notNull(),
+  // The start of the token (tzp_ab12cd), to tell tokens apart in a list.
+  prefix: text('prefix').notNull(),
+  // What it may do (CmsTokenRights): never more than the person's role.
+  rights: jsonb('rights').notNull(),
+  expiresAt: ts('expires_at'),
+  lastUsedAt: ts('last_used_at'),
+  revokedAt: ts('revoked_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('cms_access_tokens_hash_unique').on(t.tokenHash), index('cms_access_tokens_user_idx').on(t.userId)])
+
 /** @internal */
 export const cmsAudit = pgTable('cms_audit', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -178,6 +202,19 @@ export const cmsTokens = pgTable('cms_tokens', {
   createdBy: uuid('created_by'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('cms_tokens_hash_unique').on(t.tokenHash), index('cms_tokens_user_idx').on(t.userId)])
+
+export const cmsAccessTokens = pgTable('cms_access_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => cmsUsers.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  prefix: text('prefix').notNull(),
+  rights: jsonb('rights').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('cms_access_tokens_hash_unique').on(t.tokenHash), index('cms_access_tokens_user_idx').on(t.userId)])
 
 export const cmsAudit = pgTable('cms_audit', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -52,6 +52,19 @@ export const cmsTokens = pgTable('cms_tokens', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('cms_tokens_hash_unique').on(t.tokenHash), index('cms_tokens_user_idx').on(t.userId)])
 
+export const cmsAccessTokens = pgTable('cms_access_tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => cmsUsers.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  tokenHash: text('token_hash').notNull(),
+  prefix: text('prefix').notNull(),
+  rights: jsonb('rights').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('cms_access_tokens_hash_unique').on(t.tokenHash), index('cms_access_tokens_user_idx').on(t.userId)])
+
 export const cmsAudit = pgTable('cms_audit', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id'),

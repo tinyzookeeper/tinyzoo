@@ -372,5 +372,6 @@ The editors' guide says the same for the people doing it: [Překlady](../editors
 | shared editing (socket) | ✓ (write or read) | ✓ | | fields with a rule are not shared |
 | the media library and where a file is used | | ✓ (public details of a live file) | ✓ | read ✓ |
 | people, privacy, audit | administrator only | | | |
+| the MCP server (an access token) | ✓, and only what the token was given | ✓, if the token may publish | ✓, if the token may change files | read ✓ / edit ✓ |
 
 Every request re-reads the account. Changing someone's role, removing the role from the config or disabling them takes effect on their next request. It also ends an open realtime or shared-editing connection.

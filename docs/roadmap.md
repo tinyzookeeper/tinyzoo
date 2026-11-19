@@ -257,6 +257,10 @@ and the audit has no open High or Medium.
 - **Translations ready for review**, by the rules decided for Wave 5 (above).
 - **The admin's look set without a developer.**
 
+**Done for 1.2:**
+
+- **The MCP server** (owner, 2026-11-19). `/api/mcp` with personal access tokens: each person makes them on their account page and gives each one rights narrower than their role (edit, publish, delete, files, some collections only). The tools go through the admin's own routes, so every rule of the admin applies, and changes are recorded under the person with `via: 'mcp'`. Rich text in and out as Markdown. A new table, `cms_access_tokens`. See [the MCP server](guide/mcp.md).
+
 **Candidates.** None is decided, so they are not on Plány yet. The first two turned up while moving six sites to 1.0.0 (2026-11-19); neither fits a 1.0.x patch (PR #41 has the fixes that did). The third came from the website's developer sample (2026-11-17).
 
 | Candidate | Why | What it takes | Size |

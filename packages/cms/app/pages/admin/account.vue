@@ -109,6 +109,119 @@ async function changePassword() {
     savingPw.value = false
   }
 }
+// ── access tokens (the MCP server): made here, shown once, revoked here ──
+interface TokenRights { write: boolean; publish: boolean; delete: boolean; media: boolean; entities: string[] | null }
+interface AccessToken { id: string; name: string; prefix: string; rights: TokenRights; createdAt: string; expiresAt: string | null; lastUsedAt: string | null }
+interface TokenState { tokens: AccessToken[]; can: { publish: boolean; media: boolean }; areas: { name: string; label: unknown; kind: string }[]; max: number }
+const { entityLabel, formatDateWith } = useCmsI18n()
+const confirm = useCmsConfirm()
+// Read in the browser (like the email state above). Null: tokens are off here (or this is the demo account).
+const tokenState = ref<TokenState | null>(null)
+async function refreshTokens() {
+  try {
+    tokenState.value = await $fetch<TokenState>('/api/cms/_auth/tokens')
+  }
+  catch {
+    tokenState.value = null
+  }
+}
+onMounted(refreshTokens)
+const mcpAddress = computed(() => import.meta.client ? new URL(`${useRuntimeConfig().app.baseURL.replace(/\/$/, '')}/api/mcp`, window.location.origin).href : '')
+const areaLabel = (name: string) => {
+  const a = tokenState.value?.areas.find((x) => x.name === name)
+  return a ? entityLabel(a as any) : name
+}
+const areaItems = computed(() => (tokenState.value?.areas ?? []).map((a) => ({ value: a.name, label: entityLabel(a as any) })))
+
+const tokenOpen = ref(false)
+const tokenBusy = ref(false)
+const tokenErrors = reactive<Record<string, string>>({})
+const newToken = reactive({ name: '', write: false, publish: false, delete: false, media: false, scope: 'all' as 'all' | 'some', entities: [] as string[], expires: '90' })
+const madeToken = ref<string | null>(null)
+const tokenCopied = ref(false)
+const addressCopied = ref(false)
+function openToken() {
+  Object.assign(newToken, { name: '', write: false, publish: false, delete: false, media: false, scope: 'all', entities: [], expires: '90' })
+  Object.keys(tokenErrors).forEach((k) => delete tokenErrors[k])
+  madeToken.value = null
+  tokenCopied.value = false
+  tokenOpen.value = true
+}
+function closeToken() {
+  tokenOpen.value = false
+}
+// The value lives only in the dialog: forgotten when it closes.
+watch(tokenOpen, (open) => { if (!open) madeToken.value = null })
+const expiryItems = computed(() => [
+  { value: '30', label: t('account.tokens.days30') },
+  { value: '90', label: t('account.tokens.days90') },
+  { value: '365', label: t('account.tokens.days365') },
+  { value: 'never', label: t('account.tokens.never') },
+])
+async function makeToken() {
+  Object.keys(tokenErrors).forEach((k) => delete tokenErrors[k])
+  if (!newToken.name.trim()) {
+    tokenErrors.name = t('validation.required')
+    return
+  }
+  if (newToken.scope === 'some' && !newToken.entities.length) {
+    tokenErrors.entities = t('account.tokens.scopePick')
+    return
+  }
+  tokenBusy.value = true
+  try {
+    const res = await $fetch<{ value: string }>('/api/cms/_auth/tokens', {
+      method: 'POST',
+      body: {
+        name: newToken.name.trim(),
+        rights: {
+          write: newToken.write,
+          publish: newToken.write && newToken.publish,
+          delete: newToken.write && newToken.delete,
+          media: newToken.write && newToken.media,
+          entities: newToken.scope === 'some' ? newToken.entities : null,
+        },
+        expiresInDays: newToken.expires === 'never' ? null : Number(newToken.expires),
+      },
+    })
+    madeToken.value = res.value
+    await refreshTokens()
+  }
+  catch (err: any) {
+    toast.add({ title: t('account.tokens.failed'), description: cmsRequestError(err, t as any), color: 'error', icon: 'i-lucide-x' })
+  }
+  finally {
+    tokenBusy.value = false
+  }
+}
+async function copyText(value: string, which: 'address' | 'token') {
+  const done = which === 'address' ? addressCopied : tokenCopied
+  try {
+    await navigator.clipboard.writeText(value)
+    done.value = true
+    setTimeout(() => { done.value = false }, 2000)
+  }
+  catch {
+    toast.add({ title: t('account.tokens.copyFailed'), color: 'warning', icon: 'i-lucide-clipboard-x' })
+  }
+}
+async function revokeToken(token: AccessToken) {
+  const ok = await confirm({ title: t('account.tokens.revokeTitle', { name: token.name }), description: t('account.tokens.revokeBody'), confirmLabel: t('account.tokens.revoke'), color: 'error' })
+  if (!ok) return
+  try {
+    await $fetch(`/api/cms/_auth/tokens/${token.id}`, { method: 'DELETE' })
+    toast.add({ title: t('account.tokens.revoked'), icon: 'i-lucide-check', color: 'success' })
+    await refreshTokens()
+  }
+  catch (err: any) {
+    toast.add({ title: t('team.actionFailed'), description: cmsRequestError(err, t as any), color: 'error', icon: 'i-lucide-x' })
+  }
+}
+/** What a token may do, in a few words. */
+function rightBadges(r: TokenRights): string[] {
+  if (!r.write) return [t('account.tokens.readOnly')]
+  return [t('account.tokens.edit'), ...(r.publish ? [t('account.tokens.publishBadge')] : []), ...(r.delete ? [t('account.tokens.deleteBadge')] : []), ...(r.media ? [t('account.tokens.filesBadge')] : [])]
+}
 </script>
 
 <template>
@@ -203,7 +316,112 @@ async function changePassword() {
             </div>
           </form>
         </section>
+        <section v-if="tokenState && !isDemo" class="cms-section" aria-labelledby="account-tokens">
+          <header class="cms-section__head">
+            <span class="cms-section__tile"><UIcon name="i-lucide-plug" class="size-4" /></span>
+            <div class="min-w-0 flex-1">
+              <h2 id="account-tokens" class="cms-section__title">{{ t('account.tokens.title') }}</h2>
+              <p class="text-sm text-muted text-pretty">{{ t('account.tokens.description') }}</p>
+            </div>
+          </header>
+          <div class="cms-section__fields">
+            <UFormField :label="t('account.tokens.address')" name="mcpAddress">
+              <UInput :model-value="mcpAddress" readonly class="w-full font-mono" :ui="{ trailing: 'pe-1' }">
+                <template #trailing>
+                  <UButton
+                    color="neutral" variant="link" size="sm" :icon="addressCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+                    :aria-label="t('account.tokens.copyAddress')" @click="copyText(mcpAddress, 'address')"
+                  />
+                </template>
+              </UInput>
+            </UFormField>
+            <ul v-if="tokenState.tokens.length" class="divide-y divide-default rounded-lg border border-default">
+              <li v-for="tk in tokenState.tokens" :key="tk.id" class="flex items-start gap-3 px-3 py-2.5">
+                <div class="min-w-0 flex-1">
+                  <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                    <span class="truncate font-medium text-highlighted">{{ tk.name }}</span>
+                    <UBadge v-for="b in rightBadges(tk.rights)" :key="b" :label="b" color="neutral" variant="subtle" size="sm" />
+                  </p>
+                  <p class="mt-0.5 text-xs text-muted">
+                    <span class="font-mono">{{ tk.prefix }}…</span>
+                    · <template v-if="tk.lastUsedAt"><CmsTime :value="tk.lastUsedAt" relative v-slot="{ text }">{{ t('account.tokens.usedAt', { time: text }) }}</CmsTime></template>
+                    <template v-else>{{ t('account.tokens.neverUsed') }}</template>
+                    <template v-if="tk.expiresAt"> · {{ t('account.tokens.until', { date: formatDateWith(tk.expiresAt, { dateStyle: 'medium' }) }) }}</template>
+                  </p>
+                  <p v-if="tk.rights.entities" class="mt-0.5 text-xs text-muted text-pretty">
+                    {{ t('account.tokens.only', { list: tk.rights.entities.map(areaLabel).join(', ') }) }}
+                  </p>
+                </div>
+                <UButton color="neutral" variant="ghost" size="sm" :aria-label="`${t('account.tokens.revoke')}: ${tk.name}`" @click="revokeToken(tk)">{{ t('account.tokens.revoke') }}</UButton>
+              </li>
+            </ul>
+            <p v-else class="text-sm text-muted">{{ t('account.tokens.none') }}</p>
+            <div>
+              <UButton color="neutral" variant="outline" icon="i-lucide-plus" :disabled="tokenState.tokens.length >= tokenState.max" @click="openToken">{{ t('account.tokens.new') }}</UButton>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
+
+    <UModal v-model:open="tokenOpen" :title="madeToken ? t('account.tokens.madeTitle') : t('account.tokens.new')" :dismissible="!madeToken || tokenCopied">
+      <template #body>
+        <form v-if="!madeToken && tokenState" id="new-token" method="post" class="space-y-5" novalidate @submit.prevent="makeToken">
+          <UFormField :label="t('account.tokens.name')" name="name" :help="t('account.tokens.nameHint')" :error="tokenErrors.name || undefined" required>
+            <UInput v-model="newToken.name" maxlength="80" autofocus :placeholder="t('account.tokens.namePlaceholder')" class="w-full" />
+            <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
+          </UFormField>
+          <fieldset class="space-y-3">
+            <legend class="mb-2 text-sm font-medium text-highlighted">{{ t('account.tokens.rights') }}</legend>
+            <UCheckbox :model-value="true" disabled :label="t('account.tokens.read')" />
+            <UCheckbox v-model="newToken.write" :label="t('account.tokens.write')" :description="t('account.tokens.writeHint')" />
+            <div class="space-y-3 ps-6">
+              <UCheckbox
+                v-model="newToken.publish" :disabled="!newToken.write || !tokenState.can.publish" :label="t('account.tokens.publish')"
+                :description="tokenState.can.publish ? t('account.tokens.publishHint') : t('account.tokens.notYourRole')"
+              />
+              <UCheckbox v-model="newToken.delete" :disabled="!newToken.write" :label="t('account.tokens.delete')" :description="t('account.tokens.deleteHint')" />
+              <UCheckbox
+                v-model="newToken.media" :disabled="!newToken.write || !tokenState.can.media" :label="t('account.tokens.media')"
+                :description="tokenState.can.media ? undefined : t('account.tokens.notYourRole')"
+              />
+            </div>
+          </fieldset>
+          <UFormField :label="t('account.tokens.scope')" name="scope" :error="tokenErrors.entities || undefined">
+            <URadioGroup
+              v-model="newToken.scope"
+              :items="[{ value: 'all', label: t('account.tokens.scopeAll') }, { value: 'some', label: t('account.tokens.scopeSome') }]"
+            />
+            <USelectMenu
+              v-if="newToken.scope === 'some'" v-model="newToken.entities" multiple value-key="value" :items="areaItems"
+              :placeholder="t('account.tokens.scopePick')" class="mt-3 w-full"
+            />
+            <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
+          </UFormField>
+          <UFormField :label="t('account.tokens.expires')" name="expires">
+            <USelect v-model="newToken.expires" :items="expiryItems" class="w-full sm:w-60" />
+          </UFormField>
+        </form>
+        <div v-else-if="madeToken" class="space-y-3">
+          <p class="text-sm text-toned text-pretty">{{ t('account.tokens.madeBody') }}</p>
+          <div class="flex items-center gap-2 rounded-lg bg-elevated p-3">
+            <code class="min-w-0 flex-1 select-all break-all font-mono text-sm text-highlighted">{{ madeToken }}</code>
+            <UButton
+              color="neutral" variant="outline" size="sm" :icon="tokenCopied ? 'i-lucide-check' : 'i-lucide-copy'"
+              @click="copyText(madeToken, 'token')"
+            >{{ tokenCopied ? t('account.tokens.copied') : t('account.tokens.copy') }}</UButton>
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <template v-if="!madeToken">
+            <UButton color="neutral" variant="ghost" @click="closeToken">{{ t('common.cancel') }}</UButton>
+            <UButton type="submit" form="new-token" :loading="tokenBusy">{{ t('account.tokens.create') }}</UButton>
+          </template>
+          <UButton v-else @click="closeToken">{{ t('account.tokens.done') }}</UButton>
+        </div>
+      </template>
+    </UModal>
   </CmsPage>
 </template>

@@ -50,6 +50,13 @@
       "when": 1795027477730,
       "tag": "0006_plans",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795113668947,
+      "tag": "0007_access_tokens",
+      "breakpoints": true
     }
   ]
 }
