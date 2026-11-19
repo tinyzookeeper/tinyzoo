@@ -55,20 +55,20 @@ export default (h) => {
           },
           {
             id: id(), type: 'cta', heading: 'Try editing an article of your own.',
-            text: 'Feel free to experiment in the demo admin area. We reset it every night. Your thoughts will help us prepare for the pilot on our first client website.',
+            text: 'Feel free to experiment in the demo admin area. We reset it every night. Your thoughts help us choose what to improve next.',
             primaryLabel: 'Open the demo', primaryUrl: '/en/demo', secondaryLabel: 'Tell us how it went', secondaryUrl: '/en/feedback', animal: 'fox',
           },
           {
             id: id(), type: 'faq', heading: 'Before you start editing',
             text: 'A few answers to questions you may have.',
             items: [
-              item({ question: 'Do I need training first?', answer: 'You can open the demo and try writing your first article straight away. The demo page has a few specific tasks to try. During the pilot, we also want to find out where people need more explanation. If you lose your way, please tell us.' }),
+              item({ question: 'Do I need training first?', answer: 'You can open the demo and try writing your first article straight away. The demo page has a few specific tasks to try. If you lose your way, please tell us.' }),
               item({ question: 'Can I break anything while trying it?', answer: 'The demo admin area is there for you to experiment. We reset it every night, so you cannot break anything permanently. Your changes will not stay there either. On your own website, you can preview unfinished content before publishing.' }),
               item({ question: 'What if two of us edit the same article?', answer: 'You can write in it at the same time. Each of you can see where the other is typing, and your changes will not overwrite each other.' }),
               item({ question: 'Can I go back to an earlier version?', answer: 'Yes. Version history lets you restore an earlier version of your content.' }),
               item({ question: 'How do I quickly find an older article?', answer: 'Press ⌘K (Ctrl+K on Windows) or click Search and type any word from the article. Search finds drafts too and copes with typos.' }),
               item({ question: 'Does the admin area work on a phone?', answer: 'Yes, you can edit content on your phone too. You can also switch the page preview to a phone view to see how it will look to visitors. We also plan a separate mobile app.' }),
-              item({ question: 'Is tinyzoo finished? Can I try it yet?', answer: 'The demo is open to everyone and resets every night. tinyzoo is new. It has over 1,600 automated tests, and before the pilot we went through all the usual editing tasks in detail. We fixed the issues we found. Clients have not used it in their everyday work yet. That is what we will test in the pilot. We look after development and fixes ourselves.' }),
+              item({ question: 'Is tinyzoo finished? Can I try it yet?', answer: 'Yes. Version 1.0 came out in November 2026, and the demo is open to everyone. It resets every night. tinyzoo has over 1,600 automated tests, and we went through all the usual editing tasks in it in detail. We look after development and fixes ourselves.' }),
               item({ question: 'What if I need something extra?', answer: 'Tell us what you need to do on your website. We do not have a catalogue of ready-made add-ons. We build extra features for individual websites.' }),
             ],
           },
@@ -112,9 +112,9 @@ export default (h) => {
         title: 'Feedback', slug: 'feedback',
         sections: [{
           id: id(), type: 'feedback', heading: 'How did you get on with tinyzoo?',
-          text: 'Tell us what felt easy, where you got stuck or what was missing. Even a small observation from a single task helps. Your experience will help us prepare the pilot on our first client website.',
+          text: 'Tell us what felt easy, where you got stuck or what was missing. Even a small observation from a single task helps. Your experience helps us choose what to improve next.',
         }],
-        metaDescription: 'Tried tinyzoo? Tell us what went well while editing and where you got stuck. Your thoughts will help us prepare the pilot.',
+        metaDescription: 'Tried tinyzoo? Tell us what went well while editing and where you got stuck.',
       },
       'pro-vyvojare': {
         title: 'For developers', slug: 'developers',
@@ -262,7 +262,7 @@ export default (h) => {
     },
     settings: {
       tagline: 'Feel at home editing your website.',
-      footerNote: 'We are preparing a pilot on our first client website. Try the demo and tell us how you get on.',
+      footerNote: 'Version 1.0 is out. Try the demo and tell us how you get on.',
       metaDescription: 'tinyzoo is a friendly admin area for your website. Write articles, build pages and preview your content. Try the demo and share your experience.',
     },
   }

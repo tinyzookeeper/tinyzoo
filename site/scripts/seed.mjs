@@ -143,20 +143,20 @@ await page('Úvod', 'home', [
   },
   {
     id: id(), type: 'cta', heading: 'Zkuste si upravit vlastní článek.',
-    text: 'V ukázkové administraci můžete zkoušet bez obav. Každou noc ji obnovujeme. Vaše postřehy nám pomohou před pilotem na prvním klientském webu.',
+    text: 'V ukázkové administraci můžete zkoušet bez obav. Každou noc ji obnovujeme. Vaše postřehy nám pomohou vybrat, co zlepšit dál.',
     primaryLabel: 'Otevřít ukázku', primaryUrl: '/demo', secondaryLabel: 'Podělit se o zkušenost', secondaryUrl: '/zpetna-vazba', animal: 'fox',
   },
   {
     id: id(), type: 'faq', heading: 'Než se pustíte do úprav',
     text: 'Pár odpovědí na to, co vás možná napadlo.',
     items: [
-      item({ question: 'Potřebuji nejdřív školení?', answer: 'Ukázku si můžete otevřít a zkusit první článek rovnou. Na stránce s ukázkou najdete pár konkrétních úkolů. V pilotu chceme zjistit i to, kde lidé potřebují vysvětlení. Pokud se někde ztratíte, napište nám.' }),
+      item({ question: 'Potřebuji nejdřív školení?', answer: 'Ukázku si můžete otevřít a zkusit první článek rovnou. Na stránce s ukázkou najdete pár konkrétních úkolů. Pokud se někde ztratíte, napište nám.' }),
       item({ question: 'Můžu při zkoušení něco pokazit?', answer: 'Ukázková administrace je tu na zkoušení. Každou noc ji vrátíme do výchozího stavu, takže nic nemůžete trvale pokazit. Ani vaše úpravy v ní nezůstanou. Na vlastním webu si rozepsaný obsah můžete nejdřív prohlédnout v náhledu.' }),
       item({ question: 'Co když stejný článek upravujeme dva?', answer: 'Můžete v něm psát současně. Každý vidí, kde právě píše druhý, a změny se navzájem nepřepíšou.' }),
       item({ question: 'Můžu se vrátit ke starší verzi?', answer: 'Ano. V historii verzí se můžete vrátit k dřívější podobě obsahu.' }),
       item({ question: 'Jak rychle najdu starší článek?', answer: 'Stiskněte ⌘K (ve Windows Ctrl+K) nebo klikněte na Hledat a napište kterékoli slovo z článku. Vyhledávání najde i koncepty a poradí si s překlepem.' }),
       item({ question: 'Funguje administrace na telefonu?', answer: 'Ano, obsah můžete upravovat i na telefonu. Náhled stránky navíc přepnete na zobrazení pro telefon, abyste viděli, jak bude vypadat návštěvníkům. Do budoucna plánujeme i samostatnou mobilní aplikaci.' }),
-      item({ question: 'Je tinyzoo hotové? Můžu ho už zkusit?', answer: 'Ukázka je otevřená všem a každou noc se obnovuje. tinyzoo je nové. Má přes 1 600 automatických testů a před pilotem jsme v něm podrobně prošli všechny běžné úkoly editora. Nalezené chyby jsme opravili. Klienti ho při své práci zatím nepoužívali, to teprve ověříme v pilotu. O další vývoj i opravy se staráme sami.' }),
+      item({ question: 'Je tinyzoo hotové? Můžu ho už zkusit?', answer: 'Ano. Verze 1.0 vyšla v listopadu 2026 a ukázka je otevřená všem. Každou noc se obnovuje. tinyzoo má přes 1 600 automatických testů a všechny běžné úkoly editora jsme v něm podrobně prošli. O další vývoj i opravy se staráme sami.' }),
       item({ question: 'Co když potřebuji něco navíc?', answer: 'Řekněte nám, co potřebujete na webu dělat. Katalog hotových doplňků nemáme. Další možnosti připravujeme pro konkrétní web.' }),
     ],
   },
@@ -194,8 +194,8 @@ await page('Vyzkoušejte administraci', 'demo', [{
 
 await page('Zpětná vazba', 'zpetna-vazba', [{
   id: id(), type: 'feedback', heading: 'Jak se vám v tinyzoo pracovalo?',
-  text: 'Napište nám, co vám šlo snadno, kde jste se zarazili nebo co vám chybělo. Pomůže i drobný postřeh z jednoho úkolu. Vaše zkušenost nám pomůže připravit pilot na prvním klientském webu.',
-}], { metaDescription: 'Zkusili jste tinyzoo? Napište nám, co se vám při úpravách webu dařilo a kde jste se zarazili. Vaše postřehy pomohou připravit pilot.' })
+  text: 'Napište nám, co vám šlo snadno, kde jste se zarazili nebo co vám chybělo. Pomůže i drobný postřeh z jednoho úkolu. Podle vašich zkušeností vybíráme, co zlepšit dál.',
+}], { metaDescription: 'Zkusili jste tinyzoo? Napište nám, co se vám při úpravách webu dařilo a kde jste se zarazili.' })
 
 // ── for developers: the same product from the code side ──
 const configCode = `import { defineEntity, f } from 'tinyzoo'
@@ -365,7 +365,7 @@ await req('PUT', '/api/cms/_singleton/navigation', {
 })
 await req('PUT', '/api/cms/_singleton/siteSettings', {
   siteName: 'tinyzoo', ogImage: img.desk.id, tagline: 'Ať se vám web dobře upravuje.',
-  footerNote: 'Chystáme pilot na prvním klientském webu. Zkuste ukázku a napište nám, jak se vám pracovalo.',
+  footerNote: 'Vyšla verze 1.0. Zkuste ukázku a napište nám, jak se vám pracovalo.',
   metaDescription: 'tinyzoo je česká administrace pro váš web. Pište články, skládejte stránky a prohlížejte si náhled. Zkuste ukázku a podělte se o svou zkušenost.',
 })
 
