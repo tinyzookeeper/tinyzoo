@@ -53,6 +53,9 @@ interface Stats {
   series: { key: string; visitors: number; pageviews: number }[]
   previousSeries: { key: string; visitors: number; pageviews: number }[] | null
   lists: Record<Dimension, Item[]>
+  mode: 'cookieless' | 'consent' | 'strict'
+  /** Among visitors who allowed statistics (`mode: 'consent'` only). */
+  consent: any | null
 }
 const query = computed(() => ({
   period: period.value,
@@ -293,11 +296,14 @@ const empty = computed(() => !!stats.value && stats.value.totals.pageviews === 0
               />
             </section>
           </div>
+
+          <!-- mode 'consent': among visitors who agreed to cookies, with their share of the visits -->
+          <AnalyticsConsentReport v-if="stats.consent" :report="stats.consent" :keep-raw-days="stats.keepRawDays" />
         </template>
       </div>
 
       <p class="flex items-start gap-2 text-xs text-muted">
-        <UIcon name="i-lucide-shield-check" class="mt-0.5 size-4 shrink-0" />{{ tx('privacy') }}
+        <UIcon name="i-lucide-shield-check" class="mt-0.5 size-4 shrink-0" />{{ tx(stats?.mode === 'consent' ? 'privacyConsent' : stats?.mode === 'strict' ? 'privacyStrict' : 'privacy') }}
       </p>
     </div>
   </CmsPage>

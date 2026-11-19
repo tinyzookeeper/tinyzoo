@@ -203,6 +203,12 @@ export interface CmsPluginDef {
    * forms plugin's `<CmsForm>`).
    */
   components?: string
+  /**
+   * Directory of composables, auto-imported in the website and the admin like the site's own
+   * `composables/` (every export of every file in it): the consent plugin's `useConsent()`.
+   * Name them so they cannot meet the site's own (`useEvents…` for the plugin `events`).
+   */
+  composables?: string
   adminPages?: CmsPluginAdminPage[]
   navItems?: CmsPluginNavItem[]
   /** Cards on the admin's home page (components from `components`). */
@@ -380,6 +386,7 @@ export function defineCmsPlugin(def: CmsPluginDef): CmsPlugin {
     if (r.edit !== undefined && !r.edit || r.cell !== undefined && !r.cell) fail(name, `fields.${type} has an empty component name.`)
   }
   if (def.components !== undefined && !isAbsolute(def.components)) fail(name, 'components must be an absolute directory (use pluginFile(import.meta.url, "./components")).')
+  if (def.composables !== undefined && !isAbsolute(def.composables)) fail(name, 'composables must be an absolute directory (use pluginFile(import.meta.url, "./composables")).')
   if (Object.keys(def.fields ?? {}).length && !def.components) fail(name, 'fields name components, so the plugin needs `components` (the directory they are in).')
 
   const checkComponent = (what: string, component: unknown) => {
@@ -526,6 +533,22 @@ export interface CmsPluginRequirement {
 }
 
 /**
+ * What a plugin needs of another plugin, for a mode or an option of its own: the analytics
+ * plugin's `mode: 'consent'` needs the consent plugin. A plugin carries these as `needs` on the
+ * object it returns (not an option of `defineCmsPlugin`); `collectPlugins` checks them, so the
+ * build, the start and the CLI all stop with the message.
+ *
+ * @internal
+ */
+export interface CmsPluginNeed {
+  plugin: string
+  /** Said when the other plugin is not registered. */
+  message: string
+  /** What else must be true of the other plugin: a message when it is not. */
+  check?: (other: CmsPlugin) => string | null | undefined
+}
+
+/**
  * The plugins of a host config: the arrays exported as `plugins` and any plugin
  * exported by itself, plus those an entity of the config asks for by itself. Throws on
  * two plugins with one name, or an entity whose plugin is missing.
@@ -557,6 +580,14 @@ export function collectPlugins(config: Record<string, any>): CmsPlugin[] {
     const made = need.create()
     byName.set(made.name, made)
     found.push(made)
+  }
+  for (const p of found) {
+    for (const need of ((p as any).needs ?? []) as CmsPluginNeed[]) {
+      const other = byName.get(need.plugin)
+      if (!other) throw new Error(`Plugin "${p.name}": ${need.message}`)
+      const problem = need.check?.(other)
+      if (problem) throw new Error(`Plugin "${p.name}": ${problem}`)
+    }
   }
   return found
 }
@@ -638,6 +669,7 @@ export interface PluginPlan {
   handlers: { method: CmsHttpMethod; route: string; handler: string; plugin: string }[]
   serverPlugins: string[]
   componentDirs: string[]
+  composableDirs: string[]
   navItems: { plugin: string; label: LocalizedText; icon?: string; to: string; group: 'content' | 'settings'; adminOnly: boolean }[]
   appPlugins: { src: string; mode: 'client' | 'server' | 'all'; plugin: string }[]
   /** Sorted by `order`, then the order the plugins are registered in. */
@@ -658,7 +690,7 @@ export interface PluginPlan {
  */
 export function planPlugins(plugins: readonly CmsPlugin[], opts: { exists?: (file: string) => boolean } = {}): PluginPlan {
   const exists = opts.exists ?? (() => true)
-  const plan: PluginPlan = { pages: [], handlers: [], serverPlugins: [], componentDirs: [], navItems: [], appPlugins: [], dashboardWidgets: [], entityPanels: [], fields: {}, messages: {}, plugins: [] }
+  const plan: PluginPlan = { pages: [], handlers: [], serverPlugins: [], componentDirs: [], composableDirs: [], navItems: [], appPlugins: [], dashboardWidgets: [], entityPanels: [], fields: {}, messages: {}, plugins: [] }
   const names = new Set<string>()
   const taken = new Map<string, string>() // "get /api/cms/_p/x/y" → plugin
   const need = (plugin: string, what: string, file: string) => {
@@ -710,6 +742,10 @@ export function planPlugins(plugins: readonly CmsPlugin[], opts: { exists?: (fil
     if (p.components) {
       need(p.name, 'components directory', p.components)
       plan.componentDirs.push(p.components)
+    }
+    if (p.composables) {
+      need(p.name, 'composables directory', p.composables)
+      plan.composableDirs.push(p.composables)
     }
     for (const [type, r] of Object.entries(p.fields ?? {})) {
       const other = plan.fields[type]

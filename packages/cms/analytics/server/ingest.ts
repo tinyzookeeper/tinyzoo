@@ -1,4 +1,4 @@
-import { and, gt, inArray, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, sql } from 'drizzle-orm'
 import { assignSessions, type SessionTail, type ViewDraft } from '../core/sessions'
 import { newSessionId } from '../core/visitor'
 import { analyticsEvents } from '../tables'
@@ -22,6 +22,8 @@ export interface PendingView extends ViewDraft {
   browser: string | null
   os: string | null
   language: string | null
+  /** The visitor's consent id, when they allowed statistics (`mode: 'consent'`). */
+  consentId?: string | null
   engagedMs: number
 }
 
@@ -69,6 +71,19 @@ export function queueEngagement(view: string, visitor: string, ms: number): void
   if (!had && engaged.size >= MAX_WAITING) return
   engaged.set(view, { visitor, ms: Math.min(MAX_ENGAGED_MS, (had?.ms ?? 0) + add) })
   schedule()
+}
+
+/**
+ * A visitor took statistics back (the consent plugin's `cms:consent`): their consent id goes from
+ * every view, written or still waiting. The views stay, counted the cookieless way like everyone's.
+ */
+export async function forgetConsentId(consentId: string): Promise<number> {
+  for (const v of views) if (v.consentId === consentId) v.consentId = null
+  // A write under way may still carry it: let it finish, then clear what it wrote too.
+  await flushViews()
+  const { db } = useCms()
+  const res: any = await db.update(analyticsEvents).set({ consentId: null }).where(eq(analyticsEvents.consentId, consentId))
+  return Number(res?.rowCount ?? 0)
 }
 
 /** Write everything that waits (one flush at a time; one that is running is waited for, then the rest goes). */
@@ -130,6 +145,7 @@ async function insertViews(db: any, batch: PendingView[]): Promise<void> {
       browser: v.browser,
       os: v.os,
       language: v.language,
+      consentId: v.consentId ?? null,
       engagedMs: v.engagedMs,
     })
   }

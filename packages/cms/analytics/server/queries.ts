@@ -54,7 +54,7 @@ function filterCond(f: Filter): SQL | undefined {
 }
 
 const span = (r: DayRange, tz: string): SQL => and(gte(e.at, dayStart(r.from, tz)), lt(e.at, dayStart(addDays(r.to, 1), tz)))!
-const rawWhere = (r: DayRange, w: Window): SQL => and(span(r, w.tz), ...w.filters.map(filterCond))!
+export const rawWhere = (r: DayRange, w: Window): SQL => and(span(r, w.tz), ...w.filters.map(filterCond))!
 const rolledWhere = (r: DayRange, dimension: string): SQL => and(eq(d.dimension, dimension), gte(d.day, r.from), lt(d.day, addDays(r.to, 1)))!
 
 /** Visitors, visits, pageviews, bounces and time of the range. */

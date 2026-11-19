@@ -83,6 +83,14 @@ export interface CmsFormProps {
 emits: sent: []
 slots: success
 
+// <CmsConsent> (consent/components/CmsConsent.vue): The ready-made cookie banner and its settings dialog, built on `useConsent()`; optional, restylable (`unstyled`, slots) (`tinyzoo/consent`; needs `consentPlugin()`).
+export interface CmsConsentProps {
+    locale?: string;
+    unstyled?: boolean;
+}
+emits: none
+slots: default, banner, actions, settings, category, settings-actions
+
 // ── what a component of the site receives ──────────────────────
 
 export interface CmsBlockProps<B extends CmsBlock = CmsBlock> {
@@ -99,6 +107,10 @@ returns: { title, description, image, canonical }
 // useCmsSearch (app/composables/useCmsSearch.ts): The website search: reactive results with address and snippet.
 export async function useCmsSearch(query: MaybeRefOrGetter<string>, opts: { locale?: MaybeRefOrGetter<string | null | undefined>; limit?: number; entities?: string[]; } = {})
 returns: { items, total, searched, pending, error }
+
+// useConsent (consent/composables/useConsent.ts): The visitor's cookie choice, and everything a banner of the site's own needs: texts, categories with services, `draft`, `acceptAll()`, `save()` (`tinyzoo/consent`; needs `consentPlugin()`).
+export function useConsent(): CmsConsentApi
+returns: { choice, decided, ready, granted, onChange, bannerVisible, settingsOpen, open, close, texts, categories, draft, set, acceptAll, rejectAll, save, saving, error }
 
 // useCmsUiLocale (app/composables/useCmsUiLocale.ts): Nuxt UI's own words in the admin's language on /admin pages; for `<UApp :locale>`.
 export function useCmsUiLocale()
@@ -145,4 +157,60 @@ export interface CmsSearchItem {
     path: string | null;
     locale: string | null;
     updatedAt: string;
+}
+
+export interface CmsConsentApi {
+    choice: CmsReadonlyRef<CmsConsentChoice | null>;
+    decided: CmsReadonlyRef<boolean>;
+    ready: CmsReadonlyRef<boolean>;
+    granted: (category: string) => boolean;
+    onChange: (cb: (choice: CmsConsentChoice | null) => void) => () => void;
+    bannerVisible: CmsReadonlyRef<boolean>;
+    settingsOpen: CmsReadonlyRef<boolean>;
+    open: () => void;
+    close: () => void;
+    texts: CmsReadonlyRef<CmsConsentTexts>;
+    categories: CmsReadonlyRef<CmsConsentCategory[]>;
+    draft: Record<string, boolean>;
+    set: (category: string, value: boolean) => void;
+    acceptAll: () => Promise<void>;
+    rejectAll: () => Promise<void>;
+    save: (choice?: CmsConsentChoice) => Promise<void>;
+    saving: CmsReadonlyRef<boolean>;
+    error: CmsReadonlyRef<string | null>;
+}
+export type CmsReadonlyRef<T> = ComputedRef<T>;
+export type CmsConsentChoice = Record<string, boolean>;
+export interface CmsConsentTexts {
+    title: string;
+    body: string;
+    acceptAll: string;
+    rejectAll: string;
+    settings: string;
+    save: string;
+    settingsTitle: string;
+    privacyLabel: string;
+    privacyUrl: string;
+    alwaysOn: string;
+    close: string;
+    services: string;
+    provider: string;
+    cookies: string;
+    duration: string;
+}
+export interface CmsConsentCategory {
+    key: string;
+    label: string;
+    description: string;
+    required: boolean;
+    granted: boolean;
+    services: CmsConsentService[];
+}
+export interface CmsConsentService {
+    name: string;
+    provider: string;
+    purpose: string;
+    cookies: string[];
+    duration: string;
+    privacyUrl: string;
 }

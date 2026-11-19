@@ -1,0 +1,39 @@
+// API report: `tinyzoo/consent` (packages/cms/consent/index.ts)
+// The consent plugin: consentPlugin, its options and its log table.
+// Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
+
+// ── public (4) ─────────────────────────────────────────────────
+
+export interface ConsentCategoryDef {
+    key: string;
+    label: LocalizedText;
+    description?: LocalizedText;
+}
+
+export interface ConsentOptions {
+    categories?: ('analytics' | 'marketing' | ConsentCategoryDef)[];
+    services?: Partial<Record<string, ConsentServiceDef[]>>;
+    cookieDays?: number;
+    keepLogDays?: number;
+    localized?: boolean;
+    access?: (ctx: {
+        user: CmsAccessUser;
+    }) => boolean;
+}
+
+export interface ConsentServiceDef {
+    name: string;
+    provider?: string;
+    purpose: LocalizedText;
+    cookies?: string[];
+    duration?: LocalizedText;
+    privacyUrl?: string;
+}
+
+export function consentPlugin(options?: ConsentOptions): CmsPlugin;
+
+// ── internal (4): exported, not part of the frozen API, may change in any minor ──
+const CONSENT_SETTINGS
+type ConsentPlugin
+const consentLog
+function consentSettingsEntity

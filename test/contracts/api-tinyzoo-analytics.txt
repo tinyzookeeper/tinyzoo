@@ -2,9 +2,12 @@
 // The analytics plugin: analyticsPlugin, its options, its tables and the daily totals.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (7) ─────────────────────────────────────────────────
+// ── public (8) ─────────────────────────────────────────────────
+
+export type AnalyticsMode = 'cookieless' | 'consent' | 'strict';
 
 export interface AnalyticsOptions {
+    mode?: AnalyticsMode;
     keepRawDays?: number;
     access?: (ctx: {
         user: CmsAccessUser;

@@ -3,7 +3,24 @@ import type { CmsRegistry } from '../src/entity'
 import { COUNTRY_HEADERS } from './core/enrich'
 import { validTimeZone } from './core/visitor'
 
+/**
+ * How the plugin goes with a cookie banner (the consent plugin, `tinyzoo/consent`):
+ *  - `cookieless` (default): every visit is counted without a cookie; no banner is needed for it.
+ *  - `consent`: the same, and the visits of visitors who allowed statistics in the banner also
+ *    carry their consent id, which gives the extra reports "among visitors who agreed".
+ *  - `strict`: nothing at all is sent until the visitor allows statistics.
+ * `consent` and `strict` need `consentPlugin()` registered too.
+ */
+export type AnalyticsMode = 'cookieless' | 'consent' | 'strict'
+
+export const ANALYTICS_MODES: readonly AnalyticsMode[] = ['cookieless', 'consent', 'strict']
+
 export interface AnalyticsOptions {
+  /**
+   * With a cookie banner or without (default `cookieless`). See `AnalyticsMode` and
+   * docs/analytics.md, "Cookie banner": which mode fits which site, and what each changes.
+   */
+  mode?: AnalyticsMode
   /**
    * Days the raw page views are kept (default 90). Older ones are deleted every night; the
    * daily totals made from them stay, so the reports of older periods keep their numbers (but
@@ -36,6 +53,7 @@ export interface AnalyticsOptions {
 
 /** The options with their defaults, as the server reads them. @internal */
 export interface ResolvedAnalyticsOptions {
+  mode: AnalyticsMode
   keepRawDays: number
   access: (ctx: { user: CmsAccessUser }) => boolean
   respectDoNotTrack: boolean
@@ -62,6 +80,7 @@ export function resolveAnalyticsOptions(opts: AnalyticsOptions = {}): ResolvedAn
   if (!Number.isInteger(keep) || keep < 2 || keep > 3650) {
     throw new Error(`Plugin "analytics": keepRawDays must be a whole number of days from 2 to 3650, got ${JSON.stringify(opts.keepRawDays)}.`)
   }
+  if (opts.mode !== undefined && !ANALYTICS_MODES.includes(opts.mode)) throw new Error(`Plugin "analytics": mode is 'cookieless', 'consent' or 'strict', got ${JSON.stringify(opts.mode)}.`)
   if (opts.access !== undefined && typeof opts.access !== 'function') throw new Error('Plugin "analytics": access must be a function ({ user }) => boolean.')
   if (opts.timeZone !== undefined && !validTimeZone(opts.timeZone)) throw new Error(`Plugin "analytics": timeZone "${opts.timeZone}" is not a time zone (e.g. "Europe/Prague").`)
   for (const p of opts.excludePaths ?? []) {
@@ -69,6 +88,7 @@ export function resolveAnalyticsOptions(opts: AnalyticsOptions = {}): ResolvedAn
   }
   const headers = (opts.countryHeaders ?? [...COUNTRY_HEADERS]).map((h) => String(h).trim().toLowerCase()).filter(Boolean)
   return {
+    mode: opts.mode ?? 'cookieless',
     keepRawDays: keep,
     access: opts.access ?? analyticsReadAccess,
     respectDoNotTrack: !!opts.respectDoNotTrack,

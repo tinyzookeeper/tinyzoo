@@ -345,8 +345,16 @@ describe('planPlugins: what the build registers', () => {
     expect(() => planPlugins([full, full])).toThrow(/Two plugins are named "shop"/)
   })
 
+  it('registers a plugin\'s composables folder, which must be absolute and exist', () => {
+    const dir = '/tmp/x/composables'
+    const p = defineCmsPlugin({ name: 'shop', version: '1.0.0', composables: dir })
+    expect(planPlugins([p]).composableDirs).toEqual([dir])
+    expect(() => planPlugins([p], { exists: () => false })).toThrow(/composables directory/)
+    expect(() => defineCmsPlugin({ name: 'shop', version: '1.0.0', composables: './composables' })).toThrow(/composables must be an absolute directory/)
+  })
+
   it('has nothing to register for no plugins', () => {
-    expect(planPlugins([])).toEqual({ pages: [], handlers: [], serverPlugins: [], componentDirs: [], navItems: [], appPlugins: [], dashboardWidgets: [], entityPanels: [], fields: {}, messages: {}, plugins: [] })
+    expect(planPlugins([])).toEqual({ pages: [], handlers: [], serverPlugins: [], componentDirs: [], composableDirs: [], navItems: [], appPlugins: [], dashboardWidgets: [], entityPanels: [], fields: {}, messages: {}, plugins: [] })
   })
 
   it('plans the forms plugin: its public endpoints keep their address', () => {

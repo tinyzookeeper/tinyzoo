@@ -30,6 +30,7 @@ export const API_ENTRIES: (ApiEntry & { golden: string })[] = [
   { name: 'tinyzoo', file: 'packages/cms/src/index.ts', golden: 'api-tinyzoo.txt', about: 'The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.' },
   { name: 'tinyzoo/forms', file: 'packages/cms/forms/index.ts', golden: 'api-tinyzoo-forms.txt', about: 'The forms plugin: defineForm, defineFormSettings, formsPlugin.' },
   { name: 'tinyzoo/analytics', file: 'packages/cms/analytics/index.ts', golden: 'api-tinyzoo-analytics.txt', about: 'The analytics plugin: analyticsPlugin, its options, its tables and the daily totals.' },
+  { name: 'tinyzoo/consent', file: 'packages/cms/consent/index.ts', golden: 'api-tinyzoo-consent.txt', about: 'The consent plugin: consentPlugin, its options and its log table.' },
   {
     name: 'tinyzoo/module', file: 'packages/cms/module.ts', golden: 'api-tinyzoo-module.txt', only: ['CmsModuleOptions', 'default'],
     about: 'The Nuxt module (build-time wiring): its options are the `cms` key of nuxt.config.',

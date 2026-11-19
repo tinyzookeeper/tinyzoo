@@ -34,6 +34,7 @@ A site registers plugins in `cms.config.ts` with `export const plugins = [events
 | `entityPanels` | `CmsEntityPanel[]` | Panels in the entry editor, see [Entry panels](#entry-panels) |
 | `fields` | `Record<string, CmsFieldRenderer>` | Components for a field type, see [Field editors](#field-editors) |
 | `components` | `string` | An absolute folder. Every `.vue` file in it becomes a global component, named after its file. `fields`, `dashboardWidgets` and `entityPanels` need it |
+| `composables` | `string` | An absolute folder. Every export of its files is auto-imported in the website and the admin, like the site's own `composables/` |
 | `i18n` | `Record<string, Record<string, unknown>>` | The plugin's admin texts per language, see [Texts](#texts) |
 | `hooks` | `CmsPluginHooks` | Code tinyzoo calls at set moments, see [Hooks](#hooks) |
 | `graph` | `(entity: CmsEntity) => CmsGraphExtension \| void` | Changes to a collection's list in the admin, see [List notes](#list-notes) |

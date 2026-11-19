@@ -1,7 +1,8 @@
 /**
  * Website analytics, as a plugin (`tinyzoo/analytics`): how many people visit the site, what
  * they read and where they come from, in the site's own admin. No cookies, nothing stored in
- * the browser and no address kept, so the site needs no consent banner for it.
+ * the browser and no address kept, so the site needs no consent banner for it. With the consent
+ * plugin it can also go with a cookie banner (`mode: 'consent'` or `'strict'`).
  *
  *   // cms.config.ts
  *   import { analyticsPlugin } from 'tinyzoo/analytics'
@@ -21,7 +22,7 @@
  */
 import { defineSingleton } from '../src/entity'
 import { f } from '../src/fields'
-import { defineCmsPlugin, pluginFile, type CmsPlugin } from '../src/plugin'
+import { defineCmsPlugin, pluginFile, type CmsPlugin, type CmsPluginNeed } from '../src/plugin'
 import pkg from '../package.json'
 import { ROLLUPS_CONTENT_PATH } from './format'
 import { ANALYTICS_MESSAGES } from './messages'
@@ -29,7 +30,7 @@ import { type AnalyticsOptions, type ResolvedAnalyticsOptions, resolveAnalyticsO
 import { analyticsRetention } from './rollup'
 import { ANALYTICS_TABLES_SOURCE, analyticsDaily, analyticsEvents } from './tables'
 
-export type { AnalyticsOptions } from './options'
+export type { AnalyticsMode, AnalyticsOptions } from './options'
 export { analyticsDaily, analyticsEvents } from './tables'
 export { dailyRollups, type DailyRollup } from './rollup'
 export type { AnalyticsRollupDay, AnalyticsRollupItem, AnalyticsRollups } from './format'
@@ -78,7 +79,8 @@ export function analyticsPlugin(options: AnalyticsOptions = {}): CmsPlugin {
     tables: [analyticsEvents, analyticsDaily],
     tablesSource: ANALYTICS_TABLES_SOURCE,
     components: file('./components'),
-    appPlugins: [{ src: file('./app/tracker.client.ts'), mode: 'client' }],
+    // `strict`: the tracker waits for the visitor's consent to statistics.
+    appPlugins: [{ src: file(resolved.mode === 'strict' ? './app/tracker-strict.client.ts' : './app/tracker.client.ts'), mode: 'client' }],
     serverPlugins: [file('./server/startup.ts')],
     serverHandlers: [
       // The tracker's address: neutral, so a blocker's list of tracking words does not stop it.
@@ -97,5 +99,13 @@ export function analyticsPlugin(options: AnalyticsOptions = {}): CmsPlugin {
     hooks: { retention: analyticsRetention(resolved) },
     i18n: ANALYTICS_MESSAGES,
   })
-  return Object.freeze({ ...plugin, analytics: resolved }) as AnalyticsPlugin
+  // A mode with a cookie banner needs the consent plugin, and its category "analytics".
+  const needs: CmsPluginNeed[] = resolved.mode === 'cookieless' ? [] : [{
+    plugin: 'consent',
+    message: `mode: '${resolved.mode}' needs the consent plugin, which is not registered: add consentPlugin() from 'tinyzoo/consent' (export const plugins = [consentPlugin(), analyticsPlugin({ mode: '${resolved.mode}' })]), or use mode: 'cookieless'.`,
+    check: (other) => ((other as any).consent?.keys as string[] | undefined)?.includes('analytics')
+      ? null
+      : `mode: '${resolved.mode}' asks the visitor about statistics, but the consent plugin does not ask about "analytics": add 'analytics' to consentPlugin({ categories }).`,
+  }]
+  return Object.freeze({ ...plugin, analytics: resolved, needs }) as AnalyticsPlugin
 }

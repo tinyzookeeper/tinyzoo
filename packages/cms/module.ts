@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { addComponentsDir, addPlugin, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
+import { addComponentsDir, addImportsDir, addPlugin, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
 import { createJiti } from 'jiti'
 import { docsUrl } from './src/docs'
 import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
@@ -325,6 +325,7 @@ export {}
     // After the site's and tinyzoo's own, so a plugin's app plugin can use what they provide.
     for (const app of plan.appPlugins) addPlugin({ src: app.src, mode: app.mode }, { append: true })
     for (const path of plan.componentDirs) addComponentsDir({ path, pathPrefix: false, global: true })
+    for (const path of plan.composableDirs) addImportsDir(path)
     // What the admin needs to know about plugins: the sidebar entries, the field renderers, the
     // home's widgets, the editor's panels and the texts (public runtime config: nothing secret in it).
     nuxt.options.runtimeConfig.public.cmsPlugins = {

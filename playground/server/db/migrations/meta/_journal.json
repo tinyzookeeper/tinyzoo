@@ -176,6 +176,13 @@
       "when": 1795122653371,
       "tag": "0024_analytics_plugin",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795122774723,
+      "tag": "0025_consent_plugin",
+      "breakpoints": true
     }
   ]
 }

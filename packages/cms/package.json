@@ -26,6 +26,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./analytics": "./analytics/index.ts",
+    "./consent": "./consent/index.ts",
     "./forms": "./forms/index.ts",
     "./layer": "./nuxt.config.ts",
     "./module": "./module.ts",
@@ -40,6 +41,7 @@
     "app",
     "app.config.ts",
     "cli",
+    "consent",
     "forms",
     "module.ts",
     "nuxt.config.ts",

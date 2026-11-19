@@ -37,7 +37,7 @@ describe('the status route', () => {
     expect(s.database).toMatchObject({ ok: true })
     expect(s.database.bytes).toBeGreaterThan(0)
     expect(s.webhooks).toEqual({ urls: 2, signed: true })
-    expect(s.plugins.map((p) => p.name)).toEqual(['forms', 'events', 'analytics'])
+    expect(s.plugins.map((p) => p.name)).toEqual(['forms', 'events', 'analytics', 'consent'])
     // The analytics plugin says whether it counts and where its daily totals are read.
     expect(s.analytics).toMatchObject({ enabled: true, collecting: expect.any(Boolean), rollupsPath: '/api/content/_analytics/rollups' })
 
