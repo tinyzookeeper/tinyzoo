@@ -104,8 +104,8 @@ export async function siteDetail(site: SiteRow): Promise<SiteDetail> {
   }
 }
 
-/** Check a new or changed site at once (uptime, status, certificate), after the response. */
-export function checkSoon(event: H3Event, siteId: string): void {
+/** Check a new or changed site at once (uptime, status, certificate), after the response. The promise is for callers that want to wait. */
+export function checkSoon(event: H3Event, siteId: string): Promise<void> {
   const run = (async () => {
     try {
       await checkSite(siteId, { forceStatus: true })
@@ -117,4 +117,62 @@ export function checkSoon(event: H3Event, siteId: string): void {
     }
   })()
   event.waitUntil?.(run)
+  return run
+}
+
+// ── Changing sites: the API routes and the MCP tools both go through these ─────────────────
+
+export type SiteInputData = z.infer<typeof siteInput>
+
+/** Add a site to the workspace, and check it straight after. */
+export async function createSite(event: H3Event, workspaceId: string, data: SiteInputData, opts: { wait?: boolean } = {}): Promise<string> {
+  const [row] = await useDb().insert(schema.sites).values({
+    workspaceId,
+    name: data.name,
+    client: data.client ?? '',
+    url: data.url,
+    environment: data.environment ?? 'production',
+    tokenEnc: data.token ? encryptSecret(data.token) : null,
+    repoUrl: data.repoUrl ?? '',
+    notes: data.notes ?? '',
+  }).returning({ id: schema.sites.id })
+  const first = checkSoon(event, row!.id)
+  if (opts.wait) await first
+  return row!.id
+}
+
+/** Change a site. `token` left out keeps the stored one; '' removes it. A new address or token is checked straight after. */
+export async function updateSite(event: H3Event, site: SiteRow, data: Partial<SiteInputData>, opts: { wait?: boolean } = {}): Promise<void> {
+  const urlChanged = data.url !== undefined && data.url !== site.url
+  const tokenChanged = data.token !== undefined
+  await useDb().update(schema.sites).set({
+    ...(data.name !== undefined ? { name: data.name } : {}),
+    ...(data.client !== undefined ? { client: data.client } : {}),
+    ...(data.url !== undefined ? { url: data.url } : {}),
+    ...(data.environment !== undefined ? { environment: data.environment } : {}),
+    ...(data.repoUrl !== undefined ? { repoUrl: data.repoUrl } : {}),
+    ...(data.notes !== undefined ? { notes: data.notes } : {}),
+    ...(tokenChanged ? { tokenEnc: data.token ? encryptSecret(data.token) : null, statusError: null } : {}),
+    // Another address is another site as far as the checks go.
+    ...(urlChanged ? { state: 'unknown' as const, stateSince: null, failStreak: 0, status: null, statusAt: null, statusError: null, certExpiresAt: null, certError: null } : {}),
+    ...(tokenChanged && !data.token ? { status: null, statusAt: null } : {}),
+    updatedAt: new Date(),
+  }).where(eq(schema.sites.id, site.id))
+  if (urlChanged || tokenChanged) {
+    const next = checkSoon(event, site.id)
+    if (opts.wait) await next
+  }
+}
+
+/** Remove a site with its checks and incidents. */
+export async function removeSite(site: SiteRow): Promise<void> {
+  await useDb().delete(schema.sites).where(eq(schema.sites.id, site.id))
+}
+
+/** Check a site now (uptime and status; the certificate when it was never read), and answer with the fresh detail. */
+export async function checkNow(site: SiteRow): Promise<SiteDetail> {
+  await checkSite(site.id, { forceStatus: true })
+  if (!site.certCheckedAt) await checkCertificate(site)
+  const [fresh] = await useDb().select().from(schema.sites).where(eq(schema.sites.id, site.id))
+  return siteDetail(fresh!)
 }

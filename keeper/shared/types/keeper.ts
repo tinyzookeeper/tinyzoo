@@ -99,3 +99,25 @@ export interface WorkspaceSettings {
   /** Who gets the e-mails when a site goes down or comes back; empty = every member. */
   alertEmails: string[]
 }
+
+/** An access token in the list (never the token itself). */
+export interface AccessToken {
+  id: string
+  name: string
+  /** read: looks only; write: may also add, change, check and remove sites. */
+  scope: 'read' | 'write'
+  /** The start of the token, to tell it apart: kpr_ab12cd. */
+  prefix: string
+  createdAt: string
+  lastUsedAt: string | null
+  /** Who made it (the token acts as them). */
+  createdBy: string | null
+  /** Whether the person looking may revoke it: their own, or any for an owner. */
+  canRevoke: boolean
+}
+
+/** A token just made: the only time its value is shown. */
+export interface NewAccessToken {
+  token: AccessToken
+  value: string
+}

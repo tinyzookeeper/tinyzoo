@@ -6,7 +6,7 @@ import type { ConnectionTest } from '#keeper/types/keeper'
 const input = z.object({ url: z.string().max(500), token: z.string().max(500).optional(), siteId: z.string().uuid().optional() })
 
 export default defineEventHandler(async (event): Promise<ConnectionTest> => {
-  const me = await requireMember(event)
+  const me = await requireAccess(event, 'write')
   const data = await readInput(event, input)
   const url = normalizeUrl(data.url)
   if (!url) throw createError({ statusCode: 422, statusMessage: 'url: Not a web address' })

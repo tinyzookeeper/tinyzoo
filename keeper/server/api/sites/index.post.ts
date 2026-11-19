@@ -1,17 +1,7 @@
 export default defineEventHandler(async (event) => {
-  const me = await requireMember(event)
+  const me = await requireAccess(event, 'write')
   const data = await readInput(event, siteInput)
-  const [row] = await useDb().insert(schema.sites).values({
-    workspaceId: me.workspaceId,
-    name: data.name,
-    client: data.client ?? '',
-    url: data.url,
-    environment: data.environment ?? 'production',
-    tokenEnc: data.token ? encryptSecret(data.token) : null,
-    repoUrl: data.repoUrl ?? '',
-    notes: data.notes ?? '',
-  }).returning({ id: schema.sites.id })
-  checkSoon(event, row!.id)
+  const id = await createSite(event, me.workspaceId, data)
   setResponseStatus(event, 201)
-  return { id: row!.id }
+  return { id }
 })

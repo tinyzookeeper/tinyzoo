@@ -92,3 +92,24 @@ export const state = pgTable('state', {
   value: jsonb('value').notNull(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 })
+
+/**
+ * An access token for the API and the MCP server (`Authorization: Bearer kpr_…`). Only its
+ * SHA-256 is stored; the token itself is shown once, when it is made. It acts as the person
+ * who made it, while they are in the workspace: removing them ends their tokens too.
+ */
+export const tokens = pgTable('tokens', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  // read: looks only; write: may also add, change, check and remove sites.
+  scope: text('scope').$type<'read' | 'write'>().notNull().default('read'),
+  // SHA-256 of the whole token, hex.
+  hash: text('hash').notNull(),
+  // The start of the token (kpr_ab12cd), to tell tokens apart in the list.
+  prefix: text('prefix').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  lastUsedAt: ts('last_used_at'),
+  revokedAt: ts('revoked_at'),
+}, (t) => [uniqueIndex('tokens_hash_unique').on(t.hash), index('tokens_workspace_idx').on(t.workspaceId)])

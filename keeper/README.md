@@ -17,6 +17,17 @@ Self-hosted for now, with one team (a *workspace*). Every table already carries 
 1. On the site, set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`) and redeploy. It needs tinyzoo 1.1 or newer; without the token, Keeper still checks uptime and the certificate.
 2. In Keeper, click *Add site*, then paste the site's address and the token. *Test connection* tells you whether both work.
 
+## Access tokens and the MCP server
+
+*Settings → Access tokens* makes tokens (`kpr_…`) for scripts and other tools. A token is shown once; Keeper keeps only its SHA-256. It acts as the person who made it, while they are in the team. A **read** token sees everything; a **write** token can also add, change, check and remove sites. Send it as `Authorization: Bearer kpr_…`. Wrong tokens are counted per address: after 20 in 10 minutes Keeper answers 429.
+
+- **API.** The `/api/sites` routes take a token as well as the sign-in cookie. Tokens, people and team settings stay sign-in only.
+- **MCP.** `POST /mcp` is an MCP server (Streamable HTTP, stateless, JSON answers) that takes only a token. Read tools: `fleet_summary`, `list_sites`, `get_site`, `list_versions`, `list_incidents`. Write tools, for a write token: `add_site`, `update_site`, `check_site`, `remove_site`. They go through the same code as the API, and no tool ever returns a site's status token.
+
+```sh
+claude mcp add --transport http keeper https://keeper.example.com/mcp --header "Authorization: Bearer kpr_…"
+```
+
 ## Run it (developing Keeper)
 
 ```sh
