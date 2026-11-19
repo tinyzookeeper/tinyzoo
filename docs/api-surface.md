@@ -237,7 +237,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | Site status | `CmsStatus`, `CmsStatusCollection` (the answer of `/api/health/status`) |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
 | Admin branding (`cms.admin`) | `CmsAccent` (a built-in accent or a hex), `CmsAccentPreset` (`'mono' \| 'indigo' \| 'blue' \| 'violet' \| 'emerald'`), `CmsAdminLogo` (`full`, `mark`, `fullDark`, `markDark`) |
-| Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsConsentProps`, `CmsConsentChoice`, `CmsConsentApi`, `CmsReadonlyRef`, `CmsSearchItem`, `CmsSearchResult` |
+| Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsConsentProps`, `CmsConsentChoice`, `CmsConsentApi`, `CmsConsentTexts`, `CmsConsentCategory`, `CmsConsentService`, `CmsReadonlyRef`, `CmsSearchItem`, `CmsSearchResult` |
 
 **`Entity` or `CmsEntity`?** They are two views of the same thing.
 
@@ -302,8 +302,9 @@ The consent plugin ([consent](consent.md)).
 | Export | What it is |
 |---|---|
 | `consentPlugin(options)` | the plugin to register: `export const plugins = [consentPlugin()]` |
-| `ConsentOptions` | its options: `categories`, `cookieDays`, `keepLogDays`, `localized`, `access` |
+| `ConsentOptions` | its options: `categories`, `services`, `cookieDays`, `keepLogDays`, `localized`, `access` |
 | `ConsentCategoryDef` | a category of the site's own: `key`, `label`, `description` |
+| `ConsentServiceDef` | a service behind a category, in `services`: `name`, `provider`, `purpose`, `cookies`, `duration`, `privacyUrl` |
 
 The plugin also brings:
 
@@ -399,7 +400,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content/_sitemap` | the site's public addresses as `{ entries }` (`CmsSitemapEntry`) |
 | `GET`, `POST /api/content/_form/:name` | a website form's definition and its submission (`tinyzoo/forms`) |
 | `POST /api/content/_analytics/e` | a page view, or the time one was looked at, from the website's pages (`tinyzoo/analytics`). Always `202` with no body |
-| `GET /api/content/_consent/config` | the cookie banner's texts and categories in a language (`?locale=`), the version of the texts and `cookieDays` (`tinyzoo/consent`) |
+| `GET /api/content/_consent/config` | the cookie banner's texts and categories (each with its services and cookies) in a language (`?locale=`), the version of the texts and `cookieDays` (`tinyzoo/consent`) |
 | `POST /api/content/_consent/choice` | a visitor's choice (`{ id?, choice, version }`): logged, and the cookie `tz_consent` set. `{ id, action, version, cookie }` (`tinyzoo/consent`) |
 | `GET /api/openapi.json` | the OpenAPI 3.1 document of all of the above |
 | `GET /api/openapi` | the interactive reference (off in production unless `cms.content.docs`) |
@@ -630,14 +631,14 @@ Their props are the interfaces of `tinyzoo` named below. `frontend-kit.txt` hold
 | `<CmsNav>` | `CmsNavProps`: `links` (`CmsNavLink`: `id`, `label`, `url`, `newTab`, `sub`; or `null`) | none. Renders a `nav.cms-nav` with nested lists |
 | `<CmsHighlight>` | `CmsHighlightProps`: `text`, `ranges` (`[start, end)` pairs, or `null`) | none. Renders a `span` with `<mark>` around each range |
 | `<CmsForm>` (`tinyzoo/forms`) | `CmsFormProps`: `name`, `locale` | event `sent`; slot `success` (replaces the form after sending) |
-| `<CmsConsent>` (`tinyzoo/consent`) | `CmsConsentProps`: `locale` | none. The cookie banner and its settings dialog, themed with `--cms-consent-*` variables |
+| `<CmsConsent>` (`tinyzoo/consent`) | `CmsConsentProps`: `locale`, `unstyled` | slots `default`, `banner`, `actions`, `settings`, `category`, `settings-actions`, each given the whole `useConsent()` (`category` also `category`). The ready-made cookie banner and its settings dialog, built on `useConsent()`, themed with `--cms-consent-*` variables ([consent](consent.md#slots-of-cmsconsent)) |
 
 | Composable | Takes | Returns |
 |---|---|---|
 | `useCmsSeo(item, options)` | an item or a getter of one, and `{ siteName, titleField, descriptionField, imageField, fallback, defaultLocale, path, ogLocales }` | `{ title, description, image, canonical }` (computed values); sets the page's head |
 | `useCmsSearch(query, options)` | a query (ref or getter) and `{ locale, limit, entities }` | a promise of `{ items, total, searched, pending, error }`; `items` are `CmsSearchItem`s |
 | `useCmsUiLocale()` | nothing | a computed locale for `<UApp :locale>`: Nuxt UI's words in the admin's language on `/admin` pages, `undefined` elsewhere |
-| `useConsent()` (`tinyzoo/consent`) | nothing | `CmsConsentApi`: `{ choice, decided, ready, granted, open, onChange }` |
+| `useConsent()` (`tinyzoo/consent`) | nothing | `CmsConsentApi`: `{ choice, decided, ready, granted, onChange, bannerVisible, settingsOpen, open, close, texts, categories, draft, set, acceptAll, rejectAll, save, saving, error }` ([reference](consent.md#useconsent-reference)) |
 
 Every other `Cms*` component and `useCms*` composable (`CmsPage`, `CmsField`, `CmsEmptyState`, `CmsStatusBadge`, `useCmsI18n` and so on) is the admin's own and internal. That includes the ones a plugin's admin page uses ([plugins](plugins.md#admin-pages-and-navigation)). They can change in any minor release.
 

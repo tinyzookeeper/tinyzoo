@@ -1,7 +1,9 @@
 /**
- * The visitor's choice in the browser, shared by `<CmsConsent>`, `useConsent()` and the
- * analytics tracker: a small store over the cookie. Framework-free, so it can be tested
- * without Nuxt; the app plugin (consent.ts) makes one per app and provides it as `$cmsConsent`.
+ * The visitor's choice in the browser, shared by `useConsent()`, `<CmsConsent>` (which is built
+ * on it) and the analytics tracker: a small store over the cookie, with the state a banner and
+ * its settings need. Framework-free, so it can be tested without Nuxt; the app plugin
+ * (consent.ts) makes one per app and provides it as `$cmsConsent`, whether or not a page places
+ * `<CmsConsent>`.
  *
  * While the page is rendered on the server nothing is known: `ready` is false and only
  * `necessary` is granted, so no page cached by a CDN carries one visitor's choice to another.
@@ -10,7 +12,7 @@
  * newer, a category is new, or the choice is too old.
  */
 import {
-  consentCookieString, decodeConsent, encodeConsent, grantedIn, isCurrent, newConsentId, readConsentCookie, consentDate,
+  consentCookieString, decodeConsent, encodeConsent, grantedIn, isCurrent, newConsentId, readConsentCookie, consentDate, NECESSARY,
   type ConsentChoice, type ConsentCookie,
 } from '../core/cookie'
 import type { ConsentCategory, ConsentTexts } from '../core/texts'
@@ -34,10 +36,14 @@ export interface ConsentState {
   config: ConsentConfig | null
   /** The settings dialog is open. */
   settingsOpen: boolean
+  /** The settings' switches, per category (necessary always true); set from the choice when they open. */
+  draft: Record<string, boolean>
   saving: boolean
+  /** Why the last choice could not be recorded on the server, or null. */
+  error: string | null
 }
 
-export const initialConsentState = (): ConsentState => ({ ready: false, choice: null, id: null, config: null, settingsOpen: false, saving: false })
+export const initialConsentState = (): ConsentState => ({ ready: false, choice: null, id: null, config: null, settingsOpen: false, draft: {}, saving: false, error: null })
 
 export type ConsentListener = (choice: ConsentChoice | null) => void
 
@@ -65,6 +71,16 @@ export function createConsentRuntime(state: ConsentState, env: ConsentEnv) {
       catch (err) { console.error('[cms] consent: an onChange listener failed', err) }
     }
   }
+  // The switches, from the visitor's choice (all off without one). Changed in place: useConsent() hands the object out.
+  function resetDraft(onlyMissing = false) {
+    const keys = (state.config?.categories ?? []).map((c) => c.key)
+    for (const k of Object.keys(state.draft)) if (!onlyMissing && !keys.includes(k)) delete state.draft[k]
+    for (const k of keys) {
+      if (onlyMissing && k in state.draft) continue
+      state.draft[k] = k === NECESSARY || state.choice?.[k] === true
+    }
+  }
+
   let cookie: ConsentCookie | null = null
   let loadedLocale: string | null = null
   let loading: Promise<void> | null = null
@@ -88,6 +104,8 @@ export function createConsentRuntime(state: ConsentState, env: ConsentEnv) {
       if (!isCurrent(cookie, { version: config.version, categories: choosable(config), days: config.cookieDays, now: env.now?.() })) {
         state.choice = null
       }
+      // Settings opened before the texts were in get their switches now.
+      resetDraft(true)
       const first = !state.ready
       state.ready = true
       if (first || before !== state.choice) emit()
@@ -111,6 +129,7 @@ export function createConsentRuntime(state: ConsentState, env: ConsentEnv) {
     state.choice = full
     state.settingsOpen = false
     state.saving = true
+    state.error = null
     emit()
     try {
       const res = await env.sendChoice({ id: state.id, choice: full, version })
@@ -120,6 +139,7 @@ export function createConsentRuntime(state: ConsentState, env: ConsentEnv) {
     catch (err) {
       // The visitor's choice holds on this device even when it could not be logged.
       console.error('[cms] consent: the choice could not be saved', err)
+      state.error = errorText(err)
       const id = state.id ?? newConsentId()
       cookie = { id, version, date: consentDate(env.now?.() ?? new Date()), choice: full }
       state.id = id
@@ -140,8 +160,19 @@ export function createConsentRuntime(state: ConsentState, env: ConsentEnv) {
     acceptAll: () => save(all(true)),
     rejectAll: () => save(all(false)),
     granted: (category: string) => grantedIn(state.choice, category),
-    open: () => { state.settingsOpen = true },
+    /** Opens the settings; their switches start from the choice the visitor has. */
+    open: () => {
+      if (!state.settingsOpen) resetDraft()
+      state.settingsOpen = true
+    },
     close: () => { state.settingsOpen = false },
+    /** One switch of the settings; necessary stays on. */
+    set: (category: string, value: boolean) => {
+      if (category === NECESSARY) return
+      state.draft[category] = value === true
+    },
+    /** Saves the settings' switches. */
+    saveDraft: () => save({ ...state.draft }),
     /** Runs `cb` once the choice is known after the page loads, and whenever it changes. Returns a function that stops it. */
     onChange(cb: ConsentListener): () => void {
       listeners.add(cb)
@@ -150,6 +181,12 @@ export function createConsentRuntime(state: ConsentState, env: ConsentEnv) {
       return () => { listeners.delete(cb) }
     },
   }
+}
+
+/** A failed request, as a sentence: the server's message when it gave one. */
+function errorText(err: unknown): string {
+  const e = err as { statusMessage?: string; data?: { statusMessage?: string; message?: string }; message?: string } | null
+  return String(e?.data?.statusMessage || e?.statusMessage || e?.data?.message || e?.message || 'The choice could not be saved')
 }
 
 export type ConsentRuntime = ReturnType<typeof createConsentRuntime>

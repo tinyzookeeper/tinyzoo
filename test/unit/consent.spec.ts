@@ -10,7 +10,7 @@ import {
   actionOf, consentCookieString, decodeConsent, encodeConsent, grantedIn, isCurrent, MAX_COOKIE_DAYS, newConsentId,
   normalizeChoice, outcomeOf, readConsentCookie, withdrawnFrom, type ConsentCookie,
 } from '../../packages/cms/consent/core/cookie'
-import { DEFAULT_TEXTS, defaultsLanguage, resolveTexts } from '../../packages/cms/consent/core/texts'
+import { DEFAULT_TEXTS, daysText, defaultsLanguage, resolveTexts } from '../../packages/cms/consent/core/texts'
 import { createConsentRuntime, initialConsentState, type ConsentConfig, type ConsentEnv } from '../../packages/cms/consent/app/runtime'
 import { CONSENT_MESSAGES } from '../../packages/cms/consent/messages'
 import { consentOptionsOf, consentReadAccess, resolveConsentOptions } from '../../packages/cms/consent/options'
@@ -141,10 +141,39 @@ describe('the banner\'s texts', () => {
   it('uses what editors wrote, and the standard text where they left one empty', () => {
     const r = resolveTexts({ title: ' Sušenky ', body: '', analyticsLabel: 'Měření', privacyUrl: '/ochrana-udaju' }, ['analytics'], 'cs')
     expect(r.texts).toMatchObject({ title: 'Sušenky', body: DEFAULT_TEXTS.cs.texts.body, privacyUrl: '/ochrana-udaju', acceptAll: 'Přijmout vše' })
-    expect(r.categories).toEqual([
+    expect(r.categories.map(({ services, ...c }) => c)).toEqual([
       { key: 'necessary', label: 'Nezbytné', description: DEFAULT_TEXTS.cs.categories.necessary.description, required: true },
       { key: 'analytics', label: 'Měření', description: DEFAULT_TEXTS.cs.categories.analytics.description, required: false },
     ])
+  })
+  it('a category of the site\'s own: what editors wrote, else the text of the options', () => {
+    const video = { key: 'video', label: { cs: 'Videa', en: 'Videos' }, description: { cs: 'Přehrávač YouTube.', en: 'The YouTube player.' } }
+    expect(resolveTexts({ videoLabel: ' Přehrávač ' }, [video], 'cs').categories[1]).toMatchObject({ label: 'Přehrávač', description: 'Přehrávač YouTube.' })
+    expect(resolveTexts({ videoLabel: '', videoText: 'Vlastní popis' }, [video], 'cs').categories[1]).toMatchObject({ label: 'Videa', description: 'Vlastní popis' })
+  })
+  it('lists the consent cookie under necessary by itself, for as long as a choice holds', () => {
+    const [necessary] = resolveTexts(null, ['analytics'], 'en', { cookieDays: 180 }).categories
+    expect(necessary!.services).toEqual([{ name: 'Cookie consent', provider: 'This website', purpose: expect.stringContaining('Remembers your choice'), cookies: ['tz_consent'], duration: '180 days', privacyUrl: '' }])
+    expect(['cs', 'de'].map((l) => resolveTexts(null, ['analytics'], l, { cookieDays: 3 }).categories[0]!.services[0]!.duration)).toEqual(['3 dny', '3 Tage'])
+    expect(daysText(1, 'cs')).toBe('1 den')
+    expect(daysText(365, 'cs')).toBe('365 dní')
+  })
+  it('the analytics plugin with a banner describes what it keeps; without one it is not listed', () => {
+    const analytics = (mode: string | null) => resolveTexts(null, ['analytics'], 'en', { analyticsMode: mode }).categories[1]!.services
+    expect(analytics('consent')).toEqual([expect.objectContaining({ name: 'Website statistics', cookies: ['tz_consent'], purpose: expect.stringContaining('how often people come back') })])
+    expect(analytics('strict')).toEqual([expect.objectContaining({ name: 'Website statistics', cookies: [], duration: '' })])
+    expect(analytics('cookieless')).toEqual([])
+    expect(analytics(null)).toEqual([])
+  })
+  it('the site\'s services, in the page\'s language, after the ones the plugins describe', () => {
+    const services = {
+      necessary: [{ name: 'Cart', purpose: { cs: 'Košík.', en: 'The cart.' }, cookies: ['cart'], duration: { cs: '1 den', en: '1 day' } }],
+      marketing: [{ name: 'Meta Pixel', provider: 'Meta Platforms Ireland Ltd.', purpose: 'Ads.', cookies: ['_fbp'], privacyUrl: 'https://www.facebook.com/privacy/policy/' }],
+    }
+    const cats = resolveTexts(null, ['analytics', 'marketing'], 'cs', { services }).categories
+    expect(cats[0]!.services.map((s) => s.name)).toEqual(['Souhlas s cookies', 'Cart'])
+    expect(cats[0]!.services[1]).toEqual({ name: 'Cart', provider: '', purpose: 'Košík.', cookies: ['cart'], duration: '1 den', privacyUrl: '' })
+    expect(cats[2]!.services).toEqual([{ name: 'Meta Pixel', provider: 'Meta Platforms Ireland Ltd.', purpose: 'Ads.', cookies: ['_fbp'], duration: '', privacyUrl: 'https://www.facebook.com/privacy/policy/' }])
   })
   it('a category of the site\'s own, in the page\'s language', () => {
     const video = { key: 'video', label: { cs: 'Videa', en: 'Videos' }, description: { cs: 'Přehrávač YouTube.', en: 'The YouTube player.' } }
@@ -174,6 +203,27 @@ describe('the options', () => {
     expect(() => resolveConsentOptions({ categories: [{ key: 'video' } as any] })).toThrow(/needs a label/)
     expect(() => resolveConsentOptions({ cookieDays: 400 })).toThrow(/13 months/)
     expect(() => resolveConsentOptions({ cookieDays: 365, keepLogDays: 100 })).toThrow(/must outlive the choice/)
+    // Its texts are fields of the settings: privacyLabel is the privacy link's.
+    expect(() => resolveConsentOptions({ categories: [{ key: 'privacy', label: 'x' }] })).toThrow(/taken by a text of the banner/)
+  })
+  it('takes services per category, checked', () => {
+    const yt = { name: 'YouTube', provider: 'Google Ireland Limited', purpose: { en: 'Plays videos.' }, cookies: ['YSC', 'VISITOR_INFO1_LIVE'], duration: { en: '6 months' }, privacyUrl: 'https://policies.google.com/privacy' }
+    const video = { key: 'video', label: 'Videos' }
+    const o = resolveConsentOptions({ categories: ['analytics', video], services: { video: [yt], necessary: [{ name: 'Cart', purpose: 'The cart.' }] } })
+    expect(o.services).toEqual({ video: [yt], necessary: [{ name: 'Cart', purpose: 'The cart.' }] })
+    expect(resolveConsentOptions().services).toEqual({})
+    const bad = (services: any) => () => resolveConsentOptions({ categories: ['analytics', video], services })
+    expect(bad({ marketing: [yt] })).toThrow(/"marketing" is not a category the banner asks about \(necessary, analytics, video\)/)
+    expect(bad({ video: yt })).toThrow(/services.video is a list/)
+    expect(bad({ video: [{ purpose: 'x' }] })).toThrow(/services.video\[0\] needs a name/)
+    expect(bad({ video: [{ name: 'YouTube' }] })).toThrow(/needs a purpose/)
+    expect(bad({ video: [{ name: 'YouTube', purpose: { en: ' ' } }] })).toThrow(/needs a purpose/)
+    expect(bad({ video: [{ ...yt, cookie: ['YSC'] }] })).toThrow(/unknown "cookie"/)
+    expect(bad({ video: [{ ...yt, cookies: 'YSC' }] })).toThrow(/cookies is a list of cookie names/)
+    expect(bad({ video: [{ ...yt, cookies: ['a b'] }] })).toThrow(/cookies is a list of cookie names/)
+    expect(bad({ video: [{ ...yt, privacyUrl: '/privacy' }] })).toThrow(/privacyUrl is a full address/)
+    expect(bad({ video: [{ ...yt, duration: 6 }] })).toThrow(/duration is a text/)
+    expect(bad([yt])).toThrow(/a list of services per category/)
   })
   it('lets administrators and editors see the counts by default, not authors', () => {
     const u = (role: string, base: string | null = role) => ({ user: { id: '1', email: '', name: '', role, base, locale: null } as any })
@@ -207,6 +257,16 @@ describe('the plugin', () => {
     expect(many.localized).toEqual(expect.arrayContaining(['title', 'body', 'marketingLabel', 'privacyUrl']))
     expect(many.localized).not.toContain('version')
     expect(consentOptionsOf(buildRegistry({ plugins: [consentPlugin({ cookieDays: 180 })] }))).toMatchObject({ cookieDays: 180 })
+  })
+  it('editors write the texts of the site\'s own categories too; the options\' texts are the defaults', () => {
+    const video = { key: 'video_embeds', label: { en: 'Videos', cs: 'Videa' }, description: { en: 'The YouTube player.' } }
+    const settings = buildRegistry({ plugins: [consentPlugin({ categories: ['analytics', video] })] }).byName.get('consent_settings')!
+    expect(Object.keys(settings.fields)).toEqual(expect.arrayContaining(['video_embedsLabel', 'video_embedsText']))
+    const meta = (k: string) => (settings.fields as any)[k].meta
+    expect(meta('video_embedsLabel').label).toMatchObject({ en: 'Name (Videos)', cs: 'Název (Videa)' })
+    expect(meta('video_embedsLabel').help).toMatchObject({ en: 'Leave it empty for the site\'s own text: "Videos".' })
+    expect(meta('video_embedsText').help).toMatchObject({ en: 'Leave it empty for the site\'s own text: "The YouTube player.".' })
+    expect(meta('analyticsLabel').help.en).toBe('Leave it empty for the standard text.')
   })
   it('has every admin text in Czech and German too', () => {
     const keys = (o: any, p = ''): string[] => Object.entries(o).flatMap(([k, v]) => (typeof v === 'string' || 'other' in (v as any) ? [`${p}${k}`] : keys(v, `${p}${k}.`)))

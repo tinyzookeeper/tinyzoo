@@ -24,13 +24,13 @@ export const KIT_COMPONENTS: KitComponent[] = [
   { tag: 'CmsNav', file: 'app/components/CmsNav.vue', about: 'A menu as a `nav.cms-nav` with nested lists.' },
   { tag: 'CmsHighlight', file: 'app/components/CmsHighlight.vue', about: 'Text with `<mark>` around the searched words.' },
   { tag: 'CmsForm', file: 'forms/components/CmsForm.vue', about: 'A website form by name (`tinyzoo/forms`; needs `formsPlugin()`).' },
-  { tag: 'CmsConsent', file: 'consent/components/CmsConsent.vue', about: 'The cookie banner and its settings dialog (`tinyzoo/consent`; needs `consentPlugin()`).' },
+  { tag: 'CmsConsent', file: 'consent/components/CmsConsent.vue', about: 'The ready-made cookie banner and its settings dialog, built on `useConsent()`; optional, restylable (`unstyled`, slots) (`tinyzoo/consent`; needs `consentPlugin()`).' },
 ]
 
 export const KIT_COMPOSABLES: KitComposable[] = [
   { name: 'useCmsSeo', file: 'app/composables/useCmsSeo.ts', about: 'The page\'s head from a content item: title, description, image, canonical, hreflang, og:*.' },
   { name: 'useCmsSearch', file: 'app/composables/useCmsSearch.ts', about: 'The website search: reactive results with address and snippet.' },
-  { name: 'useConsent', file: 'consent/composables/useConsent.ts', about: 'The visitor\'s cookie choice: `granted(category)`, `choice`, `decided`, `open()`, `onChange(cb)` (`tinyzoo/consent`; needs `consentPlugin()`).' },
+  { name: 'useConsent', file: 'consent/composables/useConsent.ts', about: 'The visitor\'s cookie choice, and everything a banner of the site\'s own needs: texts, categories with services, `draft`, `acceptAll()`, `save()` (`tinyzoo/consent`; needs `consentPlugin()`).' },
   { name: 'useCmsUiLocale', file: 'app/composables/useCmsUiLocale.ts', about: 'Nuxt UI\'s own words in the admin\'s language on /admin pages; for `<UApp :locale>`.' },
 ]
 

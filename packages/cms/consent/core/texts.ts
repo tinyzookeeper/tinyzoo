@@ -4,38 +4,48 @@
  * tests read it; no `import`s of anything server-side.
  */
 import type { LocalizedText } from '../../src/i18n'
-import { NECESSARY } from './cookie'
+import type { CmsConsentService, CmsConsentTexts } from '../../src/frontend'
+import { CONSENT_COOKIE, NECESSARY } from './cookie'
 
 /** A text in one language, or one per language (`{ cs: 'Statistické', en: 'Statistics' }`). */
 export type ConsentText = LocalizedText
 
 /** The texts of the banner and the settings dialog, in one language. */
-export interface ConsentTexts {
-  title: string
-  body: string
-  acceptAll: string
-  rejectAll: string
-  settings: string
-  save: string
-  settingsTitle: string
-  privacyLabel: string
-  /** The privacy policy's address ('' = no link). */
-  privacyUrl: string
-  /** Next to the switch that cannot be switched off. */
-  alwaysOn: string
-  close: string
-}
+export type ConsentTexts = CmsConsentTexts
+
+/** A service and its cookies, in one language. */
+export type ConsentService = CmsConsentService
 
 /** The texts of the built-in categories, in one language. */
 export interface CategoryTexts { label: string; description: string }
 
-/** What the website gets for one category. */
+/** What the website gets for one category (the config endpoint); `useConsent()` adds whether it is granted. */
 export interface ConsentCategory {
   key: string
   label: string
   description: string
   /** Always on (necessary): shown, not switchable. */
   required: boolean
+  services: ConsentService[]
+}
+
+/**
+ * A service (a tool, an embed, the site itself) and the cookies it sets, as a site lists it in
+ * `consentPlugin({ services })`. Shown in the settings under its category.
+ */
+export interface ConsentServiceDef {
+  /** `YouTube`, `Google Analytics`, `Shopping cart`. */
+  name: string
+  /** Who runs it: `Google Ireland Limited`. */
+  provider?: string
+  /** What it does, in plain words. */
+  purpose: LocalizedText
+  /** The names of the cookies it sets (`_ga`, `_ga_*`). */
+  cookies?: string[]
+  /** How long they are kept: `{ en: '2 years', cs: '2 roky' }`. */
+  duration?: LocalizedText
+  /** Its own privacy policy, a full address. */
+  privacyUrl?: string
 }
 
 export const BUILT_IN_CATEGORIES = [NECESSARY, 'analytics', 'marketing'] as const
@@ -61,6 +71,10 @@ export const DEFAULT_TEXTS: Record<'cs' | 'en' | 'de', LanguageDefaults> = {
       privacyUrl: '',
       alwaysOn: 'Vždy zapnuté',
       close: 'Zavřít',
+      services: 'Služby a cookies',
+      provider: 'Poskytovatel',
+      cookies: 'Cookies',
+      duration: 'Doba uložení',
     },
     categories: {
       necessary: { label: 'Nezbytné', description: 'Bez nich web nefunguje. Pamatují si například tuto volbu.' },
@@ -81,6 +95,10 @@ export const DEFAULT_TEXTS: Record<'cs' | 'en' | 'de', LanguageDefaults> = {
       privacyUrl: '',
       alwaysOn: 'Always on',
       close: 'Close',
+      services: 'Services and cookies',
+      provider: 'Provider',
+      cookies: 'Cookies',
+      duration: 'Kept for',
     },
     categories: {
       necessary: { label: 'Necessary', description: 'The website does not work without them. They remember this choice, for example.' },
@@ -101,6 +119,10 @@ export const DEFAULT_TEXTS: Record<'cs' | 'en' | 'de', LanguageDefaults> = {
       privacyUrl: '',
       alwaysOn: 'Immer aktiv',
       close: 'Schließen',
+      services: 'Dienste und Cookies',
+      provider: 'Anbieter',
+      cookies: 'Cookies',
+      duration: 'Speicherdauer',
     },
     categories: {
       necessary: { label: 'Notwendig', description: 'Ohne sie funktioniert die Website nicht. Sie merken sich zum Beispiel diese Auswahl.' },
@@ -116,9 +138,8 @@ export function defaultsLanguage(locale: string | null | undefined): keyof typeo
   return lang === 'cs' || lang === 'de' ? lang : lang === 'sk' ? 'cs' : 'en'
 }
 
-/** The keys of the consent settings' text fields: `title`, …, and `<category>Label` / `<category>Text` for the built-in ones. */
+/** The keys of the consent settings' text fields (besides `<category>Label` / `<category>Text` for each category). */
 export const TEXT_KEYS = ['title', 'body', 'acceptAll', 'rejectAll', 'settings', 'save', 'settingsTitle', 'privacyLabel', 'privacyUrl'] as const
-export const categoryField = (key: BuiltInCategory, part: 'Label' | 'Text') => `${key}${part}`
 
 const filled = (v: unknown): v is string => typeof v === 'string' && v.trim() !== ''
 
@@ -134,37 +155,121 @@ export function pickText(text: ConsentText | undefined, locale: string | null | 
 export interface ConsentCategoryDef {
   /** Lowercase letters, digits and `_` (`preferences`, `video_embeds`). */
   key: string
+  /** Its name; editors can change it in the admin (Settings → Cookie banner). */
   label: LocalizedText
+  /** What it is for; editors can change it in the admin. */
   description?: LocalizedText
+}
+
+/** The consent settings' fields of a category's name and description: `analyticsLabel`, `videoText`. */
+export const categoryField = (key: string, part: 'Label' | 'Text') => `${key}${part}`
+
+/** `365 days` in a language of the standard texts. */
+export function daysText(days: number, lang: keyof typeof DEFAULT_TEXTS): string {
+  if (lang === 'cs') return `${days} ${days === 1 ? 'den' : days >= 2 && days <= 4 ? 'dny' : 'dní'}`
+  if (lang === 'de') return `${days} ${days === 1 ? 'Tag' : 'Tage'}`
+  return `${days} ${days === 1 ? 'day' : 'days'}`
+}
+
+const THIS_SITE = { cs: 'Tento web', en: 'This website', de: 'Diese Website' } as const
+
+/** The services the plugins describe by themselves: the consent cookie, and the analytics plugin with a banner. */
+export function builtInServices(
+  lang: keyof typeof DEFAULT_TEXTS,
+  o: { cookieDays: number; analyticsMode?: string | null; asks: readonly string[] },
+): Record<string, ConsentService[]> {
+  const days = daysText(o.cookieDays, lang)
+  const own = (name: Record<keyof typeof DEFAULT_TEXTS, string>, purpose: Record<keyof typeof DEFAULT_TEXTS, string>, cookies: string[]): ConsentService => ({
+    name: name[lang], provider: THIS_SITE[lang], purpose: purpose[lang], cookies, duration: cookies.length ? days : '', privacyUrl: '',
+  })
+  const out: Record<string, ConsentService[]> = {
+    [NECESSARY]: [own(
+      { cs: 'Souhlas s cookies', en: 'Cookie consent', de: 'Cookie-Einwilligung' },
+      {
+        cs: 'Pamatuje si vaši volbu v této liště: které kategorie jste povolili, kdy a náhodný identifikátor souhlasu.',
+        en: 'Remembers your choice in this banner: which categories you allowed, when, and a random identifier of your consent.',
+        de: 'Merkt sich Ihre Auswahl in diesem Banner: welche Kategorien Sie erlaubt haben, wann, und eine zufällige Kennung Ihrer Einwilligung.',
+      },
+      [CONSENT_COOKIE],
+    )],
+  }
+  const stats = { cs: 'Návštěvnost webu', en: 'Website statistics', de: 'Website-Statistik' }
+  if (o.asks.includes('analytics') && o.analyticsMode === 'consent') {
+    out.analytics = [own(stats, {
+      cs: `Počítá návštěvy bez cookies. S vaším souhlasem ukládá k vašim návštěvám náhodný identifikátor souhlasu z cookie ${CONSENT_COOKIE}, abychom viděli, jak často se lidé vracejí.`,
+      en: `Counts visits without cookies. With your consent, it keeps the random identifier of your consent from the cookie ${CONSENT_COOKIE} with your visits, so we can see how often people come back.`,
+      de: `Zählt Besuche ohne Cookies. Mit Ihrer Einwilligung speichert sie die zufällige Kennung Ihrer Einwilligung aus dem Cookie ${CONSENT_COOKIE} zu Ihren Besuchen, damit wir sehen, wie oft Menschen zurückkommen.`,
+    }, [CONSENT_COOKIE])]
+  }
+  else if (o.asks.includes('analytics') && o.analyticsMode === 'strict') {
+    out.analytics = [own(stats, {
+      cs: 'Počítá vaše návštěvy, až když statistiky povolíte. Vlastní cookie nenastavuje.',
+      en: 'Counts your visits only once you allow statistics. It sets no cookie of its own.',
+      de: 'Zählt Ihre Besuche erst, wenn Sie Statistik erlauben. Sie setzt kein eigenes Cookie.',
+    }, [])]
+  }
+  return out
+}
+
+/** A service of the site's options in a language. */
+export function resolveService(s: ConsentServiceDef, locale: string | null | undefined): ConsentService {
+  return {
+    name: s.name,
+    provider: s.provider ?? '',
+    purpose: pickText(s.purpose, locale),
+    cookies: [...(s.cookies ?? [])],
+    duration: pickText(s.duration, locale),
+    privacyUrl: s.privacyUrl ?? '',
+  }
+}
+
+export interface ResolveOptions {
+  /** The site's services per category key (`consentPlugin({ services })`). */
+  services?: Readonly<Record<string, readonly ConsentServiceDef[]>>
+  /** Days a choice holds: the consent cookie's duration. Default 365. */
+  cookieDays?: number
+  /** The analytics plugin's mode, when it is registered: it describes its use of the cookie. */
+  analyticsMode?: string | null
 }
 
 /**
  * The texts and categories in a language: what editors wrote (`saved`, the settings' values in
- * that language), else the standard text of that language.
+ * that language), else the standard text of that language (a category of the site's own: the
+ * text of its options). Each category comes with its services: the ones the plugins describe by
+ * themselves first, then the site's.
  */
 export function resolveTexts(
   saved: Record<string, unknown> | null | undefined,
   categories: readonly (BuiltInCategory | ConsentCategoryDef)[],
   locale: string | null | undefined,
+  opts: ResolveOptions = {},
 ): { texts: ConsentTexts; categories: ConsentCategory[] } {
-  const d = DEFAULT_TEXTS[defaultsLanguage(locale)]
+  const lang = defaultsLanguage(locale)
+  const d = DEFAULT_TEXTS[lang]
   const s = saved ?? {}
   const texts = { ...d.texts }
   for (const k of TEXT_KEYS) if (filled(s[k])) texts[k] = (s[k] as string).trim()
-  const builtIn = (key: BuiltInCategory): ConsentCategory => {
+  const asks = categories.map((c) => (typeof c === 'string' ? c : c.key))
+  const auto = builtInServices(lang, { cookieDays: opts.cookieDays ?? 365, analyticsMode: opts.analyticsMode, asks })
+  const services = (key: string): ConsentService[] => [
+    ...(auto[key] ?? []),
+    ...(opts.services?.[key] ?? []).map((x) => resolveService(x, locale)),
+  ]
+  const make = (key: string, fallback: CategoryTexts): ConsentCategory => {
     const label = s[categoryField(key, 'Label')]
     const text = s[categoryField(key, 'Text')]
     return {
       key,
-      label: filled(label) ? label.trim() : d.categories[key].label,
-      description: filled(text) ? text.trim() : d.categories[key].description,
+      label: filled(label) ? label.trim() : fallback.label,
+      description: filled(text) ? text.trim() : fallback.description,
       required: key === NECESSARY,
+      services: services(key),
     }
   }
-  const list: ConsentCategory[] = [builtIn(NECESSARY)]
+  const list: ConsentCategory[] = [make(NECESSARY, d.categories.necessary)]
   for (const c of categories) {
-    if (typeof c === 'string') list.push(builtIn(c))
-    else list.push({ key: c.key, label: pickText(c.label, locale), description: pickText(c.description, locale), required: false })
+    if (typeof c === 'string') list.push(make(c, d.categories[c]))
+    else list.push(make(c.key, { label: pickText(c.label, locale), description: pickText(c.description, locale) }))
   }
   return { texts, categories: list }
 }

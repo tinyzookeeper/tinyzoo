@@ -2,7 +2,7 @@
 // The consent plugin: consentPlugin, its options and its log table.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (3) ─────────────────────────────────────────────────
+// ── public (4) ─────────────────────────────────────────────────
 
 export interface ConsentCategoryDef {
     key: string;
@@ -12,12 +12,22 @@ export interface ConsentCategoryDef {
 
 export interface ConsentOptions {
     categories?: ('analytics' | 'marketing' | ConsentCategoryDef)[];
+    services?: Partial<Record<string, ConsentServiceDef[]>>;
     cookieDays?: number;
     keepLogDays?: number;
     localized?: boolean;
     access?: (ctx: {
         user: CmsAccessUser;
     }) => boolean;
+}
+
+export interface ConsentServiceDef {
+    name: string;
+    provider?: string;
+    purpose: LocalizedText;
+    cookies?: string[];
+    duration?: LocalizedText;
+    privacyUrl?: string;
 }
 
 export function consentPlugin(options?: ConsentOptions): CmsPlugin;

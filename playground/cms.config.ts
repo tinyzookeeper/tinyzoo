@@ -327,9 +327,27 @@ export const Navigation = defineNavigation({ localized: true })
 export const Redirect = defineRedirects()
 
 // Plugins (forms here, and the example "events" plugin): each adds entities, admin pages,
-// routes or upgrade steps under its own name. The cookie banner (consent) asks visitors; the
-// analytics count everyone and, for those who allow statistics, also their consent id.
-export const plugins = [formsPlugin(), eventsPlugin(), analyticsPlugin({ mode: "consent" }), consentPlugin({ localized: true })]
+// routes or upgrade steps under its own name. The cookie banner (consent) asks visitors, and
+// lists the services behind a category; the analytics count everyone and, for those who allow
+// statistics, also their consent id.
+export const plugins = [
+  formsPlugin(),
+  eventsPlugin(),
+  analyticsPlugin({ mode: "consent" }),
+  consentPlugin({
+    localized: true,
+    services: {
+      marketing: [{
+        name: "YouTube",
+        provider: "Google Ireland Limited",
+        purpose: { en: "Plays the videos embedded in our pages.", cs: "Přehrává videa vložená do našich stránek.", de: "Spielt die in unsere Seiten eingebetteten Videos ab." },
+        cookies: ["YSC", "VISITOR_INFO1_LIVE"],
+        duration: { en: "Up to 6 months", cs: "Až 6 měsíců", de: "Bis zu 6 Monate" },
+        privacyUrl: "https://policies.google.com/privacy",
+      }],
+    },
+  }),
+]
 
 // A form on the website: each message lands here as an entry, and the people in
 // Forms settings get an email. On a page: <CmsForm name="contactForm" />.

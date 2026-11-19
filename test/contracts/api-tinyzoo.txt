@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (117) ─────────────────────────────────────────────────
+// ── public (120) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -114,14 +114,63 @@ export interface CmsConsentApi {
     decided: CmsReadonlyRef<boolean>;
     ready: CmsReadonlyRef<boolean>;
     granted: (category: string) => boolean;
-    open: () => void;
     onChange: (cb: (choice: CmsConsentChoice | null) => void) => () => void;
+    bannerVisible: CmsReadonlyRef<boolean>;
+    settingsOpen: CmsReadonlyRef<boolean>;
+    open: () => void;
+    close: () => void;
+    texts: CmsReadonlyRef<CmsConsentTexts>;
+    categories: CmsReadonlyRef<CmsConsentCategory[]>;
+    draft: Record<string, boolean>;
+    set: (category: string, value: boolean) => void;
+    acceptAll: () => Promise<void>;
+    rejectAll: () => Promise<void>;
+    save: (choice?: CmsConsentChoice) => Promise<void>;
+    saving: CmsReadonlyRef<boolean>;
+    error: CmsReadonlyRef<string | null>;
+}
+
+export interface CmsConsentCategory {
+    key: string;
+    label: string;
+    description: string;
+    required: boolean;
+    granted: boolean;
+    services: CmsConsentService[];
 }
 
 export type CmsConsentChoice = Record<string, boolean>;
 
 export interface CmsConsentProps {
     locale?: string;
+    unstyled?: boolean;
+}
+
+export interface CmsConsentService {
+    name: string;
+    provider: string;
+    purpose: string;
+    cookies: string[];
+    duration: string;
+    privacyUrl: string;
+}
+
+export interface CmsConsentTexts {
+    title: string;
+    body: string;
+    acceptAll: string;
+    rejectAll: string;
+    settings: string;
+    save: string;
+    settingsTitle: string;
+    privacyLabel: string;
+    privacyUrl: string;
+    alwaysOn: string;
+    close: string;
+    services: string;
+    provider: string;
+    cookies: string;
+    duration: string;
 }
 
 export interface CmsContentNode {
@@ -388,9 +437,7 @@ export type CmsPluginUpgradeStep = Omit<UpgradeStep, 'since'> & {
     since?: string;
 };
 
-export interface CmsReadonlyRef<T> {
-    readonly value: T;
-}
+export type CmsReadonlyRef<T> = ComputedRef<T>;
 
 export interface CmsRegistry {
     entities: CmsEntity[];

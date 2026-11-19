@@ -27,13 +27,13 @@ import type { LocalizedText } from '../src/i18n'
 import { defineCmsPlugin, pluginFile, type CmsPlugin } from '../src/plugin'
 import pkg from '../package.json'
 import { NECESSARY } from './core/cookie'
-import type { BuiltInCategory } from './core/texts'
+import { categoryField, pickText, type BuiltInCategory, type ConsentCategoryDef } from './core/texts'
 import { CONSENT_MESSAGES } from './messages'
 import { type ConsentOptions, type ResolvedConsentOptions, resolveConsentOptions } from './options'
 import { consentRetention } from './retention'
 import { CONSENT_TABLES_SOURCE, consentLog } from './tables'
 
-export type { ConsentOptions, ConsentCategoryDef } from './options'
+export type { ConsentOptions, ConsentCategoryDef, ConsentServiceDef } from './options'
 export { consentLog } from './tables'
 
 /** The consent settings' name. @internal */
@@ -60,15 +60,16 @@ const CATEGORY_NAMES: Record<BuiltInCategory, LocalizedText> = {
 /**
  * The consent settings: the banner's texts (empty ones use the standard text in the visitor's
  * language) and the version of the texts. Raising the version asks everyone again. Its text
- * fields follow the categories the site asks about, and are per language with `localized`.
+ * fields follow the categories the site asks about (a name and a description for each, the
+ * site's own categories too), and are per language with `localized`.
  *
  * @internal
  */
 export function consentSettingsEntity(opts: Pick<ResolvedConsentOptions, 'categories' | 'localized'>): CmsEntity {
-  const text = (label: LocalizedText, o: { multiline?: boolean; link?: boolean; group: LocalizedText }) => {
+  const text = (label: LocalizedText, o: { multiline?: boolean; link?: boolean; group: LocalizedText; help?: LocalizedText }) => {
     let d: any = f.text({ ...(o.multiline ? { multiline: true, max: 2000 } : { max: 200 }), ...(o.link ? { format: 'link' as const } : {}) })
       .optional().label(label).group(o.group)
-    if (!o.link) d = d.help(EMPTY_HELP)
+    if (!o.link) d = d.help(o.help ?? EMPTY_HELP)
     return opts.localized ? d.localized() : d
   }
   const banner: LocalizedText = { en: 'Banner', cs: 'Lišta', de: 'Banner' }
@@ -84,14 +85,24 @@ export function consentSettingsEntity(opts: Pick<ResolvedConsentOptions, 'catego
     save: text({ en: '"Save my choice" button', cs: 'Tlačítko „Uložit volbu“', de: 'Schaltfläche „Auswahl speichern“' }, { group: buttons }),
     settingsTitle: text({ en: 'Heading of the settings', cs: 'Nadpis nastavení', de: 'Überschrift der Einstellungen' }, { group: buttons }),
   }
-  const builtIn = [NECESSARY, ...opts.categories.filter((c): c is BuiltInCategory => typeof c === 'string')] as BuiltInCategory[]
-  for (const key of builtIn) {
-    const name = CATEGORY_NAMES[key]
-    const of = (en: string, cs: string, de: string): LocalizedText => ({
-      en: `${en} (${(name as Record<string, string>).en})`, cs: `${cs} (${(name as Record<string, string>).cs})`, de: `${de} (${(name as Record<string, string>).de})`,
-    })
-    fields[`${key}Label`] = text(of('Name', 'Název', 'Name'), { group: cats })
-    fields[`${key}Text`] = text(of('Description', 'Popis', 'Beschreibung'), { multiline: true, group: cats })
+  const label = (c: BuiltInCategory | ConsentCategoryDef, lang: 'en' | 'cs' | 'de') =>
+    (typeof c === 'string' ? (CATEGORY_NAMES[c] as Record<string, string>)[lang]! : pickText(c.label, lang))
+  for (const c of [NECESSARY as BuiltInCategory, ...opts.categories]) {
+    const key = typeof c === 'string' ? c : c.key
+    const of = (en: string, cs: string, de: string): LocalizedText => ({ en: `${en} (${label(c, 'en')})`, cs: `${cs} (${label(c, 'cs')})`, de: `${de} (${label(c, 'de')})` })
+    // A category of the site's own: empty means the text of cms.config.ts, not a standard one.
+    let help: ((part: 'label' | 'description') => LocalizedText) | undefined
+    if (typeof c !== 'string') {
+      const quote = (t: string) => (t.length > 60 ? `${t.slice(0, 57)}…` : t)
+      help = (part) => {
+        const v = (lang: 'en' | 'cs' | 'de') => quote(pickText(c[part], lang))
+        return v('en')
+          ? { en: `Leave it empty for the site's own text: "${v('en')}".`, cs: `Prázdné pole: použije se text webu: „${v('cs')}“.`, de: `Leer lassen für den Text der Website: „${v('de')}“.` }
+          : { en: 'Leave it empty for no text.', cs: 'Prázdné pole: bez textu.', de: 'Leer lassen für keinen Text.' }
+      }
+    }
+    fields[categoryField(key, 'Label')] = text(of('Name', 'Název', 'Name'), { group: cats, help: help?.('label') })
+    fields[categoryField(key, 'Text')] = text(of('Description', 'Popis', 'Beschreibung'), { multiline: true, group: cats, help: help?.('description') })
   }
   fields.privacyLabel = text({ en: 'Link text', cs: 'Text odkazu', de: 'Linktext' }, { group: privacy })
   fields.privacyUrl = text({ en: 'Address of the privacy policy', cs: 'Adresa zásad ochrany osobních údajů', de: 'Adresse der Datenschutzerklärung' }, { link: true, group: privacy })

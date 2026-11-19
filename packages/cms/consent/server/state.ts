@@ -88,7 +88,11 @@ export async function consentConfig(asked: string): Promise<ConsentConfig> {
   if (reg.locales) locale = (wanted && closestLocale(reg.locales.locales, wanted)) || reg.locales.default
   const saved = await savedIn(locale)
   // The standard texts follow the site's language, else what the page says its language is.
-  const { texts, categories } = resolveTexts(saved, opts.categories, locale ?? (wanted || null))
+  // The analytics plugin with a banner describes what it keeps under "analytics".
+  const analytics = reg.plugins.find((p) => p.name === 'analytics') as { analytics?: { mode?: string } } | undefined
+  const { texts, categories } = resolveTexts(saved, opts.categories, locale ?? (wanted || null), {
+    services: opts.services, cookieDays: opts.cookieDays, analyticsMode: analytics?.analytics?.mode ?? null,
+  })
   return { version: s.version, cookieDays: opts.cookieDays, locale, texts, categories }
 }
 
