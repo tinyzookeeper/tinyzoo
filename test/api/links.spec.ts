@@ -207,6 +207,12 @@ describe('a redirect to a page', () => {
     expect((await raw('/stara')).status).not.toBe(301)
   })
 
+  it('carries the visitor\'s query over before the target\'s #anchor', async () => {
+    expect((await admin.post('/api/cms/redirect', { from: '/obchod', to: '/merch#tricka' })).status).toBe(201)
+    expect((await raw('/obchod?utm_source=x&b=2')).headers.get('location')).toBe('/merch?utm_source=x&b=2#tricka')
+    expect((await raw('/obchod')).headers.get('location')).toBe('/merch#tricka')
+  })
+
   it('is refused when it would lead back to its own address', async () => {
     const target = await page('Nová', 'nova')
     const res = await admin.post('/api/cms/redirect', { from: '/nova', to: linkRef('page', target.id) })

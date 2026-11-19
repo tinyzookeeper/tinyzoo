@@ -29,6 +29,20 @@ export function normalizePath(path: string): string {
   return p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p
 }
 
+/**
+ * Where a redirect sends a visitor who asked for `requested`: `to`, with the request's query
+ * carried over, before the target's #anchor (after it, the browser takes it as part of the
+ * anchor). A target with a query of its own is kept as it is.
+ */
+export function redirectDestination(to: string, requested: string): string {
+  const q = requested.indexOf('?')
+  const query = q < 0 ? '' : requested.slice(q + 1).split('#')[0]!
+  const hash = to.indexOf('#')
+  const base = hash < 0 ? to : to.slice(0, hash)
+  const anchor = hash < 0 ? '' : to.slice(hash)
+  return base.includes('?') || !query ? to : `${base}?${query}${anchor}`
+}
+
 /** A Location header value: non-ASCII percent-encoded (headers are ASCII), existing escapes kept. */
 export function locationHeader(to: string): string {
   try {

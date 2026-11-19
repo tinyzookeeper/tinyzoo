@@ -142,7 +142,7 @@ What every item shares:
 How each kind of field arrives:
 
 - **Relations and files are resolved**, not left as ids. The raw `…Id` column is dropped.
-- A relation to a collection that is public (and listed in `content.populate`) comes as a nested item without its own relations. A relation to a collection that is not public comes as `{ id, title }`.
+- A relation to a collection that is public (and listed in `content.populate`) comes as a nested item with its `id` and its plain fields: text, numbers, dates, choices, switches, links, rich text. Its relations, files, galleries, groups, lists and blocks are not in it. Fetch the entry itself for those. A relation to a collection that is not public comes as `{ id, title }`.
 - A file is `{ id, url, width, height, alt, mime, focal }`. The alt text is in the language served. The focal point is in percentages (`{ x, y }`) or `null`. The storage key is never in it.
 - A gallery is a list of files, each with a `caption`.
 - Rich text is a ProseMirror document (`{ type: 'doc', content: [...] }`). Draw it with `<CmsContent :doc="item.body" />`, never as HTML. See [rich text](#rich-text) below.

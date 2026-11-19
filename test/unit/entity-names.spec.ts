@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defineEntity, defineSingleton, f } from '../../packages/cms/src/index'
+import { buildRegistry, defineEntity, defineLocales, defineSingleton, f } from '../../packages/cms/src/index'
 
 // The name of an entity is a database table, an address and an identifier in the generated
 // schema.ts. A space or a dash only failed when esbuild compiled that file; now the name is refused where it is written.
@@ -52,5 +52,40 @@ describe('names tinyzoo keeps for itself', () => {
 
   it.each(['coverImage', 'cover_image', 'image2', 'X', 'pathname', 'previewText'])('accepts the field name %s', (key) => {
     expect(make('post', { [key]: f.text() })).not.toThrow()
+  })
+})
+
+// Every entity, translation table, junction and choice field becomes a name in schema.ts and in
+// the database. Two equal ones made drizzle-kit fail ("Multiple exports with the same name") long
+// after the config was written: an entity `courseSignup` and the field `signup` of `course`.
+describe('names that would be the same in the generated schema', () => {
+  const choice = () => f.select({ options: ['online', 'phone'] as const })
+
+  it('refuses an entity whose table has the name of another entity\'s choice field, naming both', () => {
+    const Course = defineEntity('course', { label: 'Courses', titleField: 'title', fields: { title: f.text(), signup: choice() } })
+    const CourseSignup = defineEntity('courseSignup', { label: 'Sign-ups', titleField: 'name', fields: { name: f.text() } })
+    expect(() => buildRegistry({ Course, CourseSignup })).toThrow(/"courseSignup".*the table of "courseSignup".*the choices of the field "signup" of "course".*[Rr]ename/s)
+  })
+
+  it('refuses the same SQL name too (a table and a type share them in Postgres)', () => {
+    const A = defineEntity('a_b', { label: 'A', titleField: 'title', fields: { title: f.text(), c: choice() } })
+    const B = defineEntity('a', { label: 'B', titleField: 'title', fields: { title: f.text(), bC: choice() } })
+    expect(() => buildRegistry({ A, B })).toThrow(/a_b_c/)
+  })
+
+  it('refuses an entity named like another one\'s translations or a junction', () => {
+    const locales = defineLocales({ default: 'cs', locales: ['cs', 'en'] })
+    const Post = defineEntity('post', { label: 'Posts', titleField: 'title', fields: { title: f.text().localized() } })
+    const PostLocales = defineEntity('postLocales', { label: 'X', titleField: 'title', fields: { title: f.text() } })
+    expect(() => buildRegistry({ locales, Post, PostLocales })).toThrow(/"postLocales".*the table of "postLocales".*the translations of "post"/s)
+    const Tag = defineEntity('tag', { label: 'Tags', titleField: 'name', fields: { name: f.text() } })
+    const Article = defineEntity('article', { label: 'Articles', titleField: 'title', fields: { title: f.text(), tags: f.relation({ to: () => Tag, kind: 'many-to-many', through: 'tag' }) } })
+    expect(() => buildRegistry({ Tag, Article })).toThrow(/"tag".*the relation "tags" of "article"/s)
+  })
+
+  it('accepts names that only look alike', () => {
+    const Course = defineEntity('course', { label: 'Courses', titleField: 'title', fields: { title: f.text(), signup: choice() } })
+    const Signup = defineEntity('signup', { label: 'Sign-ups', titleField: 'name', fields: { name: f.text(), course: choice() } })
+    expect(() => buildRegistry({ Course, Signup })).not.toThrow()
   })
 })

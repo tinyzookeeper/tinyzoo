@@ -15,7 +15,5 @@ export default defineEventHandler(async (event) => {
     return
   }
   if (!target) return
-  const query = path.includes('?') ? path.slice(path.indexOf('?')) : ''
-  const dest = target.to.includes('?') || !query ? target.to : target.to + query
-  return sendRedirect(event, locationHeader(dest), target.status)
+  return sendRedirect(event, locationHeader(redirectDestination(target.to, path)), target.status)
 })

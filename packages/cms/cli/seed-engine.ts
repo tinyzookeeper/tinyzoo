@@ -28,6 +28,8 @@ import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { basename, extname, resolve } from 'node:path'
 import { holdsLinks, linkFieldsOf, linkRef, linkRefsOf, mapFieldLinks, parseLinkRef, sitePath, type CmsEntity, type CmsRegistry } from '../src/index'
+import type { FieldDescriptor } from '../src/descriptor'
+import { cleanMediaFolder } from '../shared/media-folder'
 import { richBuilders, type SeedContext, type SeedDefinition, type SeedEntry, type SeedLink, type SeedLinkOptions, type SeedUploadOptions } from '../src/seed'
 
 export type Row = Record<string, any>
@@ -142,26 +144,57 @@ function sameInstant(a: unknown, b: unknown): boolean | null {
   return ta === null || tb === null ? null : ta === tb
 }
 
+const NUMERIC = /^\s*-?\d+(?:\.\d+)?\s*$/
+const asNumber = (v: unknown) => (typeof v === 'number' ? v : typeof v === 'string' && NUMERIC.test(v) ? Number(v) : null)
+
+/** The same number, however it is spelled (`2.5`, `"2.5"`, `"2.50"`); null when either is not a number. */
+function sameNumber(a: unknown, b: unknown): boolean | null {
+  const na = asNumber(a)
+  const nb = asNumber(b)
+  return na === null || nb === null ? null : na === nb
+}
+
+/** A decimal (`f.number({ int: false })`): stored exactly and read back as a string ("2.50"). */
+const isDecimal = (fld: FieldDescriptor | undefined) => fld?.type === 'number' && fld.spec?.base.kind === 'numeric'
+
+/** The field of `key` inside a value of `fld`: a group's own field, or the field of a block (list item) of `item`'s type. */
+function fieldInside(fld: FieldDescriptor | undefined, key: string, item?: unknown): FieldDescriptor | undefined {
+  if (!fld) return undefined
+  if (fld.type === 'group') return fld.fields?.[key]
+  const type = item && typeof item === 'object' ? (item as Row).type : undefined
+  if (fld.blocks && typeof type === 'string') return fld.blocks[type]?.fields?.[key] as FieldDescriptor | undefined
+  return undefined
+}
+
 /**
  * Does `stored` already say what `wanted` says? Only what the seed gives counts: an
  * object is covered when every key of `wanted` is, extras in `stored` do not matter
  * (the server adds `v` to blocks and fills defaults); an empty value (null, '', [])
  * is covered by anything empty; arrays match item by item; dates by the instant;
- * single-line text after the trimming the server does.
+ * single-line text after the trimming the server does; a decimal by its value (the
+ * server gives `2.5` back as "2.50", or "2.5" inside a group, a list or a block).
+ * `fld` is the field the value belongs to, when known: inside it, a group's and a
+ * block's own fields are known too.
  */
-export function covers(stored: unknown, wanted: unknown): boolean {
+export function covers(stored: unknown, wanted: unknown, fld?: FieldDescriptor): boolean {
   if (wanted === undefined) return true
   if (wanted === null || wanted === '' || (Array.isArray(wanted) && wanted.length === 0)) {
     return stored === null || stored === undefined || stored === '' || (Array.isArray(stored) && stored.length === 0)
   }
+  // A number the seed gives against the string a decimal is stored as. Without the field only a number given
+  // counts so (a text field never takes one); with it, "2.5" and "2.50" are the same decimal too.
+  if (isDecimal(fld) || typeof wanted === 'number') {
+    const same = sameNumber(stored, wanted)
+    if (same !== null) return same
+  }
   const instant = sameInstant(stored, wanted)
   if (instant !== null) return instant
   if (Array.isArray(wanted)) {
-    return Array.isArray(stored) && stored.length === wanted.length && wanted.every((w, i) => covers(stored[i], w))
+    return Array.isArray(stored) && stored.length === wanted.length && wanted.every((w, i) => covers(stored[i], w, fld?.blocks ? fld : undefined))
   }
   if (typeof wanted === 'object') {
     if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return false
-    return Object.entries(wanted as Row).every(([k, v]) => covers((stored as Row)[k], v))
+    return Object.entries(wanted as Row).every(([k, v]) => covers((stored as Row)[k], v, fieldInside(fld, k, wanted)))
   }
   if (typeof wanted === 'string' && typeof stored === 'string') {
     // A reference to an entry is the same wherever it is spelled (the id's case).
@@ -173,15 +206,15 @@ export function covers(stored: unknown, wanted: unknown): boolean {
   return stored === wanted
 }
 
-/** The keys of `wanted` whose stored value differs (`many-to-many` lists compare as sets). */
-export function changedKeys(stored: Row | null | undefined, wanted: Row, setKeys: ReadonlySet<string> = new Set()): string[] {
+/** The keys of `wanted` whose stored value differs (`many-to-many` lists compare as sets). `fields`: the entity's, to compare each as its field (see `covers`). */
+export function changedKeys(stored: Row | null | undefined, wanted: Row, setKeys: ReadonlySet<string> = new Set(), fields?: Record<string, FieldDescriptor>): string[] {
   if (!stored) return Object.keys(wanted)
   return Object.keys(wanted).filter((k) => {
     const w = wanted[k]
     if (setKeys.has(k) && Array.isArray(w) && Array.isArray(stored[k])) {
       return !(w.length === stored[k].length && new Set(w).size === new Set(stored[k]).size && w.every((x) => stored[k].includes(x)))
     }
-    return !covers(stored[k], w)
+    return !covers(stored[k], w, fields?.[k])
   })
 }
 
@@ -215,11 +248,24 @@ function withBlockIds(fld: any, value: unknown, scope: string): unknown {
     const def = fld.blocks?.[block.type]
     if (def) {
       for (const [k, sub] of Object.entries<any>(def.fields)) {
-        if (sub.type === 'blocks' && Array.isArray(block[k])) block[k] = withBlockIds(sub, block[k], `${scope}/${i}/${k}`)
+        if (k in block) block[k] = withIds(sub, block[k], `${scope}/${i}/${k}`)
       }
     }
     return block
   })
+}
+
+/** Ids for the blocks and list items in a value of `fld`: in a blocks field or a list, and inside a group (a list in a group). */
+function withIds(fld: any, value: unknown, scope: string): unknown {
+  if (fld.type === 'blocks') return withBlockIds(fld, value, scope)
+  if (fld.type === 'group' && value && typeof value === 'object' && !Array.isArray(value)) {
+    const out: Row = { ...value }
+    for (const [k, sub] of Object.entries<any>(fld.fields ?? {})) {
+      if (k in out) out[k] = withIds(sub, out[k], `${scope}/${k}`)
+    }
+    return out
+  }
+  return value
 }
 
 /** Can a link point at an entry of this collection? (The server's rule: public, with an address on the website.) */
@@ -317,8 +363,7 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
     checkFields(e, out, what)
     for (const k of Object.keys(out)) {
       if (only && !only.includes(k)) continue
-      const fld = e.fields[k]!
-      if (fld.type === 'blocks') out[k] = withBlockIds(fld, out[k], `${scope}/${k}`)
+      out[k] = withIds(e.fields[k]!, out[k], `${scope}/${k}`)
     }
     return out
   }
@@ -367,7 +412,7 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
         return { kind: 'entry', entity: e.name, id: existing.id, key, existed: true, data: { ...existing, ...wanted }, translations: {} }
       }
       const stored = isPlaceholder(existing.id) ? null : await backend.get(e.name, existing.id)
-      const changed = changedKeys(stored, wanted, setKeysOf(e))
+      const changed = changedKeys(stored, wanted, setKeysOf(e), e.fields)
       if (!changed.length && stored) note({ action: 'unchanged', kind: 'entry', entity: e.name, label })
       else {
         if (apply) await backend.update(e.name, existing.id, wanted)
@@ -407,7 +452,7 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
       const known = translated || !!stored?.__stateOwn
       const compared = known && stored ? { ...stored } : null
       if (compared && !stored!.__stateOwn) for (const k of stateKeys) delete compared[k]
-      const changed = changedKeys(compared, wanted)
+      const changed = changedKeys(compared, wanted, undefined, e.fields)
       if (!changed.length) { note({ action: 'unchanged', kind: 'translation', entity: e.name, label }); return }
       if (apply) {
         if (entry.kind === 'global') await backend.putGlobal(e.name, wanted, locale)
@@ -437,7 +482,7 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
         note({ action: 'kept', kind: 'global', entity: e.name, label })
         return { kind: 'global', entity: e.name, id: stored.id, key: {}, existed: true, data: { ...stored, ...wanted }, translations: {} }
       }
-      const changed = changedKeys(stored, wanted, setKeysOf(e))
+      const changed = changedKeys(stored, wanted, setKeysOf(e), e.fields)
       if (stored && !changed.length) note({ action: 'unchanged', kind: 'global', entity: e.name, label })
       else {
         const saved = apply ? await backend.putGlobal(e.name, wanted) : null
@@ -455,7 +500,21 @@ export async function runSeed(def: SeedDefinition, o: SeedRunOptions): Promise<S
   async function upload(file: string, opts: SeedUploadOptions = {}): Promise<string> {
     const path = resolve(o.root, file)
     const name = opts.name ?? basename(path)
-    const folder = opts.folder ?? null
+    // An empty folder is none, as the site stores it.
+    const folder = opts.folder || null
+    // The site files a folder under its own spelling of the name (cleanMediaFolder). A seed's folder spelled
+    // otherwise would be found under neither name on the next run, and every file uploaded again.
+    if (folder !== null && cleanMediaFolder(folder) !== folder) {
+      const stored = cleanMediaFolder(folder)
+      const nested = /[/\\]/.test(folder)
+      const why = nested
+        ? '"/" and "\\" are not allowed in a folder name: the media library\'s folders have one level, no folders inside folders'
+        : 'a folder name has single spaces, none at the ends, no control characters, and at most 80 characters'
+      const instead = nested ? cleanMediaFolder(folder.replace(/\s*[/\\]+\s*/g, ' – ')) : stored
+      throw new SeedError(`${file}: the folder ${JSON.stringify(folder)} cannot be used: ${why}. `
+        + `The site would file it as ${stored === null ? 'no folder' : JSON.stringify(stored)}, so the next run would not find the file there and would upload it again.`
+        + (instead ? ` Write it as the library should show it, such as ${JSON.stringify(instead)}.` : ''))
+    }
     const cacheKey = `${path}\0${name}\0${folder}`
     const cached = uploads.get(cacheKey)
     if (cached) return cached

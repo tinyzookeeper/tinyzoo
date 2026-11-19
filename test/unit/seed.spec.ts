@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildRegistry, defineSeed, isSeed } from 'tinyzoo'
+import { buildRegistry, defineEntity, defineSeed, defineSingleton, f, isSeed } from 'tinyzoo'
 import * as playground from '../../playground/cms.config'
 import { Author, Navigation, Page, Post, SiteSettings, Tag } from '../../playground/cms.config'
 import {
@@ -805,5 +805,97 @@ describe('report', () => {
     ]
     expect(summarize(ops, false)).toBe('1 created, 2 already up to date, 1 file uploaded')
     expect(summarize([], false)).toBe('nothing to do')
+  })
+})
+
+// Found while moving six sites to 1.0.0: what the fake above stores as given, the server changes.
+describe('values the server stores in its own spelling', () => {
+  const Course = defineEntity('course', {
+    label: 'Courses', titleField: 'title',
+    fields: {
+      title: f.text({ required: true }), slug: f.slug(),
+      price: f.number({ int: false }).optional(),
+      age: f.group({ fields: { min: f.number({ int: false }), max: f.number({ int: false }) } }).optional(),
+      prices: f.list({ fields: { label: f.text(), amount: f.number({ int: false }) } }),
+    },
+  })
+  const Sister = defineSingleton('sister', {
+    label: 'Sister studio', titleField: 'name',
+    fields: {
+      name: f.text(),
+      geo: f.group({ fields: { latitude: f.number({ int: false }), longitude: f.number({ int: false }) } }),
+      about: f.group({ fields: { heading: f.text(), tagline: f.list({ fields: { text: f.text() } }) } }),
+    },
+  })
+  const own = buildRegistry({ Course, Sister })
+  const runOwn = async (site: ReturnType<typeof fakeSite>, fn: Parameters<typeof defineSeed>[0]) => {
+    const ops: SeedOp[] = []
+    await runSeed(defineSeed(fn), { reg: own, backend: site.backend, root: '/site', apply: true, readFile, onOp: (o) => ops.push(o) })
+    return ops
+  }
+  /** What Postgres and the server's zod do to a decimal: a column (numeric(12,2)) gives "2.50", one inside JSON is kept as String(n). */
+  const column = (n: number) => n.toFixed(2)
+  const json = (n: number) => String(n)
+
+  it('compares a decimal by its value, in a column, a group and a list (a second run saves nothing)', async () => {
+    const site = fakeSite()
+    const seed = async (s: any) => {
+      await s.upsert(Course, { title: 'Hip hop', slug: 'hip-hop', price: 2.5, age: { min: 6, max: 10.5 }, prices: [{ label: 'Month', amount: 450 }] })
+      await s.global(Sister, { name: 'Six', geo: { latitude: 49.13504, longitude: 14.6 }, about: { heading: 'Hi', tagline: [] } })
+    }
+    await runOwn(site, seed)
+    // As the server gives it back.
+    const row = site.tables.get('course')![0]!
+    row.price = column(2.5)
+    row.age = { min: json(6), max: json(10.5) }
+    row.prices = row.prices.map((p: Row) => ({ ...p, amount: json(p.amount) }))
+    const g = site.globals.get('sister')!
+    g.geo = { latitude: json(49.13504), longitude: json(14.6) }
+    site.writes.length = 0
+    const ops = await runOwn(site, seed)
+    expect(ops.filter((o) => o.action === 'updated')).toEqual([])
+    expect(site.writes).toEqual([])
+  })
+
+  it('still sees a changed decimal, and a numeric string in the seed is the same number', async () => {
+    const site = fakeSite()
+    await runOwn(site, async (s) => { await s.upsert(Course, { title: 'A', slug: 'a', price: 2.5, prices: [] }) })
+    site.tables.get('course')![0]!.price = column(2.5)
+    site.writes.length = 0
+    expect(count(await runOwn(site, async (s) => { await s.upsert(Course, { title: 'A', slug: 'a', price: '2.5', prices: [] }) }), 'updated')).toBe(0)
+    const ops = await runOwn(site, async (s) => { await s.upsert(Course, { title: 'A', slug: 'a', price: 2.55, prices: [] }) })
+    expect(ops.find((o) => o.action === 'updated')?.fields).toEqual(['price'])
+    // Text is text: "2.50" and "2.5" in a text field differ.
+    expect(covers('2.50', '2.5')).toBe(false)
+  })
+
+  it('gives the items of a list inside a group ids, as the admin does, and the same ones on every run', async () => {
+    const site = fakeSite()
+    const seed = async (s: any) => {
+      await s.global(Sister, { name: 'Six', geo: { latitude: 1, longitude: 2 }, about: { heading: 'Hi', tagline: [{ text: 'Dance' }, { text: 'Move' }] } })
+    }
+    await runOwn(site, seed)
+    const items = site.globals.get('sister')!.about.tagline
+    expect(items.map((i: Row) => typeof i.id)).toEqual(['string', 'string'])
+    expect(items.map((i: Row) => i.type)).toEqual(['item', 'item'])
+    expect(new Set(items.map((i: Row) => i.id)).size).toBe(2)
+    site.writes.length = 0
+    await runOwn(site, seed)
+    expect(site.writes).toEqual([])
+  })
+
+  it('refuses a library folder the server would store under another name, instead of uploading the files again on every run', async () => {
+    const site = fakeSite()
+    await expect(runOwn(site, async (s) => { await s.upload('seed/a.jpg', { folder: 'Lektoři/fotky' }) }))
+      .rejects.toThrow(/seed\/a\.jpg: the folder "Lektoři\/fotky" .*"\/".*one level/)
+    for (const folder of [' Fotky', 'Fotky  2024', 'a\\b', 'x'.repeat(81)]) {
+      await expect(runOwn(site, async (s) => { await s.upload('seed/a.jpg', { folder }) }), folder).rejects.toThrow(/the folder/)
+    }
+    expect(site.writes).toEqual([])
+    await runOwn(site, async (s) => { await s.upload('seed/a.jpg', { folder: 'Lektoři – fotky' }) })
+    // An empty folder is no folder, as the site files it.
+    await runOwn(site, async (s) => { await s.upload('seed/b.jpg', { folder: '' }) })
+    await runOwn(site, async (s) => { await s.upload('seed/b.jpg', { folder: '' }) })
+    expect(site.media.map((m) => m.folder)).toEqual(['Lektoři – fotky', null])
   })
 })

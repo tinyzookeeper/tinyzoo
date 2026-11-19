@@ -595,6 +595,44 @@ function isEntity(v: any): v is CmsEntity {
   return v && typeof v === 'object' && v.__cms === 'entity'
 }
 
+/**
+ * Every table, translation table, junction and choice field is a name in the generated schema.ts
+ * (camelCase) and in the database (snake_case; a table and an enum type share names in Postgres).
+ * Two equal ones only failed later, in drizzle-kit ("Multiple exports with the same name"):
+ * an entity `courseSignup` and the choice field `signup` of `course`, say. Refused here instead.
+ */
+function checkSchemaNames(entities: CmsEntity[], junctions: Junction[]): void {
+  const byTs = new Map<string, { what: string; sql: string }>()
+  const bySql = new Map<string, { what: string; ts: string }>()
+  const add = (ts: string, sql: string, what: string) => {
+    const other = byTs.get(ts) ?? (bySql.has(sql) ? { what: bySql.get(sql)!.what, sql } : undefined)
+    if (other) {
+      const name = byTs.has(ts) ? `"${ts}" in the generated schema.ts${other.sql === sql ? ` (${sql} in the database)` : ''}` : `"${sql}" in the database`
+      throw new Error(
+        `Two parts of the content model would have the same name, ${name}: ${other.what} and ${what}. `
+        + 'drizzle-kit cannot make a migration with both. Rename one of them. A choice field is named after its entity and its key, '
+        + 'so a new key for the field (`signup` → `signupKind`) is usually the easy way. '
+        + `Renaming an entity is a migration: see "Renaming an entity": ${docsUrl('renamingEntity')}`,
+      )
+    }
+    byTs.set(ts, { what, sql })
+    bySql.set(sql, { what, ts })
+  }
+  for (const [ts, sql] of [['cmsMedia', 'cms_media'], ['cmsUsers', 'cms_users'], ['cmsTokens', 'cms_tokens'], ['cmsAudit', 'cms_audit'], ['cmsCollab', 'cms_collab'], ['cmsRevisions', 'cms_revisions'], ['cmsState', 'cms_state'], ['cmsSearch', 'cms_search']] as const) {
+    add(ts, sql, `tinyzoo's own table ${sql}`)
+  }
+  for (const e of entities) add(camel(e.name), snake(e.name), `the table of "${e.name}"`)
+  for (const e of entities) if (e.localesTable) add(`${camel(e.name)}Locales`, `${snake(e.name)}_locales`, `the translations of "${e.name}"`)
+  // Both sides of a many-to-many may name the same junction: one table.
+  const seen = new Set<string>()
+  for (const j of junctions) {
+    if (seen.has(j.tableName)) continue
+    seen.add(j.tableName)
+    add(camel(j.name), j.tableName, `the relation "${j.fieldKey}" of "${j.ownerEntity}"`)
+  }
+  for (const e of entities) for (const en of e.enums) add(en.varName, en.enumName, `the choices of the field "${en.key}" of "${e.name}"`)
+}
+
 /** @internal */
 export function buildRegistry(config: Record<string, any>): CmsRegistry {
   const cached = _regCache.get(config)
@@ -639,6 +677,8 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
       junctionByOwnerField.set(`${e.name}.${key}`, j)
     }
   }
+
+  checkSchemaNames(entities, junctions)
 
   const locales = (Object.values(config).find((v: any) => v && v.__cms === 'locales') as LocalesDef | undefined) ?? null
   const withLocalized = entities.filter((e) => e.localized?.length)

@@ -100,7 +100,7 @@ export interface SeedUploadOptions {
   altLocales?: Record<string, string>
   /** The point to keep in view when the picture is cropped, in percent. */
   focal?: { x: number; y: number }
-  /** A library folder. Default: none. */
+  /** A library folder: one level, so no "/" or "\\" in the name (the seed stops on one). Default: none. */
   folder?: string
   /** The file name shown in the library. Default: the file's name. Together with the folder and the size, it is how a second run finds the file again. */
   name?: string

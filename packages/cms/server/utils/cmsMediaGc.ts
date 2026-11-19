@@ -132,7 +132,8 @@ export async function mediaUsage(db: any, reg: CmsRegistry, user: any, mediaId: 
     if (found.size >= limit) break
     const { allowed, where } = accessWhere(e, 'read', user)
     if (!allowed) continue
-    const title = (e.table as any)[e.titleField]
+    // A global needs no titleField, and a picture as the title has no column of that name: no title then.
+    const title = (e.table as any)[e.titleField] ?? sql`null`
     // A file held by a field this person may not read is not told.
     const hidden = unreadableFields(e, user)
     const add = (rows: any[], locale: string | null = null) => {

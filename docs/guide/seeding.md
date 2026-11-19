@@ -77,7 +77,10 @@ An entry is recognised by its **key**.
 
 Before an update, the stored values are read and compared with the seed's. Only a real difference is written. So a second run makes no save, no new saved version and no upload.
 
-Blocks and list items need no `id`, and no `type` when there is one. The runner makes stable ids, so the same seed gives the same ones every time.
+- A decimal (`f.number({ int: false })`) is compared by its value. The site gives `2.5` back as `"2.50"`, and that is no difference. Write it as a number or as a numeric string, either works.
+- A file's folder (`folder`) is one level, as in the media library. A name with `/` or `\`, doubled spaces or spaces at the ends stops the seed with an error. The site would file it under another name, and the next run would not find the file there.
+
+Blocks and list items need no `id`, and no `type` when there is one. That holds for a list inside a group too. The runner makes stable ids, so the same seed gives the same ones every time.
 
 Write dates as fixed values (`'2026-03-01T09:00:00Z'`), not "now".
 
