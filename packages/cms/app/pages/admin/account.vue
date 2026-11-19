@@ -111,7 +111,7 @@ async function changePassword() {
 }
 // ── access tokens (the MCP server): made here, shown once, revoked here ──
 interface TokenRights { write: boolean; publish: boolean; delete: boolean; media: boolean; entities: string[] | null }
-interface AccessToken { id: string; name: string; prefix: string; rights: TokenRights; createdAt: string; expiresAt: string | null; lastUsedAt: string | null }
+interface AccessToken { id: string; name: string; prefix: string; origin: 'manual' | 'oauth'; client: string | null; rights: TokenRights; createdAt: string; expiresAt: string | null; lastUsedAt: string | null }
 interface TokenState { tokens: AccessToken[]; can: { publish: boolean; media: boolean }; areas: { name: string; label: unknown; kind: string }[]; max: number }
 const { entityLabel, formatDateWith } = useCmsI18n()
 const confirm = useCmsConfirm()
@@ -131,7 +131,6 @@ const areaLabel = (name: string) => {
   const a = tokenState.value?.areas.find((x) => x.name === name)
   return a ? entityLabel(a as any) : name
 }
-const areaItems = computed(() => (tokenState.value?.areas ?? []).map((a) => ({ value: a.name, label: entityLabel(a as any) })))
 
 const tokenOpen = ref(false)
 const tokenBusy = ref(false)
@@ -343,7 +342,8 @@ function rightBadges(r: TokenRights): string[] {
                     <UBadge v-for="b in rightBadges(tk.rights)" :key="b" :label="b" color="neutral" variant="subtle" size="sm" />
                   </p>
                   <p class="mt-0.5 text-xs text-muted">
-                    <span class="font-mono">{{ tk.prefix }}…</span>
+                    <template v-if="tk.origin === 'oauth'">{{ t('account.tokens.signedInFrom', { client: tk.client ?? '' }) }}</template>
+                    <span v-else class="font-mono">{{ tk.prefix }}…</span>
                     · <template v-if="tk.lastUsedAt"><CmsTime :value="tk.lastUsedAt" relative v-slot="{ text }">{{ t('account.tokens.usedAt', { time: text }) }}</CmsTime></template>
                     <template v-else>{{ t('account.tokens.neverUsed') }}</template>
                     <template v-if="tk.expiresAt"> · {{ t('account.tokens.until', { date: formatDateWith(tk.expiresAt, { dateStyle: 'medium' }) }) }}</template>
@@ -371,33 +371,7 @@ function rightBadges(r: TokenRights): string[] {
             <UInput v-model="newToken.name" maxlength="80" autofocus :placeholder="t('account.tokens.namePlaceholder')" class="w-full" />
             <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
           </UFormField>
-          <fieldset class="space-y-3">
-            <legend class="mb-2 text-sm font-medium text-highlighted">{{ t('account.tokens.rights') }}</legend>
-            <UCheckbox :model-value="true" disabled :label="t('account.tokens.read')" />
-            <UCheckbox v-model="newToken.write" :label="t('account.tokens.write')" :description="t('account.tokens.writeHint')" />
-            <div class="space-y-3 ps-6">
-              <UCheckbox
-                v-model="newToken.publish" :disabled="!newToken.write || !tokenState.can.publish" :label="t('account.tokens.publish')"
-                :description="tokenState.can.publish ? t('account.tokens.publishHint') : t('account.tokens.notYourRole')"
-              />
-              <UCheckbox v-model="newToken.delete" :disabled="!newToken.write" :label="t('account.tokens.delete')" :description="t('account.tokens.deleteHint')" />
-              <UCheckbox
-                v-model="newToken.media" :disabled="!newToken.write || !tokenState.can.media" :label="t('account.tokens.media')"
-                :description="tokenState.can.media ? undefined : t('account.tokens.notYourRole')"
-              />
-            </div>
-          </fieldset>
-          <UFormField :label="t('account.tokens.scope')" name="scope" :error="tokenErrors.entities || undefined">
-            <URadioGroup
-              v-model="newToken.scope"
-              :items="[{ value: 'all', label: t('account.tokens.scopeAll') }, { value: 'some', label: t('account.tokens.scopeSome') }]"
-            />
-            <USelectMenu
-              v-if="newToken.scope === 'some'" v-model="newToken.entities" multiple value-key="value" :items="areaItems"
-              :placeholder="t('account.tokens.scopePick')" class="mt-3 w-full"
-            />
-            <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
-          </UFormField>
+          <CmsTokenRights v-model="newToken" :can="tokenState.can" :areas="tokenState.areas" :entities-error="tokenErrors.entities" />
           <UFormField :label="t('account.tokens.expires')" name="expires">
             <USelect v-model="newToken.expires" :items="expiryItems" class="w-full sm:w-60" />
           </UFormField>

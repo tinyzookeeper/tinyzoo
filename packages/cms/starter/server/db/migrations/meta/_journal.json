@@ -26,8 +26,8 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1795114666625,
-      "tag": "0003_access_tokens",
+      "when": 1795116203326,
+      "tag": "0003_mcp_access",
       "breakpoints": true
     }
   ]

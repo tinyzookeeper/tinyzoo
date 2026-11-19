@@ -2,7 +2,7 @@ import { boolean, type PgColumn, pgEnum, pgTable, primaryKey, text, timestamp, u
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
-import { cmsAccessTokens, cmsAudit, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
+import { cmsAccessTokens, cmsAudit, cmsOauthClients, cmsOauthCodes, cmsOauthRequests, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
 import { checkRoles, isRolesExport, rolesDefOf, type CmsAccessUser, type CmsRolesDef } from './roles'
 import { pathTemplateProblem, pathTemplateKeys, prefixedTemplates, type PathTemplate } from './paths'
@@ -575,6 +575,12 @@ export interface CmsRegistry {
   /** @internal */
   cmsAccessTokens: typeof cmsAccessTokens
   /** @internal */
+  cmsOauthClients: typeof cmsOauthClients
+  /** @internal */
+  cmsOauthRequests: typeof cmsOauthRequests
+  /** @internal */
+  cmsOauthCodes: typeof cmsOauthCodes
+  /** @internal */
   cmsAudit: typeof cmsAudit
   /** @internal */
   cmsCollab: typeof cmsCollab
@@ -620,7 +626,7 @@ function checkSchemaNames(entities: CmsEntity[], junctions: Junction[]): void {
     byTs.set(ts, { what, sql })
     bySql.set(sql, { what, ts })
   }
-  for (const [ts, sql] of [['cmsMedia', 'cms_media'], ['cmsUsers', 'cms_users'], ['cmsTokens', 'cms_tokens'], ['cmsAccessTokens', 'cms_access_tokens'], ['cmsAudit', 'cms_audit'], ['cmsCollab', 'cms_collab'], ['cmsRevisions', 'cms_revisions'], ['cmsState', 'cms_state'], ['cmsSearch', 'cms_search']] as const) {
+  for (const [ts, sql] of [['cmsMedia', 'cms_media'], ['cmsUsers', 'cms_users'], ['cmsTokens', 'cms_tokens'], ['cmsAccessTokens', 'cms_access_tokens'], ['cmsOauthClients', 'cms_oauth_clients'], ['cmsOauthRequests', 'cms_oauth_requests'], ['cmsOauthCodes', 'cms_oauth_codes'], ['cmsAudit', 'cms_audit'], ['cmsCollab', 'cms_collab'], ['cmsRevisions', 'cms_revisions'], ['cmsState', 'cms_state'], ['cmsSearch', 'cms_search']] as const) {
     add(ts, sql, `tinyzoo's own table ${sql}`)
   }
   for (const e of entities) add(camel(e.name), snake(e.name), `the table of "${e.name}"`)
@@ -706,13 +712,13 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     }
   }
 
-  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch }
+  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch }
   for (const e of entities) schema[e.name] = e.table
   for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
   for (const j of junctions) schema[j.name] = j.table
 
   const graph = entities.map((e) => withPlugins(entityGraph(e, locales), e, plugins, pluginOf))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, roles, cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, roles, cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf }
   _regCache.set(config, reg)
   return reg
 }

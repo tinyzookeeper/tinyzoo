@@ -56,6 +56,54 @@ export const cmsTokens = pgTable('cms_tokens', {
 }, (t) => [uniqueIndex('cms_tokens_hash_unique').on(t.tokenHash), index('cms_tokens_user_idx').on(t.userId)])
 
 /**
+ * Programs that registered themselves to sign in to the MCP server over OAuth (RFC 7591). A
+ * registration grants nothing: it is a name and the addresses a code may be sent back to.
+ *
+ * @internal
+ */
+export const cmsOauthClients = pgTable('cms_oauth_clients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // What the client calls itself: a claim, shown beside the redirect host (a fact).
+  name: text('name').notNull(),
+  redirectUris: jsonb('redirect_uris').notNull(),
+  clientUri: text('client_uri'),
+  lastUsedAt: ts('last_used_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+})
+
+/** An OAuth sign-in waiting for its person to decide (the admin's connect page). @internal */
+export const cmsOauthRequests = pgTable('cms_oauth_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => cmsOauthClients.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  state: text('state'),
+  codeChallenge: text('code_challenge').notNull(),
+  // The most the client asked for: read | write.
+  scope: text('scope').notNull(),
+  resource: text('resource'),
+  decidedAt: ts('decided_at'),
+  expiresAt: ts('expires_at').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+})
+
+/** A code handed back after consent, exchanged once for tokens. Only its SHA-256 is kept. @internal */
+export const cmsOauthCodes = pgTable('cms_oauth_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  codeHash: text('code_hash').notNull(),
+  clientId: uuid('client_id').notNull().references(() => cmsOauthClients.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => cmsUsers.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  resource: text('resource'),
+  name: text('name').notNull(),
+  // The rights the person gave on the connect page (CmsTokenRights).
+  rights: jsonb('rights').notNull(),
+  consumedAt: ts('consumed_at'),
+  expiresAt: ts('expires_at').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('cms_oauth_codes_hash_unique').on(t.codeHash)])
+
+/**
  * Personal access tokens (`tzp_…`) for the MCP server (`/api/mcp`). A token acts as the person
  * who made it, with their role, narrowed to the `rights` they chose (see CmsTokenRights). Only
  * the SHA-256 is stored; the token itself is shown once. It stops working when it is revoked,
@@ -77,7 +125,18 @@ export const cmsAccessTokens = pgTable('cms_access_tokens', {
   lastUsedAt: ts('last_used_at'),
   revokedAt: ts('revoked_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
-}, (t) => [uniqueIndex('cms_access_tokens_hash_unique').on(t.tokenHash), index('cms_access_tokens_user_idx').on(t.userId)])
+  // manual: made on the account page; oauth: a program that signed in. Then token_hash is the
+  // current access token (an hour), replaced with the refresh token (60 days from its last use).
+  origin: text('origin').notNull().default('manual'),
+  clientId: uuid('client_id').references(() => cmsOauthClients.id, { onDelete: 'set null' }),
+  accessExpiresAt: ts('access_expires_at'),
+  refreshHash: text('refresh_hash'),
+  refreshExpiresAt: ts('refresh_expires_at'),
+}, (t) => [
+  uniqueIndex('cms_access_tokens_hash_unique').on(t.tokenHash),
+  uniqueIndex('cms_access_tokens_refresh_unique').on(t.refreshHash),
+  index('cms_access_tokens_user_idx').on(t.userId),
+])
 
 /** @internal */
 export const cmsAudit = pgTable('cms_audit', {
@@ -203,6 +262,43 @@ export const cmsTokens = pgTable('cms_tokens', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('cms_tokens_hash_unique').on(t.tokenHash), index('cms_tokens_user_idx').on(t.userId)])
 
+export const cmsOauthClients = pgTable('cms_oauth_clients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  redirectUris: jsonb('redirect_uris').notNull(),
+  clientUri: text('client_uri'),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
+export const cmsOauthRequests = pgTable('cms_oauth_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => cmsOauthClients.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  state: text('state'),
+  codeChallenge: text('code_challenge').notNull(),
+  scope: text('scope').notNull(),
+  resource: text('resource'),
+  decidedAt: timestamp('decided_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
+export const cmsOauthCodes = pgTable('cms_oauth_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  codeHash: text('code_hash').notNull(),
+  clientId: uuid('client_id').notNull().references(() => cmsOauthClients.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => cmsUsers.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  resource: text('resource'),
+  name: text('name').notNull(),
+  rights: jsonb('rights').notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('cms_oauth_codes_hash_unique').on(t.codeHash)])
+
 export const cmsAccessTokens = pgTable('cms_access_tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().references(() => cmsUsers.id, { onDelete: 'cascade' }),
@@ -214,7 +310,16 @@ export const cmsAccessTokens = pgTable('cms_access_tokens', {
   lastUsedAt: timestamp('last_used_at', { withTimezone: true, mode: 'date', precision: 3 }),
   revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'date', precision: 3 }),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
-}, (t) => [uniqueIndex('cms_access_tokens_hash_unique').on(t.tokenHash), index('cms_access_tokens_user_idx').on(t.userId)])
+  origin: text('origin').notNull().default('manual'),
+  clientId: uuid('client_id').references(() => cmsOauthClients.id, { onDelete: 'set null' }),
+  accessExpiresAt: timestamp('access_expires_at', { withTimezone: true, mode: 'date', precision: 3 }),
+  refreshHash: text('refresh_hash'),
+  refreshExpiresAt: timestamp('refresh_expires_at', { withTimezone: true, mode: 'date', precision: 3 }),
+}, (t) => [
+  uniqueIndex('cms_access_tokens_hash_unique').on(t.tokenHash),
+  uniqueIndex('cms_access_tokens_refresh_unique').on(t.refreshHash),
+  index('cms_access_tokens_user_idx').on(t.userId),
+])
 
 export const cmsAudit = pgTable('cms_audit', {
   id: uuid('id').primaryKey().defaultRandom(),

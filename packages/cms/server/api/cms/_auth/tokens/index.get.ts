@@ -7,11 +7,16 @@ export default defineEventHandler(async (event) => {
   const user = requireTokenOwner(event)
   const { db, reg } = useCms()
   const t = reg.cmsAccessTokens
-  const rows = await db.select().from(t).where(and(eq(t.userId, user.id), isNull(t.revokedAt))).orderBy(desc(t.createdAt))
+  const rows = await db.select({ token: t, client: reg.cmsOauthClients.name }).from(t)
+    .leftJoin(reg.cmsOauthClients, eq(reg.cmsOauthClients.id, t.clientId))
+    .where(and(eq(t.userId, user.id), isNull(t.revokedAt))).orderBy(desc(t.createdAt))
   const role = roleOf(user)!
   const now = Date.now()
   return {
-    tokens: rows.filter((r: any) => !r.expiresAt || r.expiresAt.getTime() > now).map(accessTokenView),
+    // Gone: a token past its end, and a connection whose refresh token ran out.
+    tokens: rows
+      .filter(({ token: r }: any) => (!r.expiresAt || r.expiresAt.getTime() > now) && (!r.refreshExpiresAt || r.refreshExpiresAt.getTime() > now))
+      .map((r: any) => accessTokenView(r.token, r.client)),
     can: { publish: role.publish, media: role.media !== 'none' },
     areas: reg.graph
       .map((g) => reg.byName.get(g.name))

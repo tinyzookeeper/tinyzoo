@@ -2,27 +2,45 @@
 
 Every tinyzoo site has an MCP server at `/api/mcp`. A program that speaks [MCP](https://modelcontextprotocol.io) can use it to read and edit the site's content: list and change entries, publish them, change settings, upload files. It works as the person who connected it, with only the rights that person gave it.
 
-[Connect a program](#connect-a-program) · [Access tokens](#access-tokens) · [What a token may do](#what-a-token-may-do) ·
+[Connect a program](#connect-a-program) · [Signing in (OAuth)](#signing-in-oauth) · [Access tokens](#access-tokens) · [What a token may do](#what-a-token-may-do) ·
 [The tools](#the-tools) · [Rich text as Markdown](#rich-text-as-markdown) · [What is recorded](#what-is-recorded) ·
 [Turning it off](#turning-it-off) · [Security](#security)
 
 ## Connect a program
 
-1. In the admin, open **your account** (the menu at the bottom left) and go to **Access tokens**.
-2. Click **New token**, give it a name and the rights it needs, and copy the token. It is shown only once.
-3. Give the program the address shown above the list (`https://your-site/api/mcp`) and the token, sent as `Authorization: Bearer tzp_…`.
-
-With Claude Code, for example:
+**A program that can sign in** (Claude, Claude Code, and most MCP clients) needs only the address, `https://your-site/api/mcp`. It sends you to the admin to sign in and choose what it may do, then works.
 
 ```sh
-claude mcp add --transport http my-site https://example.com/api/mcp --header "Authorization: Bearer tzp_…"
+claude mcp add --transport http my-site https://example.com/api/mcp
 ```
 
+**A program that cannot sign in, or a script,** takes a token made by hand:
+
+1. In the admin, open **your account** (the menu at the bottom left) and go to **Access tokens**.
+2. Click **New token**, give it a name and the rights it needs, and copy the token. It is shown only once.
+3. Give the program the address shown above the list and the token, sent as `Authorization: Bearer tzp_…`.
+
 The server is Streamable HTTP and stateless. It serves the 2026-07-28 revision of MCP and the older 2025 ones.
+
+## Signing in (OAuth)
+
+The site is its own OAuth 2.1 authorization server for `/api/mcp`. Nothing to set up.
+
+1. `/api/mcp` answers a program without a token with `401` and `WWW-Authenticate: Bearer resource_metadata="…/.well-known/oauth-protected-resource/api/mcp"`.
+2. The program reads that document (RFC 9728) and `/.well-known/oauth-authorization-server` (RFC 8414). Both are served at the bare and the path-aware address, because clients ask for either.
+3. It registers itself at `/api/mcp/oauth/register` (RFC 7591). Registration is open and grants nothing: it is a name and the addresses a code may be sent back to (https, http on this machine, or an app's own scheme).
+4. It sends you to `/api/mcp/oauth/authorize`, which takes you to **`/admin/connect`** in the admin, signing in first if needed. The page shows the program's name (what it claims) and where the answer goes (a fact), and asks the same questions as a new token: what it may do, and which collections. A program that asked only to read is offered no writing.
+5. The program swaps the code at `/api/mcp/oauth/token` with PKCE (S256 only). It gets an access token for an hour and a refresh token that lasts 60 days from its last use.
+
+The connection is listed on your account page as "Signed in from …", and **Revoke** ends it. A program can end it itself at `/api/mcp/oauth/revoke` (RFC 7009). Codes, access tokens and refresh tokens are stored only as SHA-256. The refresh token is not rotated: a program refreshes from several calls at once when its access token expires, and rotation would strand all but one of them.
+
+The MCP and OAuth endpoints answer other origins (`Access-Control-Allow-Origin: *`, never with credentials). None of them reads a cookie. The connect page's own API is the admin's, same origin only.
 
 ## Access tokens
 
 A token belongs to one person and acts as them. Each person makes and revokes their own tokens on their account page, and nobody else sees them.
+
+This section is about tokens made by hand; a program that signed in is listed beside them and revoked the same way.
 
 - A token looks like `tzp_` and 43 more characters. tinyzoo stores only its SHA-256, so a lost token cannot be shown again: revoke it and make another.
 - A token can work for 30 days, 90 days, a year, or until it is revoked.
@@ -90,11 +108,14 @@ export default defineNuxtConfig({
 })
 ```
 
-Or set `NUXT_CMS_MCP_ENABLED=false`. `/api/mcp` then answers `404`, and the account page shows no tokens.
+Or set `NUXT_CMS_MCP_ENABLED=false`. `/api/mcp`, the OAuth endpoints and the discovery documents then answer `404`, and the account page shows no tokens.
+
+The sign-in and the documents use the site's address from `cms.publicUrl` (`NUXT_CMS_PUBLIC_URL`), or the address of the request.
 
 ## Security
 
-- Only a token opens `/api/mcp`. A signed-in session does not.
+- Only a token opens `/api/mcp`, made by hand or by signing in. A signed-in session does not.
+- After 20 registrations, 60 sign-in starts or 120 token requests from one address in 10 minutes, the OAuth endpoints answer `429`.
 - Tokens are taken only at `/api/mcp`, never by the admin's own API.
 - After 20 wrong tokens from one address in 10 minutes, the server answers `429`. One token may make 300 requests a minute.
 - A file sent to `upload_media` is checked like an upload in the admin: its type, its first bytes, its size and the storage quota.

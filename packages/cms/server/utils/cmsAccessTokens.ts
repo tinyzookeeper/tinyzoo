@@ -107,11 +107,14 @@ export function assertTokenMedia(user: { token?: CmsTokenGrant } | null | undefi
 }
 
 /** A row of cms_access_tokens as an account's list shows it (never the token or its hash). */
-export function accessTokenView(row: any) {
+export function accessTokenView(row: any, clientName?: string | null) {
   return {
     id: row.id as string,
     name: row.name as string,
     prefix: row.prefix as string,
+    // manual: made on the account page; oauth: a program that signed in (its token changes every hour).
+    origin: (row.origin ?? 'manual') as 'manual' | 'oauth',
+    client: row.origin === 'oauth' ? (clientName ?? 'An MCP client') : null,
     rights: row.rights as CmsTokenRights,
     createdAt: row.createdAt?.toISOString?.() ?? null,
     expiresAt: row.expiresAt?.toISOString?.() ?? null,
@@ -128,7 +131,8 @@ function userOfToken(token: any, account: any): CmsUser | null {
   return roleOf(user) ? user : null
 }
 
-const usable = (t: any) => !t.revokedAt && (!t.expiresAt || t.expiresAt.getTime() > Date.now())
+// Revoked, past its end, or (signed in over OAuth) an access token older than its hour: no.
+const usable = (t: any) => !t.revokedAt && (!t.expiresAt || t.expiresAt.getTime() > Date.now()) && (!t.accessExpiresAt || t.accessExpiresAt.getTime() > Date.now())
 
 /** Note the token's use, at most once a minute. */
 async function touch(t: any): Promise<void> {
@@ -145,12 +149,13 @@ async function touch(t: any): Promise<void> {
  */
 export async function requireTokenUser(event: any): Promise<CmsUser> {
   const unauthorized = (message: string) => {
-    setResponseHeader(event, 'WWW-Authenticate', 'Bearer realm="tinyzoo"')
+    // Points a client at the OAuth sign-in (RFC 9728): the way in for one given only the address.
+    setResponseHeader(event, 'WWW-Authenticate', cmsMcpWwwAuthenticate(event))
     return createError({ statusCode: 401, statusMessage: message })
   }
   const header = String(getHeader(event, 'authorization') ?? '').trim()
   const token = /^Bearer\s+(\S+)$/i.exec(header)?.[1]
-  if (!token) throw unauthorized('Send a personal access token: Authorization: Bearer tzp_… (admin → your account → Access tokens)')
+  if (!token) throw unauthorized('Sign in (OAuth), or send a personal access token: Authorization: Bearer tzp_… (admin → your account → Access tokens)')
   const key = `mcp-token:${clientIp(event)}`
   const windowMs = 10 * 60_000
   if (!(await rateLimit(key, 20, windowMs))) throw tooManyRequests(event, 'Too many wrong tokens; try again later', windowMs)
