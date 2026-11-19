@@ -82,6 +82,9 @@ export interface CmsModuleOptions {
     status?: {
         token?: string;
     };
+    mcp?: {
+        enabled?: boolean;
+    } | false;
     content?: {
         token?: string;
         cacheControl?: string;

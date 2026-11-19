@@ -191,6 +191,14 @@ export async function receiveUpload(event: any, opts: { maxBytes: number; tempDi
       resolve({ file: received, fields })
     })
 
+    // A request made inside this process (the MCP server's upload_media) holds its whole body
+    // already and never streams it: the same parser and checks, from that buffer.
+    const held = (req as any).body
+    if (Buffer.isBuffer(held) || held instanceof Uint8Array) {
+      count(Buffer.from(held))
+      if (!finished) parser.end(held)
+      return
+    }
     // The visitor went away mid-upload: nobody to answer; drop the half file.
     req.once('close', () => { if (!req.complete) stop(createError({ statusCode: 499, statusMessage: 'Upload cancelled' })) })
     req.on('data', count)

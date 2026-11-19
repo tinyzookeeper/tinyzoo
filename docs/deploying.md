@@ -150,6 +150,7 @@ Generate secrets with `openssl rand -base64 32` and set them on the platform, ne
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (see [Publish webhooks](#publish-webhooks)) |
 | `NUXT_CMS_CONTENT_TOKEN` | optional | require a token on the public content API (`x-api-key` or `Authorization: Bearer`). The website's own server-side requests need none, see [Content API token](#content-api-token) |
 | `NUXT_CMS_STATUS_TOKEN` | optional | turns on `/api/health/status`, a summary of the site for a tool that watches many sites, and is the token it asks for. See [Site status](#site-status) |
+| `NUXT_CMS_MCP_ENABLED` | optional | `false` turns off the MCP server at `/api/mcp` and the access tokens. See [the MCP server](guide/mcp.md) |
 | `NUXT_CMS_CONTENT_DOCS` | optional | `true` publishes the interactive API reference at `/api/openapi` (off in production by default, see [Content API token](#content-api-token)) |
 | `NUXT_CMS_AUTH_SETUP_TOKEN` | optional | a code of your choosing that first-run setup needs (`/admin/setup?token=…`). See [First run](#first-run-the-setup-code) |
 | `CMS_ALLOW_REQUEST_ORIGIN` | almost never | `1` lets email links use the address of the request. See [Email links without a public address](#email-links-without-a-public-address) |

@@ -8,6 +8,8 @@ export interface CmsUser {
   /** 'admin' | 'editor' | 'author' with built-in auth; anything with external auth. */
   role: string
   locale?: string | null
+  /** Set when the request was made with a personal access token (the MCP server): what the token may do. */
+  token?: CmsTokenGrant
 }
 
 /**
