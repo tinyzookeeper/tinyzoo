@@ -8,25 +8,31 @@
 // it to fill a new or half-filled site, not on a site whose editors keep the plans.
 // Used by scripts/seed.mjs and, on its own, by scripts/seed-plans.mjs.
 //
+// After a release changes the plans, `seedPlans(req, { update: true })` (`pnpm seed:plans
+// --update`) also brings the plans the site has up to this file: stage, version, animal and
+// the texts in all three languages. A plan whose Czech title changed names its old titles
+// in `was`, so it is updated instead of added twice. Only the plans listed here are touched,
+// and their order is kept; a plan an editor added stays as it is.
+//
 // In this order: the page groups them by stage, and the admin's "Arrange" list then
 // reads stage by stage too (now, next, later, done; done newest first).
 export const PLANS = [
   // ── now ──
   {
-    stage: 'now', version: '1.0', animal: 'bunny',
-    cs: { title: 'Co znamená tinyzoo 1.0', text: 'Po aktualizaci v rámci verze 1 bude váš web dál fungovat bez úprav. Příručku pro editory i dokumentaci pro vývojáře najdete na tomto webu.' },
-    en: { title: 'What tinyzoo 1.0 means', text: 'Your website keeps working after updates within version 1, with no rework needed. You’ll find the guide for editors and the developer documentation on this site.' },
-    de: { title: 'Was tinyzoo 1.0 bedeutet', text: 'Bei Updates innerhalb der Version 1 läuft Ihre Website ohne Anpassungen weiter. Das Handbuch für Redakteure und die Dokumentation für Entwickler finden Sie auf dieser Website.' },
+    stage: 'now', animal: 'bunny', was: ['Co znamená tinyzoo 1.0'],
+    cs: { title: 'Co znamená verze 1', text: 'Po aktualizaci v rámci verze 1 bude váš web dál fungovat bez úprav. Příručku pro editory i dokumentaci pro vývojáře najdete na tomto webu.' },
+    en: { title: 'What version 1 means', text: 'Your website keeps working after updates within version 1, with no rework needed. You’ll find the guide for editors and the developer documentation on this site.' },
+    de: { title: 'Was Version 1 bedeutet', text: 'Bei Updates innerhalb der Version 1 läuft Ihre Website ohne Anpassungen weiter. Das Handbuch für Redakteure und die Dokumentation für Entwickler finden Sie auf dieser Website.' },
   },
-  // ── next (1.3) ──
+  // ── next (1.4) ──
   {
-    stage: 'next', version: '1.3', animal: 'bird',
+    stage: 'next', version: '1.4', animal: 'bird',
     cs: { title: 'Překlady ke kontrole', text: 'Překladatel předá hotový překlad ke kontrole. Editor dostane upozornění v administraci a na přání i e-mailem.' },
     en: { title: 'Translations for review', text: 'Translators mark finished translations for review. Editors get a notification in the admin area and can choose to get it by email too.' },
     de: { title: 'Übersetzungen zur Prüfung', text: 'Übersetzer geben fertige Übersetzungen zur Prüfung weiter. Redakteure erhalten eine Benachrichtigung in der Verwaltung und auf Wunsch auch per E-Mail.' },
   },
   {
-    stage: 'next', version: '1.3', animal: 'fox',
+    stage: 'next', version: '1.4', animal: 'fox',
     cs: { title: 'Nastavení vzhledu administrace', text: 'Na nové stránce „Vzhled“ nastaví administrátor barvu i loga bez pomoci vývojáře.' },
     en: { title: 'Customise the admin area', text: 'The new ‘Look’ page lets administrators set the colour and logos without a developer.' },
     de: { title: 'Die Verwaltung selbst gestalten', text: 'Auf der neuen Seite „Aussehen“ legen Administratoren Farbe und Logos ohne Hilfe eines Entwicklers fest.' },
@@ -69,6 +75,24 @@ export const PLANS = [
     de: { title: 'Ihre Website aus Vorlagen', text: 'Eine Version von tinyzoo, die wir für Sie betreiben. Mit fertigen Vorlagen erstellen Sie Ihre Seiten ohne Hilfe eines Entwicklers.' },
   },
   // ── done, newest first ──
+  {
+    stage: 'done', version: '1.3', animal: 'frog',
+    cs: { title: 'Návštěvnost webu v administraci', text: 'Kolik lidí váš web navštívilo, odkud přišli a které stránky čtou, uvidíte přímo v administraci. Žádný další nástroj k tomu nepotřebujete.' },
+    en: { title: 'Website visits in the admin area', text: 'See how many people visit your website, where they come from and which pages they read, right in the admin area. You need no other tool for it.' },
+    de: { title: 'Besucherzahlen in der Verwaltung', text: 'Wie viele Menschen Ihre Website besuchen, woher sie kommen und welche Seiten sie lesen, sehen Sie direkt in der Verwaltung. Ein weiteres Tool brauchen Sie dafür nicht.' },
+  },
+  {
+    stage: 'done', version: '1.3', animal: 'penguin',
+    cs: { title: 'Souhlas s cookies', text: 'Návštěvníci si vyberou, které cookies váš web smí používat. Texty lišty upravíte v administraci a vývojář jí dá vzhled vašeho webu.' },
+    en: { title: 'Cookie consent', text: 'Visitors choose which cookies your website may use. You edit the banner’s texts in the admin area, and your developer gives it your website’s look.' },
+    de: { title: 'Einwilligung zu Cookies', text: 'Besucher wählen, welche Cookies Ihre Website verwenden darf. Die Texte des Hinweises bearbeiten Sie in der Verwaltung, das Aussehen passt Ihr Entwickler an Ihre Website an.' },
+  },
+  {
+    stage: 'done', version: '1.2', animal: 'octopus',
+    cs: { title: 'Napojení dalších aplikací', text: 'Obsah webu můžete číst a upravovat i z jiných aplikací, které podporují standard MCP. U každé určíte, co smí.' },
+    en: { title: 'Connect other apps', text: 'Read and edit your website’s content from other apps that support the MCP standard. You decide what each one may do.' },
+    de: { title: 'Andere Apps anbinden', text: 'Lesen und bearbeiten Sie die Inhalte Ihrer Website auch aus anderen Apps, die den MCP-Standard unterstützen. Sie legen fest, was jede darf.' },
+  },
   {
     stage: 'done', version: '0.7', animal: 'koala',
     cs: { title: 'Firemní logo a barva', text: 'Logo a barvu vaší firmy uvidíte v administraci i v e-mailech, třeba v pozvánkách nebo ve zprávách pro obnovu hesla.' },
@@ -118,7 +142,7 @@ export const PLANS = [
  * text of a seeded plan that lacks it. `req(method, path, body)` is the caller's signed-in
  * admin API request (it throws on an error status). Returns how many plans it added.
  */
-export async function seedPlans(req) {
+export async function seedPlans(req, { update = false } = {}) {
   // Every plan the site has (the admin API gives at most 100 a page).
   const existing = []
   for (let page = 1; ; page++) {
@@ -131,9 +155,18 @@ export async function seedPlans(req) {
   let position = Math.max(0, ...existing.map((row) => Number(row.position) || 0))
   let added = 0
   let translated = 0
+  let updated = 0
   for (const plan of PLANS) {
-    const { cs, en, de, ...shared } = plan
-    const found = byTitle.get(cs.title)
+    const { cs, en, de, was = [], ...shared } = plan
+    const found = [cs.title, ...was].map((t) => byTitle.get(t)).find(Boolean)
+    if (found && update) {
+      // Bring it up to this file: the shared fields and the Czech text, then each translation.
+      await req('PATCH', `/api/cms/plan/${found.id}`, { ...cs, version: null, animal: null, ...shared })
+      await req('PATCH', `/api/cms/plan/${found.id}?locale=en`, en)
+      await req('PATCH', `/api/cms/plan/${found.id}?locale=de`, de)
+      updated++
+      continue
+    }
     if (found) {
       // Seeded before: add a translation only where there is none (a run that stopped after the Czech).
       const { row } = await req('GET', `/api/cms/plan/${found.id}`)
@@ -153,6 +186,7 @@ export async function seedPlans(req) {
   }
   const kept = existing.length ? `, ${existing.length} the site had left as they were` : ''
   const filled = translated ? `, ${translated} missing translation${translated === 1 ? '' : 's'} added` : ''
-  console.log(added || translated ? `✓ plans: ${added} added (cs, en, de)${filled}${kept}` : `· plans: the site has all ${PLANS.length}, left alone`)
+  if (update) console.log(`✓ plans: ${updated} brought up to date, ${added} added (cs, en, de)`)
+  else console.log(added || translated ? `✓ plans: ${added} added (cs, en, de)${filled}${kept}` : `· plans: the site has all ${PLANS.length}, left alone`)
   return added
 }

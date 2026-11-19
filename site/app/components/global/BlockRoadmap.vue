@@ -135,7 +135,8 @@ const level = computed(() => (props.index === 0 ? 1 : 2))
 .tl-row--done .tl-body::before, .tl-row--done .tl-v::before { border-left-style: solid; border-left-color: rgb(19 19 19 / 0.18); }
 .tl-dot { position: absolute; left: 0; top: 0.125rem; width: 16px; height: 16px; border-radius: 999px; background: var(--color-paper); box-shadow: inset 0 0 0 2px rgb(19 19 19 / 0.28); }
 .tl-row--done .tl-dot { background: #879680; box-shadow: none; }
-.tl-row--done .tl-dot::after { content: ""; position: absolute; left: 5px; top: 3px; width: 4px; height: 7px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+/* The check is drawn centred in its own 12×12 box: a rotated border box sat left of and above the middle. */
+.tl-row--done .tl-dot::after { content: ""; position: absolute; inset: 0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.75 6.25 5 8.5l4.25-5' fill='none' stroke='%23fff' stroke-width='1.9' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 11px 11px no-repeat; }
 .tl-row--now .tl-dot { background: var(--color-frog); box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-frog) 30%, transparent); }
 .tl-row--next .tl-dot { box-shadow: inset 0 0 0 3px var(--color-bird); }
 
