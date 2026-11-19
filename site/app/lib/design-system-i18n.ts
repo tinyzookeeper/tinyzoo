@@ -156,7 +156,7 @@ const en: DesignSystemText = {
   surfaceElevated: 'bg-elevated (hover, selected)',
   surfaceDrop: 'Drop zone / placeholder',
   moments: 'Where the brand speaks: a cream panel (charcoal in dark mode), one animal, a Manrope line, one sentence, at most two actions. At most one playful sentence per screen; labels, errors and confirmations stay plain.',
-  momentsBrand: 'With a colour, a built-in one or the brand's, the panel is a faint tint of it (charcoal leaning toward it in dark mode), and every text on it still reads at 4.5:1.',
+  momentsBrand: 'With a colour, built-in or a brand colour, the panel is a faint tint of it (charcoal leaning toward it in dark mode), and every text on it still reads at 4.5:1.',
   momentGreeting: 'Good morning, Jana',
   momentText: 'One draft is waiting to be published.',
   momentWrite: 'Write an update',
