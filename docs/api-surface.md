@@ -234,7 +234,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | Seeds | `SeedDefinition`, `SeedContext`, `SeedEntry`, `SeedInsert`, `SeedWriteOptions`, `SeedGlobalOptions`, `SeedUploadOptions`, `SeedLink`, `SeedLinkOptions`, `SeedRich`, `SeedRichNode` |
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginAppPlugin`, `CmsDashboardWidget`, `CmsEntityPanel`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
-| Site status | `CmsStatus`, `CmsStatusCollection` (the answer of `/api/health/status`) |
+| Site status | `CmsStatus`, `CmsStatusCollection`, `CmsStatusAnalytics` (the answer of `/api/health/status`) |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
 | Admin branding (`cms.admin`) | `CmsAccent` (a built-in accent or a hex), `CmsAccentPreset` (`'mono' \| 'indigo' \| 'blue' \| 'violet' \| 'emerald'`), `CmsAdminLogo` (`full`, `mark`, `fullDark`, `markDark`) |
 | Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsSearchItem`, `CmsSearchResult` |
@@ -291,8 +291,9 @@ The analytics plugin ([analytics](analytics.md)).
 | `AnalyticsOptions` | its options: `keepRawDays`, `access`, `respectDoNotTrack`, `excludePaths`, `countryHeaders`, `geoipFile`, `timeZone` |
 | `dailyRollups(db, from, to, dimensions?)` | the daily totals of a range of days, as `DailyRollup` rows (`day`, `dimension`, `value`, `visitors`, `visits`, `pageviews`, `bounces`, `engagedMs`). Nothing in them identifies a visitor |
 | `DailyRollup` | one of those rows |
+| `AnalyticsRollups`, `AnalyticsRollupDay`, `AnalyticsRollupItem` | the answer of `GET /api/content/_analytics/rollups`, the daily totals for a fleet monitor: format `tinyzoo-analytics-rollups`, version 1, frozen like the status ([analytics](analytics.md#for-a-fleet-monitor)) |
 
-The plugin also brings `POST /api/content/_analytics/e`, where the website's pages send their visits. Its tables (`analytics_events`, `analytics_daily`) are exported for the server's own code, but their columns are not frozen: a minor release may change them, with a migration.
+The plugin also brings `POST /api/content/_analytics/e`, where the website's pages send their visits, and `GET /api/content/_analytics/rollups`, where a fleet monitor reads the daily totals with the status token. Its tables (`analytics_events`, `analytics_daily`) are exported for the server's own code, but their columns are not frozen: a minor release may change them, with a migration.
 
 ## The Nuxt layer and the `cms` options
 
@@ -379,6 +380,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content/_sitemap` | the site's public addresses as `{ entries }` (`CmsSitemapEntry`) |
 | `GET`, `POST /api/content/_form/:name` | a website form's definition and its submission (`tinyzoo/forms`) |
 | `POST /api/content/_analytics/e` | a page view, or the time one was looked at, from the website's pages (`tinyzoo/analytics`). Always `202` with no body |
+| `GET /api/content/_analytics/rollups` | the daily totals of `?from=` to `?to=` (at most 400 days) for a tool that watches many sites (`AnalyticsRollups`, `tinyzoo/analytics`). Guarded like `/api/health/status`: `404` until `cms.status.token` is set, then that token. See [analytics](analytics.md#for-a-fleet-monitor) |
 | `GET /api/openapi.json` | the OpenAPI 3.1 document of all of the above |
 | `GET /api/openapi` | the interactive reference (off in production unless `cms.content.docs`) |
 | `GET /api/content-types.ts` | the generated client types (what `tinyzoo client` writes) |

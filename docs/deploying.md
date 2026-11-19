@@ -355,7 +355,8 @@ The answer (`CmsStatus` in `tinyzoo`) has:
 - how many media files there are and their total size;
 - how many webhook addresses are set and whether a secret signs them;
 - the server errors this instance reported in the last 24 hours, by request, task and webhook;
-- the plugins and their versions.
+- the plugins and their versions;
+- with the [analytics plugin](analytics.md#for-a-fleet-monitor), whether it counts visits, since when, and where the daily totals are read with the same token.
 
 It holds numbers, dates, versions and names from `cms.config.ts`. It never holds content, anyone's name or email, or a secret. The error counts are kept in memory, so a restart starts them again from 0, and each replica counts its own.
 

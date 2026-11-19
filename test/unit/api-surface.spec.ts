@@ -107,6 +107,8 @@ function contentRoutes(): string {
   routes.push('GET  /api/content/_form/:name   (tinyzoo/forms)', 'POST /api/content/_form/:name   (tinyzoo/forms)')
   // And the analytics plugin's tracker sends its page views to one.
   routes.push('POST /api/content/_analytics/e   (tinyzoo/analytics)')
+  // And a fleet monitor reads its daily totals from another, with the status token.
+  routes.push('GET  /api/content/_analytics/rollups   (tinyzoo/analytics)')
   // Addresses under /api/cms that tinyzoo writes into content: a file's address (`cms_media.url`,
   // the `src` of a picture in rich text), the smaller copies <CmsImage> lists in srcset (cached a
   // year), the logo in e-mails already sent. Stored and cached, so they are frozen too.
