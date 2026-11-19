@@ -15,6 +15,8 @@ export const TEST_TIMERS = {
   CMS_TEST_COLLAB_HEARTBEAT_MS: process.env.CMS_TEST_COLLAB_HEARTBEAT_MS ?? '1000',
   /** Webhook retries wait this long, then five times as long (ops-server.spec, changes.spec). Production: 1 s, then 5 s. */
   CMS_TEST_WEBHOOK_RETRY_MS: process.env.CMS_TEST_WEBHOOK_RETRY_MS ?? '200',
+  /** Page views of the analytics plugin wait this long before they are written together (analytics.spec). Production: 3 s. */
+  CMS_TEST_ANALYTICS_FLUSH_MS: process.env.CMS_TEST_ANALYTICS_FLUSH_MS ?? '100',
 } as const
 
 /** The scheduled tasks of the test build (cron with seconds): scheduled entries every second, retention every 3 s (production: every minute, daily). */

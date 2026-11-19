@@ -1,5 +1,6 @@
 import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
 import { defineForm, defineFormSettings, formsPlugin } from "tinyzoo/forms"
+import { analyticsPlugin } from "tinyzoo/analytics"
 import { eventsPlugin } from "./cms-plugins/events"
 
 // Content languages: Czech is the default (each entry's own row), English is a
@@ -326,7 +327,7 @@ export const Redirect = defineRedirects()
 
 // Plugins (forms here, and the example "events" plugin): each adds entities, admin pages,
 // routes or upgrade steps under its own name.
-export const plugins = [formsPlugin(), eventsPlugin()]
+export const plugins = [formsPlugin(), eventsPlugin(), analyticsPlugin()]
 
 // A form on the website: each message lands here as an entry, and the people in
 // Forms settings get an email. On a page: <CmsForm name="contactForm" />.

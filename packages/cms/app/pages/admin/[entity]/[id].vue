@@ -1278,13 +1278,14 @@ defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value
           </fieldset>
 
           <!-- what plugins tell about the entry (defineCmsPlugin entityPanels): outside the form, so
-               someone who may only read the entry can still use them -->
+               someone who may only read the entry can still use them. A panel with nothing to show
+               renders nothing, and its section (heading included) is then hidden -->
           <section
             v-for="p in panels" :key="`${p.plugin}:${p.component}`"
-            class="min-w-0 border-t border-default pt-5" :aria-label="tl(p.label)"
+            class="min-w-0 border-t border-default pt-5 has-[>.cms-panel-body:empty]:hidden" :aria-label="tl(p.label)"
           >
             <h2 class="cms-label mb-3">{{ tl(p.label) }}</h2>
-            <component :is="p.is" :entity="entity" :id="id" :locale="currentLocale" />
+            <div class="cms-panel-body"><component :is="p.is" :entity="entity" :id="id" :locale="currentLocale" /></div>
           </section>
         </div>
       </aside>

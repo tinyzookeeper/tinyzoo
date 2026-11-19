@@ -2,7 +2,7 @@
 
 A plugin adds a feature to a tinyzoo site without changing tinyzoo. It can bring its own collections, admin pages, server routes, field editors, texts, scheduled clean-up and upgrade steps.
 
-Website forms are the first plugin (`tinyzoo/forms`). The playground has a small second one, `events` (`playground/cms-plugins/events/`), that you can read from start to finish.
+Website forms are the first plugin (`tinyzoo/forms`), and [analytics](analytics.md) the second (`tinyzoo/analytics`): it uses tables, an app plugin, a home widget and an entry panel. The playground has a small second one, `events` (`playground/cms-plugins/events/`), that you can read from start to finish.
 
 This page is the guide. [The plugin API reference](plugin-reference.md) lists every option and hook with its type.
 
@@ -338,6 +338,8 @@ defineProps<{ entity: string; id: string; locale: string | null }>()
 ```
 
 `locale` is the language being edited. It is `null` for a collection that is not translated.
+
+When a panel has nothing to show for an entry, it renders nothing (`v-if` on its root element). The editor then leaves out its heading too.
 
 A panel is not part of the form. So it stays usable for someone who may only read the entry. A new entry has no panels until it is saved. In the "write" arrangement the side column is folded on wide screens, so the panels show when the details are opened.
 

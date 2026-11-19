@@ -24,6 +24,7 @@ Since 1.0, tinyzoo follows semver. [tinyzoo 1.0](stability.md) says what stays s
 | [The public API](api-surface.md) | What 1.0 freezes: the config API, options and environment variables, content API, client, webhook, hooks, CLI, admin extension points. Everything else is internal |
 | [Plugins](plugins.md) | Adding a feature of your own (collections, admin pages, routes, upgrade steps) and shipping it as a package |
 | [The plugin API reference](plugin-reference.md) | Every option and hook of `defineCmsPlugin`, with its type |
+| [Analytics](analytics.md) | Counting the website's visits in its own admin, without cookies: switching it on, what it shows, privacy and a sentence for the privacy policy |
 | [Upgrading](upgrading.md) | Moving a site to a newer tinyzoo: the version policy, every upgrade, each version, renaming and removing, upgrade steps |
 | [Deploying](deploying.md) | Running a site in production: environment, first run, migrations, backups and restore, privacy, logs, a worked example on Pushbase |
 | [AGENTS.md](../packages/cms/starter/AGENTS.md) and [llms.txt](../llms.txt) | For the coding assistant you build with: the guide every new site gets, and an index of the pages above |

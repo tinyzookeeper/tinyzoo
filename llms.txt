@@ -30,5 +30,6 @@ The same documentation, rendered from the Markdown linked below, is on the websi
 
 - [Plugins](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/plugins.md): collections, admin pages, routes and upgrade steps of your own, shipped as a package
 - [The plugin API reference](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/plugin-reference.md): every option and hook of `defineCmsPlugin`, with its type
+- [Analytics](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/analytics.md): the website's visits in its own admin, without cookies (`tinyzoo/analytics`)
 - [Content between environments](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-transfer.md): `tinyzoo export` and `import`
 - [Editors' guide](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/en/README.md): the manual for the people who write content, with the admin's own labels, in [Czech](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/cs/README.md), English and [German](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/de/README.md)

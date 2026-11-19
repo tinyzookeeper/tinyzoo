@@ -16,6 +16,7 @@ GET  /api/health/ready
 GET  /api/health/status
 GET  /api/openapi
 GET  /api/openapi.json
+POST /api/content/_analytics/e   (tinyzoo/analytics)
 POST /api/content/_form/:name   (tinyzoo/forms)
 GET  /api/cms/_brand/:file   (stored in content)
 GET  /api/cms/_media/img/:id/:file   (stored in content)

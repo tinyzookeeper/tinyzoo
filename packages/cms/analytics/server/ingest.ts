@@ -1,0 +1,148 @@
+import { and, gt, inArray, sql } from 'drizzle-orm'
+import { assignSessions, type SessionTail, type ViewDraft } from '../core/sessions'
+import { newSessionId } from '../core/visitor'
+import { analyticsEvents } from '../tables'
+import { entryAt } from './context'
+
+/**
+ * Page views wait here a few seconds and are written together, so a visit never waits for the
+ * database: the endpoint answers at once, and one insert carries a few seconds' views. The
+ * time a page was looked at arrives later (when the visitor leaves it) and is added to its view.
+ *
+ * Per server, in memory. A server that stops writes what is waiting (the Nitro plugin's
+ * `close`). One that crashes loses its last few seconds of views.
+ */
+
+export interface PendingView extends ViewDraft {
+  path: string
+  locale: string | null
+  view: string
+  country: string | null
+  device: string | null
+  browser: string | null
+  os: string | null
+  language: string | null
+  engagedMs: number
+}
+
+/** The most time one view can add: 30 minutes. */
+export const MAX_ENGAGED_MS = 30 * 60_000
+const MAX_WAITING = 5000
+const INSERT_CHUNK = 500
+const SESSION_LOOKBACK = sql`now() - interval '30 minutes'`
+
+const flushMs = (): number => {
+  const v = Number(process.env.CMS_TEST_ANALYTICS_FLUSH_MS)
+  return Number.isFinite(v) && v > 0 ? v : 3000
+}
+
+const views: PendingView[] = []
+const engaged = new Map<string, { visitor: string; ms: number }>()
+let timer: ReturnType<typeof setTimeout> | null = null
+let running: Promise<void> | null = null
+
+function schedule() {
+  if (timer) return
+  timer = setTimeout(() => { timer = null; void flushViews() }, flushMs())
+  // A waiting flush never keeps a stopping process alive (the Nitro plugin flushes on close).
+  ;(timer as any).unref?.()
+}
+
+export function queueView(v: PendingView): void {
+  if (views.length >= MAX_WAITING) return
+  views.push(v)
+  if (views.length >= INSERT_CHUNK) void flushViews()
+  else schedule()
+}
+
+/** Time a visitor looked at a view (`view`, the tracker's id of it), added to what it had. */
+export function queueEngagement(view: string, visitor: string, ms: number): void {
+  const add = Math.min(Math.max(0, Math.round(ms)), MAX_ENGAGED_MS)
+  if (!add) return
+  // Still waiting to be written: add it there.
+  const waiting = views.find((v) => v.view === view && v.visitor === visitor)
+  if (waiting) {
+    waiting.engagedMs = Math.min(MAX_ENGAGED_MS, waiting.engagedMs + add)
+    return
+  }
+  const had = engaged.get(view)
+  if (!had && engaged.size >= MAX_WAITING) return
+  engaged.set(view, { visitor, ms: Math.min(MAX_ENGAGED_MS, (had?.ms ?? 0) + add) })
+  schedule()
+}
+
+/** Write everything that waits (one flush at a time; one that is running is waited for, then the rest goes). */
+export async function flushViews(): Promise<void> {
+  while (running) await running
+  if (!views.length && !engaged.size) return
+  running = write().finally(() => { running = null })
+  await running
+}
+
+async function write(): Promise<void> {
+  const batch = views.splice(0, views.length)
+  const times = [...engaged.entries()]
+  engaged.clear()
+  try {
+    const { db } = useCms()
+    if (batch.length) await insertViews(db, batch)
+    if (times.length) await addEngagement(db, times)
+  }
+  catch (err) {
+    console.error('[cms] analytics: could not save visits', scrubError(err))
+  }
+}
+
+async function insertViews(db: any, batch: PendingView[]): Promise<void> {
+  const e = analyticsEvents
+  // Each visitor's latest view of the last 30 minutes: these views continue its visit.
+  const visitors = [...new Set(batch.map((v) => v.visitor))]
+  const tails = new Map<string, SessionTail>()
+  for (let i = 0; i < visitors.length; i += INSERT_CHUNK) {
+    const rows: any[] = await db.selectDistinctOn([e.visitor], {
+      visitor: e.visitor, session: e.session, at: e.at, referrerHost: e.referrerHost, source: e.source,
+      utmSource: e.utmSource, utmMedium: e.utmMedium, utmCampaign: e.utmCampaign,
+    }).from(e).where(and(inArray(e.visitor, visitors.slice(i, i + INSERT_CHUNK)), gt(e.at, SESSION_LOOKBACK))).orderBy(e.visitor, sql`${e.at} desc`)
+    for (const r of rows) tails.set(r.visitor, { ...r, at: new Date(r.at).getTime() })
+  }
+  const assigned = assignSessions(batch, tails, newSessionId)
+  const rows = []
+  for (const v of assigned) {
+    const entry = await entryAt(v.path).catch(() => null)
+    rows.push({
+      at: new Date(v.at),
+      path: v.path,
+      entity: entry?.entity ?? null,
+      entryId: entry?.id ?? null,
+      // The language of the entry at this address, else what the page said it was.
+      locale: entry?.locale ?? v.locale,
+      visitor: v.visitor,
+      session: v.session,
+      view: v.view,
+      isEntry: v.isEntry,
+      referrerHost: v.referrerHost,
+      source: v.source,
+      utmSource: v.utmSource,
+      utmMedium: v.utmMedium,
+      utmCampaign: v.utmCampaign,
+      country: v.country,
+      device: v.device,
+      browser: v.browser,
+      os: v.os,
+      language: v.language,
+      engagedMs: v.engagedMs,
+    })
+  }
+  for (let i = 0; i < rows.length; i += INSERT_CHUNK) await db.insert(e).values(rows.slice(i, i + INSERT_CHUNK))
+}
+
+async function addEngagement(db: any, times: [string, { visitor: string; ms: number }][]): Promise<void> {
+  const e = analyticsEvents
+  for (let i = 0; i < times.length; i += INSERT_CHUNK) {
+    const values = sql.join(times.slice(i, i + INSERT_CHUNK).map(([view, t]) => sql`(${view}::text, ${t.visitor}::text, ${t.ms}::int)`), sql`, `)
+    // Only a view of the last day, and only by the visitor who made it.
+    await db.execute(sql`update ${e} set engaged_ms = least(${e.engagedMs} + v.ms, ${MAX_ENGAGED_MS})
+      from (values ${values}) as v(view, visitor, ms)
+      where ${e.view} = v.view and ${e.visitor} = v.visitor and ${e.at} > now() - interval '1 day'`)
+  }
+}
