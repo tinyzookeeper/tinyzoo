@@ -174,7 +174,7 @@ function parseSite<T extends z.ZodTypeAny>(schema: T, data: unknown): z.infer<T>
 // ── the server ─────────────────────────────────────────────────────────────────
 
 export function createKeeperMcp(event: H3Event, access: Access): McpServer {
-  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.3.0' }, { instructions: INSTRUCTIONS })
+  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.3.1' }, { instructions: INSTRUCTIONS })
   const ws = access.workspaceId
   const canWrite = () => (access.scope === 'write' ? null : fail('This access token is read-only. Make a write token in Keeper → Settings → Access tokens.'))
   const readOnlyHints = { readOnlyHint: true, openWorldHint: false }
