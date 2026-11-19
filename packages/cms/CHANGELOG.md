@@ -1,5 +1,129 @@
 # tinyzoo
 
+## 1.0.0
+
+### Major Changes
+
+- tinyzoo 1.0: the public API is frozen and follows semver ([docs/stability.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/stability.md)). An update within 1.x does not break your site, and a breaking change waits for 2.0. What is frozen is listed by name in [docs/api-surface.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/api-surface.md): the config API, the content API and `@tinyzoo/client`, the `cms` options and `NUXT_CMS_*` variables, the webhook and the Nitro hooks, the CLI, the frontend kit and the admin's extension points. Before the freeze, 1.0 removes what 0.6 deprecated; the entries below say what.
+
+  **Upgrade**
+
+  Follow "From 0.7 to 1.0" in [docs/upgrading.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#from-07-to-10), and name the version: `pnpm up tinyzoo@^1.0.0 @tinyzoo/client@^1.0.0`. A site that saw no `[tinyzoo] deprecated:` line on 0.6 or 0.7 only updates its packages. From 1.0 on, a plain `pnpm up tinyzoo @tinyzoo/client` takes every 1.x release.
+- An entity's `insertSchema` and `updateSchema` (zod) are `@internal`. They follow zod's own major versions, so 1.0 does not freeze them. An entity's `table` is frozen for reading: one column per field under its config key (a relation's as `<field>Id`), plus `id`, `createdAt`, `updatedAt`, `createdBy` and `updatedBy`. The SQL names behind them are not frozen.
+
+  **Upgrade**
+
+  Nothing to do for most sites. Access rules and plugin queries that read `table` keep working. Code that validates with `insertSchema` or `updateSchema` keeps working, but may need a change when tinyzoo moves to a new zod.
+- Names that belong to tinyzoo are refused where they are written, so what tinyzoo adds in 1.x can never collide with a site's own names; and the addresses tinyzoo writes into content are frozen.
+
+  - **Field names**: like entity names, a letter first, then letters, digits and `_` (no spaces, dashes or accents). Names starting with `_` are tinyzoo's. `path`, `paths`, `breadcrumbs` and `preview` are reserved in every entity (tinyzoo writes `path` and `breadcrumbs` onto the items of a page tree and `paths` onto translated items, overwriting a field of that name; `preview` is a parameter of the content API), next to `id`, `createdAt`, `updatedAt`, `createdBy`, `updatedBy`, `parentId`, `locale` and `locales`.
+  - **Entity names**: `email` and `privacy` are reserved (admin pages), and so is every name starting with `cms`, in any case (tinyzoo's own `cms_*` tables and `Cms*` schema names).
+  - **Plugins**: a plugin's `contentPath` starts with `_<plugin name>` (`_shop/feed` for the plugin `shop`; the forms plugin keeps `_form`). `_tree` and `_form` join `_global`, `_search` and `_sitemap` as content API addresses no plugin may take.
+  - **`@tinyzoo/client`**: root members added after 1.0 start with `$`, which no collection name can, so a new member never hides a collection. `collection`, `global`, `openapi` and `search` stay as they are.
+  - **Frozen addresses under `/api/cms`**: `/api/cms/_media/raw/<key>` (a file's stored address, and the `src` of pictures in rich text), `/api/cms/_media/img/<id>/<width>.webp` (the smaller copies `<CmsImage>` lists in srcset, cached a year) and `/api/cms/_brand/<file>` (the logo in e-mails already sent) keep working within a major, and the widths (320, 640, 960, 1280, 1920) may only grow. The rest of `/api/cms/**` stays the admin's own API.
+
+  **Upgrade**
+
+  Nothing to do unless `defineEntity` or `defineSingleton` (or `defineCmsPlugin`) now stops your site at start or at `tinyzoo generate` with a message naming the field, entity or route:
+
+  1. A field named `path`, `paths`, `breadcrumbs` or `preview`, starting with `_`, or with a character other than letters, digits and `_`: rename it in `cms.config.ts`. A rename is a migration: follow [Renaming a field](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#renaming-a-field), then run `tinyzoo generate` and `tinyzoo client`.
+  2. An entity named `email`, `privacy` or starting with `cms`: rename it, following [Renaming an entity](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#renaming-an-entity).
+  3. A plugin whose `contentPath` does not start with `_<plugin name>`: move the route there, and update the website code that calls it.
+- What 0.6 deprecated is removed. Each one now stops the build or the config with a message that says what to write instead.
+
+  - **`cms.databaseUrl`** in `nuxt.config.ts` is gone. The build stops if it is still set. The database address comes from `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) in the environment, at runtime. The CLI no longer reads it from `nuxt.config.ts` either.
+  - **`defineEntity(name, { singleton: true })`** is gone. It is a type error, and `defineEntity` throws. `defineSingleton(name, { … })` stays.
+  - **`FormOptions` from `tinyzoo`** is gone. Import it from `tinyzoo/forms`.
+  - **`CMS_SCHEDULER_CRON` and `CMS_RETENTION_CRON`** are no longer read. The build stops if one is set, and names the option to use.
+  - **A field named `page`, `limit`, `sort`, `dir` or `q`** in a public collection is now an error, not a warning.
+
+  **Upgrade**
+
+  A site that saw no deprecation warning on 0.6 or 0.7 has nothing to do. The warning is a line that starts with `[tinyzoo] deprecated: …`, in the output of `nuxt build` or in the server's log. Otherwise, follow "From 0.7 to 1.0" in [docs/upgrading.md](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/upgrading.md#from-07-to-10):
+
+  1. In `nuxt.config.ts`, delete `cms.databaseUrl`. Set `DATABASE_URL` (or `NUXT_CMS_DATABASE_URL`) where the site runs, and in `.env` for the CLI.
+  2. In `cms.config.ts`, change `defineEntity('x', { singleton: true, … })` to `defineSingleton('x', { … })`. Same table, same address, same admin.
+  3. Change `import type { FormOptions } from 'tinyzoo'` to `from 'tinyzoo/forms'`.
+  4. If your build sets `CMS_SCHEDULER_CRON` or `CMS_RETENTION_CRON`, write `cms: { scheduler: { cron: '…' }, retention: { cron: '…' } }` in `nuxt.config.ts` instead, and remove the variables.
+  5. Rename a field called `page`, `limit`, `sort`, `dir` or `q` in a public collection. A rename is a migration: see "Renaming a field" in `docs/upgrading.md`.
+  6. Run `pnpm typecheck` and build. Both name anything left over.
+- `searchTerms`, `matchEntry`, `highlightRanges`, `SEARCH_MAX_QUERY` and `SearchMatch` are `@internal` again. 0.6 made them public. They are no longer part of the frozen API, because the search may change how it matches (Postgres `pg_trgm`). They are still exported, and can change in any release.
+
+  `useCmsSearch()`, `<CmsHighlight>` and the `GET /api/content/_search` route stay public and work as before.
+
+  **Upgrade**
+
+  Nothing to do for most sites. If your own code imports one of these five names from `tinyzoo`, it still works for now. Move to `useCmsSearch()` and `<CmsHighlight>`, or copy the few lines you need into your site.
+
+### Minor Changes
+
+- Two server helpers for plugins are now part of the frozen API: `useCms()` and `requireCmsUser(event)`. A plugin's route uses them to reach the database and the signed-in person, so a plugin with `"tinyzoo": "^1.0.0"` can rely on them.
+
+  - `useCms()` returns at least `{ db, reg }`: the site's drizzle database and the `CmsRegistry`.
+  - `requireCmsUser(event)` returns the signed-in person (`id`, `role`, `email`, `name`, `locale`). It throws 401 when nobody is signed in, and 403 `role-removed` when the person's role is no longer in the config.
+
+  The other server helpers (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest) stay internal.
+
+  **Drizzle's types follow drizzle-orm.** The query helpers (`eq`, `and`, `sql` and the rest), the columns of an entity's `table` and the `db` of `useCms()` are drizzle's. Their names and what they do are frozen. Their TypeScript types come from drizzle-orm, which is still 0.x. When tinyzoo moves to a new drizzle major, the changelog says so, with an Upgrade section.
+
+  **Upgrade**
+
+  Nothing to do. Plugins that call these two helpers keep working, and now within semver.
+- Requirements written down, and the CLI follows the site's package manager.
+
+  - `engines.node` is Nuxt 4.6's: `^22.22.3 || ^24.15.0 || >=26.0.0` (the starter's too).
+  - `drizzle-orm` is a peer dependency of `tinyzoo` (`^0.45.4`): the site installs it (sites made by `tinyzoo init` always have), so the site and tinyzoo share one copy.
+  - `tinyzoo status` and `tinyzoo upgrade` check `drizzle-kit` too, against `>=0.31 <1`: tinyzoo 1.x writes migrations with drizzle-kit 0.x, and moves to drizzle 1.0 in 2.0. `tinyzoo status` now names packages that do not fit (a warning; the exit code is unchanged).
+  - `tinyzoo generate` runs drizzle-kit, and `tinyzoo upgrade` runs `cms:client`, with the site's package manager (told by its lockfile, its `packageManager` field, or the one that started the command), not always pnpm; the commands they print are that package manager's.
+  - The starter's scripts call the `tinyzoo` bin (`tinyzoo generate`, `tinyzoo up`, `tinyzoo seed`, `tinyzoo client …`) instead of `tsx node_modules/tinyzoo/cli/index.ts …`.
+
+  **Upgrade**
+
+  1. Run Node 22.22.3 or newer (22.x), 24.15.0 or newer (24.x), or 26 or later; Nuxt 4.6 asks for the same.
+  2. Keep `drizzle-orm` (`^0.45.4`) and `drizzle-kit` (`^0.31.11`) in your `package.json`, as sites made by `tinyzoo init` have them. If `tinyzoo status` warns about drizzle-kit 1.0, go back to 0.x: `pnpm add -D "drizzle-kit@^0.31.11"`.
+  3. Optional: in `package.json`, change scripts like `tsx node_modules/tinyzoo/cli/index.ts generate` to `tinyzoo generate` (the same for `up`, `seed` and `client`). The old form keeps working.
+
+### Patch Changes
+
+- Accessibility fixes in the admin.
+
+  - **Readable tints.** With the built-in `blue`, `violet` or `emerald` accent (and `indigo` in dark mode), accent text on its own pale tint read 3.9–4.4:1: a soft button under the pointer, the search's matched letters, a hovered day in the calendar. Those tints are now drawn lighter, so the text reads at 4.5:1 or more. The accent colours and their text are unchanged. `mono` and a brand colour look as before.
+  - **Visible keyboard focus.** Items in dropdowns, selects, select menus and the search now show the admin's focus ring when the keyboard reaches them, not only a faint grey. The mouse sees them as before, also after Escape closed a menu. A rich-text field in the form now shows a ring when it has the cursor, like the other fields. In the Write layout, the big title, the summary under it and the text show a ring only when you reach them with the keyboard. A click into them stays quiet while you type.
+  - **The publish review on a phone.** When Tab went round from the last button to the first, the focused button could sit off screen. It now scrolls into view, with room for its focus ring at the edge of the screen. The "now or later" choice is one stop for Tab, and the arrow keys change it.
+
+  **Upgrade**
+
+  Nothing to do. While someone uses the keyboard, the admin puts `data-cms-keys` on `<html>`, and `data-cms-key-focus` while the keyboard put the focus where it is. The new rules in the admin's stylesheet apply only inside the admin (`html[data-cms-admin]`). A site's own admin component that uses Nuxt UI's tint classes (`bg-primary/10` with `hover:bg-primary/15`, and the like) gets the lighter tints too.
+- `@tiptap/extension-collaboration-caret` takes the same `^3.34.0` range as the other TipTap packages, instead of exactly 3.34.0.
+- What upgrading two real sites to 1.0 turned up:
+
+  - **Files uploaded on 0.1 stay in the media library.** Going from 0.1 adds `cms_media.in_library` as `false` for every file, so an old library file was deleted the first time an editor replaced or cleared it. A new upgrade step, `media-in-library`, puts the existing files in the library in the run that adds the column. It does nothing on any other site.
+  - **One `x-default` per sitemap entry.** When a site's `cms:sitemap` hook already adds an `x-default` alternate, tinyzoo no longer adds a second one.
+  - **The upgrade guide** now says to move a site made with 0.1 to `vue-tsc` 3 (version 2 does not check the templates), that every site needs 0.2's migration, how to keep the old files in the library when stopping at 0.2 to 0.7, to drop a hook's own `x-default` from 0.5, and to update `engines.node` and list `@internationalized/date` for 1.0.
+
+  **Upgrade**
+
+  Nothing to do. On a site from 0.1, `tinyzoo up` (or the start with `NUXT_CMS_MIGRATIONS_ON_START`) runs the new step by itself.
+- Fixes before 1.0.
+
+  - **A global may have a field named `page`, `limit`, `sort`, `dir` or `q`.** 1.0 stops at such a field in a public collection, because those are parameters of the content API's list. It stopped at a public global too, which has no list. 0.6 and 0.7 warned about a global by mistake as well.
+  - **The search treats a non-breaking space as a space.** A title written with one (Czech typography, or text pasted from a word processor) now ranks as high as the same title with plain spaces when a visitor types it.
+  - **`tinyzoo backup`, `restore`, `export` and `import` say when `cms.databaseUrl` is still in `nuxt.config.ts`.** It was removed in 1.0 and is not read. Without `DATABASE_URL`, the message now says so and links the upgrade guide, instead of only "No database".
+
+  **Upgrade**
+
+  Nothing to do. A global you renamed after the 0.6 or 0.7 warning can stay as it is.
+- Errors about what 1.0 removed link the upgrade guide on GitHub. The build error for `cms.databaseUrl` or an old cron variable, and the error for `singleton: true` on `defineEntity`, used to name `docs/upgrading.md`, a path that leads nowhere from a site's terminal. They now give the address of "From 0.7 to 1.0". The error for a field named like a list parameter links "Renaming a field". The `AGENTS.md` of a new site says how to update within 1.x: `pnpm up tinyzoo @tinyzoo/client`, and to a new major only by naming it, never with `--latest`.
+
+  **Upgrade**
+
+  Nothing to do. A site made before keeps its own `AGENTS.md`. To update it, replace `--latest` in its "After updating tinyzoo" paragraph as the starter's now says.
+- A new site with the Search part keeps its search page out of `/sitemap.xml`. The page says `noindex`, but the sitemap listed it. `tinyzoo init` and `pnpm create tinyzoo` now write `sitemap: { exclude: [...] }` in `nuxt.config.ts` with the search page's address in each language.
+
+  **Upgrade**
+
+  Nothing to do for a new site. An existing site with the starter's search page adds the exclusion itself, with the page's address in every language (`sitemap: { exclude: ['/hledat', '/en/search'] }` for a Czech and English site), as step 6 of "From 0.4 to 0.5" in `docs/upgrading.md` says.
+
 ## 0.7.0
 
 ### Minor Changes
