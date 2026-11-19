@@ -7,6 +7,7 @@ import { eq } from 'tinyzoo'
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
   assertMediaLibrary(user)
+  assertTokenMedia(user)
   const { db, reg } = useCms()
   const id = getIdParam(event)
 
