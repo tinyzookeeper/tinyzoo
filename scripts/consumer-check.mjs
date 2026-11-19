@@ -22,7 +22,8 @@ try {
   run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/cms'))
   run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/client'))
   run('pnpm', ['pack', '--pack-destination', packs], join(root, 'packages/create-tinyzoo'))
-  const tgz = (prefix) => join(packs, readdirSync(packs).find((f) => f.startsWith(prefix)))
+  // `tinyzoo-<version>.tgz`, `tinyzoo-client-<version>.tgz`, `create-tinyzoo-<version>.tgz`: a name, a dash, a digit.
+  const tgz = (name) => join(packs, readdirSync(packs).find((f) => f.startsWith(`${name}-`) && /^\d/.test(f.slice(name.length + 1))))
 
   cpSync(join(root, 'test/consumer'), app, { recursive: true })
   cpSync(join(root, 'playground/cms.config.ts'), join(app, 'cms.config.ts'))
@@ -35,8 +36,8 @@ try {
   writeFileSync(join(app, 'package.json'), JSON.stringify({
     name: 'cms-consumer-check', private: true, type: 'module',
     dependencies: {
-      'tinyzoo': `file:${tgz('tinyzoo-0')}`,
-      '@tinyzoo/client': `file:${tgz('tinyzoo-client-')}`,
+      'tinyzoo': `file:${tgz('tinyzoo')}`,
+      '@tinyzoo/client': `file:${tgz('tinyzoo-client')}`,
       ...Object.fromEntries(['@nuxt/ui', 'nuxt', 'nuxt-auth-utils', 'tailwindcss', 'drizzle-orm', 'pg', 'zod'].map((n) => [n, dep(n)])),
     },
     devDependencies: { ...Object.fromEntries(['@iconify-json/lucide', 'drizzle-kit', 'typescript', 'vue-tsc'].map((n) => [n, dep(n)])), '@types/node': '^22.0.0' },
@@ -56,7 +57,7 @@ try {
   // ── create-tinyzoo, as `pnpm create tinyzoo` gets it: the tarball and its own dependencies, nothing else ──
   const launcher = join(work, 'launcher')
   mkdirSync(launcher)
-  writeFileSync(join(launcher, 'package.json'), JSON.stringify({ name: 'launcher', private: true, dependencies: { 'create-tinyzoo': `file:${tgz('create-tinyzoo-')}` } }))
+  writeFileSync(join(launcher, 'package.json'), JSON.stringify({ name: 'launcher', private: true, dependencies: { 'create-tinyzoo': `file:${tgz('create-tinyzoo')}` } }))
   run('pnpm', ['install', '--ignore-workspace'], launcher)
   const installed = join(launcher, 'node_modules/create-tinyzoo')
   const packedJson = JSON.parse(readFileSync(join(installed, 'package.json'), 'utf8'))
