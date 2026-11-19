@@ -14,7 +14,7 @@ async function submit() {
   try {
     await $fetch('/api/auth/login', { method: 'POST', body: form })
     await refreshSession()
-    const next = typeof route.query.next === 'string' && route.query.next.startsWith('/') && !route.query.next.startsWith('//') ? route.query.next : '/'
+    const next = typeof route.query.next === 'string' && /^\/(?![/\\])/.test(route.query.next) ? route.query.next : '/'
     await navigateTo(next)
   }
   catch (err) {

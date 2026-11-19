@@ -167,7 +167,7 @@ async function revokeToken() {
   revokeBusy.value = true
   try {
     await $fetch(`/api/tokens/${revoking.value.id}`, { method: 'DELETE' })
-    toast.add({ title: `${revoking.value.name} revoked`, color: 'success' })
+    toast.add({ title: `${revoking.value.name} disconnected`, color: 'success' })
     revoking.value = null
     await refreshTokens()
   }
@@ -272,7 +272,8 @@ async function changePassword() {
         <div class="flex flex-col gap-4">
           <p class="text-sm text-pretty text-toned">
             For scripts and tools that work with Keeper: the API, and the MCP server at the address below.
-            A token acts as the person who made it.
+            A program that can sign in needs only the address; others take a token made here.
+            Either acts as the person who connected it.
           </p>
           <div class="flex min-w-0 items-center gap-2 rounded-lg bg-elevated py-1.5 pr-1.5 pl-3">
             <span class="shrink-0 text-xs text-muted">MCP</span>
@@ -295,7 +296,8 @@ async function changePassword() {
                   <UBadge :label="t.scope === 'write' ? 'Read and write' : 'Read'" :color="t.scope === 'write' ? 'primary' : 'neutral'" variant="subtle" size="sm" />
                 </p>
                 <p class="mt-0.5 truncate text-xs text-muted">
-                  <span class="font-mono">{{ t.prefix }}…</span>
+                  <template v-if="t.origin === 'oauth'">Signed in from {{ t.client }}</template>
+                  <span v-else class="font-mono">{{ t.prefix }}…</span>
                   · {{ t.lastUsedAt ? `used ${timeAgo(t.lastUsedAt, now)}` : 'never used' }}
                   <template v-if="t.createdBy"> · by {{ t.createdBy }}</template>
                 </p>

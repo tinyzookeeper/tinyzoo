@@ -94,9 +94,61 @@ export const state = pgTable('state', {
 })
 
 /**
+ * Programs that registered themselves to connect over OAuth (RFC 7591). A registration grants
+ * nothing: it is a name and the addresses a code may be sent back to. Every connection still
+ * goes through a person on the consent page.
+ */
+export const oauthClients = pgTable('oauth_clients', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  // What the client calls itself: a claim, shown next to the redirect host (a fact).
+  name: text('name').notNull(),
+  redirectUris: jsonb('redirect_uris').$type<string[]>().notNull(),
+  clientUri: text('client_uri'),
+  lastUsedAt: ts('last_used_at'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+})
+
+/** An authorization waiting for a person to decide on the consent page. */
+export const oauthRequests = pgTable('oauth_requests', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clientId: uuid('client_id').notNull().references(() => oauthClients.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  state: text('state'),
+  codeChallenge: text('code_challenge').notNull(),
+  // The most the client asked for.
+  scope: text('scope').$type<'read' | 'write'>().notNull(),
+  resource: text('resource'),
+  // Set once: a request is decided only once.
+  decidedAt: ts('decided_at'),
+  expiresAt: ts('expires_at').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+})
+
+/** A code handed back to the client after consent, exchanged once for tokens. Only its SHA-256 is kept. */
+export const oauthCodes = pgTable('oauth_codes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  codeHash: text('code_hash').notNull(),
+  clientId: uuid('client_id').notNull().references(() => oauthClients.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  redirectUri: text('redirect_uri').notNull(),
+  codeChallenge: text('code_challenge').notNull(),
+  resource: text('resource'),
+  scope: text('scope').$type<'read' | 'write'>().notNull(),
+  name: text('name').notNull(),
+  consumedAt: ts('consumed_at'),
+  expiresAt: ts('expires_at').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('oauth_codes_hash_unique').on(t.codeHash)])
+
+/**
  * An access token for the API and the MCP server (`Authorization: Bearer kpr_…`). Only its
- * SHA-256 is stored; the token itself is shown once, when it is made. It acts as the person
- * who made it, while they are in the workspace: removing them ends their tokens too.
+ * SHA-256 is stored. It acts as the person who made it, while they are in the workspace:
+ * removing them ends their tokens too.
+ *
+ * Two kinds, one table: a token made in Settings (`manual`, shown once, until revoked) and a
+ * connection signed in over OAuth (`oauth`): its access token lasts an hour and is replaced
+ * with the refresh token, which lasts 60 days from its last use.
  */
 export const tokens = pgTable('tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -105,11 +157,21 @@ export const tokens = pgTable('tokens', {
   name: text('name').notNull(),
   // read: looks only; write: may also add, change, check and remove sites.
   scope: text('scope').$type<'read' | 'write'>().notNull().default('read'),
-  // SHA-256 of the whole token, hex.
+  // SHA-256 of the whole (current access) token, hex.
   hash: text('hash').notNull(),
   // The start of the token (kpr_ab12cd), to tell tokens apart in the list.
   prefix: text('prefix').notNull(),
+  origin: text('origin').$type<'manual' | 'oauth'>().notNull().default('manual'),
+  // The OAuth client that signed in (null for a token made by hand, or a client since removed).
+  clientId: uuid('client_id').references(() => oauthClients.id, { onDelete: 'set null' }),
+  accessExpiresAt: ts('access_expires_at'),
+  refreshHash: text('refresh_hash'),
+  refreshExpiresAt: ts('refresh_expires_at'),
   createdAt: ts('created_at').notNull().defaultNow(),
   lastUsedAt: ts('last_used_at'),
   revokedAt: ts('revoked_at'),
-}, (t) => [uniqueIndex('tokens_hash_unique').on(t.hash), index('tokens_workspace_idx').on(t.workspaceId)])
+}, (t) => [
+  uniqueIndex('tokens_hash_unique').on(t.hash),
+  uniqueIndex('tokens_refresh_hash_unique').on(t.refreshHash),
+  index('tokens_workspace_idx').on(t.workspaceId),
+])

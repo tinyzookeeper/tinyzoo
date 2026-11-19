@@ -108,6 +108,10 @@ export interface AccessToken {
   scope: 'read' | 'write'
   /** The start of the token, to tell it apart: kpr_ab12cd. */
   prefix: string
+  /** manual: made in Settings; oauth: a program that signed in (its token changes every hour). */
+  origin: 'manual' | 'oauth'
+  /** The program that signed in (oauth only). */
+  client: string | null
   createdAt: string
   lastUsedAt: string | null
   /** Who made it (the token acts as them). */

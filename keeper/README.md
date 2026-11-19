@@ -17,16 +17,19 @@ Self-hosted for now, with one team (a *workspace*). Every table already carries 
 1. On the site, set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`) and redeploy. It needs tinyzoo 1.1 or newer; without the token, Keeper still checks uptime and the certificate.
 2. In Keeper, click *Add site*, then paste the site's address and the token. *Test connection* tells you whether both work.
 
-## Access tokens and the MCP server
+## The MCP server, OAuth and access tokens
 
-*Settings → Access tokens* makes tokens (`kpr_…`) for scripts and other tools. A token is shown once; Keeper keeps only its SHA-256. It acts as the person who made it, while they are in the team. A **read** token sees everything; a **write** token can also add, change, check and remove sites. Send it as `Authorization: Bearer kpr_…`. Wrong tokens are counted per address: after 20 in 10 minutes Keeper answers 429.
+`POST /mcp` is an MCP server (Streamable HTTP, stateless, both protocol eras). Read tools: `fleet_summary`, `list_sites`, `get_site`, `list_versions`, `list_incidents`. Write tools, for a write grant: `add_site`, `update_site`, `check_site`, `remove_site`. They go through the same code as the API, and no tool ever returns a site's status token.
 
-- **API.** The `/api/sites` routes take a token as well as the sign-in cookie. Tokens, people and team settings stay sign-in only.
-- **MCP.** `POST /mcp` is an MCP server (Streamable HTTP, stateless, JSON answers) that takes only a token. Read tools: `fleet_summary`, `list_sites`, `get_site`, `list_versions`, `list_incidents`. Write tools, for a write token: `add_site`, `update_site`, `check_site`, `remove_site`. They go through the same code as the API, and no tool ever returns a site's status token.
+**Signing in (OAuth).** A program that speaks OAuth needs only the address. It finds Keeper's sign-in from the 401 (`/.well-known/oauth-protected-resource`, RFC 9728), registers itself (RFC 7591) and sends you to Keeper's consent page. You choose read or read and write; it gets an access token for an hour and a refresh token that lasts 60 days from its last use. PKCE (S256) is required. Codes and tokens are stored only as SHA-256. Each connection shows in *Settings → Access tokens* as "Signed in from …" and is disconnected there (or by the program, RFC 7009).
 
 ```sh
-claude mcp add --transport http keeper https://keeper.example.com/mcp --header "Authorization: Bearer kpr_…"
+claude mcp add --scope user --transport http keeper https://keeper.example.com/mcp
 ```
+
+**Tokens made by hand.** For a script, or a program that cannot sign in: *Settings → Access tokens* makes a `kpr_…` token, shown once, read or write, until it is revoked. Send it as `Authorization: Bearer kpr_…`. The `/api/sites` routes take one too.
+
+Either kind acts as the person who connected it, while they are in the team. Wrong tokens are counted per address: after 20 in 10 minutes Keeper answers 429. The MCP and OAuth endpoints answer other origins (`Access-Control-Allow-Origin: *`, never with credentials); the rest of Keeper does not.
 
 ## Run it (developing Keeper)
 

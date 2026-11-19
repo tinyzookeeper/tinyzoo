@@ -38,7 +38,8 @@ function bearer(event: H3Event): string | null {
 }
 
 const unauthorized = (event: H3Event, message: string) => {
-  setResponseHeader(event, 'WWW-Authenticate', 'Bearer realm="keeper"')
+  // Points a client at the OAuth sign-in (RFC 9728), the way in for one given only the address.
+  setResponseHeader(event, 'WWW-Authenticate', mcpWwwAuthenticate(event))
   return createError({ statusCode: 401, statusMessage: message })
 }
 
@@ -56,12 +57,14 @@ async function memberForToken(event: H3Event, token: string): Promise<Access> {
   const [row] = await db.select({
     id: schema.tokens.id, workspaceId: schema.tokens.workspaceId, userId: schema.tokens.createdBy,
     scope: schema.tokens.scope, lastUsedAt: schema.tokens.lastUsedAt, role: schema.memberships.role,
+    accessExpiresAt: schema.tokens.accessExpiresAt,
   })
     .from(schema.tokens)
     // The person must still be in the workspace.
     .innerJoin(schema.memberships, and(eq(schema.memberships.userId, schema.tokens.createdBy), eq(schema.memberships.workspaceId, schema.tokens.workspaceId)))
     .where(and(eq(schema.tokens.hash, hashToken(token)), isNull(schema.tokens.revokedAt)))
-  if (!row || !row.userId) throw fail()
+  // A connection signed in over OAuth: its access token lasts an hour (the client refreshes it).
+  if (!row || !row.userId || (row.accessExpiresAt && row.accessExpiresAt.getTime() <= Date.now())) throw fail()
 
   // Note the use at most once a minute.
   const now = new Date()
@@ -98,7 +101,7 @@ export const readOnly = () => createError({ statusCode: 403, statusMessage: 'Thi
 
 /** A token row as the list shows it. */
 export function toAccessToken(
-  r: { id: string; name: string; scope: TokenScope; prefix: string; createdAt: Date; lastUsedAt: Date | null; userId: string | null; userName: string | null; userEmail: string | null },
+  r: { id: string; name: string; scope: TokenScope; prefix: string; createdAt: Date; lastUsedAt: Date | null; userId: string | null; userName: string | null; userEmail: string | null; origin?: 'manual' | 'oauth'; clientName?: string | null },
   me: SignedInMember,
 ): AccessToken {
   return {
@@ -106,6 +109,8 @@ export function toAccessToken(
     name: r.name,
     scope: r.scope,
     prefix: r.prefix,
+    origin: r.origin ?? 'manual',
+    client: r.origin === 'oauth' ? (r.clientName ?? 'An MCP client') : null,
     createdAt: r.createdAt.toISOString(),
     lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
     createdBy: r.userName || r.userEmail || null,

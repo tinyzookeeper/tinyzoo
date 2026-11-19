@@ -8,10 +8,14 @@ export default defineEventHandler(async (event): Promise<AccessToken[]> => {
     id: schema.tokens.id, name: schema.tokens.name, scope: schema.tokens.scope, prefix: schema.tokens.prefix,
     createdAt: schema.tokens.createdAt, lastUsedAt: schema.tokens.lastUsedAt, userId: schema.tokens.createdBy,
     userName: schema.users.name, userEmail: schema.users.email,
+    origin: schema.tokens.origin, clientName: schema.oauthClients.name, refreshExpiresAt: schema.tokens.refreshExpiresAt,
   })
     .from(schema.tokens)
     .leftJoin(schema.users, eq(schema.users.id, schema.tokens.createdBy))
+    .leftJoin(schema.oauthClients, eq(schema.oauthClients.id, schema.tokens.clientId))
     .where(and(eq(schema.tokens.workspaceId, me.workspaceId), isNull(schema.tokens.revokedAt)))
     .orderBy(desc(schema.tokens.createdAt))
-  return rows.map((r) => toAccessToken(r, me))
+  // A connection whose refresh token has run out is over.
+  const now = Date.now()
+  return rows.filter((r) => !r.refreshExpiresAt || r.refreshExpiresAt.getTime() > now).map((r) => toAccessToken(r, me))
 })
