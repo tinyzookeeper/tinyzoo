@@ -353,10 +353,15 @@ describe('the guard on particular colours', () => {
 describe('the CSS the admin writes for a brand colour', () => {
   const theme = (accent: string) => resolveAdminTheme({ accent }) as CmsAdminTheme
 
-  it('nothing for a built-in accent; data-cms-accent is its name', () => {
+  it('a built-in accent: data-cms-accent is its name; mono writes nothing, a colour preset only its moments', () => {
     for (const p of CMS_ACCENT_PRESETS) {
-      expect(adminAccentCss(theme(p))).toBe('')
       expect(adminAccentName(theme(p))).toBe(p)
+      const css = adminAccentCss(theme(p))
+      if (p === 'mono') { expect(css).toBe(''); continue }
+      const blocks = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((m) => ({ sel: m[1], vars: m[2]!.split(';').map((d) => d.split(':')[0] ?? '') }))
+      expect(blocks.map((b) => b.sel), p).toEqual([`html[data-cms-admin][data-cms-accent='${p}']`, `html[data-cms-admin][data-cms-accent='${p}'].dark`])
+      // The stylesheet draws a preset's shades and buttons: none of them in the <style>.
+      for (const b of blocks) expect(b.vars.every((v) => v.startsWith('--cms-moment-') || v.startsWith('--cms-animal-') || ['--cms-nav-active', '--cms-auth-bg', '--cms-logo-plate'].includes(v)), `${p}: ${b.vars}`).toBe(true)
     }
   })
 

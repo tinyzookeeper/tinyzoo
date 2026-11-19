@@ -1,13 +1,15 @@
 import { accentTextContrast, adminAccentCss, adminAccentName, contrastRatio, resolveAdminTheme, themeHash, type CmsAdminTheme } from '../../src/theme'
 
 // The admin's accent in the browser (src/theme.ts does the maths): what goes in
-// data-cms-accent, the <style> that draws a brand colour, and the development notes.
+// data-cms-accent, the <style> that draws a brand colour (and a colour preset's moments), and the development notes.
 // useCmsAdminHead uses them; so does the website's design-system page.
 
 /** `data-cms-accent`: the built-in accent's name, or `brand`. */
 export const cmsAccentName = (theme: Pick<CmsAdminTheme, 'accent'>) => adminAccentName(theme)
-/** The CSS that draws a brand accent (scoped to the admin), or '' for a built-in one. */
+/** The CSS the admin writes for its accent (scoped to the admin): a brand colour whole, a colour preset's moments and animals, '' for mono. */
 export const cmsAccentCss = (theme: Pick<CmsAdminTheme, 'accent'>) => adminAccentCss(theme)
+/** Whether the accent tints the moments and draws the animals in one shade of itself: a brand colour and the four colour presets, not mono. */
+export const cmsAccentTints = (theme: Pick<CmsAdminTheme, 'accent'>) => !!theme.accent.moments
 /** An accent (a built-in name or a hex) resolved as the admin resolves `cms.admin.accent`, with the contrast guard's notes. */
 export const cmsResolveAccent = (accent: string) => {
   const theme = resolveAdminTheme({ accent })

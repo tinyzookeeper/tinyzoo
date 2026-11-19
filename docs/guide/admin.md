@@ -111,9 +111,9 @@ The colour goes where the accent goes:
 - focus rings: a solid 2 px ring in the link colour, never in a light button colour
 - checked boxes and switches, selected options
 
-**With a brand colour, the whole look follows it.** The moments, which are cream in tinyzoo's own look (the sign-in, setup, reset and invitation pages, the welcome card on the home page, the current page in the sidebar and in a form's section menu, the icon tiles of form sections), become a faint tint of the brand in light mode and charcoal leaning toward it in dark mode: calm paper with a hint of the brand, never a coloured background. A near-grey brand gives near-grey moments. The animals take one muted shade of the brand with a near-white face, in light and dark mode.
+**With a colour, the whole look follows it.** This holds for a brand colour and for the four built-in colours (`indigo`, `blue`, `violet`, `emerald`). The moments, which are cream in tinyzoo's own look (the sign-in, setup, reset and invitation pages, the welcome card on the home page, the current page in the sidebar and in a form's section menu, the icon tiles of form sections), become a faint tint of the colour in light mode and charcoal leaning toward it in dark mode: calm paper with a hint of the colour, never a coloured background. A near-grey brand gives near-grey moments. The animals take one muted shade of the colour with a near-white face, in light and dark mode.
 
-The white workspace, the greys and the status colours (green "On the website", red errors) stay as they are. With a built-in accent (`mono` and the four colours) the moments stay cream and the animals keep their own colours.
+The white workspace, the greys and the status colours (green "On the website", red errors) stay as they are. With `mono`, tinyzoo's own look, the moments stay cream and the animals keep their own colours.
 
 tinyzoo works out the rest: the shades, a lighter version for dark mode, a button's colour under the pointer, the text colour on a button, the moments' tints and the animals' shade.
 

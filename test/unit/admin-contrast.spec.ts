@@ -47,12 +47,14 @@ function tokens(dark: boolean) {
   const light = { ...declared(LIGHT), ...declared('html[data-cms-admin]') }
   return { ...palette, ...light, ...(dark ? declared(DARK) : {}) }
 }
-/** The tokens with a built-in accent drawn (data-cms-accent='…'), as the stylesheet's cascade gives them. */
+/** The tokens with a built-in accent drawn (data-cms-accent='…'), as the stylesheet's cascade gives them, with the <style> the admin writes for a colour preset (its moments). */
 function presetTokens(preset: string, dark: boolean) {
   const vars = tokens(dark)
   if (preset === 'mono') return vars
-  Object.assign(vars, declared(`html[data-cms-admin][data-cms-accent='${preset}']`))
-  if (dark) Object.assign(vars, declared(`html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono'], [data-cms-accent='brand'])`), declared(`html[data-cms-admin].dark[data-cms-accent='${preset}']`))
+  const sel = `html[data-cms-admin][data-cms-accent='${preset}']`
+  const style = adminAccentCss(resolveAdminTheme({ accent: preset }))
+  Object.assign(vars, declared(sel), declared(sel, style))
+  if (dark) Object.assign(vars, declared(`html[data-cms-admin].dark[data-cms-accent]:not([data-cms-accent='mono'], [data-cms-accent='brand'])`), declared(`html[data-cms-admin].dark[data-cms-accent='${preset}']`), declared(`${sel}.dark`, style))
   return vars
 }
 /** The tokens with a brand colour drawn: the <style> the admin writes (adminAccentCss) over the stylesheet. */
@@ -177,6 +179,27 @@ describe('the built-in accents in src/theme.ts are what cms-admin.css draws', ()
         expect(near(resolve('--ui-primary', vars), scheme.text)).toBe(true)
         expect(near(resolve('--ui-text-inverted', vars), scheme.onPrimary), `--ui-text-inverted ${scheme.onPrimary}`).toBe(true)
         expect(near(resolve('--cms-accent-fill-hover', vars), scheme.primaryHover), `--cms-accent-fill-hover ${scheme.primaryHover}`).toBe(true)
+      })
+    }
+  }
+})
+
+// A colour preset tints its moments (adminAccentCss): the accent as text (the current page in the sidebar) and
+// every text role still read on them, light and dark.
+describe('the colour presets on their own moments', () => {
+  for (const preset of CMS_ACCENT_PRESETS.filter((p) => p !== 'mono')) {
+    for (const dark of [false, true]) {
+      it(`${preset}, ${dark ? 'dark' : 'light'}`, () => {
+        const vars = presetTokens(preset, dark)
+        const at = (name: string) => resolve(name, vars)
+        expect(vars['--cms-moment-bg'], 'the moment is the preset\'s own').toMatch(/^#[0-9A-F]{6}$/)
+        for (const surface of ['--cms-moment-bg', '--cms-nav-active', '--cms-auth-bg']) {
+          // Light: 4.5:1. Dark: no worse than on charcoal, where it sat before (indigo's 400 is 4.24:1 there, a known gap).
+          const floor = dark ? Math.min(4.5, contrast(at('--ui-primary'), parse('#2E3035', {}))) : 4.5
+          expect(contrast(at('--ui-primary'), at(surface)), `accent text on ${surface}`).toBeGreaterThanOrEqual(floor)
+          for (const role of ['--ui-text-dimmed', '--ui-text-muted', '--ui-text', '--ui-text-highlighted']) expect(contrast(at(role), at(surface)), `${role} on ${surface}`).toBeGreaterThanOrEqual(4.5)
+        }
+        expect(contrast(at('--cms-moment-text'), at('--cms-moment-bg')), 'quiet text in a moment').toBeGreaterThanOrEqual(4.5)
       })
     }
   }
