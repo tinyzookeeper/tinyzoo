@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import type { Member } from '#shared/types/keeper'
+import type { Member } from '#keeper/types/keeper'
 
 // Add a person (owner). They get a generated password, shown once, to pass on; they can
 // change it in Settings. An address that already has an account joins with that account.

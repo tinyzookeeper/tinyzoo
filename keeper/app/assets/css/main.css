@@ -1,6 +1,9 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+/* Keeper's own templates, also when it is a layer inside node_modules (which Tailwind skips by itself). */
+@source "../..";
+
 /* `dark:` follows the colour mode Keeper sets on <html> (class="dark"), not the system setting. */
 @custom-variant dark (&:where(.dark, .dark *));
 

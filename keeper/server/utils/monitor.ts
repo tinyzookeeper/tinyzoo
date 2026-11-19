@@ -1,6 +1,6 @@
 import tls from 'node:tls'
 import { and, eq, isNull, lt, sql } from 'drizzle-orm'
-import type { CmsStatus } from 'tinyzoo'
+import type { CmsStatus } from '#keeper/types/status'
 
 /**
  * The checks. Every minute each site's GET /api/health/ready (uptime and response time);

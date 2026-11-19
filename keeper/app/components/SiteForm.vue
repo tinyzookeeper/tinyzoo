@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ConnectionTest, SiteInput } from '#shared/types/keeper'
+import type { ConnectionTest, SiteInput } from '#keeper/types/keeper'
 
 // The add and edit forms. On edit the token field starts empty: left empty it keeps
 // the stored token, "Remove token" sends '' to delete it.

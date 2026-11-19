@@ -17,14 +17,14 @@ Self-hosted for now, with one team (a *workspace*). Every table already carries 
 1. On the site, set `NUXT_CMS_STATUS_TOKEN` to a long random value (`openssl rand -hex 32`) and redeploy. It needs tinyzoo 1.1 or newer; without the token, Keeper still checks uptime and the certificate.
 2. In Keeper, click *Add site*, then paste the site's address and the token. *Test connection* tells you whether both work.
 
-## Run it
+## Run it (developing Keeper)
 
 ```sh
 cp keeper/.env.example keeper/.env   # fill in the secrets
 pnpm --filter tinyzoo-keeper dev     # http://localhost:3100
 ```
 
-The database (`NUXT_DATABASE_URL`) is migrated when Keeper starts. The first visit asks for the first account and the team's name. In production it also asks for `NUXT_SETUP_TOKEN`.
+The database (`NUXT_DATABASE_URL`) is migrated when Keeper starts: the SQL ships inside the server build. The first visit asks for the first account and the team's name; in production it also asks for `NUXT_SETUP_TOKEN`.
 
 | Variable | |
 |---|---|
@@ -39,9 +39,19 @@ The database (`NUXT_DATABASE_URL`) is migrated when Keeper starts. The first vis
 | `NUXT_CHECKS_STATUS_EVERY_MIN` | how often the status is read (default 5) |
 | `NUXT_CHECKS_KEEP_DAYS` | how long single checks are kept (default 90) |
 
-## Deploy
+## Deploy: a project that extends Keeper
 
-`keeper/Dockerfile` builds from the repository root, like the website: upload the repo with it as the root Dockerfile (Pushbase's `dockerfile` preset), give it a Postgres and the variables above. Run one instance: the checks run inside it every minute.
+Keeper is also a Nuxt layer. A deployment is a small app of its own with `extends: ['tinyzoo-keeper']`, the way a website extends tinyzoo. It holds only its settings and its `deploy.yml`, and Pushbase builds it like any Nuxt app. Ours is `~/Coding/VSCodeProjects/keeper`.
+
+To hand the deployment a new Keeper:
+
+```sh
+pnpm --filter tinyzoo-keeper pack:to ~/Coding/VSCodeProjects/keeper
+```
+
+This packs the layer into that project's `vendor/` and points its dependency there. Then run `pnpm install` and deploy from that project.
+
+Inside the layer, paths are relative to its own files, never `~` (which would mean the extending app). Its types are under `#keeper/…`, not `#shared/…`.
 
 ## Schema
 

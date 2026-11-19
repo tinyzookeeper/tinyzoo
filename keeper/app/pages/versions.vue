@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { OverviewResponse, SiteSummary } from '#shared/types/keeper'
+import type { OverviewResponse, SiteSummary } from '#keeper/types/keeper'
 
 useHead({ title: 'Versions · Keeper' })
 const { data, status } = await useFetch<OverviewResponse>('/api/sites', {
@@ -25,6 +25,7 @@ const groups = computed<Group[]>(() => {
     }))
     .sort((a, b) => (a.version == null ? 1 : b.version == null ? -1 : compareVersions(b.version, a.version)))
 })
+const known = computed(() => data.value.sites.filter((s) => s.version).length)
 const behind = computed(() => groups.value.filter((g) => g.outdated).reduce((n, g) => n + g.sites.length, 0))
 </script>
 
@@ -43,10 +44,11 @@ const behind = computed(() => groups.value.filter((g) => g.outdated).reduce((n, 
 
     <template v-else>
       <div class="k-moment mb-8 flex items-center gap-4 px-5 py-4">
-        <span class="k-tile size-10 bg-(--k-surface)!"><UIcon :name="behind ? 'i-lucide-arrow-up-circle' : 'i-lucide-check'" class="size-5" :class="behind ? 'text-warning' : 'text-success'" /></span>
+        <span class="k-tile size-10 bg-(--k-surface)!"><UIcon :name="behind ? 'i-lucide-arrow-up-circle' : known ? 'i-lucide-check' : 'i-lucide-key-round'" class="size-5" :class="behind ? 'text-warning' : known ? 'text-success' : 'text-muted'" /></span>
         <p class="text-sm text-highlighted sm:text-[0.9375rem]">
           <template v-if="data.latest">The newest tinyzoo is <span class="font-mono font-medium">{{ data.latest }}</span>. </template>
           <template v-if="behind">{{ behind }} {{ behind === 1 ? 'site is' : 'sites are' }} behind it.</template>
+          <template v-else-if="!known">None of the sites shows its version yet: that takes each site’s status token.</template>
           <template v-else-if="data.latest">Every site with a status runs it.</template>
         </p>
       </div>

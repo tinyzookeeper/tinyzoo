@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CheckPoint } from '#shared/types/keeper'
+import type { CheckPoint } from '#keeper/types/keeper'
 
 // The last 24 hours of checks: response time as a line, failed checks as red ticks
 // along the bottom. Plain SVG, scaled to its box.

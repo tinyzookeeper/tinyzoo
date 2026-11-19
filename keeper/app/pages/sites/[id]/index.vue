@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { SiteDetail } from '#shared/types/keeper'
-import type { Fact } from '~/components/FactList.vue'
+import type { SiteDetail } from '#keeper/types/keeper'
+import type { Fact } from '../../../components/FactList.vue'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))

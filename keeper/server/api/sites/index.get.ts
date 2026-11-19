@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type { OverviewResponse } from '#shared/types/keeper'
+import type { OverviewResponse } from '#keeper/types/keeper'
 
 export default defineEventHandler(async (event): Promise<OverviewResponse> => {
   const me = await requireMember(event)

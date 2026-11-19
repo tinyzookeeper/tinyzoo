@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SiteDetail, SiteInput } from '#shared/types/keeper'
+import type { SiteDetail, SiteInput } from '#keeper/types/keeper'
 
 const route = useRoute()
 const id = computed(() => String(route.params.id))

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type { Member } from '#shared/types/keeper'
+import type { Member } from '#keeper/types/keeper'
 
 export default defineEventHandler(async (event): Promise<Member[]> => {
   const me = await requireMember(event)

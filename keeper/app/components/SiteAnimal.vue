@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SiteState } from '#shared/types/keeper'
+import type { SiteState } from '#keeper/types/keeper'
 
 // A site's own animal on a cream tile, with its state as a dot in the corner.
 withDefaults(defineProps<{ id: string; state?: SiteState; size?: 'sm' | 'md' | 'lg' }>(), { size: 'md' })

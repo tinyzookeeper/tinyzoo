@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { OverviewResponse, SiteSummary } from '#shared/types/keeper'
+import type { OverviewResponse, SiteSummary } from '#keeper/types/keeper'
 
 useHead({ title: 'Sites · Keeper' })
 

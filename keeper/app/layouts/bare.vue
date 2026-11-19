@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import mascot from '~/assets/brand/logo/mascot.svg?url'
-import mascotReversed from '~/assets/brand/logo/mascot-reversed.svg?url'
+import mascot from '../assets/brand/logo/mascot.svg?url'
+import mascotReversed from '../assets/brand/logo/mascot-reversed.svg?url'
 </script>
 
 <template>

@@ -1,5 +1,5 @@
 import { eq } from 'drizzle-orm'
-import type { WorkspaceSettings } from '#shared/types/keeper'
+import type { WorkspaceSettings } from '#keeper/types/keeper'
 
 export default defineEventHandler(async (event): Promise<WorkspaceSettings> => {
   const me = await requireMember(event)

@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
-import type { SiteDetail, SiteSummary } from '#shared/types/keeper'
+import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
 
 type SiteRow = typeof schema.sites.$inferSelect
 

@@ -2,10 +2,21 @@
 // tinyzoo it runs, how its client uses it — with a way into each admin. Self-hosted for
 // now (one workspace); the tables already carry the workspace, for a hosted version later.
 // See README.md.
+//
+// It is also a Nuxt layer: a deployment of Keeper is a small app with
+// `extends: ['tinyzoo-keeper']` (our own is ~/Coding/VSCodeProjects/keeper). Paths
+// here are relative to this file, never `~`, which would mean the extending app.
+import { fileURLToPath } from 'node:url'
+
+const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
+
 export default defineNuxtConfig({
+  $meta: { name: 'keeper' },
   compatibilityDate: '2026-11-01',
   modules: ['@nuxt/ui', '@nuxt/fonts', 'nuxt-auth-utils'],
-  css: ['~/assets/css/main.css'],
+  css: [here('./app/assets/css/main.css')],
+  // Keeper's own types (`#shared` would be the extending app's).
+  alias: { '#keeper': here('./shared') },
   devtools: { enabled: false },
   app: {
     head: {
@@ -30,7 +41,7 @@ export default defineNuxtConfig({
     setupToken: '',
     // NUXT_PUBLIC_URL: Keeper's own address, for links in alert e-mails.
     publicUrl: '',
-    // NUXT_MIGRATIONS_DIR: where the SQL migrations are (the image sets it).
+    // NUXT_MIGRATIONS_DIR: a folder of SQL migrations to use instead of the bundled ones.
     migrationsDir: '',
     checks: {
       // NUXT_CHECKS_DOWN_AFTER: failed checks in a row before a site counts as down.
@@ -51,6 +62,8 @@ export default defineNuxtConfig({
   },
   nitro: {
     experimental: { tasks: true },
+    // The SQL migrations ship inside the server build (server/plugins/0.migrate.ts).
+    serverAssets: [{ baseName: 'keeper-migrations', dir: here('./server/db/migrations') }],
     scheduledTasks: {
       // Uptime every minute (and the status when it is due).
       '* * * * *': ['keeper:checks'],

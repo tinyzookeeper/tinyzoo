@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SiteState } from '#shared/types/keeper'
+import type { SiteState } from '#keeper/types/keeper'
 
 const props = withDefaults(defineProps<{ state: SiteState; size?: 'sm' | 'md' }>(), { size: 'md' })
 const label = computed(() => ({ up: 'Up', down: 'Down', unknown: 'Not checked yet' })[props.state])

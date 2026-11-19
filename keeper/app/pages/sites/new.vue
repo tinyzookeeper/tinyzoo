@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SiteInput } from '#shared/types/keeper'
+import type { SiteInput } from '#keeper/types/keeper'
 
 useHead({ title: 'Add site · Keeper' })
 const toast = useToast()

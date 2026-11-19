@@ -1,5 +1,5 @@
 import { bigserial, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
-import type { CmsStatus } from 'tinyzoo'
+import type { CmsStatus } from '../../shared/types/status'
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date', precision: 3 })
 

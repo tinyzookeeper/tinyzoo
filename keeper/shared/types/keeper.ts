@@ -1,4 +1,4 @@
-import type { CmsStatus } from 'tinyzoo'
+import type { CmsStatus } from './status'
 
 export type { CmsStatus }
 

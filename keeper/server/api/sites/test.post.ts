@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import type { ConnectionTest } from '#shared/types/keeper'
+import type { ConnectionTest } from '#keeper/types/keeper'
 
 // Try an address (and a token) before saving: does it answer, and can the status be read?
 const input = z.object({ url: z.string().max(500), token: z.string().max(500).optional(), siteId: z.string().uuid().optional() })

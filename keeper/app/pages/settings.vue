@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Member, WorkspaceSettings } from '#shared/types/keeper'
+import type { Member, WorkspaceSettings } from '#keeper/types/keeper'
 
 useHead({ title: 'Settings · Keeper' })
 const toast = useToast()

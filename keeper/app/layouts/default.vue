@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
-import mascot from '~/assets/brand/logo/mascot.svg?url'
-import mascotReversed from '~/assets/brand/logo/mascot-reversed.svg?url'
+import mascot from '../assets/brand/logo/mascot.svg?url'
+import mascotReversed from '../assets/brand/logo/mascot-reversed.svg?url'
 
 const { me, signOut } = useKeeperUser()
 const colorMode = useColorMode()

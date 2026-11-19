@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SiteState } from '#shared/types/keeper'
+import type { SiteState } from '#keeper/types/keeper'
 
 const props = defineProps<{ state: SiteState; since?: string | null }>()
 const look = computed(() => ({
