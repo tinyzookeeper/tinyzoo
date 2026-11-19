@@ -85,6 +85,8 @@ const errorFacts = computed<Fact[]>(() => {
     { label: 'Last one', value: timeAgo(e.lastAt, now.value), tone: 'muted' },
   ]
 })
+// The Traffic section: for a site whose status lists the analytics plugin, or that has visits already.
+const showTraffic = computed(() => !!site.value && (!!site.value.traffic || !!s.value?.plugins.some((p) => p.name === 'analytics')))
 const collections = computed(() => [...(s.value?.content.collections ?? [])].sort((a, b) => (b.lastEditAt ?? '').localeCompare(a.lastEditAt ?? '')))
 </script>
 
@@ -162,6 +164,8 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
             </li>
           </ul>
         </InfoCard>
+
+        <TrafficSection v-if="showTraffic" :site-id="site.id" class="lg:col-span-3" />
 
         <InfoCard v-if="s" title="tinyzoo">
           <FactList :facts="tinyzooFacts" />

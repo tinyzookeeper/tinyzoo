@@ -5,8 +5,8 @@ import type { CmsStatus } from '#keeper/types/status'
 /**
  * The checks. Every minute each site's GET /api/health/ready (uptime and response time);
  * every few minutes its GET /api/health/status with the stored token (versions, counts), and at
- * once when the site serves a new build (a deploy);
- * twice a day its TLS certificate. A site is down after `checks.downAfter` failures in a
+ * once when the site serves a new build (a deploy); about hourly its visits, when it counts them
+ * (traffic.ts); twice a day its TLS certificate. A site is down after `checks.downAfter` failures in a
  * row, which opens an incident and e-mails the team; the first success closes it.
  */
 
@@ -107,7 +107,7 @@ export function probeCertificate(url: string): Promise<{ expiresAt: Date } | { e
 }
 
 /** Check one site now: uptime, and the status when it is due (or `forceStatus`). */
-export async function checkSite(siteId: string, opts: { forceStatus?: boolean } = {}): Promise<void> {
+export async function checkSite(siteId: string, opts: { forceStatus?: boolean; forceTraffic?: boolean } = {}): Promise<void> {
   const db = useDb()
   const [site] = await db.select().from(schema.sites).where(eq(schema.sites.id, siteId))
   if (!site) return
@@ -159,6 +159,9 @@ export async function checkSite(siteId: string, opts: { forceStatus?: boolean } 
     patch.statusError = 'The stored token cannot be read (was NUXT_KEEPER_SECRET changed?). Paste it again.'
   }
   await db.update(schema.sites).set(patch).where(eq(schema.sites.id, siteId))
+
+  // Visits, about once an hour, for a site whose status lists the analytics plugin (traffic.ts).
+  await checkTraffic(siteId, token, { force: opts.forceTraffic }).catch((err: any) => console.error('[keeper] traffic failed', err?.message ?? err))
 }
 
 /** Read one site's certificate and warn the team once when it expires within 14 days. */
@@ -222,6 +225,7 @@ export async function runDaily(): Promise<void> {
     await eachLimited(all, 4, (s) => checkCertificate(s))
     const cutoff = new Date(Date.now() - settings().keepDays * 86_400_000)
     await db.delete(schema.checks).where(lt(schema.checks.at, cutoff))
+    await pruneTraffic()
   })
 }
 

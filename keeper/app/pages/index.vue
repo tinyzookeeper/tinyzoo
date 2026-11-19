@@ -53,6 +53,11 @@ const needs = computed<Need[]>(() => {
     const days = certDays(s)
     if (days != null && days < CERT_WARN_DAYS) out.push({ site: s, tone: 'warning', title: days < 0 ? `${s.name}: certificate expired` : `${s.name}: certificate expires in ${days} days`, detail: hostOf(s.url), action: { label: 'Look', to: `/sites/${s.id}` } })
     if (s.statusError) out.push({ site: s, tone: 'warning', title: `${s.name}: status unreadable`, detail: s.statusError, action: { label: 'Fix token', to: `/sites/${s.id}/edit` } })
+    if (s.traffic?.drop) {
+      const d = s.traffic.drop
+      const fell = d.baselinePerDay ? Math.round((1 - d.perDay / d.baselinePerDay) * 100) : 0
+      out.push({ site: s, tone: 'warning', title: `${s.name}: visitors down by ${fell} %`, detail: `${d.perDay} a day over the last 7 days, usually ${d.baselinePerDay}`, action: { label: 'Look', to: `/sites/${s.id}#traffic` } })
+    }
     if (s.errors24h > 0) out.push({ site: s, tone: 'neutral', title: `${s.name}: ${s.errors24h} server error${s.errors24h === 1 ? '' : 's'}`, detail: 'Reported by the site in the last 24 hours', action: { label: 'Look', to: `/sites/${s.id}` } })
   }
   const rank = { error: 0, warning: 1, neutral: 2 }
@@ -80,6 +85,14 @@ const sites = computed<SiteSummary[]>(() => {
     .filter((s) => !needle || [s.name, s.client, s.url].some((v) => v.toLowerCase().includes(needle)))
     .sort((a, b) => ORDER[a.state] - ORDER[b.state] || a.name.localeCompare(b.name))
 })
+
+/** This week's visitors against last week's: "+12 %", "−8 %", or '' without a last week. */
+function weekChange(s: SiteSummary): string {
+  const t = s.traffic
+  if (!t || !t.previousWeek) return ''
+  const pct = Math.round(((t.week - t.previousWeek) / t.previousWeek) * 100)
+  return pct === 0 ? '±0 %' : pct > 0 ? `+${pct} %` : `−${Math.abs(pct)} %`
+}
 
 function stateLine(s: SiteSummary): string {
   if (s.state === 'down') return `Down for ${duration(s.stateSince ?? '', null, now.value)}`
@@ -178,6 +191,16 @@ function stateLine(s: SiteSummary): string {
             </div>
 
             <dl class="hidden shrink-0 items-center gap-6 text-right md:flex">
+              <div class="hidden w-40 xl:block">
+                <template v-if="s.traffic">
+                  <dt class="text-[11px] text-dimmed">Visitors, 7 days</dt>
+                  <dd class="flex items-center justify-end gap-2.5">
+                    <TrafficSparkline :values="s.traffic.spark" :width="72" :height="22" :label="`Visitors a day over the last 30 days, ${s.traffic.week} in the last 7`" />
+                    <span class="text-sm tabular text-toned">{{ s.traffic.week.toLocaleString('en-GB') }}</span>
+                  </dd>
+                  <dd v-if="weekChange(s)" class="text-[11px] tabular text-dimmed">{{ weekChange(s) }} on the week before</dd>
+                </template>
+              </div>
               <div class="w-16">
                 <dt class="text-[11px] text-dimmed">Uptime</dt>
                 <dd class="text-sm tabular text-toned">{{ formatUptime(s.uptime30d) }}</dd>

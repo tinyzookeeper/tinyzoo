@@ -68,6 +68,10 @@ html:root, html.dark:root {
   --k-moment-line: #E7DDCD;
   --k-moment-text: #6E675D;
   --k-nav-active: #F9F5EF;
+
+  /* Chart series (visitors, pageviews): validated for colour-blind separation and 3:1 on the card, per mode. */
+  --k-series-1: #2a78d6;
+  --k-series-2: #eb6834;
 }
 
 html.dark:root {
@@ -109,6 +113,9 @@ html.dark:root {
   --k-moment-line: #43464D;
   --k-moment-text: #B2AEA7;
   --k-nav-active: #2E3035;
+
+  --k-series-1: #3987e5;
+  --k-series-2: #d95926;
 }
 
 /* The cream primary button carries ink text in dark mode. */

@@ -4,6 +4,7 @@ import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
 import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
+import type { TrafficTotals } from '#keeper/types/traffic'
 
 /**
  * Keeper's MCP server (server/routes/mcp.ts): the fleet for tools that speak MCP. One
@@ -14,9 +15,9 @@ import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
 const DAY = 86_400_000
 const CERT_WARN_DAYS = 21
 
-const INSTRUCTIONS = `Keeper watches every tinyzoo site of this team: uptime every minute (GET /api/health/ready), the site's status every few minutes (GET /api/health/status with the site's NUXT_CMS_STATUS_TOKEN: tinyzoo version, content, sign-ins, errors) and its TLS certificate twice a day.
+const INSTRUCTIONS = `Keeper watches every tinyzoo site of this team: uptime every minute (GET /api/health/ready), the site's status every few minutes (GET /api/health/status with the site's NUXT_CMS_STATUS_TOKEN: tinyzoo version, content, sign-ins, errors), its visits about hourly when the site counts them (tinyzoo's analytics plugin: daily totals, no personal data) and its TLS certificate twice a day.
 
-Start with fleet_summary for what needs attention. Sites are named by id, name or address in the other tools. Results are compact JSON; fields without a value are left out. Times are ISO 8601 (UTC). "behind" means the site runs an older tinyzoo than the newest release on npm.
+Start with fleet_summary for what needs attention. site_traffic tells how many people visit a site and where they come from. Sites are named by id, name or address in the other tools. Results are compact JSON; fields without a value are left out. Times are ISO 8601 (UTC). "behind" means the site runs an older tinyzoo than the newest release on npm.
 
 Sites can belong to a client (list_clients); a person may be limited to some clients, and then sees only their sites. Viewers only read.
 
@@ -58,8 +59,8 @@ const daysUntil = (iso: string | null) => (iso ? Math.floor((Date.parse(iso) - D
 
 async function loadFleet(access: Access) {
   const rows = await loadSites(access)
-  const [uptime, latest] = await Promise.all([uptimeFor(rows.map((r) => r.id)), latestKnown(rows)])
-  return { rows, latest, sites: rows.map((r) => summarize(r, uptime.get(r.id), latest)) }
+  const [uptime, latest, traffic] = await Promise.all([uptimeFor(rows.map((r) => r.id)), latestKnown(rows), trafficGlances(rows)])
+  return { rows, latest, sites: rows.map((r) => summarize(r, uptime.get(r.id), latest, traffic.get(r.id) ?? null)) }
 }
 
 /** One line of a site for lists. */
@@ -145,11 +146,38 @@ async function siteReport(site: SiteRow, detail?: SiteDetail) {
       certExpiresAt: d.certExpiresAt,
       certError: d.certError,
     },
+    traffic: trafficLine(d),
     checks24h: await checksDay(site.id),
     incidents: d.incidents.map((i) => ({ startedAt: i.startedAt, endedAt: i.endedAt, open: !i.endedAt || null, cause: i.cause })),
     status: d.status,
   }
 }
+
+/** A change from `before` to `now` in percent (25 = a quarter more), or null without a before. */
+const changePct = (now: number, before: number) => (before ? Math.round(((now - before) * 1000) / before) / 10 : null)
+
+/** Visits in a few numbers for get_site: the last 7 complete days against the 7 before. */
+function trafficLine(d: SiteSummary) {
+  if (!d.traffic) return d.trafficError ? { error: d.trafficError } : null
+  const t = d.traffic
+  return {
+    through: t.through,
+    visitors7d: t.week,
+    previous7d: t.previousWeek,
+    changePct: changePct(t.week, t.previousWeek),
+    visitors30d: t.spark.reduce((a, b) => a + b, 0),
+    drop: t.drop ? { since: t.drop.day, perDay: t.drop.perDay, usualPerDay: t.drop.baselinePerDay } : null,
+    error: d.trafficError,
+  }
+}
+
+const totalsLine = (t: TrafficTotals) => ({
+  visitors: t.visitors,
+  visits: t.visits,
+  pageviews: t.pageviews,
+  bounceRatePct: t.visits ? Math.round((t.bounces * 1000) / t.visits) / 10 : null,
+  avgVisitSeconds: t.visits ? Math.round(t.engagedMs / t.visits / 1000) : null,
+})
 
 // ── inputs ─────────────────────────────────────────────────────────────────────
 
@@ -174,7 +202,7 @@ function parseSite<T extends z.ZodTypeAny>(schema: T, data: unknown): z.infer<T>
 // ── the server ─────────────────────────────────────────────────────────────────
 
 export function createKeeperMcp(event: H3Event, access: Access): McpServer {
-  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.5.0' }, { instructions: INSTRUCTIONS })
+  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.6.0' }, { instructions: INSTRUCTIONS })
   const canWrite = () => (access.scope === 'write' ? null : fail(access.role === 'viewer'
     ? 'Your role in Keeper only looks at sites. Ask an owner or admin for more.'
     : 'This access token is read-only. Make a write token in Keeper → Settings → Access tokens.'))
@@ -182,7 +210,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
 
   server.registerTool('fleet_summary', {
     title: 'Fleet summary',
-    description: 'What needs attention across all sites, in one call: sites that are down (with the cause), sites behind the newest tinyzoo, TLS certificates expiring within 21 days (or unreadable), sites whose status cannot be read (wrong or missing status token), and sites that reported server errors in the last 24 hours. Start here.',
+    description: 'What needs attention across all sites, in one call: sites that are down (with the cause), sites behind the newest tinyzoo, TLS certificates expiring within 21 days (or unreadable), sites whose status cannot be read (wrong or missing status token), sites that reported server errors in the last 24 hours, and sites whose visitors dropped (the last 7 days under 40 % of the 4 weeks before). Start here.',
     inputSchema: z.object({}),
     annotations: readOnlyHints,
   }, () => run(async () => {
@@ -207,6 +235,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
       certificates: certs.map((s) => ({ ...ref(s), expiresAt: s.certExpiresAt, days: daysUntil(s.certExpiresAt) })),
       statusUnreadable: sites.filter((s) => s.statusError || !s.hasToken).map((s) => ({ ...ref(s), error: s.statusError ?? 'No status token set' })),
       serverErrors24h: sites.filter((s) => s.errors24h > 0).map((s) => ({ ...ref(s), errors: s.errors24h })),
+      trafficDrops: sites.filter((s) => s.traffic?.drop).map((s) => ({ ...ref(s), since: s.traffic!.drop!.day, perDay: s.traffic!.drop!.perDay, usualPerDay: s.traffic!.drop!.baselinePerDay })),
     })
   }))
 
@@ -239,10 +268,53 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
 
   server.registerTool('get_site', {
     title: 'Get a site',
-    description: 'One site in full: its settings, the whole status the site reports (tinyzoo version, Node, database and migrations, collections with entry counts, accounts and sign-ins, media, webhooks, server errors, plugins), a summary of the last 24 hours of uptime checks (count, failures, uptime, average/p95/max response time, the last failure) and its last 20 incidents.',
+    description: 'One site in full: its settings, the whole status the site reports (tinyzoo version, Node, database and migrations, collections with entry counts, accounts and sign-ins, media, webhooks, server errors, plugins), a summary of the last 24 hours of uptime checks (count, failures, uptime, average/p95/max response time, the last failure), its last 20 incidents, and its visits when it counts them (the last 7 complete days against the 7 before, any drop; site_traffic has more).',
     inputSchema: z.object({ site: siteRef }),
     annotations: readOnlyHints,
   }, ({ site }) => run(async () => ok(await siteReport(await findSite(access, site)))))
+
+  server.registerTool('site_traffic', {
+    title: 'Site traffic',
+    description: 'How many people visit a site, from its analytics plugin (daily totals, no personal data): visitors, visits, pageviews, bounce rate and average visit time over the last `days` complete days, the same for the days just before and the change in percent, visitors per day (oldest first) or per week for long periods, and the top pages (with entry titles), sources, countries and devices. Top lists are added up from each day\'s top 10. A site without the plugin, or on an older tinyzoo, says so.',
+    inputSchema: z.object({
+      site: siteRef,
+      days: z.number().int().min(7).max(365).optional().describe('How many complete days, ending yesterday (default 30, at most 365).'),
+    }),
+    annotations: readOnlyHints,
+  }, ({ site, days }) => run(async () => {
+    const row = await findSite(access, site)
+    const n = days ?? 30
+    const r = await trafficReport(row, n)
+    if (!r.through) {
+      return ok({
+        site: row.name,
+        available: r.available,
+        error: r.error,
+        note: !r.available ? 'The site does not count visits: its status does not list the analytics plugin (tinyzoo/analytics).' : r.error ? null : 'Keeper has not read this site\'s visits yet; it asks about once an hour.',
+      })
+    }
+    const perDay = r.series.map((p) => p.visitors)
+    const weekly = n > 60
+    const trend = weekly
+      ? Array.from({ length: Math.ceil(perDay.length / 7) }, (_, i) => perDay.slice(Math.max(0, perDay.length - (i + 1) * 7), perDay.length - i * 7).reduce((a, b) => a + b, 0)).reverse()
+      : perDay
+    return ok({
+      site: row.name,
+      from: r.series[0]?.day,
+      through: r.through,
+      countingSince: r.since,
+      totals: totalsLine(r.totals),
+      previous: totalsLine(r.previous),
+      changePct: { visitors: changePct(r.totals.visitors, r.previous.visitors), pageviews: changePct(r.totals.pageviews, r.previous.pageviews) },
+      trend: { unit: weekly ? 'visitors per week, the last week last (the first may be shorter)' : 'visitors per day, oldest first', values: trend },
+      pages: r.pages.map((p) => ({ path: p.value, title: p.title, visitors: p.visitors, pageviews: p.pageviews })),
+      sources: r.sources.map((p) => ({ source: p.value, visitors: p.visitors })),
+      countries: r.countries.map((p) => ({ country: p.value, visitors: p.visitors })),
+      devices: r.devices.map((p) => ({ device: p.value, visitors: p.visitors })),
+      drop: r.drop ? { since: r.drop.day, perDay: r.drop.perDay, usualPerDay: r.drop.baselinePerDay } : null,
+      error: r.error,
+    })
+  }))
 
   server.registerTool('list_versions', {
     title: 'List versions',

@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm'
-import { bigserial, boolean, foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { bigint, bigserial, boolean, date, foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import type { CmsStatus } from '../../shared/types/status'
+import type { TrafficDrop, TrafficItem } from '../../shared/types/traffic'
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date', precision: 3 })
 
@@ -101,6 +102,14 @@ export const sites = pgTable('sites', {
   // The build the site serves (Nuxt's /_nuxt/builds/latest.json): a new one means a deploy,
   // and the status is read again at once instead of at the next round.
   buildId: text('build_id'),
+  // Visits (the site's analytics plugin): when Keeper last asked, why it could not read them,
+  // the first and the last day the site has totals for.
+  trafficCheckedAt: ts('traffic_checked_at'),
+  trafficError: text('traffic_error'),
+  trafficSince: date('traffic_since'),
+  trafficThrough: date('traffic_through'),
+  // The drop the team was told about (once per drop); null while visits are as usual.
+  trafficDrop: jsonb('traffic_drop').$type<TrafficDrop>(),
 }, (t) => [index('sites_workspace_idx').on(t.workspaceId), index('sites_client_idx').on(t.clientId)])
 
 /** One uptime check: GET /api/health/ready. */
@@ -113,6 +122,26 @@ export const checks = pgTable('checks', {
   ms: integer('ms'),
   error: text('error'),
 }, (t) => [index('checks_site_at_idx').on(t.siteId, t.at)])
+
+/**
+ * A site's visits on one day, from its analytics plugin (GET /api/content/_analytics/rollups):
+ * totals, and the top pages, sources, countries and devices of the day. No personal data.
+ */
+export const siteTraffic = pgTable('site_traffic', {
+  siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  // The site's own day (its time zone).
+  day: date('day').notNull(),
+  visitors: integer('visitors').notNull().default(0),
+  visits: integer('visits').notNull().default(0),
+  pageviews: integer('pageviews').notNull().default(0),
+  bounces: integer('bounces').notNull().default(0),
+  engagedMs: bigint('engaged_ms', { mode: 'number' }).notNull().default(0),
+  pages: jsonb('pages').$type<TrafficItem[]>().notNull().default([]),
+  sources: jsonb('sources').$type<TrafficItem[]>().notNull().default([]),
+  countries: jsonb('countries').$type<TrafficItem[]>().notNull().default([]),
+  devices: jsonb('devices').$type<TrafficItem[]>().notNull().default([]),
+  fetchedAt: ts('fetched_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ name: 'site_traffic_pk', columns: [t.siteId, t.day] })])
 
 /** A stretch of time a site was down. */
 export const incidents = pgTable('incidents', {

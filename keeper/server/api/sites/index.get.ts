@@ -5,10 +5,11 @@ import type { OverviewResponse } from '#keeper/types/keeper'
 export default defineEventHandler(async (event): Promise<OverviewResponse> => {
   const me = await requireAccess(event)
   const rows = await loadSites(me)
-  const [uptime, latest, clients] = await Promise.all([
+  const [uptime, latest, traffic, clients] = await Promise.all([
     uptimeFor(rows.map((r) => r.id)),
     latestKnown(rows),
+    trafficGlances(rows),
     useDb().select({ id: schema.clients.id, name: schema.clients.name }).from(schema.clients).where(visibleClients(me)).orderBy(sql`lower(${schema.clients.name})`),
   ])
-  return { sites: rows.map((r) => summarize(r, uptime.get(r.id), latest)), latest, clients }
+  return { sites: rows.map((r) => summarize(r, uptime.get(r.id), latest, traffic.get(r.id) ?? null)), latest, clients }
 })
