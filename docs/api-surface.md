@@ -315,6 +315,7 @@ Every option reaches the runtime config as `cms.<option>`. Every runtime value c
 | `forms.notifyTo`, `forms.turnstileSecret`, `forms.turnstileSiteKey` | `NUXT_CMS_FORMS_NOTIFY_TO`, `NUXT_CMS_FORMS_TURNSTILE_SECRET`, `NUXT_PUBLIC_CMS_TURNSTILE_SITE_KEY` | the forms plugin's recipients and Turnstile. `notifyTo` is an address or a list, and the variable is one comma-separated string |
 | `demo.email`, `demo.password` | `NUXT_PUBLIC_CMS_DEMO_EMAIL`, `NUXT_PUBLIC_CMS_DEMO_PASSWORD` | a public demo admin |
 | `status.token` | `NUXT_CMS_STATUS_TOKEN` | turns on `/api/health/status` and is the token it asks for |
+| `mcp.enabled` (or `mcp: false`) | `NUXT_CMS_MCP_ENABLED` | the MCP server at `/api/mcp` and the access tokens (on by default) |
 | `content.token`, `content.cacheControl`, `content.publicUrl`, `content.docs` | `NUXT_CMS_CONTENT_TOKEN`, `NUXT_CMS_CONTENT_CACHE_CONTROL`, `NUXT_CMS_CONTENT_PUBLIC_URL`, `NUXT_CMS_CONTENT_DOCS` | the content API: a token, the cache header, the OpenAPI server address (`publicUrl` when empty), the interactive reference |
 
 **Build-time options.** `scheduler.cron` and `retention.cron` are written into the build. They have no `NUXT_CMS_*` variable, and a change needs a rebuild.
@@ -370,6 +371,9 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content-types.ts` | the generated client types (what `tinyzoo client` writes) |
 | `GET /api/health/live`, `GET /api/health/ready` | liveness and readiness (`{ ok }`, `503` when not) |
 | `GET /api/health/status` | a summary of the site for a tool that watches many sites (`CmsStatus`). `404` until `cms.status.token` is set; then it asks for that token (`x-api-key` or `Authorization: Bearer`). See [deploying](deploying.md#site-status) |
+| `POST /api/mcp` | the MCP server: tools that read and edit the content, for a person's access token (`Authorization: Bearer tzp_…`, made by hand or by signing in). Built-in sign-in only; `404` with `cms.mcp: false`. Tools and their names are kept within 1.x; a minor may add tools and keys. See [the MCP server](guide/mcp.md) |
+| `GET /.well-known/oauth-protected-resource`, `GET /.well-known/oauth-authorization-server` (each also with `/api/mcp` after it) | the MCP server's OAuth discovery documents (RFC 9728, RFC 8414) |
+| `POST /api/mcp/oauth/register`, `GET /api/mcp/oauth/authorize`, `POST /api/mcp/oauth/token`, `POST /api/mcp/oauth/revoke` | signing in to the MCP server: registration (RFC 7591), the authorization code flow with PKCE (S256), refresh, revocation (RFC 7009). See [signing in](guide/mcp.md#signing-in-oauth) |
 
 When `cms.content.token` is set, requests carry the token as `x-api-key` or `Authorization: Bearer`.
 

@@ -7,6 +7,7 @@ import { deleteImageVariants } from '../../../utils/cmsImageSizes'
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
   assertMediaLibrary(user)
+  assertTokenMedia(user, 'delete')
   const { db, reg } = useCms()
   const id = getIdParam(event)
 

@@ -4,8 +4,9 @@ import type { CmsStatus } from '#keeper/types/status'
 
 /**
  * The checks. Every minute each site's GET /api/health/ready (uptime and response time);
- * every few minutes its GET /api/health/status with the stored token (versions, counts);
- * about hourly its visits, when it counts them (traffic.ts); twice a day its TLS certificate. A site is down after `checks.downAfter` failures in a
+ * every few minutes its GET /api/health/status with the stored token (versions, counts), and at
+ * once when the site serves a new build (a deploy); about hourly its visits, when it counts them
+ * (traffic.ts); twice a day its TLS certificate. A site is down after `checks.downAfter` failures in a
  * row, which opens an incident and e-mails the team; the first success closes it.
  */
 
@@ -67,6 +68,13 @@ async function probe(url: string, headers: Record<string, string> = {}): Promise
 
 /** GET /api/health/ready: is the site up and its database answering? */
 export const probeReady = (url: string) => probe(`${url}/api/health/ready`)
+
+/** The id of the build the site serves (Nuxt's app manifest), or null when it has none. */
+export async function probeBuild(url: string): Promise<string | null> {
+  const r = await probe(`${url}/_nuxt/builds/latest.json`)
+  const id = r.ok ? (r.body as { id?: unknown } | null)?.id : null
+  return typeof id === 'string' && id.length <= 100 ? id : null
+}
 
 /** GET /api/health/status with the token: the status, or why it could not be read. */
 export async function probeStatus(url: string, token: string): Promise<{ status: CmsStatus } | { error: string }> {
@@ -130,9 +138,19 @@ export async function checkSite(siteId: string, opts: { forceStatus?: boolean; f
     }
   }
 
+  // A new build is a deploy: read the status now, so a new version shows within the minute.
+  let redeployed = false
+  if (r.ok) {
+    const build = await probeBuild(site.url)
+    if (build) {
+      redeployed = !!site.buildId && build !== site.buildId
+      patch.buildId = build
+    }
+  }
+
   const token = decryptSecret(site.tokenEnc)
   const due = !site.statusAt || now.getTime() - site.statusAt.getTime() >= statusEveryMin * 60_000 - 5_000
-  if (token && (opts.forceStatus || due)) {
+  if (token && (opts.forceStatus || due || redeployed)) {
     const s = await probeStatus(site.url, token)
     if ('status' in s) Object.assign(patch, { status: s.status, statusAt: now, statusError: null })
     else patch.statusError = s.error

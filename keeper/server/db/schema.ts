@@ -99,6 +99,9 @@ export const sites = pgTable('sites', {
   certError: text('cert_error'),
   // When the "certificate expires soon" e-mail went out (once per certificate).
   certWarnedFor: ts('cert_warned_for'),
+  // The build the site serves (Nuxt's /_nuxt/builds/latest.json): a new one means a deploy,
+  // and the status is read again at once instead of at the next round.
+  buildId: text('build_id'),
   // Visits (the site's analytics plugin): when Keeper last asked, why it could not read them,
   // the first and the last day the site has totals for.
   trafficCheckedAt: ts('traffic_checked_at'),

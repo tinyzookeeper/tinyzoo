@@ -222,6 +222,15 @@ the 4.5:1 the other presets reach; the lighter one reads at 4.76:1 and 4.82:1 on
 
 - Radius 8 px for controls, 12 px for cards (`.cms-card`), 16 px for moments.
 - Flat: hairline borders, no shadows — except a moment that arrives (the success card).
+- **Fields stand out from the page.** What you type into or choose from (Nuxt UI's inputs, textareas,
+  selects and date pickers, a switch's row, a rich-text field, an option not chosen) has the raised grey
+  as its fill (`--cms-field-bg`: `#F5F5F5` light, `#26282C` dark) and an outline at 3:1 on the page, a
+  card and the fill itself (`--ui-border-accented`: `#878787` light, `#74777F` dark; WCAG 1.4.11). The
+  field with the cursor, an open picker and the chosen option take the page colour, so the one in use
+  stands out. Containers (a section, a group, a list item's card) keep the page colour: they hold fields.
+  The writing column (Write) has no box. Nuxt UI's outline buttons share a field's classes and are left
+  alone: the rule names the field elements (`input`, `textarea`, a `role="combobox"` trigger, the tags
+  wrapper) and tinyzoo's own field-like buttons carry `.cms-field-box`.
 - `.cms-page` owns the gutters and the width (72 rem; `narrow` 48 rem for settings,
   `wide` for the Preview arrangement).
 
@@ -311,8 +320,9 @@ values are laid over the entry for this editor's `?preview` requests, and the pa
 refetches its content in place, keeping its scroll. The live page is available as **Preview** wherever there is a page; it is on by
 default only in the Preview arrangement, and each collection remembers the choice.
 
-**A field someone may not change** (`.access({ edit })`) looks locked: the raised grey as its fill, a lock
-inside it, and one sentence under it naming who can change it ("Only Editor and Administrator can change
+**A field someone may not change** (`.access({ edit })`) looks locked: no fill (an editable field has the
+raised grey), the page colour inside a dashed outline, a lock inside it, and one sentence under it naming
+who can change it ("Only Editor and Administrator can change
 this", the roles by their labels). No "Read only" tag beside the label: it is said once.
 
 **Translating.** An empty translated field shows the default language's text greyed inside it (the

@@ -119,7 +119,7 @@ for (const dark of [false, true]) {
     // Where text sits: the page, cards, a preview's backdrop, the moments (cream / charcoal),
     // the hover/raised grey. (Dark's raised grey is lighter than the page; the current page
     // in the sidebar is charcoal = --cms-moment-bg.)
-    const surfaces = ['--ui-bg', '--cms-page-bg', '--cms-surface', '--cms-sunken', '--cms-moment-bg', '--cms-nav-active', '--ui-bg-elevated']
+    const surfaces = ['--ui-bg', '--cms-page-bg', '--cms-surface', '--cms-sunken', '--cms-moment-bg', '--cms-nav-active', '--ui-bg-elevated', '--cms-field-bg']
     const textRoles = ['--ui-text-dimmed', '--ui-text-muted', '--ui-text-toned', '--ui-text', '--ui-text-highlighted']
 
     for (const role of textRoles) {
@@ -448,5 +448,62 @@ describe('accent states in the stylesheet', () => {
     // menu items: a pill drawn by ::before, highlighted as the keyboard or the pointer reaches the item
     expect(theme).toContain('outline-none before:absolute before:z-[-1] before:inset-px before:rounded-md')
     expect(theme).toContain('data-highlighted:not-data-disabled:before:bg-elevated/50')
+  })
+})
+
+// A field (what you type into or choose from) must not have the page's colour: Nuxt UI draws its fields
+// in bg-default with a ring-accented hairline, which on the white workspace was a white box on white with
+// a 1.5:1 line. The admin fills them with the raised grey and draws the line at 3:1 (WCAG 1.4.11).
+describe('fields stand out from the page', () => {
+  const cases = [
+    ...CMS_ACCENT_PRESETS.flatMap((p) => [false, true].map((dark) => ({ name: p, dark, vars: presetTokens(p, dark) }))),
+    ...['#B4532A', '#FFD500', '#FFFFFF', '#000000', '#111113'].flatMap((b) => [false, true].map((dark) => ({ name: b, dark, vars: brandTokens(b, dark) }))),
+  ]
+
+  it('a field has its own fill, not the page colour, in every accent and theme', () => {
+    for (const { name, dark, vars } of cases) {
+      const at = (n: string) => resolve(n, vars)
+      expect(contrast(at('--cms-field-bg'), at('--cms-page-bg')), `${name} ${dark ? 'dark' : 'light'}: fill against the page`).toBeGreaterThanOrEqual(1.08)
+    }
+  })
+
+  it('a field\'s outline reads at 3:1 on the page, on a card and on the field\'s own fill', () => {
+    for (const { name, dark, vars } of cases) {
+      const at = (n: string) => resolve(n, vars)
+      for (const surface of ['--cms-page-bg', '--cms-surface', '--cms-field-bg']) {
+        expect(contrast(at('--ui-border-accented'), at(surface)), `${name} ${dark ? 'dark' : 'light'}: outline on ${surface}`).toBeGreaterThanOrEqual(3)
+      }
+    }
+  })
+
+  const body = (selector: string) => {
+    const i = css.indexOf(selector)
+    if (i < 0) throw new Error(`no rule for ${selector}`)
+    const open = css.indexOf('{', i)
+    return css.slice(open + 1, css.indexOf('}', open)).replace(/\s+/g, ' ').trim()
+  }
+
+  it('the stylesheet fills Nuxt UI\'s fields, the switch rows, rich text and unchosen options; the one in use turns to the page colour', () => {
+    expect(declared(LIGHT)['--cms-field-bg']).toBe('var(--ui-bg-elevated)')
+    expect(body(`html[data-cms-admin] :is(input, textarea, div, [role='combobox'])[data-slot='base'][class~='bg-default'][class~='ring-accented']:not(.cms-field-locked *),`)).toBe('background-color: var(--cms-field-bg);')
+    expect(css).toContain(`html[data-cms-admin] :is(.cms-field-box, .cms-title-input--address, .cms-rte):not(.cms-field-locked *),`)
+    expect(css).toContain(`html[data-cms-admin] .cms-choice [data-slot='item']:not(:has([data-state='checked'])) {`)
+    expect(body(`html[data-cms-admin] :is(input, textarea, div, [role='combobox'])[data-slot='base'][class~='bg-default'][class~='ring-accented']:focus-within,`)).toBe('background-color: var(--cms-page-bg);')
+  })
+
+  it('a locked field has no fill (an editable one has): the page colour, a dashed outline and the lock', () => {
+    expect(declared('html[data-cms-admin]')['--cms-locked-bg']).toBe('var(--cms-page-bg)')
+    expect(body(`html[data-cms-admin] .cms-field-locked :is(input, textarea, [role='combobox'], .cms-rte, .cms-field-box)`)).toContain('outline: 1px dashed var(--ui-border-accented);')
+  })
+
+  it('Nuxt UI still draws its fields with the classes those rules match', () => {
+    const ui = realpathSync(join(import.meta.dirname, '../../packages/cms/node_modules/@nuxt/ui'))
+    const dir = join(ui, 'dist/shared')
+    const theme = readdirSync(dir).filter((f) => f.endsWith('.mjs')).map((f) => readFileSync(join(dir, f), 'utf8')).join('\n')
+    // the outline variant of input, textarea, select, select menu, input menu, number and tags
+    expect(theme).toContain('text-highlighted bg-default ring ring-inset ring-accented')
+    const components = join(import.meta.dirname, '../../packages/cms/app/components')
+    expect(readFileSync(join(components, 'CmsField.vue'), 'utf8')).toContain('cms-field-box')
+    expect(readFileSync(join(components, 'CmsFieldSelect.vue'), 'utf8')).toContain('class="cms-choice"')
   })
 })

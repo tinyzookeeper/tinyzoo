@@ -1,0 +1,1 @@
+ALTER TABLE "sites" ADD COLUMN "build_id" text;

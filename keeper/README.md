@@ -7,7 +7,7 @@ Self-hosted for now, with one team (a *workspace*). Every table already carries 
 ## What it does
 
 - **Uptime.** Every minute it asks each site for `GET /api/health/ready`. After 2 failed checks in a row the site counts as down: Keeper opens an incident and e-mails the team. It e-mails again when the site is back.
-- **Status.** Every 5 minutes it reads `GET /api/health/status` with the site's token: the tinyzoo version, the database, the collections, accounts, media, errors and plugins.
+- **Status.** Every 5 minutes, and within a minute of a deploy (a new build at `/_nuxt/builds/latest.json`), it reads `GET /api/health/status` with the site's token: the tinyzoo version, the database, the collections, accounts, media, errors and plugins.
 - **Versions.** Sites running an older tinyzoo than the newest release on npm are marked.
 - **Certificates.** Twice a day it reads each site's TLS certificate, and e-mails once when one expires within 14 days.
 - **Traffic.** For a site with tinyzoo's analytics plugin (its status lists `analytics`), about once an hour it reads the daily visits with the same token (`GET /api/content/_analytics/rollups`): 90 days the first time, then the last 3 days again, since yesterday's totals become final overnight. The site list shows a 30-day line of visitors and this week against last on wide screens. A site's page has a Traffic section: visitors and pageviews over 30 or 90 days, the numbers against the period before, and the top pages, sources, countries and devices. The visits are daily totals: no visitor, address or cookie ever reaches Keeper. A site without the plugin shows no Traffic section. A site on an older tinyzoo shows a short note there.

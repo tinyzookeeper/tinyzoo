@@ -244,6 +244,7 @@ describe('what an `access` rule is given', () => {
     g.createError = (o: any) => Object.assign(new Error(o.statusMessage), o)
     g.requireCmsUser = (event: any) => event.user
     for (const [k, v] of Object.entries(rolesUtil)) g[k] = v
+    for (const [k, v] of Object.entries(await load('cmsAccessTokens.ts'))) g[k] = v
     seen = undefined
   })
 

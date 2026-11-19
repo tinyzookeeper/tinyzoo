@@ -1,6 +1,6 @@
 {
-  "id": "e7e4156c-9f38-4388-bd2b-06831cff466e",
-  "prevId": "970179fd-8aeb-4221-a16b-556b5eed11d1",
+  "id": "88e2e72b-948e-40dd-a7ca-e4084927a569",
+  "prevId": "4470b42d-b834-4bff-b6e9-3c949061840c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -714,123 +714,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.site_traffic": {
-      "name": "site_traffic",
-      "schema": "",
-      "columns": {
-        "site_id": {
-          "name": "site_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "day": {
-          "name": "day",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "visitors": {
-          "name": "visitors",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "visits": {
-          "name": "visits",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "pageviews": {
-          "name": "pageviews",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "bounces": {
-          "name": "bounces",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "engaged_ms": {
-          "name": "engaged_ms",
-          "type": "bigint",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "pages": {
-          "name": "pages",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "sources": {
-          "name": "sources",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "countries": {
-          "name": "countries",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "devices": {
-          "name": "devices",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "fetched_at": {
-          "name": "fetched_at",
-          "type": "timestamp (3) with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "site_traffic_site_id_sites_id_fk": {
-          "name": "site_traffic_site_id_sites_id_fk",
-          "tableFrom": "site_traffic",
-          "tableTo": "sites",
-          "columnsFrom": [
-            "site_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "site_traffic_pk": {
-          "name": "site_traffic_pk",
-          "columns": [
-            "site_id",
-            "day"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.sites": {
       "name": "sites",
       "schema": "",
@@ -981,33 +864,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "traffic_checked_at": {
-          "name": "traffic_checked_at",
-          "type": "timestamp (3) with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "traffic_error": {
-          "name": "traffic_error",
+        "build_id": {
+          "name": "build_id",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "traffic_since": {
-          "name": "traffic_since",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "traffic_through": {
-          "name": "traffic_through",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "traffic_drop": {
-          "name": "traffic_drop",
-          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         }

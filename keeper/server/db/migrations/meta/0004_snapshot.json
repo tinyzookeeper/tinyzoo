@@ -1,6 +1,6 @@
 {
-  "id": "970179fd-8aeb-4221-a16b-556b5eed11d1",
-  "prevId": "8478f4f0-e0d9-4d0a-aa95-c76d52a85808",
+  "id": "4470b42d-b834-4bff-b6e9-3c949061840c",
+  "prevId": "a61fa0b4-6e2e-4614-ae73-d4249c511975",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -737,6 +737,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "client": {
+          "name": "client",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "client_id": {
           "name": "client_id",
           "type": "uuid",
@@ -861,6 +868,12 @@
         "cert_warned_for": {
           "name": "cert_warned_for",
           "type": "timestamp (3) with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "build_id": {
+          "name": "build_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         }
