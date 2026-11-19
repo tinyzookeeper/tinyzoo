@@ -291,7 +291,7 @@ export function openApiPage(doc: OpenApiDocument, opts: OpenApiPageOptions): str
   out.push('## Shapes every collection shares\n')
   out.push('Every item has an `id`, `createdAt` and `updatedAt`; a collection that is translated adds `locale`, `locales` and, when its items have addresses, `paths`. Files and rich text look the same everywhere:\n')
   if (schemas.CmsMedia) out.push(`### A file\n\n${table(['Field', 'Type', 'Notes'], rowsOf(schemas.CmsMedia, doc))}\n${json(ex({ $ref: '#/components/schemas/CmsMedia' }))}`)
-  if (schemas.CmsGalleryItem) out.push('A gallery is a list of files, each with a `caption` (`string`, or `null`). A relation to another public collection arrives as the nested item (written `Author (nested)` below, without relations of its own); one to a collection that is not public as `{ id, title }`.\n')
+  if (schemas.CmsGalleryItem) out.push('A gallery is a list of files, each with a `caption` (`string`, or `null`). A relation to another public collection arrives as the nested item (written `Author (nested)` below) with its plain fields only: no relations, files, galleries, groups, lists or blocks of its own. One to a collection that is not public arrives as `{ id, title }`.\n')
   if (schemas.RichTextDoc) out.push(`### Rich text\n\nStored as a ProseMirror document: render it with \`<CmsContent :doc="item.body" />\` and never as HTML. A node has a \`type\`, and optionally \`text\`, \`content\`, \`marks\` and \`attrs\`.\n\n${json(ex({ $ref: '#/components/schemas/RichTextDoc' }))}`)
   const listOne = collections[0]
   if (listOne) {
