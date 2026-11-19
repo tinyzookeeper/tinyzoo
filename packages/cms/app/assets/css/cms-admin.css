@@ -360,8 +360,8 @@ html[data-cms-admin] .cms-card {
 }
 
 /* A brand moment: cream in light mode, charcoal in dark (welcome, empty states, hints). A brand colour
-   (data-cms-accent='brand') sets every moment token to a tint of itself instead: src/theme.ts,
-   brandMoments, written with the accent. */
+   or a colour preset sets every moment token to a tint of itself instead: src/theme.ts, brandMoments,
+   written in the accent's <style> (adminAccentCss). Mono keeps cream and charcoal. */
 html[data-cms-admin] .cms-moment {
   background: var(--cms-moment-bg);
   border-radius: calc(var(--ui-radius) * 2);
@@ -369,9 +369,9 @@ html[data-cms-admin] .cms-moment {
 }
 html[data-cms-admin] .cms-moment .cms-moment__muted { color: var(--cms-moment-text); }
 
-/* An animal drawn in a brand's colours (CmsAnimal, src/themeAnimals.ts): its two fills come from
-   --cms-animal-body and --cms-animal-face, which the brand's <style> sets for light and dark. tinyzoo's
-   own look and the built-in accents show the colourful files as images and never use these. */
+/* An animal drawn in the accent's colours (CmsAnimal, src/themeAnimals.ts): its two fills come from
+   --cms-animal-body and --cms-animal-face, which the accent's <style> sets for light and dark (a brand
+   colour or a colour preset). tinyzoo's own look (mono) shows the colourful files as images. */
 html[data-cms-admin] .cms-animal__body { fill: var(--cms-animal-body); }
 html[data-cms-admin] .cms-animal__face { fill: var(--cms-animal-face); }
 

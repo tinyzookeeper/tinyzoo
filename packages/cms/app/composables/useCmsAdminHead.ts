@@ -10,13 +10,17 @@ export function useCmsAdminHead() {
   const { theme, productName, unbranded } = useCmsAdminBrand()
   // What the theme's checks found, once in the browser console in development.
   watchEffect(() => cmsShowThemeNotes(theme.value))
-  useHead(() => ({
-    // The accent: a built-in one is drawn by cms-admin.css, a brand colour by the <style> below.
-    htmlAttrs: { 'lang': locale.value, 'data-cms-admin': '', 'data-cms-accent': cmsAccentName(theme.value) },
-    style: theme.value.accent.kind === 'brand' ? [{ key: 'cms-accent', innerHTML: cmsAccentCss(theme.value) }] : [],
-    // The tab and home-screen icons: the client's mark, else tinyzoo's mascot (src/themeLogo.ts).
-    link: adminIconLinks(theme.value, cmsBrand.faviconUrl).map((l) => ({ ...l, tagPriority: 'high' as const })),
-    titleTemplate: (title?: string) => (title ? `${title} · ${productName.value}` : `${t('app.adminTitle')} · ${productName.value}`),
-  }))
+  useHead(() => {
+    // The accent: a built-in one is drawn by cms-admin.css, a brand colour by the <style> below. A colour
+    // preset's moments and animals (its own tints) come in that <style> too; mono writes none.
+    const accentCss = cmsAccentCss(theme.value)
+    return {
+      htmlAttrs: { 'lang': locale.value, 'data-cms-admin': '', 'data-cms-accent': cmsAccentName(theme.value) },
+      style: accentCss ? [{ key: 'cms-accent', innerHTML: accentCss }] : [],
+      // The tab and home-screen icons: the client's mark, else tinyzoo's mascot (src/themeLogo.ts).
+      link: adminIconLinks(theme.value, cmsBrand.faviconUrl).map((l) => ({ ...l, tagPriority: 'high' as const })),
+      titleTemplate: (title?: string) => (title ? `${title} · ${productName.value}` : `${t('app.adminTitle')} · ${productName.value}`),
+    }
+  })
   return { productName, unbranded, signature: computed(() => theme.value.signature) }
 }

@@ -167,7 +167,8 @@ and `test/unit/admin-contrast.spec.ts` (against the stylesheet's real surfaces).
 
 ### Brand moments and animals
 
-With a brand colour the whole look follows it (decided 2026-11-18): where tinyzoo draws cream (light) and
+With a brand colour or a colour preset the whole look follows it (decided 2026-11-18 for brand colours,
+widened to the four presets on 2026-11-19): where tinyzoo draws cream (light) and
 charcoal (dark), a brand draws calm paper with a hint of itself. `brandMoments()` in `src/theme.ts` derives
 every token the stylesheet sets for the moments, light and dark, and `adminAccentCss` writes them in the same
 `<style>` as the accent: `--cms-moment-bg`, `--cms-moment-strong`, `--cms-moment-line`, `--cms-moment-text`,
@@ -192,18 +193,22 @@ every token the stylesheet sets for the moments, light and dark, and `adminAccen
   in both schemes by `adminAccentCss`), so the logo reads as on the brand's own paper; otherwise cream.
 - **Animals.** Every animal file (`app/assets/brand/characters/{muted,bright}`) is drawn in exactly two
   colours: a body and a near-white face (`#F9F7F3`, `#F9F7F4`, `#F9F8F4`; a test fails if a new animal breaks
-  this). A brand admin draws them inline (`CmsAnimal`, `src/themeAnimals.ts`) with those two fills replaced
+  this). An admin with a brand colour or a colour preset draws them inline (`CmsAnimal`, `src/themeAnimals.ts`) with those two fills replaced
   by classes coloured from the two variables, so the server renders them in colour and they follow light
   and dark. The body is one muted shade of the brand: lightness around the family's `0.68` (it follows the
   brand a little, `0.65`–`0.74`; a yellow stays light), chroma at most `0.09` (70 % of the brand's), `0.04`
   lighter in dark mode; the face is a near-white tint (`0.977`, chroma at most `0.006`). The bright six on the
-  first-run setup take the same shade. The drawings are loaded lazily (one small chunk each, only in a brand
-  admin), before the first render; tinyzoo's own look and the built-in accents keep the `<img>`.
+  first-run setup take the same shade. The drawings are loaded lazily (one small chunk each, only when the
+  accent tints), before the first render; tinyzoo's own look (mono) keeps the `<img>`.
 - **`cms.admin.animals: false`** (`theme.animals`) leaves every animal out, for any accent; each place closes
   up around it (an empty place shows its plain icon tile).
 
-Mono and the four colour presets have no `moments` and write no `<style>`: cream, charcoal and the colourful
-family, exactly as before.
+The four colour presets get `moments` too: `brandMoments()` of the preset's light button shade (indigo,
+blue and violet 600, emerald 700), the same tints a brand colour of that shade gets. `adminAccentCss` writes
+only those, scoped to `[data-cms-accent='<preset>']`; the stylesheet still draws the preset's shades and
+buttons. Mono has no `moments` and writes no `<style>`: cream, charcoal and the colourful family. One gap
+predates this: indigo's dark text (its 400 shade) reads at 4.24:1 on charcoal and 4.28:1 on its own dark
+moment, under the 4.5:1 the other presets reach.
 
 ## Type
 

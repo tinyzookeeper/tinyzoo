@@ -127,8 +127,12 @@ export interface CmsAdminTheme {
   version: 1
   name: LocalizedText
   accent:
-    /** A built-in accent: the admin stylesheet draws it (`data-cms-accent`). `light`/`dark` hold the hexes it draws, for the emails. */
-    | { kind: 'preset'; preset: CmsAccentPreset; light: CmsAccentScheme; dark: CmsAccentScheme }
+    /**
+     * A built-in accent: the admin stylesheet draws it (`data-cms-accent`). `light`/`dark` hold the hexes it draws, for the emails.
+     * `moments`: the four colour presets, like a brand colour, tint the moments and the animals toward themselves (`brandMoments`
+     * of the light button shade), written by `adminAccentCss`. Absent for mono: tinyzoo's own look, cream and the colourful family.
+     */
+    | { kind: 'preset'; preset: CmsAccentPreset; light: CmsAccentScheme; dark: CmsAccentScheme; moments?: { light: CmsMomentScheme; dark: CmsMomentScheme } }
     /**
      * A brand colour: the admin sets the variables itself (`data-cms-accent="brand"`). `hex` is what the site gave, normalised to `#rrggbb`.
      * `moments`: the whole look follows the brand: the moments and the animals in tints and a muted shade of it (`brandMoments`).
@@ -225,10 +229,12 @@ function presetAccent(preset: CmsAccentPreset): Extract<CmsAdminTheme['accent'],
   // Light: the 600 shade (emerald: 700) with white text, the next darker shade under the pointer.
   // Dark: the 400 shade with ink text (white was 1.9–3.1:1 there), the 300 shade under the pointer.
   const next = SHADES[SHADES.indexOf(def.primary) + 1]!
+  // The moments and the animals follow the colour, as a brand colour's do: drawn from the light button shade.
   return {
     kind: 'preset', preset,
     light: { ramp, primary: ramp[def.primary], onPrimary: WHITE, primaryHover: ramp[next], text: ramp[def.primary] },
     dark: { ramp, primary: ramp['400'], onPrimary: INK, primaryHover: ramp['300'], text: ramp['400'] },
+    moments: brandMoments(ramp[def.primary]),
   }
 }
 
@@ -508,14 +514,14 @@ export function brandMoments(hex: string): { light: CmsMomentScheme; dark: CmsMo
  * the shades, `--ui-primary` (the accent as text), the focus ring (`--cms-accent-ring`: the text
  * shade in light mode, the dark colour in dark mode, never the fill), and the fill of solid buttons
  * at rest and under the pointer with its text (`--cms-accent-fill`, `--cms-accent-fill-hover`,
- * `--cms-accent-on-fill`, read by cms-admin.css). Empty for a built-in accent (the stylesheet draws
- * those). With them, the brand's moments and animals (`brandMoments`, `MOMENT_VARS`): the tokens
- * cms-admin.css draws in cream and charcoal for tinyzoo's own look. Only hexes are written, so it is
- * safe to put in a <style>. @internal
+ * `--cms-accent-on-fill`, read by cms-admin.css). With them, the brand's moments and animals
+ * (`brandMoments`, `MOMENT_VARS`): the tokens cms-admin.css draws in cream and charcoal for tinyzoo's
+ * own look. A colour preset gets only its moments and animals, scoped to [data-cms-accent="<preset>"]
+ * (the stylesheet draws its shades); mono gets nothing. Only hexes are written, so it is safe to put
+ * in a <style>. @internal
  */
 export function adminAccentCss(theme: Pick<CmsAdminTheme, 'accent'>): string {
   const accent = theme.accent
-  if (accent.kind !== 'brand') return ''
   const ok = (v: unknown) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : null)
   const block = (s: CmsAccentScheme) => {
     const vars: string[] = []
@@ -532,16 +538,23 @@ export function adminAccentCss(theme: Pick<CmsAdminTheme, 'accent'>): string {
   }
   // The moments and the animals (brandMoments): the same variables cms-admin.css sets to cream and charcoal.
   const moments = (m: CmsMomentScheme | undefined) => {
-    if (!m) return ''
     const vars: string[] = []
+    if (!m) return vars
     for (const [name, key] of MOMENT_VARS) { const v = ok(m[key]); if (v) vars.push(`${name}:${v}`) }
-    return vars.length ? `;${vars.join(';')}` : ''
+    return vars
+  }
+  // The tile under a light logo in dark mode (CmsBrandLogo): the light moment's paper, the colour's own cream.
+  const plate = ok(accent.moments?.light?.bg)
+  const plateVars = plate ? [`--cms-logo-plate:${plate}`] : []
+  const rule = (sel: string, ...parts: string[][]) => `${sel}{${parts.flat().filter(Boolean).join(';')}}`
+  if (accent.kind === 'preset') {
+    // The stylesheet draws a preset's shades; only its moments and animals are written. A name outside the list writes nothing.
+    if (!accent.moments || accent.preset === 'mono' || !CMS_ACCENT_PRESETS.includes(accent.preset)) return ''
+    const sel = `html[data-cms-admin][data-cms-accent='${accent.preset}']`
+    return rule(sel, moments(accent.moments.light), plateVars) + rule(`${sel}.dark`, moments(accent.moments.dark), plateVars)
   }
   const sel = `html[data-cms-admin][data-cms-accent='brand']`
-  // The tile under a light logo in dark mode (CmsBrandLogo): the light moment's paper, the brand's own cream.
-  const plate = ok(accent.moments?.light?.bg)
-  const plateVar = plate ? `;--cms-logo-plate:${plate}` : ''
-  return `${sel}{${block(accent.light)}${moments(accent.moments?.light)}${plateVar}}${sel}.dark{${block(accent.dark)}${moments(accent.moments?.dark)}${plateVar}}`
+  return rule(sel, [block(accent.light)], moments(accent.moments?.light), plateVars) + rule(`${sel}.dark`, [block(accent.dark)], moments(accent.moments?.dark), plateVars)
 }
 
 /** The variables a brand's moments set, and where each comes from. @internal */

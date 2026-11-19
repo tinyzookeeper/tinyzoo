@@ -6,7 +6,7 @@ import { animalFills, CMS_ANIMAL_CLASSES, CMS_ANIMAL_FACES, recolourAnimal } fro
 
 // The whole look follows a brand colour (src/theme.ts, brandMoments; src/themeAnimals.ts): the
 // moments become a tint of the brand (light) and charcoal toward it (dark), the animals one muted
-// shade of it. Mono and the four colour presets keep cream and the colourful family.
+// shade of it. The four colour presets do the same with their own shade; mono keeps cream and the colourful family.
 // test/unit/admin-contrast.spec.ts checks the same tokens against the stylesheet's text roles.
 
 const WHITE = '#FFFFFF'
@@ -204,13 +204,36 @@ describe('the moments in the admin', () => {
     expect(css).toContain('--cms-moment-strong:')
   })
 
-  it('mono, the four colour presets and the unbranded admin: no moment overrides, cream and the colourful family stay', () => {
-    for (const accent of [undefined, ...CMS_ACCENT_PRESETS, 'nonsense']) {
+  it('mono and the unbranded admin: no moment overrides, cream and the colourful family stay', () => {
+    for (const accent of [undefined, 'mono', 'nonsense']) {
       const theme = resolveAdminTheme(accent === undefined ? {} : { accent })
       expect(theme.accent.kind, String(accent)).toBe('preset')
       expect('moments' in theme.accent, String(accent)).toBe(false)
       expect(adminAccentCss(theme), String(accent)).toBe('')
     }
+  })
+
+  it('the four colour presets: the moments and animals of their own button shade, as a brand colour of it would get', () => {
+    for (const preset of CMS_ACCENT_PRESETS.filter((p) => p !== 'mono')) {
+      const theme = resolveAdminTheme({ accent: preset })
+      if (theme.accent.kind !== 'preset') throw new Error(preset)
+      expect(theme.accent.moments, preset).toEqual(brandMoments(theme.accent.light.primary))
+      const css = adminAccentCss(theme)
+      for (const [name, key] of MOMENT_VARS) {
+        expect(css, `${preset} ${name}`).toContain(`${name}:${theme.accent.moments!.light[key]}`)
+        expect(css, `${preset} ${name} dark`).toContain(`${name}:${theme.accent.moments!.dark[key]}`)
+      }
+      // A tint of the preset, not cream: its hue, close to white.
+      const [L, , h] = lchOf(theme.accent.moments!.light.bg)
+      expect(L, preset).toBeGreaterThan(0.95)
+      expect(hueGap(h, lchOf(theme.accent.light.primary)[2]), preset).toBeLessThan(25)
+    }
+  })
+
+  it('a tampered preset name writes nothing', () => {
+    const theme = resolveAdminTheme({ accent: 'indigo' }) as any
+    theme.accent.preset = `indigo']{}body{display:none}x[a='`
+    expect(adminAccentCss(theme)).toBe('')
   })
 
   it('the stylesheet colours an inline animal from the two variables, and still draws cream and charcoal by default', () => {
@@ -295,11 +318,13 @@ describe('the animals in a brand\'s colours', () => {
 })
 
 describe('the logo tile in dark mode follows the brand', () => {
-  it('is the light moment paper in both schemes for a brand colour, and not written for presets', () => {
-    const theme = resolveAdminTheme({ accent: '#2563EB' })
-    const paper = theme.accent.kind === 'brand' ? theme.accent.moments!.light.bg : ''
-    const css = adminAccentCss(theme)
-    expect(css.match(/--cms-logo-plate:(#[0-9A-F]{6})/gi)).toEqual([`--cms-logo-plate:${paper}`, `--cms-logo-plate:${paper}`])
-    for (const p of CMS_ACCENT_PRESETS) expect(adminAccentCss(resolveAdminTheme({ accent: p }))).not.toContain('--cms-logo-plate')
+  it('is the light moment paper in both schemes for a brand colour and a colour preset, and not written for mono', () => {
+    for (const accent of ['#2563EB', 'indigo', 'blue', 'violet', 'emerald']) {
+      const theme = resolveAdminTheme({ accent })
+      const paper = theme.accent.moments!.light.bg
+      const css = adminAccentCss(theme)
+      expect(css.match(/--cms-logo-plate:(#[0-9A-F]{6})/gi), accent).toEqual([`--cms-logo-plate:${paper}`, `--cms-logo-plate:${paper}`])
+    }
+    expect(adminAccentCss(resolveAdminTheme({ accent: 'mono' }))).not.toContain('--cms-logo-plate')
   })
 })

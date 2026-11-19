@@ -23,8 +23,10 @@ const brand = computed(() => {
   return r.accent.kind === 'brand' ? r.accent : null
 })
 watch(brand, (b) => { if (b) accent.value = 'brand'; else if (accent.value === 'brand') accent.value = 'mono' })
-// Every animal on the page (CmsAnimal, the empty state's too) in the brand's shade, as a brand admin draws it.
-provide('cms-animal-tint', computed(() => !!brand.value))
+// The accent shown, as the admin resolves it: a brand colour, or the preset picked (its moments and animals tinted, mono's not).
+const shown = computed(() => brand.value ?? cmsResolveAccent(accent.value === 'brand' ? 'mono' : accent.value).accent)
+// Every animal on the page (CmsAnimal, the empty state's too) in the accent's shade, as the admin draws it.
+provide('cms-animal-tint', computed(() => cmsAccentTints({ accent: shown.value })))
 const pickPreset = (a: (typeof accents)[number]) => { brandInput.value = ''; accent.value = a }
 const fill = (text: string, vars: Record<string, string>) => text.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? '')
 // What the guard did, in the page's language (the admin tells developers the same in English).
@@ -80,7 +82,10 @@ const brandSwatch = computed(() => brand.value?.hex ?? '#B4532A')
 useHead({
   title: () => `${tx.value.title} · tinyzoo`,
   htmlAttrs: { 'lang': lang, 'data-cms-admin': '', 'data-cms-accent': accent },
-  style: () => (brand.value ? [{ key: 'cms-accent', innerHTML: cmsAccentCss({ accent: brand.value }) }] : []),
+  style: () => {
+    const css = cmsAccentCss({ accent: shown.value })
+    return css ? [{ key: 'cms-accent', innerHTML: css }] : []
+  },
   meta: [{ name: 'description', content: () => tx.value.description }],
 })
 // The same page in each language, for the switcher in the bar.
@@ -294,7 +299,7 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
 
         <section id="moments" class="space-y-4 scroll-mt-20">
           <h2 class="cms-display text-lg font-semibold text-highlighted">{{ tx.toc.moments }}</h2>
-          <p class="max-w-2xl text-muted">{{ brand ? `${tx.moments} ${tx.momentsBrand}` : tx.moments }}</p>
+          <p class="max-w-2xl text-muted">{{ accent !== 'mono' ? `${tx.moments} ${tx.momentsBrand}` : tx.moments }}</p>
           <div class="cms-moment flex items-center justify-between gap-6 p-6">
             <div>
               <p class="cms-display text-2xl text-highlighted">{{ tx.momentGreeting }}</p>

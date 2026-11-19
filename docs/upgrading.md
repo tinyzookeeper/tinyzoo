@@ -583,7 +583,7 @@ Everything below is also in the changelog of 0.7.0. 0.7 lets the admin carry the
 
 All of it goes in `cms.admin` in `app.config.ts` ([the admin guide](guide/admin.md#what-you-can-brand)):
 
-- **A brand colour:** `accent: '#B4532A'`, any hex. tinyzoo derives the shades, dark mode and the text on buttons, and keeps everything readable. The built-in accents stay.
+- **A brand colour:** `accent: '#B4532A'`, any hex. tinyzoo derives the shades, dark mode and the text on buttons, and keeps everything readable. The built-in accents stay; on 1.0 and later the four colours tint the moments and animals the same way.
 - **Logos:** put the files in `public/brand/` and set `logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }` (`fullDark` and `markDark` are optional). Set `name` too: it is the logo's text for screen readers.
 - **`signature: false`** hides tinyzoo's quiet signature under the sidebar and on the sign-in pages.
 - **`animals: false`** hides tinyzoo's animals everywhere.
