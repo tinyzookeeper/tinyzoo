@@ -6,6 +6,7 @@
 // No site layout: the page wears the admin's own look (cms-admin.css, scoped to
 // html[data-cms-admin]), which the website's tokens would otherwise mix with.
 import type { FunctionalComponent } from 'vue'
+import { fetchSvg, tintedSvg } from '~/lib/brand-assets'
 import { DESIGN_SYSTEM_TEXT } from '~/lib/design-system-i18n'
 import { DESIGN_SYSTEM_SEGMENT, LANGS, localePath } from '~/lib/site-i18n'
 
@@ -141,6 +142,36 @@ const brandColors = [
   { key: 'ink', name: 'Ink', value: '#131313' },
   { key: 'cream', name: 'Cream', value: '#F9F5EF' },
 ] as const
+// The logos to download: each brand's full logo and its mark, for light and for dark backgrounds.
+const logos = [
+  { brand: 'tinyzoo', files: [
+    { kind: 'logo', src: '/brand/logo-primary.svg', name: 'tinyzoo-logo' },
+    { kind: 'logo', src: '/brand/logo-primary-reversed.svg', name: 'tinyzoo-logo-reversed', dark: true },
+    { kind: 'mark', src: '/brand/mascot.svg', name: 'tinyzoo-mark' },
+    { kind: 'mark', src: '/brand/mascot-reversed.svg', name: 'tinyzoo-mark-reversed', dark: true },
+  ] },
+  { brand: 'Keeper', files: [
+    { kind: 'logo', src: '/brand/keeper/logo.svg', name: 'keeper-logo' },
+    { kind: 'logo', src: '/brand/keeper/logo-reversed.svg', name: 'keeper-logo-reversed', dark: true },
+    { kind: 'mark', src: '/brand/keeper/mark.svg', name: 'keeper-mark' },
+    { kind: 'mark', src: '/brand/keeper/mark-reversed.svg', name: 'keeper-mark-reversed', dark: true },
+  ] },
+] as const
+// An animal to download or copy, as the page draws it: in the accent's shade when it takes one.
+const { menu: assetMenu } = useBrandAssets()
+const animalSets = ['muted', 'bright'] as const
+const tinted = computed(() => cmsAccentTints({ accent: shown.value }))
+function animalMenu(c: { name: string; url: string }, set: 'muted' | 'bright') {
+  const moments = tinted.value ? shown.value.moments?.light : undefined
+  const suffix = [set === 'bright' ? 'bright' : '', moments ? (brand.value ? brand.value.hex.slice(1).toLowerCase() : accent.value) : ''].filter(Boolean).join('-')
+  return assetMenu({
+    name: `tinyzoo-${c.name}${suffix ? `-${suffix}` : ''}`,
+    svg: async () => {
+      const drawing = moments ? await cmsAnimalDrawing(c.name, set) : null
+      return drawing ? tintedSvg(drawing, moments!.animalBody, moments!.animalFace) : fetchSvg(c.url)
+    },
+  })
+}
 const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'actions', 'status', 'forms', 'states'] as const
 </script>
 
@@ -209,13 +240,12 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
       <div class="space-y-10">
         <section id="brand" class="space-y-4 scroll-mt-20">
           <h2 class="cms-display text-lg font-semibold text-highlighted">{{ tx.toc.brand }}</h2>
-          <p class="max-w-2xl text-muted">{{ tx.brand }}</p>
-          <div class="grid gap-3 md:grid-cols-2">
-            <div class="cms-card grid place-items-center p-8" style="background: var(--tz-cream)">
-              <img :src="cmsBrand.logoUrl" alt="tinyzoo" class="h-10 w-auto">
-            </div>
-            <div class="cms-card grid place-items-center p-8" style="background: var(--tz-charcoal)">
-              <img :src="cmsBrand.logoReversedUrl" alt="tinyzoo" class="h-10 w-auto">
+          <p class="max-w-2xl text-muted">{{ tx.logos }}</p>
+          <div v-for="group in logos" :key="group.brand" class="space-y-3 pt-2">
+            <h3 class="cms-display text-base font-semibold text-highlighted">{{ group.brand }}</h3>
+            <p class="max-w-2xl text-sm text-muted">{{ group.brand === 'Keeper' ? tx.keeper : tx.brand }}</p>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <BrandAssetTile v-for="f in group.files" :key="f.name" :brand="group.brand" :kind="f.kind" :src="f.src" :name="f.name" :dark="'dark' in f" />
             </div>
           </div>
           <div class="grid gap-3 sm:grid-cols-3">
@@ -230,17 +260,16 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
           <CmsSection :title="tx.animalsTitle">
             <p class="mb-4 text-sm text-muted">{{ tx.animals }}</p>
             <p v-if="brand" class="-mt-2 mb-4 text-sm text-muted"><Rich :text="tx.animalsBrand" /></p>
-            <!-- With a brand colour: the family as a brand admin draws it (CmsAnimal, the brand's muted shade). -->
-            <ul class="flex flex-wrap items-end gap-x-5 gap-y-4">
-              <li v-for="c in cmsCharacters.muted" :key="c.name" class="flex flex-col items-center gap-1.5">
-                <CmsAnimal :name="c.name" class="h-10 w-auto" />
-                <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
-              </li>
-            </ul>
-            <ul class="mt-6 flex flex-wrap items-end gap-x-5 gap-y-4">
-              <li v-for="c in cmsCharacters.bright" :key="c.name" class="flex flex-col items-center gap-1.5">
-                <CmsAnimal :name="c.name" set="bright" class="h-10 w-auto" />
-                <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
+            <p class="-mt-2 mb-4 text-sm text-muted">{{ tinted ? `${tx.animalsGet} ${tx.animalsGetTinted}` : tx.animalsGet }}</p>
+            <!-- With a brand colour: the family as a brand admin draws it (CmsAnimal, the brand's muted shade). Each one opens its downloads. -->
+            <ul v-for="set in animalSets" :key="set" class="flex flex-wrap items-end gap-x-1 gap-y-2" :class="set === 'bright' && 'mt-4'">
+              <li v-for="c in cmsCharacters[set]" :key="c.name">
+                <UDropdownMenu :items="animalMenu(c, set)">
+                  <button type="button" class="flex flex-col items-center gap-1.5 rounded-md px-2 py-1.5 hover:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--ui-primary) data-[state=open]:bg-elevated" :aria-label="fill(tx.animalMenu, { name: c.name })">
+                    <CmsAnimal :name="c.name" :set="set" class="h-10 w-auto" />
+                    <span class="text-[0.6875rem] text-muted">{{ c.name }}</span>
+                  </button>
+                </UDropdownMenu>
               </li>
             </ul>
           </CmsSection>
