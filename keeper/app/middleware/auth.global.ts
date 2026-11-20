@@ -1,8 +1,11 @@
 // Signed out: to the sign-in page (or to the first-run setup while there is no account).
-// Signed in: away from the sign-in and setup pages.
+// Signed in: away from the sign-in and setup pages. An invitation (/invite/<token>) opens
+// either way: it makes the account, or adds the one you are signed in with.
 const PUBLIC = new Set(['/login', '/setup'])
+const isInvite = (path: string) => path.startsWith('/invite/')
 
 export default defineNuxtRouteMiddleware(async (to) => {
+  if (isInvite(to.path)) return
   const { loggedIn } = useUserSession()
   if (loggedIn.value) {
     if (PUBLIC.has(to.path)) return navigateTo('/')

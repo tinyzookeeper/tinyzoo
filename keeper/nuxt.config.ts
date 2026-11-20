@@ -61,10 +61,16 @@ export default defineNuxtConfig({
       keepDays: 90,
     },
     mail: {
-      // NUXT_MAIL_TRANSPORT: 'smtp' or 'log' (prints e-mails).
+      // NUXT_MAIL_TRANSPORT: 'smtp' sends, 'log' only prints e-mails (invitations then show
+      // their link to copy instead).
       transport: 'log',
+      // NUXT_MAIL_FROM: the sender, e.g. `Keeper <keeper@example.com>` (default: the SMTP user).
       from: '',
-      smtp: { host: '', port: 587, secure: false, user: '', pass: '' },
+      // NUXT_MAIL_SMTP_*: any SMTP server, e.g. Zimbra: port 587 with REQUIRE_TLS=true
+      // (STARTTLS), or 465 with SECURE=true (TLS from the start). TLS_REJECT_UNAUTHORIZED=false
+      // accepts a certificate that does not verify (self-signed). NAME: the host name Keeper
+      // greets the server with (default: this machine's).
+      smtp: { host: '', port: 587, secure: false, requireTls: false, tlsRejectUnauthorized: true, user: '', pass: '', name: '' },
     },
     public: {
       // Set by the build, not meant to be overridden.

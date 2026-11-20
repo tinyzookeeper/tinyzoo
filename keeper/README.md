@@ -25,6 +25,8 @@ Sites belong to a client (or none): name one on the site form, or add clients in
 | Member | every client, or only some | add, change, check and remove the sites they see |
 | Viewer | every client, or only some | only look: for a client's own people |
 
+**Invitations.** People join by invitation only; there is no sign-up page. An owner or admin opens *Settings → People → Invite*, enters one or more addresses, a role and the clients they will see. Each gets an e-mail with a link that works for 7 days. The link makes the account (name and password), or, for an address that already has one, asks its password and adds it to the team. While e-mail is not set up (`NUXT_MAIL_TRANSPORT=log`), or when sending fails, the dialog shows each link to pass on yourself. Open invitations are listed under People, where they can be sent again (a new link, 7 more days) or taken back. Only an owner invites an owner. The first account is still made on the setup page.
+
 People limited to some clients see only those clients' sites, everywhere: the API, traffic, the MCP server and alert e-mails (without the team's alert addresses, alerts go to everyone who works on that site, not to viewers). Tokens act as their maker, so a viewer's token only reads.
 
 ## Connect a site
@@ -46,6 +48,22 @@ claude mcp add --scope user --transport http keeper https://keeper.example.com/m
 
 Either kind acts as the person who connected it, while they are in the team. Wrong tokens are counted per address: after 20 in 10 minutes Keeper answers 429. The MCP and OAuth endpoints answer other origins (`Access-Control-Allow-Origin: *`, never with credentials); the rest of Keeper does not.
 
+### E-mail through Zimbra (or any SMTP server)
+
+Make a mailbox (or an alias) for Keeper on the Zimbra server, then set:
+
+```sh
+NUXT_MAIL_TRANSPORT=smtp
+NUXT_MAIL_FROM="Keeper <keeper@example.com>"
+NUXT_MAIL_SMTP_HOST=mail.example.com
+NUXT_MAIL_SMTP_PORT=587
+NUXT_MAIL_SMTP_REQUIRE_TLS=true
+NUXT_MAIL_SMTP_USER=keeper@example.com
+NUXT_MAIL_SMTP_PASS=…
+```
+
+Zimbra usually wants the sender to be the signed-in mailbox or one of its aliases. With port 465 use `NUXT_MAIL_SMTP_SECURE=true` instead of `REQUIRE_TLS`. *Settings → Team and alerts → E-mail* shows how Keeper sends and has *Send a test e-mail*.
+
 ## Run it (developing Keeper)
 
 ```sh
@@ -62,7 +80,13 @@ The database (`NUXT_DATABASE_URL`) is migrated when Keeper starts: the SQL ships
 | `NUXT_KEEPER_SECRET` | encrypts the stored site tokens, 32+ characters. Changing it makes them unreadable |
 | `NUXT_SETUP_TOKEN` | asked for when the first account is made; required in production |
 | `NUXT_PUBLIC_URL` | Keeper's address, for links in e-mails |
-| `NUXT_MAIL_TRANSPORT`, `NUXT_MAIL_FROM`, `NUXT_MAIL_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASS` | alert e-mails (`log` prints them) |
+| `NUXT_MAIL_TRANSPORT` | `smtp` sends alerts and invitations; `log` (default) only prints them |
+| `NUXT_MAIL_FROM` | the sender, e.g. `Keeper <keeper@example.com>` (default: the SMTP user) |
+| `NUXT_MAIL_SMTP_HOST`, `_PORT`, `_USER`, `_PASS` | the SMTP server (port 587 by default) |
+| `NUXT_MAIL_SMTP_SECURE` | `true` for TLS from the start (port 465) |
+| `NUXT_MAIL_SMTP_REQUIRE_TLS` | `true` refuses to send without STARTTLS (port 587) |
+| `NUXT_MAIL_SMTP_TLS_REJECT_UNAUTHORIZED` | `false` accepts a self-signed certificate |
+| `NUXT_MAIL_SMTP_NAME` | the host name Keeper greets the server with |
 | `NUXT_CHECKS_DOWN_AFTER` | failed checks in a row before a site is down (default 2) |
 | `NUXT_CHECKS_TIMEOUT_MS` | how long a check waits (default 10000) |
 | `NUXT_CHECKS_STATUS_EVERY_MIN` | how often the status is read (default 5) |

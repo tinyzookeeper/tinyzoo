@@ -60,8 +60,8 @@ export async function requireManager(event: H3Event): Promise<SignedInMember> {
   return m
 }
 
-/** Sign a person in to a workspace (their first one). */
-export async function startSession(event: H3Event, userId: string): Promise<void> {
+/** Sign a person in to a workspace: the one given, or their first one. */
+export async function startSession(event: H3Event, userId: string, workspaceId?: string): Promise<void> {
   const db = useDb()
   const [row] = await db.select({
     id: schema.users.id, name: schema.users.name, email: schema.users.email, sv: schema.users.sessionVersion,
@@ -70,7 +70,7 @@ export async function startSession(event: H3Event, userId: string): Promise<void
     .from(schema.users)
     .innerJoin(schema.memberships, eq(schema.memberships.userId, schema.users.id))
     .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.memberships.workspaceId))
-    .where(eq(schema.users.id, userId))
+    .where(and(eq(schema.users.id, userId), workspaceId ? eq(schema.memberships.workspaceId, workspaceId) : undefined))
     .orderBy(schema.memberships.createdAt)
     .limit(1)
   if (!row) throw createError({ statusCode: 403, statusMessage: 'This account is not in any team' })

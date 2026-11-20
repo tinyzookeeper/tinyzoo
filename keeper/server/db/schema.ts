@@ -69,6 +69,34 @@ export const membershipClients = pgTable('membership_clients', {
   index('membership_clients_client_idx').on(t.clientId),
 ])
 
+/**
+ * An invitation to the team (Postyard's `workspace_invitations`): an address, the role and the
+ * clients they will see. It travels as a link with a token that works for 7 days; only the
+ * token's SHA-256 is kept. Accepting makes the account, or adds an existing one to the team.
+ * One row per address and workspace: inviting again after an answer replaces it.
+ */
+export const workspaceInvitations = pgTable('workspace_invitations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  // Stored lower-cased.
+  email: text('email').notNull(),
+  role: text('role').$type<MemberRole>().notNull().default('member'),
+  // What a member or viewer will see, as in memberships (owners and admins see everything).
+  allClients: boolean('all_clients').notNull().default(true),
+  clientIds: jsonb('client_ids').$type<string[]>().notNull().default([]),
+  tokenHash: text('token_hash').notNull(),
+  invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
+  // pending, accepted or declined. A pending one past `expiresAt` has expired.
+  status: text('status').$type<'pending' | 'accepted' | 'declined'>().notNull().default('pending'),
+  expiresAt: ts('expires_at').notNull(),
+  createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('workspace_invitations_token_unique').on(t.tokenHash),
+  uniqueIndex('workspace_invitations_workspace_email_unique').on(t.workspaceId, t.email),
+  index('workspace_invitations_email_idx').on(t.email),
+])
+
 export const sites = pgTable('sites', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),

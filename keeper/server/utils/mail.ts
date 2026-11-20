@@ -1,27 +1,104 @@
 import { and, eq, ne } from 'drizzle-orm'
 import nodemailer, { type Transporter } from 'nodemailer'
+import type { MailStatus } from '#keeper/types/keeper'
+
+/**
+ * How Keeper sends e-mail (runtimeConfig.mail): NUXT_MAIL_TRANSPORT=smtp sends through an SMTP
+ * server, `log` (the default) only prints each e-mail to the server log.
+ *
+ * The SMTP settings cover a mail server of your own such as Zimbra: submission on 587 with
+ * STARTTLS (NUXT_MAIL_SMTP_REQUIRE_TLS=true refuses to send without it), or implicit TLS on 465
+ * (NUXT_MAIL_SMTP_SECURE=true). NUXT_MAIL_SMTP_TLS_REJECT_UNAUTHORIZED=false accepts a server
+ * whose certificate does not verify (a self-signed one); leave it on otherwise.
+ */
+interface MailConfig {
+  transport: 'smtp' | 'log'
+  from: string
+  smtp: { host: string; port: number; secure: boolean; requireTls: boolean; tlsRejectUnauthorized: boolean; user: string; pass: string; name: string }
+}
+
+const flag = (v: unknown, fallback: boolean) => (v === undefined || v === null || v === '' ? fallback : String(v) === 'true')
+
+function mailConfig(): MailConfig {
+  const m = (useRuntimeConfig().mail ?? {}) as any
+  const smtp = m.smtp ?? {}
+  return {
+    transport: m.transport === 'smtp' ? 'smtp' : 'log',
+    from: String(m.from || smtp.user || ''),
+    smtp: {
+      host: String(smtp.host || ''),
+      port: Number(smtp.port) || 587,
+      secure: flag(smtp.secure, false),
+      requireTls: flag(smtp.requireTls, false),
+      tlsRejectUnauthorized: flag(smtp.tlsRejectUnauthorized, true),
+      user: String(smtp.user || ''),
+      pass: String(smtp.pass || ''),
+      name: String(smtp.name || ''),
+    },
+  }
+}
+
+/** What Settings shows about e-mail: whether it is sent at all, and through what. Never the password. */
+export function mailStatus(): MailStatus {
+  const c = mailConfig()
+  if (c.transport !== 'smtp') return { transport: 'log', ready: false, host: null, port: null, security: null, from: c.from || null }
+  return {
+    transport: 'smtp',
+    ready: !!c.smtp.host && !!c.from,
+    host: c.smtp.host || null,
+    port: c.smtp.port,
+    security: c.smtp.secure ? 'tls' : c.smtp.requireTls ? 'starttls' : 'opportunistic',
+    from: c.from || null,
+  }
+}
 
 let transporter: Transporter | undefined
 
-/** Send one plain-text e-mail (NUXT_MAIL_TRANSPORT=smtp), or print it (log). Never throws. */
-export async function sendMail(to: string[], subject: string, text: string): Promise<void> {
-  if (!to.length) return
-  const mail = (useRuntimeConfig().mail ?? {}) as any
-  if (mail.transport !== 'smtp') {
-    console.info(`[keeper] mail (log) to ${to.join(', ')}: ${subject}\n${text}`)
-    return
+function smtpTransport(c: MailConfig): Transporter {
+  transporter ??= nodemailer.createTransport({
+    host: c.smtp.host,
+    port: c.smtp.port,
+    secure: c.smtp.secure,
+    requireTLS: !c.smtp.secure && c.smtp.requireTls,
+    auth: c.smtp.user ? { user: c.smtp.user, pass: c.smtp.pass } : undefined,
+    tls: { rejectUnauthorized: c.smtp.tlsRejectUnauthorized },
+    ...(c.smtp.name ? { name: c.smtp.name } : {}),
+    connectionTimeout: 15_000,
+    greetingTimeout: 15_000,
+    socketTimeout: 30_000,
+  })
+  return transporter
+}
+
+export interface Mail {
+  to: string[]
+  subject: string
+  text: string
+  /** An HTML version beside the text one. */
+  html?: string
+}
+
+/** What became of an e-mail: sent over SMTP, only printed (`log`), or not sent (`failed`, with why). */
+export type MailResult = { status: 'sent' } | { status: 'logged' } | { status: 'failed'; error: string }
+
+/** Send one e-mail (NUXT_MAIL_TRANSPORT=smtp), or print it (log). Never throws. */
+export async function sendMail(mail: Mail): Promise<MailResult> {
+  if (!mail.to.length) return { status: 'logged' }
+  const c = mailConfig()
+  if (c.transport !== 'smtp') {
+    console.info(`[keeper] mail (log) to ${mail.to.join(', ')}: ${mail.subject}\n${mail.text}`)
+    return { status: 'logged' }
   }
   try {
-    transporter ??= nodemailer.createTransport({
-      host: mail.smtp.host,
-      port: Number(mail.smtp.port) || 587,
-      secure: String(mail.smtp.secure) === 'true',
-      auth: mail.smtp.user ? { user: mail.smtp.user, pass: mail.smtp.pass } : undefined,
-    })
-    await transporter.sendMail({ from: mail.from || mail.smtp.user, to, subject, text })
+    if (!c.smtp.host) throw new Error('NUXT_MAIL_SMTP_HOST is not set')
+    if (!c.from) throw new Error('NUXT_MAIL_FROM is not set')
+    await smtpTransport(c).sendMail({ from: c.from, to: mail.to, subject: mail.subject, text: mail.text, html: mail.html })
+    return { status: 'sent' }
   }
   catch (err: any) {
-    console.error('[keeper] mail failed', err?.message ?? err)
+    const error = String(err?.message ?? err)
+    console.error('[keeper] mail failed', error)
+    return { status: 'failed', error }
   }
 }
 
@@ -63,5 +140,5 @@ export async function alertTeam(site: AlertSite, kind: AlertKind, subject: strin
   const link = base ? `\n\n${base}/sites/${site.id}` : ''
   const icon = ICONS[kind]
   const to = await recipients(site)
-  if (to.length) await sendMail(to, `${icon} ${subject}`, `${text}${link}\n\n— Keeper`)
+  if (to.length) await sendMail({ to, subject: `${icon} ${subject}`, text: `${text}${link}\n\n— Keeper` })
 }

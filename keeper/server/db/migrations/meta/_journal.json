@@ -50,6 +50,13 @@
       "when": 1795122968394,
       "tag": "0006_traffic",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795189444854,
+      "tag": "0007_invitations",
+      "breakpoints": true
     }
   ]
 }
