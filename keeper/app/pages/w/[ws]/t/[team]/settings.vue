@@ -25,6 +25,14 @@ const groups = computed(() => [
 ])
 const flat = computed(() => groups.value.flatMap((g) => g.items))
 const current = computed(() => flat.value.find((i) => route.path === i.to) ?? null)
+// The pill of the page you are on stays in view on a phone.
+const pills = useTemplateRef<{ emblaApi?: { scrollTo: (i: number, jump?: boolean) => void } }>('pills')
+function showCurrent(jump = false) {
+  const i = flat.value.findIndex((x) => x.to === route.path)
+  if (i >= 0) pills.value?.emblaApi?.scrollTo(i, jump)
+}
+onMounted(() => nextTick(() => showCurrent(true)))
+watch(() => route.path, () => showCurrent())
 // /settings alone opens General.
 if (route.path === link('/settings')) await navigateTo(link('/settings/general'), { replace: true })
 </script>
@@ -32,15 +40,23 @@ if (route.path === link('/settings')) await navigateTo(link('/settings/general')
 <template>
   <AppPage :title="current?.label ?? 'Settings'" :trail="[{ label: 'Settings', to: link('/settings/general') }]" :heading="false">
     <div class="flex flex-col gap-6 md:flex-row md:gap-10">
-      <!-- Phones: one row of pills that scrolls. -->
-      <nav class="-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:hidden" aria-label="Settings">
-        <NuxtLink
-          v-for="i in flat"
-          :key="i.to"
-          :to="i.to"
-          class="shrink-0 rounded-full border px-3 py-1.5 text-sm whitespace-nowrap"
-          :class="route.path === i.to ? 'border-transparent bg-(--k-moment-bg) font-medium text-highlighted' : 'border-default text-toned'"
-        >{{ i.label }}</NuxtLink>
+      <!-- Phones: one row of pills to swipe (Embla, through UCarousel), the current one in view. -->
+      <nav class="md:hidden" aria-label="Settings">
+        <UCarousel
+          ref="pills"
+          v-slot="{ item }"
+          :items="flat"
+          align="start"
+          drag-free
+          contain-scroll="trimSnaps"
+          :ui="{ container: '-ms-1.5', item: 'basis-auto ps-1.5' }"
+        >
+          <NuxtLink
+            :to="item.to"
+            class="block rounded-full border px-3 py-1.5 text-sm whitespace-nowrap"
+            :class="route.path === item.to ? 'border-transparent bg-(--k-moment-bg) font-medium text-highlighted' : 'border-default text-toned'"
+          >{{ item.label }}</NuxtLink>
+        </UCarousel>
       </nav>
       <nav class="hidden w-48 shrink-0 flex-col gap-4 md:flex" aria-label="Settings">
         <div v-for="g in groups" :key="g.label">
