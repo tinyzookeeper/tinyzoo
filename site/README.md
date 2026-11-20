@@ -26,7 +26,7 @@ deployment runs it every night.
 
 The "Plány" page (`/plany`, `/en/roadmap`, `/de/roadmap`) lists the **Plan** collection
 (Plány / Roadmap in the admin): title and text per language, a stage (done, now, next,
-later), an optional version and an animal. Editors arrange them by dragging ("Seřadit").
+later), an optional version and an animal (or Keeper's mark). Editors arrange them by dragging ("Seřadit").
 The roadmap block (`BlockRoadmap.vue`) draws them as a timeline: Done first, one group per
 version (oldest first), then Now (a dark card per plan), Next (per version) and Later (a
 grid of cards); within a group, the editors' order. The block itself keeps only its

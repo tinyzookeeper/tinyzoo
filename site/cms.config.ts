@@ -294,7 +294,9 @@ export const Plan = defineEntity('plan', {
       .label({ cs: 'Kdy', en: 'When', de: 'Wann' }),
     version: f.text({ max: 20 }).optional().label({ cs: 'Verze', en: 'Version', de: 'Version' })
       .help({ cs: 'Třeba 0.6 nebo 1.1. U hotových plánů se ukáže na webu.', en: 'For example 0.6 or 1.1. Shown on the website for done plans.', de: 'Zum Beispiel 0.6 oder 1.1. Bei erledigten Vorhaben auf der Website sichtbar.' }),
-    animal: animal().optional(),
+    // A plan can also show Keeper's mark, for Keeper's own entries.
+    animal: f.select({ options: [...ANIMALS, 'keeper'] as const, labels: { ...animalLabels, keeper: { cs: 'Keeper', en: 'Keeper', de: 'Keeper' } } })
+      .optional().label({ cs: 'Zvíře', en: 'Animal', de: 'Tier' }),
     position: f.number().optional().label({ cs: 'Pořadí', en: 'Order', de: 'Reihenfolge' }),
   },
   // Public: the page reads it from the browser too, when a visitor comes from another page.

@@ -5,7 +5,7 @@
 // too) and later. On the left the version ("verze 0.6", "později"), then a rail with a dot
 // per group: a sage dot with a check and a solid line for done, frog green with a halo for
 // now, a bird-yellow ring for next, an empty ring and a dashed line for later. Now is a dark
-// card per plan with its animal, next a list, later a grid of cream cards. Within a group,
+// card per plan with its animal (or Keeper's mark), next a list, later a grid of cream cards. Within a group,
 // the editors' order.
 // On narrow screens (the block's own width, a container query) the version moves above
 // its group, beside the rail.
@@ -54,6 +54,9 @@ const groups = computed<Group[]>(() => {
     ...(later.length ? [{ key: 'later', stage: 'later' as const, version: null, items: later }] : []),
   ]
 })
+// A plan's picture: its animal, or Keeper's mark (cream on the dark Now card).
+const picture = (it: Plan, i: number, dark = false) =>
+  it.animal === 'keeper' ? `/brand/keeper/${dark ? 'mark-reversed' : 'mark'}.svg` : useAnimal(it.animal, i).src
 const stageLabel = (s: Stage) => t(({ done: 'roadmapDone', now: 'roadmapNow', next: 'roadmapNext', later: 'roadmapLater' } as const)[s])
 // The left column: "verze 0.6"; later is "později"; a plan without a version elsewhere shows none.
 const versionLabel = (g: Group) => (g.version ? `${t('roadmapVersion')} ${g.version}` : g.stage === 'later' ? t('roadmapUndated') : '')
@@ -88,13 +91,13 @@ const level = computed(() => (props.index === 0 ? 1 : 2))
                     <p class="tl-now-title">{{ it.title }}</p>
                     <p v-if="it.text" class="tl-now-text whitespace-pre-line">{{ it.text }}</p>
                   </div>
-                  <img :src="useAnimal(it.animal, i).src" alt="" aria-hidden="true" class="tl-now-animal">
+                  <img :src="picture(it, i, true)" alt="" aria-hidden="true" class="tl-now-animal">
                 </li>
               </ul>
               <!-- Later: a grid of cream cards. -->
               <ul v-else-if="g.stage === 'later'" class="tl-later">
                 <li v-for="(it, i) in g.items" :key="it.id" class="tl-later-card">
-                  <img :src="useAnimal(it.animal, i).src" alt="" aria-hidden="true" class="tl-animal" loading="lazy">
+                  <img :src="picture(it, i)" alt="" aria-hidden="true" class="tl-animal" loading="lazy">
                   <div class="min-w-0">
                     <p class="tl-title">{{ it.title }}</p>
                     <p v-if="it.text" class="tl-text whitespace-pre-line">{{ it.text }}</p>
@@ -104,7 +107,7 @@ const level = computed(() => (props.index === 0 ? 1 : 2))
               <!-- Done and next: rows with the animal; done smaller and quieter. -->
               <ul v-else class="tl-items">
                 <li v-for="(it, i) in g.items" :key="it.id" class="tl-item">
-                  <img :src="useAnimal(it.animal, i).src" alt="" aria-hidden="true" class="tl-animal" loading="lazy">
+                  <img :src="picture(it, i)" alt="" aria-hidden="true" class="tl-animal" loading="lazy">
                   <div class="min-w-0">
                     <p class="tl-title">{{ it.title }}</p>
                     <p v-if="it.text" class="tl-text whitespace-pre-line">{{ it.text }}</p>
