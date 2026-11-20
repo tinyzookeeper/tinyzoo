@@ -1,6 +1,6 @@
 {
   "name": "tinyzoo",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "description": "Code-first, distributable CMS for Nuxt 4 (Layer + Module).",
   "license": "UNLICENSED",
