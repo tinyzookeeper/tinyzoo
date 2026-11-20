@@ -29,7 +29,7 @@ async function submit() {
 <template>
   <div>
     <div class="mb-8 text-center">
-      <KAnimal name="elephant" class="mx-auto mb-6 h-24 w-auto" />
+      <KMark class="mx-auto mb-6 h-20" />
       <h1 class="k-display text-[1.75rem] leading-tight text-highlighted">Welcome back</h1>
       <p class="mt-1 text-[0.9375rem] text-(--k-moment-text)">Every site you look after, in one place.</p>
     </div>

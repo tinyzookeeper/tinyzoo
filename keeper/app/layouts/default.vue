@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
-import mascot from '../assets/brand/logo/mascot.svg?url'
-import mascotReversed from '../assets/brand/logo/mascot-reversed.svg?url'
 
 const { me, signOut } = useKeeperUser()
 const colorMode = useColorMode()
@@ -61,11 +59,10 @@ const menu = computed<DropdownMenuItem[][]>(() => [
             <UIcon v-if="!collapsed" name="i-lucide-chevrons-up-down" class="size-4 shrink-0 text-dimmed" />
           </UButton>
         </UDropdownMenu>
-        <div v-if="!collapsed" class="flex items-center gap-1.5 px-2 text-xs font-semibold text-muted">
-          <img :src="mascot" alt="" class="h-3.5 w-auto dark:hidden">
-          <img :src="mascotReversed" alt="" class="hidden h-3.5 w-auto dark:inline">
-          <span>Keeper</span><span class="font-normal text-dimmed">· tinyzoo</span>
-        </div>
+        <p v-if="!collapsed" class="px-2">
+          <KBrand signature />
+          <span class="sr-only">Keeper, part of tinyzoo</span>
+        </p>
       </template>
     </UDashboardSidebar>
 

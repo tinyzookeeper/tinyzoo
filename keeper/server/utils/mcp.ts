@@ -202,7 +202,7 @@ function parseSite<T extends z.ZodTypeAny>(schema: T, data: unknown): z.infer<T>
 // ── the server ─────────────────────────────────────────────────────────────────
 
 export function createKeeperMcp(event: H3Event, access: Access): McpServer {
-  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.6.0' }, { instructions: INSTRUCTIONS })
+  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.7.0' }, { instructions: INSTRUCTIONS })
   const canWrite = () => (access.scope === 'write' ? null : fail(access.role === 'viewer'
     ? 'Your role in Keeper only looks at sites. Ask an owner or admin for more.'
     : 'This access token is read-only. Make a write token in Keeper → Settings → Access tokens.'))
