@@ -14,8 +14,24 @@ export async function refreshMe(): Promise<MeResponse | null> {
 /** The last place someone was (a cookie), to land there again: `<workspace>/<team>`. */
 export const useLastScope = () => useCookie<string | null>('keeper-scope', { maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' })
 
-/** The first page to open: the last workspace and team, or the first workspace, or null without any. */
+/** The workspaces where I am more than a guest: what the Every workspace page covers. */
+export const workingWorkspaces = (me: MeResponse | null) => (me?.workspaces ?? []).filter((w) => w.role !== 'guest')
+
+/** Whether someone gets the Every workspace page: they work in more than one workspace. */
+export const hasEverywhere = (me: MeResponse | null) => workingWorkspaces(me).length > 1
+
+/**
+ * The first page to open: Every workspace for someone who works in several; otherwise the last
+ * workspace and team, or the first workspace; null without any.
+ */
 export function homePath(me: MeResponse | null, last: string | null | undefined): string | null {
+  if (!me?.workspaces.length) return null
+  if (hasEverywhere(me)) return '/home'
+  return scopePath(me, last)
+}
+
+/** The last workspace and team (still mine), or the first workspace: `/w/<ws>/t/<team|all>`. */
+export function scopePath(me: MeResponse | null, last: string | null | undefined): string | null {
   if (!me?.workspaces.length) return null
   const [ws, team] = (last ?? '').split('/')
   const w = me.workspaces.find((x) => x.slug === ws)
@@ -50,5 +66,7 @@ export function useScope() {
     const keep = /^\/(versions|settings(\/[a-z-]+)?)?$/.test(rest) ? rest : ''
     return `/w/${ws}/t/${team}${keep}`
   }
-  return { me, workspace, team, wsSlug, teamSlug, role, isOwner, isManager, canWrite, base, link, swap }
+  /** On the Every workspace pages (/home). */
+  const everywhere = computed(() => route.path === '/home' || route.path.startsWith('/home/'))
+  return { me, workspace, team, wsSlug, teamSlug, role, isOwner, isManager, canWrite, base, link, swap, everywhere }
 }

@@ -3,7 +3,9 @@
 // a dot for trouble there, then this workspace's settings and a new one.
 defineProps<{ collapsed?: boolean }>()
 const emit = defineEmits<{ create: [] }>()
-const { me, workspace, link, swap } = useScope()
+const { me, workspace, link, swap, everywhere } = useScope()
+const showEverywhere = computed(() => hasEverywhere(me.value))
+const trouble = computed(() => workingWorkspaces(me.value).reduce((h, w) => ({ sites: h.sites + w.sites, down: h.down + w.down, behind: h.behind + w.behind }), { sites: 0, down: 0, behind: 0 }))
 const open = ref(false)
 const sorted = computed(() => [...(me.value?.workspaces ?? [])].sort((a, b) => a.name.localeCompare(b.name)))
 const initial = (name?: string) => (name ?? 'K').trim().charAt(0).toUpperCase()
@@ -23,16 +25,33 @@ function create() {
       type="button"
       class="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-elevated"
       :class="[collapsed && 'justify-center px-0', open && 'bg-elevated']"
-      :aria-label="`Workspace: ${workspace?.name ?? 'none'}. Switch workspace`"
+      :aria-label="`Workspace: ${everywhere ? 'every workspace' : workspace?.name ?? 'none'}. Switch workspace`"
     >
-      <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-inverted text-[11px] font-semibold text-inverted">{{ initial(workspace?.name) }}</span>
+      <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-inverted text-[11px] font-semibold text-inverted">
+        <UIcon v-if="everywhere" name="i-lucide-layout-grid" class="size-4" />
+        <template v-else>{{ initial(workspace?.name) }}</template>
+      </span>
       <template v-if="!collapsed">
-        <span class="k-display min-w-0 flex-1 truncate text-[16px] text-highlighted">{{ workspace?.name ?? 'Keeper' }}</span>
+        <span class="k-display min-w-0 flex-1 truncate text-[16px] text-highlighted">{{ everywhere ? 'Every workspace' : workspace?.name ?? 'Keeper' }}</span>
         <UIcon name="i-lucide-chevrons-up-down" class="size-3.5 shrink-0 text-dimmed" />
       </template>
     </button>
 
     <template #content>
+      <template v-if="showEverywhere">
+        <button
+          type="button"
+          class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-highlighted transition-colors hover:bg-elevated"
+          :class="everywhere && 'bg-elevated font-medium'"
+          @click="go('/home')"
+        >
+          <UIcon name="i-lucide-layout-grid" class="size-4 text-muted" />
+          <span class="flex-1 text-left">Every workspace</span>
+          <HealthDot v-if="trouble.down || trouble.behind" :health="trouble" />
+          <UIcon v-if="everywhere" name="i-lucide-check" class="size-4 shrink-0" />
+        </button>
+        <USeparator class="my-1.5" />
+      </template>
       <p class="px-2.5 pt-1.5 pb-1 text-[11px] font-medium text-dimmed">Workspaces</p>
       <div class="flex max-h-[50vh] flex-col overflow-y-auto">
         <button

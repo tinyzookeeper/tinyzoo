@@ -7,7 +7,7 @@ const route = useRoute()
 const parts = ([] as string[]).concat(route.params.path ?? [])
 const [id, rest] = parts
 if (id === 'new' || !id) {
-  const to = homePath(useMe().value, useLastScope().value)
+  const to = scopePath(useMe().value, useLastScope().value)
   await navigateTo(to ? `${to}/sites/new` : '/', { replace: true })
 }
 else {
