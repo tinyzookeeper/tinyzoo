@@ -116,6 +116,7 @@ Napište člověku, který váš web dělal nebo spravuje (vývojáři). Pomůž
 4. **Kdy se to stalo** (přibližně: „dnes kolem desáté“), a jestli se to děje pořád, nebo jednou.
 5. **Který prohlížeč** používáte (Chrome, Safari, Firefox…) a jestli to je počítač nebo telefon.
 6. **Pod kým jste přihlášení** (váš e-mail), a jakou máte roli.
+7. **Jakou verzi administrace používáte:** v **Nastavení → O aplikaci** klikněte na **Zkopírovat údaje** a vložte je do zprávy.
 
 > **Tip:** Své heslo nikdy nikomu neposílejte, ani vývojáři. Nikdo ho po vás nebude potřebovat.
 

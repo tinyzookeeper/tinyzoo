@@ -97,7 +97,9 @@ const navigation = computed<NavigationMenuItem[][]>(() => {
     settingsGroup.push({ label: t('nav.team'), icon: 'i-lucide-users-round', to: '/admin/team', 'aria-label': t('nav.team') } as NavigationMenuItem)
     settingsGroup.push({ label: t('nav.privacy'), icon: 'i-lucide-shield-check', to: '/admin/privacy', 'aria-label': t('nav.privacy') } as NavigationMenuItem)
   }
-  if (settingsGroup.length) groups.push([{ label: t('nav.settings'), type: 'label' }, ...settingsGroup])
+  // Which version the site runs: for everyone, so an author without settings still finds it.
+  settingsGroup.push({ label: t('nav.about'), icon: 'i-lucide-info', to: '/admin/about', 'aria-label': t('nav.about') } as NavigationMenuItem)
+  groups.push([{ label: t('nav.settings'), type: 'label' }, ...settingsGroup])
   return groups
 })
 

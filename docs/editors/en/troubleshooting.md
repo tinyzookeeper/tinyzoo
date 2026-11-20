@@ -116,6 +116,7 @@ Write to the person who built or looks after your website (your developer). It h
 4. **When it happened** (roughly: "today around ten"), and whether it keeps happening or happened once.
 5. **Which browser** you use (Chrome, Safari, Firefox…) and whether it's a computer or a phone.
 6. **Who you're signed in as** (your email), and what role you have.
+7. **Which version your admin runs:** in **Settings → About**, click **Copy details** and paste them into your message.
 
 > **Tip:** Never send your password to anyone, not even your developer. Nobody will ever need it from you.
 
