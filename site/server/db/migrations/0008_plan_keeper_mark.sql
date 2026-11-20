@@ -1,0 +1,1 @@
+ALTER TYPE "public"."plan_animal" ADD VALUE 'keeper';

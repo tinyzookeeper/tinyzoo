@@ -100,6 +100,13 @@ export const PLANS = [
     de: { title: 'Andere Apps anbinden', text: 'Lesen und bearbeiten Sie die Inhalte Ihrer Website auch aus anderen Apps, die den MCP-Standard unterstützen. Sie legen fest, was jede darf.' },
   },
   {
+    // Keeper reads the site status that came in 1.1.
+    stage: 'done', version: '1.1', animal: 'keeper',
+    cs: { title: 'Keeper: přehled všech webů', text: 'Nový nástroj z rodiny tinyzoo hlídá všechny naše weby. Každou minutu ověří, že běží, a když některý spadne, pošle e-mail. Ukáže také verzi tinyzoo, návštěvnost a platnost certifikátu.' },
+    en: { title: 'Keeper: every website in one overview', text: 'A new tool from the tinyzoo family watches all our websites. It checks every minute that they are up and sends an email when one goes down. It also shows each website’s tinyzoo version, visits and certificate expiry.' },
+    de: { title: 'Keeper: alle Websites im Blick', text: 'Ein neues Werkzeug aus der tinyzoo-Familie behält alle unsere Websites im Blick. Es prüft jede Minute, ob sie erreichbar sind, und schickt eine E-Mail, wenn eine ausfällt. Außerdem zeigt es für jede Website die tinyzoo-Version, die Besuche und die Gültigkeit des Zertifikats.' },
+  },
+  {
     stage: 'done', version: '0.7', animal: 'koala',
     cs: { title: 'Firemní logo a barva', text: 'Logo a barvu vaší firmy uvidíte v administraci i v e-mailech, třeba v pozvánkách nebo ve zprávách pro obnovu hesla.' },
     en: { title: 'Your logo and brand colour', text: 'Your company’s logo and colour appear in the admin area and in emails such as invitations and password resets.' },

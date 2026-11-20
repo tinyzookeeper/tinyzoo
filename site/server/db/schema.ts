@@ -9,7 +9,7 @@ export const newsStatus = pgEnum('news_status', ["draft","published"])
 export const newsKind = pgEnum('news_kind', ["feature","improvement","fix"])
 export const pageStatus = pgEnum('page_status', ["draft","published"])
 export const planStage = pgEnum('plan_stage', ["done","now","next","later"])
-export const planAnimal = pgEnum('plan_animal', ["bunny","bird","fox","frog","octopus","elephant","owl","whale","turtle","hedgehog","koala","penguin"])
+export const planAnimal = pgEnum('plan_animal', ["bunny","bird","fox","frog","octopus","elephant","owl","whale","turtle","hedgehog","koala","penguin","keeper"])
 
 export const cmsMedia = pgTable('cms_media', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -282,7 +282,7 @@ export const plan = pgTable('plan', {
   text: text('text'),
   stage: planStage('stage').$type<'done' | 'now' | 'next' | 'later'>().notNull().default("next"),
   version: text('version'),
-  animal: planAnimal('animal').$type<'bunny' | 'bird' | 'fox' | 'frog' | 'octopus' | 'elephant' | 'owl' | 'whale' | 'turtle' | 'hedgehog' | 'koala' | 'penguin'>(),
+  animal: planAnimal('animal').$type<'bunny' | 'bird' | 'fox' | 'frog' | 'octopus' | 'elephant' | 'owl' | 'whale' | 'turtle' | 'hedgehog' | 'koala' | 'penguin' | 'keeper'>(),
   position: integer('position'),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
