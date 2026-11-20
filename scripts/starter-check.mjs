@@ -25,6 +25,7 @@ import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import pg from 'pg'
+import { ALL_PARTS, SCENARIOS } from './starter-check/scenarios.mjs'
 
 const root = join(import.meta.dirname, '..')
 
@@ -61,13 +62,6 @@ const freePort = () => new Promise((resolve, reject) => {
   srv.listen(0, '127.0.0.1', () => { const { port } = srv.address(); srv.close(() => resolve(port)) })
 })
 
-const ALL_PARTS = ['news', 'forms', 'redirects', 'search', 'analytics']
-const SCENARIOS = [
-  { id: 'defaults', via: 'init', args: [], languages: ['cs', 'en'], presets: ALL_PARTS, demo: true, deep: true },
-  { id: 'english-empty', via: 'init', args: ['--languages', 'en', '--no-demo', '--presets', 'none'], languages: ['en'], presets: [], demo: false },
-  { id: 'all-with-german', via: 'create', args: ['--languages', 'cs,en,de', '--presets', ALL_PARTS.join(',')], languages: ['cs', 'en', 'de'], presets: ALL_PARTS, demo: true },
-  { id: 'english-first', via: 'init', args: ['--languages', 'en,cs', '--presets', 'news,redirects'], languages: ['en', 'cs'], presets: ['news', 'redirects'], demo: true },
-]
 const only = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1] : process.env.STARTER_CHECK_ONLY
 const chosen = SCENARIOS.filter((sc) => !only || sc.id === only || sc.id.startsWith(only))
 ok(chosen.length, `no combination called "${only}" (${SCENARIOS.map((s) => s.id).join(', ')})`)
