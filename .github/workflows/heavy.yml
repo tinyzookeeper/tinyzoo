@@ -1,12 +1,15 @@
 name: Heavy checks
 
 # The slow checks that ci.yml leaves out of every pull request. They run
-#   - nightly, on main (schedule),
-#   - on demand: Actions → Heavy checks → Run workflow, on any branch (workflow_dispatch),
-#   - on the "Version packages" pull request (head branch changeset-release/main), before
-#     a release is merged, all of them,
-#   - on any other pull request, only the ones whose paths it changes (the `changes` job).
-# release.yml still runs the consumer check on the packed tarballs right before publishing.
+#   - all of them on every push to main (a newer push cancels the run it supersedes), except
+#     the merge of the "Version packages" pull request, whose code was checked as it was made,
+#   - nightly, on main (schedule), and on demand: Actions → Heavy checks → Run workflow, on any
+#     branch (workflow_dispatch), all of them,
+#   - on an ordinary pull request, only the ones whose paths it changes (the `changes` job),
+#   - on the "Version packages" pull request (head branch changeset-release/main), none: its
+#     code is the main commit it was made from, and the `main` job requires that this workflow
+#     and ci.yml passed there (waiting for them when they still run). So a release is checked
+#     before anyone asks for it, and merging the version pull request waits on nothing new.
 #
 #   upgrade    a site made on an older tinyzoo moves to this one (scripts/upgrade-check.mjs),
 #              one job per baseline
@@ -20,23 +23,29 @@ name: Heavy checks
 #              against a 16 server — strict: a runner without the tools fails
 #   s3-minio   the S3 delivery modes against a real MinIO
 #   site-image the website's Docker image (site/Dockerfile) builds from the repo, as the deploy does
+#   main       the version pull request only: ci.yml and this workflow passed on its main commit
 #   result     one check that is green when every heavy job that ran passed (skipped = nothing relevant)
 on:
+  push:
+    branches: [main]
   schedule:
     - cron: '17 2 * * *'
   workflow_dispatch:
   pull_request:
 
+# A pull request's newer push cancels its older run, and so does a newer push to main: the
+# version pull request asks only about the main commit it was made from, which is the newest.
 concurrency:
-  group: heavy-${{ github.event.pull_request.number || github.run_id }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: heavy-${{ github.event.pull_request.number || (github.event_name == 'push' && 'main') || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
 
 permissions:
   contents: read
 
 jobs:
-  # Which heavy jobs this event needs. Everything but an ordinary pull request needs all of
-  # them; an ordinary pull request needs the ones whose paths it touches (or the workflow itself).
+  # Which heavy jobs this event needs. A push to main (but the version pull request's merge), the
+  # nightly run and a manual one need all of them; an ordinary pull request needs the ones whose
+  # paths it touches (or the workflow itself); the version pull request none (the `main` job).
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -68,7 +77,9 @@ jobs:
           echo "starter=$(node -e "import('./scripts/starter-check/scenarios.mjs').then((m) => console.log(JSON.stringify(m.SCENARIOS.map((s) => s.id))))")" >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
       - id: everything
-        if: github.event_name != 'pull_request' || github.head_ref == 'changeset-release/main'
+        if: >-
+          github.event_name != 'pull_request' &&
+          !(github.event_name == 'push' && contains(github.event.head_commit.message, '/changeset-release/main'))
         run: echo "all=true" >> "$GITHUB_OUTPUT"
       # paths-filter v4.0.3, pinned to its commit.
       - id: filter
@@ -157,9 +168,9 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
+          --health-interval 1s
           --health-timeout 3s
-          --health-retries 10
+          --health-retries 30
       redis:
         image: valkey/valkey:8-alpine
         ports: ['6379:6379']
@@ -229,9 +240,9 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
+          --health-interval 1s
           --health-timeout 3s
-          --health-retries 10
+          --health-retries 30
     env:
       STARTER_CHECK_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test_starter
     steps:
@@ -269,9 +280,9 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
+          --health-interval 1s
           --health-timeout 3s
-          --health-retries 10
+          --health-retries 30
     env:
       TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
       # The spec skips where the tools are missing; here a missing tool must fail it.
@@ -311,9 +322,9 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
+          --health-interval 1s
           --health-timeout 3s
-          --health-retries 10
+          --health-retries 30
     env:
       TEST_DATABASE_URL: postgres://cms:cms@localhost:5432/cms_test
       TEST_S3_ENDPOINT: http://localhost:9190
@@ -359,9 +370,9 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
+          --health-interval 1s
           --health-timeout 3s
-          --health-retries 10
+          --health-retries 30
       redis:
         image: valkey/valkey:8-alpine
         ports: ['6379:6379']
@@ -397,10 +408,57 @@ jobs:
       - name: The image holds the server and the seed
         run: docker run --rm --entrypoint sh tinyzoo-site:ci -c 'test -f .output/server/index.mjs && test -f scripts/seed.mjs && ls seed >/dev/null'
 
+  # The version pull request: its code is the main commit it was made from (its head's parent),
+  # plus versions and changelogs. That commit's push ran ci.yml and this workflow in full; they
+  # must have passed. Still running: wait for them (they started when that commit was pushed).
+  main:
+    if: github.event_name == 'pull_request' && github.head_ref == 'changeset-release/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: ci.yml and heavy.yml passed on the main commit of this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          sha=$(gh api "repos/$REPO/commits/$HEAD_SHA" --jq '.parents[0].sha')
+          echo "This version pull request was made from main at $sha."
+          deadline=$(( $(date +%s) + 1800 ))
+          for wf in ci.yml heavy.yml; do
+            while :; do
+              run=$(gh run list -R "$REPO" --workflow "$wf" --branch main --commit "$sha" --limit 20 \
+                --json status,conclusion,event,url --jq '[.[] | select(.event != "pull_request")][0] // empty')
+              if [ -z "$run" ]; then
+                echo "::error::No $wf run on main at $sha. Start one (Actions → Run workflow on main, or push to main) and re-run this check."
+                exit 1
+              fi
+              status=$(jq -r .status <<<"$run"); conclusion=$(jq -r .conclusion <<<"$run"); url=$(jq -r .url <<<"$run")
+              if [ "$status" = completed ]; then
+                echo "$wf on $sha: $conclusion ($url)"
+                if [ "$conclusion" != success ]; then
+                  echo "::error::$wf did not pass on main at $sha ($conclusion): $url. Cancelled means a newer push to main superseded it; that push updates this pull request."
+                  exit 1
+                fi
+                break
+              fi
+              if [ "$(date +%s)" -ge "$deadline" ]; then
+                echo "::error::$wf on main at $sha is still $status after 30 minutes: $url"
+                exit 1
+              fi
+              echo "$wf on $sha: $status, waiting…"
+              sleep 20
+            done
+          done
+
   # One check for "the heavy jobs this event needed passed": skipped jobs (nothing relevant
   # changed) are fine, a failed or cancelled one is not.
   result:
-    needs: [changes, upgrade, consumer, starter, backup, s3-minio, site-image, locale-switch]
+    needs: [changes, upgrade, consumer, starter, backup, s3-minio, site-image, locale-switch, main]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
