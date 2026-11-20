@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" ADD COLUMN "signature" text DEFAULT '' NOT NULL;

@@ -2,11 +2,11 @@
 // Settings, split as in Postyard: this workspace (General, Teams, People, Alerts, Access tokens),
 // you (Password) and Keeper (About). People and Alerts are for owners and admins.
 const route = useRoute()
-const { workspace, isManager, link } = useScope()
+const { workspace, isManager, isGuest, link } = useScope()
 useHead({ title: 'Settings · Keeper' })
 
 const groups = computed(() => [
-  {
+  ...(isGuest.value ? [] : [{
     label: workspace.value?.name ?? 'Workspace',
     items: [
       { label: 'General', to: link('/settings/general'), icon: 'i-lucide-building-2' },
@@ -19,7 +19,7 @@ const groups = computed(() => [
         : []),
       { label: 'Access tokens', to: link('/settings/tokens'), icon: 'i-lucide-key-round' },
     ],
-  },
+  }]),
   { label: 'You', items: [{ label: 'Password', to: link('/settings/password'), icon: 'i-lucide-lock' }] },
   { label: 'Keeper', items: [{ label: 'About', to: link('/settings/about'), icon: 'i-lucide-info' }] },
 ])
@@ -34,11 +34,11 @@ function showCurrent(jump = false) {
 onMounted(() => nextTick(() => showCurrent(true)))
 watch(() => route.path, () => showCurrent())
 // /settings alone opens General.
-if (route.path === link('/settings')) await navigateTo(link('/settings/general'), { replace: true })
+if (route.path === link('/settings')) await navigateTo(link(isGuest.value ? '/settings/password' : '/settings/general'), { replace: true })
 </script>
 
 <template>
-  <AppPage :title="current?.label ?? 'Settings'" :trail="[{ label: 'Settings', to: link('/settings/general') }]" :heading="false">
+  <AppPage :title="current?.label ?? 'Settings'" :trail="[{ label: 'Settings', to: link(isGuest ? '/settings/password' : '/settings/general') }]" :heading="false">
     <div class="flex flex-col gap-6 md:flex-row md:gap-10">
       <!-- Phones: one row of pills to swipe (Embla, through UCarousel), the current one in view. -->
       <nav class="md:hidden" aria-label="Settings">

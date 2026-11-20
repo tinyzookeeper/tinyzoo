@@ -3,7 +3,9 @@
 // a dot for trouble there, then this workspace's settings and a new one.
 defineProps<{ collapsed?: boolean }>()
 const emit = defineEmits<{ create: [] }>()
-const { me, workspace, link, swap, everywhere } = useScope()
+const { me, workspace, link, swap, everywhere, isGuest, signature } = useScope()
+// A guest with one workspace has nothing to switch to: the name, and who looks after it.
+const plain = computed(() => isGuest.value && (me.value?.workspaces.length ?? 0) < 2)
 const showEverywhere = computed(() => hasEverywhere(me.value))
 const trouble = computed(() => workingWorkspaces(me.value).reduce((h, w) => ({ sites: h.sites + w.sites, down: h.down + w.down, behind: h.behind + w.behind }), { sites: 0, down: 0, behind: 0 }))
 const open = ref(false)
@@ -20,7 +22,14 @@ function create() {
 </script>
 
 <template>
-  <UPopover v-model:open="open" :content="{ align: 'start', sideOffset: 6 }" :ui="{ content: 'w-72 p-1.5' }">
+  <div v-if="plain" class="flex min-w-0 items-center gap-2.5 px-1.5 py-1.5" :class="collapsed && 'justify-center px-0'">
+    <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-(--k-moment-strong) text-[11px] font-semibold text-highlighted">{{ initial(workspace?.name) }}</span>
+    <span v-if="!collapsed" class="min-w-0 leading-tight">
+      <span class="k-display block truncate text-[16px] text-highlighted">{{ workspace?.name }}</span>
+      <span v-if="signature && signature !== workspace?.name" class="block truncate text-xs text-muted">looked after by {{ signature }}</span>
+    </span>
+  </div>
+  <UPopover v-else v-model:open="open" :content="{ align: 'start', sideOffset: 6 }" :ui="{ content: 'w-72 p-1.5' }">
     <button
       type="button"
       class="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-elevated"
@@ -69,7 +78,7 @@ function create() {
         </button>
       </div>
       <USeparator class="my-1.5" />
-      <button v-if="workspace" type="button" class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-toned transition-colors hover:bg-elevated hover:text-highlighted" @click="go(link('/settings/general'))">
+      <button v-if="workspace && !isGuest" type="button" class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-toned transition-colors hover:bg-elevated hover:text-highlighted" @click="go(link('/settings/general'))">
         <UIcon name="i-lucide-settings-2" class="size-4" />Workspace settings
       </button>
       <button type="button" class="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-toned transition-colors hover:bg-elevated hover:text-highlighted" @click="create">

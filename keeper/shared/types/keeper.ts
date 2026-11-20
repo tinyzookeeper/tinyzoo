@@ -136,6 +136,8 @@ export interface WorkspaceSettings {
   /** Who gets the e-mails when a site goes down or comes back; empty = everyone who works on it. Only owners and admins see it. */
   alertEmails: string[]
   role: WorkspaceRole
+  /** Who looks after the sites, as guests read it; '' = the workspace's name. */
+  signature: string
   /** Whether it can be deleted now: it has no sites (and I am an owner). */
   canDelete: boolean
 }
@@ -161,6 +163,8 @@ export interface MeWorkspace extends Health {
   id: string
   slug: string
   name: string
+  /** Who looks after the sites, as guests read it ('' = the name). */
+  signature: string
   role: WorkspaceRole
   /** The teams I see, the default first. */
   teams: MeTeam[]
@@ -248,4 +252,31 @@ export interface InvitationPreview {
   status: 'pending' | 'accepted' | 'declined' | 'expired'
   /** Whether Keeper already has an account for this address: then they sign in to accept. */
   hasAccount: boolean
+}
+
+/** One site as a guest sees it: in plain words, no tokens, versions or errors. */
+export interface GuestSite {
+  id: string
+  name: string
+  url: string
+  environment: 'production' | 'staging'
+  state: SiteState
+  stateSince: string | null
+  lastCheckAt: string | null
+  /** Share of successful checks over 30 days, 0–1, or null without checks. */
+  uptime30d: number | null
+  /** Visitors over the last 30 days, for a site that counts them. */
+  visitors30d: number | null
+  responseMs: number | null
+  certExpiresAt: string | null
+  /** Outages in the last 30 days. */
+  outages: { count: number; minutes: number; last: { startedAt: string; endedAt: string | null } | null }
+}
+
+/** GET /api/w/:ws/glance — the guest view of a workspace: the sites of my teams, and who looks after them. */
+export interface GuestGlance {
+  workspace: { name: string; signature: string }
+  /** The teams I see, by name (one for most guests). */
+  teams: string[]
+  sites: GuestSite[]
 }

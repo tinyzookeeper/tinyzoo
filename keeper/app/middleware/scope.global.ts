@@ -19,5 +19,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (team !== 'all' && !w.teams.some((t) => t.slug === team)) {
     return navigateTo(to.path.replace(`/w/${ws}/t/${team}`, `/w/${ws}/t/all`), { replace: true })
   }
+  // A guest sees their sites and their own settings, nothing else.
+  if (w.role === 'guest') {
+    const base = `/w/${ws}/t/${team}`
+    const rest = to.path.slice(base.length)
+    if (rest && rest !== '/' && !/^\/settings\/(password|about)$/.test(rest)) return navigateTo(base, { replace: true })
+  }
   useLastScope().value = `${ws}/${team}`
 })

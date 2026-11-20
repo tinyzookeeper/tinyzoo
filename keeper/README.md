@@ -33,6 +33,8 @@ The scope is in the address: `/w/<workspace>/t/<team|all>/…`, with `t/all` for
 | Member | the teams they are on | add, change, check and remove those teams' sites |
 | Guest | the teams they are on | only look: for a client's own people |
 
+**The guest view.** A guest sees their sites in plain words and nothing else: whether each is up, its outages over 30 days, visitors, speed and how long its certificate lasts, signed "looked after by …" (*Settings → General → Looked after by*; empty: the workspace's name). No versions, tokens, errors, admin links or settings besides their password.
+
 On a team, someone is a **lead** or a **member**. A lead renames the team and chooses who is on it.
 
 **Invitations.** People join by invitation only; there is no sign-up page. An owner or admin opens *Settings → People → Invite*, enters one or more addresses, a role and the teams they join (none: the default team; a guest always names teams). Each gets an e-mail with a link that works for 7 days. The link makes the account (name and password), or, for an address that already has one, asks its password and adds it to the workspace. While e-mail is not set up (`NUXT_MAIL_TRANSPORT=log`), or when sending fails, the dialog shows each link to pass on yourself. Open invitations are listed under People, where they can be sent again (a new link, 7 more days) or taken back. Only an owner invites an owner. The first account (and its workspace) is made on the setup page.

@@ -3,11 +3,13 @@ import type { OverviewResponse, SiteSummary } from '#keeper/types/keeper'
 
 const toast = useToast()
 const { me } = useKeeperUser()
-const { workspace, team, wsSlug, teamSlug, canWrite, link } = useScope()
+const { workspace, team, wsSlug, teamSlug, canWrite, isGuest, link } = useScope()
 const { data, status, refresh, error } = await useFetch<OverviewResponse>('/api/sites', {
   key: `overview-${wsSlug.value}-${teamSlug.value}`,
   query: { workspace: wsSlug, team: teamSlug },
   default: () => ({ sites: [], latest: null }),
+  // A guest gets the guest view (GuestOverview) instead.
+  immediate: !isGuest.value,
 })
 useHead({ title: () => `${team.value?.name ?? workspace.value?.name ?? 'Sites'} · Keeper` })
 // The team of each site is worth saying on "All teams" of a workspace with several.
@@ -16,7 +18,7 @@ watch(error, (e) => { if (e) toast.add({ title: 'Could not load the sites', desc
 
 // Fresh numbers while the page is open (the checks run every minute).
 let timer: ReturnType<typeof setInterval> | undefined
-onMounted(() => { timer = setInterval(() => { refresh() }, 60_000) })
+onMounted(() => { if (!isGuest.value) timer = setInterval(() => { refresh() }, 60_000) })
 onBeforeUnmount(() => clearInterval(timer))
 
 const now = useNow()
@@ -115,7 +117,8 @@ function stateLine(s: SiteSummary): string {
 </script>
 
 <template>
-  <AppPage :title="team?.name ?? workspace?.name ?? 'Sites'" :heading="false">
+  <GuestOverview v-if="isGuest" />
+  <AppPage v-else :title="team?.name ?? workspace?.name ?? 'Sites'" :heading="false">
     <template #actions>
       <template v-if="canWrite">
         <UButton :to="link('/sites/new')" icon="i-lucide-plus" label="Add site" class="hidden sm:inline-flex" />
