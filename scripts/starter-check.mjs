@@ -61,7 +61,7 @@ const freePort = () => new Promise((resolve, reject) => {
   srv.listen(0, '127.0.0.1', () => { const { port } = srv.address(); srv.close(() => resolve(port)) })
 })
 
-const ALL_PARTS = ['news', 'forms', 'redirects', 'search']
+const ALL_PARTS = ['news', 'forms', 'redirects', 'search', 'analytics']
 const SCENARIOS = [
   { id: 'defaults', via: 'init', args: [], languages: ['cs', 'en'], presets: ALL_PARTS, demo: true, deep: true },
   { id: 'english-empty', via: 'init', args: ['--languages', 'en', '--no-demo', '--presets', 'none'], languages: ['en'], presets: [], demo: false },
@@ -97,7 +97,7 @@ function checkTheSite({ site, sc, stdout }) {
   ok(has('app/lib/cms-content.ts') === !regenerate.client, `the starter's typed client should ${regenerate.client ? 'not ' : ''}ship with this site`)
   const config = readFileSync(join(site, 'cms.config.ts'), 'utf8')
   ok(config.includes(`defineLocales({ default: '${sc.languages[0]}', locales: [${sc.languages.map((l) => `'${l}'`).join(', ')}] })`), `cms.config.ts has other languages than ${sc.languages}`)
-  for (const [part, needle] of [['news', "defineEntity('news'"], ['forms', 'formsPlugin()'], ['redirects', 'defineRedirects()']]) {
+  for (const [part, needle] of [['news', "defineEntity('news'"], ['forms', 'formsPlugin()'], ['redirects', 'defineRedirects()'], ['analytics', 'analyticsPlugin()']]) {
     ok(config.includes(needle) === wantPart(part), `cms.config.ts should ${wantPart(part) ? '' : 'not '}have ${part}`)
   }
   const pkg = JSON.parse(readFileSync(join(site, 'package.json'), 'utf8'))
@@ -236,6 +236,7 @@ async function lightChecks({ sc, base, query, get, json, seedRun }) {
   ok(wants('news') ? await count('news') === 4 : (await query(`select to_regclass('public.news') as t`))[0].t === null, 'the news are there, or not, as asked')
   ok(wants('redirects') ? await count('redirect') === 1 : (await query(`select to_regclass('public.redirect') as t`))[0].t === null, 'the redirect is there, or not, as asked')
   ok(wants('forms') ? await count('form_settings') === 1 : (await query(`select to_regclass('public.contact_form') as t`))[0].t === null, 'the form is there, or not, as asked')
+  ok(((await query(`select to_regclass('public.analytics_events') as t`))[0].t !== null) === wants('analytics'), 'the analytics tables are there, or not, as asked')
   const second = seedRun()
   ok(second.status === 0 && !/✓ (created|updated|uploaded)/.test(second.stdout), `the second seed changed something:\n${second.stdout}${second.stderr}`)
 
