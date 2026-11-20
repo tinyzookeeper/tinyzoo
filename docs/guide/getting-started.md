@@ -176,6 +176,8 @@ Notes:
   *Contact form*'s messages and the *Media library*.
 - **Settings** has *Site settings*, *Navigation* (the menus), *Forms* (who is told about new
   messages), *Team* (the people who may sign in) and *Privacy*.
+- **Analytics** shows the website's visits, counted without cookies. On your machine it counts
+  only what you open while signed out of the admin.
 - The admin speaks Czech or English by your browser. You switch it under your name.
 
 ## 6. Your first collection: team members
@@ -416,7 +418,7 @@ pnpm create tinyzoo my-site --languages de,en --presets news,search --no-demo --
 | Option | |
 |---|---|
 | `--languages cs,en,de` | the content languages; the **first is the default** (its addresses have no prefix: `/o-nas`, the others have one: `/en/about`). Default `cs,en` |
-| `--presets news,forms,redirects,search` | the parts of the site, or `none` / `all`. Pages, menus, site settings and SEO are always there. Default: all |
+| `--presets news,forms,redirects,search,analytics` | the parts of the site, or `none` / `all`. Pages, menus, site settings and SEO are always there. Default: all |
 | `--demo` / `--no-demo` | the demo content (a small bakery, written in Czech and English: it needs `cs` or `en` first). `--no-demo` makes an empty site, without `seed/` |
 | `--install` / `--no-install` | install the dependencies right away, and write the typed files the site needs ([below](#a-site-that-differs-from-the-defaults)) |
 | `--package-manager pnpm` | `pnpm`, `npm`, `yarn` or `bun`: the commands it prints and the README use it. Default: the one you ran it with |

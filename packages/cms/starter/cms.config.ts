@@ -13,6 +13,9 @@ import {
   // #endif
   f, seo,
 } from 'tinyzoo'
+// #if analytics
+import { analyticsPlugin } from 'tinyzoo/analytics'
+// #endif
 // #if forms
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 // #endif
@@ -156,11 +159,18 @@ export const Navigation = defineNavigation({ localized: true })
 export const Redirect = defineRedirects()
 
 // #endif
+// ── plugins: features with their own admin pages, routes and tables ──
+export const plugins = [
+  // #if forms
+  formsPlugin(), // the messages of the contact form below
+  // #endif
+  // #if analytics
+  analyticsPlugin(), // the website's visits, counted without cookies (Analytics in the admin)
+  // #endif
+]
+
 // #if forms
 // ── forms ──
-// Plugins add features with their own admin pages, routes and tables: Forms here.
-export const plugins = [formsPlugin()]
-
 export const ContactForm = defineForm('contactForm', {
   label: { en: 'Contact form', cs: 'Kontaktní formulář' },
   labelSingular: { en: 'Message', cs: 'Zpráva' },

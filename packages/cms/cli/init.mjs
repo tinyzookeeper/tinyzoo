@@ -6,7 +6,7 @@
 // between `// #if <flag>` and `// #endif` (`<!-- #if <flag> -->` in templates and Markdown,
 // `# #if <flag>` in .env files) belong to that flag and stay only when the site has it:
 //
-//   flags: news, forms, redirects, search (the presets), demo (the demo content)
+//   flags: news, forms, redirects, search, analytics (the presets), demo (the demo content)
 //   `#if !demo` keeps the lines when the flag is off
 //
 // A few lines that depend on the languages are rewritten (`edit` below; each must be found
@@ -24,6 +24,7 @@ export const PRESETS = [
   { name: 'forms', label: 'Contact form', hint: 'the Forms plugin, a contact page block and the messages in the admin' },
   { name: 'redirects', label: 'Redirects', hint: 'old addresses that lead to new ones' },
   { name: 'search', label: 'Search', hint: 'a search page on the website' },
+  { name: 'analytics', label: 'Analytics', hint: 'counts visits without cookies and shows them in the admin' },
 ]
 export const PRESET_NAMES = PRESETS.map((p) => p.name)
 
@@ -46,7 +47,7 @@ export const ADDRESS_WORDS = {
 const wordsOf = (code) => ADDRESS_WORDS[code] ?? ADDRESS_WORDS.en
 
 export const INIT_USAGE = [
-  'usage: tinyzoo init <folder> [--languages cs,en] [--presets news,forms,redirects,search | none] [--demo | --no-demo] [--package-manager pnpm]',
+  'usage: tinyzoo init <folder> [--languages cs,en] [--presets news,forms,redirects,search,analytics | none] [--demo | --no-demo] [--package-manager pnpm]',
   '',
   '  --languages   the content languages, the first one is the default (default: cs,en)',
   `  --presets     which parts the site has: ${PRESET_NAMES.join(', ')}, or none (default: all)`,
@@ -304,6 +305,9 @@ function shape(root, { version, languages, presets, demo, packageManager, folder
   edit('app/utils/site.ts', "export const LANGUAGES: string[] = ['cs', 'en']", `export const LANGUAGES: string[] = [${languages.map((l) => `'${l}'`).join(', ')}]`)
   // The admin's own language (cs and en only) follows the site's first one.
   if (first !== 'cs') edit('app/app.config.ts', "defaultLocale: 'cs',", `defaultLocale: '${first === 'en' || !DEMO_LANGUAGES.includes(first) ? 'en' : first}',`)
+
+  // A site with neither plugin has no list of plugins at all.
+  if (!has('forms') && !has('analytics')) edit('cms.config.ts', '// ── plugins: features with their own admin pages, routes and tables ──\nexport const plugins = [\n]\n', '')
 
   if (has('news')) {
     edit('cms.config.ts', "const newsAddress = { cs: '/aktuality/:slug', en: '/news/:slug' }",
