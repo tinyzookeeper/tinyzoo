@@ -158,6 +158,8 @@ Fields in the admin read as a few titled sections. Name them with `admin.section
 
 **Boolean.** `mustBeTrue: true` refuses `false`. Use it for a consent on a [website form](recipes.md#1-a-contact-form) that must be ticked. The form marks it required and tells the visitor, in their language, to tick it.
 
+`confirmOff` is for a switch whose "off" stops something, such as sending e-mails. The admin asks before it saves the switch turned off, with your text: `f.boolean({ default: true, confirmOff: { en: 'No e-mails go out until it is on again.', cs: 'Dokud to znovu nezapnete, žádné e-maily neodejdou.' } })`.
+
 **Datetime.** `allDay: true` adds an "All day" switch and stores the time as 0:00 in the admin's time zone (`cms.admin.timeZone`, `Europe/Prague` unless you set another). The content API sends it in UTC, so a frontend in another zone must format it in the admin's zone. See [all-day dates](content-api-reference.md#all-day-dates).
 
 **Select.** `options` must be `as const`. `labels` give each option a name per admin language, and `icons` give it an icon.

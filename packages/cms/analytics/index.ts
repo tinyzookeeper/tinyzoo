@@ -54,7 +54,14 @@ export const AnalyticsSettings = defineSingleton('analytics_settings', {
   icon: 'i-lucide-chart-line',
   titleField: 'collect',
   fields: {
-    collect: f.boolean({ default: true })
+    collect: f.boolean({
+      default: true,
+      confirmOff: {
+        en: 'The website stops counting visits until somebody switches it on again. Visits in the meantime are lost for good; what was counted so far stays.',
+        cs: 'Web přestane počítat návštěvy, dokud to někdo znovu nezapne. Návštěvy mezitím se už nikdy nedopočítají; co bylo napočítáno, zůstane.',
+        de: 'Die Website zählt keine Besuche mehr, bis jemand das wieder einschaltet. Besuche in der Zwischenzeit gehen verloren; was bisher gezählt wurde, bleibt.',
+      },
+    })
       .label({ en: 'Count visits', cs: 'Počítat návštěvy', de: 'Besuche zählen' })
       .help({
         en: 'Off: the website stops counting. What it counted so far stays in the reports.',

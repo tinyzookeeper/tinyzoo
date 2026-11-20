@@ -147,7 +147,7 @@ A config exports its entities, globals, `locales`, `roles`, the pages, navigatio
 | `f.text(o)` | `required`, `format: 'email' \| 'url' \| 'path' \| 'link'`, `multiline`, `max` | `string` |
 | `f.slug(o)` | `from` (the field it follows), `unique` | `string` |
 | `f.number(o)` | `int` (default true; `false` is a decimal), `min`, `max` | `number`, or `string` for a decimal (see below) |
-| `f.boolean(o)` | `default`, `mustBeTrue`, `needsPrevious` | `boolean` |
+| `f.boolean(o)` | `default`, `mustBeTrue`, `needsPrevious`, `confirmOff` | `boolean` |
 | `f.datetime(o)` | `default: 'now'`, `allDay` | `Date` (a `Date` or an ISO string on insert) |
 | `f.select(o)` | `options` (a tuple), `default`, `labels`, `icons` | the union of the options |
 | `f.richtext()` | | `RichTextDoc` |

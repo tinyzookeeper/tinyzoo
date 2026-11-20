@@ -251,6 +251,8 @@ export default {
     fixFields: 'Zkontrolujte prosím zvýrazněná pole',
     unsavedConfirm: 'Vaše změny zatím nejsou uložené. Když teď odejdete, ztratí se.',
     leaveTitle: 'Odejít bez uložení?',
+    confirmOffTitle: 'Vypnout „{name}“?',
+    confirmOffLabel: 'Vypnout a uložit',
     unpublishTitle: 'Stáhnout z webu?',
     unpublishBody: 'Návštěvníci webu ji přestanou vidět. Zůstane tu jako koncept a můžete ji kdykoli zveřejnit znovu.',
     stay: 'Zůstat',

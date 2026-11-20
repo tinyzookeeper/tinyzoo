@@ -100,7 +100,7 @@ A **visit** is one visitor's page views with gaps under 30 minutes. A visit belo
 ### What is not counted
 
 - The admin (`/admin` and below) and the API.
-- People signed in to the admin, while they look at their own website.
+- People signed in to the admin, while they look at their own website. The Analytics page says so under "On the website now": to see yourself counted, open the website in a private window.
 - The admin's preview.
 - Robots and scripts. They are recognised by their user agent. A robot that runs no JavaScript never runs the script either.
 - Pages the site leaves out with `excludePaths`.
@@ -142,7 +142,7 @@ The daily totals cover one thing at a time: pages, or sources. They cannot be co
 
 There are three ways:
 
-- **For a while.** An administrator switches **Counting visits** off at the top of the Analytics page, or in Settings → Counting visits. The website stops counting. What it counted stays in the reports. Switching it on again continues.
+- **For a while.** An administrator switches **Count visits** off in Settings → Counting visits, and confirms. The website stops counting. What it counted stays in the reports, and the Analytics page says that counting is off, with a link to the setting. Switching it on again continues.
 - **On one server.** `NUXT_CMS_ANALYTICS_ENABLED=false` in the environment stops counting there, whatever the admin says. Use it on staging, or to stop at once without a deploy.
 - **For good.** Remove the plugin from `plugins` ([Switching it on](#switching-it-on)).
 

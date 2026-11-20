@@ -252,6 +252,8 @@ export default {
     fixFields: 'Please check the highlighted fields',
     unsavedConfirm: 'Your changes aren’t saved yet. If you leave now, they’re lost.',
     leaveTitle: 'Leave without saving?',
+    confirmOffTitle: 'Switch off “{name}”?',
+    confirmOffLabel: 'Switch off and save',
     unpublishTitle: 'Take it off the website?',
     unpublishBody: 'Visitors stop seeing it. It stays here as a draft, and you can publish it again any time.',
     stay: 'Stay',

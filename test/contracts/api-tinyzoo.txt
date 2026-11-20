@@ -974,6 +974,7 @@ export const f: {
         default?: boolean;
         mustBeTrue?: boolean;
         needsPrevious?: boolean;
+        confirmOff?: LocalizedText;
     }) => FieldDescriptor<ScalarKind<boolean, boolean, true>>;
     datetime: (o?: {
         default?: "now";

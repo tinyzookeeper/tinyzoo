@@ -11,7 +11,6 @@ import type { BarItem, ChartPoint } from '../app/types'
 
 definePageMeta({ layout: 'admin' })
 const { t, locale, formatDateWith, languageName } = useCmsI18n()
-const toast = useToast()
 const route = useRoute()
 const router = useRouter()
 const tx = (key: string, params?: Record<string, unknown>) => t(`plugins.analytics.${key}`, params as any)
@@ -81,22 +80,6 @@ onMounted(() => {
   liveTimer = setInterval(loadActive, 30_000)
 })
 onBeforeUnmount(() => clearInterval(liveTimer))
-
-// ── switching collecting off and on (administrators) ────────────────────────────
-const switching = ref(false)
-async function setCollecting(on: boolean) {
-  switching.value = true
-  try {
-    await $fetch('/api/cms/_singleton/analytics_settings', { method: 'PUT', body: { collect: on } })
-    await refresh()
-  }
-  catch (err: any) {
-    toast.add({ color: 'error', title: err?.data?.statusMessage ?? err?.statusMessage ?? String(err) })
-  }
-  finally {
-    switching.value = false
-  }
-}
 
 // ── the headline numbers ────────────────────────────────────────────────────────
 const fmt = (n: number) => compactNumber(n, locale.value)
@@ -208,17 +191,14 @@ const empty = computed(() => !!stats.value && stats.value.totals.pageviews === 0
           <UButton type="submit" variant="outline" color="neutral" :label="tx('period.apply')" />
         </form>
         <USwitch :model-value="compare" :label="tx('compare')" @update:model-value="(v: boolean) => setQuery({ compare: v ? undefined : '0' })" />
-        <div class="an-push flex items-center gap-2 text-sm">
-          <USwitch
-            v-if="stats?.collecting.canSwitch && stats.collecting.server" :model-value="stats.collecting.settings" :loading="switching"
-            :label="tx('collecting')" @update:model-value="(v: boolean) => setCollecting(v)"
-          />
-        </div>
       </div>
 
       <UAlert
         v-if="stats && !stats.collecting.on" color="neutral" variant="subtle" icon="i-lucide-circle-pause"
         :title="stats.collecting.server ? tx('off.settings') : tx('off.server')"
+        :actions="stats.collecting.server && stats.collecting.canSwitch
+          ? [{ label: tx('off.settingsLink'), to: '/admin/analytics_settings', color: 'neutral', variant: 'outline', trailingIcon: 'i-lucide-arrow-right' }]
+          : undefined"
       />
 
       <!-- the filters: chips, each removable -->
@@ -260,6 +240,7 @@ const empty = computed(() => !!stats.value && stats.value.totals.pageviews === 0
               </UTooltip>
             </dt>
             <dd class="mt-1 text-2xl font-semibold text-highlighted" aria-live="polite">{{ active === null ? '–' : fmt(active) }}</dd>
+            <dd class="mt-1 text-xs text-muted">{{ tx('notYou') }}</dd>
           </div>
         </dl>
 
@@ -313,7 +294,6 @@ const empty = computed(() => !!stats.value && stats.value.totals.pageviews === 0
 /* Layout the admin's own pages do not use, so it is written here (a site's Tailwind scans tinyzoo's app/ only). */
 .an-period { width: 12rem; }
 .an-date { width: 10rem; }
-.an-push { margin-inline-start: auto; }
 .an-tiles { display: grid; gap: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .an-tile--live { grid-column: span 2; }
 .an-lists { display: grid; gap: 1rem; }
