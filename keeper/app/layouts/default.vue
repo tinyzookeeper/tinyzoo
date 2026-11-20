@@ -4,21 +4,33 @@ import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 // The sidebar: the workspace switcher on top, the team switcher below it (a workspace with one
 // team has none), the pages of this workspace and team, then the teams with a health dot each.
 const { me: user, signOut } = useKeeperUser()
-const { workspace, team, role, link, swap } = useScope()
+const { me, workspace, team, role, link, swap, everywhere } = useScope()
+// Settings, password and About live in a workspace: the last one, or the first.
+const anyBase = computed(() => scopePath(me.value, useLastScope().value) ?? '')
 const colorMode = useColorMode()
 const open = ref(false)
 const close = () => { open.value = false }
 const creating = ref(false)
 
-const items = computed<NavigationMenuItem[]>(() => workspace.value
+const items = computed<NavigationMenuItem[]>(() => everywhere.value
+  ? [
+      { label: 'Overview', icon: 'i-lucide-layout-grid', to: '/home', exact: true, onSelect: close },
+      { label: 'Versions', icon: 'i-lucide-git-branch', to: '/home/versions', onSelect: close },
+    ]
+  : workspace.value
   ? [
       { label: 'Sites', icon: 'i-lucide-house', to: link(), exact: true, onSelect: close, badge: String((team.value ?? workspace.value).sites || '') || undefined },
       { label: 'Versions', icon: 'i-lucide-git-branch', to: link('/versions'), onSelect: close },
     ]
   : [])
+// On Every workspace: each workspace with its dot. In a workspace: its teams.
+const workspaceItems = computed<NavigationMenuItem[]>(() => (everywhere.value
+  ? workingWorkspaces(me.value).map((w) => ({ label: w.name, to: `/w/${w.slug}/t/all`, onSelect: close, slot: 'team' as const, health: w }))
+  : []))
 const teamItems = computed<NavigationMenuItem[]>(() => (workspace.value && workspace.value.teams.length > 1
   ? workspace.value.teams.map((t) => ({ label: t.name, to: swap(workspace.value!.slug, t.slug), active: team.value?.id === t.id, onSelect: close, slot: 'team' as const, health: t }))
   : []))
+const settingsBase = computed(() => (workspace.value ? link() : anyBase.value))
 const footerItems = computed<NavigationMenuItem[]>(() => (workspace.value ? [{ label: 'Settings', icon: 'i-lucide-settings-2', to: link('/settings'), onSelect: close }] : []))
 
 const dark = computed(() => colorMode.value === 'dark')
@@ -28,10 +40,10 @@ const menu = computed<DropdownMenuItem[][]>(() => [
   [{ label: user.value?.email ?? '', type: 'label' }],
   [
     { label: dark.value ? 'Light mode' : 'Dark mode', icon: dark.value ? 'i-lucide-sun' : 'i-lucide-moon', onSelect: () => { colorMode.preference = dark.value ? 'light' : 'dark' } },
-    ...(workspace.value
+    ...(settingsBase.value
       ? [
-          { label: 'Password', icon: 'i-lucide-key-round', to: link('/settings/password') },
-          { label: 'About Keeper', icon: 'i-lucide-info', to: link('/settings/about') },
+          { label: 'Password', icon: 'i-lucide-key-round', to: `${settingsBase.value}/settings/password` },
+          { label: 'About Keeper', icon: 'i-lucide-info', to: `${settingsBase.value}/settings/about` },
         ]
       : []),
   ],
@@ -58,9 +70,9 @@ const menu = computed<DropdownMenuItem[][]>(() => [
 
       <template #default="{ collapsed }">
         <UNavigationMenu :collapsed="collapsed" :items="items" orientation="vertical" tooltip />
-        <template v-if="teamItems.length && !collapsed">
-          <p class="mt-4 px-2.5 text-xs font-medium text-muted">Teams</p>
-          <UNavigationMenu :items="teamItems" orientation="vertical">
+        <template v-if="(teamItems.length || workspaceItems.length) && !collapsed">
+          <p class="mt-4 px-2.5 text-xs font-medium text-muted">{{ everywhere ? 'Workspaces' : 'Teams' }}</p>
+          <UNavigationMenu :items="everywhere ? workspaceItems : teamItems" orientation="vertical">
             <template #team-leading="{ item }">
               <HealthDot :health="(item as any).health" class="mx-1" />
             </template>
@@ -75,7 +87,7 @@ const menu = computed<DropdownMenuItem[][]>(() => [
             <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-(--k-moment-bg) text-xs font-semibold text-highlighted">{{ initials(user?.name || user?.email) }}</span>
             <span v-if="!collapsed" class="min-w-0 flex-1 text-left">
               <span class="block truncate text-sm font-medium text-highlighted">{{ user?.name || user?.email }}</span>
-              <span class="block truncate text-xs text-muted">{{ role ? ROLE_LABELS[role] : '' }}<template v-if="role && team?.lead"> · lead of {{ team.name }}</template></span>
+              <span class="block truncate text-xs text-muted">{{ everywhere ? `${me?.workspaces.length ?? 0} workspaces` : role ? ROLE_LABELS[role] : '' }}<template v-if="role && team?.lead"> · lead of {{ team.name }}</template></span>
             </span>
             <UIcon v-if="!collapsed" name="i-lucide-chevrons-up-down" class="size-4 shrink-0 text-dimmed" />
           </UButton>

@@ -6,6 +6,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (!loggedIn.value) return
   const me = useMe()
   if (!me.value) await refreshMe()
+  // Every workspace is for people who work in several; the others go to theirs.
+  if ((to.path === '/home' || to.path.startsWith('/home/')) && !hasEverywhere(me.value)) {
+    const where = scopePath(me.value, useLastScope().value)
+    return navigateTo(where ? `${where}${to.path.slice(5)}` : '/', { replace: true })
+  }
   const ws = typeof to.params.ws === 'string' ? to.params.ws : null
   if (!ws) return
   const w = me.value?.workspaces.find((x) => x.slug === ws)

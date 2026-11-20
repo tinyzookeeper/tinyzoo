@@ -22,7 +22,9 @@ Keeper follows Postyard's model: **workspace › team › site**.
 - A **team** is a group of sites inside a workspace: a product, or a client's sites. Every workspace has one default team (a new one starts with "General"), where new sites and invitations go when no team is named. A workspace with a single team shows no team switcher. A team's menu (*Settings → Teams*) can **move it to another workspace** with its sites, their history and its people (an owner or admin of both); a workspace left with nothing in it can then be deleted (*Settings → General*, owners).
 - A **site** belongs to one team. Its id never changes.
 
-The scope is in the address: `/w/<workspace>/t/<team|all>/…`, with `t/all` for every team you see. Slugs are made from the names once and never follow a rename. Older addresses (`/sites/<id>`, links in e-mails sent before workspaces, `/versions`, `/settings`) redirect into the right place. Keeper opens where you were last.
+**Every workspace** (`/home`) is one list of every site in all the workspaces you work in, grouped by workspace, trouble first: down, certificates running out, unreadable status, drops in visitors, server errors, an older tinyzoo. Workspaces with nothing to say fold into one line. *Versions* there (`/home/versions`) covers them all too. It is where you land when you work in more than one workspace; with one, Keeper opens that one, and a workspace where you are a guest is left out.
+
+The scope is in the address: `/w/<workspace>/t/<team|all>/…`, with `t/all` for every team you see. Slugs are made from the names once and never follow a rename. Older addresses (`/sites/<id>`, links in e-mails sent before workspaces, `/versions`, `/settings`) redirect into the right place. Inside a workspace, Keeper remembers the team you were in.
 
 | Role in a workspace | Sees | Can do |
 |---|---|---|
