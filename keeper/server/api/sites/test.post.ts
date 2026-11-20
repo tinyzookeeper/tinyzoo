@@ -6,7 +6,8 @@ import type { ConnectionTest } from '#keeper/types/keeper'
 const input = z.object({ url: z.string().max(500), token: z.string().max(500).optional(), siteId: z.string().uuid().optional() })
 
 export default defineEventHandler(async (event): Promise<ConnectionTest> => {
-  const me = await requireAccess(event, 'write')
+  const me = await requireAccess(event)
+  if (!me.memberships.some((m) => canWriteIn(me, m))) throw createError({ statusCode: 403, statusMessage: 'Only people who can add sites can test them' })
   const data = await readInput(event, input)
   const url = normalizeUrl(data.url)
   if (!url) throw createError({ statusCode: 422, statusMessage: 'url: Not a web address' })

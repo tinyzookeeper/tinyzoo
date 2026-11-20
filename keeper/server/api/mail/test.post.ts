@@ -2,7 +2,8 @@ import { eq } from 'drizzle-orm'
 
 // Send a test e-mail to myself (owner or admin), to see that the SMTP settings work.
 export default defineEventHandler(async (event) => {
-  const me = await requireManager(event)
+  const me = await requireMember(event)
+  if (!me.memberships.some(isManager)) throw createError({ statusCode: 403, statusMessage: 'Only an owner or admin can send a test e-mail' })
   if (tooManyAttempts(`mail-test:${me.userId}`, 5)) throw createError({ statusCode: 429, statusMessage: 'Too many test e-mails, try again in a few minutes' })
   const [user] = await useDb().select({ email: schema.users.email }).from(schema.users).where(eq(schema.users.id, me.userId))
   const status = mailStatus()

@@ -5,18 +5,11 @@ import type { AccessToken } from '#keeper/types/keeper'
 
 /**
  * Access tokens: `kpr_` and 43 random characters, sent as `Authorization: Bearer kpr_…`.
- * Only the SHA-256 is stored. A token acts as the person who made it, while they are in
- * the workspace. Tokens never appear in logs or error messages.
+ * Only the SHA-256 is stored. A token acts as the person who made it, in every workspace they
+ * are in (and only while they are in it). Tokens never appear in logs or error messages.
  */
 
 export type TokenScope = 'read' | 'write'
-
-export interface Access extends SignedInMember {
-  /** What this request may do: a session may do everything its role can (a viewer only reads). */
-  scope: TokenScope
-  via: 'session' | 'token'
-  tokenId: string | null
-}
 
 const PREFIX = 'kpr_'
 const TOKEN_RE = /^kpr_[\w-]{43}$/
@@ -43,8 +36,8 @@ const unauthorized = (event: H3Event, message: string) => {
   return createError({ statusCode: 401, statusMessage: message })
 }
 
-/** Who the token belongs to, or null. Failed tries are counted per address (429 after 20 in 10 minutes). */
-async function memberForToken(event: H3Event, token: string): Promise<Access> {
+/** Who the token belongs to, or 401. Failed tries are counted per address (429 after 20 in 10 minutes). */
+async function accessForToken(event: H3Event, token: string): Promise<Access> {
   const limitKey = `token:${getRequestIP(event, { xForwardedFor: true }) ?? 'unknown'}`
   if (isLimited(limitKey, 20)) throw createError({ statusCode: 429, statusMessage: 'Too many wrong tokens, try again in a few minutes' })
   const fail = () => {
@@ -55,16 +48,16 @@ async function memberForToken(event: H3Event, token: string): Promise<Access> {
 
   const db = useDb()
   const [row] = await db.select({
-    id: schema.tokens.id, workspaceId: schema.tokens.workspaceId, userId: schema.tokens.createdBy,
-    scope: schema.tokens.scope, lastUsedAt: schema.tokens.lastUsedAt, role: schema.memberships.role, allClients: schema.memberships.allClients,
-    accessExpiresAt: schema.tokens.accessExpiresAt,
+    id: schema.tokens.id, userId: schema.tokens.createdBy, scope: schema.tokens.scope,
+    lastUsedAt: schema.tokens.lastUsedAt, accessExpiresAt: schema.tokens.accessExpiresAt,
   })
     .from(schema.tokens)
-    // The person must still be in the workspace.
-    .innerJoin(schema.memberships, and(eq(schema.memberships.userId, schema.tokens.createdBy), eq(schema.memberships.workspaceId, schema.tokens.workspaceId)))
     .where(and(eq(schema.tokens.hash, hashToken(token)), isNull(schema.tokens.revokedAt)))
   // A connection signed in over OAuth: its access token lasts an hour (the client refreshes it).
   if (!row || !row.userId || (row.accessExpiresAt && row.accessExpiresAt.getTime() <= Date.now())) throw fail()
+  const memberships = await loadMemberships(row.userId)
+  // Someone in no workspace any more has nothing a token could reach.
+  if (!memberships.length) throw fail()
 
   // Note the use at most once a minute.
   const now = new Date()
@@ -72,46 +65,37 @@ async function memberForToken(event: H3Event, token: string): Promise<Access> {
     await db.update(schema.tokens).set({ lastUsedAt: now })
       .where(and(eq(schema.tokens.id, row.id), or(isNull(schema.tokens.lastUsedAt), lt(schema.tokens.lastUsedAt, new Date(now.getTime() - 60_000)))))
   }
-  const member = await memberAccess(row.workspaceId, row.userId, row.role, row.allClients)
-  // A token never does more than its maker may do now: a viewer's token only reads.
-  return { ...member, scope: canChangeSites(member) ? row.scope : 'read', via: 'token', tokenId: row.id }
+  return { userId: row.userId, scope: row.scope, via: 'token', tokenId: row.id, memberships }
 }
 
 /**
- * The member behind the request: an access token (`Authorization: Bearer kpr_…`) or the
- * session cookie, in the shape of requireMember. `need: 'write'` refuses read-only tokens
- * with 403. `tokenOnly` refuses the session (the MCP server).
+ * Who is behind the request: an access token (`Authorization: Bearer kpr_…`) or the session
+ * cookie. `tokenOnly` refuses the session (the MCP server). Whether they may write is asked per
+ * workspace (canWriteIn): a guest only looks there, a read token only looks anywhere.
  */
-export async function requireAccess(event: H3Event, need: TokenScope = 'read', opts: { tokenOnly?: boolean } = {}): Promise<Access> {
+export async function requireAccess(event: H3Event, opts: { tokenOnly?: boolean } = {}): Promise<Access> {
   const token = bearer(event)
-  let access: Access
   if (token !== null) {
     if (!token) throw unauthorized(event, 'Send the token as: Authorization: Bearer kpr_…')
-    access = await memberForToken(event, token)
+    return accessForToken(event, token)
   }
-  else if (opts.tokenOnly) {
-    throw unauthorized(event, 'Send an access token as: Authorization: Bearer kpr_… (Keeper → Settings → Access tokens)')
-  }
-  else {
-    const member = await requireMember(event)
-    access = { ...member, scope: canChangeSites(member) ? 'write' : 'read', via: 'session', tokenId: null }
-  }
-  if (need === 'write' && access.scope !== 'write') throw readOnly(access)
-  return access
+  if (opts.tokenOnly) throw unauthorized(event, 'Send an access token as: Authorization: Bearer kpr_… (Keeper → Settings → Access tokens)')
+  return requireMember(event)
 }
 
-export const readOnly = (access?: Pick<Access, 'role'>) => createError({
-  statusCode: 403,
-  statusMessage: access?.role === 'viewer'
-    ? 'Your role only looks at sites. Ask an owner or admin for more.'
-    : 'This access token is read-only. Make a write token in Settings → Access tokens.',
-})
+/** 403 for a write this request may not make in a workspace: a guest, or a read-only token. */
+export function assertWrite(access: Access, m: Membership): void {
+  if (canWriteIn(access, m)) return
+  throw createError({
+    statusCode: 403,
+    statusMessage: m.role === 'guest'
+      ? `You are a guest in ${m.name}: you can look, not change. Ask an owner or admin for more.`
+      : 'This access token is read-only. Make a write token in Settings → Access tokens.',
+  })
+}
 
-/** A token row as the list shows it. */
-export function toAccessToken(
-  r: { id: string; name: string; scope: TokenScope; prefix: string; createdAt: Date; lastUsedAt: Date | null; userId: string | null; userName: string | null; userEmail: string | null; origin?: 'manual' | 'oauth'; clientName?: string | null },
-  me: SignedInMember,
-): AccessToken {
+/** A token row as the list shows it (the list is always the person's own). */
+export function toAccessToken(r: { id: string; name: string; scope: TokenScope; prefix: string; createdAt: Date; lastUsedAt: Date | null; origin?: 'manual' | 'oauth'; clientName?: string | null }): AccessToken {
   return {
     id: r.id,
     name: r.name,
@@ -121,7 +105,5 @@ export function toAccessToken(
     client: r.origin === 'oauth' ? (r.clientName ?? 'An MCP client') : null,
     createdAt: r.createdAt.toISOString(),
     lastUsedAt: r.lastUsedAt ? r.lastUsedAt.toISOString() : null,
-    createdBy: r.userName || r.userEmail || null,
-    canRevoke: isManager(me) || r.userId === me.userId,
   }
 }

@@ -15,13 +15,13 @@ import type { TrafficTotals } from '#keeper/types/traffic'
 const DAY = 86_400_000
 const CERT_WARN_DAYS = 21
 
-const INSTRUCTIONS = `Keeper watches every tinyzoo site of this team: uptime every minute (GET /api/health/ready), the site's status every few minutes (GET /api/health/status with the site's NUXT_CMS_STATUS_TOKEN: tinyzoo version, content, sign-ins, errors), its visits about hourly when the site counts them (tinyzoo's analytics plugin: daily totals, no personal data) and its TLS certificate twice a day.
+const INSTRUCTIONS = `Keeper watches every tinyzoo site you look after: uptime every minute (GET /api/health/ready), the site's status every few minutes (GET /api/health/status with the site's NUXT_CMS_STATUS_TOKEN: tinyzoo version, content, sign-ins, errors), its visits about hourly when the site counts them (tinyzoo's analytics plugin: daily totals, no personal data) and its TLS certificate twice a day.
 
 Start with fleet_summary for what needs attention. site_traffic tells how many people visit a site and where they come from. Sites are named by id, name or address in the other tools. Results are compact JSON; fields without a value are left out. Times are ISO 8601 (UTC). "behind" means the site runs an older tinyzoo than the newest release on npm.
 
-Sites can belong to a client (list_clients); a person may be limited to some clients, and then sees only their sites. Viewers only read.
+Sites live in workspaces (a company, or one client), and inside a workspace in teams (list_workspaces). Every tool answers for all the workspaces you are in; pass \`workspace\` (its name, address slug or id) for one. Owners and admins see every team of their workspace, members and guests only their teams. Guests only read.
 
-Writes (add_site, update_site, check_site, remove_site) need a write token.`
+Writes (add_site, update_site, check_site, remove_site) need a write token, and a role that is not guest in the site's workspace.`
 
 // ── result helpers ─────────────────────────────────────────────────────────────
 
@@ -57,8 +57,17 @@ const daysUntil = (iso: string | null) => (iso ? Math.floor((Date.parse(iso) - D
 
 // ── reading the fleet ──────────────────────────────────────────────────────────
 
-async function loadFleet(access: Access) {
-  const rows = await loadSites(access)
+/** The workspace named by its name (any case), address slug or id; an error naming the choices otherwise. */
+function workspaceRef(access: Access, ref: string | undefined): string | undefined {
+  if (!ref?.trim()) return undefined
+  const q = ref.trim().toLowerCase()
+  const m = access.memberships.find((x) => x.slug === q || x.workspaceId === q) ?? access.memberships.find((x) => x.name.toLowerCase() === q)
+  if (!m) throw createError({ statusCode: 404, statusMessage: `No workspace "${ref}". Yours: ${access.memberships.map((x) => x.name).join(', ')}.` })
+  return m.slug
+}
+
+async function loadFleet(access: Access, workspace?: string) {
+  const rows = await loadSites(access, workspaceRef(access, workspace))
   const [uptime, latest, traffic] = await Promise.all([uptimeFor(rows.map((r) => r.id)), latestKnown(rows), trafficGlances(rows)])
   return { rows, latest, sites: rows.map((r) => summarize(r, uptime.get(r.id), latest, traffic.get(r.id) ?? null)) }
 }
@@ -68,7 +77,8 @@ function siteLine(s: SiteSummary) {
   return {
     id: s.id,
     name: s.name,
-    client: s.client,
+    workspace: s.workspace.name,
+    team: s.team.name,
     url: s.url,
     env: s.environment === 'staging' ? 'staging' : null,
     state: s.state,
@@ -88,8 +98,8 @@ function siteLine(s: SiteSummary) {
  * The workspace's site named by `ref`: its id, its name (any case), or its address (the
  * host is enough). Several matches or none: an error saying which.
  */
-async function findSite(access: Access, ref: string): Promise<SiteRow> {
-  const all = await loadSites(access)
+async function findSite(access: Access, ref: string, workspace?: string): Promise<SiteRow> {
+  const all = await loadSites(access, workspaceRef(access, workspace))
   const q = ref.trim()
   const lower = q.toLowerCase()
   const host = (u: string) => {
@@ -182,8 +192,8 @@ const totalsLine = (t: TrafficTotals) => ({
 // ── inputs ─────────────────────────────────────────────────────────────────────
 
 const siteRef = z.string().min(1).max(500).describe('The site: its id, its name, or its address (the host is enough, e.g. example.com).')
+const workspaceArg = z.string().max(120).optional().describe('Only this workspace: its name, address slug or id (list_workspaces). Leave out for all of yours.')
 const fields = {
-  client: z.string().max(120).optional().describe('The client the site belongs to, by name (list_clients). A new name makes a new client; "" leaves the site without one. People limited to some clients must pick one of theirs.'),
   environment: z.enum(['production', 'staging']).optional().describe('production (the default) or staging.'),
   repoUrl: z.string().max(500).optional().describe('Where the code lives, e.g. a GitHub address.'),
   notes: z.string().max(5000).optional().describe('Free notes for the team.'),
@@ -201,26 +211,51 @@ function parseSite<T extends z.ZodTypeAny>(schema: T, data: unknown): z.infer<T>
 
 // ── the server ─────────────────────────────────────────────────────────────────
 
+/**
+ * The team a new site goes to, by names: `team` in `workspace`. A workspace alone means its
+ * default team. `client` is the older name for either (a workspace or a team, by name).
+ */
+async function teamFor(access: Access, args: { workspace?: string; team?: string; client?: string }): Promise<{ teamId?: string; workspace?: string }> {
+  const ws = args.workspace ? workspaceRef(access, args.workspace) : undefined
+  const teamName = args.team?.trim().toLowerCase()
+  if (!teamName && !args.client?.trim()) return { workspace: ws }
+  const pool = ws ? [membershipOf(access, ws)] : access.memberships
+  const ids = pool.flatMap((m) => m.teamIds)
+  const teams = ids.length
+    ? await useDb().select({ id: schema.teams.id, name: schema.teams.name, slug: schema.teams.slug }).from(schema.teams).where(inArray(schema.teams.id, ids))
+    : []
+  if (teamName) {
+    const hit = teams.filter((t) => t.name.toLowerCase() === teamName || t.slug === teamName)
+    if (hit.length === 1) return { teamId: hit[0]!.id }
+    if (hit.length) throw createError({ statusCode: 409, statusMessage: `Several teams are called "${args.team}": name the workspace too.` })
+    throw createError({ statusCode: 404, statusMessage: `No team "${args.team}" you can see. list_workspaces shows them.` })
+  }
+  const c = args.client!.trim().toLowerCase()
+  const byWs = access.memberships.find((m) => m.name.toLowerCase() === c || m.slug === c)
+  if (byWs) return { workspace: byWs.slug }
+  const hit = teams.filter((t) => t.name.toLowerCase() === c)
+  if (hit.length === 1) return { teamId: hit[0]!.id }
+  throw createError({ statusCode: 404, statusMessage: `No workspace or team "${args.client}". list_workspaces shows them.` })
+}
+
 export function createKeeperMcp(event: H3Event, access: Access): McpServer {
-  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.7.0' }, { instructions: INSTRUCTIONS })
-  const canWrite = () => (access.scope === 'write' ? null : fail(access.role === 'viewer'
-    ? 'Your role in Keeper only looks at sites. Ask an owner or admin for more.'
-    : 'This access token is read-only. Make a write token in Keeper → Settings → Access tokens.'))
+  const server = new McpServer({ name: 'keeper', title: 'Keeper', version: '0.10.0' }, { instructions: INSTRUCTIONS })
+  const canWrite = () => (access.scope === 'write' ? null : fail('This access token is read-only. Make a write token in Keeper → Settings → Access tokens.'))
   const readOnlyHints = { readOnlyHint: true, openWorldHint: false }
 
   server.registerTool('fleet_summary', {
     title: 'Fleet summary',
     description: 'What needs attention across all sites, in one call: sites that are down (with the cause), sites behind the newest tinyzoo, TLS certificates expiring within 21 days (or unreadable), sites whose status cannot be read (wrong or missing status token), sites that reported server errors in the last 24 hours, and sites whose visitors dropped (the last 7 days under 40 % of the 4 weeks before). Start here.',
-    inputSchema: z.object({}),
+    inputSchema: z.object({ workspace: workspaceArg }),
     annotations: readOnlyHints,
-  }, () => run(async () => {
-    const { sites, latest } = await loadFleet(access)
+  }, ({ workspace }) => run(async () => {
+    const { sites, latest } = await loadFleet(access, workspace)
     const open = sites.length
       ? await useDb().select({ siteId: schema.incidents.siteId, startedAt: schema.incidents.startedAt, cause: schema.incidents.cause }).from(schema.incidents)
         .where(and(inArray(schema.incidents.siteId, sites.map((s) => s.id)), isNull(schema.incidents.endedAt)))
       : []
     const cause = new Map(open.map((i) => [i.siteId, i.cause]))
-    const ref = (s: SiteSummary) => ({ id: s.id, name: s.name, client: s.client })
+    const ref = (s: SiteSummary) => ({ id: s.id, name: s.name, workspace: s.workspace.name, team: s.team.name })
     const certs = sites.filter((s) => {
       const days = daysUntil(s.certExpiresAt)
       return days != null && days <= CERT_WARN_DAYS
@@ -241,48 +276,66 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
 
   server.registerTool('list_sites', {
     title: 'List sites',
-    description: 'Every site with its state, tinyzoo version, uptime over 24 hours (percent), last response time (ms), server errors in 24 hours, days until its certificate expires and any problem reading its status. Filter by client and state; "behind" picks sites on an older tinyzoo.',
+    description: 'Every site with its workspace and team, state, tinyzoo version, uptime over 24 hours (percent), last response time (ms), server errors in 24 hours, days until its certificate expires and any problem reading its status. Filter by workspace, team and state; "behind" picks sites on an older tinyzoo.',
     inputSchema: z.object({
-      client: z.string().max(120).optional().describe('Only this client\'s sites (any case, part of the name is enough).'),
+      workspace: workspaceArg,
+      team: z.string().max(120).optional().describe('Only this team\'s sites (any case, part of the name is enough).'),
+      client: z.string().max(120).optional().describe('Older name for a workspace or team filter: sites whose workspace or team name contains it.'),
       state: z.enum(['up', 'down', 'unknown', 'behind']).optional().describe('up, down, unknown (not checked yet), or behind (older tinyzoo than the newest).'),
     }),
     annotations: readOnlyHints,
-  }, ({ client, state }) => run(async () => {
-    const { sites, latest } = await loadFleet(access)
+  }, ({ workspace, team, client, state }) => run(async () => {
+    const { sites, latest } = await loadFleet(access, workspace)
     const c = client?.trim().toLowerCase()
+    const t = team?.trim().toLowerCase()
     const picked = sites
-      .filter((s) => !c || s.client.toLowerCase().includes(c))
+      .filter((s) => !c || s.workspace.name.toLowerCase().includes(c) || s.team.name.toLowerCase().includes(c))
+      .filter((s) => !t || s.team.name.toLowerCase().includes(t))
       .filter((s) => !state || (state === 'behind' ? s.outdated : s.state === state))
     return ok({ latest, count: picked.length, sites: picked.map(siteLine) })
   }))
 
-  server.registerTool('list_clients', {
-    title: 'List clients',
-    description: 'The team\'s clients you can see, each with how many sites it has. Sites belong to one client or none; use the name in list_sites (client) and in add_site / update_site.',
+  const listWorkspaces = () => run(async () => {
+    const me = await meResponse({ id: access.userId, name: '', email: '' }, access)
+    return ok({
+      count: me.workspaces.length,
+      workspaces: me.workspaces.map((w) => ({
+        name: w.name, slug: w.slug, id: w.id, role: w.role, sites: w.sites, down: w.down || null, behind: w.behind || null,
+        teams: w.teams.map((t) => ({ name: t.name, slug: t.slug, id: t.id, default: t.isDefault || null, sites: t.sites })),
+      })),
+    })
+  })
+  server.registerTool('list_workspaces', {
+    title: 'List workspaces',
+    description: 'The workspaces you are in (a company, or one client), your role in each, and the teams you see there, each with how many sites it has. Use a workspace\'s name in the other tools\' `workspace`, and a team\'s in add_site / update_site.',
     inputSchema: z.object({}),
     annotations: readOnlyHints,
-  }, () => run(async () => {
-    const clients = await listClients(access)
-    return ok({ count: clients.length, clients: clients.map((c) => ({ id: c.id, name: c.name, sites: c.sites })) })
-  }))
+  }, listWorkspaces)
+  server.registerTool('list_clients', {
+    title: 'List clients (workspaces)',
+    description: 'Older name of list_workspaces: clients are workspaces now. Lists your workspaces and their teams.',
+    inputSchema: z.object({}),
+    annotations: readOnlyHints,
+  }, listWorkspaces)
 
   server.registerTool('get_site', {
     title: 'Get a site',
     description: 'One site in full: its settings, the whole status the site reports (tinyzoo version, Node, database and migrations, collections with entry counts, accounts and sign-ins, media, webhooks, server errors, plugins), a summary of the last 24 hours of uptime checks (count, failures, uptime, average/p95/max response time, the last failure), its last 20 incidents, and its visits when it counts them (the last 7 complete days against the 7 before, any drop; site_traffic has more).',
-    inputSchema: z.object({ site: siteRef }),
+    inputSchema: z.object({ site: siteRef, workspace: workspaceArg }),
     annotations: readOnlyHints,
-  }, ({ site }) => run(async () => ok(await siteReport(await findSite(access, site)))))
+  }, ({ site, workspace }) => run(async () => ok(await siteReport(await findSite(access, site, workspace)))))
 
   server.registerTool('site_traffic', {
     title: 'Site traffic',
     description: 'How many people visit a site, from its analytics plugin (daily totals, no personal data): visitors, visits, pageviews, bounce rate and average visit time over the last `days` complete days, the same for the days just before and the change in percent, visitors per day (oldest first) or per week for long periods, and the top pages (with entry titles), sources, countries and devices. Top lists are added up from each day\'s top 10. A site without the plugin, or on an older tinyzoo, says so.',
     inputSchema: z.object({
       site: siteRef,
+      workspace: workspaceArg,
       days: z.number().int().min(7).max(365).optional().describe('How many complete days, ending yesterday (default 30, at most 365).'),
     }),
     annotations: readOnlyHints,
-  }, ({ site, days }) => run(async () => {
-    const row = await findSite(access, site)
+  }, ({ site, workspace, days }) => run(async () => {
+    const row = await findSite(access, site, workspace)
     const n = days ?? 30
     const r = await trafficReport(row, n)
     if (!r.through) {
@@ -319,10 +372,10 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   server.registerTool('list_versions', {
     title: 'List versions',
     description: 'Sites grouped by the tinyzoo version they run, newest first, with the newest release and whether each version is behind it. Sites whose version is unknown (no status yet) are listed apart, with the reason.',
-    inputSchema: z.object({}),
+    inputSchema: z.object({ workspace: workspaceArg }),
     annotations: readOnlyHints,
-  }, () => run(async () => {
-    const { sites, latest } = await loadFleet(access)
+  }, ({ workspace }) => run(async () => {
+    const { sites, latest } = await loadFleet(access, workspace)
     const groups = new Map<string, SiteSummary[]>()
     for (const s of sites) if (s.version) groups.set(s.version, [...(groups.get(s.version) ?? []), s])
     const versions = [...groups.keys()].sort(compareVersions).reverse()
@@ -331,7 +384,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
       versions: versions.map((v) => ({
         version: v,
         behind: (latest ? compareVersions(v, latest) < 0 : false) || null,
-        sites: groups.get(v)!.map((s) => ({ id: s.id, name: s.name, client: s.client })),
+        sites: groups.get(v)!.map((s) => ({ id: s.id, name: s.name, workspace: s.workspace.name, team: s.team.name })),
       })),
       unknown: sites.filter((s) => !s.version).map((s) => ({ id: s.id, name: s.name, reason: s.statusError ?? (s.hasToken ? 'Status not read yet' : 'No status token set') })),
     })
@@ -342,13 +395,15 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
     description: 'Stretches of time sites were down, newest first: when each started and ended, how long it lasted (minutes) and the cause the uptime check saw. Open incidents have no end.',
     inputSchema: z.object({
       site: siteRef.optional().describe('Only this site (id, name or address). Leave out for all sites.'),
+      workspace: workspaceArg,
       open: z.boolean().optional().describe('true: only incidents still going on.'),
       days: z.number().int().min(1).max(365).optional().describe('How far back, in days (default 30).'),
       limit: z.number().int().min(1).max(200).optional().describe('At most this many (default 50).'),
     }),
     annotations: readOnlyHints,
-  }, ({ site, open, days, limit }) => run(async () => {
-    const one = site ? await findSite(access, site) : null
+  }, ({ site, workspace, open, days, limit }) => run(async () => {
+    const ws = workspaceRef(access, workspace)
+    const one = site ? await findSite(access, site, ws) : null
     const rows = await useDb().select({
       id: schema.incidents.id, siteId: schema.sites.id, name: schema.sites.name,
       startedAt: schema.incidents.startedAt, endedAt: schema.incidents.endedAt, cause: schema.incidents.cause,
@@ -357,6 +412,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
       .innerJoin(schema.sites, eq(schema.sites.id, schema.incidents.siteId))
       .where(and(
         visibleSites(access),
+        ws ? eq(schema.sites.workspaceId, membershipOf(access, ws).workspaceId) : undefined,
         one ? eq(schema.sites.id, one.id) : undefined,
         open ? isNull(schema.incidents.endedAt) : undefined,
         gte(schema.incidents.startedAt, new Date(Date.now() - (days ?? 30) * DAY)),
@@ -385,6 +441,9 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
     inputSchema: z.object({
       name: z.string().min(1).max(120).describe('What the team calls the site.'),
       url: z.string().min(1).max(500).describe('The site\'s address, e.g. https://example.com (only the origin is kept).'),
+      workspace: z.string().max(120).optional().describe('The workspace it belongs to (name, slug or id). Needed when you can add sites in more than one; without `team` the site goes to the workspace\'s default team.'),
+      team: z.string().max(120).optional().describe('The team it belongs to, by name (list_workspaces).'),
+      client: z.string().max(120).optional().describe('Older name: a workspace or team, by name.'),
       ...fields,
       statusToken: z.string().max(500).optional().describe('The site\'s NUXT_CMS_STATUS_TOKEN, for its status (version, content, errors). Without it Keeper still checks uptime and the certificate.'),
     }),
@@ -392,13 +451,14 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   }, (args) => run(async () => {
     const denied = canWrite()
     if (denied) return denied
-    const data = parseSite(siteInput, { ...args, token: args.statusToken })
-    const [twin] = await useDb().select({ id: schema.sites.id, name: schema.sites.name }).from(schema.sites)
-      .where(and(eq(schema.sites.workspaceId, access.workspaceId), eq(schema.sites.url, data.url)))
+    const { workspace, team, client, statusToken, ...rest } = args
+    const where = await teamFor(access, { workspace, team, client })
+    const data = parseSite(siteInput, { ...rest, ...where, token: statusToken })
+    const [twin] = await useDb().select({ id: schema.sites.id, name: schema.sites.name }).from(schema.sites).where(eq(schema.sites.url, data.url))
     if (twin) {
       // Name it only to someone who may see it.
       const seen = (await selectSites(and(eq(schema.sites.id, twin.id), visibleSites(access)))).length > 0
-      return fail(seen ? `${twin.name} already watches ${data.url}. Change it with update_site.` : `Keeper already watches ${data.url} for another client of the team.`)
+      return fail(seen ? `${twin.name} already watches ${data.url}. Change it with update_site.` : `Keeper already watches ${data.url} in a workspace you are not in.`)
     }
     const id = await createSite(event, access, data, { wait: true })
     return ok({ added: true, ...(await siteReport((await siteById(id))!)) })
@@ -406,24 +466,26 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
 
   server.registerTool('update_site', {
     title: 'Change a site',
-    description: 'Change a site\'s name, client, address, environment, notes, repository or status token. Fields left out stay as they are. statusToken "" removes the stored token. A new address or token is checked straight away. Needs a write token.',
+    description: 'Change a site\'s name, team (within its workspace), address, environment, notes, repository or status token. Fields left out stay as they are. statusToken "" removes the stored token. A new address or token is checked straight away. Needs a write token.',
     inputSchema: z.object({
       site: siteRef,
       name: z.string().min(1).max(120).optional().describe('A new name.'),
       url: z.string().min(1).max(500).optional().describe('A new address (the checks start over).'),
+      team: z.string().max(120).optional().describe('Another team of the site\'s workspace, by name.'),
       ...fields,
       statusToken: z.string().max(500).optional().describe('A new NUXT_CMS_STATUS_TOKEN for the site, or "" to remove it.'),
     }),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-  }, ({ site, statusToken, ...rest }) => run(async () => {
+  }, ({ site, statusToken, team, ...rest }) => run(async () => {
     const denied = canWrite()
     if (denied) return denied
     const row = await findSite(access, site)
-    const data = parseSite(siteInput.partial(), { ...rest, ...(statusToken !== undefined ? { token: statusToken } : {}) })
+    const moveTo = team ? (await teamFor(access, { workspace: row.workspace.slug, team })).teamId : undefined
+    const data = parseSite(siteInput.partial(), { ...rest, ...(moveTo ? { teamId: moveTo } : {}), ...(statusToken !== undefined ? { token: statusToken } : {}) })
     if (!Object.keys(data).length) return fail('Nothing to change: give at least one field.')
     await updateSite(event, access, row, data, { wait: true })
     const fresh = await siteById(row.id)
-    return ok({ updated: Object.keys(data).map((k) => (k === 'token' ? 'statusToken' : k)), site: siteLine(summarize(fresh!, (await uptimeFor([row.id])).get(row.id), await latestKnown([fresh!]))) })
+    return ok({ updated: Object.keys(data).map((k) => (k === 'token' ? 'statusToken' : k === 'teamId' ? 'team' : k)), site: siteLine(summarize(fresh!, (await uptimeFor([row.id])).get(row.id), await latestKnown([fresh!]))) })
   }))
 
   server.registerTool('check_site', {
@@ -435,6 +497,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
     const denied = canWrite()
     if (denied) return denied
     const row = await findSite(access, site)
+    writableSite(access, row)
     return ok(await siteReport(row, await checkNow(row)))
   }))
 
@@ -450,6 +513,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
     const denied = canWrite()
     if (denied) return denied
     const row = await findSite(access, site)
+    writableSite(access, row)
     if (confirm !== row.name) return fail(`To remove it, pass confirm: "${row.name}" (the site's exact name).`)
     await removeSite(row)
     return ok({ removed: { id: row.id, name: row.name, url: row.url } })

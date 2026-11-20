@@ -5,7 +5,7 @@
 definePageMeta({ layout: 'bare' })
 useHead({ title: 'Connect a program · Keeper' })
 
-interface Pending { client: string; clientUri: string | null; redirectHost: string; scope: 'read' | 'write'; workspace: string }
+interface Pending { client: string; clientUri: string | null; redirectHost: string; scope: 'read' | 'write'; workspaces: string[]; canWrite: boolean }
 
 const route = useRoute()
 const { me } = useKeeperUser()
@@ -30,7 +30,7 @@ onMounted(async () => {
 
 const scopes = computed(() => [
   { value: 'read', label: 'Read', description: 'Sees sites, versions, checks and incidents.' },
-  ...(pending.value?.scope === 'write' ? [{ value: 'write', label: 'Read and write', description: 'Can also add, change, check and remove sites.' }] : []),
+  ...(pending.value?.scope === 'write' && pending.value.canWrite ? [{ value: 'write', label: 'Read and write', description: 'Can also add, change, check and remove sites.' }] : []),
 ])
 
 async function decide(approve: boolean) {
@@ -75,7 +75,7 @@ function goBack(url: string) {
       <template v-else-if="pending">
         <h1 class="k-display text-[1.5rem] leading-tight text-pretty text-highlighted">{{ pending.client }} wants to connect to Keeper</h1>
         <p class="mt-1 text-[0.9375rem] text-pretty text-(--k-moment-text)">
-          It will act as you in {{ pending.workspace }}.
+          It will act as you in {{ pending.workspaces.length === 1 ? pending.workspaces[0] : `all your ${pending.workspaces.length} workspaces` }}.
         </p>
       </template>
     </div>

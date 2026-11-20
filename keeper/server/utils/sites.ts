@@ -5,37 +5,46 @@ import { z } from 'zod'
 import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
 import type { TrafficGlance } from '#keeper/types/traffic'
 
-/** A site with the name of its client ('' without one). */
-export type SiteRow = typeof schema.sites.$inferSelect & { clientName: string }
+/** A site with where it lives: its workspace and team. */
+export type SiteRow = typeof schema.sites.$inferSelect & {
+  workspace: { id: string; slug: string; name: string }
+  team: { id: string; slug: string; name: string }
+}
 
 // ── Who sees which sites ───────────────────────────────────────────────────────────────
 
-/** The sites of the workspace this person may see: all of them, or those of their clients. */
-export function visibleSites(m: SignedInMember): SQL {
+/** The sites of the teams this person sees (in every workspace of theirs). */
+export function visibleSites(access: Pick<Access, 'memberships'>): SQL {
+  const ids = visibleTeamIds(access)
+  return ids.length ? inArray(schema.sites.teamId, ids) : sql`false`
+}
+
+/** Narrow to one workspace (slug or id) and one team (slug, or 'all'); unknown ones are 404. */
+export function scopeFilter(access: Pick<Access, 'memberships'>, workspace?: string, team?: string): SQL | undefined {
+  if (!workspace) return undefined
+  const m = membershipOf(access, workspace)
   const ws = eq(schema.sites.workspaceId, m.workspaceId)
-  if (seesAllClients(m)) return ws
-  return m.clientIds.length ? and(ws, inArray(schema.sites.clientId, m.clientIds))! : sql`false`
+  if (!team || team === 'all') return ws
+  return and(ws, sql`${schema.sites.teamId} in (select ${schema.teams.id} from ${schema.teams} where ${schema.teams.workspaceId} = ${m.workspaceId} and ${schema.teams.slug} = ${team})`)
 }
 
-/** The clients of the workspace this person may see. */
-export function visibleClients(m: SignedInMember): SQL {
-  const ws = eq(schema.clients.workspaceId, m.workspaceId)
-  if (seesAllClients(m)) return ws
-  return m.clientIds.length ? and(ws, inArray(schema.clients.id, m.clientIds))! : sql`false`
-}
-
-/** Sites with their client's name, filtered by `where`, by name. */
+/** Sites with their workspace and team, filtered by `where`, by name. */
 export async function selectSites(where: SQL | undefined): Promise<SiteRow[]> {
-  const rows = await useDb().select({ site: schema.sites, clientName: schema.clients.name })
+  const rows = await useDb().select({
+    site: schema.sites,
+    workspace: { id: schema.workspaces.id, slug: schema.workspaces.slug, name: schema.workspaces.name },
+    team: { id: schema.teams.id, slug: schema.teams.slug, name: schema.teams.name },
+  })
     .from(schema.sites)
-    .leftJoin(schema.clients, eq(schema.clients.id, schema.sites.clientId))
+    .innerJoin(schema.teams, eq(schema.teams.id, schema.sites.teamId))
+    .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.sites.workspaceId))
     .where(where)
     .orderBy(schema.sites.name)
-  return rows.map((r) => ({ ...r.site, clientName: r.clientName ?? '' }))
+  return rows.map((r) => ({ ...r.site, workspace: r.workspace, team: r.team }))
 }
 
-/** The sites this person may see. */
-export const loadSites = (m: SignedInMember) => selectSites(visibleSites(m))
+/** The sites this person may see, optionally in one workspace and team. */
+export const loadSites = (access: Pick<Access, 'memberships'>, workspace?: string, team?: string) => selectSites(and(visibleSites(access), scopeFilter(access, workspace, team)))
 
 /** One site by id (whoever asks), or undefined. */
 export async function siteById(id: string): Promise<SiteRow | undefined> {
@@ -63,8 +72,10 @@ const url = z.string().trim().min(1).max(500).transform((v, ctx) => {
 
 export const siteInput = z.object({
   name: z.string().trim().min(1).max(120),
-  /** The client's name: an existing one (any case), a new one, or '' for none. */
-  client: z.string().trim().max(120).optional(),
+  /** The team the site belongs to (its workspace follows). Left out on a new site: the default team of `workspace`. */
+  teamId: z.string().uuid().optional(),
+  /** A new site's workspace (slug or id), when no team is named. */
+  workspace: z.string().max(120).optional(),
   url,
   environment: z.enum(['production', 'staging']).optional(),
   token: z.string().trim().max(500).optional(),
@@ -73,35 +84,42 @@ export const siteInput = z.object({
 })
 
 /** The site in the address, if this person may see it; 404 otherwise (a hidden site does not exist for them). */
-export async function siteOf(event: H3Event, m: SignedInMember): Promise<SiteRow> {
+export async function siteOf(event: H3Event, access: Pick<Access, 'memberships'>): Promise<SiteRow> {
   const id = getRouterParam(event, 'id') ?? ''
   if (!/^[0-9a-f-]{36}$/i.test(id)) throw createError({ statusCode: 404, statusMessage: 'No such site' })
-  const [site] = await selectSites(and(eq(schema.sites.id, id), visibleSites(m)))
+  const [site] = await selectSites(and(eq(schema.sites.id, id), visibleSites(access)))
   if (!site) throw createError({ statusCode: 404, statusMessage: 'No such site' })
   return site
 }
 
+/** My membership of the site's workspace, refusing a write I may not make there (403). */
+export function writableSite(access: Access, site: Pick<SiteRow, 'workspaceId'>): Membership {
+  const m = membershipOf(access, site.workspaceId)
+  assertWrite(access, m)
+  return m
+}
+
 /**
- * The client a site is given, by name (any case): its id, or null for none. A name not yet
- * used makes a new client. People limited to some clients must pick one of theirs: they can
- * neither leave a site without a client nor make a new one (they would lose sight of the site).
+ * The team a site goes to: the one named (a team I see, in a workspace where I may write), or the
+ * default team of the workspace named. A member with one workspace may name neither.
  */
-export async function resolveClient(m: SignedInMember, name: string): Promise<string | null> {
-  const wanted = name.trim()
-  const all = seesAllClients(m)
-  if (!wanted) {
-    if (all) return null
-    throw createError({ statusCode: 403, statusMessage: 'Pick one of your clients for the site' })
+export async function resolveTeam(access: Access, teamId?: string, workspace?: string): Promise<{ teamId: string; workspaceId: string }> {
+  if (teamId) {
+    const m = access.memberships.find((x) => x.teamIds.includes(teamId))
+    if (!m) throw createError({ statusCode: 404, statusMessage: 'No such team' })
+    assertWrite(access, m)
+    return { teamId, workspaceId: m.workspaceId }
   }
-  const db = useDb()
-  const find = async () => (await db.select({ id: schema.clients.id }).from(schema.clients)
-    .where(and(eq(schema.clients.workspaceId, m.workspaceId), sql`lower(${schema.clients.name}) = lower(${wanted})`)))[0]?.id
-  const found = await find()
-  if (found && (all || m.clientIds.includes(found))) return found
-  if (!all) throw createError({ statusCode: 403, statusMessage: `You can only use your own clients${m.clientIds.length ? '' : ' (you have none yet)'}` })
-  // A new client; a twin made at the same moment wins and is used.
-  const [made] = await db.insert(schema.clients).values({ workspaceId: m.workspaceId, name: wanted }).onConflictDoNothing().returning({ id: schema.clients.id })
-  return made?.id ?? (await find())!
+  const writable = access.memberships.filter((x) => canWriteIn(access, x))
+  const m = workspace ? membershipOf(access, workspace) : writable.length === 1 ? writable[0]! : null
+  if (!m) throw createError({ statusCode: 422, statusMessage: 'Say which workspace (or team) the site belongs to' })
+  assertWrite(access, m)
+  const [team] = await useDb().select({ id: schema.teams.id }).from(schema.teams)
+    .where(and(eq(schema.teams.workspaceId, m.workspaceId), eq(schema.teams.isDefault, true)))
+  // A member sees only their teams: their only one, when the default is not theirs.
+  const id = team && m.teamIds.includes(team.id) ? team.id : m.teamIds.length === 1 ? m.teamIds[0]! : null
+  if (!id) throw createError({ statusCode: 422, statusMessage: `Say which of your teams in ${m.name} the site belongs to` })
+  return { teamId: id, workspaceId: m.workspaceId }
 }
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null)
@@ -113,8 +131,8 @@ export function summarize(site: SiteRow, uptime: { d1: number | null; d30: numbe
   return {
     id: site.id,
     name: site.name,
-    client: site.clientName,
-    clientId: site.clientId,
+    workspace: site.workspace,
+    team: site.team,
     url: site.url,
     environment: site.environment,
     state: site.state,
@@ -190,12 +208,12 @@ export function checkSoon(event: H3Event, siteId: string): Promise<void> {
 export type SiteInputData = z.infer<typeof siteInput>
 
 /** Add a site to the workspace, and check it straight after. */
-export async function createSite(event: H3Event, m: SignedInMember, data: SiteInputData, opts: { wait?: boolean } = {}): Promise<string> {
-  const clientId = await resolveClient(m, data.client ?? '')
+export async function createSite(event: H3Event, access: Access, data: SiteInputData, opts: { wait?: boolean } = {}): Promise<string> {
+  const { teamId, workspaceId } = await resolveTeam(access, data.teamId, data.workspace)
   const [row] = await useDb().insert(schema.sites).values({
-    workspaceId: m.workspaceId,
+    workspaceId,
+    teamId,
     name: data.name,
-    clientId,
     url: data.url,
     environment: data.environment ?? 'production',
     tokenEnc: data.token ? encryptSecret(data.token) : null,
@@ -208,13 +226,20 @@ export async function createSite(event: H3Event, m: SignedInMember, data: SiteIn
 }
 
 /** Change a site. `token` left out keeps the stored one; '' removes it. A new address or token is checked straight after. */
-export async function updateSite(event: H3Event, m: SignedInMember, site: SiteRow, data: Partial<SiteInputData>, opts: { wait?: boolean } = {}): Promise<void> {
+export async function updateSite(event: H3Event, access: Access, site: SiteRow, data: Partial<SiteInputData>, opts: { wait?: boolean } = {}): Promise<void> {
+  writableSite(access, site)
   const urlChanged = data.url !== undefined && data.url !== site.url
   const tokenChanged = data.token !== undefined
-  const clientId = data.client !== undefined ? await resolveClient(m, data.client) : undefined
+  // Another team of the same workspace (a team moves between workspaces as a whole).
+  let teamId: string | undefined
+  if (data.teamId !== undefined && data.teamId !== site.teamId) {
+    const to = await resolveTeam(access, data.teamId)
+    if (to.workspaceId !== site.workspaceId) throw createError({ statusCode: 422, statusMessage: 'A site moves only to another team of its workspace' })
+    teamId = to.teamId
+  }
   await useDb().update(schema.sites).set({
     ...(data.name !== undefined ? { name: data.name } : {}),
-    ...(clientId !== undefined ? { clientId } : {}),
+    ...(teamId !== undefined ? { teamId } : {}),
     ...(data.url !== undefined ? { url: data.url } : {}),
     ...(data.environment !== undefined ? { environment: data.environment } : {}),
     ...(data.repoUrl !== undefined ? { repoUrl: data.repoUrl } : {}),

@@ -1,26 +1,39 @@
 <script setup lang="ts">
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 
-const { me, signOut } = useKeeperUser()
+// The sidebar: the workspace switcher on top, the team switcher below it (a workspace with one
+// team has none), the pages of this workspace and team, then the teams with a health dot each.
+const { me: user, signOut } = useKeeperUser()
+const { workspace, team, role, link, swap } = useScope()
 const colorMode = useColorMode()
 const open = ref(false)
 const close = () => { open.value = false }
+const creating = ref(false)
 
-const items: NavigationMenuItem[] = [
-  { label: 'Sites', icon: 'i-lucide-house', to: '/', onSelect: close },
-  { label: 'Versions', icon: 'i-lucide-git-branch', to: '/versions', onSelect: close },
-  { label: 'Settings', icon: 'i-lucide-settings-2', to: '/settings', onSelect: close },
-]
+const items = computed<NavigationMenuItem[]>(() => workspace.value
+  ? [
+      { label: 'Sites', icon: 'i-lucide-house', to: link(), exact: true, onSelect: close, badge: String((team.value ?? workspace.value).sites || '') || undefined },
+      { label: 'Versions', icon: 'i-lucide-git-branch', to: link('/versions'), onSelect: close },
+    ]
+  : [])
+const teamItems = computed<NavigationMenuItem[]>(() => (workspace.value && workspace.value.teams.length > 1
+  ? workspace.value.teams.map((t) => ({ label: t.name, to: swap(workspace.value!.slug, t.slug), active: team.value?.id === t.id, onSelect: close, slot: 'team' as const, health: t }))
+  : []))
+const footerItems = computed<NavigationMenuItem[]>(() => (workspace.value ? [{ label: 'Settings', icon: 'i-lucide-settings-2', to: link('/settings'), onSelect: close }] : []))
 
 const dark = computed(() => colorMode.value === 'dark')
 const initials = (text: string | undefined) => (text ?? '').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || 'K'
 
 const menu = computed<DropdownMenuItem[][]>(() => [
-  [{ label: me.value?.email ?? '', type: 'label' }],
+  [{ label: user.value?.email ?? '', type: 'label' }],
   [
     { label: dark.value ? 'Light mode' : 'Dark mode', icon: dark.value ? 'i-lucide-sun' : 'i-lucide-moon', onSelect: () => { colorMode.preference = dark.value ? 'light' : 'dark' } },
-    { label: 'Settings', icon: 'i-lucide-settings-2', to: '/settings' },
-    { label: 'About Keeper', icon: 'i-lucide-info', to: '/settings#about' },
+    ...(workspace.value
+      ? [
+          { label: 'Password', icon: 'i-lucide-key-round', to: link('/settings/password') },
+          { label: 'About Keeper', icon: 'i-lucide-info', to: link('/settings/about') },
+        ]
+      : []),
   ],
   [{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: signOut }],
 ])
@@ -36,26 +49,33 @@ const menu = computed<DropdownMenuItem[][]>(() => [
       :min-size="14"
       :max-size="20"
       class="k-sidebar"
-      :ui="{ footer: 'flex-col items-stretch gap-2 border-t border-default py-3' }"
+      :ui="{ header: 'h-auto flex-col items-stretch gap-1.5 pt-3 pb-1', footer: 'flex-col items-stretch gap-2 border-t border-default py-3' }"
     >
       <template #header="{ collapsed }">
-        <NuxtLink to="/" class="flex min-w-0 items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2" :aria-label="`${me?.workspaceName ?? 'Keeper'}, all sites`">
-          <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-inverted text-[11px] font-semibold text-inverted">{{ initials(me?.workspaceName) }}</span>
-          <span v-if="!collapsed" class="k-display truncate text-[17px] text-highlighted">{{ me?.workspaceName ?? 'Keeper' }}</span>
-        </NuxtLink>
+        <WorkspaceSwitcher :collapsed="collapsed" @create="creating = true" />
+        <TeamSwitcher :collapsed="collapsed" />
       </template>
 
       <template #default="{ collapsed }">
         <UNavigationMenu :collapsed="collapsed" :items="items" orientation="vertical" tooltip />
+        <template v-if="teamItems.length && !collapsed">
+          <p class="mt-4 px-2.5 text-xs font-medium text-muted">Teams</p>
+          <UNavigationMenu :items="teamItems" orientation="vertical">
+            <template #team-leading="{ item }">
+              <HealthDot :health="(item as any).health" class="mx-1" />
+            </template>
+          </UNavigationMenu>
+        </template>
       </template>
 
       <template #footer="{ collapsed }">
+        <UNavigationMenu v-if="footerItems.length" :collapsed="collapsed" :items="footerItems" orientation="vertical" tooltip />
         <UDropdownMenu :items="menu" :content="{ side: 'top', align: 'start' }" :ui="{ content: 'w-60' }">
-          <UButton color="neutral" variant="ghost" block :square="collapsed" class="justify-start gap-2.5 px-2 py-1.5" :aria-label="`${me?.name}, menu`">
-            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-(--k-moment-bg) text-xs font-semibold text-highlighted">{{ initials(me?.name || me?.email) }}</span>
+          <UButton color="neutral" variant="ghost" block :square="collapsed" class="justify-start gap-2.5 px-2 py-1.5" :aria-label="`${user?.name}, menu`">
+            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-(--k-moment-bg) text-xs font-semibold text-highlighted">{{ initials(user?.name || user?.email) }}</span>
             <span v-if="!collapsed" class="min-w-0 flex-1 text-left">
-              <span class="block truncate text-sm font-medium text-highlighted">{{ me?.name || me?.email }}</span>
-              <span class="block truncate text-xs text-muted">{{ me ? ROLE_LABELS[me.role] : '' }}</span>
+              <span class="block truncate text-sm font-medium text-highlighted">{{ user?.name || user?.email }}</span>
+              <span class="block truncate text-xs text-muted">{{ role ? ROLE_LABELS[role] : '' }}<template v-if="role && team?.lead"> · lead of {{ team.name }}</template></span>
             </span>
             <UIcon v-if="!collapsed" name="i-lucide-chevrons-up-down" class="size-4 shrink-0 text-dimmed" />
           </UButton>
@@ -68,5 +88,6 @@ const menu = computed<DropdownMenuItem[][]>(() => [
     </UDashboardSidebar>
 
     <slot />
+    <NewWorkspaceModal v-model:open="creating" />
   </UDashboardGroup>
 </template>

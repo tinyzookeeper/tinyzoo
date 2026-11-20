@@ -1,8 +1,8 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import type { NewAccessToken } from '#keeper/types/keeper'
 
-// Make a token. Its value is answered once and never again (only its hash is kept).
+// Make a token. Its value is answered once and never again (only its hash is kept). It acts as
+// me in all my workspaces; where I am a guest it only reads, whatever its scope.
 const input = z.object({
   name: z.string().trim().min(1, 'Give it a name').max(80),
   scope: z.enum(['read', 'write']),
@@ -11,16 +11,12 @@ const input = z.object({
 export default defineEventHandler(async (event): Promise<NewAccessToken> => {
   const me = await requireMember(event)
   const data = await readInput(event, input)
-  if (data.scope === 'write' && !canChangeSites(me)) throw readOnly(me)
+  if (data.scope === 'write' && me.memberships.every((m) => m.role === 'guest')) {
+    throw createError({ statusCode: 403, statusMessage: 'You are a guest everywhere: a token of yours can only read.' })
+  }
   const { token, hash, prefix } = generateToken()
-  const [row] = await useDb().insert(schema.tokens).values({
-    workspaceId: me.workspaceId, createdBy: me.userId, name: data.name, scope: data.scope, hash, prefix,
-  }).returning()
-  const [user] = await useDb().select({ name: schema.users.name, email: schema.users.email }).from(schema.users).where(eq(schema.users.id, me.userId))
+  const [row] = await useDb().insert(schema.tokens).values({ createdBy: me.userId, name: data.name, scope: data.scope, hash, prefix }).returning()
   setResponseStatus(event, 201)
   setResponseHeader(event, 'cache-control', 'no-store')
-  return {
-    token: toAccessToken({ ...row!, userId: me.userId, userName: user?.name ?? null, userEmail: user?.email ?? null }, me),
-    value: token,
-  }
+  return { token: toAccessToken(row!), value: token }
 })
