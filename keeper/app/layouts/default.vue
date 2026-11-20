@@ -20,6 +20,7 @@ const menu = computed<DropdownMenuItem[][]>(() => [
   [
     { label: dark.value ? 'Light mode' : 'Dark mode', icon: dark.value ? 'i-lucide-sun' : 'i-lucide-moon', onSelect: () => { colorMode.preference = dark.value ? 'light' : 'dark' } },
     { label: 'Settings', icon: 'i-lucide-settings-2', to: '/settings' },
+    { label: 'About Keeper', icon: 'i-lucide-info', to: '/settings#about' },
   ],
   [{ label: 'Sign out', icon: 'i-lucide-log-out', onSelect: signOut }],
 ])

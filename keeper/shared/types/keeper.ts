@@ -168,3 +168,8 @@ export interface NewAccessToken {
   token: AccessToken
   value: string
 }
+
+/** Settings → About: the newest tinyzoo release Keeper knows, and when npm last told it (null before the first read). */
+export interface KeeperAbout {
+  tinyzoo: { version: string; checkedAt: string } | null
+}

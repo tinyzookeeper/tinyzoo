@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AccessToken, Client, ClientList, Member, MemberRole, NewAccessToken, WorkspaceSettings } from '#keeper/types/keeper'
+import type { AccessToken, Client, ClientList, KeeperAbout, Member, MemberRole, NewAccessToken, WorkspaceSettings } from '#keeper/types/keeper'
 
 useHead({ title: 'Settings · Keeper' })
 const toast = useToast()
@@ -295,6 +295,27 @@ async function revokeToken() {
   }
 }
 
+// ── About ──────────────────────────────────────────────────────────────────
+// Keeper's own version comes with the build; the newest tinyzoo release from the database.
+const build = useRuntimeConfig().public.keeper as { version: string; builtAt: string }
+const { data: about } = await useFetch<KeeperAbout>('/api/about', { key: 'about', default: () => ({ tinyzoo: null }) })
+
+// "About Keeper" in the user menu opens /settings#about. The page scrolls inside its panel,
+// not the window, so the router cannot jump there by itself. Scroll that panel only:
+// scrollIntoView would also shift the dashboard's own frame and push the sidebar away.
+const route = useRoute()
+function showHash() {
+  if (!route.hash) return
+  nextTick(() => {
+    const el = document.getElementById(route.hash.slice(1))
+    let box = el?.parentElement
+    while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement
+    if (el && box) box.scrollTo({ top: el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 24 })
+  })
+}
+onMounted(showHash)
+watch(() => route.hash, showHash)
+
 // ── My password ────────────────────────────────────────────────────────────
 const pw = reactive({ current: '', next: '' })
 const savingPw = ref(false)
@@ -316,7 +337,7 @@ async function changePassword() {
 </script>
 
 <template>
-  <AppPage title="Settings" description="Your team, your clients, who hears about outages, access tokens and your password.">
+  <AppPage title="Settings" description="Your team, your clients, who hears about outages, access tokens, your password and which Keeper this is.">
     <div class="flex max-w-3xl flex-col gap-6">
       <!-- Workspace -->
       <InfoCard title="Team and alerts">
@@ -481,6 +502,33 @@ async function changePassword() {
             <UButton type="submit" label="Change password" color="neutral" variant="outline" :loading="savingPw" />
           </div>
         </form>
+      </InfoCard>
+
+      <!-- About: which Keeper this is (the user menu links here) -->
+      <InfoCard id="about" title="About Keeper">
+        <div class="flex flex-col gap-4">
+          <div class="flex items-center gap-3">
+            <KMark class="h-11" />
+            <div class="min-w-0">
+              <p class="k-display text-xl text-highlighted tabular-nums">Keeper {{ build.version }}</p>
+              <p class="text-xs text-muted">Built {{ formatDateTime(build.builtAt) }}</p>
+            </div>
+          </div>
+          <dl class="flex flex-col gap-3 border-t border-default pt-3 text-sm">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5">
+              <dt class="text-muted">Newest tinyzoo</dt>
+              <dd v-if="about.tinyzoo" class="text-right text-highlighted">
+                <span class="tabular-nums">{{ about.tinyzoo.version }}</span>
+                <span class="text-xs text-muted"> · from npm {{ timeAgo(about.tinyzoo.checkedAt, now) }}</span>
+              </dd>
+              <dd v-else class="text-muted">Not read from npm yet</dd>
+            </div>
+          </dl>
+          <p class="border-t border-default pt-3">
+            <KBrand signature />
+            <span class="sr-only">Keeper, part of tinyzoo</span>
+          </p>
+        </div>
       </InfoCard>
     </div>
 
