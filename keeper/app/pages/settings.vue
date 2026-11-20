@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AccessToken, Client, ClientList, KeeperAbout, Member, MemberRole, NewAccessToken, WorkspaceSettings } from '#keeper/types/keeper'
+import type { AccessToken, Client, ClientList, Invitation, InviteOutcome, KeeperAbout, MailStatus, Member, MemberRole, NewAccessToken, WorkspaceSettings } from '#keeper/types/keeper'
 
 useHead({ title: 'Settings · Keeper' })
 const toast = useToast()
@@ -79,7 +79,7 @@ async function removeClient() {
     await $fetch(`/api/clients/${removingClient.value.id}`, { method: 'DELETE' })
     toast.add({ title: `${removingClient.value.name} removed`, color: 'success' })
     removingClient.value = null
-    await Promise.all([refreshClients(), refreshTeam(), refreshNuxtData('overview')])
+    await Promise.all([refreshClients(), refreshTeam(), refreshInvitations(), refreshNuxtData('overview')])
   }
   catch (err) {
     toast.add({ title: 'Could not remove the client', description: errorMessage(err), color: 'error' })
@@ -113,7 +113,7 @@ function resetAccess(m?: Member) {
 }
 const accessBody = () => ({ role: access.role, allClients: seesEverything.value || access.scope === 'all', clientIds: access.scope === 'some' ? access.clientIds : [] })
 const accessInvalid = computed(() => !seesEverything.value && access.scope === 'some' && !access.clientIds.length)
-function accessLine(m: Member): string {
+function accessLine(m: Pick<Member, 'allClients' | 'clientIds'>): string {
   if (m.allClients) return 'Every client'
   if (!m.clientIds.length) return 'No clients yet'
   return m.clientIds.map(clientName).join(', ')
@@ -148,45 +148,135 @@ async function saveEdit() {
 
 // ── Team ───────────────────────────────────────────────────────────────────
 const { data: team, refresh: refreshTeam } = await useFetch<Member[]>('/api/team', { key: 'team', default: () => [] })
+// Owners and admins only: the open invitations and how e-mail is sent.
+const requestFetch = useRequestFetch()
+const { data: invitations, refresh: refreshInvitations } = await useAsyncData('invitations', () => (isManager.value ? requestFetch<Invitation[]>('/api/team/invitations') : Promise.resolve([] as Invitation[])), { default: () => [] as Invitation[] })
+const { data: mail } = await useAsyncData('mail', () => (isManager.value ? requestFetch<MailStatus>('/api/mail') : Promise.resolve(null)), { default: () => null })
 
-const addOpen = ref(false)
-const adding = ref(false)
-const newPerson = reactive({ name: '', email: '' })
-const added = ref<{ member: Member; password: string | null } | null>(null)
-const copied = ref(false)
-
-function closeAdd() { addOpen.value = false }
-function openAdd() {
-  newPerson.name = ''
-  newPerson.email = ''
+// Invite: addresses, a role and the clients they see. The result lists each address; a link
+// shows when the e-mail did not go out (mail only logged, or it failed), to pass on by hand.
+const inviteOpen = ref(false)
+const inviteBusy = ref(false)
+const inviteEmails = ref<string[]>([])
+const outcomes = ref<InviteOutcome[] | null>(null)
+const copiedLink = ref('')
+const EMAIL_DELIMITER = /[\s,;]+/
+function openInvite() {
+  inviteEmails.value = []
   resetAccess()
-  added.value = null
-  copied.value = false
-  addOpen.value = true
+  outcomes.value = null
+  copiedLink.value = ''
+  inviteOpen.value = true
 }
-async function addPerson() {
-  adding.value = true
+function closeInvite() { inviteOpen.value = false }
+async function sendInvites() {
+  inviteBusy.value = true
   try {
-    added.value = await $fetch<{ member: Member; password: string | null }>('/api/team', { method: 'POST', body: { name: newPerson.name.trim(), email: newPerson.email.trim(), ...accessBody() } })
-    await refreshTeam()
+    const emails = inviteEmails.value.flatMap((e) => e.split(EMAIL_DELIMITER)).map((e) => e.trim()).filter(Boolean)
+    if (!emails.length) {
+      toast.add({ title: 'Add at least one e-mail address', color: 'warning' })
+      return
+    }
+    const res = await $fetch<{ outcomes: InviteOutcome[] }>('/api/team/invitations', { method: 'POST', body: { emails, ...accessBody() } })
+    outcomes.value = res.outcomes
+    await refreshInvitations()
   }
   catch (err) {
-    toast.add({ title: 'Could not add them', description: errorMessage(err), color: 'error' })
+    toast.add({ title: 'Could not invite them', description: errorMessage(err), color: 'error' })
   }
   finally {
-    adding.value = false
+    inviteBusy.value = false
   }
 }
-async function copyPassword() {
-  if (!added.value?.password) return
+async function copyLink(link: string) {
   try {
-    await navigator.clipboard.writeText(added.value.password)
-    copied.value = true
+    await navigator.clipboard.writeText(link)
+    copiedLink.value = link
   }
   catch {
-    toast.add({ title: 'Could not copy: select the password and copy it by hand.', color: 'warning' })
+    toast.add({ title: 'Could not copy: select the link and copy it by hand.', color: 'warning' })
   }
 }
+function outcomeLine(o: InviteOutcome): string {
+  if (!o.ok) return o.error ?? 'Not invited'
+  if (o.mail === 'sent') return 'E-mail sent'
+  if (o.mail === 'failed') return 'The e-mail could not be sent. Pass on this link:'
+  return 'Pass on this link:'
+}
+const inviteTitle = computed(() => {
+  if (!outcomes.value) return `Invite to ${me.value?.workspaceName ?? 'the team'}`
+  const n = outcomes.value.filter((o) => o.ok).length
+  return n ? (n === 1 ? 'Invitation ready' : `${n} invitations ready`) : 'Nobody was invited'
+})
+// While e-mail is only logged, links are shown to copy.
+const mailOff = computed(() => mail.value?.transport === 'log')
+
+const inviteBusyId = ref('')
+async function resendInvite(inv: Invitation) {
+  inviteBusyId.value = inv.id
+  try {
+    const o = await $fetch<InviteOutcome>(`/api/team/invitations/${inv.id}`, { method: 'POST' })
+    await refreshInvitations()
+    if (o.link) {
+      outcomes.value = [o]
+      copiedLink.value = ''
+      inviteOpen.value = true
+    }
+    else toast.add({ title: `Sent to ${inv.email} again`, color: 'success', icon: 'i-lucide-check' })
+  }
+  catch (err) {
+    toast.add({ title: 'Could not send it again', description: errorMessage(err), color: 'error' })
+  }
+  finally {
+    inviteBusyId.value = ''
+  }
+}
+async function cancelInvite(inv: Invitation) {
+  inviteBusyId.value = inv.id
+  try {
+    await $fetch(`/api/team/invitations/${inv.id}`, { method: 'DELETE' })
+    await refreshInvitations()
+    toast.add({ title: `Invitation for ${inv.email} taken back`, color: 'success' })
+  }
+  catch (err) {
+    toast.add({ title: 'Could not take it back', description: errorMessage(err), color: 'error' })
+  }
+  finally {
+    inviteBusyId.value = ''
+  }
+}
+function invitationLine(inv: Invitation): string {
+  const by = inv.invitedBy ? ` · by ${inv.invitedBy}` : ''
+  if (inv.expired) return `The link has expired${by}`
+  const days = Math.max(1, Math.ceil((new Date(inv.expiresAt).getTime() - now.value) / 86_400_000))
+  return `Link works ${days === 1 ? '1 more day' : `${days} more days`}${by}`
+}
+
+// A test e-mail to myself, to see the SMTP settings work.
+const testBusy = ref(false)
+async function sendTestMail() {
+  testBusy.value = true
+  try {
+    const r = await $fetch<{ status: string; to: string }>('/api/mail/test', { method: 'POST' })
+    toast.add(r.status === 'sent'
+      ? { title: `Sent to ${r.to}`, description: 'Check the inbox (and the spam folder).', color: 'success', icon: 'i-lucide-check' }
+      : { title: 'Written to the server log', description: 'E-mail is not sent while NUXT_MAIL_TRANSPORT is log.', color: 'neutral' })
+  }
+  catch (err) {
+    toast.add({ title: 'The test e-mail failed', description: errorMessage(err), color: 'error' })
+  }
+  finally {
+    testBusy.value = false
+  }
+}
+const mailLine = computed(() => {
+  const m = mail.value
+  if (!m) return ''
+  if (m.transport === 'log') return 'Not sent yet: e-mails are only written to the server log, and invitations show their link to pass on. Set NUXT_MAIL_TRANSPORT=smtp and the SMTP settings to send them.'
+  if (!m.ready) return 'SMTP is on, but the host or the sender is missing (NUXT_MAIL_SMTP_HOST, NUXT_MAIL_FROM).'
+  const sec = m.security === 'tls' ? 'TLS' : m.security === 'starttls' ? 'STARTTLS' : 'STARTTLS when offered'
+  return `Sent through ${m.host}:${m.port} (${sec}) from ${m.from}.`
+})
 
 const removing = ref<Member | null>(null)
 function askRemove(m: Member) { removing.value = m }
@@ -337,7 +427,7 @@ async function changePassword() {
 </script>
 
 <template>
-  <AppPage title="Settings" description="Your team, your clients, who hears about outages, access tokens, your password and which Keeper this is.">
+  <AppPage title="Settings" description="Your team and who you invite, your clients, who hears about outages, access tokens, your password and which Keeper this is.">
     <div class="flex max-w-3xl flex-col gap-6">
       <!-- Workspace -->
       <InfoCard title="Team and alerts">
@@ -354,6 +444,13 @@ async function changePassword() {
           </UFormField>
           <div class="flex justify-end">
             <UButton type="submit" label="Save" :loading="savingWs" />
+          </div>
+          <div v-if="mail" class="flex flex-col gap-2 border-t border-default pt-4 sm:flex-row sm:items-start sm:gap-4">
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-medium text-highlighted">E-mail</p>
+              <p class="text-sm text-pretty text-muted">{{ mailLine }}</p>
+            </div>
+            <UButton label="Send a test e-mail" icon="i-lucide-send" color="neutral" variant="outline" size="sm" class="self-start" :loading="testBusy" @click="sendTestMail" />
           </div>
         </form>
         <dl v-else-if="workspace" class="flex flex-col gap-3 text-sm">
@@ -396,7 +493,7 @@ async function changePassword() {
       <!-- Team -->
       <InfoCard title="People">
         <template #aside>
-          <UButton v-if="isManager" label="Add person" icon="i-lucide-user-plus" color="neutral" variant="outline" size="sm" @click="openAdd" />
+          <UButton v-if="isManager" label="Invite" icon="i-lucide-user-plus" color="neutral" variant="outline" size="sm" @click="openInvite" />
         </template>
         <ul class="divide-y divide-default">
           <li v-for="m in team" :key="m.id" class="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
@@ -431,6 +528,38 @@ async function changePassword() {
               square
               :aria-label="`Remove ${m.name || m.email}`"
               @click="askRemove(m)"
+            />
+          </li>
+          <li v-for="inv in invitations" :key="inv.id" class="flex items-center gap-3 py-2.5 last:pb-0">
+            <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-(--k-moment-bg) text-(--k-moment-text)">
+              <UIcon name="i-lucide-mail" class="size-4" />
+            </span>
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-sm text-highlighted">{{ inv.email }}</p>
+              <p class="truncate text-xs" :class="inv.expired ? 'text-warning' : 'text-muted'">{{ invitationLine(inv) }}</p>
+              <p v-if="inv.role !== 'owner' && inv.role !== 'admin'" class="truncate text-xs text-muted">{{ accessLine(inv) }}</p>
+            </div>
+            <UBadge :label="ROLE_LABELS[inv.role]" color="neutral" variant="outline" size="sm" class="hidden sm:inline-flex" />
+            <UBadge :label="inv.expired ? 'Expired' : 'Invited'" :color="inv.expired ? 'warning' : 'neutral'" variant="subtle" size="sm" />
+            <UButton
+              icon="i-lucide-send"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              square
+              :loading="inviteBusyId === inv.id"
+              :aria-label="`Send the invitation to ${inv.email} again`"
+              @click="resendInvite(inv)"
+            />
+            <UButton
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              square
+              :disabled="inviteBusyId === inv.id"
+              :aria-label="`Take back the invitation to ${inv.email}`"
+              @click="cancelInvite(inv)"
             />
           </li>
         </ul>
@@ -532,38 +661,58 @@ async function changePassword() {
       </InfoCard>
     </div>
 
-    <!-- Add a person; their password is shown once. -->
-    <UModal v-model:open="addOpen" :title="added ? 'Added' : 'Add a person'" :dismissible="!added || copied || !added.password">
+    <!-- Invite people; when e-mail is not sent, each link is shown to pass on. -->
+    <UModal v-model:open="inviteOpen" :title="inviteTitle" :description="outcomes ? undefined : 'They get an e-mail with a link to join.'">
       <template #body>
-        <form v-if="!added" id="add-person" class="flex flex-col gap-4" @submit.prevent="addPerson">
-          <UFormField label="Name" name="name">
-            <UInput v-model="newPerson.name" required autofocus class="w-full" />
-          </UFormField>
-          <UFormField label="Email" name="email">
-            <UInput v-model="newPerson.email" type="email" required class="w-full" />
+        <form v-if="!outcomes" id="invite" class="flex flex-col gap-4" @submit.prevent="sendInvites">
+          <UFormField label="E-mail" name="emails" description="Press Enter after each address, or paste several.">
+            <UInputTags
+              v-model="inviteEmails"
+              :delimiter="EMAIL_DELIMITER"
+              add-on-paste
+              add-on-blur
+              add-on-tab
+              :max="20"
+              placeholder="eva@example.com"
+              autofocus
+              class="w-full"
+            />
           </UFormField>
           <MemberAccessFields v-model:role="access.role" v-model:scope="access.scope" v-model:client-ids="access.clientIds" :roles="roleItems" :scopes="accessItems" :clients="clientOptions" />
-        </form>
-        <div v-else-if="added.password" class="flex flex-col gap-3">
-          <p class="text-sm text-toned">
-            Give {{ added.member.name || added.member.email }} this password. It is shown only now; they can change it in Settings.
-          </p>
-          <div class="flex items-center gap-2 rounded-lg bg-elevated p-3">
-            <code class="flex-1 select-all break-all font-mono text-sm text-highlighted">{{ added.password }}</code>
-            <UButton :icon="copied ? 'i-lucide-check' : 'i-lucide-copy'" :label="copied ? 'Copied' : 'Copy'" color="neutral" variant="outline" size="sm" @click="copyPassword" />
+          <div v-if="mailOff" class="flex gap-2.5 rounded-lg border border-(--k-moment-line) bg-(--k-moment-bg) p-3 text-sm text-pretty text-(--k-moment-text)">
+            <UIcon name="i-lucide-mail-question" class="mt-0.5 size-4 shrink-0" />
+            <span>E-mail isn’t set up on this Keeper yet, so you’ll get each link to pass on yourself.</span>
           </div>
-        </div>
-        <p v-else class="text-sm text-toned">
-          {{ added.member.name || added.member.email }} already has a Keeper account. They can sign in with their existing password.
-        </p>
+        </form>
+        <ul v-else class="flex flex-col gap-3">
+          <li v-for="o in outcomes" :key="o.email" class="flex flex-col gap-1.5">
+            <p class="flex min-w-0 items-center gap-2 text-sm">
+              <UIcon :name="!o.ok ? 'i-lucide-circle-minus' : o.mail === 'sent' ? 'i-lucide-circle-check' : 'i-lucide-link'" class="size-4 shrink-0" :class="!o.ok ? 'text-muted' : o.mail === 'failed' ? 'text-warning' : 'text-success'" />
+              <span class="truncate font-medium text-highlighted">{{ o.email }}</span>
+            </p>
+            <p class="pl-6 text-xs text-muted">{{ outcomeLine(o) }}</p>
+            <div v-if="o.link" class="ml-6 flex min-w-0 items-center gap-2 rounded-lg bg-elevated py-1.5 pr-1.5 pl-3">
+              <code class="min-w-0 flex-1 truncate font-mono text-xs text-highlighted select-all">{{ o.link }}</code>
+              <UButton
+                :icon="copiedLink === o.link ? 'i-lucide-check' : 'i-lucide-copy'"
+                :label="copiedLink === o.link ? 'Copied' : 'Copy'"
+                color="neutral"
+                variant="outline"
+                size="xs"
+                @click="copyLink(o.link)"
+              />
+            </div>
+          </li>
+        </ul>
       </template>
       <template #footer>
-        <div class="flex w-full justify-end gap-2">
-          <template v-if="!added">
-            <UButton label="Cancel" color="neutral" variant="ghost" @click="closeAdd" />
-            <UButton type="submit" form="add-person" label="Add" :loading="adding" :disabled="accessInvalid" />
+        <div class="flex w-full items-center justify-end gap-2">
+          <template v-if="!outcomes">
+            <span class="mr-auto hidden text-xs text-muted sm:inline">The link works for 7 days.</span>
+            <UButton label="Cancel" color="neutral" variant="ghost" @click="closeInvite" />
+            <UButton type="submit" form="invite" :label="inviteEmails.length > 1 ? `Send ${inviteEmails.length} invites` : 'Send invite'" :loading="inviteBusy" :disabled="accessInvalid" />
           </template>
-          <UButton v-else label="Done" @click="closeAdd" />
+          <UButton v-else label="Done" @click="closeInvite" />
         </div>
       </template>
     </UModal>

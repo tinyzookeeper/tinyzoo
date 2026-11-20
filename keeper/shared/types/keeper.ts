@@ -173,3 +173,52 @@ export interface NewAccessToken {
 export interface KeeperAbout {
   tinyzoo: { version: string; checkedAt: string } | null
 }
+
+/** How Keeper sends e-mail (Settings shows it; never the password). */
+export interface MailStatus {
+  /** smtp: sends; log: only prints each e-mail to the server log. */
+  transport: 'smtp' | 'log'
+  /** SMTP with a host and a sender. */
+  ready: boolean
+  host: string | null
+  port: number | null
+  /** tls: TLS from the start (465); starttls: required STARTTLS (587); opportunistic: STARTTLS when offered. */
+  security: 'tls' | 'starttls' | 'opportunistic' | null
+  from: string | null
+}
+
+/** An invitation in Settings → People (pending ones; an expired one can be sent again). */
+export interface Invitation {
+  id: string
+  email: string
+  role: MemberRole
+  allClients: boolean
+  clientIds: string[]
+  invitedBy: string | null
+  expiresAt: string
+  createdAt: string
+  expired: boolean
+}
+
+/** What inviting one address came to. `link` is there when the e-mail was not sent (mail is only logged, or it failed): pass it on yourself. */
+export interface InviteOutcome {
+  email: string
+  ok: boolean
+  /** Why it was not made (already in the team, already invited…). */
+  error?: string
+  /** sent, logged (NUXT_MAIL_TRANSPORT=log) or failed. */
+  mail?: 'sent' | 'logged' | 'failed'
+  link?: string
+}
+
+/** GET /api/invitations/:token — what the invitation page shows, before anyone signs in. */
+export interface InvitationPreview {
+  email: string
+  role: MemberRole
+  workspaceName: string
+  inviterName: string | null
+  expiresAt: string
+  status: 'pending' | 'accepted' | 'declined' | 'expired'
+  /** Whether Keeper already has an account for this address: then they sign in to accept. */
+  hasAccount: boolean
+}
