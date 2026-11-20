@@ -6,14 +6,19 @@ const toast = useToast()
 const { wsSlug, isManager } = useScope()
 const { data: ws, refresh } = await useFetch<WorkspaceSettings>(() => `/api/w/${wsSlug.value}`, { key: `ws-${wsSlug.value}` })
 const name = ref(ws.value?.name ?? '')
-watch(ws, (w) => { if (w) name.value = w.name })
+const signature = ref(ws.value?.signature ?? '')
+watch(ws, (w) => {
+  if (!w) return
+  name.value = w.name
+  signature.value = w.signature
+})
 const address = computed(() => `${useRequestURL().origin}/w/${ws.value?.slug ?? wsSlug.value}`)
 
 const saving = ref(false)
 async function save() {
   saving.value = true
   try {
-    await $fetch(`/api/w/${wsSlug.value}`, { method: 'PATCH', body: { name: name.value.trim() } })
+    await $fetch(`/api/w/${wsSlug.value}`, { method: 'PATCH', body: { name: name.value.trim(), signature: signature.value.trim() } })
     await Promise.all([refresh(), refreshMe()])
     toast.add({ title: 'Saved', color: 'success', icon: 'i-lucide-check' })
   }
@@ -56,6 +61,9 @@ async function remove() {
         </UFormField>
         <UFormField label="Address" name="address" description="Made from the name once. It stays when you rename the workspace, so links keep working.">
           <code class="block truncate rounded-md bg-elevated px-3 py-2 font-mono text-sm text-highlighted">{{ address }}</code>
+        </UFormField>
+        <UFormField label="Looked after by" name="signature" :description="`What the client's guests read under the name: “looked after by …”. Empty: ${ws.name}.`">
+          <UInput v-model="signature" maxlength="100" placeholder="Jagu" class="w-full" />
         </UFormField>
         <div class="flex justify-end">
           <UButton type="submit" label="Save" :loading="saving" />

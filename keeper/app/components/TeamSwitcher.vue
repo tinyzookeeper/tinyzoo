@@ -2,7 +2,7 @@
 // The team below the workspace (Postyard's switcher): "All teams", a place of its own
 // (/t/all), and each team I see. Hidden in a workspace with a single team.
 defineProps<{ collapsed?: boolean }>()
-const { workspace, team, isManager, link, swap } = useScope()
+const { workspace, team, isManager, isGuest, link, swap } = useScope()
 const open = ref(false)
 function go(to: string) {
   open.value = false
@@ -12,7 +12,7 @@ const teamInitials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0
 </script>
 
 <template>
-  <UPopover v-if="workspace && workspace.teams.length > 1" v-model:open="open" :content="{ align: 'start', sideOffset: 6 }" :ui="{ content: 'w-64 p-1.5' }">
+  <UPopover v-if="workspace && workspace.teams.length > 1 && !isGuest" v-model:open="open" :content="{ align: 'start', sideOffset: 6 }" :ui="{ content: 'w-64 p-1.5' }">
     <button
       type="button"
       class="flex w-full min-w-0 items-center gap-2 rounded-lg border border-default px-2 py-1.5 text-left text-sm transition-colors hover:bg-elevated"

@@ -4,7 +4,7 @@ import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 // The sidebar: the workspace switcher on top, the team switcher below it (a workspace with one
 // team has none), the pages of this workspace and team, then the teams with a health dot each.
 const { me: user, signOut } = useKeeperUser()
-const { me, workspace, team, role, link, swap, everywhere } = useScope()
+const { me, workspace, team, role, link, swap, everywhere, isGuest } = useScope()
 // Settings, password and About live in a workspace: the last one, or the first.
 const anyBase = computed(() => scopePath(me.value, useLastScope().value) ?? '')
 const colorMode = useColorMode()
@@ -17,6 +17,8 @@ const items = computed<NavigationMenuItem[]>(() => everywhere.value
       { label: 'Overview', icon: 'i-lucide-layout-grid', to: '/home', exact: true, onSelect: close },
       { label: 'Versions', icon: 'i-lucide-git-branch', to: '/home/versions', onSelect: close },
     ]
+  : workspace.value && isGuest.value
+  ? [{ label: 'Your sites', icon: 'i-lucide-house', to: link(), exact: true, onSelect: close }]
   : workspace.value
   ? [
       { label: 'Sites', icon: 'i-lucide-house', to: link(), exact: true, onSelect: close, badge: String((team.value ?? workspace.value).sites || '') || undefined },
@@ -27,11 +29,11 @@ const items = computed<NavigationMenuItem[]>(() => everywhere.value
 const workspaceItems = computed<NavigationMenuItem[]>(() => (everywhere.value
   ? workingWorkspaces(me.value).map((w) => ({ label: w.name, to: `/w/${w.slug}/t/all`, onSelect: close, slot: 'team' as const, health: w }))
   : []))
-const teamItems = computed<NavigationMenuItem[]>(() => (workspace.value && workspace.value.teams.length > 1
+const teamItems = computed<NavigationMenuItem[]>(() => (workspace.value && !isGuest.value && workspace.value.teams.length > 1
   ? workspace.value.teams.map((t) => ({ label: t.name, to: swap(workspace.value!.slug, t.slug), active: team.value?.id === t.id, onSelect: close, slot: 'team' as const, health: t }))
   : []))
 const settingsBase = computed(() => (workspace.value ? link() : anyBase.value))
-const footerItems = computed<NavigationMenuItem[]>(() => (workspace.value ? [{ label: 'Settings', icon: 'i-lucide-settings-2', to: link('/settings'), onSelect: close }] : []))
+const footerItems = computed<NavigationMenuItem[]>(() => (workspace.value && !isGuest.value ? [{ label: 'Settings', icon: 'i-lucide-settings-2', to: link('/settings'), onSelect: close }] : []))
 
 const dark = computed(() => colorMode.value === 'dark')
 const initials = (text: string | undefined) => (text ?? '').split(/[\s@._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || 'K'

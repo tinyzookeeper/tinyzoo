@@ -184,6 +184,10 @@ export async function moveTeam(access: Access, from: Membership, teamId: string,
 export async function meResponse(user: { id: string; name: string; email: string }, access: Access): Promise<MeResponse> {
   const ids = visibleTeamIds(access)
   const db = useDb()
+  const signatures = access.memberships.length
+    ? new Map((await db.select({ id: schema.workspaces.id, signature: schema.workspaces.signature }).from(schema.workspaces)
+        .where(inArray(schema.workspaces.id, access.memberships.map((m) => m.workspaceId)))).map((w) => [w.id, w.signature]))
+    : new Map<string, string>()
   const [teams, sites, latest] = await Promise.all([
     ids.length
       ? db.select({ id: schema.teams.id, workspaceId: schema.teams.workspaceId, name: schema.teams.name, slug: schema.teams.slug, isDefault: schema.teams.isDefault })
@@ -210,6 +214,7 @@ export async function meResponse(user: { id: string; name: string; email: string
         id: m.workspaceId,
         slug: m.slug,
         name: m.name,
+        signature: signatures.get(m.workspaceId) ?? '',
         role: m.role,
         ...health(own.map((t) => t.id)),
         teams: own.map((t) => ({ id: t.id, slug: t.slug, name: t.name, isDefault: t.isDefault, lead: m.leadTeamIds.includes(t.id), ...health([t.id]) })),

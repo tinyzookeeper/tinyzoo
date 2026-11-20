@@ -56,6 +56,10 @@ export function useScope() {
   const isManager = computed(() => role.value === 'owner' || role.value === 'admin')
   /** Adds, changes, checks and removes sites here: everyone but guests. */
   const canWrite = computed(() => !!role.value && role.value !== 'guest')
+  /** A client's person here: the guest view, their sites in plain words. */
+  const isGuest = computed(() => role.value === 'guest')
+  /** Who looks after this workspace's sites, as guests read it. */
+  const signature = computed(() => workspace.value?.signature || workspace.value?.name || '')
   const base = computed(() => (workspace.value ? `/w/${workspace.value.slug}/t/${teamSlug.value}` : ''))
   /** A path inside this workspace and team: link('/versions'). */
   const link = (path = '') => `${base.value}${path}`
@@ -68,5 +72,5 @@ export function useScope() {
   }
   /** On the Every workspace pages (/home). */
   const everywhere = computed(() => route.path === '/home' || route.path.startsWith('/home/'))
-  return { me, workspace, team, wsSlug, teamSlug, role, isOwner, isManager, canWrite, base, link, swap, everywhere }
+  return { me, workspace, team, wsSlug, teamSlug, role, isOwner, isManager, canWrite, isGuest, signature, base, link, swap, everywhere }
 }

@@ -15,6 +15,8 @@ export const workspaces = pgTable('workspaces', {
   // The workspace's part of /w/<slug>/t/<team>. Made from the name once and never follows a
   // rename, so links already shared keep working.
   slug: text('slug').notNull(),
+  // Who looks after the sites, as guests read it ("looked after by Jagu"); '' = the workspace's name.
+  signature: text('signature').notNull().default(''),
   // Who gets the down/up e-mails; empty = every member.
   alertEmails: jsonb('alert_emails').$type<string[]>().notNull().default([]),
   createdAt: ts('created_at').notNull().defaultNow(),
