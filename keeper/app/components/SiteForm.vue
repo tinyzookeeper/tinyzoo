@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ClientList, ConnectionTest, SiteInput } from '#keeper/types/keeper'
+import type { ConnectionTest, SiteInput } from '#keeper/types/keeper'
 
 // The add and edit forms. On edit the token field starts empty: left empty it keeps
 // the stored token, "Remove token" sends '' to delete it.
@@ -14,8 +14,6 @@ const props = defineProps<{
 const emit = defineEmits<{ submit: [input: SiteInput] }>()
 
 const name = ref(props.initial?.name ?? '')
-// Clearing the menu leaves it undefined: read it as none.
-const client = ref<string | undefined>(props.initial?.client ?? '')
 const url = ref(props.initial?.url ?? '')
 const environment = ref<'production' | 'staging'>(props.initial?.environment ?? 'production')
 const token = ref('')
@@ -23,20 +21,10 @@ const repoUrl = ref(props.initial?.repoUrl ?? '')
 const notes = ref(props.initial?.notes ?? '')
 const removeToken = ref(false)
 
-// The client: one of those this person sees, or (when they see every client) a new name or none.
-const { data: clientList } = await useFetch<ClientList>('/api/clients', { key: 'clients', default: () => ({ clients: [], canCreate: false }) })
-const clientNames = computed(() => {
-  const names = clientList.value.clients.map((c) => c.name)
-  const current = client.value ?? ''
-  return current && !names.some((n) => n.toLowerCase() === current.toLowerCase()) ? [current, ...names] : names
-})
-// Someone limited to one client gets it filled in.
-watch(clientList, (l) => {
-  if (!client.value && !l.canCreate && l.clients.length === 1) client.value = l.clients[0]!.name
-}, { immediate: true })
-function addClient(name: string) {
-  client.value = name.trim()
-}
+// The team: one of this workspace's teams I see (the default first). Only asked when there are several.
+const { workspace } = useScope()
+const teams = computed(() => (workspace.value?.teams ?? []).map((t) => ({ label: t.name, value: t.id })))
+const teamId = ref<string>(props.initial?.teamId ?? workspace.value?.teams[0]?.id ?? '')
 const environments = [
   { label: 'Production', value: 'production' },
   { label: 'Staging', value: 'staging' },
@@ -75,7 +63,7 @@ function toggleRemoveToken() {
 function submit() {
   const input: SiteInput = {
     name: name.value.trim(),
-    client: (client.value ?? '').trim(),
+    ...(teamId.value ? { teamId: teamId.value } : { workspace: workspace.value?.slug }),
     url: url.value.trim(),
     environment: environment.value,
     repoUrl: repoUrl.value.trim(),
@@ -92,20 +80,12 @@ const tokenPlaceholder = computed(() => (props.siteId && props.hasToken && !remo
 
 <template>
   <form class="flex flex-col gap-5" @submit.prevent="submit">
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-5" :class="teams.length > 1 ? 'sm:grid-cols-2' : ''">
       <UFormField label="Name" name="name" required>
         <UInput v-model="name" required placeholder="Studio Grand" class="w-full" />
       </UFormField>
-      <UFormField label="Client" name="client" :hint="clientList.canCreate ? 'Optional' : undefined" :required="!clientList.canCreate">
-        <UInputMenu
-          v-model="client"
-          :items="clientNames"
-          :create-item="clientList.canCreate"
-          :clear="clientList.canCreate && !!client"
-          placeholder="Grand s.r.o."
-          class="w-full"
-          @create="addClient"
-        />
+      <UFormField v-if="teams.length > 1" label="Team" name="teamId" required>
+        <USelect v-model="teamId" :items="teams" class="w-full" />
       </UFormField>
     </div>
 

@@ -1,6 +1,6 @@
 // Keeper: one overview of every tinyzoo site you look after — whether each is up, which
-// tinyzoo it runs, how its client uses it — with a way into each admin. Self-hosted for
-// now (one workspace); the tables already carry the workspace, for a hosted version later.
+// tinyzoo it runs, how its client uses it — with a way into each admin. Self-hosted, with
+// workspaces and teams as in Postyard (/w/<workspace>/t/<team>); a hosted version comes later.
 // See README.md.
 //
 // It is also a Nuxt layer: a deployment of Keeper is a small app with

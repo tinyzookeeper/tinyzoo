@@ -1,84 +1,113 @@
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
-import type { MemberRole } from '../db/schema'
+import type { WorkspaceRole } from '../db/schema'
 
-export interface SignedInMember {
-  userId: string
+/**
+ * Someone's place in one workspace: their role, and the teams whose sites they see (owners and
+ * admins: every team; members and guests: the teams they are on). `leadTeamIds`: the teams they lead.
+ */
+export interface Membership {
   workspaceId: string
-  role: MemberRole
-  /** Sees every client's sites. False: only those of `clientIds`. */
-  allClients: boolean
-  /** The clients they may see when `allClients` is false (empty otherwise). */
-  clientIds: string[]
-}
-
-/** Owners and admins: the team, the clients and the settings. */
-export const isManager = (m: Pick<SignedInMember, 'role'>) => m.role === 'owner' || m.role === 'admin'
-
-/** Whether they see every site: owners and admins always, others when given all clients. */
-export const seesAllClients = (m: Pick<SignedInMember, 'role' | 'allClients'>) => isManager(m) || m.allClients
-
-/** Viewers only look; everyone else may change the sites they see. */
-export const canChangeSites = (m: Pick<SignedInMember, 'role'>) => m.role !== 'viewer'
-
-/** The membership as access: their role, and the clients they may see when not all of them. */
-export async function memberAccess(workspaceId: string, userId: string, role: MemberRole, allClients: boolean): Promise<SignedInMember> {
-  const all = isManager({ role }) || allClients
-  const clientIds = all
-    ? []
-    : (await useDb().select({ id: schema.membershipClients.clientId }).from(schema.membershipClients)
-        .where(and(eq(schema.membershipClients.workspaceId, workspaceId), eq(schema.membershipClients.userId, userId)))).map((r) => r.id)
-  return { userId, workspaceId, role, allClients: all, clientIds }
+  slug: string
+  name: string
+  role: WorkspaceRole
+  teamIds: string[]
+  leadTeamIds: string[]
 }
 
 /**
- * The signed-in member of a workspace, or 401. The account and its membership are read
- * again on every request: a removed person or a changed password ends old sessions, and a
- * changed role or client access applies at once.
+ * Who is asking, and in which workspaces. A session may do whatever each role allows (a guest
+ * only looks); a token may do no more than its maker, and a read token only reads.
  */
-export async function requireMember(event: H3Event): Promise<SignedInMember> {
+export interface Access {
+  userId: string
+  scope: 'read' | 'write'
+  via: 'session' | 'token'
+  tokenId: string | null
+  memberships: Membership[]
+}
+
+/** Owners and admins: the workspace, its teams and people, every site. */
+export const isManager = (m: Pick<Membership, 'role'>) => m.role === 'owner' || m.role === 'admin'
+
+/** Whether this request may change the sites of a workspace: not a guest, and not a read token. */
+export const canWriteIn = (access: Pick<Access, 'scope'>, m: Pick<Membership, 'role'>) => access.scope === 'write' && m.role !== 'guest'
+
+/** Every team this person sees, in all their workspaces. */
+export const visibleTeamIds = (access: Pick<Access, 'memberships'>) => access.memberships.flatMap((m) => m.teamIds)
+
+/** All the workspaces someone is in, with what they see in each, by workspace name. */
+export async function loadMemberships(userId: string): Promise<Membership[]> {
+  const db = useDb()
+  const rows = await db.select({ workspaceId: schema.workspaces.id, slug: schema.workspaces.slug, name: schema.workspaces.name, role: schema.workspaceMembers.role })
+    .from(schema.workspaceMembers)
+    .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.workspaceMembers.workspaceId))
+    .where(eq(schema.workspaceMembers.userId, userId))
+    .orderBy(sql`lower(${schema.workspaces.name})`)
+  if (!rows.length) return []
+  const ids = rows.map((r) => r.workspaceId)
+  const [teams, mine] = await Promise.all([
+    db.select({ id: schema.teams.id, workspaceId: schema.teams.workspaceId }).from(schema.teams).where(inArray(schema.teams.workspaceId, ids)),
+    db.select({ teamId: schema.teamMembers.teamId, role: schema.teamMembers.role }).from(schema.teamMembers).where(eq(schema.teamMembers.userId, userId)),
+  ])
+  const on = new Map(mine.map((t) => [t.teamId, t.role]))
+  return rows.map((r) => {
+    const all = teams.filter((t) => t.workspaceId === r.workspaceId).map((t) => t.id)
+    return {
+      ...r,
+      teamIds: isManager(r) ? all : all.filter((id) => on.has(id)),
+      leadTeamIds: all.filter((id) => on.get(id) === 'lead'),
+    }
+  })
+}
+
+/**
+ * The signed-in person, or 401. The account is read again on every request: a changed password
+ * ends old sessions, and a changed role or team applies at once.
+ */
+export async function requireUser(event: H3Event): Promise<{ id: string; name: string; email: string }> {
   const session = await getUserSession(event)
   const user = session.user
   if (!user) throw createError({ statusCode: 401, statusMessage: 'Sign in first' })
-  const db = useDb()
-  const [row] = await db.select({ sv: schema.users.sessionVersion, role: schema.memberships.role, allClients: schema.memberships.allClients })
-    .from(schema.users)
-    .innerJoin(schema.memberships, and(eq(schema.memberships.userId, schema.users.id), eq(schema.memberships.workspaceId, user.workspaceId)))
-    .where(eq(schema.users.id, user.id))
+  const [row] = await useDb().select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, sv: schema.users.sessionVersion })
+    .from(schema.users).where(eq(schema.users.id, user.id))
   if (!row || row.sv !== session.sv) {
     await clearUserSession(event)
     throw createError({ statusCode: 401, statusMessage: 'Sign in again' })
   }
-  return memberAccess(user.workspaceId, user.id, row.role, row.allClients)
+  return { id: row.id, name: row.name, email: row.email }
 }
 
-/** An owner or admin, or 403. */
-export async function requireManager(event: H3Event): Promise<SignedInMember> {
-  const m = await requireMember(event)
-  if (!isManager(m)) throw createError({ statusCode: 403, statusMessage: 'Only an owner or admin can do this' })
+/** The signed-in person (a session, never a token) with their workspaces. */
+export async function requireMember(event: H3Event): Promise<Access> {
+  const user = await requireUser(event)
+  return { userId: user.id, scope: 'write', via: 'session', tokenId: null, memberships: await loadMemberships(user.id) }
+}
+
+/** My membership of a workspace named by its slug or id, or 404 (a workspace I am not in does not exist for me). */
+export function membershipOf(access: Pick<Access, 'memberships'>, ref: string): Membership {
+  const m = access.memberships.find((x) => x.slug === ref || x.workspaceId === ref)
+  if (!m) throw createError({ statusCode: 404, statusMessage: 'No such workspace' })
   return m
 }
 
-/** Sign a person in to a workspace: the one given, or their first one. */
-export async function startSession(event: H3Event, userId: string, workspaceId?: string): Promise<void> {
+/** The workspace in the address (`/api/w/:ws/…`) and my place in it; with `manager`, an owner or admin only (403). */
+export async function requireWorkspace(event: H3Event, opts: { manager?: boolean } = {}): Promise<{ access: Access; m: Membership }> {
+  const access = await requireMember(event)
+  const m = membershipOf(access, getRouterParam(event, 'ws') ?? '')
+  if (opts.manager && !isManager(m)) throw createError({ statusCode: 403, statusMessage: 'Only an owner or admin can do this' })
+  return { access, m }
+}
+
+/** Sign a person in. The session holds only who they are; where they are is in the address. */
+export async function startSession(event: H3Event, userId: string): Promise<void> {
   const db = useDb()
-  const [row] = await db.select({
-    id: schema.users.id, name: schema.users.name, email: schema.users.email, sv: schema.users.sessionVersion,
-    role: schema.memberships.role, workspaceId: schema.workspaces.id, workspaceName: schema.workspaces.name,
-  })
-    .from(schema.users)
-    .innerJoin(schema.memberships, eq(schema.memberships.userId, schema.users.id))
-    .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.memberships.workspaceId))
-    .where(and(eq(schema.users.id, userId), workspaceId ? eq(schema.memberships.workspaceId, workspaceId) : undefined))
-    .orderBy(schema.memberships.createdAt)
-    .limit(1)
-  if (!row) throw createError({ statusCode: 403, statusMessage: 'This account is not in any team' })
+  const [row] = await db.select({ id: schema.users.id, name: schema.users.name, email: schema.users.email, sv: schema.users.sessionVersion })
+    .from(schema.users).where(eq(schema.users.id, userId))
+  if (!row) throw createError({ statusCode: 403, statusMessage: 'No such account' })
   await db.update(schema.users).set({ lastLoginAt: new Date() }).where(eq(schema.users.id, userId))
-  await replaceUserSession(event, {
-    user: { id: row.id, name: row.name, email: row.email, role: row.role, workspaceId: row.workspaceId, workspaceName: row.workspaceName },
-    sv: row.sv,
-  })
+  await replaceUserSession(event, { user: { id: row.id, name: row.name, email: row.email }, sv: row.sv })
 }
 
 export const emailSchema = z.string().trim().toLowerCase().email().max(254)

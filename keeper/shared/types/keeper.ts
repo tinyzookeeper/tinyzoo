@@ -4,21 +4,25 @@ import type { TrafficGlance } from './traffic'
 export type { CmsStatus }
 
 /**
- * owner: everything, and the only one who makes or removes owners. admin: the team, clients
- * and settings. member: works on the sites they see. viewer: only looks (a client's people).
+ * A person's role in a workspace. owner: everything, the only one who makes or removes owners.
+ * admin: the workspace, its teams and people, every site. member: works on the sites of their
+ * teams. guest: a client's person, only looks at the sites of their teams.
  */
-export type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
+export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest'
+
+/** Where a site lives. */
+export interface SiteScope {
+  workspace: { id: string; slug: string; name: string }
+  team: { id: string; slug: string; name: string }
+}
 
 /** up: the last checks answered; down: several in a row did not; unknown: not checked yet. */
 export type SiteState = 'up' | 'down' | 'unknown'
 
 /** One row of the overview. */
-export interface SiteSummary {
+export interface SiteSummary extends SiteScope {
   id: string
   name: string
-  /** The client's name, '' without one. */
-  client: string
-  clientId: string | null
   url: string
   environment: 'production' | 'staging'
   state: SiteState
@@ -52,8 +56,6 @@ export interface OverviewResponse {
   sites: SiteSummary[]
   /** The newest tinyzoo release (npm), or the newest version in the fleet when npm is out of reach. */
   latest: string | null
-  /** The clients this person sees, by name (for the filter and the site form). */
-  clients: { id: string; name: string }[]
 }
 
 export interface CheckPoint {
@@ -84,8 +86,9 @@ export interface SiteDetail extends SiteSummary {
 /** What the add and edit forms send. `token` left out keeps the stored one; '' removes it. */
 export interface SiteInput {
   name: string
-  /** The client's name: an existing one, a new one, or '' for none. */
-  client?: string
+  /** The team (its workspace follows). On a new site without it: the default team of `workspace`. */
+  teamId?: string
+  workspace?: string
   url: string
   environment?: 'production' | 'staging'
   token?: string
@@ -106,41 +109,67 @@ export interface Member {
   id: string
   name: string
   email: string
-  role: MemberRole
-  /** Sees every client's sites (always true for owners and admins). */
-  allClients: boolean
-  /** The clients they see when not all of them. */
-  clientIds: string[]
+  role: WorkspaceRole
+  /** The teams of this workspace they are on, and those they lead. */
+  teamIds: string[]
+  leadTeamIds: string[]
   lastLoginAt: string | null
 }
 
-/** What adding or changing a person sends. */
-export interface MemberAccessInput {
-  role: MemberRole
-  allClients: boolean
-  clientIds: string[]
-}
-
-/** GET /api/clients: the clients this person sees. */
-export interface ClientList {
-  clients: Client[]
-  /** Whether they may name a new client, or leave a site without one (people who see every client). */
-  canCreate: boolean
-}
-
-/** A client in Settings. */
-export interface Client {
+/** A team in Settings → Teams. */
+export interface Team {
   id: string
   name: string
-  /** Also told about this client's sites going down, coming back, or certificates running out. */
-  alertEmails: string[]
+  slug: string
+  isDefault: boolean
   sites: number
+  people: { userId: string; name: string; email: string; role: 'lead' | 'member' }[]
+  /** Whether I may rename it and change who is on it (an owner, an admin or its lead). */
+  canManage: boolean
 }
 
+/** A workspace's settings (General and Alerts). */
 export interface WorkspaceSettings {
+  id: string
+  slug: string
   name: string
-  /** Who gets the e-mails when a site goes down or comes back; empty = every member. */
+  /** Who gets the e-mails when a site goes down or comes back; empty = everyone who works on it. Only owners and admins see it. */
   alertEmails: string[]
+  role: WorkspaceRole
+  /** Whether it can be deleted now: it has no sites (and I am an owner). */
+  canDelete: boolean
+}
+
+/** Health in a few numbers, for a switcher's dot. */
+export interface Health {
+  sites: number
+  down: number
+  /** Sites on an older tinyzoo than the newest release. */
+  behind: number
+}
+
+export interface MeTeam extends Health {
+  id: string
+  slug: string
+  name: string
+  isDefault: boolean
+  /** I lead this team. */
+  lead: boolean
+}
+
+export interface MeWorkspace extends Health {
+  id: string
+  slug: string
+  name: string
+  role: WorkspaceRole
+  /** The teams I see, the default first. */
+  teams: MeTeam[]
+}
+
+/** GET /api/me: who I am and every workspace I am in (the switchers). */
+export interface MeResponse {
+  user: { id: string; name: string; email: string }
+  workspaces: MeWorkspace[]
 }
 
 /** An access token in the list (never the token itself). */
@@ -157,10 +186,6 @@ export interface AccessToken {
   client: string | null
   createdAt: string
   lastUsedAt: string | null
-  /** Who made it (the token acts as them). */
-  createdBy: string | null
-  /** Whether the person looking may revoke it: their own, or any for an owner. */
-  canRevoke: boolean
 }
 
 /** A token just made: the only time its value is shown. */
@@ -191,9 +216,9 @@ export interface MailStatus {
 export interface Invitation {
   id: string
   email: string
-  role: MemberRole
-  allClients: boolean
-  clientIds: string[]
+  role: WorkspaceRole
+  /** The teams they join; empty: the default team. */
+  teamIds: string[]
   invitedBy: string | null
   expiresAt: string
   createdAt: string
@@ -214,8 +239,10 @@ export interface InviteOutcome {
 /** GET /api/invitations/:token — what the invitation page shows, before anyone signs in. */
 export interface InvitationPreview {
   email: string
-  role: MemberRole
+  role: WorkspaceRole
   workspaceName: string
+  /** The teams a guest is invited to look at (a colleague's teams are the workspace's business). */
+  teams: string[]
   inviterName: string | null
   expiresAt: string
   status: 'pending' | 'accepted' | 'declined' | 'expired'

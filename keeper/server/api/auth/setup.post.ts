@@ -29,9 +29,8 @@ export default defineEventHandler(async (event) => {
     await tx.execute(sql`select pg_advisory_xact_lock(4242)`)
     const [row] = await tx.select({ n: sql<number>`count(*)::int` }).from(schema.users)
     if ((row?.n ?? 0) > 0) throw createError({ statusCode: 409, statusMessage: 'Keeper is already set up' })
-    const [ws] = await tx.insert(schema.workspaces).values({ name: data.workspace }).returning({ id: schema.workspaces.id })
     const [user] = await tx.insert(schema.users).values({ email: data.email, name: data.name, passwordHash }).returning({ id: schema.users.id })
-    await tx.insert(schema.memberships).values({ workspaceId: ws!.id, userId: user!.id, role: 'owner' })
+    await createWorkspace(tx, user!.id, data.workspace)
     return user!.id
   })
   await startSession(event, userId)

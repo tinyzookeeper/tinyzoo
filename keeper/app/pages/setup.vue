@@ -15,6 +15,7 @@ async function submit() {
     const { token, ...rest } = form
     await $fetch('/api/auth/setup', { method: 'POST', body: state.value?.needsToken ? { ...rest, token } : rest })
     await refreshSession()
+    await refreshMe()
     await navigateTo('/')
   }
   catch (err) {
@@ -31,7 +32,7 @@ async function submit() {
     <div class="mb-8 text-center">
       <KMark class="mx-auto mb-6 h-20" />
       <h1 class="k-display text-[1.75rem] leading-tight text-highlighted">Welcome to Keeper</h1>
-      <p class="k-moment__muted mt-1 text-[0.9375rem] text-(--k-moment-text)">Make the first account. Your team can join later.</p>
+      <p class="k-moment__muted mt-1 text-[0.9375rem] text-(--k-moment-text)">Make the first account. Invite the others later.</p>
     </div>
 
     <form class="mt-6 flex flex-col gap-4" @submit.prevent="submit">
@@ -44,7 +45,7 @@ async function submit() {
       <UFormField label="Password" name="password" hint="At least 10 characters">
         <UInput v-model="form.password" type="password" autocomplete="new-password" required minlength="10" class="w-full" />
       </UFormField>
-      <UFormField label="Team name" name="workspace" description="Usually your studio or company.">
+      <UFormField label="Workspace name" name="workspace" description="Usually your studio or company. Clients can get workspaces of their own later.">
         <UInput v-model="form.workspace" required class="w-full" />
       </UFormField>
       <UFormField v-if="state?.needsToken" label="Setup token" name="token" description="The value of NUXT_SETUP_TOKEN on this server.">

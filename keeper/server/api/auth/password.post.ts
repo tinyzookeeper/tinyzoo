@@ -5,7 +5,7 @@ import { z } from 'zod'
 const input = z.object({ current: z.string().min(1).max(200), next: passwordSchema })
 
 export default defineEventHandler(async (event) => {
-  const me = await requireMember(event)
+  const me = { userId: (await requireUser(event)).id }
   const { current, next } = await readInput(event, input)
   const db = useDb()
   const [user] = await db.select({ hash: schema.users.passwordHash }).from(schema.users).where(eq(schema.users.id, me.userId))

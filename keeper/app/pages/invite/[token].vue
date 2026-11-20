@@ -12,12 +12,11 @@ const { loggedIn, user, fetch: refreshSession, clear } = useUserSession()
 
 const { data: invite, error: loadError } = await useFetch<InvitationPreview>(`/api/invitations/${encodeURIComponent(token)}`, { key: `invite-${token}` })
 
-const ROLE_NAMES: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Member', viewer: 'Viewer' }
 const ROLE_LINES: Record<string, string> = {
-  owner: 'You will see every site and can change everything, including who is on the team.',
-  admin: 'You will see every site and look after the team, its clients and settings.',
-  member: 'You will see the sites, whether each is up and which tinyzoo it runs, and can add and change them.',
-  viewer: 'You will see whether the sites are up, their uptime and visits. You can’t change anything.',
+  owner: 'You will see every site and can change everything, including who is in the workspace.',
+  admin: 'You will see every site and look after the workspace, its teams and people.',
+  member: 'You will see your teams’ sites, whether each is up and which tinyzoo it runs, and can add and change them.',
+  guest: 'You will see whether your sites are up, their uptime and visits. You can’t change anything.',
 }
 
 const signedInAs = computed(() => (loggedIn.value ? String((user.value as { email?: string } | null)?.email ?? '') : ''))
@@ -39,9 +38,10 @@ async function accept() {
       body.password = form.password
       if (!invite.value?.hasAccount) body.name = form.name.trim()
     }
-    await $fetch('/api/invitations/accept', { method: 'POST', body })
+    const res = await $fetch<{ workspace: string | null }>('/api/invitations/accept', { method: 'POST', body })
     await refreshSession()
-    await navigateTo('/')
+    await refreshMe()
+    await navigateTo(res.workspace ? `/w/${res.workspace}/t/all` : '/')
   }
   catch (err) {
     error.value = errorMessage(err, 'Could not accept the invitation.')
@@ -97,7 +97,8 @@ const closed = computed(() => {
         <h1 class="k-display text-[1.75rem] leading-tight text-balance text-highlighted">Join {{ invite.workspaceName }}</h1>
         <p class="mt-1 text-[0.9375rem] text-pretty text-(--k-moment-text)">
           <template v-if="invite.inviterName">{{ invite.inviterName }} invited you</template><template v-else>You are invited</template>
-          to watch {{ invite.workspaceName }}’s sites with Keeper.
+          <template v-if="invite.role === 'guest' && invite.teams.length">to see how {{ invite.teams.join(', ') }} {{ invite.teams.length === 1 ? 'is' : 'are' }} doing, looked after by {{ invite.workspaceName }}.</template>
+          <template v-else>to watch {{ invite.workspaceName }}’s sites with Keeper.</template>
         </p>
       </template>
     </div>
@@ -109,12 +110,12 @@ const closed = computed(() => {
     <template v-else>
       <dl class="k-card flex flex-col gap-2.5 p-4 text-sm">
         <div class="flex justify-between gap-4">
-          <dt class="text-muted">Team</dt>
+          <dt class="text-muted">Workspace</dt>
           <dd class="min-w-0 truncate text-right font-medium text-highlighted">{{ invite.workspaceName }}</dd>
         </div>
         <div class="flex justify-between gap-4">
           <dt class="text-muted">Your role</dt>
-          <dd class="font-medium text-highlighted">{{ ROLE_NAMES[invite.role] }}</dd>
+          <dd class="font-medium text-highlighted">{{ ROLE_LABELS[invite.role] }}</dd>
         </div>
         <div class="flex justify-between gap-4">
           <dt class="text-muted">For</dt>

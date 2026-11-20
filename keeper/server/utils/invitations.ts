@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import type { H3Event } from 'h3'
-import type { Invitation, InviteOutcome, MemberRole } from '#keeper/types/keeper'
+import type { Invitation, InviteOutcome, WorkspaceRole } from '#keeper/types/keeper'
 
 // Invitations, the way Postyard does them: an address, a role and what they will see, sent as a
 // link that works for 7 days. Keeper has no open sign-up, so an invitation is the only way in
@@ -19,26 +19,18 @@ export function newInviteToken(): { token: string; hash: string; expiresAt: Date
 
 export const inviteLink = (event: H3Event, token: string) => `${keeperBaseUrl(event)}/invite/${token}`
 
-/** Client ids that are not this workspace's are refused (422). */
-export async function assertClientsOf(workspaceId: string, ids: string[]): Promise<void> {
-  if (!ids.length) return
-  const found = await useDb().select({ id: schema.clients.id }).from(schema.clients)
-    .where(and(eq(schema.clients.workspaceId, workspaceId), inArray(schema.clients.id, ids)))
-  if (found.length !== new Set(ids).size) throw createError({ statusCode: 422, statusMessage: 'clientIds: some of these clients do not exist' })
-}
-
-const WHAT_THEY_DO: Record<MemberRole, string> = {
-  owner: 'You will see every site and can change everything, including who is on the team.',
-  admin: 'You will see every site and look after the team, its clients and settings.',
-  member: 'You will see the sites, whether each is up and which tinyzoo it runs, and can add and change them.',
-  viewer: 'You will see whether the sites are up, their uptime and visits. You can’t change anything.',
+const WHAT_THEY_DO: Record<WorkspaceRole, string> = {
+  owner: 'You will see every site and can change everything, including who is in the workspace.',
+  admin: 'You will see every site and look after the workspace, its teams and people.',
+  member: 'You will see your teams’ sites, whether each is up and which tinyzoo it runs, and can add and change them.',
+  guest: 'You will see whether your sites are up, their uptime and visits. You can’t change anything.',
 }
 
 const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;' })[c]!)
 const longDate = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 
 /** The invitation e-mail, as text and as a small HTML page in Keeper's look. */
-export function invitationMail(p: { workspaceName: string; inviterName: string | null; role: MemberRole; link: string; expiresAt: Date }) {
+export function invitationMail(p: { workspaceName: string; inviterName: string | null; role: WorkspaceRole; link: string; expiresAt: Date }) {
   const who = p.inviterName ? `${p.inviterName} invited you` : 'You are invited'
   const subject = `You're invited to ${p.workspaceName} on Keeper`
   const until = longDate(p.expiresAt)
@@ -69,7 +61,7 @@ export function invitationMail(p: { workspaceName: string; inviterName: string |
 }
 
 /** Send (or log) the e-mail for an invitation; the link comes back when it did not go out. */
-export async function deliverInvitation(event: H3Event, p: { email: string; role: MemberRole; token: string; expiresAt: Date; workspaceId: string; inviterName: string | null }): Promise<InviteOutcome> {
+export async function deliverInvitation(event: H3Event, p: { email: string; role: WorkspaceRole; token: string; expiresAt: Date; workspaceId: string; inviterName: string | null }): Promise<InviteOutcome> {
   const [ws] = await useDb().select({ name: schema.workspaces.name }).from(schema.workspaces).where(eq(schema.workspaces.id, p.workspaceId))
   const link = inviteLink(event, p.token)
   const mail = invitationMail({ workspaceName: ws?.name ?? 'Keeper', inviterName: p.inviterName, role: p.role, link, expiresAt: p.expiresAt })
@@ -83,8 +75,7 @@ export async function listInvitations(workspaceId: string): Promise<Invitation[]
     id: schema.workspaceInvitations.id,
     email: schema.workspaceInvitations.email,
     role: schema.workspaceInvitations.role,
-    allClients: schema.workspaceInvitations.allClients,
-    clientIds: schema.workspaceInvitations.clientIds,
+    teamIds: schema.workspaceInvitations.teamIds,
     expiresAt: schema.workspaceInvitations.expiresAt,
     createdAt: schema.workspaceInvitations.createdAt,
     invitedBy: schema.users.name,
@@ -102,8 +93,8 @@ export async function listInvitations(workspaceId: string): Promise<Invitation[]
   }))
 }
 
-/** An invitation of my workspace that I may touch (an admin leaves owner invitations alone), or 404/403. */
-export async function invitationOf(me: SignedInMember, id: string) {
+/** An invitation of this workspace that I may touch (an admin leaves owner invitations alone), or 404/403. */
+export async function invitationOf(me: Membership, id: string) {
   const [inv] = await useDb().select().from(schema.workspaceInvitations)
     .where(and(eq(schema.workspaceInvitations.id, id), eq(schema.workspaceInvitations.workspaceId, me.workspaceId), eq(schema.workspaceInvitations.status, 'pending')))
   if (!inv) throw createError({ statusCode: 404, statusMessage: 'No such invitation' })

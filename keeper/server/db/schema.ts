@@ -1,21 +1,24 @@
 import { sql } from 'drizzle-orm'
-import { bigint, bigserial, boolean, date, foreignKey, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { bigint, bigserial, boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import type { CmsStatus } from '../../shared/types/status'
 import type { TrafficDrop, TrafficItem } from '../../shared/types/traffic'
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date', precision: 3 })
 
 /**
- * A team that looks after sites. Self-hosted Keeper has one; every other table hangs
- * off it, so a hosted Keeper can hold many without a migration of the data.
+ * A workspace (Postyard's model): a company, or one client. It holds teams, a team holds
+ * sites. Its people, alert addresses and invitations are its own.
  */
 export const workspaces = pgTable('workspaces', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  // The workspace's part of /w/<slug>/t/<team>. Made from the name once and never follows a
+  // rename, so links already shared keep working.
+  slug: text('slug').notNull(),
   // Who gets the down/up e-mails; empty = every member.
   alertEmails: jsonb('alert_emails').$type<string[]>().notNull().default([]),
   createdAt: ts('created_at').notNull().defaultNow(),
-})
+}, (t) => [uniqueIndex('workspaces_slug_unique').on(t.slug)])
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -29,49 +32,51 @@ export const users = pgTable('users', {
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [uniqueIndex('users_email_unique').on(t.email)])
 
-export const memberships = pgTable('memberships', {
+/**
+ * Who is in a workspace, and as what. owner: everything, the only one who makes or removes
+ * owners. admin: the workspace, its teams and people, every site. member: the sites of their
+ * teams, and works on them. guest: a client's person, only looks at the sites of their teams.
+ */
+export const workspaceMembers = pgTable('workspace_members', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  /**
-   * owner: everything, and the only one who can make or remove owners. admin: the team,
-   * clients and settings. member: works on sites. viewer: only looks (a client's own people).
-   */
-  role: text('role').$type<MemberRole>().notNull().default('member'),
-  // Sees every client's sites (and sites without a client). Otherwise only the clients in
-  // membership_clients. Owners and admins always see everything.
-  allClients: boolean('all_clients').notNull().default(true),
+  role: text('role').$type<WorkspaceRole>().notNull().default('member'),
   createdAt: ts('created_at').notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.workspaceId, t.userId] })])
+}, (t) => [primaryKey({ name: 'workspace_members_pk', columns: [t.workspaceId, t.userId] }), index('workspace_members_user_idx').on(t.userId)])
 
-export type MemberRole = 'owner' | 'admin' | 'member' | 'viewer'
+export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'guest'
 
 /**
- * Whose sites they are: the team's clients. A site belongs to one client or none; what a
- * person may see can be narrowed to some clients (membership_clients).
+ * A group of sites inside a workspace: a product, or a client's sites. Every workspace has one
+ * default team (the one new sites and invitations fall back to). Owners and admins see every
+ * team; members and guests only the teams they are on.
  */
-export const clients = pgTable('clients', {
+export const teams = pgTable('teams', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  // Also told when one of the client's sites goes down, comes back or its certificate runs out.
-  alertEmails: jsonb('alert_emails').$type<string[]>().notNull().default([]),
+  // The team's part of /w/<workspace>/t/<slug>: unique in the workspace, made once from the name.
+  slug: text('slug').notNull(),
+  isDefault: boolean('is_default').notNull().default(false),
   createdAt: ts('created_at').notNull().defaultNow(),
-}, (t) => [uniqueIndex('clients_workspace_name_unique').on(t.workspaceId, sql`lower(${t.name})`)])
-
-/** The clients a person with `all_clients = false` may see. Gone with the membership or the client. */
-export const membershipClients = pgTable('membership_clients', {
-  workspaceId: uuid('workspace_id').notNull(),
-  userId: uuid('user_id').notNull(),
-  clientId: uuid('client_id').notNull().references(() => clients.id, { onDelete: 'cascade' }),
 }, (t) => [
-  primaryKey({ columns: [t.workspaceId, t.userId, t.clientId] }),
-  foreignKey({ columns: [t.workspaceId, t.userId], foreignColumns: [memberships.workspaceId, memberships.userId], name: 'membership_clients_membership_fk' }).onDelete('cascade'),
-  index('membership_clients_client_idx').on(t.clientId),
+  uniqueIndex('teams_workspace_slug_unique').on(t.workspaceId, t.slug),
+  uniqueIndex('teams_workspace_name_unique').on(t.workspaceId, sql`lower(${t.name})`),
+  // One default team per workspace.
+  uniqueIndex('teams_one_default').on(t.workspaceId).where(sql`${t.isDefault}`),
 ])
 
+/** Who is on a team. A lead changes the team's name and who is on it. */
+export const teamMembers = pgTable('team_members', {
+  teamId: uuid('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role').$type<'lead' | 'member'>().notNull().default('member'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [primaryKey({ name: 'team_members_pk', columns: [t.teamId, t.userId] }), index('team_members_user_idx').on(t.userId)])
+
 /**
- * An invitation to the team (Postyard's `workspace_invitations`): an address, the role and the
- * clients they will see. It travels as a link with a token that works for 7 days; only the
+ * An invitation to a workspace (Postyard's `workspace_invitations`): an address, the role and the
+ * teams they join. It travels as a link with a token that works for 7 days; only the
  * token's SHA-256 is kept. Accepting makes the account, or adds an existing one to the team.
  * One row per address and workspace: inviting again after an answer replaces it.
  */
@@ -80,10 +85,9 @@ export const workspaceInvitations = pgTable('workspace_invitations', {
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   // Stored lower-cased.
   email: text('email').notNull(),
-  role: text('role').$type<MemberRole>().notNull().default('member'),
-  // What a member or viewer will see, as in memberships (owners and admins see everything).
-  allClients: boolean('all_clients').notNull().default(true),
-  clientIds: jsonb('client_ids').$type<string[]>().notNull().default([]),
+  role: text('role').$type<WorkspaceRole>().notNull().default('member'),
+  // The teams they join. Empty: the workspace's default team (a guest always names teams).
+  teamIds: jsonb('team_ids').$type<string[]>().notNull().default([]),
   tokenHash: text('token_hash').notNull(),
   invitedBy: uuid('invited_by').references(() => users.id, { onDelete: 'set null' }),
   // pending, accepted or declined. A pending one past `expiresAt` has expired.
@@ -101,8 +105,8 @@ export const sites = pgTable('sites', {
   id: uuid('id').primaryKey().defaultRandom(),
   workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  // Removing the client leaves its sites without one.
-  clientId: uuid('client_id').references(() => clients.id, { onDelete: 'set null' }),
+  // The team the site belongs to (in the same workspace). A team with sites cannot be deleted.
+  teamId: uuid('team_id').notNull().references(() => teams.id, { onDelete: 'restrict' }),
   // The site's origin, no trailing slash (https://example.com).
   url: text('url').notNull(),
   environment: text('environment').$type<'production' | 'staging'>().notNull().default('production'),
@@ -138,7 +142,7 @@ export const sites = pgTable('sites', {
   trafficThrough: date('traffic_through'),
   // The drop the team was told about (once per drop); null while visits are as usual.
   trafficDrop: jsonb('traffic_drop').$type<TrafficDrop>(),
-}, (t) => [index('sites_workspace_idx').on(t.workspaceId), index('sites_client_idx').on(t.clientId)])
+}, (t) => [index('sites_workspace_idx').on(t.workspaceId), index('sites_team_idx').on(t.teamId)])
 
 /** One uptime check: GET /api/health/ready. */
 export const checks = pgTable('checks', {
@@ -223,7 +227,7 @@ export const oauthCodes = pgTable('oauth_codes', {
   id: uuid('id').primaryKey().defaultRandom(),
   codeHash: text('code_hash').notNull(),
   clientId: uuid('client_id').notNull().references(() => oauthClients.id, { onDelete: 'cascade' }),
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   redirectUri: text('redirect_uri').notNull(),
   codeChallenge: text('code_challenge').notNull(),
@@ -246,7 +250,7 @@ export const oauthCodes = pgTable('oauth_codes', {
  */
 export const tokens = pgTable('tokens', {
   id: uuid('id').primaryKey().defaultRandom(),
-  workspaceId: uuid('workspace_id').notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
   createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
   name: text('name').notNull(),
   // read: looks only; write: may also add, change, check and remove sites.

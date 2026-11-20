@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   try {
     if (!data.approve) return { redirectTo: await denyRequest(id) }
     const pending = await loadPendingRequest(id)
-    const redirectTo = await approveRequest({ requestId: id, member: me, name: data.name ?? pending?.clientName ?? 'An MCP client', scope: canChangeSites(me) ? (data.scope ?? 'read') : 'read' })
+    const redirectTo = await approveRequest({ requestId: id, userId: me.userId, name: data.name ?? pending?.clientName ?? 'An MCP client', scope: me.memberships.some((m) => m.role !== 'guest') ? (data.scope ?? 'read') : 'read' })
     return { redirectTo }
   }
   catch (err) {

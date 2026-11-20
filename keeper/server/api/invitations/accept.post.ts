@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { z } from 'zod'
 
-// Public: accept an invitation, and be signed in to its team.
+// Public: accept an invitation, and be signed in, in its workspace.
 // - Signed in with the invited address: joins with that account.
 // - A new address: makes the account here (name and password); the link is the proof of the address.
 // - An address that has an account: its password, so the link alone never opens an account.
@@ -61,27 +61,34 @@ export default defineEventHandler(async (event) => {
       if (!made) throw createError({ statusCode: 409, statusMessage: 'An account with this address was just made: sign in to accept' })
       id = made.id
     }
-    const inserted = await tx.insert(schema.memberships).values({ workspaceId: inv.workspaceId, userId: id, role: inv.role }).onConflictDoNothing().returning()
+    // The teams it names, if they still exist; none named: the default team (a guest always names some).
+    const picked = inv.teamIds.length
+      ? (await tx.select({ id: schema.teams.id }).from(schema.teams).where(and(eq(schema.teams.workspaceId, inv.workspaceId), inArray(schema.teams.id, inv.teamIds)))).map((t) => t.id)
+      : []
+    const inserted = await tx.insert(schema.workspaceMembers).values({ workspaceId: inv.workspaceId, userId: id, role: inv.role }).onConflictDoNothing().returning()
+    let teamIds = picked
     if (inserted.length) {
-      // Clients removed since the invitation went out are left out.
-      const clientIds = inv.clientIds.length
-        ? (await tx.select({ id: schema.clients.id }).from(schema.clients).where(and(eq(schema.clients.workspaceId, inv.workspaceId), inArray(schema.clients.id, inv.clientIds)))).map((c) => c.id)
-        : []
-      await setMemberClients(tx, inv.workspaceId, id, { role: inv.role, allClients: inv.allClients, clientIds })
+      if (!inv.teamIds.length && inv.role !== 'guest') {
+        const fallback = await defaultTeamId(tx, inv.workspaceId)
+        teamIds = fallback ? [fallback] : []
+      }
+      if (inv.role === 'guest' && !teamIds.length) throw createError({ statusCode: 409, statusMessage: 'The teams this invitation was for are gone. Ask them to invite you again.' })
     }
     else {
-      // Already in the team (Postyard's rule): a viewer invited to work on the sites becomes
-      // that role; nobody loses access by accepting an invitation.
-      const [current] = await tx.select({ role: schema.memberships.role }).from(schema.memberships)
-        .where(and(eq(schema.memberships.workspaceId, inv.workspaceId), eq(schema.memberships.userId, id)))
-      if (current?.role === 'viewer' && inv.role !== 'viewer') {
-        await tx.update(schema.memberships).set({ role: inv.role })
-          .where(and(eq(schema.memberships.workspaceId, inv.workspaceId), eq(schema.memberships.userId, id)))
+      // Already in the workspace (Postyard's rule): a guest invited as a colleague becomes one;
+      // nobody loses access by accepting an invitation. Only the teams it names are added.
+      const [current] = await tx.select({ role: schema.workspaceMembers.role }).from(schema.workspaceMembers)
+        .where(and(eq(schema.workspaceMembers.workspaceId, inv.workspaceId), eq(schema.workspaceMembers.userId, id)))
+      if (current?.role === 'guest' && inv.role !== 'guest') {
+        await tx.update(schema.workspaceMembers).set({ role: inv.role })
+          .where(and(eq(schema.workspaceMembers.workspaceId, inv.workspaceId), eq(schema.workspaceMembers.userId, id)))
       }
     }
+    if (teamIds.length) await tx.insert(schema.teamMembers).values(teamIds.map((teamId) => ({ teamId, userId: id!, role: 'member' as const }))).onConflictDoNothing()
     await tx.update(schema.workspaceInvitations).set({ status: 'accepted', updatedAt: new Date() }).where(eq(schema.workspaceInvitations.id, inv.id))
     return id
   })
-  await startSession(event, joined, inv.workspaceId)
-  return { ok: true }
+  await startSession(event, joined)
+  const [ws] = await db.select({ slug: schema.workspaces.slug }).from(schema.workspaces).where(eq(schema.workspaces.id, inv.workspaceId))
+  return { ok: true, workspace: ws?.slug ?? null }
 })

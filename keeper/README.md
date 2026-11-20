@@ -2,7 +2,7 @@
 
 One overview of every tinyzoo site you look after: whether each one is up, which tinyzoo it runs, how its client uses the admin, and a way into each admin.
 
-Self-hosted for now, with one team (a *workspace*). Every table already carries the workspace, so a hosted Keeper for many teams can come later without moving data.
+Self-hosted, with as many workspaces as you look after (one per client, say). A hosted Keeper with open sign-up comes later, on the same code.
 
 ## What it does
 
@@ -14,20 +14,30 @@ Self-hosted for now, with one team (a *workspace*). Every table already carries 
 - **Traffic drops.** When a site's last 7 complete days have fewer than 40 % of the visitors a day of the 4 weeks before, Keeper e-mails once and lists the site under *Needs you*. This only applies to sites with at least 20 visitors a day in those 4 weeks and 5 weeks of counting. Keeper e-mails again when visits are back to 60 % of the usual level. After 4 weeks the lower level counts as the new usual one, and the site leaves *Needs you* without an e-mail. A drop like that is often a broken deploy, a tracker left out of the pages, or a site that lost its place in search.
 - **Into the admin.** Every site has an *Open admin* button.
 
-## Clients, roles and access
+## Workspaces, teams and people
 
-Sites belong to a client (or none): name one on the site form, or add clients in Settings. The site list filters by client (`/?client=<id>`), and a client can have its own alert addresses, told on top of the team's.
+Keeper follows Postyard's model: **workspace › team › site**.
 
-| Role | Sees | Can do |
+- A **workspace** is a company, or one client. Its people, alert addresses and invitations are its own. The workspace switcher sits at the top of the sidebar; *New workspace* makes one you own.
+- A **team** is a group of sites inside a workspace: a product, or a client's sites. Every workspace has one default team (a new one starts with "General"), where new sites and invitations go when no team is named. A workspace with a single team shows no team switcher. A team's menu (*Settings → Teams*) can **move it to another workspace** with its sites, their history and its people (an owner or admin of both); a workspace left with nothing in it can then be deleted (*Settings → General*, owners).
+- A **site** belongs to one team. Its id never changes.
+
+The scope is in the address: `/w/<workspace>/t/<team|all>/…`, with `t/all` for every team you see. Slugs are made from the names once and never follow a rename. Older addresses (`/sites/<id>`, links in e-mails sent before workspaces, `/versions`, `/settings`) redirect into the right place. Keeper opens where you were last.
+
+| Role in a workspace | Sees | Can do |
 |---|---|---|
-| Owner | every site | everything; the only one who makes or removes owners |
-| Admin | every site | the team, clients, settings and sites |
-| Member | every client, or only some | add, change, check and remove the sites they see |
-| Viewer | every client, or only some | only look: for a client's own people |
+| Owner | every team | everything; the only one who makes or removes owners, deletes the workspace |
+| Admin | every team | the workspace, its teams, people, alerts and sites |
+| Member | the teams they are on | add, change, check and remove those teams' sites |
+| Guest | the teams they are on | only look: for a client's own people |
 
-**Invitations.** People join by invitation only; there is no sign-up page. An owner or admin opens *Settings → People → Invite*, enters one or more addresses, a role and the clients they will see. Each gets an e-mail with a link that works for 7 days. The link makes the account (name and password), or, for an address that already has one, asks its password and adds it to the team. While e-mail is not set up (`NUXT_MAIL_TRANSPORT=log`), or when sending fails, the dialog shows each link to pass on yourself. Open invitations are listed under People, where they can be sent again (a new link, 7 more days) or taken back. Only an owner invites an owner. The first account is still made on the setup page.
+On a team, someone is a **lead** or a **member**. A lead renames the team and chooses who is on it.
 
-People limited to some clients see only those clients' sites, everywhere: the API, traffic, the MCP server and alert e-mails (without the team's alert addresses, alerts go to everyone who works on that site, not to viewers). Tokens act as their maker, so a viewer's token only reads.
+**Invitations.** People join by invitation only; there is no sign-up page. An owner or admin opens *Settings → People → Invite*, enters one or more addresses, a role and the teams they join (none: the default team; a guest always names teams). Each gets an e-mail with a link that works for 7 days. The link makes the account (name and password), or, for an address that already has one, asks its password and adds it to the workspace. While e-mail is not set up (`NUXT_MAIL_TRANSPORT=log`), or when sending fails, the dialog shows each link to pass on yourself. Open invitations are listed under People, where they can be sent again (a new link, 7 more days) or taken back. Only an owner invites an owner. The first account (and its workspace) is made on the setup page.
+
+What someone sees holds everywhere: the API, traffic, the MCP server and alert e-mails. A workspace's alert addresses hear about all its sites; without them, alerts go to everyone there who works on the site (owners, admins and the members of its team, never guests). Tokens are personal: one acts as its maker in every workspace they are in, and only reads where they are a guest.
+
+**From clients to workspaces (0.10.0).** Migration 0008 turns each client of the old single workspace into a workspace of its own, with one team named after the client holding its sites. Each client's "also alert" addresses join its workspace's alert list (with the people who heard before). People join the client workspaces they could see (owners and admins all of them), viewers become guests, and existing tokens keep working.
 
 ## Connect a site
 
@@ -36,7 +46,7 @@ People limited to some clients see only those clients' sites, everywhere: the AP
 
 ## The MCP server, OAuth and access tokens
 
-`POST /mcp` is an MCP server (Streamable HTTP, stateless, both protocol eras). Read tools: `fleet_summary` (also traffic drops), `list_sites`, `list_clients`, `get_site` (also this week's visitors against last), `site_traffic` (visitors, pageviews, the trend and the top lists over 7 to 365 days), `list_versions`, `list_incidents`. Write tools, for a write grant: `add_site`, `update_site`, `check_site`, `remove_site`. They go through the same code as the API, and no tool ever returns a site's status token.
+`POST /mcp` is an MCP server (Streamable HTTP, stateless, both protocol eras). Read tools: `fleet_summary` (also traffic drops), `list_workspaces` (`list_clients` is its older name), `list_sites`, `get_site` (also this week's visitors against last), `site_traffic` (visitors, pageviews, the trend and the top lists over 7 to 365 days), `list_versions`, `list_incidents`. Write tools, for a write grant: `add_site`, `update_site`, `check_site`, `remove_site`. Every tool answers for all your workspaces, or for one given as `workspace` (name, slug or id); `add_site` takes `workspace` and `team`. They go through the same code as the API, and no tool ever returns a site's status token.
 
 **Signing in (OAuth).** A program that speaks OAuth needs only the address. It finds Keeper's sign-in from the 401 (`/.well-known/oauth-protected-resource`, RFC 9728), registers itself (RFC 7591) and sends you to Keeper's consent page. You choose read or read and write; it gets an access token for an hour and a refresh token that lasts 60 days from its last use. PKCE (S256) is required. Codes and tokens are stored only as SHA-256. Each connection shows in *Settings → Access tokens* as "Signed in from …" and is disconnected there (or by the program, RFC 7009).
 
@@ -46,7 +56,7 @@ claude mcp add --scope user --transport http keeper https://keeper.example.com/m
 
 **Tokens made by hand.** For a script, or a program that cannot sign in: *Settings → Access tokens* makes a `kpr_…` token, shown once, read or write, until it is revoked. Send it as `Authorization: Bearer kpr_…`. The `/api/sites` routes take one too.
 
-Either kind acts as the person who connected it, while they are in the team. Wrong tokens are counted per address: after 20 in 10 minutes Keeper answers 429. The MCP and OAuth endpoints answer other origins (`Access-Control-Allow-Origin: *`, never with credentials); the rest of Keeper does not.
+Either kind acts as the person who connected it, in every workspace they are in. Wrong tokens are counted per address: after 20 in 10 minutes Keeper answers 429. The MCP and OAuth endpoints answer other origins (`Access-Control-Allow-Origin: *`, never with credentials); the rest of Keeper does not.
 
 ### E-mail through Zimbra (or any SMTP server)
 
@@ -62,7 +72,7 @@ NUXT_MAIL_SMTP_USER=keeper@example.com
 NUXT_MAIL_SMTP_PASS=…
 ```
 
-Zimbra usually wants the sender to be the signed-in mailbox or one of its aliases. With port 465 use `NUXT_MAIL_SMTP_SECURE=true` instead of `REQUIRE_TLS`. *Settings → Team and alerts → E-mail* shows how Keeper sends and has *Send a test e-mail*.
+Zimbra usually wants the sender to be the signed-in mailbox or one of its aliases. With port 465 use `NUXT_MAIL_SMTP_SECURE=true` instead of `REQUIRE_TLS`. *Settings → Alerts* shows how Keeper sends and has *Send a test e-mail*.
 
 ## Run it (developing Keeper)
 
@@ -71,7 +81,7 @@ cp keeper/.env.example keeper/.env   # fill in the secrets
 pnpm --filter tinyzoo-keeper dev     # http://localhost:3100
 ```
 
-The database (`NUXT_DATABASE_URL`) is migrated when Keeper starts: the SQL ships inside the server build. The first visit asks for the first account and the team's name; in production it also asks for `NUXT_SETUP_TOKEN`.
+The database (`NUXT_DATABASE_URL`) is migrated when Keeper starts: the SQL ships inside the server build. The first visit asks for the first account and its workspace's name; in production it also asks for `NUXT_SETUP_TOKEN`.
 
 | Variable | |
 |---|---|

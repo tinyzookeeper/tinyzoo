@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
     setResponseHeader(event, 'Allow', 'POST')
     throw createError({ statusCode: 405, statusMessage: 'Method not allowed: send MCP requests with POST' })
   }
-  const access = await requireAccess(event, 'read', { tokenOnly: true })
+  const access = await requireAccess(event, { tokenOnly: true })
   return keeperMcpHandler().fetch(toWebRequest(event), {
     authInfo: { token: access.tokenId ?? '', clientId: access.userId, scopes: [access.scope], extra: { event, access } },
   })

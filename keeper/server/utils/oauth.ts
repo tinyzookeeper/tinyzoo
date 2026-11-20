@@ -132,13 +132,13 @@ export function buildRedirect(redirectUri: string, params: Record<string, string
 }
 
 /** Approve: never more than the client asked for (it may get read where it asked for write). */
-export async function approveRequest(input: { requestId: string; member: SignedInMember; name: string; scope: 'read' | 'write' }): Promise<string> {
+export async function approveRequest(input: { requestId: string; userId: string; name: string; scope: 'read' | 'write' }): Promise<string> {
   const request = await claimRequest(input.requestId)
   if (!request) throw oauthFailure('invalid_request', 'This request is no longer open', 410)
   const scope = request.scope === 'write' ? input.scope : 'read'
   const code = randomBytes(32).toString('base64url')
   await useDb().insert(schema.oauthCodes).values({
-    codeHash: sha256(code), clientId: request.clientId, workspaceId: input.member.workspaceId, userId: input.member.userId,
+    codeHash: sha256(code), clientId: request.clientId, userId: input.userId,
     redirectUri: request.redirectUri, codeChallenge: request.codeChallenge, resource: request.resource,
     scope, name: input.name, expiresAt: new Date(Date.now() + OAUTH_CODE_TTL_MS),
   })
@@ -183,7 +183,7 @@ export async function exchangeCode(input: { code: string; clientId: string; redi
   const refresh = REFRESH_PREFIX + randomBytes(32).toString('base64url')
   const now = Date.now()
   await db.insert(schema.tokens).values({
-    workspaceId: row.workspaceId, createdBy: row.userId, name: row.name, scope: row.scope,
+    createdBy: row.userId, name: row.name, scope: row.scope,
     hash: access.hash, prefix: access.prefix, origin: 'oauth', clientId: row.clientId,
     accessExpiresAt: new Date(now + OAUTH_ACCESS_TTL_MS), refreshHash: sha256(refresh), refreshExpiresAt: new Date(now + OAUTH_REFRESH_TTL_MS),
   })
