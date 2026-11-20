@@ -8,9 +8,9 @@
 // "dockerfile" preset builds the root Dockerfile (which builds the playground). So
 // this packs the repo — git-tracked and untracked-not-ignored files, uncommitted
 // changes included, never .env files — into a temporary folder with
-// site/Dockerfile as its root Dockerfile, and uploads that with the Pushbase CLI
-// script (PB_CLI, default ../pushbase/skills/pushbase-deploy/scripts/pb.mjs).
-// Auth: PUSHBASE_TOKEN or ~/.config/pushbase/config.json, as for pb.mjs.
+// site/Dockerfile as its root Dockerfile, and uploads that with the published
+// Pushbase CLI (`npx -y pushbase@0.3.0`; PUSHBASE_CLI overrides the version, e.g.
+// pushbase@latest). Auth: PUSHBASE_TOKEN or ~/.config/pushbase/config.json.
 import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -25,11 +25,7 @@ if (!slug || slug.startsWith('-')) {
 }
 const envIdx = rest.indexOf('--env')
 const environment = envIdx !== -1 ? rest[envIdx + 1] : 'production'
-const pb = resolve(process.env.PB_CLI || join(root, '../pushbase/skills/pushbase-deploy/scripts/pb.mjs'))
-if (!existsSync(pb)) {
-  console.error(`Pushbase CLI script not found at ${pb} (set PB_CLI)`)
-  process.exit(2)
-}
+const cli = process.env.PUSHBASE_CLI || 'pushbase@0.3.0'
 
 const ls = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '--deduplicate', '-z'], { cwd: root, encoding: 'utf-8' })
 if (ls.status !== 0) throw new Error(`git ls-files failed: ${ls.stderr}`)
@@ -46,7 +42,7 @@ try {
   }
   cpSync(join(root, 'site/Dockerfile'), join(stage, 'Dockerfile'))
   console.error(`packed ${files.length} files → ${slug} (${environment})`)
-  const run = spawnSync(process.execPath, [pb, 'deploy', slug, '--env', environment, '--dir', stage, '--preset', 'dockerfile'], { stdio: 'inherit' })
+  const run = spawnSync('npx', ['-y', cli, 'deploy', '--project', slug, '--env', environment, '--dir', stage, '--preset', 'dockerfile', '--yes'], { stdio: 'inherit' })
   process.exitCode = run.status ?? 1
 }
 finally {
