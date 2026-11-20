@@ -20,9 +20,9 @@ withDefaults(defineProps<{ signature?: boolean }>(), { signature: false })
     <span class="inline-flex items-center gap-1">
       <img :src="mark" alt="" draggable="false" class="h-3.5 w-auto select-none dark:hidden">
       <img :src="markReversed" alt="" draggable="false" class="hidden h-3.5 w-auto select-none dark:block">
-      <!-- The wordmark's box runs to the p's descender, so it drops a little to sit level with the mark. -->
-      <img :src="wordmark" alt="" draggable="false" class="h-3 w-auto translate-y-0.5 select-none dark:hidden">
-      <img :src="wordmarkReversed" alt="" draggable="false" class="hidden h-3 w-auto translate-y-0.5 select-none dark:block">
+      <!-- Both wordmarks are 10 px boxes: their x-heights then match (~5.9 px) and sit on the box's middle, level with the marks. -->
+      <img :src="wordmark" alt="" draggable="false" class="h-2.5 w-auto select-none dark:hidden">
+      <img :src="wordmarkReversed" alt="" draggable="false" class="hidden h-2.5 w-auto select-none dark:block">
     </span>
     <span v-if="signature" class="inline-flex items-center gap-1.5 opacity-70">
       <span class="text-[10px] text-dimmed">·</span>
