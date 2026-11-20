@@ -11,7 +11,8 @@ const props = defineProps<{
   name: string
   /** The brand, for the alt text and the group's name. */
   brand: string
-  kind: 'logo' | 'mark'
+  /** A full logo, a mark, or a square profile picture (its own background). */
+  kind: 'logo' | 'mark' | 'avatar'
   /** Made for dark backgrounds (the reversed file). */
   dark?: boolean
 }>()
@@ -26,7 +27,7 @@ const label = computed(() => `${props.brand}: ${tx.value.assetKinds[props.kind]}
 <template>
   <div role="group" :aria-label="label" class="cms-card flex flex-col overflow-hidden">
     <div class="grid h-32 place-items-center p-6" :style="{ background: dark ? 'var(--tz-charcoal)' : 'var(--tz-cream)' }">
-      <img :src="src" :alt="`${brand} ${tx.assetKinds[kind]}`" class="w-auto max-w-full select-none" :class="kind === 'logo' ? 'h-9' : 'h-14'" draggable="false">
+      <img :src="src" :alt="`${brand} ${tx.assetKinds[kind]}`" class="w-auto max-w-full select-none" :class="{ logo: 'h-9', mark: 'h-14', avatar: dark ? 'h-20 rounded-xl' : 'h-20 rounded-xl ring ring-default' }[kind]" draggable="false">
     </div>
     <div class="flex flex-1 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 border-t border-default px-3 py-2.5">
       <span class="min-w-0 leading-tight">

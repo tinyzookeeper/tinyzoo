@@ -142,19 +142,26 @@ const brandColors = [
   { key: 'ink', name: 'Ink', value: '#131313' },
   { key: 'cream', name: 'Cream', value: '#F9F5EF' },
 ] as const
-// The logos to download: each brand's full logo and its mark, for light and for dark backgrounds.
+// The logos to download: each brand's full logo and its mark, for light and for dark backgrounds,
+// and the GitHub organisation's: the Keeper with tinyzoo's animal, and its square profile picture.
 const logos = [
-  { brand: 'tinyzoo', files: [
+  { brand: 'tinyzoo', text: 'brand', files: [
     { kind: 'logo', src: '/brand/logo-primary.svg', name: 'tinyzoo-logo' },
     { kind: 'logo', src: '/brand/logo-primary-reversed.svg', name: 'tinyzoo-logo-reversed', dark: true },
     { kind: 'mark', src: '/brand/mascot.svg', name: 'tinyzoo-mark' },
     { kind: 'mark', src: '/brand/mascot-reversed.svg', name: 'tinyzoo-mark-reversed', dark: true },
   ] },
-  { brand: 'Keeper', files: [
+  { brand: 'Keeper', text: 'keeper', files: [
     { kind: 'logo', src: '/brand/keeper/logo.svg', name: 'keeper-logo' },
     { kind: 'logo', src: '/brand/keeper/logo-reversed.svg', name: 'keeper-logo-reversed', dark: true },
     { kind: 'mark', src: '/brand/keeper/mark.svg', name: 'keeper-mark' },
     { kind: 'mark', src: '/brand/keeper/mark-reversed.svg', name: 'keeper-mark-reversed', dark: true },
+  ] },
+  { brand: 'tinyzookeeper', text: 'tinyzookeeper', files: [
+    { kind: 'mark', src: '/brand/tinyzookeeper/mark.svg', name: 'tinyzookeeper-mark' },
+    { kind: 'mark', src: '/brand/tinyzookeeper/mark-reversed.svg', name: 'tinyzookeeper-mark-reversed', dark: true },
+    { kind: 'avatar', src: '/brand/tinyzookeeper/avatar.svg', name: 'tinyzookeeper-avatar' },
+    { kind: 'avatar', src: '/brand/tinyzookeeper/avatar-dark.svg', name: 'tinyzookeeper-avatar-dark', dark: true },
   ] },
 ] as const
 // An animal to download or copy, as the page draws it: in the accent's shade when it takes one.
@@ -243,7 +250,7 @@ const toc = ['brand', 'color', 'type', 'surfaces', 'moments', 'editors', 'action
           <p class="max-w-2xl text-muted">{{ tx.logos }}</p>
           <div v-for="group in logos" :key="group.brand" class="space-y-3 pt-2">
             <h3 class="cms-display text-base font-semibold text-highlighted">{{ group.brand }}</h3>
-            <p class="max-w-2xl text-sm text-muted">{{ group.brand === 'Keeper' ? tx.keeper : tx.brand }}</p>
+            <p class="max-w-2xl text-sm text-muted">{{ tx[group.text] }}</p>
             <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <BrandAssetTile v-for="f in group.files" :key="f.name" :brand="group.brand" :kind="f.kind" :src="f.src" :name="f.name" :dark="'dark' in f" />
             </div>
