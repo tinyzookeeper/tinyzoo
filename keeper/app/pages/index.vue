@@ -44,6 +44,30 @@ const summary = computed(() => {
   return parts.join(' ')
 })
 
+// The overview's opening card. A site that is down outranks the greeting (one site: its name
+// and how long; more: how many and which), and a workspace with nothing to watch yet opens on
+// Keeper itself. Otherwise the cream greeting.
+const downBanner = computed(() => {
+  const d = down.value
+  if (!d.length) return null
+  const first = d[0]!
+  if (d.length === 1) {
+    return {
+      title: `${first.name} is down`,
+      text: `For ${duration(first.stateSince ?? first.lastCheckAt ?? '', null, now.value)}${first.client ? ` · ${first.client}` : ''}. Keeper checks it every minute and shows it here as soon as it answers again.`,
+      seed: first.id, to: `/sites/${first.id}`, action: 'Look',
+    }
+  }
+  const names = d.slice(0, 3).map((s) => s.name)
+  const rest = d.length - names.length
+  return {
+    title: `${d.length} sites are down`,
+    text: `${names.join(', ')}${rest ? ` and ${rest} more` : ''}. Keeper checks them every minute.`,
+    seed: first.id, to: '#needs', action: 'See which',
+  }
+})
+const firstRun = computed(() => status.value !== 'pending' && !all.value.length)
+
 // ── what needs someone ──
 interface Need { site: SiteSummary; title: string; detail: string; tone: 'error' | 'warning' | 'neutral'; action: { label: string; to: string; external?: boolean } }
 const needs = computed<Need[]>(() => {
@@ -110,8 +134,22 @@ function stateLine(s: SiteSummary): string {
       </template>
     </template>
 
+    <!-- A site is down: the dark banner takes the greeting's place, with the site's own animal. -->
+    <KBanner v-if="downBanner" as="h1" :title="downBanner.title" :text="downBanner.text" :seed="downBanner.seed">
+      <template #actions>
+        <UButton :to="downBanner.to" :label="downBanner.action" icon="i-lucide-arrow-right" trailing />
+      </template>
+    </KBanner>
+
+    <!-- Nothing to watch yet: the dark banner, with Keeper's own mark. -->
+    <KBanner v-else-if="firstRun" as="h1" :title="greeting" :text="summary" mark>
+      <template v-if="canWrite" #actions>
+        <UButton to="/sites/new" icon="i-lucide-plus" label="Add your first site" />
+      </template>
+    </KBanner>
+
     <!-- The greeting: who is up, who needs you. -->
-    <section class="k-moment relative flex items-center justify-between gap-6 overflow-hidden p-5 sm:px-8 sm:py-7">
+    <section v-else class="k-moment relative flex items-center justify-between gap-6 overflow-hidden p-5 sm:px-8 sm:py-7">
       <div class="min-w-0 pr-16 sm:pr-0">
         <h1 class="k-display text-2xl leading-tight text-highlighted sm:text-[1.75rem]">{{ greeting }}</h1>
         <p class="k-moment__muted mt-1 text-sm text-pretty sm:text-[0.9375rem]">
@@ -151,7 +189,7 @@ function stateLine(s: SiteSummary): string {
 
     <div v-else class="mt-8 flex flex-col gap-8">
       <!-- What needs someone. -->
-      <section v-if="needs.length">
+      <section v-if="needs.length" id="needs" class="scroll-mt-20">
         <h2 class="k-label mb-2 flex items-center gap-2">Needs you <span class="k-count">{{ needs.length }}</span></h2>
         <ul class="k-card divide-y divide-(--ui-border-muted)">
           <li v-for="(n, i) in needs" :key="i" class="relative flex items-center gap-3 px-4 py-3">
