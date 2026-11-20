@@ -9,6 +9,11 @@ import { analyticsStatus } from '../../analytics/server/status'
  */
 
 const startedAt = new Date()
+
+/** When this server process started: the status reports it, and the admin's About page. */
+export function cmsStartedAt(): Date {
+  return startedAt
+}
 const DAY_MS = 24 * 60 * 60 * 1000
 
 // Server errors by where they happened, as timestamps of the last 24 hours (reportCmsError

@@ -3,6 +3,7 @@ import type { CmsStatus } from 'tinyzoo'
 import { anonymous, type Client, signIn } from '../helpers/api'
 import { createTag } from '../helpers/fixtures'
 import { STATUS_TOKEN } from '../setup/server'
+import cmsPkg from '../../packages/cms/package.json'
 
 // GET /api/health/status: the site summary a tool watching many sites reads. The shared
 // test server sets NUXT_CMS_STATUS_TOKEN; a server without it answers 404
@@ -61,5 +62,22 @@ describe('the status route', () => {
     const text = JSON.stringify(res.body)
     expect(text).not.toMatch(/@/)
     expect(text).not.toContain('Status zebra')
+  })
+})
+
+// GET /api/cms/_about: the admin's About page. The same versions, for anyone signed in.
+describe('the About route', () => {
+  it('needs a session, then tells the version the site runs and since when', async () => {
+    expect((await anonymous().get('/api/cms/_about')).status).toBe(401)
+    const author = await signIn('author')
+    const res = await author.get('/api/cms/_about')
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    expect(res.body).toMatchObject({ tinyzoo: cmsPkg.version, node: process.version, migrations: expect.stringMatching(/^(idle|done)$/) })
+    expect(Date.parse(res.body.startedAt)).toBeLessThanOrEqual(Date.now())
+    expect(res.body.plugins.map((p: { name: string }) => p.name)).toEqual(['forms', 'events', 'analytics', 'consent'])
+    // The same clock as the status, which a monitor reads.
+    const status = await anonymous().get<CmsStatus>('/api/health/status', { 'x-api-key': STATUS_TOKEN })
+    expect(res.body.startedAt).toBe(status.body.instance.startedAt)
   })
 })

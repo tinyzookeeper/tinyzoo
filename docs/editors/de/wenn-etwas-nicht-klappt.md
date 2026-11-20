@@ -116,6 +116,7 @@ Schreiben Sie der Person, die Ihre Website gebaut hat oder betreut (dem Entwickl
 4. **Wann es passiert ist** (ungefähr: „heute gegen zehn“), und ob es immer wieder passiert oder nur einmal.
 5. **Welchen Browser** Sie verwenden (Chrome, Safari, Firefox …) und ob es ein Computer oder ein Smartphone ist.
 6. **Mit welchem Konto Sie angemeldet sind** (Ihre E-Mail-Adresse) und welche Rolle Sie haben.
+7. **Welche Version Ihre Verwaltung nutzt:** Klicken Sie unter **Einstellungen → Über** auf **Angaben kopieren** und fügen Sie sie in Ihre Nachricht ein.
 
 > **Tipp:** Schicken Sie Ihr Passwort nie jemandem, auch nicht dem Entwickler. Niemand wird es von Ihnen brauchen.
 
