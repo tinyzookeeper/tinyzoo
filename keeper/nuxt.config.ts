@@ -6,9 +6,13 @@
 // It is also a Nuxt layer: a deployment of Keeper is a small app with
 // `extends: ['tinyzoo-keeper']` (our own is ~/Coding/VSCodeProjects/keeper). Paths
 // here are relative to this file, never `~`, which would mean the extending app.
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 const here = (path: string) => fileURLToPath(new URL(path, import.meta.url))
+// Keeper's own version (this layer's, not the extending app's) and when this build was made:
+// Settings → About shows both.
+const { version } = JSON.parse(readFileSync(here('./package.json'), 'utf8')) as { version: string }
 
 export default defineNuxtConfig({
   $meta: { name: 'keeper' },
@@ -61,6 +65,10 @@ export default defineNuxtConfig({
       transport: 'log',
       from: '',
       smtp: { host: '', port: 587, secure: false, user: '', pass: '' },
+    },
+    public: {
+      // Set by the build, not meant to be overridden.
+      keeper: { version, builtAt: new Date().toISOString() },
     },
   },
   nitro: {
