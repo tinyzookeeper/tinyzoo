@@ -251,6 +251,8 @@ export default {
     fixFields: 'Bitte prüfen Sie die markierten Felder',
     unsavedConfirm: 'Ihre Änderungen sind noch nicht gespeichert. Wenn Sie jetzt gehen, gehen sie verloren.',
     leaveTitle: 'Ohne Speichern verlassen?',
+    confirmOffTitle: '„{name}“ ausschalten?',
+    confirmOffLabel: 'Ausschalten und speichern',
     unpublishTitle: 'Von der Website nehmen?',
     unpublishBody: 'Besucher sehen den Eintrag dann nicht mehr. Er bleibt hier als Entwurf und kann jederzeit erneut veröffentlicht werden.',
     stay: 'Hierbleiben',

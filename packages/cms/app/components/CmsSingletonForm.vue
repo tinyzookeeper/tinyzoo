@@ -173,7 +173,8 @@ const localeItems = computed(() => (locales.value?.all ?? []).map((code) => {
   }
 }))
 
-function save() {
+async function save() {
+  if (!await form.confirmSwitchOffs()) return false
   return form.submit(async () => {
     if (isTranslation.value) {
       const body = Object.fromEntries(editable.value.filter((f: any) => f.localized && !f.readOnly).map((f: any) => [f.key, state[f.key] ?? null]))

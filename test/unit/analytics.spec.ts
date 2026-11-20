@@ -331,6 +331,11 @@ describe('the plugin', () => {
     expect(schema).toContain("export const analyticsDaily = pgTable('analytics_daily'")
     expect(reg.byName.get('analytics_settings')?.singleton).toBe(true)
   })
+  it('asks before an administrator switches counting off', () => {
+    const reg = buildRegistry({ plugins: [analyticsPlugin()] })
+    const collect = (reg.byName.get('analytics_settings')?.fields as any)?.collect
+    expect(collect?.meta?.confirmOff).toMatchObject({ en: expect.any(String), cs: expect.any(String), de: expect.any(String) })
+  })
   it('keeps its options for the server', () => {
     const reg = buildRegistry({ plugins: [analyticsPlugin({ keepRawDays: 30, respectDoNotTrack: true })] })
     expect(analyticsOptionsOf(reg)).toMatchObject({ keepRawDays: 30, respectDoNotTrack: true, countryHeaders: ['cf-ipcountry', 'x-vercel-ip-country', 'cloudfront-viewer-country'] })

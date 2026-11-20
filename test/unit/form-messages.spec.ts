@@ -49,3 +49,13 @@ describe('f.boolean({ mustBeTrue })', () => {
     expect(plain.meta?.mustBeTrue).toBeUndefined()
   })
 })
+
+describe('f.boolean({ confirmOff })', () => {
+  it('hands the admin its question and changes nothing else', () => {
+    const text = { en: 'Nothing is sent until it is on again.' }
+    const sw = f.boolean({ default: true, confirmOff: text })
+    expect(sw.meta).toMatchObject({ confirmOff: text })
+    expect(sw.zod('create').safeParse(false).success).toBe(true)
+    expect(f.boolean().meta?.confirmOff).toBeUndefined()
+  })
+})

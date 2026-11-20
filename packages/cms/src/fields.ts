@@ -290,15 +290,16 @@ export const f = {
    * a confirmation ("I agree to the terms"): a value of `false` is refused, so a website
    * form cannot be sent without it ticked. `needsPrevious` is for a switch in a list of
    * blocks that is about the item before it ("under the link above"): the first item does
-   * not show it.
+   * not show it. `confirmOff` is for a switch whose "off" stops something (counting visits,
+   * sending e-mails): the admin asks before saving it switched off, with this text.
    */
-  boolean: (o: { default?: boolean; mustBeTrue?: boolean; needsPrevious?: boolean } = {}) =>
+  boolean: (o: { default?: boolean; mustBeTrue?: boolean; needsPrevious?: boolean; confirmOff?: LocalizedText } = {}) =>
     as<ScalarKind<boolean, boolean, true>>(createField({
       type: 'boolean', ui: { edit: 'CmsFieldBoolean', cell: 'CmsCellBoolean' },
       base: { kind: 'boolean' },
       zod: () => (o.mustBeTrue ? z.boolean().refine((v) => v === true, { message: 'Must be ticked' }) : z.boolean()),
-      ...(o.mustBeTrue || o.needsPrevious
-        ? { meta: { ...(o.mustBeTrue ? { mustBeTrue: true } : {}), ...(o.needsPrevious ? { needsPrevious: true } : {}) } }
+      ...(o.mustBeTrue || o.needsPrevious || o.confirmOff
+        ? { meta: { ...(o.mustBeTrue ? { mustBeTrue: true } : {}), ...(o.needsPrevious ? { needsPrevious: true } : {}), ...(o.confirmOff ? { confirmOff: o.confirmOff } : {}) } }
         : {}),
       ...(o.mustBeTrue ? { zodDefault: false } : {}),
     }, { default: o.default ?? false })),

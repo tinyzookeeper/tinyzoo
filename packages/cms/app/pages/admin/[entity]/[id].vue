@@ -607,6 +607,7 @@ let redirectsMade = 0
 const redirectNote = () => (redirectsMade ? { successTitle: t('editor.savedRedirect', { count: redirectsMade }) } : undefined)
 async function save(successTitle?: string | null) {
   if (isTranslation.value) return saveTranslation(successTitle)
+  if (!await form.confirmSwitchOffs()) return false
   redirectsMade = 0
   return form.submit(async () => {
     if (isNew.value) {

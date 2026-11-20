@@ -6,7 +6,7 @@ import type { ComputedRef } from 'vue'
  * failed save into inline field errors or a toast.
  */
 export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolean>) {
-  const { t } = useCmsI18n()
+  const { t, tl } = useCmsI18n()
   const toast = useToast()
 
   const state = reactive<Record<string, any>>({})
@@ -54,6 +54,26 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
       if (json(state[f.key]) !== loaded[f.key]) out[f.key] = structuredClone(toRaw(state[f.key]))
     }
     return out
+  }
+
+  /**
+   * A switch with `confirmOff` that was on and is now off: asks first (one question per
+   * switch). False when someone said no: the save does not happen.
+   */
+  async function confirmSwitchOffs(): Promise<boolean> {
+    for (const f of writable.value) {
+      const text = f.type === 'boolean' ? f.meta?.confirmOff : null
+      if (!text || loaded[f.key] !== 'true' || state[f.key] !== false) continue
+      const ok = await confirm({
+        title: t('editor.confirmOffTitle', { name: tl(f.label, f.key) }),
+        description: tl(text, ''),
+        confirmLabel: t('editor.confirmOffLabel'),
+        icon: 'i-lucide-circle-pause',
+        color: 'warning',
+      })
+      if (!ok) return false
+    }
+    return true
   }
 
   /** The request body: every editable field, minus empty optional values. */
@@ -263,7 +283,7 @@ export function useCmsForm(fields: ComputedRef<any[]>, isNew: ComputedRef<boolea
     shared = s
   }
 
-  return { state, fieldErrors, issues, editable, writable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields, setSharedText, quiet }
+  return { state, fieldErrors, issues, editable, writable, dirty, saving, conflict, load, replace, merge, body, submit, changedFields, setSharedText, quiet, confirmSwitchOffs }
 }
 
 export interface CmsSharedText {
