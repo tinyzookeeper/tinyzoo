@@ -24,15 +24,15 @@ export const PLANS = [
     en: { title: 'What version 1 means', text: 'Your website keeps working after updates within version 1, with no rework needed. You’ll find the guide for editors and the developer documentation on this site.' },
     de: { title: 'Was Version 1 bedeutet', text: 'Bei Updates innerhalb der Version 1 läuft Ihre Website ohne Anpassungen weiter. Das Handbuch für Redakteure und die Dokumentation für Entwickler finden Sie auf dieser Website.' },
   },
-  // ── next (1.4) ──
+  // ── next (1.5) ──
   {
-    stage: 'next', version: '1.4', animal: 'bird',
+    stage: 'next', version: '1.5', animal: 'bird',
     cs: { title: 'Překlady ke kontrole', text: 'Překladatel předá hotový překlad ke kontrole. Editor dostane upozornění v administraci a na přání i e-mailem.' },
     en: { title: 'Translations for review', text: 'Translators mark finished translations for review. Editors get a notification in the admin area and can choose to get it by email too.' },
     de: { title: 'Übersetzungen zur Prüfung', text: 'Übersetzer geben fertige Übersetzungen zur Prüfung weiter. Redakteure erhalten eine Benachrichtigung in der Verwaltung und auf Wunsch auch per E-Mail.' },
   },
   {
-    stage: 'next', version: '1.4', animal: 'fox',
+    stage: 'next', version: '1.5', animal: 'fox',
     cs: { title: 'Nastavení vzhledu administrace', text: 'Na nové stránce „Vzhled“ nastaví administrátor barvu i loga bez pomoci vývojáře.' },
     en: { title: 'Customise the admin area', text: 'The new ‘Look’ page lets administrators set the colour and logos without a developer.' },
     de: { title: 'Die Verwaltung selbst gestalten', text: 'Auf der neuen Seite „Aussehen“ legen Administratoren Farbe und Logos ohne Hilfe eines Entwicklers fest.' },
@@ -75,6 +75,12 @@ export const PLANS = [
     de: { title: 'Ihre Website aus Vorlagen', text: 'Eine Version von tinyzoo, die wir für Sie betreiben. Mit fertigen Vorlagen erstellen Sie Ihre Seiten ohne Hilfe eines Entwicklers.' },
   },
   // ── done, newest first ──
+  {
+    stage: 'done', version: '1.4', animal: 'owl',
+    cs: { title: 'Návštěvnost od prvního dne', text: 'Každý nový web počítá návštěvy hned od spuštění, bez cookies. Vypnout počítání jde jen v nastavení a až po potvrzení.' },
+    en: { title: 'Visits from day one', text: 'Every new website counts its visits from launch, without cookies. Counting can only be switched off in the settings, after you confirm.' },
+    de: { title: 'Besucherzahlen ab dem ersten Tag', text: 'Jede neue Website zählt ihre Besuche ab dem Start, ohne Cookies. Ausschalten lässt sich das Zählen nur in den Einstellungen und erst nach einer Bestätigung.' },
+  },
   {
     stage: 'done', version: '1.3', animal: 'frog',
     cs: { title: 'Návštěvnost webu v administraci', text: 'Kolik lidí váš web navštívilo, odkud přišli a které stránky čtou, uvidíte přímo v administraci. Žádný další nástroj k tomu nepotřebujete.' },

@@ -264,9 +264,17 @@ and the audit has no open High or Medium.
 
 **`tinyzoo/consent`: cookie consent.** A first-party plugin: the visitor's choice per category in a first-party cookie set by the server, a consent log without IP addresses, the texts edited in the admin, "ask everyone again". `useConsent()` gives a site everything a banner needs, so a site builds its own banner and settings in its own markup; `<CmsConsent />` is the ready-made one, with slots and its own styles that a site can drop. Sites add their own categories and list the services and cookies of each. See [consent.md](consent.md).
 
-## 1.4: next minor
+## 1.4: visits on every new site (2026-11-20)
 
-1.4 adds things and breaks nothing.
+1.4 adds things and breaks nothing. The two items planned for 1.4 moved to 1.5 unchanged.
+
+**Analytics in the starter.** `tinyzoo init` and `pnpm create tinyzoo` have a new part, `analytics`, on by default: a new site lists `analyticsPlugin()` (cookieless) in its `cms.config.ts`, its first migrations make the tables, and its README points at the sentence for the privacy policy. `--presets` without `analytics` leaves it out. The six client sites got the plugin the same day.
+
+**Clearer analytics in the admin.** The Analytics page says under "On the website now" that your own visits are not counted while you are signed in. The "Counting visits" switch left the page: counting is switched off only in Settings → Counting visits, and the admin asks first. `f.boolean({ confirmOff })` is that question for any switch whose "off" stops something.
+
+## 1.5: next minor
+
+1.5 adds things and breaks nothing.
 
 **Planned** (on the website's Plány page as Next):
 
