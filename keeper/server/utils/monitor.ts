@@ -213,6 +213,8 @@ export async function runAllChecks(): Promise<number> {
     count = all.length
     await eachLimited(all, 8, (s) => checkSite(s.id))
   })
+  // The newest release, asked again when the stored answer is over an hour old.
+  await latestRelease(LATEST_BACKGROUND_MS)
   return count
 }
 
@@ -230,27 +232,76 @@ export async function runDaily(): Promise<void> {
 }
 
 // ── the newest tinyzoo release ──────────────────────────────────────────────────
+//
+// Read from npm, which is where sites install from. Kept fresh three ways: a page or tool that
+// shows it asks again when the stored answer is over 10 minutes old, the minute task asks when it
+// is over an hour old (so "behind" holds also while nobody looks), and the daily task asks anyway.
 
-export async function refreshLatestRelease(): Promise<string | null> {
-  try {
-    const res = await fetch('https://registry.npmjs.org/tinyzoo/latest', { headers: { 'user-agent': USER_AGENT, 'accept': 'application/json' }, signal: AbortSignal.timeout(10_000) })
-    if (!res.ok) return null
-    const version = String(((await res.json()) as any)?.version || '')
-    if (!/^\d+\.\d+\.\d+/.test(version)) return null
-    await useDb().insert(schema.state).values({ key: 'latest', value: { version } })
-      .onConflictDoUpdate({ target: schema.state.key, set: { value: { version }, updatedAt: new Date() } })
-    return version
-  }
-  catch {
-    return null
-  }
+const LATEST_FRESH_MS = 10 * 60_000
+const LATEST_BACKGROUND_MS = 60 * 60_000
+// How long a page waits for npm before it shows what is stored; the answer is saved either way.
+const LATEST_WAIT_MS = 2_500
+// After a failed attempt, npm is left alone this long (a page view must not become a retry loop).
+const LATEST_RETRY_MS = 60_000
+
+let refreshing: Promise<string | null> | null = null
+let lastAttemptAt = 0
+
+/**
+ * Ask npm for the newest release and store it. A version counts only once its package can be
+ * downloaded: npm lists a release a few minutes before its file is served, and a site upgraded in
+ * that window fails to install. Until then the stored answer stays. Concurrent callers share one
+ * request.
+ */
+export function refreshLatestRelease(): Promise<string | null> {
+  refreshing ??= (async () => {
+    lastAttemptAt = Date.now()
+    try {
+      const headers = { 'user-agent': USER_AGENT, 'accept': 'application/json' }
+      const res = await fetch('https://registry.npmjs.org/tinyzoo/latest', { headers, signal: AbortSignal.timeout(10_000) })
+      if (!res.ok) return null
+      const body = (await res.json()) as { version?: unknown; dist?: { tarball?: unknown } }
+      const version = String(body?.version || '')
+      if (!/^\d+\.\d+\.\d+/.test(version)) return null
+      const tarball = typeof body.dist?.tarball === 'string' ? body.dist.tarball : ''
+      if (tarball.startsWith('https://')) {
+        const file = await fetch(tarball, { method: 'HEAD', headers: { 'user-agent': USER_AGENT }, signal: AbortSignal.timeout(10_000) })
+        if (!file.ok) return null
+      }
+      await useDb().insert(schema.state).values({ key: 'latest', value: { version } })
+        .onConflictDoUpdate({ target: schema.state.key, set: { value: { version }, updatedAt: new Date() } })
+      return version
+    }
+    catch {
+      return null
+    }
+    finally {
+      refreshing = null
+    }
+  })()
+  return refreshing
 }
 
-/** The newest release (refreshed twice a day; fetched now when never stored). */
-export async function latestRelease(): Promise<string | null> {
-  const [row] = await useDb().select().from(schema.state).where(eq(schema.state.key, 'latest'))
-  const stored = (row?.value as { version?: string } | undefined)?.version ?? null
-  return stored ?? await refreshLatestRelease()
+/** The newest release Keeper knows and when npm last confirmed it, asking again when it is older than `maxAgeMs`. */
+export async function latestReleaseInfo(maxAgeMs = LATEST_FRESH_MS): Promise<{ version: string; checkedAt: Date } | null> {
+  const read = async () => {
+    const [row] = await useDb().select().from(schema.state).where(eq(schema.state.key, 'latest'))
+    const version = (row?.value as { version?: string } | undefined)?.version
+    return version && row ? { version, checkedAt: row.updatedAt } : null
+  }
+  const stored = await read()
+  const stale = !stored || Date.now() - stored.checkedAt.getTime() > maxAgeMs
+  if (!stale || Date.now() - lastAttemptAt < LATEST_RETRY_MS) return stored
+  const asked = refreshLatestRelease()
+  // Nothing stored yet: wait for npm. Otherwise wait a moment, then show what is stored.
+  if (stored) await Promise.race([asked, new Promise((resolve) => setTimeout(resolve, LATEST_WAIT_MS))])
+  else await asked
+  return (await read()) ?? stored
+}
+
+/** The newest release (see latestReleaseInfo). */
+export async function latestRelease(maxAgeMs?: number): Promise<string | null> {
+  return (await latestReleaseInfo(maxAgeMs))?.version ?? null
 }
 
 /** -1, 0 or 1 for two versions like 1.2.3 (a pre-release sorts before its release). */
