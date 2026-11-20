@@ -1,6 +1,7 @@
 // Production-builds the playground into a scratch dir, so the API suites run against
-// the same Nitro output a deploy would ship — without touching playground/.nuxt or
-// playground/.output (a developer's own dev server or build stays as it was).
+// the same Nitro output a deploy would ship (less the sourcemaps and the minifying of browser
+// code) — without touching playground/.nuxt or playground/.output (a developer's own dev server
+// or build stays as it was).
 //
 //   node test/setup/build-playground.mjs <rootDir> <buildDir> <outputDir>
 //
@@ -45,6 +46,9 @@ const nuxt = await loadNuxt({
     buildDir,
     nitro: { output: { dir: outputDir } },
     devtools: { enabled: false },
+    // Quicker to build, and nothing the specs look at: no sourcemaps, no minified browser code.
+    sourcemap: { server: false, client: false },
+    vite: { build: { minify: false } },
     cms: { scheduler: cron('CMS_TEST_SCHEDULER_CRON'), retention: cron('CMS_TEST_RETENTION_CRON') },
   },
 })

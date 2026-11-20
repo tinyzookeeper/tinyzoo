@@ -1,15 +1,21 @@
 name: CI
 
 # What runs on every pull request and every push to main: the fast checks, in parallel.
-#   check      typecheck (the four Nuxt apps at once) + unit tests
+#   typecheck  the code, the docs' examples and the four Nuxt apps (at once)
+#   unit       the unit tests
+#   check      green when both passed: the check branch protection asks for
 #   api-shard  the API tests in four parts, each on its own runner with its own database and
-#              playground build (the build is the build check)
-#   api        green when all four parts passed: the one check branch protection asks for
+#              playground build (the build is the build check); only when the change can affect
+#              them (the `changes` job)
+#   api        green when every part passed or none was needed: the check branch protection asks for
 #   changeset  a pull request that changes a package says so (PRs only)
 #
 # The slow ones (upgrade, consumer, backup with three pg client versions, MinIO, the perLocale
-# switch with its second build) live in heavy.yml: nightly, on demand, on the release pull
-# request, and on pull requests that touch what they cover. CONTRIBUTING.md has the table.
+# switch with its second build) live in heavy.yml. CONTRIBUTING.md has the table.
+#
+# The "Version packages" pull request runs no API parts: its code is the main commit it was made
+# from (only versions and changelogs differ), and heavy.yml's `main` job there requires that this
+# workflow and heavy.yml passed on that commit.
 on:
   push:
     branches: [main]
@@ -25,7 +31,51 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  # Whether the API tests are needed: always on main; on a pull request only when it changes
+  # what the built playground or the specs are made of (not the website, Keeper or the docs).
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # paths-filter lists the pull request's files through the API
+    outputs:
+      api: ${{ github.event_name != 'pull_request' || (github.head_ref != 'changeset-release/main' && steps.filter.outputs.api == 'true') }}
+    steps:
+      # paths-filter v4.0.3, pinned to its commit.
+      - id: filter
+        if: github.event_name == 'pull_request' && github.head_ref != 'changeset-release/main'
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            api:
+              - 'packages/**'
+              - 'playground/**'
+              - 'test/api/**'
+              - 'test/helpers/**'
+              - 'test/setup/**'
+              - 'test/fixtures/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'vitest.config.ts'
+              - '.github/workflows/ci.yml'
+              - '.github/actions/**'
+
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+
+  unit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # The unit specs that go through a real database (transfer, migrate, seed, …) make and
@@ -40,9 +90,9 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
+          --health-interval 1s
           --health-timeout 3s
-          --health-retries 10
+          --health-retries 30
       redis:
         image: valkey/valkey:8-alpine
         ports: ['6379:6379']
@@ -57,8 +107,21 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
       - run: pnpm test:unit
+
+  # The check branch protection requires (named `check` from before the split).
+  check:
+    needs: [typecheck, unit]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Typecheck and unit tests passed
+        env:
+          RESULTS: ${{ needs.typecheck.result }} ${{ needs.unit.result }}
+        run: |
+          echo "typecheck, unit: $RESULTS"
+          test "$RESULTS" = "success success"
 
   # The API specs talk to a production build of the playground (test/setup/server.ts builds it).
   # That build is the "does it build" check: a failed build stops here with its own output.
@@ -67,6 +130,8 @@ jobs:
   # itself, at the same time as the others, which is quicker than building once and handing the
   # build over. locale-publishing-switch.spec.ts makes a second build of its own: heavy.yml runs it.
   api-shard:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     name: api (part ${{ matrix.shard }} of 4)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -84,9 +149,9 @@ jobs:
         ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U cms -d cms"
-          --health-interval 5s
+          --health-interval 1s
           --health-timeout 3s
-          --health-retries 10
+          --health-retries 30
       redis:
         image: valkey/valkey:8-alpine
         ports: ['6379:6379']
@@ -117,20 +182,22 @@ jobs:
           CMS_TEST_REUSE_BUILD: ${{ steps.build-cache.outputs.reuse }}
         run: pnpm test:api --shard=${{ matrix.shard }}/4 --exclude test/api/locale-publishing-switch.spec.ts
 
-  # The check branch protection requires (named `api` from before the split): green only when
-  # every part passed.
+  # The check branch protection requires (named `api` from before the split): green when every
+  # part passed, or when the change needed none (skipped).
   api:
-    needs: api-shard
+    needs: [changes, api-shard]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Every part of the API tests passed
+      - name: Every part of the API tests that ran passed
         env:
+          CHANGES: ${{ needs.changes.result }}
           RESULT: ${{ needs.api-shard.result }}
         run: |
-          echo "API tests: $RESULT"
-          test "$RESULT" = success
+          echo "changes: $CHANGES, API tests: $RESULT"
+          test "$CHANGES" = success
+          case "$RESULT" in success|skipped) ;; *) exit 1 ;; esac
 
   # Every change to a published package comes with a changeset (CONTRIBUTING.md).
   # Not for the release pull request itself, which consumes them.

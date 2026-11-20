@@ -9,18 +9,21 @@ pnpm check        # typecheck + unit and API tests (needs Postgres, see docs/dev
 
 ## What CI runs, and when
 
-Every pull request and every push to `main` (`.github/workflows/ci.yml`, about three minutes):
+Every pull request and every push to `main` (`.github/workflows/ci.yml`; about three minutes, about
+a minute and a half for a pull request that leaves the API tests out):
 
 | Job | What |
 |---|---|
-| `check` | `pnpm typecheck` (the code, the docs' examples and the Vue templates of the admin, playground, starter, website and Keeper; the four apps at once) and `pnpm test:unit` |
-| `api (part 1–4 of 4)` | `pnpm test:api --shard=<n>/4`: the built playground over HTTP against Postgres and Redis, a quarter of the spec files on each of four runners. Each part's production build is the build check |
-| `api` | green when all four parts passed (the check branch protection asks for) |
+| `typecheck` | `pnpm typecheck`: the code, the docs' examples and the Vue templates of the admin, playground, starter, website and Keeper (the four apps at once) |
+| `unit` | `pnpm test:unit` |
+| `check` | green when both passed (the check branch protection asks for) |
+| `api (part 1–4 of 4)` | `pnpm test:api --shard=<n>/4`: the built playground over HTTP against Postgres and Redis, a quarter of the spec files on each of four runners. Each part's production build is the build check. On a pull request only when it changes `packages/`, `playground/`, the API specs and their setup, or the workspace and lockfile: not for one that changes only the website, Keeper or the docs. Not on the version pull request (below) |
+| `api` | green when every part that ran passed (the check branch protection asks for) |
 | `changeset` | pull requests only: a change to a package comes with a changeset |
 
-The slow checks (`.github/workflows/heavy.yml`) run **nightly on `main`**, **on demand**, on the
-**"Version packages" pull request** (`changeset-release/main`), and on **any other pull request only
-when it touches what they cover**:
+The slow checks (`.github/workflows/heavy.yml`) run **all of them on every push to `main`** (a newer
+push cancels the older run), **nightly**, **on demand**, and on **any other pull request only when it
+touches what they cover**:
 
 | Job | What | Runs on a pull request that changes |
 |---|---|---|
@@ -31,11 +34,19 @@ when it touches what they cover**:
 | `s3-minio` | the S3 delivery modes against a real MinIO | `server/utils/cmsStorage*`, `server/api/cms/_media/**`, `cli/transfer*`, `test/api/s3-minio.spec.ts` |
 | `site-image` | the website's Docker image builds from the repo root with `site/Dockerfile`, as the deploy does (catches a file `.dockerignore` leaves out) | `site/**`, `docs/**`, `packages/cms/**`, `.dockerignore`, the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `test/contracts/openapi.playground.json` |
 | `locale-switch` | turning `publish.perLocale` on keeps the website as it was: `test/api/locale-publishing-switch.spec.ts` builds the playground a second time with it off and compares both servers (`pnpm test:api` runs it locally; CI leaves it out of the `api` parts) | `packages/cms/**`, `playground/**`, `pnpm-lock.yaml`, `test/setup/**`, `test/helpers/**`, the spec |
+| `main` | the version pull request only: CI and Heavy checks passed on the `main` commit it was made from (it waits while they still run) | the version pull request |
 | `result` | green when every heavy job that ran passed (skipped ones are nothing relevant) | every pull request |
 
 Changing `heavy.yml` itself runs all of them. To run them by hand on any branch: **Actions → Heavy checks →
-Run workflow** (or `gh workflow run heavy.yml --ref <branch>`). `release.yml` still runs the consumer
-check on the packed tarballs right before it publishes.
+Run workflow** (or `gh workflow run heavy.yml --ref <branch>`).
+
+**The version pull request** (`changeset-release/main`) changes only versions and changelogs: its code
+is the `main` commit it was made from. So it runs `check` and no other test, and its `main` job requires
+that CI and Heavy checks passed on that commit. They started when the commit was pushed, so by the time
+a release is wanted they are usually done, and the version pull request is green in about a minute.
+
+**Merge with auto-merge**: `gh pr merge <number> --auto --merge` merges the pull request by itself once
+the required checks pass, so nobody has to wait for them.
 
 Locally, the same checks:
 
@@ -55,10 +66,10 @@ TEST_S3_ENDPOINT=http://localhost:9190 TEST_S3_ACCESS_KEY=minio TEST_S3_SECRET_K
   pnpm exec vitest run --project api test/api/s3-minio.spec.ts
 ```
 
-The Version packages pull request is opened by the release workflow with `GITHUB_TOKEN`, and GitHub does
-not start workflows for pushes made with it: if no checks appear on that pull request, run **Heavy checks**
-on `changeset-release/main` by hand before merging (or give `changesets/action` a token of an app or a
-personal token).
+The release workflow pushes the Version packages pull request as a GitHub App when the repository has
+one set up (see "Releasing"), and its checks start by themselves. Without it, it pushes with
+`GITHUB_TOKEN`, and GitHub holds the checks of that pull request until someone approves the run
+(**Approve and run** on the pull request).
 
 ## Changesets: every change to a package gets one
 
@@ -269,7 +280,7 @@ When it fails, the message says which step and why. The usual causes:
 | Unexpected differences in the content API or the admin | Intended? Then the changeset says so under `### Upgrade`, and the difference goes into `scripts/upgrade-check/differences.mjs` with its reason. If not, it is a bug. |
 | A manual step a site must do (documented in the changelog) | A hook file for that baseline, `scripts/upgrade-check/<ref>.mjs` (see the README there). |
 
-It is not part of `pnpm check`: it needs the network and a real install of two sites. In CI it runs nightly, on the release pull request and when a pull request touches the code it covers.
+It is not part of `pnpm check`: it needs the network and a real install of two sites. In CI it runs on every push to `main`, nightly, and when a pull request touches the code it covers.
 
 ## The docs check
 
@@ -291,10 +302,27 @@ not its template. Details: `test/docs/README.md`.
 
 Merging to `main` makes the release workflow open (or update) a "Version
 packages" pull request that bumps the versions and writes the changelogs.
-Merging that pull request builds the packages, runs the consumer check (packed
-tarballs installed into a fresh app, then built), and publishes `tinyzoo`,
-`@tinyzoo/client` and `create-tinyzoo` to npm with provenance. Nothing is
+That pull request can be merged once CI and Heavy checks passed on the `main` commit it was made
+from, the consumer check (packed tarballs installed into a fresh app, then built) among them.
+Merging it builds `@tinyzoo/client` and publishes `tinyzoo`, `@tinyzoo/client` and
+`create-tinyzoo` to npm with provenance, then tags and releases them on GitHub. Nothing is
 published by hand, except the one-time placeholder of a new package.
+
+### The release app
+
+With a GitHub App, the release workflow pushes the version pull request as the app, and that pull
+request's checks start by themselves. With `GITHUB_TOKEN` they wait for someone to approve them.
+Setting it up, once:
+
+1. Organisation settings → Developer settings → GitHub Apps → **New GitHub App**. Any name (e.g.
+   `tinyzoo-release`), homepage the repository, **Webhook** off. Repository permissions:
+   **Contents: Read and write**, **Pull requests: Read and write**. Only on this account. Create.
+2. On the app's page: note its **App ID**, then **Generate a private key** (a `.pem` file downloads).
+3. **Install App** → this organisation → only the `tinyzoo` repository.
+4. In the repository: Settings → Secrets and variables → Actions: a **variable** `RELEASE_APP_ID`
+   (the App ID) and a **secret** `RELEASE_APP_PRIVATE_KEY` (the whole `.pem` file).
+
+The next push to `main` updates the version pull request as the app.
 
 ### `create-tinyzoo`: how it is made, and its first publish
 

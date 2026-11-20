@@ -2,11 +2,11 @@
 // (.github/workflows/release.yml) after the "Version packages" pull request is merged.
 //
 //   node scripts/release.mjs            publish what npm does not have yet
-//   node scripts/release.mjs --dry-run  the same steps, but `pnpm publish -r --dry-run`: nothing leaves the machine
+//   node scripts/release.mjs --dry-run  the same steps, but `pnpm publish -r --dry-run`: nothing leaves the machine,
+//                                       and the consumer check runs on the packed tarballs first
 //
 // Steps: skip when every package version is already on npm (every push to main runs this),
-// build @tinyzoo/client (dist), run the consumer check on the packed tarballs (create-tinyzoo
-// is packed with the starter of tinyzoo inside), then `changeset publish` (pnpm publish per
+// build @tinyzoo/client (dist), then `changeset publish` (pnpm publish per
 // package, with provenance when NPM_CONFIG_PROVENANCE=true), then the git tags and GitHub
 // releases (tagAndRelease) of every package that is on npm at its version, also when the
 // publish failed halfway (a re-run publishes what is missing and tags what has no tag yet).
@@ -50,7 +50,11 @@ if (!missing.length && !dry) {
 console.log(`To publish: ${(missing.length ? missing : packages).map((p) => `${p.name}@${p.version}`).join(', ')}${dry ? ' (dry run)' : ''}`)
 
 run('pnpm', ['--filter', '@tinyzoo/client', 'build'])
-run('node', ['scripts/consumer-check.mjs'])
+// The consumer check (create-tinyzoo is packed with the starter of tinyzoo inside) is not run
+// again here: heavy.yml ran it on the main commit the version pull request was made from, and
+// that pull request cannot be merged before it passed (heavy.yml, the `main` job). A dry run
+// still runs it, for trying a release by hand.
+if (dry) run('node', ['scripts/consumer-check.mjs'])
 if (dry) run('pnpm', ['publish', '-r', '--dry-run', '--no-git-checks'])
 else {
   try { run('pnpm', ['exec', 'changeset', 'publish']) }
