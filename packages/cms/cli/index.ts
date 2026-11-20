@@ -21,7 +21,7 @@
  *                               through the admin API (--url --email, password in $SEED_PASSWORD; --dry-run, --reset)
  *   tinyzoo init <dir>        → a new website with the CMS inside (the starter: pages, news,
  *                               menus, a contact form, cs/en), ready for `pnpm install`
- *                               (--languages cs,en,de  --presets news,forms,redirects,search|none
+ *                               (--languages cs,en,de  --presets news,forms,redirects,search,analytics|none
  *                               --demo|--no-demo  --package-manager npm; see cli/init.mjs)
  * `tinyzoo help` prints the commands and flags (cli/usage.ts holds the list the docs and the tests follow).
  * Run from the host app root (cwd = host). Designed to run under tsx.

@@ -42,6 +42,12 @@ This site starts empty. Make the first content yourself:
 <!-- #if forms -->
 4. **Forms** → who gets an email about messages from the contact form.
 <!-- #endif -->
+<!-- #if analytics -->
+
+**Analytics** in the admin counts the website's visits from the first deploy on, without
+cookies. Say so in the website's privacy policy; there is a sentence to start from in
+[tinyzoo's docs](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/analytics.md#privacy).
+<!-- #endif -->
 
 ## Change what editors can write
 

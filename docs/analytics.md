@@ -17,7 +17,9 @@ A site with a cookie banner ([consent](consent.md)) can go further: it can learn
 
 ## Switching it on
 
-Add the plugin in `cms.config.ts`:
+A site made by `tinyzoo init` or `pnpm create tinyzoo` has it already: it is one of the parts, `analytics`, and on unless `--presets` leaves it out.
+
+For an older site, add the plugin in `cms.config.ts`:
 
 ```ts
 // cms.config.ts

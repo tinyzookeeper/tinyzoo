@@ -165,7 +165,7 @@ const combos: Combo[] = [
   { name: 'three languages, every part', languages: ['cs', 'en', 'de'], presets: PRESET_NAMES, demo: true, regenerate: { schema: false, client: true } },
   { name: 'English first, news and redirects', languages: ['en', 'cs'], presets: ['news', 'redirects'], demo: true, regenerate: { schema: true, client: true } },
   { name: 'German first (no demo), search only', languages: ['de', 'en'], presets: ['search'], demo: false, regenerate: { schema: true, client: true } },
-  { name: 'Czech and English without forms', languages: ['cs', 'en'], presets: ['news', 'redirects', 'search'], demo: true, regenerate: { schema: true, client: true } },
+  { name: 'Czech and English without forms', languages: ['cs', 'en'], presets: ['news', 'redirects', 'search', 'analytics'], demo: true, regenerate: { schema: true, client: true } },
 ]
 
 describe.each(combos)('a site with $name', ({ languages, presets, demo, regenerate }) => {
@@ -201,6 +201,8 @@ describe.each(combos)('a site with $name', ({ languages, presets, demo, regenera
     const config = read(site, 'cms.config.ts')
     expect(config.includes("defineEntity('news'")).toBe(has('news'))
     expect(config.includes('formsPlugin()')).toBe(has('forms'))
+    expect(config.includes('analyticsPlugin()')).toBe(has('analytics'))
+    expect(config.includes('export const plugins')).toBe(has('forms') || has('analytics'))
     expect(config.includes('defineRedirects()')).toBe(has('redirects'))
     if (has('news')) {
       const word = (l: string) => (ADDRESS_WORDS as Record<string, { news: string }>)[l]?.news ?? 'news'

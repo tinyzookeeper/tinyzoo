@@ -23,7 +23,7 @@ npm create tinyzoo@latest my-site -- --languages de,en --yes     # npm: options 
 | Option | |
 |---|---|
 | `--languages cs,en,de` | the content languages; the first is the default (default: `cs,en`) |
-| `--presets news,forms,redirects,search` | the parts of the site, or `none` / `all` (default: all) |
+| `--presets news,forms,redirects,search,analytics` | the parts of the site, or `none` / `all` (default: all) |
 | `--demo` / `--no-demo` | demo content (a small bakery, in Czech and English) or an empty site |
 | `--install` / `--no-install` | install the dependencies right away |
 | `--package-manager pnpm` | `pnpm`, `npm`, `yarn` or `bun` (default: the one you ran this with) |

@@ -24,7 +24,7 @@ Without options you are asked. Every question has an option, and with --yes (or 
 terminal) nothing is asked: the defaults are used for what is not given.
 
   --languages cs,en      the content languages; the first one is the default (default: cs,en)
-  --presets a,b | none   the parts of the site: news, forms, redirects, search (default: all)
+  --presets a,b | none   the parts of the site: news, forms, redirects, search, analytics (default: all)
   --demo / --no-demo     fill it with demo content (a small bakery, in Czech and English)
   --install / --no-install    install the dependencies right away (default: asked; no with --yes)
   --package-manager pnpm      pnpm, npm, yarn or bun (default: the one you ran this with)
