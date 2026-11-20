@@ -45,6 +45,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import pg from 'pg'
+import { listedBaselines } from './upgrade-check/baselines.mjs'
 import differences from './upgrade-check/differences.mjs'
 import { lockfileVersions, newestTag, npmBaseline, workspaceOverrides } from './upgrade-check/workspace.mjs'
 import { ACCOUNT, applyRules, checkMedia, Client, describe, diff, formatDifference, saveEverything, seedViaApi, signIn, snapshot } from './upgrade-check/site.mjs'
@@ -117,13 +118,7 @@ const latestTag = () => newestTag(git('tag', '--list', 'v[0-9]*', 'tinyzoo@[0-9]
 
 function baselineList() {
   const asked = values('--from').flatMap((v) => v.split(',')).map((v) => v.trim()).filter(Boolean)
-  if (asked.length) return asked
-  const file = join(root, '.github/upgrade-baseline')
-  const listed = existsSync(file)
-    ? readFileSync(file, 'utf8').split('\n').map((l) => l.replace(/#.*/, '').trim()).filter(Boolean)
-    : []
-  // Once releases exist the latest one is a baseline without anyone adding it.
-  return listed.includes('latest-tag') ? listed : [...listed, 'latest-tag']
+  return asked.length ? asked : listedBaselines(root)
 }
 
 function resolveBaselines() {

@@ -9,12 +9,13 @@ pnpm check        # typecheck + unit and API tests (needs Postgres, see docs/dev
 
 ## What CI runs, and when
 
-Every pull request and every push to `main` (`.github/workflows/ci.yml`, about four minutes):
+Every pull request and every push to `main` (`.github/workflows/ci.yml`, about three minutes):
 
 | Job | What |
 |---|---|
-| `check` | `pnpm typecheck` (the code, the docs' examples and the Vue templates of the admin, playground, starter and website) and `pnpm test:unit` |
-| `api` | `pnpm test:api`: the built playground over HTTP against Postgres and Redis. Its production build is the build check |
+| `check` | `pnpm typecheck` (the code, the docs' examples and the Vue templates of the admin, playground, starter, website and Keeper; the four apps at once) and `pnpm test:unit` |
+| `api (part 1–4 of 4)` | `pnpm test:api --shard=<n>/4`: the built playground over HTTP against Postgres and Redis, a quarter of the spec files on each of four runners. Each part's production build is the build check |
+| `api` | green when all four parts passed (the check branch protection asks for) |
 | `changeset` | pull requests only: a change to a package comes with a changeset |
 
 The slow checks (`.github/workflows/heavy.yml`) run **nightly on `main`**, **on demand**, on the
@@ -23,12 +24,13 @@ when it touches what they cover**:
 
 | Job | What | Runs on a pull request that changes |
 |---|---|---|
-| `upgrade` | a site made on an older tinyzoo moves to this one (below) | `packages/cms/{src,cli,server,starter}/**`, `scripts/upgrade-check*`, `.github/upgrade-baseline/**` |
+| `upgrade (from <baseline>)` | a site made on an older tinyzoo moves to this one (below), one job per baseline | `packages/cms/{src,cli,server,starter}/**`, `scripts/upgrade-check*`, `.github/upgrade-baseline/**` |
 | `consumer` | the packages packed, installed into a fresh app and built; `create-tinyzoo` installed from its tarball makes a site | `packages/*/package.json`, `packages/cms/module.ts`, `packages/cms/nuxt.config.ts`, `packages/cms/cli/init.mjs`, `packages/cms/starter/**`, `packages/create-tinyzoo/**`, `scripts/consumer-check*`, `test/consumer/**`, the playground's `package.json`, `cms.config.ts` and `cms-plugins/` |
-| `starter` | the starter in four combinations (languages, parts, demo content), each made by the packed `tinyzoo init` or `create-tinyzoo`, installed from the tarballs, migrated, built, started and checked (about ten minutes) | `packages/cms/starter/**`, `packages/cms/cli/init*`, `packages/create-tinyzoo/**`, `scripts/starter-check*` |
+| `starter (<combination>)` | the starter in four combinations (languages, parts, demo content), one job each: made by the packed `tinyzoo init` or `create-tinyzoo`, installed from the tarballs, migrated, built, started and checked | `packages/cms/starter/**`, `packages/cms/cli/init*`, `packages/create-tinyzoo/**`, `scripts/starter-check*` |
 | `backup (client tools 16 / 17 / 18, server 16)` | `tinyzoo backup` and `restore` with `pg_dump`, `pg_restore` and `psql` of each version; fails where the tools are missing | `packages/cms/cli/backup*`, `cli/tar*`, `src/migrate*`, `.github/actions/pg-client/**`, `test/api/backup.spec.ts` |
 | `s3-minio` | the S3 delivery modes against a real MinIO | `server/utils/cmsStorage*`, `server/api/cms/_media/**`, `cli/transfer*`, `test/api/s3-minio.spec.ts` |
 | `site-image` | the website's Docker image builds from the repo root with `site/Dockerfile`, as the deploy does (catches a file `.dockerignore` leaves out) | `site/**`, `docs/**`, `packages/cms/**`, `.dockerignore`, the root `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `test/contracts/openapi.playground.json` |
+| `locale-switch` | turning `publish.perLocale` on keeps the website as it was: `test/api/locale-publishing-switch.spec.ts` builds the playground a second time with it off and compares both servers (`pnpm test:api` runs it locally; CI leaves it out of the `api` parts) | `packages/cms/**`, `playground/**`, `pnpm-lock.yaml`, `test/setup/**`, `test/helpers/**`, the spec |
 | `result` | green when every heavy job that ran passed (skipped ones are nothing relevant) | every pull request |
 
 Changing `heavy.yml` itself runs all of them. To run them by hand on any branch: **Actions → Heavy checks →
@@ -43,6 +45,7 @@ pnpm check:consumer         # packs the packages, builds a fresh app from the ta
 # the starter in four combinations (languages, parts, demo content), each made by the packed package, installed,
 # built, started and checked: tinyzoo init, and create-tinyzoo (needs a scratch Postgres database, see docs/development.md)
 STARTER_CHECK_DATABASE_URL=postgres://cms:cms@localhost:5434/cms_test_starter pnpm check:starter
+#   … --only english-empty   one combination (the ids are in scripts/starter-check/scenarios.mjs)
 pnpm build                  # a plain production build of the playground (the API tests already make one)
 # backup: needs pg_dump, pg_restore and psql (or TINYZOO_PG_DUMP / TINYZOO_PG_RESTORE / TINYZOO_PSQL);
 # TINYZOO_REQUIRE_PG_TOOLS=1 makes missing tools a failure instead of a skip, as in CI

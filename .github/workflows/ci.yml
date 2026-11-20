@@ -1,13 +1,15 @@
 name: CI
 
 # What runs on every pull request and every push to main: the fast checks, in parallel.
-#   check      typecheck + unit tests
-#   api        the API tests; their playground production build is the build check
+#   check      typecheck (the four Nuxt apps at once) + unit tests
+#   api-shard  the API tests in four parts, each on its own runner with its own database and
+#              playground build (the build is the build check)
+#   api        green when all four parts passed: the one check branch protection asks for
 #   changeset  a pull request that changes a package says so (PRs only)
 #
-# The slow ones (upgrade, consumer, backup with three pg client versions, MinIO) live in
-# heavy.yml: nightly, on demand, on the release pull request, and on pull requests that
-# touch what they cover. CONTRIBUTING.md has the table.
+# The slow ones (upgrade, consumer, backup with three pg client versions, MinIO, the perLocale
+# switch with its second build) live in heavy.yml: nightly, on demand, on the release pull
+# request, and on pull requests that touch what they cover. CONTRIBUTING.md has the table.
 on:
   push:
     branches: [main]
@@ -60,9 +62,18 @@ jobs:
 
   # The API specs talk to a production build of the playground (test/setup/server.ts builds it).
   # That build is the "does it build" check: a failed build stops here with its own output.
-  api:
+  # The spec files run one at a time (they share a database), so they are split across four
+  # runners: vitest's --shard gives each a quarter of the files. Every part builds the playground
+  # itself, at the same time as the others, which is quicker than building once and handing the
+  # build over. locale-publishing-switch.spec.ts makes a second build of its own: heavy.yml runs it.
+  api-shard:
+    name: api (part ${{ matrix.shard }} of 4)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         image: postgres:16-alpine
@@ -104,7 +115,22 @@ jobs:
       - name: API tests
         env:
           CMS_TEST_REUSE_BUILD: ${{ steps.build-cache.outputs.reuse }}
-        run: pnpm test:api
+        run: pnpm test:api --shard=${{ matrix.shard }}/4 --exclude test/api/locale-publishing-switch.spec.ts
+
+  # The check branch protection requires (named `api` from before the split): green only when
+  # every part passed.
+  api:
+    needs: api-shard
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every part of the API tests passed
+        env:
+          RESULT: ${{ needs.api-shard.result }}
+        run: |
+          echo "API tests: $RESULT"
+          test "$RESULT" = success
 
   # Every change to a published package comes with a changeset (CONTRIBUTING.md).
   # Not for the release pull request itself, which consumes them.
