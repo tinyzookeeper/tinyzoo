@@ -41,10 +41,20 @@ To take it out again, remove it from `plugins`. The next `tinyzoo generate` offe
 
 ## What the admin shows
 
-**Analytics** in the sidebar opens the report:
+**Visitors** in the sidebar (Návštěvnost in Czech) opens the report. It has two views of the same numbers, switched at the top right. Each person's choice is remembered.
 
-- **The period.** Today, yesterday, the last 7 or 30 days, this month, last month, the last 12 months, or days of your own. Each is compared with the period before it (this month with the same days of the month before). The comparison can be switched off.
-- **The headline numbers**, each with its change against the period before:
+**Simple** is where everyone starts. It says what happened in plain words:
+
+- **The period**, as chips: today, the last 7 or 30 days, this month, the last 12 months. Yesterday, last month and days of your own are under **More**.
+- **The story.** The number of people who came, and a few sentences: how that compares with the period before, the busiest day (or hour), how most people found the website and what they read most. Below it, who is on the website right now.
+- **The chart.** Visitors by hour for one day, by day for longer periods, with the period before dashed.
+- **Three numbers said the way a person would**: how long people stay, about how many pages a visit looks at, and how many in 10 leave after one page. Each says whether it changed. Hovering shows the usual term and value (average time, views per visit, bounce rate).
+- **Four questions**: What do they read? How do they find you? What do they use? Where are they from?
+
+**Detailed** has the usual terms, for people who know them from other tools:
+
+- **The period**, with a switch to turn the comparison with the period before off. This month is compared with the same days of the month before.
+- **The headline numbers**, each with its change in per cent:
   - unique visitors;
   - visits;
   - pageviews;
@@ -65,7 +75,7 @@ A click on any row shows only the visits it stands for: "Source: Google", then "
 
 The report is in two more places:
 
-- **The admin's home page** has a card: visitors of the last 7 days against the 7 before, and the three most read pages.
+- **The admin's home page** has a card: how many people came in the last 7 days, compared with the 7 before, who is on the website now, and the three most read pages.
 - **The entry editor** has a "Visits" panel for entries with a page on the website: views, visitors and average time over the last 30 days, a small chart, and where the visits came from.
 
 Administrators and editors see the reports. Authors do not: how many people read the site is the business's own information. The `access` option changes that ([Options](#options)).
@@ -102,7 +112,7 @@ A **visit** is one visitor's page views with gaps under 30 minutes. A visit belo
 ### What is not counted
 
 - The admin (`/admin` and below) and the API.
-- People signed in to the admin, while they look at their own website. The Analytics page says so under "On the website now": to see yourself counted, open the website in a private window.
+- People signed in to the admin, while they look at their own website. The Visitors page says so beside "On the website now": to see yourself counted, open the website in a private window.
 - The admin's preview.
 - Robots and scripts. They are recognised by their user agent. A robot that runs no JavaScript never runs the script either.
 - Pages the site leaves out with `excludePaths`.
@@ -144,7 +154,7 @@ The daily totals cover one thing at a time: pages, or sources. They cannot be co
 
 There are three ways:
 
-- **For a while.** An administrator switches **Count visits** off in Settings → Counting visits, and confirms. The website stops counting. What it counted stays in the reports, and the Analytics page says that counting is off, with a link to the setting. Switching it on again continues.
+- **For a while.** An administrator switches **Count visits** off in Settings → Counting visits, and confirms. The website stops counting. What it counted stays in the reports, and the Visitors page says that counting is off, with a link to the setting. Switching it on again continues.
 - **On one server.** `NUXT_CMS_ANALYTICS_ENABLED=false` in the environment stops counting there, whatever the admin says. Use it on staging, or to stop at once without a deploy.
 - **For good.** Remove the plugin from `plugins` ([Switching it on](#switching-it-on)).
 
@@ -194,7 +204,7 @@ Nothing is stored on the visitor's device, so the statistics need no consent ([P
 
 Everyone is still counted by the day's hash. The endpoint also reads the visitor's consent cookie (on the server: it is the same site), and when statistics are allowed, it keeps the cookie's consent id with the view (the column `consent_id`). The consent id lasts as long as the consent, up to 13 months, so these visitors can be followed from one day to the next.
 
-That gives a section of its own on the Analytics page, **Among visitors who agreed to cookies (N % of visits)**. The share is in the heading, so nobody reads the sample as the total:
+That gives a section of its own in the Visitors page's Detailed view, **Among visitors who agreed to cookies (N % of visits)**. The share is in the heading, so nobody reads the sample as the total:
 
 - **Unique visitors in the whole period**, each person once, not once a day;
 - **new and returning** visitors: first seen in the period, or seen before it;

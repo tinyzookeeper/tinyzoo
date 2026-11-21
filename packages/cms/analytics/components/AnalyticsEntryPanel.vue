@@ -49,7 +49,7 @@ const more = computed(() => `/admin/p/analytics?period=30d&f.entry=${encodeURICo
           </li>
         </ul>
       </div>
-      <UButton :to="more" size="xs" variant="link" color="neutral" class="px-0" trailing-icon="i-lucide-arrow-right" :label="tx('widget.open')" />
+      <UButton :to="more" size="xs" variant="link" color="neutral" class="px-0" trailing-icon="i-lucide-arrow-right" :label="tx('panel.open')" />
     </template>
     <p v-else class="text-sm text-muted">{{ tx('panel.none', { count: data.days }) }}</p>
   </div>
