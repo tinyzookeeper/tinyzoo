@@ -86,6 +86,14 @@ html:root, html.dark:root {
   --k-mood-busy-text: #7A3424;
   --k-mood-quiet-bg: color-mix(in oklab, #D08700 14%, #fff);
   --k-mood-quiet-text: #6B4500;
+
+  /* Uptime days: up all day a calm green, down a little amber, down for long red, no checks grey. */
+  --k-up: #4F9A68;
+  --k-down-short: #D99A2B;
+  --k-down-long: #C4413A;
+  --k-no-checks: #E9E6E1;
+  --k-tip: #2E3035;
+  --k-tip-text: #fff;
 }
 
 html.dark:root {
@@ -140,6 +148,13 @@ html.dark:root {
   --k-mood-busy-text: #F3C2B4;
   --k-mood-quiet-bg: color-mix(in oklab, #D08700 22%, #1E1F23);
   --k-mood-quiet-text: #F2CF8C;
+
+  --k-up: #5FAE7A;
+  --k-down-short: #E0A640;
+  --k-down-long: #E0574F;
+  --k-no-checks: #34363B;
+  --k-tip: #F9F5EF;
+  --k-tip-text: #131313;
 }
 
 /* The cream primary button carries ink text in dark mode. */

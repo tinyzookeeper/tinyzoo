@@ -18,6 +18,8 @@ const props = defineProps<{
   checking?: boolean
   /** The site's address, for a guest's "Open the site". */
   siteUrl?: string
+  /** The page has its own Simple | Detailed switch (a site's page): leave this one out. */
+  noSwitch?: boolean
 }>()
 const emit = defineEmits<{ check: [] }>()
 const now = useNow()
@@ -141,7 +143,7 @@ async function showTable() {
       </template>
       <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
         <UTabs v-if="hasDays || hasLive" v-model="period" :items="periods" :content="false" size="xs" variant="pill" color="neutral" class="w-auto" />
-        <TrafficViewSwitch v-model="view" />
+        <TrafficViewSwitch v-if="!noSwitch" v-model="view" />
       </div>
     </header>
 
