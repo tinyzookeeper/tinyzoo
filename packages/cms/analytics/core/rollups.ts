@@ -67,3 +67,24 @@ export function rollupDaysOf(days: readonly string[], rows: readonly RollupRowIn
 }
 
 const n = (v: unknown): number => Number(v) || 0
+
+// ── today's visits (GET /api/content/_analytics/live) ───────────────────────────
+
+/** An item of a list as the admin's queries give it (with `entity`/`id` the answer leaves out). */
+export interface LiveListIn { value: string; title?: string; visitors: number; visits: number; pageviews: number }
+
+/** The first `top` items of a list, in the shape of the rollups' lists (`title` only when there is one). */
+export function liveListOf(items: readonly LiveListIn[], top: number): AnalyticsRollupItem[] {
+  return items.slice(0, top).map((i) => {
+    const item: AnalyticsRollupItem = { value: String(i.value), visitors: n(i.visitors), visits: n(i.visits), pageviews: n(i.pageviews) }
+    if (i.title) item.title = i.title
+    return item
+  })
+}
+
+/** Hours 0…`hour` from the hourly points (keyed '0'…'23'), every hour there, empty ones as 0. */
+export function liveHoursOf(points: readonly { key: string; visitors: number; pageviews: number }[], hour: number): { hour: number; visitors: number; pageviews: number }[] {
+  const by = new Map(points.map((p) => [Number(p.key), p]))
+  const last = Math.max(0, Math.min(23, Math.floor(hour)))
+  return Array.from({ length: last + 1 }, (_, h) => ({ hour: h, visitors: n(by.get(h)?.visitors), pageviews: n(by.get(h)?.pageviews) }))
+}

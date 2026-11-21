@@ -13,7 +13,7 @@ A site with a cookie banner ([consent](consent.md)) can go further: it can learn
 - [Cookie banner](#cookie-banner): the modes `cookieless`, `consent` and `strict`
 - [Privacy](#privacy), with a sentence for the site's privacy policy
 - [The tables](#the-tables)
-- [For a fleet monitor](#for-a-fleet-monitor): the daily totals over HTTP, with the status token
+- [For a fleet monitor](#for-a-fleet-monitor): the daily totals over HTTP, with the status token, and [today so far](#today-so-far)
 
 ## Switching it on
 
@@ -318,7 +318,46 @@ The answer (`AnalyticsRollups` in `tinyzoo/analytics`):
 The site status says where to look. With the plugin, `/api/health/status` has an `analytics` key:
 
 ```json
-{ "enabled": true, "collecting": true, "since": "2026-09-14", "rollupsPath": "/api/content/_analytics/rollups" }
+{ "enabled": true, "collecting": true, "since": "2026-09-14", "rollupsPath": "/api/content/_analytics/rollups", "livePath": "/api/content/_analytics/live" }
 ```
 
 `enabled` is false when `NUXT_CMS_ANALYTICS_ENABLED=false` stops counting on the server. `collecting` is false then too, and when an administrator switched **Counting visits** off. A site without the plugin, or on an older tinyzoo, has no `analytics` key.
+
+`livePath` came with tinyzoo 1.6; an older site has only `rollupsPath`.
+
+### Today so far
+
+The daily totals stop at yesterday. For today, the same tool asks the same way, with the same token, 30 times a minute at most:
+
+```sh
+curl -H "x-api-key: $NUXT_CMS_STATUS_TOKEN" "https://example.com/api/content/_analytics/live"
+```
+
+The answer (`AnalyticsLive` in `tinyzoo/analytics`):
+
+```jsonc
+{
+  "format": "tinyzoo-analytics-live",
+  "version": 1,
+  "at": "2026-11-21T13:05:00.000Z",
+  "timeZone": "Europe/Prague",
+  "day": "2026-11-21",   // today, in the site's time zone
+  "hour": 14,            // the hour it is there now
+  "active": 3,           // visitors in the last five minutes
+  "today": {             // today so far, shaped like a day of the rollups
+    "day": "2026-11-21",
+    "visitors": 57, "visits": 63, "pageviews": 140, "bounces": 30, "engagedMs": 4210000,
+    "pages": [{ "value": "/blog/chleba", "title": "Jak péct chleba", "visitors": 20, "visits": 21, "pageviews": 24 }],
+    "sources": [{ "value": "Google", "visitors": 31, "visits": 33, "pageviews": 70 }],
+    "countries": [{ "value": "CZ", "visitors": 52, "visits": 58, "pageviews": 131 }],
+    "devices": [{ "value": "mobile", "visitors": 38, "visits": 41, "pageviews": 80 }]
+  },
+  "yesterdaySoFar": { "visitors": 49, "visits": 52, "pageviews": 118, "bounces": 27, "engagedMs": 3900000 },
+  "hours": [{ "hour": 0, "visitors": 1, "pageviews": 2 }, { "hour": 14, "visitors": 9, "pageviews": 17 }]
+}
+```
+
+- It is counted from the day's page views the way the admin's report counts them, so both show the same numbers. They grow during the day and become final in the night's totals.
+- `yesterdaySoFar` is yesterday from its midnight to the same time of day as now, to compare today with.
+- `hours` has every hour from midnight to `hour`, with zeros when nobody came.
+- As with the totals: no single page view, no visitor hash, no visit id, no consent id.

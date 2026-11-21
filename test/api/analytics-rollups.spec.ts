@@ -92,7 +92,7 @@ describe('the answer', () => {
     const res = await anonymous().get<AnalyticsRollups>(`${ROUTE}?from=${day}&to=${day}`, key)
     expect(res.body).toMatchObject({ since: null, through: null, days: [] })
     const status = (await anonymous().get<CmsStatus>('/api/health/status', key)).body
-    expect(status.analytics).toEqual({ enabled: true, collecting: true, since: null, rollupsPath: '/api/content/_analytics/rollups' })
+    expect(status.analytics).toEqual({ enabled: true, collecting: true, since: null, rollupsPath: '/api/content/_analytics/rollups', livePath: '/api/content/_analytics/live' })
     await total(day, 'total', '', 4)
     expect((await anonymous().get<CmsStatus>('/api/health/status', key)).body.analytics?.since).toBe(day)
   })

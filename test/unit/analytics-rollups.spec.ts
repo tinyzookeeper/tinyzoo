@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { answerDays, parseRollupsRange, rollupDaysOf } from '../../packages/cms/analytics/core/rollups'
+import { answerDays, liveHoursOf, liveListOf, parseRollupsRange, rollupDaysOf } from '../../packages/cms/analytics/core/rollups'
 
 // The pure part of GET /api/content/_analytics/rollups: the range a request asks for and the
 // days of the answer (the route itself: test/api/analytics-rollups.spec.ts).
@@ -49,5 +49,31 @@ describe('the days of the answer', () => {
       },
       { day: '2026-01-02', visitors: 0, visits: 0, pageviews: 0, bounces: 0, engagedMs: 0, pages: [], sources: [], countries: [], devices: [] },
     ])
+  })
+})
+
+describe('today’s visits (the live answer)', () => {
+  it('keeps the first few items of a list, in the rollups’ shape', () => {
+    const items = [
+      { value: '/blog/a', title: 'Jak péct chleba', entity: 'posts', id: 'x', visitors: 5, visits: 6, pageviews: 9 },
+      { value: '/', visitors: 3, visits: 3, pageviews: 3 },
+      { value: '/kontakt', title: '', visitors: 1, visits: 1, pageviews: 1 },
+    ]
+    expect(liveListOf(items, 2)).toEqual([
+      { value: '/blog/a', title: 'Jak péct chleba', visitors: 5, visits: 6, pageviews: 9 },
+      { value: '/', visitors: 3, visits: 3, pageviews: 3 },
+    ])
+    expect(liveListOf(items, 10)[2]).toEqual({ value: '/kontakt', visitors: 1, visits: 1, pageviews: 1 })
+  })
+
+  it('has every hour from midnight to now, empty ones as zeros', () => {
+    expect(liveHoursOf([{ key: '1', visitors: 2, pageviews: 5 }, { key: '3', visitors: 1, pageviews: 1 }], 3)).toEqual([
+      { hour: 0, visitors: 0, pageviews: 0 },
+      { hour: 1, visitors: 2, pageviews: 5 },
+      { hour: 2, visitors: 0, pageviews: 0 },
+      { hour: 3, visitors: 1, pageviews: 1 },
+    ])
+    expect(liveHoursOf([], 0)).toEqual([{ hour: 0, visitors: 0, pageviews: 0 }])
+    expect(liveHoursOf([{ key: '23', visitors: 1, pageviews: 1 }], 23)).toHaveLength(24)
   })
 })

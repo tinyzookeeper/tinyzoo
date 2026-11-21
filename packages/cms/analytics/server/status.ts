@@ -1,6 +1,6 @@
 import { eq, sql } from 'drizzle-orm'
 import type { CmsStatusAnalytics } from '../../src/status'
-import { ROLLUPS_CONTENT_PATH } from '../format'
+import { LIVE_CONTENT_PATH, ROLLUPS_CONTENT_PATH } from '../format'
 import { analyticsOptionsOf } from '../options'
 import { analyticsDaily } from '../tables'
 import { serverAllowsCollecting, settingsAllowCollecting } from './context'
@@ -13,6 +13,7 @@ export async function analyticsStatus(baseURL: string): Promise<CmsStatusAnalyti
   const { db, reg } = useCms()
   if (!analyticsOptionsOf(reg)) return undefined
   const rollupsPath = `${baseURL}api/content/${ROLLUPS_CONTENT_PATH}`
+  const livePath = `${baseURL}api/content/${LIVE_CONTENT_PATH}`
   const enabled = serverAllowsCollecting()
   let collecting = false
   let since: string | null = null
@@ -23,5 +24,5 @@ export async function analyticsStatus(baseURL: string): Promise<CmsStatusAnalyti
     since = row?.since ?? null
   }
   catch { /* the plugin's tables are not migrated yet */ }
-  return { enabled, collecting, since, rollupsPath }
+  return { enabled, collecting, since, rollupsPath, livePath }
 }

@@ -40,7 +40,7 @@ describe('the status route', () => {
     expect(s.webhooks).toEqual({ urls: 2, signed: true })
     expect(s.plugins.map((p) => p.name)).toEqual(['forms', 'events', 'analytics', 'consent'])
     // The analytics plugin says whether it counts and where its daily totals are read.
-    expect(s.analytics).toMatchObject({ enabled: true, collecting: expect.any(Boolean), rollupsPath: '/api/content/_analytics/rollups' })
+    expect(s.analytics).toMatchObject({ enabled: true, collecting: expect.any(Boolean), rollupsPath: '/api/content/_analytics/rollups', livePath: '/api/content/_analytics/live' })
 
     const tag = s.content.collections.find((c) => c.name === 'tag')!
     expect(tag).toMatchObject({ kind: 'collection' })

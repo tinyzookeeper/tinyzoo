@@ -61,19 +61,8 @@ const rolledWhere = (r: DayRange, dimension: string): SQL => and(eq(d.dimension,
 export async function totalsOf(db: any, w: Window): Promise<Totals> {
   const plan = planOf(w)
   let t = emptyTotals()
-  if (plan.raw) {
-    const where = rawWhere(plan.raw, w)
-    // A bounce: a visit of one view in all (not one view among those the filters keep).
-    const singles = sql`select ${e.session} from ${e} where ${span(plan.raw, w.tz)} group by ${e.session} having count(*) = 1`
-    const [row]: any[] = await db.select({
-      visitors: sql<number>`count(distinct ${e.visitor})::int`,
-      visits: sql<number>`count(distinct ${e.session})::int`,
-      pageviews: sql<number>`count(*)::int`,
-      engagedMs: sql<number>`coalesce(sum(${e.engagedMs}), 0)::bigint`,
-      bounces: sql<number>`count(distinct ${e.session}) filter (where ${e.session} in (${singles}))::int`,
-    }).from(e).where(where)
-    t = addTotals(t, row ?? {})
-  }
+  // A bounce: a visit of one view in all (not one view among those the filters keep).
+  if (plan.raw) t = addTotals(t, await rawTotals(db, rawWhere(plan.raw, w), span(plan.raw, w.tz)))
   if (plan.rolled) {
     const [row]: any[] = await db.select({
       visitors: sql<number>`coalesce(sum(${d.visitors}), 0)::int`,
@@ -85,6 +74,29 @@ export async function totalsOf(db: any, w: Window): Promise<Totals> {
     t = addTotals(t, row ?? {})
   }
   return t
+}
+
+/** The totals of the raw views matching `where`; a bounce is a visit with one view within `all`. */
+async function rawTotals(db: any, where: SQL, all: SQL): Promise<Partial<Totals>> {
+  const singles = sql`select ${e.session} from ${e} where ${all} group by ${e.session} having count(*) = 1`
+  const [row]: any[] = await db.select({
+    visitors: sql<number>`count(distinct ${e.visitor})::int`,
+    visits: sql<number>`count(distinct ${e.session})::int`,
+    pageviews: sql<number>`count(*)::int`,
+    engagedMs: sql<number>`coalesce(sum(${e.engagedMs}), 0)::bigint`,
+    bounces: sql<number>`count(distinct ${e.session}) filter (where ${e.session} in (${singles}))::int`,
+  }).from(e).where(where)
+  return row ?? {}
+}
+
+/**
+ * Yesterday from its midnight to the same time of day as now (now minus 24 hours), to compare
+ * today with. From the raw views only (yesterday always has them).
+ */
+export async function yesterdaySoFar(db: any, today: string, tz: string): Promise<Totals> {
+  const yesterday = addDays(today, -1)
+  const where = and(gte(e.at, dayStart(yesterday, tz)), lt(e.at, dayStart(today, tz)), lt(e.at, sql`now() - interval '1 day'`))!
+  return addTotals(emptyTotals(), await rawTotals(db, where, where))
 }
 
 export interface Point { key: string; visitors: number; pageviews: number }

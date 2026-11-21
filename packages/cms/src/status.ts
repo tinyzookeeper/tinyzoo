@@ -99,6 +99,11 @@ export interface CmsStatusAnalytics {
    * (`/api/content/_analytics/rollups`). See `AnalyticsRollups` in `tinyzoo/analytics`.
    */
   rollupsPath: string
+  /**
+   * Where today's visits so far are read with the same token (`/api/content/_analytics/live`).
+   * See `AnalyticsLive` in `tinyzoo/analytics`. A tinyzoo before 1.6 has no such key.
+   */
+  livePath: string
 }
 
 export interface CmsStatusCollection {
