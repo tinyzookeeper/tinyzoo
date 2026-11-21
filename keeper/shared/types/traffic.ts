@@ -87,6 +87,11 @@ export interface TrafficReport {
   /** The same number of days just before. */
   previous: TrafficTotals
   /**
+   * Visitors a day over those days before, oldest first (`days` long), lined up with `series`:
+   * only when the site counted all of them, so a dashed line of zeros never shows.
+   */
+  previousSeries?: number[]
+  /**
    * The period's top values, added up from each day's top 10 (a value outside a day's top 10
    * is not counted that day, so the long tail is a little low).
    */
@@ -169,6 +174,8 @@ export interface ScopeTrafficSite {
   spark: number[]
   /** Visitors in the last 5 minutes (today only, or when read live). */
   active?: number
+  /** A drop in visitors the team was told about, while it lasts. */
+  drop?: TrafficDrop
 }
 
 /**
