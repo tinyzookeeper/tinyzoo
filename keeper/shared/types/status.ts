@@ -94,6 +94,8 @@ export interface CmsStatus {
     since: string | null
     /** Where the daily totals are read with the status token (`/api/content/_analytics/rollups`). */
     rollupsPath: string
+    /** Where today's visits are read live with the status token (`/api/content/_analytics/live`); absent before tinyzoo 1.6. */
+    livePath?: string
   }
 }
 

@@ -15,6 +15,7 @@ const creating = ref(false)
 const items = computed<NavigationMenuItem[]>(() => everywhere.value
   ? [
       { label: 'Overview', icon: 'i-lucide-layout-grid', to: '/home', exact: true, onSelect: close },
+      { label: 'Traffic', icon: 'i-lucide-chart-line', to: '/home/traffic', onSelect: close },
       { label: 'Versions', icon: 'i-lucide-git-branch', to: '/home/versions', onSelect: close },
     ]
   : workspace.value && isGuest.value
@@ -22,6 +23,7 @@ const items = computed<NavigationMenuItem[]>(() => everywhere.value
   : workspace.value
   ? [
       { label: 'Sites', icon: 'i-lucide-house', to: link(), exact: true, onSelect: close, badge: String((team.value ?? workspace.value).sites || '') || undefined },
+      { label: 'Traffic', icon: 'i-lucide-chart-line', to: link('/traffic'), onSelect: close },
       { label: 'Versions', icon: 'i-lucide-git-branch', to: link('/versions'), onSelect: close },
     ]
   : [])
