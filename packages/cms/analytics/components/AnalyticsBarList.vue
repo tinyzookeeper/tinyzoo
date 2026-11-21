@@ -1,11 +1,23 @@
 <script setup lang="ts">
 // A list of values with a bar for each (its share of the largest): pages, sources, countries.
-// Clicking a row filters the whole page by it; a page that is an entry also links to its editor.
-// The bar is a wash of the visitors' hue behind the text, so the text keeps its contrast.
+// Each row is the label and its number, with a thin bar under them on a light track, and a
+// little room between rows. Clicking a row filters the whole page by it; a page that is an entry
+// also links to its editor. A page's address shows under its title only when `paths` is on.
 import { compactNumber } from '../app/format'
 import type { BarItem } from '../app/types'
 
-const props = withDefaults(defineProps<{ items: BarItem[]; locale: string; empty: string; filterLabel: (label: string) => string; openLabel?: string; moreLabel: (count: number) => string; lessLabel: string; rows?: number }>(), { rows: 8 })
+const props = withDefaults(defineProps<{
+  items: BarItem[]
+  locale: string
+  empty: string
+  filterLabel: (label: string) => string
+  openLabel?: string
+  moreLabel: (count: number) => string
+  lessLabel: string
+  rows?: number
+  /** Show a page's address under its title (the detailed view). */
+  paths?: boolean
+}>(), { rows: 8, paths: false })
 const emit = defineEmits<{ select: [key: string] }>()
 
 const all = ref(false)
@@ -16,24 +28,26 @@ const max = computed(() => Math.max(1, ...props.items.map((i) => i.value)))
 <template>
   <div>
     <p v-if="!items.length" class="py-6 text-center text-sm text-muted">{{ empty }}</p>
-    <ul v-else class="space-y-0.5">
-      <li v-for="item in shown" :key="item.key" class="an-row group relative flex items-center gap-1 rounded">
-        <span class="an-bar pointer-events-none absolute left-0 rounded" :style="{ width: `${Math.max(1.5, (item.value / max) * 100)}%` }" aria-hidden="true" />
+    <ul v-else class="an-list">
+      <li v-for="item in shown" :key="item.key" class="an-row group relative">
         <button
-          type="button" class="an-pick cms-dense relative flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm"
+          type="button" class="an-pick cms-dense min-w-0 text-left text-sm"
           :title="item.detail" :aria-label="filterLabel(item.label)" @click="emit('select', item.key)"
         >
-          <span v-if="item.prefix" class="shrink-0" aria-hidden="true">{{ item.prefix }}</span>
-          <span class="min-w-0">
-            <span class="block truncate text-highlighted">{{ item.label }}</span>
-            <span v-if="item.sub" class="block truncate font-mono text-xs text-muted">{{ item.sub }}</span>
+          <span class="an-pick__text">
+            <span v-if="item.prefix" class="shrink-0" aria-hidden="true">{{ item.prefix }}</span>
+            <span class="min-w-0">
+              <span class="block truncate text-highlighted">{{ item.label }}</span>
+              <span v-if="paths && item.sub" class="block truncate font-mono text-xs text-muted">{{ item.sub }}</span>
+            </span>
           </span>
+          <span class="an-track" aria-hidden="true"><span class="an-bar" :style="{ width: `${Math.max(1.5, (item.value / max) * 100)}%` }" /></span>
         </button>
         <UButton
           v-if="item.to" :to="item.to" size="xs" variant="ghost" color="neutral" icon="i-lucide-pencil-line"
-          class="relative shrink-0 opacity-70 group-hover:opacity-100 focus-visible:opacity-100" :aria-label="`${openLabel}: ${item.label}`" :title="openLabel"
+          class="an-open shrink-0 opacity-70 group-hover:opacity-100 focus-visible:opacity-100" :aria-label="`${openLabel}: ${item.label}`" :title="openLabel"
         />
-        <span class="an-num relative shrink-0 pr-2 text-right text-sm font-medium tabular-nums text-highlighted">{{ compactNumber(item.value, locale) }}</span>
+        <span class="an-num shrink-0 text-right text-sm tabular-nums text-highlighted">{{ compactNumber(item.value, locale) }}</span>
       </li>
     </ul>
     <UButton
@@ -46,29 +60,47 @@ const max = computed(() => Math.max(1, ...props.items.map((i) => i.value)))
 <style src="../app/analytics.css"></style>
 
 <style scoped>
-.an-num { width: 3.5rem; }
-/* .cms-dense keeps the admin's touch rule from centring the label; the row keeps a 44 px tap height itself. */
-@media (pointer: coarse) {
-  .an-pick { min-height: 2.75rem; }
+.an-list { display: flex; flex-direction: column; gap: 0.125rem; margin-inline: -0.5rem; }
+.an-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.4375rem 0.5rem 0.5rem;
+  border-radius: calc(var(--ui-radius) * 1.25);
+  transition: background-color 0.15s ease;
+}
+.an-row:hover,
+.an-row:focus-within { background: var(--ui-bg-muted); }
+.an-pick {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  border-radius: var(--ui-radius);
+}
+.an-pick:focus-visible { outline: 2px solid var(--cms-accent-ring, var(--ui-primary)); outline-offset: 4px; }
+.an-pick__text { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.an-track {
+  display: block;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--cms-an-track);
+  overflow: hidden;
 }
 .an-bar {
-  top: 0;
-  bottom: 0;
-  background: var(--cms-an-bar);
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--cms-an-visitors);
   transition: width 0.2s ease;
 }
-.an-row:hover .an-bar,
-.an-row:focus-within .an-num { width: 3.5rem; }
+.an-open { margin-top: -0.125rem; }
+.an-num { min-width: 3rem; line-height: 1.25rem; }
 /* .cms-dense keeps the admin's touch rule from centring the label; the row keeps a 44 px tap height itself. */
 @media (pointer: coarse) {
-  .an-pick { min-height: 2.75rem; }
-}
-.an-bar {
-  top: 0;
-  bottom: 0;
-  background: var(--cms-an-bar-hover);
+  .an-pick { min-height: 2.75rem; justify-content: center; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .an-bar { transition: none; }
+  .an-bar, .an-row { transition: none; }
 }
 </style>
