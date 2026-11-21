@@ -257,8 +257,13 @@ slide-over menu on phones). The client's brand leads at the top (`CmsBrandLogo`:
 logo, else the mark and the name, else the initials and the name; folded: the mark or the
 initials; on phones the top bar carries the mark too); the current page sits on cream (a brand's tint);
 **tinyzoo signs** under the account button (`signature: false` hides it). In dark mode a
-light logo without its dark version sits on a small cream tile (a brand's light tint). Groups: Home, Content,
-Settings, then View website and the account menu (appearance, language, sign out).
+light logo without its dark version sits on a small cream tile (a brand's light tint). The menu: Home with the
+rows beside it (the forms' messages as one row, plugins' pages), the groups (Content, Website, a site's own),
+and under the list, always in sight, **Settings** (one row that swaps the menu for the settings' pages, with
+"Main menu" to come back) and View website; then the account menu (appearance, language, sign out). The site
+orders it with `defineAdminMenu`; an administrator rearranges it for everyone in `CmsMenuEditor`
+(Settings → "Arrange the menu"). Several forms are one page: a row of chips (a `UCarousel` that swipes on a
+phone) moves between them.
 
 The Write and Preview editors **fold the sidebar to icons** (`useCmsFocus`); leaving
 them restores what the person chose (kept apart in `localStorage`).

@@ -241,6 +241,38 @@ Labels in `cms.config.ts` take one string or one per admin language (`label: { e
 
 Nuxt UI draws a few words itself ("Close", "Previous month", "Show password"). They follow the admin language when the site's `app/app.vue` hands it over, and the starter does. Add `const uiLocale = useCmsUiLocale()` and `<UApp :locale="uiLocale">`. On the website's own pages it is empty, so the site keeps its own.
 
+### The menu
+
+The admin's menu has three parts:
+
+- **beside Home**: the messages from the website's forms and the pages plugins add (visits). Several forms share one row, "Messages from the website"; the page itself moves between the forms and shows how many messages each holds. A site with one form keeps that form's name.
+- **the groups**: "Content" for collections, "Website" for pages, the site's own globals and the media library.
+- **behind "Settings"**: what plugins bring to configure themselves, the forms' settings, redirects, the team, privacy and "About". "Settings" is one row at the foot of the menu: it swaps the menu for these pages, with a way back.
+
+Without configuration the rows of a group follow their names in the code. Say what comes first, and what belongs where, with `defineAdminMenu` in `cms.config.ts`:
+
+```ts
+import { defineAdminMenu } from 'tinyzoo'
+
+export const menu = defineAdminMenu({
+  // home: ['@forms', '/admin/p/analytics'],   // the rows beside Home, when their order should differ
+  groups: {
+    content: [News, Album, Course, Coach],
+    website: [Page, Navigation, SiteSettings, '@media'],
+    // a group of the site's own brings its name:
+    // timetable: { label: { en: 'Timetable', cs: 'Rozvrh' }, items: [Schedule, Slot] },
+  },
+  settings: [Redirect],
+  forms: [EnrolmentForm, ContactForm],          // the order of the forms on the messages page
+})
+```
+
+A row is a collection or global (the value `defineEntity` and the others return, or its name), a built-in row (`'@forms'`, `'@media'`, `'@team'`, `'@privacy'`, `'@about'`), or the admin address of a plugin's page (`'/admin/p/analytics'`). Any row can go to any place: a global that is content (a timetable's heading) can sit in "Content", a collection nobody touches behind "Settings". **What the menu does not name keeps its usual place**, so a collection added later shows up without a change here. The config is checked when the site starts: a name the site does not have, a row listed twice, or a group without a label stops it with the line to fix.
+
+**Administrators can rearrange the menu in the admin**, for everyone on the site: Settings → "Arrange the menu". Rows are dragged (or moved with the arrows) within and between the places; the groups themselves are the site's. The arrangement is kept in the database and goes on top of `defineAdminMenu`; "Back to the original" forgets it. A row added to the site after someone arranged the menu appears where the config puts it.
+
+People see only the rows their role opens: a global they may not change, the team and privacy pages for anyone but administrators, and a closed media library are left out.
+
 ### How editors and lists are arranged
 
 Each editor and list is arranged for its content, without configuration:

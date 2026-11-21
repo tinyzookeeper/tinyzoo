@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (121) ─────────────────────────────────────────────────
+// ── public (126) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -71,6 +71,33 @@ export interface CmsAdminLogo {
     fullDark?: string;
     markDark?: string;
 }
+
+export type CmsAdminMenuBuiltin = '@forms' | '@media' | '@team' | '@privacy' | '@about';
+
+export interface CmsAdminMenuDef {
+    home: string[] | null;
+    groups: {
+        id: string;
+        label: LocalizedText | null;
+        items: string[];
+    }[] | null;
+    settings: string[];
+    forms: string[];
+}
+
+export interface CmsAdminMenuInput {
+    home?: CmsAdminMenuItem[];
+    groups?: Record<string, CmsAdminMenuItem[] | {
+        label: LocalizedText;
+        items: CmsAdminMenuItem[];
+    }>;
+    settings?: CmsAdminMenuItem[];
+    forms?: CmsAdminMenuItem[];
+}
+
+export type CmsAdminMenuItem = {
+    name: string;
+} | CmsAdminMenuBuiltin | (string & {});
 
 export interface CmsBlock {
     id: string;
@@ -890,6 +917,8 @@ export interface UpgradeStep {
     run: (ctx: UpgradeContext) => void | Promise<void>;
 }
 
+export function defineAdminMenu(input: CmsAdminMenuInput): CmsAdminMenuDef;
+
 export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: BlockDef<F>): BlockDef<F>;
 
 export function defineCmsPlugin(def: CmsPluginDef): CmsPlugin;
@@ -1043,10 +1072,12 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (202): exported, not part of the frozen API, may change in any minor ──
+// ── internal (209): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
+const CMS_ADMIN_MENU_BUILTINS
+const CMS_ADMIN_MENU_GROUPS
 const CMS_BRAND_FILES
 const CMS_ENTITY_OPS
 const CMS_LOGO_MIN_PX
@@ -1057,6 +1088,9 @@ const CMS_ROLE_BASES
 const CORE_UPGRADE_STEPS
 interface CmsAccentScheme
 type CmsAdminIconLink
+interface CmsAdminMenuLayout
+interface CmsAdminMenuSaved
+interface CmsAdminMenuSource
 interface CmsAdminTheme
 interface CmsAdminThemeInput
 type CmsBrandFile
@@ -1196,6 +1230,7 @@ function matchEntry
 function matchRoute
 function mediaIdsInBlocks
 function mediaIdsInFields
+function menuSources
 function movedPaths
 function normalizeFieldAccess
 function normalizeSetupCode
@@ -1217,6 +1252,7 @@ function propOf
 function resetCmsDeprecations
 function resolveAdminLogo
 function resolveAdminTheme
+function resolveMenu
 function resolveRole
 function resolveText
 function richTextPlain

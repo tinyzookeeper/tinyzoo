@@ -4,6 +4,7 @@ import { buildColumn, camel, snake } from './fields'
 import { cmsMedia } from './media'
 import { cmsAccessTokens, cmsAudit, cmsOauthClients, cmsOauthCodes, cmsOauthRequests, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
+import { checkAdminMenu, isAdminMenu, type CmsAdminMenuDef } from './menu'
 import { checkRoles, isRolesExport, rolesDefOf, type CmsAccessUser, type CmsRolesDef } from './roles'
 import { pathTemplateProblem, pathTemplateKeys, prefixedTemplates, type PathTemplate } from './paths'
 import { TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, type TreeConfig } from './tree'
@@ -561,6 +562,12 @@ export interface CmsRegistry {
   /** Content languages (defineLocales), or null when content is single-language. */
   locales: LocalesDef | null
   /**
+   * The admin's menu as the site laid it out (`export const menu = defineAdminMenu(…)`), or null.
+   *
+   * @internal
+   */
+  menu: CmsAdminMenuDef | null
+  /**
    * The site's own roles (`export const roles = defineRoles(…)`), or null: only admin, editor and author.
    *
    * @internal
@@ -725,6 +732,11 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   const roles = rolesExports.length ? rolesDefOf(rolesExports[0]) : null
   checkRoles(roles, entities as any, (e: CmsEntity) => (e.content?.path ? pathTemplateKeys(e.content.path) : []))
 
+  const menuExports = Object.values(config).filter(isAdminMenu)
+  if (menuExports.length > 1) throw new Error('cms.config.ts exports more than one `defineAdminMenu(…)`: the admin has one menu.')
+  const menu = menuExports[0] ?? null
+  if (menu) checkAdminMenu(menu, entities as any)
+
   for (const e of entities) {
     if (e.tree && (e.fields[e.tree.parent]!.relation!.to() as CmsEntity).name !== e.name) {
       throw new Error(`tree.parent of "${e.name}" must point at "${e.name}" itself.`)
@@ -752,7 +764,7 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   }
 
   const graph = entities.map((e) => withPlugins(entityGraph(e, locales), e, plugins, pluginOf))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, roles, cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf, pluginTables }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, menu, roles, cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf, pluginTables }
   _regCache.set(config, reg)
   return reg
 }
