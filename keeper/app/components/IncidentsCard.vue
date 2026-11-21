@@ -7,8 +7,8 @@ import type { Incident } from '#keeper/types/keeper'
 //
 // On wide screens the Uptime card sets the row's height and this card fills exactly that: it takes
 // no height of its own (contain: size), shows the newest incidents that fit whole, and ends with
-// "All N incidents", which opens the full list in place. On phones it takes its own height and
-// shows the newest 5.
+// "All N incidents", which opens the full list in place: it scrolls inside the same height, so the
+// two cards stay level. On phones it takes its own height and shows the newest 5.
 const props = defineProps<{ incidents: Incident[]; simple: boolean }>()
 const now = useNow()
 
@@ -22,6 +22,8 @@ const wide = ref(false)
 let mq: MediaQueryList | undefined
 const onMq = () => { wide.value = !!mq?.matches }
 const follow = computed(() => wide.value && !expanded.value)
+/** Wide and opened: every incident, scrolling inside the Uptime card's height. */
+const scrolls = computed(() => wide.value && expanded.value)
 
 const shown = computed(() => (expanded.value ? items.value : follow.value ? items.value.slice(0, 50) : items.value.slice(0, PHONE)))
 /** How many rows fit whole (wide, measured); null before the first measure. */
@@ -67,12 +69,13 @@ watch([follow, () => props.incidents, () => props.simple], () => nextTick(measur
 
 function toggle() {
   expanded.value = !expanded.value
+  if (!expanded.value && box.value) box.value.scrollTop = 0
 }
 const lasted = (i: Incident) => minutesInWords((i.endedAt ? Date.parse(i.endedAt) : now.value) - Date.parse(i.startedAt))
 </script>
 
 <template>
-  <section class="flex min-w-0 flex-col" :class="follow ? 'lg:[contain:size]' : ''" aria-labelledby="incidents-heading">
+  <section class="flex min-w-0 flex-col" :class="wide ? 'lg:[contain:size]' : ''" aria-labelledby="incidents-heading">
     <header class="mb-2 flex min-h-6 items-center gap-2">
       <h2 id="incidents-heading" class="k-label">Incidents</h2>
     </header>
@@ -88,7 +91,7 @@ const lasted = (i: Incident) => minutesInWords((i.endedAt ? Date.parse(i.endedAt
     </div>
 
     <div v-else class="k-card flex min-h-0 flex-1 flex-col p-4 sm:p-5">
-      <div ref="box" class="relative min-h-0 flex-1" :class="follow ? 'overflow-hidden' : ''">
+      <div ref="box" class="relative min-h-0 flex-1" :class="follow ? 'overflow-hidden' : scrolls ? 'overflow-y-auto overscroll-contain' : ''">
         <ul ref="list" class="flex flex-col">
           <li
             v-for="(i, k) in shown" :key="i.id"
@@ -102,7 +105,7 @@ const lasted = (i: Incident) => minutesInWords((i.endedAt ? Date.parse(i.endedAt
             <p v-else class="mt-0.5 truncate font-mono text-xs text-toned" :title="i.cause">{{ i.cause || 'unknown' }}</p>
           </li>
         </ul>
-        <div v-if="hidden > 0 || expanded" ref="more" :class="follow ? 'absolute inset-x-0 bottom-0 bg-(--k-surface) pt-2.5' : 'pt-3'">
+        <div v-if="hidden > 0 || expanded" ref="more" :class="follow ? 'absolute inset-x-0 bottom-0 bg-(--k-surface) pt-2.5' : scrolls ? 'sticky bottom-0 border-t border-(--ui-border-muted) bg-(--k-surface) pt-2.5 pb-1' : 'pt-3'">
           <button
             type="button" :aria-expanded="expanded"
             class="rounded-sm text-[0.8125rem] font-medium text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--ui-primary)"
