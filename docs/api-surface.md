@@ -126,6 +126,7 @@ Import these in `cms.config.ts` and in code that uses the config's types. Anythi
 | `defineSingleton(name, def)` | a global with one record (site settings, a home page) |
 | `defineBlock(def)` | one type of block for `f.blocks()`: label, fields, `version` and `upgrade` |
 | `defineLocales(def)` | the content languages: default, list, labels, address prefix |
+| `defineAdminMenu(menu)` | the admin's menu: the rows beside Home, the groups and their order, what sits behind "Settings", the order of the forms ([the menu](guide/admin.md#the-menu)) |
 | `defineRoles(roles)` | the site's own roles, each extending `editor` or `author`: per-collection operations, `publish`, `media` ([roles](guide/roles.md)) |
 | `definePages(opts)` | the ready-made pages collection (blocks, SEO, preview, optionally a tree) |
 | `defineNavigation(opts)` | site menus as one global (`/api/content/_global/navigation`) |
@@ -230,6 +231,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | Fields | `FieldDescriptor`, `AnyFieldDescriptor`, `FieldKind`, `FieldUi`, `Nullable`, `Defaulted`, `OnDelete`, `RelationKind`, `RelationSpec` |
 | Values | `RichTextDoc`, `CmsBlock`, `BlockDef`, `BlockValue`, `BlocksValue`, `GroupValue`, `CmsListValue`, `CmsGalleryValue` |
 | Languages and text | `LocalesDef`, `LocalizedText`, `PathTemplate` |
+| The admin's menu | `CmsAdminMenuInput` (what `defineAdminMenu` takes), `CmsAdminMenuDef` (what it returns), `CmsAdminMenuItem` (one row), `CmsAdminMenuBuiltin` (`'@forms'`, `'@media'`, `'@team'`, `'@privacy'`, `'@about'`) |
 | Users and roles | `CmsAccessUser` (what an `access` rule is given: `id`, `email`, `name`, `role`, `base`, `locale`, and what an external sign-in adds as `unknown`), `CmsRole` (`'admin' \| 'editor' \| 'author'`), `CmsRoleBase`, `CmsRoleDef`, `CmsRoleRef`, `CmsRoleInput`, `CmsRoles`, `CmsEntityOp`, `CmsMediaAccess`, `CmsFieldAccess` |
 | Seeds | `SeedDefinition`, `SeedContext`, `SeedEntry`, `SeedInsert`, `SeedWriteOptions`, `SeedGlobalOptions`, `SeedUploadOptions`, `SeedLink`, `SeedLinkOptions`, `SeedRich`, `SeedRichNode` |
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginAppPlugin`, `CmsDashboardWidget`, `CmsEntityPanel`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |

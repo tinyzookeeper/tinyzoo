@@ -1,17 +1,22 @@
 <script setup lang="ts">
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
+import type { CmsMenuRow } from '../composables/useCmsMenu'
 
 const { data: graph, error: graphError } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
-// What the person's role allows beyond the entities (the media library, the role's own name), and whether it still exists.
-const { data: me } = await useFetch<{ access: { removed: boolean; role: string; label?: any; custom?: boolean; media?: 'all' | 'own' | 'none' } }>('/api/cms/_auth/me', { key: 'cms-access' })
+// What the person's role is called, and whether the site still defines it.
+const { data: me } = await useFetch<{ access: { removed: boolean; role: string; label?: any; custom?: boolean } }>('/api/cms/_auth/me', { key: 'cms-access' })
 // A role the site no longer defines: signed in, but no access (the server answers 403 `role-removed`).
 const roleRemoved = computed(() => !!me.value?.access?.removed || (graphError.value as any)?.data?.data?.code === 'role-removed')
-const mediaClosed = computed(() => me.value?.access?.media === 'none')
 const { user, clear } = useUserSession()
 const route = useRoute()
 const colorMode = useColorMode()
 const config = useCmsAdminConfig()
-const { t, tl, locale, locales, setLocale, entityLabel } = useCmsI18n()
+const { t, tl, locale, locales, setLocale } = useCmsI18n()
+// The menu: what sits beside Home, the groups, and what is behind "Settings". The site lays it out
+// (defineAdminMenu), an administrator can rearrange it for everyone; the server leaves out what this
+// person's role does not open, and nothing at all for a role the site no longer defines.
+const menu = useCmsMenu(graph)
+await menu.ready
 
 // The admin's own look (cms-admin.css) applies while this layout is mounted.
 const { unbranded, signature } = useCmsAdminHead()
@@ -74,38 +79,45 @@ watch(graphError, (err) => {
 }, { immediate: true })
 
 // Every link carries its name, also when the sidebar is folded to icons.
-const toNav = (e: any): NavigationMenuItem => ({ label: entityLabel(e), icon: e.icon, to: `/admin/${e.name}`, 'aria-label': entityLabel(e) } as NavigationMenuItem)
-// Entries plugins add to the sidebar (defineCmsPlugin `navItems`), by where they go.
-type PluginNavItem = { label: any; icon?: string; to: string; group: 'content' | 'settings'; adminOnly: boolean }
-const pluginNavItems = ((useRuntimeConfig().public.cmsPlugins as any)?.navItems ?? []) as PluginNavItem[]
-const pluginNav = (group: PluginNavItem['group']): NavigationMenuItem[] => pluginNavItems
-  .filter((i) => i.group === group && (!i.adminOnly || user.value?.role === 'admin'))
-  .map((i) => ({ label: tl(i.label), icon: i.icon, to: i.to, 'aria-label': tl(i.label) } as NavigationMenuItem))
+const toNav = (r: CmsMenuRow): NavigationMenuItem => ({ label: r.label, icon: r.icon, to: r.to, 'aria-label': r.label, ...(r.active === undefined ? {} : { active: r.active }) } as NavigationMenuItem)
+const homeItem = computed(() => ({ label: t('nav.home'), icon: 'i-lucide-house', to: '/admin', exact: true, 'aria-label': t('nav.home') } as NavigationMenuItem))
+// "Settings" is one row: it swaps the menu for the settings' pages, with a way back. The menu
+// shows them by itself while one of them is open, and the main menu again on any other page of it
+// (a page outside the menu, the account, leaves it as it was).
+const onSettingsPage = () => menu.settings.value.some((r) => menu.isAt(r.to))
+const inSettings = ref(onSettingsPage())
+watch(() => route.path, () => {
+  if (onSettingsPage()) inSettings.value = true
+  else if (route.path === '/admin' || menu.all.value.some((r) => menu.isAt(r.to))) inSettings.value = false
+})
+// An administrator arranges the menu for the whole site (CmsMenuEditor).
+const arranging = ref(false)
 const navigation = computed<NavigationMenuItem[][]>(() => {
-  const all = graph.value ?? []
-  const collections = all.filter((e) => !e.singleton)
-  // Settings someone may not change (an author and the site settings) stay out of their way.
-  const settings = all.filter((e) => e.singleton && e.can?.update !== false)
-  const groups: NavigationMenuItem[][] = [[{ label: t('nav.home'), icon: 'i-lucide-house', to: '/admin', exact: true, 'aria-label': t('nav.home') } as NavigationMenuItem]]
-  // A role the site no longer defines opens nothing: no plugin pages, no media library.
-  if (roleRemoved.value) return groups
-  const contentExtra = pluginNav('content')
-  const mediaItem = mediaClosed.value ? [] : [{ label: t('media.libraryTitle'), icon: 'i-lucide-images', to: '/admin/media', 'aria-label': t('media.libraryTitle') } as NavigationMenuItem]
-  if (collections.length || contentExtra.length) groups.push([{ label: t('nav.content'), type: 'label' }, ...collections.map(toNav), ...contentExtra, ...mediaItem])
-  const settingsGroup: NavigationMenuItem[] = [...settings.map(toNav), ...pluginNav('settings')]
-  if (user.value?.role === 'admin') {
-    settingsGroup.push({ label: t('nav.team'), icon: 'i-lucide-users-round', to: '/admin/team', 'aria-label': t('nav.team') } as NavigationMenuItem)
-    settingsGroup.push({ label: t('nav.privacy'), icon: 'i-lucide-shield-check', to: '/admin/privacy', 'aria-label': t('nav.privacy') } as NavigationMenuItem)
+  if (inSettings.value && menu.settings.value.length) {
+    return [
+      [{ label: t('nav.mainMenu'), icon: 'i-lucide-arrow-left', 'aria-label': t('nav.mainMenu'), onSelect: () => { inSettings.value = false } } as NavigationMenuItem],
+      [{ label: t('nav.settings'), type: 'label' }, ...menu.settings.value.map(toNav)],
+      ...(user.value?.role === 'admin' ? [[{ label: t('menu.arrange'), icon: 'i-lucide-arrow-down-up', 'aria-label': t('menu.arrange'), onSelect: () => { arranging.value = true } } as NavigationMenuItem]] : []),
+    ]
   }
-  // Which version the site runs: for everyone, so an author without settings still finds it.
-  settingsGroup.push({ label: t('nav.about'), icon: 'i-lucide-info', to: '/admin/about', 'aria-label': t('nav.about') } as NavigationMenuItem)
-  groups.push([{ label: t('nav.settings'), type: 'label' }, ...settingsGroup])
-  return groups
+  return [
+    [homeItem.value, ...menu.home.value.map(toNav)],
+    ...menu.groups.value.filter((g) => g.rows.length).map((g) => [{ label: g.label, type: 'label' } as NavigationMenuItem, ...g.rows.map(toNav)]),
+  ]
+})
+// Under the list, always in sight: "Settings" (while the main menu shows) and the website.
+const pinned = computed<NavigationMenuItem[]>(() => {
+  const first = menu.settings.value[0]
+  return [
+    ...(first && !inSettings.value ? [{ label: t('nav.settings'), icon: 'i-lucide-settings', to: first.to, trailingIcon: 'i-lucide-chevron-right', 'aria-label': t('nav.settings'), onSelect: () => { inSettings.value = true } } as NavigationMenuItem] : []),
+    { label: t('nav.viewSite'), icon: 'i-lucide-globe', to: config.value.siteUrl, target: '_blank', 'aria-label': t('nav.viewSite') } as NavigationMenuItem,
+  ]
 })
 
 // The search's "Go to" list: every place in the menu, plus the account.
 const places = computed(() => [
-  ...navigation.value.flat().filter((i) => i.type !== 'label').map((i) => ({ label: String(i.label), icon: i.icon as string, to: i.to as string })),
+  { label: t('nav.home'), icon: 'i-lucide-house', to: '/admin' },
+  ...menu.all.value.map((r) => ({ label: r.label, icon: r.icon, to: r.to })),
   { label: t('nav.account'), icon: 'i-lucide-user-round', to: '/admin/account' },
 ])
 
@@ -204,15 +216,14 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
           :items="navigation" orientation="vertical" :collapsed="collapsed" tooltip :aria-label="t('nav.mainMenu')"
           :ui="{ label: 'text-xs font-medium text-muted pt-4', link: 'text-sm py-1.5 pointer-coarse:py-3 data-active:font-medium' }"
         />
-        <div class="mt-auto">
-          <UNavigationMenu
-            :items="[{ label: t('nav.viewSite'), icon: 'i-lucide-globe', to: config.siteUrl, target: '_blank', 'aria-label': t('nav.viewSite') }]"
-            orientation="vertical" :collapsed="collapsed" tooltip :aria-label="t('nav.viewSite')" :ui="{ link: 'text-sm py-1.5 pointer-coarse:py-3 text-muted' }"
-          />
-        </div>
       </template>
 
       <template #footer="{ collapsed }">
+        <!-- "Settings" and the website stay in sight, under the list that scrolls -->
+        <UNavigationMenu
+          :items="pinned" orientation="vertical" :collapsed="collapsed" tooltip :aria-label="t('nav.viewSite')"
+          class="mb-2 pb-2 border-b border-default" :ui="{ link: 'text-sm py-1.5 pointer-coarse:py-3 text-muted' }"
+        />
         <UDropdownMenu :items="userMenu" :content="{ align: 'start', side: collapsed ? 'right' : 'top' }" class="w-full">
           <UButton
             color="neutral" variant="ghost" class="w-full p-1.5" :class="collapsed ? 'justify-center' : ''"
@@ -238,6 +249,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
     <CmsRoleRemoved v-if="roleRemoved && !route.path.startsWith('/admin/account')" :role="String(user?.role ?? '')" />
     <slot v-else />
     <CmsSearch :graph="graph ?? []" :places="places" />
+    <CmsMenuEditor v-if="user?.role === 'admin'" v-model:open="arranging" :graph="graph ?? []" />
     <CmsConfirmDialog />
   </UDashboardGroup>
 </template>

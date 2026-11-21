@@ -1,4 +1,4 @@
-import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
+import { defineAdminMenu, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
 import { defineForm, defineFormSettings, formsPlugin } from "tinyzoo/forms"
 import { analyticsPlugin } from "tinyzoo/analytics"
 import { consentPlugin } from "tinyzoo/consent"
@@ -325,6 +325,15 @@ export const Navigation = defineNavigation({ localized: true })
 
 // Old address → new address, applied by the server to every page request.
 export const Redirect = defineRedirects()
+
+// The admin's menu: the content in the order people reach for it, and what belongs to the website.
+// What is not named here (the plugins' collections and settings) keeps its usual place.
+export const menu = defineAdminMenu({
+  groups: {
+    content: [Post, Author, Tag],
+    website: [Page, Navigation, SiteSettings, "@media"],
+  },
+})
 
 // Plugins (forms here, and the example "events" plugin): each adds entities, admin pages,
 // routes or upgrade steps under its own name. The cookie banner (consent) asks visitors, and

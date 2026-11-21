@@ -7,7 +7,8 @@
  * account.email_failed, account.email_cancel, account.email, account.email_revert, user.invite, user.resend,
  * user.role, user.email, user.disable, user.enable, user.delete, entry.create,
  * entry.update, entry.delete, entry.publish, entry.unpublish, settings.update,
- * media.upload, media.delete, retention.purge, privacy.export, privacy.delete, token.create, token.revoke.
+ * media.upload, media.delete, retention.purge, privacy.export, privacy.delete, token.create, token.revoke,
+ * menu.update, menu.reset (the admin's menu arranged for the site, or put back).
  * A change made through the MCP server with a personal access token carries `meta.via: 'mcp'`
  * and the token's `meta.tokenId`.
  *

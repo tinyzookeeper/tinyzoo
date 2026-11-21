@@ -19,6 +19,18 @@ const meta = computed(() => (graph.value ?? []).find((e: any) => e.name === enti
 const fieldOf = (key: string) => meta.value?.fields.find((f: any) => f.key === key)
 const title = computed(() => entityLabel(meta.value) || entity.value)
 useHead({ title })
+// Several forms share one row of the menu ("Messages from the website"): their lists are one
+// page with a row of the forms on it, each with how many messages it holds.
+const menu = useCmsMenu(graph)
+await menu.ready
+const formTabs = computed<any[]>(() => (meta.value?.preset === 'form' && menu.forms.value.length > 1 ? menu.forms.value : []))
+const pageTitle = computed(() => (formTabs.value.length ? t('nav.messages') : title.value))
+const formCounts = ref<Record<string, number>>({})
+onMounted(() => {
+  for (const f of formTabs.value) {
+    $fetch<{ total: number }>(`/api/cms/${f.name}`, { query: { limit: 1 } }).then((r) => { formCounts.value = { ...formCounts.value, [f.name]: r.total } }).catch(() => {})
+  }
+})
 const publish = computed(() => meta.value?.publish)
 const orderField = computed(() => (meta.value?.orderField as string | null) ?? null)
 
@@ -439,11 +451,11 @@ const tabs = computed(() => [
   <!-- another language is another form (its own values, version and shared text): rebuilt, not patched -->
   <CmsSingletonForm v-else-if="meta?.singleton" :key="`${entity}:${route.query.locale ?? ''}`" :entity="entity" :meta="meta" />
   <CmsPage
-    v-else :title="title" :description="tl(meta?.description) || undefined"
-    :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: title }]"
+    v-else :title="pageTitle" :description="tl(meta?.description) || undefined"
+    :breadcrumbs="[{ label: t('nav.home'), to: '/admin' }, { label: pageTitle }]"
   >
     <template #badge>
-      <span v-if="total && !dateKey" class="cms-display text-[1.75rem] leading-tight text-dimmed tabular-nums">{{ formatNumber(total) }}</span>
+      <span v-if="total && !dateKey && !formTabs.length" class="cms-display text-[1.75rem] leading-tight text-dimmed tabular-nums">{{ formatNumber(total) }}</span>
     </template>
     <template #actions>
       <UTooltip :text="t('list.exportHint')">
@@ -456,6 +468,21 @@ const tabs = computed(() => [
         <span class="max-sm:sr-only">{{ entitySingular(meta) }}</span>
       </UButton>
     </template>
+
+    <!-- which form's messages: a row that swipes on a phone, starting at the form shown -->
+    <UCarousel
+      v-if="formTabs.length" v-slot="{ item }" :items="formTabs" drag-free align="start" contain-scroll="trimSnaps" class="mb-5 min-w-0"
+      :start-index="Math.max(0, formTabs.findIndex((f) => f.name === entity))"
+      :ui="{ container: '-ms-1.5', item: 'basis-auto shrink-0 grow-0 ps-1.5' }" :aria-label="pageTitle"
+    >
+      <UButton
+        :to="`/admin/${item.name}`" size="sm" color="neutral" :variant="item.name === entity ? 'solid' : 'outline'"
+        :aria-current="item.name === entity ? 'page' : undefined" class="rounded-full"
+      >
+        {{ entityLabel(item) }}
+        <span v-if="formCounts[item.name] != null" class="tabular-nums opacity-60">{{ formatNumber(formCounts[item.name]!) }}</span>
+      </UButton>
+    </UCarousel>
 
     <!-- a page tree: indented pages, dragged or moved into place -->
     <CmsTreeList v-if="layout === 'tree'" :entity="entity" :meta="meta" :can-create="canCreate" />

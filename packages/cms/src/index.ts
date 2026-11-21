@@ -6,6 +6,7 @@ export { seo, linkBlock, definePages, defineNavigation, defineRedirects, FORM_FI
 export { defineBlock, blocksSchema, mediaIdsInBlocks, mediaIdsInFields, blockMediaKeys, BLOCK_FIELD_TYPES, blockVersion, storedBlockVersion, upgradeBlock, upgradeBlocks, upgradeListItems, upgradeStoredRow, logUpgradeFailure, UPGRADE_FAILED_KEY, UNKNOWN_BLOCK_TYPE, type UpgradeIssue, type UpgradeOptions, type BlockDef, type BlockValue, type BlocksValue, type GroupValue, type CmsBlock } from './blocks'
 export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'
+export { defineAdminMenu, menuSources, resolveMenu, CMS_ADMIN_MENU_BUILTINS, CMS_ADMIN_MENU_GROUPS, type CmsAdminMenuDef, type CmsAdminMenuInput, type CmsAdminMenuBuiltin, type CmsAdminMenuItem, type CmsAdminMenuLayout, type CmsAdminMenuSource, type CmsAdminMenuSaved } from './menu'
 export {
   TREE_DEFAULT_MAX_DEPTH, TREE_MAX_DEPTH_LIMIT, indexTree, existsIn, slugIn, titleIn, chainOf, depthOf, childrenMap, sortSiblings, descendantsOf, heightOf,
   slugChain, treeAddress, applyChange, checkTreeChange, checkTree, placeAmong, TREE_POSITION_STEP, movedPaths,
