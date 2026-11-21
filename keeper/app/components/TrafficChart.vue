@@ -2,8 +2,9 @@
 // Visitors and pageviews a day: two 2 px lines on one axis (both are counts), hairline
 // grid, a legend with line keys, the last value labelled at each line's end, and a
 // crosshair with the day's numbers on hover or touch. Drawn in pixels of its own width,
-// so text and dots keep their size on a phone.
-const props = defineProps<{ series: { day: string; visitors: number; pageviews: number }[] }>()
+// so text and dots keep their size on a phone. A last point marked `partial` (today so far)
+// is joined by a dashed line; `hourly` points are the hours of one day (day "YYYY-MM-DDTHH").
+const props = defineProps<{ series: { day: string; visitors: number; pageviews: number; partial?: boolean }[]; hourly?: boolean }>()
 
 const box = ref<HTMLElement | null>(null)
 const width = ref(640)
@@ -39,11 +40,19 @@ const SERIES = [
   { key: 'pageviews', label: 'Pageviews', color: 'var(--k-series-2)' },
 ] as const
 
-const paths = computed(() => SERIES.map((s) => ({
-  ...s,
-  d: props.series.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[s.key]).toFixed(1)}`).join(''),
-  last: props.series.at(-1)?.[s.key] ?? 0,
-})))
+const partial = computed(() => !!props.series.at(-1)?.partial)
+const pt = (i: number, key: 'visitors' | 'pageviews') => `${x(i).toFixed(1)},${y(props.series[i]![key]).toFixed(1)}`
+const paths = computed(() => SERIES.map((s) => {
+  const n = props.series.length
+  const solidTo = partial.value ? n - 2 : n - 1
+  return {
+    ...s,
+    d: props.series.slice(0, solidTo + 1).map((_, i) => `${i ? 'L' : 'M'}${pt(i, s.key)}`).join(''),
+    // Today so far: from the last complete day, dashed.
+    dashed: partial.value && n > 1 ? `M${pt(n - 2, s.key)}L${pt(n - 1, s.key)}` : '',
+    last: props.series.at(-1)?.[s.key] ?? 0,
+  }
+}))
 
 /** End labels, pushed apart when the two lines end close together. */
 const endLabels = computed(() => {
@@ -57,12 +66,20 @@ const endLabels = computed(() => {
   return paths.value.map((p, i) => ({ ...p, y: ys[i]! }))
 })
 
-const dayLabel = (day: string, long = false) => new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', long ? { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' } : { day: 'numeric', month: 'short', timeZone: 'UTC' })
+const hourOf = (day: string) => Number(day.slice(11, 13)) || 0
+function dayLabel(day: string, long = false, isPartial = false): string {
+  if (props.hourly) {
+    const h = hourOf(day)
+    return long ? `${h}:00–${h + 1}:00` : `${h}:00`
+  }
+  if (isPartial) return long ? 'Today so far' : 'Today'
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', long ? { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' } : { day: 'numeric', month: 'short', timeZone: 'UTC' })
+}
 const xLabels = computed(() => {
   const n = props.series.length
   if (!n) return []
   const idx = n < 3 ? [0, n - 1] : [0, Math.floor((n - 1) / 2), n - 1]
-  return [...new Set(idx)].map((i) => ({ x: x(i), text: dayLabel(props.series[i]!.day), anchor: i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle' }))
+  return [...new Set(idx)].map((i) => ({ x: x(i), text: dayLabel(props.series[i]!.day, false, !!props.series[i]!.partial), anchor: i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle' }))
 })
 const fmt = (n: number) => n.toLocaleString('en-GB')
 const compact = (n: number) => (n >= 10_000 ? `${Math.round(n / 1000)}k` : n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n))
@@ -89,8 +106,9 @@ const tip = computed(() => {
 const total = computed(() => props.series.reduce((a, p) => a + p.visitors, 0))
 const label = computed(() => {
   const s = props.series
-  if (!s.length) return 'No days to show yet.'
-  return `Visitors and pageviews a day, ${dayLabel(s[0]!.day)} to ${dayLabel(s.at(-1)!.day)}: ${fmt(total.value)} visitors in all, ${fmt(s.at(-1)!.visitors)} on the last day.`
+  if (!s.length) return props.hourly ? 'No hours to show yet.' : 'No days to show yet.'
+  if (props.hourly) return `Visitors and pageviews an hour today, ${dayLabel(s[0]!.day)} to ${dayLabel(s.at(-1)!.day)}: ${fmt(s.at(-1)!.visitors)} visitors in the last hour.`
+  return `Visitors and pageviews a day, ${dayLabel(s[0]!.day)} to ${dayLabel(s.at(-1)!.day, false, !!s.at(-1)!.partial)}: ${fmt(total.value)} visitors in all, ${fmt(s.at(-1)!.visitors)} on the last day${partial.value ? ' so far' : ''}.`
 })
 </script>
 
@@ -117,6 +135,8 @@ const label = computed(() => {
           <text v-for="l in xLabels" :key="l.text" :x="l.x" :y="H - 4" :text-anchor="l.anchor">{{ l.text }}</text>
         </g>
         <path v-for="p in paths" :key="p.key" :d="p.d" fill="none" :stroke="p.color" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+        <path v-for="p in paths.filter((q) => q.dashed)" :key="`${p.key}-today`" :d="p.dashed" fill="none" :stroke="p.color" stroke-width="2" stroke-dasharray="3 4" stroke-linecap="round" />
+        <circle v-for="p in partial ? paths : []" :key="`${p.key}-dot`" :cx="x(series.length - 1)" :cy="y(p.last)" r="3" :fill="p.color" />
         <g class="fill-(--ui-text-toned) text-[11px] font-medium tabular">
           <text v-for="l in endLabels" :key="l.key" :x="PAD.left + plotW + 6" :y="l.y + 4">{{ compact(l.last) }}</text>
         </g>
@@ -130,7 +150,7 @@ const label = computed(() => {
         class="pointer-events-none absolute top-1 z-10 rounded-md border border-default bg-(--k-surface) px-2.5 py-1.5 text-xs shadow-sm"
         :style="tip.flip ? { right: `${width - tip.left + 10}px` } : { left: `${tip.left + 10}px` }"
       >
-        <p class="mb-0.5 font-medium text-highlighted">{{ dayLabel(tip.p.day, true) }}</p>
+        <p class="mb-0.5 font-medium text-highlighted">{{ dayLabel(tip.p.day, true, !!tip.p.partial) }}</p>
         <p v-for="s in SERIES" :key="s.key" class="flex items-center gap-1.5 text-toned tabular">
           <svg width="10" height="4" aria-hidden="true"><line x1="1" x2="9" y1="2" y2="2" :stroke="s.color" stroke-width="2" stroke-linecap="round" /></svg>
           {{ s.label }} <span class="ml-auto pl-3 text-highlighted">{{ fmt(tip.p[s.key]) }}</span>

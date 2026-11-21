@@ -67,7 +67,7 @@ export function useScope() {
   function swap(ws: string, team = 'all'): string {
     const rest = base.value && route.path.startsWith(base.value) ? route.path.slice(base.value.length) : ''
     // A site or a team's settings belong to one place: go to the list instead.
-    const keep = /^\/(versions|settings(\/[a-z-]+)?)?$/.test(rest) ? rest : ''
+    const keep = /^\/(versions|traffic|settings(\/[a-z-]+)?)?$/.test(rest) ? rest : ''
     return `/w/${ws}/t/${team}${keep}`
   }
   /** On the Every workspace pages (/home). */

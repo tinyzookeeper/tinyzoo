@@ -249,7 +249,7 @@ export async function trafficGlances(sites: Pick<Site, 'id' | 'trafficThrough' |
 }
 
 /** Add up the top lists of several days: per value, its visitors, visits and pageviews, the most first. */
-function topOf(lists: TrafficItem[][], limit = 10): TrafficItem[] {
+export function topOf(lists: TrafficItem[][], limit = 10): TrafficItem[] {
   const by = new Map<string, TrafficItem>()
   for (const list of lists) {
     for (const i of list) {

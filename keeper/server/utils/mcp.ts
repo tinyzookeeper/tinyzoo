@@ -4,7 +4,7 @@ import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
 import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
-import type { TrafficTotals } from '#keeper/types/traffic'
+import type { SiteLive, TrafficTotals } from '#keeper/types/traffic'
 
 /**
  * Keeper's MCP server (server/routes/mcp.ts): the fleet for tools that speak MCP. One
@@ -17,7 +17,7 @@ const CERT_WARN_DAYS = 21
 
 const INSTRUCTIONS = `Keeper watches every tinyzoo site you look after: uptime every minute (GET /api/health/ready), the site's status every few minutes (GET /api/health/status with the site's NUXT_CMS_STATUS_TOKEN: tinyzoo version, content, sign-ins, errors), its visits about hourly when the site counts them (tinyzoo's analytics plugin: daily totals, no personal data) and its TLS certificate twice a day.
 
-Start with fleet_summary for what needs attention. site_traffic tells how many people visit a site and where they come from. Sites are named by id, name or address in the other tools. Results are compact JSON; fields without a value are left out. Times are ISO 8601 (UTC). "behind" means the site runs an older tinyzoo than the newest release on npm.
+Start with fleet_summary for what needs attention. site_traffic tells how many people visit a site and where they come from, today live included; workspace_traffic adds up all the sites of a workspace (or every workspace). Sites are named by id, name or address in the other tools. Results are compact JSON; fields without a value are left out. Times are ISO 8601 (UTC). "behind" means the site runs an older tinyzoo than the newest release on npm.
 
 Sites live in workspaces (a company, or one client), and inside a workspace in teams (list_workspaces). Every tool answers for all the workspaces you are in; pass \`workspace\` (its name, address slug or id) for one. Owners and admins see every team of their workspace, members and guests only their teams. Guests only read.
 
@@ -191,6 +191,22 @@ const totalsLine = (t: TrafficTotals) => ({
 
 // ── inputs ─────────────────────────────────────────────────────────────────────
 
+/** Today, live, in a few numbers (null when the site does not share it). */
+function todayLine(l: SiteLive) {
+  if (!l.at) return l.available && l.error ? { error: l.error } : null
+  return {
+    day: l.day,
+    activeNow: l.active,
+    visitorsSoFar: l.totals.visitors,
+    pageviewsSoFar: l.totals.pageviews,
+    visitsSoFar: l.totals.visits,
+    yesterdayByNow: l.yesterdaySoFar.visitors,
+    changePct: changePct(l.totals.visitors, l.yesterdaySoFar.visitors),
+    topPages: l.pages.slice(0, 5).map((p) => ({ path: p.value, title: p.title, visitors: p.visitors })),
+    topSources: l.sources.slice(0, 5).map((p) => ({ source: p.value, visitors: p.visitors })),
+  }
+}
+
 const siteRef = z.string().min(1).max(500).describe('The site: its id, its name, or its address (the host is enough, e.g. example.com).')
 const workspaceArg = z.string().max(120).optional().describe('Only this workspace: its name, address slug or id (list_workspaces). Leave out for all of yours.')
 const fields = {
@@ -327,7 +343,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
 
   server.registerTool('site_traffic', {
     title: 'Site traffic',
-    description: 'How many people visit a site, from its analytics plugin (daily totals, no personal data): visitors, visits, pageviews, bounce rate and average visit time over the last `days` complete days, the same for the days just before and the change in percent, visitors per day (oldest first) or per week for long periods, and the top pages (with entry titles), sources, countries and devices. Top lists are added up from each day\'s top 10. A site without the plugin, or on an older tinyzoo, says so.',
+    description: 'How many people visit a site, from its analytics plugin (daily totals, no personal data): visitors, visits, pageviews, bounce rate and average visit time over the last `days` complete days, the same for the days just before and the change in percent, visitors per day (oldest first) or per week for long periods, and the top pages (with entry titles), sources, countries and devices. Top lists are added up from each day\'s top 10. A site without the plugin, or on an older tinyzoo, says so. `today` is read live from the site (tinyzoo 1.6+): who is on it right now, today so far against yesterday up to the same time, today\'s top pages and sources.',
     inputSchema: z.object({
       site: siteRef,
       workspace: workspaceArg,
@@ -337,11 +353,13 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
   }, ({ site, workspace, days }) => run(async () => {
     const row = await findSite(access, site, workspace)
     const n = days ?? 30
-    const r = await trafficReport(row, n)
+    const [r, live] = await Promise.all([trafficReport(row, n), siteLive(row)])
+    const today = todayLine(live)
     if (!r.through) {
       return ok({
         site: row.name,
         available: r.available,
+        today,
         error: r.error,
         note: !r.available ? 'The site does not count visits: its status does not list the analytics plugin (tinyzoo/analytics).' : r.error ? null : 'Keeper has not read this site\'s visits yet; it asks about once an hour.',
       })
@@ -365,7 +383,54 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
       countries: r.countries.map((p) => ({ country: p.value, visitors: p.visitors })),
       devices: r.devices.map((p) => ({ device: p.value, visitors: p.visitors })),
       drop: r.drop ? { since: r.drop.day, perDay: r.drop.perDay, usualPerDay: r.drop.baselinePerDay } : null,
+      today,
       error: r.error,
+    })
+  }))
+
+  server.registerTool('workspace_traffic', {
+    title: 'Workspace traffic',
+    description: 'How many people visit all the sites of a workspace (or one team of it, or every workspace you work in) added up, with a line per site: visitors, visits, pageviews, bounces and time per visit against the period before, and the top pages (with their site), sources, countries and devices across the sites. `period` "today" is read live from the sites: who is on them right now (the last 5 minutes), today so far by hour, against yesterday up to the same time; the sites need tinyzoo 1.6 for it. 7, 30 or 90 are complete days, ending yesterday. Visitors add up per site: one person on two sites counts twice.',
+    inputSchema: z.object({
+      workspace: workspaceArg,
+      team: z.string().max(120).optional().describe('Only this team of the workspace: its address slug (list_workspaces). Leave out for every team.'),
+      period: z.enum(['today', '7', '30', '90']).optional().describe('"today" (live), or 7, 30 or 90 complete days ending yesterday (default 30).'),
+    }),
+    annotations: readOnlyHints,
+  }, ({ workspace, team, period }) => run(async () => {
+    const ws = workspaceRef(access, workspace)
+    let rows = await loadSites(access, ws, ws ? team : undefined)
+    if (!ws) {
+      const working = new Set(access.memberships.filter((m) => m.role !== 'guest').map((m) => m.workspaceId))
+      rows = rows.filter((x) => working.has(x.workspaceId))
+    }
+    const r = await scopeTraffic(rows, period ?? '30')
+    const today = r.period === 'today'
+    return ok({
+      period: today ? `today (${r.through}), live` : `${r.period} days to ${r.through}`,
+      sites: r.sites.length,
+      activeNow: r.active,
+      totals: totalsLine(r.totals),
+      previous: { ...totalsLine(r.previous), is: today ? 'yesterday up to the same time' : `the ${r.period} days before` },
+      changePct: { visitors: changePct(r.totals.visitors, r.previous.visitors), pageviews: changePct(r.totals.pageviews, r.previous.pageviews) },
+      todaySoFar: r.today ? { visitors: r.today.visitors, pageviews: r.today.pageviews } : null,
+      trend: { unit: today ? 'visitors an hour today, from midnight' : 'visitors per day, oldest first', values: r.series.map((p) => p.visitors) },
+      perSite: r.sites.map((x) => ({ x, n: x.available && !(today && x.error) })).map(({ x, n }) => ({
+        site: x.name,
+        workspace: x.workspace.name,
+        team: x.team.name,
+        counts: x.available || null,
+        activeNow: x.active,
+        visitors: n ? x.totals.visitors : null,
+        before: n ? x.previous.visitors : null,
+        changePct: n ? changePct(x.totals.visitors, x.previous.visitors) : null,
+        pageviews: n ? x.totals.pageviews : null,
+        error: x.error,
+      })),
+      pages: r.pages.map((p) => ({ site: p.site.name, path: p.value, title: p.title, visitors: p.visitors, pageviews: p.pageviews })),
+      sources: r.sources.map((p) => ({ source: p.value, visitors: p.visitors })),
+      countries: r.countries.map((p) => ({ country: p.value, visitors: p.visitors })),
+      devices: r.devices.map((p) => ({ device: p.value, visitors: p.visitors })),
     })
   }))
 
