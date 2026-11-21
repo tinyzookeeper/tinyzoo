@@ -299,10 +299,13 @@ export async function trafficReport(site: Site, days: number): Promise<TrafficRe
     acc.engagedMs += Number(r.engagedMs)
     return acc
   }
-  const byDay = new Map(now.map((r) => [r.day, r]))
+  const byDay = new Map(rows.map((r) => [r.day, r]))
+  // The days before, for a dashed line under the chart: only when the site counted all of them.
+  const countedBefore = !!site.trafficSince && site.trafficSince <= before
   return {
     ...base,
     series: eachDay(from, through).map((day) => ({ day, visitors: byDay.get(day)?.visitors ?? 0, pageviews: byDay.get(day)?.pageviews ?? 0 })),
+    ...(countedBefore ? { previousSeries: eachDay(before, addDays(from, -1)).map((day) => byDay.get(day)?.visitors ?? 0) } : {}),
     totals: now.reduce(add, emptyTotals()),
     previous: rows.filter((r) => r.day < from).reduce(add, emptyTotals()),
     pages: topOf(now.map((r) => r.pages)),

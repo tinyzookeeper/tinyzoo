@@ -167,7 +167,7 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
           </ul>
         </InfoCard>
 
-        <TrafficSection v-if="showTraffic" :site-id="site.id" class="lg:col-span-3" />
+        <TrafficSection v-if="showTraffic" :site-id="site.id" :can-check="canWrite" :checking="checking" :site-url="site.url" class="lg:col-span-3" @check="checkNow" />
 
         <InfoCard v-if="s" title="tinyzoo">
           <FactList :facts="tinyzooFacts" />

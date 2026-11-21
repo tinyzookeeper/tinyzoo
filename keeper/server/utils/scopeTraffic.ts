@@ -12,7 +12,7 @@ import type { SiteRow } from './sites'
 export type TrafficPeriod = ScopeTraffic['period']
 export const isTrafficPeriod = (v: unknown): v is TrafficPeriod => v === 'today' || v === '7' || v === '30' || v === '90'
 
-type Row = Pick<SiteRow, 'id' | 'name' | 'url' | 'status' | 'tokenEnc' | 'trafficThrough' | 'trafficCheckedAt' | 'trafficError'> & {
+type Row = Pick<SiteRow, 'id' | 'name' | 'url' | 'status' | 'tokenEnc' | 'trafficThrough' | 'trafficCheckedAt' | 'trafficError' | 'trafficDrop'> & {
   workspace: { slug: string; name: string }
   team: { slug: string; name: string }
 }
@@ -47,6 +47,7 @@ function siteLine(s: Row, extra: Partial<ScopeTrafficSite> = {}): ScopeTrafficSi
     totals: zero(),
     previous: zero(),
     spark: [],
+    ...(s.trafficDrop ? { drop: s.trafficDrop } : {}),
     ...extra,
   }
 }

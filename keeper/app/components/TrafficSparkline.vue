@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Visitors a day as a small line (the site list): one series, no axis, the last day marked.
-// The number beside it carries the value; the line only shows the shape.
-const props = withDefaults(defineProps<{ values: number[]; label: string; width?: number; height?: number }>(), { width: 96, height: 28 })
+// The number beside it carries the value; the line only shows the shape. `warm`: the Simple
+// view's one warm visitors line instead of a grey one with a coloured last day.
+const props = withDefaults(defineProps<{ values: number[]; label: string; width?: number; height?: number; warm?: boolean }>(), { width: 96, height: 28 })
 
 const PAD = 3
 const points = computed(() => {
@@ -17,7 +18,7 @@ const last = computed(() => points.value.at(-1))
 <template>
   <svg :width="width" :height="height" :viewBox="`0 0 ${width} ${height}`" role="img" :aria-label="label" class="block shrink-0 overflow-visible">
     <title>{{ label }}</title>
-    <path :d="d" fill="none" stroke="currentColor" class="text-(--ui-text-dimmed)" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" />
-    <circle v-if="last" :cx="last.x" :cy="last.y" r="2.5" fill="var(--k-series-1)" stroke="var(--k-surface)" stroke-width="1.5" />
+    <path :d="d" fill="none" :stroke="warm ? 'var(--k-visitors)' : 'currentColor'" :class="warm ? '' : 'text-(--ui-text-dimmed)'" :stroke-width="warm ? 1.75 : 1.5" stroke-linejoin="round" stroke-linecap="round" />
+    <circle v-if="last" :cx="last.x" :cy="last.y" r="2.5" :fill="warm ? 'var(--k-visitors)' : 'var(--k-series-1)'" stroke="var(--k-surface)" stroke-width="1.5" />
   </svg>
 </template>

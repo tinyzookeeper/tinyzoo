@@ -72,6 +72,20 @@ html:root, html.dark:root {
   /* Chart series (visitors, pageviews): validated for colour-blind separation and 3:1 on the card, per mode. */
   --k-series-1: #2a78d6;
   --k-series-2: #eb6834;
+
+  /*
+   * Visitors in the Simple view: one warm series (the fox family), 3:1 on the card and inside
+   * the dataviz lightness band per mode. The period before is a quiet dashed grey, the grid faint.
+   */
+  --k-visitors: #C8644F;
+  --k-visitors-before: #BDBDBD;
+  --k-visitors-track: #F2EDE6;
+  --k-visitors-hover: #FAF7F2;
+  --k-grid-soft: #F3F0EA;
+  --k-mood-busy-bg: color-mix(in oklab, #C8644F 14%, #fff);
+  --k-mood-busy-text: #7A3424;
+  --k-mood-quiet-bg: color-mix(in oklab, #D08700 14%, #fff);
+  --k-mood-quiet-text: #6B4500;
 }
 
 html.dark:root {
@@ -116,6 +130,16 @@ html.dark:root {
 
   --k-series-1: #3987e5;
   --k-series-2: #d95926;
+
+  --k-visitors: #CC6C55;
+  --k-visitors-before: #5E6067;
+  --k-visitors-track: #2E3035;
+  --k-visitors-hover: #26282C;
+  --k-grid-soft: #2A2C31;
+  --k-mood-busy-bg: color-mix(in oklab, #CC6C55 22%, #1E1F23);
+  --k-mood-busy-text: #F3C2B4;
+  --k-mood-quiet-bg: color-mix(in oklab, #D08700 22%, #1E1F23);
+  --k-mood-quiet-text: #F2CF8C;
 }
 
 /* The cream primary button carries ink text in dark mode. */
@@ -153,6 +177,24 @@ body { background: var(--ui-bg); color: var(--ui-text); }
   .k-sidebar { --ui-bg-elevated: var(--k-nav-active); }
 
   .tabular { font-variant-numeric: tabular-nums; }
+
+  /*
+   * A row of a top list: the name left, the number right, and a thin 5 px bar of its share on a
+   * light track under the name. Rows keep a little air between them; hover is a soft wash.
+   */
+  .k-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.75rem; row-gap: 0.375rem; padding: 0.4375rem 0.5rem 0.5rem; margin-inline: -0.5rem; border-radius: 0.5rem; font-size: 0.8125rem; color: var(--ui-text-highlighted); }
+  .k-row + .k-row { margin-top: 0.125rem; }
+  .k-row:hover { background: var(--k-visitors-hover); }
+  .k-row__track { grid-column: 1 / -1; height: 5px; border-radius: 9999px; background: var(--k-visitors-track); overflow: hidden; }
+  .k-row__bar { display: block; height: 100%; min-width: 5px; border-radius: 9999px; background: var(--k-visitors); }
+
+  /* A site's mood on the Traffic page: words first, a tint only to help the eye. */
+  .k-mood { display: inline-flex; align-items: center; white-space: nowrap; border-radius: 9999px; padding: 0.125rem 0.5rem; font-size: 0.71875rem; font-weight: 500; background: var(--ui-bg-elevated); color: var(--ui-text-toned); }
+  .k-mood--busy { background: var(--k-mood-busy-bg); color: var(--k-mood-busy-text); }
+  .k-mood--quiet { background: var(--k-mood-quiet-bg); color: var(--k-mood-quiet-text); }
+
+  /* A calm note on cream (charcoal in dark): something worth a look, not an incident. */
+  .k-note { background: var(--k-moment-bg); border: 1px solid var(--k-moment-line); border-radius: calc(var(--ui-radius) * 1.5); }
 
   /* A moment that arrives: a short rise, nothing bouncy. */
   .k-rise { animation: k-rise 220ms ease-out both; }

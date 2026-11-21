@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { ScopeTraffic, ScopeTrafficSite, TrafficTotals } from '#keeper/types/traffic'
 
-// The visits of every site in a workspace and team (or every workspace): who is on them right
-// now, the totals against the period before, one chart, the sites side by side (sortable, with
-// their share), and the top pages, sources, countries and devices across them. Today is read
-// live from the sites every 30 s; days come from the totals Keeper keeps. The table downloads
-// as CSV, a day (or an hour) per column.
+// The visits of every site in a workspace and team (or every workspace). Simple answers "which
+// site needs me?": one sentence for all of them, then a card per site with its animal, its
+// people, a mood in words and a warm line, the ones that need a look first. Detailed keeps the
+// usual numbers: who is on them right now, the totals against the period before, one chart, the
+// sites side by side (sortable, with their share), and the top lists. Today is read live from
+// the sites every 30 s; days come from the totals Keeper keeps. The sites download as CSV, a
+// day (or an hour) per column, in either view.
 const props = defineProps<{
   workspace?: string
   team?: string
@@ -15,6 +17,8 @@ const props = defineProps<{
   siteLine?: (s: ScopeTrafficSite) => string
   /** Who "your sites" are, for the empty state. */
   scopeName: string
+  /** Open on Detailed until the person picks (owners and admins). */
+  detailedByDefault?: boolean
 }>()
 const now = useNow()
 
@@ -32,12 +36,9 @@ watch(data, (d) => {
   if (d?.period === 'today' && d.sites.length && !d.at && period.value === 'today') period.value = '30'
 }, { immediate: true })
 
-const periods = [
-  { label: 'Today', value: 'today' },
-  { label: '7 days', value: '7' },
-  { label: '30 days', value: '30' },
-  { label: '90 days', value: '90' },
-]
+const view = useTrafficView(() => props.detailedByDefault ?? false)
+const simple = computed(() => view.value === 'simple')
+const periods = computed(() => periodTabs(['today', '7', '30', '90'], simple.value))
 const isToday = computed(() => data.value?.period === 'today')
 const fmt = (n: number) => n.toLocaleString('en-GB')
 function changePct(now: number, before: number): number | null {
@@ -138,6 +139,40 @@ const counted = (s: ScopeTrafficSite) => s.available && !(isToday.value && s.err
 const notCounting = computed(() => (data.value?.sites ?? []).filter((s) => !s.available).length)
 const needsUpdate = computed(() => (data.value?.sites ?? []).filter((s) => s.update))
 
+// ── Simple: in words, a card per site ──
+const words = computed(() => periodWords(data.value?.period ?? period.value))
+const visitedWhen: Record<Period, string> = { 'today': 'today', '7': 'this week', '30': 'this month', '90': 'over the last 3 months' }
+const moodOfSite = (s: ScopeTrafficSite) => moodOf(s.totals.visitors, s.previous.visitors, !!s.drop)
+/** Worth a look: a drop Keeper told about, a lot fewer than before, or numbers that could not be read. */
+const needsLook = (s: ScopeTrafficSite) => s.available && (!!s.drop || (s.error && !s.update) || (counted(s) && moodOfSite(s) === 'quiet'))
+const cards = computed(() => [...(data.value?.sites ?? [])].sort((a, b) => {
+  const rank = (s: ScopeTrafficSite) => (!s.available ? 2 : needsLook(s) ? 0 : 1)
+  return rank(a) - rank(b) || (counted(b) ? b.totals.visitors : -1) - (counted(a) ? a.totals.visitors : -1) || a.name.localeCompare(b.name)
+}))
+/** "around 530": a usual level said roughly. */
+const roughly = (n: number) => fmt(n < 100 ? n : n < 1000 ? Math.round(n / 10) * 10 : Math.round(n / 50) * 50)
+function cardLine(s: ScopeTrafficSite): string {
+  if (!s.available) return 'Doesn’t count visits yet'
+  if (!counted(s)) return s.update ? 'Shows today after an update to tinyzoo 1.6' : 'Couldn’t read its visits just now'
+  const parts = [`${fmt(s.totals.visitors)} ${peopleWord(s.totals.visitors)}`]
+  const mood = moodOfSite(s)
+  // A drop is measured a day against the usual level, so it says so a day.
+  if (s.drop) parts.push(isToday.value ? `usually around ${roughly(s.drop.baselinePerDay)} a day` : `about ${fmt(s.drop.perDay)} a day, usually ${roughly(s.drop.baselinePerDay)}`)
+  else if ((mood === 'quiet' || mood === 'busy') && s.previous.visitors) parts.push(`usually around ${roughly(s.previous.visitors)}`)
+  else if (s.active) parts.push(`${fmt(s.active)} here now`)
+  return parts.join(' · ')
+}
+const quieter = computed(() => (data.value?.sites ?? []).filter((s) => counted(s) && moodOfSite(s) === 'quiet').map((s) => s.name))
+const quieterLine = computed(() => {
+  const q = quieter.value
+  if (!q.length) return ''
+  if (q.length === 1) return `${q[0]} is quieter than usual`
+  if (q.length === 2) return `${q[0]} and ${q[1]} are quieter than usual`
+  return `${q.length} sites are quieter than usual`
+})
+const updated = computed(() => `Updated ${updatedAgo(data.value?.at, now.value)}`)
+const howItWorks = computed(() => `${isToday.value ? 'Today so far, read live from the sites every 30 seconds.' : 'Daily totals from each site’s own analytics, read about once an hour. The lists add up each site’s daily top 10.'} Visitors add up per site: someone on two sites counts twice.`)
+
 // ── download ──
 function csvCell(v: string | number): string {
   const s = String(v)
@@ -166,12 +201,13 @@ const throughLabel = computed(() => (data.value?.through ? new Date(`${data.valu
 <template>
   <div class="flex min-w-0 flex-col gap-6">
     <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-      <LiveNow v-if="data && data.active != null" :active="data.active" :today="isToday ? null : data.today?.visitors ?? null" where="on your sites" />
-      <div class="ml-auto flex items-center gap-2">
+      <LiveNow v-if="!simple && data && data.active != null" :active="data.active" :today="isToday ? null : data.today?.visitors ?? null" where="on your sites" />
+      <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
         <UTabs v-model="period" :items="periods" :content="false" size="xs" variant="pill" color="neutral" class="w-auto" />
-        <UButton icon="i-lucide-download" color="neutral" variant="ghost" size="xs" :disabled="!data?.sites.some((s) => s.available)" aria-label="Download as CSV" @click="download">
+        <UButton v-if="!simple" icon="i-lucide-download" color="neutral" variant="ghost" size="xs" :disabled="!data?.sites.some((s) => s.available)" aria-label="Download as CSV" @click="download">
           <span class="hidden sm:inline">CSV</span>
         </UButton>
+        <TrafficViewSwitch v-model="view" />
       </div>
     </div>
 
@@ -184,6 +220,65 @@ const throughLabel = computed(() => (data.value?.through ? new Date(`${data.valu
       <p class="text-highlighted">No sites in {{ scopeName }} yet.</p>
       <p class="mt-0.5 text-muted">Their visits add up here once they are added and count visits.</p>
     </div>
+
+    <template v-else-if="simple">
+      <section aria-labelledby="visitors-heading">
+        <h2 id="visitors-heading" class="font-display text-lg font-bold tracking-tight text-highlighted sm:text-xl">
+          <span class="tabular">{{ fmt(data.totals.visitors) }}</span> {{ peopleWord(data.totals.visitors) }} visited your sites {{ visitedWhen[data.period] }}
+        </h2>
+        <p v-if="data.active != null || quieterLine" class="mt-1 flex flex-col items-start gap-x-1.5 gap-y-0.5 text-[0.8125rem] text-muted sm:flex-row sm:flex-wrap sm:items-center" aria-live="polite">
+          <span v-if="data.active != null" class="inline-flex items-center gap-1.5 text-highlighted tabular">
+            <span class="relative inline-flex size-2 shrink-0" aria-hidden="true">
+              <span v-if="data.active" class="absolute inline-flex size-full rounded-full bg-success opacity-60 motion-safe:animate-ping" />
+              <span class="relative inline-flex size-2 rounded-full" :class="data.active ? 'bg-success' : 'bg-(--ui-border-accented)'" />
+            </span>
+            {{ data.active ? `${fmt(data.active)} on them right now` : 'Nobody on them right now' }}
+          </span>
+          <span v-if="data.active != null && quieterLine" class="hidden sm:inline" aria-hidden="true">·</span>
+          <span v-if="quieterLine">{{ quieterLine }}</span>
+        </p>
+        <p v-else-if="data.previous.visitors" class="mt-1 text-[0.8125rem] text-muted">{{ changeInWords(data.totals.visitors, data.previous.visitors, words.against) }}</p>
+
+        <ul class="k-card mt-4 divide-y divide-default px-3 sm:px-4" aria-label="Sites">
+          <li v-for="s in cards" :key="s.id" :class="s.available ? '' : 'opacity-60'">
+            <NuxtLink :to="siteLink(s)" class="group -mx-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-3 hover:bg-(--k-visitors-hover) sm:-mx-4 sm:px-4">
+              <SiteAnimal :id="s.id" size="sm" />
+              <span class="min-w-0">
+                <span class="flex min-w-0 items-baseline gap-2">
+                  <span class="truncate font-display text-sm font-semibold text-highlighted group-hover:underline">{{ s.name }}</span>
+                  <span v-if="siteLine?.(s)" class="hidden truncate text-xs text-dimmed sm:inline">{{ siteLine(s) }}</span>
+                </span>
+                <span class="block text-xs tabular" :class="s.available && !counted(s) && !s.update ? 'text-warning' : 'text-muted'" :title="s.error ?? undefined">{{ cardLine(s) }}</span>
+              </span>
+              <span v-if="counted(s)" class="flex flex-col items-end gap-1">
+                <span class="k-mood" :class="{ 'k-mood--quiet': moodOfSite(s) === 'quiet', 'k-mood--busy': moodOfSite(s) === 'busy' }">{{ MOOD_LABELS[moodOfSite(s)] }}</span>
+                <TrafficSparkline v-if="s.spark.length > 1" :values="s.spark" warm :width="72" :height="20" :label="`${s.name}: visitors ${isToday ? 'an hour today' : 'a day'}`" />
+              </span>
+              <span v-else />
+            </NuxtLink>
+          </li>
+        </ul>
+      </section>
+
+      <section class="k-card p-4 sm:p-5" aria-label="What they read and how they found you">
+        <div class="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-4">
+          <TrafficList title="Most read" :items="data.pages" kind="page" :sites="data.sites.length > 1" />
+          <TrafficList title="Found you through" :items="data.sources" kind="source" />
+          <TrafficList title="Where they’re from" :items="data.countries" kind="country" />
+          <TrafficList title="What they use" :items="data.devices" kind="device" />
+        </div>
+      </section>
+
+      <div class="-mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted">
+        <UTooltip :text="howItWorks" :content="{ side: 'top', align: 'start' }" :ui="{ content: 'max-w-80 h-auto py-1.5 whitespace-normal' }">
+          <span tabindex="0" class="cursor-help underline decoration-dotted decoration-(--ui-border-accented) underline-offset-4" :aria-label="`${updated}. ${howItWorks}`">{{ updated }}</span>
+        </UTooltip>
+        <span class="flex items-center gap-3">
+          <button type="button" class="font-medium text-highlighted hover:underline" @click="view = 'detailed'">Show as table</button>
+          <button type="button" class="font-medium text-highlighted hover:underline disabled:opacity-50" :disabled="!data.sites.some((s) => s.available)" @click="download">Download CSV</button>
+        </span>
+      </div>
+    </template>
 
     <template v-else>
       <section class="k-card p-4 sm:p-5" aria-label="Totals">
@@ -257,10 +352,10 @@ const throughLabel = computed(() => (data.value?.through ? new Date(`${data.valu
 
       <section class="k-card p-4 sm:p-5" aria-label="Top lists">
         <div class="grid grid-cols-1 gap-x-8 gap-y-6 sm:grid-cols-2 xl:grid-cols-4">
-          <TrafficList title="Pages" :items="data.pages" kind="page" :sites="data.sites.length > 1" />
-          <TrafficList title="Sources" :items="data.sources" />
-          <TrafficList title="Countries" :items="data.countries" kind="country" />
-          <TrafficList title="Devices" :items="data.devices" />
+          <TrafficList title="Pages" :items="data.pages" kind="page" :sites="data.sites.length > 1" detailed />
+          <TrafficList title="Sources" :items="data.sources" kind="source" detailed />
+          <TrafficList title="Countries" :items="data.countries" kind="country" detailed />
+          <TrafficList title="Devices" :items="data.devices" kind="device" detailed />
         </div>
         <p class="mt-4 text-xs text-muted">{{ isToday ? 'Each site’s top 10 today, added up.' : 'Each site’s daily top 10, added up.' }}</p>
       </section>
