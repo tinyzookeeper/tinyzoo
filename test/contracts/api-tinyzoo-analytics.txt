@@ -2,7 +2,34 @@
 // The analytics plugin: analyticsPlugin, its options, its tables and the daily totals.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (8) ─────────────────────────────────────────────────
+// ── public (11) ─────────────────────────────────────────────────
+
+export interface AnalyticsLive {
+    format: 'tinyzoo-analytics-live';
+    version: 1;
+    at: string;
+    timeZone: string;
+    day: string;
+    hour: number;
+    active: number;
+    today: AnalyticsRollupDay;
+    yesterdaySoFar: AnalyticsLiveTotals;
+    hours: AnalyticsLiveHour[];
+}
+
+export interface AnalyticsLiveHour {
+    hour: number;
+    visitors: number;
+    pageviews: number;
+}
+
+export interface AnalyticsLiveTotals {
+    visitors: number;
+    visits: number;
+    pageviews: number;
+    bounces: number;
+    engagedMs: number;
+}
 
 export type AnalyticsMode = 'cookieless' | 'consent' | 'strict';
 

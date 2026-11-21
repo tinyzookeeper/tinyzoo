@@ -6,6 +6,7 @@
 GET  /api/content-types.ts
 GET  /api/content/:entity
 GET  /api/content/:entity/:slug
+GET  /api/content/_analytics/live   (tinyzoo/analytics)
 GET  /api/content/_analytics/rollups   (tinyzoo/analytics)
 GET  /api/content/_consent/config   (tinyzoo/consent)
 GET  /api/content/_form/:name   (tinyzoo/forms)
