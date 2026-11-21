@@ -79,7 +79,12 @@ export interface SiteDetail extends SiteSummary {
   certError: string | null
   /** The last 24 hours of checks, oldest first. */
   checks: CheckPoint[]
+  /** The last 20 incidents, newest first. */
   incidents: Incident[]
+  /** Every incident that touches the last 30 days (still going, or ended in them), newest first. */
+  incidents30d: Incident[]
+  /** The oldest check Keeper still keeps (it keeps 90 days), or null before the first one. */
+  firstCheckAt: string | null
   latest: string | null
 }
 

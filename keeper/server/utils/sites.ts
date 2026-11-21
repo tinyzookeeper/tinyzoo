@@ -165,7 +165,7 @@ export async function latestKnown(rows: SiteRow[]): Promise<string | null> {
 
 export async function siteDetail(site: SiteRow): Promise<SiteDetail> {
   const db = useDb()
-  const [uptime, latest, traffic, checks, incidents] = await Promise.all([
+  const [uptime, latest, traffic, checks, incidents, recent, [first]] = await Promise.all([
     uptimeFor([site.id]),
     latestKnown([site]),
     trafficGlances([site]),
@@ -173,7 +173,13 @@ export async function siteDetail(site: SiteRow): Promise<SiteDetail> {
       .where(and(eq(schema.checks.siteId, site.id), gte(schema.checks.at, sql`now() - interval '24 hours'`)))
       .orderBy(schema.checks.at),
     db.select().from(schema.incidents).where(eq(schema.incidents.siteId, site.id)).orderBy(desc(schema.incidents.startedAt)).limit(20),
+    // Every incident that touches the last 30 days, for the 30-day strip and its sentence.
+    db.select().from(schema.incidents)
+      .where(and(eq(schema.incidents.siteId, site.id), sql`coalesce(${schema.incidents.endedAt}, now()) > now() - interval '30 days'`))
+      .orderBy(desc(schema.incidents.startedAt)).limit(500),
+    db.select({ at: sql<Date | string | null>`min(${schema.checks.at})` }).from(schema.checks).where(eq(schema.checks.siteId, site.id)),
   ])
+  const incident = (i: typeof incidents[number]) => ({ id: i.id, startedAt: i.startedAt.toISOString(), endedAt: iso(i.endedAt), cause: i.cause })
   return {
     ...summarize(site, uptime.get(site.id), latest, traffic.get(site.id) ?? null),
     repoUrl: site.repoUrl,
@@ -182,7 +188,9 @@ export async function siteDetail(site: SiteRow): Promise<SiteDetail> {
     status: site.status ?? null,
     certError: site.certError,
     checks: checks.map((c) => ({ at: c.at.toISOString(), ok: c.ok, ms: c.ms })),
-    incidents: incidents.map((i) => ({ id: i.id, startedAt: i.startedAt.toISOString(), endedAt: iso(i.endedAt), cause: i.cause })),
+    incidents: incidents.map(incident),
+    incidents30d: recent.map(incident),
+    firstCheckAt: first?.at ? new Date(first.at).toISOString() : null,
     latest,
   }
 }

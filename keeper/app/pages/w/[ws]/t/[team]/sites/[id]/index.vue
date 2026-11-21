@@ -6,7 +6,10 @@ const route = useRoute()
 const id = computed(() => String(route.params.id))
 const toast = useToast()
 const now = useNow()
-const { canWrite, link, workspace, team } = useScope()
+const { canWrite, link, workspace, team, isManager } = useScope()
+// Simple or Detailed, for every card on the page: the same remembered choice as the Visitors views.
+const view = useTrafficView(isManager)
+const simple = computed(() => view.value === 'simple')
 
 const { data: site, error, refresh } = await useFetch<SiteDetail>(() => `/api/sites/${id.value}`, { key: `site-${id.value}` })
 if (error.value?.statusCode === 404) throw createError({ statusCode: 404, statusMessage: 'Site not found', fatal: true })
@@ -89,12 +92,21 @@ const errorFacts = computed<Fact[]>(() => {
 })
 // The Traffic section: for a site whose status lists the analytics plugin, or that has visits already.
 const showTraffic = computed(() => !!site.value && (!!site.value.traffic || !!s.value?.plugins.some((p) => p.name === 'analytics')))
+// Simple: the last 30 days, as the strip. Detailed: also the older ones of the last 20.
+const incidentList = computed(() => {
+  const d = site.value
+  if (!d) return []
+  if (simple.value) return d.incidents30d
+  const seen = new Set(d.incidents30d.map((i) => i.id))
+  return [...d.incidents30d, ...d.incidents.filter((i) => !seen.has(i.id))]
+})
 const collections = computed(() => [...(s.value?.content.collections ?? [])].sort((a, b) => (b.lastEditAt ?? '').localeCompare(a.lastEditAt ?? '')))
 </script>
 
 <template>
   <AppPage :title="site?.name ?? 'Site'" :trail="[{ label: team?.name ?? 'Sites', to: link() }]" :heading="false">
     <template #actions>
+      <TrafficViewSwitch v-if="site" v-model="view" />
       <UButton v-if="site && canWrite" :to="link(`/sites/${site.id}/edit`)" icon="i-lucide-pencil" label="Edit" color="neutral" variant="ghost" class="hidden sm:inline-flex" />
       <UButton v-if="site && canWrite" :to="link(`/sites/${site.id}/edit`)" icon="i-lucide-pencil" aria-label="Edit" color="neutral" variant="ghost" square class="sm:hidden" />
     </template>
@@ -142,32 +154,10 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
       </div>
 
       <div class="grid grid-cols-1 gap-x-4 gap-y-8 lg:grid-cols-3">
-        <InfoCard title="Uptime" class="lg:col-span-2">
-          <template #aside>
-            <span class="text-sm text-muted tabular">
-              24 h <span class="font-semibold text-highlighted">{{ formatUptime(site.uptime24h) }}</span>
-              · 30 d <span class="font-semibold text-highlighted">{{ formatUptime(site.uptime30d) }}</span>
-            </span>
-          </template>
-          <ResponseChart :checks="site.checks" />
-        </InfoCard>
+        <UptimeCard :site="site" :simple="simple" class="lg:col-span-2" />
+        <IncidentsCard :incidents="incidentList" :simple="simple" />
 
-        <InfoCard title="Incidents">
-          <p v-if="!site.incidents.length" class="text-sm text-muted">No downtime recorded.</p>
-          <ul v-else class="flex flex-col divide-y divide-default text-sm">
-            <li v-for="i in site.incidents" :key="i.id" class="py-2 first:pt-0 last:pb-0">
-              <div class="flex items-baseline justify-between gap-3">
-                <span class="text-highlighted"><ClientOnly>{{ formatDateTime(i.startedAt) }}</ClientOnly></span>
-                <span :class="i.endedAt ? 'text-muted' : 'font-medium text-error'" class="tabular">
-                  {{ i.endedAt ? duration(i.startedAt, i.endedAt) : `ongoing · ${duration(i.startedAt, null, now)}` }}
-                </span>
-              </div>
-              <p v-if="i.cause" class="truncate text-muted" :title="i.cause">{{ i.cause }}</p>
-            </li>
-          </ul>
-        </InfoCard>
-
-        <TrafficSection v-if="showTraffic" :site-id="site.id" :can-check="canWrite" :checking="checking" :site-url="site.url" class="lg:col-span-3" @check="checkNow" />
+        <TrafficSection v-if="showTraffic" no-switch :site-id="site.id" :can-check="canWrite" :checking="checking" :site-url="site.url" class="lg:col-span-3" @check="checkNow" />
 
         <InfoCard v-if="s" title="tinyzoo">
           <FactList :facts="tinyzooFacts" />
