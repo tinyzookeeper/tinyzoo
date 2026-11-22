@@ -169,6 +169,11 @@ export const sites = pgTable('sites', {
   logoHash: text('logo_hash'),
   logoSource: text('logo_source'),
   logoCheckedAt: ts('logo_checked_at'),
+  // The build the site served when its status was last read: a new start of the instance with the
+  // same build is a restart without a deploy (site_restarts).
+  statusBuildId: text('status_build_id'),
+  // When the team was last told the site restarted without a deploy (at most once a day).
+  restartAlertedAt: ts('restart_alerted_at'),
 }, (t) => [index('sites_workspace_idx').on(t.workspaceId), index('sites_team_idx').on(t.teamId)])
 
 /** One uptime check: GET /api/health/ready. */
@@ -201,6 +206,19 @@ export const siteTraffic = pgTable('site_traffic', {
   devices: jsonb('devices').$type<TrafficItem[]>().notNull().default([]),
   fetchedAt: ts('fetched_at').notNull().defaultNow(),
 }, (t) => [primaryKey({ name: 'site_traffic_pk', columns: [t.siteId, t.day] })])
+
+/**
+ * The site's instance started again although its build had not changed: a crash, the host killing
+ * it for its memory, or the host moving it to another machine (Keeper cannot tell them apart).
+ * `memoryPeak` and `memoryLimit` are from the status read before it (bytes): the last thing known.
+ */
+export const siteRestarts = pgTable('site_restarts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  at: ts('at').notNull(),
+  memoryPeak: bigint('memory_peak', { mode: 'number' }),
+  memoryLimit: bigint('memory_limit', { mode: 'number' }),
+}, (t) => [index('site_restarts_site_at_idx').on(t.siteId, t.at)])
 
 /** A stretch of time a site was down. */
 export const incidents = pgTable('incidents', {

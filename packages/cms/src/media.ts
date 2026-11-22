@@ -50,3 +50,31 @@ export const CMS_MEDIA_SOURCE = `export const cmsMedia = pgTable('cms_media', {
   inLibrary: boolean('in_library').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })`
+
+/**
+ * Which smaller copies of a picture were made (the widths of `/api/cms/_media/img/<id>/<w>.webp`):
+ * the background worker that makes them after an upload, and catches up pictures from before,
+ * keeps its place here. One row per picture once the worker has seen it.
+ *
+ * @internal
+ */
+export const cmsMediaSizes = pgTable('cms_media_sizes', {
+  mediaId: uuid('media_id').primaryKey().references(() => cmsMedia.id, { onDelete: 'cascade' }),
+  // The widths made, comma-separated in ascending order ('320,480,…'); '' before the first run.
+  widths: text('widths').notNull().default(''),
+  // 'working' (an instance is on it), 'done' or 'failed'.
+  state: text('state').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  error: text('error'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
+/** Source emitted verbatim into db/schema.ts, after the media table. */
+export const CMS_MEDIA_SIZES_SOURCE = `export const cmsMediaSizes = pgTable('cms_media_sizes', {
+  mediaId: uuid('media_id').primaryKey().references(() => cmsMedia.id, { onDelete: 'cascade' }),
+  widths: text('widths').notNull().default(''),
+  state: text('state').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  error: text('error'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})`

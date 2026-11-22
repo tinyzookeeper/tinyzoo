@@ -27,6 +27,15 @@ export const cmsMedia = pgTable('cms_media', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 })
 
+export const cmsMediaSizes = pgTable('cms_media_sizes', {
+  mediaId: uuid('media_id').primaryKey().references(() => cmsMedia.id, { onDelete: 'cascade' }),
+  widths: text('widths').notNull().default(''),
+  state: text('state').notNull(),
+  attempts: integer('attempts').notNull().default(0),
+  error: text('error'),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+})
+
 export const cmsUsers = pgTable('cms_users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull(),

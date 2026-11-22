@@ -24,7 +24,7 @@ const workspaces = computed(() => workingWorkspaces(me.value))
 const sites = computed(() => data.value.sites.filter((s) => workspaces.value.some((w) => w.id === s.workspace.id)))
 const CERT_WARN_DAYS = 21
 
-/** What makes a site worth a look: down, its certificate, an unreadable status, a drop in visitors, errors, an old tinyzoo. */
+/** What makes a site worth a look: down, its certificate, an unreadable status, a drop in visitors, errors, restarts or memory near the limit, an old tinyzoo. */
 function troubles(s: SiteSummary): string[] {
   const out: string[] = []
   if (s.state === 'down') out.push(`down for ${duration(s.stateSince ?? s.lastCheckAt ?? '', null, now.value)}`)
@@ -33,6 +33,8 @@ function troubles(s: SiteSummary): string[] {
   if (s.statusError) out.push('status unreadable')
   if (s.traffic?.drop) out.push('visitors dropped')
   if (s.errors24h > 0) out.push(`${s.errors24h} server error${s.errors24h === 1 ? '' : 's'}`)
+  if (s.restarts24h > 0) out.push(`restarted without a deploy${s.restarts24h > 1 ? ` (${s.restarts24h}×)` : ''}`)
+  else if (s.memory?.percent != null && s.memory.percent >= 80) out.push(`memory at ${s.memory.percent} %`)
   if (s.outdated) out.push(`runs tinyzoo ${s.version}`)
   return out
 }

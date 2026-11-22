@@ -18,6 +18,7 @@ export const DOC_LINKS = {
   databaseUrlRemoved: { file: 'upgrading.md', anchor: 'cmsdatabaseurl-is-gone' },
   backups: { file: 'deploying.md', anchor: 'backups-and-restore' },
   media: { file: 'deploying.md', anchor: 'media' },
+  staticImages: { file: 'guide/media.md', anchor: 'pictures-in-public-for-nuxtimage' },
 } as const
 
 export type DocLink = keyof typeof DOC_LINKS

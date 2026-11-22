@@ -25,6 +25,8 @@ export interface CmsStatus {
   instance: {
     /** When it started (ISO 8601). */
     startedAt: string
+    /** Its memory now, and the container's limit and peak; absent before tinyzoo 1.10. */
+    memory?: CmsStatusMemory
   }
   site: {
     /** `cms.publicUrl`, or null when it is not set. */
@@ -66,6 +68,11 @@ export interface CmsStatus {
   media: {
     files: number
     bytes: number
+    /**
+     * The pictures' smaller copies: how many have all of theirs, wait for them, or could not be
+     * resized. Absent before tinyzoo 1.10, and before the site applied its migration.
+     */
+    sizes?: { done: number; waiting: number; failed: number }
   }
   webhooks: {
     /** How many publish webhook addresses are set. */
@@ -99,6 +106,16 @@ export interface CmsStatus {
   }
   /** The client's brand as the site's admin shows it (`cms.admin`); absent before tinyzoo 1.9. */
   brand?: CmsStatusBrand
+}
+
+/** Memory of the instance that answered, in bytes. */
+export interface CmsStatusMemory {
+  /** What the process holds now (resident set size). */
+  rss: number
+  /** The most the container may use (cgroup `memory.max`), or null without a limit or outside a container. */
+  limit: number | null
+  /** The most the container has used since it started (cgroup `memory.peak`), or null when it cannot be read. */
+  peak: number | null
 }
 
 /**

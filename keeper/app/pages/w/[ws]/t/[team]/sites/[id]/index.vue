@@ -78,6 +78,34 @@ const databaseFacts = computed<Fact[]>(() => {
     { label: 'Migrations at start', value: db.migrations, tone: db.migrations === 'failed' ? 'error' : 'default' },
     { label: 'Size', value: formatBytes(db.bytes) },
     { label: 'Media', value: `${s.value!.media.files} files · ${formatBytes(s.value!.media.bytes)}` },
+    ...pictureFacts.value,
+  ]
+})
+// The pictures' smaller copies (tinyzoo 1.10+): only while some wait or could not be made.
+const pictureFacts = computed<Fact[]>(() => {
+  const z = s.value?.media.sizes
+  if (!z || (!z.waiting && !z.failed)) return []
+  return [
+    ...(z.waiting ? [{ label: 'Picture copies waiting', value: z.waiting, tone: 'muted' as const }] : []),
+    ...(z.failed ? [{ label: 'Pictures not resized', value: z.failed, tone: 'warning' as const }] : []),
+  ]
+})
+// Memory (tinyzoo 1.10+) and restarts without a deploy: shown when either is known.
+const showMemory = computed(() => !!site.value && (!!site.value.memory || site.value.restarts24h > 0))
+const memoryFacts = computed<Fact[]>(() => {
+  const d = site.value!
+  const m = d.memory
+  const high = !!m?.percent && m.percent >= 80
+  return [
+    ...(m
+      ? [
+          { label: 'Now', value: formatBytes(m.rss) },
+          { label: 'Most since it started', value: formatBytes(m.peak) },
+          { label: 'Limit', value: m.limit ? `${formatBytes(m.limit)}${m.percent != null ? ` · ${m.percent} % used` : ''}` : 'none set', tone: high ? 'warning' as const : m.limit ? 'default' as const : 'muted' as const },
+        ]
+      : []),
+    { label: 'Restarts without a deploy, 24 h', value: d.restarts24h, tone: d.restarts24h ? 'warning' : 'muted' },
+    ...(d.restarts[0] ? [{ label: 'Last one', value: timeAgo(d.restarts[0].at, now.value), tone: 'muted' as const }] : []),
   ]
 })
 const errorFacts = computed<Fact[]>(() => {
@@ -210,6 +238,12 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
         <InfoCard v-if="s" title="Errors, last 24 h">
           <FactList :facts="errorFacts" />
           <p class="mt-2 text-xs text-muted">Counted by the instance that answered; a restart starts again from 0.</p>
+        </InfoCard>
+
+        <InfoCard v-if="showMemory" title="Memory and restarts">
+          <FactList :facts="memoryFacts" />
+          <p v-if="site.restarts[0]?.hint" class="mt-2 text-xs text-pretty text-warning">Before the last restart, its {{ site.restarts[0].hint }}: the host likely stopped it for its memory.</p>
+          <p v-else class="mt-2 text-xs text-pretty text-muted">A restart without a deploy is a crash, the host stopping the site for its memory, or the host moving it to another machine.</p>
         </InfoCard>
 
         <InfoCard title="Certificate">

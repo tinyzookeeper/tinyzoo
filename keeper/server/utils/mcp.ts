@@ -5,6 +5,7 @@ import type { H3Event } from 'h3'
 import { z } from 'zod'
 import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
 import type { SiteLive, TrafficTotals } from '#keeper/types/traffic'
+import { megabytes, memoryHigh } from '#keeper/restarts'
 
 /**
  * Keeper's MCP server (server/routes/mcp.ts): the fleet for tools that speak MCP. One
@@ -15,9 +16,9 @@ import type { SiteLive, TrafficTotals } from '#keeper/types/traffic'
 const DAY = 86_400_000
 const CERT_WARN_DAYS = 21
 
-const INSTRUCTIONS = `Keeper watches every tinyzoo site you look after: uptime every minute (GET /api/health/ready), the site's status every few minutes (GET /api/health/status with the site's NUXT_CMS_STATUS_TOKEN: tinyzoo version, content, sign-ins, errors), its visits about hourly when the site counts them (tinyzoo's analytics plugin: daily totals, no personal data) and its TLS certificate twice a day.
+const INSTRUCTIONS = `Keeper watches every tinyzoo site you look after: uptime every minute (GET /api/health/ready), the site's status every few minutes (GET /api/health/status with the site's NUXT_CMS_STATUS_TOKEN: tinyzoo version, content, sign-ins, errors, and from tinyzoo 1.10 its memory against its container's limit), its visits about hourly when the site counts them (tinyzoo's analytics plugin: daily totals, no personal data) and its TLS certificate twice a day.
 
-Start with fleet_summary for what needs attention. site_traffic tells how many people visit a site and where they come from, today live included; workspace_traffic adds up all the sites of a workspace (or every workspace). Sites are named by id, name or address in the other tools. Results are compact JSON; fields without a value are left out. Times are ISO 8601 (UTC). "behind" means the site runs an older tinyzoo than the newest release on npm.
+Start with fleet_summary for what needs attention. A restart without a deploy is a new instance of the site with the same build: a crash, the host stopping it for its memory, or the host moving it; Keeper cannot tell which, and says what memory was at before when it was near the limit. site_traffic tells how many people visit a site and where they come from, today live included; workspace_traffic adds up all the sites of a workspace (or every workspace). Sites are named by id, name or address in the other tools. Results are compact JSON; fields without a value are left out. Times are ISO 8601 (UTC). "behind" means the site runs an older tinyzoo than the newest release on npm.
 
 Sites live in workspaces (a company, or one client), and inside a workspace in teams (list_workspaces). Every tool answers for all the workspaces you are in; pass \`workspace\` (its name, address slug or id) for one. Owners and admins see every team of their workspace, members and guests only their teams. Guests only read.
 
@@ -68,8 +69,8 @@ function workspaceRef(access: Access, ref: string | undefined): string | undefin
 
 async function loadFleet(access: Access, workspace?: string) {
   const rows = await loadSites(access, workspaceRef(access, workspace))
-  const [uptime, latest, traffic] = await Promise.all([uptimeFor(rows.map((r) => r.id)), latestKnown(rows), trafficGlances(rows)])
-  return { rows, latest, sites: rows.map((r) => summarize(r, uptime.get(r.id), latest, traffic.get(r.id) ?? null)) }
+  const [uptime, latest, traffic, restarts] = await Promise.all([uptimeFor(rows.map((r) => r.id)), latestKnown(rows), trafficGlances(rows), restartsFor(rows.map((r) => r.id))])
+  return { rows, latest, sites: rows.map((r) => summarize(r, uptime.get(r.id), latest, traffic.get(r.id) ?? null, restarts.get(r.id))) }
 }
 
 /** One line of a site for lists. */
@@ -91,6 +92,8 @@ function siteLine(s: SiteSummary) {
     certDays: daysUntil(s.certExpiresAt),
     statusError: s.statusError,
     noStatusToken: !s.hasToken || null,
+    restarts24h: s.restarts24h || null,
+    memPct: s.memory?.percent ?? null,
   }
 }
 
@@ -155,12 +158,21 @@ async function siteReport(site: SiteRow, detail?: SiteDetail) {
       statusAt: d.statusAt,
       certExpiresAt: d.certExpiresAt,
       certError: d.certError,
+      memory: memoryLine(d),
     },
+    restarts24h: d.restarts.map((r) => ({ at: r.at, memoryPeakMb: r.memoryPeak == null ? null : megabytes(r.memoryPeak), memoryLimitMb: r.memoryLimit == null ? null : megabytes(r.memoryLimit), hint: r.hint })),
     traffic: trafficLine(d),
     checks24h: await checksDay(site.id),
     incidents: d.incidents.map((i) => ({ startedAt: i.startedAt, endedAt: i.endedAt, open: !i.endedAt || null, cause: i.cause })),
     status: d.status,
   }
+}
+
+/** Memory in megabytes from the last status (tinyzoo 1.10+), or null. */
+function memoryLine(d: SiteSummary) {
+  const m = d.memory
+  if (!m) return null
+  return { rssMb: megabytes(m.rss), peakMb: m.peak == null ? null : megabytes(m.peak), limitMb: m.limit == null ? null : megabytes(m.limit), percent: m.percent }
 }
 
 /** A change from `before` to `now` in percent (25 = a quarter more), or null without a before. */
@@ -261,7 +273,7 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
 
   server.registerTool('fleet_summary', {
     title: 'Fleet summary',
-    description: 'What needs attention across all sites, in one call: sites that are down (with the cause), sites behind the newest tinyzoo, TLS certificates expiring within 21 days (or unreadable), sites whose status cannot be read (wrong or missing status token), sites that reported server errors in the last 24 hours, and sites whose visitors dropped (the last 7 days under 40 % of the 4 weeks before). Start here.',
+    description: 'What needs attention across all sites, in one call: sites that are down (with the cause), sites behind the newest tinyzoo, TLS certificates expiring within 21 days (or unreadable), sites whose status cannot be read (wrong or missing status token), sites that reported server errors in the last 24 hours, sites whose visitors dropped (the last 7 days under 40 % of the 4 weeks before), sites that restarted without a deploy in the last 24 hours (with what memory was at before, when it was near the limit), and sites whose memory is at 80 % of their container\'s limit or more. Start here.',
     inputSchema: z.object({ workspace: workspaceArg }),
     annotations: readOnlyHints,
   }, ({ workspace }) => run(async () => {
@@ -287,12 +299,14 @@ export function createKeeperMcp(event: H3Event, access: Access): McpServer {
       statusUnreadable: sites.filter((s) => s.statusError || !s.hasToken).map((s) => ({ ...ref(s), error: s.statusError ?? 'No status token set' })),
       serverErrors24h: sites.filter((s) => s.errors24h > 0).map((s) => ({ ...ref(s), errors: s.errors24h })),
       trafficDrops: sites.filter((s) => s.traffic?.drop).map((s) => ({ ...ref(s), since: s.traffic!.drop!.day, perDay: s.traffic!.drop!.perDay, usualPerDay: s.traffic!.drop!.baselinePerDay })),
+      restarts24h: sites.filter((s) => s.restarts24h > 0).map((s) => ({ ...ref(s), restarts: s.restarts24h, lastAt: s.lastRestart?.at, hint: s.lastRestart?.hint })),
+      memoryHigh: sites.filter((s) => memoryHigh(s.memory)).map((s) => ({ ...ref(s), ...memoryLine(s) })),
     })
   }))
 
   server.registerTool('list_sites', {
     title: 'List sites',
-    description: 'Every site with its workspace and team, state, tinyzoo version, uptime over 24 hours (percent), last response time (ms), server errors in 24 hours, days until its certificate expires and any problem reading its status. Filter by workspace, team and state; "behind" picks sites on an older tinyzoo.',
+    description: 'Every site with its workspace and team, state, tinyzoo version, uptime over 24 hours (percent), last response time (ms), server errors in 24 hours, days until its certificate expires, any problem reading its status, restarts without a deploy in 24 hours and memory in percent of its limit. Filter by workspace, team and state; "behind" picks sites on an older tinyzoo.',
     inputSchema: z.object({
       workspace: workspaceArg,
       team: z.string().max(120).optional().describe('Only this team\'s sites (any case, part of the name is enough).'),

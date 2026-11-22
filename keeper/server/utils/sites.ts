@@ -2,9 +2,10 @@ import { and, desc, eq, gte, inArray, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { z } from 'zod'
-import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
+import type { SiteDetail, SiteRestart, SiteSummary } from '#keeper/types/keeper'
 import type { TrafficGlance } from '#keeper/types/traffic'
 import { logoRef, type LogoFit } from '#keeper/logo'
+import { memoryGlance, memoryHint } from '#keeper/restarts'
 
 /** A site with where it lives: its workspace and team. */
 export type SiteRow = typeof schema.sites.$inferSelect & {
@@ -129,7 +130,22 @@ export async function resolveTeam(access: Access, teamId?: string, workspace?: s
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null)
 
-export function summarize(site: SiteRow, uptime: { d1: number | null; d30: number | null } | undefined, latest: string | null, traffic: TrafficGlance | null = null): SiteSummary {
+/** Restarts without a deploy in the last 24 hours, per site: how many, and the newest (with its memory hint). */
+export async function restartsFor(siteIds: string[]): Promise<Map<string, SiteRestart[]>> {
+  const out = new Map<string, SiteRestart[]>()
+  if (!siteIds.length) return out
+  const rows = await useDb().select().from(schema.siteRestarts)
+    .where(and(inArray(schema.siteRestarts.siteId, siteIds), gte(schema.siteRestarts.at, sql`now() - interval '24 hours'`)))
+    .orderBy(desc(schema.siteRestarts.at))
+  for (const r of rows) {
+    const list = out.get(r.siteId) ?? []
+    list.push({ at: r.at.toISOString(), memoryPeak: r.memoryPeak, memoryLimit: r.memoryLimit, hint: memoryHint(r.memoryPeak, r.memoryLimit) })
+    out.set(r.siteId, list)
+  }
+  return out
+}
+
+export function summarize(site: SiteRow, uptime: { d1: number | null; d30: number | null } | undefined, latest: string | null, traffic: TrafficGlance | null = null, restarts: SiteRestart[] = []): SiteSummary {
   const s = site.status
   const version = s?.tinyzoo ?? null
   const errors = s?.errors?.last24h
@@ -158,6 +174,9 @@ export function summarize(site: SiteRow, uptime: { d1: number | null; d30: numbe
     hasToken: !!site.tokenEnc,
     traffic,
     trafficError: hasAnalytics(s) ? site.trafficError : null,
+    restarts24h: restarts.length,
+    lastRestart: restarts[0] ? { at: restarts[0].at, hint: restarts[0].hint } : null,
+    memory: memoryGlance(s?.instance?.memory),
   }
 }
 
@@ -171,7 +190,7 @@ export async function latestKnown(rows: SiteRow[]): Promise<string | null> {
 
 export async function siteDetail(site: SiteRow): Promise<SiteDetail> {
   const db = useDb()
-  const [uptime, latest, traffic, checks, incidents, recent, [first]] = await Promise.all([
+  const [uptime, latest, traffic, checks, incidents, recent, [first], restarts] = await Promise.all([
     uptimeFor([site.id]),
     latestKnown([site]),
     trafficGlances([site]),
@@ -184,10 +203,12 @@ export async function siteDetail(site: SiteRow): Promise<SiteDetail> {
       .where(and(eq(schema.incidents.siteId, site.id), sql`coalesce(${schema.incidents.endedAt}, now()) > now() - interval '30 days'`))
       .orderBy(desc(schema.incidents.startedAt)).limit(500),
     db.select({ at: sql<Date | string | null>`min(${schema.checks.at})` }).from(schema.checks).where(eq(schema.checks.siteId, site.id)),
+    restartsFor([site.id]),
   ])
+  const own = restarts.get(site.id) ?? []
   const incident = (i: typeof incidents[number]) => ({ id: i.id, startedAt: i.startedAt.toISOString(), endedAt: iso(i.endedAt), cause: i.cause })
   return {
-    ...summarize(site, uptime.get(site.id), latest, traffic.get(site.id) ?? null),
+    ...summarize(site, uptime.get(site.id), latest, traffic.get(site.id) ?? null, own),
     repoUrl: site.repoUrl,
     notes: site.notes,
     statusAt: iso(site.statusAt),
@@ -198,6 +219,7 @@ export async function siteDetail(site: SiteRow): Promise<SiteDetail> {
     incidents30d: recent.map(incident),
     firstCheckAt: first?.at ? new Date(first.at).toISOString() : null,
     latest,
+    restarts: own,
   }
 }
 

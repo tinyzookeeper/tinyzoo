@@ -21,6 +21,11 @@ export interface CmsStatus {
   instance: {
     /** When it started (ISO 8601). */
     startedAt: string
+    /**
+     * Its memory now, and the most it may use: what tells a watching tool that a site runs close
+     * to the limit its host kills it at. Absent from a tinyzoo before 1.10.
+     */
+    memory?: CmsStatusMemory
   }
   site: {
     /** `cms.publicUrl`, or null when it is not set. */
@@ -62,6 +67,14 @@ export interface CmsStatus {
   media: {
     files: number
     bytes: number
+    /**
+     * The pictures' smaller copies (made after each upload, in the background): how many
+     * pictures have all of theirs, how many still wait (just uploaded, or from before copies
+     * were made that way), and how many could not be resized (their original is shown).
+     * Absent from a tinyzoo before 1.10, and while the site's migration that adds
+     * `cms_media_sizes` is not applied.
+     */
+    sizes?: { done: number; waiting: number; failed: number }
   }
   webhooks: {
     /** How many publish webhook addresses are set. */
@@ -91,6 +104,19 @@ export interface CmsStatus {
    * sign-in page shows. Absent from a tinyzoo before 1.9.
    */
   brand?: CmsStatusBrand
+}
+
+/** Memory of the instance that answered, in bytes. */
+export interface CmsStatusMemory {
+  /** What the process holds now (resident set size). */
+  rss: number
+  /**
+   * The most the container may use (cgroup `memory.max`), or null when there is no limit
+   * or it cannot be read (not in a container, another OS).
+   */
+  limit: number | null
+  /** The most the container has used since it started (cgroup `memory.peak`), or null when it cannot be read. */
+  peak: number | null
 }
 
 /**

@@ -124,11 +124,11 @@ async function recipients(site: AlertSite): Promise<string[]> {
   return [...new Set(rows.map((r) => r.email.toLowerCase()))]
 }
 
-export type AlertKind = 'down' | 'up' | 'cert' | 'traffic' | 'traffic-back'
+export type AlertKind = 'down' | 'up' | 'cert' | 'traffic' | 'traffic-back' | 'restart'
 
-const ICONS: Record<AlertKind, string> = { 'down': '🔴', 'up': '🟢', 'cert': '🟡', 'traffic': '🟡', 'traffic-back': '🟢' }
+const ICONS: Record<AlertKind, string> = { 'down': '🔴', 'up': '🟢', 'cert': '🟡', 'traffic': '🟡', 'traffic-back': '🟢', 'restart': '🟠' }
 
-/** E-mail the people of the site's workspace about it: down, back up, certificate, a drop in visitors and its end. */
+/** E-mail the people of the site's workspace about it: down, back up, certificate, a drop in visitors and its end, a restart without a deploy. */
 export async function alertTeam(site: AlertSite, kind: AlertKind, subject: string, text: string): Promise<void> {
   const base = String(useRuntimeConfig().publicUrl || '').replace(/\/+$/, '')
   // The site's page in its workspace and team (an older /sites/<id> link redirects there too).

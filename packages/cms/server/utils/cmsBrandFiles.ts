@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto'
 import { relative, resolve, sep } from 'node:path'
-import sharp from 'sharp'
 import { brandFileUrl, resolveText, type CmsAdminTheme, type CmsBrandFile } from 'tinyzoo'
+import { cmsSharp } from './cmsImageQueue'
+
+// sharp with the server's settings (one thread per picture, no cache): see cmsImageQueue.ts.
+const sharp = cmsSharp()
 
 // The PNG versions of the client's logo (src/theme.ts, CMS_BRAND_FILES) and the admin's
 // web manifest, for places that cannot use SVG: emails (Gmail and Outlook do not show

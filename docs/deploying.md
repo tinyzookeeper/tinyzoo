@@ -209,7 +209,7 @@ It is for a deploy that has no public address, such as an internal tool behind a
 
 ### When the scheduled tasks run
 
-Two tasks run on a schedule: publishing what is scheduled, and the daily [retention](#retention) clean-up. Their cron expressions are the `scheduler: { cron }` and `retention: { cron }` options in nuxt.config's `cms` options.
+Three tasks run on a schedule: publishing what is scheduled, the daily [retention](#retention) clean-up, and `cms:media-sizes`, which makes the [smaller copies of pictures](guide/media.md#picture-sizes) that are missing (every minute; it has no option). The first two have their cron expressions in the `scheduler: { cron }` and `retention: { cron }` options in nuxt.config's `cms` options.
 
 They are read **when the site is built**. A change needs a rebuild.
 
@@ -348,12 +348,12 @@ curl -H "x-api-key: $NUXT_CMS_STATUS_TOKEN" https://example.com/api/health/statu
 
 The answer (`CmsStatus` in `tinyzoo`) has:
 
-- the tinyzoo and Node.js versions, and when this instance started;
+- the tinyzoo and Node.js versions, when this instance started, and its memory: what it holds now, and in a container the most it may use and the most it has used since it started (`instance.memory`), so a monitor sees a site that runs close to the limit its host kills it at;
 - the site's public address, where its admin is, the sign-in mode and the content languages;
 - whether the database answers, the state of start-up migrations and the database's size;
 - every collection and global with how many entries it holds and when one was last saved, and how many entries wait for a translation;
 - how many accounts are active, invited and disabled, how many signed in during the last 30 days, and the last sign-in;
-- how many media files there are and their total size;
+- how many media files there are and their total size, and how many pictures have their [smaller copies](guide/media.md#picture-sizes), still wait for them, or could not be resized (`media.sizes`);
 - how many webhook addresses are set and whether a secret signs them;
 - the server errors this instance reported in the last 24 hours, by request, task and webhook;
 - the plugins and their versions;

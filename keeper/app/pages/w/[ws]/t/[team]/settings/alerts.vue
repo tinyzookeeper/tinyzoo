@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { MailStatus, WorkspaceSettings } from '#keeper/types/keeper'
 
-// Who hears when a site of this workspace goes down, comes back, or its certificate runs out
+// Who hears when a site of this workspace goes down, comes back, restarts, or its certificate runs out
 // (owners and admins), and how Keeper sends e-mail.
 const toast = useToast()
 const { wsSlug, workspace, isManager, link } = useScope()
@@ -61,7 +61,7 @@ const mailLine = computed(() => {
         <UFormField
           label="Addresses"
           name="alertEmails"
-          :description="`Who hears when a site of ${workspace?.name ?? 'this workspace'} goes down, comes back, its certificate is about to expire or its visitors drop. Separate with commas. Empty: everyone here who works on that site (owners, admins and the members of its team; never guests).`"
+          :description="`Who hears when a site of ${workspace?.name ?? 'this workspace'} goes down, comes back, restarts without a deploy, its certificate is about to expire or its visitors drop. Separate with commas. Empty: everyone here who works on that site (owners, admins and the members of its team; never guests).`"
         >
           <UTextarea v-model="emails" :rows="3" autoresize placeholder="ops@example.com, ada@example.com" class="w-full font-mono" />
         </UFormField>

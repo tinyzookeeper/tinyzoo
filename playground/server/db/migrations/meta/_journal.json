@@ -183,6 +183,13 @@
       "when": 1795122774723,
       "tag": "0025_consent_plugin",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795374130860,
+      "tag": "0026_media_sizes",
+      "breakpoints": true
     }
   ]
 }

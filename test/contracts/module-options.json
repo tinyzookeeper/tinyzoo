@@ -17,6 +17,17 @@
           ],
           "cacheMaxAgeSeconds": 3600
         }
+      },
+      "@nuxt/image": {
+        "optional": true,
+        "defaults": {
+          "provider": "tinyzoo",
+          "providers": {
+            "tinyzoo": {
+              "provider": "<tinyzoo>/packages/cms/app/image/provider"
+            }
+          }
+        }
       }
     }
   },

@@ -1,10 +1,12 @@
-import { existsSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { existsSync, mkdirSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { addComponentsDir, addImportsDir, addPlugin, addServerHandler, addServerPlugin, addTypeTemplate, defineNuxtModule, extendPages } from '@nuxt/kit'
+import { addComponentsDir, addImportsDir, addPlugin, addServerHandler, addServerPlugin, addTemplate, addTypeTemplate, defineNuxtModule, extendPages, hasNuxtModule } from '@nuxt/kit'
+import type { ModuleDependencies, Nuxt } from 'nuxt/schema'
 import { createJiti } from 'jiti'
 import { docsUrl } from './src/docs'
 import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
+import { prepareStaticImages, STATIC_IMAGES_BASE, type StaticImageManifest } from './src/staticImages'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
 
@@ -166,6 +168,13 @@ export interface CmsModuleOptions {
    * NUXT_CMS_MCP_ENABLED=false) turns off the route and the tokens.
    */
   mcp?: { enabled?: boolean } | false
+  /**
+   * Pictures. `static`: make smaller copies of the pictures in `public/` when the site is built,
+   * for `<NuxtImg>` (`@nuxt/image`, when the site uses it): its default provider becomes
+   * tinyzoo's, which serves those copies instead of resizing on every request with IPX.
+   * Default `true`; `false` leaves `@nuxt/image` as the site configures it.
+   */
+  images?: { static?: boolean }
   /** Public content-delivery API (`/api/content/*`). */
   content?: {
     /** If set, every content request must carry this token (x-api-key or Bearer). Default: open. */
@@ -230,6 +239,37 @@ function refuseRemoved(options: CmsModuleOptions): void {
   if (problems.length) throw new Error(`[tinyzoo] ${problems.join('\n[tinyzoo] ')}\nSee "From 0.7 to 1.0": ${docsUrl('from07to10')}`)
 }
 
+/** The copies of public/'s pictures for <NuxtImg>: made before the build, served as static files. */
+function setupStaticImages(options: CmsModuleOptions, nuxt: Nuxt): void {
+  let manifest: StaticImageManifest = {}
+  addTemplate({ filename: 'tinyzoo-static-images.mjs', getContents: () => `export default ${JSON.stringify(manifest)}\n` })
+  addTypeTemplate({
+    filename: 'types/tinyzoo-static-images.d.ts',
+    getContents: () => `declare module '#build/tinyzoo-static-images.mjs' {\n  const images: Record<string, { h: string; width: number; height: number; w: number[] }>\n  export default images\n}\nexport {}\n`,
+  })
+  if (options.images?.static === false) return
+  // Kept between builds on this machine: only new or changed pictures cost time.
+  const outDir = resolve(nuxt.options.rootDir, 'node_modules/.cache/tinyzoo/images')
+  nuxt.hook('nitro:config', (nitro) => {
+    nitro.publicAssets ||= []
+    nitro.publicAssets.push({ dir: outDir, baseURL: STATIC_IMAGES_BASE, maxAge: 60 * 60 * 24 * 365 })
+  })
+  // Once every module is set up (so @nuxt/image's options are final), before the app's templates
+  // are written: the provider reads the list of pictures from one of them.
+  nuxt.hook('modules:done', async () => {
+    if (!hasNuxtModule('@nuxt/image', nuxt)) return
+    const provider = (nuxt.options as { image?: { provider?: string } }).image?.provider
+    if (provider !== 'tinyzoo') {
+      if (!provider || provider === 'ipx' || provider === 'ipxStatic' || provider === 'auto') {
+        console.warn(`[tinyzoo] @nuxt/image uses IPX here (image.provider: '${provider ?? 'ipx'}'): it resizes pictures on the server on every request, all of a page's at once, which can take a small server over its memory. Remove image.provider from nuxt.config to use tinyzoo's copies made at build. ${docsUrl('staticImages')}`)
+      }
+      return
+    }
+    mkdirSync(outDir, { recursive: true })
+    manifest = await prepareStaticImages(resolve(nuxt.options.rootDir, nuxt.options.dir.public), outDir, (m) => console.info(`[tinyzoo] ${m}`))
+  })
+}
+
 export default defineNuxtModule<CmsModuleOptions>({
   meta: { name: 'tinyzoo', configKey: 'cms' },
   defaults: { config: 'cms.config.ts' },
@@ -237,7 +277,7 @@ export default defineNuxtModule<CmsModuleOptions>({
   // site does not install it. tinyzoo hands it the entries and the site's address
   // (server/plugins/cms-sitemap.ts). A site changes it with `sitemap: { … }` in
   // nuxt.config; these are only the defaults.
-  moduleDependencies: {
+  moduleDependencies: (nuxt: Nuxt): ModuleDependencies => ({
     '@nuxtjs/sitemap': {
       version: '>=9.1.0',
       defaults: {
@@ -248,13 +288,30 @@ export default defineNuxtModule<CmsModuleOptions>({
         cacheMaxAgeSeconds: 60 * 60,
       },
     },
-  },
+    // A site that uses @nuxt/image gets tinyzoo's provider (copies made at build, see
+    // src/staticImages.ts) instead of IPX, which resizes on every request. Only defaults:
+    // `image: { provider: … }` in the site's nuxt.config still wins. Not installed for a site
+    // that does not use @nuxt/image.
+    ...((nuxt.options as { cms?: CmsModuleOptions }).cms?.images?.static === false ? {} : {
+      '@nuxt/image': {
+        optional: true,
+        defaults: {
+          provider: 'tinyzoo',
+          providers: { tinyzoo: { provider: join(layerDir, 'app/image/provider') } },
+        },
+      },
+    }),
+  }),
   async setup(options, nuxt) {
     const configPath = resolve(nuxt.options.rootDir, options.config || 'cms.config.ts')
     refuseRemoved(options)
     if (!existsSync(configPath)) {
       console.warn(`[tinyzoo] No cms.config.ts found at ${configPath}. Create one with defineEntity().`)
     }
+
+    // Pictures in public/: smaller copies made at build for <NuxtImg>, which tinyzoo's provider
+    // serves (src/staticImages.ts, app/image/provider.ts) instead of IPX resizing every request.
+    setupStaticImages(options, nuxt)
 
     // Expose the host config as a virtual alias to app and Nitro server.
     nuxt.options.alias['#cms/config'] = configPath
@@ -269,6 +326,8 @@ export default defineNuxtModule<CmsModuleOptions>({
       nitro.experimental = { ...(nitro.experimental || {}), tasks: true }
       const cron = options.scheduler?.cron || '* * * * *'
       nitro.scheduledTasks = { ...(nitro.scheduledTasks || {}), [cron]: [...((nitro.scheduledTasks as any)?.[cron] ?? []), 'cms:scheduled'] }
+      // Smaller copies of pictures: catch up the ones that are missing, every minute.
+      nitro.scheduledTasks = { ...nitro.scheduledTasks, '* * * * *': [...((nitro.scheduledTasks as any)?.['* * * * *'] ?? []), 'cms:media-sizes'] }
       // Retention (GDPR): delete form submissions and audit entries past their time, daily.
       const retentionCron = options.retention?.cron || '17 3 * * *'
       nitro.scheduledTasks = { ...nitro.scheduledTasks, [retentionCron]: [...((nitro.scheduledTasks as any)?.[retentionCron] ?? []), 'cms:retention'] }
