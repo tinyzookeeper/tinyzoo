@@ -85,6 +85,9 @@ export interface CmsModuleOptions {
     mcp?: {
         enabled?: boolean;
     } | false;
+    images?: {
+        static?: boolean;
+    };
     content?: {
         token?: string;
         cacheControl?: string;

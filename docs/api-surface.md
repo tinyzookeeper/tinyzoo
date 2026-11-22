@@ -236,7 +236,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | Seeds | `SeedDefinition`, `SeedContext`, `SeedEntry`, `SeedInsert`, `SeedWriteOptions`, `SeedGlobalOptions`, `SeedUploadOptions`, `SeedLink`, `SeedLinkOptions`, `SeedRich`, `SeedRichNode` |
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginAppPlugin`, `CmsDashboardWidget`, `CmsEntityPanel`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
-| Site status | `CmsStatus`, `CmsStatusCollection`, `CmsStatusAnalytics`, `CmsStatusBrand` (the answer of `/api/health/status`) |
+| Site status | `CmsStatus`, `CmsStatusCollection`, `CmsStatusAnalytics`, `CmsStatusBrand`, `CmsStatusMemory` (the answer of `/api/health/status`) |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
 | Admin branding (`cms.admin`) | `CmsAccent` (a built-in accent or a hex), `CmsAccentPreset` (`'mono' \| 'indigo' \| 'blue' \| 'violet' \| 'emerald'`), `CmsAdminLogo` (`full`, `mark`, `fullDark`, `markDark`) |
 | Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsConsentProps`, `CmsConsentChoice`, `CmsConsentApi`, `CmsConsentTexts`, `CmsConsentCategory`, `CmsConsentService`, `CmsReadonlyRef`, `CmsSearchItem`, `CmsSearchResult` |
@@ -353,9 +353,10 @@ Every option reaches the runtime config as `cms.<option>`. Every runtime value c
 | `demo.email`, `demo.password` | `NUXT_PUBLIC_CMS_DEMO_EMAIL`, `NUXT_PUBLIC_CMS_DEMO_PASSWORD` | a public demo admin |
 | `status.token` | `NUXT_CMS_STATUS_TOKEN` | turns on `/api/health/status` and is the token it asks for |
 | `mcp.enabled` (or `mcp: false`) | `NUXT_CMS_MCP_ENABLED` | the MCP server at `/api/mcp` and the access tokens (on by default) |
+| `images.static` | | copies of the pictures in `public/` made at build, and tinyzoo's provider as `@nuxt/image`'s default (on by default; [Pictures in public/](guide/media.md#pictures-in-public-for-nuxtimage)). Build time |
 | `content.token`, `content.cacheControl`, `content.publicUrl`, `content.docs` | `NUXT_CMS_CONTENT_TOKEN`, `NUXT_CMS_CONTENT_CACHE_CONTROL`, `NUXT_CMS_CONTENT_PUBLIC_URL`, `NUXT_CMS_CONTENT_DOCS` | the content API: a token, the cache header, the OpenAPI server address (`publicUrl` when empty), the interactive reference |
 
-**Build-time options.** `scheduler.cron` and `retention.cron` are written into the build. They have no `NUXT_CMS_*` variable, and a change needs a rebuild.
+**Build-time options.** `scheduler.cron`, `retention.cron` and `images.static` are written into the build. They have no `NUXT_CMS_*` variable, and a change needs a rebuild.
 
 ## Environment variables
 
@@ -438,7 +439,7 @@ These three live under `/api/cms`, but their addresses are stored in content or 
 | Route | What it serves |
 |---|---|
 | `GET /api/cms/_media/raw/<key>` | an uploaded file. A file's `url` in the content API and a picture in rich text point here (unless the bucket is public) |
-| `GET /api/cms/_media/img/<id>/<width>.webp` | a smaller copy of a picture. `<width>` is 320, 640, 960, 1280 or 1920; the list only grows |
+| `GET /api/cms/_media/img/<id>/<width>.webp` | a smaller copy of a picture. `<width>` is 320, 480, 640, 750, 828, 960, 1080, 1280, 1440, 1920 or 2560; the list only grows |
 | `GET /api/cms/_brand/<file>` | the logo's PNG versions (`full-email.png`, `mark-32.png`, `mark-180.png`, `mark-192.png`, `mark-512.png`) and `admin.webmanifest`. Emails already sent point here. The list only grows |
 
 Everything else under `/api/cms/**` is internal.

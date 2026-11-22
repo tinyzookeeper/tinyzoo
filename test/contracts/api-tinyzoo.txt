@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (127) ─────────────────────────────────────────────────
+// ── public (128) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -554,6 +554,7 @@ export interface CmsStatus {
     node: string | null;
     instance: {
         startedAt: string;
+        memory?: CmsStatusMemory;
     };
     site: {
         publicUrl: string | null;
@@ -581,6 +582,11 @@ export interface CmsStatus {
     media: {
         files: number;
         bytes: number;
+        sizes?: {
+            done: number;
+            waiting: number;
+            failed: number;
+        };
     };
     webhooks: {
         urls: number;
@@ -625,6 +631,12 @@ export interface CmsStatusCollection {
     kind: 'collection' | 'global';
     count: number;
     lastEditAt: string | null;
+}
+
+export interface CmsStatusMemory {
+    rss: number;
+    limit: number | null;
+    peak: number | null;
 }
 
 export interface CmsWebhookPayload extends Omit<CmsChange, 'by'> {
@@ -1083,7 +1095,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (209): exported, not part of the frozen API, may change in any minor ──
+// ── internal (210): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
@@ -1191,6 +1203,7 @@ const cmsCollab
 function cmsDeprecated
 function cmsDeprecations
 const cmsMedia
+const cmsMediaSizes
 const cmsOauthClients
 const cmsOauthCodes
 const cmsOauthRequests

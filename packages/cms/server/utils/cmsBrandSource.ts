@@ -1,5 +1,6 @@
 import { readFile, stat } from 'node:fs/promises'
 import type { CmsAdminTheme, CmsBrandFile } from 'tinyzoo'
+import { cmsImageJob } from './cmsImageQueue'
 import { BRAND_SOURCE_MAX_BYTES, TINYZOO_MARK_SVG, brandFileSource, brandFileVersion, brandSourcePath, checkLogoBytes, publicFilePath, renderBrandFile } from './cmsBrandFiles'
 import { fetchRemoteLogo } from './cmsRemoteLogo'
 
@@ -143,7 +144,8 @@ function draw(file: CmsBrandFile, source: CmsBrandSourceRead, address: string): 
   if (hit) return Promise.resolve(Buffer.isBuffer(hit) ? hit : null)
   let job = drawing.get(key)
   if (!job) {
-    job = renderBrandFile(file, source.bytes).then((png) => {
+    // Drawn in the picture queue: never side by side with a photo being resized.
+    job = cmsImageJob(() => renderBrandFile(file, source.bytes)).then((png) => {
       keep(files, key, png, MAX_FILES)
       return png
     }, (err) => {

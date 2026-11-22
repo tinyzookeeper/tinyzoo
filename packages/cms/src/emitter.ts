@@ -2,7 +2,7 @@ import { is, sql } from 'drizzle-orm'
 import * as pgCore from 'drizzle-orm/pg-core'
 import { buildRegistry, type CmsEntity, type Junction, propOf, translationSpec } from './entity'
 import { camel, serializeColumn, snake } from './fields'
-import { CMS_MEDIA_SOURCE } from './media'
+import { CMS_MEDIA_SIZES_SOURCE, CMS_MEDIA_SOURCE } from './media'
 import { sourceTables, type CmsPlugin } from './plugin'
 import { CMS_SYSTEM_SOURCE } from './system'
 
@@ -44,6 +44,7 @@ export function emitSchema(config: Record<string, any>): string {
 
   // built-in media table
   out.push(CMS_MEDIA_SOURCE, '')
+  out.push(CMS_MEDIA_SIZES_SOURCE, '')
 
   // users, one-time links, audit log
   out.push(CMS_SYSTEM_SOURCE, '')

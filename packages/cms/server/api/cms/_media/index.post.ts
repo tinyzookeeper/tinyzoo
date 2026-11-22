@@ -133,6 +133,8 @@ export default defineEventHandler(async (event) => {
       .returning()
 
     await audit(event, 'media.upload', { recordId: media?.id, meta: { mime, size: stored.size } })
+    // Its smaller copies are made now, in the background: ready before a visitor asks for them.
+    if (isResizableImage(mime)) kickMediaSizes()
     setResponseStatus(event, 201)
     return media
   }

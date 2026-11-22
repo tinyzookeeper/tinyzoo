@@ -132,19 +132,56 @@ pnpm play
 
 ### Rendering media on your frontend
 
-`@nuxt/image` is a **host/frontend** concern. It is not baked into the layer, because it would force the dependency and a provider config on every host. The right provider also differs by storage backend.
-
-Each `cms_media` row exposes everything an image component needs: `url`, `width`, `height`, `mime` and `alt`. On your site, wire it to your chosen provider:
+Draw a picture from the CMS with `<CmsImage>`. It needs no provider and no setup:
 
 ```vue
-<NuxtImg :src="post.hero.url" :width="post.hero.width" :height="post.hero.height"
-         :alt="post.hero.alt" sizes="sm:100vw md:50vw" />
+<CmsImage :media="post.hero" sizes="(min-width: 768px) 50vw, 100vw" class="aspect-video w-full object-cover" />
 ```
 
-Which provider to point `@nuxt/image` at depends on the storage:
+It writes the alt text, the real size (no layout jump), lazy loading, the editor's focal point,
+and a `srcset` of the picture's smaller copies (below). Say in `sizes` how wide the picture is
+shown, and the browser downloads the smallest copy that is sharp there.
 
-- For the `local` driver, use an `ipx` or CDN provider.
-- For `delivery: 'public'`, use your R2/S3 public domain.
-- For `proxy` and `redirect`, the `url` is the app's own path (`/api/cms/_media/raw/<key>`, the same as the local driver's). Configure it the way you would for `local`.
+### Picture sizes
 
-Or use `<CmsImage>`, which needs no provider.
+Every uploaded JPEG, PNG, WebP or AVIF gets smaller copies, as WebP, at these widths (those
+smaller than the picture itself): 320, 480, 640, 750, 828, 960, 1080, 1280, 1440, 1920 and 2560 px.
+They are served at `/api/cms/_media/img/<id>/<width>.webp` and cached for a year. The list
+only grows.
+
+The copies are made right after the upload, in the background, so no visitor waits for
+one. A picture is decoded once, every width is drawn from that, and the server works on one
+picture at a time: a page of twenty new photos never decodes twenty of them at once, which is
+what takes a small server over its memory. A width asked for before it exists is made on the
+spot, alone, and kept.
+
+Pictures uploaded before tinyzoo 1.10, and every picture when a width is added, are caught up
+by the scheduled task `cms:media-sizes` (every minute), newest first. It needs nothing from
+you. The site's status (`GET /api/health/status`) says how far it is:
+`media.sizes: { done, waiting, failed }`. A picture that cannot be resized (a damaged file)
+is tried three times, an hour apart; its original is shown meanwhile.
+
+### Pictures in public/ for @nuxt/image
+
+`@nuxt/image` resizes with IPX unless told otherwise: every `<NuxtImg>` is decoded and
+resized on the server while the visitor waits, nothing is kept, and a page full of photos
+decodes them all at once. On a small server that is how a site runs out of memory.
+
+A site that uses `@nuxt/image` therefore gets tinyzoo's provider by default. When the site is
+built (and when `nuxt dev` starts), every picture in `public/` wider than 320 px gets WebP
+copies at the widths above and at its own width, served as static files under
+`/_tz/img/<hash>/<width>.webp` and cached for a year (the hash is the file's content, so a
+changed picture gets new addresses). `<NuxtImg>` then only picks a copy:
+
+```vue
+<NuxtImg src="/img/team.jpg" sizes="100vw md:50vw" alt="The team" class="aspect-video w-full object-cover" />
+```
+
+- Only the width counts. The copies are WebP at fixed widths, so `height`, `fit`, `format` and
+  `quality` change nothing: crop with CSS (`object-fit: cover`).
+- A picture that is not in `public/` (another site's address, a CMS file) is shown as it is.
+  Use `<CmsImage>` for CMS files.
+- The copies are kept in `node_modules/.cache/tinyzoo/images`, so a second build on the same
+  machine only makes those of new or changed pictures.
+- To keep IPX or use another provider, set `image: { provider: '…' }` in `nuxt.config.ts`
+  (tinyzoo warns when it is IPX), or turn tinyzoo's off with `cms: { images: { static: false } }`.

@@ -1,4 +1,5 @@
-import { brandFileUrl, gte, resolveText, sql, type CmsErrorReport, type CmsStatus, type CmsStatusBrand, type CmsStatusCollection } from 'tinyzoo'
+import { readFileSync } from 'node:fs'
+import { brandFileUrl, gte, resolveText, sql, type CmsErrorReport, type CmsStatus, type CmsStatusBrand, type CmsStatusCollection, type CmsStatusMemory } from 'tinyzoo'
 import { cmsAdminSettings } from './cmsAdminTheme'
 import pkg from '../../package.json'
 import { analyticsStatus } from '../../analytics/server/status'
@@ -10,6 +11,30 @@ import { analyticsStatus } from '../../analytics/server/status'
  */
 
 const startedAt = new Date()
+
+/** A number from a cgroup file (`max` and anything unreadable: null). */
+function cgroupNumber(...paths: string[]): number | null {
+  for (const path of paths) {
+    try {
+      const text = readFileSync(path, 'utf8').trim()
+      const n = Number(text)
+      // cgroup v1 says "no limit" with a huge number instead of `max`.
+      if (Number.isFinite(n) && n > 0 && n < 2 ** 60) return n
+      if (text === 'max') return null
+    }
+    catch { /* not there: try the next, or there is none */ }
+  }
+  return null
+}
+
+/** The instance's memory: what it holds, and the container's limit and peak (cgroup v2, else v1). */
+function instanceMemory(): CmsStatusMemory {
+  return {
+    rss: process.memoryUsage.rss(),
+    limit: cgroupNumber('/sys/fs/cgroup/memory.max', '/sys/fs/cgroup/memory/memory.limit_in_bytes'),
+    peak: cgroupNumber('/sys/fs/cgroup/memory.peak', '/sys/fs/cgroup/memory/memory.max_usage_in_bytes'),
+  }
+}
 
 /** When this server process started: the status reports it, and the admin's About page. */
 export function cmsStartedAt(): Date {
@@ -92,7 +117,7 @@ export async function collectCmsStatus(): Promise<CmsStatus> {
     at: new Date(now).toISOString(),
     tinyzoo: pkg.version,
     node: typeof process !== 'undefined' && process.version ? process.version : null,
-    instance: { startedAt: startedAt.toISOString() },
+    instance: { startedAt: startedAt.toISOString(), memory: instanceMemory() },
     site: {
       publicUrl: String(cms.publicUrl || '').replace(/\/+$/, '') || null,
       admin: `${baseURL}admin`,
@@ -156,6 +181,8 @@ export async function collectCmsStatus(): Promise<CmsStatus> {
   const m = reg.cmsMedia
   const [media] = await db.select({ n: sql<number>`count(*)::int`, bytes: sql<string>`coalesce(sum(${m.size}), 0)::bigint` }).from(m)
   status.media = { files: Number(media?.n ?? 0), bytes: Number(media?.bytes ?? 0) }
+  const sizes = await mediaSizesCounts()
+  if (sizes) status.media.sizes = sizes
 
   // The analytics plugin (tinyzoo/analytics), when the site uses it.
   const analytics = await analyticsStatus(baseURL)

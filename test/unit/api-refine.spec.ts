@@ -10,7 +10,7 @@ import { cmsDeprecations, defineEntity, defineSingleton, eq, f, resetCmsDeprecat
 
 vi.mock('../../packages/cms/node_modules/@nuxt/kit', () => ({
   defineNuxtModule: (def: Record<string, unknown>) => def,
-  addComponentsDir: () => {}, addServerHandler: () => {}, addServerPlugin: () => {}, extendPages: () => {}, addTypeTemplate: () => {},
+  addComponentsDir: () => {}, addServerHandler: () => {}, addServerPlugin: () => {}, extendPages: () => {}, addTypeTemplate: () => {}, addTemplate: () => {}, hasNuxtModule: () => false,
 }))
 
 const root = join(import.meta.dirname, '../..')
@@ -162,13 +162,13 @@ describe('the cron of the scheduled tasks', () => {
 
   it('is every minute and 03:17 daily by default', async () => {
     delete process.env.CMS_SCHEDULER_CRON; delete process.env.CMS_RETENTION_CRON
-    expect(await tasks()).toEqual({ 'cms:scheduled': '* * * * *', 'cms:retention': '17 3 * * *' })
+    expect(await tasks()).toEqual({ 'cms:scheduled,cms:media-sizes': '* * * * *', 'cms:retention': '17 3 * * *' })
     expect(cmsDeprecations()).toEqual([])
   })
 
   it('is set by `scheduler.cron` and `retention.cron`', async () => {
     delete process.env.CMS_SCHEDULER_CRON; delete process.env.CMS_RETENTION_CRON
-    expect(await tasks({ scheduler: { cron: '*/5 * * * *' }, retention: { cron: '30 2 * * *' } })).toEqual({ 'cms:scheduled': '*/5 * * * *', 'cms:retention': '30 2 * * *' })
+    expect(await tasks({ scheduler: { cron: '*/5 * * * *' }, retention: { cron: '30 2 * * *' } })).toEqual({ 'cms:scheduled': '*/5 * * * *', 'cms:media-sizes': '* * * * *', 'cms:retention': '30 2 * * *' })
     expect(cmsDeprecations()).toEqual([])
   })
 

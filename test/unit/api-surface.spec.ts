@@ -40,6 +40,8 @@ vi.mock('../../packages/cms/node_modules/@nuxt/kit', () => ({
   addServerPlugin: () => {},
   extendPages: () => {},
   addTypeTemplate: (t: { filename: string; getContents: () => string }) => { kit.templates.push(t) },
+  addTemplate: () => {},
+  hasNuxtModule: () => false,
 }))
 
 const load = (file: string): Promise<{ default: unknown }> => import(/* @vite-ignore */ join(repoRoot, file))
@@ -71,7 +73,7 @@ const moduleOptions = async () => {
   const { mod, runtimeConfig } = await runModule()
   const { cms, public: pub } = runtimeConfig
   return `${JSON.stringify({
-    module: { meta: (mod as any).meta, defaults: (mod as any).defaults, moduleDependencies: kit.dependencies },
+    module: { meta: (mod as any).meta, defaults: (mod as any).defaults, moduleDependencies: typeof kit.dependencies === 'function' ? kit.dependencies({ options: {} }) : kit.dependencies },
     'runtimeConfig.cms': cms,
     'runtimeConfig.public': { cmsPlugins: pub.cmsPlugins, cmsTurnstileSiteKey: pub.cmsTurnstileSiteKey, cmsDemo: pub.cmsDemo },
     // Every runtime config value can be set from the environment, without a rebuild.
@@ -79,7 +81,7 @@ const moduleOptions = async () => {
       ...envNames(cms, ['cms']).map((e) => ({ ...e, default: e.default === undefined ? null : e.default })),
       ...envNames({ cmsTurnstileSiteKey: pub.cmsTurnstileSiteKey, cmsDemo: pub.cmsDemo }, ['public']).map((e) => ({ ...e, default: e.default === undefined ? null : e.default })),
     ],
-  }, null, 2)}\n`
+  }, null, 2).replaceAll(repoRoot, '<tinyzoo>')}\n` // a path inside the package, not this machine's
 }
 
 // ── routes of the public content API, from the files that serve them ──────────────

@@ -1,7 +1,7 @@
 import { boolean, getTableConfig, type PgColumn, pgEnum, type PgTable, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
 import { buildColumn, camel, snake } from './fields'
-import { cmsMedia } from './media'
+import { cmsMedia, cmsMediaSizes } from './media'
 import { cmsAccessTokens, cmsAudit, cmsOauthClients, cmsOauthCodes, cmsOauthRequests, cmsCollab, cmsRevisions, cmsSearch, cmsState, cmsTokens, cmsUsers } from './system'
 import type { LocalesDef } from './locales'
 import { checkAdminMenu, isAdminMenu, type CmsAdminMenuDef } from './menu'
@@ -597,6 +597,8 @@ export interface CmsRegistry {
   cmsState: typeof cmsState
   /** @internal */
   cmsSearch: typeof cmsSearch
+  /** @internal */
+  cmsMediaSizes: typeof cmsMediaSizes
   /** Registered plugins (`export const plugins = [...]`), in order. */
   plugins: CmsPlugin[]
   /** Entity name → the plugin that owns it (only entities a plugin brought). */
@@ -639,7 +641,7 @@ function checkSchemaNames(entities: CmsEntity[], junctions: Junction[], plugins:
     byTs.set(ts, { what, sql })
     bySql.set(sql, { what, ts })
   }
-  for (const [ts, sql] of [['cmsMedia', 'cms_media'], ['cmsUsers', 'cms_users'], ['cmsTokens', 'cms_tokens'], ['cmsAccessTokens', 'cms_access_tokens'], ['cmsOauthClients', 'cms_oauth_clients'], ['cmsOauthRequests', 'cms_oauth_requests'], ['cmsOauthCodes', 'cms_oauth_codes'], ['cmsAudit', 'cms_audit'], ['cmsCollab', 'cms_collab'], ['cmsRevisions', 'cms_revisions'], ['cmsState', 'cms_state'], ['cmsSearch', 'cms_search']] as const) {
+  for (const [ts, sql] of [['cmsMedia', 'cms_media'], ['cmsUsers', 'cms_users'], ['cmsTokens', 'cms_tokens'], ['cmsAccessTokens', 'cms_access_tokens'], ['cmsOauthClients', 'cms_oauth_clients'], ['cmsOauthRequests', 'cms_oauth_requests'], ['cmsOauthCodes', 'cms_oauth_codes'], ['cmsAudit', 'cms_audit'], ['cmsCollab', 'cms_collab'], ['cmsRevisions', 'cms_revisions'], ['cmsState', 'cms_state'], ['cmsSearch', 'cms_search'], ['cmsMediaSizes', 'cms_media_sizes']] as const) {
     add(ts, sql, `tinyzoo's own table ${sql}`)
   }
   for (const e of entities) add(camel(e.name), snake(e.name), `the table of "${e.name}"`)
@@ -750,7 +752,7 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
     }
   }
 
-  const schema: Record<string, any> = { cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch }
+  const schema: Record<string, any> = { cmsMedia, cmsMediaSizes, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch }
   for (const e of entities) schema[e.name] = e.table
   for (const e of entities) if (e.localesTable) schema[`${e.name}_locales`] = e.localesTable
   for (const j of junctions) schema[j.name] = j.table
@@ -764,7 +766,7 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
   }
 
   const graph = entities.map((e) => withPlugins(entityGraph(e, locales), e, plugins, pluginOf))
-  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, menu, roles, cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, plugins, pluginOf, pluginTables }
+  const reg: CmsRegistry = { entities, byName, junctions, junctionByOwnerField, schema, graph, locales, menu, roles, cmsMedia, cmsUsers, cmsTokens, cmsAccessTokens, cmsOauthClients, cmsOauthRequests, cmsOauthCodes, cmsAudit, cmsCollab, cmsRevisions, cmsState, cmsSearch, cmsMediaSizes, plugins, pluginOf, pluginTables }
   _regCache.set(config, reg)
   return reg
 }

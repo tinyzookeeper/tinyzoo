@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises'
-import sharp from 'sharp'
 import { logoAddressKind, logoFileNotes, type CmsAdminTheme, type CmsLogoFileInfo, type CmsLogoSlot, type CmsThemeNote } from 'tinyzoo'
 import { BRAND_SOURCE_MAX_BYTES, brandSourcePath, publicFilePath, svgHasText } from './cmsBrandFiles'
 import { fetchRemoteLogo } from './cmsRemoteLogo'
+import { cmsSharp } from './cmsImageQueue'
+
+const sharp = cmsSharp()
 
 // The logo checks that need the files (development, at start: server/plugins/cms-logo-check.ts).
 // The rules are pure and live in src/themeLogo.ts; this reads what they need: a `/…`

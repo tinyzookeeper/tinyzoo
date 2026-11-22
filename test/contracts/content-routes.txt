@@ -27,4 +27,4 @@ GET  /api/cms/_media/img/:id/:file   (stored in content)
 GET  /api/cms/_media/raw/:key*   (stored in content)
 HEAD /api/cms/_media/raw/:key*   (stored in content)
 
-# The widths of /api/cms/_media/img/<id>/<width>.webp (may only grow): 320, 640, 960, 1280, 1920
+# The widths of /api/cms/_media/img/<id>/<width>.webp (may only grow): 320, 480, 640, 750, 828, 960, 1080, 1280, 1440, 1920, 2560
