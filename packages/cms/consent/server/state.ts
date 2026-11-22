@@ -1,6 +1,7 @@
 import { decodeConsent, CONSENT_COOKIE, isCurrent, type ConsentCookie } from '../core/cookie'
 import { resolveTexts, type ConsentCategory, type ConsentTexts } from '../core/texts'
 import { consentOptionsOf, type ResolvedConsentOptions } from '../options'
+import { analyticsOptionsOf } from '../../analytics/options'
 
 /**
  * What the consent plugin's routes (and the analytics plugin's endpoint) share on one server:
@@ -89,9 +90,8 @@ export async function consentConfig(asked: string): Promise<ConsentConfig> {
   const saved = await savedIn(locale)
   // The standard texts follow the site's language, else what the page says its language is.
   // The analytics plugin with a banner describes what it keeps under "analytics".
-  const analytics = reg.plugins.find((p) => p.name === 'analytics') as { analytics?: { mode?: string } } | undefined
   const { texts, categories } = resolveTexts(saved, opts.categories, locale ?? (wanted || null), {
-    services: opts.services, cookieDays: opts.cookieDays, analyticsMode: analytics?.analytics?.mode ?? null,
+    services: opts.services, cookieDays: opts.cookieDays, analyticsMode: analyticsOptionsOf(reg)?.mode ?? null,
   })
   return { version: s.version, cookieDays: opts.cookieDays, locale, texts, categories }
 }
