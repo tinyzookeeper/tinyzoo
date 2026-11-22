@@ -2,7 +2,8 @@
  * Website analytics, as a plugin (`tinyzoo/analytics`): how many people visit the site, what
  * they read and where they come from, in the site's own admin. No cookies, nothing stored in
  * the browser and no address kept, so the site needs no consent banner for it. With the consent
- * plugin it can also go with a cookie banner (`mode: 'consent'` or `'strict'`).
+ * plugin it goes with the cookie banner: a yes also keeps the visitor's consent id, a no is
+ * counted without a cookie (`mode: 'consent'`, the default then), or `mode: 'strict'`.
  *
  *   // cms.config.ts
  *   import { analyticsPlugin } from 'tinyzoo/analytics'
@@ -47,9 +48,9 @@ const adminOnly = ({ user }: { user: { base?: string | null; role?: string } }) 
 export const AnalyticsSettings = defineSingleton('analytics_settings', {
   label: { en: 'Counting visits', cs: 'Počítání návštěv', de: 'Besuchszählung' },
   description: {
-    en: 'Whether the website counts its visits. Without cookies; nobody is recognised from one day to the next.',
-    cs: 'Zda web počítá návštěvy. Bez cookies; nikoho nelze poznat z jednoho dne na druhý.',
-    de: 'Ob die Website ihre Besuche zählt. Ohne Cookies; niemand wird von einem Tag zum nächsten wiedererkannt.',
+    en: 'Whether the website counts its visits. Without cookies, unless a visitor allows statistics in the cookie banner.',
+    cs: 'Zda web počítá návštěvy. Bez cookies, pokud návštěvník v cookie liště nepovolí statistiky.',
+    de: 'Ob die Website ihre Besuche zählt. Ohne Cookies, außer ein Besucher erlaubt Statistik im Cookie-Banner.',
   },
   icon: 'i-lucide-chart-line',
   titleField: 'collect',
@@ -108,8 +109,9 @@ export function analyticsPlugin(options: AnalyticsOptions = {}): CmsPlugin {
     hooks: { retention: analyticsRetention(resolved) },
     i18n: ANALYTICS_MESSAGES,
   })
-  // A mode with a cookie banner needs the consent plugin, and its category "analytics".
-  const needs: CmsPluginNeed[] = resolved.mode === 'cookieless' ? [] : [{
+  // A mode with a cookie banner, set by the site, needs the consent plugin and its category
+  // "analytics". Left unset, the mode follows the banner (analyticsOptionsOf) and needs nothing.
+  const needs: CmsPluginNeed[] = !resolved.modeSet || resolved.mode === 'cookieless' ? [] : [{
     plugin: 'consent',
     message: `mode: '${resolved.mode}' needs the consent plugin, which is not registered: add consentPlugin() from 'tinyzoo/consent' (export const plugins = [consentPlugin(), analyticsPlugin({ mode: '${resolved.mode}' })]), or use mode: 'cookieless'.`,
     check: (other) => ((other as any).consent?.keys as string[] | undefined)?.includes('analytics')

@@ -2,7 +2,7 @@
 
 `tinyzoo/analytics` counts the website's visits and shows them in the site's own admin: how many people came, what they read, where they came from, on which devices and in which language. It sets no cookie and stores nothing in the visitor's browser. It keeps no address. A visitor cannot be recognised from one day to the next.
 
-A site with a cookie banner ([consent](consent.md)) can go further: it can learn more about the visitors who agree, or count nobody who has not agreed. See [Cookie banner](#cookie-banner).
+A site with a cookie banner ([consent](consent.md)) goes further by itself: a visitor who allows statistics is also known from one visit to the next, and one who rejects them is counted without a cookie, as above. Or it can count nobody who has not agreed. See [Cookie banner](#cookie-banner).
 
 - [Switching it on](#switching-it-on)
 - [What the admin shows](#what-the-admin-shows)
@@ -122,7 +122,7 @@ A **visit** is one visitor's page views with gaps under 30 minutes. A visit belo
 
 ```ts
 analyticsPlugin({
-  mode: 'cookieless',
+  mode: 'consent',
   keepRawDays: 90,
   access: ({ user }) => user.base === 'admin',
   respectDoNotTrack: true,
@@ -135,7 +135,7 @@ analyticsPlugin({
 
 | Option | Default | What it does |
 |---|---|---|
-| `mode` | `'cookieless'` | With a cookie banner or without: `'cookieless'`, `'consent'` or `'strict'`, see [Cookie banner](#cookie-banner) |
+| `mode` | `'consent'` with a cookie banner that asks about `analytics`, else `'cookieless'` | With a cookie banner or without: `'cookieless'`, `'consent'` or `'strict'`, see [Cookie banner](#cookie-banner) |
 | `keepRawDays` | `90` | Days the single page views are kept. Every night, older ones are deleted and only their daily totals stay. From 2 to 3650 |
 | `access` | administrators and editors | Who reads the reports: a rule like an entity's access rules, `({ user }) => boolean`. `user.base` is the built-in role a custom role extends |
 | `respectDoNotTrack` | `false` | Counts no browser that sends Do Not Track (`DNT: 1`) or Global Privacy Control (`Sec-GPC: 1`) |
@@ -185,20 +185,22 @@ The plugin has three modes. Each counts the headline numbers (visitors, visits, 
 import { analyticsPlugin } from 'tinyzoo/analytics'
 import { consentPlugin } from 'tinyzoo/consent'
 
-export const plugins = [consentPlugin(), analyticsPlugin({ mode: 'consent' })]
+export const plugins = [consentPlugin({ categories: ['analytics'] }), analyticsPlugin()]
 ```
 
-`consent` and `strict` need the [consent plugin](consent.md), asking about `analytics`. Without it, the build and the start stop with a message that names both plugins.
+Without `mode`, the plugin follows the banner: `consent` when the [consent plugin](consent.md) asks about `analytics`, `cookieless` on a site without one (or with a banner that does not ask about statistics). A yes gives cookies, a no stays cookieless.
+
+`consent` and `strict` set by hand need the consent plugin, asking about `analytics`. Without it, the build and the start stop with a message that names both plugins.
 
 | Mode | What is counted | What the admin shows |
 |---|---|---|
-| `cookieless` (default) | Every visit, without a cookie. The banner, if the site has one, does not change it | The report |
-| `consent` | Every visit, as in `cookieless`. A visit of someone who allowed statistics in the banner also carries the consent id from their cookie | The report, and a section "Among visitors who agreed to cookies" |
+| `cookieless` (default without a banner) | Every visit, without a cookie. The banner, if the site has one, does not change it | The report |
+| `consent` (default with a banner) | Every visit, as in `cookieless`. A visit of someone who allowed statistics in the banner also carries the consent id from their cookie | The report, and a section "Among visitors who agreed to cookies" |
 | `strict` | Only visits of people who allowed statistics. Before they do, the page sends nothing at all | The report, of those visitors only |
 
 ### `cookieless`
 
-Nothing is stored on the visitor's device, so the statistics need no consent ([Privacy](#privacy)). This is right for most sites, and for every site without a cookie banner.
+Nothing is stored on the visitor's device, so the statistics need no consent ([Privacy](#privacy)). This is the mode of every site without a cookie banner. A site with one sets `mode: 'cookieless'` to keep its statistics out of it.
 
 ### `consent`
 
@@ -227,7 +229,7 @@ This is for a site whose lawyer reads the European Data Protection Board's Guide
 ### Which one
 
 - No banner on the site, or a banner for other things and plain statistics enough: `cookieless`.
-- A banner on the site anyway, and wanting to know the people who come back: `consent`.
+- A banner on the site that asks about statistics, and wanting to know the people who come back: `consent`, the default then.
 - A lawyer who asks for consent before any measuring at all: `strict`.
 
 This page describes what each mode does. Whether a site needs consent for its statistics is a legal question for the site's own lawyer.
@@ -240,7 +242,7 @@ What is never stored: the address (IP), the full user agent, a cookie or anythin
 
 The address and the user agent are used once, when the view arrives, for the hash and the country. Then they are forgotten. The hash cannot be linked across days, and the salt that made it is deleted after a day. After `keepRawDays`, only totals per day remain.
 
-Nothing is stored in the visitor's browser, so the rules on cookie consent do not apply to it, and the site needs no consent banner for its analytics (in the default `cookieless` mode; see [Cookie banner](#cookie-banner) for the others). The site still processes the address for a moment, so the privacy policy should mention it. A sentence to start from:
+Nothing is stored in the visitor's browser, so the rules on cookie consent do not apply to it, and the site needs no consent banner for its analytics (in the `cookieless` mode, the default without a banner; see [Cookie banner](#cookie-banner) for the others). The site still processes the address for a moment, so the privacy policy should mention it. A sentence to start from:
 
 > **English.** We count visits to this website to see what people read and how they find us. We use no cookies and store nothing in your browser. Your IP address is used only for a moment, to recognise the same visit during one day and to tell the country; it is never stored. Visits cannot be linked from one day to the next, and the statistics stay on our own server; nobody else receives them. Single page views are deleted after 90 days; after that we keep only daily totals.
 

@@ -5,11 +5,12 @@ import { validTimeZone } from './core/visitor'
 
 /**
  * How the plugin goes with a cookie banner (the consent plugin, `tinyzoo/consent`):
- *  - `cookieless` (default): every visit is counted without a cookie; no banner is needed for it.
+ *  - `cookieless`: every visit is counted without a cookie; no banner is needed for it.
  *  - `consent`: the same, and the visits of visitors who allowed statistics in the banner also
  *    carry their consent id, which gives the extra reports "among visitors who agreed".
  *  - `strict`: nothing at all is sent until the visitor allows statistics.
- * `consent` and `strict` need `consentPlugin()` registered too.
+ * `consent` and `strict` need `consentPlugin()` registered too. Left unset, the mode is `consent`
+ * on a site whose banner asks about statistics, and `cookieless` on any other.
  */
 export type AnalyticsMode = 'cookieless' | 'consent' | 'strict'
 
@@ -17,8 +18,9 @@ export const ANALYTICS_MODES: readonly AnalyticsMode[] = ['cookieless', 'consent
 
 export interface AnalyticsOptions {
   /**
-   * With a cookie banner or without (default `cookieless`). See `AnalyticsMode` and
-   * docs/analytics.md, "Cookie banner": which mode fits which site, and what each changes.
+   * With a cookie banner or without. Default: `consent` when the consent plugin asks about
+   * `analytics` (a yes adds the consent id, a no is counted without a cookie), else `cookieless`.
+   * See `AnalyticsMode` and docs/analytics.md, "Cookie banner": which mode fits which site.
    */
   mode?: AnalyticsMode
   /**
@@ -53,7 +55,10 @@ export interface AnalyticsOptions {
 
 /** The options with their defaults, as the server reads them. @internal */
 export interface ResolvedAnalyticsOptions {
+  /** The mode in effect: read it with `analyticsOptionsOf(reg)`, which settles an unset one. */
   mode: AnalyticsMode
+  /** Whether the site set `mode` itself; unset, `analyticsOptionsOf` follows the cookie banner. */
+  modeSet: boolean
   keepRawDays: number
   access: (ctx: { user: CmsAccessUser }) => boolean
   respectDoNotTrack: boolean
@@ -89,6 +94,7 @@ export function resolveAnalyticsOptions(opts: AnalyticsOptions = {}): ResolvedAn
   const headers = (opts.countryHeaders ?? [...COUNTRY_HEADERS]).map((h) => String(h).trim().toLowerCase()).filter(Boolean)
   return {
     mode: opts.mode ?? 'cookieless',
+    modeSet: opts.mode !== undefined,
     keepRawDays: keep,
     access: opts.access ?? analyticsReadAccess,
     respectDoNotTrack: !!opts.respectDoNotTrack,
@@ -99,12 +105,22 @@ export function resolveAnalyticsOptions(opts: AnalyticsOptions = {}): ResolvedAn
   }
 }
 
+const settled = new WeakMap<ResolvedAnalyticsOptions, ResolvedAnalyticsOptions>()
+
 /**
- * The options of the registered analytics plugin, or null when the site does not use it.
+ * The options of the registered analytics plugin, or null when the site does not use it. A mode
+ * the site left unset is settled here, as it needs the other plugins: `consent` when the consent
+ * plugin asks about `analytics`, else `cookieless`.
  *
  * @internal
  */
 export function analyticsOptionsOf(reg: Pick<CmsRegistry, 'plugins'>): ResolvedAnalyticsOptions | null {
   const p = reg.plugins.find((x) => x.name === 'analytics') as { analytics?: ResolvedAnalyticsOptions } | undefined
-  return p?.analytics ?? null
+  const opts = p?.analytics
+  if (!opts || opts.modeSet) return opts ?? null
+  const consent = reg.plugins.find((x) => x.name === 'consent') as { consent?: { keys?: readonly string[] } } | undefined
+  if (!consent?.consent?.keys?.includes('analytics')) return opts
+  let out = settled.get(opts)
+  if (!out) settled.set(opts, (out = { ...opts, mode: 'consent' }))
+  return out
 }

@@ -5,6 +5,7 @@ import { buildRegistry, collectPlugins, emitSchema, planPlugins } from 'tinyzoo'
 import { analyticsPlugin } from 'tinyzoo/analytics'
 import { consentPlugin } from 'tinyzoo/consent'
 import { consentDecision } from '../../packages/cms/analytics/core/consent'
+import { analyticsOptionsOf } from '../../packages/cms/analytics/options'
 import { startTracker, type TrackerGate } from '../../packages/cms/analytics/app/tracker'
 import {
   actionOf, consentCookieString, decodeConsent, encodeConsent, grantedIn, isCurrent, MAX_COOKIE_DAYS, newConsentId,
@@ -279,7 +280,20 @@ describe('the plugin', () => {
 describe('the analytics plugin with a cookie banner', () => {
   it('counts without a banner by default', () => {
     expect((analyticsPlugin() as any).analytics.mode).toBe('cookieless')
+    expect(analyticsOptionsOf({ plugins: collectPlugins({ plugins: [analyticsPlugin()] }) })?.mode).toBe('cookieless')
     expect(() => analyticsPlugin({ mode: 'opt-in' as any })).toThrow(/mode is 'cookieless', 'consent' or 'strict'/)
+  })
+  it('follows the banner by default: consent when it asks about statistics', () => {
+    const modeWith = (...plugins: any[]) => analyticsOptionsOf({ plugins: collectPlugins({ plugins }) })?.mode
+    expect(modeWith(analyticsPlugin(), consentPlugin())).toBe('consent')
+    expect(modeWith(consentPlugin({ categories: ['analytics'] }), analyticsPlugin())).toBe('consent')
+    expect(modeWith(analyticsPlugin(), consentPlugin({ categories: ['marketing'] }))).toBe('cookieless')
+    // A mode the site sets stays as it is.
+    expect(modeWith(analyticsPlugin({ mode: 'cookieless' }), consentPlugin())).toBe('cookieless')
+    expect(modeWith(analyticsPlugin({ mode: 'strict' }), consentPlugin())).toBe('strict')
+    // The same options object on every call, for the server's routes.
+    const reg = { plugins: collectPlugins({ plugins: [analyticsPlugin(), consentPlugin()] }) }
+    expect(analyticsOptionsOf(reg)).toBe(analyticsOptionsOf(reg))
   })
   it('consent and strict need the consent plugin, and its category "analytics"', () => {
     for (const mode of ['consent', 'strict'] as const) {

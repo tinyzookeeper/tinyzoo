@@ -73,6 +73,8 @@ Ask only about what the site uses. A site without ads leaves `marketing` out:
 consentPlugin({ categories: ['analytics'] })
 ```
 
+With `analytics` asked, the [analytics plugin](analytics.md#cookie-banner) follows the choice by itself (its `consent` mode, the default with a banner): a yes keeps the visitor's consent id with their visits, a no is counted without a cookie.
+
 A site can add categories of its own, with a key and texts in each language:
 
 ```ts
