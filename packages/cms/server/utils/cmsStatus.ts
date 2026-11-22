@@ -1,4 +1,5 @@
-import { gte, sql, type CmsErrorReport, type CmsStatus, type CmsStatusCollection } from 'tinyzoo'
+import { brandFileUrl, gte, resolveText, sql, type CmsErrorReport, type CmsStatus, type CmsStatusBrand, type CmsStatusCollection } from 'tinyzoo'
+import { cmsAdminSettings } from './cmsAdminTheme'
 import pkg from '../../package.json'
 import { analyticsStatus } from '../../analytics/server/status'
 
@@ -60,6 +61,23 @@ export async function requireCmsStatusToken(event: Parameters<typeof getHeader>[
   if (!provided || !constantTimeEqual(provided, token)) throw createError({ statusCode: 401, statusMessage: 'Invalid status token' })
 }
 
+/** The client's brand from the admin's settings (CmsStatusBrand): what the sign-in page shows. */
+export async function cmsStatusBrand(baseURL: string): Promise<CmsStatusBrand> {
+  const { theme, defaultLocale } = await cmsAdminSettings()
+  const { logo } = theme
+  const own = (dark: string | null, light: string | null, plate: boolean) => (!plate && dark !== light ? dark : null)
+  const icon = logo.mark && logo.files && !logo.files.markFallback ? `${baseURL.replace(/\/$/, '')}${brandFileUrl('mark-180.png', theme)}` : null
+  return {
+    name: resolveText(theme.name, defaultLocale) || 'tinyzoo',
+    accent: theme.accent.kind === 'brand' ? theme.accent.hex : null,
+    full: logo.full,
+    fullDark: own(logo.fullDark, logo.full, logo.fullDarkPlate),
+    mark: logo.mark,
+    markDark: own(logo.markDark, logo.mark, logo.markDarkPlate),
+    icon,
+  }
+}
+
 export async function collectCmsStatus(): Promise<CmsStatus> {
   const now = Date.now()
   const config = useRuntimeConfig()
@@ -93,6 +111,11 @@ export async function collectCmsStatus(): Promise<CmsStatus> {
     errors: errorsLastDay(now),
     plugins: reg.plugins.map((p) => ({ name: p.name, version: p.version })),
   }
+  // The brand needs no database: it is there even while the database is not.
+  try {
+    status.brand = await cmsStatusBrand(baseURL)
+  }
+  catch { /* a theme that cannot be read: the status without it */ }
 
   // While start-up migrations run (or after they failed) the tables may not be there yet.
   const migrations = status.database.migrations

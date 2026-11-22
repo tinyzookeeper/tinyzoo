@@ -236,7 +236,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 | Seeds | `SeedDefinition`, `SeedContext`, `SeedEntry`, `SeedInsert`, `SeedWriteOptions`, `SeedGlobalOptions`, `SeedUploadOptions`, `SeedLink`, `SeedLinkOptions`, `SeedRich`, `SeedRichNode` |
 | Plugins | `CmsPlugin`, `CmsPluginDef`, `CmsPluginHandler`, `CmsPluginAdminPage`, `CmsPluginNavItem`, `CmsPluginAppPlugin`, `CmsDashboardWidget`, `CmsEntityPanel`, `CmsPluginHooks`, `CmsPluginUpgradeStep`, `CmsFieldRenderer`, `CmsGraphExtension`, `CmsRetentionContext`, `CmsHttpMethod`, `CmsRouteAccess`, `CmsEntity`, `CmsRegistry`, `UpgradeStep`, `UpgradeContext`, `SqlRunner`, `StepOutcome` |
 | Hooks and webhooks | `CmsChange`, `CmsChangeType`, `CmsSitemapEntry`, `CmsErrorReport`, `CmsWebhookPayload`, `CMS_WEBHOOK_HEADERS` |
-| Site status | `CmsStatus`, `CmsStatusCollection`, `CmsStatusAnalytics` (the answer of `/api/health/status`) |
+| Site status | `CmsStatus`, `CmsStatusCollection`, `CmsStatusAnalytics`, `CmsStatusBrand` (the answer of `/api/health/status`) |
 | Admin extension points | `CmsAdminField`, `CmsFieldEditProps`, `CmsFieldCellProps` |
 | Admin branding (`cms.admin`) | `CmsAccent` (a built-in accent or a hex), `CmsAccentPreset` (`'mono' \| 'indigo' \| 'blue' \| 'violet' \| 'emerald'`), `CmsAdminLogo` (`full`, `mark`, `fullDark`, `markDark`) |
 | Frontend kit | `CmsImageProps`, `CmsImageMedia`, `CmsBlocksProps`, `CmsBlockProps`, `CmsContentProps`, `CmsContentNode`, `CmsNavProps`, `CmsNavLink`, `CmsHighlightProps`, `CmsFormProps`, `CmsConsentProps`, `CmsConsentChoice`, `CmsConsentApi`, `CmsConsentTexts`, `CmsConsentCategory`, `CmsConsentService`, `CmsReadonlyRef`, `CmsSearchItem`, `CmsSearchResult` |

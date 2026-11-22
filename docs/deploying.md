@@ -357,9 +357,10 @@ The answer (`CmsStatus` in `tinyzoo`) has:
 - how many webhook addresses are set and whether a secret signs them;
 - the server errors this instance reported in the last 24 hours, by request, task and webhook;
 - the plugins and their versions;
-- with the [analytics plugin](analytics.md#for-a-fleet-monitor), whether it counts visits, since when, and where the daily totals are read with the same token.
+- with the [analytics plugin](analytics.md#for-a-fleet-monitor), whether it counts visits, since when, and where the daily totals are read with the same token;
+- the client's brand as the admin shows it (`cms.admin` in `app.config.ts`): the name, the brand colour, the logo addresses and a 180 px PNG of the mark, so the monitor can show the site with its own logo.
 
-It holds numbers, dates, versions and names from `cms.config.ts`. It never holds content, anyone's name or email, or a secret. The error counts are kept in memory, so a restart starts them again from 0, and each replica counts its own.
+It holds numbers, dates, versions, names from `cms.config.ts` and the brand from `app.config.ts`. It never holds content, anyone's name or email, or a secret. The error counts are kept in memory, so a restart starts them again from 0, and each replica counts its own.
 
 `format: 'tinyzoo-status'` and `version: 1` say how to read it. Within version 1, keys are only added, so a reader ignores the ones it does not know.
 
