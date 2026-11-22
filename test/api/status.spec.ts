@@ -42,6 +42,9 @@ describe('the status route', () => {
     // The analytics plugin says whether it counts and where its daily totals are read.
     expect(s.analytics).toMatchObject({ enabled: true, collecting: expect.any(Boolean), rollupsPath: '/api/content/_analytics/rollups', livePath: '/api/content/_analytics/live' })
 
+    // The playground's brand: its name in the admin's language, no logos of its own.
+    expect(s.brand).toEqual({ name: 'Demo blog', accent: null, full: null, fullDark: null, mark: null, markDark: null, icon: null })
+
     const tag = s.content.collections.find((c) => c.name === 'tag')!
     expect(tag).toMatchObject({ kind: 'collection' })
     expect(tag.count).toBeGreaterThan(0)

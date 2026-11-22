@@ -85,6 +85,37 @@ export interface CmsStatus {
    * otherwise (and from a tinyzoo that predates this key).
    */
   analytics?: CmsStatusAnalytics
+  /**
+   * The client's brand as the admin shows it (`cms.admin` in the site's app.config), so a
+   * watching tool can show the site with its own logo. Nothing here is more than the
+   * sign-in page shows. Absent from a tinyzoo before 1.9.
+   */
+  brand?: CmsStatusBrand
+}
+
+/**
+ * The client's name, colour and logos. Logo addresses are as the site gave them: a path on the
+ * site (`/brand/mark.svg`, from the site's address) or an `https://` URL; `null` when not set.
+ */
+export interface CmsStatusBrand {
+  /** The client's name in the admin's language (`cms.admin.name`); `tinyzoo` when not set. */
+  name: string
+  /** The brand colour (`cms.admin.accent` as `#rrggbb`), or null for one of tinyzoo's own accents. */
+  accent: string | null
+  /** The full logo (wide, with the name). */
+  full: string | null
+  /** The full logo for dark backgrounds; null when the site has none of its own. */
+  fullDark: string | null
+  /** The square mark. */
+  mark: string | null
+  /** The mark for dark backgrounds; null when the site has none of its own. */
+  markDark: string | null
+  /**
+   * A 180 px square PNG of the mark that tinyzoo draws (the admin's home-screen icon), relative to
+   * the site (`/api/cms/_brand/mark-180.png?v=…`): one picture that is always a PNG, whatever the
+   * mark's own format. Null without a mark, or when the server could not read it.
+   */
+  icon: string | null
 }
 
 export interface CmsStatusAnalytics {
