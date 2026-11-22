@@ -26,7 +26,7 @@ const host = computed(() => hostOf(props.url))
     </div>
     <div ref="frame" class="preview__frame">
       <ClientOnly>
-        <iframe :src="url" :title="label" sandbox="" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" :style="{ width: `${WIDTH}px`, height: `${WIDTH * 0.625}px`, transform: `scale(${scale})` }" />
+        <iframe :src="url" :title="label" sandbox="allow-same-origin" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" :style="{ width: `${WIDTH}px`, height: `${WIDTH * 0.625}px`, transform: `scale(${scale})` }" />
       </ClientOnly>
     </div>
   </a>

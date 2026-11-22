@@ -16,8 +16,12 @@ const id = String(route.params.id)
 
 const { data, error: loadError, refresh } = await useFetch<{ site: SiteView; runtime: SiteRuntime | null }>(`/api/sites/${id}`, { key: `site-${id}`, query: { runtime: 1 } })
 if (loadError.value || !data.value) throw createError({ statusCode: 404, statusMessage: 'Not found', fatal: true })
-const site = computed(() => data.value!.site)
-const runtime = computed(() => data.value?.runtime ?? null)
+// The last answer stays on screen while the next one is on its way, and after the site is gone
+// (a refresh then fails and the page leaves for the list).
+const known = shallowRef(data.value)
+watch(data, (v) => { if (v) known.value = v })
+const site = computed(() => known.value.site)
+const runtime = computed(() => known.value.runtime ?? null)
 useHead({ title: () => site.value.name })
 
 // Opened while it was being made: the making stays on screen until it has shown its end.
@@ -73,7 +77,7 @@ async function freshLink() {
   linking.value = true
   try {
     const res = await $fetch<{ site: SiteView }>(`/api/sites/${id}/invite`, { method: 'POST' })
-    data.value = { site: res.site, runtime: runtime.value }
+    known.value = { site: res.site, runtime: runtime.value }
     toast.add({ title: res.site.ownerAccepted ? t('site.alreadyAccepted') : t('site.freshLinkDone'), icon: 'i-lucide-check' })
   }
   catch (err) { toast.add({ title: errorText(err), color: 'error' }) }
@@ -148,7 +152,7 @@ const facts = computed<Fact[]>(() => [
         <span class="truncate font-medium text-highlighted">{{ site.name }}</span>
       </nav>
 
-      <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-8">
+      <div class="grid grid-cols-[minmax(0,1fr)] items-start gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] lg:gap-8">
         <!-- The website: what it looks like right now, and the way to it. -->
         <section class="z-moment p-5 sm:p-8" :class="justMade ? 'z-rise' : ''">
           <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">

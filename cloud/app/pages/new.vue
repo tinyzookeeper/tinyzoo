@@ -171,7 +171,7 @@ const peekers = computed(() => [
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10">
+  <div class="mx-auto w-full max-w-6xl px-4 pt-6 pb-16 sm:px-6 sm:pt-10" :data-wizard="restored ? 'ready' : 'loading'">
     <!-- The limit, explained, instead of a wizard that would end in a refusal. -->
     <ZEmpty v-if="atLimit" animal="turtle" :title="t('new.limitTitle', { max: account.sites.max })" :description="t('new.limitText', { max: account.sites.max })">
       <UButton to="/sites" :label="t('nav.sites')" size="lg" />
@@ -204,14 +204,15 @@ const peekers = computed(() => [
         </div>
         <p v-if="showPlanned" class="mt-4 text-sm text-dimmed">{{ t('new.plannedNote') }}</p>
 
-        <div class="sticky bottom-0 -mx-4 mt-8 flex items-center justify-between gap-3 border-t border-default bg-(--ui-bg)/90 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+        <!-- The way on stays in reach under a long gallery. -->
+        <div class="sticky bottom-0 z-10 -mx-4 mt-8 flex items-center justify-between gap-3 border-t border-default bg-(--ui-bg)/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
           <p class="min-w-0 truncate text-sm text-muted"><template v-if="chosen">{{ t('new.picked') }} <span class="font-medium text-highlighted">{{ l(chosen.name) }}</span></template></p>
           <UButton :label="t('new.continue')" size="lg" trailing-icon="i-lucide-arrow-right" :disabled="!chosen?.ready" data-next @click="next" />
         </div>
       </section>
 
       <!-- 2 · Your site, 3 · Your account: the form on the left, the site taking shape on the right. -->
-      <section v-else class="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-14">
+      <section v-else class="mt-8 grid grid-cols-[minmax(0,1fr)] items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-14">
         <form class="flex max-w-lg flex-col gap-6" novalidate @submit.prevent="next">
           <template v-if="draft.step === 2">
             <div data-step="site">

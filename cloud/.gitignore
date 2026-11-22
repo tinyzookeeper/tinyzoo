@@ -1,3 +1,4 @@
 # The local hosting driver's sites (their uploads and logs) and the recorded walkthrough.
 .data
 .preview
+.nuxt-scripts

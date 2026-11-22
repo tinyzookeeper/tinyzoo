@@ -3,6 +3,10 @@
 // See README.md.
 export default defineNuxtConfig({
   compatibilityDate: '2026-11-01',
+  // scripts/e2e.mjs and scripts/walkthrough.mjs start a second dev server beside the
+  // developer's own; it builds into a folder of its own (CLOUD_BUILD_DIR) so the two do not
+  // write over each other.
+  ...(process.env.CLOUD_BUILD_DIR ? { buildDir: process.env.CLOUD_BUILD_DIR } : {}),
   modules: ['@nuxt/ui', '@nuxt/fonts', 'nuxt-auth-utils'],
   css: ['~/assets/css/main.css'],
   devtools: { enabled: false },

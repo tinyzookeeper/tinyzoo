@@ -75,12 +75,16 @@ export function completeStep(steps: Step[], id: StepId, now: Date | string = new
   return patch(steps, id, { state: 'done', finishedAt: iso(now), message: null })
 }
 
-/** Mark a step failed, with why. A step that is done stays done. */
+/**
+ * Mark a step failed, with why. A step that is done stays done. A step that failed before it
+ * was even started (something was wrong before the work began) counts as tried once.
+ */
 export function failStep(steps: Step[], id: StepId, message: string, now: Date | string = new Date()): Step[] {
   const step = steps[indexOf(id)]
   if (!step) throw new StepOrderError(`Unknown step: ${id}`)
   if (step.state === 'done') return steps
-  return patch(steps, id, { state: 'failed', finishedAt: iso(now), message, startedAt: step.startedAt ?? iso(now) })
+  const begun = step.state === 'running'
+  return patch(steps, id, { state: 'failed', finishedAt: iso(now), message, startedAt: begun ? step.startedAt ?? iso(now) : iso(now), attempts: begun ? step.attempts : step.attempts + 1 })
 }
 
 /**

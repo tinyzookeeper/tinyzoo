@@ -65,7 +65,8 @@ const rows = computed(() => STEP_IDS.map((id, i) => {
   const step = props.site.steps[i]
   return { id, state, animal: ANIMALS[id], took: state === 'done' && step ? formatDuration(stepDuration(step), locale.value) : '', code: state === 'failed' ? step?.message ?? 'unexpected' : null }
 }))
-const current = computed(() => rows.value.find((r) => r.state === 'running' || r.state === 'failed') ?? null)
+// The step being worked on; between two steps, the one that comes next.
+const current = computed(() => rows.value.find((r) => r.state === 'running' || r.state === 'failed') ?? rows.value.find((r) => r.state === 'pending') ?? null)
 const failedRow = computed(() => rows.value.find((r) => r.state === 'failed') ?? null)
 
 const peekers = computed(() => STEP_IDS.map((id, i) => ({ animal: ANIMALS[id], up: !waiting.value && shown.value >= i * 2 + 1, busy: stateOf(i) === 'running' })))
@@ -104,11 +105,11 @@ const failText = computed(() => {
           <p class="z-moment-text mt-3 text-pretty sm:text-lg" data-fail-text>{{ failText }}</p>
         </template>
         <template v-else-if="allShown">
-          <h1 class="z-display z-rise text-[1.75rem] leading-tight text-balance text-highlighted sm:text-4xl">{{ t('build.doneTitle') }}</h1>
+          <h1 class="z-display z-rise text-[1.75rem] leading-tight text-balance text-highlighted sm:text-4xl lg:text-5xl">{{ t('build.doneTitle') }}</h1>
           <p class="z-moment-text z-rise z-rise-1 mt-3 text-pretty sm:text-lg">{{ t('build.doneText', { name: site.name }) }}</p>
         </template>
         <template v-else>
-          <h1 class="z-display text-[1.75rem] leading-tight text-balance text-highlighted sm:text-4xl">{{ t('build.title') }}</h1>
+          <h1 class="z-display text-[1.75rem] leading-tight text-balance text-highlighted sm:text-4xl lg:text-5xl">{{ t('build.title') }}</h1>
           <p class="z-moment-text mt-3 min-h-[1.75em] text-pretty sm:text-lg">
             <Transition name="line" mode="out-in">
               <span :key="current?.id ?? 'start'" class="inline-block">{{ current ? t(`build.doing.${current.id}` as any) : t('build.starting') }}</span>
@@ -143,12 +144,13 @@ const failText = computed(() => {
 </template>
 
 <style scoped>
-.build { padding: 1.5rem 1.25rem 2rem; }
-.build__grid { display: grid; gap: 1.75rem; align-items: center; }
+.build { padding: 1.5rem 1.25rem 2rem; display: flex; align-items: center; }
+.build__grid { display: grid; gap: 1.75rem; align-items: center; width: 100%; }
 .build__picture { width: 100%; max-width: 26rem; margin-inline: auto; }
 @media (min-width: 64rem) {
-  .build { padding: 3.5rem 3.5rem 4rem; }
-  .build__grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 4rem; }
+  /* The stage fills the screen under the top bar: this is the moment of the product. */
+  .build { padding: 3rem 4.5rem 3.5rem; min-height: min(46rem, calc(100dvh - 11rem)); }
+  .build__grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 5rem; }
   .build__picture { max-width: none; order: 2; }
 }
 

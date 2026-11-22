@@ -47,6 +47,8 @@ withDefaults(defineProps<{
           </span>
         </div>
         <div class="mini__page" :class="{ 'is-on': page, 'has-content': content }">
+          <!-- The plan of the page, drawn in dashes until the real thing arrives. -->
+          <div class="mini__plan"><i class="a" /><i class="b" /><i class="c" /><span><i /><i /><i /></span></div>
           <div class="mini__header">
             <span class="mini__name" :class="{ 'is-on': named && name }">{{ name || ' ' }}</span>
             <span class="mini__nav"><i /><i /><i /></span>
@@ -83,8 +85,19 @@ withDefaults(defineProps<{
 .mini__address.is-live { color: var(--z-paper-ink); }
 .mini__address.is-live > b { background: var(--z-ok); box-shadow: 0 0 0 0.8cqw color-mix(in oklab, var(--z-ok) 22%, transparent); }
 
-.mini__page { aspect-ratio: 16 / 10.2; padding: 3cqw 3.6cqw 0; display: flex; flex-direction: column; gap: 2.8cqw; opacity: 0; transition: opacity 700ms; }
-.mini__page.is-on { opacity: 1; }
+.mini__page { position: relative; aspect-ratio: 16 / 10.2; padding: 3cqw 3.6cqw 0; display: flex; flex-direction: column; gap: 2.8cqw; background: var(--z-paper-softer); transition: background 800ms; }
+.mini__page.is-on { background: var(--z-paper); }
+
+/* The plan: dashed outlines where the header, the opening and the cards will be. */
+.mini__plan { position: absolute; inset: 3cqw 3.6cqw 0; display: grid; grid-template-columns: 1.1fr 1fr; grid-template-rows: 4cqw auto 1fr; gap: 2.8cqw 3cqw; opacity: .5; transition: opacity 600ms; pointer-events: none; }
+.mini__page.is-on .mini__plan { opacity: 1; }
+.has-content .mini__plan { opacity: 0; }
+.mini__plan i { display: block; border: 1px dashed var(--z-paper-line); border-radius: 1.6cqw; }
+.mini__plan .a { grid-column: 1 / -1; border-radius: 99px; width: 34%; }
+.mini__plan .b { aspect-ratio: auto; }
+.mini__plan .c { aspect-ratio: 4 / 3; }
+.mini__plan span { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.4cqw; }
+.mini__plan span i { border-bottom: 0; border-radius: 1.8cqw 1.8cqw 0 0; }
 
 .mini__header { display: flex; align-items: center; justify-content: space-between; gap: 3cqw; }
 .mini__name { min-width: 0; font-family: var(--font-display); font-weight: 800; letter-spacing: -0.02em; font-size: max(3.3cqw, 11px); line-height: 1.2; color: var(--z-paper-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transform: translateY(0.8cqw); transition: opacity 500ms, transform 500ms; }
