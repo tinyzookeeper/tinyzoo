@@ -43,6 +43,8 @@ function openEdit(t: Team) {
   form.leads = t.people.filter((p) => p.role === 'lead').map((p) => p.userId)
   editing.value = t
 }
+// The team as the list has it now: its logo changes at once, before Save.
+const editingNow = computed(() => teams.value.find((t) => t.id === editing.value?.id) ?? editing.value)
 const nameOf = (id: string) => members.value.find((m) => m.id === id)?.name || members.value.find((m) => m.id === id)?.email || 'Someone'
 function toggleLead(id: string, on: boolean) {
   form.leads = on ? [...new Set([...form.leads, id])] : form.leads.filter((x) => x !== id)
@@ -161,7 +163,9 @@ const initials = (name: string) => name.split(/[\s@._-]+/).filter(Boolean).slice
 
     <ul class="k-card divide-y divide-(--ui-border-muted)">
       <li v-for="t in teams" :key="t.id" class="flex items-center gap-3 px-4 py-3">
-        <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--k-moment-strong) text-xs font-semibold text-highlighted">{{ initials(t.name) }}</span>
+        <KLogo :logo="t.logo" class="size-8 rounded-lg">
+          <span class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-(--k-moment-strong) text-xs font-semibold text-highlighted">{{ initials(t.name) }}</span>
+        </KLogo>
         <div class="min-w-0 flex-1">
           <p class="flex min-w-0 items-center gap-2 text-sm font-medium text-highlighted">
             <span class="truncate">{{ t.name }}</span>
@@ -206,6 +210,9 @@ const initials = (name: string) => name.split(/[\s@._-]+/).filter(Boolean).slice
         <form id="edit-team" class="flex flex-col gap-4" @submit.prevent="saveEdit">
           <UFormField label="Name" name="name" description="Its address stays when you rename it.">
             <UInput v-model="form.name" required maxlength="80" class="w-full" />
+          </UFormField>
+          <UFormField v-if="editingNow" label="Logo" name="logo" description="Shown in the team switcher and the lists. It changes straight away.">
+            <LogoPicker :origin="editingNow" :name="editingNow.name" kind="team" :endpoint="`/api/w/${wsSlug}/teams/${editingNow.id}/logo`" can-edit class="mt-1" @changed="after" />
           </UFormField>
           <UFormField v-if="mayPickPeople" label="People" name="people" description="Owners and admins see every team without being on it.">
             <USelectMenu v-model="form.people" :items="memberItems" value-key="value" multiple placeholder="Pick people" class="w-full" />

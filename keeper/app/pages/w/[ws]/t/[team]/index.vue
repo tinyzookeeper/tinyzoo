@@ -185,7 +185,7 @@ function stateLine(s: SiteSummary): string {
         <h2 class="k-label mb-2 flex items-center gap-2">Needs you <span class="k-count">{{ needs.length }}</span></h2>
         <ul class="k-card divide-y divide-(--ui-border-muted)">
           <li v-for="(n, i) in needs" :key="i" class="relative flex items-center gap-3 px-4 py-3">
-            <SiteAnimal :id="n.site.id" :state="n.site.state" size="sm" />
+            <SiteAnimal :id="n.site.id" :state="n.site.state" :logo="n.site.logo" size="sm" />
             <div class="min-w-0 flex-1">
               <NuxtLink :to="n.action.to" class="block truncate text-sm font-medium after:absolute after:inset-0" :class="n.tone === 'error' ? 'text-error' : 'text-highlighted'">{{ n.title }}</NuxtLink>
               <p class="truncate text-xs text-muted">{{ n.detail }}</p>
@@ -206,7 +206,7 @@ function stateLine(s: SiteSummary): string {
 
         <ul v-if="sites.length" class="k-card divide-y divide-(--ui-border-muted)">
           <li v-for="s in sites" :key="s.id" class="relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-elevated/40 sm:gap-4">
-            <SiteAnimal :id="s.id" :state="s.state" />
+            <SiteAnimal :id="s.id" :state="s.state" :logo="s.logo" />
             <div class="min-w-0 flex-1">
               <div class="flex min-w-0 items-center gap-2">
                 <NuxtLink :to="link(`/sites/${s.id}`)" class="truncate font-medium text-highlighted after:absolute after:inset-0">{{ s.name }}</NuxtLink>

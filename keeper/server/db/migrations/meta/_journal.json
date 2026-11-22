@@ -78,6 +78,13 @@
       "when": 1795194907550,
       "tag": "0010_workspace_signature",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1795349772581,
+      "tag": "0011_logos",
+      "breakpoints": true
     }
   ]
 }

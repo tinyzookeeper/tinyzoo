@@ -13,6 +13,8 @@ onBeforeUnmount(() => clearInterval(timer))
 
 const sites = computed(() => data.value?.sites ?? [])
 const title = computed(() => (data.value?.teams.length === 1 ? data.value.teams[0]! : workspace.value?.name ?? 'Your sites'))
+// The header's logo: the team's when it is named (one team), else the workspace's.
+const headerLogo = computed(() => (data.value?.teams.length === 1 ? workspace.value?.teams.find((t) => t.name === title.value)?.logo : null) ?? data.value?.workspace.logo ?? null)
 const by = computed(() => (signature.value && signature.value !== title.value ? signature.value : ''))
 useHead({ title: () => `${title.value} · Keeper` })
 
@@ -57,7 +59,9 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
   <AppPage :title="title" :heading="false">
     <div class="flex flex-col gap-6">
       <div class="flex items-center gap-3.5">
-        <span class="inline-flex size-12 shrink-0 items-center justify-center rounded-xl bg-(--k-moment-strong) text-base font-semibold text-highlighted">{{ initials(title) }}</span>
+        <KLogo :logo="headerLogo" class="size-12 rounded-xl">
+          <span class="inline-flex size-12 shrink-0 items-center justify-center rounded-xl bg-(--k-moment-strong) text-base font-semibold text-highlighted">{{ initials(title) }}</span>
+        </KLogo>
         <div class="min-w-0">
           <h1 class="k-display truncate text-2xl leading-tight text-highlighted">{{ title }}</h1>
           <p v-if="by" class="text-sm text-muted">looked after by <span class="font-medium text-toned">{{ by }}</span></p>
@@ -75,7 +79,7 @@ const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2)
       <ul class="flex flex-col gap-3">
         <li v-for="s in sites" :key="s.id" class="k-card flex flex-col gap-3 p-4 sm:p-5">
           <div class="flex items-center gap-3">
-            <SiteAnimal :id="s.id" :state="s.state" size="sm" />
+            <SiteAnimal :id="s.id" :state="s.state" :logo="s.logo" size="sm" />
             <div class="min-w-0 flex-1">
               <p class="flex min-w-0 items-center gap-2">
                 <span class="k-display truncate text-[17px] text-highlighted">{{ s.environment === 'staging' ? `${s.name} · staging` : s.name }}</span>

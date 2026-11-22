@@ -242,7 +242,7 @@ const throughLabel = computed(() => (data.value?.through ? new Date(`${data.valu
         <ul class="k-card mt-4 divide-y divide-default px-3 sm:px-4" aria-label="Sites">
           <li v-for="s in cards" :key="s.id" :class="s.available ? '' : 'opacity-60'">
             <NuxtLink :to="siteLink(s)" class="group -mx-3 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-3 hover:bg-(--k-visitors-hover) sm:-mx-4 sm:px-4">
-              <SiteAnimal :id="s.id" size="sm" />
+              <SiteAnimal :id="s.id" :logo="s.logo" size="sm" />
               <span class="min-w-0">
                 <span class="flex min-w-0 items-baseline gap-2">
                   <span class="truncate font-display text-sm font-semibold text-highlighted group-hover:underline">{{ s.name }}</span>

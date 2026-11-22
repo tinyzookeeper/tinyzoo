@@ -23,7 +23,9 @@ function create() {
 
 <template>
   <div v-if="plain" class="flex min-w-0 items-center gap-2.5 px-1.5 py-1.5" :class="collapsed && 'justify-center px-0'">
-    <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-(--k-moment-strong) text-[11px] font-semibold text-highlighted">{{ initial(workspace?.name) }}</span>
+    <KLogo :logo="workspace?.logo" class="size-7 rounded-lg">
+      <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-(--k-moment-strong) text-[11px] font-semibold text-highlighted">{{ initial(workspace?.name) }}</span>
+    </KLogo>
     <span v-if="!collapsed" class="min-w-0 leading-tight">
       <span class="k-display block truncate text-[16px] text-highlighted">{{ workspace?.name }}</span>
       <span v-if="signature && signature !== workspace?.name" class="block truncate text-xs text-muted">looked after by {{ signature }}</span>
@@ -36,10 +38,12 @@ function create() {
       :class="[collapsed && 'justify-center px-0', open && 'bg-elevated']"
       :aria-label="`Workspace: ${everywhere ? 'every workspace' : workspace?.name ?? 'none'}. Switch workspace`"
     >
-      <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-inverted text-[11px] font-semibold text-inverted">
-        <UIcon v-if="everywhere" name="i-lucide-layout-grid" class="size-4" />
-        <template v-else>{{ initial(workspace?.name) }}</template>
-      </span>
+      <KLogo :logo="everywhere ? null : workspace?.logo" class="size-7 rounded-lg">
+        <span class="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-inverted text-[11px] font-semibold text-inverted">
+          <UIcon v-if="everywhere" name="i-lucide-layout-grid" class="size-4" />
+          <template v-else>{{ initial(workspace?.name) }}</template>
+        </span>
+      </KLogo>
       <template v-if="!collapsed">
         <span class="k-display min-w-0 flex-1 truncate text-[16px] text-highlighted">{{ everywhere ? 'Every workspace' : workspace?.name ?? 'Keeper' }}</span>
         <UIcon name="i-lucide-chevrons-up-down" class="size-3.5 shrink-0 text-dimmed" />
@@ -71,7 +75,9 @@ function create() {
           :class="w.id === workspace?.id && 'bg-elevated font-medium'"
           @click="go(swap(w.slug))"
         >
-          <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold" :class="w.id === workspace?.id ? 'bg-inverted text-inverted' : 'bg-(--k-moment-strong) text-highlighted'">{{ initial(w.name) }}</span>
+          <KLogo :logo="w.logo" class="size-5 rounded-md">
+            <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold" :class="w.id === workspace?.id ? 'bg-inverted text-inverted' : 'bg-(--k-moment-strong) text-highlighted'">{{ initial(w.name) }}</span>
+          </KLogo>
           <span class="min-w-0 flex-1 truncate text-left">{{ w.name }}</span>
           <HealthDot v-if="w.down || w.behind" :health="w" />
           <UIcon v-if="w.id === workspace?.id" name="i-lucide-check" class="size-4 shrink-0" />

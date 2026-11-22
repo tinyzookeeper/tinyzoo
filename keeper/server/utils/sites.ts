@@ -4,11 +4,14 @@ import type { H3Event } from 'h3'
 import { z } from 'zod'
 import type { SiteDetail, SiteSummary } from '#keeper/types/keeper'
 import type { TrafficGlance } from '#keeper/types/traffic'
+import { logoRef, type LogoFit } from '#keeper/logo'
 
 /** A site with where it lives: its workspace and team. */
 export type SiteRow = typeof schema.sites.$inferSelect & {
   workspace: { id: string; slug: string; name: string }
   team: { id: string; slug: string; name: string }
+  /** How the site's logo sits in its tile (schema.logos.fit), null without a logo. */
+  logoFit: LogoFit | null
 }
 
 // ── Who sees which sites ───────────────────────────────────────────────────────────────
@@ -34,13 +37,15 @@ export async function selectSites(where: SQL | undefined): Promise<SiteRow[]> {
     site: schema.sites,
     workspace: { id: schema.workspaces.id, slug: schema.workspaces.slug, name: schema.workspaces.name },
     team: { id: schema.teams.id, slug: schema.teams.slug, name: schema.teams.name },
+    logoFit: schema.logos.fit,
   })
     .from(schema.sites)
     .innerJoin(schema.teams, eq(schema.teams.id, schema.sites.teamId))
     .innerJoin(schema.workspaces, eq(schema.workspaces.id, schema.sites.workspaceId))
+    .leftJoin(schema.logos, eq(schema.logos.hash, schema.sites.logoHash))
     .where(where)
     .orderBy(schema.sites.name)
-  return rows.map((r) => ({ ...r.site, workspace: r.workspace, team: r.team }))
+  return rows.map((r) => ({ ...r.site, workspace: r.workspace, team: r.team, logoFit: r.logoFit }))
 }
 
 /** The sites this person may see, optionally in one workspace and team. */
@@ -134,6 +139,7 @@ export function summarize(site: SiteRow, uptime: { d1: number | null; d30: numbe
     workspace: site.workspace,
     team: site.team,
     url: site.url,
+    logo: site.logoFit ? logoRef(site.logoHash, site.logoFit) : null,
     environment: site.environment,
     state: site.state,
     stateSince: iso(site.stateSince),
@@ -254,7 +260,7 @@ export async function updateSite(event: H3Event, access: Access, site: SiteRow, 
     ...(data.notes !== undefined ? { notes: data.notes } : {}),
     ...(tokenChanged ? { tokenEnc: data.token ? encryptSecret(data.token) : null, statusError: null } : {}),
     // Another address is another site as far as the checks go.
-    ...(urlChanged ? { state: 'unknown' as const, stateSince: null, failStreak: 0, status: null, statusAt: null, statusError: null, certExpiresAt: null, certError: null, buildId: null } : {}),
+    ...(urlChanged ? { state: 'unknown' as const, stateSince: null, failStreak: 0, status: null, statusAt: null, statusError: null, certExpiresAt: null, certError: null, buildId: null, logoSource: null, logoCheckedAt: null } : {}),
     ...(tokenChanged && !data.token ? { status: null, statusAt: null } : {}),
     updatedAt: new Date(),
   }).where(eq(schema.sites.id, site.id))

@@ -97,6 +97,29 @@ export interface CmsStatus {
     /** Where today's visits are read live with the status token (`/api/content/_analytics/live`); absent before tinyzoo 1.6. */
     livePath?: string
   }
+  /** The client's brand as the site's admin shows it (`cms.admin`); absent before tinyzoo 1.9. */
+  brand?: CmsStatusBrand
+}
+
+/**
+ * The client's name, colour and logos. Logo addresses are as the site gave them: a path on the
+ * site (`/brand/mark.svg`, from the site's address) or an `https://` URL; `null` when not set.
+ */
+export interface CmsStatusBrand {
+  /** The client's name in the admin's language (`cms.admin.name`); `tinyzoo` when not set. */
+  name: string
+  /** The brand colour (`#rrggbb`), or null for one of tinyzoo's own accents. */
+  accent: string | null
+  /** The full logo (wide, with the name). */
+  full: string | null
+  /** The full logo for dark backgrounds; null when the site has none of its own. */
+  fullDark: string | null
+  /** The square mark. */
+  mark: string | null
+  /** The mark for dark backgrounds; null when the site has none of its own. */
+  markDark: string | null
+  /** A 180 px square PNG of the mark on white (the admin's home-screen icon), relative to the site; null without a mark. */
+  icon: string | null
 }
 
 export interface CmsStatusCollection {

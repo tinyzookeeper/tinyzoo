@@ -72,7 +72,7 @@ const behind = computed(() => groups.value.filter((g) => g.outdated).reduce((n, 
           </h2>
           <ul class="k-card divide-y divide-(--ui-border-muted)">
             <li v-for="site in g.sites" :key="site.id" class="relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-elevated/40">
-              <SiteAnimal :id="site.id" :state="site.state" size="sm" />
+              <SiteAnimal :id="site.id" :state="site.state" :logo="site.logo" size="sm" />
               <div class="min-w-0 flex-1">
                 <NuxtLink :to="siteLink(site)" class="block truncate text-sm font-medium text-highlighted after:absolute after:inset-0">{{ site.name }}</NuxtLink>
                 <p class="truncate text-xs text-muted"><template v-if="siteLine?.(site)">{{ siteLine(site) }} · </template><span class="font-mono">{{ hostOf(site.url) }}</span></p>

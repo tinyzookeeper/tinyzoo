@@ -30,6 +30,8 @@ async function save() {
   }
 }
 
+const logoChanged = () => Promise.all([refresh(), refreshMe()])
+
 const deleteOpen = ref(false)
 const confirmName = ref('')
 const deleting = ref(false)
@@ -74,6 +76,11 @@ async function remove() {
         <div><dt class="text-muted">Your role</dt><dd class="text-highlighted">{{ ROLE_LABELS[ws.role] }}</dd></div>
         <p class="text-xs text-muted">Only an owner or admin can change these.</p>
       </dl>
+    </InfoCard>
+
+    <InfoCard title="Logo">
+      <LogoPicker :origin="ws" :name="ws.name" kind="workspace" :endpoint="`/api/w/${wsSlug}/logo`" :can-edit="isManager" @changed="logoChanged" />
+      <p v-if="!isManager" class="mt-3 text-xs text-muted">Only an owner or admin can change it.</p>
     </InfoCard>
 
     <InfoCard v-if="ws.role === 'owner'" title="Delete workspace">

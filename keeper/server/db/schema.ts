@@ -1,9 +1,25 @@
 import { sql } from 'drizzle-orm'
-import { bigint, bigserial, boolean, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
+import { bigint, bigserial, boolean, customType, date, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import type { CmsStatus } from '../../shared/types/status'
 import type { TrafficDrop, TrafficItem } from '../../shared/types/traffic'
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date', precision: 3 })
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' })
+
+/**
+ * The logos Keeper shows (sites, teams, workspaces), kept by their content: `hash` is the bytes'
+ * SHA-256, so the same picture is stored once and its address never changes. A row nothing points
+ * at any more is removed when a logo is replaced (logos.ts).
+ */
+export const logos = pgTable('logos', {
+  hash: text('hash').primaryKey(),
+  // The picture's type, as Keeper read it from the bytes (image/png, image/svg+xml, …).
+  type: text('type').notNull(),
+  bytes: bytea('bytes').notNull(),
+  // fill: a square icon that covers its tile (a home-screen icon, opaque); pad: a logo on a white tile.
+  fit: text('fit').$type<'fill' | 'pad'>().notNull().default('pad'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+})
 
 /**
  * A workspace (Postyard's model): a company, or one client. It holds teams, a team holds
@@ -17,6 +33,8 @@ export const workspaces = pgTable('workspaces', {
   slug: text('slug').notNull(),
   // Who looks after the sites, as guests read it ("looked after by Jagu"); '' = the workspace's name.
   signature: text('signature').notNull().default(''),
+  // An uploaded logo (logos.hash); null = the default team's (logos.ts).
+  logoHash: text('logo_hash'),
   // Who gets the down/up e-mails; empty = every member.
   alertEmails: jsonb('alert_emails').$type<string[]>().notNull().default([]),
   createdAt: ts('created_at').notNull().defaultNow(),
@@ -60,6 +78,8 @@ export const teams = pgTable('teams', {
   // The team's part of /w/<workspace>/t/<slug>: unique in the workspace, made once from the name.
   slug: text('slug').notNull(),
   isDefault: boolean('is_default').notNull().default(false),
+  // An uploaded logo (logos.hash); null = its sites' (logos.ts).
+  logoHash: text('logo_hash'),
   createdAt: ts('created_at').notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('teams_workspace_slug_unique').on(t.workspaceId, t.slug),
@@ -144,6 +164,11 @@ export const sites = pgTable('sites', {
   trafficThrough: date('traffic_through'),
   // The drop the team was told about (once per drop); null while visits are as usual.
   trafficDrop: jsonb('traffic_drop').$type<TrafficDrop>(),
+  // The site's logo (logos.hash), read from the site itself: its status's brand icon, else the
+  // icons its home page names (logos.ts). Where it came from, and when Keeper last looked.
+  logoHash: text('logo_hash'),
+  logoSource: text('logo_source'),
+  logoCheckedAt: ts('logo_checked_at'),
 }, (t) => [index('sites_workspace_idx').on(t.workspaceId), index('sites_team_idx').on(t.teamId)])
 
 /** One uptime check: GET /api/health/ready. */
