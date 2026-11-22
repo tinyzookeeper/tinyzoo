@@ -16,7 +16,7 @@
  */
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { extname, join, relative, sep } from 'node:path'
 import { imageSize } from 'image-size'
 import { CMS_IMAGE_WIDTHS } from '../shared/image-widths'
@@ -99,6 +99,12 @@ export async function prepareStaticImages(publicDir: string, outDir: string, log
     // The address a page writes: `/` and forward slashes, whatever the OS.
     const path = '/' + relative(publicDir, file).split(sep).join('/')
     manifest[path] = { h, width, height, w: widths }
+  }
+  // Copies of pictures that changed or went away since an earlier build: the whole folder is
+  // published, so what no picture uses any more is removed (along with a half-written copy).
+  const used = new Set(Object.values(manifest).map((m) => m.h))
+  for (const entry of await readdir(outDir, { withFileTypes: true }).catch(() => [])) {
+    if (!entry.isDirectory() || !used.has(entry.name)) await rm(join(outDir, entry.name), { recursive: true, force: true })
   }
   if (made) log(`made the smaller copies of ${made} picture${made === 1 ? '' : 's'} in public/`)
   return manifest

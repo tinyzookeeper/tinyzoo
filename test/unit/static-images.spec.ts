@@ -55,6 +55,20 @@ describe('copies made at build', () => {
     expect(statSync(file).mtimeMs).toBe(before)
   })
 
+  it('removes the copies of a picture that changed, so a build never ships its old version', async () => {
+    const file = join(publicDir(), 'img', 'changing.jpg')
+    writeFileSync(file, await sharp({ create: { width: 700, height: 400, channels: 3, background: '#111' } }).jpeg().toBuffer())
+    const first = (await prepareStaticImages(publicDir(), outDir()))['/img/changing.jpg']!.h
+    writeFileSync(file, await sharp({ create: { width: 700, height: 400, channels: 3, background: '#eee' } }).jpeg().toBuffer())
+    const second = (await prepareStaticImages(publicDir(), outDir()))['/img/changing.jpg']!.h
+    expect(second).not.toBe(first) // new contents, new addresses
+    expect(readdirSync(outDir())).toContain(second)
+    expect(readdirSync(outDir())).not.toContain(first)
+    rmSync(file)
+    await prepareStaticImages(publicDir(), outDir())
+    expect(readdirSync(outDir())).not.toContain(second)
+  })
+
   it('has no copies for a picture no wider than the smallest width', () => {
     expect(staticImageWidths(320)).toEqual([320])
     expect(staticImageWidths(700)).toEqual([320, 480, 640, 700])
