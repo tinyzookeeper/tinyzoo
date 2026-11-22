@@ -1,5 +1,6 @@
 import tls from 'node:tls'
 import { and, eq, isNull, lt, sql } from 'drizzle-orm'
+import { memoryHint, restartedWithoutDeploy } from '#keeper/restarts'
 import type { CmsStatus } from '#keeper/types/status'
 
 /**
@@ -152,7 +153,17 @@ export async function checkSite(siteId: string, opts: { forceStatus?: boolean; f
   const due = !site.statusAt || now.getTime() - site.statusAt.getTime() >= statusEveryMin * 60_000 - 5_000
   if (token && (opts.forceStatus || due || redeployed)) {
     const s = await probeStatus(site.url, token)
-    if ('status' in s) Object.assign(patch, { status: s.status, statusAt: now, statusError: null })
+    if ('status' in s) {
+      // The build this status goes with: a later status with a new instance but the same build
+      // is a restart without a deploy (shared/restarts.ts). Unknown when the build could not be read now.
+      const build = patch.buildId ?? null
+      Object.assign(patch, { status: s.status, statusAt: now, statusError: null, statusBuildId: build })
+      const restarted = restartedWithoutDeploy(
+        { startedAt: site.status?.instance?.startedAt, build: site.statusBuildId, at: site.statusAt },
+        { startedAt: s.status.instance?.startedAt, build },
+      )
+      if (restarted) await recordRestart(site, s.status, now, patch)
+    }
     else patch.statusError = s.error
   }
   else if (site.tokenEnc && !token) {
@@ -165,6 +176,24 @@ export async function checkSite(siteId: string, opts: { forceStatus?: boolean; f
 
   // Visits, about once an hour, for a site whose status lists the analytics plugin (traffic.ts).
   await checkTraffic(siteId, token, { force: opts.forceTraffic }).catch((err: any) => console.error('[keeper] traffic failed', err?.message ?? err))
+}
+
+/**
+ * The site's instance started again without a deploy: write it down, with the memory the status
+ * before it reported (the last thing known), and tell the team, at most once a day per site.
+ */
+async function recordRestart(site: SiteRow, status: CmsStatus, now: Date, patch: Partial<SiteRow>): Promise<void> {
+  const before = site.status?.instance?.memory
+  const startedAt = new Date(status.instance.startedAt)
+  await useDb().insert(schema.siteRestarts).values({ siteId: site.id, at: startedAt, memoryPeak: before?.peak ?? null, memoryLimit: before?.limit ?? null })
+  if (site.restartAlertedAt && now.getTime() - site.restartAlertedAt.getTime() < 86_400_000) return
+  patch.restartAlertedAt = now
+  const hint = memoryHint(before?.peak, before?.limit)
+  const time = startedAt.toISOString().slice(11, 16)
+  await alertTeam(site, 'restart', `${site.name} restarted without a deploy`,
+    `${site.name} (${site.url}) started again at ${time} UTC, though nothing new was deployed${hint ? `. Just before, its ${hint}` : ''}. It answers again.\n\n`
+    + `A restart like this is a crash, the host stopping it for using more memory than it may, or the host moving it to another machine. `
+    + `If it happens again, look at the site's logs and memory. Keeper tells you at most once a day per site.`)
 }
 
 /** Read one site's certificate and warn the team once when it expires within 14 days. */
@@ -230,6 +259,7 @@ export async function runDaily(): Promise<void> {
     await eachLimited(all, 4, (s) => checkCertificate(s))
     const cutoff = new Date(Date.now() - settings().keepDays * 86_400_000)
     await db.delete(schema.checks).where(lt(schema.checks.at, cutoff))
+    await db.delete(schema.siteRestarts).where(lt(schema.siteRestarts.at, cutoff))
     await pruneTraffic()
     await pruneLogos()
   })

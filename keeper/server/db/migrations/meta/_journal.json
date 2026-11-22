@@ -85,6 +85,13 @@
       "when": 1795349772581,
       "tag": "0011_logos",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1795375503296,
+      "tag": "0012_restarts",
+      "breakpoints": true
     }
   ]
 }

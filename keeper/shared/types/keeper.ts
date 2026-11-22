@@ -1,6 +1,7 @@
 import type { CmsStatus } from './status'
 import type { TrafficGlance } from './traffic'
 import type { LogoRef } from '../logo'
+import type { MemoryGlance } from '../restarts'
 
 export type { CmsStatus }
 export type { LogoRef }
@@ -64,6 +65,20 @@ export interface SiteSummary extends SiteScope {
   traffic: TrafficGlance | null
   /** Why its visits could not be read last time (a site that counts them), or null. */
   trafficError: string | null
+  /** Times its instance started again without a deploy in the last 24 hours. */
+  restarts24h: number
+  /** The newest of them, and what memory was at before it when that was near the limit ("memory was at 243 of 256 MB"). */
+  lastRestart: { at: string; hint: string | null } | null
+  /** Its memory from the last status (tinyzoo 1.10+), or null. */
+  memory: MemoryGlance | null
+}
+
+/** One restart without a deploy, with the memory the status before it reported (bytes). */
+export interface SiteRestart {
+  at: string
+  memoryPeak: number | null
+  memoryLimit: number | null
+  hint: string | null
 }
 
 export interface OverviewResponse {
@@ -100,6 +115,8 @@ export interface SiteDetail extends SiteSummary {
   /** The oldest check Keeper still keeps (it keeps 90 days), or null before the first one. */
   firstCheckAt: string | null
   latest: string | null
+  /** Its restarts without a deploy in the last 24 hours, newest first. */
+  restarts: SiteRestart[]
 }
 
 /** What the add and edit forms send. `token` left out keeps the stored one; '' removes it. */

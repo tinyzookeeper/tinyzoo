@@ -86,6 +86,8 @@ const needs = computed<Need[]>(() => {
       out.push({ site: s, tone: 'warning', title: `${s.name}: visitors down by ${fell} %`, detail: `${d.perDay} a day over the last 7 days, usually ${d.baselinePerDay}`, action: { label: 'Look', to: link(`/sites/${s.id}#traffic`) } })
     }
     if (s.errors24h > 0) out.push({ site: s, tone: 'neutral', title: `${s.name}: ${s.errors24h} server error${s.errors24h === 1 ? '' : 's'}`, detail: 'Reported by the site in the last 24 hours', action: { label: 'Look', to: link(`/sites/${s.id}`) } })
+    if (s.restarts24h > 0) out.push({ site: s, tone: 'warning', title: `${s.name}: restarted ${s.restarts24h === 1 ? 'once' : `${s.restarts24h} times`} without a deploy`, detail: s.lastRestart?.hint ? `In the last 24 hours; before the last one, its ${s.lastRestart.hint}` : 'In the last 24 hours', action: { label: 'Look', to: link(`/sites/${s.id}`) } })
+    else if (s.memory?.percent != null && s.memory.percent >= 80) out.push({ site: s, tone: 'neutral', title: `${s.name}: memory at ${s.memory.percent} % of its limit`, detail: 'The host stops a site that goes over it', action: { label: 'Look', to: link(`/sites/${s.id}`) } })
   }
   const rank = { error: 0, warning: 1, neutral: 2 }
   return out.sort((a, b) => rank[a.tone] - rank[b.tone])
