@@ -1,5 +1,6 @@
 import { and, desc, eq, gte, inArray, or, isNull } from 'drizzle-orm'
 import type { GuestGlance } from '#keeper/types/keeper'
+import { logoRef } from '#keeper/logo'
 
 // The guest view of a workspace: the sites of my teams in plain words (up or down, outages in
 // 30 days, visitors, speed, certificate) and who looks after them. Nothing a client should not
@@ -10,7 +11,7 @@ export default defineEventHandler(async (event): Promise<GuestGlance> => {
   const db = useDb()
   const ids = rows.map((r) => r.id)
   const since = new Date(Date.now() - 30 * 86_400_000)
-  const [uptime, traffic, incidents, ws, teams] = await Promise.all([
+  const [uptime, traffic, incidents, ws, teams, logos] = await Promise.all([
     uptimeFor(ids),
     trafficGlances(rows),
     ids.length
@@ -20,10 +21,11 @@ export default defineEventHandler(async (event): Promise<GuestGlance> => {
       : [],
     db.select({ name: schema.workspaces.name, signature: schema.workspaces.signature }).from(schema.workspaces).where(eq(schema.workspaces.id, m.workspaceId)),
     m.teamIds.length ? db.select({ name: schema.teams.name }).from(schema.teams).where(inArray(schema.teams.id, m.teamIds)).orderBy(schema.teams.name) : [],
+    logosOf([m.workspaceId]),
   ])
   const now = Date.now()
   return {
-    workspace: { name: ws[0]?.name ?? m.name, signature: ws[0]?.signature ?? '' },
+    workspace: { name: ws[0]?.name ?? m.name, signature: ws[0]?.signature ?? '', logo: logos.workspaces.get(m.workspaceId)?.logo ?? null },
     teams: teams.map((t) => t.name),
     sites: rows.map((r) => {
       const own = incidents.filter((i) => i.siteId === r.id)
@@ -34,6 +36,7 @@ export default defineEventHandler(async (event): Promise<GuestGlance> => {
         id: r.id,
         name: r.name,
         url: r.url,
+        logo: r.logoFit ? logoRef(r.logoHash, r.logoFit) : null,
         environment: r.environment,
         state: r.state,
         stateSince: r.stateSince?.toISOString() ?? null,

@@ -140,7 +140,9 @@ const initial = (name: string) => name.trim().charAt(0).toUpperCase()
       <template v-for="g in [...loud, ...(quietOpen ? quiet : [])]" :key="g.ws.id">
         <section class="k-card overflow-hidden">
           <NuxtLink :to="`/w/${g.ws.slug}/t/all`" class="flex items-center gap-3 border-b border-(--ui-border-muted) bg-(--ui-bg-muted) px-4 py-2.5 hover:bg-elevated">
-            <span class="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-(--k-moment-strong) text-[11px] font-semibold text-highlighted">{{ initial(g.ws.name) }}</span>
+            <KLogo :logo="g.ws.logo" class="size-6 rounded-md">
+              <span class="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-(--k-moment-strong) text-[11px] font-semibold text-highlighted">{{ initial(g.ws.name) }}</span>
+            </KLogo>
             <span class="min-w-0 flex-1 truncate text-sm font-semibold text-highlighted">{{ g.ws.name }}</span>
             <UBadge v-if="g.down" :label="`${g.down} down`" color="error" variant="soft" size="sm" class="shrink-0" />
             <UBadge v-if="g.behind" :label="`${g.behind} behind`" color="warning" variant="soft" size="sm" class="shrink-0" />
@@ -150,7 +152,7 @@ const initial = (name: string) => name.trim().charAt(0).toUpperCase()
           </NuxtLink>
           <ul v-if="g.sites.length" class="divide-y divide-(--ui-border-muted)">
             <li v-for="s in g.sites" :key="s.id" class="relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-elevated/40 sm:gap-4">
-              <SiteAnimal :id="s.id" :state="s.state" size="sm" />
+              <SiteAnimal :id="s.id" :state="s.state" :logo="s.logo" size="sm" />
               <div class="min-w-0 flex-1">
                 <div class="flex min-w-0 items-center gap-2">
                   <NuxtLink :to="siteLink(s)" class="truncate text-sm font-medium text-highlighted after:absolute after:inset-0">{{ s.name }}</NuxtLink>

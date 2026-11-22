@@ -1,7 +1,19 @@
 import type { CmsStatus } from './status'
 import type { TrafficGlance } from './traffic'
+import type { LogoRef } from '../logo'
 
 export type { CmsStatus }
+export type { LogoRef }
+
+/** Where a team's or workspace's logo comes from: its own upload, or borrowed from a site or a team (by name). */
+export interface LogoOrigin {
+  /** The logo it shows, or null (then its initials). */
+  logo: LogoRef | null
+  /** It shows its own upload. */
+  ownLogo: boolean
+  /** Borrowed: the site or team it comes from; null for its own upload or none. */
+  logoFrom: { kind: 'site' | 'team'; name: string } | null
+}
 
 /**
  * A person's role in a workspace. owner: everything, the only one who makes or removes owners.
@@ -24,6 +36,8 @@ export interface SiteSummary extends SiteScope {
   id: string
   name: string
   url: string
+  /** The site's logo, read from the site (its brand icon, else its home page's icons); null: its animal. */
+  logo: LogoRef | null
   environment: 'production' | 'staging'
   state: SiteState
   stateSince: string | null
@@ -122,7 +136,7 @@ export interface Member {
 }
 
 /** A team in Settings → Teams. */
-export interface Team {
+export interface Team extends LogoOrigin {
   id: string
   name: string
   slug: string
@@ -134,7 +148,7 @@ export interface Team {
 }
 
 /** A workspace's settings (General and Alerts). */
-export interface WorkspaceSettings {
+export interface WorkspaceSettings extends LogoOrigin {
   id: string
   slug: string
   name: string
@@ -159,6 +173,8 @@ export interface MeTeam extends Health {
   id: string
   slug: string
   name: string
+  /** Its logo (its own, else its sites'), or null. */
+  logo: LogoRef | null
   isDefault: boolean
   /** I lead this team. */
   lead: boolean
@@ -168,6 +184,8 @@ export interface MeWorkspace extends Health {
   id: string
   slug: string
   name: string
+  /** Its logo (its own, else its default team's), or null. */
+  logo: LogoRef | null
   /** Who looks after the sites, as guests read it ('' = the name). */
   signature: string
   role: WorkspaceRole
@@ -264,6 +282,7 @@ export interface GuestSite {
   id: string
   name: string
   url: string
+  logo: LogoRef | null
   environment: 'production' | 'staging'
   state: SiteState
   stateSince: string | null
@@ -280,7 +299,7 @@ export interface GuestSite {
 
 /** GET /api/w/:ws/glance — the guest view of a workspace: the sites of my teams, and who looks after them. */
 export interface GuestGlance {
-  workspace: { name: string; signature: string }
+  workspace: { name: string; signature: string; logo: LogoRef | null }
   /** The teams I see, by name (one for most guests). */
   teams: string[]
   sites: GuestSite[]

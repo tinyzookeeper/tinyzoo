@@ -8,7 +8,9 @@ export default defineEventHandler(async (event): Promise<WorkspaceSettings> => {
     signature: schema.workspaces.signature,
     sites: sql<number>`(select count(*)::int from "sites" s where s."workspace_id" = "workspaces"."id")`,
   }).from(schema.workspaces).where(eq(schema.workspaces.id, m.workspaceId))
+  const logos = await logosOf([m.workspaceId])
   return {
+    ...logoOrigin(logos.workspaces.get(m.workspaceId)),
     id: m.workspaceId,
     slug: m.slug,
     name: m.name,

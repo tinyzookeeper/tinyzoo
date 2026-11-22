@@ -1,6 +1,7 @@
 import { and, gte, inArray, lte } from 'drizzle-orm'
 import type { ScopeTraffic, ScopeTrafficPage, ScopeTrafficSite, TrafficItem, TrafficTotals } from '#keeper/types/traffic'
 import type { SiteRow } from './sites'
+import { logoRef } from '#keeper/logo'
 
 /**
  * The visits of many sites at once: a workspace, a team, or every workspace someone works in.
@@ -12,7 +13,7 @@ import type { SiteRow } from './sites'
 export type TrafficPeriod = ScopeTraffic['period']
 export const isTrafficPeriod = (v: unknown): v is TrafficPeriod => v === 'today' || v === '7' || v === '30' || v === '90'
 
-type Row = Pick<SiteRow, 'id' | 'name' | 'url' | 'status' | 'tokenEnc' | 'trafficThrough' | 'trafficCheckedAt' | 'trafficError' | 'trafficDrop'> & {
+type Row = Pick<SiteRow, 'id' | 'name' | 'url' | 'status' | 'tokenEnc' | 'trafficThrough' | 'trafficCheckedAt' | 'trafficError' | 'trafficDrop' | 'logoHash' | 'logoFit'> & {
   workspace: { slug: string; name: string }
   team: { slug: string; name: string }
 }
@@ -40,6 +41,7 @@ function siteLine(s: Row, extra: Partial<ScopeTrafficSite> = {}): ScopeTrafficSi
     id: s.id,
     name: s.name,
     url: s.url,
+    logo: s.logoFit ? logoRef(s.logoHash, s.logoFit) : null,
     workspace: { slug: s.workspace.slug, name: s.workspace.name },
     team: { slug: s.team.slug, name: s.team.name },
     available: hasAnalytics(s.status),

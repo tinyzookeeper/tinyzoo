@@ -19,10 +19,12 @@ const teamInitials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0
       :class="[collapsed && 'justify-center border-0 px-0', open && 'bg-elevated']"
       :aria-label="`Team: ${team?.name ?? 'All teams'}. Switch team`"
     >
-      <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-(--k-moment-strong) text-[10px] font-semibold text-highlighted">
-        <UIcon v-if="!team" name="i-lucide-layers" class="size-3.5" />
-        <template v-else>{{ teamInitials(team.name) }}</template>
-      </span>
+      <KLogo :logo="team?.logo" class="size-5 rounded-md">
+        <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-(--k-moment-strong) text-[10px] font-semibold text-highlighted">
+          <UIcon v-if="!team" name="i-lucide-layers" class="size-3.5" />
+          <template v-else>{{ teamInitials(team.name) }}</template>
+        </span>
+      </KLogo>
       <template v-if="!collapsed">
         <span class="min-w-0 flex-1 truncate font-medium text-highlighted">{{ team?.name ?? 'All teams' }}</span>
         <UIcon name="i-lucide-chevrons-up-down" class="size-3.5 shrink-0 text-dimmed" />
@@ -49,7 +51,9 @@ const teamInitials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0
         :class="t.id === team?.id && 'bg-elevated font-medium'"
         @click="go(swap(workspace.slug, t.slug))"
       >
-        <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-(--k-moment-strong) text-[10px] font-semibold">{{ teamInitials(t.name) }}</span>
+        <KLogo :logo="t.logo" class="size-5 rounded-md">
+          <span class="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-(--k-moment-strong) text-[10px] font-semibold">{{ teamInitials(t.name) }}</span>
+        </KLogo>
         <span class="min-w-0 flex-1 truncate text-left">{{ t.name }}</span>
         <HealthDot v-if="t.down || t.behind" :health="t" />
         <span class="text-xs text-dimmed tabular-nums">{{ t.sites }}</span>

@@ -6,7 +6,7 @@ import type { CmsStatus } from '#keeper/types/status'
  * The checks. Every minute each site's GET /api/health/ready (uptime and response time);
  * every few minutes its GET /api/health/status with the stored token (versions, counts), and at
  * once when the site serves a new build (a deploy); about hourly its visits, when it counts them
- * (traffic.ts); twice a day its TLS certificate. A site is down after `checks.downAfter` failures in a
+ * (traffic.ts); once a day its logo (logos.ts); twice a day its TLS certificate. A site is down after `checks.downAfter` failures in a
  * row, which opens an incident and e-mails the team; the first success closes it.
  */
 
@@ -160,6 +160,9 @@ export async function checkSite(siteId: string, opts: { forceStatus?: boolean; f
   }
   await db.update(schema.sites).set(patch).where(eq(schema.sites.id, siteId))
 
+  // The site's logo: when its brand icon changed, else once a day (logos.ts). Only while it answers.
+  if (r.ok) await refreshSiteLogo(site, patch.status ?? site.status).catch((err: any) => console.error('[keeper] logo failed', err?.message ?? err))
+
   // Visits, about once an hour, for a site whose status lists the analytics plugin (traffic.ts).
   await checkTraffic(siteId, token, { force: opts.forceTraffic }).catch((err: any) => console.error('[keeper] traffic failed', err?.message ?? err))
 }
@@ -228,6 +231,7 @@ export async function runDaily(): Promise<void> {
     const cutoff = new Date(Date.now() - settings().keepDays * 86_400_000)
     await db.delete(schema.checks).where(lt(schema.checks.at, cutoff))
     await pruneTraffic()
+    await pruneLogos()
   })
 }
 

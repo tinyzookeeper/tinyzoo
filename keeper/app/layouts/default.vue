@@ -77,8 +77,14 @@ const menu = computed<DropdownMenuItem[][]>(() => [
         <template v-if="(teamItems.length || workspaceItems.length) && !collapsed">
           <p class="mt-4 px-2.5 text-xs font-medium text-muted">{{ everywhere ? 'Workspaces' : 'Teams' }}</p>
           <UNavigationMenu :items="everywhere ? workspaceItems : teamItems" orientation="vertical">
+            <!-- Its logo with its health as a dot in the corner; without a logo, the dot alone. -->
             <template #team-leading="{ item }">
-              <HealthDot :health="(item as any).health" class="mx-1" />
+              <span class="relative inline-flex size-5 shrink-0 items-center justify-center">
+                <KLogo :logo="(item as any).health.logo" class="size-5 rounded-md">
+                  <HealthDot :health="(item as any).health" />
+                </KLogo>
+                <HealthDot v-if="(item as any).health.logo" :health="(item as any).health" class="absolute -right-1 -bottom-1 ring-2! ring-(--ui-bg)!" />
+              </span>
             </template>
           </UNavigationMenu>
         </template>

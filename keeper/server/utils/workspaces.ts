@@ -1,8 +1,9 @@
 import { and, eq, inArray, ne, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import { RESERVED_TEAM_SLUGS, slugify } from '#keeper/slug'
-import type { Member, MeResponse, Team } from '#keeper/types/keeper'
+import type { LogoOrigin, Member, MeResponse, Team } from '#keeper/types/keeper'
 import type { WorkspaceRole } from '../db/schema'
+import type { ShownLogo } from './logos'
 
 // Workspaces, teams and their people: Postyard's model. Workspace › team › site.
 
@@ -36,6 +37,11 @@ export async function createWorkspace(db: DbLike, userId: string, name: string):
   await db.insert(schema.workspaceMembers).values({ workspaceId: ws!.id, userId, role: 'owner' })
   await db.insert(schema.teams).values({ workspaceId: ws!.id, name: 'General', slug: 'general', isDefault: true })
   return ws!
+}
+
+/** A team's or workspace's logo as its settings show it: its own, borrowed, or none. */
+export function logoOrigin(shown: ShownLogo | undefined): LogoOrigin {
+  return { logo: shown?.logo ?? null, ownLogo: !!shown && !shown.from, logoFrom: shown?.from ?? null }
 }
 
 /** A name already taken in the workspace (any case) is a 409 with a plain message. */
@@ -106,11 +112,15 @@ export async function listTeams(m: Membership): Promise<Team[]> {
     // Written out: inside a subquery drizzle leaves columns unqualified.
     sites: sql<number>`(select count(*)::int from "sites" s where s."team_id" = "teams"."id")`,
   }).from(schema.teams).where(inArray(schema.teams.id, m.teamIds)).orderBy(sql`${schema.teams.isDefault} desc`, sql`lower(${schema.teams.name})`)
-  const people = await db.select({ teamId: schema.teamMembers.teamId, userId: schema.users.id, name: schema.users.name, email: schema.users.email, role: schema.teamMembers.role })
-    .from(schema.teamMembers).innerJoin(schema.users, eq(schema.users.id, schema.teamMembers.userId))
-    .where(inArray(schema.teamMembers.teamId, m.teamIds))
+  const [people, logos] = await Promise.all([
+    db.select({ teamId: schema.teamMembers.teamId, userId: schema.users.id, name: schema.users.name, email: schema.users.email, role: schema.teamMembers.role })
+      .from(schema.teamMembers).innerJoin(schema.users, eq(schema.users.id, schema.teamMembers.userId))
+      .where(inArray(schema.teamMembers.teamId, m.teamIds)),
+    logosOf([m.workspaceId]),
+  ])
   return rows.map((t) => ({
     ...t,
+    ...logoOrigin(logos.teams.get(t.id)),
     people: people.filter((p) => p.teamId === t.id).map(({ teamId: _t, ...p }) => p),
     canManage: isManager(m) || m.leadTeamIds.includes(t.id),
   }))
@@ -188,7 +198,7 @@ export async function meResponse(user: { id: string; name: string; email: string
     ? new Map((await db.select({ id: schema.workspaces.id, signature: schema.workspaces.signature }).from(schema.workspaces)
         .where(inArray(schema.workspaces.id, access.memberships.map((m) => m.workspaceId)))).map((w) => [w.id, w.signature]))
     : new Map<string, string>()
-  const [teams, sites, latest] = await Promise.all([
+  const [teams, sites, latest, logos] = await Promise.all([
     ids.length
       ? db.select({ id: schema.teams.id, workspaceId: schema.teams.workspaceId, name: schema.teams.name, slug: schema.teams.slug, isDefault: schema.teams.isDefault })
         .from(schema.teams).where(inArray(schema.teams.id, ids)).orderBy(sql`${schema.teams.isDefault} desc`, sql`lower(${schema.teams.name})`)
@@ -197,6 +207,7 @@ export async function meResponse(user: { id: string; name: string; email: string
       ? db.select({ teamId: schema.sites.teamId, state: schema.sites.state, version: sql<string | null>`${schema.sites.status}->>'tinyzoo'` }).from(schema.sites).where(inArray(schema.sites.teamId, ids))
       : [],
     latestRelease(),
+    logosOf(access.memberships.map((m) => m.workspaceId)),
   ])
   const health = (teamIds: string[]) => {
     const own = sites.filter((s) => teamIds.includes(s.teamId))
@@ -214,10 +225,11 @@ export async function meResponse(user: { id: string; name: string; email: string
         id: m.workspaceId,
         slug: m.slug,
         name: m.name,
+        logo: logos.workspaces.get(m.workspaceId)?.logo ?? null,
         signature: signatures.get(m.workspaceId) ?? '',
         role: m.role,
         ...health(own.map((t) => t.id)),
-        teams: own.map((t) => ({ id: t.id, slug: t.slug, name: t.name, isDefault: t.isDefault, lead: m.leadTeamIds.includes(t.id), ...health([t.id]) })),
+        teams: own.map((t) => ({ id: t.id, slug: t.slug, name: t.name, logo: logos.teams.get(t.id)?.logo ?? null, isDefault: t.isDefault, lead: m.leadTeamIds.includes(t.id), ...health([t.id]) })),
       }
     }),
   }

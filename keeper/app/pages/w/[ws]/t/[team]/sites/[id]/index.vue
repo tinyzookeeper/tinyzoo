@@ -133,7 +133,10 @@ const collections = computed(() => [...(s.value?.content.collections ?? [])].sor
           </div>
           <p class="k-moment__muted mt-3 text-xs">Last checked {{ timeAgo(site.lastCheckAt, now) }}</p>
         </div>
-        <KAnimal :seed="site.id" class="absolute top-5 right-4 h-12 w-auto shrink-0 sm:static sm:h-28" />
+        <!-- The site's own logo, read from the site; else its animal. -->
+        <KLogo :logo="site.logo" class="absolute top-5 right-4 size-12 rounded-xl sm:static sm:size-24 sm:rounded-2xl">
+          <KAnimal :seed="site.id" class="absolute top-5 right-4 h-12 w-auto shrink-0 sm:static sm:h-28" />
+        </KLogo>
       </section>
 
       <!-- Status missing: how to fix it. -->

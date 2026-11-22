@@ -4,6 +4,8 @@
  * keys are only added within version 1.
  */
 
+import type { LogoRef } from '../logo'
+
 /** A value of a top list (a page, a source, a country, a device) on a day or over a period. */
 export interface TrafficItem {
   value: string
@@ -162,6 +164,8 @@ export interface ScopeTrafficSite {
   id: string
   name: string
   url: string
+  /** The site's logo (SiteSummary.logo). */
+  logo: LogoRef | null
   workspace: { slug: string; name: string }
   team: { slug: string; name: string }
   /** The site counts visits. */
