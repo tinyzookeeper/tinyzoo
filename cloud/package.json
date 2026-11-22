@@ -1,0 +1,37 @@
+{
+  "name": "tinyzoo-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "tinyzoo's hosted sign-up: pick a template, name your site, get a running tinyzoo site with an admin of your own.",
+  "scripts": {
+    "dev": "nuxt dev --port 3200",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "typecheck": "nuxt typecheck",
+    "db:generate": "drizzle-kit generate",
+    "templates:build": "node scripts/build-templates.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "walkthrough": "node scripts/walkthrough.mjs"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.114",
+    "@nuxt/fonts": "1.2.0",
+    "@nuxt/ui": "^4.0.0",
+    "drizzle-orm": "^0.45.4",
+    "nodemailer": "^10.6.0",
+    "nuxt": "^4.6.4",
+    "nuxt-auth-utils": "^0.6.2",
+    "pg": "^8.16.3",
+    "tailwindcss": "^4.3.1",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.11",
+    "playwright": "1.65.1",
+    "typescript": "^5.7.0",
+    "vue-tsc": "^3.3.14"
+  }
+}

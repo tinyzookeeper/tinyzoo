@@ -13,7 +13,7 @@ import { repoRoot } from './database'
  * each app that lacks them, all at once, as test/setup/build-playground.mjs does for the playground.
  * A developer's existing `.nuxt` is left alone.
  */
-const apps = ['packages/cms/starter', 'playground', 'site', 'keeper']
+const apps = ['packages/cms/starter', 'playground', 'site', 'keeper', 'cloud']
 
 function prepare(dir: string): Promise<void> {
   return new Promise((resolve, reject) => {

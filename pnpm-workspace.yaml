@@ -3,6 +3,7 @@ packages:
   - packages/cms/starter
   - site
   - keeper
+  - cloud
   - playground
 
 # One copy of the editor stack: collaborative editing breaks when two ProseMirror
