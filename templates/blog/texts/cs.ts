@@ -140,7 +140,7 @@ export const words: Words = {
   partOf: (series, n, title) => `${series}, díl ${n}: ${title}`,
   readPart: (n) => `Číst ${ordinals[n - 1] ?? `${n}.`} díl`,
   newPart: 'nový',
-  comesOut: (date) => `vyjde ${date}`.replace(/ /g, nbsp),
+  comesOut: (date) => `vyjde ${date.replace(/ /g, nbsp)}`,
   allParts: 'Všechny díly', previousPart: 'Předchozí díl', nextPart: 'Další díl',
   months: ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'],
   emailPlaceholder: 'jmeno@email.example',
