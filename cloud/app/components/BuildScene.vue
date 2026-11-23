@@ -34,7 +34,8 @@ let timer: ReturnType<typeof setInterval> | null = null
 let finish: ReturnType<typeof setTimeout> | null = null
 
 function tick() {
-  const now = Date.now()
+  // (a clock that only counts forward: the pace does not depend on the wall clock)
+  const now = performance.now()
   if (shown.value > real.value) { shown.value = real.value; last = now; return }
   if (shown.value === real.value) return
   // Starting a step is quick to show; finishing one is given time to be seen.
@@ -44,7 +45,7 @@ function tick() {
   last = now
 }
 onMounted(() => {
-  last = Date.now() - 200
+  last = performance.now() - 200
   timer = setInterval(tick, 80)
 })
 onBeforeUnmount(() => { if (timer) clearInterval(timer); if (finish) clearTimeout(finish) })

@@ -31,6 +31,7 @@
         "id": "basic",
         "wordmark": {
           "anchor": "left",
+          "italicLast": false,
           "x": 264,
           "y": 38,
           "maxWidth": 517,
@@ -208,6 +209,7 @@
         "id": "atelier",
         "wordmark": {
           "anchor": "center",
+          "italicLast": true,
           "x": 720,
           "y": 44.6,
           "maxWidth": 477,
@@ -254,6 +256,7 @@
         "id": "negativ",
         "wordmark": {
           "anchor": "left",
+          "italicLast": false,
           "x": 40,
           "y": 41.5,
           "maxWidth": 863,
@@ -286,6 +289,7 @@
         "id": "zapisnik",
         "wordmark": {
           "anchor": "left",
+          "italicLast": false,
           "x": 177.9,
           "y": 47.2,
           "maxWidth": 556,

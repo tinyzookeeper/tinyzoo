@@ -162,9 +162,9 @@ const dragStyle = computed(() => (drag.on && drag.axis
 .lb__prev { left: 0.5rem; }
 .lb__next { right: 0.5rem; }
 @media (min-width: 768px) {
-  .lb__stage { padding: 4.5rem 5.5rem 2.5rem; }
-  .lb__frame { max-height: calc(100dvh - 7rem); }
-  .lb__img { max-height: calc(100dvh - 10.5rem); }
+  .lb__stage { padding: 3.5rem 5.5rem 1.5rem; }
+  .lb__frame { max-height: calc(100dvh - 5rem); }
+  .lb__img { max-height: calc(100dvh - 8.5rem); }
   .lb__close { top: 1rem; right: 1rem; }
   .lb__prev { left: 1.25rem; }
   .lb__next { right: 1.25rem; }

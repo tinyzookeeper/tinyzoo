@@ -24,7 +24,11 @@ export function serviceEmail(): string {
   return String(useRuntimeConfig().serviceEmail || 'cloud@tinyzoo.invalid').trim().toLowerCase()
 }
 
-/** E-mail is only printed (NUXT_MAIL_TRANSPORT=log) and this is a development server: pages may show the links instead. */
+/**
+ * E-mail is only printed (NUXT_MAIL_TRANSPORT=log) and this is a development server: pages may
+ * show the links instead. NUXT_DEV_MAIL_LINKS=false keeps the pages as a customer sees them
+ * (the recorded walkthrough).
+ */
 export function showsMailLinks(): boolean {
-  return import.meta.dev && (useRuntimeConfig().mail as any)?.transport !== 'smtp'
+  return import.meta.dev && (useRuntimeConfig().mail as any)?.transport !== 'smtp' && String(useRuntimeConfig().devMailLinks) !== 'false'
 }

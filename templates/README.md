@@ -12,7 +12,7 @@ A template is a complete tinyzoo website for one field (a photographer, a restau
 ## The rules a template follows
 
 - **One template per field, with looks.** One content model, one set of demo content, one build. A look is a design of that template: it decides how a block is drawn, never what it holds, so a site can change its look and keep its content.
-- **Nothing of one site in the build.** The look, the colours, the name and the logo come from the site's own settings at run time.
+- **Nothing of one site in the build.** The look, the colours, the name and the logo come from the site's own settings at run time. The admin's name too: `cms.admin.nameFrom: 'siteSettings.siteName'` in `app/app.config.ts`.
 - **The schema is code.** Collections, globals and blocks are declared in `cms.config.ts`; editors change content and arrange blocks.
 - **Built from blocks.** Every full-width section is a block of the page; every list (albums, packages, testimonials) comes from a collection.
 
@@ -24,7 +24,14 @@ A template is a complete tinyzoo website for one field (a photographer, a restau
 4. Each look's CSS is one file, `app/assets/css/<look>.css`, written under `html[data-look="<look>"]`. The Tailwind tokens (`bg-paper`, `text-ink`, `font-display`…) are shared and point at CSS variables the look sets.
 5. Each part of the site exists once per look with the same props: `app/components/<look>/Hero.vue`, `…/Gallery.vue`, `…/Header.vue`… `<LookPart part="Hero" …>` draws the one of the site's look. The block components (`app/components/global/Block<Type>.vue`) fetch what a block needs (albums, packages) once and hand it to `LookPart`.
 
-The cloud lists the same look ids in `cloud/shared/templates.ts` (with the texts and pictures of the wizard) and writes the chosen one into `look`, and its default colours into `colors`, when it makes a site. `test/unit/cloud-templates.spec.ts` keeps the two lists equal.
+The cloud lists the same look ids in `cloud/shared/templates.ts` (with the texts of the wizard) and writes the chosen one into `look`, and its default colours into `colors`, when it makes a site. `test/unit/cloud-templates.spec.ts` keeps the two lists equal.
+
+Two things let one set of content serve looks that differ a lot:
+
+- **A photograph for dark looks.** The opening block holds its photographs and, optionally, one more for looks that lay the heading over the picture (`darkImage`). Which looks those are is the template's own list (`openingPhoto` in `app/utils/site.ts`); they fall back to the first photograph.
+- **One behaviour, drawn per look.** A part that behaves the same everywhere is one component whose looks are only styles: `PhotoLightbox.vue` (an album's photograph opened large: arrows, swipe, Escape) is drawn by the `.lb…` rules of each look's stylesheet.
+
+The pictures of a look in the cloud's wizard come from a real site of it: mark where the look writes the site's name with `data-wordmark` (the look's `Wordmark.vue`), so `pnpm --filter tinyzoo-cloud pictures --real` can measure it and leave it out of the picture the typed name is written into.
 
 ## Demo content
 
@@ -51,4 +58,4 @@ After a change to `cms.config.ts`: `pnpm db:generate` (read the migration), `pnp
 4. One stylesheet and one folder of components per look, ported from the design's markup. A look written without cascade layers in the design stays without them (see the note at the top of `atelier.css`).
 5. `seed/`: the photographs, `photos.ts`, `index.ts`.
 6. `pnpm db:generate && pnpm cms:client && pnpm typecheck`.
-7. In `cloud/`: the entry in `shared/templates.ts` (`ready: true`, `sourceDir`, `looks`, pictures under `public/templates/`), the line in `scripts/build-templates.mjs` and in `scripts/lib.mjs` (`templateEntries`), and the root `typecheck` script.
+7. In `cloud/`: the entry in `shared/templates.ts` (`ready: true`, `sourceDir`, the looks' `colors`), the line in `scripts/build-templates.mjs`, in `scripts/lib.mjs` (`templateEntries`) and in `scripts/template-pictures.mjs` (`DEMO`, `WORDMARK`), the root `typecheck` script, and then `pnpm --filter tinyzoo-cloud pictures --real` for its pictures.

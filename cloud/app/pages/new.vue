@@ -311,9 +311,9 @@ const peekers = computed(() => [
           <p v-if="isLast" class="-mt-2 text-sm text-dimmed">{{ t('new.createNote') }}</p>
         </form>
 
-        <!-- The site taking shape: the chosen look for real, the typed name where the look writes it, the address in the bar. -->
+        <!-- The site taking shape: the chosen look for real, the typed name where the look writes it (nothing there until something is typed), the address in the bar. -->
         <aside class="z-moment px-5 pt-4 pb-8 sm:px-10 sm:pt-6 sm:pb-12 lg:sticky lg:top-20">
-          <MiniSite :name="draft.name.trim() || t('new.namePlaceholder')" :address="address" :named="true" :peekers="peekers" :template="chosen?.id" :look="chosenLook?.id" data-site-frame />
+          <MiniSite :name="draft.name.trim()" :address="address" :named="true" :peekers="peekers" :template="chosen?.id" :look="chosenLook?.id" data-site-frame />
           <dl class="mt-6 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
             <dt class="z-moment-text">{{ t('new.stepTemplate') }}</dt>
             <dd class="truncate text-right font-medium text-highlighted">{{ chosen ? l(chosen.name) : '—' }}</dd>

@@ -120,10 +120,20 @@ async function main() {
   await page.locator('[data-cta]').click()
   await page.waitForURL('**/new')
   await page.waitForSelector('[data-wizard=ready]')
-  check('planned templates show with the flag, marked', await page.locator('[data-template=restaurant][aria-disabled=true]').count() === 1)
+  check('planned templates show with the flag, marked', await page.locator('[data-template=restaurant][data-ready=false]').count() === 1 && await page.locator('[data-template=restaurant] [role=radio]').count() === 0)
   await page.locator('[data-template=restaurant]').click({ force: true })
-  check('a planned template cannot be picked', await page.locator('[data-template=basic][aria-checked=true]').count() === 1)
+  check('a planned template cannot be picked', await page.locator('[data-template=basic] [role=radio][aria-checked=true]').count() === 1)
   check('twenty-one templates in the gallery', await page.locator('[data-template]').count() === 21)
+  // Every card shows a real design: its picture loads, and a template with several looks lets them be glanced at.
+  const pictures = await page.evaluate(async () => {
+    const cards = [...document.querySelectorAll('[data-template]')]
+    const first = cards.map((c) => c.querySelector('img'))
+    await Promise.all(first.map((img) => { img.loading = 'eager'; return img.decode().catch(() => {}) }))
+    return { cards: cards.length, loaded: first.filter((img) => img.naturalWidth >= 800).length, thumbs: document.querySelectorAll('[data-look-thumb]').length }
+  })
+  check('every card shows its template\'s real picture', pictures.loaded === 21 && pictures.thumbs === 51, JSON.stringify(pictures))
+  await page.locator('[data-template=restaurant] [data-look-thumb=talir]').click()
+  check('a planned template\'s looks can be glanced at, and it still cannot be picked', await page.locator('[data-template=restaurant][data-shown-look=talir]').count() === 1 && await page.locator('[data-template=basic] [role=radio][aria-checked=true]').count() === 1)
   await page.locator('[data-field=hospitality]').click()
   check('the field filter narrows the gallery', await page.locator('[data-template]').count() === 2)
   await page.locator('[data-field=all]').click()
@@ -132,6 +142,7 @@ async function main() {
   check('a template with one design goes straight to the site\'s name', await page.locator('[data-step=look]').count() === 0 && await page.locator('ol [aria-current=step]').innerText() === '2\nVáš web')
   await page.locator('[data-field-name]').fill('Pekárna U Žlutého koně')
   await page.waitForSelector('[data-slug-ok]')
+  check('the window beside the form shows the template for real, with the typed name where the site writes it', await page.locator('[data-site-frame] img[src="/templates/basic/basic-top.webp"]').count() === 1 && (await page.locator('[data-site-frame] .shot__name').innerText()).trim() === 'Pekárna U Žlutého koně')
   check('the address is suggested from the name', await page.locator('[data-field-slug]').inputValue() === 'pekarna-u-zluteho-kone')
   await page.locator('[data-field-slug]').fill('admin')
   await page.getByText('Tahle adresa je vyhrazená').waitFor()
@@ -270,6 +281,7 @@ async function main() {
   await pp.locator('[data-field-slug]').fill(`e2e-atelier-${stamp}`)
   await pp.waitForSelector('[data-slug-ok]')
   check('the look is in the summary beside the template', (await pp.locator('aside dl').innerText()).replace(/\s+/g, ' ').includes('Šablona Fotograf Vzhled Negativ'))
+  check('the window shows the chosen look with the typed name', await pp.locator('[data-site-frame] img[src="/templates/photographer/negativ-top.webp"]').count() === 1 && (await pp.locator('[data-site-frame] .shot__name').innerText()).trim().toLowerCase() === 'ateliér světlo')
   await pp.locator('[data-next]').first().click()
   await pp.locator('[data-field-person]').fill(johana.name)
   await pp.locator('[data-field-email]').fill(johana.email)
@@ -289,11 +301,35 @@ async function main() {
   check('the website is drawn in the chosen look, in its default colours', JSON.stringify(await lookOn(pw)) === JSON.stringify({ look: 'negativ', colors: 'mosaz', brand: '#d4b57e' }), JSON.stringify(await lookOn(pw)))
   check('it shows the chosen name as its wordmark', (await pw.locator('header').first().innerText()).toLowerCase().includes('ateliér světlo') && (await pw.locator('footer').innerText()).toLowerCase().includes('ateliér světlo'))
   check('it holds the demo content', (await pw.locator('h1').first().innerText()).toLowerCase().includes('fotím') && await pw.locator('.mosaic a.tile').count() === 14)
+  // Negativ lays its heading over the photograph: it opens on the block's photograph for dark looks.
+  const opening = await pw.evaluate(async () => {
+    const page = (await (await fetch('/api/content/page/home')).json()).item
+    const hero = page.sections.find((s) => s.type === 'hero')
+    return { dark: hero.darkImage?.url ?? null, first: hero.images[0]?.image?.url ?? null, shown: document.querySelector('main section img')?.getAttribute('src') ?? '' }
+  })
+  check('Negativ opens on the photograph for dark looks', !!opening.dark && opening.dark !== opening.first && opening.shown === opening.dark, JSON.stringify(opening))
+  const theme = await pw.evaluate(async () => (await (await fetch('/api/cms/_theme')).json()).name)
+  check('the site\'s admin is called by the site\'s name', theme === 'Ateliér Světlo', JSON.stringify(theme))
   check('its photographs are served', await pw.evaluate(async () => { const img = document.querySelector('.mosaic img'); return !!img && (await fetch(img.currentSrc)).ok }))
   for (const path of ['/galerie', '/galerie/svatby', '/album/anna-a-vojta', '/cenik', '/o-mne', '/kontakt', '/ochrana-osobnich-udaju']) {
     const res = await pw.goto(photo.site.publicUrl + path, { waitUntil: 'networkidle' })
     check(`${path} answers with one heading`, res.status() === 200 && await pw.locator('h1').count() === 1, `${res.status()}`)
   }
+  // An album's photograph opens large over the page; the keyboard leads on and closes it.
+  await pw.goto(`${photo.site.publicUrl}/album/anna-a-vojta`, { waitUntil: 'networkidle' })
+  await pw.locator('[data-photo]').nth(1).click()
+  await pw.waitForSelector('[data-lightbox]')
+  const count = () => pw.locator('[data-lightbox-count]').innerText()
+  const at2 = await count()
+  await pw.keyboard.press('ArrowRight')
+  await pw.waitForFunction((was) => document.querySelector('[data-lightbox-count]')?.textContent !== was, at2)
+  const at3 = await count()
+  await pw.keyboard.press('ArrowLeft')
+  await pw.waitForFunction((was) => document.querySelector('[data-lightbox-count]')?.textContent !== was, at3)
+  check('an album photograph opens large, and the arrows lead to the next and back', at2.startsWith('02') && at3.startsWith('03') && (await count()) === at2 && await pw.locator('[data-lightbox] img').first().isVisible(), `${at2} → ${at3}`)
+  await pw.keyboard.press('Escape')
+  await pw.waitForSelector('[data-lightbox]', { state: 'detached' })
+  check('Escape closes it, and the page is where it was', new URL(pw.url()).pathname === '/album/anna-a-vojta' && await pw.evaluate(() => document.documentElement.style.overflow === ''))
   await pw.goto(`${photo.site.publicUrl}/kontakt`, { waitUntil: 'networkidle' })
   await pw.locator('form [name=name]').fill('Tereza Malá')
   await pw.locator('form [name=email]').fill(`tereza-${stamp}@example.com`)
@@ -321,6 +357,9 @@ async function main() {
   check('the owner can save another look and colours', changed.put === 200, String(changed.put))
   await pw.goto(photo.site.publicUrl, { waitUntil: 'networkidle' })
   check('the website follows: another look, other colours, the same content', JSON.stringify(await lookOn(pw)) === JSON.stringify({ look: 'zapisnik', colors: 'svestka', brand: '#753a57' }) && (await pw.locator('h1').first().innerText()).includes('Fotím') && await pw.locator('.prints a.print').count() === 14, JSON.stringify(await lookOn(pw)))
+  await pp.reload()
+  await pp.waitForSelector('[data-site-name]')
+  check('the cloud\'s page of the site names the look it shows now', (await apiSite(pp, base, siteIdOf(pp)))?.site.look === 'zapisnik' && (await pp.locator('main').innerText()).replace(/\s+/g, ' ').includes('Vzhled Zápisník'))
   // Every look draws the same page: one main heading, the same sections, whatever the look.
   const drawn = {}
   for (const look of ['atelier', 'negativ', 'zapisnik']) {

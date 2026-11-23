@@ -7,6 +7,9 @@ export default defineNuxtConfig({
   // developer's own; it builds into a folder of its own (CLOUD_BUILD_DIR) so the two do not
   // write over each other.
   ...(process.env.CLOUD_BUILD_DIR ? { buildDir: process.env.CLOUD_BUILD_DIR } : {}),
+  // The dev server answers only to its own names. CLOUD_DEV_HOSTS (".pushbase.app") adds others:
+  // the recorded walkthrough reaches it as https://tinyzoo.pushbase.app, through a proxy of its own.
+  ...(process.env.CLOUD_DEV_HOSTS ? { vite: { server: { allowedHosts: process.env.CLOUD_DEV_HOSTS.split(',').map((h) => h.trim()).filter(Boolean) } } } : {}),
   modules: ['@nuxt/ui', '@nuxt/fonts', 'nuxt-auth-utils'],
   css: ['~/assets/css/main.css'],
   devtools: { enabled: false },
@@ -39,6 +42,8 @@ export default defineNuxtConfig({
     requireVerifiedEmail: '',
     // NUXT_SERVICE_EMAIL: the account the cloud keeps on every site, to act on it later.
     serviceEmail: 'cloud@tinyzoo.invalid',
+    // NUXT_DEV_MAIL_LINKS: 'false' hides the development notes that show an e-mail's link on the page.
+    devMailLinks: '',
     hosting: {
       // NUXT_HOSTING_DRIVER: local | pushbase
       driver: 'local',
