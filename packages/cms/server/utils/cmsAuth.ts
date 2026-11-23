@@ -117,7 +117,9 @@ export async function continueCmsSession(event: any, u: any): Promise<void> {
 }
 
 async function sealCmsSession(event: any, u: any, iat: number): Promise<void> {
-  await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number, iat } } as any)
+  // Multi-tenant mode: the session names its site, and only that site accepts it (activeAccountOf).
+  const site = cmsIsMultiTenant() ? { site: useSite().id } : {}
+  await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number, iat, ...site } } as any)
 }
 
 // ── links in emails ────────────────────────────────────────────────────────────

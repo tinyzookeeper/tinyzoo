@@ -71,6 +71,14 @@ export function cmsStorePrefix(configured: string = (useRuntimeConfig().cms as a
   }
 }
 
+/**
+ * A key of the shared store that belongs to the current site. Multi-tenant mode: the site's
+ * id in front, so one site's sign-in tries never count against another's. Single mode: the key as it is.
+ */
+export function siteKey(key: string): string {
+  return cmsIsMultiTenant() ? `site:${useSite().id}:${key}` : key
+}
+
 /** Close the store's connections (server shutdown). */
 export async function closeCmsStore(): Promise<void> {
   if (!store) return
@@ -87,6 +95,7 @@ export async function closeCmsStore(): Promise<void> {
  */
 export async function rateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
   if (max <= 0) return true
+  key = siteKey(key)
   try {
     const s = await useCmsStore()
     if (s.kind === 'memory') return rateLimitOk(key, max, windowMs)
@@ -100,6 +109,7 @@ export async function rateLimit(key: string, max: number, windowMs: number): Pro
 
 /** Take back the hit `rateLimit` just counted for `key` (a sign-in that worked is not an attempt to guess). */
 export async function rateLimitRefund(key: string, windowMs: number): Promise<void> {
+  key = siteKey(key)
   try {
     await (await useCmsStore()).unhit(key.slice(0, 200), windowMs)
   }

@@ -21,22 +21,24 @@
 import { allUpgradeSteps, isConnectionError, runUpgrade, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
 import { scrubError } from './cmsScrub'
 
-let ready: Promise<void> = Promise.resolve()
-let state: 'idle' | 'running' | 'done' | 'failed' = 'idle'
+// Per site: in multi-tenant mode every site has its own database to migrate, and one
+// site's failure is that site's own (it answers 503; the others carry on).
+const migration = siteScoped(() => ({ ready: Promise.resolve() as Promise<void>, state: 'idle' as 'idle' | 'running' | 'done' | 'failed' }))
 
 /** Resolves once start-up migrations have finished (immediately when disabled). */
 export function cmsMigrationsReady(): Promise<void> {
-  return ready
+  return migration().ready
 }
 export function cmsMigrationState() {
-  return state
+  return migration().state
 }
 
 /** Start migrating from the bundled assets (called once by the Nitro plugin). */
 const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 15_000, 15_000, 15_000, 15_000]
 export function startCmsMigrations(): void {
-  state = 'running'
-  ready = (async () => {
+  const mine = migration()
+  mine.state = 'running'
+  const ready = mine.ready = (async () => {
     for (let attempt = 0; ; attempt++) {
       try {
         return await migrateOnce()
@@ -49,7 +51,12 @@ export function startCmsMigrations(): void {
       }
     }
   })().catch((err) => {
-    state = 'failed'
+    mine.state = 'failed'
+    if (cmsIsMultiTenant()) {
+      // One site of many: it answers 503 until its migrations pass; the process stays up for the others.
+      console.error(`[cms] site ${useSite().id}: migrations failed — this site will not serve API requests`, scrubError(err))
+      throw err
+    }
     console.error('[cms] migrations failed — the app will not serve API requests', scrubError(err))
     if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production' && typeof process.exit === 'function') {
       // Let the platform restart the instance (after the log line is written).
@@ -81,6 +88,8 @@ async function migrateOnce(): Promise<void> {
     })), allUpgradeSteps(reg.plugins))
   const ranSteps = result.steps.filter((s) => s.ran).map((s) => s.id)
   if (ranSteps.length) console.info(`[cms] ran upgrade steps: ${ranSteps.join(', ')}`)
-  console.info(result.migrations.length ? `[cms] applied migrations: ${result.migrations.join(', ')}` : '[cms] database is up to date')
-  state = 'done'
+  // One line per site that changed; "up to date" for each of many sites would only be noise.
+  if (!cmsIsMultiTenant()) console.info(result.migrations.length ? `[cms] applied migrations: ${result.migrations.join(', ')}` : '[cms] database is up to date')
+  else if (result.migrations.length) console.info(`[cms] site ${useSite().id}: applied migrations: ${result.migrations.join(', ')}`)
+  migration().state = 'done'
 }

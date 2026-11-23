@@ -55,7 +55,8 @@ export default defineNitroPlugin(() => {
       problems.push(message)
     }
   }
-  if (!(process.env.NUXT_CMS_DATABASE_URL || process.env.DATABASE_URL)) {
+  // Multi-tenant mode: each site's address is in the site directory (cms-0-site.ts reads it at start).
+  if (!cmsIsMultiTenant() && !(process.env.NUXT_CMS_DATABASE_URL || process.env.DATABASE_URL)) {
     problems.push('No database address: set DATABASE_URL (or NUXT_CMS_DATABASE_URL) to a Postgres connection string, e.g. postgres://user:password@host:5432/dbname')
   }
   if (problems.length) {
@@ -64,6 +65,11 @@ export default defineNitroPlugin(() => {
     throw new Error(message)
   }
 
+  if (cmsIsMultiTenant()) {
+    // A request's host must never reach an e-mail link when hosts choose the site.
+    if (process.env.CMS_ALLOW_REQUEST_ORIGIN === '1') throw new Error('[tinyzoo] the server cannot start:\n  - CMS_ALLOW_REQUEST_ORIGIN=1 is not allowed in multi-tenant mode (links use each site\'s own address)')
+    return
+  }
   if (!String(cms.publicUrl || '').trim()) {
     console.warn('[cms] NUXT_CMS_PUBLIC_URL is not set: the links in invitation and password-reset emails need the site\'s public address '
       + '(e.g. https://cms.example.com), and so does /sitemap.xml (a 404 until it, or NUXT_SITE_URL, is set). Set it in the environment.')

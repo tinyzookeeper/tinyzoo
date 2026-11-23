@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, extname, join, resolve, sep } from 'node:path'
+import { dirname, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { DEFAULT_MEDIA_BASE, encodeStorageKey, isSafeStorageKey, resolveS3Delivery, storedMediaUrl, type S3Delivery } from '../../shared/storage-delivery'
@@ -505,24 +505,31 @@ class UnconfiguredDriver implements StorageDriver {
   }
 }
 
-let _driver: StorageDriver | undefined
+// The current site's driver (cmsSite.ts). In multi-tenant mode each site has its own
+// place (a folder, or a bucket with keys of its own) from the site directory.
+const siteDriver = siteScoped<StorageDriver | undefined>(() => undefined)
 
 /**
- * Resolve the configured storage driver (memoized).
+ * Resolve the configured storage driver (memoized per site).
  * NB: NOT named `useStorage` — that's a built-in Nitro (unstorage) helper.
  */
 export function useCmsStorage(): StorageDriver {
+  let _driver = siteDriver()
   if (_driver) return _driver
-  const cfg = ((useRuntimeConfig().cms as any)?.storage ?? {}) as {
+  const cfg = (cmsSettings().storage ?? {}) as {
     driver?: string
     local?: { dir?: string; publicBase?: string }
     s3?: Partial<S3Config> & { delivery?: string }
   }
   const driver = cfg.driver || 'local'
   if (driver === 'local') {
+    // Multi-tenant mode: never the shared default folder. A site without a folder of its own has no storage.
+    if (cmsIsMultiTenant() && !(cfg.local?.dir && isAbsolute(cfg.local.dir))) {
+      throw createError({ statusCode: 500, statusMessage: `Site ${useSite().id} has no storage folder of its own (config.storage.local.dir, an absolute path, in the site directory)` })
+    }
     const dir = resolve(process.cwd(), cfg.local?.dir || '.cms-uploads')
     const publicBase = cfg.local?.publicBase || DEFAULT_MEDIA_BASE
-    if (process.env.NODE_ENV === 'production') {
+    if (process.env.NODE_ENV === 'production' && !cmsIsMultiTenant()) {
       console.warn(`[cms] media are stored on this server's disk (${dir}). Containers lose it on every deploy — `
         + 'use object storage in production (NUXT_CMS_STORAGE_DRIVER=s3, see https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/deploying.md#media).')
     }
@@ -554,23 +561,24 @@ export function useCmsStorage(): StorageDriver {
   } else {
     _driver = new UnconfiguredDriver(driver)
   }
+  siteDriver.set(_driver)
   return _driver
 }
 
 /** Configured per-file upload ceiling in bytes (default 10MB). */
 export function maxUploadBytes(): number {
-  const mb = Number((useRuntimeConfig().cms as any)?.storage?.maxSizeMb) || 10
+  const mb = Number(cmsSettings().storage?.maxSizeMb) || 10
   return mb * 1024 * 1024
 }
 
 /** Per-user total storage quota in bytes (0 = unlimited). */
 export function maxBytesPerUser(): number {
-  return Number((useRuntimeConfig().cms as any)?.storage?.maxBytesPerUser) || 0
+  return Number(cmsSettings().storage?.maxBytesPerUser) || 0
 }
 
 /** Max uploads per user per minute (0 = unlimited; default 60). */
 export function uploadRatePerMin(): number {
-  return Number((useRuntimeConfig().cms as any)?.storage?.uploadRatePerMin ?? 60) || 0
+  return Number(cmsSettings().storage?.uploadRatePerMin ?? 60) || 0
 }
 
 /** A library folder name: one level, trimmed, bounded; empty = no folder. */

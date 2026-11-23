@@ -3,10 +3,12 @@
 // background — the server answers meanwhile, searching the old index.
 export default defineNitroPlugin(() => {
   if (import.meta.prerender) return
-  cmsMigrationsReady()
-    .then(() => ensureSearchIndex())
-    .catch((err) => {
-      const hint = missingTableHint(err)
-      console.error(`[cms] could not build the search index${hint ? ` — ${hint}` : ''}`, scrubError(err))
-    })
+  onSiteStart(() => {
+    cmsMigrationsReady()
+      .then(() => ensureSearchIndex())
+      .catch((err) => {
+        const hint = missingTableHint(err)
+        console.error(`[cms] could not build the search index${hint ? ` — ${hint}` : ''}`, scrubError(err))
+      })
+  })
 })
