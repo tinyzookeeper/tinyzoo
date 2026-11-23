@@ -81,9 +81,16 @@ export async function firstFreeSlug(base: string, isTaken: (slug: string) => boo
   return null
 }
 
-/** The site's database: tzc_<slug>, dashes as underscores (a slug has no underscore, so two slugs never share one). */
-export function databaseNameFor(slug: string): string {
-  return `tzc_${assertSlug(slug).replace(/-/g, '_')}`
+export const DATABASE_PREFIX = 'tzc_'
+
+/**
+ * The site's database: tzc_<slug>, dashes as underscores (a slug has no underscore, so two
+ * slugs never share one). `prefix` is for a second cloud app on the same Postgres server (the
+ * scripts' own): it must start with tzc_ and stay short enough for a 63-character name.
+ */
+export function databaseNameFor(slug: string, prefix: string = DATABASE_PREFIX): string {
+  if (!/^tzc_([a-z0-9]+_)?$/.test(prefix) || prefix.length > 16) throw new Error(`Not a usable database prefix: ${JSON.stringify(prefix)}`)
+  return `${prefix}${assertSlug(slug).replace(/-/g, '_')}`
 }
 
 /** An SQL identifier in double quotes. Only for names made by databaseNameFor. */

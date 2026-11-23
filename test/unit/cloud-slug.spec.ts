@@ -130,3 +130,14 @@ describe('the database of a site', () => {
     for (const bad of ['a"b', 'A', 'a-b', 'a b', '', 'a'.repeat(64)]) expect(() => quoteIdent(bad), bad).toThrow()
   })
 })
+
+describe('a second cloud app on the same Postgres server', () => {
+  it('names its sites\' databases with a prefix of its own', () => {
+    expect(databaseNameFor('pekarna', 'tzc_e2e_')).toBe('tzc_e2e_pekarna')
+    expect(databaseNameFor('a'.repeat(SLUG_MAX), 'tzc_walk_').length).toBeLessThanOrEqual(63)
+  })
+
+  it('refuses a prefix that does not start with tzc_ or would not be a safe name', () => {
+    for (const bad of ['', 'x_', 'tzc', 'tzc_e2e', 'tzc_E2E_', 'tzc_a b_', 'tzc_"; drop_', 'tzc_averyveryverylong_']) expect(() => databaseNameFor('pekarna', bad), bad).toThrow()
+  })
+})

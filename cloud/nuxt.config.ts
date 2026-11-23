@@ -50,6 +50,9 @@ export default defineNuxtConfig({
         root: '',
         // NUXT_HOSTING_LOCAL_DATA_DIR: where the websites' folders live. Default: <cloud>/.data/sites.
         dataDir: '',
+        // NUXT_HOSTING_LOCAL_DATABASE_PREFIX: what the sites' databases are called before the slug
+        // (default tzc_). A second cloud app on the same Postgres server takes another (tzc_e2e_).
+        databasePrefix: '',
       },
       pushbase: {
         // NUXT_HOSTING_PUSHBASE_TEMPLATES_DIR: a folder with one standalone project per template (<dir>/<template id>).

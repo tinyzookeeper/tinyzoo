@@ -3,7 +3,7 @@
 // finding and stopping the site processes those runs made, and a visible mouse cursor for
 // recorded videos.
 import { execFile, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, openSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, openSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -237,6 +237,17 @@ export function human(page, { speed = 1 } = {}) {
   return {
     /** Put the mouse somewhere at the start (no travel). */
     async place(x, y) { await page.mouse.move(x, y); at = { x, y } },
+    /** After a navigation: one small move, so the drawn cursor is on the new page where the hand left it. */
+    async nudge() { await page.mouse.move(at.x + 1, at.y + 1); await page.mouse.move(at.x, at.y) },
+    /** A new page is loading: show the cursor on it as soon as there is a document, then wait until the page is quiet. */
+    async arrive() {
+      await page.waitForLoadState('domcontentloaded').catch(() => {})
+      await this.nudge()
+      await page.waitForLoadState('networkidle').catch(() => {})
+      await this.nudge()
+    },
+    /** Drift to a resting place (out of the way of what is being read). */
+    async rest(x, y) { await moveTo(x, y) },
     async hover(locator) { const p = await target(locator); await moveTo(p.x, p.y) },
     async click(locator, { after = 350 } = {}) {
       const p = await target(locator)
@@ -261,6 +272,65 @@ export function human(page, { speed = 1 } = {}) {
       const steps = Math.max(8, Math.round(ms / 30))
       for (let i = 0; i < steps; i++) { await page.mouse.wheel(0, dy / steps); await sleep(30) }
       await sleep(250)
+    },
+  }
+}
+
+// ── a sharp recording of a phone-sized page ──
+
+/**
+ * Playwright's own video (and Chromium's screencast) are drawn at CSS size: a 390 px wide
+ * phone page gives a 390 px wide video. This takes the page's picture at device resolution
+ * instead (780 px wide at a device scale of 2), about thirty times a second, and lets ffmpeg
+ * make the video from the pictures. `stop(out)` writes the MP4.
+ */
+export async function recordFrames(page, dir, { ffmpeg = 'ffmpeg', fps = 30, scale = 2 } = {}) {
+  mkdirSync(dir, { recursive: true })
+  const { width, height } = page.viewportSize()
+  // The visible part of the page, at `scale` device pixels per CSS pixel. The clip is in the
+  // document's coordinates, so it follows the scroll position.
+  const capture = async (cdp) => {
+    const { cssVisualViewport: v } = await cdp.send('Page.getLayoutMetrics')
+    return cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 90, clip: { x: v.pageX, y: v.pageY, width, height, scale } })
+  }
+  let cdp = await page.context().newCDPSession(page)
+  const frames = []
+  let running = true
+  const loop = (async () => {
+    while (running) {
+      const began = Date.now()
+      try {
+        // A picture that does not come within a moment (the page is between two documents) is given up on.
+        const shot = await Promise.race([
+          capture(cdp),
+          sleep(1500).then(() => { throw new Error('no picture in time') }),
+        ])
+        const file = join(dir, `f${String(frames.length).padStart(6, '0')}.jpg`)
+        writeFileSync(file, Buffer.from(shot.data, 'base64'))
+        frames.push({ file, at: began / 1000 })
+      }
+      catch {
+        // Between two sites the page changes its process: take a new line to it and go on.
+        await sleep(60)
+        if (!running) break
+        try { cdp = await page.context().newCDPSession(page) } catch { /* the page is closing */ }
+      }
+      const left = 1000 / fps - (Date.now() - began)
+      if (left > 0) await sleep(left)
+    }
+  })()
+  return {
+    frames: () => frames.length,
+    async stop(out) {
+      running = false
+      await Promise.race([loop, sleep(4000)])
+      const end = Date.now() / 1000
+      if (!frames.length) throw new Error('no frames were recorded')
+      // Each picture is shown until the next one was taken.
+      const list = frames.map((f, i) => `file '${f.file}'\nduration ${Math.max(0.01, (frames[i + 1]?.at ?? end) - f.at).toFixed(3)}`).join('\n') + `\nfile '${frames.at(-1).file}'\n`
+      const listFile = join(dir, 'frames.txt')
+      writeFileSync(listFile, list)
+      await run(ffmpeg, ['-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-vf', `fps=${fps},scale=trunc(iw/2)*2:trunc(ih/2)*2`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '21', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', out], { maxBuffer: 1 << 26 })
     },
   }
 }

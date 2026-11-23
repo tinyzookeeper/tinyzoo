@@ -46,6 +46,7 @@ const cloudEnv = (extra = {}) => ({
   NUXT_DATABASE_URL: dbUrl(DB),
   NUXT_HOSTING_DRIVER: 'local',
   NUXT_HOSTING_LOCAL_DATA_DIR: dataDir,
+  NUXT_HOSTING_LOCAL_DATABASE_PREFIX: 'tzc_e2e_',
   NUXT_HOSTING_LOCAL_PORT_FROM: '4350',
   NUXT_HOSTING_LOCAL_PORT_TO: '4369',
   NUXT_MAX_SITES_PER_USER: '3',
@@ -248,7 +249,7 @@ async function main() {
   log('7 · delete a website')
   const doomed = both[1].site
   const doomedPid = (await siteProcesses(dataDir)).find((p) => p.slug === doomed.slug)?.pid
-  const doomedDb = `tzc_${doomed.slug.replace(/-/g, '_')}`
+  const doomedDb = `tzc_e2e_${doomed.slug.replace(/-/g, '_')}`
   check('before: its process, database and folder exist', !!doomedPid && await databaseExists(doomedDb) && existsSync(join(dataDir, doomed.slug)))
   await open(page, `${base}/sites/${doomed.id}`)
   await page.locator('[data-delete]').click()

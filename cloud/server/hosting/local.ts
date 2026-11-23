@@ -4,7 +4,7 @@ import net from 'node:net'
 import { dirname, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { parsePortRange, pickPort } from '../../shared/ports'
-import { assertSlug, databaseNameFor, quoteIdent } from '../../shared/slug'
+import { assertSlug, DATABASE_PREFIX, databaseNameFor, quoteIdent } from '../../shared/slug'
 import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteSpec } from './types'
 
 // The local driver: every website is a process on this machine.
@@ -22,7 +22,7 @@ import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Pr
 const run = promisify(execFile)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-interface LocalConfig { root: string; dataDir: string; portFrom: number; portTo: number }
+interface LocalConfig { root: string; dataDir: string; portFrom: number; portTo: number; databasePrefix: string }
 interface SiteFile { port: number; pid: number | null; startedAt: string | null }
 
 /** The repository's root: the nearest folder upwards with a pnpm-workspace.yaml. */
@@ -40,7 +40,7 @@ function config(): LocalConfig {
   const c = ((useRuntimeConfig().hosting as any)?.local ?? {}) as Record<string, unknown>
   const root = c.root ? resolve(String(c.root)) : findRoot(process.cwd())
   const range = parsePortRange(c.portFrom, c.portTo)
-  return { root, dataDir: c.dataDir ? resolve(String(c.dataDir)) : join(root, 'cloud', '.data', 'sites'), portFrom: range.from, portTo: range.to }
+  return { root, dataDir: c.dataDir ? resolve(String(c.dataDir)) : join(root, 'cloud', '.data', 'sites'), portFrom: range.from, portTo: range.to, databasePrefix: String(c.databasePrefix || DATABASE_PREFIX) }
 }
 
 /** The site's folder. The slug is checked again here: it becomes a path. */
@@ -166,29 +166,36 @@ function entryOf(spec: SiteSpec): string {
   return entry
 }
 
+const databaseOf = (slug: string) => databaseNameFor(slug, config().databasePrefix)
+
 /** The site's database address: the cloud's own server, another database. */
 function databaseUrlFor(slug: string): string {
   const url = new URL(databaseUrl())
-  url.pathname = `/${databaseNameFor(slug)}`
+  url.pathname = `/${databaseOf(slug)}`
   return url.toString()
 }
 
-async function createDatabase(slug: string): Promise<void> {
-  const name = databaseNameFor(slug)
+/**
+ * The site's database. `resuming`: this site was started here before, so a database that
+ * exists is its own and is kept. A new site never adopts a database that is already there
+ * (it would be somebody else's data under the same name).
+ */
+async function createDatabase(slug: string, resuming: boolean): Promise<void> {
+  const name = databaseOf(slug)
   const pool = usePool()
+  let exists = false
   try {
-    const exists = await pool.query('select 1 from pg_database where datname = $1', [name])
-    if (!exists.rowCount) await pool.query(`create database ${quoteIdent(name)}`)
+    exists = !!(await pool.query('select 1 from pg_database where datname = $1', [name])).rowCount
+    if (!exists) await pool.query(`create database ${quoteIdent(name)}`)
   }
   catch (err: any) {
-    // Two starts at once: the other one made it.
-    if (err?.code === '42P04') return
     throw new HostingError('database_failed', String(err?.message ?? err))
   }
+  if (exists && !resuming) throw new HostingError('database_failed', `a database named ${name} already exists and is not this site's`)
 }
 
 async function dropDatabase(slug: string): Promise<void> {
-  await usePool().query(`drop database if exists ${quoteIdent(databaseNameFor(slug))} with (force)`)
+  await usePool().query(`drop database if exists ${quoteIdent(databaseOf(slug))} with (force)`)
 }
 
 // One port is picked at a time, and written down before the next pick: two sites made at the
@@ -305,16 +312,19 @@ export function localDriver(): HostingDriver {
     async provision(spec: SiteSpec, onStep: OnStep): Promise<Provisioned> {
       entryOf(spec)
       await onStep('database', 'running')
-      await createDatabase(spec.slug)
+      const dir = siteDir(spec.slug)
+      // site.json is written before the database is made: finding it means this site was
+      // started here before, and what exists under its name is its own.
+      const resuming = readSiteFile(dir) !== null
+      mkdirSync(dir, { recursive: true })
+      const port = await pickPortFor(spec.slug, dir)
+      await createDatabase(spec.slug, resuming)
       await onStep('database', 'done')
 
       await onStep('start', 'running')
-      const dir = siteDir(spec.slug)
-      mkdirSync(dir, { recursive: true })
-      const port = await pickPortFor(spec.slug, dir)
       await up(spec, dir, port)
       await onStep('start', 'done')
-      return { ...urls(spec.slug, port), state: { port, dir, database: databaseNameFor(spec.slug) } }
+      return { ...urls(spec.slug, port), state: { port, dir, database: databaseOf(spec.slug) } }
     },
 
     async ensureRunning(site: HostedSite): Promise<void> {
