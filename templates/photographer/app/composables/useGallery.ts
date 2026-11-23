@@ -12,9 +12,12 @@ export function useTileFilter(tiles: MaybeRefOrGetter<GalleryTile[]>) {
   }
 }
 
-/** A list split into two rows, the second the longer when the count is odd: 5 → 2 + 3, 6 → 3 + 3. */
-export function twoRows<T>(items: T[]): T[][] {
+/**
+ * A list split into two rows. With an odd count one row is longer: the second by default
+ * (5 → 2 + 3), the first with `longer: 'first'` (5 → 3 + 2). Three or fewer stay in one row.
+ */
+export function twoRows<T>(items: T[], longer: 'first' | 'second' = 'second'): T[][] {
   if (items.length <= 3) return [items]
-  const first = Math.floor(items.length / 2)
+  const first = longer === 'first' ? Math.ceil(items.length / 2) : Math.floor(items.length / 2)
   return [items.slice(0, first), items.slice(first)]
 }

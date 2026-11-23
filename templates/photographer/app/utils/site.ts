@@ -26,6 +26,8 @@ export interface Words {
   freeDates: string
   /** The line above the Instagram pictures in a footer */
   instagramNote: string
+  /** A note beside the link to all albums: "je jich tam 24" */
+  albumsNote: (n: number) => string
   noAlbums: string
   backToGallery: string
   sending: string
@@ -53,6 +55,7 @@ export const WORDS: Record<string, Words> = {
     swipe: 'Táhněte do strany',
     phone: 'Telefon', email: 'E-mail', studio: 'Ateliér', freeDates: 'Volné termíny',
     instagramNote: 'čerstvé fotky dávám na Instagram',
+    albumsNote: (n) => `je jich tam ${n}`,
     noAlbums: 'Zatím tu nejsou žádná alba.', backToGallery: 'Zpět do galerie',
     sending: 'Odesílám…',
     draftPreview: 'Náhled konceptu · zatím není na webu',
@@ -189,3 +192,13 @@ export const albumHref = (album: { slug: string }): string => `/album/${album.sl
 export const categoryHref = (category: { slug: string }): string => `/galerie/${category.slug}`
 /** Where all albums are: the page with the "All albums" block, and the categories under it. */
 export const GALLERY_PATH = '/galerie'
+
+/**
+ * A class by the length of a text, for type so large that a long heading needs a smaller size:
+ * `byLength(heading, [[12, 'text-[12vw]'], [30, 'text-[8vw]']], 'text-[6vw]')` gives the first
+ * class whose limit the text fits, else the last one.
+ */
+export function byLength(text: string | null | undefined, steps: Array<[max: number, cls: string]>, otherwise: string): string {
+  const n = plainEmphasis(text).trim().length
+  return steps.find(([max]) => n <= max)?.[1] ?? otherwise
+}
