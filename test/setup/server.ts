@@ -89,6 +89,18 @@ export default async function setup(project: TestProject) {
     if (prep.status !== 0) throw new Error('`nuxt prepare` failed in playground')
   }
 
+  // TEST_SERVER_VIA=postgres://host:port: the SERVER reaches the test database through this
+  // address (a pooler: PgBouncer in transaction mode, test/pgbouncer), as the same user. The
+  // set-up above and the specs' own queries go straight to Postgres. (The two-site suite has
+  // its own switch, TEST_SITES_VIA, for the sites of its servers: test/helpers/tenants.ts.)
+  const serverDatabaseUrl = (() => {
+    if (!process.env.TEST_SERVER_VIA) return databaseUrl
+    const [url, via] = [new URL(databaseUrl), new URL(process.env.TEST_SERVER_VIA)]
+    url.hostname = via.hostname
+    url.port = via.port
+    return url.toString()
+  })()
+
   const uploadsDir = mkdtempSync(join(tmpdir(), 'cms-test-uploads-'))
   const mailDir = mkdtempSync(join(tmpdir(), 'cms-test-mail-'))
   const hooks = await startWebhookReceiver()
@@ -113,8 +125,8 @@ export default async function setup(project: TestProject) {
       ...TEST_TIMERS,
       HOST: '127.0.0.1',
       PORT: String(port),
-      DATABASE_URL: databaseUrl,
-      NUXT_CMS_DATABASE_URL: databaseUrl,
+      DATABASE_URL: serverDatabaseUrl,
+      NUXT_CMS_DATABASE_URL: serverDatabaseUrl,
       NUXT_APP_SECRET: 'test-app-secret-at-least-32-characters-long',
       NUXT_CMS_STORAGE_DRIVER: 'local',
       NUXT_CMS_STORAGE_LOCAL_DIR: uploadsDir,

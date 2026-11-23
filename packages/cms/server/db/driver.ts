@@ -20,14 +20,39 @@ export function createCmsDb(url: string, schema: Record<string, unknown>, opts: 
     const connect = pool.connect.bind(pool) as () => Promise<any>
     ;(pool as any).cmsConnect = connect
     ;(pool as any).connect = (cb?: (err: unknown, client?: any, done?: (release?: any) => void) => void) => {
-      // `connect` adds the new connection to its pool's count before it returns: the room that
-      // was held for it is given back at that very moment, so it is counted exactly once.
+      // The room is given back once the pool's own counts show this caller. A NEW connection is
+      // counted before `connect` returns. An IDLE one is handed out on the pool's next tick, and
+      // so is the new connection of a caller that was queued behind an idle one: until that tick
+      // the pool still shows the idle connection as free and the new one not at all. Giving the
+      // room back before it let the cap promise the same idle connection to the next caller (the
+      // pool then opened a connection nobody had made room for) and lend the same room twice.
+      // `nextTick` runs after the pool's own, which `connect` queued first.
       const client = opts.beforeConnect!(pool).then((room) => {
         try { return ((room.pool as any).cmsConnect as () => Promise<any>)() }
-        finally { room.taken() }
+        finally { process.nextTick(room.taken) }
       })
       if (!cb) return client
       client.then((c) => cb(undefined, c, c.release), (err) => cb(err, undefined, () => {}))
+    }
+    // `end()` of node-postgres' pool resolves when the pool has let go of its connections,
+    // which is before their sockets are closed. The cap counts the connections of a pool it
+    // closed until `end()` has finished, and a site that is unloaded is gone when its pool
+    // says so: `end()` waits for the connections themselves (a few seconds at most).
+    const open = new Set<any>()
+    pool.on('connect', (client: any) => {
+      open.add(client)
+      client.once('end', () => open.delete(client))
+    })
+    const end = pool.end.bind(pool) as () => Promise<void>
+    ;(pool as any).end = (cb?: (err?: unknown) => void) => {
+      const ended = end().then(() => new Promise<void>((resolve) => {
+        if (!open.size) return resolve()
+        const timer = setTimeout(resolve, 5_000)
+        timer.unref?.()
+        for (const client of open) client.once('end', () => { if (!open.size) { clearTimeout(timer); resolve() } })
+      }))
+      if (!cb) return ended
+      ended.then(() => cb(), cb)
     }
   }
   return drizzle(pool, { schema })

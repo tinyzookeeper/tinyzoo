@@ -67,6 +67,18 @@ export interface Tenants {
   /** A connection as the cluster's administrator (for assertions on databases and roles). */
   adminUrl: string
   /**
+   * The Redis the server shares its state through and this run's own key prefix, when one is
+   * configured (TEST_REDIS_URL, as the single-site server of test/setup/server.ts); else null:
+   * the server keeps that state in its own memory.
+   */
+  redis: { url: string; prefix: string } | null
+  /**
+   * Another server process of the same app on the same site directory and the same databases,
+   * on a port of its own: a second instance, as a platform runs two replicas. A site is reached
+   * on it by its own host name and that port (the directory's hosts carry no port). Stopped by `stop()`.
+   */
+  startInstance(env?: Record<string, string>): Promise<{ server: SpawnedServer; port: number }>
+  /**
    * A third site, made while the server runs: its own database user and an empty, migrated
    * database of its own (no accounts: it is before its first-run setup). Returns its
    * directory row (write it with `writeDirectory([...t.rows, row])`) and the site as the
@@ -169,6 +181,15 @@ async function webhookReceiver(): Promise<{ url: string; dir: string; close: () 
 /**
  * Start the two sites. `suffix` keeps one spec file's databases and roles apart from
  * another's (`<test db>_<suffix>_a`). `env` goes to the server process.
+ *
+ * Two settings of the whole run come from the environment, so the same spec files run in
+ * three set-ups:
+ *  - TEST_REDIS_URL: the server shares rate limits, changes and the realtime sockets through
+ *    this Redis (as the single-site server does in CI), under a key prefix of this run's own.
+ *  - TEST_SITES_VIA=postgres://host:port: the SITES reach their databases through this
+ *    address (a pooler: PgBouncer in transaction mode, see test/pgbouncer), each still as its
+ *    own user to its own database. What the helper and the specs do themselves (roles,
+ *    databases, migrations, `siteQuery`) goes straight to Postgres.
  */
 export async function startTenants(suffix: string, env: Record<string, string> = {}, options: TenantsOptions = {}): Promise<Tenants> {
   if (!/^[a-z0-9]+$/.test(suffix)) throw new Error(`odd suffix: ${suffix}`)
@@ -184,6 +205,18 @@ export async function startTenants(suffix: string, env: Record<string, string> =
     u.username = roleName(site); u.password = password(site); u.pathname = `/${dbName(site)}`
     return u.toString()
   }
+  /** The address the SERVER is given for a site's database: Postgres itself, or the pooler in front of it (TEST_SITES_VIA). */
+  const serverUrlFor = (site: string) => {
+    const u = new URL(urlFor(site))
+    const via = sitesVia()
+    if (via) { u.hostname = via.hostname; u.port = via.port }
+    return u.toString()
+  }
+  // Redis: an address the caller gave the server wins; else the run's (TEST_REDIS_URL). The prefix
+  // is this start's own: rate-limit counters outlive a server, and the next spec file signs the
+  // same people in on the same site ids. (It begins with `cms:`, which the global setup clears.)
+  const redisUrl = env.NUXT_CMS_REDIS_URL ?? process.env.TEST_REDIS_URL ?? ''
+  const redis = redisUrl ? { url: redisUrl, prefix: env.NUXT_CMS_REDIS_PREFIX ?? `cms:tenants:${suffix}:${Date.now().toString(36)}` } : null
 
   const dropAll = () => asAdmin('postgres', async (c) => {
     // Both databases first: B's copy still names A's user in places (the extension's owner, grants).
@@ -215,7 +248,7 @@ export async function startTenants(suffix: string, env: Record<string, string> =
     id: `site-${site}`,
     hosts: [`site-${site}.localhost`, `www.site-${site}.localhost`],
     publicUrl: `http://site-${site}.localhost:${port}`,
-    databaseUrl: urlFor(site),
+    databaseUrl: serverUrlFor(site),
     secret: `secret-of-site-${site}-at-least-32-characters`,
     config: overlay({
       auth: { setupToken: `setup-code-${site}` },
@@ -239,6 +272,7 @@ export async function startTenants(suffix: string, env: Record<string, string> =
     NUXT_APP_SECRET: APP_SECRET,
     NUXT_CMS_MAIL_TRANSPORT: 'file',
     NUXT_CMS_STORAGE_UPLOAD_RATE_PER_MIN: '1000',
+    ...(redis ? { NUXT_CMS_REDIS_URL: redis.url, NUXT_CMS_REDIS_PREFIX: redis.prefix } : {}),
     ...env, ...extra,
   })
 
@@ -277,6 +311,9 @@ export async function startTenants(suffix: string, env: Record<string, string> =
 
   // 2. Site B = a copy of A's database (same ids everywhere), handed to B's own user.
   await asAdmin('postgres', async (c) => {
+    // Behind a pooler the server's connections outlive the server: the pooler keeps them open
+    // for its idle time, and a database with a connection cannot be copied. They are idle; end them.
+    if (sitesVia()) await c.query('select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()', [dbName('a')])
     await c.query(`create database ${ident(dbName('b'))} template ${ident(dbName('a'))} owner ${ident(roleName('b'))}`)
     await c.query(`revoke connect on database ${ident(dbName('b'))} from public`)
   })
@@ -298,6 +335,14 @@ export async function startTenants(suffix: string, env: Record<string, string> =
   const rows = [siteRow('a', port), siteRow('b', port)]
   writeFileSync(directoryFile, JSON.stringify({ sites: rows }))
   server = await startServer('', serverEnv({ PORT: String(port) }))
+  // A server that could not reach its Redis runs on its own memory and says so in one line:
+  // the run would pass without having used Redis at all.
+  if (redis) {
+    await server.waitForLog(/\[cms\] shared store: redis/, 15_000).catch(async () => {
+      await server.stop()
+      throw new Error(`the server did not connect to Redis at ${redis.url}:\n${server.logs.join('')}`)
+    })
+  }
 
   const signIn = async (url: string) => {
     const cookies = {} as TenantSite['cookies']
@@ -312,7 +357,7 @@ export async function startTenants(suffix: string, env: Record<string, string> =
     const row = siteRow(s, port)
     const url = s === 'a' ? aUrl : bUrl
     return {
-      id: row.id, url, host: `site-${s}.localhost`, databaseUrl: row.databaseUrl, role: roleName(s), database: dbName(s),
+      id: row.id, url, host: `site-${s}.localhost`, databaseUrl: urlFor(s), role: roleName(s), database: dbName(s),
       uploadsDir: row.config.storage.local.dir, mailDir: row.config.mail.file.dir, hooksDir: hooks[s].dir,
       statusToken: row.config.status.token, setupToken: row.config.auth.setupToken, contentToken: '', webhookSecret: row.config.webhooks.secret,
       cookies: await signIn(url), users: { ...users },
@@ -320,10 +365,17 @@ export async function startTenants(suffix: string, env: Record<string, string> =
   }
 
   const adminUrl = (() => { const u = new URL(base); u.pathname = '/postgres'; return u.toString() })()
+  const more: SpawnedServer[] = []
   return {
     server, port, a: await site('a'), b: await site('b'),
     unknownUrl: `http://nobody.localhost:${port}`, ipUrl: `http://127.0.0.1:${port}`,
-    directoryFile, writeDirectory: write, rows, adminUrl,
+    directoryFile, writeDirectory: write, rows, adminUrl, redis,
+    async startInstance(extra = {}) {
+      const other = await freePort()
+      const instance = await startServer('', serverEnv({ ...extra, PORT: String(other) }))
+      more.push(instance)
+      return { server: instance, port: other }
+    },
     async makeThirdSite() {
       await asAdmin('postgres', async (c) => {
         // Asked for again (another test of the same file): a new, empty one.
@@ -340,19 +392,41 @@ export async function startTenants(suffix: string, env: Record<string, string> =
       return {
         row,
         site: {
-          id: row.id, url: `http://site-c.localhost:${port}`, host: 'site-c.localhost', databaseUrl: row.databaseUrl, role: roleName('c'), database: dbName('c'),
+          id: row.id, url: `http://site-c.localhost:${port}`, host: 'site-c.localhost', databaseUrl: urlFor('c'), role: roleName('c'), database: dbName('c'),
           uploadsDir: row.config.storage.local.dir, mailDir: row.config.mail.file.dir, hooksDir: hooks.c.dir,
           statusToken: row.config.status.token, setupToken: row.config.auth.setupToken, contentToken: '', webhookSecret: row.config.webhooks.secret,
         },
       }
     },
     async stop() {
-      await server.stop()
+      await Promise.all([server, ...more].map((s) => s.stop()))
       await hooks.a.close(); await hooks.b.close(); await hooks.c.close()
       rmSync(dirs, { recursive: true, force: true })
       await dropAll()
+      if (redis) await dropRedisKeys(redis).catch(() => {})
     },
   }
+}
+
+/** The pooler the sites' database addresses go through (TEST_SITES_VIA=postgres://host:port), or null. */
+function sitesVia(): URL | null {
+  const via = process.env.TEST_SITES_VIA
+  if (!via) return null
+  const u = new URL(via)
+  if (!u.hostname || !u.port) throw new Error(`TEST_SITES_VIA must name a host and a port (postgres://localhost:55451), got ${via}`)
+  return u
+}
+
+/** Delete every key under a run's prefix (the counters and lists a stopped server left in Redis). Never the whole database. */
+async function dropRedisKeys(redis: { url: string; prefix: string }): Promise<void> {
+  const { default: Redis } = await import('ioredis')
+  const r = new Redis(redis.url, { maxRetriesPerRequest: 1, connectTimeout: 2000 })
+  r.on('error', () => {})
+  try {
+    const keys = await r.keys(`${redis.prefix.replace(/[\\*?[\]]/g, '\\$&')}*`)
+    if (keys.length) await r.del(...keys)
+  }
+  finally { r.disconnect() }
 }
 
 function freePort(): Promise<number> {
