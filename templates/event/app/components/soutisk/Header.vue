@@ -27,11 +27,11 @@ function skip() {
     </svg>
     <a href="#obsah" @click.prevent="skip" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:bg-c2 focus:px-4 focus:py-3 focus:rounded-full">{{ words.skip }}</a>
     <div class="wrap flex items-center justify-between gap-6 h-[5rem]">
-      <NuxtLink to="/" class="flex items-center gap-2.5 min-h-11" :aria-label="words.toTop(name)"><SoutiskWordmark /></NuxtLink>
+      <NuxtLink to="/" class="flex items-center gap-2.5 min-h-11 min-w-0" :aria-label="words.toTop(name)"><SoutiskWordmark /></NuxtLink>
       <nav class="hidden lg:flex items-center gap-1 text-[1rem]" :aria-label="words.mainMenu">
         <NuxtLink v-for="l in links" :key="l.id" class="navlink" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
       </nav>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <a v-if="cta" :href="cta.url" class="btn !min-h-11 !px-5 !text-base hidden sm:inline-flex">{{ cta.label }} <UIcon name="i-lucide-arrow-up-right" aria-hidden="true" /></a>
         <button type="button" class="lg:hidden inline-flex items-center justify-center gap-2 h-11 px-4 rounded-full bg-ink text-paper font-bold cursor-pointer" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.show()">
           <UIcon name="i-lucide-menu" class="text-xl" aria-hidden="true" />{{ words.menu }}

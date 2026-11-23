@@ -14,7 +14,7 @@ const sign = computed(() => [settings.value?.tagline, settings.value?.founded ? 
   <footer class="bg-shade">
     <div class="wrap pt-14 md:pt-20 pb-28 md:pb-12">
       <div class="text-center">
-        <p class="flanked"><VylohaWordmark large /></p>
+        <p class="flanked"><span class="min-w-0 text-center"><VylohaWordmark large /></span></p>
         <p v-if="sign" class="mt-5 caps text-brass !text-[12px]">{{ sign }}</p>
       </div>
       <div class="mt-12 grid sm:grid-cols-3 gap-10 text-center">

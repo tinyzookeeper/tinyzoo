@@ -3,21 +3,21 @@
 // on the left, the menu and a black button on the right; below a desktop's width the menu
 // folds behind a button and opens as a full-screen field with the phone number last.
 const { nav } = await useSite()
-const { settings, phone, cta, words } = await useTrades()
+const { settings, phone, cta, words, long } = await useTrades()
 const links = computed(() => menuLinks(nav.value?.main))
 const menu = useOverlayMenu()
 </script>
 
 <template>
   <div class="on-brand bg-brand text-brand-ink">
-    <header class="wrap flex items-center justify-between gap-4 h-[72px] md:h-[84px]">
-      <NuxtLink to="/" class="flex items-center min-h-[44px]" :aria-label="words.toTop(settings?.siteName ?? '')"><ReflexWordmark /></NuxtLink>
-      <nav class="hidden lg:flex gap-8" :aria-label="words.mainMenu">
+    <header class="wrap flex items-center justify-between gap-4 min-h-[72px] md:min-h-[84px] py-2">
+      <NuxtLink to="/" class="flex items-center min-h-[44px] min-w-0" :aria-label="words.toTop(settings?.siteName ?? '')"><ReflexWordmark /></NuxtLink>
+      <nav :class="long ? 'hidden xl:flex' : 'hidden lg:flex'" class="gap-8" :aria-label="words.mainMenu">
         <NuxtLink v-for="l in links" :key="l.id" class="navlink" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
       </nav>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <NuxtLink v-if="cta" :to="cta.url" class="btn btn-ink hidden md:inline-flex !min-h-[48px] !text-[1rem]" style="--paper:#fff">{{ cta.label }}</NuxtLink>
-        <button type="button" class="lg:hidden inline-flex items-center gap-2 min-h-[44px] pl-3 label cursor-pointer" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.show()">
+        <button type="button" class="inline-flex items-center gap-2 min-h-[44px] pl-3 label cursor-pointer" :class="long ? 'xl:hidden' : 'lg:hidden'" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.show()">
           {{ words.menu }} <UIcon name="i-lucide-menu" class="size-[26px]" aria-hidden="true" />
         </button>
       </div>
@@ -25,7 +25,7 @@ const menu = useOverlayMenu()
   </div>
 
   <!-- Mobile menu -->
-  <div v-show="menu.open.value" id="site-menu" class="on-brand fixed inset-0 z-50 bg-brand text-brand-ink overflow-y-auto lg:hidden">
+  <div v-show="menu.open.value" id="site-menu" class="on-brand fixed inset-0 z-50 bg-brand text-brand-ink overflow-y-auto" :class="long ? 'xl:hidden' : 'lg:hidden'">
     <div class="wrap flex flex-col min-h-full pb-6">
       <div class="flex items-center justify-between h-[72px]">
         <span aria-hidden="true" class="text-[1.75rem] font-black tracking-[-0.045em] leading-none">{{ settings?.siteName }}</span>

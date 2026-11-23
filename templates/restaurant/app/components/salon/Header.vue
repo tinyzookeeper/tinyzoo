@@ -27,11 +27,11 @@ const reserve = `/#${anchorOf('reservation')}`
     </div>
 
     <div class="wrap">
-      <div class="grid grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_1fr] items-center gap-6 py-5 lg:py-7">
+      <div class="grid grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[1fr_auto_1fr] items-center gap-6 py-5 lg:py-7">
         <nav class="hidden lg:flex items-center gap-9" :aria-label="words.mainMenu">
           <NuxtLink v-for="l in links.slice(0, half)" :key="l.id" class="navlink" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
         </nav>
-        <NuxtLink to="/" class="block lg:text-center leading-none" :aria-label="`${settings?.siteName ?? ''}, ${settings?.tagline ?? ''}`"><SalonWordmark mark tagline /></NuxtLink>
+        <NuxtLink to="/" class="block lg:text-center leading-none min-w-0" :aria-label="`${settings?.siteName ?? ''}, ${settings?.tagline ?? ''}`"><SalonWordmark mark tagline /></NuxtLink>
         <nav class="hidden lg:flex items-center justify-end gap-9" :aria-label="words.mainMenu">
           <NuxtLink v-for="l in links.slice(half)" :key="l.id" class="navlink" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
           <NuxtLink class="btn btn-brand" :to="reserve">{{ words.reserve }}</NuxtLink>

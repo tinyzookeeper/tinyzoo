@@ -15,7 +15,7 @@ const todayText = computed(() => (now.value ? words.value.zrcadlo.today(now.valu
   <header class="wrap flex items-center justify-between py-5 md:py-7">
     <NuxtLink to="/" class="flex items-baseline gap-3 min-h-11 pt-2" :aria-label="words.toTop(name)">
       <ZrcadloWordmark />
-      <span v-if="settings?.tagline" class="label hidden sm:inline lg:hidden xl:inline whitespace-nowrap">{{ settings.tagline }}</span>
+      <span v-if="settings?.tagline && name.length <= 20" class="label hidden sm:inline lg:hidden xl:inline whitespace-nowrap">{{ settings.tagline }}</span>
     </NuxtLink>
     <nav class="hidden lg:flex items-center gap-7 xl:gap-9 text-[15px] font-medium text-ink whitespace-nowrap" :aria-label="words.mainMenu">
       <NuxtLink v-for="l in links" :key="l.id" :to="l.url" :target="l.newTab ? '_blank' : undefined" class="hover:text-brand">{{ l.label }}</NuxtLink>

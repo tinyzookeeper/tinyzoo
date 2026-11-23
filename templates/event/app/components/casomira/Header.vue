@@ -33,14 +33,14 @@ function hint(url: string): string {
   <header class="absolute inset-x-0 top-0 z-30">
     <a href="#obsah" @click.prevent="skip" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:bg-led focus:text-led-ink focus:px-4 focus:py-3">{{ words.skip }}</a>
     <div class="wrap flex items-center justify-between gap-6 h-[4.75rem]">
-      <NuxtLink to="/" class="flex items-center gap-2.5 min-h-11" :aria-label="words.toTop(name)">
+      <NuxtLink to="/" class="flex items-center gap-2.5 min-h-11 min-w-0" :aria-label="words.toTop(name)">
         <CasomiraWordmark />
-        <span v-if="edition" class="mono text-quiet hidden sm:inline pl-2">{{ edition }}</span>
+        <span v-if="edition" class="mono text-quiet hidden sm:inline pl-2 shrink-0">{{ edition }}</span>
       </NuxtLink>
       <nav class="hidden lg:flex items-center gap-7 mono" :aria-label="words.mainMenu">
         <NuxtLink v-for="l in links" :key="l.id" class="navlink" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
       </nav>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <a v-if="cta" :href="cta.url" class="btn !min-h-11 !px-4 !text-[0.95rem] hidden sm:inline-flex">{{ cta.label }} <UIcon name="i-lucide-arrow-up-right" class="ico" aria-hidden="true" /></a>
         <button type="button" class="lg:hidden inline-flex items-center justify-center gap-2 h-11 px-3 rounded-[3px] border border-quiet mono bg-bg/60 cursor-pointer" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.show()">
           <UIcon name="i-lucide-menu" class="text-xl" aria-hidden="true" />{{ words.menu }}

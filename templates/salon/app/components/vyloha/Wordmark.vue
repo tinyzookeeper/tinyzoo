@@ -10,6 +10,8 @@ const { settings, name } = await useSalon()
   <CmsImage v-if="settings?.logo" :media="settings.logo" :alt="name" eager sizes="12rem" class="w-auto max-w-[12rem] object-contain" :class="large ? 'h-16' : 'h-9'" :data-wordmark="large ? undefined : ''" />
   <span
     v-else class="block font-display uppercase text-cream leading-none tracking-[.3em] pl-[.3em] lettering"
-    :class="large ? 'text-[34px] sm:text-[64px]' : 'text-[22px] md:text-[30px]'" :data-wordmark="large ? undefined : ''"
+    :class="large
+      ? byLength(name, [[10, 'text-[34px] sm:text-[64px]']], 'text-[22px] sm:text-[36px] tracking-[.2em]')
+      : byLength(name, [[10, 'text-[22px] md:text-[30px]'], [24, 'text-[15px] md:text-[18px] tracking-[.2em]']], 'text-[13px] md:text-[14px] tracking-[.12em]')" :data-wordmark="large ? undefined : ''"
   >{{ name }}</span>
 </template>

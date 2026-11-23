@@ -20,6 +20,8 @@ export async function useTrades() {
   const { settings, name } = await useSite()
   return {
     settings, name, words,
+    /** A name too long to share a row with the whole menu: the looks fold the menu sooner and set the name smaller. */
+    long: computed(() => name.value.length > 20),
     /** The phone number as written, and as a link; null until it is set. */
     phone: computed(() => (settings.value?.phone ? { text: settings.value.phone, href: telHref(settings.value.phone) } : null)),
     /** The header's button: its text and where it leads. */

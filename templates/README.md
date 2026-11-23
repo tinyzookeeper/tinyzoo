@@ -5,8 +5,11 @@ A template is a complete tinyzoo website for one field (a photographer, a restau
 | Folder | |
 |---|---|
 | `kit/` | what templates share (`tinyzoo-template-kit`): the website's frame (pages, layout, error page, robots.txt), the settings and the page of a visit (`useSite`, `useSitePage`), looks and colour presets, `<LookPart>`, the website form without markup, the phone menu's state, texts with one marked part, helpers for addresses, prices and dates, seed helpers, the type check |
-| `photographer/` | **Photographer**: galleries by category, albums, packages, testimonials, an enquiry form. Three looks: Ateliér, Negativ, Zápisník |
-| `wedding/` | **Wedding**: one page for the guests: the invitation, the story, the programme, the place and the way there, where to stay, a reply form, a gift list guests reserve from, questions, contacts. Three looks: Oznámení, Večer, Magazín |
+| `photographer/` | **Photographer**, the pilot: galleries by category, albums, packages, testimonials, an enquiry form |
+| `wedding/` | **Wedding**: one page for the guests, with a reply form and a gift list guests reserve from |
+| `<id>/` | the other eighteen, one folder per field: `individual`, `blog`, `trades`, `car-service`, `salon`, `medical`, `office`, `restaurant`, `accommodation`, `sports-club`, `studio`, `event`, `association`, `realty`, `development`, `construction`, `shop`, `software` |
+
+Each template's looks (one to three, 52 in all) are its approved designs; their names and one-line descriptions are in `cloud/shared/templates.ts`.
 
 ("Basic website", the other template the cloud offers, is `packages/cms/starter`: it also ships in the npm package as what `create-tinyzoo` copies. Hosted templates live here instead, outside the package.)
 
@@ -44,6 +47,9 @@ The pictures of a look in the cloud's wizard come from a real site of it: mark w
 
 ## Demo content
 
+**One content model, demo content worded per look.** Each design of a template was written with its own headings, lines and section order. A site made in a look gets that look's wording: `texts/cs.ts` exports `demo` (the shared texts: the first look's design) and `demoByLook` (what each other look's design words differently), and the seed lays them together (`seedLook`, `demoFor` from `tinyzoo-template-kit/seed`) and builds the home page with the sections that look's design has, in its order. The cloud tells the seed the look (`SEED_LOOK`). The content model stays one: every look draws every block, so a site that changes its look keeps its content (in the wording it was made with).
+
+
 `seed/index.ts` (with `defineSeed`) is run by the cloud against the new site: `pnpm seed` in the template's folder, over HTTP, as the service account. Photographs are in `seed/media/` and listed with their alt texts in `seed/photos.ts`. The seed can run twice: entries are found by their address, files by name and size, and Site settings are only written when the site has none (`ifMissing`), so a second run never undoes what the cloud or the owner set.
 
 ## Working on a template
@@ -52,7 +58,7 @@ The pictures of a look in the cloud's wizard come from a real site of it: mark w
 cd templates/photographer
 cp .env.example .env                      # a database of its own: tz_tpl_photographer_dev
 pnpm dev                                  # http://localhost:3000, the admin at /admin
-SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed
+SEED_EMAIL=you@example.com SEED_PASSWORD='a long password' pnpm seed          # SEED_LOOK=<look>: in that look's wording (into an empty database)
 pnpm typecheck                            # the template's own files and the kit's
 pnpm --filter tinyzoo-cloud templates:build photographer   # the build the cloud runs
 ```
@@ -69,4 +75,6 @@ After a change to `cms.config.ts`: `pnpm db:generate` (read the migration), `pnp
 6. `seed/`: the photographs (the design's own, `template-designs/_photos/<id>/`), `photos.ts`, `index.ts`.
 7. `pnpm install`, then in the template's folder `pnpm db:generate` (name the migration `0000_init`), `pnpm cms:client`, `pnpm typecheck`.
 8. In `cloud/`: the entry in `shared/templates.ts` (`hosted(…)`, each look with its default colours), the line in `scripts/lib.mjs` (`BUILT_TEMPLATES`), its checks in `scripts/e2e-templates.mjs`, its looks in `test/unit/cloud-templates.spec.ts` (`HOSTED_LOOKS`); then `pnpm --filter tinyzoo-cloud templates:build <id>`, `pictures --real --only <id>` and `e2e --templates <id>`.
-9. Compare every look with its design, section by section, on a desktop and a phone, in all three palettes.
+9. Compare every look, seeded in its own wording, with its design, section by section, on a desktop and a phone, in all three palettes.
+
+What depends on the time (open now, today's lessons, the next match, a countdown) is worked out after the page is mounted, from a neutral first drawing, so the server's answer and the browser's agree whatever their clocks; a seed writes such demo dates relative to the day it runs.

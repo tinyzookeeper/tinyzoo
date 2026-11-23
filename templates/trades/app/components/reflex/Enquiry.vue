@@ -19,7 +19,7 @@ const hours = computed(() => [settings.value?.hoursLine, settings.value?.emergen
         <div v-if="phone || settings?.email" class="mt-10 pt-6 border-t-2 border-current">
           <template v-if="phone">
             <p v-if="block.callLabel" class="label">{{ block.callLabel }}</p>
-            <a :href="phone.href" class="inline-block font-cond font-black text-[4.25rem] md:text-[5.5rem] leading-[0.95] tabular-nums whitespace-nowrap underline decoration-transparent decoration-4 underline-offset-8 hover:decoration-current transition-colors">{{ phone.text }}</a>
+            <a :href="phone.href" class="inline-block font-cond font-black text-[4.25rem] max-[380px]:text-[4rem] md:text-[5.5rem] leading-[0.95] tabular-nums whitespace-nowrap underline decoration-transparent decoration-4 underline-offset-8 hover:decoration-current transition-colors">{{ phone.text }}</a>
             <p v-if="hours" class="mt-1 font-bold">{{ hours }}</p>
           </template>
           <a v-if="settings?.email" :href="`mailto:${settings.email}`" class="inline-flex items-center min-h-[44px] font-bold underline decoration-2 underline-offset-4 hover:decoration-4 break-all">{{ settings.email }}</a>

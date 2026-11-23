@@ -10,12 +10,12 @@ const menu = useOverlayMenu()
 <template>
   <header class="wrap">
     <div class="flex items-center justify-between gap-6 py-3.5 lg:py-5">
-      <NuxtLink to="/" :aria-label="words.homeOf(name)"><HristeWordmark /></NuxtLink>
-      <nav class="hidden items-center gap-1 font-display text-[16px] font-bold lg:flex" :aria-label="words.mainMenu">
+      <NuxtLink to="/" class="min-w-0" :aria-label="words.homeOf(name)"><HristeWordmark /></NuxtLink>
+      <nav class="hidden shrink-0 items-center gap-1 font-display text-[16px] font-bold lg:flex" :aria-label="words.mainMenu">
         <NuxtLink v-for="l in links" :key="l.id" class="rounded-full px-4 py-2.5 transition-colors hover:bg-tint" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
         <NuxtLink v-if="cta" class="btn ml-3" :to="cta.url">{{ cta.label }}</NuxtLink>
       </nav>
-      <button type="button" class="btn btn-soft !px-5 lg:hidden" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.open.value ? menu.hide() : menu.show()">
+      <button type="button" class="btn btn-soft shrink-0 !px-5 lg:hidden" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.open.value ? menu.hide() : menu.show()">
         <UIcon :name="menu.open.value ? 'i-lucide-x' : 'i-lucide-menu'" class="text-xl" aria-hidden="true" /><span>{{ menu.open.value ? words.close : words.menu }}</span>
       </button>
     </div>

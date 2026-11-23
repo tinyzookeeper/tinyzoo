@@ -28,16 +28,17 @@ const rows = computed(() => props.fees.tracks.value)
           <thead>
             <tr class="align-bottom">
               <th scope="col" class="pb-3 pr-2 font-bold w-[31%]">{{ words.route }}</th>
-              <th v-for="(head, i) in heads" :key="fees.periods.value[i]!.id" scope="col" class="font-medium" :class="i === fees.current.value ? 'p-3 sm:px-6 bg-ink text-paper rounded-t-[24px]' : 'p-2 sm:p-3 sm:px-6'">
+              <th v-for="(head, i) in heads" :key="fees.periods.value[i]!.id" scope="col" class="font-medium max-[374px]:!px-1.5" :class="i === fees.current.value ? 'p-3 sm:px-6 bg-ink text-paper rounded-t-[24px]' : 'p-2 sm:p-3 sm:px-6'">
                 <span class="block text-sm" :class="i === fees.current.value ? 'text-c2 font-bold' : ''">{{ head[0] }}</span><span class="block font-bold sm:text-lg whitespace-nowrap">{{ head[1] }}</span>
               </th>
             </tr>
           </thead>
-          <tbody class="disp text-[1.5rem] sm:text-[2.4rem]">
+          <!-- (below 375 px the table is tighter: at 360 the design's own sizes are wider than the screen) -->
+          <tbody class="disp text-[1.5rem] max-[374px]:text-[1.2rem] sm:text-[2.4rem]">
             <tr v-for="(track, r) in rows" :key="track.id">
               <th scope="row" class="py-4 sm:py-5 pr-2 border-t-[2.5px] border-ink font-sans tracking-normal"><span class="font-bold text-lg sm:text-xl block leading-tight">{{ track.name }}</span><span class="text-sm sm:text-base font-normal">{{ track.length }}</span></th>
               <td
-                v-for="(p, i) in fees.periods.value" :key="p.id" class="p-3 sm:px-6 border-t-[2.5px]"
+                v-for="(p, i) in fees.periods.value" :key="p.id" class="p-3 sm:px-6 max-[374px]:!px-1.5 border-t-[2.5px]"
                 :class="i === fees.current.value ? ['bg-ink text-paper', r === 0 ? 'border-ink' : 'border-paper/25', r === rows.length - 1 ? 'rounded-b-[24px]' : ''] : 'border-ink'" :data-current="i === fees.current.value ? '' : undefined"
               >{{ track.prices?.[i]?.price ?? '' }}<template v-if="i === fees.current.value">&nbsp;<span class="font-sans text-base font-bold tracking-normal">{{ words.crowns }}</span></template><span v-else class="hidden sm:inline font-sans text-base font-bold tracking-normal">&nbsp;{{ words.crowns }}</span></td>
             </tr>

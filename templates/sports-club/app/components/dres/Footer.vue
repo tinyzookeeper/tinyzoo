@@ -34,7 +34,7 @@ const legalName = computed(() => settings.value?.fullName || name.value)
       </div>
     </div>
     <div class="wrap">
-      <p class="wide mt-6 text-[clamp(24px,6.8vw,100px)]" aria-hidden="true">{{ name }}</p>
+      <p class="wide mt-6" :class="byLength(name, [[16, 'text-[clamp(24px,6.8vw,100px)]'], [30, 'text-[clamp(20px,3.6vw,56px)]']], 'text-[clamp(18px,2.4vw,40px)]')" aria-hidden="true">{{ name }}</p>
       <p class="py-5 text-[13px]">{{ words.copyright(year, legalName) }}</p>
     </div>
   </footer>

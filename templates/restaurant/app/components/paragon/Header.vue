@@ -7,22 +7,23 @@ const links = computed(() => menuLinks(nav.value?.main))
 const menu = useOverlayMenu()
 const w = computed(() => words.value.paragon)
 const open = computed(() => openText(w.value.open))
+const fold = computed(() => (name.value.length > 24 ? { nav: 'hidden', button: '' } : name.value.length > 12 ? { nav: 'hidden xl:flex', button: 'xl:hidden' } : { nav: 'hidden lg:flex', button: 'lg:hidden' }))
 const reserve = `/#${anchorOf('reservation')}`
 </script>
 
 <template>
   <header class="wrap">
     <div class="flex items-center justify-between gap-6 py-4 lg:py-5 border-b-2 border-dashed rule">
-      <NuxtLink to="/" class="flex items-baseline gap-3" :aria-label="words.toTop(name)"><ParagonWordmark mark tagline /></NuxtLink>
-      <nav class="hidden lg:flex items-center gap-8 whitespace-nowrap" :aria-label="words.mainMenu">
+      <NuxtLink to="/" class="flex items-baseline gap-3 min-w-0" :aria-label="words.toTop(name)"><ParagonWordmark mark tagline /></NuxtLink>
+      <nav class="items-center gap-8 whitespace-nowrap shrink-0" :class="fold.nav" :aria-label="words.mainMenu">
         <NuxtLink v-for="l in links" :key="l.id" class="navlink" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
         <NuxtLink class="btn ml-1" :to="reserve">{{ w.reserve }}</NuxtLink>
       </nav>
-      <button type="button" class="lg:hidden btn !min-h-12 !px-4 cursor-pointer" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.show()"><UIcon name="i-lucide-menu" class="text-lg" aria-hidden="true" /> {{ words.menu }}</button>
+      <button type="button" class="btn !min-h-12 !px-4 cursor-pointer shrink-0" :class="fold.button" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.show()"><UIcon name="i-lucide-menu" class="text-lg" aria-hidden="true" /> {{ words.menu }}</button>
     </div>
 
     <!-- Mobile menu -->
-    <div v-show="menu.open.value" id="site-menu" class="fixed inset-0 z-50 bg-paper overflow-y-auto lg:hidden" role="dialog" aria-modal="true" :aria-label="words.menu">
+    <div v-show="menu.open.value" id="site-menu" class="fixed inset-0 z-50 bg-paper overflow-y-auto" :class="fold.button" role="dialog" aria-modal="true" :aria-label="words.menu">
       <div class="wrap flex items-center justify-between py-4">
         <span aria-hidden="true"><ParagonWordmark size="panel" /></span>
         <button type="button" class="btn btn-plain !min-h-12 !px-4 cursor-pointer" @click="menu.hide()"><UIcon name="i-lucide-x" class="text-lg" aria-hidden="true" /> {{ words.close }}</button>

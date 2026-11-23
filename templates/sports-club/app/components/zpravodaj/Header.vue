@@ -23,12 +23,12 @@ const ours = computed(() => table.value.ours)
 
   <header class="border-b border-line">
     <div class="wrap flex items-center justify-between gap-6 py-5">
-      <NuxtLink to="/" :aria-label="words.homeOf(name)"><ZpravodajWordmark tagline /></NuxtLink>
-      <nav class="hidden items-center gap-8 text-[15px] font-medium text-ink lg:flex" :aria-label="words.mainMenu">
+      <NuxtLink to="/" class="min-w-0" :aria-label="words.homeOf(name)"><ZpravodajWordmark tagline /></NuxtLink>
+      <nav class="hidden shrink-0 items-center gap-8 text-[15px] font-medium text-ink lg:flex" :aria-label="words.mainMenu">
         <NuxtLink v-for="l in links" :key="l.id" class="py-3 hover:text-brand" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
         <NuxtLink v-if="cta" class="btn btn-line !min-h-11" :to="cta.url">{{ cta.label }}</NuxtLink>
       </nav>
-      <button type="button" class="inline-flex h-12 cursor-pointer items-center gap-2 border border-ink px-4 text-[15px] font-semibold text-ink lg:hidden" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.open.value ? menu.hide() : menu.show()">
+      <button type="button" class="inline-flex h-12 shrink-0 cursor-pointer items-center gap-2 border border-ink px-4 text-[15px] font-semibold text-ink lg:hidden" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.open.value ? menu.hide() : menu.show()">
         <UIcon name="i-lucide-menu" class="text-xl" aria-hidden="true" /> {{ words.menu }}
       </button>
     </div>

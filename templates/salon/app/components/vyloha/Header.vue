@@ -10,11 +10,11 @@ const menu = useOverlayMenu()
 
 <template>
   <header class="wrap pt-5 md:pt-7">
-    <div class="grid grid-cols-[1fr_auto] xl:grid-cols-[1fr_auto_1fr] items-center gap-6">
+    <div class="grid grid-cols-[minmax(0,1fr)_auto] xl:grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-6">
       <nav class="hidden xl:flex items-center gap-8 caps whitespace-nowrap" :aria-label="words.mainMenu">
         <NuxtLink v-for="l in links" :key="l.id" :to="l.url" :target="l.newTab ? '_blank' : undefined" class="py-3 hover:text-brass">{{ l.label }}</NuxtLink>
       </nav>
-      <NuxtLink to="/" class="panel justify-self-start xl:justify-self-center px-6 md:px-10 py-3 md:py-4 text-center" style="--r:12px" :aria-label="words.toTop(name)">
+      <NuxtLink to="/" class="panel min-w-0 justify-self-start xl:justify-self-center px-6 md:px-10 py-3 md:py-4 text-center" style="--r:12px" :aria-label="words.toTop(name)">
         <VylohaWordmark />
         <span v-if="settings?.tagline" class="hidden md:block mt-2 caps !text-[10px] text-brass">{{ settings.tagline }}</span>
       </NuxtLink>

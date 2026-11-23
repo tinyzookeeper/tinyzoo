@@ -22,7 +22,7 @@ const figure = ['text-[23px]', 'text-[25px]', 'text-[27px]', 'text-[29px]']
           <NuxtLink v-if="offer.buttonLabel" :to="siteHref(offer.buttonUrl)" class="btn btn-ink mt-5 !min-h-[48px] !text-[18px]">{{ offer.buttonLabel }}</NuxtLink>
         </div>
       </div>
-      <ul class="lg:col-span-7 grid grid-cols-2 sm:flex sm:justify-between sm:items-end gap-x-3 gap-y-6 text-center">
+      <ul class="lg:col-span-7 grid grid-cols-2 sm:flex sm:flex-wrap xl:flex-nowrap sm:justify-between sm:items-end gap-x-3 gap-y-6 text-center">
         <li v-for="(p, i) in offer.prices" :key="p.id" class="flex flex-col items-center justify-end gap-3">
           <span class="tyre" :class="wheel[Math.min(i, 3)]"><span class="num leading-none" :class="figure[Math.min(i, 3)]">{{ formatPrice(p.price) }}<span class="block text-[14px] font-sans font-medium mt-0.5">Kč</span></span></span>
           <span class="text-[15px] leading-tight"><b class="font-semibold block">{{ tidyText(p.label) }}</b>{{ p.note }}</span>

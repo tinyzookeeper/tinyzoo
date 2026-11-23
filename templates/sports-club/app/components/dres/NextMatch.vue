@@ -13,6 +13,8 @@ const facts = computed(() => [
   m.value?.isHome && settings.value?.admission ? `${words.value.admission} ${settings.value.admission}.` : '',
   before.value[0] ? words.value.preMatchLine(before.value[0], before.value[1]) : '',
 ].filter(Boolean).join(' '))
+// What the headline says, for its size: the heading, or the two teams.
+const headline = computed(() => props.block.heading || (m.value ? `${m.value.home.name} ${m.value.away.name}` : name.value))
 const day = computed(() => (m.value ? capital(weekday(m.value.at)) : ''))
 </script>
 
@@ -20,7 +22,7 @@ const day = computed(() => (m.value ? capital(weekday(m.value.at)) : ''))
   <section class="stripes bg-brand text-brand-ink" data-next-match>
     <div class="wrap pb-0 pt-8 lg:pt-14">
       <p v-if="eyebrow" class="cap">{{ eyebrow }}</p>
-      <component :is="first ? 'h1' : 'h2'" class="wide mt-4 break-words text-[9.4vw] sm:text-[clamp(30px,6.3vw,96px)] [&_em]:block [&_em]:not-italic">
+      <component :is="first ? 'h1' : 'h2'" class="wide mt-4 break-words [&_em]:block [&_em]:not-italic" :class="byLength(headline, [[30, 'text-[9.4vw] sm:text-[clamp(30px,6.3vw,96px)]'], [50, 'text-[6vw] sm:text-[clamp(24px,4vw,64px)]']], 'text-[4.6vw] sm:text-[clamp(20px,3vw,48px)]')">
         <KitMarked v-if="block.heading" :text="block.heading" />
         <template v-else-if="m">{{ m.home.name }} <span class="block"><span class="inline-block -translate-y-[.12em] text-[.62em]" aria-hidden="true">×</span><span class="sr-only">{{ words.against }}</span> {{ m.away.name }}</span></template>
         <template v-else>{{ name }}</template>
