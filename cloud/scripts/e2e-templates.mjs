@@ -11,45 +11,21 @@
 // look, nothing wider than a phone's screen. Then the template's own checks (its form sends,
 // a gift is reserved…), and the site is removed.
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { BUILT_TEMPLATES, log, looksOf, open, waitFor } from './lib.mjs'
 
-/** What a template adds to the common checks. `extra` gets the site's page (signed in to its admin) and the site. */
-export const TEMPLATE_CHECKS = {
-  wedding: {
-    name: 'Klára a Matěj',
-    // The names open the page, with the look's own sign between them; the admin is called by them.
-    named: async (page) => /Klára\s*(&|a)\s*Matěj/.test((await page.locator('main h1').first().innerText()).replace(/\s+/g, ' ')),
-    async extra({ page, origin, check }) {
-      await page.goto(origin, { waitUntil: 'networkidle' })
-      // The menu leads to sections of the page: every one of its anchors is there.
-      const anchors = await page.evaluate(() => [...document.querySelectorAll('header nav a[href*="#"]')].map((a) => a.getAttribute('href').split('#')[1]))
-      const missing = await page.evaluate((ids) => ids.filter((id) => !document.getElementById(id)), anchors)
-      check('wedding: the menu\'s links lead to sections of the page', anchors.length >= 5 && missing.length === 0, JSON.stringify({ anchors, missing }))
-      const day = await page.evaluate(() => document.querySelector('main time[datetime]')?.getAttribute('datetime'))
-      check('wedding: the day of the ceremony is written from the settings', day === '2027-06-19T12:30', String(day))
-      // A guest reserves a gift: it then says so for everyone, and the admin shows it.
-      const before = await page.evaluate(async () => (await (await fetch('/api/content/gift?limit=100')).json()).items.map((g) => ({ id: g.id, reserved: g.reserved, open: g.open })))
-      const free = before.find((g) => !g.reserved && !g.open)
-      await page.locator(`[data-gift="${free.id}"] [data-gift-reserve]`).click()
-      await page.locator(`[data-gift="${free.id}"][data-reserved=true]`).waitFor({ timeout: 10_000 })
-      const after = await page.evaluate(async () => (await (await fetch('/api/content/gift?limit=100')).json()).items)
-      check('wedding: reserving a gift marks that gift, and no other', after.find((g) => g.id === free.id).reserved === true && after.filter((g) => g.reserved).length === before.filter((g) => g.reserved).length + 1)
-      const open = before.find((g) => g.open)
-      const refused = await page.evaluate(async (id) => (await fetch(`/api/gift/${id}/reserve`, { method: 'POST' })).status, open.id)
-      check('wedding: a contribution anyone can add to cannot be reserved', refused === 404, String(refused))
-      // The reply form: the dishes are the couple's own, and a reply arrives in the admin.
-      await page.locator('form [name=name]').fill('Jana a Petr Novákovi')
-      const dishes = await page.locator('form select[name=meal] option').count()
-      await page.locator('form select[name=meal]').selectOption({ index: 1 })
-      await page.locator('form [name=message]').fill('Přijedeme už v pátek večer.')
-      await page.locator('form [name=ride]').check()
-      await page.locator('form button[type=submit]').click()
-      await page.locator('[role=status]').waitFor({ timeout: 15_000 })
-      const replies = await page.evaluate(async () => { const r = await (await fetch('/api/cms/rsvp', { headers: { accept: 'application/json' } })).json(); return r.items ?? r.rows ?? [] })
-      check('wedding: the reply form sends, with the couple\'s own dishes and the ride', dishes === 4 && replies.length === 1 && replies[0].attending === 'yes' && replies[0].ride === true && /Pstruh/.test(replies[0].meal ?? ''), JSON.stringify(replies[0] ?? null))
-    },
-  },
+/**
+ * What a template adds to the common checks: `scripts/e2e/<id>.mjs`, whose default export is
+ *   name    the name the site is made with
+ *   named   (page) => whether the page carries that name where the look writes it
+ *   extra   ({ page, origin, check, site }) => the template's own checks; `page` is signed in to
+ *           the site's admin, so `/api/cms/…` answers it
+ */
+async function checksOf(id) {
+  const file = join(dirname(fileURLToPath(import.meta.url)), 'e2e', `${id}.mjs`)
+  if (!existsSync(file)) throw new Error(`scripts/e2e/${id}.mjs is missing: the template "${id}" has no checks of its own`)
+  return (await import(file)).default
 }
 
 /** The settings as the admin's API takes them back: without what the server keeps itself. */
@@ -76,9 +52,8 @@ const drawn = (page) => page.evaluate(() => ({
 export async function checkHostedTemplates({ browser, ctx, base, stamp, dataDir, check, measures, only = null, skip = [] }) {
   const page = await ctx.newPage()
   for (const built of BUILT_TEMPLATES) {
-    const spec = TEMPLATE_CHECKS[built.id]
     if (only ? !only.includes(built.id) : (skip.includes(built.id) || !built.dir.startsWith('templates/'))) continue
-    if (!spec) throw new Error(`scripts/e2e-templates.mjs has no checks for the template "${built.id}"`)
+    const spec = await checksOf(built.id)
     const looks = await looksOf(built)
     const chosen = looks.all[looks.all.length - 1]
     log(`· template ${built.id}: a site in the look ${chosen.id}`)

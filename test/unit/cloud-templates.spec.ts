@@ -7,14 +7,16 @@ import { STEP_IDS } from '../../cloud/shared/steps'
 import { FIELD_IDS, FIELDS, fieldsOf, hasLookChoice, lookOf, measuredLooks, pictureLooks, pictureOf, templateById, TEMPLATES, visibleTemplates, wordmarkOf } from '../../cloud/shared/templates'
 import type { LookDef as KitLook, Looks } from '../../templates/kit/looks'
 import { looks as photographerLooks } from '../../templates/photographer/looks'
-import { looks as weddingLooks } from '../../templates/wedding/looks'
-
-// The looks of every hosted template that is built, as the template itself lists them.
-const HOSTED_LOOKS: Record<string, Looks<KitLook>> = { photographer: photographerLooks, wedding: weddingLooks }
 import { repoRoot } from '../setup/database'
 
-// The templates a hosted website can start from: two that exist, nineteen that are planned
-// (designed and approved, not built).
+// The templates a hosted website can start from: Basic, and twenty designed ones, of which
+// some are built and the rest planned (designed and approved, not built yet).
+
+// The looks of every hosted template that is built, as the template itself lists them
+// (templates/<id>/looks.ts; a template is built once the cloud's scripts list it).
+const BUILT_IDS = [...readFileSync(join(repoRoot, 'cloud', 'scripts', 'lib.mjs'), 'utf8').matchAll(/^\s*hosted\('([a-z-]+)'/gm)].map((m) => m[1]!)
+const HOSTED_LOOKS: Record<string, Looks<KitLook>> = {}
+for (const id of BUILT_IDS) HOSTED_LOOKS[id] = (await import(/* @vite-ignore */ join(repoRoot, 'templates', id, 'looks.ts'))).looks
 // The templates a site can be made from today: Basic (the starter) and the hosted ones that are built.
 const READY = TEMPLATES.filter((t) => t.id === 'basic' || t.id in HOSTED_LOOKS).map((t) => t.id)
 const DESIGNED = [

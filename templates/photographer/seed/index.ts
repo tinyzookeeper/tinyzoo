@@ -256,10 +256,11 @@ export default defineSeed(async (s) => {
     ctaLabel: 'Poptat termín',
     ctaUrl: refTo(s, contact),
     availability: 'V květnu, červnu a září 2027 mám ještě volné termíny.',
-    phone: '731 482 906',
-    // (addresses that lead nowhere: the demo's contacts are not anybody's)
+    // (contacts that are not anybody's: a number no phone has (Czech numbers do not start with 1),
+    // addresses that lead nowhere, a street the town does not have)
+    phone: '123 456 789',
     email: 'johana@loudova.example',
-    address: 'Toulovcovo náměstí 14, Litomyšl',
+    address: 'Fotografická 14, Litomyšl',
     addressNote: 'po předchozí domluvě',
     instagram: 'https://instagram.example/johana.loudova',
     facebook: 'https://facebook.example/johana.loudova',
