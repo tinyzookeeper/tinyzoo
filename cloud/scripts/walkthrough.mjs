@@ -77,7 +77,7 @@ mkdirSync(looksDir, { recursive: true })
 // `suggested` is the address the wizard offers for the name: typed over only when this run
 // needs another (against a running app an earlier run may hold it).
 const people = {
-  desktop: { name: 'Johana Loudová', email: 'johana@example.com', password: 'fotim-od-roku-2014', site: 'Johana Loudová', slug: 'johana-loudova', suggested: 'johana-loudova', look: 'negativ', nextLook: 'zapisnik', adminPassword: 'administrace-johana-1', heading: 'Fotím lidi *tak, jak jsou.*', headingSays: 'Fotím lidi' },
+  desktop: { name: 'Johana Loudová', email: 'johana@example.com', password: 'fotim-od-roku-2014', site: 'Johana Loudová', slug: 'johana-loudova', suggested: 'johana-loudova', look: 'negativ', nextLook: 'zapisnik', nextColorsFirst: 'Zápisník · Inkoust', nextColors: 'Zápisník · Švestka', nextColorsId: 'svestka', adminPassword: 'administrace-johana-1', heading: 'Fotím lidi *tak, jak jsou.*', headingSays: 'Fotím lidi' },
   phone: { name: 'Tereza Malá', email: 'tereza@example.com', password: 'tereza-foti-rada-1', site: 'Tereza Malá', slug: 'tereza-mala', suggested: 'tereza-mala', look: 'zapisnik' },
   // (three sites, one in each look: the screenshots of the looks come from them)
   screens: { name: 'Eva Králová', email: 'eva@example.com', password: 'fotky-od-evy-12', site: 'Johana Loudová', slug: 'foto' },
@@ -339,8 +339,18 @@ async function desktopTake() {
   await page.waitForURL('**/admin/siteSettings')
   await arrive()
   await h.read(1500)
+  // The home page is beside the form: the look and then its colours change there before saving.
+  const drawn = () => page.frames().find((f) => f.url().includes('?preview'))?.evaluate(() => `${document.documentElement.dataset.look}/${document.documentElement.dataset.colors}`)
   await h.click(page.locator(`button[role=radio][value=${who.nextLook}]`))
+  await h.read(2600)
+  await h.click(page.locator('#cms-field-colors'))
   await h.read(900)
+  // (the list scrolls inside itself, and this look's palettes are its last: turn the wheel over it)
+  await h.hover(page.getByRole('option', { name: who.nextColorsFirst, exact: true }))
+  await h.scroll(160, { ms: 700 })
+  await h.click(page.getByRole('option', { name: who.nextColors, exact: true }))
+  await h.read(2600)
+  if (await drawn() !== `${who.nextLook}/${who.nextColorsId}`) throw new Error(`the preview beside the settings shows ${await drawn()}`)
   await h.click(page.getByRole('button', { name: admin.common.save, exact: true }).first())
   await h.read(2000)
 
