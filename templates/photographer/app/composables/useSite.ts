@@ -8,9 +8,12 @@ export function useSiteWords() {
 }
 
 export async function useSite() {
+  // In the admin's preview (?preview) the settings and menus come with the editor's unsaved
+  // values laid over them, so a look or a colour can be tried before it is saved.
+  const query = 'preview' in useRoute().query ? { preview: '' } : undefined
   const [{ data: settings }, { data: nav }] = await Promise.all([
-    useFetch<{ item: SiteSettings | null }>('/api/content/_global/siteSettings', { key: 'site-settings' }),
-    useFetch<{ item: Navigation | null }>('/api/content/_global/navigation', { key: 'site-nav' }),
+    useFetch<{ item: SiteSettings | null }>('/api/content/_global/siteSettings', { key: 'site-settings', query }),
+    useFetch<{ item: Navigation | null }>('/api/content/_global/navigation', { key: 'site-nav', query }),
   ])
   const item = computed(() => settings.value?.item ?? null)
   return {

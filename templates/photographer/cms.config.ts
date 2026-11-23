@@ -23,6 +23,8 @@ export const SiteSettings = defineSingleton('siteSettings', {
   icon: 'i-lucide-settings-2',
   titleField: 'siteName',
   admin: {
+    // The home page beside the form: a change of look or colours shows before it is saved.
+    preview: '/',
     sections: [
       { label: { en: 'Name and look', cs: 'Název a vzhled' }, fields: ['siteName', 'logo', 'look', 'colors', 'tagline'] },
       { label: { en: 'Header', cs: 'Záhlaví' }, fields: ['ctaLabel', 'ctaUrl', 'availability'] },
