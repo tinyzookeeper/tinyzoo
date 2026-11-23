@@ -4,13 +4,13 @@ import { lookOf, templateById } from '#shared/templates'
 import type { Fact } from '~/components/FactList.vue'
 
 // One website. While it is being made: the steps, live. Then its own page: its address, the
-// way into its admin, what it was made from, and its removal.
+// way into its admin (through the account), what it was made from, and its removal.
 const route = useRoute()
 const t = useT()
 const l = useL()
 const errorText = useErrorText()
 const { locale } = useLocale()
-const { account, refresh: refreshAccount } = useAccount()
+const { account, user, refresh: refreshAccount } = useAccount()
 const toast = useToast()
 const id = String(route.params.id)
 
@@ -32,14 +32,16 @@ function finished() {
   justMade.value = true
 }
 
-// Live: every second while something is happening, every few seconds while waiting for the
-// owner to choose their password, and whenever the tab gets the focus back.
+// Live: every second while something is happening, every few seconds until the owner has been
+// in the admin, and whenever the tab gets the focus back (the e-mail may have been confirmed
+// in another tab meanwhile).
 let timer: ReturnType<typeof setTimeout> | null = null
 const gone = ref(false)
 async function poll() {
   timer = null
   if (gone.value) return
   await refresh()
+  if (user.value && !user.value.emailVerified) await refreshAccount()
   if (loadError.value) {
     // Removed (here or in another tab): back to the list.
     gone.value = true
@@ -174,26 +176,33 @@ const facts = computed<Fact[]>(() => [
         </section>
 
         <div class="flex flex-col gap-6" :class="justMade ? 'z-rise z-rise-2' : ''">
-          <!-- The admin: the first time, the way in is the invitation; afterwards, a plain link. -->
-          <section v-if="!site.ownerAccepted" class="z-card overflow-hidden" data-admin="invite">
-            <div class="flex items-end justify-between gap-4 bg-(--z-moment-bg) px-5 pt-5 sm:px-6">
-              <p class="pb-4 text-sm font-semibold text-highlighted">{{ t('site.adminKicker') }}</p>
-              <ZAnimal name="panda" class="h-16 w-auto translate-y-px" />
-            </div>
-            <div class="p-5 sm:p-6">
-              <h2 class="z-title text-xl leading-snug text-highlighted">{{ t('site.setPasswordTitle') }}</h2>
-              <p class="mt-1.5 text-[0.9375rem] leading-relaxed text-pretty text-muted">{{ t('site.setPasswordText') }}</p>
-              <UButton v-if="site.inviteUrl" :to="site.inviteUrl" target="_blank" :label="t('site.setPassword')" size="lg" block class="mt-5" trailing-icon="i-lucide-key-round" data-invite />
-              <p class="mt-4 text-sm text-muted">
-                {{ t('site.linkValid') }}
-                <button type="button" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4 disabled:opacity-60" :disabled="linking" data-fresh-link @click="freshLink">{{ linking ? t('site.freshLinkBusy') : t('site.freshLink') }}</button>
+          <!-- The admin. The way in is the account: the site asks the account who the person is
+               and lets its owner in. That needs a confirmed e-mail (a site links a person by a
+               confirmed address only), so until then the card says so. The invitation the cloud
+               made stays reachable as a quiet second way while nobody has used it. -->
+          <section class="z-card p-5 sm:p-6" :data-admin="site.ownerAccepted ? 'open' : 'first'" :data-admin-way="user?.emailVerified ? 'account' : 'confirm'">
+            <template v-if="user?.emailVerified">
+              <h2 class="z-title text-xl leading-snug text-highlighted">{{ t('site.adminTitle') }}</h2>
+              <p class="mt-1.5 text-[0.9375rem] leading-relaxed text-pretty text-muted">{{ t('site.adminText') }}</p>
+              <UButton v-if="site.adminUrl" :to="site.adminUrl" target="_blank" :label="t('site.openAdmin')" size="lg" block class="mt-5" trailing-icon="i-lucide-arrow-up-right" data-open-admin />
+            </template>
+            <template v-else>
+              <h2 class="z-title text-xl leading-snug text-highlighted">{{ t('site.confirmFirstTitle') }}</h2>
+              <p class="mt-1.5 text-[0.9375rem] leading-relaxed text-pretty text-muted" data-confirm-first>{{ t('site.confirmFirstText', { email: user?.email ?? '' }) }}</p>
+              <DevMailNote class="mt-4" :url="account.devVerifyUrl" :label="t('verify.open')" />
+              <UButton :label="t('verify.resend')" color="neutral" variant="outline" block class="mt-4" :loading="resending" icon="i-lucide-mail" data-resend @click="resendVerification" />
+              <p v-if="site.ownerAccepted && site.adminPasswordUrl" class="mt-4 text-sm text-muted">
+                <a :href="site.adminPasswordUrl" target="_blank" rel="noopener" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4" data-password-admin>{{ t('site.passwordSignIn') }}</a>
               </p>
-            </div>
-          </section>
-          <section v-else class="z-card p-5 sm:p-6" data-admin="open">
-            <h2 class="z-title text-xl leading-snug text-highlighted">{{ t('site.adminTitle') }}</h2>
-            <p class="mt-1.5 text-[0.9375rem] leading-relaxed text-pretty text-muted">{{ t('site.adminText') }}</p>
-            <UButton v-if="site.adminUrl" :to="site.adminUrl" target="_blank" :label="t('site.openAdmin')" size="lg" block class="mt-5" trailing-icon="i-lucide-arrow-up-right" data-open-admin />
+            </template>
+            <p v-if="site.inviteUrl" class="mt-4 text-sm text-pretty text-muted" data-second-way>
+              <template v-if="!site.inviteExpired">
+                <a :href="site.inviteUrl" target="_blank" rel="noopener" class="underline decoration-(--ui-border-accented) underline-offset-4 hover:text-highlighted" data-invite>{{ t('site.setPasswordLink') }}</a>. {{ t('site.linkValid') }}
+              </template>
+              <template v-else>{{ t('site.linkExpired') }}</template>
+              {{ ' ' }}
+              <button type="button" class="underline decoration-(--ui-border-accented) underline-offset-4 hover:text-highlighted disabled:opacity-60" :disabled="linking" data-fresh-link @click="freshLink">{{ linking ? t('site.freshLinkBusy') : t('site.freshLink') }}</button>
+            </p>
           </section>
 
           <InfoCard :title="t('site.about')">
