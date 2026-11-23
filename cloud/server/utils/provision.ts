@@ -102,7 +102,7 @@ async function provision(siteId: string): Promise<void> {
     }
     const internalUrl = site.internalUrl!
 
-    await step('content', () => seedSite(template, internalUrl, secrets))
+    await step('content', () => seedSite(template, internalUrl, secrets, lookOf(template, site.look)?.id ?? null))
 
     await step('account', async () => {
       const [owner] = await useDb().select().from(schema.users).where(eq(schema.users.id, site.ownerId))
@@ -153,9 +153,10 @@ function repoRoot(): string {
 /**
  * Run the template's seed (`pnpm seed` in its source folder) against the running site. On a
  * fresh site it makes the first account (the service account) with the setup code, then fills
- * the demo content; run again, it signs in and leaves what is already there alone.
+ * the demo content; run again, it signs in and leaves what is already there alone. The seed is
+ * told the look the site is made in (`SEED_LOOK`), so the demo reads as that look's design does.
  */
-function seedSite(template: TemplateDef, internalUrl: string, secrets: SiteSecrets): Promise<void> {
+function seedSite(template: TemplateDef, internalUrl: string, secrets: SiteSecrets, look: string | null): Promise<void> {
   if (!template.seed || !template.sourceDir) return ensureServiceAccount(internalUrl, secrets)
   const cwd = join(repoRoot(), template.sourceDir)
   if (!existsSync(join(cwd, 'seed'))) throw new StepError('seed_failed', `${cwd}/seed is missing`)
@@ -172,6 +173,8 @@ function seedSite(template: TemplateDef, internalUrl: string, secrets: SiteSecre
         SEED_PASSWORD: secrets.servicePassword,
         SEED_NAME: 'tinyzoo',
         SEED_SETUP_TOKEN: secrets.setupToken,
+        // The look the site is made in: a template's demo content is worded as that look's design is.
+        ...(look ? { SEED_LOOK: look } : {}),
       },
     })
     let output = ''

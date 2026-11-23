@@ -1,9 +1,11 @@
 // Every Czech text of the Wedding template, in one place: the website's own words (what is
 // not content: "Kdy", "Rezervovat", the anchors of the sections) and the demo content the seed
-// puts in. Another language is a file beside this one with the same two exports.
+// puts in (with what a look's design words differently: `demoByLook`). Another language is a
+// file beside this one with the same exports.
 // (The words every template shares are the kit's: templates/kit/app/utils/kitWords.ts. The
 // admin's labels are in cms.config.ts, in both of the admin's languages.)
 import { KIT_WORDS, type KitWords } from '../../kit/app/utils/kitWords'
+import type { DemoOverride } from '../../kit/seed'
 
 export interface Words extends KitWords {
   /** The word between two names: "Anežka a Šimon". */
@@ -219,5 +221,15 @@ export const demo = {
     flowers: 'Kytice lučních květin v bílém smaltovaném džbánu',
     landscape: 'Večerní krajina Žďárských vrchů s rybníkem a loukami',
     table: 'Večerní stůl ve stodole: svíčky, luční kvítí a lněný běhoun',
+  },
+}
+
+// What a look's design words differently from the texts above: a site made in that look gets
+// these (the seed is told the look). Oznámení and Večer share every text; Magazín's design is
+// shorter in a few places.
+export const demoByLook: Partial<Record<string, DemoOverride<typeof demo>>> = {
+  magazin: {
+    menu: { place: 'Místo' },
+    invitation: { eyebrow: 'Zveme vás na svatbu' },
   },
 }

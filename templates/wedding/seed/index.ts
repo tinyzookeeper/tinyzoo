@@ -1,13 +1,13 @@
 import { defineSeed } from 'tinyzoo'
-import { uploadPhotos } from 'tinyzoo-template-kit/seed'
+import { demoFor, seedLook, uploadPhotos } from 'tinyzoo-template-kit/seed'
 import { Contact, Gift, Lodging, Navigation, Page, ProgramItem, Question, SiteSettings } from '../cms.config'
 import { looks } from '../looks'
-import { demo, words } from '../texts/cs'
+import { demo as shared, demoByLook, words } from '../texts/cs'
 import { PHOTOS } from './photos'
 
 // The demo content of the Wedding template: the fictional couple Anežka and Šimon, marrying
-// on a farm in the Vysočina highlands. One set of content for all three looks; every text of
-// it is in texts/cs.ts.
+// on a farm in the Vysočina highlands. One set of content for all three looks, worded as the
+// design of the look the site is made in (texts/cs.ts holds every text of it).
 //
 // The cloud runs it against a site it has just started (`pnpm seed` here, with SEED_URL and
 // the service account in the environment); by hand:
@@ -19,6 +19,11 @@ import { PHOTOS } from './photos'
 // are only written when there are none yet, so a second run never undoes the owner's look or names.
 
 export default defineSeed(async (s) => {
+  // The look the site is made in (the cloud says it; the first one otherwise), and the demo as
+  // that look's design words it.
+  const look = looks.all.find((l) => l.id === seedLook(looks))!
+  const demo = demoFor(shared, demoByLook, look.id)
+
   // ── photographs ──
   const photo = await uploadPhotos(s, 'seed/media', PHOTOS)
 
@@ -107,8 +112,8 @@ export default defineSeed(async (s) => {
   //    over these right after; a second run of the seed must not put the demo's back. ──
   await s.global(SiteSettings, {
     ...demo.settings,
-    look: looks.ids[0],
-    colors: looks.all[0].presets[0].id,
+    look: look.id,
+    colors: look.presets[0].id,
     // Saturday 19 June 2027, 12.30, and Friday 30 April 2027 (all day), in Europe/Prague.
     date: '2027-06-19T10:30:00Z',
     rsvpDeadline: '2027-04-29T22:00:00Z',
