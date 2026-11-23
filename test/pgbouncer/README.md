@@ -73,6 +73,8 @@ TEST_DATABASE_URL=postgres://cms:cms@localhost:55440/t5_test node test/pgbouncer
 TEST_DATABASE_URL=postgres://cms:cms@localhost:55440/t5_test node test/pgbouncer/burst.mjs --sites 50 --via postgres://localhost:55451
 ```
 
+`--minute` also watches one round of the every-minute tasks (it needs a build with production's cron: `node test/setup/build-playground.mjs playground <build dir> <output dir>` without the test's `CMS_TEST_*_CRON`, then `--entry <output dir>/server/index.mjs`); `--sockets` also counts the app's own established sockets (`lsof`), which is how the cap was checked from outside the app.
+
 Measured on 2026-11-23, 50 sites, one app with its cap of 30 connections (`NUXT_CMS_TENANCY_MAX_CONNECTIONS`), nothing failed in any run:
 
 | Real Postgres connections at once (most) | straight | PgBouncer, 2 per site, 5 s | 1 per site, 5 s | 1 per site, 1 s |
@@ -83,5 +85,7 @@ Measured on 2026-11-23, 50 sites, one app with its cap of 30 connections (`NUXT_
 | The app's own connections (to Postgres, or to PgBouncer) | 30 | 30 | 30 | 30 |
 
 So behind PgBouncer **one app holds more real connections in a burst, not fewer.** A real connection belongs to one database and one user, so PgBouncer keeps a pool per site (`default_pool_size` each) and closes a connection only after `server_idle_timeout` without use. It has limits per database and per user (`max_db_connections`, `max_user_connections`) and none across databases: the peak is one to `default_pool_size` connections for every site used within the idle time. The app's cap counts the app's connections to PgBouncer; when the app closes a quiet site's pool to make room, the real connections of that site stay open at PgBouncer for its idle time.
+
+Straight to Postgres the count is the cap, exactly (`test/api/tenants-burst.spec.ts` keeps it so for the first use of many sites at once).
 
 What PgBouncer does give: the real connections no longer multiply with the number of app instances (two instances straight to Postgres may hold 2 × 30; behind PgBouncer a site has its `default_pool_size` whoever asks), connections of the app are cheap, and a site cannot take more than its pool. Postgres' `max_connections` must still cover *sites in use within `server_idle_timeout`* × `default_pool_size`.
