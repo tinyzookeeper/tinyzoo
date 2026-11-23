@@ -23,7 +23,7 @@ import { arg, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, human, in
 
 const keep = arg('keep', false) === true
 const given = arg('url', null)
-const only = arg('only', null) // desktop | phone | screens
+const only = arg('only', null) // desktop | phone | screens | index (only writes index.html again)
 const ffmpeg = process.env.FFMPEG || (existsSync('/opt/homebrew/bin/ffmpeg') ? '/opt/homebrew/bin/ffmpeg' : 'ffmpeg')
 const DB = 'tz_cloud_walk'
 const dataDir = join(cloudDir, '.data', 'walk', 'sites')
@@ -72,8 +72,9 @@ async function freeIdentity(base, who) {
   return who
 }
 
+/** The recording as an MP4. The first moment (a blank page before the app loads) is cut, so the video opens on the start page. */
 async function toMp4(webm, out) {
-  execFileSync(ffmpeg, ['-loglevel', 'error', '-y', '-i', webm, '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', out])
+  execFileSync(ffmpeg, ['-loglevel', 'error', '-y', '-ss', '0.8', '-i', webm, '-c:v', 'libx264', '-preset', 'slow', '-crf', '20', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', out])
 }
 
 async function removeSite(ctx, base, id, slug) {
@@ -444,6 +445,11 @@ ${extra.length ? `<h2>Stavy z e2e testu</h2>${group(extra).map(section).join('\n
 
 let failed = null
 try {
+  if (only === 'index') {
+    writeFileSync(join(preview, 'index.html'), indexHtml(readdirSync(screens).filter((f) => /^\d\d-/.test(f))))
+    log(`done: ${join(preview, 'index.html')}`)
+    process.exit(0)
+  }
   let base = given
   if (!base) {
     log('preparing a cloud app of its own')
