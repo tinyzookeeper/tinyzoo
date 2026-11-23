@@ -2,3 +2,4 @@
 .data
 .preview
 .nuxt-scripts
+.nuxt-scripts-shared

@@ -238,6 +238,8 @@ async function workOnce(): Promise<number> {
   const until = Date.now() + RUN_BUDGET_MS
   let pictures = 0
   while (Date.now() < until) {
+    // Multi-tenant mode: the site left the directory while this ran. Its database and folder are being removed: stop.
+    if (cmsSiteHasLeft()) break
     const picture = await claimNext(db)
     if (!picture) break
     // Widths made on an earlier run (a row that lacks only the ones added since) are kept:
@@ -248,6 +250,7 @@ async function workOnce(): Promise<number> {
       await db.execute(sql`update cms_media_sizes set state = 'done', widths = ${WIDTHS_TEXT()}, error = null, updated_at = now() where media_id = ${picture.id}`)
     }
     catch (err: any) {
+      if (cmsSiteHasLeft()) break
       // A picture the decoder cannot read: its original still shows. Not reported as a server
       // error (nothing is wrong with the site); the status counts it.
       const message = String(err?.message ?? err).slice(0, 300)

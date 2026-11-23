@@ -6,6 +6,7 @@ import { beginStep, completeStep, failStep, initialSteps, isDone, nextStep, norm
 import { lookOf, templateById, type LookDef, type TemplateDef } from '#shared/templates'
 import type { SiteRow } from '../db/schema'
 import { HostingError, hostingDriverName, useHosting } from '../hosting'
+import { sharedRoot } from '../hosting/shared'
 
 // Making a website, start to finish. A small state machine kept in sites.steps (shared/steps.ts):
 //
@@ -102,7 +103,7 @@ async function provision(siteId: string): Promise<void> {
     }
     const internalUrl = site.internalUrl!
 
-    await step('content', () => seedSite(template, internalUrl, secrets))
+    await step('content', () => seedSite(template, internalUrl, secrets, site.driver))
 
     await step('account', async () => {
       const [owner] = await useDb().select().from(schema.users).where(eq(schema.users.id, site.ownerId))
@@ -137,8 +138,9 @@ async function notifyReady(site: SiteRow): Promise<void> {
 
 // ── content: the template's seed ────────────────────────────────────────────────
 
-/** The repository's root: the nearest folder upwards with a pnpm-workspace.yaml (or NUXT_HOSTING_LOCAL_ROOT). */
-function repoRoot(): string {
+/** The repository's root: the nearest folder upwards with a pnpm-workspace.yaml (or NUXT_HOSTING_LOCAL_ROOT; the shared driver has its own setting). */
+function repoRoot(driver: string): string {
+  if (driver === 'shared') return sharedRoot()
   const configured = String((useRuntimeConfig().hosting as any)?.local?.root || '')
   if (configured) return resolve(configured)
   let dir = resolve(process.cwd())
@@ -155,9 +157,9 @@ function repoRoot(): string {
  * fresh site it makes the first account (the service account) with the setup code, then fills
  * the demo content; run again, it signs in and leaves what is already there alone.
  */
-function seedSite(template: TemplateDef, internalUrl: string, secrets: SiteSecrets): Promise<void> {
+function seedSite(template: TemplateDef, internalUrl: string, secrets: SiteSecrets, driver: string): Promise<void> {
   if (!template.seed || !template.sourceDir) return ensureServiceAccount(internalUrl, secrets)
-  const cwd = join(repoRoot(), template.sourceDir)
+  const cwd = join(repoRoot(driver), template.sourceDir)
   if (!existsSync(join(cwd, 'seed'))) throw new StepError('seed_failed', `${cwd}/seed is missing`)
   return new Promise((done, reject) => {
     const child = spawn('pnpm', ['seed'], {

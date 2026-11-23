@@ -7,6 +7,8 @@ import { eq } from 'tinyzoo'
 export default defineEventHandler(async (event) => {
   const user = requireCmsUser(event)
   if (cmsAuthMode() !== 'builtin') throw createError({ statusCode: 404, statusMessage: 'Shared editing needs the built-in sign-in' })
+  // Multi-tenant mode: a read-only site (it is being moved) takes no shared editing; opening a document writes.
+  if (currentCmsSite()?.state === 'read-only') throw createError({ statusCode: 503, statusMessage: 'This website is read-only for a moment' })
   const { reg } = useCms()
   const q = getQuery(event)
   const locale = requestedLocale(event, reg)

@@ -1,11 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { Client } from '../helpers/api'
-import { siteQuery, startTenants, tenantGet, tenantPost, type Tenants } from '../helpers/tenants'
+import { expectNoSiteErrors, siteQuery, startTenants, tenantGet, tenantPost, type Tenants } from '../helpers/tenants'
 
 // Two sites in one process (multi-tenant mode): the basics. The areas each have a file of their own (tenants-*.spec.ts).
 let t: Tenants
 beforeAll(async () => { t = await startTenants('basics') }, 120_000)
-afterAll(async () => { await t?.stop() })
+afterAll(async () => {
+  // Nothing ran without a site (a timer, a task, a hook) while the tests did.
+  try { expectNoSiteErrors(t) }
+  finally { await t?.stop() }
+})
 
 const as = (site: { url: string }, cookie = '') => { const c = new Client(site.url); c.cookie = cookie; return c }
 
@@ -52,7 +56,8 @@ describe('each site has its own database', () => {
     expect((await siteQuery(t.a, 'select slug from tag')).map((r) => r.slug)).toContain('only-on-a')
     expect((await siteQuery(t.b, 'select slug from tag')).map((r) => r.slug)).not.toContain('only-on-a')
     // By id on B: the same request, the other site.
-    expect((await as(t.b, t.b.cookies.admin).get(`/api/cms/tag/${made.body.id}`)).status).toBe(404)
+    expect((await as(t.a, t.a.cookies.admin).get(`/api/cms/tag/${made.body.row.id}`)).status).toBe(200)
+    expect((await as(t.b, t.b.cookies.admin).get(`/api/cms/tag/${made.body.row.id}`)).status).toBe(404)
   })
 
   it('a site\'s database user cannot open the other site\'s database', async () => {

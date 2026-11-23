@@ -2,7 +2,7 @@
 
 The hosted way into tinyzoo: someone makes an account, picks a template, names their site, and gets a running tinyzoo site with an admin of their own.
 
-This is the first working version. It runs **locally**: every website is a process on this machine. Nothing here deploys anything.
+This is the first working version. It runs **locally**: the websites are processes on this machine, one per website or, with the shared driver, one per template. Nothing here deploys anything.
 
 ## Run it
 
@@ -12,7 +12,7 @@ pnpm --filter tinyzoo-cloud templates:build   # once: builds the templates the s
 pnpm --filter tinyzoo-cloud dev               # http://localhost:3200
 ```
 
-It needs Postgres. `cloud/.env` points at it (`cp cloud/.env.example cloud/.env`); the default is the repository's own (`postgres://cms:cms@localhost:5434/tz_cloud_dev`). The database is migrated when the app starts. With the local driver the same server holds each site's database, so the user must be allowed to create databases.
+It needs Postgres. `cloud/.env` points at it (`cp cloud/.env.example cloud/.env`); the default is the repository's own (`postgres://cms:cms@localhost:5434/tz_cloud_dev`). The database is migrated when the app starts. With the local driver the same server holds each site's database, so the user must be allowed to create databases; with the shared driver each site also gets a database user of its own, so the user must be allowed to create those too.
 
 Use Chrome, Edge or Firefox locally. A site's address is `http://<slug>.localhost:<port>`, and tinyzoo's sign-in cookie is marked `Secure`; these browsers accept that on `localhost` names. (`NUXT_HOSTING_LOCAL_PUBLIC_URL` gives the sites another address; see the local driver below.)
 
@@ -50,12 +50,16 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `NUXT_MAX_SITES_PER_USER` | how many websites one account may have (default 3) |
 | `NUXT_REQUIRE_VERIFIED_EMAIL` | `true`: a site is made only after the e-mail is confirmed. Default: `false` in development, `true` in production |
 | `NUXT_PUBLIC_SHOW_PLANNED` | `true` shows the nineteen planned templates in the gallery as they were designed, marked *Not available yet* and not selectable. Without it a customer never sees them |
-| `NUXT_HOSTING_DRIVER` | `local` (default) or `pushbase` |
+| `NUXT_HOSTING_DRIVER` | `local` (default), `shared` or `pushbase` |
 | `NUXT_HOSTING_LOCAL_PORT_FROM`, `_TO` | the local driver's ports, one per site (default 4300–4399) |
 | `NUXT_HOSTING_LOCAL_DATA_DIR` | where the sites' folders live (default `cloud/.data/sites`) |
 | `NUXT_HOSTING_LOCAL_DATABASE_PREFIX` | what the sites' databases are called before the slug (default `tzc_`) |
 | `NUXT_HOSTING_LOCAL_PUBLIC_URL` | the pattern of the sites' public addresses (default `http://{slug}.localhost:{port}`). With another one, such as `https://{slug}.pushbase.app`, something in front of the sites must lead those names to their ports |
 | `NUXT_HOSTING_LOCAL_ROOT` | the repository's root, where templates are found (default: found from the working directory) |
+| `NUXT_HOSTING_SHARED_PORT_FROM`, `_TO` | the shared driver's ports, one per template (default 4400–4419) |
+| `NUXT_HOSTING_SHARED_DATA_DIR` | where the templates' folders live: the site directory, the sites' uploads (default `cloud/.data/shared`) |
+| `NUXT_HOSTING_SHARED_DATABASE_PREFIX` | what the sites' databases and database users are called before the site's id (default `tzs`) |
+| `NUXT_HOSTING_SHARED_ROOT` | the repository's root, where templates are found (default: found from the working directory) |
 | `NUXT_HOSTING_PUSHBASE_TEMPLATES_DIR`, `_DATABASE`, `_TEAM` | the Pushbase driver: a folder of standalone template projects, the shared Postgres to link, the team for new projects |
 | `NUXT_SERVICE_EMAIL` | the account the cloud keeps on every site (default `cloud@tinyzoo.invalid`) |
 | `NUXT_MAIL_TRANSPORT`, `NUXT_MAIL_FROM`, `NUXT_MAIL_SMTP_*` | e-mail, as in Keeper: `log` prints, `smtp` sends |
@@ -93,7 +97,7 @@ interface HostingDriver {
 }
 ```
 
-**`local`** (`server/hosting/local.ts`) is the one that works. The template is built once; one build serves any number of sites, since everything per site comes from the environment. Per site:
+**`local`** (`server/hosting/local.ts`) is the default: a process per site. The template is built once; one build serves any number of sites, since everything per site comes from the environment. Per site:
 
 - a database `tzc_<slug>` on the cloud's own Postgres server;
 - a port from the range, written down before the next one is picked;
@@ -103,6 +107,43 @@ interface HostingDriver {
 Its address is `http://<slug>.localhost:<port>`, so each site keeps its own cookies; the cloud itself talks to `http://127.0.0.1:<port>`. `NUXT_HOSTING_LOCAL_PUBLIC_URL` changes the address people see and the one the site itself is told (its links, its invitation), not where it runs: with `https://{slug}.pushbase.app` every page and e-mail says that, and whatever stands in front must lead the name to the site's port. The recorded walkthrough does that for its own browser (below); ordinary development needs nothing. Before the driver stops a process it checks that the process's command line names the site's folder (the `--site-dir` argument). A pid alone is never trusted. *Delete* stops the process, drops the database and removes the folder.
 
 After `templates:build` runs again, restart the sites (stop the app, stop their processes, start the app): a running site keeps loading pieces of the build it was started from.
+
+**`shared`** (`server/hosting/shared.ts`) runs **one process per template**, which serves every site made from it (tinyzoo's multi-tenant mode: the process picks the site by the host name of each request). A new site is a database, a folder and a row in a file. Nothing is built and no process is started for it: a Photographer site with its demo content is made in three to four seconds, and adds no process of its own.
+
+```sh
+pnpm --filter tinyzoo-cloud templates:build
+NUXT_HOSTING_DRIVER=shared pnpm --filter tinyzoo-cloud dev
+```
+
+Per template, in `cloud/.data/shared/<template id>/`, made the first time a site of the template is made or must run:
+
+- `sites.json`, the **site directory**: one row per site with its host name, its database address, its secrets and its upload folder. The process reads it again when it changes, so a new row is a new site within half a second, and a row that leaves is a site that stops answering;
+- `app.json`: the process's port (from the driver's own range, written down before the next one is picked), its pid, when it started, and its own app secret, made once;
+- `server.log`: what the process prints;
+- a detached process: `node <template>/.output/server/index.mjs --template-dir=<folder>`, with a clean environment. What is the same for every site is in that environment (the mail transport, migrations at start); what belongs to one site is in its row.
+
+Per site:
+
+- a Postgres user and an empty database owned by it, both named `tzs_<the site's id>`: by the id, never by the address, because every user of a Postgres server can list the names of all databases and users. Nobody else may connect to the database, and the user may create neither databases nor users. The site's own app migrates the database, as that user, the first time the site is asked for;
+- a folder `cloud/.data/shared/<template id>/sites/<site id>/` with its uploads;
+- its row in `sites.json`: the site's app secret, setup code and status token are the ones the cloud keeps for it.
+
+Its address is `http://<slug>.localhost:<the template's port>`, for people and for the cloud alike: the host name is what picks the site, so the cloud cannot talk to `127.0.0.1` here. Node resolves `*.localhost` to this machine, as browsers do. The seed, the hand-over and the cloud's later questions to a site all go to that address.
+
+The cloud's Postgres user makes the sites' users and databases, so it must be allowed to create users and databases and to hand a database to another user (the repository's own Postgres user is a superuser, which covers it). The first time the driver makes a site it also closes the cloud's own database to everybody but its owner (`REVOKE CONNECT … FROM PUBLIC`): a new user may otherwise connect to any database of the server, even where it can read nothing.
+
+**Where the database password is kept.** In `sites.json`, in plain text; the file is readable by its owner only (mode 0600), as is `app.json`. The cloud also keeps it encrypted in the site's `driver_state`. When `sites.json` is lost, the driver writes the rows of every site of the template again from there, the next time it sees to one of them (when the cloud app starts, at the latest). A production version keeps it encrypted at rest everywhere. When `app.json` is lost, the template comes back on the port the cloud remembers for its sites, with a new app secret: people signed in to its sites sign in again after the process next starts.
+
+Before the driver trusts a pid it checks that the process's command line names the template's folder (the `--template-dir` argument). The driver never stops a template's process: it serves the other sites. *Delete* takes the site's row out of the directory, waits a second while the process closes the site's database connections, drops the database and the user, and removes the site's folder. After `templates:build` runs again, stop the template's process yourself (its pid is in `app.json`); the cloud app starts it again when it starts, or when a site is next made.
+
+What the shared driver does not do yet:
+
+- another public address: `NUXT_HOSTING_LOCAL_PUBLIC_URL` is the local driver's setting and is not read here; a site is always `http://<slug>.localhost:<port>`;
+- a figure of memory per site: the site's page shows the memory of the whole template's process;
+- closing the server's other databases (`postgres`, `template1`, anybody else's) to the sites' users: that is done once per Postgres server by whoever runs it, and the driver touches only its own databases;
+- stopping a template's process, on a new build or when its last site is deleted;
+- keeping a deleted site's folder empty while the template's process still has a picture of that site in work: the process finishes the picture and writes its smaller copies into the folder again, after the driver removed it. The last check of `e2e:shared` on deletion fails on this; it is the process's to stop, not the driver's;
+- a directory kept in a database, several instances of one template, a pooler in front of Postgres, quotas, custom domains.
 
 **`pushbase`** (`server/hosting/pushbase.ts`) is **written, not exercised**. It goes through the published CLI only (`npx -y pushbase@0.3.0 … --json`): a project named by the slug, the workspace's shared Postgres linked, storage created and linked, the environment set over stdin, the template folder deployed, then a wait until `https://<slug>.pushbase.app` answers. No command that creates or changes anything has been run from it. Known gaps, also listed in the file: the CLI (0.3.0) cannot delete a project, so `remove` says so; a template must be a standalone project there (the starter inside this repository depends on the workspace); every site is built on the platform again.
 
@@ -127,13 +168,16 @@ Adding a real template: give its entry `ready: true`, a `sourceDir` and its look
 
 ```sh
 pnpm --filter tinyzoo-cloud typecheck
-pnpm vitest run --project unit test/unit/cloud-*.spec.ts   # slugs, the step machine, ports, the registry and the texts
+pnpm vitest run --project unit test/unit/cloud-*.spec.ts   # slugs, the step machine, ports, the shared driver's names and rows, the registry and the texts
 pnpm --filter tinyzoo-cloud e2e                            # the whole flow in a browser, both templates, about 2 minutes
+pnpm --filter tinyzoo-cloud e2e:shared                     # the shared driver: two Photographer sites from one process, about half a minute
 pnpm --filter tinyzoo-cloud walkthrough                    # films the walkthrough and takes the screenshots into cloud/.preview/, about 40 minutes
 pnpm --filter tinyzoo-cloud walkthrough --quick            # the two films small and fast, to try things out, about 10 minutes
 ```
 
-`e2e`, `walkthrough` and `pictures --real` start a cloud app of their own beside yours (database `tz_cloud_e2e` / `tz_cloud_walk` / `tz_cloud_pics`, sites under `.data/e2e` / `.data/walk` / `.data/pics`, their own ports and database prefix) and remove what they made. `--keep` leaves it. `walkthrough --url http://localhost:3200` records against a running app instead, with that app's addresses, and leaves its main site there.
+`e2e`, `e2e:shared`, `walkthrough` and `pictures --real` start a cloud app of their own beside yours (database `tz_cloud_e2e` / `tz_cloud_mt_e2e` / `tz_cloud_walk` / `tz_cloud_pics`, sites under `.data/e2e` / `.data/mt-e2e` / `.data/walk` / `.data/pics`, their own ports and database prefix) and remove what they made. `--keep` leaves it.
+
+`e2e:shared` (`scripts/e2e-shared.mjs`) goes through the sign-up app's API and the sites' own addresses, with no browser: one account and two Photographer sites in different looks, made at the same moment. It checks that one process serves both; that each has a database and a database user of its own, refused on the other's database and on the cloud's; that each shows its own name, look and content; that a session, a status token, an entry and an uploaded file of one site do not exist on the other; that an unknown host gets 404; that deleting one site removes its row, database, user and folder while the other keeps answering from the same process. Then what the cloud does when things go wrong: a stopped process is started again on the same port; a failed step goes on with *Try again*, keeping the database of the first try; a lost `sites.json` or `app.json` is written again. It prints the memory of the one process with two sites. `walkthrough --url http://localhost:3200` records against a running app instead, with that app's addresses, and leaves its main site there.
 
 ### The walkthrough
 
@@ -153,7 +197,7 @@ pnpm --filter tinyzoo-cloud walkthrough --quick            # the two films small
 - Single sign-on from the cloud account into a site's admin (today: the invitation).
 - The site's own logo in its admin (its name is there: `cms.admin.nameFrom`).
 - Deleting an account, changing its e-mail address, and anything for the people who run the service (a list of all sites, stopping one).
-- Stopping idle sites. A running site holds about 360 MB of memory, whether anyone visits it or not.
+- Stopping idle sites. With the local driver a running site holds about 360 MB of memory, whether anyone visits it or not. With the shared driver the sites of a template share one process (about 500 MB with two Photographer sites just made).
 
 ## Schema
 

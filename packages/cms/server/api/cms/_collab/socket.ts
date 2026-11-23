@@ -118,4 +118,4 @@ export default defineWebSocketHandler(cmsSocketHooksInSite({
   error(_peer: any, err: any) {
     console.error('[cms] collab socket error', err?.message ?? err)
   },
-}))
+}, { writes: true }))

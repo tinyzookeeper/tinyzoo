@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import { and, eq, gt, isNull, ne, sql } from 'tinyzoo'
 import type { CmsRegistry } from 'tinyzoo'
 import { z } from 'zod'
@@ -116,9 +117,19 @@ export async function continueCmsSession(event: any, u: any): Promise<void> {
   await sealCmsSession(event, u, signedInAt)
 }
 
+/**
+ * Multi-tenant mode: what ties a session to its site. The cookie is sealed with the process's
+ * secret, which every site of the process shares; this proof is made with the SITE's own
+ * secret (the site directory), so a session counts only on the site whose secret made it,
+ * and changing a site's secret signs everybody out of that site alone.
+ */
+export function cmsSessionProof(userId: string, signedInAt: number): string {
+  return createHmac('sha256', useCmsSite().secret).update(`${userId}.${signedInAt}`).digest('base64url').slice(0, 32)
+}
+
 async function sealCmsSession(event: any, u: any, iat: number): Promise<void> {
   // Multi-tenant mode: the session names its site, and only that site accepts it (activeAccountOf).
-  const site = cmsIsMultiTenant() ? { site: useCmsSite().id } : {}
+  const site = cmsIsMultiTenant() ? { site: useCmsSite().id, proof: cmsSessionProof(u.id as string, iat) } : {}
   await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number, iat, ...site } } as any)
 }
 

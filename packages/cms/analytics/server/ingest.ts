@@ -40,13 +40,24 @@ const flushMs = (): number => {
 }
 
 interface Buffer {
+  /** The site's id: a buffer released with its site's memory writes what waits inside that site. */
+  site: string
   views: PendingView[]
   engaged: Map<string, { visitor: string; ms: number }>
   timer: ReturnType<typeof setTimeout> | null
   running: Promise<void> | null
 }
-const buffer = cmsSiteScoped<Buffer>(() => ({ views: [], engaged: new Map(), timer: null, running: null }), {
-  dispose: (b) => { if (b.timer) clearTimeout(b.timer) },
+const buffer = cmsSiteScoped<Buffer>(() => ({ site: useCmsSite().id, views: [], engaged: new Map(), timer: null, running: null }), {
+  // A site that is unloaded because its directory row changed is still served: what waits is
+  // written (into the site's database as the directory has it now), not thrown away with the
+  // buffer. One that left the directory has no database here any more.
+  dispose: async (b) => {
+    if (b.timer) clearTimeout(b.timer)
+    b.timer = null
+    if (!b.views.length && !b.engaged.size) return
+    const site = cmsSiteById(b.site)
+    if (site) await runInCmsSite(site, () => write(b))
+  },
 })
 
 function schedule() {

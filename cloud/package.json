@@ -13,6 +13,7 @@
     "templates:build": "node scripts/build-templates.mjs",
     "pictures": "node scripts/template-pictures.mjs",
     "e2e": "node scripts/e2e.mjs",
+    "e2e:shared": "node scripts/e2e-shared.mjs",
     "walkthrough": "node scripts/walkthrough.mjs"
   },
   "dependencies": {

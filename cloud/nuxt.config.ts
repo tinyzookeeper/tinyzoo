@@ -45,7 +45,7 @@ export default defineNuxtConfig({
     // NUXT_DEV_MAIL_LINKS: 'false' hides the development notes that show an e-mail's link on the page.
     devMailLinks: '',
     hosting: {
-      // NUXT_HOSTING_DRIVER: local | pushbase
+      // NUXT_HOSTING_DRIVER: local | shared | pushbase
       driver: 'local',
       local: {
         // NUXT_HOSTING_LOCAL_PORT_FROM / _TO: one port per website.
@@ -62,6 +62,19 @@ export default defineNuxtConfig({
         // http://{slug}.localhost:{port}. With another one (https://{slug}.pushbase.app) something
         // in front of the sites must lead those names to their ports (shared/address.ts).
         publicUrl: '',
+      },
+      // The shared driver: one process per template serves every site made from it (server/hosting/shared.ts).
+      shared: {
+        // NUXT_HOSTING_SHARED_PORT_FROM / _TO: one port per template, beside the local driver's range.
+        portFrom: 4400,
+        portTo: 4419,
+        // NUXT_HOSTING_SHARED_ROOT: the repository's root (templates are found from it). Default: found from the working directory.
+        root: '',
+        // NUXT_HOSTING_SHARED_DATA_DIR: where the templates' folders live (the site directory, the sites' uploads). Default: <cloud>/.data/shared.
+        dataDir: '',
+        // NUXT_HOSTING_SHARED_DATABASE_PREFIX: what the sites' databases and database users are called
+        // before the site's id (default tzs). A second cloud app on the same Postgres server takes another.
+        databasePrefix: '',
       },
       pushbase: {
         // NUXT_HOSTING_PUSHBASE_TEMPLATES_DIR: a folder with one standalone project per template (<dir>/<template id>).

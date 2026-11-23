@@ -31,10 +31,12 @@ function memoryStore(): SharedStore {
   }
 }
 
-let store: Promise<SharedStore> | undefined
+// One store (one Redis connection, or this process's memory) for every site of the process;
+// what belongs to a site carries the site in its key (cmsSiteKey) or in its message.
+const shared = cmsProcessWide({ store: undefined as Promise<SharedStore> | undefined }, 'one connection for the process; keys and messages carry the site')
 
 export function useCmsStore(): Promise<SharedStore> {
-  store ??= (async () => {
+  shared.store ??= (async () => {
     const cfg = (useRuntimeConfig().cms as any)?.redis ?? {}
     const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
     const redisUrl = String(cfg.url || env.REDIS_URL || '')
@@ -50,7 +52,7 @@ export function useCmsStore(): Promise<SharedStore> {
     }
     return memoryStore()
   })()
-  return store
+  return shared.store
 }
 
 /**
@@ -81,9 +83,9 @@ export function cmsSiteKey(key: string): string {
 
 /** Close the store's connections (server shutdown). */
 export async function closeCmsStore(): Promise<void> {
-  if (!store) return
-  const s = await store.catch(() => null)
-  store = undefined
+  if (!shared.store) return
+  const s = await shared.store.catch(() => null)
+  shared.store = undefined
   await s?.close?.()
 }
 

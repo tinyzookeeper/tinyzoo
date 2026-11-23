@@ -57,6 +57,9 @@ export default defineNitroPlugin((nitroApp) => {
       event.context.cmsSite = site.id
       // For the pages rendered on the server (canonical addresses): app code cannot call server helpers.
       event.context.cmsPublicUrl = site.publicUrl
+      // Work left running after the response (event.waitUntil) keeps the site's memory until it has finished.
+      const platformWaitUntil = event.context.waitUntil
+      event.context.waitUntil = (work: unknown) => { cmsHoldSiteUntil(work); platformWaitUntil?.(work) }
       ensureCmsSiteStarted()
       return handle(event)
     })
@@ -69,7 +72,7 @@ export default defineNitroPlugin((nitroApp) => {
       ensureCmsSiteStarted()
       // A failed migration is that site's own state (it answers 503); the sweep goes on.
       await cmsMigrationsReady().catch(() => {})
-    }, { concurrency: 10, what: 'start-up' })
+    }, { concurrency: 10, what: 'start-up', readOnly: true })
   })
   nitroApp.hooks.hook('close', async () => {
     await unloadAllCmsSites()

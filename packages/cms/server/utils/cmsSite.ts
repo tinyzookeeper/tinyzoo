@@ -46,7 +46,38 @@ export class CmsNoSiteError extends Error {
   }
 }
 
-const context = new AsyncLocalStorage<CmsSite>()
+/**
+ * A site as it is loaded in this process: its row, and what is kept in memory for it (its
+ * database pool, its caches, its sockets). Work runs inside an instance and keeps it until
+ * it has finished. When the site's row changes or leaves the directory the instance is
+ * retired: new work gets a new instance made from the new row, the work under way finishes
+ * with what it started with (the old settings, the old pool), and then the old instance is
+ * released. So a request is never cut off by a change of the directory, and work that began
+ * under the old row cannot make the site's new memory from it.
+ */
+interface SiteInstance {
+  site: CmsSite
+  state: Map<symbol, unknown>
+  /** Pieces of work running inside it now: requests, socket hooks, bound callbacks, background runs. */
+  active: number
+  /** Its row changed or left the directory: nothing new starts in it. */
+  retired: boolean
+  /** It left the directory altogether: its database and its files may be gone already. */
+  left: boolean
+  releasing: boolean
+  /** Its memory is gone: nothing can be kept for it any more. */
+  released: boolean
+  whenIdle?: () => void
+}
+const newInstance = (site: CmsSite): SiteInstance => ({ site, state: new Map(), active: 0, retired: false, left: false, releasing: false, released: false })
+
+const context = new AsyncLocalStorage<SiteInstance>()
+/** The instance new work of a site starts in, by site id. */
+const instances = new Map<string, SiteInstance>()
+/** Retired instances whose work is still finishing. */
+const retiring = new Set<SiteInstance>()
+/** How long a retired instance waits for its work before it is released regardless. */
+const DRAIN_MS = Number(process.env.CMS_TEST_SITE_DRAIN_MS) || 30_000
 
 let mode: 'single' | 'multi' | undefined
 /** `multi` when NUXT_CMS_TENANCY_MODE=multi, otherwise `single`. Read once: a process does not change its mode. */
@@ -58,23 +89,96 @@ export const cmsIsMultiTenant = (): boolean => cmsTenancyMode() === 'multi'
 
 /** The one site of single mode. Its database, files and settings come from the environment, where they always did. */
 const SINGLE: CmsSite = Object.freeze({ id: 'default', hosts: [], publicUrl: '', state: 'active', databaseUrl: '', secret: '', config: {} }) as CmsSite
+const SINGLE_INSTANCE = newInstance(SINGLE)
+
+/**
+ * The instance the current work runs in, or undefined outside any site. Work that outlived
+ * its instance (something left running after the response, long after the site's row
+ * changed) goes on in the site as it is loaded now. Work of a site that left the directory
+ * has nowhere to go on: it fails.
+ */
+function currentInstance(): SiteInstance | undefined {
+  const instance = context.getStore()
+  if (!instance || !instance.released) return instance
+  if (instance.left) throw new CmsNoSiteError(`late work of site ${instance.site.id}, which left the site directory`)
+  return instanceFor(instance.site)
+}
 
 /** The current site. Throws in multi mode when the work has none. */
 export function useCmsSite(what?: string): CmsSite {
   if (cmsTenancyMode() === 'single') return SINGLE
-  const site = context.getStore()
-  if (!site) throw new CmsNoSiteError(what)
-  return site
+  const instance = currentInstance()
+  if (!instance) throw new CmsNoSiteError(what)
+  return instance.site
 }
 
 /** The current site, or null where there is none (multi mode, outside a request). */
 export function currentCmsSite(): CmsSite | null {
-  return cmsTenancyMode() === 'single' ? SINGLE : (context.getStore() ?? null)
+  return cmsTenancyMode() === 'single' ? SINGLE : (currentInstance()?.site ?? null)
+}
+
+/**
+ * Keep the current site's memory until `work` has finished: for work that goes on after the
+ * response was sent (an e-mail, a webhook). The request wrapper hands every `event.waitUntil`
+ * promise here, so a change of the site's row does not close the database under it.
+ */
+export function cmsHoldSiteUntil(work: unknown): void {
+  if (cmsTenancyMode() === 'single') return
+  const instance = context.getStore()
+  if (!instance || instance.released || !work || typeof (work as any).then !== 'function') return
+  instance.active++
+  ;(work as Promise<unknown>).then(() => leave(instance), () => leave(instance))
+}
+
+/**
+ * Has the current site left the directory since this work began? Its database and files may
+ * be gone: background work stops, and nothing is written into its folder any more.
+ */
+export function cmsSiteHasLeft(): boolean {
+  return cmsTenancyMode() === 'multi' && !!context.getStore()?.left
+}
+/** The same question, for something that outlives this call (the site's storage driver asks before every write). */
+export function cmsSiteLeftCheck(): () => boolean {
+  if (cmsTenancyMode() === 'single') return () => false
+  const instance = context.getStore()
+  if (!instance) throw new CmsNoSiteError('a check bound to its site')
+  return () => instance.left
+}
+
+/** The instance new work of `site` starts in. A row held from before the directory changed still names its site. */
+function instanceFor(site: CmsSite): SiteInstance {
+  const loaded = instances.get(site.id)
+  if (loaded) return loaded
+  const row = directory ? directory.byId.get(site.id) : site
+  if (!row) throw new CmsNoSiteError(`site ${site.id}, which is not in the site directory`)
+  const made = newInstance(row)
+  instances.set(row.id, made)
+  return made
+}
+
+/** Run `fn` inside an instance and count it as that instance's work until it has finished (a promise: until it settles). */
+function enter<T>(instance: SiteInstance, fn: () => T): T {
+  instance.active++
+  let result: T
+  try {
+    result = context.run(instance, fn)
+  }
+  catch (err) {
+    leave(instance)
+    throw err
+  }
+  if (result && typeof (result as any).then === 'function') (result as any).then(() => leave(instance), () => leave(instance))
+  else leave(instance)
+  return result
+}
+function leave(instance: SiteInstance): void {
+  instance.active--
+  if (instance.retired && instance.active <= 0) instance.whenIdle?.()
 }
 
 /** Run `fn` with `site` as the current site (and everything it awaits, and the timers it starts). */
 export function runInCmsSite<T>(site: CmsSite, fn: () => T): T {
-  return cmsTenancyMode() === 'single' ? fn() : context.run(site, fn)
+  return cmsTenancyMode() === 'single' ? fn() : enter(instanceFor(site), fn)
 }
 
 /** Run `fn` with no current site: for process-wide work started from inside a request (a shared timer, a shared queue). */
@@ -85,12 +189,15 @@ export function outsideCmsSite<T>(fn: () => T): T {
 /**
  * Remember the current site for a callback that runs later, from somewhere else: a job in
  * a shared queue, a listener, a hook. Without it the callback would run in the site of
- * whatever called it (or in none).
+ * whatever called it (or in none). When the site's row changed in the meantime the callback
+ * runs in the site as it is loaded now; when the site left, in what is left of it, where
+ * its files can no longer be written.
  */
 export function bindToCmsSite<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
   if (cmsTenancyMode() === 'single') return fn
-  const site = useCmsSite('a callback bound to its site')
-  return (...args: A) => context.run(site, () => fn(...args))
+  const bound = context.getStore()
+  if (!bound) throw new CmsNoSiteError('a callback bound to its site')
+  return (...args: A) => enter(bound.retired && !bound.left ? instanceFor(bound.site) : bound, () => fn(...args))
 }
 
 // ── per-site memory ────────────────────────────────────────────────────────────
@@ -103,7 +210,6 @@ export interface CmsSiteScoped<T> {
   reset(): void
 }
 
-const states = new Map<string, Map<symbol, unknown>>()
 const disposers = new Map<symbol, (value: any) => unknown>()
 
 /**
@@ -114,10 +220,9 @@ export function cmsSiteScoped<T>(init: () => T, opts: { dispose?: (value: T) => 
   const key = Symbol('cmsSiteScoped')
   if (opts.dispose) disposers.set(key, opts.dispose)
   const stateOf = () => {
-    const id = useCmsSite('a per-site value').id
-    let state = states.get(id)
-    if (!state) states.set(id, (state = new Map()))
-    return state
+    const instance = cmsTenancyMode() === 'single' ? SINGLE_INSTANCE : currentInstance()
+    if (!instance) throw new CmsNoSiteError('a per-site value')
+    return instance.state
   }
   const get = (() => {
     const state = stateOf()
@@ -137,21 +242,44 @@ export function cmsProcessWide<T>(value: T, _reason: string): T {
   return value
 }
 
-/** Forget everything kept for a site (it left the directory, or its row changed). */
-async function unloadSite(id: string): Promise<void> {
-  const state = states.get(id)
-  if (!state) return
-  states.delete(id)
-  // Newest first: what was made later (an editing engine, a buffer) may still need what was made earlier (the database pool) to finish.
-  for (const [key, value] of [...state].reverse()) {
-    try { await disposers.get(key)?.(value) }
-    catch (err) { console.error(`[cms] site ${id}: could not release a resource`, (err as Error)?.message ?? err) }
+/** Release what an instance holds, newest first: what was made later (an editing engine, a buffer) may still need what was made earlier (the database pool) to finish. */
+async function releaseInstance(instance: SiteInstance): Promise<void> {
+  if (instance.releasing) return
+  instance.releasing = true
+  for (const [key, value] of [...instance.state].reverse()) {
+    const dispose = disposers.get(key)
+    if (!dispose) continue
+    try { await context.run(instance, () => dispose(value)) }
+    catch (err) { console.error(`[cms] site ${instance.site.id}: could not release a resource`, (err as Error)?.message ?? err) }
   }
+  instance.released = true
+  instance.state.clear()
+  retiring.delete(instance)
+}
+
+/**
+ * The site's row changed (`left` false) or left the directory (`left` true): no new work
+ * starts in this instance. It is released once the work under way has finished, or after
+ * DRAIN_MS when something never does.
+ */
+function retireInstance(instance: SiteInstance, left: boolean): void {
+  if (instance.retired) return
+  instance.retired = true
+  instance.left = left
+  if (instances.get(instance.site.id) === instance) instances.delete(instance.site.id)
+  retiring.add(instance)
+  const release = () => { void releaseInstance(instance) }
+  if (instance.active <= 0) { release(); return }
+  instance.whenIdle = release
+  const timer = setTimeout(release, DRAIN_MS)
+  timer.unref?.()
 }
 
 /** Release every site's resources (server shutdown). */
 export async function unloadAllCmsSites(): Promise<void> {
-  await Promise.all([...states.keys()].map(unloadSite))
+  const all = [...instances.values(), ...retiring]
+  instances.clear()
+  await Promise.all(all.map(releaseInstance))
 }
 
 // ── the site's settings ────────────────────────────────────────────────────────
@@ -268,7 +396,9 @@ function parseSite(raw: any, index: number): CmsSite {
   if (secret.length < 32) throw new Error(`[tinyzoo] site ${id}: "secret" must be at least 32 characters`)
   const publicUrl = String(raw.publicUrl ?? '').replace(/\/+$/, '')
   if (!/^https?:\/\//.test(publicUrl)) throw new Error(`[tinyzoo] site ${id}: "publicUrl" must be the site's address (http:// or https://)`)
-  const state = raw.state === 'paused' || raw.state === 'read-only' ? raw.state : 'active'
+  // A word that is not one of the three is refused, not read as "active": a typo must not open a paused site.
+  const state = raw.state === undefined || raw.state === null ? 'active' : raw.state
+  if (state !== 'active' && state !== 'paused' && state !== 'read-only') throw new Error(`[tinyzoo] site ${id}: "state" must be active, paused or read-only, got ${JSON.stringify(raw.state)}`)
   const config = raw.config && typeof raw.config === 'object' ? raw.config : {}
   return { id, hosts, publicUrl, state, databaseUrl, secret, config }
 }
@@ -324,7 +454,9 @@ function useDirectory(): Directory {
   if (previous) {
     for (const [id, old] of previous.byId) {
       const site = next.byId.get(id)
-      if (!site || JSON.stringify(site) !== JSON.stringify(old)) void unloadSite(id)
+      if (site && JSON.stringify(site) === JSON.stringify(old)) continue
+      const loaded = instances.get(id)
+      if (loaded) retireInstance(loaded, !site)
     }
   }
   return next
@@ -350,8 +482,10 @@ export function cmsAllSites(): CmsSite[] {
  * Run `fn` once in every site that is not paused, a few at a time. A failure in one site is
  * logged with its id and does not stop the others; the failures are returned.
  */
-export async function forEachCmsSite(fn: (site: CmsSite) => unknown, opts: { concurrency?: number; what?: string } = {}): Promise<{ site: string; error: unknown }[]> {
-  const sites = cmsAllSites().filter((s) => s.state !== 'paused')
+export async function forEachCmsSite(fn: (site: CmsSite) => unknown, opts: { concurrency?: number; what?: string; readOnly?: boolean } = {}): Promise<{ site: string; error: unknown }[]> {
+  // A read-only site is being moved: background work (publishing on time, retention) leaves its
+  // database as it is. `readOnly: true` is for work such a site still needs (its migrations).
+  const sites = cmsAllSites().filter((s) => s.state === 'active' || (s.state === 'read-only' && opts.readOnly))
   const failed: { site: string; error: unknown }[] = []
   let next = 0
   const worker = async () => {

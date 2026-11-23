@@ -1,10 +1,11 @@
 import { localDriver } from './local'
 import { pushbaseDriver } from './pushbase'
+import { sharedDriver } from './shared'
 import type { HostingDriver } from './types'
 
 export * from './types'
 
-const drivers: Record<string, () => HostingDriver> = { local: localDriver, pushbase: pushbaseDriver }
+const drivers: Record<string, () => HostingDriver> = { local: localDriver, shared: sharedDriver, pushbase: pushbaseDriver }
 const made = new Map<string, HostingDriver>()
 
 /** The driver new websites are made with: NUXT_HOSTING_DRIVER (local by default). */

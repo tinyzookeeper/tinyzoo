@@ -561,8 +561,29 @@ export function useCmsStorage(): StorageDriver {
   } else {
     _driver = new UnconfiguredDriver(driver)
   }
+  if (cmsIsMultiTenant()) _driver = refuseOnceTheSiteLeft(_driver, cmsSiteLeftCheck())
   siteDriver.set(_driver)
   return _driver
+}
+
+/**
+ * Multi-tenant mode: a site that left the directory has its folder (or bucket) removed. Work
+ * of that site still under way (a picture being resized) holds this driver; a write from it
+ * would bring the folder back. Writes are refused from the moment the site left.
+ */
+function refuseOnceTheSiteLeft(driver: StorageDriver, left: () => boolean): StorageDriver {
+  const refuse = (): never => {
+    throw createError({ statusCode: 410, statusMessage: 'This website no longer exists here; nothing is stored for it any more' })
+  }
+  return new Proxy(driver, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver)
+      if ((prop === 'put' || prop === 'putFile') && typeof value === 'function') {
+        return (...args: unknown[]) => (left() ? refuse() : (value as (...a: unknown[]) => unknown).apply(target, args))
+      }
+      return typeof value === 'function' ? value.bind(target) : value
+    },
+  })
 }
 
 /** Configured per-file upload ceiling in bytes (default 10MB). */

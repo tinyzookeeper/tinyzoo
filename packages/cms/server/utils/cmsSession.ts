@@ -94,7 +94,10 @@ export function signedInRecently(session: any, now = Date.now()): boolean {
 export async function activeAccountOf(session: any): Promise<any | null> {
   // Multi-tenant mode: a session opens the site it was made on and no other, even when the
   // other site's database holds the same account id (sites copied from one template do).
-  if (cmsIsMultiTenant() && session?.cms?.site !== useCmsSite().id) return null
+  if (cmsIsMultiTenant()) {
+    const c = session?.cms
+    if (c?.site !== useCmsSite().id || typeof c?.proof !== 'string' || c.proof !== cmsSessionProof(String(c.uid), Number(c.iat))) return null
+  }
   return activeAccount(session?.cms?.uid, session?.cms?.sv, session?.cms?.iat)
 }
 
