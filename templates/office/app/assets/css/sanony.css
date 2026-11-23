@@ -1,0 +1,102 @@
+/* Šanony: every office has a shelf of lever arch binders. The services stand in the opening as
+   spines with their prices, lie in a pile as the price list, and the people carry their names on
+   a spine beside the portrait. Heavy Bricolage Grotesque (condensed to 78 % on the spines) over
+   Public Sans, flat colour, hard edges.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="sanony"] {
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-sans: "Public Sans", system-ui, sans-serif;
+  /* The colours of the first preset (Rumělka); a preset from the settings overrides them. */
+  --paper: #f1efe9; --ink: #15130f; --brand: #d4371e; --brand-ink: #ffffff; --soft: #f5c9bd;
+  --card: #ffffff;
+}
+
+@layer base {
+  html[data-look="sanony"] {
+    body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+    :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+    .on-dark :focus-visible { outline-color: var(--paper); }
+    summary::-webkit-details-marker { display: none; }
+  }
+}
+
+@layer components {
+  html[data-look="sanony"] {
+    .wrap { margin-inline: auto; max-width: 1360px; padding-inline: 1.25rem; }
+    .display { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.035em; line-height: .95; }
+    .kicker { font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; min-height: 56px; padding: 0 1.6rem; border-radius: 3px; font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; cursor: pointer; transition: background-color .15s, color .15s, transform .15s; }
+    .btn:active { transform: translateY(1px); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); }
+    .btn-brand:hover { background: var(--ink); color: var(--paper); }
+    .btn-ink { background: var(--ink); color: var(--paper); }
+    .btn-ink:hover { background: var(--brand); color: var(--brand-ink); }
+    .navlink { font-weight: 600; font-size: 15px; padding: .5rem 0; border-bottom: 3px solid transparent; transition: border-color .15s; }
+    .navlink:hover { border-color: var(--brand); }
+
+    /* The shelf: every service is the spine of a lever arch binder. */
+    .shelf { display: flex; align-items: flex-end; gap: 4px; height: 300px; padding-right: 22px; border-bottom: 8px solid var(--ink); }
+    .shelf > li { flex: 1 1 0; min-width: 0; max-width: 66px; height: var(--h, 100%); transition: transform .2s; }
+    .shelf > li:last-child { transform: rotate(4.5deg); transform-origin: bottom left; margin-left: 3px; }
+    .shelf > li:hover { transform: translateY(-12px); }
+    .shelf > li:last-child:hover { transform: rotate(2deg); }
+    .spine { display: flex; flex-direction: column; align-items: center; gap: 9px; height: 100%; padding: 10px 0 9px; border-radius: 3px 3px 0 0; }
+    .spine-no { font-family: var(--font-display); font-weight: 700; font-size: 11px; line-height: 1; }
+    .spine-label { flex: 0 1 auto; min-height: 0; margin-top: auto; width: 70%; display: flex; align-items: flex-end; justify-content: center; padding: 12px 0 10px; overflow: hidden; background: #fff; color: var(--ink); border-radius: 2px; }
+    .spine-label > span { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-family: var(--font-display); font-stretch: 78%; font-weight: 700; font-size: 16px; line-height: 1; letter-spacing: -0.01em; }
+    .spine-hole { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--paper); box-shadow: inset 0 0 0 3px rgb(0 0 0 / .3); }
+    .spine-price { display: none; flex: none; font-family: var(--font-display); font-stretch: 78%; font-weight: 700; font-size: 12.5px; line-height: 1.15; text-align: center; }
+    .tone-a { background: var(--brand); color: var(--brand-ink); }
+    .tone-b { background: var(--ink); color: var(--paper); }
+    .tone-c { background: var(--soft); color: var(--ink); }
+    @media (width >= 40rem) {
+      .shelf { height: 420px; gap: 6px; }
+      .spine-label > span { font-size: 20px; }
+      .spine-hole { width: 28px; height: 28px; box-shadow: inset 0 0 0 4px rgb(0 0 0 / .3); }
+      .spine-price { display: block; }
+    }
+    @media (width >= 80rem) {
+      .shelf { height: 548px; padding-right: 30px; }
+      .spine { gap: 12px; padding: 14px 0 12px; }
+      .spine-label > span { font-size: 23px; }
+      .spine-hole { width: 32px; height: 32px; }
+    }
+
+    /* The price list: the same binders, lying in a pile. */
+    .binder { display: grid; grid-template-columns: 30px 1fr; column-gap: 14px; row-gap: 10px; align-items: start; padding: 18px 18px 18px 14px; border-radius: 3px; }
+    .binder-hole { width: 26px; height: 26px; margin-top: 2px; border-radius: 50%; background: var(--paper); box-shadow: inset 0 0 0 4px rgb(0 0 0 / .3); }
+    .binder-price { grid-column: 2; font-family: var(--font-display); font-weight: 800; font-size: 24px; letter-spacing: -0.02em; line-height: 1.05; }
+    .binder-price small { display: block; margin-top: 4px; font-family: var(--font-sans); font-weight: 600; font-size: 13px; letter-spacing: 0; }
+    @media (width >= 64rem) {
+      .binder { grid-template-columns: 40px 1fr 220px; column-gap: 28px; align-items: center; padding: 20px 32px 20px 24px; }
+      .binder-hole { width: 36px; height: 36px; margin: 0; box-shadow: inset 0 0 0 5px rgb(0 0 0 / .3); }
+      .binder-price { grid-column: 3; text-align: right; font-size: 30px; }
+      .pile > li:nth-child(even) { transform: translateX(14px); }
+      .pile > li:nth-child(3n) { transform: translateX(-6px); }
+    }
+    .namespine { display: flex; align-items: flex-end; justify-content: center; padding-bottom: 14px; background: var(--brand); color: var(--brand-ink); }
+    .namespine > span { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; font-family: var(--font-display); font-stretch: 80%; font-weight: 700; font-size: 22px; line-height: 1; }
+    .field { display: block; width: 100%; min-height: 52px; padding: .75rem .9rem; background: #fff; border: 2px solid var(--ink); border-radius: 3px; color: var(--ink); font-size: 16px; transition: box-shadow .15s; }
+    .field:hover { box-shadow: 4px 4px 0 var(--soft); }
+    .field:focus { outline: none; box-shadow: 4px 4px 0 var(--brand); }
+    .field::placeholder { color: color-mix(in srgb, var(--ink) 55%, transparent); opacity: 1; }
+    .field[aria-invalid="true"] { border-color: #a3261e; }
+    .field-error { margin-top: .35rem; font-size: 14px; font-weight: 600; line-height: 1.4; color: #a3261e; }
+
+    /* Rich text of a free page, a case or an article */
+    .prose-look { max-width: 46rem; font-size: 17px; line-height: 1.6; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-weight: 800; font-size: 34px; line-height: 1.05; letter-spacing: -0.03em; margin-top: 2.6rem; }
+    .prose-look h3 { font-family: var(--font-display); font-weight: 700; font-size: 25px; line-height: 1.15; letter-spacing: -0.015em; margin-top: 2rem; }
+    .prose-look a { text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--brand); }
+    .prose-look ul { list-style: none; border-top: 4px solid var(--ink); }
+    .prose-look ul li { padding: .6rem 0; border-bottom: 2px solid var(--ink); }
+    .prose-look ol { list-style: decimal; padding-left: 1.4rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-weight: 700; font-size: 26px; line-height: 1.15; letter-spacing: -0.02em; margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
+    .prose-look strong { font-weight: 700; }
+  }
+}
