@@ -4,11 +4,12 @@ import { describe, expect, it } from 'vitest'
 import { cs } from '../../cloud/app/i18n/cs'
 import { en } from '../../cloud/app/i18n/en'
 import { STEP_IDS } from '../../cloud/shared/steps'
-import { FIELD_IDS, FIELDS, fieldsOf, hasLookChoice, lookOf, templateById, TEMPLATES, visibleTemplates } from '../../cloud/shared/templates'
+import { FIELD_IDS, FIELDS, fieldsOf, hasLookChoice, lookOf, measuredLooks, pictureLooks, pictureOf, templateById, TEMPLATES, visibleTemplates, wordmarkOf } from '../../cloud/shared/templates'
 import { looks as photographerLooks } from '../../templates/photographer/looks'
 import { repoRoot } from '../setup/database'
 
-// The templates a hosted website can start from: two that exist, nineteen that are planned.
+// The templates a hosted website can start from: two that exist, nineteen that are planned
+// (designed and approved, not built).
 const READY = ['basic', 'photographer']
 const PLANNED = [
   'individual', 'wedding', 'realty', 'restaurant', 'sports-club', 'trades', 'studio', 'development', 'accommodation',
@@ -32,7 +33,9 @@ describe('the template registry', () => {
     for (const t of TEMPLATES.filter((t) => !t.ready)) {
       expect(t.sourceDir, t.id).toBeNull()
       expect(t.seed, t.id).toBe(false)
-      expect(t.looks, t.id).toEqual([])
+      // A planned template is shown as it was designed: at least one approved look, none with colours to write yet.
+      expect(t.looks.length, t.id).toBeGreaterThanOrEqual(1)
+      for (const look of t.looks) expect(look.colors, `${t.id}/${look.id}`).toBeUndefined()
     }
   })
 
@@ -43,7 +46,6 @@ describe('the template registry', () => {
       expect(existsSync(join(dir, 'package.json')), `${dir}/package.json`).toBe(true)
       expect(existsSync(join(dir, 'nuxt.config.ts')), `${dir}/nuxt.config.ts`).toBe(true)
       if (t.seed) expect(existsSync(join(dir, 'seed', 'index.ts')), `${dir}/seed/index.ts`).toBe(true)
-      if (t.preview) expect(existsSync(join(repoRoot, 'cloud', 'public', t.preview)), t.preview).toBe(true)
     }
   })
 
@@ -98,9 +100,54 @@ describe('the looks of a template', () => {
         both(look.name, `${t.id}/${look.id} name`)
         both(look.description, `${t.id}/${look.id} description`)
         for (const text of Object.values(look.description)) expect(/[.!?]$/.test(text), `${t.id}/${look.id}: ${text}`).toBe(true)
-        expect(existsSync(join(repoRoot, 'cloud', 'public', look.preview)), look.preview).toBe(true)
       }
     }
+  })
+
+  it('are the looks the pictures were made for, in the same order and under the same names', () => {
+    // scripts/template-pictures.mjs writes cloud/shared/template-pictures.json: for a planned
+    // template the designs that are alive (with their names from notes.md), for a ready one
+    // the looks it took from real sites.
+    for (const t of TEMPLATES) {
+      const found = measuredLooks(t.id)
+      expect(found.map((l) => l.id), t.id).toEqual(pictureLooks(t).map((l) => l.id))
+      if (!t.ready) expect(found.map((l) => l.name), t.id).toEqual(t.looks.map((l) => l.name.cs))
+    }
+    expect(TEMPLATES.reduce((n, t) => n + t.looks.length, 0)).toBe(52)
+  })
+
+  it('have their pictures: a card and a small one each, and for a ready template the first screen without a name and a tall one', () => {
+    const file = (address: string) => join(repoRoot, 'cloud', 'public', address)
+    for (const t of TEMPLATES) {
+      for (const look of pictureLooks(t)) {
+        for (const kind of t.ready ? ['card', 'thumb', 'top', 'tall'] as const : ['card', 'thumb'] as const) {
+          expect(existsSync(file(pictureOf(t.id, look.id, kind))), pictureOf(t.id, look.id, kind)).toBe(true)
+        }
+      }
+    }
+    expect(pictureOf('basic', null, 'card')).toBe('/templates/basic/basic-card.webp')
+    expect(pictureOf('photographer', 'negativ', 'tall')).toBe('/templates/photographer/negativ-tall.webp')
+  })
+
+  it('know where a ready template writes the site\'s name, with the typeface\'s files', () => {
+    const file = (address: string) => join(repoRoot, 'cloud', 'public', address)
+    for (const t of TEMPLATES.filter((t) => t.ready)) {
+      for (const look of pictureLooks(t)) {
+        const w = wordmarkOf(t.id, look.id)!
+        expect(w, `${t.id}/${look.id}`).toBeTruthy()
+        expect(w.size, `${t.id}/${look.id}`).toBeGreaterThan(8)
+        expect(w.x).toBeGreaterThanOrEqual(0)
+        expect(w.x).toBeLessThan(1440)
+        expect(w.y).toBeLessThan(200)
+        expect(w.fonts.length, `${t.id}/${look.id} fonts`).toBeGreaterThan(0)
+        for (const font of w.fonts) expect(existsSync(file(font.src)), font.src).toBe(true)
+      }
+    }
+    // A template with one unnamed design is found without a look; a planned one has no measure.
+    expect(wordmarkOf('basic', null)?.family).toBe('Inter')
+    expect(wordmarkOf('photographer', 'atelier')?.anchor).toBe('center')
+    expect(wordmarkOf('restaurant', 'salon')).toBeNull()
+    expect(wordmarkOf(null, null)).toBeNull()
   })
 
   it('are the ones the template itself lists, in its order, with its default colours', () => {
@@ -109,7 +156,7 @@ describe('the looks of a template', () => {
     expect(photographer.looks.map((l) => l.id)).toEqual([...photographerLooks.ids])
     for (const look of photographer.looks) {
       const own = photographerLooks.all.find((l) => l.id === look.id)!
-      expect(look.colors, look.id).toBe(own.presets[0].id)
+      expect(look.colors, look.id).toBe(own.presets[0].id as string)
       expect(look.name, look.id).toEqual(own.name)
     }
   })

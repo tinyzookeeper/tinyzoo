@@ -247,7 +247,7 @@ async function handOver(internalUrl: string, secrets: SiteSecrets, site: { name:
     // The site's name and look are content: read the settings, change them, write them back
     // whole. Every template with looks keeps the choice in the same two fields: `look`, and
     // `colors` (the look's default colours, so the two agree from the start).
-    const mine = { siteName: site.name, ...(site.look ? { look: site.look.id, colors: site.look.colors } : {}) }
+    const mine = { siteName: site.name, ...(site.look ? { look: site.look.id, ...(site.look.colors ? { colors: site.look.colors } : {}) } : {}) }
     const settings = await client.get<{ row: Record<string, unknown> | null }>('/api/cms/_singleton/siteSettings')
     if (!settings.row) {
       await client.put('/api/cms/_singleton/siteSettings', mine)

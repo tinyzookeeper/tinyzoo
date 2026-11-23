@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SiteView } from '#shared/api'
-import { templateById } from '#shared/templates'
+import { lookOf, templateById } from '#shared/templates'
 
 // My websites: a card each, with its state, and the way to another one.
 const t = useT()
@@ -52,18 +52,19 @@ const stateOf = (s: SiteView) => ({
       <ul class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <li v-for="s in sites" :key="s.id">
           <NuxtLink :to="`/sites/${s.id}`" class="site group z-card flex h-full flex-col overflow-hidden transition hover:border-(--ui-border-accented)" :data-site="s.slug" :data-status="s.status">
-            <div class="flex h-28 items-end justify-between bg-(--z-moment-bg) px-5">
-              <span class="mb-4 inline-flex items-center gap-2 rounded-full bg-(--z-surface) px-2.5 py-1 text-xs font-medium text-highlighted">
+            <!-- The site as it looks: its template's look with its own name. -->
+            <div class="relative border-b border-default">
+              <LookShot :template="s.template" :look="s.look" :name="s.name" class="transition-transform duration-500 group-hover:scale-[1.02]" />
+              <span class="absolute top-3 left-3 inline-flex items-center gap-2 rounded-full bg-(--z-surface) px-2.5 py-1 text-xs font-medium text-highlighted shadow-sm">
                 <span class="size-1.5 rounded-full" :class="{ 'bg-(--z-ok)': stateOf(s).tone === 'ok', 'bg-(--z-warm) animate-pulse': stateOf(s).tone === 'busy', 'bg-(--ui-error)': stateOf(s).tone === 'bad' }" />
                 {{ stateOf(s).label }}
               </span>
-              <ZAnimal :seed="s.id" class="h-20 w-auto translate-y-px transition-transform duration-300 group-hover:-translate-y-1" />
             </div>
             <div class="flex flex-1 flex-col p-5">
               <h2 class="z-title truncate text-lg text-highlighted">{{ s.name }}</h2>
               <p class="mt-0.5 truncate font-mono text-[0.8125rem] text-muted">{{ hostOf(s.publicUrl) || `${s.slug}${account.siteHost}` }}</p>
               <p class="mt-4 flex items-center justify-between text-sm text-muted">
-                <span class="truncate">{{ templateById(s.template) ? l(templateById(s.template)!.name) : s.template }}</span>
+                <span class="truncate">{{ templateById(s.template) ? l(templateById(s.template)!.name) : s.template }}<template v-if="lookOf(templateById(s.template), s.look) && s.look"> · {{ l(lookOf(templateById(s.template), s.look)!.name) }}</template></span>
                 <UIcon name="i-lucide-arrow-right" class="size-4 shrink-0 text-dimmed transition group-hover:translate-x-0.5 group-hover:text-highlighted" />
               </p>
             </div>

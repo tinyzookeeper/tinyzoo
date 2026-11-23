@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { LookDef } from '#shared/templates'
+import { pictureOf, type LookDef } from '#shared/templates'
 
-// One look of a template: a tall picture of the finished website, its name and one sentence.
+// One look of a template: a tall picture of a real website in that look, its name and one sentence.
 // A choice (a radio button drawn as a card), as a template is in the gallery.
-defineProps<{ look: LookDef; selected: boolean; isDefault?: boolean }>()
+defineProps<{ template: string; look: LookDef; selected: boolean; isDefault?: boolean }>()
 defineEmits<{ pick: [id: string] }>()
 const t = useT()
 const l = useL()
@@ -19,7 +19,7 @@ const l = useL()
   >
     <!-- The top of the home page, two screens of it: the card shows most, the rest glides in under a pointer. -->
     <div class="relative aspect-[4/5] overflow-hidden bg-(--z-moment-bg)">
-      <img :src="look.preview" alt="" class="look__shot absolute inset-x-0 top-0 w-full">
+      <img :src="pictureOf(template, look.id, 'tall')" alt="" width="900" height="1350" class="look__shot absolute inset-x-0 top-0 h-auto w-full">
       <span v-if="selected" class="absolute top-3 right-3 inline-flex size-8 items-center justify-center rounded-full bg-(--ui-primary) text-inverted shadow-sm">
         <UIcon name="i-lucide-check" class="size-[1.125rem]" />
       </span>

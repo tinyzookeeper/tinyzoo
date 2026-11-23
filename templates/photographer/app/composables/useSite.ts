@@ -87,8 +87,8 @@ export async function useSitePage() {
 
 /** The photographs the page's openings show large in this look: the gallery leaves them out, so no picture shows twice on one page. */
 export async function useOpeningPhotoIds(): Promise<ComputedRef<Set<string>>> {
-  const { page } = await useSitePage()
-  const look = await useLookId()
+  // Both asked for before the first wait: after one, Nuxt no longer knows which request this is.
+  const [{ page }, look] = await Promise.all([useSitePage(), useLookId()])
   return computed(() => {
     const ids = new Set<string>()
     for (const block of page.value?.sections ?? []) {

@@ -1,0 +1,494 @@
+{
+  "accommodation": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "cely-rok",
+        "name": "Celý rok",
+        "design": "a"
+      },
+      {
+        "id": "ode-dveri",
+        "name": "Ode dveří",
+        "design": "b"
+      }
+    ]
+  },
+  "association": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "ctvero-dob",
+        "name": "Čtvero dob",
+        "design": "c"
+      }
+    ]
+  },
+  "basic": {
+    "source": "site",
+    "looks": [
+      {
+        "id": "basic",
+        "wordmark": {
+          "anchor": "left",
+          "x": 264,
+          "y": 38,
+          "maxWidth": 517,
+          "size": 16,
+          "family": "Inter",
+          "weight": 600,
+          "stretch": "",
+          "color": "oklch(0.372 0.044 257.287)",
+          "transform": "",
+          "spacing": "",
+          "fonts": [
+            {
+              "src": "/templates/fonts/inter-a28eb6d3cc.woff2",
+              "weight": "600",
+              "style": "normal",
+              "stretch": "",
+              "range": "U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF"
+            },
+            {
+              "src": "/templates/fonts/inter-c940764593.woff2",
+              "weight": "600",
+              "style": "normal",
+              "stretch": "",
+              "range": "U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "blog": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "obalka",
+        "name": "Obálka",
+        "design": "a"
+      },
+      {
+        "id": "ctvrthodinka",
+        "name": "Čtvrthodinka",
+        "design": "b"
+      }
+    ]
+  },
+  "car-service": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "cesta",
+        "name": "Cesta",
+        "design": "a"
+      },
+      {
+        "id": "kontrolky",
+        "name": "Kontrolky",
+        "design": "b"
+      },
+      {
+        "id": "supliky",
+        "name": "Šuplíky",
+        "design": "c"
+      }
+    ]
+  },
+  "construction": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "vykres",
+        "name": "Výkres",
+        "design": "a"
+      },
+      {
+        "id": "harmonogram",
+        "name": "Harmonogram",
+        "design": "b"
+      },
+      {
+        "id": "zdivo",
+        "name": "Zdivo",
+        "design": "c"
+      }
+    ]
+  },
+  "development": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "modrotisk",
+        "name": "Modrotisk",
+        "design": "a"
+      },
+      {
+        "id": "patra",
+        "name": "Patra",
+        "design": "b"
+      },
+      {
+        "id": "po-slunci",
+        "name": "Po slunci",
+        "design": "c"
+      }
+    ]
+  },
+  "event": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "casomira",
+        "name": "Časomíra",
+        "design": "b"
+      },
+      {
+        "id": "soutisk",
+        "name": "Soutisk",
+        "design": "c"
+      }
+    ]
+  },
+  "individual": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "vizitka",
+        "name": "Vizitka",
+        "design": "a"
+      },
+      {
+        "id": "zvyraznovac",
+        "name": "Zvýrazňovač",
+        "design": "b"
+      },
+      {
+        "id": "rozhovor",
+        "name": "Rozhovor",
+        "design": "c"
+      }
+    ]
+  },
+  "medical": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "cekarna",
+        "name": "Čekárna",
+        "design": "a"
+      },
+      {
+        "id": "cifernik",
+        "name": "Ciferník",
+        "design": "c"
+      }
+    ]
+  },
+  "office": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "lhuty",
+        "name": "Lhůty",
+        "design": "a"
+      },
+      {
+        "id": "sanony",
+        "name": "Šanony",
+        "design": "b"
+      }
+    ]
+  },
+  "photographer": {
+    "source": "site",
+    "looks": [
+      {
+        "id": "atelier",
+        "wordmark": {
+          "anchor": "center",
+          "x": 720,
+          "y": 44.6,
+          "maxWidth": 477,
+          "size": 28.8,
+          "family": "Newsreader",
+          "weight": 400,
+          "stretch": "",
+          "color": "rgb(29, 27, 24)",
+          "transform": "",
+          "spacing": "-0.288px",
+          "fonts": [
+            {
+              "src": "/templates/fonts/newsreader-750e9629f5.woff2",
+              "weight": "300 500",
+              "style": "italic",
+              "stretch": "",
+              "range": "U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF"
+            },
+            {
+              "src": "/templates/fonts/newsreader-a99fb12768.woff2",
+              "weight": "300 500",
+              "style": "italic",
+              "stretch": "",
+              "range": "U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD"
+            },
+            {
+              "src": "/templates/fonts/newsreader-cbca001188.woff2",
+              "weight": "300 500",
+              "style": "normal",
+              "stretch": "",
+              "range": "U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF"
+            },
+            {
+              "src": "/templates/fonts/newsreader-01817351be.woff2",
+              "weight": "300 500",
+              "style": "normal",
+              "stretch": "",
+              "range": "U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD"
+            }
+          ]
+        }
+      },
+      {
+        "id": "negativ",
+        "wordmark": {
+          "anchor": "left",
+          "x": 40,
+          "y": 41.5,
+          "maxWidth": 863,
+          "size": 28,
+          "family": "Archivo",
+          "weight": 800,
+          "stretch": "62%",
+          "color": "rgb(243, 240, 234)",
+          "transform": "uppercase",
+          "spacing": "-0.14px",
+          "fonts": [
+            {
+              "src": "/templates/fonts/archivo-a75c792f98.woff2",
+              "weight": "400 900",
+              "style": "normal",
+              "stretch": "62% 125%",
+              "range": "U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF"
+            },
+            {
+              "src": "/templates/fonts/archivo-4c98b9d490.woff2",
+              "weight": "400 900",
+              "style": "normal",
+              "stretch": "62% 125%",
+              "range": "U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD"
+            }
+          ]
+        }
+      },
+      {
+        "id": "zapisnik",
+        "wordmark": {
+          "anchor": "left",
+          "x": 177.9,
+          "y": 47.2,
+          "maxWidth": 556,
+          "size": 25.6,
+          "family": "Young Serif",
+          "weight": 400,
+          "stretch": "",
+          "color": "rgb(24, 29, 42)",
+          "transform": "",
+          "spacing": "",
+          "fonts": [
+            {
+              "src": "/templates/fonts/young-serif-3d956f4195.woff2",
+              "weight": "400",
+              "style": "normal",
+              "stretch": "",
+              "range": "U+100-2BA, U+2BD-2C5, U+2C7-2CC, U+2CE-2D7, U+2DD-2FF, U+304, U+308, U+329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF"
+            },
+            {
+              "src": "/templates/fonts/young-serif-a46a84bfaa.woff2",
+              "weight": "400",
+              "style": "normal",
+              "stretch": "",
+              "range": "U+0-FF, U+131, U+152-153, U+2BB-2BC, U+2C6, U+2DA, U+2DC, U+304, U+308, U+329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "realty": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "katastr",
+        "name": "Katastr",
+        "design": "a"
+      },
+      {
+        "id": "cedule",
+        "name": "Cedule",
+        "design": "b"
+      },
+      {
+        "id": "rozsviceno",
+        "name": "Rozsvíceno",
+        "design": "c"
+      }
+    ]
+  },
+  "restaurant": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "salon",
+        "name": "Salon",
+        "design": "a"
+      },
+      {
+        "id": "talir",
+        "name": "Talíř",
+        "design": "b"
+      },
+      {
+        "id": "paragon",
+        "name": "Paragon",
+        "design": "c"
+      }
+    ]
+  },
+  "salon": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "zrcadlo",
+        "name": "Zrcadlo",
+        "design": "a"
+      },
+      {
+        "id": "sachovnice",
+        "name": "Šachovnice",
+        "design": "b"
+      },
+      {
+        "id": "vyloha",
+        "name": "Výloha",
+        "design": "c"
+      }
+    ]
+  },
+  "shop": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "portal",
+        "name": "Portál",
+        "design": "a"
+      },
+      {
+        "id": "regal",
+        "name": "Regál",
+        "design": "b"
+      },
+      {
+        "id": "na-hacku",
+        "name": "Na háčku",
+        "design": "c"
+      }
+    ]
+  },
+  "software": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "navod",
+        "name": "Návod",
+        "design": "a"
+      },
+      {
+        "id": "magnety",
+        "name": "Magnety",
+        "design": "b"
+      },
+      {
+        "id": "jeden-den",
+        "name": "Jeden den",
+        "design": "c"
+      }
+    ]
+  },
+  "sports-club": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "zpravodaj",
+        "name": "Zpravodaj",
+        "design": "a"
+      },
+      {
+        "id": "dres",
+        "name": "Dres",
+        "design": "b"
+      },
+      {
+        "id": "hriste",
+        "name": "Hřiště",
+        "design": "c"
+      }
+    ]
+  },
+  "studio": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "sal",
+        "name": "Sál",
+        "design": "a"
+      },
+      {
+        "id": "tabule",
+        "name": "Tabule",
+        "design": "b"
+      },
+      {
+        "id": "deka",
+        "name": "Deka",
+        "design": "c"
+      }
+    ]
+  },
+  "trades": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "mistr",
+        "name": "Mistr",
+        "design": "a"
+      },
+      {
+        "id": "reflex",
+        "name": "Reflex",
+        "design": "b"
+      }
+    ]
+  },
+  "wedding": {
+    "source": "design",
+    "looks": [
+      {
+        "id": "oznameni",
+        "name": "Oznámení",
+        "design": "a"
+      },
+      {
+        "id": "vecer",
+        "name": "Večer",
+        "design": "b"
+      },
+      {
+        "id": "magazin",
+        "name": "Magazín",
+        "design": "c"
+      }
+    ]
+  }
+}

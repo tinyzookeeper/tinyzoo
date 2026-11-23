@@ -10,6 +10,22 @@ const peekers = [
   { animal: 'owl', up: true, busy: true },
   { animal: 'panda', up: true },
 ]
+// What you get, for real: the websites of the templates that exist, one after another. The
+// same photographer's site in its three looks, then the plain one.
+const demos = computed(() => [
+  { template: 'photographer', look: 'atelier', name: t('home.demoPhotographer'), slug: t('home.demoPhotographerSlug') },
+  { template: 'photographer', look: 'negativ', name: t('home.demoPhotographer'), slug: t('home.demoPhotographerSlug') },
+  { template: 'photographer', look: 'zapisnik', name: t('home.demoPhotographer'), slug: t('home.demoPhotographerSlug') },
+  { template: 'basic', look: null, name: t('home.demoName'), slug: t('home.demoSlug') },
+])
+const at = ref(0)
+const demo = computed(() => demos.value[at.value % demos.value.length]!)
+let turn: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  turn = setInterval(() => { at.value = (at.value + 1) % demos.value.length }, 3800)
+})
+onBeforeUnmount(() => { if (turn) clearInterval(turn) })
 const steps = computed(() => [
   { animal: 'chick', title: t('home.step1Title'), text: t('home.step1Text') },
   { animal: 'koala', title: t('home.step2Title'), text: t('home.step2Text') },
@@ -42,7 +58,7 @@ const gets = computed(() => [
           <p class="z-moment-text z-rise z-rise-4 mt-4 text-sm">{{ t('home.note', { max: account.sites.max }) }}</p>
         </div>
         <div class="z-rise z-rise-2 mx-auto w-full max-w-md lg:max-w-none">
-          <MiniSite :name="t('home.demoName')" :address="`${t('home.demoSlug')}${account.siteHost}`" :peekers="peekers" />
+          <MiniSite :name="demo.name" :address="`${demo.slug}${account.siteHost}`" :peekers="peekers" :template="demo.template" :look="demo.look" data-demo :data-demo-look="demo.look ?? demo.template" />
         </div>
       </div>
     </section>

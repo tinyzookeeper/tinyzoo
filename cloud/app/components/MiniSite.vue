@@ -1,7 +1,10 @@
 <script setup lang="ts">
-// A little website drawn in a browser window, with tinyzoo's animals looking over its top
-// edge. It is the product's picture: finished on the start page, following what is typed in
-// the wizard, and coming together piece by piece while a site is being made.
+// A little website in a browser window, with tinyzoo's animals looking over its top edge. It
+// is the product's picture: finished on the start page, following what is typed in the wizard,
+// and coming together piece by piece while a site is being made.
+//
+// With a `template` the page in the window is that template's look for real (LookShot: its
+// first screen with the site's name written in the look's type). Without one it is a drawing.
 //
 // Everything is sized from the component's own width (container units), so it is the same
 // drawing at 280 px and at 560 px.
@@ -27,7 +30,11 @@ withDefaults(defineProps<{
   /** The name is written in the header. */
   named?: boolean
   peekers?: Peeker[]
-}>(), { name: '', address: '', page: true, live: true, content: true, named: true, peekers: () => [] })
+  /** The template whose look the window shows (its id); none: a drawn page. */
+  template?: string | null
+  /** The look (its id); none: the template's first. */
+  look?: string | null
+}>(), { name: '', address: '', page: true, live: true, content: true, named: true, peekers: () => [], template: null, look: null })
 </script>
 
 <template>
@@ -46,7 +53,14 @@ withDefaults(defineProps<{
             <span>{{ address }}</span>
           </span>
         </div>
-        <div class="mini__page" :class="{ 'is-on': page, 'has-content': content }">
+        <!-- The real look: the plan in dashes first, then the look's first screen, then the name on it. -->
+        <div v-if="template" class="mini__page mini__page--real" :class="{ 'is-on': page, 'has-content': content }">
+          <div class="mini__plan"><i class="a" /><i class="b" /><i class="c" /><span><i /><i /><i /></span></div>
+          <Transition name="mini-swap">
+            <LookShot :key="`${template}/${look ?? ''}`" class="mini__shot" :template="template" :look="look" :name="name" :named="named" eager />
+          </Transition>
+        </div>
+        <div v-else class="mini__page" :class="{ 'is-on': page, 'has-content': content }">
           <!-- The plan of the page, drawn in dashes until the real thing arrives. -->
           <div class="mini__plan"><i class="a" /><i class="b" /><i class="c" /><span><i /><i /><i /></span></div>
           <div class="mini__header">
@@ -87,6 +101,14 @@ withDefaults(defineProps<{
 
 .mini__page { position: relative; aspect-ratio: 16 / 10.2; padding: 3cqw 3.6cqw 0; display: flex; flex-direction: column; gap: 2.8cqw; background: var(--z-paper-softer); transition: background 800ms; }
 .mini__page.is-on { background: var(--z-paper); }
+
+/* The real look fills the window; it arrives with the content. */
+.mini__page--real { padding: 0; aspect-ratio: 16 / 10; display: block; overflow: hidden; }
+.mini__page--real .mini__plan { inset: 3cqw 3.6cqw 0; }
+.mini__shot { position: absolute; inset: 0; opacity: 0; transform: translateY(1.6cqw); transition: opacity 700ms, transform 700ms cubic-bezier(.2,.7,.2,1); }
+.has-content .mini__shot { opacity: 1; transform: none; }
+.mini-swap-enter-active, .mini-swap-leave-active { transition: opacity 600ms ease !important; }
+.mini-swap-enter-from, .mini-swap-leave-to { opacity: 0 !important; }
 
 /* The plan: dashed outlines where the header, the opening and the cards will be. */
 .mini__plan { position: absolute; inset: 3cqw 3.6cqw 0; display: grid; grid-template-columns: 1.1fr 1fr; grid-template-rows: 4cqw auto 1fr; gap: 2.8cqw 3cqw; opacity: .5; transition: opacity 600ms; pointer-events: none; }

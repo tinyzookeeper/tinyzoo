@@ -35,6 +35,11 @@ const stepNumber = computed(() => Math.max(1, stepIds.value.indexOf(draft.at) + 
 const isLast = computed(() => stepNumber.value === stepIds.value.length)
 // Another template has other looks: start from its default one.
 watch(() => draft.template, () => { draft.look = lookOf(chosen.value, draft.look)?.id ?? '' })
+/** A card was chosen; a small picture of one of its looks chooses that look with it. */
+function pickTemplate(id: string, look: string | null) {
+  draft.template = id
+  if (look) draft.look = lookOf(templateById(id), look)?.id ?? ''
+}
 
 onMounted(() => {
   try {
@@ -219,9 +224,8 @@ const peekers = computed(() => [
         </template>
 
         <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="radiogroup" :aria-label="t('new.stepTemplate')">
-          <TemplateCard v-for="x in shown" :key="x.id" :template="x" :selected="draft.template === x.id" @pick="draft.template = $event" />
+          <TemplateCard v-for="x in shown" :key="x.id" :template="x" :selected="draft.template === x.id" :look="draft.template === x.id ? draft.look : null" @pick="pickTemplate" />
         </div>
-        <p v-if="showPlanned" class="mt-4 text-sm text-dimmed">{{ t('new.plannedNote') }}</p>
 
         <!-- The way on stays in reach under a long gallery. -->
         <div class="sticky bottom-0 z-10 -mx-4 mt-8 flex items-center justify-between gap-3 border-t border-default bg-(--ui-bg)/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
@@ -236,7 +240,7 @@ const peekers = computed(() => [
         <p class="mt-1 max-w-2xl text-[0.9375rem] leading-relaxed text-pretty text-muted">{{ t('new.lookLead', { template: l(chosen.name) }) }}</p>
 
         <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5" role="radiogroup" :aria-label="t('new.stepLook')">
-          <LookCard v-for="(x, i) in chosen.looks" :key="x.id" :look="x" :selected="draft.look === x.id" :is-default="i === 0" @pick="draft.look = $event" />
+          <LookCard v-for="(x, i) in chosen.looks" :key="x.id" :template="chosen.id" :look="x" :selected="draft.look === x.id" :is-default="i === 0" @pick="draft.look = $event" />
         </div>
 
         <div class="sticky bottom-0 z-10 -mx-4 mt-8 flex items-center gap-3 border-t border-default bg-(--ui-bg)/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
@@ -307,9 +311,9 @@ const peekers = computed(() => [
           <p v-if="isLast" class="-mt-2 text-sm text-dimmed">{{ t('new.createNote') }}</p>
         </form>
 
-        <!-- The site taking shape: its name in the header, its address in the bar. -->
+        <!-- The site taking shape: the chosen look for real, the typed name where the look writes it, the address in the bar. -->
         <aside class="z-moment px-5 pt-4 pb-8 sm:px-10 sm:pt-6 sm:pb-12 lg:sticky lg:top-20">
-          <MiniSite :name="draft.name.trim() || t('new.namePlaceholder')" :address="address" :named="true" :peekers="peekers" />
+          <MiniSite :name="draft.name.trim() || t('new.namePlaceholder')" :address="address" :named="true" :peekers="peekers" :template="chosen?.id" :look="chosenLook?.id" data-site-frame />
           <dl class="mt-6 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
             <dt class="z-moment-text">{{ t('new.stepTemplate') }}</dt>
             <dd class="truncate text-right font-medium text-highlighted">{{ chosen ? l(chosen.name) : '—' }}</dd>

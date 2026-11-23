@@ -169,7 +169,7 @@ const facts = computed<Fact[]>(() => [
             <UButton v-if="site.publicUrl" :to="site.publicUrl" target="_blank" :label="t('site.open')" size="lg" trailing-icon="i-lucide-arrow-up-right" data-open-site />
           </div>
           <div class="mt-6">
-            <SitePreview v-if="site.publicUrl" :url="site.publicUrl" :label="t('site.open')" />
+            <SitePreview v-if="site.publicUrl" :url="site.publicUrl" :label="t('site.open')" :template="site.template" :look="site.look" :name="site.name" />
           </div>
         </section>
 

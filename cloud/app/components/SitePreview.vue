@@ -2,7 +2,9 @@
 // The website itself, small, in a browser frame: its real home page, loaded without scripts
 // (a still picture of what visitors get) and scaled down. Nothing in it can be clicked; the
 // whole frame is a link to the site.
-const props = defineProps<{ url: string; label: string }>()
+// Until the page has loaded, the frame shows the site's look as a picture with its name, so it is never an empty box.
+const props = defineProps<{ url: string; label: string; template?: string | null; look?: string | null; name?: string }>()
+const loaded = ref(false)
 const frame = ref<HTMLElement | null>(null)
 const scale = ref(0.3)
 const WIDTH = 1280
@@ -25,8 +27,9 @@ const host = computed(() => hostOf(props.url))
       <UIcon name="i-lucide-arrow-up-right" class="ml-2 size-4 shrink-0 text-dimmed transition group-hover:text-highlighted" />
     </div>
     <div ref="frame" class="preview__frame">
+      <LookShot v-if="template" class="preview__still" :template="template" :look="look" :name="name" eager />
       <ClientOnly>
-        <iframe :src="url" :title="label" sandbox="allow-same-origin" loading="lazy" tabindex="-1" aria-hidden="true" scrolling="no" :style="{ width: `${WIDTH}px`, height: `${WIDTH * 0.625}px`, transform: `scale(${scale})` }" />
+        <iframe :src="url" :title="label" sandbox="allow-same-origin" tabindex="-1" aria-hidden="true" scrolling="no" :class="{ 'is-loaded': loaded }" :style="{ width: `${WIDTH}px`, height: `${WIDTH * 0.625}px`, transform: `scale(${scale})` }" @load="loaded = true" />
       </ClientOnly>
     </div>
   </a>
@@ -40,5 +43,7 @@ const host = computed(() => hostOf(props.url))
 .preview__address { margin-left: 0.5rem; flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.5rem; height: 1.625rem; padding: 0 0.75rem; border-radius: 99px; background: var(--z-paper); border: 1px solid var(--z-paper-line); font-family: var(--font-mono); font-size: 0.75rem; color: var(--z-paper-ink); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .preview__address > b { width: 0.4375rem; height: 0.4375rem; border-radius: 50%; background: var(--z-ok); box-shadow: 0 0 0 3px color-mix(in oklab, var(--z-ok) 22%, transparent); flex: none; }
 .preview__frame { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #fff; }
-.preview__frame iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; pointer-events: none; }
+.preview__still { position: absolute; inset: 0; }
+.preview__frame iframe { position: absolute; top: 0; left: 0; border: 0; transform-origin: 0 0; pointer-events: none; opacity: 0; transition: opacity 500ms; }
+.preview__frame iframe.is-loaded { opacity: 1; }
 </style>

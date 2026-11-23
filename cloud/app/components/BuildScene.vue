@@ -3,9 +3,9 @@ import type { SiteView } from '#shared/api'
 import { STEP_IDS, stepDuration, type StepId, type StepState } from '#shared/steps'
 
 // The screen someone watches while their website is made. The four steps are the real ones
-// with their real state (the page polls the server); the drawing follows them: the page
-// appears, the address lights up, the content arrives, the name is written, and an animal
-// climbs onto the window for every step.
+// with their real state (the page polls the server); the picture follows them: the page's
+// plan appears, the address lights up, the content arrives (the site's own template and
+// look), the name is written on it, and an animal climbs onto the window for every step.
 //
 // A site is made in a few seconds, faster than a person can read. So the screen walks through
 // the states it is shown no faster than a calm pace: never ahead of the server, at most a
@@ -91,6 +91,8 @@ const failText = computed(() => {
           :content="shown >= 6"
           :named="shown >= 8"
           :peekers="peekers"
+          :template="site.template"
+          :look="site.look"
         />
       </div>
 
