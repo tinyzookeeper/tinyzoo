@@ -525,3 +525,90 @@ describe('multi mode: the directory changes while the process runs', () => {
     expect(logged().filter((l) => l.includes('could not release a resource'))).toHaveLength(2)
   })
 })
+
+describe('multi mode: secrets of a directory row, extra hosts, a moved site, idle sites', () => {
+  const KEY = 'unit-directory-key-0123456789-abcdefghij'
+
+  it('a secret encrypted with the directory key is read; with the key set, a plain password is refused', async () => {
+    vi.stubEnv('NUXT_CMS_TENANCY_KEY', KEY)
+    const first = await load('multi', [])
+    const enc = (text: string) => first.cmsEncryptDirectorySecret(text, KEY)
+    expect(enc('x')).toMatch(/^enc:v1:[A-Za-z0-9_-]+$/)
+    expect(enc('x')).not.toBe(enc('x')) // a fresh nonce every time
+    const s = await load('multi', [row('site-a', { databaseUrl: enc('postgres://u:the-password@db:5432/a'), secret: enc('secret-of-site-a-at-least-32-characters-long'), config: { status: { token: enc('the-status-token') }, webhooks: { urls: 'https://plain.example/hook' } } })])
+    const a = s.cmsSiteById('site-a')!
+    expect(a.databaseUrl).toBe('postgres://u:the-password@db:5432/a')
+    expect(a.secret).toBe('secret-of-site-a-at-least-32-characters-long')
+    expect(s.runInCmsSite(a, () => s.cmsSettings())).toMatchObject({ status: { token: 'the-status-token' }, webhooks: { urls: 'https://plain.example/hook' } })
+    // A plain password with the key set, a value made with another key, and a cut-off value.
+    for (const bad of [
+      row('site-a'),
+      row('site-a', { databaseUrl: enc('postgres://u:pw@db/a'), secret: first.cmsEncryptDirectorySecret('secret-of-site-a-at-least-32-characters-long', 'another-key-0123456789-abcdefghij-klmnop') }),
+      row('site-a', { databaseUrl: enc('postgres://u:pw@db/a').slice(0, -6), secret: enc('secret-of-site-a-at-least-32-characters-long') }),
+    ]) {
+      const fresh = await load('multi', [bad])
+      expect(() => fresh.cmsAllSites()).toThrow(/must be encrypted|cannot be decrypted/)
+    }
+    // Without the key an encrypted value cannot be read, and says which.
+    vi.stubEnv('NUXT_CMS_TENANCY_KEY', '')
+    const noKey = await load('multi', [row('site-a', { secret: enc('secret-of-site-a-at-least-32-characters-long') })])
+    expect(() => noKey.cmsAllSites()).toThrow(/site site-a: "secret" is encrypted, and NUXT_CMS_TENANCY_KEY is not set/)
+    // A key that is too short is refused before anything is read with it.
+    vi.stubEnv('NUXT_CMS_TENANCY_KEY', 'short')
+    const short = await load('multi', [row('site-a')])
+    expect(() => short.cmsAllSites()).toThrow(/at least 32 characters/)
+    vi.stubEnv('NUXT_CMS_TENANCY_KEY', '')
+  })
+
+  it('an "also" host is served as the site; a host can belong to one site only, whichever list it is in', async () => {
+    const s = await load('multi', [row('site-a', { alsoHosts: ['Internal-A.example:8080'] }), row('site-b')])
+    expect(s.cmsSiteForHost('site-a.example')).toMatchObject({ main: true, served: true })
+    expect(s.cmsSiteForHost('www.site-a.example')).toMatchObject({ main: false, served: false })
+    expect(s.cmsSiteForHost('internal-a.example')).toMatchObject({ main: false, served: true })
+    const a = s.cmsSiteById('site-a')!
+    expect(s.cmsSiteOwnsHost(a, 'INTERNAL-a.example:1234')).toBe(true)
+    expect(s.cmsSiteOwnsHost(a, 'www.site-a.example')).toBe(true)
+    expect(s.cmsSiteOwnsHost(a, 'site-b.example')).toBe(false)
+    expect(s.cmsSiteOwnsHost(a, '')).toBe(false)
+    const clash = await load('multi', [row('site-a', { alsoHosts: ['site-b.example'] }), row('site-b')])
+    expect(() => clash.cmsAllSites()).toThrow(/lists the host site-b\.example twice/)
+  })
+
+  it('a moved site needs the address it went to, and background work leaves it alone', async () => {
+    const s = await load('multi', [row('site-a', { state: 'moved', movedTo: 'https://elsewhere.example/' }), row('site-b')])
+    expect(s.cmsSiteById('site-a')).toMatchObject({ state: 'moved', movedTo: 'https://elsewhere.example' })
+    const seen: string[] = []
+    await s.forEachCmsSite((site: any) => { seen.push(site.id) }, { readOnly: true })
+    expect(seen).toEqual(['site-b'])
+    const bad = await load('multi', [row('site-a', { state: 'moved' })])
+    expect(() => bad.cmsAllSites()).toThrow(/a moved site needs "movedTo"/)
+  })
+
+  it('a site nobody used for a while is unloaded; one with work under way, with something live, or used by a request stays', async () => {
+    const s = await load('multi', [row('site-a'), row('site-b'), row('site-c'), row('site-d')])
+    const released: string[] = []
+    const cache = s.cmsSiteScoped(() => ({ of: s.useCmsSite().id }), { dispose: (v: any) => { released.push(v.of) } })
+    const sockets = s.cmsSiteScoped(() => ({ open: 0 }), { inUse: (v: any) => v.open > 0 })
+    for (const id of ['site-a', 'site-b', 'site-c', 'site-d']) s.runInCmsSite(s.cmsSiteById(id)!, () => { cache(); sockets() })
+    s.runInCmsSite(s.cmsSiteById('site-b')!, () => { sockets().open = 1 }) // an open admin tab
+    let finish!: () => void
+    const underWay = s.runInCmsSite(s.cmsSiteById('site-c')!, () => new Promise<void>((r) => { finish = r })) // a request under way
+    await new Promise((r) => setTimeout(r, 30))
+    s.runInCmsSite(s.cmsSiteById('site-d')!, () => 1) // used a moment ago
+    // Background work does not count as use: a sweep over every site keeps none of them loaded.
+    await s.forEachCmsSite(() => {})
+    expect(s.cmsSitesOverview().map((x: any) => [x.id, x.loaded])).toEqual([['site-a', true], ['site-b', true], ['site-c', true], ['site-d', true]])
+    expect(s.cmsUnloadIdleSites(20)).toBe(1)
+    await tick()
+    expect(released).toEqual(['site-a'])
+    expect(s.cmsSitesOverview().find((x: any) => x.id === 'site-a')).toMatchObject({ loaded: false, active: 0, idleSeconds: null })
+    expect(s.cmsSitesOverview().find((x: any) => x.id === 'site-c')).toMatchObject({ loaded: true, active: 1 })
+    // Looking at a site that is not loaded does not load it.
+    expect(s.cmsPeekInSite(s.cmsSiteById('site-a')!, () => 'looked')).toBeUndefined()
+    expect(s.cmsPeekInSite(s.cmsSiteById('site-b')!, () => s.useCmsSite().id)).toBe('site-b')
+    // Its next use makes it again.
+    expect(s.runInCmsSite(s.cmsSiteById('site-a')!, () => cache().of)).toBe('site-a')
+    finish()
+    await underWay
+  })
+})
