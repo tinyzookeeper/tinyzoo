@@ -91,6 +91,8 @@ interface Hub {
 /** A site that is unloaded (it left the directory, or its row changed) lets its sockets go: a live browser reconnects and is admitted afresh. */
 const hub = cmsSiteScoped<Hub>(() => ({ site: useCmsSite().id, local: new Map(), remote: new Map(), names: new Map(), timer: null, stopChanges: null }), {
   dispose: (h) => stopHub(h, 4000, 'Reconnect'),
+  // A site with open admin tabs is in use, however long ago its last request was.
+  inUse: (h) => h.local.size > 0,
 })
 /** The hubs that run, by site id. */
 const running = cmsProcessWide(new Map<string, Hub>(), 'the hubs that run: the one subscription below finds the hub a message is for, and a stopping server stops them all')

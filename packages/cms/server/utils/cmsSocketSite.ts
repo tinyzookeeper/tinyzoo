@@ -26,7 +26,7 @@ interface SocketHooks {
 export function cmsSocketHooksInSite<T extends SocketHooks>(hooks: T, opts: { writes?: boolean } = {}): T {
   if (!cmsIsMultiTenant()) return hooks
   /** `writes`: the socket writes to the database (shared editing). A read-only site, which is being moved, gets none. */
-  const closedTo = (site: CmsSite) => site.state === 'paused' || (site.state === 'read-only' && !!opts.writes)
+  const closedTo = (site: CmsSite) => site.state === 'paused' || site.state === 'moved' || (site.state === 'read-only' && !!opts.writes)
   /** The socket's site as the directory has it now, or null. */
   const siteOf = (peer: any): CmsSite | null => {
     const id = peer?.context?.cmsSite
@@ -53,7 +53,8 @@ export function cmsSocketHooksInSite<T extends SocketHooks>(hooks: T, opts: { wr
     upgrade(request: any) {
       const host = cmsRequestHost({ host: request.headers?.get?.('host'), forwarded: request.headers?.get?.('x-forwarded-host') })
       const found = host ? cmsSiteForHost(host) : null
-      if (!found || !found.main) throw new Response('No website at this address', { status: 404 })
+      // A host that only redirects to the site's own has no socket: there is nothing for a socket to follow.
+      if (!found || !found.served || found.site.state === 'moved') throw new Response('No website at this address', { status: 404 })
       const site = found.site
       if (site.state === 'paused') throw new Response('This website is paused', { status: 503, headers: { 'retry-after': '300' } })
       if (closedTo(site)) throw new Response('This website is read-only for a moment', { status: 503, headers: { 'retry-after': '60' } })

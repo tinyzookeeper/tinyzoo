@@ -41,6 +41,8 @@ interface CollabPeerState {
  * changed) lets them go as `close` below would: no later hook finds them here again.
  */
 const peers = cmsSiteScoped(() => new Map<object, CollabPeerState>(), {
+  // A site with a document open for shared editing is in use.
+  inUse: (open) => open.size > 0,
   dispose(open) {
     for (const [peer, state] of open) {
       state.closed = { code: 1001, reason: 'Reconnect' }

@@ -49,6 +49,19 @@ const open = cmsProcessWide({
   reserved: 0,
 }, 'the pools of every site of the process, to keep the sum of their connections under one cap')
 
+/** The connections of the current site's pool, if it has one (the operator's status route). */
+export function cmsSiteConnections(): { open: number; idle: number } | null {
+  const pool = (siteDb.peek() as any)?.$client
+  return pool ? { open: pool.totalCount, idle: pool.idleCount } : null
+}
+
+/** The connections of all sites of this process, and the cap they share (multi-tenant mode). */
+export function cmsConnectionsInUse(): { open: number; cap: number } {
+  let total = open.closing + open.reserved
+  for (const p of open.pools.keys()) total += p.totalCount
+  return { open: total, cap: Number(process.env.NUXT_CMS_TENANCY_MAX_CONNECTIONS) || 30 }
+}
+
 async function roomForConnection(asked: any): Promise<{ pool: any; taken: () => void }> {
   // A handle to a closed pool: the site's pool of now (made if there is none).
   const pool = asked.ending || asked.ended ? (siteDb() as any).$client : asked

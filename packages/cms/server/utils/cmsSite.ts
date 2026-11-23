@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 import { readFileSync, statSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 
@@ -25,10 +26,20 @@ export interface CmsSite {
   id: string
   /** Host names (lower case, no port). The first is the site's own; the others redirect to it. */
   hosts: string[]
+  /**
+   * Host names that are served as the site without a redirect: the address the platform
+   * itself reaches the site at when visitors use a domain of the site's own.
+   */
+  alsoHosts: string[]
   /** The site's public address (an origin, no trailing slash): links in e-mails, the sitemap, canonical addresses. */
   publicUrl: string
-  /** `paused`: answers 503. `read-only`: reads work, writes get 503 (while the site is being moved). */
-  state: 'active' | 'paused' | 'read-only'
+  /**
+   * `paused`: answers 503. `read-only`: reads work, writes get 503 (while the site is being
+   * moved). `moved`: it lives somewhere else now; every request is redirected to `movedTo`.
+   */
+  state: 'active' | 'paused' | 'read-only' | 'moved'
+  /** Where a `moved` site went (an origin, no trailing slash). */
+  movedTo?: string
   /** Postgres address with the site's own user, which may open this one database only. */
   databaseUrl: string
   /** The site's own secret: its sessions are bound to it. */
@@ -68,8 +79,10 @@ interface SiteInstance {
   /** Its memory is gone: nothing can be kept for it any more. */
   released: boolean
   whenIdle?: () => void
+  /** When a request or a socket last ran in it (background sweeps do not count). */
+  usedAt: number
 }
-const newInstance = (site: CmsSite): SiteInstance => ({ site, state: new Map(), active: 0, retired: false, left: false, releasing: false, released: false })
+const newInstance = (site: CmsSite): SiteInstance => ({ site, state: new Map(), active: 0, retired: false, left: false, releasing: false, released: false, usedAt: Date.now() })
 
 const context = new AsyncLocalStorage<SiteInstance>()
 /** The instance new work of a site starts in, by site id. */
@@ -88,7 +101,7 @@ export function cmsTenancyMode(): 'single' | 'multi' {
 export const cmsIsMultiTenant = (): boolean => cmsTenancyMode() === 'multi'
 
 /** The one site of single mode. Its database, files and settings come from the environment, where they always did. */
-const SINGLE: CmsSite = Object.freeze({ id: 'default', hosts: [], publicUrl: '', state: 'active', databaseUrl: '', secret: '', config: {} }) as CmsSite
+const SINGLE: CmsSite = Object.freeze({ id: 'default', hosts: [], alsoHosts: [], publicUrl: '', state: 'active', databaseUrl: '', secret: '', config: {} }) as CmsSite
 const SINGLE_INSTANCE = newInstance(SINGLE)
 
 /**
@@ -165,8 +178,9 @@ function instanceFor(site: CmsSite): SiteInstance {
 }
 
 /** Run `fn` inside an instance and count it as that instance's work until it has finished (a promise: until it settles). */
-function enter<T>(instance: SiteInstance, fn: () => T): T {
+function enter<T>(instance: SiteInstance, fn: () => T, background = false): T {
   instance.active++
+  if (!background) instance.usedAt = Date.now()
   let result: T
   try {
     result = context.run(instance, fn)
@@ -221,14 +235,18 @@ export interface CmsSiteScoped<T> {
 }
 
 const disposers = new Map<symbol, (value: any) => unknown>()
+const keepers = new Map<symbol, (value: any) => boolean>()
 
 /**
  * A value per site: a cache, a counter, a connection. Declared at module level, read as
  * `value()`. `dispose` runs when the site is unloaded (its pool is ended, its timer stopped).
+ * `inUse` says that the value holds something live (open sockets): a site with such a value
+ * is not unloaded for being idle.
  */
-export function cmsSiteScoped<T>(init: () => T, opts: { dispose?: (value: T) => unknown } = {}): CmsSiteScoped<T> {
+export function cmsSiteScoped<T>(init: () => T, opts: { dispose?: (value: T) => unknown; inUse?: (value: T) => boolean } = {}): CmsSiteScoped<T> {
   const key = Symbol('cmsSiteScoped')
   if (opts.dispose) disposers.set(key, opts.dispose)
+  if (opts.inUse) keepers.set(key, opts.inUse)
   const stateOf = () => {
     const instance = cmsTenancyMode() === 'single' ? SINGLE_INSTANCE : currentInstance()
     if (!instance) throw new CmsNoSiteError('a per-site value')
@@ -290,7 +308,47 @@ function retireInstance(instance: SiteInstance, left: boolean): void {
 export async function unloadAllCmsSites(): Promise<void> {
   const all = [...instances.values(), ...retiring]
   instances.clear()
+  if (remote.timer) clearInterval(remote.timer)
   await Promise.all(all.map(releaseInstance))
+  await remote.pool?.end?.().catch(() => {})
+}
+
+/**
+ * Unload the sites nobody has used for `idleMs`: their caches are dropped and their pool is
+ * ended; the next request makes them again (its migration check and the rest of the start-up
+ * work run once more, a few milliseconds). A site with work under way, or with something
+ * live in its memory (open sockets: `inUse` of a per-site value), stays. Returns how many went.
+ */
+export function cmsUnloadIdleSites(idleMs: number): number {
+  if (cmsTenancyMode() === 'single') return 0
+  const before = Date.now() - idleMs
+  let unloaded = 0
+  for (const instance of [...instances.values()]) {
+    if (instance.active > 0 || instance.usedAt > before) continue
+    let live = false
+    for (const [key, value] of instance.state) {
+      const inUse = keepers.get(key)
+      if (inUse) { try { if (inUse(value)) { live = true; break } } catch { live = true; break } }
+    }
+    if (live) continue
+    retireInstance(instance, false)
+    unloaded++
+  }
+  return unloaded
+}
+
+/** What the operator's status route lists per site (multi mode): no content, no secrets. */
+export function cmsSitesOverview(): { id: string; hosts: string[]; alsoHosts: string[]; state: CmsSite['state']; loaded: boolean; active: number; idleSeconds: number | null }[] {
+  return cmsAllSites().map((site) => {
+    const instance = instances.get(site.id)
+    return { id: site.id, hosts: site.hosts, alsoHosts: site.alsoHosts, state: site.state, loaded: !!instance, active: instance?.active ?? 0, idleSeconds: instance ? Math.round((Date.now() - instance.usedAt) / 1000) : null }
+  })
+}
+
+/** Run `fn` in a site only if it is loaded here, without making it "used": for looking at a site's state (the operator's route). */
+export function cmsPeekInSite<T>(site: CmsSite, fn: () => T): T | undefined {
+  const instance = instances.get(site.id)
+  return instance ? enter(instance, fn, true) : undefined
 }
 
 // ── the site's settings ────────────────────────────────────────────────────────
@@ -352,12 +410,30 @@ export function cmsSettings(): Record<string, any> {
 }
 
 // ── the site directory (multi mode) ────────────────────────────────────────────
+//
+// Where the sites of this process are listed. Two sources:
+//   - a JSON file (NUXT_CMS_TENANCY_FILE): `{ "sites": [ row, … ] }`, reread when it changes;
+//   - a table in Postgres (NUXT_CMS_TENANCY_DATABASE_URL, with NUXT_CMS_TENANCY_TEMPLATE
+//     naming which rows are this app's): `tenant_sites (id text primary key, template text,
+//     row jsonb, updated_at timestamptz)`, read with a role that may only read it, and looked
+//     at again every second (NUXT_CMS_TENANCY_POLL_MS).
+// A row's secrets (`databaseUrl`, `secret`, and any text inside `config`) may be encrypted
+// (`enc:v1:…`, AES-256-GCM with a key made from NUXT_CMS_TENANCY_KEY). With the key set,
+// `databaseUrl` and `secret` MUST be encrypted, and the Postgres source needs the key: a
+// database that many can read never holds a site's password in plain text.
+
+type HostEntry = {
+  site: CmsSite
+  /** The site's own host (`hosts[0]`). */
+  main: boolean
+  /** Served as the site: its own host or one of `alsoHosts`. Any other host of the site redirects to its own. */
+  served: boolean
+}
 
 interface Directory {
   byId: Map<string, CmsSite>
-  /** host → the site and whether this host is its own (or an alias that redirects). */
-  byHost: Map<string, { site: CmsSite; main: boolean }>
-  /** What the file looked like when it was read: reread when it changes. */
+  byHost: Map<string, HostEntry>
+  /** What the source looked like when it was read: read again when it changes. */
   stamp: string
   checkedAt: number
 }
@@ -392,55 +468,132 @@ export function cmsRequestHost(headers: { host?: unknown; forwarded?: unknown })
   return cmsNormalHost(headers.host)
 }
 
-function directoryFile(): string {
-  const file = String(process.env.NUXT_CMS_TENANCY_FILE || '')
-  if (!file) throw new Error('[tinyzoo] multi-tenant mode needs the site directory: set NUXT_CMS_TENANCY_FILE to its JSON file')
-  if (!isAbsolute(file)) throw new Error(`[tinyzoo] NUXT_CMS_TENANCY_FILE must be an absolute path, got ${file}`)
-  return file
+/** Is `host` one the site is reached at (its own, a redirecting one, or one it is also served at)? */
+export function cmsSiteOwnsHost(site: CmsSite, host: unknown): boolean {
+  const name = cmsNormalHost(host)
+  return !!name && (site.hosts.includes(name) || site.alsoHosts.includes(name))
 }
 
-function parseSite(raw: any, index: number): CmsSite {
+// The secrets of a row.
+const ENCRYPTED = 'enc:v1:'
+function directoryKey(): Buffer | null {
+  const key = String(process.env.NUXT_CMS_TENANCY_KEY || '')
+  if (!key) return null
+  if (key.length < 32) throw new Error('[tinyzoo] NUXT_CMS_TENANCY_KEY must be at least 32 characters')
+  return createHash('sha256').update(key, 'utf8').digest()
+}
+
+/** Encrypt a secret of a directory row (what writes the directory uses the same): `enc:v1:` + base64url(iv | tag | ciphertext). */
+export function cmsEncryptDirectorySecret(plain: string, key: string = String(process.env.NUXT_CMS_TENANCY_KEY || '')): string {
+  if (key.length < 32) throw new Error('[tinyzoo] the directory key must be at least 32 characters')
+  const iv = randomBytes(12)
+  const cipher = createCipheriv('aes-256-gcm', createHash('sha256').update(key, 'utf8').digest(), iv)
+  const body = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()])
+  return ENCRYPTED + Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64url')
+}
+
+function decryptSecret(value: string, key: Buffer | null, what: string): string {
+  if (!value.startsWith(ENCRYPTED)) return value
+  if (!key) throw new Error(`[tinyzoo] ${what} is encrypted, and NUXT_CMS_TENANCY_KEY is not set`)
+  try {
+    const raw = Buffer.from(value.slice(ENCRYPTED.length), 'base64url')
+    const decipher = createDecipheriv('aes-256-gcm', key, raw.subarray(0, 12))
+    decipher.setAuthTag(raw.subarray(12, 28))
+    return Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString('utf8')
+  }
+  catch {
+    throw new Error(`[tinyzoo] ${what} cannot be decrypted with NUXT_CMS_TENANCY_KEY`)
+  }
+}
+
+function decryptDeep(value: unknown, key: Buffer | null, what: string): unknown {
+  if (typeof value === 'string') return decryptSecret(value, key, what)
+  if (Array.isArray(value)) return value.map((v) => decryptDeep(v, key, what))
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, decryptDeep(v, key, `${what}.${k}`)]))
+  return value
+}
+
+function parseSite(raw: any, index: number, key: Buffer | null): CmsSite {
   const where = `site #${index + 1} of the site directory`
   const id = String(raw?.id ?? '')
   if (!SITE_ID.test(id)) throw new Error(`[tinyzoo] ${where}: "id" must be 1-63 characters of a-z, 0-9, - and _`)
   const hosts = (Array.isArray(raw.hosts) ? raw.hosts : []).map(cmsNormalHost).filter(Boolean)
   if (!hosts.length) throw new Error(`[tinyzoo] site ${id}: "hosts" needs at least one host name`)
-  const databaseUrl = String(raw.databaseUrl ?? '')
+  const alsoHosts = (Array.isArray(raw.alsoHosts) ? raw.alsoHosts : []).map(cmsNormalHost).filter(Boolean)
+  // With a key, a password in plain text is a mistake of whatever wrote the row: refused, not served.
+  for (const field of ['databaseUrl', 'secret'] as const) {
+    if (key && typeof raw[field] === 'string' && !raw[field].startsWith(ENCRYPTED)) throw new Error(`[tinyzoo] site ${id}: "${field}" must be encrypted (NUXT_CMS_TENANCY_KEY is set)`)
+  }
+  const databaseUrl = decryptSecret(String(raw.databaseUrl ?? ''), key, `site ${id}: "databaseUrl"`)
   if (!/^postgres(ql)?:\/\//.test(databaseUrl)) throw new Error(`[tinyzoo] site ${id}: "databaseUrl" must be a postgres:// address`)
-  const secret = String(raw.secret ?? '')
+  const secret = decryptSecret(String(raw.secret ?? ''), key, `site ${id}: "secret"`)
   if (secret.length < 32) throw new Error(`[tinyzoo] site ${id}: "secret" must be at least 32 characters`)
   const publicUrl = String(raw.publicUrl ?? '').replace(/\/+$/, '')
   if (!/^https?:\/\//.test(publicUrl)) throw new Error(`[tinyzoo] site ${id}: "publicUrl" must be the site's address (http:// or https://)`)
-  // A word that is not one of the three is refused, not read as "active": a typo must not open a paused site.
+  // A word that is not one of the four is refused, not read as "active": a typo must not open a paused site.
   const state = raw.state === undefined || raw.state === null ? 'active' : raw.state
-  if (state !== 'active' && state !== 'paused' && state !== 'read-only') throw new Error(`[tinyzoo] site ${id}: "state" must be active, paused or read-only, got ${JSON.stringify(raw.state)}`)
-  const config = raw.config && typeof raw.config === 'object' ? raw.config : {}
-  return { id, hosts, publicUrl, state, databaseUrl, secret, config }
+  if (state !== 'active' && state !== 'paused' && state !== 'read-only' && state !== 'moved') throw new Error(`[tinyzoo] site ${id}: "state" must be active, paused, read-only or moved, got ${JSON.stringify(raw.state)}`)
+  const movedTo = String(raw.movedTo ?? '').replace(/\/+$/, '')
+  if (state === 'moved' && !/^https?:\/\//.test(movedTo)) throw new Error(`[tinyzoo] site ${id}: a moved site needs "movedTo", the address it lives at now`)
+  const config = (raw.config && typeof raw.config === 'object' ? decryptDeep(raw.config, key, `site ${id}: config`) : {}) as Record<string, any>
+  return { id, hosts, alsoHosts, publicUrl, state, ...(state === 'moved' ? { movedTo } : {}), databaseUrl, secret, config }
 }
 
-function readDirectory(file: string, stamp: string): Directory {
-  const parsed = JSON.parse(readFileSync(file, 'utf8'))
-  const list: unknown[] = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.sites) ? parsed.sites : []
+function buildDirectory(list: unknown[], stamp: string): Directory {
+  const key = directoryKey()
   const byId = new Map<string, CmsSite>()
-  const byHost = new Map<string, { site: CmsSite; main: boolean }>()
+  const byHost = new Map<string, HostEntry>()
   list.forEach((raw, index) => {
-    const site = parseSite(raw, index)
+    const site = parseSite(raw, index, key)
     if (byId.has(site.id)) throw new Error(`[tinyzoo] the site directory lists the id ${site.id} twice`)
     byId.set(site.id, site)
-    site.hosts.forEach((host, i) => {
+    const add = (host: string, entry: Omit<HostEntry, 'site'>) => {
       if (byHost.has(host)) throw new Error(`[tinyzoo] the site directory lists the host ${host} twice`)
-      byHost.set(host, { site, main: i === 0 })
-    })
+      byHost.set(host, { site, ...entry })
+    }
+    site.hosts.forEach((host, i) => add(host, { main: i === 0, served: i === 0 }))
+    site.alsoHosts.forEach((host) => add(host, { main: false, served: true }))
   })
   return { byId, byHost, stamp, checkedAt: Date.now() }
 }
 
+/** Take a newly read directory into use. A site that left it, or whose row changed, is retired (see SiteInstance). */
+function adoptDirectory(next: Directory): Directory {
+  const previous = directory
+  directory = next
+  if (previous) {
+    for (const [id, old] of previous.byId) {
+      const site = next.byId.get(id)
+      if (site && JSON.stringify(site) === JSON.stringify(old)) continue
+      const loaded = instances.get(id)
+      // A site that moved away has nothing here any more either.
+      if (loaded) retireInstance(loaded, !site || site.state === 'moved')
+    }
+  }
+  return next
+}
+
+function directorySource(): 'file' | 'postgres' {
+  return process.env.NUXT_CMS_TENANCY_DATABASE_URL ? 'postgres' : 'file'
+}
+
+function directoryFile(): string {
+  const file = String(process.env.NUXT_CMS_TENANCY_FILE || '')
+  if (!file) throw new Error('[tinyzoo] multi-tenant mode needs the site directory: set NUXT_CMS_TENANCY_FILE to its JSON file (or NUXT_CMS_TENANCY_DATABASE_URL to its database)')
+  if (!isAbsolute(file)) throw new Error(`[tinyzoo] NUXT_CMS_TENANCY_FILE must be an absolute path, got ${file}`)
+  return file
+}
+
 /**
- * The directory, reread when its file changed (checked at most twice a second). A site
- * that left it, or whose row changed, is unloaded: its connections are closed and its
- * caches dropped. A file that cannot be read keeps the last good directory and says so.
+ * The directory. From a file: reread when the file changed (checked at most twice a
+ * second); a file that cannot be read keeps the last good directory and says so. From
+ * Postgres: the copy kept in memory by `cmsDirectoryReady()` and its poll.
  */
 function useDirectory(): Directory {
+  if (directorySource() === 'postgres') {
+    if (!directory) throw new Error('[tinyzoo] the site directory has not been read from its database yet')
+    return directory
+  }
   const now = Date.now()
   if (directory && now - directory.checkedAt < DIRECTORY_CHECK_MS) return directory
   const file = directoryFile()
@@ -456,7 +609,8 @@ function useDirectory(): Directory {
   if (directory && directory.stamp === stamp) { directory.checkedAt = now; return directory }
   let next: Directory
   try {
-    next = readDirectory(file, stamp)
+    const parsed = JSON.parse(readFileSync(file, 'utf8'))
+    next = buildDirectory(Array.isArray(parsed) ? parsed : Array.isArray(parsed?.sites) ? parsed.sites : [], stamp)
   }
   catch (err) {
     if (!directory) throw err
@@ -464,21 +618,75 @@ function useDirectory(): Directory {
     directory.checkedAt = now
     return directory
   }
-  const previous = directory
-  directory = next
-  if (previous) {
-    for (const [id, old] of previous.byId) {
-      const site = next.byId.get(id)
-      if (site && JSON.stringify(site) === JSON.stringify(old)) continue
-      const loaded = instances.get(id)
-      if (loaded) retireInstance(loaded, !site)
-    }
+  return adoptDirectory(next)
+}
+
+// The directory in Postgres.
+const remote: { pool: any; ready: Promise<void> | null; timer: ReturnType<typeof setInterval> | null; reading: Promise<void> | null; failedAt: number; failure: string } = { pool: null, ready: null, timer: null, reading: null, failedAt: 0, failure: '' }
+
+async function readRemoteDirectory(): Promise<void> {
+  const template = String(process.env.NUXT_CMS_TENANCY_TEMPLATE || '')
+  if (!template) throw new Error('[tinyzoo] NUXT_CMS_TENANCY_TEMPLATE must name which rows of the site directory are this app\'s')
+  if (!directoryKey()) throw new Error('[tinyzoo] the site directory in a database needs NUXT_CMS_TENANCY_KEY: its rows hold the sites\' secrets encrypted')
+  if (!remote.pool) {
+    const { Pool } = await import('pg')
+    remote.pool = new Pool({ connectionString: process.env.NUXT_CMS_TENANCY_DATABASE_URL, max: 1, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 10_000 })
+    remote.pool.on('error', (err: Error) => console.error('[cms] the connection to the site directory failed while idle:', err?.message ?? err))
   }
-  return next
+  // Cheap first: has anything changed? The rows are read only when it has.
+  const { rows: [mark] } = await remote.pool.query(`select count(*)::int as n, coalesce(md5(string_agg(id || ':' || updated_at::text, ',' order by id)), '') as mark from tenant_sites where template = $1`, [template])
+  const stamp = `${mark.n}:${mark.mark}`
+  if (directory && directory.stamp === stamp) { directory.checkedAt = Date.now(); return }
+  const { rows } = await remote.pool.query('select row from tenant_sites where template = $1 order by id', [template])
+  adoptDirectory(buildDirectory(rows.map((r: { row: unknown }) => r.row), stamp))
+}
+
+/** Read the directory in Postgres again now (the poll does it every second by itself). One read at a time. */
+export function cmsReloadDirectory(): Promise<void> {
+  if (cmsTenancyMode() === 'single' || directorySource() === 'file') { if (cmsTenancyMode() === 'multi') useDirectory(); return Promise.resolve() }
+  remote.reading ??= readRemoteDirectory().finally(() => { remote.reading = null })
+  return remote.reading
+}
+
+/**
+ * Resolves when the directory can be used. A file: at once (or throws what is wrong with
+ * it). Postgres: after the first read, tried again every two seconds until it works; from
+ * then on the directory is read again every second, and a read that fails keeps the last
+ * good one (each reason is logged once, and again after a minute).
+ */
+export function cmsDirectoryReady(): Promise<void> {
+  if (cmsTenancyMode() === 'single') return Promise.resolve()
+  if (directorySource() === 'file') { useDirectory(); return Promise.resolve() }
+  remote.ready ??= context.exit(() => (async () => {
+    for (;;) {
+      try { await cmsReloadDirectory(); break }
+      catch (err) {
+        console.error('[cms] the site directory cannot be read from its database yet:', (err as Error)?.message ?? err)
+        await new Promise((r) => setTimeout(r, 2_000))
+      }
+    }
+    remote.timer = setInterval(() => {
+      cmsReloadDirectory().then(() => { remote.failure = '' }, (err) => {
+        // Said once per reason (and again after a minute): the poll comes round every second.
+        const reason = String((err as Error)?.message ?? err)
+        if (reason === remote.failure && Date.now() - remote.failedAt < 60_000) return
+        remote.failure = reason
+        remote.failedAt = Date.now()
+        console.error('[cms] the site directory could not be read again; keeping the last one:', reason)
+      })
+    }, Math.max(200, Number(process.env.NUXT_CMS_TENANCY_POLL_MS) || 1_000))
+    remote.timer.unref?.()
+  })())
+  return remote.ready
+}
+
+/** Is the directory in memory (always, for a file; after the first read, for Postgres)? */
+export function cmsDirectoryLoaded(): boolean {
+  return cmsTenancyMode() === 'single' || directorySource() === 'file' || !!directory
 }
 
 /** The site a host name belongs to (multi mode), and the address to redirect to when the host is an alias. */
-export function cmsSiteForHost(host: unknown): { site: CmsSite; main: boolean } | null {
+export function cmsSiteForHost(host: unknown): { site: CmsSite; main: boolean; served: boolean } | null {
   const name = cmsNormalHost(host)
   return name ? (useDirectory().byHost.get(name) ?? null) : null
 }
@@ -507,7 +715,8 @@ export async function forEachCmsSite(fn: (site: CmsSite) => unknown, opts: { con
     while (next < sites.length) {
       const site = sites[next++]!
       try {
-        await runInCmsSite(site, () => fn(site))
+        // Background work: it does not count as somebody using the site (an idle site stays idle).
+        await (cmsTenancyMode() === 'single' ? fn(site) : enter(instanceFor(site), () => fn(site), true))
       }
       catch (error) {
         failed.push({ site: site.id, error })

@@ -154,7 +154,7 @@ function sameOrigin(request: any): boolean {
     return false
   }
   // Multi-tenant mode: the origin must be one of this site's own hosts (the directory's), nothing a header says.
-  if (cmsIsMultiTenant()) return useCmsSite().hosts.includes(cmsNormalHost(host))
+  if (cmsIsMultiTenant()) return cmsSiteOwnsHost(useCmsSite(), host)
   const allowed = new Set<string>()
   for (const h of [request.headers.get('host'), request.headers.get('x-forwarded-host')]) if (h) allowed.add(String(h).split(',')[0]!.trim())
   const pub = (useRuntimeConfig().cms as any)?.publicUrl
