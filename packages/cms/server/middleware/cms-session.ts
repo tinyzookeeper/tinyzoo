@@ -53,4 +53,6 @@ export default defineEventHandler(async (event) => {
   event.context.cmsSessionVersion = u.sessionVersion
   // When this browser signed in: a session written again keeps it (continueCmsSession).
   event.context.cmsSignedInAt = session.cms.iat
+  // Somebody accepted through the tinyzoo account has no password on this site: their account page says so (`_auth/me`).
+  if (!u.passwordHash) event.context.cmsNoPassword = true
 })

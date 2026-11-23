@@ -124,6 +124,8 @@ async function resend(u: any) {
 const emailTarget = ref<{ id: string; name: string; email: string; status: string } | null>(null)
 const newEmail = ref('')
 // Your own password: a session left open must not be enough to move someone's account (the server checks it).
+// (An administrator who came in through the tinyzoo account has none here: the dialog says so. The admin's layout asked `_auth/me`.)
+const { data: access } = useNuxtData<{ noPassword?: boolean }>('cms-access')
 const myPassword = ref('')
 const emailError = ref('')
 const passwordError = ref('')
@@ -396,7 +398,11 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
             <UInput v-model="newEmail" type="email" autocomplete="off" inputmode="email" autofocus class="w-full" />
             <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
           </UFormField>
-          <UFormField :label="t('team.yourPassword')" name="password" :help="t('team.yourPasswordHint')" :error="passwordError || undefined" required>
+          <!-- an administrator who came in through the tinyzoo account has no password here to confirm with -->
+          <UAlert v-if="access?.noPassword" color="neutral" variant="subtle" icon="i-lucide-key-round" role="status" data-cms-no-password :description="t('team.noPasswordBody')">
+            <template #actions><UButton to="/admin/account" color="neutral" variant="outline" size="sm">{{ t('team.noPasswordLink') }}</UButton></template>
+          </UAlert>
+          <UFormField v-else :label="t('team.yourPassword')" name="password" :help="t('team.yourPasswordHint')" :error="passwordError || undefined" required>
             <CmsPasswordInput v-model="myPassword" autocomplete="current-password" />
             <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
           </UFormField>
@@ -406,7 +412,7 @@ const initials = (u: any) => (u.name || u.email).split(/[\s@.]+/).filter(Boolean
       <template #footer>
         <div class="flex justify-end gap-2 w-full">
           <UButton color="neutral" variant="ghost" @click="() => { emailTarget = null }">{{ t('common.cancel') }}</UButton>
-          <UButton type="submit" form="cms-change-email" icon="i-lucide-mail" :loading="savingEmail">{{ t('team.changeEmail') }}</UButton>
+          <UButton type="submit" form="cms-change-email" icon="i-lucide-mail" :loading="savingEmail" :disabled="!!access?.noPassword">{{ t('team.changeEmail') }}</UButton>
         </div>
       </template>
     </UModal>

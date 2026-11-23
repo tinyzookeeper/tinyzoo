@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from 'node:crypto'
-import { and, eq, gt, inArray, isNull } from 'tinyzoo'
+import { and, eq, inArray, isNull } from 'tinyzoo'
 import type { CmsRegistry } from 'tinyzoo'
 
 /**
@@ -61,11 +61,13 @@ export const ACCOUNT_CALLBACK_PATH = '/api/cms/_auth/account/callback'
 
 /**
  * Where the issuer sends the browser back: the site's public address (`cms.publicUrl`, in
- * multi-tenant mode the site's own) + the callback path. Never the request's Host header.
- * Outside production the request's origin is accepted, as for links in e-mails (adminLink).
+ * multi-tenant mode the site's own) in its normal form (accountSiteAddress, cmsAccountAddress.ts)
+ * + the callback path. Never the
+ * request's Host header. Outside production the request's origin is accepted, as for links
+ * in e-mails (adminLink).
  */
 export function accountCallbackAddress(event: any): string {
-  const configured = String(cmsSettings().publicUrl || '').replace(TRAILING_SLASHES, '')
+  const configured = accountSiteAddress(String(cmsSettings().publicUrl || ''))
   if (configured) return configured + ACCOUNT_CALLBACK_PATH
   if (!cmsIsMultiTenant() && (import.meta.dev || process.env.NODE_ENV !== 'production' || process.env.CMS_ALLOW_REQUEST_ORIGIN === '1')) {
     return getRequestURL(event).origin + ACCOUNT_CALLBACK_PATH
@@ -96,8 +98,18 @@ export function accountNextPath(value: unknown): string {
   }
 }
 
-/** The sign-in page with what happened: `no-access`, `unavailable`, `expired` or `signin` (nothing special). */
-export function accountLoginPage(result: 'no-access' | 'unavailable' | 'expired' | 'signin', next?: string): string {
+/**
+ * The sign-in page with what happened:
+ *   `no-access`    the account has no user on this site (or a disabled one)
+ *   `unverified`   the account's e-mail is not confirmed yet, so the site cannot tell whose it is
+ *   `unavailable`  the account service is down, slow, or did not confirm the code
+ *   `expired`      the sign-in took over ten minutes, or its address was used twice
+ *   `busy`         too many sign-ins from this address (the rate limit)
+ *   `signin`       nothing special: the account service does not know the browser
+ */
+export type CmsAccountResult = 'no-access' | 'unverified' | 'unavailable' | 'expired' | 'busy' | 'signin'
+
+export function accountLoginPage(result: CmsAccountResult, next?: string): string {
   // After a password sign-in the person still lands where they were going (the page reads `redirect`).
   const redirect = next && next !== '/admin' && next.startsWith('/admin') ? '&redirect=' + encodeURIComponent(next) : ''
   return '/admin/login?account=' + result + redirect
@@ -208,6 +220,26 @@ async function askIssuer(account: CmsAccountSettings, path: string, body: unknow
   }
 }
 
+/**
+ * Is the account service there? Asked before a browser is sent to it (`start`): a browser
+ * sent to a service that is down shows its own error page and the person is stuck there,
+ * while the site can say so on its sign-in page and offer the password. Any answer of the
+ * issuer's discovery address counts (2.15: `GET /.well-known/tinyzoo-account`); no answer
+ * within three seconds, or a failure of its server, does not.
+ */
+export async function accountIssuerAnswers(account: CmsAccountSettings): Promise<boolean> {
+  try {
+    const res = await fetch(account.issuer + '/.well-known/tinyzoo-account', {
+      headers: { accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(Math.min(issuerTimeoutMs(), 3000)),
+    })
+    await res.body?.cancel().catch(() => {})
+    return res.status < 500
+  }
+  catch {
+    return false
+  }
+}
+
 /** Who the issuer says the person is. */
 export interface CmsAccountIdentity {
   sub: string
@@ -243,16 +275,25 @@ export async function exchangeAccountCode(account: CmsAccountSettings, input: { 
   }
 }
 
+/** How long a response waits for the issuer to take a membership report before it goes on without it. */
+const REPORT_WAIT_MS = 2000
+
 /**
  * Tell the issuer which role the person has on this site, or that the site no longer lets
- * them in (`POST /oauth/membership`). After the response, and never an error: the issuer
- * only shows it in the switcher.
+ * them in (`POST /oauth/membership`). Never an error: the issuer only shows it in the
+ * switcher and in the person's list of websites. The work goes on after the response
+ * (`event.waitUntil`); the promise that comes back is done when the issuer has answered, or
+ * after two seconds, whichever is first: the callback waits for it, so that the list the
+ * admin asks for right after a sign-in already carries this website with the role.
  */
-export function reportAccountMembership(event: any, account: CmsAccountSettings, member: { sub: string; role: string; active: boolean }): void {
+export function reportAccountMembership(event: any, account: CmsAccountSettings, member: { sub: string; role: string; active: boolean }): Promise<void> {
   const work = askIssuer(account, '/oauth/membership', member, { basic: true }).then((answer) => {
     if (!answer) console.warn('[cms] the account service did not take the membership report')
   }).catch(() => {})
   if (typeof event?.waitUntil === 'function') event.waitUntil(work)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const soon = new Promise<void>((resolve) => { timer = setTimeout(resolve, REPORT_WAIT_MS) })
+  return Promise.race([work, soon]).finally(() => clearTimeout(timer))
 }
 
 /** When the user is linked to an account of this site's issuer: tell the issuer their role and whether they may still sign in. */
@@ -262,7 +303,11 @@ export async function reportAccountMembershipOf(event: any, user: { id: string; 
   try {
     const { db, reg } = useCms()
     const link = await accountLinkOf(db, reg, user.id)
-    if (link && link.issuer === account.issuer) reportAccountMembership(event, account, { sub: link.sub, role: user.role, active: user.status === 'active' })
+    if (link && link.issuer === account.issuer) {
+      // Their own list of websites (the switcher) carries the role: asked anew the next time.
+      forgetAccountSites(user.id)
+      void reportAccountMembership(event, account, { sub: link.sub, role: user.role, active: user.status === 'active' })
+    }
   }
   catch (err) {
     console.error('[cms] could not report the membership to the account service', safeErrorMessage(err))
@@ -303,9 +348,11 @@ export type CmsAccountMatch =
  * The user of THIS site an account belongs to (2.15):
  *  1. the user linked to this issuer + sub;
  *  2. else, when the issuer says the e-mail is verified, the user with that e-mail: an
- *     active one is linked; an invited one whose invitation is still open is accepted (it
- *     becomes active with the account's name, without a password, and the invitation is
- *     used up) and linked;
+ *     active one is linked; an invited one is accepted (it becomes active with the account's
+ *     name, without a password, and the invitation's link is used up) and linked. The proof
+ *     is the verified e-mail, not the link: an invitation whose link ran out (7 days) is
+ *     accepted all the same, as long as it was not taken back (the user is still `invited`;
+ *     taking an invitation back removes the user);
  *  3. else nobody.
  * A disabled user is refused. A user already linked to ANOTHER account of the same issuer
  * is refused too: a link never moves by itself. A link left from another issuer (the site
@@ -345,18 +392,18 @@ export async function matchAccountUser(account: CmsAccountSettings, who: CmsAcco
       }
       let user = found
       if (found.status === 'invited') {
-        // As POST /api/cms/_auth/accept does, with the account in place of the link and the password:
-        // the open invitation is claimed (of two requests one gets it), then the user becomes active.
+        // As POST /api/cms/_auth/accept does, with the account's verified e-mail in place of the
+        // link and the password. The link is used up, whether it still worked or had run out;
+        // of two requests one turns the user from invited to active (the update below), the
+        // other finds nobody invited.
         const t = reg.cmsTokens
-        const claimed = await tx.update(t).set({ usedAt: new Date() })
-          .where(and(eq(t.userId, found.id), eq(t.kind, 'invite'), isNull(t.usedAt), gt(t.expiresAt, new Date()))).returning({ id: t.id })
-        if (!claimed.length) throw new Refused('invitation-expired')
+        await tx.update(t).set({ usedAt: new Date() }).where(and(eq(t.userId, found.id), eq(t.kind, 'invite'), isNull(t.usedAt)))
         const theirs = (who.locale ?? '').toLowerCase().split('-')[0]!
         const locale = !found.locale && ACCOUNT_LOCALES.includes(theirs) ? theirs : found.locale
         const [accepted] = await tx.update(u)
           .set({ name: who.name || found.name, locale, status: 'active', updatedAt: new Date(), lastLoginAt: new Date() })
           .where(and(eq(u.id, found.id), eq(u.status, 'invited'))).returning()
-        if (!accepted) throw new Refused('invitation-expired')
+        if (!accepted) throw new Refused('invitation-taken')
         user = accepted
       }
       const linkedAt = new Date().toISOString()
@@ -384,7 +431,7 @@ export interface CmsAccountSite {
   name: string
   /** The website's address (an origin, or an origin with a path), without a trailing slash. */
   url: string
-  /** The role the person has there, as that website last told the issuer. */
+  /** The role the person has there, as that website last told the issuer; '' when it has not said yet (the issuer sends null). */
   role: string
   current: boolean
 }

@@ -19,6 +19,10 @@ const roleName = computed(() => {
 const form = reactive({ name: invite.value?.name ?? '', password: '' })
 const errors = reactive<Record<string, string>>({})
 const expired = ref(!!loadError.value)
+// The link no longer works (it ran out, or was used): where people sign in with the tinyzoo account, the
+// invited address's account still gets in, so the page offers that instead of a dead end. The 410
+// says so itself (a site without the account says nothing, and the page is what it always was).
+const accountStillWorks = computed(() => !!invite.value?.account?.enabled || !!(loadError.value as any)?.data?.data?.account?.enabled)
 const pending = ref(false)
 const formError = ref('')
 const formEl = ref<HTMLElement | null>(null)
@@ -49,6 +53,10 @@ async function submit() {
   <div v-if="expired || !invite" class="space-y-3">
     <h1 class="text-center cms-display text-[1.625rem] leading-tight text-highlighted">{{ t('auth.inviteExpiredTitle') }}</h1>
     <p class="text-sm text-muted">{{ t('auth.inviteExpired') }}</p>
+    <template v-if="accountStillWorks">
+      <p class="text-sm text-muted text-pretty" data-cms-invite-expired-account>{{ t('auth.inviteExpiredAccount') }}</p>
+      <UButton to="/api/cms/_auth/account/start?next=%2Fadmin" external block icon="i-lucide-log-in" data-cms-account-sign-in>{{ t('auth.accountSignIn') }}</UButton>
+    </template>
   </div>
   <form v-else method="post" ref="formEl" class="space-y-5" novalidate @submit.prevent="submit">
     <div class="text-center">
