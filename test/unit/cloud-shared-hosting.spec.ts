@@ -16,6 +16,13 @@ const ENV = {
   NUXT_CMS_MIGRATIONS_ON_START: 'true',
   NUXT_CMS_MAIL_TRANSPORT: 'log',
 }
+// The site's client at the account service (the cloud as the issuer of sign-in).
+const ACCOUNT_ENV = {
+  NUXT_CMS_AUTH_ACCOUNT_ISSUER: 'https://tinyzoo.example',
+  NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID: '99999999-8888-4777-8666-555555555555',
+  NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET: 'a-client-secret',
+}
+const ACCOUNT = { issuer: 'https://tinyzoo.example', clientId: '99999999-8888-4777-8666-555555555555', clientSecret: 'a-client-secret' }
 
 describe('the names of a site\'s database and database user', () => {
   it('come from the site\'s id, never from its address', () => {
@@ -102,9 +109,23 @@ describe('a site\'s addresses', () => {
 describe('splitting a site\'s environment', () => {
   it('the secrets are the site\'s own; the rest belongs to the process that serves every site', () => {
     expect(splitSiteEnv(ENV)).toEqual({
-      site: { secret: ENV.NUXT_APP_SECRET, setupToken: 'setup-code', statusToken: 'status-token' },
+      site: { secret: ENV.NUXT_APP_SECRET, setupToken: 'setup-code', statusToken: 'status-token', account: null },
       process: { NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_MAIL_TRANSPORT: 'log' },
     })
+  })
+
+  it('the site\'s client at the account service is the site\'s own too', () => {
+    const split = splitSiteEnv({ ...ENV, ...ACCOUNT_ENV })
+    expect(split.site.account).toEqual(ACCOUNT)
+    expect(split.process).toEqual({ NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_MAIL_TRANSPORT: 'log' })
+    expect(JSON.stringify(split.process)).not.toContain('a-client-secret')
+  })
+
+  it('the three account settings come together or not at all', () => {
+    const { NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET: _secret, ...withoutSecret } = ACCOUNT_ENV
+    expect(() => splitSiteEnv({ ...ENV, ...withoutSecret })).toThrow()
+    expect(() => splitSiteEnv({ ...ENV, NUXT_CMS_AUTH_ACCOUNT_ISSUER: 'https://tinyzoo.example' })).toThrow()
+    expect(() => splitSiteEnv({ ...ENV, ...ACCOUNT_ENV, NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID: '' })).toThrow()
   })
 
   it('no secret of a site stays in the process\'s part', () => {
@@ -134,6 +155,13 @@ describe('a site\'s row in the site directory', () => {
         storage: { driver: 'local', local: { dir: `/data/photographer/sites/${ID}/uploads` } },
       },
     })
+  })
+
+  it('carries the site\'s client at the account service as config.auth.account, beside the setup code', () => {
+    const row = sharedSiteRow({ ...input, env: { ...ENV, ...ACCOUNT_ENV } })
+    expect(row.config.auth).toEqual({ setupToken: 'setup-code', account: ACCOUNT })
+    expect({ ...row, config: { ...row.config, auth: { setupToken: 'setup-code' } } }).toEqual(sharedSiteRow(input))
+    expect(sharedSiteRow(input).config.auth).not.toHaveProperty('account')
   })
 
   it('gives e-mails a folder per site only when they are written to files', () => {

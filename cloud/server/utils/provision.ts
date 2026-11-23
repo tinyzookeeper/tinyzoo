@@ -15,7 +15,12 @@ import { sharedRoot } from '../hosting/shared'
 //                     account "tinyzoo" and fills the demo content
 //   account           the cloud signs in as the service account, writes the site's name (and
 //                     the look chosen in the wizard) into its settings and invites the owner
-//                     as an administrator; the link is kept for their page
+//                     as an administrator. The owner then gets in through their account (the
+//                     site accepts the invitation of the account's confirmed e-mail); the
+//                     invitation's link is kept for their page as the second way in
+//
+// Before the site starts it gets its client at the account service (server/utils/account.ts):
+// the id and the secret travel in its environment, like its other secrets.
 //
 // It runs in the background, never inside a request. Each step is written down before and
 // after, so a failure shows where it was, "Try again" goes on from there, and a restart of the
@@ -82,7 +87,9 @@ async function provision(siteId: string): Promise<void> {
     const template = templateById(site.template)
     if (!template?.ready) throw new StepError('template_not_built', `template "${site.template}" cannot be used`)
     const driver = useHosting(site.driver)
-    const secrets = readSecrets(site)
+    // The site's client at the account service exists before the site starts.
+    const secrets = await ensureSiteClient(site)
+    site = { ...site, secrets: encryptSecret(JSON.stringify(secrets)) }
 
     // database + start: the driver's part. It reports both steps as it goes.
     if (!isDone(steps, 'database') || !isDone(steps, 'start')) {
@@ -96,6 +103,8 @@ async function provision(siteId: string): Promise<void> {
       }
       await saveSite(site.id, { publicUrl: made.publicUrl, internalUrl: made.internalUrl, driverState: made.state })
       site = { ...site, publicUrl: made.publicUrl, internalUrl: made.internalUrl, driverState: made.state }
+      // A sign-in comes back to the site's address and no other: the client learns it now.
+      await setSiteClientAddress(site.id, made.publicUrl)
     }
     else {
       // Going on after a restart: the site was up once; make sure it still is.
@@ -225,7 +234,7 @@ async function serviceClient(internalUrl: string, secrets: SiteSecrets): Promise
 
 interface SiteUser { id: string; email: string; status: string }
 
-/** A fresh invitation link for the owner, or `accepted` when they already chose their password. */
+/** A fresh invitation link for the owner, or `accepted` when they have been in already (through their account, or with a password they chose). */
 async function inviteOwner(client: SiteClient, owner: { email: string; name: string }): Promise<{ inviteUrl: string | null; accepted: boolean }> {
   try {
     const made = await client.post<{ inviteUrl: string }>('/api/cms/_users', { email: owner.email, name: owner.name, role: 'admin' })
@@ -287,8 +296,9 @@ export async function refreshInvite(site: SiteRow): Promise<SiteRow> {
 const lastAsked = new Map<string, number>()
 
 /**
- * Note that the owner chose their password, once the site says nobody is waiting on an
- * invitation any more (GET /api/health/status: people.invited). Returns the row as it is now.
+ * Note that the owner has been in the admin (through their account, or with a password they
+ * chose by the invitation), once the site says nobody is waiting on an invitation any more
+ * (GET /api/health/status: people.invited). Returns the row as it is now.
  */
 export async function noteAcceptance(site: SiteRow): Promise<SiteRow> {
   if (site.status !== 'ready' || site.ownerAcceptedAt || !site.internalUrl) return site
@@ -357,6 +367,8 @@ export async function startWaitingSites(ownerId: string): Promise<string[]> {
 /** Stop a website and remove its data, in the background. The row stays as a record; its address is free again. */
 export async function removeSite(site: SiteRow): Promise<void> {
   await saveSite(site.id, { status: 'removing' })
+  // Nobody signs in to it through the account from this moment.
+  await revokeSiteClient(site.id)
   void finishRemoval(site.id).catch((err) => console.error('[cloud] removal crashed', site.slug, err?.message ?? err))
 }
 
@@ -365,6 +377,7 @@ export async function finishRemoval(siteId: string): Promise<void> {
     const site = await loadSite(siteId)
     if (!site || site.status !== 'removing') return
     try {
+      await revokeSiteClient(site.id)
       await useHosting(site.driver).remove(hostedSite(site))
       await saveSite(site.id, { status: 'removed', removedAt: new Date(), inviteUrl: null, error: null })
       console.info(`[cloud] ${site.slug} was removed`)
@@ -388,7 +401,9 @@ export async function resumeSites(): Promise<void> {
   for (const site of rows.filter((s) => s.status === 'removing')) void finishRemoval(site.id).catch(() => {})
   for (const site of rows.filter((s) => s.status === 'ready')) {
     try {
-      await useHosting(site.driver).ensureRunning(hostedSite(site))
+      // A site made before the account service gets its client now; the others keep theirs.
+      const secrets = await ensureSiteClient(site)
+      await useHosting(site.driver).ensureRunning(hostedSite({ ...site, secrets: encryptSecret(JSON.stringify(secrets)) }))
     }
     catch (err: any) {
       console.error(`[cloud] ${site.slug} could not be started again: ${err instanceof HostingError ? err.detail : err?.message ?? err}`)

@@ -44,6 +44,9 @@ export default defineNuxtConfig({
     serviceEmail: 'cloud@tinyzoo.invalid',
     // NUXT_DEV_MAIL_LINKS: 'false' hides the development notes that show an e-mail's link on the page.
     devMailLinks: '',
+    // NUXT_ACCOUNT_CODE_TTL_SECONDS: how long a one-time code of a sign-in through the account works.
+    // A minute, and never longer; the checks set a shorter time (shared/account.ts).
+    accountCodeTtlSeconds: '',
     hosting: {
       // NUXT_HOSTING_DRIVER: local | shared | pushbase
       driver: 'local',
