@@ -10,6 +10,11 @@ import { brandLogoFiles } from './cmsBrandSource'
 // kept per config object; the logo files' versions come from reading the files
 // (cmsBrandSource.ts, which keeps what it read for a while), which is why this is async.
 //
+// One part may come from the site's stored content instead: with `cms.admin.nameFrom`
+// ('<global>.<field>', e.g. 'siteSettings.siteName') the admin's name is that field's value,
+// read at run time, so one build can serve sites with different names. Without it, or while
+// the field is empty or cannot be read, the name is `cms.admin.name` as before.
+//
 // `event` is the request the theme is for (absent only at server start, in the development
 // plugins). It is unused today; a hosted tinyzoo serving several sites would take the site
 // from it and read that site's stored settings here, so every caller that has a request
@@ -26,6 +31,42 @@ export interface CmsAdminSettings {
   defaultLocale: string
 }
 
+/** How long a name read from the site's content is kept before it is read again. */
+const STORED_NAME_MS = 3000
+let storedName: { from: string; value: string | null; until: number } | null = null
+
+/** Forget the name read from the site's content (after the field was saved; and for tests). */
+export function resetAdminName(): void {
+  storedName = null
+}
+
+/**
+ * `cms.admin.nameFrom`: the value of a field of a global ('<global>.<field>'), or null when it
+ * is not set, the global or the field does not exist, the field is empty, or the database
+ * cannot be reached. Never throws: the admin then keeps `cms.admin.name`.
+ */
+async function adminNameFrom(from: unknown): Promise<string | null> {
+  if (typeof from !== 'string' || !from.includes('.')) return null
+  const now = Date.now()
+  if (storedName && storedName.from === from && storedName.until > now) return storedName.value
+  let value: string | null = null
+  try {
+    const [global, field] = from.split('.') as [string, string]
+    const { db, reg } = useCms()
+    const e = reg.byName.get(global)
+    if (e?.singleton && field in e.table) {
+      const [row] = await db.select({ value: e.table[field] }).from(e.table).orderBy(e.table.createdAt).limit(1)
+      const text = typeof row?.value === 'string' ? row.value.trim() : ''
+      value = text || null
+    }
+  }
+  catch {
+    value = null
+  }
+  storedName = { from, value, until: now + STORED_NAME_MS }
+  return value
+}
+
 /** The site's admin settings, with the theme's logo file versions filled in. */
 export async function cmsAdminSettings(_event?: unknown): Promise<CmsAdminSettings> {
   const config = (useAppConfig() as any)?.cms?.admin
@@ -36,7 +77,8 @@ export async function cmsAdminSettings(_event?: unknown): Promise<CmsAdminSettin
     resolved.set(admin, theme)
   }
   const files = await brandLogoFiles(theme.logo)
-  return { theme: { ...theme, logo: { ...theme.logo, files } }, defaultLocale: String(admin.defaultLocale || 'en') }
+  const name = await adminNameFrom(admin.nameFrom)
+  return { theme: { ...theme, ...(name ? { name } : {}), logo: { ...theme.logo, files } }, defaultLocale: String(admin.defaultLocale || 'en') }
 }
 
 /** The resolved admin theme for the request's site. */

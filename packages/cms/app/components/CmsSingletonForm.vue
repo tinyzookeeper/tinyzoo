@@ -193,6 +193,8 @@ async function save() {
     if (live) live.incoming.value = null
     // The first save creates the row: languages can be translated from now on.
     if (!exists.value && res?.row) data.value = { row: res.row }
+    // The admin's own name may come from this global (cms.admin.nameFrom): show the new one at once.
+    if (String((useAppConfig().cms as any)?.admin?.nameFrom ?? '').startsWith(`${props.entity}.`)) void refreshNuxtData('cms-admin-theme')
   }, t('editor.savedLive'))
 }
 defineShortcuts({ meta_s: { usingInput: true, handler: () => { if (!saving.value) save() } } })

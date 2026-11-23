@@ -109,4 +109,12 @@ html[data-look="negativ"] {
   .prose-look blockquote p { color: inherit; }
   .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
   .prose-look strong { color: var(--fg); font-weight: 600; }
+
+  /* A photograph opened large (PhotoLightbox.vue): black, the frame number in mono, the caption in the display face */
+  .lb { background: rgba(8, 8, 7, .97); color: var(--on-photo); }
+  .lb__cap { padding-top: 0.8rem; font-family: var(--font-sans); font-stretch: 62%; font-weight: 800; text-transform: uppercase; font-size: 1.5rem; line-height: 1; letter-spacing: 0.005em; color: var(--on-photo); }
+  .lb__count { font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.05em; color: var(--brand); }
+  .lb__btn { color: var(--on-photo); box-shadow: inset 0 0 0 1.5px rgba(243, 240, 234, .45); }
+  .lb__btn:hover { background: var(--on-photo); color: #0e0e0d; box-shadow: none; }
+  .lb :focus-visible { outline-color: var(--on-photo); }
 }

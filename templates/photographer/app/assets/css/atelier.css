@@ -80,4 +80,13 @@ html[data-look="atelier"] {
   .prose-look blockquote { font-family: var(--font-display); font-style: italic; font-size: 1.5rem; line-height: 1.35; color: var(--ink); margin-block: 1.8rem; }
   .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
   .prose-look strong { color: var(--ink); font-weight: 500; }
+
+  /* A photograph opened large (PhotoLightbox.vue): the print on the gallery wall, its caption underneath */
+  .lb { background: color-mix(in srgb, var(--paper) 97%, transparent); color: var(--ink); backdrop-filter: blur(6px); }
+  .lb__img { box-shadow: 0 0 0 1px var(--line), 0 30px 60px -30px rgba(29, 27, 24, .35); background: var(--tint); }
+  .lb__cap { padding-top: 0.9rem; text-align: center; font-family: var(--font-display); font-style: italic; font-size: 1.2rem; line-height: 1.3; color: var(--ink); }
+  .lb__count { font-family: var(--font-sans); font-size: 0.75rem; font-weight: 500; letter-spacing: 0.18em; color: var(--quiet); }
+  .lb__btn { color: var(--ink); border-radius: 999px; }
+  .lb__btn:hover { background: var(--ink); color: var(--paper); }
+  @media (max-width: 767px) { .lb__prev, .lb__next { box-shadow: inset 0 0 0 1px var(--line); background: var(--paper); } }
 }

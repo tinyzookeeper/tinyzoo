@@ -179,6 +179,8 @@ const hero = defineBlock({
       max: 3, itemLabel: { en: 'Photograph', cs: 'Fotografie' },
     }).label({ en: 'Photographs', cs: 'Fotografie' })
       .help({ en: 'One to three. Every look shows the first; the others where the look has room for them.', cs: 'Jedna až tři. První ukazuje každý vzhled, další tam, kde na ně vzhled má místo.' }),
+    darkImage: f.media({ accept: 'image/*' }).label({ en: 'Photograph for dark looks', cs: 'Fotografie pro tmavé vzhledy' })
+      .help({ en: 'Optional. The look Negativ lays the heading over the photograph, so a dark, calm one reads best there. Without it Negativ shows the first photograph.', cs: 'Nepovinná. Vzhled Negativ píše nadpis přes fotografii, proto se tam hodí tmavá a klidná. Bez ní ukáže Negativ první fotografii.' }),
     primaryLabel: f.text().label({ en: 'First link', cs: 'První odkaz' }),
     primaryUrl: link('The first link goes to', 'První odkaz vede na'),
     secondaryLabel: f.text().label({ en: 'Second link', cs: 'Druhý odkaz' }),

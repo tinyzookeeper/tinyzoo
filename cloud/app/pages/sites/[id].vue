@@ -118,7 +118,7 @@ async function remove() {
 }
 
 const template = computed(() => templateById(site.value.template))
-// The look the site was made with (its owner may have changed it in the site's admin since).
+// The look the site shows now: the server asks the site, since its owner changes it in the site's admin.
 const look = computed(() => (site.value.look ? lookOf(template.value, site.value.look) : null))
 const facts = computed<Fact[]>(() => [
   { label: t('site.address'), value: hostOf(site.value.publicUrl), mono: true, to: site.value.publicUrl ?? undefined },

@@ -106,5 +106,16 @@ html[data-look="zapisnik"] {
     .prose-look blockquote { font-family: var(--font-display); font-size: 1.4rem; line-height: 1.4; color: var(--ink); margin-block: 1.8rem; }
     .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; border-radius: 4px; }
     .prose-look strong { color: var(--ink); }
+
+    /* A photograph opened large (PhotoLightbox.vue): one print lifted off the page, its note written under it */
+    .lb { background: color-mix(in srgb, var(--ink) 82%, transparent); color: var(--card); backdrop-filter: blur(5px); }
+    .lb__frame { background: var(--card); padding: 12px 12px 0; box-shadow: 0 2px 4px rgba(22, 28, 25, .2), 0 40px 70px -30px rgba(10, 14, 12, .8); }
+    .lb__frame:not(:has(.lb__cap)) { padding-bottom: 12px; }
+    .lb__cap { font-family: var(--font-hand); font-weight: 600; font-size: 1.7rem; line-height: 1; color: var(--ink); padding: 0.75rem 0.2rem 0.85rem; }
+    .lb__count { font-family: var(--font-hand); font-weight: 600; font-size: 1.5rem; line-height: 1; color: var(--card); }
+    .lb__btn { color: var(--ink); background: var(--card); border-radius: 999px; box-shadow: 0 6px 16px -8px rgba(10, 14, 12, .6); }
+    .lb__btn:hover { background: var(--brand); color: var(--brand-ink); transform: translateY(-1px); }
+    .lb :focus-visible { outline-color: var(--card); }
+    @media (min-width: 768px) { .lb__frame { padding: 16px 16px 0; } .lb__frame:not(:has(.lb__cap)) { padding-bottom: 16px; } }
   }
 }

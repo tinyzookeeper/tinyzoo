@@ -9,7 +9,7 @@ export interface SiteView {
   name: string
   slug: string
   template: string
-  /** The look chosen when the site was made; null for a template with one design. */
+  /** The site's look: the one chosen when it was made, then whatever its owner set in its admin (the site's page asks the site). Null for a template with one design. */
   look: string | null
   status: SiteStatus
   /** The website's address, once it has one. */
@@ -36,7 +36,7 @@ export interface AccountView {
   requireVerifiedEmail: boolean
   /** Development only (e-mail is printed, not sent): the last confirmation link, to open by hand. */
   devVerifyUrl: string | null
-  /** What follows a site's address on this host: ".localhost" locally, ".pushbase.app" on Pushbase. */
+  /** What follows a site's address on this host: ".localhost" locally (or what NUXT_HOSTING_LOCAL_PUBLIC_URL says), ".pushbase.app" on Pushbase. */
   siteHost: string
 }
 

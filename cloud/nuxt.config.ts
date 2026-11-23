@@ -53,6 +53,10 @@ export default defineNuxtConfig({
         // NUXT_HOSTING_LOCAL_DATABASE_PREFIX: what the sites' databases are called before the slug
         // (default tzc_). A second cloud app on the same Postgres server takes another (tzc_e2e_).
         databasePrefix: '',
+        // NUXT_HOSTING_LOCAL_PUBLIC_URL: the pattern of the sites' public addresses. Default
+        // http://{slug}.localhost:{port}. With another one (https://{slug}.pushbase.app) something
+        // in front of the sites must lead those names to their ports (shared/address.ts).
+        publicUrl: '',
       },
       pushbase: {
         // NUXT_HOSTING_PUSHBASE_TEMPLATES_DIR: a folder with one standalone project per template (<dir>/<template id>).

@@ -201,6 +201,7 @@ export default defineSeed(async (s) => {
           { image: photo.familyHome, caption: 'Jana a Toník' },
           { image: photo.portraitGirl, caption: 'Eliška' },
         ],
+        darkImage: photo.weddingDance,
         primaryLabel: 'Prohlédnout galerii', primaryUrl: refTo(s, galleryPage),
         secondaryLabel: 'Zeptat se na termín', secondaryUrl: refTo(s, contact),
       },

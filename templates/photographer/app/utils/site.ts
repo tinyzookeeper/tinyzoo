@@ -7,6 +7,8 @@ export const DEFAULT_LANGUAGE = 'cs'
 export interface Words {
   menu: string
   close: string
+  previousPhoto: string
+  nextPhoto: string
   mainMenu: string
   mobileMenu: string
   footerMenu: string
@@ -48,7 +50,7 @@ const plural = (n: number, one: string, few: string, many: string) => (n === 1 ?
 
 export const WORDS: Record<string, Words> = {
   cs: {
-    menu: 'Menu', close: 'Zavřít', mainMenu: 'Hlavní', mobileMenu: 'Mobilní', footerMenu: 'Patička', contact: 'Kontakt',
+    menu: 'Menu', close: 'Zavřít', previousPhoto: 'Předchozí fotografie', nextPhoto: 'Další fotografie', mainMenu: 'Hlavní', mobileMenu: 'Mobilní', footerMenu: 'Patička', contact: 'Kontakt',
     all: 'Vše', categories: 'Kategorie', allAlbums: 'Všechna alba',
     albums: (n) => `${n} ${plural(n, 'album', 'alba', 'alb')}`,
     photos: (n) => `${n} ${plural(n, 'fotografie', 'fotografie', 'fotografií')}`,
@@ -68,6 +70,17 @@ export const WORDS: Record<string, Words> = {
 }
 
 export const wordsOf = (code: string): Words => WORDS[code] ?? WORDS[DEFAULT_LANGUAGE]!
+
+/**
+ * The looks that lay their headline over the opening's photograph: they take the block's
+ * photograph for dark looks when it has one.
+ */
+const DARK_OPENINGS: readonly string[] = ['negativ']
+
+/** The photograph a look opens with: the first one, or the one meant for dark looks. */
+export function openingPhoto(block: BlockOf<'hero'>, look: string) {
+  return (DARK_OPENINGS.includes(look) ? block.darkImage : null) ?? block.images[0]?.image ?? null
+}
 
 /** An address from the content API as the website writes it: the home page (address `home`) is `/`. */
 export function siteHref(path: string | null | undefined): string {

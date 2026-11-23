@@ -6,6 +6,8 @@ import type { Album } from '~/lib/cms-content'
 const props = defineProps<{ album: Album }>()
 const { settings } = await useSite()
 const words = useSiteWords()
+// The photograph opened large (its place in the album), or none.
+const shown = ref<number | null>(null)
 const facts = computed(() => [props.album.place, words.value.photos(props.album.photos.length)].filter(Boolean))
 </script>
 
@@ -20,7 +22,7 @@ const facts = computed(() => [props.album.place, words.value.photos(props.album.
 
     <div class="bg-tint rounded-[18px] px-3.5 py-6 md:p-10 -mx-1.5 md:mx-0">
       <div class="prints">
-        <a v-for="p in album.photos" :key="p.id" :href="p.url" class="print" :class="p.caption ? '' : 'bare'" :style="{ '--ar': shapeOf(p).ratio }">
+        <a v-for="(p, i) in album.photos" :key="p.id" :href="p.url" class="print" data-photo @click.prevent="shown = i" :class="p.caption ? '' : 'bare'" :style="{ '--ar': shapeOf(p).ratio }">
           <CmsImage :media="p" sizes="(min-width: 768px) 24rem, 60vw" />
           <span v-if="p.caption" class="cap">{{ p.caption }}</span>
         </a>
@@ -31,5 +33,6 @@ const facts = computed(() => [props.album.place, words.value.photos(props.album.
       <NuxtLink v-if="settings?.ctaLabel && settings.ctaUrl" class="btn" :to="siteHref(settings.ctaUrl)">{{ settings.ctaLabel }}</NuxtLink>
       <NuxtLink class="ulink inline-flex items-center min-h-[44px]" :to="categoryHref(album.category)">{{ words.backToGallery }}</NuxtLink>
     </p>
+    <PhotoLightbox v-model="shown" :photos="album.photos" />
   </article>
 </template>

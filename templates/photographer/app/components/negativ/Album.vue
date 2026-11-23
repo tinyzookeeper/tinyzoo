@@ -6,6 +6,8 @@ import type { Album } from '~/lib/cms-content'
 const props = defineProps<{ album: Album }>()
 const { settings } = await useSite()
 const words = useSiteWords()
+// The photograph opened large (its place in the album), or none.
+const shown = ref<number | null>(null)
 const facts = computed(() => [
   props.album.date ? { label: 'Kdy', value: formatDate(props.album.date) } : null,
   props.album.place ? { label: 'Kde', value: props.album.place } : null,
@@ -35,7 +37,7 @@ const size = computed(() => byLength(props.album.title, [
     </section>
 
     <div class="mosaic">
-      <a v-for="(p, i) in album.photos" :key="p.id" :href="p.url" class="tile" :class="shapeOf(p).shape === 'wide' ? 'w2' : ''">
+      <a v-for="(p, i) in album.photos" :key="p.id" :href="p.url" class="tile" data-photo @click.prevent="shown = i" :class="shapeOf(p).shape === 'wide' ? 'w2' : ''">
         <CmsImage :media="p" sizes="(min-width: 1100px) 40vw, (min-width: 768px) 67vw, 100vw" />
         <span class="chip m">{{ String(i + 1).padStart(2, '0') }}</span>
         <span v-if="p.caption" class="cap"><span class="block font-semibold text-[1.05rem] leading-tight">{{ p.caption }}</span></span>
@@ -46,5 +48,6 @@ const size = computed(() => byLength(props.album.title, [
       <NuxtLink class="lnk m" :to="categoryHref(album.category)"><UIcon name="i-lucide-arrow-left" class="mr-2 size-3.5" aria-hidden="true" /> {{ words.backToGallery }}</NuxtLink>
       <NuxtLink v-if="settings?.ctaLabel && settings.ctaUrl" class="btn m !font-medium" :to="siteHref(settings.ctaUrl)">{{ settings.ctaLabel }} <UIcon name="i-lucide-arrow-right" class="size-4" aria-hidden="true" /></NuxtLink>
     </section>
+    <PhotoLightbox v-model="shown" :photos="album.photos" />
   </article>
 </template>

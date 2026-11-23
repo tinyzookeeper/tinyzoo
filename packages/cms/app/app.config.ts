@@ -16,6 +16,7 @@ import type { CmsAccent, CmsAdminLogo } from '../src/theme'
 //
 //   cms: { admin: {
 //     name: { cs: 'Pekárna Novák', en: 'Novák Bakery' }, // shown in the sidebar and tab title
+//     nameFrom: 'siteSettings.siteName',                  // optional: the name is this field of a global, read at run time
 //     siteUrl: 'https://pekarna-novak.cz',                // "View website" link
 //     accent: 'mono',                                     // mono | indigo | blue | violet | emerald, or any hex ('#B4532A')
 //     logo: { full: '/brand/logo.svg', mark: '/brand/mark.svg' }, // optional; fullDark / markDark too
@@ -30,6 +31,9 @@ export default defineAppConfig({
     admin: {
       // Unset: the admin is called tinyzoo. A client's name makes it theirs.
       name: 'tinyzoo' as string | Record<string, string>,
+      // '<global>.<field>' (e.g. 'siteSettings.siteName'): the name is that field's value, read when
+      // the site runs; `name` stays the fallback while the field is empty. Unset: `name` only.
+      nameFrom: '' as string,
       siteUrl: '/',
       accent: 'mono' as CmsAccent,
       logo: {} as CmsAdminLogo,

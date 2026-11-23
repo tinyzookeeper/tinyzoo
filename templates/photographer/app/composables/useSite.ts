@@ -85,13 +85,15 @@ export async function useSitePage() {
   }
 }
 
-/** The photographs in the page's openings: the gallery leaves the first of each out, so no picture shows twice on one page. */
+/** The photographs the page's openings show large in this look: the gallery leaves them out, so no picture shows twice on one page. */
 export async function useOpeningPhotoIds(): Promise<ComputedRef<Set<string>>> {
   const { page } = await useSitePage()
+  const look = await useLookId()
   return computed(() => {
     const ids = new Set<string>()
     for (const block of page.value?.sections ?? []) {
-      if (block.type === 'hero' && block.images[0]?.image?.id) ids.add(block.images[0].image.id)
+      const id = block.type === 'hero' ? openingPhoto(block, look.value)?.id : null
+      if (id) ids.add(id)
     }
     return ids
   })

@@ -3,6 +3,7 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, 
 import net from 'node:net'
 import { dirname, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
+import { siteUrlFor, siteUrlPattern } from '../../shared/address'
 import { parsePortRange, pickPort } from '../../shared/ports'
 import { assertSlug, DATABASE_PREFIX, databaseNameFor, quoteIdent } from '../../shared/slug'
 import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteSpec } from './types'
@@ -18,11 +19,15 @@ import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Pr
 //    recognises a process as this site's before it stops it. A pid alone is never trusted.
 //  - Address: http://<slug>.localhost:<port> (browsers resolve *.localhost to this machine, and
 //    each site keeps its own cookies); the cloud itself talks to http://127.0.0.1:<port>.
+//    NUXT_HOSTING_LOCAL_PUBLIC_URL gives the sites another public address (a pattern such as
+//    https://{slug}.pushbase.app, see shared/address.ts): what people see and what the site
+//    itself is told changes, where it runs does not. Something in front must then lead those
+//    names to the sites' ports.
 
 const run = promisify(execFile)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-interface LocalConfig { root: string; dataDir: string; portFrom: number; portTo: number; databasePrefix: string }
+interface LocalConfig { root: string; dataDir: string; portFrom: number; portTo: number; databasePrefix: string; publicUrl: string }
 interface SiteFile { port: number; pid: number | null; startedAt: string | null }
 
 /** The repository's root: the nearest folder upwards with a pnpm-workspace.yaml. */
@@ -40,8 +45,11 @@ function config(): LocalConfig {
   const c = ((useRuntimeConfig().hosting as any)?.local ?? {}) as Record<string, unknown>
   const root = c.root ? resolve(String(c.root)) : findRoot(process.cwd())
   const range = parsePortRange(c.portFrom, c.portTo)
-  return { root, dataDir: c.dataDir ? resolve(String(c.dataDir)) : join(root, 'cloud', '.data', 'sites'), portFrom: range.from, portTo: range.to, databasePrefix: String(c.databasePrefix || DATABASE_PREFIX) }
+  return { root, dataDir: c.dataDir ? resolve(String(c.dataDir)) : join(root, 'cloud', '.data', 'sites'), portFrom: range.from, portTo: range.to, databasePrefix: String(c.databasePrefix || DATABASE_PREFIX), publicUrl: siteUrlPattern(c.publicUrl) }
 }
+
+/** The pattern of the sites' public addresses (shared/address.ts). */
+export const localPublicUrlPattern = (): string => config().publicUrl
 
 /** The site's folder. The slug is checked again here: it becomes a path. */
 function siteDir(slug: string): string {
@@ -154,7 +162,7 @@ function logTail(dir: string, bytes = 1500): string {
   }
 }
 
-const urls = (slug: string, port: number) => ({ publicUrl: `http://${slug}.localhost:${port}`, internalUrl: `http://127.0.0.1:${port}` })
+const urls = (slug: string, port: number) => ({ publicUrl: siteUrlFor(config().publicUrl, slug, port), internalUrl: `http://127.0.0.1:${port}` })
 
 /** The template's server entry, or a clear word that it has not been built. */
 function entryOf(spec: SiteSpec): string {

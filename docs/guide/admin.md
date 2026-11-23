@@ -97,6 +97,8 @@ export default defineAppConfig({
 
 The server reads `cms.admin` when it runs and gives the admin and the emails one resolved theme (`GET /api/cms/_theme`). Name, colour and logos come from there, so changing `cms.admin` in the browser at run time (`updateAppConfig`) does not change them.
 
+**The name from the site's content.** `nameFrom: 'siteSettings.siteName'` (a global and one of its text fields) makes the admin take its name from that field when it runs, so an editor who renames the site in *Site settings* renames the admin too, and one build can serve sites with different names. While the field is empty the admin keeps `name`. A site that does not set `nameFrom` is unchanged.
+
 ![The sign-in page of a made-up bakery: the hedgehog in a muted terracotta, the bakery's logo, a faint warm background and a terracotta "Sign in" button](../screenshots/0.7/en/admin-brand-signin.png)
 
 ### The brand colour

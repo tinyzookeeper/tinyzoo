@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // Negativ's opening: one photograph, edge to edge and as tall as the screen, the heading in
-// huge capitals at its foot. Under it, one dense line with the free dates.
+// huge capitals at its foot. Under it, one dense line with the free dates. The heading lies on
+// the picture, so the block's photograph for dark looks is used when there is one.
 const props = defineProps<{ block: BlockOf<'hero'> }>()
 const { settings } = await useSite()
 const words = useSiteWords()
-const image = computed(() => props.block.images[0]?.image ?? null)
+const image = computed(() => openingPhoto(props.block, 'negativ'))
 // The design's size holds two short lines; a longer heading steps down so it stays a headline.
 const size = computed(() => byLength(props.block.heading, [
   [30, 'text-[16.5vw] md:text-[11.4vw] wide:text-[min(11.4vw,11.5rem)] max-w-[14ch]'],
