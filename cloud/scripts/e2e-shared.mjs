@@ -7,7 +7,9 @@
 // data under .data/mt-e2e, template ports 4500–4519, site databases and users tzmt_e2e_…, the
 // app on 3290 or the next free port, its own build folder), so neither the developer's data
 // nor a run of scripts/e2e.mjs is touched, and removes everything it made at the end
-// (--keep leaves the sites and their process).
+// (--keep leaves the sites and their process). The names and ports can be set from the
+// environment: E2E_SHARED_DB, E2E_SHARED_SITE_PREFIX, E2E_SHARED_PORT, E2E_SHARED_SITE_PORTS
+// ("4500-4519"), E2E_SHARED_DATA (the folder's name under .data); the Postgres server from CLOUD_PG_URL.
 //
 // Everything goes through the sign-up app's real API and the sites' own addresses; no browser.
 // What it proves: both sites come from one process; each has its own database and database
@@ -24,14 +26,19 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, wri
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import pg from 'pg'
-import { alive, arg, cloudDir, dbUrl, dropDatabase, freePortFrom, log, recreateDatabase, sleep, startCloud, templateEntries, waitFor, withPg } from './lib.mjs'
+import { alive, arg, cloudDir, dbUrl, freePortFrom, log, sleep, startCloud, templateEntries, waitFor, withPg } from './lib.mjs'
 
 const run = promisify(execFile)
 const keep = arg('keep', false) === true
-const DB = 'tz_cloud_mt_e2e'
-const PREFIX = 'tzmt_e2e'
-const PORTS = { from: 4500, to: 4519 }
-const dataDir = join(cloudDir, '.data', 'mt-e2e')
+const DB = process.env.E2E_SHARED_DB || 'tz_cloud_mt_e2e'
+const PREFIX = process.env.E2E_SHARED_SITE_PREFIX || 'tzmt_e2e'
+const [portFrom, portTo] = (process.env.E2E_SHARED_SITE_PORTS || '4500-4519').split('-').map(Number)
+const PORTS = { from: portFrom, to: portTo }
+const APP_PORT = Number(process.env.E2E_SHARED_PORT) || 3290
+const dataDir = join(cloudDir, '.data', process.env.E2E_SHARED_DATA || 'mt-e2e')
+if (!/^[a-z][a-z0-9_]*_e2e$/.test(DB)) { console.error(`E2E_SHARED_DB must be a database of this script's own, named …_e2e (it is dropped): ${DB}`); process.exit(2) }
+if (!/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(PREFIX)) { console.error(`E2E_SHARED_SITE_PREFIX is not a usable prefix: ${PREFIX}`); process.exit(2) }
+if (!Number.isInteger(PORTS.from) || !Number.isInteger(PORTS.to) || PORTS.to < PORTS.from) { console.error('E2E_SHARED_SITE_PORTS must be "from-to"'); process.exit(2) }
 const templateDir = join(dataDir, 'photographer')
 const preview = join(cloudDir, '.preview')
 const logFile = join(preview, 'e2e-shared-cloud.log')
@@ -76,7 +83,17 @@ class Http {
   post(path, json, opts) { return this.request('POST', path, { json, ...opts }) }
 }
 
-// ── Postgres: only what this run made (tz_cloud_mt_e2e, tzmt_e2e_<site id>) ──
+// ── Postgres: only what this run made (the cloud's database, <prefix>_<site id>) ──
+
+/** The cloud's own database of this run, and no other. */
+const dropDatabase = (name) => {
+  if (name !== DB) throw new Error(`refusing to touch database ${name}`)
+  return withPg((c) => c.query(`drop database if exists "${DB}" with (force)`))
+}
+async function recreateDatabase(name) {
+  await dropDatabase(name)
+  await withPg((c) => c.query(`create database "${DB}"`))
+}
 
 const OWN_NAME = new RegExp(`^${PREFIX}_[0-9a-f]{8}(_[0-9a-f]{4}){3}_[0-9a-f]{12}$`)
 const own = (name) => {
@@ -191,7 +208,7 @@ async function main() {
   const left = await cleanUp()
   if (left.processes.length || left.databases || left.roles) log(`    removed what an earlier run left: ${left.processes.length} process(es), ${left.databases} database(s), ${left.roles} user(s)`)
   await recreateDatabase(DB)
-  const port = await freePortFrom(3290)
+  const port = await freePortFrom(APP_PORT)
   cloud = await startCloud({
     port, logFile,
     env: {

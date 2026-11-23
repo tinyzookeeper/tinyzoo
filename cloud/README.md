@@ -23,15 +23,44 @@ Use Chrome, Edge or Firefox locally. A site's address is `http://<slug>.localhos
 | **Start** (`/`) | What the product is, and *Create your website*. Signed in, it leads to *My websites*. |
 | **Create a website** (`/new`) | Up to four steps on one route: a template (a gallery with a field filter; every card shows the template's real first screen, with small pictures of its other looks to glance at), its look (only for a template with several: tall pictures of real sites, side by side), the site's name and address (checked as you type; the chosen look is shown beside the form with the typed name where the look writes it), an account (skipped when signed in). A reload keeps the step and what was typed, never the password. |
 | **Watch it being made** (`/sites/:id`) | The four real steps with their real state: database, starting the site, demo content, your account. A failure says what failed in plain words, and *Try again* goes on from that step. |
-| **The site's page** (`/sites/:id`) | Its address with a live picture of the home page, the way into its admin, its template and the look it shows now, when it was made, and *Delete this website* (the address typed out). |
-| **My websites** (`/sites`) | A card per site with its state, and *Create another*. The limit per account is explained when it is reached. |
-| **Account** (`/account`, `/login`, `/forgot`) | Sign in and out, name, language, password, forgotten password, and confirming the e-mail address. |
+| **The site's page** (`/sites/:id`) | Its address with a live picture of the home page, *Open the admin* (through the account, below), its template and the look it shows now, when it was made, and *Delete this website* (the address typed out). |
+| **My websites** (`/sites`) | A card per site made here with its state and *Open the admin*, and *Create another*; the limit per account is explained when it is reached. Below them, apart: the websites the person **connected** (name, address, *Open the admin*), and the websites of **other owners** the person signed in to through their account, with their role there and *Open the admin* only. |
+| **Connect a website** (`/sites/connect`) | For a tinyzoo site that was not made here, such as a custom site on its own server: its name and address in, three environment lines for that website out. The secret is on screen once. Connected websites are listed with *New secret* (the old one stops working) and *Disconnect*. They do not count against the limit of websites. |
+| **Account** (`/account`, `/login`, `/signup`, `/forgot`) | Sign in and out, name, language, password, forgotten password, and confirming the e-mail address. `/signup` makes an account without a website, for somebody who was invited to another person's site and came from its sign-in. |
 
 Czech is the default language, English the other. The switch is in the top bar; the choice is kept in a cookie and on the account. Every text is in `app/i18n/cs.ts` and `app/i18n/en.ts`.
 
 ### Into the admin
 
-tinyzoo has no single sign-on, so the hand-off is an **invitation**. When a site is made, the cloud invites its owner as an administrator and keeps the link. The site's page shows *Set your password for the admin*; the owner opens the link, chooses a password and is signed in. From then on the page says *Open the admin*. A link works for 7 days; *Make a new link* makes another one (the old one stops working).
+The way in is the **account**. Every site made here is a client of the cloud's account service (below). *Open the admin*, on the site's page and on its card, leads to `<site>/api/cms/_auth/account/start?next=/admin`: the site sends the browser to the cloud, the cloud knows the person and sends it straight back, and the site opens its own session. There is no second password to choose.
+
+The site still needs a user of its own for its owner, so the cloud still invites the owner as an administrator when the site is made. The site accepts that invitation the first time the owner arrives through the account, by the account's **confirmed** e-mail. The invitation's link stays on the site's page as a quiet second way (*Or set a password for this website's admin only*) until the owner has been in. A link works for 7 days; *Make a new link* makes another one (the old one stops working).
+
+A person whose e-mail is not confirmed cannot be let in through the account: a site links a person by a confirmed e-mail only. Their site's page says so in place of *Open the admin*, with the way to send the confirmation again; the invitation link works meanwhile.
+
+What the site does with all this (`cms.auth.account`, its `/api/cms/_auth/account/*` routes, the switcher in its admin) is tinyzoo's own part of the contract, in `packages/cms`.
+
+### The account service
+
+The cloud app is the **issuer** of sign-in for websites: a person has one account here, and a website asks it who the person is. The contract between the two is `docs/multi-tenant-plan.md`, section 2.15; this is the issuer's side of it. Authorization code with PKCE (S256), and nothing else.
+
+| | |
+|---|---|
+| `GET /oauth/authorize` | A website sends the person's browser here. A signed-in person is sent back at once with a one-time code (no question is asked: the clients are the person's own websites). Nobody signed in: the sign-in page, which comes back to the same address afterwards, also after making an account; with `prompt=none`, back to the website with `error=login_required`. An unknown or revoked client, or a `redirect_uri` that is not exactly the client's address + `/api/cms/_auth/account/callback`, gets an error page and never a redirect. |
+| `POST /oauth/token` | The website's server exchanges the code (JSON, with its client secret and the PKCE verifier) for `{ user: { sub, email, email_verified, name, locale } }`. A code works once and for 60 seconds. The person becomes a member of the client. |
+| `POST /oauth/sites` | The website's server asks for a person's other websites (its switcher). Only clients **of the same owner** as the asking one that the person is a member of, or owns. |
+| `POST /oauth/membership` | The website's server says which role the person has there, or that it no longer lets them in. Rights stay on the website; the cloud keeps this only to show it. |
+| `GET /.well-known/tinyzoo-account` | Where the four endpoints are. |
+
+A **client** is one website: a site made here (the client is made before the site starts, and revoked when the site is deleted), or a website somebody connected (`/sites/connect`). It belongs to one account, its owner. A sign-in can only come back to the client's own address. Client secrets and codes are stored as SHA-256; a cloud-made site's secret is also kept, encrypted, with the site's other secrets, so that a retry or a restart hands the same one over.
+
+A **member** is a person who signed in to a client. The issuer does not know what the website then did with them (a website that finds nobody of that e-mail turns the person away), so a member is listed, in *My websites* and in the switcher of the owner's other websites, only once the website has said that it lets them in (`membership` with a role, which a website sends right after it opens its session), and until it says that it no longer does. A website can only speak about people who signed in to it.
+
+A site gets its client as three settings, `NUXT_CMS_AUTH_ACCOUNT_ISSUER` (the cloud's own address, `NUXT_PUBLIC_URL`), `NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID` and `NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET`: in its environment with the local driver, and in its row of the site directory (`config.auth.account`) with the shared one.
+
+The three routes a website's server calls are outside `/api/**` and so outside the cookie API's cross-site guard (`server/middleware/csrf.ts`): they never read the cloud's session and prove themselves with the client secret. Failed tries are limited in memory, as the app's other limits are: fifty from one address within ten minutes, and thirty bad codes sent with a client's right secret. A wrong secret does not count against the client it names (the client id is public, and anybody could lock a website's sign-in out with it).
+
+`/login?next=…` and `/signup?next=…` come back to `next` only when it is a path of this app (`shared/account.ts`, `returnPath`); anything else leads to *My websites*.
 
 ### E-mail
 
@@ -46,7 +75,8 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `NUXT_DATABASE_URL` | Postgres for the cloud's own data (or `DATABASE_URL`) |
 | `NUXT_APP_SECRET` | seals the sign-in cookie, 32+ characters |
 | `NUXT_CLOUD_SECRET` | encrypts what is kept about each site (its secrets, the invitation link), 32+ characters. Changing it makes them unreadable |
-| `NUXT_PUBLIC_URL` | the cloud's own address, for links in e-mails |
+| `NUXT_PUBLIC_URL` | the cloud's own address: for links in e-mails, and the issuer address every site is told for sign-in through the account. The sites' servers must be able to reach it |
+| `NUXT_ACCOUNT_CODE_TTL_SECONDS` | how long a one-time code of a sign-in works. 60, and never more; `e2e:account` sets 3 so that it need not wait for a code to grow old |
 | `NUXT_MAX_SITES_PER_USER` | how many websites one account may have (default 3) |
 | `NUXT_REQUIRE_VERIFIED_EMAIL` | `true`: a site is made only after the e-mail is confirmed. Default: `false` in development, `true` in production |
 | `NUXT_PUBLIC_SHOW_PLANNED` | `true` shows the nineteen planned templates in the gallery as they were designed, marked *Not available yet* and not selectable. Without it a customer never sees them |
@@ -76,13 +106,15 @@ A site is made in four steps, kept in the database (`sites.steps`, the state mac
 3. **content**: the cloud runs the template's seed (`pnpm seed` in the template's source folder) against the running site. On a fresh site the seed makes the first account with the setup code: the service account "tinyzoo", with a random password. Then it fills the demo content.
 4. **account**: the cloud signs in as the service account, writes the site's name into its settings (and, for a template with looks, the chosen look and its default colours), and invites the owner as an administrator.
 
+Before step 1 the site gets its client at the account service (`server/utils/account.ts`, `ensureSiteClient`); once the driver has given the site its address, the client learns it.
+
 Steps 3 and 4 are the same for every driver (`server/utils/provision.ts`). They run in the background, never inside a request. Each step is written down before and after, so:
 
 - a failure shows where it was, and *Try again* goes on from there;
 - a restart of the server picks up the sites that were mid-way (`server/plugins/1.resume.ts`), and starts the ready ones that are not running;
 - two runs never work on the same site (a Postgres advisory lock per site).
 
-What the cloud keeps about a site is encrypted at rest with `NUXT_CLOUD_SECRET` (AES-256-GCM, as Keeper does): the site's app secret, its setup code, its status token, the service account's password, and the invitation link. None of it is ever sent to the browser, except the invitation link, to the owner, until they have used it.
+What the cloud keeps about a site is encrypted at rest with `NUXT_CLOUD_SECRET` (AES-256-GCM, as Keeper does): the site's app secret, its setup code, its status token, the service account's password, the id and secret of its client at the account service, and the invitation link. None of it is ever sent to the browser, except the invitation link, to the owner, until they have been in the admin.
 
 ### Hosting drivers
 
@@ -126,7 +158,7 @@ Per site:
 
 - a Postgres user and an empty database owned by it, both named `tzs_<the site's id>`: by the id, never by the address, because every user of a Postgres server can list the names of all databases and users. Nobody else may connect to the database, and the user may create neither databases nor users. The site's own app migrates the database, as that user, the first time the site is asked for;
 - a folder `cloud/.data/shared/<template id>/sites/<site id>/` with its uploads;
-- its row in `sites.json`: the site's app secret, setup code and status token are the ones the cloud keeps for it.
+- its row in `sites.json`: the site's app secret, setup code, status token and its client at the account service (`config.auth.account`) are the ones the cloud keeps for it.
 
 Its address is `http://<slug>.localhost:<the template's port>`, for people and for the cloud alike: the host name is what picks the site, so the cloud cannot talk to `127.0.0.1` here. Node resolves `*.localhost` to this machine, as browsers do. The seed, the hand-over and the cloud's later questions to a site all go to that address.
 
@@ -167,16 +199,19 @@ Adding a real template: give its entry `ready: true`, a `sourceDir` and its look
 
 ```sh
 pnpm --filter tinyzoo-cloud typecheck
-pnpm vitest run --project unit test/unit/cloud-*.spec.ts   # slugs, the step machine, ports, the shared driver's names and rows, the registry and the texts
+pnpm vitest run --project unit test/unit/cloud-*.spec.ts   # slugs, the step machine, ports, the shared driver's names and rows, the account service's checks, the registry and the texts
 pnpm --filter tinyzoo-cloud e2e                            # the whole flow in a browser, both templates, about 2 minutes
 pnpm --filter tinyzoo-cloud e2e:shared                     # the shared driver: two Photographer sites from one process, about half a minute
+pnpm --filter tinyzoo-cloud e2e:account                    # the account service: the protocol, then one real Photographer site, about half a minute
 pnpm --filter tinyzoo-cloud walkthrough                    # films the walkthrough and takes the screenshots into cloud/.preview/, about 40 minutes
 pnpm --filter tinyzoo-cloud walkthrough --quick            # the two films small and fast, to try things out, about 10 minutes
 ```
 
-`e2e`, `e2e:shared`, `walkthrough` and `pictures --real` start a cloud app of their own beside yours (database `tz_cloud_e2e` / `tz_cloud_mt_e2e` / `tz_cloud_walk` / `tz_cloud_pics`, sites under `.data/e2e` / `.data/mt-e2e` / `.data/walk` / `.data/pics`, their own ports and database prefix) and remove what they made. `--keep` leaves it.
+`e2e`, `e2e:shared`, `e2e:account`, `walkthrough` and `pictures --real` start a cloud app of their own beside yours (database `tz_cloud_e2e` / `tz_cloud_mt_e2e` / `tz_cloud_account_e2e` / `tz_cloud_walk` / `tz_cloud_pics`, sites under `.data/e2e` / `.data/mt-e2e` / `.data/account-e2e` / `.data/walk` / `.data/pics`, their own ports and database prefix) and remove what they made. `--keep` leaves it. All of them take the Postgres server from `CLOUD_PG_URL`. `e2e:shared` and `e2e:account` also take their names and ports from the environment, for a machine where the defaults are taken: `E2E_SHARED_DB`, `E2E_SHARED_SITE_PREFIX`, `E2E_SHARED_PORT`, `E2E_SHARED_SITE_PORTS`, `E2E_SHARED_DATA`, and the same with `E2E_ACCOUNT_`.
 
 `e2e:shared` (`scripts/e2e-shared.mjs`) goes through the sign-up app's API and the sites' own addresses, with no browser: one account and two Photographer sites in different looks, made at the same moment. It checks that one process serves both; that each has a database and a database user of its own, refused on the other's database and on the cloud's; that each shows its own name, look and content; that a session, a status token, an entry and an uploaded file of one site do not exist on the other; that an unknown host gets 404; that deleting one site removes its row, database, user and folder while the other keeps answering from the same process. Then what the cloud does when things go wrong: a stopped process is started again on the same port; a failed step goes on with *Try again*, keeping the database of the first try; a lost `sites.json` or `app.json` is written again. It prints the memory of the one process with two sites. `walkthrough --url http://localhost:3200` records against a running app instead, with that app's addresses, and leaves its main site there.
+
+`e2e:account` (`scripts/e2e-account.mjs`) has no browser either. It plays the **website's** side of the protocol itself over HTTP: a stand-in client that sends a person's cookie jar to `/oauth/authorize` and exchanges the code server to server, for websites that exist nowhere but as connected addresses. It checks the discovery document; the whole round trip with PKCE; every refusal (an unknown client, a wrong or look-alike redirect address, a missing or wrong challenge or verifier, a code used twice, a code grown old, a wrong secret, a revoked client); `prompt=none` without a session; the sign-in page and the page that makes an account coming back to `authorize`, and never to another website; `sites` for the same owner only (two owners, three clients, a member of all three); `membership` changing the role and taking a website out of a person's list; a connected website's secret shown once and replaced; the limits; and that no secret and no code is in any answer to a browser, in the server log or in the database. Then, with the shared driver, it makes real Photographer sites and checks that a site's row carries `config.auth.account` with a secret the issuer accepts, what the site's page says about the way into the admin (also for an owner whose e-mail is not confirmed), and that deleting the site revokes its client. `--protocol-only` leaves the real sites out and needs no built template. The site's own account routes are not tested here.
 
 ### The walkthrough
 
@@ -193,11 +228,12 @@ pnpm --filter tinyzoo-cloud walkthrough --quick            # the two films small
 - Real e-mail delivery set up (the SMTP transport is there, as in Keeper; nothing is configured).
 - Deploying: the cloud app itself has no deployment, and the Pushbase driver has not been run.
 - The nineteen planned templates (their designs are finished; the gallery shows them).
-- Single sign-on from the cloud account into a site's admin (today: the invitation).
+- Of the account: a page of one owner's people across their websites (who has which role where), signing out of every website at once, a second factor, and coming back to the website after *Forgot your password?* (the new password signs the person in to the cloud; they open the website again). The limits of the account service are in memory, for one instance of the cloud app.
+- The recorded walkthrough still tells the earlier story of the way into the admin (a password chosen by the invitation); it has not been filmed again.
 - The site's own logo in its admin (its name is there: `cms.admin.nameFrom`).
 - Deleting an account, changing its e-mail address, and anything for the people who run the service (a list of all sites, stopping one).
 - Stopping idle sites. With the local driver a running site holds about 360 MB of memory, whether anyone visits it or not. With the shared driver the sites of a template share one process (about 500 MB with two Photographer sites just made).
 
 ## Schema
 
-`server/db/schema.ts`: `users`, `email_tokens` (the links sent by e-mail, stored as SHA-256), `sites` (with the template and the look each was made from). After a change run `pnpm --filter tinyzoo-cloud db:generate` and commit the migration.
+`server/db/schema.ts`: `users`, `email_tokens` (the links sent by e-mail, stored as SHA-256), `sites` (with the template and the look each was made from), and the account service's three: `account_clients` (a website that may ask who a person is: its owner, its address, the SHA-256 of its secret, the cloud-made site it is for, when it was revoked), `account_codes` (one-time codes, stored as SHA-256, bound to the client, the address, the PKCE challenge and the person) and `account_members` (who signed in where, the role the website last reported, whether it still lets them in). After a change run `pnpm --filter tinyzoo-cloud db:generate` and commit the migration.
