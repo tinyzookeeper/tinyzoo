@@ -9,8 +9,9 @@ import { entryAt } from './context'
  * database: the endpoint answers at once, and one insert carries a few seconds' views. The
  * time a page was looked at arrives later (when the visitor leaves it) and is added to its view.
  *
- * Per server, in memory. A server that stops writes what is waiting (the Nitro plugin's
- * `close`). One that crashes loses its last few seconds of views.
+ * Per server, in memory, and per site: each site has its own buffer and timer, written into its
+ * own database. A server that stops writes what is waiting (the Nitro plugin's `close`). One that
+ * crashes loses its last few seconds of views.
  */
 
 export interface PendingView extends ViewDraft {
@@ -38,19 +39,27 @@ const flushMs = (): number => {
   return Number.isFinite(v) && v > 0 ? v : 3000
 }
 
-const views: PendingView[] = []
-const engaged = new Map<string, { visitor: string; ms: number }>()
-let timer: ReturnType<typeof setTimeout> | null = null
-let running: Promise<void> | null = null
+interface Buffer {
+  views: PendingView[]
+  engaged: Map<string, { visitor: string; ms: number }>
+  timer: ReturnType<typeof setTimeout> | null
+  running: Promise<void> | null
+}
+const buffer = siteScoped<Buffer>(() => ({ views: [], engaged: new Map(), timer: null, running: null }), {
+  dispose: (b) => { if (b.timer) clearTimeout(b.timer) },
+})
 
 function schedule() {
-  if (timer) return
-  timer = setTimeout(() => { timer = null; void flushViews() }, flushMs())
+  const b = buffer()
+  if (b.timer) return
+  // The timer is started inside the site's request, so it fires inside the site.
+  b.timer = setTimeout(() => { b.timer = null; void flushViews() }, flushMs())
   // A waiting flush never keeps a stopping process alive (the Nitro plugin flushes on close).
-  ;(timer as any).unref?.()
+  ;(b.timer as any).unref?.()
 }
 
 export function queueView(v: PendingView): void {
+  const { views } = buffer()
   if (views.length >= MAX_WAITING) return
   views.push(v)
   if (views.length >= INSERT_CHUNK) void flushViews()
@@ -62,6 +71,7 @@ export function queueEngagement(view: string, visitor: string, ms: number): void
   const add = Math.min(Math.max(0, Math.round(ms)), MAX_ENGAGED_MS)
   if (!add) return
   // Still waiting to be written: add it there.
+  const { views, engaged } = buffer()
   const waiting = views.find((v) => v.view === view && v.visitor === visitor)
   if (waiting) {
     waiting.engagedMs = Math.min(MAX_ENGAGED_MS, waiting.engagedMs + add)
@@ -78,7 +88,7 @@ export function queueEngagement(view: string, visitor: string, ms: number): void
  * every view, written or still waiting. The views stay, counted the cookieless way like everyone's.
  */
 export async function forgetConsentId(consentId: string): Promise<number> {
-  for (const v of views) if (v.consentId === consentId) v.consentId = null
+  for (const v of buffer().views) if (v.consentId === consentId) v.consentId = null
   // A write under way may still carry it: let it finish, then clear what it wrote too.
   await flushViews()
   const { db } = useCms()
@@ -88,13 +98,16 @@ export async function forgetConsentId(consentId: string): Promise<number> {
 
 /** Write everything that waits (one flush at a time; one that is running is waited for, then the rest goes). */
 export async function flushViews(): Promise<void> {
-  while (running) await running
-  if (!views.length && !engaged.size) return
-  running = write().finally(() => { running = null })
-  await running
+  // No current site (multi mode, the server stopping): every site writes its own.
+  if (!currentSite()) { await forEachSite(() => flushViews(), { what: 'writing waiting visits' }); return }
+  const b = buffer()
+  while (b.running) await b.running
+  if (!b.views.length && !b.engaged.size) return
+  b.running = write(b).finally(() => { b.running = null })
+  await b.running
 }
 
-async function write(): Promise<void> {
+async function write({ views, engaged }: Buffer): Promise<void> {
   const batch = views.splice(0, views.length)
   const times = [...engaged.entries()]
   engaged.clear()

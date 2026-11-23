@@ -4,13 +4,16 @@ import { sql } from 'tinyzoo'
 // "C" (not after "Z", as plain byte order puts it), "ch" after "h". Postgres does it
 // with its ICU collations ("cs-x-icu"); a server built without ICU has none, and then
 // the list sorts as before.
-let available: Promise<Set<string>> | null = null
+// Per site: sites may be on different database servers.
+const available = siteScoped<Promise<Set<string>> | null>(() => null)
 
 function icuCollations(db: any): Promise<Set<string>> {
-  available ??= db.execute(sql`select collname from pg_collation where collprovider = 'i'`)
-    .then((res: any) => new Set<string>((res.rows ?? res).map((r: any) => r.collname)))
-    .catch(() => new Set<string>())
-  return available!
+  if (!available()) {
+    available.set(db.execute(sql`select collname from pg_collation where collprovider = 'i'`)
+      .then((res: any) => new Set<string>((res.rows ?? res).map((r: any) => r.collname)))
+      .catch(() => new Set<string>()))
+  }
+  return available()!
 }
 
 const TEXT = new Set(['PgText', 'PgVarchar', 'PgChar'])

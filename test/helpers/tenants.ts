@@ -144,10 +144,9 @@ export async function startTenants(suffix: string, env: Record<string, string> =
   }
 
   const dropAll = () => asAdmin('postgres', async (c) => {
-    for (const site of ['a', 'b']) {
-      await c.query(`drop database if exists ${ident(dbName(site))} with (force)`)
-      await c.query(`drop role if exists ${ident(roleName(site))}`)
-    }
+    // Both databases first: B's copy still names A's user in places (the extension's owner, grants).
+    for (const site of ['a', 'b']) await c.query(`drop database if exists ${ident(dbName(site))} with (force)`)
+    for (const site of ['a', 'b']) await c.query(`drop role if exists ${ident(roleName(site))}`)
   })
   await dropAll()
 

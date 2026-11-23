@@ -70,7 +70,7 @@ export async function formRecipients(db: any, reg: CmsRegistry, e: CmsEntity): P
   const coded = ((e as any).form?.notify?.to ?? []) as string[]
   if (coded.length) return coded
   // The module writes a comma-separated string (so NUXT_CMS_FORMS_NOTIFY_TO binds), but a list set straight in `runtimeConfig` works too.
-  const env = (useRuntimeConfig().cms as any)?.forms?.notifyTo
+  const env = (cmsSettings() as any)?.forms?.notifyTo
   return (Array.isArray(env) ? env.map(String) : String(env || '').split(',')).map((s) => s.trim()).filter(Boolean)
 }
 

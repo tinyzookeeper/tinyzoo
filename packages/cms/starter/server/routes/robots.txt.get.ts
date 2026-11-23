@@ -2,7 +2,7 @@
 // The sitemap's address needs the site's own: cms.publicUrl (NUXT_CMS_PUBLIC_URL).
 export default defineEventHandler((event) => {
   const lines = ['User-agent: *', 'Disallow: /admin', '']
-  const cms = useRuntimeConfig(event).cms as { content?: { token?: string } } | undefined
+  const cms = cmsSettings() as { content?: { token?: string } } | undefined
   const base = siteBase(event)
   // A private content API (content token) has no public sitemap.
   if (base && !cms?.content?.token) lines.push(`Sitemap: ${base}/sitemap.xml`, '')

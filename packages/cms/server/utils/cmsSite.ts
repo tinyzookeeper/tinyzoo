@@ -142,7 +142,8 @@ async function unloadSite(id: string): Promise<void> {
   const state = states.get(id)
   if (!state) return
   states.delete(id)
-  for (const [key, value] of state) {
+  // Newest first: what was made later (an editing engine, a buffer) may still need what was made earlier (the database pool) to finish.
+  for (const [key, value] of [...state].reverse()) {
     try { await disposers.get(key)?.(value) }
     catch (err) { console.error(`[cms] site ${id}: could not release a resource`, (err as Error)?.message ?? err) }
   }

@@ -22,7 +22,7 @@ import { brandLogoFiles } from './cmsBrandSource'
 // (useCmsAdminTheme resolves app.config there until the server's theme arrives), which only
 // gives the right theme while app.config is the source.
 
-const resolved = new WeakMap<object, CmsAdminTheme>()
+const resolved = processWide(new WeakMap<object, CmsAdminTheme>(), 'derived from the build\'s app config, the same for every site')
 
 /** The admin settings the server reads for a site: the theme, and the language the admin and its emails default to. */
 export interface CmsAdminSettings {
@@ -33,11 +33,12 @@ export interface CmsAdminSettings {
 
 /** How long a name read from the site's content is kept before it is read again. */
 const STORED_NAME_MS = 3000
-let storedName: { from: string; value: string | null; until: number } | null = null
+// The name is the site's own content, so it is kept per site.
+const storedName = siteScoped<{ from: string; value: string | null; until: number } | null>(() => null)
 
 /** Forget the name read from the site's content (after the field was saved; and for tests). */
 export function resetAdminName(): void {
-  storedName = null
+  storedName.set(null)
 }
 
 /**
@@ -48,7 +49,8 @@ export function resetAdminName(): void {
 async function adminNameFrom(from: unknown): Promise<string | null> {
   if (typeof from !== 'string' || !from.includes('.')) return null
   const now = Date.now()
-  if (storedName && storedName.from === from && storedName.until > now) return storedName.value
+  const stored = storedName()
+  if (stored && stored.from === from && stored.until > now) return stored.value
   let value: string | null = null
   try {
     const [global, field] = from.split('.') as [string, string]
@@ -63,7 +65,7 @@ async function adminNameFrom(from: unknown): Promise<string | null> {
   catch {
     value = null
   }
-  storedName = { from, value, until: now + STORED_NAME_MS }
+  storedName.set({ from, value, until: now + STORED_NAME_MS })
   return value
 }
 

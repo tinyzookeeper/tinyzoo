@@ -182,7 +182,7 @@ const TRAILING_SLASHES = /\/+$/
  * email shows the site's name instead of its logo.
  */
 export function emailPublicBase(link?: string): string | null {
-  const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '').trim().replace(TRAILING_SLASHES, '')
+  const configured = String(cmsSettings().publicUrl || '').trim().replace(TRAILING_SLASHES, '')
   if (configured) return configured
   if (!link) return null
   try {

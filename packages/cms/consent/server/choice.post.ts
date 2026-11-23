@@ -16,10 +16,21 @@ const MAX_BODY = 2048
 
 function ownOrigins(event: any): Set<string> {
   const own = new Set([getRequestURL(event).origin])
-  const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '').replace(/\/+$/, '')
+  const configured = String(cmsSettings().publicUrl || '').replace(/\/+$/, '')
   try { if (configured) own.add(new URL(configured).origin) }
   catch { /* not an address */ }
   return own
+}
+
+/** Is `origin` this site's own? Many sites share the server in multi mode: then its hosts and its address count, not the request's. */
+function fromOwnSite(event: any, origin: string): boolean {
+  if (!cmsIsMultiTenant()) return ownOrigins(event).has(origin)
+  try {
+    if (useSite().hosts.includes(cmsNormalHost(new URL(origin).host))) return true
+    const configured = String(cmsSettings().publicUrl || '')
+    return !!configured && new URL(configured).origin === origin
+  }
+  catch { return false }
 }
 
 /** HTTPS, or a production server behind a proxy that does not say so (only plain HTTP to localhost is not). */
@@ -33,7 +44,7 @@ export default defineEventHandler(async (event) => {
   const opts = consentOptions()
   setResponseHeader(event, 'cache-control', 'no-store')
   const origin = getRequestHeader(event, 'origin')
-  if (origin && !ownOrigins(event).has(origin)) throw createError({ statusCode: 403, statusMessage: 'Choices are accepted from this site only' })
+  if (origin && !fromOwnSite(event, origin)) throw createError({ statusCode: 403, statusMessage: 'Choices are accepted from this site only' })
 
   const ip = clientIp(event)
   if (!(await rateLimit(`consent:${ip}`, 30, WINDOW))) throw tooManyRequests(event, 'Too many choices; try again in a few minutes', WINDOW)

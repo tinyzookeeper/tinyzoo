@@ -6,6 +6,8 @@ import { and, eq, fillPathTemplate, indexTree, inArray, pathTemplateKeys, sitePa
  *  - clears this instance's caches built from content (redirects, sitemap) at once;
  *  - is published on the shared store's `changes` channel, so the other replicas clear
  *    theirs too and the realtime hub can tell people looking at the same content;
+ *    in multi-tenant mode the message names the site, and a replica applies it inside that
+ *    site (plugins/cms-changes.ts);
  *  - runs the `cms:change` Nitro hook, for host apps that react in-process;
  *  - when it can change the public website, is sent to the configured webhooks
  *    (signed; see cmsWebhooks.ts) so the site can purge its cache.
@@ -18,9 +20,24 @@ export const CHANGES_CHANNEL = 'changes'
  * Identifies this process on the shared channel, so it can skip its own messages.
  * Made on first use.
  */
-let _instanceId: string | undefined
+const instance = processWide({ id: undefined as string | undefined }, 'names this process to the other replicas, whatever the site')
 export function instanceId(): string {
-  return (_instanceId ??= crypto.randomUUID())
+  return (instance.id ??= crypto.randomUUID())
+}
+
+/**
+ * A message for a channel of the shared store. A channel belongs to the process and its
+ * handler runs with no site, so in multi-tenant mode the message names the site it is
+ * about. Single mode: the message as it always was.
+ */
+export function channelMessage(message: Record<string, unknown>): string {
+  return JSON.stringify(cmsIsMultiTenant() ? { ...message, site: useSite('a message to the other instances').id } : message)
+}
+
+/** The id of the site a received channel message is about (single mode: the one site's), or null when it names none. */
+export function channelSiteId(message: any): string | null {
+  if (!cmsIsMultiTenant()) return useSite().id
+  return typeof message?.site === 'string' ? message.site : null
 }
 
 /** The address prefix of a language ('/en'), per `defineLocales({ prefix })`. */
@@ -241,7 +258,7 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
     notifyChangeListeners(change)
     // Neither the other replicas nor the host's hooks hold up the response.
     const background: Promise<unknown>[] = [
-      useCmsStore().then((store) => store.publish(CHANGES_CHANNEL, JSON.stringify({ origin: instanceId(), change })))
+      useCmsStore().then((store) => store.publish(CHANGES_CHANNEL, channelMessage({ origin: instanceId(), change })))
         .catch((err) => console.error('[cms] could not publish change', scrubError(err))),
       Promise.resolve(useNitroApp().hooks.callHook('cms:change', change))
         .catch((err: unknown) => console.error('[cms] cms:change hook failed', scrubError(err))),
@@ -268,16 +285,19 @@ export function applyChangeLocally(change: Pick<CmsChange, 'entity'>): void {
   }
 }
 
-const listeners = new Set<(change: CmsChange) => void>()
+/** Per site: a listener hears its own site's changes only (the realtime hub would otherwise tell one site's editors about another's). */
+const listeners = siteScoped(() => new Set<(change: CmsChange) => void>())
 
-/** Run `fn` for every change — saved here or on another replica. Returns an unsubscribe function. */
+/** Run `fn` for every change of the current site — saved here or on another replica. Returns an unsubscribe function. */
 export function onCmsChange(fn: (change: CmsChange) => void): () => void {
-  listeners.add(fn)
-  return () => listeners.delete(fn)
+  const mine = listeners()
+  mine.add(fn)
+  return () => mine.delete(fn)
 }
 
+/** Tell the current site's listeners; they run inside the site, as the caller does. */
 export function notifyChangeListeners(change: CmsChange): void {
-  for (const fn of listeners) {
+  for (const fn of listeners()) {
     try {
       fn(change)
     }

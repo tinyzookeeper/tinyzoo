@@ -4,7 +4,13 @@
 export default defineTask({
   meta: { name: 'cms:retention', description: 'Delete form submissions and audit entries past their retention' },
   async run() {
-    const result = await runReportedTask('cms:retention', () => runRetention())
-    return { result: result ?? { skipped: 'another instance is running it' } }
+    // Outside a request there is no site: run it in each (one site in single mode).
+    const results: unknown[] = []
+    await runReportedTask('cms:retention', async () => {
+      await forEachSite(async () => { results.push(await runRetention()) }, { concurrency: 5, what: 'retention' })
+    })
+    // One site: its own result, as before.
+    if (!cmsIsMultiTenant()) return { result: results[0] ?? { skipped: 'another instance is running it' } }
+    return { result: { sites: results.filter(Boolean).length, skipped: results.filter((r) => !r).length } }
   },
 })

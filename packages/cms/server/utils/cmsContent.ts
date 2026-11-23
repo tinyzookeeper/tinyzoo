@@ -54,7 +54,7 @@ export function isInProcessRequest(event: any): boolean {
  * token and must not get one.)
  */
 export function assertContentAuth(event: any): void {
-  const token = (useRuntimeConfig().cms as any)?.content?.token
+  const token = cmsSettings().content?.token
   if (!token) return
   if (isInProcessRequest(event)) return
   const header = getHeader(event, 'authorization') || ''
@@ -65,20 +65,20 @@ export function assertContentAuth(event: any): void {
   }
 }
 
-let refusedCount = 0
-let refusedLoggedAt = 0
+// A log throttle for the whole process (one line a minute is the limit, not one per site).
+const refused = processWide({ count: 0, loggedAt: 0 }, 'one log line a minute per process')
 /**
  * One log line when requests are refused for the token (at most one a minute, with how many
  * there were): a site that cannot read its own content, or a script with an old token, should
  * not fail in silence — and a scanner must not fill the log.
  */
 function noteRefusedContentRequest(event: any): void {
-  refusedCount++
+  refused.count++
   const now = Date.now()
-  if (refusedLoggedAt && now - refusedLoggedAt < 60_000) return
-  refusedLoggedAt = now
-  const count = refusedCount
-  refusedCount = 0
+  if (refused.loggedAt && now - refused.loggedAt < 60_000) return
+  refused.loggedAt = now
+  const count = refused.count
+  refused.count = 0
   const path = String(event?.path ?? '').split('?')[0]
   console.warn('[cms] ' + count + ' content API request' + (count === 1 ? '' : 's') + ' refused: no content token, or a wrong one (' + event?.method + ' ' + path + '). '
     + "The website's own server-side requests do not need it; a separate site or script sends it as x-api-key (NUXT_CMS_CONTENT_TOKEN). Later refusals are counted and logged at most once a minute.")
@@ -93,7 +93,7 @@ export function isPreviewAuthorized(event: any): boolean {
   if (getQuery(event).preview === undefined) return false
   // A signed-in account whose role the site no longer has sees nothing, drafts included.
   if (event.context?.cmsUser && roleOf(event.context.cmsUser)) return true
-  const token = (useRuntimeConfig().cms as any)?.content?.token
+  const token = cmsSettings().content?.token
   if (!token) return false
   const header = getHeader(event, 'authorization') || ''
   const provided = getHeader(event, 'x-api-key') || header.replace(/^Bearer\s+/i, '') || String(getQuery(event).preview || '')
@@ -111,7 +111,7 @@ function withPublished(target: CmsEntity, idCond: any, locale: string | null = n
  * for an editor's preview (drafts and unsaved values must never be cached).
  */
 export function setContentCache(event: any): void {
-  const cfg = (useRuntimeConfig().cms as any)?.content ?? {}
+  const cfg = cmsSettings().content ?? {}
   const locked = cfg.token || isPreviewAuthorized(event)
   // Browsers check back every time (max-age=0) and get a quick 304 when nothing changed
   // (ETag, plugins/cms-content-etag.ts), so a published change shows immediately.

@@ -10,7 +10,7 @@ import { analyticsStatus } from '../../analytics/server/status'
  * dates and config names only.
  */
 
-const startedAt = new Date()
+const startedAt = processWide(new Date(), 'when this process started')
 
 /** A number from a cgroup file (`max` and anything unreadable: null). */
 function cgroupNumber(...paths: string[]): number | null {
@@ -45,20 +45,25 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // Server errors by where they happened, as timestamps of the last 24 hours (reportCmsError
 // notes each one). Capped, so a storm of errors cannot grow it without end.
 const MAX_NOTED = 10_000
-const noted: { source: CmsErrorReport['source']; at: number }[] = []
+// Per site: each site reports its own errors.
+const noted = siteScoped(() => [] as { source: CmsErrorReport['source']; at: number }[])
 
 /** Count one server error for the status (called by reportCmsError). */
 export function noteCmsErrorForStatus(source: CmsErrorReport['source']): void {
-  noted.push({ source, at: Date.now() })
-  if (noted.length > MAX_NOTED) noted.splice(0, noted.length - MAX_NOTED)
+  // An error with no site (multi mode, outside a request) belongs to none: count nothing.
+  if (!currentSite()) return
+  const list = noted()
+  list.push({ source, at: Date.now() })
+  if (list.length > MAX_NOTED) list.splice(0, list.length - MAX_NOTED)
 }
 
 function errorsLastDay(now: number): CmsStatus['errors'] {
   const since = now - DAY_MS
-  while (noted.length && noted[0]!.at < since) noted.shift()
+  const list = noted()
+  while (list.length && list[0]!.at < since) list.shift()
   const last24h = { request: 0, task: 0, webhook: 0 }
-  for (const n of noted) last24h[n.source]++
-  const last = noted.at(-1)
+  for (const n of list) last24h[n.source]++
+  const last = list.at(-1)
   return { last24h, lastAt: last ? new Date(last.at).toISOString() : null }
 }
 
@@ -67,7 +72,7 @@ const newest = (a: string | null, b: string | null): string | null => (!a ? b : 
 
 /** The token the status route asks for ('' = the route is off). */
 export function cmsStatusToken(): string {
-  return String((useRuntimeConfig().cms as any)?.status?.token || '')
+  return String(cmsSettings().status?.token || '')
 }
 
 /**
@@ -106,7 +111,7 @@ export async function cmsStatusBrand(baseURL: string): Promise<CmsStatusBrand> {
 export async function collectCmsStatus(): Promise<CmsStatus> {
   const now = Date.now()
   const config = useRuntimeConfig()
-  const cms = (config.cms as any) ?? {}
+  const cms = cmsSettings()
   const { db, reg } = useCms()
   const { urls, secret } = webhookConfig()
   const baseURL = String((config.app as any)?.baseURL || '/').replace(/\/?$/, '/')

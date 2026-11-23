@@ -20,10 +20,11 @@ const sha256 = (v: string) => createHash('sha256').update(v).digest('hex')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const REFRESH_PREFIX = 'tzpr_'
 
-/** The site's own address: `cms.publicUrl`, or the address the request came to. */
+/** The site's own address: `cms.publicUrl`, or the address the request came to (never in multi-tenant mode: a site always has its address). */
 export function cmsMcpBaseUrl(event: any): string {
-  const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '').trim().replace(/\/+$/, '')
-  return configured || getRequestURL(event, { xForwardedHost: true, xForwardedProto: true }).origin
+  const configured = String(cmsSettings().publicUrl || '').trim().replace(/\/+$/, '')
+  if (configured || cmsIsMultiTenant()) return configured
+  return getRequestURL(event, { xForwardedHost: true, xForwardedProto: true }).origin
 }
 
 export const cmsMcpResourceUrl = (event: any) => `${cmsMcpBaseUrl(event)}/api/mcp`

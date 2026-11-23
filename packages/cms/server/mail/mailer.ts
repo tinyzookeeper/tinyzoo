@@ -3,24 +3,25 @@ import type { CmsMailConfig, CmsMailMessage } from '../utils/cmsMail'
 // Node mail transports: smtp (nodemailer), file (one JSON file per email — for tests
 // and for looking at emails locally without a mail server) and log (stdout).
 
-let transporter: any
-let transporterKey = ''
+// The transport is the site's own (its smtp login), so it is kept per site.
+const mailState = siteScoped(() => ({ transporter: undefined as any, key: '' }), { dispose: (s) => s.transporter?.close?.() })
 
 /** Sends the message; false when the transport could not really send it (it only logs), so callers can say so. */
 export async function deliverMail(msg: CmsMailMessage, cfg: CmsMailConfig): Promise<boolean> {
   if (cfg.transport === 'smtp') {
     const key = JSON.stringify(cfg.smtp)
-    if (!transporter || key !== transporterKey) {
+    const state = mailState()
+    if (!state.transporter || key !== state.key) {
       const nodemailer = await import('nodemailer')
-      transporter = nodemailer.createTransport({
+      state.transporter = nodemailer.createTransport({
         host: cfg.smtp.host,
         port: Number(cfg.smtp.port) || 587,
         secure: !!cfg.smtp.secure,
         auth: cfg.smtp.user ? { user: cfg.smtp.user, pass: cfg.smtp.pass } : undefined,
       })
-      transporterKey = key
+      state.key = key
     }
-    await transporter.sendMail({ from: cfg.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html, ...(msg.replyTo ? { replyTo: msg.replyTo } : {}) })
+    await state.transporter.sendMail({ from: cfg.from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html, ...(msg.replyTo ? { replyTo: msg.replyTo } : {}) })
     return true
   }
   if (cfg.transport === 'file') {

@@ -15,21 +15,22 @@ import * as cmsConfig from '#cms/config'
 // and cached. NB: the `servers` URL comes from configured `cms.content.publicUrl`
 // (or, when that is empty, `cms.publicUrl`), NOT the request Host — reflecting an attacker-controlled Host into the publicly
 // cacheable spec would be a cache-poisoning vector.
-let cached: Record<string, any> | undefined
+// Per site: it holds the site's address.
+const cached = siteScoped<Record<string, any> | undefined>(() => undefined)
 
 export default defineEventHandler((event) => {
   assertContentAuth(event)
-  if (!cached) {
-    const cms = (useRuntimeConfig().cms as any) ?? {}
+  if (!cached()) {
+    const cms = cmsSettings()
     const content = cms.content ?? {}
     // `cms.content.publicUrl` wins; a site that set only `cms.publicUrl` (emails, sitemap) gets it here too.
     const serverUrl = String(content.publicUrl || '').trim() || String(cms.publicUrl || '').trim()
-    cached = buildOpenApiDocument(cmsConfig as Record<string, any>, {
+    cached.set(buildOpenApiDocument(cmsConfig as Record<string, any>, {
       title: 'Content API',
       servers: serverUrl ? [{ url: serverUrl }] : undefined,
       tokenAuth: !!content.token,
-    })
+    }))
   }
   setContentCache(event)
-  return cached
+  return cached()
 })

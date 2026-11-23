@@ -25,8 +25,10 @@ export default defineNitroPlugin((nitroApp) => {
     const method: string | null = event?.method ?? null
     const path: string | null = event?.path ? String(event.path).split('?')[0] ?? null : null
     const userId: string | null = event?.context?.cmsUser?.id ?? null
+    // Multi mode: which site it was (none for an error outside a site).
+    const site = cmsIsMultiTenant() ? { site: currentSite()?.id ?? null } : {}
     if (expected) {
-      console.info(JSON.stringify({ level: 'info', msg: error?.statusMessage || 'Request refused', status, requestId, method, path, user: userId }))
+      console.info(JSON.stringify({ level: 'info', msg: error?.statusMessage || 'Request refused', status, requestId, method, path, user: userId, ...site }))
       return
     }
     console.error(JSON.stringify({
@@ -37,6 +39,7 @@ export default defineNitroPlugin((nitroApp) => {
       method,
       path,
       user: userId,
+      ...site,
       error: safeErrorMessage(cause),
       stack: scrubError(cause).stack?.split('\n').slice(0, 8).join('\n'),
     }))

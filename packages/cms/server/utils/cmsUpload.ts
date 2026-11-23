@@ -48,11 +48,12 @@ const tooLarge = (maxBytes: number) => createError({
   data: { code: 'file_too_large', maxMb: Math.round(maxBytes / 1024 / 1024) },
 })
 
-let swept = false
+// Process-wide: one temp folder is shared by every site.
+const swept = processWide({ done: false }, 'one shared temp folder, swept once')
 /** Leftovers of uploads a crashed process never finished (once per process; an hour old at least). */
 function sweepOldTemp(dir: string) {
-  if (swept) return
-  swept = true
+  if (swept.done) return
+  swept.done = true
   readdir(dir).then((names) => Promise.all(names.filter((n) => n.endsWith('.part')).map(async (n) => {
     const file = join(dir, n)
     const info = await stat(file).catch(() => null)
@@ -60,7 +61,7 @@ function sweepOldTemp(dir: string) {
   }))).catch(() => {})
 }
 
-let tempDirWarned = false
+const tempDirWarned = processWide({ done: false }, 'one log line per process')
 
 /**
  * Creates the folder uploads are staged in. A container with a read-only filesystem and
@@ -72,8 +73,8 @@ async function prepareTempDir(tempDir: string): Promise<void> {
     await mkdir(tempDir, { recursive: true })
   }
   catch (err: any) {
-    if (!tempDirWarned) {
-      tempDirWarned = true
+    if (!tempDirWarned.done) {
+      tempDirWarned.done = true
       console.error(`[cms] uploads are staged on disk, but ${tempDir} cannot be created (${err?.code ?? err}). `
         + 'The filesystem is probably read-only: mount a writable volume and point TMPDIR at it '
         + '(or at /dev/shm, which counts against the memory limit, for small files only). '

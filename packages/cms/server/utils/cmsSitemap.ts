@@ -10,11 +10,12 @@ import { scrubError } from './cmsScrub'
 export type SitemapEntry = CmsSitemapEntry
 
 const MEMO_MS = 60_000
-let memo: { at: number; entries: SitemapEntry[] } | null = null
+// Per site: the entries are the site's own.
+const memo = siteScoped<{ at: number; entries: SitemapEntry[] } | null>(() => null)
 
 /** Forget the memo (a content change touched an address), and @nuxtjs/sitemap's cached sitemaps on this instance. */
 export function invalidateSitemap(): void {
-  memo = null
+  memo.reset()
   // The module caches with Nitro's cached functions under `sitemap:sitemap:…` (base and group "sitemap").
   const storage = useStorage()
   storage.getKeys(SITEMAP_CACHE_PREFIX)
@@ -30,7 +31,8 @@ const SITEMAP_CACHE_PREFIX = 'sitemap:sitemap'
  * result for a minute per instance, so a burst of uncached requests stays cheap.
  */
 export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<SitemapEntry[]> {
-  if (memo && Date.now() - memo.at < MEMO_MS) return memo.entries
+  const memoed = memo()
+  if (memoed && Date.now() - memoed.at < MEMO_MS) return memoed.entries
   const out: SitemapEntry[] = []
   for (const e of reg.entities) {
     if (!e.content?.public || e.singleton || !e.content.path) continue
@@ -80,7 +82,7 @@ export async function sitemapEntries(db: any, reg: CmsRegistry): Promise<Sitemap
     console.error('[cms] cms:sitemap hook failed', scrubError(err))
   }
   const checked = cleanSitemap(out)
-  memo = { at: Date.now(), entries: checked }
+  memo.set({ at: Date.now(), entries: checked })
   return checked
 }
 
@@ -182,7 +184,7 @@ async function translationsByParent(db: any, reg: CmsRegistry, e: CmsEntity, ids
  * Host would end up in a publicly cached document).
  */
 export function siteBase(event: any): string | null {
-  const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '').replace(/\/+$/, '')
+  const configured = String(cmsSettings().publicUrl || '').replace(/\/+$/, '')
   if (configured) return configured
   if (import.meta.dev || process.env.NODE_ENV !== 'production') return getRequestURL(event).origin
   return null

@@ -4,8 +4,11 @@
 // carries a valid built-in session for an active account. Realtime needs the
 // built-in sign-in: with external auth the host owns identity and there is no
 // request event here to read it from.
+//
+// Multi-tenant mode: the socket finds its site at the upgrade, from the host, and every
+// hook below runs inside it (socketHooksInSite).
 
-export default defineWebSocketHandler({
+export default defineWebSocketHandler(socketHooksInSite({
   upgrade(request: any) {
     return admitAdminSocket(request)
   },
@@ -27,4 +30,4 @@ export default defineWebSocketHandler({
   error(peer: any) {
     liveClose(peer)
   },
-})
+}))

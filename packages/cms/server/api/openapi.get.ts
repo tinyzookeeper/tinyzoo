@@ -16,7 +16,7 @@ const SCALAR = `https://cdn.jsdelivr.net/npm/@scalar/api-reference@${SCALAR_VERS
 const SCALAR_INTEGRITY = 'sha384-oH1C0RwqcwbVXkC+r8A+4qRoyEUQdtxAzOwumkxZtQBBcsy61FOoPt7B50OVJYYQ'
 
 export default defineEventHandler((event) => {
-  const token = (useRuntimeConfig().cms as any)?.content?.token
+  const token = cmsSettings().content?.token
   if (token || !contentDocsEnabled()) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 
   setContentCache(event)

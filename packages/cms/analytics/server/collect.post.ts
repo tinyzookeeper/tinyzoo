@@ -37,10 +37,12 @@ export default defineEventHandler(async (event) => {
 
 function ownHosts(event: any): string[] {
   const hosts = new Set<string>()
-  const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '')
+  // Many sites share the server in multi mode: the site's own hosts, not the request's.
+  if (cmsIsMultiTenant()) for (const h of useSite().hosts) hosts.add(h.replace(/^www\./, ''))
+  const configured = String(cmsSettings().publicUrl || '')
   try { if (configured) hosts.add(new URL(configured).hostname.toLowerCase().replace(/^www\./, '')) }
   catch { /* not an address */ }
-  hosts.add(getRequestURL(event).hostname.toLowerCase().replace(/^www\./, ''))
+  if (!cmsIsMultiTenant()) hosts.add(getRequestURL(event).hostname.toLowerCase().replace(/^www\./, ''))
   return [...hosts]
 }
 

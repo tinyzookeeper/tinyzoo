@@ -15,7 +15,8 @@ import { isPreviewAuthorized } from './cmsContent'
 
 const TTL = 30 * 60_000
 const MAX = 500
-const drafts = new Map<string, { values: Record<string, any>; at: number }>()
+// Per site: a draft belongs to a site's editor.
+const drafts = siteScoped(() => new Map<string, { values: Record<string, any>; at: number }>())
 
 const keyOf = (userId: string, entity: string, id: string, locale: string | null) => `${userId}\u0000${entity}\u0000${id}\u0000${locale ?? ''}`
 // The default language and "no languages" are the same draft.
@@ -37,15 +38,15 @@ export function putPreviewDraft(reg: CmsRegistry, e: CmsEntity, userId: string, 
   }
   const { values } = splitPayload(e, valid)
   const now = Date.now()
-  if (drafts.size >= MAX) {
-    for (const [k, d] of drafts) if (now - d.at > TTL) drafts.delete(k)
-    if (drafts.size >= MAX) drafts.delete(drafts.keys().next().value!)
+  if (drafts().size >= MAX) {
+    for (const [k, d] of drafts()) if (now - d.at > TTL) drafts().delete(k)
+    if (drafts().size >= MAX) drafts().delete(drafts().keys().next().value!)
   }
-  drafts.set(keyOf(userId, e.name, id, loc), { values, at: now })
+  drafts().set(keyOf(userId, e.name, id, loc), { values, at: now })
 }
 
 export function dropPreviewDraft(reg: CmsRegistry, e: CmsEntity, userId: string, id: string, locale: string | null) {
-  drafts.delete(keyOf(userId, e.name, id, draftLocale(reg, locale)))
+  drafts().delete(keyOf(userId, e.name, id, draftLocale(reg, locale)))
 }
 
 /**
@@ -55,14 +56,14 @@ export function dropPreviewDraft(reg: CmsRegistry, e: CmsEntity, userId: string,
  */
 export function applyPreviewDrafts(event: any, reg: CmsRegistry, e: CmsEntity, rows: any[], locale: string | null): boolean {
   const user = event.context?.cmsUser
-  if (!user || !drafts.size || !isPreviewAuthorized(event)) return false
+  if (!user || !drafts().size || !isPreviewAuthorized(event)) return false
   const loc = draftLocale(reg, locale)
   let applied = false
   for (const row of rows) {
-    const draft = drafts.get(keyOf(user.id, e.name, row.id, loc))
+    const draft = drafts().get(keyOf(user.id, e.name, row.id, loc))
     if (!draft) continue
     if (Date.now() - draft.at > TTL) {
-      drafts.delete(keyOf(user.id, e.name, row.id, loc))
+      drafts().delete(keyOf(user.id, e.name, row.id, loc))
       continue
     }
     Object.assign(row, draft.values)
