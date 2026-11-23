@@ -1,0 +1,57 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The three looks (looks.ts): each styles the website under html[data-look="<id>"]. */
+@import "./vykres.css";
+@import "./harmonogram.css";
+@import "./zdivo.css";
+
+/* Tailwind must also scan the CMS's own components (the admin) and the template kit's. */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The looks' tokens as utilities: bg-sheet, text-ink, border-hair, font-display… Each look
+   gives the variables behind them their values (under html[data-look="…"], in the three
+   files above), and a colour preset from the site's settings overrides the colours inline on
+   <html>. Outside a look (the admin) none of these is set, and none is used.
+   The names keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses
+   (a design's `muted` is `quiet` here). */
+@theme {
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-data: system-ui, sans-serif;
+
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-text: var(--text);
+  --color-quiet: var(--quiet);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+
+  /* Výkres: the sheet, its tint and its hairlines */
+  --color-sheet: var(--sheet);
+  --color-tint: var(--tint);
+  --color-hair: var(--hair);
+
+  /* Harmonogram: the graphite page, its surfaces and lines, and the one light slab */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-paper: var(--paper);
+
+  /* Zdivo: the plaster, three tones of the brick colour, the concrete and the timber */
+  --color-plaster: var(--plaster);
+  --color-brand-d: var(--brand-d);
+  --color-brand-2: var(--brand-2);
+  --color-brand-3: var(--brand-3);
+  --color-concrete: var(--concrete);
+  --color-timber: var(--timber);
+}
+
+/* Long words and addresses wrap instead of pushing the page wider on phones. A section reached
+   from the menu (/#sluzby) stops a little under the top of the window. */
+@layer base {
+  html[data-look] :is(h1, h2, h3, h4, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-look] { scroll-behavior: smooth; }
+  html[data-look] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-look] { scroll-behavior: auto; } }
+}

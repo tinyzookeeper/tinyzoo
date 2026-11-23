@@ -1,0 +1,114 @@
+/* Výkres: the page drawn like a building drawing. A cool white sheet, black lines in two
+   weights, every caption and every duration set as a dimension line (kóta) with its 45° ticks,
+   the construction system shown by its hatch. One family in three widths: Encode Sans Expanded
+   (headings, light), Encode Sans (text), Encode Sans Condensed (labels, dimensions, data).
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="vykres"] {
+  --font-display: "Encode Sans Expanded", sans-serif;
+  --font-sans: "Encode Sans", sans-serif;
+  --font-data: "Encode Sans Condensed", sans-serif;
+  /* The colours of the first preset (Červená tužka); a preset from the settings overrides them. */
+  --sheet: #f3f4f2; --card: #ffffff; --tint: #e7e9e5; --hair: #c3c7c2;
+  --ink: #14181b; --text: #363d43; --quiet: #5a6269;
+  --brand: #c9301f; --brand-ink: #ffffff;
+  background: var(--sheet);
+}
+
+@layer base {
+  html[data-look="vykres"] {
+    body { font-family: var(--font-sans); color: var(--text); background: var(--sheet); font-feature-settings: "tnum" 1; -webkit-font-smoothing: antialiased; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+  }
+}
+
+@layer components {
+  html[data-look="vykres"] {
+    .wrap { max-width: 1280px; margin-inline: auto; padding-inline: 20px; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 40px; } }
+
+    /* small capital labels, the lettering of a drawing */
+    .lab { font-family: var(--font-data); font-size: 12.5px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--quiet); }
+
+    /* kóta: a dimension line with extension lines and 45° ticks; the label sits above the line */
+    .kota { position: relative; height: 30px; border-left: 1px solid var(--ink); border-right: 1px solid var(--ink); display: flex; justify-content: center; align-items: flex-start; min-width: 0; }
+    .kota + .kota { border-left: 0; }
+    .kota::before { content: ""; position: absolute; left: -7px; right: -7px; top: 21px; border-top: 1px solid var(--ink); }
+    .kota::after { content: ""; position: absolute; left: -7px; right: -7px; top: 15px; height: 13px;
+      background:
+        linear-gradient(135deg, transparent calc(50% - .9px), var(--ink) calc(50% - .9px), var(--ink) calc(50% + .9px), transparent calc(50% + .9px)) left / 13px 13px no-repeat,
+        linear-gradient(135deg, transparent calc(50% - .9px), var(--ink) calc(50% - .9px), var(--ink) calc(50% + .9px), transparent calc(50% + .9px)) right / 13px 13px no-repeat; }
+    .kota > span { font-family: var(--font-data); font-size: 13px; font-weight: 500; line-height: 16px; letter-spacing: .04em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-inline: 8px; }
+    .kota-chain { display: flex; }
+    .kota sup, .font-data sup { font-size: .7em; line-height: 0; }
+
+    /* the same, turned upright (beside a photo) */
+    .kota-v { position: relative; width: 30px; border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink); display: flex; align-items: center; justify-content: flex-end; }
+    .kota-v::before { content: ""; position: absolute; top: -7px; bottom: -7px; left: 8px; border-left: 1px solid var(--ink); }
+    .kota-v::after { content: ""; position: absolute; top: -7px; bottom: -7px; left: 2px; width: 13px;
+      background:
+        linear-gradient(135deg, transparent calc(50% - .9px), var(--ink) calc(50% - .9px), var(--ink) calc(50% + .9px), transparent calc(50% + .9px)) top / 13px 13px no-repeat,
+        linear-gradient(135deg, transparent calc(50% - .9px), var(--ink) calc(50% - .9px), var(--ink) calc(50% + .9px), transparent calc(50% + .9px)) bottom / 13px 13px no-repeat; }
+    .kota-v > span { writing-mode: vertical-rl; font-family: var(--font-data); font-size: 13px; font-weight: 500; letter-spacing: .04em; color: var(--ink); white-space: nowrap; line-height: 16px; }
+
+    /* hatches of the construction system, as in a drawing legend */
+    .hatch { display: inline-block; width: 22px; height: 12px; border: 1px solid var(--ink); flex: none; }
+    .hatch-zdivo { background: repeating-linear-gradient(135deg, var(--ink) 0 1px, transparent 1px 4.5px); }
+    .hatch-drevo { background:
+        linear-gradient(to top right, transparent calc(50% - .6px), var(--ink) calc(50% - .6px), var(--ink) calc(50% + .6px), transparent calc(50% + .6px)),
+        linear-gradient(to bottom right, transparent calc(50% - .6px), var(--ink) calc(50% - .6px), var(--ink) calc(50% + .6px), transparent calc(50% + .6px)); }
+    .hatch-beton { background: radial-gradient(circle at 1.5px 1.5px, var(--ink) 0 .8px, transparent 1px) 0 0 / 5px 5px; }
+    .hatch-izolace { background: repeating-linear-gradient(60deg, var(--ink) 0 .8px, transparent .8px 4px), repeating-linear-gradient(120deg, var(--ink) 0 .8px, transparent .8px 4px); }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px; font-family: var(--font-data); font-weight: 600; font-size: 15px; letter-spacing: .08em; text-transform: uppercase; transition: background-color .15s, color .15s, border-color .15s; cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-ink { background: var(--ink); color: #fff; }
+    .btn-ink:hover { background: var(--brand); color: var(--brand-ink); }
+    .btn-line { border: 1px solid var(--ink); color: var(--ink); }
+    .btn-line:hover { background: var(--ink); color: #fff; }
+
+    .field { width: 100%; min-height: 48px; padding: 10px 14px; background: var(--card); border: 1px solid var(--ink); color: var(--ink); font-size: 16px; border-radius: 0; }
+    .field::placeholder { color: var(--quiet); opacity: .8; }
+    .field:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+    .opt { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 14px; border: 1px solid var(--ink); background: var(--card); color: var(--ink); cursor: pointer; font-size: 15px; }
+    .opt:has(input:checked) { background: var(--ink); color: #fff; }
+    .opt input { accent-color: var(--brand); }
+    .field-error { margin-top: 6px; font-size: 14px; color: var(--brand); }
+
+    .filter { min-height: 44px; padding: 0 14px; font-family: var(--font-data); font-size: 14px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); border: 1px solid transparent; white-space: nowrap; transition: background-color .15s, border-color .15s; cursor: pointer; }
+    .filter:hover { border-color: var(--ink); }
+    .filter[aria-pressed="true"] { background: var(--ink); color: #fff; }
+    .filter sup { font-size: 10px; margin-left: 4px; opacity: .75; }
+
+    /* the towns on a distance axis (a list on a phone) */
+    .axis li { display: flex; justify-content: space-between; gap: 16px; padding-block: 10px; border-bottom: 1px solid var(--hair); }
+    @media (min-width: 64rem) {
+      .axis { position: relative; height: 150px; }
+      .axis::before { content: ""; position: absolute; left: -7px; right: -7px; top: 75px; border-top: 1px solid var(--ink); }
+      .axis li { position: absolute; left: calc(var(--km) / var(--end) * 100%); top: 0; height: 75px; padding: 0 0 0 10px; border: 0; border-left: 1px solid var(--ink); display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; white-space: nowrap; }
+      .axis li::after { content: ""; position: absolute; left: -7px; bottom: -7px; width: 13px; height: 13px; background: linear-gradient(135deg, transparent calc(50% - .9px), var(--ink) calc(50% - .9px), var(--ink) calc(50% + .9px), transparent calc(50% + .9px)); }
+      .axis li.low { top: 75px; justify-content: flex-end; }
+      .axis li.low::after { bottom: auto; top: -7px; }
+      .axis li.end { left: auto; right: 0; border-left: 0; border-right: 1px solid var(--ink); padding: 0 10px 0 0; text-align: right; }
+      .axis li.end::after { left: auto; right: -7px; }
+    }
+  }
+}
+
+/* Text pages written in the editor (the privacy page): headings, lists and links in the look's own lines. */
+@layer components {
+  html[data-look="vykres"] {
+    .prose-look { max-width: 42rem; font-size: 17px; line-height: 1.65; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-weight: 300; font-size: 1.7rem; line-height: 1.15; letter-spacing: -.02em; color: var(--ink); margin-top: 2.4rem; padding-top: 1rem; border-top: 1px solid var(--ink); }
+    .prose-look h3 { font-family: var(--font-display); font-weight: 400; font-size: 1.3rem; line-height: 1.2; color: var(--ink); margin-top: 1.8rem; }
+    .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--brand); }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--ink); }
+    .prose-look ul li { padding: .55rem 0; border-bottom: 1px solid var(--hair); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { background: var(--tint); padding: 1.25rem 1.5rem; color: var(--ink); }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
+    .prose-look strong { color: var(--ink); font-weight: 600; }
+  }
+}
