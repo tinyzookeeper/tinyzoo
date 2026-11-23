@@ -36,7 +36,10 @@ export default defineNitroPlugin((nitroApp) => {
       if (host && !ambient.hosts.includes(host) && cmsSiteForHost(host)) {
         return Promise.resolve(answer(event, 421, 'This request belongs to another website'))
       }
-      return handle(event)
+      // It counts as work of its site by itself: a page may leave one of its own requests running after it was sent.
+      const inner = handle(event)
+      cmsHoldSiteUntil(inner)
+      return inner
     }
     const found = host ? cmsSiteForHost(host) : null
     if (!found) {
@@ -61,7 +64,11 @@ export default defineNitroPlugin((nitroApp) => {
       const platformWaitUntil = event.context.waitUntil
       event.context.waitUntil = (work: unknown) => { cmsHoldSiteUntil(work); platformWaitUntil?.(work) }
       ensureCmsSiteStarted()
-      return handle(event)
+      // The first request of a new site may arrive before its database is migrated: pages wait
+      // for that as API requests do (cms-0-migrate-gate), instead of asking for tables that are
+      // not there yet. A failure is the gate's and the health routes' to report.
+      if (path.startsWith('/api/')) return handle(event)
+      return cmsMigrationsReady().then(() => handle(event), () => handle(event))
     })
   }
 

@@ -1,6 +1,6 @@
 # Multi-tenant tinyzoo: the design
 
-**Status (2026-11-23):** a design to decide on. Nothing here is built. The measurements were taken on this machine against Postgres 16.11; where a number is an estimate, it says so.
+**Status (2026-11-23):** the design was accepted and a first working version is built on this branch (local only, not released). Section 2.14 says what is built, what the build showed and where it differs from the design; the rest of the document is the design as it was written, corrected where the build proved it wrong. The measurements were taken on this machine against Postgres 16.11; where a number is an estimate, it says so.
 
 Part 1 is the ten-minute read. Part 2 holds the details behind each paragraph of part 1.
 
@@ -12,7 +12,7 @@ Part 1 is the ten-minute read. Part 2 holds the details behind each paragraph of
 
 ## What is proposed
 
-One switch, `cms.tenancy.mode`, with two values. `single` is the default and behaves as today. In `multi` the same build serves many sites: each request is given its site from its host name, and everything a site owns (database, files, secrets, caches, sockets) is reached only through that site.
+One switch with two values (in the first build it is the environment variable `NUXT_CMS_TENANCY_MODE`). `single` is the default and behaves as today. In `multi` the same build serves many sites: each request is given its site from its host name, and everything a site owns (database, files, secrets, caches, sockets) is reached only through that site.
 
 The two uses need different parts of it:
 
@@ -62,7 +62,7 @@ The cost of the choice is at the high end. With 10 000 databases one Postgres he
 | Checking every site for migrations | 0.2 s | 2 s (measured) | 17 s (measured on a sample of 2 000) |
 | Idle pools in the app | 0.1 MB | 1.1 MB (measured) | 11 MB |
 | Connections held | sites in use × up to 3, capped | the same | the same |
-| App memory | one app, about 300 MB | one app; more only for sites in use (estimate) | several apps of the same template, each with a share of the sites (estimate) |
+| App memory | one app, 309 to 399 MB (measured) | one app, about 300 MB plus roughly half a megabyte per site in use (from 300 sites measured: 400 to 470 MB) | several apps of the same template, each with a share of the sites (estimate) |
 | Postgres instances | 1 | 1 | 3 to 5 (estimate) |
 
 Today's alternative, one app per site, costs 170 to 360 MB of memory per site: 1 000 sites would be 170 to 360 GB of RAM.
@@ -122,13 +122,13 @@ Each step can be merged and released alone, and single-mode sites behave the sam
 7. **Account sign-in and the switcher** (independent of 1 to 6; it can come first for 6dance and Studio Grand).
 8. **Operations:** PgBouncer, custom domains, quotas, moving in and out.
 
-## Decisions asked of you
+## Decisions (2026-11-23)
 
-1. **6dance and Studio Grand:** two apps with a shared sign-in and switcher (recommended), or one merged app.
-2. **Where the identity lives:** the cloud app (recommended), or Keeper, which already has workspaces, teams and an OAuth server but is the agency's tool, not the clients'.
-3. **Forced template updates:** every site of a template moves to a new build together. Accept this as a product rule, or plan for two versions of a template running side by side (each its own app).
-4. **Files:** the requirement "another site's credentials cannot read them" needs a key per site that is limited to that site's files. Pushbase Storage already works this way per storage link (2.4); what is missing there is a way to issue one such key per site for an app that serves many.
-5. **Go-ahead for the spike** (2.14 says what it will and will not cover).
+1. **6dance and Studio Grand:** two apps with a shared sign-in and switcher. They can live on one server and one Postgres; they do not share a process.
+2. **Where the identity lives:** the cloud app.
+3. **Template updates:** every site of a template moves to a new build together. The rule that goes with it: a change to a template adds things or fixes them; a redesign ships as a new look. A customer's content is data in their own database and a deploy does not touch it.
+4. **Files:** a key per site, limited to that site's files. Pushbase Storage already confines every key this way (2.4); it needs a way to issue one such key per site for an app that serves many.
+5. **The first build** went ahead: 2.14.
 
 ---
 
@@ -209,42 +209,43 @@ What it does **not** carry, and where the site is therefore passed explicitly:
 
 In single mode `useCmsSite()` returns the one site without looking at the async context, so background code that names no site keeps working exactly as today. That is the only place with a default, and it is a different directory driver, not a fallback inside multi mode.
 
-**Unloading.** A site that has not been used for a while is unloaded: its pool is ended, its caches dropped, its sockets are already gone. This keeps the app's memory tied to the sites in use, not to the sites that exist.
+**A site's memory and the work under way (as built).** Each site loaded in the process is an *instance*: its row and what is kept for it. Work runs inside an instance and keeps it until it has finished; `event.waitUntil` work counts too. When the site's row changes, the instance is retired: new requests get a new instance made from the new row, the requests under way finish with what they started with (the old settings, the old pool), and only then is the old instance released, or after 30 s if something never finishes. So a change of the directory never cuts a request off, and a request that began under the old row cannot make the site's new memory from it. Work that outlives its instance goes on in the site as it is loaded now. When a site leaves the directory its work under way is told (`cmsSiteHasLeft()`), its storage refuses further writes, and late work fails instead of making a new pool or folder.
+
+**Unloading idle sites** (not built): a site that has not been used for a while could drop its caches. Its connections already close by themselves, and the measured memory per site is small (2.14), so this can wait.
 
 ## 2.3 A database per site
 
-**Making one** (the cloud's `shared` driver, with an administrator connection the apps never hold):
+**Making one** (the cloud's `shared` driver, with an administrator connection the apps never hold). This is what the build does:
 
 ```sql
 CREATE ROLE s_7f3a… LOGIN PASSWORD '…' NOSUPERUSER NOCREATEDB NOCREATEROLE;
-CREATE DATABASE s_7f3a… TEMPLATE tpl_photographer OWNER s_7f3a…;
+CREATE DATABASE s_7f3a… OWNER s_7f3a…;
 REVOKE CONNECT ON DATABASE s_7f3a… FROM PUBLIC;
--- connected to the new database:
-REASSIGN OWNED BY tpl_owner TO s_7f3a…;
 ```
 
-Once per cluster: `REVOKE CONNECT ON DATABASE postgres, template1 FROM PUBLIC`, and the same for every template database.
+The database starts empty. The site's app migrates it the first time the site is used, as the site's own role: about 115 ms for the Photographer schema. `pg_trgm` is a trusted extension, so the owner of a database creates it without being a superuser.
+
+Once per cluster: `REVOKE CONNECT ON DATABASE postgres, template1 FROM PUBLIC`, and the same for every other database on the server. Without it a site's role can connect to those databases (it finds no site's tables there, but it should have no business there).
 
 Verified locally (Postgres 16.11):
 
-- The copy takes 16 to 25 ms and the hand-over 7 to 15 ms. The other way, an empty database and the template's migration run as the site's role, takes 115 ms and also works: `pg_trgm` is a trusted extension, so the owner of a database can create it without being a superuser.
-- The template database's tables must be owned by a plain role (`tpl_owner`), not by the bootstrap superuser, or `REASSIGN OWNED` is refused.
-- The site's role is refused on every other database, cannot create databases or roles, cannot install `dblink` or `postgres_fdw` (the two ways to reach another database from inside SQL), and cannot read or write server files with `COPY`.
+- The site's role is refused on every other site's database, cannot create databases or roles, cannot install `dblink` or `postgres_fdw` (the two ways to reach another database from inside SQL), and cannot read or write server files with `COPY`.
 - The site's role **can** see the names of all databases and roles (`pg_database`, `pg_roles` are cluster-wide), and that other sessions exist, but not their queries. Hence opaque ids, never slugs, in those names.
 
-The template database is rebuilt by each release of the template (migrated, optionally with the demo content already in it), so a new site needs no migration at all.
+**A faster way, with a trap (not used by the build).** A new database can be copied from a prepared template database that already holds the tables (and the demo content): `CREATE DATABASE … TEMPLATE tpl_photographer` took 16 to 25 ms. The copy's tables then belong to the template's owner and must be handed to the site's role. The first version of this document did that with `REASSIGN OWNED BY tpl_owner TO <site role>` inside the copy. **That is wrong:** checked on Postgres 16, `REASSIGN OWNED` also hands over databases the old role owns, so the first site's role became the owner of the template database itself. If the copy is ever used, the template database must be owned by a role that owns nothing inside it, or the objects are handed over one by one (`ALTER TABLE … OWNER TO`), as the test helper does. A template database must also never hold accounts, tokens or invitations: every copy would carry them.
 
 **Connecting.** `useCms()` returns the current site's drizzle instance, built on first use:
 
 - `pg.Pool` with `max: 3`, `idleTimeoutMillis: 10 000`, and an `error` listener. Today's pool has none (`server/db/driver.ts:5-8`), so an idle-connection error on one site's pool would be an unhandled error for the whole process.
-- A cap on open pools and on open connections per app instance. At the cap the least recently used idle pool is ended. If nothing is idle, the request waits up to the existing 10 s connection timeout and then gets 503.
+- A cap on the connections of all sites of the process together (`NUXT_CMS_TENANCY_MAX_CONNECTIONS`, default 30). At the cap, the pool of the site that has been quiet longest is closed to make room: one with no connection in use, nobody waiting for one and no request under way. When there is none, the query waits, and gives up with 503 after 10 s. Seen from Postgres the count can be over the cap for a moment (2.14).
 - `instances × cap` is set below Postgres's `max_connections`, so the apps cannot exhaust it.
+- The build showed why the cap is needed and not optional: without it, the first use of 100 new sites opened more connections than the local Postgres allows (100) within the pools' 10 s of idle time, and took 187 s with failed connections. With the cap it took 13 s and nothing failed (2.14).
 
 Measured: 1 000 pools with no open connection add 1.1 MB to the app. An open connection adds about 60 KB in the app and 1.3 MB (fresh) to 2.5 MB (after a few queries) of private memory in Postgres; plan for 5 MB with tinyzoo's wider queries (estimate).
 
 **A pooler in front.** PgBouncer in transaction mode helps when several instances and several templates share one Postgres: the apps' connections to it are cheap, and the real connections are capped in one place. It cannot share a connection between two sites (a connection belongs to one database and one user), so the saving is in idle and duplicated connections, not in the peak. tinyzoo is compatible with transaction mode: locks are `pg_advisory_xact_lock`, settings are set per transaction (`server/utils/cmsSearch.ts:224-229`), there is no `LISTEN` and no named prepared statement in `server/`. Per-site users are handled with `auth_query`, so there is no user list to maintain. Adding it later is a change of the database host in the directory.
 
-**Scheduled work must not wake every database.** Two tasks run every minute today (`module.ts:326-333`). Run naively over 10 000 sites they would open 20 000 connections a minute. Instead:
+**Scheduled work must not wake every database.** Two tasks run every minute today (`module.ts:326-333`). Run naively over 10 000 sites they would open 20 000 connections a minute. The build runs them the naive way (in every active site, five at a time, under the connection cap), which is fine for tens of sites and is the first thing to change before hundreds. The design:
 
 - `cms:scheduled` (publishing at a set time): after each run the app remembers when that site's next entry is due and does not ask again before then; a change in the site that touches scheduling clears the memory. A slow rotation visits every site every 15 minutes as a safety net for another instance's restart.
 - `cms:media-sizes`: runs for sites that had an upload in this instance, plus the same slow rotation for leftovers.
@@ -282,10 +283,10 @@ On one local disk the operating system does not separate the sites (one process,
 
 In multi mode:
 
-- The session payload gains `cms.site`. `activeAccount()` (`server/utils/cmsSession.ts:104-111`), the single function behind the middleware and both sockets, refuses a session whose site is not the current one.
-- The cookie is named with the `__Host-` prefix. Browsers refuse such a cookie with a `Domain`, so a script on one site cannot plant a session cookie for a sibling under the same parent domain.
+- The session payload gains `cms.site` and `cms.proof`, a keyed hash (HMAC-SHA256) of the account and the sign-in time made with the **site's own secret** from the directory. `activeAccountOf()` (`server/utils/cmsSession.ts`), the single function behind the middleware and both sockets, refuses a session whose site is not the current one or whose proof does not match. Built and tested: site A's cookie is refused on site B although the same account id exists there. Changing a site's secret signs everybody out of that site alone.
+- The cookie itself is still sealed with the process's secret: nuxt-auth-utils 0.6.2 takes its key from the process and drops a per-call password (`dist/runtime/server/lib/session.js`). A sealing key per site would need a change there or tinyzoo sealing its own session. Not built.
+- The cookie should be named with the `__Host-` prefix (`NUXT_SESSION_NAME`). Browsers refuse such a cookie with a `Domain`, so a script on one site cannot plant a session cookie for a sibling under the same parent domain. Not set by the build and not tried: the local sites run on `http://*.localhost`.
 - The shared domain of SaaS sites should be put on the Public Suffix List, which separates the sites for every other cookie as well.
-- A key per site would be stronger still. nuxt-auth-utils 0.6.2 takes its key from the process and drops a per-call password (`dist/runtime/server/lib/session.js`), so this needs either a change there or tinyzoo sealing its own session. To be tried in the spike; the payload binding does not depend on it.
 - Personal access tokens, OAuth grants, invitations and reset links are rows in the site's database and need nothing more.
 
 **Secrets and settings.** About 60 places read `useRuntimeConfig().cms` and a few read `useAppConfig().cms.admin`. A new helper, `cmsSettings()`, returns the process's settings with the current site's laid over them. Per site: public address, app secret, setup code, status token, content token, webhook addresses and secret, mail sender, storage, the forms' notification address, the demo account (off), the admin's name and logo. Per process: auth mode, proxies, limits, Redis address, cron lines. The full list with files is in 2.5.
@@ -444,7 +445,7 @@ What the 10 000 run showed:
 
 **Estimates, not measured:**
 
-- **Memory of one multi-mode app.** A single-mode site runs at 167 to 174 MB on Pushbase (Keeper, 6dance and Studio Grand) and about 360 MB as a local hosted site (`cloud/README.md`). A multi-mode app should start in the same range and grow by the caches of the sites in use: a redirect map, a sitemap memo, a logo, an editing session. An estimate of 0.1 to 1 MB per site in use, nothing for a site that is not. The spike will measure it with two sites and with a few hundred empty ones.
+- **Memory of one multi-mode app** is no longer an estimate: the first build measured it (2.14). A Photographer app starts at about 300 MB and a site that has been used adds roughly half a megabyte; 300 sites ran in 400 to 470 MB. For comparison, a single-mode site runs at 167 to 174 MB on Pushbase (Keeper, 6dance and Studio Grand) and about 360 MB as a local hosted site (`cloud/README.md`).
 - **Connections at 1 000 sites.** A small site makes a few hundred database-backed requests a day. A thousand such sites are a handful of requests per second in total, so a few dozen sites hold a connection at any moment: tens of connections, not thousands. The cap makes this a limit instead of a hope.
 - **Processor.** Server rendering is one thread. One app renders tens to low hundreds of pages per second depending on the template; this, not memory, is what sets how many busy sites one instance can carry. Picture processing runs one at a time by design (`server/utils/cmsImageQueue.ts`).
 
@@ -573,10 +574,90 @@ A second, smaller run goes through the sign-up app: two Photographer sites made 
 - `describe()` reports the template app's health; memory is per app, not per site.
 - Keeper keeps working per site: each site has its own status token and answers `/api/health/status` on its own host. The memory it reports is the whole app's.
 
-## 2.14 The spike
+## 2.14 The first build: what exists and what it showed
 
-**Will do:** `cms.tenancy.mode: 'multi'` in the core, far enough for the Photographer template and the playground: the site seam, the request wrapper, a `file` directory, per-site database, storage, settings, sessions, caches, tasks and sockets; the `shared` driver in `cloud/`; two Photographer sites made through the sign-up app, served by one process, each with its own database and user; the suite of 2.12.
+Built on the branch `feat/multi-tenant`, local only: nothing is pushed, released or deployed. Single mode is the default and its 789 existing API tests pass unchanged.
 
-**Will not do:** the account sign-in and switcher, PgBouncer, custom domains, the `postgres` directory driver, quotas, moving in and out, production deployment. Single mode keeps passing its existing tests throughout.
+### What exists
 
-**Risks the spike is meant to settle:** that replacing the handler in a plugin covers in-process requests and sockets the way the code reading says; whether the session can be sealed per site with nuxt-auth-utils 0.6; the real memory per site in use; how much of step 2 and 3 of the order of work can be done mechanically.
+**In `packages/cms`**
+
+- `server/utils/cmsSite.ts`: the seam. The mode (`NUXT_CMS_TENANCY_MODE=multi`), the site directory (a JSON file, `NUXT_CMS_TENANCY_FILE`, reread when it changes), the current site, per-site memory (`cmsSiteScoped`), the settings of a site laid over the process's (`cmsSettings()`), work in every site (`forEachCmsSite`).
+- `server/plugins/cms-0-site.ts`: the wrapper that gives every request its site from its host name. `server/utils/cmsSocketSite.ts` does the same for sockets at the upgrade.
+- A database per site with its own user (`server/utils/cmsDb.ts`), with one cap on the connections of all sites together. Storage, sessions, secrets and e-mail per site.
+- Every cache moved to per-site memory or declared process-wide (about 40 places), in the core and in the analytics, consent and forms plugins. `test/unit/module-state.spec.ts` refuses new module-level state in the server code that is neither.
+- Work outside a request names its site: migrations, the search index and the setup code per site on first use; the three scheduled tasks in every active site; the picture queue runs each job in the site that queued it; the analytics buffer, the live hub and shared editing (one Hocuspocus per site) are per site.
+- States of a site: `active`, `paused` (503), `read-only` (reads work; writes, background tasks and the editing socket do not).
+
+**In `cloud/`**: the `shared` hosting driver (`server/hosting/shared.ts`). One process per template; a new site is a role, an empty database, a folder and a row in the template's directory file.
+
+**Tests**
+
+| | |
+|---|---|
+| `test/api/tenants*.spec.ts` | two sites in one process, the second database a copy of the first (same account ids, same entry ids): 114 tests in 9 files, about two minutes |
+| `test/unit/cms-site.spec.ts` | the seam by itself: 38 tests |
+| `test/unit/module-state.spec.ts` | no undeclared module-level state |
+| `pnpm --filter tinyzoo-cloud e2e:shared` | the sign-up app makes two Photographer sites with the shared driver: 81 checks, half a minute |
+
+Run them:
+
+```sh
+TEST_DATABASE_URL=postgres://cms:cms@localhost:5434/<a database of your own>_test pnpm vitest run --project api test/api/tenants
+pnpm --filter tinyzoo-cloud templates:build photographer && pnpm --filter tinyzoo-cloud e2e:shared
+NUXT_HOSTING_DRIVER=shared pnpm --filter tinyzoo-cloud dev     # the sign-up app with the shared driver, by hand
+```
+
+### What it showed
+
+**One process, two Photographer sites, made through the sign-up app.** Both on one port and one process id; each with its own database and its own user, which is refused on the other's database and on the cloud's; each with its own name, look, content and files; a session of one refused on the other; an unknown host gets 404; deleting one leaves the other untouched. A site is made in about 3 s (database 35 ms, start 1.6 s, demo content 1.5 s, account 70 ms), against minutes for a process of its own.
+
+**Memory of one Photographer app** (its resident memory; empty sites, each migrated and its home page and one API route asked for twice):
+
+| Sites | After start | After every site was used |
+|---|---|---|
+| 1 | 301 MB | 320 MB |
+| 2 | 302 MB | 321 MB |
+| 20 | 302 MB | 320 to 324 MB |
+| 100 | 303 MB | 309 to 399 MB |
+| 300 | 303 MB | 397 to 469 MB |
+
+The figures move from run to run (the ranges are several runs). A site that has been used costs roughly half a megabyte, between 0.3 and 1 MB in these runs, and a site in the directory that nobody visits costs nothing measurable. One process per site, as the local driver does it, is about 300 MB each: 300 sites would be 90 GB. With demo content and pictures in work, two sites ran at 440 to 530 MB. No connection stays open once the sites are quiet.
+
+**Connections.** The first use of 100 new sites, each migrating its empty database: without a cap, 187 s with failed connections (the local Postgres allows 100 and other work was using a third of them). With the cap at 12 connections for the whole app: 13 s, no failure. 300 sites: 32 s, no failure. During those runs Postgres listed up to 19 connections of the sites at once. The app counts every connection it opens and gives room only under the cap; I take the difference to be connections the app had already closed that Postgres still listed while it was busy, which is not proven. During the measurements the shared local Postgres was at its own limit of 100 connections from other work on this machine.
+
+**Bugs the two-site tests found, all fixed.** None of these was visible from reading the code:
+
+1. A health check by IP with a session cookie answered 500 (the session middleware asked for a site).
+2. A hook of the sitemap module fires on every request, also the ones without a site.
+3. After a site's row changed, a request that began under the old row could make the site's new settings from the old row, for every request after it.
+4. A request under way when its site's row changed failed with 500: the site's pool was closed under it.
+5. Page views waiting in memory were thrown away when the site's row changed.
+6. Picture work of a deleted site went on and wrote its files into the deleted site's folder again.
+7. The connections, above.
+8. With the cap in place: work that is not a request (a page's own request left running after the page was sent, a search index being built) held a handle to a pool the cap then closed, and its next query failed. A handle to a closed pool now takes its connection from the site's current pool, a pool with callers waiting is never closed, and a page's in-process requests count as work of their site.
+9. A page asked for before its new site's database was migrated looked for tables that were not there yet. Pages now wait for the site's migrations, as API requests always did.
+
+Numbers 3, 4 and 6 led to how a site's memory is held now (2.2, "as built").
+
+### Where the build differs from the design
+
+- **The switch** is an environment variable, not the module option `cms.tenancy.mode`: the option list is part of the frozen public surface, and the mode is experimental.
+- **The directory** has the `file` driver only. Database passwords are in that file in plain text, readable by its owner only. The `postgres` driver and encryption at rest are not built. A row's `state` must be one of the three words; anything else is refused.
+- **Making a database:** empty and migrated by the app, not copied from a template database (2.3, with the trap that was in the first version of this document).
+- **Sessions:** bound to the site by a proof made with the site's secret; the cookie's sealing key is still the process's; the `__Host-` cookie name is not set (2.4).
+- **Scheduled tasks** run in every active site every time; the "next due" memory is not built (2.3).
+- **The operator's status route** and the `moved` state are not built. A failed migration is visible on the site itself (503, and its `/api/health/ready`) and in the log.
+- **Object storage:** a site can be given a bucket and keys of its own through its settings, untested; a prefix per site inside one bucket is not built. The tests use a folder per site.
+- **Several instances with Redis:** the code carries the site in every key and message, but no test ran it in multi mode.
+- **Other databases on the server:** the driver closes the cloud's own database to the sites' users; `postgres`, `template1` and anybody else's databases stay open to them until whoever runs the server revokes that (2.3).
+
+### Not built, as planned
+
+The account sign-in and the switcher, PgBouncer, custom domains, quotas, moving a site in and out, and any production deployment.
+
+### What to do next, in order
+
+1. The account sign-in and the switcher (step 7 of the order of work): the part 6dance and Studio Grand need.
+2. Before more than tens of sites: scheduled work by "next due", the `postgres` directory with encrypted secrets, the `__Host-` cookie, the operator's status route.
+3. Before production: the storage keys per site on Pushbase, the cluster-wide revoke, a run with two instances and Redis, and the template's process management on the platform.

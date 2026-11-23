@@ -142,7 +142,6 @@ What the shared driver does not do yet:
 - a figure of memory per site: the site's page shows the memory of the whole template's process;
 - closing the server's other databases (`postgres`, `template1`, anybody else's) to the sites' users: that is done once per Postgres server by whoever runs it, and the driver touches only its own databases;
 - stopping a template's process, on a new build or when its last site is deleted;
-- keeping a deleted site's folder empty while the template's process still has a picture of that site in work: the process finishes the picture and writes its smaller copies into the folder again, after the driver removed it. The last check of `e2e:shared` on deletion fails on this; it is the process's to stop, not the driver's;
 - a directory kept in a database, several instances of one template, a pooler in front of Postgres, quotas, custom domains.
 
 **`pushbase`** (`server/hosting/pushbase.ts`) is **written, not exercised**. It goes through the published CLI only (`npx -y pushbase@0.3.0 … --json`): a project named by the slug, the workspace's shared Postgres linked, storage created and linked, the environment set over stdin, the template folder deployed, then a wait until `https://<slug>.pushbase.app` answers. No command that creates or changes anything has been run from it. Known gaps, also listed in the file: the CLI (0.3.0) cannot delete a project, so `remove` says so; a template must be a standalone project there (the starter inside this repository depends on the workspace); every site is built on the platform again.

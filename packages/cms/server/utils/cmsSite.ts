@@ -145,6 +145,14 @@ export function cmsSiteLeftCheck(): () => boolean {
   return () => instance.left
 }
 
+/** Is any work of the current site under way right now, other than the caller? For something that outlives this call (the connection cap asks it later). */
+export function cmsSiteQuietCheck(): () => boolean {
+  if (cmsTenancyMode() === 'single') return () => false
+  const instance = context.getStore()
+  if (!instance) throw new CmsNoSiteError('a check bound to its site')
+  return () => instance.active <= 0
+}
+
 /** The instance new work of `site` starts in. A row held from before the directory changed still names its site. */
 function instanceFor(site: CmsSite): SiteInstance {
   const loaded = instances.get(site.id)
@@ -208,6 +216,8 @@ export interface CmsSiteScoped<T> {
   set(value: T): void
   /** Forget the current site's value; the next read makes a new one. */
   reset(): void
+  /** The current site's value if it was made already, without making it. */
+  peek(): T | undefined
 }
 
 const disposers = new Map<symbol, (value: any) => unknown>()
@@ -231,6 +241,7 @@ export function cmsSiteScoped<T>(init: () => T, opts: { dispose?: (value: T) => 
   }) as CmsSiteScoped<T>
   get.set = (value) => { stateOf().set(key, value) }
   get.reset = () => { stateOf().delete(key) }
+  get.peek = () => stateOf().get(key) as T | undefined
   return get
 }
 
