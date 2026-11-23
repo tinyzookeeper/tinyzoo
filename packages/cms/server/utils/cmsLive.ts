@@ -21,7 +21,9 @@ import { eq, inArray, type CmsChange } from 'tinyzoo'
  * Multi-tenant mode: a hub per site (its sockets, topics, presence and names), so people
  * on `list:post` of one site never hear about another site's, whatever ids the two share.
  * A hub runs while someone is connected to its site here: its heartbeat runs inside the
- * site, and a presence message on the shared channel names its site.
+ * site, and a presence message on the shared channel names its site. A hub that starts
+ * asks the other replicas who is on the site (`hello`), so its first person does not
+ * wait a heartbeat to see the colleagues connected elsewhere.
  *
  * Server → browser messages:
  *   { type: 'presence', topic, people: [{ id, name, editing }] }   (including you)
@@ -127,6 +129,19 @@ function start(): void {
       catch { /* not ours */ }
     })
   })().catch((err) => console.error('[cms] realtime cannot hear other instances', scrubError(err))))
+  // Multi-tenant mode: this hub started with the site's first socket on this instance, so it has
+  // not been listening for the site and knows nobody on the other instances. They would say who
+  // is there at their next heartbeat (up to 20 s): ask them now, once this instance listens.
+  if (cmsIsMultiTenant()) void listening.started.then(() => askWhoIsHere())
+}
+
+/** Ask the other instances to announce their people of the current site again (see `onRemote`). */
+async function askWhoIsHere(): Promise<void> {
+  try {
+    const store = await useCmsStore()
+    await store.publish(LIVE_CHANNEL, channelMessage({ origin: instanceId(), hello: true }))
+  }
+  catch { /* their next heartbeat says it */ }
 }
 
 /** Stop one hub: its timer, its listener, its sockets. Needs no current site (a site being unloaded has none). */
@@ -305,8 +320,14 @@ async function announce(topic: string, peerId: string, person: Person | null): P
 
 /** What another replica said about one of its peers of this site (called inside the site). */
 function onRemote(msg: any): void {
-  const { remote } = hub()
-  if (!msg || msg.origin === instanceId() || typeof msg.topic !== 'string' || typeof msg.peer !== 'string') return
+  const { local, remote } = hub()
+  if (!msg || msg.origin === instanceId()) return
+  if (msg.hello === true) {
+    // Another instance started its hub for this site and asks who is here: say it again now.
+    for (const [id, p] of local) for (const topic of p.topics.keys()) void announce(topic, id, personOf(p, topic))
+    return
+  }
+  if (typeof msg.topic !== 'string' || typeof msg.peer !== 'string') return
   if (!parseTopic(msg.topic)) return
   const key = `${msg.origin}:${msg.peer}`
   let map = remote.get(msg.topic)
