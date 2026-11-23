@@ -64,7 +64,7 @@ async function drawWidth(key: string, width: number): Promise<Buffer | null> {
 
 // One resize per picture and width at a time, even when many visitors ask at once.
 // (Per site: each site has its own files.)
-const inflight = siteScoped(() => new Map<string, Promise<Buffer | null>>())
+const inflight = cmsSiteScoped(() => new Map<string, Promise<Buffer | null>>())
 
 /**
  * The picture `key` at `width` px as WebP: from storage, or made now (in the queue's `now`
@@ -97,8 +97,8 @@ export async function imageVariant(key: string, width: number): Promise<Buffer |
 // picture's copies were removed. (Another replica's worker may still leave one behind in
 // that moment; it is a stray file in the store, never served: the row is gone.)
 // Per site: each site has its own files and worker run.
-const working = siteScoped(() => new Map<string, Promise<unknown>>())
-const deleted = siteScoped(() => new Set<string>())
+const working = cmsSiteScoped(() => new Map<string, Promise<unknown>>())
+const deleted = cmsSiteScoped(() => new Set<string>())
 
 /** Remove the smaller copies of a picture (with the original). Missing ones are fine. */
 export async function deleteImageVariants(key: string): Promise<void> {
@@ -173,7 +173,7 @@ const WIDTHS_TEXT = () => CMS_IMAGE_WIDTHS.join(',')
 const parseWidths = (s: string | null | undefined) => String(s ?? '').split(',').map(Number).filter((n) => n > 0)
 
 // Per site: each site has its own table and its own worker run.
-const sizes = siteScoped(() => ({ tableExists: null as boolean | null, running: null as Promise<number> | null, again: false }))
+const sizes = cmsSiteScoped(() => ({ tableExists: null as boolean | null, running: null as Promise<number> | null, again: false }))
 
 /** The table exists: a site that updated tinyzoo but has not applied its migration yet only makes sizes on request. */
 async function hasTable(db: any): Promise<boolean> {

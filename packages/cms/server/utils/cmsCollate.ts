@@ -5,7 +5,7 @@ import { sql } from 'tinyzoo'
 // with its ICU collations ("cs-x-icu"); a server built without ICU has none, and then
 // the list sorts as before.
 // Per site: sites may be on different database servers.
-const available = siteScoped<Promise<Set<string>> | null>(() => null)
+const available = cmsSiteScoped<Promise<Set<string>> | null>(() => null)
 
 function icuCollations(db: any): Promise<Set<string>> {
   if (!available()) {

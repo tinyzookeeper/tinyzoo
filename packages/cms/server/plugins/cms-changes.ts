@@ -7,7 +7,7 @@ import type { CmsChange } from 'tinyzoo'
 // Multi-tenant mode: the channel is one for every site and this handler runs with no
 // site, so a message names its site and is applied inside it. One for a site this
 // instance does not know is dropped.
-const unknownSite = processWide({ at: 0 }, 'a log throttle: one line a minute about messages for unknown sites')
+const unknownSite = cmsProcessWide({ at: 0 }, 'a log throttle: one line a minute about messages for unknown sites')
 
 export default defineNitroPlugin((nitroApp) => {
   // The shared-editing engine starts with the server, so a first connection after a
@@ -38,7 +38,7 @@ export default defineNitroPlugin((nitroApp) => {
             }
             return
           }
-          runInSite(site, () => {
+          runInCmsSite(site, () => {
             applyChangeLocally(change)
             notifyChangeListeners(change)
           })
@@ -52,7 +52,7 @@ export default defineNitroPlugin((nitroApp) => {
   })()
 })
 
-const TYPES = processWide(new Set(['entry.created', 'entry.updated', 'entry.deleted', 'entry.published', 'entry.unpublished', 'translation.updated', 'translation.deleted', 'global.updated']), 'a constant: the kinds of change there are')
+const TYPES = cmsProcessWide(new Set(['entry.created', 'entry.updated', 'entry.deleted', 'entry.published', 'entry.unpublished', 'translation.updated', 'translation.deleted', 'global.updated']), 'a constant: the kinds of change there are')
 const str = (v: unknown, max = 200) => (typeof v === 'string' && v.length <= max ? v : null)
 
 /** A change as another replica sent it, rebuilt field by field (it may reach browsers). */

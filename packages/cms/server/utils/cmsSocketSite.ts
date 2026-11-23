@@ -23,7 +23,7 @@ interface SocketHooks {
   error?: (peer: any, error: any) => any
 }
 
-export function socketHooksInSite<T extends SocketHooks>(hooks: T): T {
+export function cmsSocketHooksInSite<T extends SocketHooks>(hooks: T): T {
   if (!cmsIsMultiTenant()) return hooks
   /** The socket's site as the directory has it now, or null. */
   const siteOf = (peer: any): CmsSite | null => {
@@ -38,13 +38,13 @@ export function socketHooksInSite<T extends SocketHooks>(hooks: T): T {
   const served = <A>(hook: ((peer: any, arg: A) => any) | undefined) => (peer: any, arg: A) => {
     const site = siteOf(peer)
     if (!site || site.state === 'paused') return close(peer)
-    return runInSite(site, () => hook?.(peer, arg))
+    return runInCmsSite(site, () => hook?.(peer, arg))
   }
   /** `close` and `error`: the site tidies up after its socket while it is in the directory, paused or not. */
   const known = <A>(hook: ((peer: any, arg: A) => any) | undefined) => (peer: any, arg: A) => {
     const site = siteOf(peer)
     if (!site) return
-    return runInSite(site, () => hook?.(peer, arg))
+    return runInCmsSite(site, () => hook?.(peer, arg))
   }
   return {
     ...hooks,
@@ -55,9 +55,9 @@ export function socketHooksInSite<T extends SocketHooks>(hooks: T): T {
       const site = found.site
       if (site.state === 'paused') throw new Response('This website is paused', { status: 503, headers: { 'retry-after': '300' } })
       request.context.cmsSite = site.id
-      return runInSite(site, () => {
+      return runInCmsSite(site, () => {
         // As the request wrapper does: a socket may be the first use of the site on this instance.
-        ensureSiteStarted()
+        ensureCmsSiteStarted()
         return hooks.upgrade?.(request)
       })
     },

@@ -16,7 +16,7 @@ import sharp from 'sharp'
 // an upload, or for pictures uploaded before sizes were made that way). A background job never
 // holds up a visitor for longer than the one step that is already running.
 
-const configured = processWide({ done: false }, 'sharp is set up once for the whole process')
+const configured = cmsProcessWide({ done: false }, 'sharp is set up once for the whole process')
 
 /** sharp, set up for a small server (one thread per picture, no cache). */
 export function cmsSharp(): typeof sharp {
@@ -39,8 +39,8 @@ interface Job {
 
 const MAX_RUNNING = 1
 // One queue for the whole process on purpose: sharp decodes one picture at a time, whichever site asked.
-const lanes = processWide<Record<CmsImageLane, Job[]>>({ now: [], background: [] }, 'one picture at a time for the whole process')
-const state = processWide({ running: 0 }, 'one picture at a time for the whole process')
+const lanes = cmsProcessWide<Record<CmsImageLane, Job[]>>({ now: [], background: [] }, 'one picture at a time for the whole process')
+const state = cmsProcessWide({ running: 0 }, 'one picture at a time for the whole process')
 
 function next(): void {
   while (state.running < MAX_RUNNING) {
@@ -63,7 +63,7 @@ function next(): void {
 export function cmsImageJob<T>(work: () => Promise<T>, lane: CmsImageLane = 'now'): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     // The next job starts from the previous one's .finally: each runs in the site that queued it.
-    lanes[lane].push({ run: bindToSite(work), resolve, reject })
+    lanes[lane].push({ run: bindToCmsSite(work), resolve, reject })
     next()
   })
 }

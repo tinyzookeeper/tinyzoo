@@ -4,7 +4,7 @@ import { forgetConsentSettings } from './state'
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('cms:change', (change: any) => {
     // The hook runs inside the site whose content changed; outside a site there is nothing to forget.
-    if (!currentSite()) return
+    if (!currentCmsSite()) return
     if (change?.entity === 'consent_settings') forgetConsentSettings()
   })
 })

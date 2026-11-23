@@ -3,7 +3,7 @@
 // background — the server answers meanwhile, searching the old index.
 export default defineNitroPlugin(() => {
   if (import.meta.prerender) return
-  onSiteStart(() => {
+  onCmsSiteStart(() => {
     cmsMigrationsReady()
       .then(() => ensureSearchIndex())
       .catch((err) => {

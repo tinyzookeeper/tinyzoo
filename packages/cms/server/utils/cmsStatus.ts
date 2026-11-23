@@ -10,7 +10,7 @@ import { analyticsStatus } from '../../analytics/server/status'
  * dates and config names only.
  */
 
-const startedAt = processWide(new Date(), 'when this process started')
+const startedAt = cmsProcessWide(new Date(), 'when this process started')
 
 /** A number from a cgroup file (`max` and anything unreadable: null). */
 function cgroupNumber(...paths: string[]): number | null {
@@ -46,12 +46,12 @@ const DAY_MS = 24 * 60 * 60 * 1000
 // notes each one). Capped, so a storm of errors cannot grow it without end.
 const MAX_NOTED = 10_000
 // Per site: each site reports its own errors.
-const noted = siteScoped(() => [] as { source: CmsErrorReport['source']; at: number }[])
+const noted = cmsSiteScoped(() => [] as { source: CmsErrorReport['source']; at: number }[])
 
 /** Count one server error for the status (called by reportCmsError). */
 export function noteCmsErrorForStatus(source: CmsErrorReport['source']): void {
   // An error with no site (multi mode, outside a request) belongs to none: count nothing.
-  if (!currentSite()) return
+  if (!currentCmsSite()) return
   const list = noted()
   list.push({ source, at: Date.now() })
   if (list.length > MAX_NOTED) list.splice(0, list.length - MAX_NOTED)

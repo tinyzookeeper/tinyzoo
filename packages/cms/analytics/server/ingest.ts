@@ -45,7 +45,7 @@ interface Buffer {
   timer: ReturnType<typeof setTimeout> | null
   running: Promise<void> | null
 }
-const buffer = siteScoped<Buffer>(() => ({ views: [], engaged: new Map(), timer: null, running: null }), {
+const buffer = cmsSiteScoped<Buffer>(() => ({ views: [], engaged: new Map(), timer: null, running: null }), {
   dispose: (b) => { if (b.timer) clearTimeout(b.timer) },
 })
 
@@ -99,7 +99,7 @@ export async function forgetConsentId(consentId: string): Promise<number> {
 /** Write everything that waits (one flush at a time; one that is running is waited for, then the rest goes). */
 export async function flushViews(): Promise<void> {
   // No current site (multi mode, the server stopping): every site writes its own.
-  if (!currentSite()) { await forEachSite(() => flushViews(), { what: 'writing waiting visits' }); return }
+  if (!currentCmsSite()) { await forEachCmsSite(() => flushViews(), { what: 'writing waiting visits' }); return }
   const b = buffer()
   while (b.running) await b.running
   if (!b.views.length && !b.engaged.size) return

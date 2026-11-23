@@ -6,11 +6,11 @@ import * as cmsConfig from '#cms/config'
  * The current site's database (cmsSite.ts): one connection pool per site, made on first
  * use and ended when the site is unloaded. Single mode has one site, so one pool, as always.
  * Multi mode: the site's own address and user from the site directory, and no pool at all
- * for work that has no site (useSite throws).
+ * for work that has no site (useCmsSite throws).
  */
-const siteDb = siteScoped<ReturnType<typeof createCmsDb>>(() => {
+const siteDb = cmsSiteScoped<ReturnType<typeof createCmsDb>>(() => {
   const reg = buildRegistry(cmsConfig as Record<string, any>)
-  if (cmsIsMultiTenant()) return createCmsDb(useSite('a database query').databaseUrl, reg.schema, { multiTenant: true })
+  if (cmsIsMultiTenant()) return createCmsDb(useCmsSite('a database query').databaseUrl, reg.schema, { multiTenant: true })
   // Read from the runtime environment only, never from the build (the platform
   // injects DATABASE_URL for a linked database).
   const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}

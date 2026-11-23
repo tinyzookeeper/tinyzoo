@@ -6,7 +6,7 @@
 const SITEMAP_ROUTE = /^\/(?:[^/?#]*sitemap[^/?#]*\.xml|__sitemap__\/)/
 
 // Per site: each site has its own address.
-const configured = siteScoped<boolean | undefined>(() => undefined)
+const configured = cmsSiteScoped<boolean | undefined>(() => undefined)
 
 /** Whether the site's address is configured anywhere the site config reads it from (not the request). */
 function configuredSiteUrl(): boolean {

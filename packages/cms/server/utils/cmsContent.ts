@@ -66,7 +66,7 @@ export function assertContentAuth(event: any): void {
 }
 
 // A log throttle for the whole process (one line a minute is the limit, not one per site).
-const refused = processWide({ count: 0, loggedAt: 0 }, 'one log line a minute per process')
+const refused = cmsProcessWide({ count: 0, loggedAt: 0 }, 'one log line a minute per process')
 /**
  * One log line when requests are refused for the token (at most one a minute, with how many
  * there were): a site that cannot read its own content, or a script with an old token, should

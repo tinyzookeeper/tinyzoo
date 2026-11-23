@@ -19,7 +19,7 @@ const POSITIVE_MS = 60_000
 const NEGATIVE_MS = 30_000
 const MAX_ENTRIES = 5000
 // Per site: the same key can name different files in two sites.
-const cache = siteScoped(() => new Map<string, { value: ServedMedia | null; until: number }>())
+const cache = cmsSiteScoped(() => new Map<string, { value: ServedMedia | null; until: number }>())
 
 /** `_w/640/2026/01/<uuid>.png.webp` → `2026/01/<uuid>.png` (a resized copy's original), else the key itself. */
 export function originalKeyOf(key: string): string | null {

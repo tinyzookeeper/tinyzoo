@@ -31,7 +31,7 @@ export function serverAllowsCollecting(): boolean {
 // ── the settings (analytics_settings): collect or not ─────────────────────────────
 const SETTINGS = 'analytics_settings'
 const SETTINGS_MS = 30_000
-const settingsCache = siteScoped<{ at: number; collect: boolean } | null>(() => null)
+const settingsCache = cmsSiteScoped<{ at: number; collect: boolean } | null>(() => null)
 
 export function forgetSettings(): void {
   settingsCache.set(null)
@@ -65,7 +65,7 @@ export function requireAnalyticsReader(event: any) {
 }
 
 // ── the day's salt ─────────────────────────────────────────────────────────────────
-const saltState = siteScoped<{ salt: StoredSalt | null; loading: Promise<StoredSalt> | null }>(() => ({ salt: null, loading: null }))
+const saltState = cmsSiteScoped<{ salt: StoredSalt | null; loading: Promise<StoredSalt> | null }>(() => ({ salt: null, loading: null }))
 
 /**
  * The salt of `day`. One row in `cms_state`, replaced on the first visit of a new day (the old
@@ -99,7 +99,7 @@ async function loadSalt(day: string): Promise<StoredSalt> {
 export interface EntryRef { entity: string; id: string; locale: string | null }
 
 const PATHS_MS = 10 * 60_000
-const pathsState = siteScoped<{ paths: { at: number; map: Map<string, EntryRef> } | null; loading: Promise<Map<string, EntryRef>> | null }>(() => ({ paths: null, loading: null }))
+const pathsState = cmsSiteScoped<{ paths: { at: number; map: Map<string, EntryRef> } | null; loading: Promise<Map<string, EntryRef>> | null }>(() => ({ paths: null, loading: null }))
 
 export function forgetEntryPaths(): void {
   pathsState().paths = null

@@ -49,7 +49,7 @@ const tooLarge = (maxBytes: number) => createError({
 })
 
 // Process-wide: one temp folder is shared by every site.
-const swept = processWide({ done: false }, 'one shared temp folder, swept once')
+const swept = cmsProcessWide({ done: false }, 'one shared temp folder, swept once')
 /** Leftovers of uploads a crashed process never finished (once per process; an hour old at least). */
 function sweepOldTemp(dir: string) {
   if (swept.done) return
@@ -61,7 +61,7 @@ function sweepOldTemp(dir: string) {
   }))).catch(() => {})
 }
 
-const tempDirWarned = processWide({ done: false }, 'one log line per process')
+const tempDirWarned = cmsProcessWide({ done: false }, 'one log line per process')
 
 /**
  * Creates the folder uploads are staged in. A container with a read-only filesystem and

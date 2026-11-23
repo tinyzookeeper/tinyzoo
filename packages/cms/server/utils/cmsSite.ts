@@ -12,12 +12,12 @@ import { isAbsolute } from 'node:path'
  * sites that share this build's content model. Each has its own database, files and
  * secrets (the site directory, NUXT_CMS_TENANCY_FILE). The current site is carried by
  * the async context: a request gets it from its host name (server/plugins/cms-0-site.ts),
- * work outside a request names it (`runInSite`, `forEachSite`). Work that has no site
- * gets an error from `useSite()`, and with it from `useCms()`, `useCmsStorage()` and
- * every `siteScoped` value: there is no default site in multi mode.
+ * work outside a request names it (`runInCmsSite`, `forEachCmsSite`). Work that has no site
+ * gets an error from `useCmsSite()`, and with it from `useCms()`, `useCmsStorage()` and
+ * every `cmsSiteScoped` value: there is no default site in multi mode.
  *
- * Everything a site owns in memory is declared with `siteScoped`; state shared by the
- * whole process on purpose with `processWide`. A unit test (test/unit/module-state.spec.ts)
+ * Everything a site owns in memory is declared with `cmsSiteScoped`; state shared by the
+ * whole process on purpose with `cmsProcessWide`. A unit test (test/unit/module-state.spec.ts)
  * refuses module-level state that is neither.
  */
 export interface CmsSite {
@@ -41,7 +41,7 @@ export class CmsNoSiteError extends Error {
   readonly statusCode = 500
   constructor(what = 'this work') {
     super(`[tinyzoo] No site for ${what}: in multi-tenant mode every piece of server work belongs to one site. `
-      + 'A request gets its site from its host name; work outside a request must run inside runInSite() or forEachSite().')
+      + 'A request gets its site from its host name; work outside a request must run inside runInCmsSite() or forEachCmsSite().')
     this.name = 'CmsNoSiteError'
   }
 }
@@ -60,7 +60,7 @@ export const cmsIsMultiTenant = (): boolean => cmsTenancyMode() === 'multi'
 const SINGLE: CmsSite = Object.freeze({ id: 'default', hosts: [], publicUrl: '', state: 'active', databaseUrl: '', secret: '', config: {} }) as CmsSite
 
 /** The current site. Throws in multi mode when the work has none. */
-export function useSite(what?: string): CmsSite {
+export function useCmsSite(what?: string): CmsSite {
   if (cmsTenancyMode() === 'single') return SINGLE
   const site = context.getStore()
   if (!site) throw new CmsNoSiteError(what)
@@ -68,17 +68,17 @@ export function useSite(what?: string): CmsSite {
 }
 
 /** The current site, or null where there is none (multi mode, outside a request). */
-export function currentSite(): CmsSite | null {
+export function currentCmsSite(): CmsSite | null {
   return cmsTenancyMode() === 'single' ? SINGLE : (context.getStore() ?? null)
 }
 
 /** Run `fn` with `site` as the current site (and everything it awaits, and the timers it starts). */
-export function runInSite<T>(site: CmsSite, fn: () => T): T {
+export function runInCmsSite<T>(site: CmsSite, fn: () => T): T {
   return cmsTenancyMode() === 'single' ? fn() : context.run(site, fn)
 }
 
 /** Run `fn` with no current site: for process-wide work started from inside a request (a shared timer, a shared queue). */
-export function outsideSite<T>(fn: () => T): T {
+export function outsideCmsSite<T>(fn: () => T): T {
   return cmsTenancyMode() === 'single' ? fn() : context.exit(fn)
 }
 
@@ -87,15 +87,15 @@ export function outsideSite<T>(fn: () => T): T {
  * a shared queue, a listener, a hook. Without it the callback would run in the site of
  * whatever called it (or in none).
  */
-export function bindToSite<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
+export function bindToCmsSite<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
   if (cmsTenancyMode() === 'single') return fn
-  const site = useSite('a callback bound to its site')
+  const site = useCmsSite('a callback bound to its site')
   return (...args: A) => context.run(site, () => fn(...args))
 }
 
 // ── per-site memory ────────────────────────────────────────────────────────────
 
-export interface SiteScoped<T> {
+export interface CmsSiteScoped<T> {
   /** The current site's value (made on first use). */
   (): T
   set(value: T): void
@@ -110,11 +110,11 @@ const disposers = new Map<symbol, (value: any) => unknown>()
  * A value per site: a cache, a counter, a connection. Declared at module level, read as
  * `value()`. `dispose` runs when the site is unloaded (its pool is ended, its timer stopped).
  */
-export function siteScoped<T>(init: () => T, opts: { dispose?: (value: T) => unknown } = {}): SiteScoped<T> {
-  const key = Symbol('siteScoped')
+export function cmsSiteScoped<T>(init: () => T, opts: { dispose?: (value: T) => unknown } = {}): CmsSiteScoped<T> {
+  const key = Symbol('cmsSiteScoped')
   if (opts.dispose) disposers.set(key, opts.dispose)
   const stateOf = () => {
-    const id = useSite('a per-site value').id
+    const id = useCmsSite('a per-site value').id
     let state = states.get(id)
     if (!state) states.set(id, (state = new Map()))
     return state
@@ -123,7 +123,7 @@ export function siteScoped<T>(init: () => T, opts: { dispose?: (value: T) => unk
     const state = stateOf()
     if (!state.has(key)) state.set(key, init())
     return state.get(key) as T
-  }) as SiteScoped<T>
+  }) as CmsSiteScoped<T>
   get.set = (value) => { stateOf().set(key, value) }
   get.reset = () => { stateOf().delete(key) }
   return get
@@ -133,7 +133,7 @@ export function siteScoped<T>(init: () => T, opts: { dispose?: (value: T) => unk
  * State the whole process shares on purpose (a log throttle, the picture queue, the Redis
  * connection). The reason is for the reader and for the module-state test; the value is returned as it is.
  */
-export function processWide<T>(value: T, _reason: string): T {
+export function cmsProcessWide<T>(value: T, _reason: string): T {
   return value
 }
 
@@ -150,7 +150,7 @@ async function unloadSite(id: string): Promise<void> {
 }
 
 /** Release every site's resources (server shutdown). */
-export async function unloadAllSites(): Promise<void> {
+export async function unloadAllCmsSites(): Promise<void> {
   await Promise.all([...states.keys()].map(unloadSite))
 }
 
@@ -187,8 +187,8 @@ function writePath(into: any, path: string, value: unknown): void {
   at[parts.at(-1)!] = value
 }
 
-const siteSettings = siteScoped<Record<string, any>>(() => {
-  const site = useSite()
+const siteSettings = cmsSiteScoped<Record<string, any>>(() => {
+  const site = useCmsSite()
   const merged: Record<string, any> = { ...(useRuntimeConfig().cms as Record<string, any> | undefined) }
   for (const path of SITE_SETTINGS) {
     const own = readPath(site.config, path)
@@ -350,7 +350,7 @@ export function cmsAllSites(): CmsSite[] {
  * Run `fn` once in every site that is not paused, a few at a time. A failure in one site is
  * logged with its id and does not stop the others; the failures are returned.
  */
-export async function forEachSite(fn: (site: CmsSite) => unknown, opts: { concurrency?: number; what?: string } = {}): Promise<{ site: string; error: unknown }[]> {
+export async function forEachCmsSite(fn: (site: CmsSite) => unknown, opts: { concurrency?: number; what?: string } = {}): Promise<{ site: string; error: unknown }[]> {
   const sites = cmsAllSites().filter((s) => s.state !== 'paused')
   const failed: { site: string; error: unknown }[] = []
   let next = 0
@@ -358,7 +358,7 @@ export async function forEachSite(fn: (site: CmsSite) => unknown, opts: { concur
     while (next < sites.length) {
       const site = sites[next++]!
       try {
-        await runInSite(site, () => fn(site))
+        await runInCmsSite(site, () => fn(site))
       }
       catch (error) {
         failed.push({ site: site.id, error })
@@ -374,23 +374,23 @@ export async function forEachSite(fn: (site: CmsSite) => unknown, opts: { concur
 // ── what runs when a site is first used ────────────────────────────────────────
 
 const startHooks: (() => unknown)[] = []
-const started = siteScoped(() => false)
+const started = cmsSiteScoped(() => false)
 
 /**
  * Work a site needs once before it is used: migrations, the search index, the setup code.
  * Single mode: runs now (the server is starting). Multi mode: runs inside each site, the
  * first time the site is used or when the sweep after start reaches it.
  */
-export function onSiteStart(fn: () => unknown): void {
+export function onCmsSiteStart(fn: () => unknown): void {
   if (cmsTenancyMode() === 'single') { fn(); return }
   startHooks.push(fn)
 }
 
 /** Run the start hooks of the current site, once. They start their own work in the background; nothing here waits. */
-export function ensureSiteStarted(): void {
+export function ensureCmsSiteStarted(): void {
   if (cmsTenancyMode() === 'single' || started()) return
   started.set(true)
-  const site = useSite()
+  const site = useCmsSite()
   for (const hook of startHooks) {
     try { hook() }
     catch (err) { console.error(`[cms] site ${site.id}: start-up work failed:`, (err as Error)?.message ?? err) }

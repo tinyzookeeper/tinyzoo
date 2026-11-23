@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
     let ours: boolean
     if (cmsIsMultiTenant()) {
       // Many sites share the server: the site's own hosts and its address count, not the request's.
-      try { ours = useSite().hosts.includes(cmsNormalHost(new URL(origin).host)) || new URL(String(cmsSettings().publicUrl || '')).origin === origin }
+      try { ours = useCmsSite().hosts.includes(cmsNormalHost(new URL(origin).host)) || new URL(String(cmsSettings().publicUrl || '')).origin === origin }
       catch { ours = false }
     }
     else {

@@ -5,7 +5,7 @@ import { sql } from 'tinyzoo'
 export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'cache-control', 'no-store')
   // Multi-tenant mode, asked by IP: the process takes traffic. Asked by a site's host name: that site is ready.
-  if (!currentSite()) return { ok: true, sites: cmsAllSites().length }
+  if (!currentCmsSite()) return { ok: true, sites: cmsAllSites().length }
   const migrations = cmsMigrationState()
   if (migrations === 'running' || migrations === 'failed') {
     setResponseStatus(event, 503)

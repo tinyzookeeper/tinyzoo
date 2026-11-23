@@ -6,7 +6,7 @@ export default defineTask({
     // Outside a request there is no site: run it in each (one site in single mode).
     let rows: number | null = null
     await runReportedTask('cms:search-reindex', async () => {
-      await forEachSite(async () => {
+      await forEachCmsSite(async () => {
         const { db, reg } = useCms()
         const n = await rebuildSearchIndex(db, reg)
         if (n != null) rows = (rows ?? 0) + n

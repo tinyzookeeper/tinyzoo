@@ -22,7 +22,7 @@ import { brandLogoFiles } from './cmsBrandSource'
 // (useCmsAdminTheme resolves app.config there until the server's theme arrives), which only
 // gives the right theme while app.config is the source.
 
-const resolved = processWide(new WeakMap<object, CmsAdminTheme>(), 'derived from the build\'s app config, the same for every site')
+const resolved = cmsProcessWide(new WeakMap<object, CmsAdminTheme>(), 'derived from the build\'s app config, the same for every site')
 
 /** The admin settings the server reads for a site: the theme, and the language the admin and its emails default to. */
 export interface CmsAdminSettings {
@@ -34,7 +34,7 @@ export interface CmsAdminSettings {
 /** How long a name read from the site's content is kept before it is read again. */
 const STORED_NAME_MS = 3000
 // The name is the site's own content, so it is kept per site.
-const storedName = siteScoped<{ from: string; value: string | null; until: number } | null>(() => null)
+const storedName = cmsSiteScoped<{ from: string; value: string | null; until: number } | null>(() => null)
 
 /** Forget the name read from the site's content (after the field was saved; and for tests). */
 export function resetAdminName(): void {

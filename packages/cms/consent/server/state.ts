@@ -25,7 +25,7 @@ interface Cached {
   row: Record<string, unknown> | null
   translations: Map<string, Record<string, unknown> | null>
 }
-const cache = siteScoped<{ cached: Cached | null; loading: Promise<Cached> | null }>(() => ({ cached: null, loading: null }))
+const cache = cmsSiteScoped<{ cached: Cached | null; loading: Promise<Cached> | null }>(() => ({ cached: null, loading: null }))
 
 export function forgetConsentSettings(): void {
   cache().cached = null

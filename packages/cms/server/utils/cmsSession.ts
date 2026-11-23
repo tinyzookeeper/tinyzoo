@@ -94,7 +94,7 @@ export function signedInRecently(session: any, now = Date.now()): boolean {
 export async function activeAccountOf(session: any): Promise<any | null> {
   // Multi-tenant mode: a session opens the site it was made on and no other, even when the
   // other site's database holds the same account id (sites copied from one template do).
-  if (cmsIsMultiTenant() && session?.cms?.site !== useSite().id) return null
+  if (cmsIsMultiTenant() && session?.cms?.site !== useCmsSite().id) return null
   return activeAccount(session?.cms?.uid, session?.cms?.sv, session?.cms?.iat)
 }
 
@@ -151,7 +151,7 @@ function sameOrigin(request: any): boolean {
     return false
   }
   // Multi-tenant mode: the origin must be one of this site's own hosts (the directory's), nothing a header says.
-  if (cmsIsMultiTenant()) return useSite().hosts.includes(cmsNormalHost(host))
+  if (cmsIsMultiTenant()) return useCmsSite().hosts.includes(cmsNormalHost(host))
   const allowed = new Set<string>()
   for (const h of [request.headers.get('host'), request.headers.get('x-forwarded-host')]) if (h) allowed.add(String(h).split(',')[0]!.trim())
   const pub = (useRuntimeConfig().cms as any)?.publicUrl

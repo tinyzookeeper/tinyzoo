@@ -16,7 +16,7 @@ import * as cmsConfig from '#cms/config'
 // (or, when that is empty, `cms.publicUrl`), NOT the request Host — reflecting an attacker-controlled Host into the publicly
 // cacheable spec would be a cache-poisoning vector.
 // Per site: it holds the site's address.
-const cached = siteScoped<Record<string, any> | undefined>(() => undefined)
+const cached = cmsSiteScoped<Record<string, any> | undefined>(() => undefined)
 
 export default defineEventHandler((event) => {
   assertContentAuth(event)

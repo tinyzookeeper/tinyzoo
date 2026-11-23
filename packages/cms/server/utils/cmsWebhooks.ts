@@ -50,7 +50,7 @@ export async function signWebhook(secret: string, timestamp: number, body: strin
   return toHex(await crypto.subtle.sign('HMAC', key, enc.encode(`${timestamp}.${body}`)))
 }
 
-const warnedUnsigned = processWide({ done: false }, 'one log line per process')
+const warnedUnsigned = cmsProcessWide({ done: false }, 'one log line per process')
 
 /** Send a change to every webhook URL. Never rejects. */
 export async function sendWebhooks(change: CmsChange): Promise<void> {

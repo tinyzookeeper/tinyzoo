@@ -6,7 +6,7 @@ import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 // redirect is created, changed or deleted on this instance.
 type Target = { to: string; status: 301 | 302 }
 // Per site: each site has its own redirects.
-const cache = siteScoped<{ at: number; map: Map<string, Target> } | null>(() => null)
+const cache = cmsSiteScoped<{ at: number; map: Map<string, Target> } | null>(() => null)
 const TTL_MS = 30_000
 
 export function redirectEntity(reg: CmsRegistry) {

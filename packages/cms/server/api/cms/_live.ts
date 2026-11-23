@@ -6,9 +6,9 @@
 // request event here to read it from.
 //
 // Multi-tenant mode: the socket finds its site at the upgrade, from the host, and every
-// hook below runs inside it (socketHooksInSite).
+// hook below runs inside it (cmsSocketHooksInSite).
 
-export default defineWebSocketHandler(socketHooksInSite({
+export default defineWebSocketHandler(cmsSocketHooksInSite({
   upgrade(request: any) {
     return admitAdminSocket(request)
   },

@@ -514,7 +514,7 @@ export function createCmsMcpServer(user: CmsUser): McpServer {
 // ── serving ─────────────────────────────────────────────────────────────────────
 
 // Per site: it is made with the site's upload limit (maxRequestBodySize); a fresh server is built for every request.
-const handler = siteScoped<McpHttpHandler | undefined>(() => undefined)
+const handler = cmsSiteScoped<McpHttpHandler | undefined>(() => undefined)
 
 /** The one handler for every request: a fresh server per request, for the token's user (passed as authInfo). */
 export function cmsMcpHandler(): McpHttpHandler {

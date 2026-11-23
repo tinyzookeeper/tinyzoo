@@ -8,7 +8,7 @@ import { countryCode } from '../core/enrich'
  * memory (a country database is a few megabytes). The address is only looked up, never kept.
  * Without a file, or with one that cannot be read, visits simply have no country.
  */
-const geo = processWide<{ loaded: { file: string; reader: Promise<Reader<any> | null> } | null }>({ loaded: null }, 'the country database is a file of the build, the same for every site')
+const geo = cmsProcessWide<{ loaded: { file: string; reader: Promise<Reader<any> | null> } | null }>({ loaded: null }, 'the country database is a file of the build, the same for every site')
 
 function readerFor(file: string): Promise<Reader<any> | null> {
   if (geo.loaded?.file === file) return geo.loaded.reader

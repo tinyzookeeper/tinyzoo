@@ -11,7 +11,7 @@ export type SitemapEntry = CmsSitemapEntry
 
 const MEMO_MS = 60_000
 // Per site: the entries are the site's own.
-const memo = siteScoped<{ at: number; entries: SitemapEntry[] } | null>(() => null)
+const memo = cmsSiteScoped<{ at: number; entries: SitemapEntry[] } | null>(() => null)
 
 /** Forget the memo (a content change touched an address), and @nuxtjs/sitemap's cached sitemaps on this instance. */
 export function invalidateSitemap(): void {

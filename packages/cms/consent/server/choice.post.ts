@@ -26,7 +26,7 @@ function ownOrigins(event: any): Set<string> {
 function fromOwnSite(event: any, origin: string): boolean {
   if (!cmsIsMultiTenant()) return ownOrigins(event).has(origin)
   try {
-    if (useSite().hosts.includes(cmsNormalHost(new URL(origin).host))) return true
+    if (useCmsSite().hosts.includes(cmsNormalHost(new URL(origin).host))) return true
     const configured = String(cmsSettings().publicUrl || '')
     return !!configured && new URL(configured).origin === origin
   }

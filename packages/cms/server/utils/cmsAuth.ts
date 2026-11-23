@@ -118,7 +118,7 @@ export async function continueCmsSession(event: any, u: any): Promise<void> {
 
 async function sealCmsSession(event: any, u: any, iat: number): Promise<void> {
   // Multi-tenant mode: the session names its site, and only that site accepts it (activeAccountOf).
-  const site = cmsIsMultiTenant() ? { site: useSite().id } : {}
+  const site = cmsIsMultiTenant() ? { site: useCmsSite().id } : {}
   await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number, iat, ...site } } as any)
 }
 
@@ -157,7 +157,7 @@ export function clientIp(event: any): string {
 }
 
 /** Equal-time sign-in failures: verify against a fixed hash when the account does not exist. */
-const dummyHash = processWide<{ hash?: Promise<string> }>({}, 'a hash of a fixed string, the same for every site')
+const dummyHash = cmsProcessWide<{ hash?: Promise<string> }>({}, 'a hash of a fixed string, the same for every site')
 export function dummyPasswordHash(): Promise<string> {
   dummyHash.hash ??= hashPassword('not-a-real-password-just-for-timing')
   return dummyHash.hash

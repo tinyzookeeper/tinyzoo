@@ -4,7 +4,7 @@ import type { CmsMailConfig, CmsMailMessage } from '../utils/cmsMail'
 // and for looking at emails locally without a mail server) and log (stdout).
 
 // The transport is the site's own (its smtp login), so it is kept per site.
-const mailState = siteScoped(() => ({ transporter: undefined as any, key: '' }), { dispose: (s) => s.transporter?.close?.() })
+const mailState = cmsSiteScoped(() => ({ transporter: undefined as any, key: '' }), { dispose: (s) => s.transporter?.close?.() })
 
 /** Sends the message; false when the transport could not really send it (it only logs), so callers can say so. */
 export async function deliverMail(msg: CmsMailMessage, cfg: CmsMailConfig): Promise<boolean> {

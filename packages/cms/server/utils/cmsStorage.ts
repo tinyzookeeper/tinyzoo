@@ -507,7 +507,7 @@ class UnconfiguredDriver implements StorageDriver {
 
 // The current site's driver (cmsSite.ts). In multi-tenant mode each site has its own
 // place (a folder, or a bucket with keys of its own) from the site directory.
-const siteDriver = siteScoped<StorageDriver | undefined>(() => undefined)
+const siteDriver = cmsSiteScoped<StorageDriver | undefined>(() => undefined)
 
 /**
  * Resolve the configured storage driver (memoized per site).
@@ -525,7 +525,7 @@ export function useCmsStorage(): StorageDriver {
   if (driver === 'local') {
     // Multi-tenant mode: never the shared default folder. A site without a folder of its own has no storage.
     if (cmsIsMultiTenant() && !(cfg.local?.dir && isAbsolute(cfg.local.dir))) {
-      throw createError({ statusCode: 500, statusMessage: `Site ${useSite().id} has no storage folder of its own (config.storage.local.dir, an absolute path, in the site directory)` })
+      throw createError({ statusCode: 500, statusMessage: `Site ${useCmsSite().id} has no storage folder of its own (config.storage.local.dir, an absolute path, in the site directory)` })
     }
     const dir = resolve(process.cwd(), cfg.local?.dir || '.cms-uploads')
     const publicBase = cfg.local?.publicBase || DEFAULT_MEDIA_BASE

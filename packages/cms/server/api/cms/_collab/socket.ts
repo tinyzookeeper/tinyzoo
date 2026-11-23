@@ -16,7 +16,7 @@
 // with a logged error instead of running without them.
 //
 // Multi-tenant mode: the socket finds its site at the upgrade and every hook below runs
-// inside it (socketHooksInSite). What is kept about sockets is kept per site, and the
+// inside it (cmsSocketHooksInSite). What is kept about sockets is kept per site, and the
 // site's own engine is started by its first socket: `open` waits for it, and the frames
 // that arrive meanwhile are kept, as above.
 const MAX_SOCKETS_PER_USER = 10
@@ -25,7 +25,7 @@ const MAX_PAYLOAD_BYTES = 2 * 1024 * 1024
 /** Frames a socket may send before the server has taken it (it sends a handful). */
 const MAX_EARLY_FRAMES = 100
 const PING_MS = 30_000
-const socketsByUser = siteScoped(() => new Map<string, Set<any>>())
+const socketsByUser = cmsSiteScoped(() => new Map<string, Set<any>>())
 
 interface CollabPeerState {
   userId: string
@@ -40,7 +40,7 @@ interface CollabPeerState {
  * Every open socket of the site. A site that is unloaded (it left the directory, or its row
  * changed) lets them go as `close` below would: no later hook finds them here again.
  */
-const peers = siteScoped(() => new Map<object, CollabPeerState>(), {
+const peers = cmsSiteScoped(() => new Map<object, CollabPeerState>(), {
   dispose(open) {
     for (const [peer, state] of open) {
       state.closed = { code: 1001, reason: 'Reconnect' }
@@ -61,7 +61,7 @@ function forget(peer: any, state: CollabPeerState) {
   if (mine && !mine.size) socketsByUser().delete(state.userId)
 }
 
-export default defineWebSocketHandler(socketHooksInSite({
+export default defineWebSocketHandler(cmsSocketHooksInSite({
   upgrade(request: any) {
     return admitAdminSocket(request)
   },

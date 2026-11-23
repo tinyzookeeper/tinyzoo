@@ -67,7 +67,7 @@ export async function ensureSetupCode(opts: { reissue?: boolean } = {}): Promise
   if (rows.length) {
     const base = String(cmsSettings().publicUrl || '').replace(/\/+$/, '')
     // Many sites share one log: say which one this code is for.
-    const site = cmsIsMultiTenant() ? ` (site ${useSite().id})` : ''
+    const site = cmsIsMultiTenant() ? ` (site ${useCmsSite().id})` : ''
     console.warn(`[cms] No administrator yet${site}. Setup code: ${code} — open ${base}/admin/setup`)
     return 'issued'
   }

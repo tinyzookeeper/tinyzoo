@@ -27,7 +27,7 @@ Five mechanisms. Each makes a mistake fail with an error instead of showing anot
 
 1. **No site, no database.** In multi mode there is no global database handle. `useCms()` keeps its name and its 176 call sites, but it answers from the *current site*, which is carried by Node's `AsyncLocalStorage`. A request with an unknown host, or background work that did not say which site, has no current site, and `useCms()` throws. There is no default site in multi mode.
 2. **A database user per site.** Each site's pool signs in as that site's own Postgres user, which may connect to that one database only. Verified locally: the user of site A is refused on site B's database, on the template database and on `postgres` (`User does not have CONNECT privilege`). A query sent to the wrong pool still cannot read another site.
-3. **One helper for per-site memory.** Every cache is declared with `siteScoped(...)`, which stores the value on the current site. A unit test reads the server code and fails on any new module-level state that is not declared this way (or as `processWide(...)` with a reason).
+3. **One helper for per-site memory.** Every cache is declared with `cmsSiteScoped(...)`, which stores the value on the current site. A unit test reads the server code and fails on any new module-level state that is not declared this way (or as `cmsProcessWide(...)` with a reason).
 4. **Files and sessions belong to a site.** The storage driver is made per site and rooted at that site's place; with object storage each site has its own access key limited to its prefix. A session cookie is bound to the host (`__Host-` prefix, no `Domain`), and the sealed session names its site: the one function that turns a cookie into an account refuses a session of another site.
 5. **A two-site test suite** that runs every route and every background path with two sites and asserts that nothing of one appears on the other (the list is in 2.12).
 
@@ -113,8 +113,8 @@ The app of each template is deployed by a release, not by a sign-up. The `pushba
 
 Each step can be merged and released alone, and single-mode sites behave the same after each:
 
-1. **The site seam** (no behaviour change): `useSite()`, `siteScoped()`, the settings helper; `useCms()` and `useCmsStorage()` answer through the one site built from the environment. The module-state test starts with today's list and may only shrink.
-2. **Caches** move to `siteScoped` (about 40 places, listed in 2.5).
+1. **The site seam** (no behaviour change): `useCmsSite()`, `cmsSiteScoped()`, the settings helper; `useCms()` and `useCmsStorage()` answer through the one site built from the environment. The module-state test starts with today's list and may only shrink.
+2. **Caches** move to `cmsSiteScoped` (about 40 places, listed in 2.5).
 3. **Work outside a request** names its site: start-up, scheduled tasks, timers, sockets, queues; changes carry their site; migration state per site.
 4. **Settings per site** instead of the environment: public address, secrets, mail, storage, webhooks, the admin's brand.
 5. **Multi mode** behind `cms.tenancy.mode: 'multi'`: the directory, the request wrapper, pool limits, the session binding, the two-site suite in CI.
@@ -184,7 +184,7 @@ Lookups are cached in the process for 30 to 60 s, with a short, bounded negative
 
 **Custom domains.** The cloud records the domain, checks that its DNS points at the platform, and adds it to the site's hosts. The platform must (a) send a wildcard of the shared domain and every custom domain to the template's app and (b) issue certificates for custom domains on demand, asking the cloud whether a host is a known site before it does. This is a requirement on Pushbase, not on tinyzoo. Not built today (`cloud/README.md`, "Not built").
 
-**In-process requests.** `useNitroApp().localFetch` and server-side `$fetch` send no `Host` (`server/utils/cmsMcp.ts:43,469`, `server/utils/cmsBrandSource.ts:88`, `app/composables/useCmsAdminTheme.ts:19`, the templates' `useSite.ts`). The wrapper sees that a site is already current and keeps it. If such a request does carry a host that is another site, it is refused. This also closes the hole at `server/utils/cmsContent.ts:43-46`, where an in-process request skips the content token.
+**In-process requests.** `useNitroApp().localFetch` and server-side `$fetch` send no `Host` (`server/utils/cmsMcp.ts:43,469`, `server/utils/cmsBrandSource.ts:88`, `app/composables/useCmsAdminTheme.ts:19`, the templates' `useCmsSite.ts`). The wrapper sees that a site is already current and keeps it. If such a request does carry a host that is another site, it is refused. This also closes the hole at `server/utils/cmsContent.ts:43-46`, where an in-process request skips the content token.
 
 ## 2.2 The current site
 
@@ -192,22 +192,22 @@ Lookups are cached in the process for 30 to 60 s, with a short, bounded negative
 
 | Function | What it does |
 |---|---|
-| `useSite()` | the current site, or throws `No site for this work` |
-| `runInSite(site, fn)` | runs `fn` with `site` current; used by the wrapper, sockets and tasks |
-| `forEachSite(fn, { concurrency })` | runs `fn` in every active site, a bounded number at a time; a failure in one site is logged with its id and does not stop the others |
-| `siteScoped(init)` | a value per site, made on first use, dropped when the site is unloaded |
-| `bindToSite(fn)` | remembers the current site for a callback that runs later (queues, listeners) |
-| `processWide(init, reason)` | marks state that is shared on purpose (the test in 2.11 accepts it) |
+| `useCmsSite()` | the current site, or throws `No site for this work` |
+| `runInCmsSite(site, fn)` | runs `fn` with `site` current; used by the wrapper, sockets and tasks |
+| `forEachCmsSite(fn, { concurrency })` | runs `fn` in every active site, a bounded number at a time; a failure in one site is logged with its id and does not stop the others |
+| `cmsSiteScoped(init)` | a value per site, made on first use, dropped when the site is unloaded |
+| `bindToCmsSite(fn)` | remembers the current site for a callback that runs later (queues, listeners) |
+| `cmsProcessWide(value, reason)` | marks state that is shared on purpose (the test in 2.11 accepts it) |
 
 What the async context carries by itself: everything awaited inside the request, promises left running after the response (`server/utils/cmsChanges.ts:243-251`, `server/api/cms/_auth/forgot.post.ts:27-37`) and timers started inside it.
 
 What it does **not** carry, and where the site is therefore passed explicitly:
 
-- Work chained from another site's work. The picture queue starts the next job from the previous job's `.finally` (`server/utils/cmsImageQueue.ts:44-55`), so without `bindToSite` a job would run in the previous site. The media-sizes loop has the same shape (`server/utils/cmsImageSizes.ts:264-275`).
-- Anything started at boot: intervals, Redis subscriber callbacks, Hocuspocus hooks, Nitro tasks. They start with no site and must use `forEachSite` or `runInSite`.
-- Shared in-flight promises (`analytics/server/context.ts:76,114`, `consent/server/state.ts:37`): a second site would await the first site's load. `siteScoped` holds them per site.
+- Work chained from another site's work. The picture queue starts the next job from the previous job's `.finally` (`server/utils/cmsImageQueue.ts:44-55`), so without `bindToCmsSite` a job would run in the previous site. The media-sizes loop has the same shape (`server/utils/cmsImageSizes.ts:264-275`).
+- Anything started at boot: intervals, Redis subscriber callbacks, Hocuspocus hooks, Nitro tasks. They start with no site and must use `forEachCmsSite` or `runInCmsSite`.
+- Shared in-flight promises (`analytics/server/context.ts:76,114`, `consent/server/state.ts:37`): a second site would await the first site's load. `cmsSiteScoped` holds them per site.
 
-In single mode `useSite()` returns the one site without looking at the async context, so background code that names no site keeps working exactly as today. That is the only place with a default, and it is a different directory driver, not a fallback inside multi mode.
+In single mode `useCmsSite()` returns the one site without looking at the async context, so background code that names no site keeps working exactly as today. That is the only place with a default, and it is a different directory driver, not a fallback inside multi mode.
 
 **Unloading.** A site that has not been used for a while is unloaded: its pool is ended, its caches dropped, its sockets are already gone. This keeps the app's memory tied to the sites in use, not to the sites that exist.
 
@@ -296,7 +296,7 @@ In multi mode:
 
 ## 2.5 Every place that assumes one site
 
-Paths are under `packages/cms/`. "Per site" means it moves to `siteScoped` or a per-site resource; "site passed" means work outside a request that must be given its site; "setting" means it reads the site's settings instead of the environment. Schema-derived caches (the registry, block compilers, role rules, generated types) stay process-wide and are not listed.
+Paths are under `packages/cms/`. "Per site" means it moves to `cmsSiteScoped` or a per-site resource; "site passed" means work outside a request that must be given its site; "setting" means it reads the site's settings instead of the environment. Schema-derived caches (the registry, block compilers, role rules, generated types) stay process-wide and are not listed.
 
 **Database and start-up**
 
@@ -341,7 +341,7 @@ Paths are under `packages/cms/`. "Per site" means it moves to `siteScoped` or a 
 |---|---|---|
 | `server/utils/cmsStorage.ts:508-558` | one driver: one folder or one bucket | per site |
 | `server/utils/cmsImageSizes.ts:66,98-99,173-175,264-275` | "the table exists" remembered once; one worker run per process | per site; site passed |
-| `server/utils/cmsImageQueue.ts:19-55` | one picture at a time for the whole process | stays shared; fair between sites; `bindToSite` |
+| `server/utils/cmsImageQueue.ts:19-55` | one picture at a time for the whole process | stays shared; fair between sites; `bindToCmsSite` |
 | `server/mail/mailer.ts:6-29`, `server/utils/cmsMail.ts:11-19` | one transport, one sender, one folder | setting; per site when a site brings its own |
 
 **Sign-in, tokens, addresses**
@@ -376,7 +376,7 @@ Paths are under `packages/cms/`. "Per site" means it moves to `siteScoped` or a 
 | Where | What | Needs |
 |---|---|---|
 | `app/composables/useCmsSeo.ts:41-45` | canonical and `hreflang` from one address | the site's address |
-| `app/composables/useCmsAdminTheme.ts:19`, templates' `useSite.ts` | server-side `$fetch` without a host | nothing: in-process requests inherit the site (2.1) |
+| `app/composables/useCmsAdminTheme.ts:19`, templates' `useCmsSite.ts` | server-side `$fetch` without a host | nothing: in-process requests inherit the site (2.1) |
 | `app/app.config.ts:28-49` | the admin's accent, logo, default language and time zone are build values | served per site by `/api/cms/_theme` |
 | `module.ts:326-333` | three cron lines, once per process | 2.3 |
 | `module.ts:478-480` | Turnstile key and demo flag in the public config | setting |
@@ -536,7 +536,7 @@ A unit test parses every file under `packages/cms/server`, `analytics/server`, `
 - a module-level `let` or `var`;
 - a module-level `const` whose value is `new Map`, `new Set`, `new WeakMap`, `new WeakSet`, an empty array or an empty object;
 
-unless the value is made by `siteScoped(...)` or `processWide(..., reason)`, or it is a constant set built from literals. The test starts with an allowlist of what exists today (about 60 entries from 2.5); each step of the work removes entries, and adding one fails the test. This is what keeps the next cache from being written the old way.
+unless the value is made by `cmsSiteScoped(...)` or `cmsProcessWide(..., reason)`, or it is a constant set built from literals. The test starts with an allowlist of what exists today (about 60 entries from 2.5); each step of the work removes entries, and adding one fails the test. This is what keeps the next cache from being written the old way.
 
 ## 2.12 The two-site test suite
 
@@ -559,7 +559,7 @@ The built playground (it has every plugin) runs in multi mode with a `file` dire
 | Live editing | two editors on the same entry id on A and B: neither sees the other's presence, changes or document |
 | E-mail | links and sender are the site's own |
 | Database | A's role cannot connect to B's database |
-| No site | `useCms()`, `useCmsStorage()` and a `siteScoped` value outside any site each throw |
+| No site | `useCms()`, `useCmsStorage()` and a `cmsSiteScoped` value outside any site each throw |
 
 A second, smaller run goes through the sign-up app: two Photographer sites made by the `shared` driver, the same assertions on what that template has.
 

@@ -23,7 +23,7 @@ import { scrubError } from './cmsScrub'
 
 // Per site: in multi-tenant mode every site has its own database to migrate, and one
 // site's failure is that site's own (it answers 503; the others carry on).
-const migration = siteScoped(() => ({ ready: Promise.resolve() as Promise<void>, state: 'idle' as 'idle' | 'running' | 'done' | 'failed' }))
+const migration = cmsSiteScoped(() => ({ ready: Promise.resolve() as Promise<void>, state: 'idle' as 'idle' | 'running' | 'done' | 'failed' }))
 
 /** Resolves once start-up migrations have finished (immediately when disabled). */
 export function cmsMigrationsReady(): Promise<void> {
@@ -54,7 +54,7 @@ export function startCmsMigrations(): void {
     mine.state = 'failed'
     if (cmsIsMultiTenant()) {
       // One site of many: it answers 503 until its migrations pass; the process stays up for the others.
-      console.error(`[cms] site ${useSite().id}: migrations failed — this site will not serve API requests`, scrubError(err))
+      console.error(`[cms] site ${useCmsSite().id}: migrations failed — this site will not serve API requests`, scrubError(err))
       throw err
     }
     console.error('[cms] migrations failed — the app will not serve API requests', scrubError(err))
@@ -90,6 +90,6 @@ async function migrateOnce(): Promise<void> {
   if (ranSteps.length) console.info(`[cms] ran upgrade steps: ${ranSteps.join(', ')}`)
   // One line per site that changed; "up to date" for each of many sites would only be noise.
   if (!cmsIsMultiTenant()) console.info(result.migrations.length ? `[cms] applied migrations: ${result.migrations.join(', ')}` : '[cms] database is up to date')
-  else if (result.migrations.length) console.info(`[cms] site ${useSite().id}: applied migrations: ${result.migrations.join(', ')}`)
+  else if (result.migrations.length) console.info(`[cms] site ${useCmsSite().id}: applied migrations: ${result.migrations.join(', ')}`)
   migration().state = 'done'
 }

@@ -89,12 +89,12 @@ interface Hub {
 }
 
 /** A site that is unloaded (it left the directory, or its row changed) lets its sockets go: a live browser reconnects and is admitted afresh. */
-const hub = siteScoped<Hub>(() => ({ site: useSite().id, local: new Map(), remote: new Map(), names: new Map(), timer: null, stopChanges: null }), {
+const hub = cmsSiteScoped<Hub>(() => ({ site: useCmsSite().id, local: new Map(), remote: new Map(), names: new Map(), timer: null, stopChanges: null }), {
   dispose: (h) => stopHub(h, 4000, 'Reconnect'),
 })
 /** The hubs that run, by site id. */
-const running = processWide(new Map<string, Hub>(), 'the hubs that run: the one subscription below finds the hub a message is for, and a stopping server stops them all')
-const listening = processWide({ started: null as Promise<void> | null }, 'one subscription to the live channel serves every site')
+const running = cmsProcessWide(new Map<string, Hub>(), 'the hubs that run: the one subscription below finds the hub a message is for, and a stopping server stops them all')
+const listening = cmsProcessWide({ started: null as Promise<void> | null }, 'one subscription to the live channel serves every site')
 
 /**
  * Start listening to other replicas and to content changes (once, on the first
@@ -107,13 +107,13 @@ function start(): void {
   // A timer carries no site of its own: the heartbeat is run inside the hub's, looked up as the directory has it now.
   h.timer = setInterval(() => {
     const site = cmsSiteById(h.site)
-    if (site) void runInSite(site, heartbeat)
+    if (site) void runInCmsSite(site, heartbeat)
   }, cmsTimerMs('CMS_TEST_LIVE_HEARTBEAT_MS', HEARTBEAT_MS))
   ;(h.timer as any).unref?.()
   h.stopChanges = onCmsChange((change) => { void deliverChange(change).catch((err) => console.error('[cms] realtime delivery failed', scrubError(err))) })
   running.set(h.site, h)
   // One subscription for the process, made by the first hub but not inside its site.
-  listening.started ??= outsideSite(() => (async () => {
+  listening.started ??= outsideCmsSite(() => (async () => {
     const store = await useCmsStore()
     await store.subscribe(LIVE_CHANNEL, (raw) => {
       try {
@@ -122,7 +122,7 @@ function start(): void {
         // hub here, because nobody is connected to that site: nothing to tell, nothing kept.
         const to = running.get(channelSiteId(msg) ?? '')
         const site = to ? cmsSiteById(to.site) : null
-        if (site) runInSite(site, () => onRemote(msg))
+        if (site) runInCmsSite(site, () => onRemote(msg))
       }
       catch { /* not ours */ }
     })
@@ -287,7 +287,7 @@ function broadcastPresence(topic: string): void {
   for (const p of hub().local.values()) if (p.topics.has(topic)) send(p, { type: 'presence', topic, people })
 }
 
-const announceError = processWide({ at: 0 }, 'a log throttle: one line a minute while Redis is down, whatever the site')
+const announceError = cmsProcessWide({ at: 0 }, 'a log throttle: one line a minute while Redis is down, whatever the site')
 
 async function announce(topic: string, peerId: string, person: Person | null): Promise<void> {
   try {

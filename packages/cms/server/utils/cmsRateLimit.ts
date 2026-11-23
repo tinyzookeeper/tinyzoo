@@ -6,8 +6,8 @@
 // Memory is bounded: keys are capped in length, and once the map grows past
 // MAX_KEYS, expired entries are swept and, if still too many, the oldest dropped —
 // so a flood of distinct keys cannot grow the heap without limit.
-// One map for the process: callers prefix their keys with the site (siteKey), so sites never share a key.
-const hits = processWide(new Map<string, number[]>(), 'keys already carry the site, one bounded map for the process')
+// One map for the process: callers prefix their keys with the site (cmsSiteKey), so sites never share a key.
+const hits = cmsProcessWide(new Map<string, number[]>(), 'keys already carry the site, one bounded map for the process')
 const MAX_KEYS = 10_000
 const MAX_KEY_LENGTH = 200
 

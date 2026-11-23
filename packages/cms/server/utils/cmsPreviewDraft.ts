@@ -16,7 +16,7 @@ import { isPreviewAuthorized } from './cmsContent'
 const TTL = 30 * 60_000
 const MAX = 500
 // Per site: a draft belongs to a site's editor.
-const drafts = siteScoped(() => new Map<string, { values: Record<string, any>; at: number }>())
+const drafts = cmsSiteScoped(() => new Map<string, { values: Record<string, any>; at: number }>())
 
 const keyOf = (userId: string, entity: string, id: string, locale: string | null) => `${userId}\u0000${entity}\u0000${id}\u0000${locale ?? ''}`
 // The default language and "no languages" are the same draft.

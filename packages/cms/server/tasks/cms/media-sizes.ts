@@ -8,7 +8,7 @@ export default defineTask({
     // Outside a request there is no site: run it in each (one site in single mode).
     let pictures = 0
     await runReportedTask('cms:media-sizes', async () => {
-      await forEachSite(async () => { pictures += (await runMediaSizes()) ?? 0 }, { concurrency: 5, what: 'smaller copies of pictures' })
+      await forEachCmsSite(async () => { pictures += (await runMediaSizes()) ?? 0 }, { concurrency: 5, what: 'smaller copies of pictures' })
     })
     return { result: { pictures } }
   },

@@ -59,7 +59,7 @@ const BROADCAST_STATELESS = 6
 /** Who is in a document, across replicas: this replica's entries in a Redis sorted set per document. */
 const PRESENCE_TTL_MS = 90_000
 /** This replica, as the presence lists name it. */
-const REPLICA_ID = processWide(crypto.randomUUID(), 'names this process in the presence lists, whatever the site')
+const REPLICA_ID = cmsProcessWide(crypto.randomUUID(), 'names this process in the presence lists, whatever the site')
 
 interface Presence {
   /** This replica has a connection in the document (refreshed every heartbeat; expires if the replica dies). */
@@ -114,10 +114,10 @@ interface Collab {
 }
 
 /** A site that is unloaded (it left the directory, or its row changed) stores what is pending and closes its engine. */
-const collab = siteScoped<Collab>(() => ({ site: useSite().id, presence: null, instance: null, starting: null, heartbeat: null, lastPurge: 0, beating: null, loadedEpoch: new Map(), docsBySocket: new Map() }), {
+const collab = cmsSiteScoped<Collab>(() => ({ site: useCmsSite().id, presence: null, instance: null, starting: null, heartbeat: null, lastPurge: 0, beating: null, loadedEpoch: new Map(), docsBySocket: new Map() }), {
   dispose: (c) => stopCollab(c),
 })
-const engines = processWide(new Set<Collab>(), 'the engines that were started, of every site: a stopping server stops them all')
+const engines = cmsProcessWide(new Set<Collab>(), 'the engines that were started, of every site: a stopping server stops them all')
 
 /** The current site's engine, started on first use. */
 export function useCollabServer(): Promise<Hocuspocus> {
@@ -228,7 +228,7 @@ function hooksInSite<T extends Partial<Configuration>>(siteId: string, config: T
     out[name] = (...args: any[]) => {
       const site = cmsSiteById(siteId)
       if (!site) return Promise.reject(new Error('This website is not served here any more'))
-      return runInSite(site, () => (hook as any)(...args))
+      return runInCmsSite(site, () => (hook as any)(...args))
     }
   }
   return out as T
@@ -240,7 +240,7 @@ async function startCollabServer(c: Collab): Promise<Hocuspocus> {
   const redisUrl = String((useRuntimeConfig().cms as any)?.redis?.url || process.env.REDIS_URL || '')
   // Multi-tenant mode: the site's id in the prefix (`<store prefix>:site:<id>:collab`), so one
   // site's documents and presence lists are not another's. Single mode: `<store prefix>:collab`.
-  const prefix = redisUrl ? `${cmsStorePrefix()}:${siteKey('collab')}` : ''
+  const prefix = redisUrl ? `${cmsStorePrefix()}:${cmsSiteKey('collab')}` : ''
   if (redisUrl) {
     const [{ Redis: RedisExtension }, { default: IORedis }] = await Promise.all([import('@hocuspocus/extension-redis'), import('ioredis')])
     extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { protocol: REDIS_PROTOCOL, maxRetriesPerRequest: null }) as any, prefix } as any))
@@ -417,7 +417,7 @@ async function startCollabServer(c: Collab): Promise<Hocuspocus> {
     // A timer carries no site of its own: the heartbeat runs inside the engine's.
     const site = cmsSiteById(c.site)
     if (!site) return
-    c.beating = runInSite(site, () => beat(c)).finally(() => { c.beating = null })
+    c.beating = runInCmsSite(site, () => beat(c)).finally(() => { c.beating = null })
   }, cmsTimerMs('CMS_TEST_COLLAB_HEARTBEAT_MS', HEARTBEAT_MS))
   ;(c.heartbeat as any).unref?.()
   return server

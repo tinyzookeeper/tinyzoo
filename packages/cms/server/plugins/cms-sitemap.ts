@@ -19,7 +19,7 @@ export default defineNitroPlugin((nitro) => {
 
   hooks.hook('site-config:init', ({ siteConfig }: { siteConfig: { push: (c: Record<string, unknown>) => void } }) => {
     // Asked for every request, also the ones with no site (multi-tenant mode: a health check by IP).
-    if (!currentSite()) return
+    if (!currentCmsSite()) return
     const url = String(cmsSettings().publicUrl || '').trim()
     if (url) siteConfig.push({ _context: 'tinyzoo:publicUrl', _priority: PUBLIC_URL_PRIORITY, url })
   })

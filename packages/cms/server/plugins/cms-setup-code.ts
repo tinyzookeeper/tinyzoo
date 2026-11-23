@@ -1,7 +1,7 @@
 // Production, no setup token, no account yet: make (or find) the one-time setup code
 // and print it. Waits for the start-up migrations, which create the tables it uses.
 export default defineNitroPlugin(() => {
-  onSiteStart(() => {
+  onCmsSiteStart(() => {
     if (!setupCodeApplies()) return
     void (async () => {
       try {

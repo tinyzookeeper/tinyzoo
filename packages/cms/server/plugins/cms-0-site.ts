@@ -29,7 +29,7 @@ export default defineNitroPlugin((nitroApp) => {
     const req = event.node.req
     const path = String(event.path || req.url || '/').split('?')[0]!
     const host = cmsRequestHost({ host: req.headers.host, forwarded: req.headers['x-forwarded-host'] })
-    const ambient = currentSite()
+    const ambient = currentCmsSite()
     if (ambient) {
       // A request made from inside a site's work. It stays in that site; a host that names
       // another site is refused.
@@ -53,11 +53,11 @@ export default defineNitroPlugin((nitroApp) => {
     if (site.state === 'read-only' && !['GET', 'HEAD', 'OPTIONS'].includes(String(req.method || 'GET').toUpperCase())) {
       return Promise.resolve(answer(event, 503, 'This website is read-only for a moment', { 'retry-after': '60' }))
     }
-    return runInSite(site, () => {
+    return runInCmsSite(site, () => {
       event.context.cmsSite = site.id
       // For the pages rendered on the server (canonical addresses): app code cannot call server helpers.
       event.context.cmsPublicUrl = site.publicUrl
-      ensureSiteStarted()
+      ensureCmsSiteStarted()
       return handle(event)
     })
   }
@@ -65,13 +65,13 @@ export default defineNitroPlugin((nitroApp) => {
   // Start every site in the background once all plugins have registered their start-up
   // work (migrations, search index, setup code), so the first visitor of a site rarely waits.
   setImmediate(() => {
-    void forEachSite(async () => {
-      ensureSiteStarted()
+    void forEachCmsSite(async () => {
+      ensureCmsSiteStarted()
       // A failed migration is that site's own state (it answers 503); the sweep goes on.
       await cmsMigrationsReady().catch(() => {})
     }, { concurrency: 10, what: 'start-up' })
   })
   nitroApp.hooks.hook('close', async () => {
-    await unloadAllSites()
+    await unloadAllCmsSites()
   })
 })

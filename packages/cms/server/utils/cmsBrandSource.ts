@@ -42,7 +42,7 @@ interface SourceEntry {
 }
 
 // Per site: two sites can use the same relative logo address for different files.
-const state = siteScoped(() => ({
+const state = cmsSiteScoped(() => ({
   sources: new Map<string, SourceEntry>(),
   reading: new Map<string, Promise<CmsBrandSourceRead | null>>(),
   files: new Map<string, Buffer | { failed: true }>(),
@@ -50,7 +50,7 @@ const state = siteScoped(() => ({
   logged: new Set<string>(),
 }))
 
-const tinyzooMark = processWide<{ read: CmsBrandSourceRead | null }>({ read: null }, 'tinyzoo\'s own mark, the same for every site')
+const tinyzooMark = cmsProcessWide<{ read: CmsBrandSourceRead | null }>({ read: null }, 'tinyzoo\'s own mark, the same for every site')
 /** tinyzoo's own mark: the icons without a client's mark, or when it cannot be read. */
 export function tinyzooMarkSource(): CmsBrandSourceRead {
   tinyzooMark.read ??= { bytes: Buffer.from(TINYZOO_MARK_SVG), version: brandFileVersion(TINYZOO_MARK_SVG) }

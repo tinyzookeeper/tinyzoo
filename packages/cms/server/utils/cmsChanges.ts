@@ -20,7 +20,7 @@ export const CHANGES_CHANNEL = 'changes'
  * Identifies this process on the shared channel, so it can skip its own messages.
  * Made on first use.
  */
-const instance = processWide({ id: undefined as string | undefined }, 'names this process to the other replicas, whatever the site')
+const instance = cmsProcessWide({ id: undefined as string | undefined }, 'names this process to the other replicas, whatever the site')
 export function instanceId(): string {
   return (instance.id ??= crypto.randomUUID())
 }
@@ -31,12 +31,12 @@ export function instanceId(): string {
  * about. Single mode: the message as it always was.
  */
 export function channelMessage(message: Record<string, unknown>): string {
-  return JSON.stringify(cmsIsMultiTenant() ? { ...message, site: useSite('a message to the other instances').id } : message)
+  return JSON.stringify(cmsIsMultiTenant() ? { ...message, site: useCmsSite('a message to the other instances').id } : message)
 }
 
 /** The id of the site a received channel message is about (single mode: the one site's), or null when it names none. */
 export function channelSiteId(message: any): string | null {
-  if (!cmsIsMultiTenant()) return useSite().id
+  if (!cmsIsMultiTenant()) return useCmsSite().id
   return typeof message?.site === 'string' ? message.site : null
 }
 
@@ -286,7 +286,7 @@ export function applyChangeLocally(change: Pick<CmsChange, 'entity'>): void {
 }
 
 /** Per site: a listener hears its own site's changes only (the realtime hub would otherwise tell one site's editors about another's). */
-const listeners = siteScoped(() => new Set<(change: CmsChange) => void>())
+const listeners = cmsSiteScoped(() => new Set<(change: CmsChange) => void>())
 
 /** Run `fn` for every change of the current site — saved here or on another replica. Returns an unsubscribe function. */
 export function onCmsChange(fn: (change: CmsChange) => void): () => void {
