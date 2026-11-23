@@ -6,6 +6,8 @@ const props = defineProps<{ block: BlockOf<'hero'> }>()
 const { settings } = await useSite()
 const words = useSiteWords()
 const image = computed(() => openingPhoto(props.block, 'negativ'))
+// The free dates: parts separated by a dot stand apart, as a row of dates ("15. 5. · 29. 5."); a sentence stays one piece.
+const dates = computed(() => (settings.value?.availability ?? '').split(/\s+·\s+/).filter(Boolean))
 // The design's size holds two short lines; a longer heading steps down so it stays a headline.
 const size = computed(() => byLength(props.block.heading, [
   [30, 'text-[16.5vw] md:text-[11.4vw] wide:text-[min(11.4vw,11.5rem)] max-w-[14ch]'],
@@ -38,7 +40,7 @@ const size = computed(() => byLength(props.block.heading, [
       <div class="flex flex-col md:flex-row md:items-center gap-x-10 gap-y-1 py-4 md:py-0 md:min-h-[64px] m">
         <template v-if="settings?.availability">
           <span class="text-brand shrink-0">{{ words.freeDates }}</span>
-          <span class="text-fg">{{ tidyText(settings.availability) }}</span>
+          <span class="flex flex-wrap gap-x-6 text-fg"><span v-for="(d, i) in dates" :key="i">{{ tidyText(d) }}</span></span>
         </template>
         <NuxtLink v-if="block.secondaryLabel && block.secondaryUrl" class="lnk md:ml-auto text-fg shrink-0" :to="siteHref(block.secondaryUrl)">{{ block.secondaryLabel }} <UIcon name="i-lucide-arrow-right" class="ml-2 size-3.5" aria-hidden="true" /></NuxtLink>
       </div>

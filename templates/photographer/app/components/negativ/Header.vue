@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // Negativ: the name on the left, the menu and the button on the right. On a page that opens
 // with a photograph (the "Opening" block) the header lies over it, in the photograph's light
-// text; on any other page it is a plain bar.
+// text; on any other page it is a plain bar. Below 52rem (832 px) the menu folds behind a button:
+// from there on the demo's menu and a name of about twenty letters stand on one line, with room
+// between them.
 const { settings, nav } = await useSite()
 const { page } = await useSitePage()
 const words = useSiteWords()
@@ -15,17 +17,17 @@ const menu = useOverlayMenu()
   <header :class="overPhoto ? 'absolute inset-x-0 top-0 z-10 text-[var(--on-photo)]' : 'border-b border-rule'">
     <div class="pad flex items-center justify-between h-[72px] md:h-[84px]">
       <NuxtLink to="/" class="d text-[1.6rem] md:text-[1.75rem] min-h-[44px] inline-flex items-center"><NegativWordmark /></NuxtLink>
-      <nav class="hidden lg:flex items-center gap-8 m" :aria-label="words.mainMenu">
+      <nav class="hidden min-[52rem]:flex items-center gap-8 m" :aria-label="words.mainMenu">
         <NuxtLink v-for="l in links" :key="l.id" class="lnk" :to="l.url" :target="l.newTab ? '_blank' : undefined">{{ l.label }}</NuxtLink>
         <NuxtLink v-if="cta" class="btn m !font-medium" :class="overPhoto ? 'btn-hero' : ''" :to="cta.url">{{ cta.label }}</NuxtLink>
       </nav>
-      <button type="button" class="lg:hidden m inline-flex items-center gap-2 min-h-[44px] pl-4" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.show()">
+      <button type="button" class="min-[52rem]:hidden m inline-flex items-center gap-2 min-h-[44px] pl-4" :aria-expanded="menu.open.value" aria-controls="site-menu" @click="menu.show()">
         {{ words.menu }} <UIcon name="i-lucide-menu" class="size-5" aria-hidden="true" />
       </button>
     </div>
 
     <!-- Mobile menu -->
-    <div v-show="menu.open.value" id="site-menu" class="fixed inset-0 z-50 bg-bg text-fg overflow-y-auto lg:hidden">
+    <div v-show="menu.open.value" id="site-menu" class="fixed inset-0 z-50 bg-bg text-fg overflow-y-auto min-[52rem]:hidden">
       <div class="pad flex flex-col min-h-full pb-7">
         <div class="flex items-center justify-between h-[72px]">
           <span class="d text-[1.6rem]"><NegativWordmark /></span>

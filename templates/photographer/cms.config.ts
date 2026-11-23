@@ -46,7 +46,10 @@ export const SiteSettings = defineSingleton('siteSettings', {
     ctaLabel: f.text().optional().label({ en: 'Header button text', cs: 'Text tlačítka v záhlaví' }),
     ctaUrl: f.text({ format: 'link' }).optional().label({ en: 'Button destination', cs: 'Cíl tlačítka' }),
     availability: f.text().optional().label({ en: 'Free dates', cs: 'Volné termíny' })
-      .help({ en: 'A short note for visitors at the top of the home page.', cs: 'Krátká zpráva pro návštěvníky v úvodu webu.' }),
+      .help({
+        en: 'A short note for visitors at the top of the home page. Negative sets parts separated by a dot ( · ) apart, as a row of dates.',
+        cs: 'Krátká zpráva pro návštěvníky v úvodu webu. Negativ staví části oddělené tečkou ( · ) vedle sebe, jako řadu termínů.',
+      }),
     phone: f.text().optional().label({ en: 'Phone', cs: 'Telefon' }),
     email: f.text({ format: 'email' }).optional().label({ en: 'E-mail', cs: 'E-mail' }),
     address: f.text().optional().label({ en: 'Studio address', cs: 'Adresa ateliéru' }),

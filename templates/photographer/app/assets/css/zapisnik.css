@@ -85,7 +85,7 @@ html[data-look="zapisnik"] {
     /* Form */
     .fld label { display: block; margin-bottom: 0.35rem; font-weight: 700; font-size: 0.95rem; color: var(--ink); }
     .fld input, .fld select, .fld textarea { width: 100%; min-height: 52px; padding: 0.7rem 0.95rem; background: #fff; border: 1.5px solid var(--edge); border-radius: 12px; color: var(--ink); font: inherit; transition: border-color .15s, box-shadow .15s; }
-    .fld textarea { min-height: 8rem; resize: vertical; display: block; }
+    .fld textarea { min-height: 8rem; resize: vertical; }
     .fld ::placeholder { color: color-mix(in srgb, var(--ink) 66%, #fff); opacity: 1; }
     .fld input:hover, .fld select:hover, .fld textarea:hover { border-color: var(--ink); }
     .fld input:focus-visible, .fld select:focus-visible, .fld textarea:focus-visible { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 25%, transparent); border-radius: 12px; }
