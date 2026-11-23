@@ -127,6 +127,10 @@ function pluginRoutes(): (Route & { access: string })[] {
 const OPEN = new Set([
   'GET _auth/status.get.ts', 'GET _auth/invite/[token].get.ts', 'GET _auth/email/[token].get.ts', 'GET _auth/email/revert/[token].get.ts',
   'GET _brand/[file].get.ts', 'GET _theme.get.ts',
+  // Sign-in with the account: the way in for a visitor. Without the account's settings (as
+  // here) the three routes do not exist for anybody: 404, with or without a session. With
+  // them, tenants-account.spec.ts shows that a flow and a list never cross sites.
+  'GET _auth/account/start.get.ts', 'GET _auth/account/callback.get.ts', 'GET _auth/account/sites.get.ts',
   'GET _media/raw/[...key].get.ts', 'HEAD _media/raw/[...key].head.ts', 'GET _media/img/[id]/[file].get.ts',
   'POST _auth/login.post.ts', 'POST _auth/logout.post.ts', 'POST _auth/setup.post.ts', 'POST _auth/accept.post.ts',
   'POST _auth/forgot.post.ts', 'POST _auth/reset.post.ts', 'POST _auth/email/confirm.post.ts', 'POST _auth/email/revert.post.ts',

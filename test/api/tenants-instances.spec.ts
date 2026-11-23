@@ -36,7 +36,9 @@ describe.skipIf(!REDIS)('two instances of one app, two sites', () => {
   const channel: { channel: string; message: any }[] = []
 
   beforeAll(async () => {
-    x = await startTenantInstances('instances', {}, {
+    // A short look-at-every-site interval (15 minutes in production): the scheduled-publishing
+    // test counts rounds of the task on a site that has nothing due any more.
+    x = await startTenantInstances('instances', { CMS_TEST_SWEEP_MS: '2000' }, {
       async seed({ admin }) {
         const author = await createAuthor(admin, { name: 'Shared Author' })
         await createPost(admin, { author: author.id, title: 'Shared post', slug: 'shared-post', body: doc('Uloženo') })
