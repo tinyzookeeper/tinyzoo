@@ -33,3 +33,14 @@ export function hostOf(url: string | null | undefined): string {
   try { return new URL(url).host }
   catch { return url }
 }
+
+/** A size in the unit that reads best: "640 kB", "12,4 MB", "1 GB". */
+export function formatSize(bytes: number | null | undefined, locale: Locale): string {
+  if (bytes == null || !Number.isFinite(bytes)) return '—'
+  const units = ['B', 'kB', 'MB', 'GB', 'TB']
+  let value = Math.max(0, bytes)
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit++ }
+  const digits = unit >= 2 && value < 100 && !Number.isInteger(value) ? 1 : 0
+  return `${value.toLocaleString(tag(locale), { minimumFractionDigits: 0, maximumFractionDigits: digits })} ${units[unit]}`
+}

@@ -1,19 +1,23 @@
 import { execFile, spawn } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
-import { and, eq, notInArray } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, notInArray } from 'drizzle-orm'
+import { directoryKey } from '../../shared/directorySecret'
+import { planById } from '../../shared/plans'
 import { parsePortRange, pickPort } from '../../shared/ports'
 import {
-  assertSiteId, assertTemplateId, parseSharedDirectory, passwordOfDatabaseUrl, SHARED_PORT_RANGE, sharedDatabaseNameFor, sharedDatabasePrefix,
-  sharedDatabaseUrl, sharedDirectoryText, sharedSiteRow, sharedSiteUrl, splitSiteEnv, sqlLiteral, withoutSharedSite, withSharedSite, type SharedSiteRow,
+  assertSiteId, assertTemplateId, passwordOfDatabaseUrl, SHARED_PORT_RANGE, sharedDatabaseNameFor, sharedDatabasePrefix,
+  sharedDatabaseUrl, sharedSiteRow, sharedSiteUrl, splitSiteEnv, sqlLiteral, withoutSharedSite, withSharedSite,
+  type SharedSiteDomains, type SharedSiteRow, type SharedSiteState,
 } from '../../shared/sharedHosting'
 import { quoteIdent } from '../../shared/slug'
 import type { TemplateDef } from '../../shared/templates'
 import type { SiteRow } from '../db/schema'
+import { siteDirectory, writePrivate, type DirectoryKind, type DirectoryReader, type SiteDirectory } from './directory'
 import { portIsFree } from './local'
-import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteSpec } from './types'
+import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteAccess, type SiteSpec } from './types'
 
 // The shared driver: one process per TEMPLATE serves every site made from it (tinyzoo's
 // multi-tenant mode, packages/cms/server/utils/cmsSite.ts). A new site is a database, a folder
@@ -45,13 +49,26 @@ import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Pr
 // template (not only of the one that was asked for), and the template's port.
 //
 // The driver never stops a template's process: it serves the other sites.
+//
+// Where the site directory is kept is a setting (NUXT_HOSTING_SHARED_DIRECTORY): the file above,
+// or the table `tenant_sites` in the cloud's own database, read by the template's process with a
+// role that may read that table and nothing else (./directory.ts has both). With a directory key
+// (NUXT_HOSTING_SHARED_DIRECTORY_KEY) no password and no secret is stored in plain text in either.
+//
+// What a row says besides the site's secrets comes from what the cloud keeps about the site
+// (its `sites` row and its domains): its state (served, paused, read-only, moved), its own
+// domains, and the limits of its plan. A change of any of them is `refresh`.
 
 const run = promisify(execFile)
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-interface SharedConfig { root: string; dataDir: string; portFrom: number; portTo: number; databasePrefix: string }
-/** `app.json`: what is known about a template's process. */
-interface AppFile { port: number; pid: number | null; startedAt: string | null; secret: string }
+interface SharedConfig { root: string; dataDir: string; portFrom: number; portTo: number; databasePrefix: string; directory: DirectoryKind; directoryKey: string }
+/**
+ * `app.json`: what is known about a template's process. `reader` is the Postgres role the
+ * process reads the directory table with, `operator` the token of its own status route
+ * (GET /api/health/sites); the reader's password and the token are kept encrypted.
+ */
+interface AppFile { port: number; pid: number | null; startedAt: string | null; secret: string; reader?: DirectoryReader; operator?: string }
 /** `sites/<site id>/site.json`: written before the site's database is made, so finding it means the database under this name is the site's own. */
 interface SiteFile { database: string; role: string; createdAt: string }
 
@@ -76,11 +93,22 @@ function config(): SharedConfig {
     portFrom: range.from,
     portTo: range.to,
     databasePrefix: sharedDatabasePrefix(c.databasePrefix),
+    directory: directoryKind(c.directory),
+    directoryKey: directoryKey(c.directoryKey),
   }
+}
+
+function directoryKind(value: unknown): DirectoryKind {
+  const kind = String(value ?? '').trim() || 'file'
+  if (kind !== 'file' && kind !== 'postgres') throw new Error(`NUXT_HOSTING_SHARED_DIRECTORY must be "file" or "postgres", got ${JSON.stringify(kind)}`)
+  return kind
 }
 
 /** The repository's root as the shared driver is told (NUXT_HOSTING_SHARED_ROOT), for the seed of a site it made. */
 export const sharedRoot = (): string => config().root
+
+/** Where the shared driver keeps its folders (NUXT_HOSTING_SHARED_DATA_DIR): archives that are uploaded wait in a folder of their own there. */
+export const sharedDataDir = (): string => config().dataDir
 
 // ── folders and files ───────────────────────────────────────────────────────────
 
@@ -101,15 +129,12 @@ function siteDirOf(tdir: string, siteId: string): string {
 }
 
 const appFile = (tdir: string) => join(tdir, 'app.json')
-const directoryFile = (tdir: string) => join(tdir, 'sites.json')
 const siteFile = (sdir: string) => join(sdir, 'site.json')
 
-/** Write a file that only its owner may read, in one move: a temporary file beside it, then a rename. */
-function writePrivate(file: string, text: string): void {
-  const tmp = `${file}.${process.pid}.tmp`
-  writeFileSync(tmp, text, { mode: 0o600 })
-  chmodSync(tmp, 0o600)
-  renameSync(tmp, file)
+/** A template's site directory: the file in its folder, or the table (./directory.ts). */
+function directoryOf(template: TemplateDef, tdir: string): SiteDirectory {
+  const c = config()
+  return siteDirectory({ kind: c.directory, key: c.directoryKey, templateId: template.id, templateDir: tdir, databasePrefix: c.databasePrefix })
 }
 
 function readAppFile(tdir: string): AppFile | null {
@@ -117,7 +142,11 @@ function readAppFile(tdir: string): AppFile | null {
     const raw = JSON.parse(readFileSync(appFile(tdir), 'utf8'))
     const port = Number(raw?.port)
     if (!Number.isInteger(port) || typeof raw.secret !== 'string' || raw.secret.length < 32) return null
-    return { port, pid: Number.isInteger(raw.pid) ? raw.pid : null, startedAt: typeof raw.startedAt === 'string' ? raw.startedAt : null, secret: raw.secret }
+    const reader = typeof raw.reader?.role === 'string' && typeof raw.reader.password === 'string' ? { role: raw.reader.role, password: raw.reader.password } : undefined
+    return {
+      port, pid: Number.isInteger(raw.pid) ? raw.pid : null, startedAt: typeof raw.startedAt === 'string' ? raw.startedAt : null, secret: raw.secret,
+      ...(reader ? { reader } : {}), ...(typeof raw.operator === 'string' ? { operator: raw.operator } : {}),
+    }
   }
   catch {
     return null
@@ -134,31 +163,6 @@ function readSiteFile(sdir: string): SiteFile | null {
   catch {
     return null
   }
-}
-
-/** The site directory as it is on the disk now (no rows when the file is missing). */
-function readDirectory(tdir: string): SharedSiteRow[] {
-  try {
-    return parseSharedDirectory(readFileSync(directoryFile(tdir), 'utf8'))
-  }
-  catch {
-    return []
-  }
-}
-
-// One writer of a site directory at a time, and the file is read again inside the turn: two
-// sites made at the same moment never lose each other's row. (One chain for all templates:
-// a turn is a read and a write.)
-let writing: Promise<unknown> = Promise.resolve()
-function changeDirectory(tdir: string, change: (rows: SharedSiteRow[]) => { rows: SharedSiteRow[]; changed: boolean }): Promise<boolean> {
-  const next = writing.then(() => {
-    const missing = !existsSync(directoryFile(tdir))
-    const { rows, changed } = change(readDirectory(tdir))
-    if (changed || missing) writePrivate(directoryFile(tdir), sharedDirectoryText(rows))
-    return changed
-  })
-  writing = next.catch(() => {})
-  return next
 }
 
 // ── the template's process ──────────────────────────────────────────────────────
@@ -202,6 +206,60 @@ async function processAnswers(port: number): Promise<boolean> {
   }
   catch {
     return false
+  }
+}
+
+/**
+ * Where the running process reads its site directory from, as its own environment says (`ps`
+ * shows it for one's own processes); null when that cannot be seen.
+ */
+async function directoryKindOf(pid: number): Promise<DirectoryKind | null> {
+  try {
+    const { stdout } = await run('ps', ['eww', '-o', 'command=', '-p', String(pid)])
+    if (stdout.includes('NUXT_CMS_TENANCY_DATABASE_URL=')) return 'postgres'
+    return stdout.includes('NUXT_CMS_TENANCY_FILE=') ? 'file' : null
+  }
+  catch {
+    return null
+  }
+}
+
+/** What the process itself says about its sites (its operator's route), or null when it cannot be asked. */
+async function processSites(app: AppFile): Promise<{ id: string; hosts: string[]; alsoHosts: string[]; state: string }[] | null> {
+  const token = decryptSecret(app.operator)
+  if (!token) return null
+  try {
+    const res = await fetch(`http://127.0.0.1:${app.port}/api/health/sites`, { signal: AbortSignal.timeout(3000), redirect: 'manual', headers: { authorization: `Bearer ${token}`, accept: 'application/json' } })
+    if (res.status !== 200) return null
+    const body = await res.json() as { sites?: unknown }
+    return Array.isArray(body.sites) ? body.sites as { id: string; hosts: string[]; alsoHosts: string[]; state: string }[] : null
+  }
+  catch {
+    return null
+  }
+}
+
+/**
+ * Wait until the process has taken a change of the directory up: it serves the site as `row`
+ * says (its hosts, its state), or no longer knows it (`row` null). A process that cannot be
+ * asked (started before it had an operator's token) is given a moment instead; it looks at a
+ * file at most twice a second, when something asks it, and at the table every second.
+ */
+async function waitUntilTaken(app: AppFile, siteId: string, row: SharedSiteRow | null, timeoutMs = 15_000): Promise<void> {
+  const until = Date.now() + timeoutMs
+  for (;;) {
+    const sites = await processSites(app)
+    if (!sites) {
+      await sleep(700)
+      await processAnswers(app.port)
+      await sleep(800)
+      return
+    }
+    const seen = sites.find((s) => s.id === siteId)
+    if (!row && !seen) return
+    if (row && seen && seen.state === (row.state ?? 'active') && JSON.stringify(seen.hosts) === JSON.stringify(row.hosts) && JSON.stringify(seen.alsoHosts) === JSON.stringify(row.alsoHosts ?? [])) return
+    if (Date.now() > until) throw new HostingError('start_timeout', `the template's process did not take the change of ${siteId} up within ${Math.round(timeoutMs / 1000)} s`)
+    await sleep(150)
   }
 }
 
@@ -273,7 +331,7 @@ function appFor(tdir: string, known?: number): Promise<AppFile> {
  * own leaks into it). `settings` is the part of a site's environment that is the same for
  * every site (the mail transport, migrations at start); the sites' own secrets are in the directory.
  */
-function start(template: TemplateDef, tdir: string, app: AppFile, settings: Record<string, string>): number {
+function start(template: TemplateDef, tdir: string, app: AppFile, settings: Record<string, string>, directoryEnv: Record<string, string>, operator: string): number {
   const entry = entryOf(template)
   const out = openSync(join(tdir, 'server.log'), 'a', 0o600)
   try {
@@ -290,9 +348,12 @@ function start(template: TemplateDef, tdir: string, app: AppFile, settings: Reco
         HOST: '127.0.0.1',
         PORT: String(app.port),
         NUXT_CMS_TENANCY_MODE: 'multi',
-        NUXT_CMS_TENANCY_FILE: directoryFile(tdir),
+        // Where the site directory is: the file, or the table with the reader's address (and the directory key).
+        ...directoryEnv,
         NUXT_APP_SECRET: app.secret,
         NUXT_CMS_MIGRATIONS_ON_START: 'true',
+        // The process's own status route (GET /api/health/sites): the driver asks it what the process serves.
+        NUXT_CMS_TENANCY_OPERATOR_TOKEN: operator,
       },
     })
     child.on('error', () => { /* reported by the wait that follows: the process is not there */ })
@@ -320,7 +381,17 @@ async function waitUntilUp(tdir: string, pid: number, port: number, timeoutMs = 
 async function up(template: TemplateDef, tdir: string, settings: Record<string, string>, known?: number): Promise<AppFile> {
   mkdirSync(tdir, { recursive: true, mode: 0o700 })
   const app = await appFor(tdir, known)
+  const directory = directoryOf(template, tdir)
   const ours = await isOurs(app.pid, tdir)
+  // A process started before the setting changed reads the other directory: it would never
+  // see what is written now. The driver does not stop it (it serves sites); it says so.
+  const wrongDirectory = async (pid: number) => {
+    const reads = await directoryKindOf(pid)
+    if (reads && reads !== directory.kind) {
+      throw new HostingError('start_failed', `the template's process (pid ${pid}) reads its site directory from the ${reads === 'file' ? 'file' : 'database'}, and NUXT_HOSTING_SHARED_DIRECTORY now says ${directory.kind}. Stop that process; it is started again with the new setting.`)
+    }
+  }
+  if (ours) await wrongDirectory(app.pid!)
   if (ours && await processAnswers(app.port)) return app
   if (ours) {
     // Ours and alive but not answering yet: it may still be starting.
@@ -331,6 +402,7 @@ async function up(template: TemplateDef, tdir: string, settings: Record<string, 
     // Something holds the port. If it is this folder's own process (app.json lost its pid), keep it.
     for (const pid of await listeners(app.port)) {
       if (await isOurs(pid, tdir)) {
+        await wrongDirectory(pid)
         const kept = { ...app, pid }
         writeAppFile(tdir, kept)
         await waitUntilUp(tdir, pid, app.port, 60_000)
@@ -339,12 +411,15 @@ async function up(template: TemplateDef, tdir: string, settings: Record<string, 
     }
     throw new HostingError('port_taken', `port ${app.port} is used by another program`)
   }
-  // The process reads the directory when it starts: it must exist, if only empty. (Not written
-  // for a process that runs: an empty directory would make it drop every site for a moment.)
-  await changeDirectory(tdir, (rows) => ({ rows, changed: false }))
-  const pid = start(template, tdir, app, settings)
-  await waitUntilUp(tdir, pid, app.port)
-  return { ...app, pid }
+  // The process reads the directory when it starts: it must exist, if only empty, and with the
+  // table so must the role the process reads it with. What is new is written down before the start.
+  const prepared = await directory.prepare(app.reader)
+  const operator = decryptSecret(app.operator) ?? randomBytes(32).toString('base64url')
+  const next: AppFile = { ...app, ...(prepared.reader ? { reader: prepared.reader } : {}), operator: decryptSecret(app.operator) ? app.operator! : encryptSecret(operator) }
+  writeAppFile(tdir, next)
+  const pid = start(template, tdir, next, settings, prepared.env, operator)
+  await waitUntilUp(tdir, pid, next.port)
+  return { ...next, pid }
 }
 
 // One start per template at a time: two sites of a template made at the same moment find one process.
@@ -424,13 +499,43 @@ async function dropDatabase(name: string): Promise<void> {
 
 // ── the driver ──────────────────────────────────────────────────────────────────
 
+/** What the cloud keeps about a site besides its secrets, and the directory row says: its state, its domains, its plan. */
+interface Kept { state: SharedSiteState; movedTo: string | null; plan: string; dataRemoved: boolean; domains: SharedSiteDomains }
+const NOTHING_KEPT: Kept = { state: 'active', movedTo: null, plan: '', dataRemoved: false, domains: { main: null, others: [] } }
+
+/** That, for several sites at once, from the cloud's own database (`sites` and `site_domains`). */
+async function keptOf(siteIds: string[]): Promise<Map<string, Kept>> {
+  const out = new Map<string, Kept>()
+  if (!siteIds.length) return out
+  const db = useDb()
+  const rows = await db.select({ id: schema.sites.id, state: schema.sites.hostState, movedTo: schema.sites.movedTo, plan: schema.sites.plan, dataRemovedAt: schema.sites.dataRemovedAt })
+    .from(schema.sites).where(inArray(schema.sites.id, siteIds))
+  for (const r of rows) out.set(r.id, { state: r.state, movedTo: r.movedTo, plan: r.plan, dataRemoved: !!r.dataRemovedAt, domains: { main: null, others: [] } })
+  // Only domains whose DNS was seen to lead here are in a row; in the order they were added.
+  const domains = await db.select({ siteId: schema.siteDomains.siteId, host: schema.siteDomains.host, main: schema.siteDomains.main })
+    .from(schema.siteDomains).where(and(inArray(schema.siteDomains.siteId, siteIds), isNotNull(schema.siteDomains.verifiedAt)))
+    .orderBy(asc(schema.siteDomains.createdAt), asc(schema.siteDomains.host))
+  for (const d of domains) {
+    const kept = out.get(d.siteId)
+    if (!kept) continue
+    if (d.main && !kept.domains.main) kept.domains.main = d.host
+    else kept.domains.others.push(d.host)
+  }
+  return out
+}
+
 /** The site's row, as the directory holds it. */
-function rowOf(site: SiteSpec, tdir: string, port: number, password: string): SharedSiteRow {
+function rowOf(site: SiteSpec, tdir: string, port: number, password: string, kept: Kept = NOTHING_KEPT): SharedSiteRow {
   const name = databaseOf(site.siteId)
   return sharedSiteRow({
     siteId: site.siteId, slug: site.slug, port, env: site.env,
     databaseUrl: sharedDatabaseUrl(databaseUrl(), name, password),
     siteDir: siteDirOf(tdir, site.siteId),
+    // A site that moved away answers at its service address only: its domains went with it.
+    domains: kept.state === 'moved' ? undefined : kept.domains,
+    state: kept.state,
+    movedTo: kept.movedTo,
+    limits: planById(kept.plan).storage,
   })
 }
 
@@ -457,23 +562,24 @@ async function knownPort(template: TemplateDef, tdir: string, state?: Record<str
 }
 
 /**
- * Put a site's row into its template's directory. `lost`: the directory's file was not there
- * (a new template, or the file was lost). Then the other sites of the template are written
- * again too, from what the cloud keeps: with this row alone in the file, the process would
- * stop serving them.
+ * Put a site's row into its template's directory. `lost`: the directory was not there (a new
+ * template, or the file was lost, or the table holds nothing of the template). Then the other
+ * sites of the template are written again too, from what the cloud keeps: with this row
+ * alone in a file, the process would stop serving them.
  */
 async function putRow(template: TemplateDef, tdir: string, port: number, row: SharedSiteRow, lost: boolean): Promise<void> {
   const others: SharedSiteRow[] = []
   if (lost) {
-    for (const other of await sitesOfTemplate(template)) {
-      if (other.id === row.id) continue
+    const sites = (await sitesOfTemplate(template)).filter((other) => other.id !== row.id)
+    const kept = await keptOf(sites.map((other) => other.id))
+    for (const other of sites) {
       const password = decryptSecret(other.driverState!.databasePassword as string)
       // A site whose secrets cannot be read is left out: its own next start says why.
-      try { if (password) others.push(rowOf(hostedSite(other), tdir, port, password)) }
+      try { if (password) others.push(rowOf(hostedSite(other), tdir, port, password, kept.get(other.id))) }
       catch { /* left out */ }
     }
   }
-  await changeDirectory(tdir, (rows) => {
+  await directoryOf(template, tdir).change((rows) => {
     let changed = false
     for (const r of [...others, row]) {
       const next = withSharedSite(rows, r)
@@ -482,6 +588,64 @@ async function putRow(template: TemplateDef, tdir: string, port: number, row: Sh
     }
     return { rows, changed }
   })
+}
+
+/** After a row was written: the site answers as the row says. A site that is served answers ready; one that is paused or moved is only seen by the process. */
+async function settle(tdir: string, app: AppFile, site: SiteSpec, row: SharedSiteRow, timeoutMs: number): Promise<void> {
+  if (!row.state || row.state === 'read-only') {
+    // The process serves the site as this row says (its hosts, its state), not as an earlier one did…
+    await waitUntilTaken(app, row.id, row)
+    // …and the site answers, its database checked. The cloud asks at the service address: the site
+    // answers there whatever its own domain is. (After a row changed the site is loaded anew.)
+    await waitUntilSiteAnswers(tdir, app.pid, sharedSiteUrl(site.slug, app.port), timeoutMs)
+    return
+  }
+  await waitUntilTaken(app, row.id, row)
+}
+
+/** The password of the site's database user: what the cloud keeps, else what its row holds. */
+async function passwordOf(site: HostedSite, directory: SiteDirectory): Promise<string> {
+  const password = decryptSecret(typeof site.state?.databasePassword === 'string' ? site.state.databasePassword : null)
+    ?? passwordOfDatabaseUrl((await directory.rows()).find((r) => r.id === site.siteId)?.databaseUrl)
+  if (!password) throw new HostingError('start_failed', `the database password of ${site.slug} is not known`)
+  return password
+}
+
+/**
+ * Bring a site in line with what the cloud keeps about it: the template's process runs, the
+ * site's row is as it should be (written again when it is not), and the site answers as the
+ * row says. Returns the row.
+ */
+async function bring(site: HostedSite, timeoutMs: number): Promise<SharedSiteRow> {
+  const tdir = templateDir(site.template)
+  const directory = directoryOf(site.template, tdir)
+  const lost = !(await directory.present())
+  const app = await ensureProcess(site.template, splitSiteEnv(site.env).process, await knownPort(site.template, tdir, site.state))
+  const kept = (await keptOf([site.siteId])).get(site.siteId) ?? NOTHING_KEPT
+  const password = await passwordOf(site, directory)
+  // A moved site whose data was deleted here has no folder any more, and gets none.
+  if (!kept.dataRemoved) mkdirSync(siteDirOf(tdir, site.siteId), { recursive: true, mode: 0o700 })
+  const row = rowOf(site, tdir, app.port, password, kept)
+  await putRow(site.template, tdir, app.port, row, lost)
+  await settle(tdir, app, site, row, timeoutMs)
+  return row
+}
+
+/** The tinyzoo a template's build runs on (the version of the package its source folder resolves). */
+function buildVersionOf(template: TemplateDef): string {
+  try {
+    return String(JSON.parse(readFileSync(join(config().root, template.sourceDir!, 'node_modules', 'tinyzoo', 'package.json'), 'utf8')).version ?? '')
+  }
+  catch {
+    return ''
+  }
+}
+
+/** The tinyzoo version a template's sites run on with the shared driver, or '' when the template is not built here. */
+export function sharedBuildVersion(template: TemplateDef): string {
+  try { entryOf(template) }
+  catch { return '' }
+  return buildVersionOf(template)
 }
 
 export function sharedDriver(): HostingDriver {
@@ -494,6 +658,7 @@ export function sharedDriver(): HostingDriver {
       const tdir = templateDir(spec.template)
       const sdir = siteDirOf(tdir, spec.siteId)
       const name = databaseOf(spec.siteId)
+      const directory = directoryOf(spec.template, tdir)
 
       await onStep('database', 'running')
       // site.json is written before the database is made: finding it means this site was
@@ -503,48 +668,65 @@ export function sharedDriver(): HostingDriver {
       if (!resuming) writePrivate(siteFile(sdir), `${JSON.stringify({ database: name, role: name, createdAt: new Date().toISOString() } satisfies SiteFile, null, 2)}\n`)
       // The password the directory already holds for this site stays (its row does not change,
       // so a site that runs is not disturbed); otherwise a new one.
-      const password = passwordOfDatabaseUrl(readDirectory(tdir).find((r) => r.id === spec.siteId)?.databaseUrl) ?? randomBytes(24).toString('base64url')
+      const password = passwordOfDatabaseUrl((await directory.rows()).find((r) => r.id === spec.siteId)?.databaseUrl) ?? randomBytes(24).toString('base64url')
       await createDatabase(name, password, resuming)
       await onStep('database', 'done')
 
       await onStep('start', 'running')
-      const lost = !existsSync(directoryFile(tdir))
+      const lost = !(await directory.present())
       const app = await ensureProcess(spec.template, settings, await knownPort(spec.template, tdir))
-      const row = rowOf(spec, tdir, app.port, password)
+      // A site that comes in as an archive starts paused: nothing touches its empty database before the archive is in it.
+      const row = rowOf(spec, tdir, app.port, password, (await keptOf([spec.siteId])).get(spec.siteId))
       await putRow(spec.template, tdir, app.port, row, lost)
-      await waitUntilSiteAnswers(tdir, app.pid, row.publicUrl, 120_000)
+      await settle(tdir, app, spec, row, 120_000)
       await onStep('start', 'done')
       return {
         publicUrl: row.publicUrl,
-        internalUrl: row.publicUrl,
+        // The cloud itself always talks to the site at its service address.
+        internalUrl: sharedSiteUrl(spec.slug, app.port),
         state: { template: spec.template.id, port: app.port, dir: sdir, database: name, role: name, databasePassword: encryptSecret(password) },
       }
     },
 
     async ensureRunning(site: HostedSite): Promise<void> {
+      await bring(site, 60_000)
+    },
+
+    async refresh(site: HostedSite): Promise<{ publicUrl: string }> {
+      return { publicUrl: (await bring(site, 60_000)).publicUrl }
+    },
+
+    async access(site: HostedSite): Promise<SiteAccess> {
       const tdir = templateDir(site.template)
-      const lost = !existsSync(directoryFile(tdir))
-      const app = await ensureProcess(site.template, splitSiteEnv(site.env).process, await knownPort(site.template, tdir, site.state))
-      // The row: as it is in the directory, or written again from what the cloud keeps.
-      const existing = readDirectory(tdir).find((r) => r.id === site.siteId)
-      const password = decryptSecret(typeof site.state?.databasePassword === 'string' ? site.state.databasePassword : null) ?? passwordOfDatabaseUrl(existing?.databaseUrl)
-      if (!password) throw new HostingError('start_failed', `the database password of ${site.slug} is not known`)
-      mkdirSync(siteDirOf(tdir, site.siteId), { recursive: true, mode: 0o700 })
-      const row = rowOf(site, tdir, app.port, password)
-      await putRow(site.template, tdir, app.port, row, lost)
-      await waitUntilSiteAnswers(tdir, app.pid, row.publicUrl, 60_000)
+      const sdir = siteDirOf(tdir, site.siteId)
+      const password = await passwordOf(site, directoryOf(site.template, tdir))
+      if (!site.template.sourceDir) throw new HostingError('template_not_built', `template "${site.template.id}" has no source folder`)
+      return {
+        databaseUrl: sharedDatabaseUrl(databaseUrl(), databaseOf(site.siteId), password),
+        uploadsDir: join(sdir, 'uploads'),
+        dir: sdir,
+        sourceDir: join(config().root, site.template.sourceDir),
+        tinyzooVersion: buildVersionOf(site.template),
+      }
+    },
+
+    async removeData(site: HostedSite): Promise<void> {
+      const sdir = siteDirOf(templateDir(site.template), site.siteId)
+      await dropDatabase(databaseOf(site.siteId))
+      if (existsSync(sdir) && statSync(sdir).isDirectory()) rmSync(sdir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     },
 
     async remove(site: HostedSite): Promise<void> {
       const tdir = templateDir(site.template)
       const sdir = siteDirOf(tdir, site.siteId)
-      const removed = existsSync(directoryFile(tdir)) && await changeDirectory(tdir, (rows) => withoutSharedSite(rows, site.siteId))
+      const directory = directoryOf(site.template, tdir)
+      const removed = await directory.present() && await directory.change((rows) => withoutSharedSite(rows, site.siteId))
       if (removed) {
-        // The process looks at the directory at most twice a second, when something asks it:
-        // wait, ask, and give it a moment to close the site's database connections.
+        // Wait until the process no longer serves the site, and give it a moment to close the
+        // site's database connections.
         const app = readAppFile(tdir)
-        await sleep(600)
-        if (app && await isOurs(app.pid, tdir)) await processAnswers(app.port)
+        if (app && await isOurs(app.pid, tdir)) await waitUntilTaken(app, site.siteId, null)
+        else await sleep(600)
         await sleep(400)
       }
       await dropDatabase(databaseOf(site.siteId))

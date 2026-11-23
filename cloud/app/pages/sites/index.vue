@@ -27,7 +27,8 @@ onMounted(() => {
 onBeforeUnmount(() => { if (timer) clearInterval(timer) })
 
 const stateOf = (s: SiteView) => ({
-  ready: { label: t('sites.stateReady'), tone: 'ok' },
+  // A website that moved away is still listed: its address here sends visitors on.
+  ready: s.hostState === 'moved' ? { label: t('sites.stateMoved'), tone: 'busy' } : { label: t('sites.stateReady'), tone: 'ok' },
   creating: { label: t('sites.stateCreating'), tone: 'busy' },
   waiting: { label: t('sites.stateWaiting'), tone: 'busy' },
   failed: { label: t('sites.stateFailed'), tone: 'bad' },
@@ -134,6 +135,12 @@ const roleName = (role: string) => (role in KNOWN_ROLES ? t(KNOWN_ROLES[role as 
     <p v-if="!connected.length" class="mt-10 text-sm text-muted" data-connect-hint>
       {{ t('sites.connectHint') }}
       <NuxtLink to="/sites/connect" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4">{{ t('sites.connectLink') }}</NuxtLink>
+    </p>
+
+    <!-- The way to move a website in: where the hosting can take an archive. -->
+    <p v-if="account.canImport" class="mt-3 text-sm text-muted" data-import-hint>
+      {{ t('sites.importHint') }}
+      <NuxtLink to="/sites/import" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4">{{ t('sites.importLink') }}</NuxtLink>
     </p>
   </div>
 </template>
