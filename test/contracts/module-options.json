@@ -57,7 +57,12 @@
       "mode": "builtin",
       "trustedProxies": 1,
       "ipHeader": "",
-      "setupToken": ""
+      "setupToken": "",
+      "account": {
+        "issuer": "",
+        "clientId": "",
+        "clientSecret": ""
+      }
     },
     "publicUrl": "",
     "mail": {
@@ -178,6 +183,18 @@
     },
     {
       "name": "NUXT_CMS_AUTH_SETUP_TOKEN",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_AUTH_ACCOUNT_ISSUER",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET",
       "default": ""
     },
     {

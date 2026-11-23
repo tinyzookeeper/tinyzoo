@@ -39,6 +39,10 @@ interface PendingEmail { email: string; expiresAt: string }
 // Read in the browser after the page is shown: an async load in setup shifts the ids Nuxt UI gives this
 // page's labels and fields between the server and the browser (every label pointed at nothing).
 const pendingEmail = ref<PendingEmail | null>(null)
+// Where people sign in with the tinyzoo account: one line saying whether this user is connected to
+// one (the admin's layout asked already: `_auth/me` says the account is on, the list of websites who is linked).
+const { data: access } = useNuxtData<{ account?: { enabled: boolean } }>('cms-access')
+const { state: accountSites } = useCmsAccountSites()
 async function refreshEmailState() {
   try {
     pendingEmail.value = (await $fetch<{ pending: PendingEmail | null }>('/api/cms/_auth/email')).pending
@@ -262,6 +266,10 @@ function rightBadges(r: TokenRights): string[] {
             <UFormField :label="t('account.currentEmail')" name="currentEmail">
               <UInput :model-value="user?.email ?? ''" disabled icon="i-lucide-mail" class="w-full" />
             </UFormField>
+            <p v-if="access?.account?.enabled && accountSites.loaded" class="flex items-start gap-2 text-sm text-muted text-pretty" data-cms-account-link>
+              <UIcon :name="accountSites.linked ? 'i-lucide-link' : 'i-lucide-unlink'" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span>{{ accountSites.linked ? t('account.accountConnected') : t('account.accountNotConnected') }}</span>
+            </p>
             <UAlert v-if="isDemo" color="neutral" variant="subtle" icon="i-lucide-info" :title="t('account.demoTitle')" :description="t('account.demoEmail')" />
             <template v-else>
               <!-- a change waiting for its link: what was sent where, what to do if it does not arrive -->

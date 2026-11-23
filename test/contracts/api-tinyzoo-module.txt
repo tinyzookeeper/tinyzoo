@@ -31,6 +31,11 @@ export interface CmsModuleOptions {
         mode?: 'builtin' | 'external';
         trustedProxies?: number;
         ipHeader?: string;
+        account?: {
+            issuer?: string;
+            clientId?: string;
+            clientSecret?: string;
+        };
     };
     publicUrl?: string;
     mail?: {

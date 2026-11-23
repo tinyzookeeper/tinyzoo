@@ -59,6 +59,12 @@ export default {
     language: 'Jazyk',
     signOut: 'Odhlásit se',
   },
+  // The website switcher at the top of the menu (sign-in with the tinyzoo account).
+  sites: {
+    switch: 'Přepnout web',
+    yours: 'Vaše weby',
+    all: 'Všechny moje weby',
+  },
   common: {
     save: 'Uložit',
     create: 'Vytvořit',
@@ -472,6 +478,15 @@ export default {
     poweredBy: 'Správa obsahu',
     signedOutTitle: 'Byli jste odhlášeni',
     signedOutBody: 'Přihlaste se znovu a vrátíme vás na stránku, kde jste byli.',
+    accountSignIn: 'Přihlásit se tinyzoo účtem',
+    accountOrPassword: 'nebo heslem k tomuto webu',
+    accountNoAccessTitle: 'Tento účet nemá k tomuto webu přístup',
+    accountNoAccessBody: 'Požádejte administrátora webu, aby pozval e-mailovou adresu vašeho účtu.',
+    accountUnavailableTitle: 'Služba účtů neodpověděla',
+    accountUnavailableBody: 'Přihlaste se heslem, nebo to za chvíli zkuste znovu.',
+    accountExpiredTitle: 'Přihlášení trvalo příliš dlouho',
+    accountExpiredBody: 'Začněte ho znovu.',
+    inviteAccount: 'Pokud máte tinyzoo účet s touto e-mailovou adresou, můžete se přihlásit jím a heslo nenastavovat.',
     emailConfirmTabTitle: 'Nový e-mail',
     emailConfirmTitle: 'Potvrďte nový e-mail',
     emailConfirmBody: 'Do webu {site} se odteď budete přihlašovat adresou {email}.',
@@ -660,6 +675,8 @@ export default {
     emailNotArrived: 'E-mail nepřišel ani po pár minutách? Podívejte se do spamu a zkontrolujte, že je adresa správně, a pošlete ho znovu. E-mail vám může změnit i administrátor v sekci Tým.',
     cancelEmailChange: 'Zrušit změnu',
     emailChangeCancelled: 'Změna zrušena',
+    accountConnected: 'Propojeno s vaším tinyzoo účtem.',
+    accountNotConnected: 'Bez propojení s tinyzoo účtem. Propojí se při prvním přihlášení tinyzoo účtem se stejnou e-mailovou adresou.',
     sameEmail: 'Tuto adresu už máte',
     demoEmail: 'Do ukázky se přihlašují všichni stejně, takže e-mail tu měnit nejde.',
     tokens: {

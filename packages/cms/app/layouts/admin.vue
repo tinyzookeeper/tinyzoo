@@ -4,7 +4,8 @@ import type { CmsMenuRow } from '../composables/useCmsMenu'
 
 const { data: graph, error: graphError } = await useFetch<any[]>('/api/cms/_graph', { key: 'cms-graph' })
 // What the person's role is called, and whether the site still defines it.
-const { data: me } = await useFetch<{ access: { removed: boolean; role: string; label?: any; custom?: boolean } }>('/api/cms/_auth/me', { key: 'cms-access' })
+// `account`: people sign in with the tinyzoo account here, so the site's name may become the website switcher.
+const { data: me } = await useFetch<{ access: { removed: boolean; role: string; label?: any; custom?: boolean }; account?: { enabled: boolean } }>('/api/cms/_auth/me', { key: 'cms-access' })
 // A role the site no longer defines: signed in, but no access (the server answers 403 `role-removed`).
 const roleRemoved = computed(() => !!me.value?.access?.removed || (graphError.value as any)?.data?.data?.code === 'role-removed')
 const { user, clear } = useUserSession()
@@ -55,6 +56,10 @@ if (sidebarLayout.value && typeof sidebarLayout.value === 'object' && !!sidebarL
 // A select menu's or the search's option reached with the arrow keys shows the focus ring (cms-admin.css);
 // keyboard focus that lands off screen (Tab wrapping round a dialog) is scrolled into view.
 cmsTrackKeysWhileMounted()
+
+// The person's websites (the switcher at the top of the menu, the line on the account page): asked
+// once the page is shown, and only where people sign in with the tinyzoo account.
+onMounted(() => { if (me.value?.account?.enabled) void useCmsAccountSites().load() })
 
 onMounted(() => {
   watch(focus, (on) => { collapsed.value = on || cmsSidebarFolded(pref.value) }, { immediate: true })
@@ -200,10 +205,9 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
       :ui="{ root: 'bg-(--cms-sidebar-bg) border-r border-default', header: 'h-(--ui-header-height)', footer: 'border-t border-default flex-col items-stretch gap-0 py-2' }"
     >
       <template #header="{ collapsed }">
-        <!-- the client's brand: the full logo, the mark with the name, or the initials (CmsBrandLogo) -->
-        <NuxtLink to="/admin" class="flex items-center min-w-0 rounded-md" :class="collapsed ? 'mx-auto' : ''">
-          <CmsBrandLogo :room="collapsed ? 'compact' : 'wide'" />
-        </NuxtLink>
+        <!-- the client's brand: the full logo, the mark with the name, or the initials (CmsBrandLogo);
+             for someone with other websites in their tinyzoo account, a menu of them (CmsSiteSwitcher) -->
+        <CmsSiteSwitcher :collapsed="collapsed" :enabled="!!me?.account?.enabled" />
       </template>
 
       <template #default="{ collapsed }">

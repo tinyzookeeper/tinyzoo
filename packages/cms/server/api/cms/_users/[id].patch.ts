@@ -5,7 +5,8 @@ import { z } from 'zod'
 // re-enable them. You cannot change your own role, email or access here (your own
 // email changes on your account page, with your password and a confirmation link),
 // and the last active administrator always stays. Disabling, a new role and a new
-// email sign the person out everywhere at once.
+// email sign the person out everywhere at once. For someone linked to a tinyzoo account
+// (cmsAccount.ts) the account service is told the new role, or `active: false` when disabled.
 //
 // A new email needs the administrator's own password (`password`): a session left open
 // on a shared computer, or stolen, must not be enough to move someone's account to
@@ -91,6 +92,8 @@ export default defineEventHandler(async (event) => {
 
   if (data.role && data.role !== target.role) await audit(event, 'user.role', { recordId: id, meta: { from: target.role, to: data.role } })
   if (data.status && data.status !== target.status) await audit(event, data.status === 'disabled' ? 'user.disable' : 'user.enable', { recordId: id })
+  // Linked to a tinyzoo account: the account service hears the new role, or that the person is no longer let in (after the response).
+  if ((data.role && data.role !== target.role) || (data.status && data.status !== target.status)) await reportAccountMembershipOf(event, updated)
 
   let invitation: { inviteUrl: string; emailed: boolean } | undefined
   if (newEmail) {
@@ -102,7 +105,7 @@ export default defineEventHandler(async (event) => {
       const inviteUrl = links.invite + secret
       let emailed = false
       try {
-        emailed = await sendCmsMail(await inviteEmail(event, { to: newEmail, inviter: me.name || me.email || 'An administrator', url: inviteUrl, role: updated.role, locale }))
+        emailed = await sendCmsMail(await inviteEmail(event, { to: newEmail, inviter: me.name || me.email || 'An administrator', url: inviteUrl, role: updated.role, locale, account: !!cmsAccount() }))
       }
       catch (err) {
         console.error('[cms] could not send the invitation email', redactEmails(safeErrorMessage(err)))
