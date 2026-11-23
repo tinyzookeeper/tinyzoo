@@ -108,7 +108,7 @@ After `templates:build` runs again, restart the sites (stop the app, stop their 
 
 ### Templates
 
-`shared/templates.ts` is the registry: twenty-one entries, each with its name, one sentence and three or four points in both languages, its field for the filter, its animal, and its looks (id, name and one sentence in both languages): 52 looks in all. Two templates are ready: **Basic website** (`basic`, from `packages/cms/starter`) and **Photographer** (`photographer`, from `templates/photographer`). The other nineteen are planned: designed and approved, with no source yet. The server refuses to make a site from a template that is not ready, whatever `NUXT_PUBLIC_SHOW_PLANNED` says.
+`shared/templates.ts` is the registry: twenty-one entries, each with its name, one sentence and three or four points in both languages, its field for the filter, its animal, and its looks (id, name and one sentence in both languages): 52 looks in all. Three templates are ready: **Basic website** (`basic`, from `packages/cms/starter`), **Photographer** (`photographer`) and **Wedding** (`wedding`), the hosted ones from `templates/<id>`. The others are planned: designed and approved, with no source yet. The server refuses to make a site from a template that is not ready, whatever `NUXT_PUBLIC_SHOW_PLANNED` says.
 
 A template may come in several **looks**: one content model, one set of demo content and one build, drawn in different designs. Photographer has three (Ateliér, Negativ, Zápisník). The registry lists a template's looks (id, name and one sentence in both languages, and for a ready template the look's default colours); the wizard shows them as its second step; the choice is kept in `sites.look`, written into the site's settings (`look`, `colors`) when the site is made, and its owner changes it afterwards in the site's admin (*Site settings*). The cloud follows that change: the site's page asks the site which look it shows and keeps the answer. How a template implements looks: [`templates/README.md`](../templates/README.md).
 
@@ -116,22 +116,28 @@ A template may come in several **looks**: one content model, one set of demo con
 
 ```sh
 pnpm --filter tinyzoo-cloud pictures          # the planned templates, from the designs folder (template-designs/)
-pnpm --filter tinyzoo-cloud pictures --real   # the built templates, from real sites the script makes (about a minute)
+pnpm --filter tinyzoo-cloud pictures --real   # the built templates, from real sites the script makes (about ten seconds a look)
+pnpm --filter tinyzoo-cloud pictures --real --only wedding   # only these built templates
 ```
 
 From the designs, a look is alive when `template-designs/<slug>/<a|b|c>.html` exists; its name is the `## A · Name` heading of the folder's `notes.md`, its picture `shots/<letter>-top.jpg`. Each look gets a `card` (800 × 500) and a `thumb` (240 × 150). A built template's looks get, from a real site with the demo content, also `top` (the first screen with the site's name left out) and `tall` (the top of the home page, for the look step), and the script measures where and how the site writes its name and copies that typeface's files to `public/templates/fonts/`: that is how the wizard writes the typed name into the look. What the script found is in `shared/template-pictures.json`; a unit spec keeps the registry's looks equal to it. The designs folder is not in the repository: the script looks for it beside the repository (or beside the main checkout of a worktree), or takes `--designs <folder>`.
 
-Adding a real template: give its entry `ready: true`, a `sourceDir` and its looks' `colors`, add it to `scripts/build-templates.mjs`, to `templateEntries` in `scripts/lib.mjs` and to `DEMO` and `WORDMARK` in `scripts/template-pictures.mjs`, then run `pictures --real`. `templates:build <id>` builds one.
+Adding a real template: make its entry `hosted(…)` with each look's default colours, add it to `BUILT_TEMPLATES` in `scripts/lib.mjs` (what its demo content is called, where it writes the site's name) and its checks to `scripts/e2e-templates.mjs`, then run `templates:build <id>`, `pictures --real --only <id>` and `e2e --templates <id>`. The steps for the template itself: [`templates/README.md`](../templates/README.md).
+
+A look that writes the site's name large on its first screen (a wedding's names) is measured there instead of in the header (`wordmark` in `BUILT_TEMPLATES`): the wizard sets a long name smaller until it fits (`fit`), in italics where the look does.
 
 ## Checks
 
 ```sh
 pnpm --filter tinyzoo-cloud typecheck
 pnpm vitest run --project unit test/unit/cloud-*.spec.ts   # slugs, the step machine, ports, the registry and the texts
-pnpm --filter tinyzoo-cloud e2e                            # the whole flow in a browser, both templates, about 2 minutes
+pnpm --filter tinyzoo-cloud e2e                            # the whole flow in a browser, then every hosted template in every look and palette
+pnpm --filter tinyzoo-cloud e2e --templates wedding        # only these hosted templates' part (about half a minute each)
 pnpm --filter tinyzoo-cloud walkthrough                    # films the walkthrough and takes the screenshots into cloud/.preview/, about 40 minutes
 pnpm --filter tinyzoo-cloud walkthrough --quick            # the two films small and fast, to try things out, about 10 minutes
 ```
+
+A second checkout on the same machine (a git worktree) runs these beside the first with `CLOUD_RUN_TAG=tpl CLOUD_PORT_SHIFT=200`: databases and ports of its own (`e2e` and `pictures`; see `scripts/lib.mjs`).
 
 `e2e`, `walkthrough` and `pictures --real` start a cloud app of their own beside yours (database `tz_cloud_e2e` / `tz_cloud_walk` / `tz_cloud_pics`, sites under `.data/e2e` / `.data/walk` / `.data/pics`, their own ports and database prefix) and remove what they made. `--keep` leaves it. `walkthrough --url http://localhost:3200` records against a running app instead, with that app's addresses, and leaves its main site there.
 
@@ -149,7 +155,7 @@ pnpm --filter tinyzoo-cloud walkthrough --quick            # the two films small
 - Custom domains.
 - Real e-mail delivery set up (the SMTP transport is there, as in Keeper; nothing is configured).
 - Deploying: the cloud app itself has no deployment, and the Pushbase driver has not been run.
-- The nineteen planned templates (their designs are finished; the gallery shows them).
+- The planned templates (their designs are finished; the gallery shows them).
 - Single sign-on from the cloud account into a site's admin (today: the invitation).
 - The site's own logo in its admin (its name is there: `cms.admin.nameFrom`).
 - Deleting an account, changing its e-mail address, and anything for the people who run the service (a list of all sites, stopping one).

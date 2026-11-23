@@ -4,6 +4,7 @@
 //
 //   pnpm --filter tinyzoo-cloud pictures            # the planned templates, from the designs folder
 //   pnpm --filter tinyzoo-cloud pictures --real     # the built templates, from real sites it makes
+//   pnpm --filter tinyzoo-cloud pictures --real --only wedding,salon   # only these built templates
 //   pnpm --filter tinyzoo-cloud pictures --designs /path/to/template-designs
 //
 // From the designs (template-designs/<slug>/): a look is alive when <slug>/<a|b|c|d>.html exists
@@ -29,13 +30,14 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import { arg, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, log, recreateDatabase, repoRoot, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
+import { arg, BUILT_TEMPLATES, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, log, looksOf, recreateDatabase, repoRoot, runDb, runPort, runPrefix, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
 
 const sharp = createRequire(join(repoRoot, 'packages/cms/package.json'))('sharp')
 const out = join(cloudDir, 'public', 'templates')
 const dataFile = join(cloudDir, 'shared', 'template-pictures.json')
 const real = arg('real', false) === true
 const keep = arg('keep', false) === true // --real --keep: the cloud app's database and the sites stay, to look at
+const only = typeof arg('only', null) === 'string' ? arg('only').split(',') : null // --real --only a,b: these templates; the others keep their pictures
 
 /** "Celý rok" → "cely-rok": a look's id is its Czech name as a plain word. */
 export const lookId = (name) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
@@ -107,15 +109,6 @@ async function fromDesigns() {
 
 // ── the built templates, from real sites ────────────────────────────────────────
 
-// What each built template is called in its pictures: the name its demo content is about.
-const DEMO = {
-  basic: { name: 'Pekárna Na Růžku', looks: [null] },
-  photographer: { name: 'Johana Loudová', looks: ['atelier', 'negativ', 'zapisnik'] },
-}
-// Where a template writes the site's name. Photographer marks it (data-wordmark); the starter's
-// header is plain markup.
-const WORDMARK = { basic: 'header .site-header > a > span', photographer: 'header [data-wordmark]' }
-
 /** Where and how the page writes the site's name, in CSS pixels of a 1440 px wide screen. */
 const measure = (page, selector) => page.evaluate((selector) => {
   const el = [...document.querySelectorAll(selector)].find((e) => e.getClientRects().length)
@@ -158,11 +151,22 @@ const measure = (page, selector) => page.evaluate((selector) => {
   const centred = Math.abs((box.left + box.right) / 2 - innerWidth / 2) < 3
   const left = [...document.querySelectorAll('header a, header button, header nav')].map((e) => e.getBoundingClientRect())
     .filter((r) => r.width && r.right < box.left - 4 && r.top < box.bottom && r.bottom > box.top)
-  const room = centred ? 2 * Math.min(innerWidth / 2 - Math.max(0, ...left.map((r) => r.right + 24)), limit - innerWidth / 2) : limit - box.left
+  // A name outside the header (a wedding's names open the page) has the room of what holds it.
+  const holder = el.closest('header') ? null : el.parentElement.getBoundingClientRect()
+  const room = holder
+    ? (centred ? holder.width : holder.right - box.left) - 2 * parseFloat(getComputedStyle(el.parentElement).paddingRight || '0')
+    : centred ? 2 * Math.min(innerWidth / 2 - Math.max(0, ...left.map((r) => r.right + 24)), limit - innerWidth / 2) : limit - box.left
+  // "Johana *Loudová*": the look sets the last word in italics (an <em> that ends the name).
+  const em = el.querySelector('em')
+  const last = em && [...(em.parentElement?.childNodes ?? [])].filter((n) => n.textContent.trim()).pop()
   return {
     anchor: centred ? 'center' : 'left',
-    // "Johana *Loudová*": the look sets the last word in italics.
-    italicLast: !!el.querySelector('em'),
+    italicLast: !!em && last === em,
+    // A name that opens the page is set large: one too long for its room is set smaller until it fits.
+    fit: !!holder,
+    // The whole name in italics (a look that sets the names so), and the kind of typeface to fall back on.
+    italic: s.fontStyle === 'italic',
+    generic: ['serif', 'sans-serif', 'monospace', 'cursive'].find((g) => s.fontFamily.split(',').pop().trim() === g) ?? '',
     x: Math.round((centred ? innerWidth / 2 : box.left) * 10) / 10, y: Math.round((box.top + box.height / 2) * 10) / 10, maxWidth: Math.round(room),
     size: parseFloat(s.fontSize), family, weight, stretch: s.fontStretch === '100%' ? '' : s.fontStretch,
     color: s.color, transform: s.textTransform === 'none' ? '' : s.textTransform, spacing: s.letterSpacing === 'normal' ? '' : s.letterSpacing,
@@ -173,23 +177,24 @@ const measure = (page, selector) => page.evaluate((selector) => {
 async function fromRealSites() {
   const { chromium } = await import('playwright')
   for (const [id, entry] of Object.entries(templateEntries)) {
-    if (existsSync(entry)) continue
+    if (existsSync(entry) || (only && !only.includes(id))) continue
     console.error(`The template "${id}" is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
     process.exit(2)
   }
-  const DB = 'tz_cloud_pics'
+  const DB = runDb('tz_cloud_pics')
+  const PREFIX = runPrefix('tzc_pics_')
   const dataDir = join(cloudDir, '.data', 'pics', 'sites')
   let cloud = null, browser = null, failed = null
   try {
     log('preparing a cloud app of its own')
-    await cleanSites(dataDir, 'tzc_pics_')
+    await cleanSites(dataDir, PREFIX)
     await recreateDatabase(DB)
     cloud = await startCloud({
-      port: await freePortFrom(3270),
+      port: await freePortFrom(runPort(3270)),
       logFile: join(cloudDir, '.preview', 'pictures-cloud.log'),
       env: {
-        NUXT_DATABASE_URL: dbUrl(DB), NUXT_HOSTING_DRIVER: 'local', NUXT_HOSTING_LOCAL_DATA_DIR: dataDir, NUXT_HOSTING_LOCAL_DATABASE_PREFIX: 'tzc_pics_',
-        NUXT_HOSTING_LOCAL_PORT_FROM: '4350', NUXT_HOSTING_LOCAL_PORT_TO: '4359', NUXT_HOSTING_LOCAL_PUBLIC_URL: '', NUXT_MAX_SITES_PER_USER: '10',
+        NUXT_DATABASE_URL: dbUrl(DB), NUXT_HOSTING_DRIVER: 'local', NUXT_HOSTING_LOCAL_DATA_DIR: dataDir, NUXT_HOSTING_LOCAL_DATABASE_PREFIX: PREFIX,
+        NUXT_HOSTING_LOCAL_PORT_FROM: String(runPort(4350)), NUXT_HOSTING_LOCAL_PORT_TO: String(runPort(4359)), NUXT_HOSTING_LOCAL_PUBLIC_URL: '', NUXT_MAX_SITES_PER_USER: '10',
         NUXT_REQUIRE_VERIFIED_EMAIL: 'false', NUXT_MAIL_TRANSPORT: 'log',
       },
     })
@@ -205,13 +210,16 @@ async function fromRealSites() {
     const data = read()
     const fontFiles = new Map() // the site's path → the copied file's name
     mkdirSync(join(out, 'fonts'), { recursive: true })
-    for (const [template, demo] of Object.entries(DEMO)) {
+    for (const built of BUILT_TEMPLATES) {
+      const template = built.id
+      if (only && !only.includes(template)) continue
       mkdirSync(join(out, template), { recursive: true })
       const entry = { source: 'site', looks: [] }
-      for (const look of demo.looks) {
+      // The template's own looks (its looks.ts); one unnamed design otherwise.
+      for (const look of (await looksOf(built))?.ids ?? [null]) {
         const id = look ?? template
         const slug = `obrazky-${template}${look ? `-${look}` : ''}`
-        const { site } = await post('/api/sites', { name: demo.name, slug, template, look })
+        const { site } = await post('/api/sites', { name: built.demoName, slug, template, look })
         const made = await waitFor(async () => {
           const s = (await (await api.request.get(`${cloud.url}/api/sites/${site.id}`)).json()).site
           if (s.status === 'failed') throw new Error(`${slug} could not be made: ${s.errorDetail ?? ''}`)
@@ -242,10 +250,10 @@ async function fromRealSites() {
         const tall = await page.screenshot({ type: 'png', fullPage: true, clip: { x: 0, y: 0, width: 1440, height: 2160 } })
         await webp(tall, 900, 1350, join(out, template, `${id}-tall.webp`), 80)
 
-        const wordmark = await measure(page, WORDMARK[template])
-        if (!wordmark) throw new Error(`${slug}: the site's name was not found on the page (${WORDMARK[template]})`)
+        const wordmark = await measure(page, built.wordmark)
+        if (!wordmark) throw new Error(`${slug}: the site's name was not found on the page (${built.wordmark})`)
         // The same screen without the name: the wizard writes the typed one there.
-        await page.addStyleTag({ content: `${WORDMARK[template]} { visibility: hidden !important }` })
+        await page.addStyleTag({ content: `${[built.wordmark, built.hide].filter(Boolean).join(', ')} { visibility: hidden !important }` })
         await sleep(100)
         await webp(await page.screenshot({ type: 'png' }), 1440, 900, join(out, template, `${id}-top.webp`), 82)
 
@@ -263,6 +271,9 @@ async function fromRealSites() {
         entry.looks.push({ id, wordmark })
         await ctx.close()
         log(`  ${template}/${id}: ${wordmark.family} ${wordmark.weight}, ${wordmark.fonts.length} file(s)`)
+        // One site at a time: a template with many looks would otherwise hold a process for each.
+        await post(`/api/sites/${site.id}/remove`, { confirm: slug })
+        await waitFor(async () => !existsSync(join(dataDir, slug)), { timeout: 60_000, what: `${slug} to be removed` })
       }
       data[template] = entry
     }
@@ -281,7 +292,7 @@ async function fromRealSites() {
     if (cloud) {
       await cloud.stop().catch(() => {})
       if (!keep) {
-        await cleanSites(dataDir, 'tzc_pics_').catch((e) => console.error('cleanup:', e.message))
+        await cleanSites(dataDir, PREFIX).catch((e) => console.error('cleanup:', e.message))
         await dropDatabase(DB).catch(() => {})
       }
     }

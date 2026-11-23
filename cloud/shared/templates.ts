@@ -1,6 +1,6 @@
-// The templates a website can start from. Two really exist today: `basic`, built from
-// packages/cms/starter, and `photographer`, from templates/photographer. The other nineteen
-// are planned: their designs are finished and approved, so the gallery shows each as it will
+// The templates a website can start from. Some really exist: `basic`, built from
+// packages/cms/starter, and the hosted ones built from templates/<id> (`hosted(…)` below and
+// Photographer). The rest are planned: their designs are finished and approved, so the gallery shows each as it will
 // look, but only with NUXT_PUBLIC_SHOW_PLANNED=true, marked as not available and not
 // selectable. A customer never sees them without the flag, and the server refuses to make a
 // site from one (`ready: false`) whatever the flag says.
@@ -65,9 +65,12 @@ export interface TemplateDef {
   looks: LookDef[]
 }
 
-const look = (id: string, cs: string, en: string, csText: string, enText: string): LookDef => ({ id, name: { cs, en }, description: { cs: csText, en: enText } })
+const look = (id: string, cs: string, en: string, csText: string, enText: string, colors?: string): LookDef => ({ id, name: { cs, en }, description: { cs: csText, en: enText }, ...(colors ? { colors } : {}) })
 const planned = (id: string, field: FieldId, animal: string, name: L, description: L, features: L[], looks: LookDef[]): TemplateDef =>
   ({ id, ready: false, field, name, description, features, sourceDir: null, seed: false, animal, looks })
+/** A hosted template that is built (templates/<id>): each of its looks names its default colours as the sixth argument of `look(…)`. */
+const hosted = (id: string, field: FieldId, animal: string, name: L, description: L, features: L[], looks: LookDef[]): TemplateDef =>
+  ({ id, ready: true, field, name, description, features, sourceDir: `templates/${id}`, seed: true, animal, looks })
 
 export const TEMPLATES: TemplateDef[] = [
   {
@@ -134,14 +137,14 @@ export const TEMPLATES: TemplateDef[] = [
       },
     ],
   },
-  planned('wedding', 'personal', 'butterfly',
+  hosted('wedding', 'personal', 'butterfly',
     { cs: 'Svatba', en: 'Wedding' },
     { cs: 'Hosté najdou program, místo, ubytování a dary a mohou potvrdit účast.', en: 'Give guests the schedule, venue, places to stay, gift ideas and a way to RSVP.' },
     [{ cs: 'Program dne', en: 'Wedding schedule' }, { cs: 'Místo a ubytování', en: 'Venue and places to stay' }, { cs: 'Dary', en: 'Gifts' }, { cs: 'Potvrzení účasti', en: 'RSVP' }],
     [
-      look('oznameni', 'Oznámení', 'Announcement', 'Jména na střed, klasické písmo a fotografie v paspartách jako na svatebním oznámení.', 'Centred names, classic type and framed photos give it the feel of a printed wedding invitation.'),
-      look('vecer', 'Večer', 'Evening', 'Tmavé pozadí se světýlky, jména v jemné kurzivě a kartička k potvrzení účasti.', 'Fairy lights on a dark background, names in delicate italics and an RSVP card.'),
-      look('magazin', 'Magazín', 'Magazine', 'Velká jména a široké fotografie na bílé stránce jako ve svatebním časopise.', 'Large names and wide photos on a white page, laid out like a wedding magazine.'),
+      look('oznameni', 'Oznámení', 'Announcement', 'Jména na střed, klasické písmo a fotografie v paspartách jako na svatebním oznámení.', 'Centred names, classic type and framed photos give it the feel of a printed wedding invitation.', 'salvej'),
+      look('vecer', 'Večer', 'Evening', 'Tmavé pozadí se světýlky, jména v jemné kurzivě a kartička k potvrzení účasti.', 'Fairy lights on a dark background, names in delicate italics and an RSVP card.', 'les'),
+      look('magazin', 'Magazín', 'Magazine', 'Velká jména a široké fotografie na bílé stránce jako ve svatebním časopise.', 'Large names and wide photos on a white page, laid out like a wedding magazine.', 'pisek'),
     ]),
   planned('blog', 'personal', 'bird',
     { cs: 'Blog a magazín', en: 'Blog and magazine' },
@@ -349,6 +352,12 @@ export interface WordmarkDef {
   y: number
   /** The room the name has. */
   maxWidth: number
+  /** A name too long for its room is set smaller until it fits (a wedding's names open the page, large); without it the name is cut. */
+  fit?: boolean
+  /** The look sets the whole name in italics. */
+  italic?: boolean
+  /** The kind of typeface the look falls back on (`serif`…), until the look's own has loaded. */
+  generic?: string
   /** Font size in pixels. */
   size: number
   family: string

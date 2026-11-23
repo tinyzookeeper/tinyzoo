@@ -4,15 +4,11 @@
 //   pnpm --filter tinyzoo-cloud templates:build
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { BUILT_TEMPLATES, repoRoot as root } from './lib.mjs'
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 // The ready templates of shared/templates.ts: [id, workspace package, source folder].
-const all = [
-  ['basic', 'tinyzoo-starter', 'packages/cms/starter'],
-  ['photographer', 'tinyzoo-template-photographer', 'templates/photographer'],
-]
+const all = BUILT_TEMPLATES.map((t) => [t.id, t.pkg, t.dir])
 // `templates:build photographer` builds only the ones named.
 const only = process.argv.slice(2)
 const templates = only.length ? all.filter(([id]) => only.includes(id)) : all

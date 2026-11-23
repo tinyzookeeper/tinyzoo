@@ -24,6 +24,25 @@ const wordmark = computed(() => wordmarkOf(props.template, lookId.value))
 const src = computed(() => pictureOf(props.template, lookId.value, wordmark.value ? 'top' : 'card'))
 useWordmarkFont(wordmark)
 
+// A look that sets the name large (`fit`) sets a long one smaller, so that it fits its room on
+// one line: measured once the typeface is there, and again when the name changes.
+const nameEl = ref<HTMLElement | null>(null)
+const shrink = ref(1)
+async function fitName() {
+  const w = wordmark.value
+  const el = nameEl.value
+  if (!w?.fit || !el) { shrink.value = 1; return }
+  shrink.value = 1
+  await nextTick()
+  const room = el.parentElement!.clientWidth * (w.maxWidth / 1440)
+  // (scrollWidth: what the name needs at full size, whatever the room cuts off)
+  if (el.scrollWidth > room && room > 0) shrink.value = Math.max(0.3, room / el.scrollWidth)
+}
+watch([() => props.name, wordmark], fitName)
+// (the look's typeface arrives after the first drawing, and changes how wide the name is)
+onMounted(() => { fitName(); document.fonts?.addEventListener('loadingdone', fitName) })
+onBeforeUnmount(() => document.fonts?.removeEventListener('loadingdone', fitName))
+
 const words = computed(() => props.name.trim().split(/\s+/).filter(Boolean))
 const lead = computed(() => words.value.slice(0, -1).join(' '))
 const last = computed(() => words.value.at(-1) ?? '')
@@ -35,10 +54,13 @@ const style = computed(() => {
   return {
     left: `${(w.x / 14.4).toFixed(3)}%`,
     top: `${(w.y / 9).toFixed(3)}%`,
-    maxWidth: `${(w.maxWidth / 14.4).toFixed(3)}%`,
+    // (a name that is fitted is measured at its full width first: no limit while that happens)
+    maxWidth: w.fit ? undefined : `${(w.maxWidth / 14.4).toFixed(3)}%`,
+    width: w.fit ? 'max-content' : undefined,
     transform: `translate(${w.anchor === 'center' ? '-50%' : '0'}, -50%)`,
-    fontFamily: `"${wordmarkFamily(w)}", ${/serif/i.test(w.family) || ['Newsreader'].includes(w.family) ? 'Georgia, serif' : 'var(--font-sans)'}`,
-    fontSize: cq(w.size),
+    fontFamily: `"${wordmarkFamily(w)}", ${w.generic === 'serif' || /serif/i.test(w.family) || ['Newsreader'].includes(w.family) ? 'Georgia, serif' : 'var(--font-sans)'}`,
+    fontStyle: w.italic ? 'italic' : undefined,
+    fontSize: cq(w.size * shrink.value),
     fontWeight: String(w.weight),
     fontStretch: w.stretch || undefined,
     color: w.color,
@@ -51,7 +73,7 @@ const style = computed(() => {
 <template>
   <div class="shot" aria-hidden="true">
     <img :src="src" alt="" :loading="eager ? 'eager' : 'lazy'" draggable="false">
-    <span v-if="wordmark" class="shot__name" :class="{ 'is-on': named && words.length }" :style="style">
+    <span v-if="wordmark" ref="nameEl" class="shot__name" :class="{ 'is-on': named && words.length }" :style="style">
       <template v-if="wordmark.italicLast && lead">{{ lead }} <em>{{ last }}</em></template>
       <template v-else>{{ name.trim() }}</template>
     </span>
