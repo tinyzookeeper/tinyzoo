@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { ACCOUNT_CALLBACK_PATH, Browser, startAccountIssuer, type AccountIssuer, type IssuerPerson } from '../helpers/accountIssuer'
+import { ACCOUNT_CALLBACK_PATH, Browser, issuerSub, startAccountIssuer, type AccountIssuer, type IssuerPerson } from '../helpers/accountIssuer'
 import { expectNoSiteErrors, siteQuery, startTenants, tenantGet, type Tenants, type TenantSite } from '../helpers/tenants'
 
 // Sign-in with the tinyzoo account in multi-tenant mode (docs/multi-tenant-plan.md 2.15):
@@ -45,7 +45,7 @@ afterAll(async () => {
 /** A person at the issuer whose verified e-mail is one of the three accounts both sites hold. */
 function personFor(role: 'admin' | 'editor' | 'author'): IssuerPerson {
   const n = ++seq
-  return issuer.addPerson({ sub: `sub-${role}-${n}`, email: `${role}@test.local`, name: `Account of ${role}` })
+  return issuer.addPerson({ sub: issuerSub(n), email: `${role}@test.local`, name: `Account of ${role}` })
 }
 function browserOf(p?: IssuerPerson): Browser {
   const b = new Browser()
@@ -206,8 +206,8 @@ describe('the link and the list of websites are the site’s own', () => {
     expect((await b.visit(`${t.b.url}${START}`)).url).toBe(`${t.b.url}/admin`)
     // Both sites have told the issuer the role by now (they do it after the response).
     await issuer.waitForCalls('/oauth/membership', 2, before)
-    issuer.members.set(`sister-of-a\n${p.sub}`, { role: 'editor', active: true })
-    issuer.members.set(`sister-of-b\n${p.sub}`, { role: 'author', active: true })
+    issuer.members.set(`sister-of-a\n${p.sub}`, { role: 'editor', active: true, confirmed: true })
+    issuer.members.set(`sister-of-b\n${p.sub}`, { role: 'author', active: true, confirmed: true })
 
     const expected = (site: 'a' | 'b', url: string) => ({
       linked: true,
@@ -245,7 +245,7 @@ describe('the link and the list of websites are the site’s own', () => {
     const [report] = await issuer.waitForCalls('/oauth/membership', 1, mark)
     expect(report!.basicClient).toBe('client-a')
     expect(report!.body).toEqual({ sub: p.sub, role: 'author', active: false })
-    expect(issuer.member('client-b', p.sub)).toEqual({ role: 'author', active: true })
+    expect(issuer.member('client-b', p.sub)).toEqual({ role: 'author', active: true, confirmed: true })
     expect((await browserOf(p).visit(`${t.a.url}${START}`)).url).toBe(`${t.a.url}/admin/login?account=no-access`)
     expect((await browserOf(p).visit(`${t.b.url}${START}`)).url).toBe(`${t.b.url}/admin`)
     // Put back as it was, for whatever runs after.

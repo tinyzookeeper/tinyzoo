@@ -24,6 +24,6 @@ export default defineEventHandler(async (event) => {
   })
   await audit(event, 'user.delete', { recordId: id, meta: { email: target.email } })
   const account = cmsAccount()
-  if (link && account && link.issuer === account.issuer) reportAccountMembership(event, account, { sub: link.sub, role: target.role, active: false })
+  if (link && account && link.issuer === account.issuer) void reportAccountMembership(event, account, { sub: link.sub, role: target.role, active: false })
   return { ok: true }
 })

@@ -15,6 +15,7 @@
     "e2e": "node scripts/e2e.mjs",
     "e2e:shared": "node scripts/e2e-shared.mjs",
     "e2e:account": "node scripts/e2e-account.mjs",
+    "e2e:signin": "node scripts/e2e-signin.mjs",
     "walkthrough": "node scripts/walkthrough.mjs"
   },
   "dependencies": {

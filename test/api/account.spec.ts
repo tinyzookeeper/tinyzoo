@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import pg from 'pg'
 import { Client, tokenOf } from '../helpers/api'
-import { ACCOUNT_CALLBACK_PATH, Browser, startAccountIssuer, type AccountIssuer, type IssuerPerson } from '../helpers/accountIssuer'
+import { ACCOUNT_CALLBACK_PATH, Browser, issuerSub, startAccountIssuer, type AccountIssuer, type IssuerPerson } from '../helpers/accountIssuer'
 import { scratchDatabase, startServer, type SpawnedServer } from '../helpers/server'
 
 // Sign-in with the tinyzoo account, the site's side (docs/multi-tenant-plan.md 2.15;
@@ -79,7 +79,7 @@ const START = '/api/cms/_auth/account/start'
 /** A person at the issuer. */
 function person(over: Partial<IssuerPerson> = {}): IssuerPerson {
   const n = ++seq
-  return issuer.addPerson({ sub: `sub-${n}`, email: `person-${n}@test.local`, name: `Person ${n}`, ...over })
+  return issuer.addPerson({ sub: issuerSub(n), email: `person-${n}@test.local`, name: `Person ${n}`, ...over })
 }
 
 /** Invite an e-mail address on the site; `accept` makes the user active with a password. */
@@ -178,7 +178,7 @@ describe('sign-in with the account: the round trip', () => {
     const [report] = await issuer.waitForCalls('/oauth/membership', 1, mark)
     expect(report!.body).toEqual({ sub: p.sub, role: 'editor', active: true })
     expect(report!.basicClient).toBe(CLIENT_ID)
-    expect(issuer.member(CLIENT_ID, p.sub)).toEqual({ role: 'editor', active: true })
+    expect(issuer.member(CLIENT_ID, p.sub)).toEqual({ role: 'editor', active: true, confirmed: true })
   })
 
   it('the link holds when the e-mail changes at the issuer: the person is found by `sub`', async () => {
@@ -226,15 +226,76 @@ describe('sign-in with the account: the round trip', () => {
     expect((await me(later)).json.user.id).toBe(id)
   })
 
-  it('an invitation that ran out is not accepted by the account either', async () => {
+  it('an invitation whose link ran out is still accepted by the account: the proof is the verified e-mail, not the link', async () => {
+    const p = person({ name: 'Late Owner' })
+    const { id, inviteUrl } = await invite(p.email, 'admin')
+    // Eight days later: the link no longer works, for the page or for a password.
+    await pool.query(`update cms_tokens set expires_at = now() - interval '1 day', created_at = now() - interval '8 days' where user_id = $1`, [id])
+    expect((await new Client(site).get(`/api/cms/_auth/invite/${tokenOf(inviteUrl)}`)).status).toBe(410)
+    expect((await new Client(site).post('/api/cms/_auth/accept', { token: tokenOf(inviteUrl), name: 'With the link', password: PASSWORD })).status).toBe(410)
+    expect((await userRow(id)).status).toBe('invited')
+
+    const b = browserOf(p)
+    const mark = issuer.calls.length
+    expect((await b.visit(`${site}${START}`)).url).toBe(`${site}/admin`)
+    expect((await me(b)).json.user).toMatchObject({ id, email: p.email, role: 'admin', name: 'Late Owner' })
+    expect(await userRow(id)).toMatchObject({ status: 'active', password_hash: null })
+    expect(await linkOf(id)).toEqual({ issuer: issuer.url, sub: p.sub })
+    expect((await auditOf(id, 'auth.invite_accept'))[0]).toEqual({ via: 'account' })
+    expect((await issuer.waitForCalls('/oauth/membership', 1, mark))[0]!.body).toEqual({ sub: p.sub, role: 'admin', active: true })
+    // The link is used up for good: no open invitation is left behind.
+    expect((await pool.query(`select count(*)::int as n from cms_tokens where user_id = $1 and kind = 'invite' and used_at is null`, [id])).rows[0].n).toBe(0)
+  })
+
+  it('an expired invitation is accepted only for a VERIFIED e-mail, and one taken back is not accepted at all', async () => {
+    // Not verified: the old link gives nothing away.
+    const victim = `late-${++seq}@test.local`
+    const first = await invite(victim, 'admin')
+    await pool.query(`update cms_tokens set expires_at = now() - interval '1 day' where user_id = $1`, [first.id])
+    const unverified = browserOf(person({ email: victim, email_verified: false }))
+    expect((await unverified.visit(`${site}${START}`)).url).toBe(`${site}/admin/login?account=unverified`)
+    expect((await me(unverified)).status).toBe(401)
+    expect((await userRow(first.id)).status).toBe('invited')
+    expect(await linkOf(first.id)).toBeUndefined()
+
+    // Taken back (the administrator removed the invited user): the account has no user here.
     const p = person()
-    const { id } = await invite(p.email)
-    await pool.query(`update cms_tokens set expires_at = now() - interval '1 minute' where user_id = $1`, [id])
+    const second = await invite(p.email, 'editor')
+    expect((await admin.delete(`/api/cms/_users/${second.id}`)).status).toBe(200)
     const b = browserOf(p)
     expect((await b.visit(`${site}${START}`)).url).toBe(`${site}/admin/login?account=no-access`)
-    expect((await userRow(id)).status).toBe('invited')
-    expect(await linkOf(id)).toBeUndefined()
-    expect((await auditOf(id, 'auth.login_failed'))[0]).toMatchObject({ via: 'account', reason: 'invitation-expired' })
+    expect((await me(b)).status).toBe(401)
+    expect(await userRow(second.id)).toBeUndefined()
+  })
+
+  it('the page of an invitation whose link no longer works offers the account', async () => {
+    const p = person()
+    const { id, inviteUrl } = await invite(p.email, 'author')
+    await pool.query(`update cms_tokens set expires_at = now() - interval '1 day' where user_id = $1`, [id])
+    const page = await new Browser().fetch(`${site}/admin/invite/${tokenOf(inviteUrl)}`, { headers: { 'accept-language': 'en' } })
+    expect(page.status).toBe(200)
+    expect(page.body).toContain('data-cms-invite-expired-account')
+    expect(page.body).toContain('data-cms-account-sign-in')
+    expect(page.body).toContain('/api/cms/_auth/account/start?next=%2Fadmin')
+  })
+
+  it('the website is told to the issuer before the browser goes on: the list asked next already has it, with the role', async () => {
+    const p = person()
+    await invite(p.email, 'author', true)
+    const b = browserOf(p)
+    const start = await b.fetch(`${site}${START}`)
+    const callback = (await b.fetch(start.headers.get('location')!)).headers.get('location')!
+    expect(issuer.member(CLIENT_ID, p.sub)).toBeUndefined()
+    const mark = issuer.calls.length
+    const done = await b.fetch(callback)
+    expect(done.headers.get('location')).toBe('/admin')
+    // No waiting here: when the redirect is in the browser's hands, the issuer has the report.
+    const told = issuer.callsTo('/oauth/membership', mark)
+    expect(told.map((c) => [c.status, c.body])).toEqual([[200, { sub: p.sub, role: 'author', active: true }]])
+    expect(issuer.member(CLIENT_ID, p.sub)).toEqual({ role: 'author', active: true, confirmed: true })
+    // In the order of 2.15: the code, then the report.
+    expect(issuer.calls.slice(mark).map((c) => c.path)).toEqual(['/oauth/token', '/oauth/membership'])
+    expect((await b.fetch(site + '/api/cms/_auth/account/sites')).json.sites).toEqual([{ id: CLIENT_ID, name: 'Site under test', url: site, role: 'author', current: true }])
   })
 
   it('someone already signed in here goes straight on when the switcher brings them (silent), without asking the issuer', async () => {
@@ -258,7 +319,11 @@ describe('sign-in with the account: who gets no access', () => {
     expect(b.cookie(site, 'cms-account-flow')).toBeUndefined()
     expect(await links()).toSatisfy((rows: any[]) => !rows.some((r) => r.value.sub === p.sub))
     // The exchange made them a member at the issuer; the site says it does not let them in.
-    expect((await issuer.waitForCalls('/oauth/membership', 1, mark))[0]!.body).toEqual({ sub: p.sub, role: '', active: false })
+    const [told] = await issuer.waitForCalls('/oauth/membership', 1, mark)
+    expect(told!.body).toEqual({ sub: p.sub, role: '', active: false })
+    // The issuer knew them from the exchange alone: taken as said (200), never confirmed, so listed nowhere, with no role.
+    expect(told!.status).toBe(200)
+    expect(issuer.member(CLIENT_ID, p.sub)).toEqual({ role: null, active: false, confirmed: false })
     expect((await auditOf(null, 'auth.login_failed')).some((m) => m.via === 'account' && m.reason === 'no-user' && m.email === p.email)).toBe(true)
   })
 
@@ -268,7 +333,7 @@ describe('sign-in with the account: who gets no access', () => {
     for (const verified of [false, 'true', 1, undefined] as const) {
       const p = person({ email: victim, email_verified: verified as any })
       const b = browserOf(p)
-      expect((await b.visit(`${site}${START}`)).url, `email_verified: ${String(verified)}`).toBe(`${site}/admin/login?account=no-access`)
+      expect((await b.visit(`${site}${START}`)).url, `email_verified: ${String(verified)}`).toBe(`${site}/admin/login?account=unverified`)
       expect((await me(b)).status).toBe(401)
     }
     expect(await linkOf(id)).toBeUndefined()
@@ -486,16 +551,17 @@ describe('sign-in with the account: the state, the flow cookie and `next`', () =
     expect(end.body).toContain(`${START}?next=${encodeURIComponent('/admin/media')}`)
     expect(end.body).not.toContain('data-cms-account-notice')
     // (Counted by endpoint: a role report of an earlier test may still arrive in between.)
+    // The site's server first asks whether the issuer is there at all, then the browser goes to it.
     const asked = () => issuer.calls.slice(mark).filter((c) => c.path !== '/oauth/membership').map((c) => c.path)
-    expect(asked()).toEqual(['/oauth/authorize'])
+    expect(asked()).toEqual(['/.well-known/tinyzoo-account', '/oauth/authorize'])
     expect((await me(b)).status).toBe(401)
     // Opening the page again asks the issuer nothing either.
     await b.visit(end.url)
-    expect(asked()).toEqual(['/oauth/authorize'])
+    expect(asked()).toEqual(['/.well-known/tinyzoo-account', '/oauth/authorize'])
   })
 
   it('the sign-in page says why an attempt did not get in', async () => {
-    for (const [result, text] of [['no-access', 'has no access to this website'], ['unavailable', 'did not answer'], ['expired', 'took too long']] as const) {
+    for (const [result, text] of [['no-access', 'has no access to this website'], ['unavailable', 'did not answer'], ['expired', 'took too long'], ['busy', 'Too many sign-in attempts'], ['unverified', 'Confirm the email address of your tinyzoo account first']] as const) {
       const page = await new Browser().fetch(`${site}/admin/login?account=${result}`, { headers: { 'accept-language': 'en' } })
       expect(page.status).toBe(200)
       expect(page.body, result).toContain('data-cms-account-notice')
@@ -505,18 +571,28 @@ describe('sign-in with the account: the state, the flow cookie and `next`', () =
 })
 
 describe('sign-in with the account: rate limits', () => {
-  it('start and callback are limited per address (60 in 15 minutes), each on its own count', async () => {
+  it('start and callback are limited per address (60 in 15 minutes), each on its own count; over it the sign-in page says so', async () => {
     const b = new Browser()
-    for (let i = 0; i < 60; i++) expect((await b.fetch(`${site}${START}`)).status, `start #${i + 1}`).toBe(302)
-    const refused = await b.fetch(`${site}${START}`)
-    expect(refused.status).toBe(429)
+    for (let i = 0; i < 60; i++) expect((await b.fetch(`${site}${START}`)).headers.get('location'), `start #${i + 1}`).toMatch(new RegExp(`^${issuer.url}/oauth/authorize`))
+    const mark = issuer.calls.length
+    const refused = await b.fetch(`${site}${START}?next=/admin/media`)
+    // Not a bare 429: the sign-in page, with a plain notice, and where the person was going is kept.
+    expect(refused.status).toBe(302)
+    expect(refused.headers.get('location')).toBe(`/admin/login?account=busy&redirect=${encodeURIComponent('/admin/media')}`)
     expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0)
-    expect(refused.headers.get('location')).toBeNull()
+    expect(refused.headers.getSetCookie().some((c) => c.startsWith('cms-account-flow='))).toBe(false)
+    expect(issuer.calls.slice(mark)).toHaveLength(0)
+    const page = await b.fetch(`${site}/admin/login?account=busy`, { headers: { 'accept-language': 'en' } })
+    expect(page.status).toBe(200)
+    expect(page.body).toContain('data-cms-account-notice')
+    expect(page.body).toContain('Too many sign-in attempts')
     // The callback counts separately, for the same address.
-    for (let i = 0; i < 60; i++) expect((await b.fetch(`${site}${ACCOUNT_CALLBACK_PATH}?code=x&state=y`)).status, `callback #${i + 1}`).toBe(302)
-    expect((await b.fetch(`${site}${ACCOUNT_CALLBACK_PATH}?code=x&state=y`)).status).toBe(429)
+    for (let i = 0; i < 60; i++) expect((await b.fetch(`${site}${ACCOUNT_CALLBACK_PATH}?code=x&state=y`)).headers.get('location'), `callback #${i + 1}`).toBe('/admin/login?account=expired')
+    const over = await b.fetch(`${site}${ACCOUNT_CALLBACK_PATH}?code=x&state=y`)
+    expect(over.status).toBe(302)
+    expect(over.headers.get('location')).toBe('/admin/login?account=busy')
     // Another address is not held up.
-    expect((await new Browser().fetch(`${site}${START}`)).status).toBe(302)
+    expect((await new Browser().fetch(`${site}${START}`)).headers.get('location')).toMatch(new RegExp(`^${issuer.url}/oauth/authorize`))
   })
 })
 
@@ -551,6 +627,33 @@ describe('sign-in with the account: an issuer that fails', () => {
     }
   })
 
+  it('an issuer that does not answer when a sign-in STARTS: the browser is not sent to it, the sign-in page says so and the password works', async () => {
+    const p = person()
+    await invite(p.email, 'editor', true)
+    const b = browserOf(p)
+    issuer.fault.down = true
+    try {
+      const start = await b.fetch(`${site}${START}?next=/admin/media`)
+      expect(start.status).toBe(302)
+      // Not the issuer's address (the browser would show its own "cannot connect" page there).
+      expect(start.headers.get('location')).toBe(`/admin/login?account=unavailable&redirect=${encodeURIComponent('/admin/media')}`)
+      expect(start.headers.getSetCookie().some((c) => c.startsWith('cms-account-flow='))).toBe(false)
+      const silent = await b.fetch(`${site}${START}?silent=1`)
+      expect(silent.headers.get('location')).toBe('/admin/login?account=unavailable')
+      const page = await b.fetch(`${site}/admin/login?account=unavailable`, { headers: { 'accept-language': 'en' } })
+      expect(page.body).toContain('The account service did not answer')
+      // The website's own password is the way in meanwhile.
+      const withPassword = new Client(site)
+      expect((await withPassword.post('/api/cms/_auth/login', { email: p.email, password: PASSWORD })).status).toBe(200)
+      expect((await withPassword.get('/api/cms/_auth/me')).status).toBe(200)
+    }
+    finally {
+      delete issuer.fault.down
+    }
+    // Back again: the same address starts a sign-in as before.
+    expect((await b.visit(`${site}${START}`)).url).toBe(`${site}/admin`)
+  })
+
   it('an issuer that refuses the site’s secret (401) is `unavailable` too', async () => {
     const p = person()
     await invite(p.email, 'editor', true)
@@ -574,8 +677,8 @@ describe('the person’s websites (the switcher)', () => {
 
   it('lists the websites of the same owner the person is let into, the current one marked, and is kept for a minute', async () => {
     const { p, b } = await linkedUser('editor')
-    issuer.members.set(`sister\n${p.sub}`, { role: 'admin', active: true })
-    issuer.members.set(`stranger\n${p.sub}`, { role: 'admin', active: true })
+    issuer.members.set(`sister\n${p.sub}`, { role: 'admin', active: true, confirmed: true })
+    issuer.members.set(`stranger\n${p.sub}`, { role: 'admin', active: true, confirmed: true })
     const mark = issuer.calls.length
 
     const first = await b.fetch(site + SITES)
@@ -594,12 +697,34 @@ describe('the person’s websites (the switcher)', () => {
     expect(asked[0]!.body).toEqual({ sub: p.sub })
     expect(asked[0]!.basicClient).toBe(CLIENT_ID)
 
-    // Again, and from another browser of the same person: the issuer is not asked again.
+    // Again, and again: the issuer is not asked a second time within the minute.
     expect((await b.fetch(site + SITES)).json).toEqual(first.json)
+    expect((await b.fetch(site + SITES)).json).toEqual(first.json)
+    expect(issuer.callsTo('/oauth/sites', mark)).toHaveLength(1)
+    // The switcher of another website brings the person, signed in here already: the list may have
+    // changed where they came from (a role, a new website), so it is asked for anew.
+    issuer.members.set(`sister\n${p.sub}`, { role: 'editor', active: true, confirmed: true })
+    expect((await b.visit(`${site}${START}?next=/admin&silent=1`)).url).toBe(`${site}/admin`)
+    expect((await b.fetch(site + SITES)).json.sites[1]).toMatchObject({ id: 'sister', role: 'editor' })
+    expect(issuer.callsTo('/oauth/sites', mark)).toHaveLength(2)
+    // A new sign-in (another browser of the same person) asks anew as well: this website has just told the role.
     const other = browserOf(p)
     await other.visit(`${site}${START}`)
-    expect((await other.fetch(site + SITES)).json).toEqual(first.json)
-    expect(issuer.callsTo('/oauth/sites', mark)).toHaveLength(1)
+    expect((await other.fetch(site + SITES)).json.sites.map((x: any) => x.id)).toEqual([CLIENT_ID, 'sister'])
+    expect(issuer.callsTo('/oauth/sites', mark)).toHaveLength(3)
+  })
+
+  it('a website that has not said the role yet comes without one (the issuer sends null), and the list still reads', async () => {
+    const { p, b } = await linkedUser('admin')
+    // Known to the sister website from a sign-in... and confirmed, but with no role said.
+    issuer.members.set(`sister\n${p.sub}`, { role: null, active: true, confirmed: true })
+    const raw = await fetch(`${issuer.url}/oauth/sites`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Basic ' + Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64') }, body: JSON.stringify({ sub: p.sub }) })
+    expect((await raw.json()).sites.map((x: any) => x.role)).toEqual(['admin', null])
+    const res = await b.fetch(site + SITES)
+    expect(res.json.sites).toEqual([
+      { id: CLIENT_ID, name: 'Site under test', url: site, role: 'admin', current: true },
+      { id: 'sister', name: 'Sister website', url: 'https://sister.example', role: '', current: false },
+    ])
   })
 
   it('somebody who is not linked to an account gets an empty list, and the issuer is not asked', async () => {
@@ -632,10 +757,117 @@ describe('the person’s websites (the switcher)', () => {
   it('what the issuer sends is not passed on blindly: only websites with an http(s) address and a name', async () => {
     const { p, b } = await linkedUser()
     issuer.addClient({ clientId: `odd-${p.sub}`, owner: 'owner-1', name: 'Odd address', url: 'javascript:alert(1)' })
-    issuer.members.set(`odd-${p.sub}\n${p.sub}`, { role: 'admin', active: true })
+    issuer.members.set(`odd-${p.sub}\n${p.sub}`, { role: 'admin', active: true, confirmed: true })
     const res = await b.fetch(site + SITES)
     expect(res.json.sites.map((s: any) => s.name)).toEqual(['Site under test'])
     issuer.clients.delete(`odd-${p.sub}`)
+  })
+})
+
+describe('a person who came in through the account has no password here', () => {
+  const mailTo = (to: string) => readdirSync(mailDir).map((f) => JSON.parse(readFileSync(join(mailDir, f), 'utf8'))).filter((m) => m.to === to)
+
+  it('`me` says so, and the account page offers the forgotten-password e-mail instead of forms that ask for a password', async () => {
+    const p = person()
+    const { id } = await invite(p.email, 'editor')
+    const b = browserOf(p)
+    expect((await b.visit(`${site}${START}`)).url).toBe(`${site}/admin`)
+    expect((await userRow(id)).password_hash).toBeNull()
+    expect((await me(b)).json.noPassword).toBe(true)
+
+    // The forms that ask for the current password have nothing to check it against.
+    expect((await b.fetch(`${site}/api/cms/_auth/password`, { method: 'POST', json: { current: PASSWORD, password: 'another long password' }, headers: { origin: site } })).status).toBe(422)
+    expect((await b.fetch(`${site}/api/cms/_auth/email`, { method: 'POST', json: { email: 'elsewhere@test.local', password: PASSWORD }, headers: { origin: site } })).status).toBe(422)
+
+    // Somebody with a password hears nothing of it (the shared shape of `me` stays as it was).
+    const withPassword = person()
+    await invite(withPassword.email, 'editor', true)
+    const other = browserOf(withPassword)
+    await other.visit(`${site}${START}`)
+    expect((await me(other)).json).not.toHaveProperty('noPassword')
+    expect((await admin.get('/api/cms/_auth/me')).body).not.toHaveProperty('noPassword')
+  })
+
+  it('the forgotten-password e-mail sets a password for a user who has none; the account keeps working beside it', async () => {
+    const p = person()
+    const { id } = await invite(p.email, 'author')
+    const b = browserOf(p)
+    await b.visit(`${site}${START}`)
+    // What the account page's button does: the same request as "Forgot password?".
+    const asked = await b.fetch(`${site}/api/cms/_auth/forgot`, { method: 'POST', json: { email: p.email }, headers: { origin: site } })
+    expect(asked.status).toBe(200)
+    let mail: any
+    for (let i = 0; i < 100 && !mail; i++) {
+      mail = mailTo(p.email).find((m) => /\/admin\/reset\//.test(m.text))
+      if (!mail) await new Promise((r) => setTimeout(r, 50))
+    }
+    expect(mail, 'the reset e-mail').toBeTruthy()
+    const token = /\/admin\/reset\/([\w-]+)/.exec(mail.text)![1]!
+    const fresh = new Client(site)
+    const set = await fresh.post('/api/cms/_auth/reset', { token, password: 'a password chosen later' })
+    expect(set.status).toBe(200)
+    expect(set.body.user.id).toBe(id)
+    expect((await userRow(id)).password_hash).toBeTruthy()
+    // The password signs in; `me` no longer says "no password"; the link to the account is as it was.
+    const signedIn = new Client(site)
+    expect((await signedIn.post('/api/cms/_auth/login', { email: p.email, password: 'a password chosen later' })).status).toBe(200)
+    expect((await signedIn.get('/api/cms/_auth/me')).body).not.toHaveProperty('noPassword')
+    expect(await linkOf(id)).toEqual({ issuer: issuer.url, sub: p.sub })
+    // Choosing a password signed the other sessions out (as a reset always does); the account still gets in.
+    expect((await me(b)).status).toBe(401)
+    const again = browserOf(p)
+    expect((await again.visit(`${site}${START}`)).url).toBe(`${site}/admin`)
+    expect((await me(again)).json.user.id).toBe(id)
+  })
+
+  it('erasing a person (the privacy tool) removes the link and tells the issuer `active: false`, as deleting does', async () => {
+    const { p, id } = await linkedUser('author')
+    expect(issuer.member(CLIENT_ID, p.sub)).toEqual({ role: 'author', active: true, confirmed: true })
+    const mark = issuer.calls.length
+    const erased = await admin.post('/api/cms/_privacy/delete', { email: p.email })
+    expect(erased.status).toBe(200)
+    expect(erased.body).toMatchObject({ ok: true, account: true })
+    // Counts only, in the answer and in the audit log: nothing that names the person at the account service.
+    expect(JSON.stringify(erased.body)).not.toContain(p.sub)
+    expect(erased.body).not.toHaveProperty('unlinked')
+    const [entry] = (await pool.query(`select meta from cms_audit where action = 'privacy.delete' order by created_at desc, id desc limit 1`)).rows
+    expect(Object.keys(entry.meta).sort()).toEqual(['account', 'auditEntries', 'submissions'])
+    expect(await links()).toSatisfy((rows: any[]) => !rows.some((r) => r.value.sub === p.sub || r.key === `account-of:${id}`))
+    const [told] = await issuer.waitForCalls('/oauth/membership', 1, mark)
+    expect(told!.body).toEqual({ sub: p.sub, role: 'author', active: false })
+    expect(issuer.member(CLIENT_ID, p.sub)).toMatchObject({ active: false })
+    // The account no longer gets in (the anonymised user is disabled and has another address).
+    expect((await browserOf(p).visit(`${site}${START}`)).url).toBe(`${site}/admin/login?account=no-access`)
+    // Somebody with no link: nothing is told.
+    const plain = `plain-${++seq}@test.local`
+    await invite(plain, 'author', true)
+    const before = issuer.calls.length
+    expect((await admin.post('/api/cms/_privacy/delete', { email: plain })).status).toBe(200)
+    await new Promise((r) => setTimeout(r, 300))
+    expect(issuer.callsTo('/oauth/membership', before)).toHaveLength(0)
+  })
+})
+
+describe('the return address is the site’s public address in the issuer’s normal form', () => {
+  it('a public address typed as HTTPS://Site.Example.COM:443/ still gives https://site.example.com/…/callback', async () => {
+    const odd = await startServer(db.url, {
+      NUXT_CMS_PUBLIC_URL: 'HTTPS://Site.Example.COM:443/',
+      NUXT_CMS_AUTH_ACCOUNT_ISSUER: issuer.url + '/',
+      NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID: CLIENT_ID,
+      NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET: CLIENT_SECRET,
+    })
+    try {
+      const start = await new Browser().fetch(`${odd.baseURL}${START}`)
+      expect(start.status).toBe(302)
+      const to = new URL(start.headers.get('location')!)
+      expect(to.origin + to.pathname).toBe(`${issuer.url}/oauth/authorize`)
+      expect(to.searchParams.get('redirect_uri')).toBe('https://site.example.com' + ACCOUNT_CALLBACK_PATH)
+      // The flow cookie of an https website is Secure.
+      expect(start.headers.getSetCookie().find((c) => c.startsWith('cms-account-flow='))).toMatch(/; Secure/i)
+    }
+    finally {
+      await odd.stop()
+    }
   })
 })
 

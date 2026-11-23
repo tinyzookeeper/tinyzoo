@@ -11,13 +11,19 @@ import { eq } from 'tinyzoo'
 //                         page shows its form and the button and starts nothing by itself
 //   ?account=unavailable  the account service is down, slow, or did not confirm the code
 //   ?account=no-access    the account has no user here (or a disabled one)
+//   ?account=unverified   the account's e-mail is not confirmed, and no user here is linked to it
+//   ?account=busy         too many sign-ins from this address (the rate limit)
 const WINDOW = 15 * 60_000
 
 export default defineEventHandler(async (event) => {
   const account = requireCmsAccountSettings()
   const ip = clientIp(event)
-  if (!(await rateLimit('account:callback:ip:' + ip, 60, WINDOW))) throw tooManyRequests(event, 'Too many sign-in attempts; wait a few minutes and try again', WINDOW)
   setResponseHeader(event, 'Cache-Control', 'no-store')
+  if (!(await rateLimit('account:callback:ip:' + ip, 60, WINDOW))) {
+    // The flow is left as it is (its cookie too): nothing was checked, nothing was used up.
+    setResponseHeader(event, 'Retry-After', Math.ceil(WINDOW / 1000))
+    return sendRedirect(event, accountLoginPage('busy'), 302)
+  }
   const query = getQuery(event)
   const one = (value: unknown) => (typeof value === 'string' ? value : '')
 
@@ -51,9 +57,12 @@ export default defineEventHandler(async (event) => {
   const match = await matchAccountUser(account, who)
   if (!match.ok) {
     await audit(event, 'auth.login_failed', { userId: match.user?.id ?? null, meta: { via: 'account', reason: match.reason, ...(who.email ? { email: who.email } : {}), ip } })
-    // The exchange made the person a member at the issuer: say that this site does not let them in.
-    reportAccountMembership(event, account, { sub: who.sub, role: match.user?.role ?? '', active: false })
-    return sendRedirect(event, accountLoginPage('no-access'), 302)
+    // The exchange made the person known to the issuer for this website: say that the site does
+    // not let them in (no role is sent for somebody who has none here; the issuer keeps what it had).
+    await reportAccountMembership(event, account, { sub: who.sub, role: match.user?.role ?? '', active: false })
+    // An account whose e-mail is not confirmed is told so: confirming it is in the person's own
+    // hands, and "no access" would send the owner of a new website to ask for an invitation they have.
+    return sendRedirect(event, accountLoginPage(match.reason === 'email-not-verified' ? 'unverified' : 'no-access'), 302)
   }
 
   const { db, reg } = useCms()
@@ -64,6 +73,10 @@ export default defineEventHandler(async (event) => {
   if (match.linked) await audit(event, 'auth.account_link', { userId: user.id, meta: { issuer: account.issuer } })
   if (match.accepted) await audit(event, 'auth.invite_accept', { userId: user.id, meta: { via: 'account' } })
   await audit(event, 'auth.login', { userId: user.id, meta: { via: 'account' } })
-  reportAccountMembership(event, account, { sub: who.sub, role: user.role, active: true })
+  // The issuer lists a person on a website once the website said that it lets them in: told
+  // before the browser goes on (for two seconds at most), so the list of websites the admin
+  // asks for next, here and on the person's other websites, already carries this one with the role.
+  forgetAccountSites(user.id)
+  await reportAccountMembership(event, account, { sub: who.sub, role: user.role, active: true })
   return sendRedirect(event, next, 302)
 })

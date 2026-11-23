@@ -30,6 +30,8 @@ const accountNotice = computed(() => {
   if (result === 'no-access') return { icon: 'i-lucide-user-round-x', title: t('auth.accountNoAccessTitle'), body: t('auth.accountNoAccessBody') }
   if (result === 'unavailable') return { icon: 'i-lucide-cloud-off', title: t('auth.accountUnavailableTitle'), body: t('auth.accountUnavailableBody') }
   if (result === 'expired') return { icon: 'i-lucide-timer-off', title: t('auth.accountExpiredTitle'), body: t('auth.accountExpiredBody') }
+  if (result === 'busy') return { icon: 'i-lucide-hourglass', title: t('auth.accountBusyTitle'), body: t('auth.accountBusyBody') }
+  if (result === 'unverified') return { icon: 'i-lucide-mail-question', title: t('auth.accountUnverifiedTitle'), body: t('auth.accountUnverifiedBody') }
   return null
 })
 // A public demo (cms.demo): its sign-in details are shown, and one click fills them in.
@@ -75,7 +77,7 @@ async function submit() {
     />
     <!-- signing in with the tinyzoo account did not get the person in: say why, calmly -->
     <UAlert
-      v-if="accountNotice" color="neutral" variant="subtle" :icon="accountNotice.icon" role="status" data-cms-account-notice
+      v-if="accountNotice" color="neutral" variant="subtle" :icon="accountNotice.icon" role="status" data-cms-account-notice :data-cms-account-result="String(route.query.account)"
       :title="accountNotice.title" :description="accountNotice.body"
     />
     <div v-if="showDemo" class="rounded-(--ui-radius) bg-elevated/60 px-4 py-3 text-sm">

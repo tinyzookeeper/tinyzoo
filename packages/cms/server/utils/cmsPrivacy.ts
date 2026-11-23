@@ -128,8 +128,23 @@ export async function findAuditEntries(db: any, reg: CmsRegistry, email: string,
  * entries' authors, uploaded files) refers to the account by id; deleting it would
  * leave that history pointing at nobody and break the "who changed this" trail the
  * audit log is for, while anonymising removes every personal detail.
+ *
+ * The account's link to a tinyzoo account goes too, and is handed back (`unlinked`) for the
+ * caller to tell the account service, as deleting the user does.
  */
-export async function erasePerson(db: any, reg: CmsRegistry, email: string, actorId: string): Promise<{ submissions: number; account: boolean; auditEntries: number }> {
+export interface ErasedPerson {
+  submissions: number
+  account: boolean
+  auditEntries: number
+  /**
+   * The link to a tinyzoo account that went with the account (and the role it had), so the
+   * caller can tell the account service that this site no longer lets the person in. Not for
+   * the audit log or the answer: it names the person at the account service.
+   */
+  unlinked: { issuer: string; sub: string; role: string } | null
+}
+
+export async function erasePerson(db: any, reg: CmsRegistry, email: string, actorId: string): Promise<ErasedPerson> {
   return db.transaction(async (tx: any) => {
     await tx.execute(sql`select pg_advisory_xact_lock(${ADMIN_GUARD_LOCK})`)
     const account = await findAccount(tx, reg, email)
@@ -139,6 +154,7 @@ export async function erasePerson(db: any, reg: CmsRegistry, email: string, acto
     }
 
     let submissions = 0
+    let unlinked: ErasedPerson['unlinked'] = null
     for (const { form, ids } of groupByForm(await findSubmissions(tx, reg, email))) submissions += await purgeSubmissions(tx, reg, form, ids)
 
     // The audit entries lose what identifies the person — and only that; computed before the
@@ -157,12 +173,13 @@ export async function erasePerson(db: any, reg: CmsRegistry, email: string, acto
       await tx.delete(reg.cmsState).where(eq(reg.cmsState.key, emailChangeStateKey(account.id)))
       await tx.delete(reg.cmsState).where(sql`${reg.cmsState.key} like ${emailRevertStatePattern(account.id)}`)
       // The link to a tinyzoo account names the person at the account service: it goes too.
-      await removeAccountLink(tx, reg, account.id)
+      const link = await removeAccountLink(tx, reg, account.id)
+      if (link) unlinked = { ...link, role: String(account.role) }
     }
     // A change waiting for this address, or a way back to it, of whichever account: the link goes with it.
     const states = await findEmailStates(tx, reg, email)
     if (states.length) await tx.delete(reg.cmsState).where(inArray(reg.cmsState.key, states.map((r) => r.key)))
-    return { submissions, account: !!account, auditEntries }
+    return { submissions, account: !!account, auditEntries, unlinked }
   })
 }
 

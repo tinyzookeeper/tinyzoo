@@ -11,5 +11,8 @@ export default defineEventHandler((event) => {
       : { removed: true, role: String(user.role) },
     // Sign-in with the tinyzoo account is on here: the admin then asks for the person's websites (the switcher).
     ...(cmsAccount() ? { account: { enabled: true } } : {}),
+    // The person has no password on this site (they came in through the tinyzoo account): the forms that
+    // ask for the current password say so instead. The key is absent for everybody who has one.
+    ...(event.context.cmsNoPassword ? { noPassword: true } : {}),
   }
 })

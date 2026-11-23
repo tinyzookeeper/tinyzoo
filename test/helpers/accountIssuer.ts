@@ -18,6 +18,20 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
  *
  * A person is signed in at the issuer when the browser carries the cookie `issuer_session=<sub>`
  * (set by /signin?as=<sub>, or put into a test's cookie jar with `sessionCookie`).
+ *
+ * Kept true to the real issuer (cloud/server/routes/oauth/*, cloud/server/utils/account.ts),
+ * which `pnpm --filter tinyzoo-cloud e2e:signin` runs real sites against:
+ *  - a person's id (`sub`) is a lower-case uuid; `sites` and `membership` answer 400 to anything else;
+ *  - the code exchange makes the person KNOWN to the client, not listed: they are listed (in the
+ *    switcher of the owner's other websites) once the client reported `membership` with
+ *    `active: true`, and until it reports `active: false`;
+ *  - `membership` about a person who never exchanged a code at that client is 404 `not_found`;
+ *    a role that is left out, empty or not a short plain text leaves the role as it was;
+ *    `active` left out means true, anything but a boolean is 400;
+ *  - `sites` answers `role: null` for a website that has not said the role yet (or no longer
+ *    lets the person in), and nothing at all for a person the asking website does not let in.
+ * What stays simpler here: a client id is any text (the real one is a uuid), an owner is
+ * named by a text, there are no rate limits, and the sign-in page is a list of people.
  */
 export const ACCOUNT_CALLBACK_PATH = '/api/cms/_auth/account/callback'
 
@@ -39,7 +53,20 @@ export interface IssuerClient {
   url: string
 }
 
-export interface IssuerMember { role: string; active: boolean }
+/** What the issuer keeps about a person at a client: the role the website last said (null until it has), whether it lets them in, and whether it ever said so (`confirmed`: only then is the person listed). */
+export interface IssuerMember { role: string | null; active: boolean; confirmed: boolean }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+/** The n-th person's id, in the form the issuer's ids have (a lower-case uuid). */
+export const issuerSub = (n: number): string => '00000000-0000-4000-8000-' + String(n).padStart(12, '0')
+
+/** The role a website reports, as the issuer keeps it for showing: a short plain text, or null (cloud/shared/account.ts, memberRole). */
+function memberRole(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const role = value.trim()
+  if (!role || role.length > 60 || /[\u0000-\u001f\u007f<>]/.test(role)) return null
+  return role
+}
 
 export interface IssuerCall {
   method: string
@@ -215,26 +242,37 @@ export async function startAccountIssuer(): Promise<AccountIssuer> {
         && createHash('sha256').update(verifier).digest('base64url') === code.challenge
       const person = ok ? people.get(code.sub) : undefined
       if (!person) { call.status = send(res, 400, { error: 'invalid_grant' }); return }
-      // On success the person becomes a member of the client (the site then says with which role).
-      if (!members.has(memberKey(client.clientId, person.sub))) members.set(memberKey(client.clientId, person.sub), { role: '', active: true })
+      // On success the person is known to the client. Listed they are once the site says it lets them in.
+      if (!members.has(memberKey(client.clientId, person.sub))) members.set(memberKey(client.clientId, person.sub), { role: null, active: true, confirmed: false })
       call.status = send(res, 200, { user: { sub: person.sub, email: person.email, email_verified: person.email_verified, name: person.name, locale: person.locale } })
       return
     }
     if (req.method === 'POST' && (at.pathname === '/oauth/sites' || at.pathname === '/oauth/membership')) {
       const client = basicClient(req)
       if (!client) { call.status = send(res, 401, { error: 'invalid_client' }); return }
-      const sub = String(body?.sub ?? '')
-      if (!sub) { call.status = send(res, 400, { error: 'invalid_request' }); return }
+      const sub = body?.sub
+      if (typeof sub !== 'string' || !UUID.test(sub)) { call.status = send(res, 400, { error: 'invalid_request' }); return }
+      const own = members.get(memberKey(client.clientId, sub))
       if (at.pathname === '/oauth/membership') {
-        members.set(memberKey(client.clientId, sub), { role: String(body?.role ?? ''), active: body?.active === true })
+        if (body.active !== undefined && typeof body.active !== 'boolean') { call.status = send(res, 400, { error: 'invalid_request' }); return }
+        // A website can only speak about people who signed in to it through the account.
+        if (!own) { call.status = send(res, 404, { error: 'not_found' }); return }
+        const active = body.active !== false
+        members.set(memberKey(client.clientId, sub), { role: memberRole(body.role) ?? own.role, active, confirmed: own.confirmed || active })
         call.status = send(res, 200, { ok: true })
         return
       }
-      // The clients of the SAME OWNER as the asking client that the person is a member of (and still let in).
-      // (Or owns: here an owner is named by the sub of the owning person.)
-      const sites = [...clients.values()]
-        .filter((c) => c.owner === client.owner && (members.get(memberKey(c.clientId, sub))?.active || c.owner === sub))
-        .map((c) => ({ id: c.clientId, name: c.name, url: c.url, role: members.get(memberKey(c.clientId, sub))?.role ?? '', current: c.clientId === client.clientId }))
+      // The clients of the SAME OWNER as the asking client that the person is a member of, or owns
+      // (here an owner is named by the sub of the owning person). Nothing for a person the asking
+      // website does not let in; the other websites are listed once they confirmed the person.
+      const owns = client.owner === sub
+      const shown = (m: IssuerMember | undefined) => !!m?.active && m.confirmed
+      const sites = !(owns || own?.active) ? [] : [...clients.values()]
+        .filter((c) => c.owner === client.owner && (c.clientId === client.clientId || owns || shown(members.get(memberKey(c.clientId, sub)))))
+        .map((c) => {
+          const m = members.get(memberKey(c.clientId, sub))
+          return { id: c.clientId, name: c.name, url: c.url, role: m?.active ? m.role : null, current: c.clientId === client.clientId }
+        })
       call.status = send(res, 200, { sites, account: url + '/sites' })
       return
     }
