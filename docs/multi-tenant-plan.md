@@ -661,3 +661,38 @@ The account sign-in and the switcher, PgBouncer, custom domains, quotas, moving 
 1. The account sign-in and the switcher (step 7 of the order of work): the part 6dance and Studio Grand need.
 2. Before more than tens of sites: scheduled work by "next due", the `postgres` directory with encrypted secrets, the `__Host-` cookie, the operator's status route.
 3. Before production: the storage keys per site on Pushbase, the cluster-wide revoke, a run with two instances and Redis, and the template's process management on the platform.
+
+## 2.15 The account: the protocol between the cloud app and a site
+
+This is the contract the two sides are built against. The **issuer** is the cloud app (the account service). A **client** is one site: a site made by the cloud, or a site somebody runs themselves and connected to their account. A **subject** (`sub`) is the id of a person's account at the issuer.
+
+### What the issuer keeps
+
+- **Clients:** `client_id`, a hash of `client_secret`, the account that owns the client (the *owner*), the site's name and address, and for a cloud-made site its site id. The secret is shown once.
+- **Codes:** one-time, 60 seconds, bound to the client, the redirect address, the PKCE challenge and the person.
+- **Members:** which person has signed in to which client, with the role the site last reported and whether the site still lets them in.
+
+### The issuer's endpoints (all under the issuer's address)
+
+| Endpoint | Who calls | What |
+|---|---|---|
+| `GET /oauth/authorize` | the person's browser, sent by a site | `response_type=code`, `client_id`, `redirect_uri`, `state`, `code_challenge`, `code_challenge_method=S256`, optional `prompt=none`. The `redirect_uri` must be exactly the client's address + `/api/cms/_auth/account/callback`. Signed in: answers 302 to `redirect_uri?code=…&state=…` at once (no consent page: the clients are the person's own websites). Not signed in: 302 to the issuer's sign-in page, which comes back here afterwards; with `prompt=none` it answers 302 to `redirect_uri?error=login_required&state=…` instead. A wrong client or redirect address gets an error page, never a redirect. |
+| `POST /oauth/token` | the site's server | JSON `{ grant_type: "authorization_code", code, redirect_uri, client_id, client_secret, code_verifier }`. Answers `{ user: { sub, email, email_verified, name, locale } }`. The code works once; a wrong secret, verifier, redirect address or an old code gets 400 `{ error: "invalid_grant" }` (401 `invalid_client` for the secret). On success the person becomes a member of the client. |
+| `POST /oauth/sites` | the site's server | `Authorization: Basic base64(client_id:client_secret)`, JSON `{ sub }`. Answers `{ sites: [{ id, name, url, role, current }], account: "<issuer>/sites" }`: the clients **of the same owner as the asking client** that the person is a member of (or owns), the asking one marked `current`. A site never learns about websites of other owners. |
+| `POST /oauth/membership` | the site's server | Basic auth as above, JSON `{ sub, role, active }`: the site says which role the person has there, or that it no longer lets them in. Answers `{ ok: true }`. |
+| `GET /.well-known/tinyzoo-account` | anybody | `{ issuer, authorization_endpoint, token_endpoint, sites_endpoint, membership_endpoint }`. |
+
+### What a site does
+
+Settings: `cms.auth.account = { issuer, clientId, clientSecret }` (`NUXT_CMS_AUTH_ACCOUNT_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET`; per site in multi-tenant mode). Without them nothing below exists and sign-in is as it always was. With them, password sign-in stays as well.
+
+| Route | What |
+|---|---|
+| `GET /api/cms/_auth/account/start?next=<path>&silent=1` | Makes a state and a PKCE verifier, keeps them in a short-lived sealed cookie, and sends the browser to the issuer's `authorize` (`prompt=none` when `silent=1`). `next` must be a path of this site. |
+| `GET /api/cms/_auth/account/callback?code&state` | Checks the state, exchanges the code, and finds the person's account **on this site**: (1) the one linked to this `issuer` + `sub`; else (2) when `email_verified`, the account with that e-mail: an active one is linked, an invited one is accepted (it becomes active, with the account's name, without a password) and linked; else (3) nobody: the browser goes to `/admin/login?account=no-access`. Then it opens the site's normal session, tells the issuer the person's role (`membership`), and goes to `next`. |
+| `GET /api/cms/_auth/account/sites` | For the signed-in person: their other websites, asked from the issuer's `sites` and kept for a minute. Empty when the person is not linked to an account. |
+
+- **Roles stay on the site.** The issuer only knows that a person is a member and what the site last said their role was, for showing it in the switcher.
+- **The link** between an account and a site's user is kept on the site, in `cms_state` (no change of the schema): `account:<sha256(issuer + "\n" + sub)>` → `{ userId, issuer, sub }` and `account-of:<userId>` → `{ issuer, sub }`. Both go when the user is deleted.
+- **The switcher** is the site's name at the top of the admin: with other websites in the list it opens a menu (name, role, the current one marked, "All my websites" leading to the issuer). Choosing one opens `<that site>/api/cms/_auth/account/start?next=/admin&silent=1`; the issuer knows the person, so they land in that admin without a form. When the issuer answers `login_required` the site shows its sign-in page.
+- **A disabled account, a removed role, "sign out everywhere"** work as before: the session is the site's own and is checked on every request.

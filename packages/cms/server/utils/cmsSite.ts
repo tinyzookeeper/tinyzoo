@@ -303,16 +303,20 @@ export async function unloadAllCmsSites(): Promise<void> {
 const SITE_SETTINGS = [
   'publicUrl',
   'auth.setupToken',
+  // Sign-in with the account (the cloud app): each site is a client of its own.
+  'auth.account.issuer', 'auth.account.clientId', 'auth.account.clientSecret',
   'status.token',
   'content.token', 'content.publicUrl',
   'webhooks.urls', 'webhooks.secret',
   'forms.notifyTo',
   'storage.driver', 'storage.local.dir',
   'storage.s3.endpoint', 'storage.s3.region', 'storage.s3.bucket', 'storage.s3.accessKeyId', 'storage.s3.secretAccessKey', 'storage.s3.publicBaseUrl', 'storage.s3.delivery',
+  // A place of its own inside a shared bucket, and the site's plan: the largest upload and how much it may store in all.
+  'storage.s3.prefix', 'storage.maxSizeMb', 'storage.maxBytes',
   'mail.from', 'mail.file.dir',
 ] as const
 /** Of those, the ones that keep the process's value when the site has none (not secrets, not places). */
-const SITE_SETTINGS_INHERITED = new Set<string>(['storage.driver', 'storage.s3.region', 'storage.s3.delivery', 'mail.from', 'mail.file.dir'])
+const SITE_SETTINGS_INHERITED = new Set<string>(['storage.driver', 'storage.s3.region', 'storage.s3.delivery', 'storage.maxSizeMb', 'storage.maxBytes', 'mail.from', 'mail.file.dir'])
 
 function readPath(from: any, path: string): unknown {
   let at = from
