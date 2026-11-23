@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The three looks (looks.ts): each styles the website under html[data-look="<id>"]. */
+@import "./katastr.css";
+@import "./cedule.css";
+@import "./rozsviceno.css";
+
+/* Tailwind must also scan the CMS's own components (the admin) and the template kit's. */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The looks' tokens as utilities: bg-paper, text-ink, border-line, font-display… Each look
+   gives the variables behind them their values (under html[data-look="…"], in the three
+   files above), and a colour preset from the site's settings overrides the colours inline on
+   <html>. Outside a look (the admin) none of these is set, and none is used.
+   The names keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses:
+   a design's "muted" is `quiet` here. */
+@theme {
+  --font-display: Georgia, "Times New Roman", serif;
+
+  /* Katastr and Cedule: the page, its rules and its type */
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-tint: var(--tint);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-quiet: var(--quiet);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  /* Katastr: the state dots on the listing cards */
+  --color-accent: var(--accent);
+  /* Cedule: the brand colour where it stands on black */
+  --color-spark: var(--brand-on-dark);
+
+  /* Rozsvíceno: the night, its surfaces, the cream of the text and the lamp */
+  --color-night: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-2);
+  --color-cream: var(--text);
+  --color-lamp: var(--accent);
+  --color-lamp-ink: var(--accent-ink);
+}
+
+/* Long words and addresses wrap instead of pushing the page wider on phones. A section reached
+   from the menu (/#nabidka) stops a little under the top of the window. */
+@layer base {
+  html[data-look] :is(h1, h2, h3, p, li, dd, figcaption, blockquote) { overflow-wrap: anywhere; }
+  html[data-look] { scroll-behavior: smooth; }
+  html[data-look] [id] { scroll-margin-top: 1rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-look] { scroll-behavior: auto; } }
+}
