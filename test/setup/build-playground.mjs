@@ -38,12 +38,15 @@ const { loadNuxt, buildNuxt } = await import(pathToFileURL(require.resolve('nuxt
 // (test/setup/timers.ts, BUILD_CRON). Unset, the playground's own (the defaults) stay.
 const cron = (name) => (process.env[name] ? { cron: process.env[name] } : undefined)
 
+// The smaller-copies task has no cron option (it is every minute); the tests add it on a short one of its own.
+const mediaCron = process.env.CMS_TEST_MEDIA_SIZES_CRON
+
 const nuxt = await loadNuxt({
   cwd: rootDir,
   dev: false,
   overrides: {
     buildDir,
-    nitro: { output: { dir: outputDir } },
+    nitro: { output: { dir: outputDir }, ...(mediaCron ? { scheduledTasks: { [mediaCron]: ['cms:media-sizes'] } } : {}) },
     devtools: { enabled: false },
     cms: { scheduler: cron('CMS_TEST_SCHEDULER_CRON'), retention: cron('CMS_TEST_RETENTION_CRON') },
   },

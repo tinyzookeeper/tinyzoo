@@ -17,7 +17,10 @@ let adminB: Client
 let shared: { author: string; draft: string; later: string }
 
 beforeAll(async () => {
-  t = await startTenants('background', {}, {
+  // A short slow rotation: the scheduler looks at a site with nothing scheduled only on its turn in it
+  // (15 minutes in production), and the "last run" tests below wait for each site's turn. The tests
+  // of what happens between the turns are in tenants-scheduled-work.spec.ts.
+  t = await startTenants('background', { CMS_TEST_SWEEP_MS: '2000' }, {
     async seed({ admin }) {
       const author = await createAuthor(admin, { name: 'Shared Author' })
       await createPost(admin, { author: author.id, title: 'Shared draft', slug: 'shared-draft', body: doc('Text') })

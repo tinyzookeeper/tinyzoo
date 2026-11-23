@@ -187,6 +187,8 @@ export interface ReportChange {
 
 export async function reportChange(event: any, r: ReportChange): Promise<void> {
   try {
+    // Any write may have moved what is scheduled (even one whose report fails below): the scheduler looks at the site again.
+    forgetScheduledWork()
     const e = r.entity
     const locale = r.locale ?? null
     const deleted = r.type === 'entry.deleted'
@@ -275,6 +277,8 @@ export async function reportChange(event: any, r: ReportChange): Promise<void> {
 /** Clear what this instance derived from content the change touched. */
 export function applyChangeLocally(change: Pick<CmsChange, 'entity'>): void {
   const { reg } = useCms()
+  // A change that came from another instance too: it may have scheduled something.
+  forgetScheduledWork()
   const e = reg.byName.get(change.entity)
   if (!e) return
   if ((e as any).preset === 'redirects') invalidateRedirects()
