@@ -7,7 +7,7 @@ const signedIn = useCmsSignedIn()
 // The tab already ends with the site's name (the title template): "Invitation · Site", not "Join Site · Site".
 useHead({ title: () => t('auth.inviteTabTitle') })
 
-const { data: invite, error: loadError } = await useFetch<{ email: string; name: string; role: string; roleLabel?: any; inviter: string | null }>(
+const { data: invite, error: loadError } = await useFetch<{ email: string; name: string; role: string; roleLabel?: any; inviter: string | null; account?: { enabled: boolean } }>(
   (): string => `/api/cms/_auth/invite/${route.params.token}`,
 )
 const roleName = computed(() => {
@@ -70,5 +70,10 @@ async function submit() {
     </UFormField>
     <UAlert v-if="formError" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="formError" role="alert" data-cms-error-summary />
     <UButton type="submit" block :loading="pending">{{ t('auth.acceptInvite') }}</UButton>
+    <!-- the tinyzoo account of the invited address accepts the invitation as well, without a password -->
+    <p v-if="invite.account?.enabled" class="text-sm text-muted text-pretty" data-cms-invite-account>
+      {{ t('auth.inviteAccount') }}
+      <a href="/api/cms/_auth/account/start?next=%2Fadmin" class="font-medium text-highlighted underline underline-offset-2">{{ t('auth.accountSignIn') }}</a>
+    </p>
   </form>
 </template>

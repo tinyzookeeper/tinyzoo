@@ -59,6 +59,12 @@ export default {
     language: 'Sprache',
     signOut: 'Abmelden',
   },
+  // The website switcher at the top of the menu (sign-in with the tinyzoo account).
+  sites: {
+    switch: 'Website wechseln',
+    yours: 'Ihre Websites',
+    all: 'Alle meine Websites',
+  },
   common: {
     save: 'Speichern',
     create: 'Erstellen',
@@ -471,6 +477,15 @@ export default {
     poweredBy: 'Inhaltsverwaltung',
     signedOutTitle: 'Sie wurden abgemeldet',
     signedOutBody: 'Melden Sie sich erneut an, dann landen Sie wieder auf der Seite, auf der Sie waren.',
+    accountSignIn: 'Mit Ihrem tinyzoo-Konto anmelden',
+    accountOrPassword: 'oder mit einem Passwort für diese Website',
+    accountNoAccessTitle: 'Dieses Konto hat keinen Zugang zu dieser Website',
+    accountNoAccessBody: 'Bitten Sie einen Administrator der Website, die E-Mail-Adresse Ihres Kontos einzuladen.',
+    accountUnavailableTitle: 'Der Kontodienst hat nicht geantwortet',
+    accountUnavailableBody: 'Melden Sie sich mit Ihrem Passwort an oder versuchen Sie es gleich noch einmal.',
+    accountExpiredTitle: 'Die Anmeldung hat zu lange gedauert',
+    accountExpiredBody: 'Starten Sie sie noch einmal.',
+    inviteAccount: 'Wenn Ihr tinyzoo-Konto diese E-Mail-Adresse verwendet, können Sie sich damit anmelden und brauchen kein Passwort.',
     emailConfirmTabTitle: 'Neue E-Mail',
     emailConfirmTitle: 'Neue E-Mail bestätigen',
     emailConfirmBody: 'Ab jetzt melden Sie sich bei {site} mit {email} an.',
@@ -659,6 +674,8 @@ export default {
     emailNotArrived: 'Nach ein paar Minuten keine E-Mail? Sehen Sie im Spam-Ordner nach, prüfen Sie die Adresse und senden Sie sie erneut. Ein Administrator kann Ihre E-Mail auch unter Team ändern.',
     cancelEmailChange: 'Änderung abbrechen',
     emailChangeCancelled: 'Änderung abgebrochen',
+    accountConnected: 'Mit Ihrem tinyzoo-Konto verbunden.',
+    accountNotConnected: 'Nicht mit einem tinyzoo-Konto verbunden. Die Verbindung entsteht bei der ersten Anmeldung mit einem tinyzoo-Konto, das diese E-Mail-Adresse verwendet.',
     sameEmail: 'Das ist bereits Ihre Adresse',
     demoEmail: 'Alle melden sich mit denselben Daten an der Demo an, daher bleibt ihre E-Mail unverändert.',
     tokens: {

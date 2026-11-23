@@ -60,6 +60,12 @@ export default {
     language: 'Language',
     signOut: 'Sign out',
   },
+  // The website switcher at the top of the menu (sign-in with the tinyzoo account).
+  sites: {
+    switch: 'Switch website',
+    yours: 'Your websites',
+    all: 'All my websites',
+  },
   common: {
     save: 'Save',
     create: 'Create',
@@ -472,6 +478,15 @@ export default {
     poweredBy: 'Content administration',
     signedOutTitle: 'You were signed out',
     signedOutBody: 'Sign in again and you’ll land back on the page you were on.',
+    accountSignIn: 'Sign in with your tinyzoo account',
+    accountOrPassword: 'or with a password for this website',
+    accountNoAccessTitle: 'This account has no access to this website',
+    accountNoAccessBody: 'Ask an administrator of the website to invite your account’s email address.',
+    accountUnavailableTitle: 'The account service did not answer',
+    accountUnavailableBody: 'Sign in with your password, or try again in a moment.',
+    accountExpiredTitle: 'That sign-in took too long',
+    accountExpiredBody: 'Start it again.',
+    inviteAccount: 'If your tinyzoo account uses this email address, you can sign in with it and skip the password.',
     emailConfirmTabTitle: 'New email',
     emailConfirmTitle: 'Confirm your new email',
     emailConfirmBody: 'From now on you’ll sign in to {site} with {email}.',
@@ -661,6 +676,8 @@ export default {
     emailNotArrived: 'No email after a few minutes? Check the spam folder and that the address is right, then send it again. An administrator can also change your email in Team.',
     cancelEmailChange: 'Cancel the change',
     emailChangeCancelled: 'Change cancelled',
+    accountConnected: 'Connected to your tinyzoo account.',
+    accountNotConnected: 'Not connected to a tinyzoo account. It connects the first time you sign in with a tinyzoo account that uses this email address.',
     sameEmail: 'This is already your address',
     demoEmail: 'Everyone signs in to the demo with the same details, so its email stays as it is.',
     tokens: {
