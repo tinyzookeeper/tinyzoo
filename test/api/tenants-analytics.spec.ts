@@ -201,12 +201,15 @@ describe('the switch and the reports', () => {
 
   it('the nightly totals are made in each site\'s own database from its own old views', async () => {
     // 100 days ago (the playground keeps 90 days of raw views): three views on A, one on B.
+    // At noon of that day in the site's time zone: a view "a minute later" must not fall on
+    // the next day when the test happens to run a minute before that day's midnight.
+    const noon = `(date_trunc('day', (now() - interval '100 days') at time zone 'Europe/Prague') + interval '12 hours') at time zone 'Europe/Prague'`
     await siteQuery(t.a, `insert into analytics_events (at, path, visitor, session, view, is_entry, source, device, engaged_ms) values
-      (now() - interval '100 days', '/', 'v1', 's1', 'x1', true, 'Google', 'mobile', 1000),
-      (now() - interval '100 days' + interval '1 minute', '/old-a', 'v1', 's1', 'x2', false, 'Google', 'mobile', 2000),
-      (now() - interval '100 days', '/', 'v2', 's2', 'x3', true, 'Direct', 'desktop', 500)`)
+      (${noon}, '/', 'v1', 's1', 'x1', true, 'Google', 'mobile', 1000),
+      (${noon} + interval '1 minute', '/old-a', 'v1', 's1', 'x2', false, 'Google', 'mobile', 2000),
+      (${noon}, '/', 'v2', 's2', 'x3', true, 'Direct', 'desktop', 500)`)
     await siteQuery(t.b, `insert into analytics_events (at, path, visitor, session, view, is_entry, source, device, engaged_ms) values
-      (now() - interval '100 days', '/old-b', 'w1', 't1', 'y1', true, 'Seznam', 'desktop', 700)`)
+      (${noon}, '/old-b', 'w1', 't1', 'y1', true, 'Seznam', 'desktop', 700)`)
     const day = (await siteQuery(t.a, `select ((now() - interval '100 days') at time zone 'Europe/Prague')::date::text as day`))[0].day
     // The retention task runs every 3 s in the test build, for every site: totals first, then the old views go.
     const old = (site: TenantSite) => siteQuery(site, `select count(*)::int as n from analytics_events where at < now() - interval '95 days'`).then((r) => r[0].n)
