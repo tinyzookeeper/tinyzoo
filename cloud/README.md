@@ -49,7 +49,7 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `NUXT_PUBLIC_URL` | the cloud's own address, for links in e-mails |
 | `NUXT_MAX_SITES_PER_USER` | how many websites one account may have (default 3) |
 | `NUXT_REQUIRE_VERIFIED_EMAIL` | `true`: a site is made only after the e-mail is confirmed. Default: `false` in development, `true` in production |
-| `NUXT_PUBLIC_SHOW_PLANNED` | `true` shows the nineteen planned templates in the gallery as they were designed, marked *Not available yet* and not selectable. Without it a customer never sees them |
+| `NUXT_PUBLIC_SHOW_PLANNED` | `true` shows the planned templates (those not built yet) in the gallery as they were designed, marked *Not available yet* and not selectable. Without it a customer never sees them |
 | `NUXT_HOSTING_DRIVER` | `local` (default) or `pushbase` |
 | `NUXT_HOSTING_LOCAL_PORT_FROM`, `_TO` | the local driver's ports, one per site (default 4300–4399) |
 | `NUXT_HOSTING_LOCAL_DATA_DIR` | where the sites' folders live (default `cloud/.data/sites`) |
@@ -108,7 +108,7 @@ After `templates:build` runs again, restart the sites (stop the app, stop their 
 
 ### Templates
 
-`shared/templates.ts` is the registry: twenty-one entries, each with its name, one sentence and three or four points in both languages, its field for the filter, its animal, and its looks (id, name and one sentence in both languages): 52 looks in all. Three templates are ready: **Basic website** (`basic`, from `packages/cms/starter`), **Photographer** (`photographer`) and **Wedding** (`wedding`), the hosted ones from `templates/<id>`. The others are planned: designed and approved, with no source yet. The server refuses to make a site from a template that is not ready, whatever `NUXT_PUBLIC_SHOW_PLANNED` says.
+`shared/templates.ts` is the registry: twenty-one entries, each with its name, one sentence and three or four points in both languages, its field for the filter, its animal, and its looks (id, name and one sentence in both languages): 52 looks in all. Every template is ready: **Basic website** (`basic`, from `packages/cms/starter`) and the twenty hosted ones from `templates/<id>` (`hosted(…)`; Photographer is the pilot). A template that is not built yet is `planned(…)`: the gallery shows it only with `NUXT_PUBLIC_SHOW_PLANNED=true`, marked as not available, and the server refuses to make a site from it whatever the flag says.
 
 A template may come in several **looks**: one content model, one set of demo content and one build, drawn in different designs. Photographer has three (Ateliér, Negativ, Zápisník). The registry lists a template's looks (id, name and one sentence in both languages, and for a ready template the look's default colours); the wizard shows them as its second step; the choice is kept in `sites.look`, written into the site's settings (`look`, `colors`) when the site is made, and its owner changes it afterwards in the site's admin (*Site settings*). The cloud follows that change: the site's page asks the site which look it shows and keeps the answer. How a template implements looks: [`templates/README.md`](../templates/README.md).
 
@@ -120,7 +120,9 @@ pnpm --filter tinyzoo-cloud pictures --real   # the built templates, from real s
 pnpm --filter tinyzoo-cloud pictures --real --only wedding   # only these built templates
 ```
 
-From the designs, a look is alive when `template-designs/<slug>/<a|b|c>.html` exists; its name is the `## A · Name` heading of the folder's `notes.md`, its picture `shots/<letter>-top.jpg`. Each look gets a `card` (800 × 500) and a `thumb` (240 × 150). A built template's looks get, from a real site with the demo content, also `top` (the first screen with the site's name left out) and `tall` (the top of the home page, for the look step), and the script measures where and how the site writes its name and copies that typeface's files to `public/templates/fonts/`: that is how the wizard writes the typed name into the look. What the script found is in `shared/template-pictures.json`; a unit spec keeps the registry's looks equal to it. The designs folder is not in the repository: the script looks for it beside the repository (or beside the main checkout of a worktree), or takes `--designs <folder>`.
+The built templates' sites are pictured with the browser's clock at a weekday morning (the first Wednesday from the day of the run, 9.40), so what a template works out from "now" (open or closed, today's lessons) looks the same whenever the script runs.
+
+From the designs (a planned template), a look is alive when `template-designs/<slug>/<a|b|c>.html` exists; its name is the `## A · Name` heading of the folder's `notes.md`, its picture `shots/<letter>-top.jpg`. Each look gets a `card` (800 × 500) and a `thumb` (240 × 150). A built template's looks get, from a real site with the demo content, also `top` (the first screen with the site's name left out) and `tall` (the top of the home page, for the look step), and the script measures where and how the site writes its name and copies that typeface's files to `public/templates/fonts/`: that is how the wizard writes the typed name into the look. What the script found is in `shared/template-pictures.json`; a unit spec keeps the registry's looks equal to it. The designs folder is not in the repository: the script looks for it beside the repository (or beside the main checkout of a worktree), or takes `--designs <folder>`.
 
 Adding a real template: make its entry `hosted(…)` with each look's default colours, add it to `BUILT_TEMPLATES` in `scripts/lib.mjs` (what its demo content is called, where it writes the site's name) and its checks to `scripts/e2e-templates.mjs`, then run `templates:build <id>`, `pictures --real --only <id>` and `e2e --templates <id>`. The steps for the template itself: [`templates/README.md`](../templates/README.md).
 
@@ -155,7 +157,6 @@ A second checkout on the same machine (a git worktree) runs these beside the fir
 - Custom domains.
 - Real e-mail delivery set up (the SMTP transport is there, as in Keeper; nothing is configured).
 - Deploying: the cloud app itself has no deployment, and the Pushbase driver has not been run.
-- The planned templates (their designs are finished; the gallery shows them).
 - Single sign-on from the cloud account into a site's admin (today: the invitation).
 - The site's own logo in its admin (its name is there: `cms.admin.nameFrom`).
 - Deleting an account, changing its e-mail address, and anything for the people who run the service (a list of all sites, stopping one).

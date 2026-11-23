@@ -29,6 +29,8 @@ const keep = arg('keep', false) === true
 const headed = arg('headed', false) === true
 // --templates wedding,salon: only the hosted templates' part, for these (see e2e-templates.mjs).
 const onlyTemplates = typeof arg('templates', null) === 'string' ? arg('templates').split(',') : null
+// A template that is designed but not built yet, if the registry still has one.
+const plannedId = /^\s*planned\('([a-z-]+)'/m.exec(readFileSync(join(cloudDir, 'shared', 'templates.ts'), 'utf8'))?.[1] ?? null
 const DB = runDb('tz_cloud_e2e')
 const PREFIX = runPrefix('tzc_e2e_')
 const dataDir = join(cloudDir, '.data', 'e2e', 'sites')
@@ -45,7 +47,8 @@ function check(name, ok, detail = '') {
 }
 
 for (const [id, entry] of Object.entries(templateEntries)) {
-  if (existsSync(entry)) continue
+  // (with --templates only those templates have to be built)
+  if (existsSync(entry) || (onlyTemplates && !onlyTemplates.includes(id))) continue
   console.error(`The template "${id}" is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
   process.exit(2)
 }
@@ -118,12 +121,14 @@ async function main() {
   browser = await chromium.launch({ headless: !headed })
   // The hosted templates, each through the same checks and its own (e2e-templates.mjs), as a person of their own.
   const hostedTemplates = async (only) => {
-    const ctxT = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'cs-CZ' })
-    const signed = await ctxT.request.post(`${base}/api/auth/signup`, { data: { name: 'Šablony', email: `sablony-${stamp}@example.com`, password: 'dlouhe-heslo-sablon-1', locale: 'cs' } })
-    check('a person for the templates\' part signs up', signed.ok(), String(signed.status()))
+    const signUp = async (id) => {
+      const ctxT = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'cs-CZ' })
+      const signed = await ctxT.request.post(`${base}/api/auth/signup`, { data: { name: 'Šablony', email: `sablony-${id}-${stamp}@example.com`, password: 'dlouhe-heslo-sablon-1', locale: 'cs' } })
+      check(`a person for the templates' part signs up (from ${id} on)`, signed.ok(), String(signed.status()))
+      return ctxT
+    }
     // (Photographer has its own section above: the wizard, the lightbox, the enquiry)
-    await checkHostedTemplates({ browser, ctx: ctxT, base, stamp, dataDir, check, measures, only, skip: ['photographer'] })
-    await ctxT.close()
+    await checkHostedTemplates({ browser, signUp, base, stamp, dataDir, check, measures, only, skip: ['photographer'] })
   }
   if (onlyTemplates) return hostedTemplates(onlyTemplates)
 
@@ -138,9 +143,14 @@ async function main() {
   await page.locator('[data-cta]').click()
   await page.waitForURL('**/new')
   await page.waitForSelector('[data-wizard=ready]')
-  check('planned templates show with the flag, marked', await page.locator('[data-template=restaurant][data-ready=false]').count() === 1 && await page.locator('[data-template=restaurant] [role=radio]').count() === 0)
-  await page.locator('[data-template=restaurant]').click({ force: true })
-  check('a planned template cannot be picked', await page.locator('[data-template=basic] [role=radio][aria-checked=true]').count() === 1)
+  // A template that is designed but not built yet (`planned(…)` in shared/templates.ts) shows
+  // with the flag, marked, and cannot be picked. (Today every template is built: nothing to try.)
+  if (plannedId) {
+    check('planned templates show with the flag, marked', await page.locator(`[data-template=${plannedId}][data-ready=false]`).count() === 1 && await page.locator(`[data-template=${plannedId}] [role=radio]`).count() === 0)
+    await page.locator(`[data-template=${plannedId}]`).click({ force: true })
+    check('a planned template cannot be picked', await page.locator('[data-template=basic] [role=radio][aria-checked=true]').count() === 1)
+  }
+  else log('    (no planned template in the registry: every one is built)')
   check('twenty-one templates in the gallery', await page.locator('[data-template]').count() === 21)
   // Every card shows a real design: its picture loads, and a template with several looks lets them be glanced at.
   const pictures = await page.evaluate(async () => {
@@ -151,7 +161,9 @@ async function main() {
   })
   check('every card shows its template\'s real picture', pictures.loaded === 21 && pictures.thumbs === 51, JSON.stringify(pictures))
   await page.locator('[data-template=restaurant] [data-look-thumb=talir]').click()
-  check('a planned template\'s looks can be glanced at, and it still cannot be picked', await page.locator('[data-template=restaurant][data-shown-look=talir]').count() === 1 && await page.locator('[data-template=basic] [role=radio][aria-checked=true]').count() === 1)
+  check('a template\'s other looks can be glanced at on its card', await page.locator('[data-template=restaurant][data-shown-look=talir]').count() === 1)
+  // (glancing chose that template: back to the one this walk is about)
+  await page.locator('[data-template=basic]').click()
   await page.locator('[data-field=hospitality]').click()
   check('the field filter narrows the gallery', await page.locator('[data-template]').count() === 2)
   await page.locator('[data-field=all]').click()
@@ -262,7 +274,7 @@ async function main() {
   check('they cannot get an invitation link to it', (await other.request.post(`${base}/api/sites/${first.site.id}/invite`)).status() === 404)
   const taken = await (await other.request.get(`${base}/api/slug?slug=${first.site.slug}`)).json()
   check('a taken address is reported, with a free one close to it', taken.problem === 'taken' && taken.suggestion === `${first.site.slug}-2`, JSON.stringify(taken))
-  check('a planned template is refused by the server', (await other.request.post(`${base}/api/sites`, { data: { name: 'X', slug: `e2e-x-${stamp}`, template: 'restaurant' } })).status() === 422)
+  check('a template that is planned, or that does not exist, is refused by the server', (await other.request.post(`${base}/api/sites`, { data: { name: 'X', slug: `e2e-x-${stamp}`, template: plannedId ?? 'no-such-template' } })).status() === 422)
   check('a bad address is refused by the server', (await other.request.post(`${base}/api/sites`, { data: { name: 'X', slug: 'Bad_Slug"; drop', template: 'basic' } })).status() === 422)
   const anon = await browser.newContext()
   check('signed out, the API answers 401', (await anon.request.get(`${base}/api/sites`)).status() === 401)

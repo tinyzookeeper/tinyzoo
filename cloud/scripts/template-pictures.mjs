@@ -39,6 +39,14 @@ const real = arg('real', false) === true
 const keep = arg('keep', false) === true // --real --keep: the cloud app's database and the sites stay, to look at
 const only = typeof arg('only', null) === 'string' ? arg('only').split(',') : null // --real --only a,b: these templates; the others keep their pictures
 
+/** The first Wednesday from today on, 9.40: the moment the built templates' pictures show. */
+function weekdayMorning() {
+  const d = new Date()
+  d.setHours(9, 40, 0, 0)
+  while (d.getDay() !== 3) d.setDate(d.getDate() + 1)
+  return d
+}
+
 /** "Celý rok" → "cely-rok": a look's id is its Czech name as a plain word. */
 export const lookId = (name) => name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 
@@ -199,13 +207,15 @@ async function fromRealSites() {
       },
     })
     browser = await chromium.launch()
-    const api = await browser.newContext()
+    // One account may make ten websites an hour (and one address ten accounts in ten minutes):
+    // a new person for every eight sites.
+    let api = null
+    let sites = 0
     const post = async (path, data) => {
       const res = await api.request.post(`${cloud.url}${path}`, { data })
       if (!res.ok()) throw new Error(`${path} → ${res.status()} ${await res.text()}`)
       return res.json()
     }
-    await post('/api/auth/signup', { name: 'Obrázky šablon', email: 'pictures@example.com', password: 'obrazky-sablon-1', locale: 'cs' })
 
     const data = read()
     const fontFiles = new Map() // the site's path → the copied file's name
@@ -219,6 +229,11 @@ async function fromRealSites() {
       for (const look of (await looksOf(built))?.ids ?? [null]) {
         const id = look ?? template
         const slug = `obrazky-${template}${look ? `-${look}` : ''}`
+        if (sites++ % 8 === 0) {
+          await api?.close()
+          api = await browser.newContext()
+          await post('/api/auth/signup', { name: 'Obrázky šablon', email: `pictures-${sites}@example.com`, password: 'obrazky-sablon-1', locale: 'cs' })
+        }
         const { site } = await post('/api/sites', { name: built.demoName, slug, template, look })
         const made = await waitFor(async () => {
           const s = (await (await api.request.get(`${cloud.url}/api/sites/${site.id}`)).json()).site
@@ -231,6 +246,9 @@ async function fromRealSites() {
         // Twice the pixels, scaled down afterwards: sharper than a picture taken at its final size.
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, locale: 'cs-CZ', colorScheme: 'light' })
         const page = await ctx.newPage()
+        // What a template works out from "now" (open or closed, today's lessons, the next match)
+        // is pictured on a weekday morning, whenever the script runs.
+        await page.clock.setFixedTime(weekdayMorning())
         await page.goto(origin, { waitUntil: 'networkidle' })
         await page.evaluate(() => document.fonts.ready)
         // Pictures load as they come into view: walk down what the tall picture shows, then back.
@@ -281,7 +299,7 @@ async function fromRealSites() {
     const used = new Set(Object.values(data).flatMap((t) => t.looks).flatMap((l) => l.wordmark?.fonts ?? []).map((f) => f.src.split('/').pop()))
     for (const f of readdirSync(join(out, 'fonts'))) if (!used.has(f)) rmSync(join(out, 'fonts', f))
     write(data)
-    await api.close()
+    await api?.close()
   }
   catch (err) {
     failed = err

@@ -100,7 +100,7 @@ describe('the template registry', () => {
 
   it('finds a template by its id', () => {
     expect(templateById('basic')?.ready).toBe(true)
-    expect(templateById('restaurant')?.ready).toBe(false)
+    expect(templateById('restaurant')?.ready).toBe(READY.includes('restaurant'))
     expect(templateById('nope')).toBeNull()
     expect(templateById(null)).toBeNull()
   })
@@ -162,7 +162,9 @@ describe('the looks of a template', () => {
     // A template with one unnamed design is found without a look; a planned one has no measure.
     expect(wordmarkOf('basic', null)?.family).toBe('Inter')
     expect(wordmarkOf('photographer', 'atelier')?.anchor).toBe('center')
-    expect(wordmarkOf('restaurant', 'salon')).toBeNull()
+    // (a planned template has no measure: its pictures come from its design)
+    for (const t of TEMPLATES.filter((t) => !t.ready)) expect(wordmarkOf(t.id, t.looks[0]?.id), t.id).toBeNull()
+    expect(wordmarkOf('no-such-template', 'salon')).toBeNull()
     expect(wordmarkOf(null, null)).toBeNull()
   })
 

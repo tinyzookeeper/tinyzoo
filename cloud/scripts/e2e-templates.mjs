@@ -47,12 +47,20 @@ const drawn = (page) => page.evaluate(() => ({
 
 /**
  * Check the hosted templates named (all of them without names, except those with a section of
- * their own in e2e.mjs). `person` is signed in to the cloud in `ctx`.
+ * their own in e2e.mjs). `signUp(id)` gives a browser context signed in to the cloud as a new person (asked for every eight templates).
  */
-export async function checkHostedTemplates({ browser, ctx, base, stamp, dataDir, check, measures, only = null, skip = [] }) {
-  const page = await ctx.newPage()
+export async function checkHostedTemplates({ browser, signUp, base, stamp, dataDir, check, measures, only = null, skip = [] }) {
+  // One account may make ten websites an hour (and one address ten accounts in ten minutes):
+  // a new person for every eight templates.
+  let ctx = null
+  let checked = 0
   for (const built of BUILT_TEMPLATES) {
     if (only ? !only.includes(built.id) : (skip.includes(built.id) || !built.dir.startsWith('templates/'))) continue
+    if (checked++ % 8 === 0) {
+      await ctx?.close()
+      ctx = await signUp(built.id)
+    }
+    const page = await ctx.newPage()
     const spec = await checksOf(built.id)
     const looks = await looksOf(built)
     const chosen = looks.all[looks.all.length - 1]
@@ -132,6 +140,7 @@ export async function checkHostedTemplates({ browser, ctx, base, stamp, dataDir,
 
     check(`${built.id}: removing the site is accepted`, (await page.request.post(`${base}/api/sites/${site.id}/remove`, { data: { confirm: slug } })).ok())
     await waitFor(async () => !existsSync(join(dataDir, slug)), { timeout: 60_000, what: `${slug} to be removed` })
+    await page.close()
   }
-  await page.close()
+  await ctx?.close()
 }

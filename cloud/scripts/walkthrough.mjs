@@ -39,7 +39,7 @@ import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, write
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
-import { arg, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, log, open, recreateDatabase, repoRoot, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
+import { arg, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, log, open, recreateDatabase, repoRoot, runDb, runPort, runPrefix, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
 import { drawPointer, film, filmLine, hand, showcaseProxy, slowDown, smallerCopy } from './film.mjs'
 
 const keep = arg('keep', false) === true
@@ -49,7 +49,9 @@ const only = arg('only', null) // desktop | phone | screens | index (only writes
 const domainArg = arg('domain', null) || process.env.SHOWCASE_DOMAIN || 'pushbase.app'
 const domain = given || domainArg === 'none' ? null : String(domainArg)
 const ffmpeg = process.env.FFMPEG || (existsSync('/opt/homebrew/bin/ffmpeg') ? '/opt/homebrew/bin/ffmpeg' : 'ffmpeg')
-const DB = 'tz_cloud_walk'
+// (CLOUD_RUN_TAG and CLOUD_PORT_SHIFT give a second checkout its own databases and ports: lib.mjs)
+const DB = runDb('tz_cloud_walk')
+const PREFIX = runPrefix('tzc_walk_')
 const dataDir = join(cloudDir, '.data', 'walk', 'sites')
 const preview = join(cloudDir, '.preview')
 const screens = join(preview, 'screens')
@@ -77,7 +79,7 @@ mkdirSync(looksDir, { recursive: true })
 // `suggested` is the address the wizard offers for the name: typed over only when this run
 // needs another (against a running app an earlier run may hold it).
 const people = {
-  desktop: { name: 'Johana Loudová', email: 'johana@example.com', password: 'fotim-od-roku-2014', site: 'Johana Loudová', slug: 'johana-loudova', suggested: 'johana-loudova', look: 'negativ', nextLook: 'zapisnik', nextColorsFirst: 'Zápisník · Inkoust', nextColors: 'Zápisník · Švestka', nextColorsId: 'svestka', adminPassword: 'administrace-johana-1', heading: 'Fotím lidi *tak, jak jsou.*', headingSays: 'Fotím lidi' },
+  desktop: { name: 'Johana Loudová', email: 'johana@example.com', password: 'fotim-od-roku-2014', site: 'Johana Loudová', slug: 'johana-loudova', suggested: 'johana-loudova', look: 'negativ', nextLook: 'zapisnik', nextColorsId: 'svestka', adminPassword: 'administrace-johana-1', heading: 'Fotím lidi *tak, jak jsou.*', headingSays: 'Fotím lidi' },
   phone: { name: 'Tereza Malá', email: 'tereza@example.com', password: 'tereza-foti-rada-1', site: 'Tereza Malá', slug: 'tereza-mala', suggested: 'tereza-mala', look: 'zapisnik' },
   // (three sites, one in each look: the screenshots of the looks come from them)
   screens: { name: 'Eva Králová', email: 'eva@example.com', password: 'fotky-od-evy-12', site: 'Johana Loudová', slug: 'foto' },
@@ -343,12 +345,8 @@ async function desktopTake() {
   const drawn = () => page.frames().find((f) => f.url().includes('?preview'))?.evaluate(() => `${document.documentElement.dataset.look}/${document.documentElement.dataset.colors}`)
   await h.click(page.locator(`button[role=radio][value=${who.nextLook}]`))
   await h.read(2600)
-  await h.click(page.locator('#cms-field-colors'))
-  await h.read(900)
-  // (the list scrolls inside itself, and this look's palettes are its last: turn the wheel over it)
-  await h.hover(page.getByRole('option', { name: who.nextColorsFirst, exact: true }))
-  await h.scroll(160, { ms: 700 })
-  await h.click(page.getByRole('option', { name: who.nextColors, exact: true }))
+  // (the colours offered are the chosen look's own three: the field follows the look)
+  await h.click(page.locator(`button[role=radio][value=${who.nextColorsId}]`))
   await h.read(2600)
   if (await drawn() !== `${who.nextLook}/${who.nextColorsId}`) throw new Error(`the preview beside the settings shows ${await drawn()}`)
   await h.click(page.getByRole('button', { name: admin.common.save, exact: true }).first())
@@ -685,16 +683,16 @@ try {
   }
   else {
     log('preparing a cloud app of its own')
-    await cleanSites(dataDir, 'tzc_walk_')
+    await cleanSites(dataDir, PREFIX)
     await recreateDatabase(DB)
-    const port = await freePortFrom(3280)
+    const port = await freePortFrom(runPort(3280))
     if (domain) proxy = await showcaseProxy({ domain, cloudPort: port, dataDir })
     cloud = await startCloud({
       port,
       logFile: join(preview, 'walkthrough-cloud.log'),
       env: {
-        NUXT_DATABASE_URL: dbUrl(DB), NUXT_HOSTING_DRIVER: 'local', NUXT_HOSTING_LOCAL_DATA_DIR: dataDir, NUXT_HOSTING_LOCAL_DATABASE_PREFIX: 'tzc_walk_',
-        NUXT_HOSTING_LOCAL_PORT_FROM: '4370', NUXT_HOSTING_LOCAL_PORT_TO: '4389', NUXT_MAX_SITES_PER_USER: '3',
+        NUXT_DATABASE_URL: dbUrl(DB), NUXT_HOSTING_DRIVER: 'local', NUXT_HOSTING_LOCAL_DATA_DIR: dataDir, NUXT_HOSTING_LOCAL_DATABASE_PREFIX: PREFIX,
+        NUXT_HOSTING_LOCAL_PORT_FROM: String(runPort(4370)), NUXT_HOSTING_LOCAL_PORT_TO: String(runPort(4389)), NUXT_MAX_SITES_PER_USER: '3',
         NUXT_REQUIRE_VERIFIED_EMAIL: 'false', NUXT_PUBLIC_SHOW_PLANNED: 'true', NUXT_MAIL_TRANSPORT: 'log', NUXT_DEV_MAIL_LINKS: 'false',
         // What a person sees: real-looking addresses, answered by the proxy inside the recording browser.
         ...(proxy ? { NUXT_PUBLIC_URL: proxy.cloudUrl, NUXT_HOSTING_LOCAL_PUBLIC_URL: proxy.siteUrlPattern, CLOUD_DEV_HOSTS: `.${domain}` } : { NUXT_HOSTING_LOCAL_PUBLIC_URL: '' }),
@@ -755,7 +753,7 @@ finally {
   if (cloud) {
     await cloud.stop().catch(() => {})
     if (!keep) {
-      await cleanSites(dataDir, 'tzc_walk_').catch((e) => console.error('cleanup:', e.message))
+      await cleanSites(dataDir, PREFIX).catch((e) => console.error('cleanup:', e.message))
       await dropDatabase(DB).catch(() => {})
     }
   }

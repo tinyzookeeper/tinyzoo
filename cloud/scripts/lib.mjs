@@ -16,8 +16,9 @@ export const cloudDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const repoRoot = resolve(cloudDir, '..')
 // A hosted template (templates/<id>, package tinyzoo-template-<id>): what its demo content is
 // called in its pictures, where it writes the site's name (`wordmark`: what the wizard's typed
-// name replaces) and what else of the name to leave out of that picture (`hide`: a monogram).
-const hosted = (id, demoName, { wordmark = 'header [data-wordmark]', hide = null } = {}) =>
+// name replaces; by default the first visible element marked `data-wordmark`, in the header or
+// opening the page) and what else of the name to leave out of that picture (`hide`: a monogram).
+const hosted = (id, demoName, { wordmark = '[data-wordmark]', hide = null } = {}) =>
   ({ id, pkg: `tinyzoo-template-${id}`, dir: `templates/${id}`, demoName, wordmark, hide })
 
 /**
@@ -27,9 +28,27 @@ const hosted = (id, demoName, { wordmark = 'header [data-wordmark]', hide = null
  */
 export const BUILT_TEMPLATES = [
   { id: 'basic', pkg: 'tinyzoo-starter', dir: 'packages/cms/starter', demoName: 'Pekárna Na Růžku', wordmark: 'header .site-header > a > span', hide: null },
+  hosted('individual', 'Magda Šubrtová'),
   hosted('photographer', 'Johana Loudová'),
   // The names open the page, large: the wizard writes the typed ones there; the header's monogram is left out.
   hosted('wedding', 'Anežka a Šimon', { wordmark: 'main [data-wordmark]', hide: 'header [data-monogram]' }),
+  hosted('blog', 'Souvrať'),
+  hosted('trades', 'Jirsák'),
+  hosted('car-service', 'Autoservis U Vlečky'),
+  hosted('salon', 'Pěšinka'),
+  hosted('medical', 'Ordinace U Lípy'),
+  hosted('office', 'Tesař & Vondrová'),
+  hosted('restaurant', 'Kmín'),
+  hosted('accommodation', 'Vřesovka'),
+  hosted('sports-club', 'Tatran Hořany'),
+  hosted('studio', 'Osnova'),
+  hosted('event', 'Tři vrchy'),
+  hosted('association', 'Planá hruška'),
+  hosted('realty', 'Práh'),
+  hosted('development', 'Starý sad'),
+  hosted('construction', 'Stavby Doubrava'),
+  hosted('shop', 'U Dvou klíčů'),
+  hosted('software', 'Odpolka'),
 ]
 /** The built server of each ready template (scripts/build-templates.mjs makes them). */
 export const templateEntries = Object.fromEntries(BUILT_TEMPLATES.map((t) => [t.id, join(repoRoot, t.dir, '.output/server/index.mjs')]))
