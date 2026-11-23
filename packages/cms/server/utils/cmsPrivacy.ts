@@ -156,6 +156,8 @@ export async function erasePerson(db: any, reg: CmsRegistry, email: string, acto
       await tx.delete(reg.cmsAccessTokens).where(eq(reg.cmsAccessTokens.userId, account.id))
       await tx.delete(reg.cmsState).where(eq(reg.cmsState.key, emailChangeStateKey(account.id)))
       await tx.delete(reg.cmsState).where(sql`${reg.cmsState.key} like ${emailRevertStatePattern(account.id)}`)
+      // The link to a tinyzoo account names the person at the account service: it goes too.
+      await removeAccountLink(tx, reg, account.id)
     }
     // A change waiting for this address, or a way back to it, of whichever account: the link goes with it.
     const states = await findEmailStates(tx, reg, email)

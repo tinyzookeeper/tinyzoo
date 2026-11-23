@@ -9,5 +9,7 @@ export default defineEventHandler((event) => {
     access: role
       ? { removed: false, role: role.name, label: role.label ?? null, custom: role.custom, base: role.base, publish: role.publish, media: role.media, manage: role.manage }
       : { removed: true, role: String(user.role) },
+    // Sign-in with the tinyzoo account is on here: the admin then asks for the person's websites (the switcher).
+    ...(cmsAccount() ? { account: { enabled: true } } : {}),
   }
 })

@@ -68,6 +68,19 @@ export interface CmsModuleOptions {
     trustedProxies?: number
     /** Header holding the client IP when a trusted edge sets one, e.g. 'cf-connecting-ip'. */
     ipHeader?: string
+    /**
+     * Sign-in with the tinyzoo account, next to the built-in password sign-in (experimental).
+     * The site is a client of the account service: its address, and the client id and secret
+     * the account service gave this site. On only when all three are set and `mode` is 'builtin'.
+     * Env: NUXT_CMS_AUTH_ACCOUNT_ISSUER, NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID,
+     * NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET (set the secret in the environment, not here: an
+     * option is written into the build).
+     */
+    account?: {
+      issuer?: string
+      clientId?: string
+      clientSecret?: string
+    }
   }
   /**
    * Absolute public URL of this app, e.g. 'https://cms.example.com'. Used for links
@@ -419,6 +432,12 @@ export {}
         ipHeader: options.auth?.ipHeader || '',
         // Empty default so NUXT_CMS_AUTH_SETUP_TOKEN binds at runtime ('' = no token needed).
         setupToken: '',
+        // Empty defaults so NUXT_CMS_AUTH_ACCOUNT_* bind at runtime; all three empty = no sign-in with the account.
+        account: {
+          issuer: options.auth?.account?.issuer || '',
+          clientId: options.auth?.account?.clientId || '',
+          clientSecret: options.auth?.account?.clientSecret || '',
+        },
       },
       // Empty defaults so NUXT_CMS_PUBLIC_URL / NUXT_CMS_MAIL_* bind at runtime.
       publicUrl: options.publicUrl || '',
