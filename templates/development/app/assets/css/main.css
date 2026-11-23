@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The three looks (looks.ts): each styles the website under html[data-look="<id>"]. */
+@import "./modrotisk.css";
+@import "./patra.css";
+@import "./po-slunci.css";
+
+/* Tailwind must also scan the CMS's own components (the admin) and the template kit's. */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The looks' tokens as utilities: bg-paper, text-ink, border-line, font-display… Each look
+   gives the variables behind them their values (under html[data-look="…"], in the three
+   files above), and a colour preset from the site's settings overrides the colours inline on
+   <html>. Outside a look (the admin) none of these is set, and none is used.
+   The names keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses:
+   the designs' `muted` is `quiet` here. */
+@theme {
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-cond: system-ui, sans-serif;
+
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-quiet: var(--quiet);
+  --color-line: var(--line);
+
+  /* Modrotisk: the sheet, its panel, the red pencil */
+  --color-panel: var(--panel);
+  --color-accent: var(--accent);
+
+  /* Patra and Po slunci: the one brand colour, its soft ground, the tint of the second payment */
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-soft: var(--soft);
+  --color-tint: var(--tint);
+
+  /* Po slunci: the sun */
+  --color-sun: var(--sun);
+}
+
+/* A section reached from the menu (/#cenik) stops a little under the top of the window. */
+@layer base {
+  html[data-look] { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html[data-look] { scroll-behavior: auto; } }
+}
