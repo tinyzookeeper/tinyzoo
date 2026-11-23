@@ -86,7 +86,7 @@ Both sites were read (details in 2.9). The finding:
 
 **So the group is an identity question, not a hosting question.** The recommendation:
 
-- **Sites stay separate apps** (or separate sites of one multi-mode app when they do share a model, as a SaaS customer's sites do).
+- **Sites stay separate apps** (or separate sites of one multi-mode app when they do share a model, as a SaaS customer's sites do). Separate apps can still live on one server and one Postgres, each with its own database and user; what they cannot share is a process, because their code differs.
 - **A person's identity lives in one place outside the sites:** the tinyzoo account, held by the cloud app, which the SaaS needs anyway. It holds the e-mail, the password and the list of sites the person belongs to.
 - **Roles stay per site, in the site's own database**, as today: each site has its own `cms_users` row for the person with that site's role. A person can be an administrator on one site and an editor on the other. A site stays complete by itself, which keeps moving it simple.
 - **Sign-in:** the site sends the person to the account (OAuth authorization code with PKCE), gets back who they are, finds its own row for them and opens its own session. No cookie is shared between sites, so it works across unrelated domains (6dance.cz, studiogrand.cz) and across hosting kinds.
@@ -127,7 +127,7 @@ Each step can be merged and released alone, and single-mode sites behave the sam
 1. **6dance and Studio Grand:** two apps with a shared sign-in and switcher (recommended), or one merged app.
 2. **Where the identity lives:** the cloud app (recommended), or Keeper, which already has workspaces, teams and an OAuth server but is the agency's tool, not the clients'.
 3. **Forced template updates:** every site of a template moves to a new build together. Accept this as a product rule, or plan for two versions of a template running side by side (each its own app).
-4. **Files:** the requirement "another site's credentials cannot read them" needs a storage that issues keys limited to a prefix, or a bucket per site. What can Pushbase Storage do?
+4. **Files:** the requirement "another site's credentials cannot read them" needs a key per site that is limited to that site's files. Pushbase Storage already works this way per storage link (2.4); what is missing there is a way to issue one such key per site for an app that serves many.
 5. **Go-ahead for the spike** (2.14 says what it will and will not cover).
 
 ---
@@ -276,7 +276,7 @@ Measured: a check that finds nothing to do is 8 round trips, 3 ms to connect and
 - The raw media route looks only in the current site's storage, and "is this key ours" asks the current site's database (`server/utils/cmsMediaKeys.ts`, cache per site).
 - Uploads are staged in a shared temp folder under random names (`cmsStorage.ts:351,487`); that stays.
 
-On one local disk the operating system does not separate the sites (one process, one user); the separation is the rooted driver. With object storage and scoped keys it is the credentials as well. Whether Pushbase Storage can issue keys limited to a prefix decides between prefixes and a bucket per site (decision 4).
+On one local disk the operating system does not separate the sites (one process, one user); the separation is the rooted driver. With object storage and scoped keys it is the credentials as well. **Pushbase Storage** (read in its source, not tried): one platform bucket behind a gateway. Every storage link has its own access key and a virtual bucket; the gateway checks the signature, refuses any other bucket and rewrites every key under the link's own prefix (`pushbase/apps/control-plane/server/utils/storage/gateway.ts`). So a key confined to one place exists. Today a key belongs to one service linked to one environment and is injected into that environment's deploy. A multi-mode app needs one key per site, handed to the cloud app instead: a small addition to Pushbase (decision 4). Whether its API can already return a link's keys was not checked.
 
 **Sessions.** Facts today: the cookie has no `Domain`, so browsers send it to its own host only; it is sealed with a key derived from the process's app secret (nuxt-auth-utils 0.6.2); the payload is `{ user, cms: { uid, sv, iat } }` with no site; every `/api/*` and `/admin` request re-reads the account from the database (`server/middleware/cms-session.ts`). The danger is a cookie copied by hand from site A to site B when both databases hold the same user id, which is exactly what copying a template database produces.
 
