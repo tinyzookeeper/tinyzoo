@@ -152,7 +152,22 @@ export async function reportMembership(clientId: string, userId: string, report:
     })
     .where(and(eq(schema.accountMembers.clientId, clientId), eq(schema.accountMembers.userId, userId)))
     .returning({ clientId: schema.accountMembers.clientId })
+  if (rows.length && report.active) await noteOwnerEntered(clientId, userId, now)
   return rows.length > 0
+}
+
+/**
+ * A cloud-made site said that it lets its OWNER in: the owner has been in the admin. The cloud
+ * otherwise learns that by asking the site whether anybody is still waiting on an invitation
+ * (provision.ts, noteAcceptance), which stops being true the moment the owner invites a colleague.
+ * The invitation link is of no use any more and is forgotten.
+ */
+async function noteOwnerEntered(clientId: string, userId: string, at: Date): Promise<void> {
+  const db = useDb()
+  const [client] = await db.select({ siteId: schema.accountClients.siteId, ownerId: schema.accountClients.ownerId }).from(schema.accountClients).where(eq(schema.accountClients.id, clientId))
+  if (!client?.siteId || client.ownerId !== userId) return
+  await db.update(schema.sites).set({ ownerAcceptedAt: at, inviteUrl: null, updatedAt: at })
+    .where(and(eq(schema.sites.id, client.siteId), eq(schema.sites.ownerId, userId), isNull(schema.sites.ownerAcceptedAt)))
 }
 
 /** Whether a client can be listed and opened: not revoked, with an address, and its cloud-made site (if it is one) ready. */

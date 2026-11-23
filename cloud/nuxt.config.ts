@@ -78,6 +78,9 @@ export default defineNuxtConfig({
         // NUXT_HOSTING_SHARED_DATABASE_PREFIX: what the sites' databases and database users are called
         // before the site's id (default tzs). A second cloud app on the same Postgres server takes another.
         databasePrefix: '',
+        // NUXT_HOSTING_SHARED_SESSION_COOKIE: another name for the sites' session cookie (e.g. __Host-tinyzoo).
+        // Empty: tinyzoo's own default. Read when a template's process is started.
+        sessionCookie: '',
       },
       pushbase: {
         // NUXT_HOSTING_PUSHBASE_TEMPLATES_DIR: a folder with one standalone project per template (<dir>/<template id>).

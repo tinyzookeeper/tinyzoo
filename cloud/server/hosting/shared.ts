@@ -268,6 +268,16 @@ function appFor(tdir: string, known?: number): Promise<AppFile> {
   return next
 }
 
+// ── ONE SETTING, on its own: the name of the sites' session cookie ──────────────
+// `hosting.shared.sessionCookie` (NUXT_HOSTING_SHARED_SESSION_COOKIE), e.g. `__Host-tinyzoo`.
+// Empty (the default) changes nothing: the sites use tinyzoo's own cookie name. With a name,
+// the template's process gets it as NUXT_SESSION_NAME the next time the driver starts it.
+// (`e2e:signin` uses it to find out what browsers do with a `__Host-` cookie on http://*.localhost.)
+function sessionCookieName(): string {
+  const name = String((useRuntimeConfig().hosting as any)?.shared?.sessionCookie ?? '').trim()
+  return /^[A-Za-z0-9_.-]{1,64}$/.test(name) ? name : ''
+}
+
 /**
  * Start the template's process, detached, with a clean environment (nothing of the cloud's
  * own leaks into it). `settings` is the part of a site's environment that is the same for
@@ -286,6 +296,7 @@ function start(template: TemplateDef, tdir: string, app: AppFile, settings: Reco
         HOME: process.env.HOME ?? '',
         ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}),
         ...settings,
+        ...(sessionCookieName() ? { NUXT_SESSION_NAME: sessionCookieName() } : {}),
         NODE_ENV: 'production',
         HOST: '127.0.0.1',
         PORT: String(app.port),
