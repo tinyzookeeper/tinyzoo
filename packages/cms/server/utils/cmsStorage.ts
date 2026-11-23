@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, extname, isAbsolute, join, resolve, sep } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { DEFAULT_MEDIA_BASE, encodeStorageKey, isSafeStorageKey, resolveS3Delivery, storedMediaUrl, type S3Delivery } from '../../shared/storage-delivery'
+import { cleanS3Prefix, DEFAULT_MEDIA_BASE, encodeStorageKey, isSafeStorageKey, resolveS3Delivery, s3ObjectPath, storedMediaUrl, type S3Delivery } from '../../shared/storage-delivery'
 import { cleanMediaFolder } from '../../shared/media-folder'
 import { byteRange, etagMatches, singleRange } from './cmsRange'
 
@@ -240,6 +240,13 @@ export interface S3Config {
   bucket: string
   accessKeyId: string
   secretAccessKey: string
+  /**
+   * The site's own place inside the bucket (`sites/7f3a`), when the bucket is shared: every
+   * object is `<prefix>/<key>`. The key everywhere else (the database, the addresses of the
+   * app) stays the same with or without it. Empty = the bucket's root. Refused when it is
+   * not path segments of `a-z`, `0-9`, `-`, `_`, `.`.
+   */
+  prefix?: string
   /** Public URL prefix used to serve objects (CDN / r2.dev / custom domain). Defaults to `${endpoint}/${bucket}`. */
   publicBaseUrl?: string
   /**
@@ -278,8 +285,11 @@ class S3Driver implements StorageDriver {
   private _client: any
   private checkedPublic = false
   readonly delivery: S3Delivery
+  /** The site's place in the bucket, checked once: '' or segments like `sites/7f3a` (no slash at either end). */
+  private readonly prefix: string
   constructor(private readonly cfg: S3Config) {
     this.delivery = cfg.delivery ?? (cfg.publicBaseUrl ? 'public' : 'proxy')
+    this.prefix = cleanS3Prefix(cfg.prefix)
   }
 
   private async client() {
@@ -310,11 +320,14 @@ class S3Driver implements StorageDriver {
   // Keys are RFC3986-safe by construction (date / uuid / ext), so per-segment
   // encoding is a no-op here and aws4fetch will not double-encode them. If
   // arbitrary keys are ever allowed, drop this and let aws4fetch own the encoding.
-  // A key with `..` would be resolved by the URL and reach another bucket: refused.
+  // A key with `..` would be resolved by the URL and reach another bucket (or another site's
+  // prefix): refused. This is the one place that turns a key into an object of the bucket, so
+  // the prefix is added here and nowhere else: every read, write, delete and signed address
+  // of the driver goes through it.
   private objectUrl(key: string): string {
     if (!isSafeStorageKey(key)) throw createError({ statusCode: 400, statusMessage: 'Invalid storage key' })
     const endpoint = this.cfg.endpoint.replace(/\/$/, '')
-    return endpoint + '/' + this.cfg.bucket + '/' + encodeStorageKey(key)
+    return endpoint + '/' + this.cfg.bucket + '/' + encodeStorageKey(s3ObjectPath(this.prefix, key))
   }
 
   async put(key: string, body: Buffer, contentType: string): Promise<StoredObject> {
@@ -463,7 +476,7 @@ class S3Driver implements StorageDriver {
   }
 
   url(key: string): string {
-    return storedMediaUrl({ ...this.cfg, delivery: this.delivery }, key)
+    return storedMediaUrl({ ...this.cfg, delivery: this.delivery, prefix: this.prefix }, key)
   }
 }
 
@@ -547,6 +560,9 @@ export function useCmsStorage(): StorageDriver {
     let delivery: S3Delivery
     try { delivery = resolveS3Delivery(s.delivery, s.publicBaseUrl) }
     catch (err: any) { throw createError({ statusCode: 500, statusMessage: err.message }) }
+    let prefix: string
+    try { prefix = cleanS3Prefix(s.prefix) }
+    catch (err: any) { throw createError({ statusCode: 500, statusMessage: err.message }) }
     // NB: do NOT memoize on the misconfigured path above — let it re-throw until fixed.
     _driver = new S3Driver({
       endpoint: s.endpoint!,
@@ -554,6 +570,7 @@ export function useCmsStorage(): StorageDriver {
       bucket: s.bucket!,
       accessKeyId: s.accessKeyId!,
       secretAccessKey: s.secretAccessKey!,
+      prefix,
       publicBaseUrl: s.publicBaseUrl || undefined,
       delivery,
       appBase: cfg.local?.publicBase || DEFAULT_MEDIA_BASE,
@@ -590,6 +607,15 @@ function refuseOnceTheSiteLeft(driver: StorageDriver, left: () => boolean): Stor
 export function maxUploadBytes(): number {
   const mb = Number(cmsSettings().storage?.maxSizeMb) || 10
   return mb * 1024 * 1024
+}
+
+/**
+ * What this site may store in all, in bytes (0 = no limit): the sizes of its media files
+ * added up (`cms.storage.maxBytes`, per site in multi mode). The smaller copies made of
+ * pictures are derived and not counted.
+ */
+export function maxTotalBytes(): number {
+  return Math.max(0, Math.floor(Number(cmsSettings().storage?.maxBytes) || 0))
 }
 
 /** Per-user total storage quota in bytes (0 = unlimited). */

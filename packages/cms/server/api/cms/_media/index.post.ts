@@ -94,17 +94,12 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    // Per-user storage quota.
-    const quota = maxBytesPerUser()
-    if (quota) {
-      const [usage] = await db
-        .select({ used: sql<string>`coalesce(sum(${reg.cmsMedia.size}), 0)` })
-        .from(reg.cmsMedia)
-        .where(eq(reg.cmsMedia.uploadedBy, user.id))
-      if (Number(usage?.used ?? 0) + file.size > quota) {
-        throw createError({ statusCode: 413, statusMessage: 'Storage quota exceeded.' })
-      }
-    }
+    // Storage limits: the site's total and the per-user quota. Checked here before the file is
+    // stored (so an upload that cannot fit does not cost the bucket a write), and again under a
+    // lock at the insert, which is the check that counts when uploads arrive together.
+    const siteLimit = maxTotalBytes()
+    const userQuota = maxBytesPerUser()
+    if (siteLimit || userQuota) await assertStorageRoom(db, reg, { siteLimit, userQuota, userId: user.id, size: file.size })
 
     // Date-prefixed, uuid-named key: tidy directory tree, collision-free, RFC3986-safe.
     const now = new Date()
@@ -112,25 +107,43 @@ export default defineEventHandler(async (event) => {
 
     const stored = await storage.putFile(key, file.path, { size: file.size, sha256: file.sha256, contentType: mime })
 
-    const [media] = await db
-      .insert(reg.cmsMedia)
-      .values({
-        url: stored.url,
-        key: stored.key,
-        mime,
-        size: stored.size,
-        width,
-        height,
-        uploadedBy: user.id,
-        name: displayFileName(file.filename),
-        folder: cleanFolder(fields.folder),
-        // Uploaded in the library (its page or picker): kept there even when no entry uses it.
-        inLibrary: fields.library === '1',
-        // No default description: a file name ("IMG_2041.jpg") read aloud by a screen
-        // reader is worse than none. Editors add it next to the image.
-        alt: null,
-      })
-      .returning()
+    const values = {
+      url: stored.url,
+      key: stored.key,
+      mime,
+      size: stored.size,
+      width,
+      height,
+      uploadedBy: user.id,
+      name: displayFileName(file.filename),
+      folder: cleanFolder(fields.folder),
+      // Uploaded in the library (its page or picker): kept there even when no entry uses it.
+      inLibrary: fields.library === '1',
+      // No default description: a file name ("IMG_2041.jpg") read aloud by a screen
+      // reader is worse than none. Editors add it next to the image.
+      alt: null,
+    }
+    let media: any
+    if (siteLimit || userQuota) {
+      // One check-and-insert at a time per site (its database): the transaction takes an advisory
+      // lock, adds up the rows that are there (the ones of uploads that finished before this one
+      // got the lock), and inserts only if the file still fits. The lock is held for a sum and an
+      // insert, never for the upload itself. A file that no longer fits is removed again.
+      try {
+        media = await db.transaction(async (tx: any) => {
+          await tx.execute(sql`select pg_advisory_xact_lock(${STORAGE_LOCK})`)
+          await assertStorageRoom(tx, reg, { siteLimit, userQuota, userId: user.id, size: stored.size })
+          return (await tx.insert(reg.cmsMedia).values(values).returning())[0]
+        })
+      }
+      catch (err) {
+        await storage.delete(stored.key).catch(() => {})
+        throw err
+      }
+    }
+    else {
+      media = (await db.insert(reg.cmsMedia).values(values).returning())[0]
+    }
 
     await audit(event, 'media.upload', { recordId: media?.id, meta: { mime, size: stored.size } })
     // Its smaller copies are made now, in the background: ready before a visitor asks for them.
@@ -142,6 +155,36 @@ export default defineEventHandler(async (event) => {
     await discardReceived(file) // already moved on success; a no-op then
   }
 })
+
+/** The key of the advisory lock that makes the storage check and the insert one step. Advisory locks belong to a database, and a site has its own. */
+const STORAGE_LOCK = 72_011_060
+
+/**
+ * Refuses (413) a file that would take the site over `cms.storage.maxBytes` or the uploader
+ * over `cms.storage.maxBytesPerUser`. Counts the media rows' sizes, as the status route does.
+ * `q` is the database or the transaction that holds the lock.
+ */
+async function assertStorageRoom(q: any, reg: any, opts: { siteLimit: number; userQuota: number; userId: string; size: number }) {
+  const { siteLimit, userQuota, userId, size } = opts
+  const total = (where?: any) => q
+    .select({ used: sql<string>`coalesce(sum(${reg.cmsMedia.size}), 0)::bigint` })
+    .from(reg.cmsMedia)
+    .where(where)
+    .then((rows: any[]) => Number(rows[0]?.used ?? 0))
+  if (siteLimit) {
+    const used = await total()
+    if (used + size > siteLimit) {
+      throw createError({
+        statusCode: 413,
+        statusMessage: 'There is not enough storage space left for this file.',
+        data: { code: 'storage_full', limitBytes: siteLimit, usedBytes: used },
+      })
+    }
+  }
+  if (userQuota && (await total(eq(reg.cmsMedia.uploadedBy, userId))) + size > userQuota) {
+    throw createError({ statusCode: 413, statusMessage: 'Storage quota exceeded.' })
+  }
+}
 
 /** The uploaded file's name, for people (no path, no control characters, bounded). */
 function displayFileName(name: string | undefined): string | null {

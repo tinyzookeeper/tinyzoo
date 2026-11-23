@@ -31,6 +31,7 @@
  * `cms:` options of nuxt.config), so run it from the site's folder.
  */
 import { docsUrl } from '../src/docs'
+import { cleanS3Prefix, encodeStorageKey, s3ObjectPath } from '../shared/storage-delivery'
 import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, closeSync, copyFileSync, createWriteStream, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -44,7 +45,9 @@ import { extractTar } from './tar'
 
 // ── settings ───────────────────────────────────────────────────────────────────
 
-export interface S3Settings { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string; delivery?: string }
+export interface S3Settings { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string; delivery?: string
+  /** The site's place inside the bucket (`cms.storage.s3.prefix`): its files are `<prefix>/<key>`. */
+  prefix?: string }
 export interface StorageSettings {
   driver: 'local' | 's3' | 'r2'
   localDir: string
@@ -92,6 +95,7 @@ export function settingsFrom(cwd: string, env: NodeJS.ProcessEnv, cms: any): Bac
         secretAccessKey: env.NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY || s3.secretAccessKey || '',
         publicBaseUrl: env.NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL || s3.publicBaseUrl || '',
         delivery: env.NUXT_CMS_STORAGE_S3_DELIVERY || s3.delivery || '',
+        prefix: env.NUXT_CMS_STORAGE_S3_PREFIX || s3.prefix || '',
       },
     },
   }
@@ -418,10 +422,14 @@ export function localStore(dir: string): MediaStore {
 export function s3Store(cfg: S3Settings): MediaStore {
   const missing = (['endpoint', 'bucket', 'accessKeyId', 'secretAccessKey'] as const).filter((k) => !cfg[k])
   if (missing.length) fail(`The S3 storage is missing ${missing.join(', ')} (NUXT_CMS_STORAGE_S3_*).`)
+  // The files of one site sit under its prefix; the keys in the database and in the archive do not have it.
+  let prefix = ''
+  try { prefix = cleanS3Prefix(cfg.prefix) }
+  catch (err) { fail((err as Error).message) }
   let client: Promise<any> | undefined
   const aws = () => client ??= import('aws4fetch').then(({ AwsClient }) => new AwsClient({ accessKeyId: cfg.accessKeyId, secretAccessKey: cfg.secretAccessKey, region: cfg.region, service: 's3' }))
   // The same path-style address the app's own S3 driver uses.
-  const urlOf = (key: string) => `${cfg.endpoint.replace(/\/$/, '')}/${cfg.bucket}/${key.split('/').map(encodeURIComponent).join('/')}`
+  const urlOf = (key: string) => `${cfg.endpoint.replace(/\/$/, '')}/${cfg.bucket}/${encodeStorageKey(s3ObjectPath(prefix, key))}`
   return {
     async read(key) {
       if (!safeKey(key)) fail(`Refusing the unsafe storage key "${key}".`)
@@ -668,7 +676,7 @@ export async function runRestore(settings: BackupSettings, file: string, opts: R
     }
     io.log(`Backup of ${manifest.database} from ${manifest.createdAt} (tinyzoo ${manifest.tinyzooVersion}): database and ${manifest.media.length} media file(s).`)
     if (!opts.yes) {
-      const ok = await (opts.confirm ?? askInTerminal)(`This REPLACES the data in ${targetLabel(settings.databaseUrl)}: its public and drizzle schemas are dropped and recreated from the backup (and the media are written into ${settings.storage.driver === 'local' ? settings.storage.localDir : 'the bucket ' + settings.storage.s3.bucket}).`, databaseName(settings.databaseUrl))
+      const ok = await (opts.confirm ?? askInTerminal)(`This REPLACES the data in ${targetLabel(settings.databaseUrl)}: its public and drizzle schemas are dropped and recreated from the backup (and the media are written into ${settings.storage.driver === 'local' ? settings.storage.localDir : 'the bucket ' + settings.storage.s3.bucket + (settings.storage.s3.prefix ? ' under ' + settings.storage.s3.prefix : '')}).`, databaseName(settings.databaseUrl))
       if (!ok) fail('Not confirmed; nothing was changed.')
     }
 

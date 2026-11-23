@@ -38,16 +38,40 @@ export function isSafeStorageKey(key: string): boolean {
   return key.split('/').every((part) => part !== '' && part !== '.' && part !== '..')
 }
 
+/**
+ * `cms.storage.s3.prefix`: the place of a site inside a bucket it shares with others
+ * (`sites/7f3a`). Path segments of `a-z`, `0-9`, `-`, `_` and `.`; no empty segment, no `.`
+ * or `..`, no leading slash. One trailing slash is dropped. Empty = the bucket's root.
+ * Throws an Error that names the setting for anything else.
+ */
+export function cleanS3Prefix(value: unknown): string {
+  const asked = String(value ?? '').trim()
+  if (!asked) return ''
+  const prefix = asked.endsWith('/') ? asked.slice(0, -1) : asked
+  const wrong = prefix.length > 200 || prefix.split('/').some((part) => !/^[a-z0-9_.-]+$/.test(part) || part === '.' || part === '..')
+  if (wrong) {
+    throw new Error(`Invalid storage prefix '${asked}' (cms.storage.s3.prefix, NUXT_CMS_STORAGE_S3_PREFIX): `
+      + "use path segments of a-z, 0-9, '-', '_' and '.', separated by '/', for example sites/7f3a; no empty segment, no '.' or '..', no leading slash.")
+  }
+  return prefix
+}
+
+/** The path of an object below the bucket: the site's prefix (already clean), then its key. */
+export function s3ObjectPath(prefix: string, key: string): string {
+  return (prefix ? prefix + '/' : '') + key
+}
+
 /** The address a file is stored under in the database, and handed to browsers. */
 export function storedMediaUrl(
-  cfg: { delivery: S3Delivery; endpoint: string; bucket: string; publicBaseUrl?: string | null; appBase?: string | null },
+  cfg: { delivery: S3Delivery; endpoint: string; bucket: string; publicBaseUrl?: string | null; appBase?: string | null; prefix?: string | null },
   key: string,
 ): string {
+  // The stored key is the same with or without a prefix; only the bucket's own address has it.
   if (cfg.delivery !== 'public') {
     const base = (cfg.appBase || DEFAULT_MEDIA_BASE).replace(/\/+$/, '')
     return base + '/' + key
   }
   const endpoint = cfg.endpoint.replace(/\/+$/, '')
   const base = cfg.publicBaseUrl?.replace(/\/+$/, '') || endpoint + '/' + cfg.bucket
-  return base + '/' + encodeStorageKey(key)
+  return base + '/' + encodeStorageKey(s3ObjectPath(cfg.prefix ?? '', key))
 }

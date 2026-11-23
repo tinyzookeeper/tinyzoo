@@ -92,6 +92,7 @@ export default {
     emptyFile: 'Die Datei ist leer. Wählen Sie sie erneut oder versuchen Sie eine andere.',
     tooLargeMax: 'Die Datei ist zu groß (höchstens {mb} MB).',
     imagePixels: 'Das Bild hat zu viele Pixel (höchstens {mp} Megapixel, etwa 8.900 × 8.900). Verkleinern Sie es und laden Sie es erneut hoch.',
+    storageFull: 'Für diese Datei ist im Speicher nicht mehr genug Platz. Löschen Sie Dateien, die Sie nicht mehr brauchen, oder bitten Sie um mehr Platz.',
     fileType: 'Dieser Dateityp kann nicht hochgeladen werden. Verwenden Sie ein Bild (JPG, PNG, WebP, GIF, AVIF), ein PDF, ein MP4-/WebM-Video oder eine MP3-Datei.',
     tooMany: 'Das war zu viel auf einmal. Warten Sie eine Minute und versuchen Sie es erneut.',
     server: 'Auf dem Server ist etwas schiefgegangen. Versuchen Sie es gleich noch einmal.',

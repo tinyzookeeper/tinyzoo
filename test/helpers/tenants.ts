@@ -86,6 +86,20 @@ export interface TenantsOptions {
    * (the server is stopped right after: what a background worker left half done stays so).
    */
   seed?: (a: { url: string; admin: Client; query: <T = any>(text: string, params?: unknown[]) => Promise<T[]> }) => Promise<void>
+  /**
+   * More settings for a site's directory row (`config`), laid over the ones the helper
+   * writes: objects are merged key by key, anything else replaces. For example a bucket and a
+   * prefix: `{ a: { storage: { driver: 's3', s3: { bucket, prefix: 'sites/a' } } } }`.
+   */
+  config?: Partial<Record<'a' | 'b' | 'c', Record<string, any>>>
+}
+
+/** `over` laid over `base`: plain objects key by key, everything else replaced. */
+function overlay(base: any, over: any): any {
+  if (!over || typeof over !== 'object' || Array.isArray(over) || !base || typeof base !== 'object' || Array.isArray(base)) return over === undefined ? base : over
+  const out: Record<string, any> = { ...base }
+  for (const [k, v] of Object.entries(over)) out[k] = overlay(base[k], v)
+  return out
 }
 
 function adminClient(db = 'postgres'): pg.Client {
@@ -192,14 +206,14 @@ export async function startTenants(suffix: string, env: Record<string, string> =
     publicUrl: `http://site-${site}.localhost:${port}`,
     databaseUrl: urlFor(site),
     secret: `secret-of-site-${site}-at-least-32-characters`,
-    config: {
+    config: overlay({
       auth: { setupToken: `setup-code-${site}` },
       status: { token: `status-token-of-site-${site}-0123456789` },
       webhooks: { urls: `${hooks[site].url}/hook`, secret: `webhook-secret-${site}` },
       storage: { driver: 'local', local: { dir: join(dirs, `uploads-${site}`) } },
       mail: { file: { dir: join(dirs, `mail-${site}`) } },
       forms: { notifyTo: `owner@site-${site}.test` },
-    },
+    }, options.config?.[site]),
   })
   const write = async (sites: unknown[]) => {
     const tmp = `${directoryFile}.tmp`

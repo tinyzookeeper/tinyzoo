@@ -186,6 +186,8 @@ export async function collectCmsStatus(): Promise<CmsStatus> {
   const m = reg.cmsMedia
   const [media] = await db.select({ n: sql<number>`count(*)::int`, bytes: sql<string>`coalesce(sum(${m.size}), 0)::bigint` }).from(m)
   status.media = { files: Number(media?.n ?? 0), bytes: Number(media?.bytes ?? 0) }
+  const limit = maxTotalBytes()
+  if (limit) status.media.limitBytes = limit
   const sizes = await mediaSizesCounts()
   if (sizes) status.media.sizes = sizes
 

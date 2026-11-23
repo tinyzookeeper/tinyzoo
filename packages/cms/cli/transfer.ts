@@ -44,7 +44,7 @@ import pg from 'pg'
 import { mediaIdsInBlocks, mediaIdsInFields, propOf, type CmsEntity, type CmsRegistry, type Junction } from '../src/index'
 import { blockVersion, storedBlockVersion } from '../src/blocks'
 import { loadSettings, settingsFrom, type StorageSettings } from './backup'
-import { encodeStorageKey, resolveS3Delivery, storedMediaUrl } from '../shared/storage-delivery'
+import { cleanS3Prefix, encodeStorageKey, resolveS3Delivery, s3ObjectPath, storedMediaUrl } from '../shared/storage-delivery'
 
 export const ARCHIVE_FORMAT = 1
 
@@ -592,7 +592,7 @@ export function storageFromSettings(storage: StorageSettings, override: { dir?: 
     const s = { ...storage.s3, publicBaseUrl: storage.s3.publicBaseUrl || undefined, appBase: storage.localPublicBase }
     const missing = (['endpoint', 'bucket', 'accessKeyId', 'secretAccessKey'] as const).filter((k) => !s[k])
     if (missing.length) throw new Error(`Storage driver '${driver}' is missing ${missing.join(', ')} (set NUXT_CMS_STORAGE_S3_* in the environment, the host's .env, or cms.storage.s3 in nuxt.config).`)
-    return s3Storage({ ...s, delivery: resolveS3Delivery(s.delivery, s.publicBaseUrl) })
+    return s3Storage({ ...s, prefix: cleanS3Prefix(s.prefix), delivery: resolveS3Delivery(s.delivery, s.publicBaseUrl) })
   }
   throw new Error(`Unknown storage driver '${driver}' (NUXT_CMS_STORAGE_DRIVER is 'local', 's3' or 'r2').`)
 }
@@ -626,7 +626,7 @@ export function localStorageAt(dir: string, publicBase = '/api/cms/_media/raw'):
   }
 }
 
-function s3Storage(cfg: { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string; delivery: 'public' | 'proxy' | 'redirect'; appBase?: string }): TransferStorage {
+function s3Storage(cfg: { endpoint: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; publicBaseUrl?: string; delivery: 'public' | 'proxy' | 'redirect'; appBase?: string; prefix?: string }): TransferStorage {
   let client: any
   const getClient = async () => {
     if (!client) {
@@ -636,10 +636,11 @@ function s3Storage(cfg: { endpoint: string; region: string; bucket: string; acce
     return client
   }
   const encode = encodeStorageKey
-  const objectUrl = (key: string) => `${cfg.endpoint.replace(/\/$/, '')}/${cfg.bucket}/${encode(key)}`
+  const objectUrl = (key: string) => `${cfg.endpoint.replace(/\/$/, '')}/${cfg.bucket}/${encode(s3ObjectPath(cfg.prefix ?? '', key))}`
   return {
-    describe: `the bucket ${cfg.bucket}`,
-    identity: `s3:${cfg.endpoint.replace(/\/$/, '').toLowerCase()}/${cfg.bucket}`,
+    describe: cfg.prefix ? `the bucket ${cfg.bucket} under ${cfg.prefix}` : `the bucket ${cfg.bucket}`,
+    // Another prefix in the same bucket is another set of files.
+    identity: `s3:${cfg.endpoint.replace(/\/$/, '').toLowerCase()}/${cfg.bucket}${cfg.prefix ? '/' + cfg.prefix : ''}`,
     async get(key) {
       const res = await (await getClient()).fetch(objectUrl(key))
       if (res.status === 404) return null

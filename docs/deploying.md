@@ -145,6 +145,8 @@ Generate secrets with `openssl rand -base64 32` and set them on the platform, ne
 | `NUXT_CMS_STORAGE_S3_ENDPOINT`, `_REGION`, `_BUCKET`, `_ACCESS_KEY_ID`, `_SECRET_ACCESS_KEY` | with s3 | bucket credentials |
 | `NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL` | public bucket | where browsers load media from (the bucket's public URL or a CDN in front). Setting it makes `delivery` default to `public` |
 | `NUXT_CMS_STORAGE_S3_DELIVERY` | optional | `public`, `proxy` or `redirect`: how browsers get the files, see [Pushbase / private buckets](#pushbase--private-buckets). Default: `public` with a public base URL, otherwise `proxy` |
+| `NUXT_CMS_STORAGE_S3_PREFIX` | optional | a place of its own in a bucket several sites share, e.g. `sites/7f3a`: files are stored as `<prefix>/<key>`; see [Media](guide/media.md#a-place-of-its-own-in-a-shared-bucket) |
+| `NUXT_CMS_STORAGE_MAX_BYTES` | optional | how much the site may store in all, in bytes (0 = no limit); see [Media](guide/media.md#limits) |
 | `NUXT_CMS_MAIL_TRANSPORT` | yes | `smtp` in production (`log` prints emails to the console) |
 | `NUXT_CMS_MAIL_FROM`, `NUXT_CMS_MAIL_SMTP_HOST`, `_PORT`, `_SECURE`, `_USER`, `_PASS` | with smtp | |
 | `NUXT_CMS_WEBHOOKS_URLS`, `NUXT_CMS_WEBHOOKS_SECRET` | optional | publish webhooks (see [Publish webhooks](#publish-webhooks)) |

@@ -34,9 +34,18 @@ Blobs are reference-counted across every media field. Replacing or clearing a me
 
 ### Limits
 
-- `cms.storage.maxSizeMb`: the cap per file.
+- `cms.storage.maxSizeMb`: the cap per file (default 10).
+- `cms.storage.maxBytes`: how much the whole site may store, in bytes (0 = no limit, the default; env `NUXT_CMS_STORAGE_MAX_BYTES`). It is the sum of the sizes of the site's media files, the same number the status route reports as `media.bytes`. An upload that would take the site over the limit is refused with `413`, and the admin tells the editor there is not enough space left. A file that fits exactly is accepted. Deleting media frees room at once.
 - `maxBytesPerUser`: a quota per user (0 = off).
 - `uploadRatePerMin`: a rate limit (default 60; in memory, single instance).
+
+The smaller copies made of pictures are derived from the originals and are not counted against `maxBytes`. They are made again when needed, and deleting a picture deletes them.
+
+The total is checked twice. Before the file is stored, so an upload that cannot fit costs the store no write. And again at the moment its row is inserted, under a lock that lets one such check-and-insert run at a time per site. The lock is held for a sum and an insert, never for the upload itself. Ten uploads that arrive together therefore cannot all see room: only as many as fit are kept, and a file that lost the race is removed from the store again. With `maxBytes` (or `maxBytesPerUser`) unset, there is no lock and nothing changes.
+
+The status payload (`/api/health/status`) carries `media.limitBytes` next to `media.bytes` when a limit is set.
+
+When one running app serves several sites, `maxSizeMb` and `maxBytes` are read from each site's own settings: a site at its limit does not affect the others.
 
 ### Streamed, not buffered
 
@@ -86,6 +95,19 @@ Picture sizes (`<CmsImage>`) are not stored at all. Their address is always `/ap
 
 `tinyzoo export` / `import`, `backup` / `restore` and the seed work in every mode.
 
+### A place of its own in a shared bucket
+
+Several sites can share one bucket. Give each its own place with `cms.storage.s3.prefix` (env `NUXT_CMS_STORAGE_S3_PREFIX`), for example `sites/7f3a`:
+
+- Every object of the site is stored as `<prefix>/<key>`: uploads, the smaller copies of pictures, and whatever else the driver writes, reads or deletes. A signed address is for the prefixed object.
+- The key the site keeps in its database stays `2026/11/<uuid>.png`, with or without a prefix, and so does the address of the app under `proxy` and `redirect` (`/api/cms/_media/raw/<key>`). A site can move between a bucket of its own and a prefixed place by copying its objects; its database is not touched.
+- Under `public`, the stored address has the prefix after the public address: `<publicBaseUrl>/<prefix>/<key>`, or `<endpoint>/<bucket>/<prefix>/<key>`. `publicBaseUrl` is the address of the bucket's root, so a CDN in front of the bucket needs no rule per site. A row stored under `public` before the prefix was set keeps the address it was stored with.
+- The prefix is path segments of `a-z`, `0-9`, `-`, `_` and `.`, separated by `/`: no empty segment, no `.` or `..`, no slash at the start. One slash at the end is dropped. Anything else stops the site's storage with an error that names the setting. A key can never leave its prefix: keys with `..` or empty segments are refused before any request is made.
+- Empty (the default) is the bucket's root, as before.
+- `tinyzoo backup` / `restore` and `export` / `import` read and write the same place, from the same setting: a backup of a prefixed site holds exactly that site's files under their keys without the prefix, and a restore puts them under the prefix of the site it restores into.
+
+When one app serves many sites, every site that uses the S3 driver needs a place of its own: its own bucket, or its own prefix. The app cannot see across sites that two of them point at the same endpoint, bucket and prefix, and then they share files, each one's deletes included. Whoever writes the site directory is responsible for keeping them apart.
+
 Pushbase Storage is a private bucket. [`docs/deploying.md`](../deploying.md#pushbase--private-buckets) has the setup and says when to pick `redirect`.
 
 Before 0.2, an S3 store without `publicBaseUrl` stored the bucket's own address. Set `delivery: 'public'` to keep that.
@@ -101,6 +123,7 @@ NUXT_CMS_STORAGE_S3_ACCESS_KEY_ID=...
 NUXT_CMS_STORAGE_S3_SECRET_ACCESS_KEY=...
 NUXT_CMS_STORAGE_S3_PUBLIC_BASE_URL=https://cdn.example.com   # public bucket / custom domain (→ delivery 'public')
 NUXT_CMS_STORAGE_S3_DELIVERY=proxy         # 'public' | 'proxy' | 'redirect' — leave out for the default
+NUXT_CMS_STORAGE_S3_PREFIX=sites/7f3a      # a place of its own in a shared bucket — leave out for the bucket's root
 # NUXT_CMS_STORAGE_S3_FORCE_PATH_STYLE is accepted and ignored: addresses are always path-style
 ```
 
