@@ -86,6 +86,13 @@ export interface TenantsOptions {
    * (the server is stopped right after: what a background worker left half done stays so).
    */
   seed?: (a: { url: string; admin: Client; query: <T = any>(text: string, params?: unknown[]) => Promise<T[]> }) => Promise<void>
+  /**
+   * More settings for a site's directory row, laid over the `config` this helper writes (one
+   * level deep: `{ auth: { account: … } }` keeps the row's `auth.setupToken`). Called for
+   * every row written, with the site's public address: sign-in with the account gives each
+   * site its own client this way (tenants-account.spec.ts).
+   */
+  siteConfig?: (site: 'a' | 'b' | 'c', publicUrl: string) => Record<string, Record<string, unknown>>
 }
 
 function adminClient(db = 'postgres'): pg.Client {
@@ -186,7 +193,11 @@ export async function startTenants(suffix: string, env: Record<string, string> =
   const dirs = mkdtempSync(join(tmpdir(), 'cms-tenants-'))
   const directoryFile = join(dirs, 'sites.json')
   const hooks = { a: await webhookReceiver(), b: await webhookReceiver(), c: await webhookReceiver() }
-  const siteRow = (site: 'a' | 'b' | 'c', port: number) => ({
+  const withSiteConfig = <T extends { publicUrl: string; config: Record<string, any> }>(site: 'a' | 'b' | 'c', row: T): T => {
+    for (const [key, value] of Object.entries(options.siteConfig?.(site, row.publicUrl) ?? {})) row.config[key] = { ...row.config[key], ...value }
+    return row
+  }
+  const siteRow = (site: 'a' | 'b' | 'c', port: number) => withSiteConfig(site, {
     id: `site-${site}`,
     hosts: [`site-${site}.localhost`, `www.site-${site}.localhost`],
     publicUrl: `http://site-${site}.localhost:${port}`,

@@ -57,6 +57,40 @@ cms: {
 - Rate limits are shared by every replica when the site has Redis or Valkey (`REDIS_URL`, or `NUXT_CMS_REDIS_URL`). Without it, each instance counts on its own, which is right for one instance ([deploying](../deploying.md#what-runs)).
 - When Redis does not answer, each instance counts on its own until it does. An outage neither locks people out nor turns the limits off.
 
+### Signing in with the tinyzoo account (experimental)
+
+A site can let people sign in with their **tinyzoo account** next to the site's own password. One account then opens every website the person belongs to, and the site's name at the top of the admin becomes a switcher between them. This is experimental: the settings and the behaviour can change in a minor release.
+
+Switch it on with three settings. The account service gives a site its client id and secret when the site is connected to an account:
+
+```ts
+cms: {
+  auth: {
+    account: {
+      issuer: 'https://account.example.com',   // NUXT_CMS_AUTH_ACCOUNT_ISSUER: the account service's address
+      clientId: 'tz_…',                        // NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID
+      // clientSecret: set NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET in the environment. An option is written into the build.
+    },
+  },
+}
+```
+
+All three must be set, with the built-in sign-in (`auth.mode: 'builtin'`) and `cms.publicUrl` (the account service sends the browser back to `<publicUrl>/api/cms/_auth/account/callback`). Without them nothing changes: no button, no route, no request.
+
+**What a person sees.** The sign-in page has a button, "Sign in with your tinyzoo account", above the password form. The password keeps working. Signed in, someone who belongs to other websites of the same owner sees the site's name at the top of the menu as a button: it lists their websites with their role in each, and "All my websites" leads to the account. Choosing a website opens its admin without a form. The account page says in one line whether the person's user is connected to an account.
+
+**How an account finds its user.** Roles and people stay on the site, in `cms_users`. The account only says who the person is; the site decides whether they get in:
+
+1. A user already connected to this account signs in. The connection is by the account's id, so it holds when the person changes their email address at the account.
+2. Otherwise the site looks for a user with the account's email address, and only when the account service says that address is verified. An active user is connected and signed in. An invited user whose invitation still runs is accepted: they become active with the account's name and no password, and the invitation link stops working. The invitation email and page say that this works.
+3. Otherwise the person sees "This account has no access to this website". An administrator invites their address from Settings → Team, as always.
+
+A disabled user is refused. A user connected to one account is never handed to another account that later holds the same address. Removing a user removes the connection.
+
+**What stays as it was.** The session is the site's own: disabling someone, changing their role or "sign out everywhere" take effect on the next request. The account service is told a person's role on the site, and when the site stops letting them in, so the switcher can show it; it never decides rights. When the account service does not answer, people sign in with their password, and open sessions keep working. Someone accepted through the account has no password on the site until they ask for one with "Forgot password?".
+
+A sign-in through the account is `auth.login` in the audit log with `via: account`; a refused one is `auth.login_failed` with the reason.
+
 ### Email while developing
 
 Locally, `docker compose --profile mail up -d` starts Mailpit. Set `NUXT_CMS_MAIL_TRANSPORT=smtp NUXT_CMS_MAIL_SMTP_HOST=localhost NUXT_CMS_MAIL_SMTP_PORT=1025`, and read the emails at http://localhost:8025.
