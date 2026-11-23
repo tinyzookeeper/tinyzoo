@@ -11,7 +11,7 @@ const shown = ref<number | null>(null)
 const facts = computed(() => [
   props.album.date ? { label: 'Kdy', value: formatDate(props.album.date) } : null,
   props.album.place ? { label: 'Kde', value: props.album.place } : null,
-  { label: 'Snímků', value: String(props.album.photos.length) },
+  { label: 'Fotografií', value: String(props.album.photos.length) },
 ].filter((f): f is { label: string; value: string } => !!f))
 const size = computed(() => byLength(props.album.title, [
   [14, 'text-[19vw] md:text-[11vw] wide:text-[min(11vw,11rem)]'],

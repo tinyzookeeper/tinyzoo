@@ -145,7 +145,7 @@ async function main() {
   check('the window beside the form shows the template for real, with the typed name where the site writes it', await page.locator('[data-site-frame] img[src="/templates/basic/basic-top.webp"]').count() === 1 && (await page.locator('[data-site-frame] .shot__name').innerText()).trim() === 'Pekárna U Žlutého koně')
   check('the address is suggested from the name', await page.locator('[data-field-slug]').inputValue() === 'pekarna-u-zluteho-kone')
   await page.locator('[data-field-slug]').fill('admin')
-  await page.getByText('Tahle adresa je vyhrazená').waitFor()
+  await page.getByText('Tato adresa je vyhrazená').waitFor()
   check('a reserved address is refused as you type', true)
   await page.locator('[data-field-slug]').fill(`e2e-pekarna-${stamp}`)
   await page.waitForSelector('[data-slug-ok]')
@@ -231,7 +231,7 @@ async function main() {
   check('a fourth site is refused', fourth.status() === 403 && (await fourth.json()).data?.code === 'sites.limit')
   await open(page, `${base}/new`)
   await page.waitForSelector('[data-wizard=ready]')
-  check('the wizard says so instead of starting', (await page.locator('main').innerText()).includes('Další web už se na účet nevejde'))
+  check('the wizard says so instead of starting', (await page.locator('main').innerText()).includes('Dosáhli jste limitu webů'))
 
   // ── someone else, and requests that should be refused ──
   log('6 · ownership and refused requests')
@@ -414,7 +414,7 @@ async function main() {
   renameSync(templateEntry, bak); templateMoved = true
   await wizard(page, base, { name: 'Zkouška nezdaru', slug: `e2e-nezdar-${stamp}` })
   await page.waitForSelector('[data-build=failed]', { timeout: 30_000 })
-  check('the failure is said in plain words', (await page.locator('[data-fail-text]').innerText()).includes('Šablona ještě není sestavená'))
+  check('the failure is said in plain words', (await page.locator('[data-fail-text]').innerText()).includes('Šablonu se nepodařilo načíst'))
   await page.screenshot({ path: join(shots, 'e2e-failed.png') })
   renameSync(bak, templateEntry); templateMoved = false
   await page.locator('[data-retry]').click()

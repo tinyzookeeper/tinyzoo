@@ -99,25 +99,25 @@ const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? ''
 export function verifyEmail(to: { email: string; name: string; locale: Locale }, url: string): Mail {
   const n = firstName(to.name)
   const body = to.locale === 'en'
-    ? letter({ hello: n ? `Hello ${n},` : 'Hello,', lines: ['Confirm that this e-mail address is yours.'], button: 'Confirm my e-mail', url, after: 'The link works for 3 days. If you did not create a tinyzoo account, ignore this e-mail.' })
-    : letter({ hello: n ? `Dobrý den, ${n},` : 'Dobrý den,', lines: ['Potvrďte prosím, že je tahle e-mailová adresa vaše.'], button: 'Potvrdit e-mail', url, after: 'Odkaz platí 3 dny. Pokud jste si účet v tinyzoo nezakládali, e-mail prosím ignorujte.' })
+    ? letter({ hello: n ? `Hello ${n},` : 'Hello,', lines: ['Open the link below to confirm the e-mail address for your tinyzoo account.'], button: 'Confirm e-mail', url, after: 'The link is valid for 3 days. If you didn’t create a tinyzoo account, you can ignore this e-mail.' })
+    : letter({ hello: n ? `Dobrý den, ${n},` : 'Dobrý den,', lines: ['Otevřete odkaz níže a potvrďte e-mail k účtu v tinyzoo.'], button: 'Potvrdit e-mail', url, after: 'Odkaz platí 3 dny. Pokud jste si účet v tinyzoo nezakládali, nemusíte na tento e-mail reagovat.' })
   return { to: to.email, subject: to.locale === 'en' ? 'Confirm your e-mail' : 'Potvrďte svůj e-mail', ...body }
 }
 
 export function resetEmail(to: { email: string; name: string; locale: Locale }, url: string): Mail {
   const n = firstName(to.name)
   const body = to.locale === 'en'
-    ? letter({ hello: n ? `Hello ${n},` : 'Hello,', lines: ['Choose a new password for your tinyzoo account.'], button: 'Choose a new password', url, after: 'The link works for 1 hour. If you did not ask for it, ignore this e-mail: your password stays as it is.' })
-    : letter({ hello: n ? `Dobrý den, ${n},` : 'Dobrý den,', lines: ['Nastavte si nové heslo ke svému účtu v tinyzoo.'], button: 'Nastavit nové heslo', url, after: 'Odkaz platí 1 hodinu. Pokud jste o něj nežádali, e-mail prosím ignorujte: heslo zůstává stejné.' })
-  return { to: to.email, subject: to.locale === 'en' ? 'A new password for tinyzoo' : 'Nové heslo k tinyzoo', ...body }
+    ? letter({ hello: n ? `Hello ${n},` : 'Hello,', lines: ['Use the link below to set a new password for your tinyzoo account.'], button: 'Set a new password', url, after: 'The link is valid for 1 hour. If you didn’t request it, you can ignore this e-mail.' })
+    : letter({ hello: n ? `Dobrý den, ${n},` : 'Dobrý den,', lines: ['Přes odkaz níže si nastavíte nové heslo k účtu v tinyzoo.'], button: 'Nastavit nové heslo', url, after: 'Odkaz platí 1 hodinu. Pokud jste o nové heslo nežádali, nemusíte na tento e-mail reagovat.' })
+  return { to: to.email, subject: to.locale === 'en' ? 'Reset your tinyzoo password' : 'Nové heslo k účtu v tinyzoo', ...body }
 }
 
 export function siteReadyEmail(to: { email: string; name: string; locale: Locale }, site: { name: string; publicUrl: string }, pageUrl: string): Mail {
   const n = firstName(to.name)
   const body = to.locale === 'en'
-    ? letter({ hello: n ? `Hello ${n},` : 'Hello,', lines: [`Your website ${site.name} is running at ${site.publicUrl}.`, 'On its page you set your password for the admin, where you change its texts and pictures.'], button: 'Open my website’s page', url: pageUrl, after: 'The website already holds demo content. Replace it with your own whenever you like.' })
-    : letter({ hello: n ? `Dobrý den, ${n},` : 'Dobrý den,', lines: [`Váš web ${site.name} běží na adrese ${site.publicUrl}.`, 'Na jeho stránce si nastavíte heslo do administrace, kde měníte texty a obrázky.'], button: 'Otevřít stránku mého webu', url: pageUrl, after: 'Web už obsahuje ukázkový obsah. Nahraďte ho vlastním, kdykoli budete chtít.' })
-  return { to: to.email, subject: to.locale === 'en' ? `${site.name} is ready` : `${site.name} je hotový`, ...body }
+    ? letter({ hello: n ? `Hello ${n},` : 'Hello,', lines: [`Your website “${site.name}” is live at ${site.publicUrl}.`, 'Open your website’s details to set your admin password. Then you can edit your text and images.'], button: 'View website details', url: pageUrl, after: 'You can replace the demo content with your own in the admin.' })
+    : letter({ hello: n ? `Dobrý den, ${n},` : 'Dobrý den,', lines: [`Váš web „${site.name}“ běží na adrese ${site.publicUrl}.`, 'V přehledu webu si nastavíte heslo do administrace. Pak můžete upravovat texty i obrázky.'], button: 'Otevřít přehled webu', url: pageUrl, after: 'Ukázkový obsah můžete v administraci nahradit vlastním.' })
+  return { to: to.email, subject: to.locale === 'en' ? `${site.name} is ready` : `Web „${site.name}“ je připravený`, ...body }
 }
 
 // ── development: the links, to open by hand ─────────────────────────────────────

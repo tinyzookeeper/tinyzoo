@@ -25,9 +25,9 @@ export default defineSeed(async (s) => {
   // ── categories, in the order of the tabs ──
   const category = async (position: number, name: string, slug: string, description: string) =>
     (await s.upsert(Category, { name, slug, description, position })).id
-  const weddings = await category(0, 'Svatby', 'svatby', 'Celý den nebo jen obřad. Držím se zpátky a hlídám chvíle, které se nedají zopakovat.')
+  const weddings = await category(0, 'Svatby', 'svatby', 'Fotím celý den nebo jen obřad. Během dne se držím mezi hosty a do toho, co se děje, moc nezasahuji.')
   const portraits = await category(1, 'Portréty', 'portrety', 'V ateliéru s oknem na sever, u vás doma nebo venku.')
-  const families = await category(2, 'Rodina', 'rodina', 'Novorozenci, děti a celé rodiny. Nejraději na procházce nebo doma v obýváku.')
+  const families = await category(2, 'Rodina', 'rodina', 'Miminka fotím nejraději u vás doma. Se staršími dětmi můžeme vyrazit ven.')
   const business = await category(3, 'Firemní', 'firemni', 'Portréty a reportáže z dílen, ateliérů a provozoven.')
 
   // ── albums: newest first on the website ──
@@ -36,7 +36,7 @@ export default defineSeed(async (s) => {
 
   const annaVojta = await album({
     title: 'Anna a Vojta', slug: 'anna-a-vojta', category: weddings, date: '2026-08-21T22:00:00Z', place: 'Budislav',
-    summary: 'Svatba pro šedesát lidí na statku, kde Anna jako malá trávila prázdniny. Obřad pod lípou, tabule mezi jabloněmi a večer stodola.',
+    summary: 'Anna na statku v Budislavi trávila prázdniny. S Vojtou se tam vzali pod lípou, večeřeli v sadu a večer tančili ve stodole.',
     cover: photo.weddingCouple,
     photos: gallery(
       [photo.weddingCeremony, 'Obřad pod lípou'],
@@ -65,24 +65,24 @@ export default defineSeed(async (s) => {
       highlighted: data.highlighted ?? false, highlightLabel: data.highlightLabel ?? null,
     }, { by: 'name' })
   await pack(0, {
-    name: 'Portrét a rodina', price: 3900, description: 'Hodina venku, u vás doma nebo v ateliéru.',
-    includes: ['1 až 1,5 hodiny focení', '30 upravených fotografií', 'Online galerie ke stažení', '5 zvětšenin 13 × 18 cm', 'Hotovo do 14 dnů'],
+    name: 'Portrét a rodina', price: 3900, description: 'Focení venku, u vás doma nebo v ateliéru.',
+    includes: ['1 až 1,5 hodiny focení', '30 upravených fotografií', 'Online galerie s možností stažení', '5 fotografií na papíře 13 × 18 cm', 'Předání do 14 dnů'],
   })
   await pack(1, {
     name: 'Svatba · půlden', price: 19900, description: 'Obřad, gratulace, skupinové fotky a portréty.',
-    includes: ['6 hodin focení', 'Schůzka nebo videohovor předem', '250 až 350 upravených fotografií', 'Online galerie pro vás i hosty', 'Hotovo do 6 týdnů'],
+    includes: ['6 hodin focení', 'Schůzka nebo videohovor předem', '250 až 350 upravených fotografií', 'Online galerie pro vás i hosty', 'Předání do 6 týdnů'],
   })
   await pack(2, {
-    name: 'Svatba · celý den', price: 32900, description: 'Od příprav po první tanec.', highlighted: true, highlightLabel: 'Nejčastější volba',
-    includes: ['12 hodin focení', 'Schůzka a obhlídka místa předem', '500 až 700 upravených fotografií', 'Online galerie pro vás i hosty', 'Krabička s 30 zvětšeninami', 'Hotovo do 6 týdnů'],
+    name: 'Svatba · celý den', price: 32900, description: 'Od příprav po první tanec.', highlighted: true, highlightLabel: 'Od rána do večera',
+    includes: ['12 hodin focení', 'Schůzka a obhlídka místa předem', '500 až 700 upravených fotografií', 'Online galerie pro vás i hosty', 'Krabička s 30 papírovými fotografiemi', 'Předání do 6 týdnů'],
   })
 
   // ── testimonials: the first is shown largest ──
   const testimonial = (position: number, name: string, occasion: string, text: string) =>
     s.upsert(Testimonial, { position, name, occasion, text }, { by: 'name' })
   await testimonial(0, 'Anna a Vojta', 'svatba v Budislavi', 'Johanu jsme na svatbě skoro nevnímali, a přesto má fotku každého, na kom nám záleží. Babička si tu svou nechala zarámovat.')
-  await testimonial(1, 'Markéta', 'portrét v ateliéru', 'Nerada se fotím. Po deseti minutách jsem na foťák zapomněla a na těch fotkách jsem to konečně já.')
-  await testimonial(2, 'Kubátovi', 'rodinné focení', 'Se dvěma malými dětmi jsme čekali chaos. Byla z toho procházka lesem a fotky, které teď visí přes celou zeď v obýváku.')
+  await testimonial(1, 'Markéta', 'portrét v ateliéru', 'Nerada se fotím. S Johanou jsme si povídaly u okna a já po chvíli na foťák zapomněla.')
+  await testimonial(2, 'Kubátovi', 'rodinné focení', 'Děti v lese tahaly klacky a honily se v listí. Doma teď máme nad gaučem fotku, na které se smějí obě.')
 
   // ── pages ──
   // A link to a page of this seed is a reference to it (what the admin's link picker stores), so
@@ -90,8 +90,8 @@ export default defineSeed(async (s) => {
   const enquiryBlock = (privacyUrl: string) => ({
     type: 'enquiry' as const,
     eyebrow: 'Poptávka',
-    heading: 'Napište mi *o termín.*',
-    text: 'Stačí pár vět. Ozvu se do dvou pracovních dnů, a jestli je termín volný, domluvíme si krátký hovor.',
+    heading: 'Domluvme se *na focení.*',
+    text: 'Napište mi, co chcete fotit, kdy a kde. Pokud mám volno, můžeme si krátce zavolat.',
     consent: 'Odesláním souhlasíte se *zpracováním osobních údajů*.',
     consentUrl: privacyUrl,
   })
@@ -100,10 +100,10 @@ export default defineSeed(async (s) => {
     eyebrow: 'Od první zprávy po galerii',
     heading: 'Jak to probíhá',
     items: [
-      { title: 'Napíšete mi', text: 'Termín, místo a pár vět o tom, co chystáte. Odpovídám do dvou pracovních dnů.' },
-      { title: 'Poznáme se', text: 'U kávy v Litomyšli nebo přes videohovor. Projdeme den, místa a co je pro vás důležité.' },
-      { title: 'Potvrdíme termín', text: 'Smlouvou a zálohou 30 %. Od té chvíle je datum vaše a nikomu jinému ho nedám.' },
-      { title: 'Fotíme a dostanete galerii', text: 'Do týdne pošlu první ukázky. Celou galerii do 14 dnů, u svateb do 6 týdnů.' },
+      { title: 'Napíšete mi', text: 'Napište, kdy a kde chcete fotit a co chystáte.' },
+      { title: 'Poznáme se', text: 'Sejdeme se v Litomyšli nebo si zavoláme. Probereme, kde budeme fotit a na čem vám záleží.' },
+      { title: 'Potvrdíme termín', text: 'Termín si rezervujete podpisem smlouvy a zaplacením zálohy ve výši 30 %.' },
+      { title: 'Focení a předání fotek', text: 'První ukázky posílám do týdne. Celou galerii předávám do 14 dnů, u svateb do 6 týdnů.' },
     ],
   }
   const testimonialsBlock = { type: 'testimonials' as const, eyebrow: '', heading: 'Napsali o focení', count: 3 }
@@ -113,13 +113,13 @@ export default defineSeed(async (s) => {
     sections: [{
       type: 'text', heading: 'Ochrana osobních údajů',
       body: doc(
-        p('Tento text je ukázka. Nahraďte ho zněním, které odpovídá tomu, jak s údaji svých klientů opravdu nakládáte.'),
+        p('Ukázkový text. Před zveřejněním popište, jak s údaji klientů nakládáte vy.'),
         h2('Jaké údaje zpracovávám'),
-        p('Jméno, e-mail a to, co mi napíšete do poptávkového formuláře. U zakázek také fakturační údaje a fotografie, které pro vás pořídím.'),
-        h2('K čemu je používám'),
-        ul('abych vám odpověděla na poptávku', 'abych s vámi uzavřela smlouvu a vystavila fakturu', 'abych vám předala hotové fotografie'),
+        p('Z formuláře mám vaše jméno, e-mail a zprávu. Když si objednáte focení, zpracovávám i fakturační údaje a vaše fotografie.'),
+        h2('Proč údaje potřebuji'),
+        ul('abych vám mohla odpovědět', 'abych s vámi uzavřela smlouvu a vystavila fakturu', 'abych vám předala hotové fotografie'),
         h2('Jak dlouho je uchovávám'),
-        p('Poptávky, ze kterých nevznikne zakázka, mažu do půl roku. Fotografie archivuji tři roky od předání, pokud se nedomluvíme jinak.'),
+        p('Pokud se na focení nedomluvíme, poptávku do půl roku smažu. Fotografie ukládám tři roky od předání, pokud se nedomluvíme jinak.'),
       ),
     }],
   })
@@ -128,19 +128,19 @@ export default defineSeed(async (s) => {
     sections: [{
       type: 'text', heading: 'Obchodní podmínky',
       body: doc(
-        p('Tento text je ukázka. Nahraďte ho svými obchodními podmínkami.'),
+        p('Ukázkový text. Před zveřejněním sem vložte vlastní obchodní podmínky.'),
         h2('Rezervace termínu'),
-        p('Termín je závazně rezervovaný po podpisu smlouvy a zaplacení zálohy 30 %. Zbytek ceny je splatný do sedmi dnů po focení.'),
+        p('Termín rezervuji po podpisu smlouvy a zaplacení zálohy ve výši 30 %. Zbytek ceny zaplatíte do sedmi dnů po focení.'),
         h2('Zrušení a přesun'),
-        p('Termín lze jednou bezplatně přesunout, nejpozději 30 dnů předem. Při zrušení ze strany klienta záloha propadá.'),
+        p('Termín můžete jednou přesunout bez poplatku, pokud mi dáte vědět alespoň 30 dnů předem. Pokud focení zrušíte, zálohu nevracím.'),
         h2('Předání fotografií'),
-        p('Fotografie předávám v online galerii ve lhůtě uvedené u balíčku. Neupravené snímky nepředávám.'),
+        p('Upravené fotografie najdete v online galerii. Termín předání je uvedený u každého balíčku.'),
       ),
     }],
   })
   const contact = await s.upsert(Page, {
     title: 'Kontakt', slug: 'kontakt', status: 'published',
-    metaDescription: 'Napište mi o termín focení. Odpovídám do dvou pracovních dnů.',
+    metaDescription: 'Máte zájem o focení? Napište mi, kde a kdy by se vám hodilo.',
     sections: [enquiryBlock(refTo(s, privacy))],
   })
 
@@ -148,33 +148,33 @@ export default defineSeed(async (s) => {
     type: 'pricing' as const,
     eyebrow: 'Balíčky',
     heading: 'Ceník',
-    text: 'Ceny jsou konečné, nejsem plátce DPH. Cesta do 50 km od Litomyšle je v ceně, dál počítám 8 Kč za kilometr.',
+    text: 'Ceny jsou konečné. Nejsem plátkyně DPH. Cesta do 50 km od Litomyšle je v ceně, dál účtuji 8 Kč za kilometr.',
     buttonLabel: 'Zeptat se na termín', buttonUrl: refTo(s, contact),
-    footnote: 'Firemní portréty a reportáže z dílen a provozoven nacením podle rozsahu, obvykle od 6 500 Kč za půlden.',
+    footnote: 'Firemní portréty a reportáže z provozu stojí obvykle od 6 500 Kč za půlden. Cenu upřesním podle rozsahu focení.',
     footnoteLinkLabel: 'Napište mi, co potřebujete.', footnoteLinkUrl: refTo(s, contact),
   }
   const aboutBlock = {
     type: 'about' as const,
     eyebrow: 'O mně',
-    heading: 'Držím se zpátky a *dívám se.*',
+    heading: 'Nejdřív se dívám. *Pak fotím.*',
     image: photo.about,
     imageCaption: 'Johana Loudová, Litomyšl',
     text: [
-      'Jsem Johana. Vyrostla jsem v Litomyšli a po studiu fotografie v Opavě jsem se sem vrátila. Mám tu malý ateliér s oknem na sever a kolem sebe krajinu, kterou znám nazpaměť.',
-      'Nikoho nearanžuji do póz. Na svatbě hlídám chvíle, které se nedají zopakovat. U portrétů si nejdřív povídáme a foťák vytáhnu, až když na něj zapomenete.',
+      'Po studiu fotografie v Opavě jsem se vrátila domů do Litomyšle. Mám tu ateliér s oknem na sever. Venku ráda fotím na loukách u Sebranic.',
+      'Na svatbě ráda fotím, co se děje stranou. Třeba když si po obřadu konečně sednete. U portrétů si nejdřív povídáme, pak beru do ruky foťák.',
     ].join('\n\n'),
     facts: [
       { label: 'Svatby', value: 'Nejvýš dvacet ročně, abych měla na každou čas.' },
       { label: 'Světlo', value: 'Denní. Nejraději hodinu před západem slunce.' },
-      { label: 'Bert', value: 'Můj pes. Na rodinná focení chodí se mnou a děti ho milují.' },
+      { label: 'Bert', value: 'Můj pes. Když fotíme rodinu venku, můžu ho vzít s sebou.' },
     ],
     signature: 'Johana',
   }
 
   const galleryPage = await s.upsert(Page, {
     title: 'Galerie', slug: 'galerie', status: 'published',
-    metaDescription: 'Svatby, portréty, rodiny a firemní focení: všechna alba na jednom místě.',
-    sections: [{ type: 'albums', eyebrow: 'Všechna alba', heading: 'Galerie', text: 'Svatby, portréty, rodiny a firemní focení. Vyberte si kategorii, nebo je projděte všechny.' }],
+    metaDescription: 'Prohlédněte si alba ze svateb, rodinného focení, portrétů a práce pro firmy.',
+    sections: [{ type: 'albums', eyebrow: 'Všechna alba', heading: 'Galerie', text: 'Vyberte si kategorii nebo si prohlédněte všechna alba.' }],
   })
   const pricingPage = await s.upsert(Page, {
     title: 'Ceník', slug: 'cenik', status: 'published',
@@ -183,7 +183,7 @@ export default defineSeed(async (s) => {
   })
   const aboutPage = await s.upsert(Page, {
     title: 'O mně', slug: 'o-mne', status: 'published',
-    metaDescription: 'Fotím lidi na přirozené světlo a bez strojených póz, od roku 2014.',
+    metaDescription: 'Johana Loudová, fotografka z Litomyšle. Svatby a portréty fotím od roku 2014.',
     sections: [aboutBlock, testimonialsBlock, enquiryBlock(refTo(s, privacy))],
   })
 
@@ -195,7 +195,7 @@ export default defineSeed(async (s) => {
         type: 'hero',
         eyebrow: 'Fotografka · Litomyšl · od roku 2014',
         heading: 'Fotím, co se *opravdu stalo.*',
-        text: 'Svatby, portréty, rodiny a firmy ve východních Čechách. Bez póz a na světlo, které zrovna je. Svatby od 19 900 Kč, portrét a rodina od 3 900 Kč.',
+        text: 'Fotím svatby, portréty, rodiny a firmy ve východních Čechách. V ateliéru u okna, venku nebo u vás. Svatby od 19 900 Kč, portrét a rodina od 3 900 Kč.',
         images: [
           { image: photo.weddingMeadow, caption: 'Anna a Vojta · Budislav, srpen 2026' },
           { image: photo.familyHome, caption: 'Jana a Toník' },
@@ -218,9 +218,9 @@ export default defineSeed(async (s) => {
         facts: [
           { label: 'Kdy', value: '22. srpna 2026' },
           { label: 'Kde', value: 'statek v Budislavi' },
-          { label: 'V albu', value: '86 fotografií' },
+          { label: 'V albu', value: '6 fotografií' },
         ],
-        text: 'Svatba pro šedesát lidí na statku, kde Anna jako malá trávila prázdniny. Obřad pod lípou, tabule mezi jabloněmi a večer stodola. Byla jsem s nimi od jedné odpoledne do půlnoci.',
+        text: 'Na statku v Budislavi se sešlo šedesát hostů. Přijela jsem po poledni, když se Anna chystala v pokoji po babičce, a zůstala jsem až do půlnoci.',
         photos: [
           { image: photo.weddingGettingReady, time: '13.10', caption: 'Pokoj po babičce a okno na sever' },
           { image: photo.weddingCeremony, time: '15.00', caption: 'Obřad pod lípou' },
@@ -228,7 +228,7 @@ export default defineSeed(async (s) => {
           { image: photo.weddingCouple, time: '18.40', caption: 'Deset minut jen pro sebe' },
           { image: photo.weddingDance, time: '21.30', caption: 'První tanec ve stodole' },
         ],
-        closing: 'V albu je všech 86 fotografií, od příprav po půlnoční loučení.',
+        closing: 'V albu najdete i fotografii z louky za statkem.',
         buttonLabel: 'Celé album', buttonUrl: refTo(s, annaVojta),
       },
       pricingBlock,
@@ -241,7 +241,7 @@ export default defineSeed(async (s) => {
 
   // ── menus ──
   await s.global(Navigation, {
-    main: [s.link('Galerie', galleryPage), s.link('Jeden den', annaVojta), s.link('Ceník', pricingPage), s.link('O mně', aboutPage)],
+    main: [s.link('Galerie', galleryPage), s.link('Jedna svatba', annaVojta), s.link('Ceník', pricingPage), s.link('O mně', aboutPage)],
     footer: [s.link('Galerie', galleryPage), s.link('Ceník', pricingPage), s.link('O mně', aboutPage), s.link('Kontakt', contact)],
     legal: [s.link('Ochrana osobních údajů', privacy), s.link('Obchodní podmínky', terms)],
   })
@@ -252,10 +252,10 @@ export default defineSeed(async (s) => {
     siteName: 'Johana Loudová',
     look: looks.ids[0],
     colors: looks.all[0].presets[0].id,
-    tagline: 'Svatby, portréty, rodiny a firemní focení. Litomyšl a východní Čechy.',
+    tagline: 'Fotím svatby, portréty, rodiny a firmy v Litomyšli a východních Čechách.',
     ctaLabel: 'Poptat termín',
     ctaUrl: refTo(s, contact),
-    availability: 'Na rok 2027 mám volné termíny v květnu, červnu a září.',
+    availability: 'V květnu, červnu a září 2027 mám ještě volné termíny.',
     phone: '731 482 906',
     // (addresses that lead nowhere: the demo's contacts are not anybody's)
     email: 'johana@loudova.example',

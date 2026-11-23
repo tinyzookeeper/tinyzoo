@@ -25,7 +25,7 @@ export const looks = defineLooks([
     presets: [
       { id: 'mosaz', name: { cs: 'Mosaz', en: 'Brass' }, vars: { '--brand': '#d4b57e', '--brand-ink': '#100f0d', '--bg': '#0e0e0d', '--fg': '#efece6' } },
       { id: 'salvej', name: { cs: 'Šalvěj', en: 'Sage' }, vars: { '--brand': '#a9bd9b', '--brand-ink': '#0e100d', '--bg': '#0d0e0d', '--fg': '#edede8' } },
-      { id: 'bordo', name: { cs: 'Bordó', en: 'Bordeaux' }, vars: { '--brand': '#6e1f2b', '--brand-ink': '#ffffff', '--bg': '#efeeea', '--fg': '#141312' } },
+      { id: 'bordo', name: { cs: 'Bordó', en: 'Burgundy' }, vars: { '--brand': '#6e1f2b', '--brand-ink': '#ffffff', '--bg': '#efeeea', '--fg': '#141312' } },
     ],
   },
   {
