@@ -1,0 +1,93 @@
+/* Ode dveří: a light, airy page that lets the photographs and the rooms lead, with one quiet
+   thread: everything is measured from the door. Rethink Sans alone, white with one soft
+   surface and one brand colour taken from the forest in the photographs.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="ode-dveri"] {
+  --font-sans: "Rethink Sans", system-ui, sans-serif;
+  /* The colours of the first preset (Břidlice); a preset from the settings overrides them. */
+  --paper: #ffffff;
+  --soft: #f2f5f7;        /* the one quiet surface */
+  --ink: #161f24;
+  --brand: #35596b;
+  --brand-ink: #ffffff;
+  /* What follows from them, so every palette gets its own */
+  --body: color-mix(in srgb, var(--ink) 86%, #fff);
+  --quiet: color-mix(in srgb, var(--ink) 68%, #fff);
+  --line: color-mix(in srgb, var(--ink) 12%, #fff);
+  --brand-soft: color-mix(in srgb, var(--brand) 10%, #fff);
+}
+
+@layer base {
+  html[data-look="ode-dveri"] {
+    body { font-family: var(--font-sans); background: var(--paper); color: var(--body); font-size: 1.0625rem; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+    h1, h2, h3 { color: var(--ink); font-weight: 600; letter-spacing: -0.025em; line-height: 1.1; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+    ::selection { background: var(--brand); color: var(--brand-ink); }
+  }
+}
+
+@layer components {
+  html[data-look="ode-dveri"] {
+    .wrap { max-width: 80rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 2.5rem; } }
+    .h2 { font-size: clamp(1.9rem, 3.4vw, 2.8rem); }
+    .eyebrow { display: flex; align-items: center; gap: 0.6rem; font-weight: 600; font-size: 0.95rem; color: var(--brand); }
+    .num { font-variant-numeric: tabular-nums; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.55rem; min-height: 52px; padding: 0 1.6rem; border-radius: 99px; background: var(--brand); color: var(--brand-ink); font-weight: 600; transition: background .2s, color .2s; cursor: pointer; }
+    .btn:hover { background: color-mix(in srgb, var(--brand) 82%, #000); }
+    .btn-soft { background: var(--soft); color: var(--ink); }
+    .btn-soft:hover { background: var(--brand-soft); color: var(--ink); }
+    .tlink { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; font-weight: 600; color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--brand) 45%, #fff); text-decoration-thickness: 1.5px; text-underline-offset: 6px; transition: color .2s, text-decoration-color .2s; }
+    .tlink:hover { color: var(--brand); text-decoration-color: var(--brand); }
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; font-weight: 500; color: var(--ink); transition: color .2s; }
+    .navlink:hover { color: var(--brand); }
+
+    .field { display: block; width: 100%; min-height: 52px; padding: 0.7rem 0.95rem; background: #fff; color: var(--ink); border: 1px solid color-mix(in srgb, var(--ink) 22%, #fff); border-radius: 12px; font: inherit; transition: border-color .2s, box-shadow .2s; }
+    .field:hover { border-color: color-mix(in srgb, var(--ink) 45%, #fff); }
+    .field:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
+    .field::placeholder { color: var(--quiet); }
+    .field[aria-invalid="true"] { border-color: #b3261e; }
+    .field-error { margin-top: 0.35rem; font-size: 0.875rem; color: #b3261e; }
+    select.field { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2317211e' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.95rem center; padding-right: 2.4rem; }
+    .flabel { display: block; font-weight: 600; font-size: 0.9rem; color: var(--ink); margin-bottom: 0.35rem; }
+
+    .ph { position: relative; overflow: hidden; border-radius: 20px; background: var(--soft); }
+    .ph img { width: 100%; height: 100%; object-fit: cover; transition: transform .8s cubic-bezier(.2,.6,.2,1); }
+    .room:hover .ph img { transform: scale(1.025); }
+    .pill { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.75rem; border-radius: 99px; background: var(--soft); color: var(--body); font-size: 0.9rem; font-weight: 500; }
+    .soft .pill { background: #fff; }
+    .chip { position: absolute; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; border-radius: 99px; background: color-mix(in srgb, #fff 90%, transparent); color: var(--ink); font-size: 0.85rem; font-weight: 600; }
+    .fchip { display: inline-flex; align-items: center; min-height: 44px; padding: 0 1.1rem; border-radius: 99px; background: var(--soft); color: var(--body); font-weight: 600; cursor: pointer; transition: background .2s, color .2s; }
+    .fchip:hover { background: var(--brand-soft); }
+    .fchip[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
+    .trip[hidden] { display: none; }
+    .rule { border-top: 1px solid var(--line); }
+
+    /* The way here: stops on one thin line */
+    .route { position: relative; }
+    .route::before { content: ""; position: absolute; left: 0.3rem; top: 0.8rem; bottom: 1.5rem; width: 2px; background: color-mix(in srgb, var(--brand) 35%, #fff); }
+    .stop { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 1rem; padding: 0 0 1.4rem 1.9rem; }
+    .stop::before { content: ""; position: absolute; left: 0; top: 0.5rem; width: 0.75rem; height: 0.75rem; border-radius: 99px; background: #fff; border: 2px solid var(--brand); }
+    .stop-end::before { background: var(--brand); }
+  }
+}
+
+/* The text of a "Text" block and of the pages of documents */
+@layer components {
+  html[data-look="ode-dveri"] {
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 1.7rem; line-height: 1.15; margin-top: 2.4rem; }
+    .prose-look h3 { font-size: 1.35rem; line-height: 1.2; margin-top: 2rem; }
+    .prose-look a { color: var(--brand); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--brand) 45%, #fff); text-decoration-thickness: 1.5px; text-underline-offset: 5px; }
+    .prose-look a:hover { text-decoration-color: var(--brand); }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--line); }
+    .prose-look ul li { padding: 0.65rem 0; border-bottom: 1px solid var(--line); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-size: 1.35rem; line-height: 1.4; color: var(--ink); font-weight: 500; margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; border-radius: 20px; }
+    .prose-look strong { color: var(--ink); font-weight: 600; }
+  }
+}
