@@ -62,6 +62,12 @@ let cloud = null
 let browser = null
 const extraSites = [] // made for the phone take and the screenshots: removed at the end
 
+/**
+ * Wait until a page of the admin has loaded what it shows. Not forever: the page editor keeps
+ * a live preview of the website beside the form, which may go on loading pictures.
+ */
+const settle = (page) => page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
+
 /** Links that would open a new tab stay in this one, so the take is continuous. */
 const oneTab = (context) => context.addInitScript(() => {
   document.addEventListener('click', (e) => {
@@ -188,16 +194,17 @@ async function desktopTake(base) {
   await hand.read(600)
   await hand.click(page.locator('button[type=submit]').first())
   await page.waitForURL(/\/admin\/?$/, { timeout: 30_000 })
-  await page.waitForLoadState('networkidle')
+  await settle(page)
   await hand.read(3000)
 
   // Change the home page's heading.
   await hand.click(page.locator('a[href="/admin/page"]').first())
   await page.waitForURL('**/admin/page')
   await hand.read(1300)
-  await hand.click(page.locator('a[href^="/admin/page/"]').filter({ hasText: 'Úvod' }).first())
+  // (a row of the list is one link over the whole row, named "Otevřít <title>")
+  await hand.click(page.getByRole('link', { name: 'Otevřít Úvod', exact: true }).first())
   await page.waitForURL(/\/admin\/page\/[0-9a-f-]{36}/)
-  await page.waitForLoadState('networkidle')
+  await settle(page)
   await hand.read(2200)
   await hand.click(page.getByRole('button', { name: /^Úvod/ }).first())
   await page.waitForSelector('input[name=heading]')
@@ -211,10 +218,10 @@ async function desktopTake(base) {
   // Another look and other colours, in Site settings.
   const site = new URL(page.url()).origin
   await page.goto(`${site}/admin/siteSettings`)
-  await page.waitForLoadState('networkidle')
+  await settle(page)
   await hand.arrive()
   await hand.read(1800)
-  await hand.click(page.getByRole('radio', { name: 'Zápisník' }))
+  await hand.click(page.locator('label[data-slot=item]', { hasText: 'Zápisník' }).first())
   await hand.read(900)
   await hand.click(page.getByRole('combobox').filter({ hasText: '·' }).first())
   await hand.read(900)
@@ -461,14 +468,15 @@ async function screensPass(base, main) {
       await p.screenshot({ path: join(looksDir, `${look}-${size}-top.jpg`), type: 'jpeg', quality: 86 })
       // Pictures load as they come into view: walk down the page first, then take all of it.
       await p.evaluate(async () => {
-        for (const img of document.images) img.loading = 'eager'
-        for (let y = 0; y < document.documentElement.scrollHeight; y += window.innerHeight) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 200)) }
+        // (decoded at once, not when the browser gets to it: a capture of the whole page would miss those)
+        for (const img of document.images) { img.loading = 'eager'; img.decoding = 'sync' }
+        for (let y = 0; y < document.documentElement.scrollHeight; y += window.innerHeight) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 250)) }
         const shown = [...document.images].filter((i) => i.offsetParent !== null)
-        await Promise.all(shown.map((i) => (i.complete ? null : new Promise((r) => { i.addEventListener('load', r); i.addEventListener('error', r); setTimeout(r, 8000) }))))
+        await Promise.all(shown.map((i) => (i.complete && i.naturalWidth ? null : new Promise((r) => { i.addEventListener('load', r); i.addEventListener('error', r); setTimeout(r, 8000) }))))
         await Promise.all(shown.map((i) => i.decode?.().catch(() => {})))
         window.scrollTo(0, 0)
       })
-      await sleep(500)
+      await sleep(800)
       await p.screenshot({ path: join(looksDir, `${look}-${size}.jpg`), type: 'jpeg', quality: 80, fullPage: true })
       await c.close()
     }
