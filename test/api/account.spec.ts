@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -316,6 +317,28 @@ describe('sign-in with the account: who gets no access', () => {
     expect((await browserOf(p).visit(`${site}${START}`)).url).toBe(`${site}/admin`)
   })
 
+  it('a link left from another account service is replaced when the site’s own issuer vouches for the e-mail', async () => {
+    const p = person()
+    const { id } = await invite(p.email, 'editor', true)
+    // As if the site had been connected to another issuer before (its address is part of the link).
+    const old = { issuer: 'https://old-issuer.example', sub: 'old-sub' }
+    await pool.query(`insert into cms_state (key, value) values ($1, $2), ($3, $4)`, [
+      `account-of:${id}`, JSON.stringify(old),
+      'account:' + createHash('sha256').update(old.issuer + '\n' + old.sub).digest('hex'), JSON.stringify({ userId: id, ...old, linkedAt: new Date().toISOString() }),
+    ])
+    // Not linked as far as this issuer goes: the switcher's list is empty and the issuer is not asked.
+    const signedIn = new Client(site)
+    expect((await signedIn.post('/api/cms/_auth/login', { email: p.email, password: PASSWORD })).status).toBe(200)
+    expect((await signedIn.get('/api/cms/_auth/account/sites')).body).toEqual({ linked: false, sites: [], account: null })
+
+    const b = browserOf(p)
+    expect((await b.visit(`${site}${START}`)).url).toBe(`${site}/admin`)
+    expect(await linkOf(id)).toEqual({ issuer: issuer.url, sub: p.sub })
+    const mine = (await links()).filter((r) => r.key === `account-of:${id}` || r.value.userId === id)
+    expect(mine).toHaveLength(2)
+    expect(JSON.stringify(mine)).not.toContain('old-issuer')
+  })
+
   it('a role change is told to the issuer; deleting the user removes the link, and a new invitation links anew', async () => {
     const { p, id } = await linkedUser('author')
     let mark = issuer.calls.length
@@ -478,6 +501,22 @@ describe('sign-in with the account: the state, the flow cookie and `next`', () =
       expect(page.body, result).toContain('data-cms-account-notice')
       expect(page.body, result).toContain(text)
     }
+  })
+})
+
+describe('sign-in with the account: rate limits', () => {
+  it('start and callback are limited per address (60 in 15 minutes), each on its own count', async () => {
+    const b = new Browser()
+    for (let i = 0; i < 60; i++) expect((await b.fetch(`${site}${START}`)).status, `start #${i + 1}`).toBe(302)
+    const refused = await b.fetch(`${site}${START}`)
+    expect(refused.status).toBe(429)
+    expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0)
+    expect(refused.headers.get('location')).toBeNull()
+    // The callback counts separately, for the same address.
+    for (let i = 0; i < 60; i++) expect((await b.fetch(`${site}${ACCOUNT_CALLBACK_PATH}?code=x&state=y`)).status, `callback #${i + 1}`).toBe(302)
+    expect((await b.fetch(`${site}${ACCOUNT_CALLBACK_PATH}?code=x&state=y`)).status).toBe(429)
+    // Another address is not held up.
+    expect((await new Browser().fetch(`${site}${START}`)).status).toBe(302)
   })
 })
 
