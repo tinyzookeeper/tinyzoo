@@ -150,7 +150,7 @@ A config exports its entities, globals, `locales`, `roles`, the pages, navigatio
 | `f.number(o)` | `int` (default true; `false` is a decimal), `min`, `max` | `number`, or `string` for a decimal (see below) |
 | `f.boolean(o)` | `default`, `mustBeTrue`, `needsPrevious`, `confirmOff` | `boolean` |
 | `f.datetime(o)` | `default: 'now'`, `allDay` | `Date` (a `Date` or an ISO string on insert) |
-| `f.select(o)` | `options` (a tuple), `default`, `labels`, `icons` | the union of the options |
+| `f.select(o)` | `options` (a tuple), `default`, `labels`, `icons`, `optionsBy` (`{ field, options }`: what the admin offers by another choice of the form), `swatches` (hex colours per option) | the union of the options |
 | `f.richtext()` | | `RichTextDoc` |
 | `f.blocks(blocks)` | an object of `defineBlock()`s | `BlocksValue` (typed, discriminated by `type`) |
 | `f.list(o)` | `fields`, `max`, `itemLabel`, `itemType`, `version`, `upgrade` | `CmsListValue` (items with a stable `id`) |

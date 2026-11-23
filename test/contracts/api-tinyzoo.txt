@@ -1038,6 +1038,11 @@ export const f: {
         default?: D;
         labels?: Partial<Record<T[number], LocalizedText>>;
         icons?: Partial<Record<T[number], string>>;
+        optionsBy?: {
+            field: string;
+            options: Record<string, readonly T[number][]>;
+        };
+        swatches?: Partial<Record<T[number], readonly string[]>>;
     }) => FieldDescriptor<ScalarKind<T[number], T[number], undefined extends D ? false : true>>;
     richtext: () => FieldDescriptor<ScalarKind<RichTextDoc, RichTextDoc, false>>;
     blocks: <const B extends Record<string, BlockDef<any>>>(blocks: B) => FieldDescriptor<ScalarKind<BlocksValue<B>, BlocksValue<B>, true>>;
