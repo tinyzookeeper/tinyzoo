@@ -45,7 +45,7 @@ const facts = computed(() => keyFacts(props.block.facts, props.flats, settings.v
     <dl v-if="facts.length" class="chain mt-12 lg:mt-16 grid grid-cols-[repeat(2,minmax(0,1fr))] lg:grid-cols-4 gap-y-8">
       <div v-for="(fact, i) in facts" :key="i">
         <dt class="label">{{ fact.label }}</dt>
-        <dd class="mt-1 font-display font-light text-[1.6rem] sm:text-[2.5rem] lg:text-[3.1rem] leading-none tracking-tight" :class="fact.kind === 'layouts' ? '' : 'num'"><span :class="fact.kind === 'price' ? 'whitespace-nowrap' : ''">{{ fact.value }}</span></dd>
+        <dd class="mt-1 font-display font-light text-[1.6rem] sm:text-[2.5rem] lg:text-[2.8rem] xl:text-[3.1rem] leading-none tracking-tight" :class="fact.kind === 'layouts' ? '' : 'num'"><span :class="fact.kind === 'price' ? 'whitespace-nowrap' : ''">{{ fact.value }}</span></dd>
         <dd v-if="fact.note" class="mt-2 text-[0.94rem] text-quiet">{{ fact.note }}</dd>
       </div>
     </dl>
