@@ -582,6 +582,7 @@ export interface CmsStatus {
     media: {
         files: number;
         bytes: number;
+        limitBytes?: number;
         sizes?: {
             done: number;
             waiting: number;

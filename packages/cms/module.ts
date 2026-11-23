@@ -44,9 +44,25 @@ export interface CmsModuleOptions {
        * `publicBaseUrl` is set, otherwise `'proxy'`. Env: NUXT_CMS_STORAGE_S3_DELIVERY.
        */
       delivery?: 'public' | 'proxy' | 'redirect'
+      /**
+       * A place of this site inside a bucket shared with others, e.g. `sites/7f3a`: every
+       * file is stored as `<prefix>/<key>` (path segments of `a-z`, `0-9`, `-`, `_`, `.`,
+       * no slash at either end). The keys in the database and the addresses under `proxy`
+       * and `redirect` are the same with or without it, so a site can move between a bucket
+       * of its own and a prefix by copying its files. Under `public` the stored address
+       * has the prefix after `publicBaseUrl`. Default: none (the bucket's root).
+       * Env: NUXT_CMS_STORAGE_S3_PREFIX.
+       */
+      prefix?: string
     }
     /** Max upload size in MB (per file). Default 10. */
     maxSizeMb?: number
+    /**
+     * How much this site may store in all, in bytes: the sizes of its media files added up
+     * (the smaller copies of pictures are not counted). An upload that would go over is
+     * refused with 413. 0 = no limit (default). Env: NUXT_CMS_STORAGE_MAX_BYTES.
+     */
+    maxBytes?: number
     /** Per-user total storage quota in bytes. 0 = unlimited (default). */
     maxBytesPerUser?: number
     /** Max uploads per user per minute. 0 = unlimited. Default 60. */
@@ -450,8 +466,12 @@ export {}
           publicBaseUrl: options.storage?.s3?.publicBaseUrl || '',
           // '' = the default (public with a publicBaseUrl, otherwise proxy), resolved where it is used.
           delivery: options.storage?.s3?.delivery || '',
+          // '' = the bucket's root (NUXT_CMS_STORAGE_S3_PREFIX).
+          prefix: options.storage?.s3?.prefix || '',
         },
         maxSizeMb: options.storage?.maxSizeMb ?? 10,
+        // 0 = no limit (NUXT_CMS_STORAGE_MAX_BYTES).
+        maxBytes: options.storage?.maxBytes ?? 0,
         maxBytesPerUser: options.storage?.maxBytesPerUser ?? 0,
         uploadRatePerMin: options.storage?.uploadRatePerMin ?? 60,
       },

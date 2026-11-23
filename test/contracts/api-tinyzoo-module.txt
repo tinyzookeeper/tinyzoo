@@ -20,8 +20,10 @@ export interface CmsModuleOptions {
             secretAccessKey?: string;
             publicBaseUrl?: string;
             delivery?: 'public' | 'proxy' | 'redirect';
+            prefix?: string;
         };
         maxSizeMb?: number;
+        maxBytes?: number;
         maxBytesPerUser?: number;
         uploadRatePerMin?: number;
     };
