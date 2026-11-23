@@ -241,7 +241,7 @@ const peekers = computed(() => [
 
         <div class="sticky bottom-0 z-10 -mx-4 mt-8 flex items-center gap-3 border-t border-default bg-(--ui-bg)/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
           <UButton :label="t('new.back')" color="neutral" variant="ghost" size="lg" icon="i-lucide-arrow-left" @click="back" />
-          <p class="ml-auto min-w-0 truncate text-sm text-muted"><template v-if="chosenLook"><span class="hidden sm:inline">{{ t('new.picked') }} </span><span class="font-medium text-highlighted" data-picked-look>{{ l(chosenLook.name) }}</span></template></p>
+          <p class="ml-auto min-w-0 truncate text-sm text-muted"><template v-if="chosenLook"><span class="hidden sm:inline">{{ t('new.picked') }}&nbsp;</span><span class="font-medium text-highlighted" data-picked-look>{{ l(chosenLook.name) }}</span></template></p>
           <UButton :label="t('new.continue')" size="lg" trailing-icon="i-lucide-arrow-right" :disabled="!chosenLook" data-next @click="next" />
         </div>
       </section>

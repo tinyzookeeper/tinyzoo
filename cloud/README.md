@@ -8,7 +8,7 @@ This is the first working version. It runs **locally**: every website is a proce
 
 ```sh
 pnpm install
-pnpm --filter tinyzoo-cloud templates:build   # once: builds the template every site runs from
+pnpm --filter tinyzoo-cloud templates:build   # once: builds the templates the sites run from
 pnpm --filter tinyzoo-cloud dev               # http://localhost:3200
 ```
 
@@ -21,9 +21,9 @@ Use Chrome, Edge or Firefox locally. A site's address is `http://<slug>.localhos
 | | |
 |---|---|
 | **Start** (`/`) | What the product is, and *Create your website*. Signed in, it leads to *My websites*. |
-| **Create a website** (`/new`) | Three steps on one route: a template (a gallery with a field filter), the site's name and address (checked as you type), an account (skipped when signed in). A reload keeps the step and what was typed, never the password. |
+| **Create a website** (`/new`) | Up to four steps on one route: a template (a gallery with a field filter), its look (only for a template with several: tall pictures of each, side by side), the site's name and address (checked as you type), an account (skipped when signed in). A reload keeps the step and what was typed, never the password. |
 | **Watch it being made** (`/sites/:id`) | The four real steps with their real state: database, starting the site, demo content, your account. A failure says what failed in plain words, and *Try again* goes on from that step. |
-| **The site's page** (`/sites/:id`) | Its address with a live picture of the home page, the way into its admin, its template, when it was made, and *Delete this website* (the address typed out). |
+| **The site's page** (`/sites/:id`) | Its address with a live picture of the home page, the way into its admin, its template and look, when it was made, and *Delete this website* (the address typed out). |
 | **My websites** (`/sites`) | A card per site with its state, and *Create another*. The limit per account is explained when it is reached. |
 | **Account** (`/account`, `/login`, `/forgot`) | Sign in and out, name, language, password, forgotten password, and confirming the e-mail address. |
 
@@ -67,7 +67,7 @@ A site is made in four steps, kept in the database (`sites.steps`, the state mac
 
 1. **database** and 2. **start**: the hosting driver's part. Infrastructure only, until the site answers `GET /api/health/ready`.
 3. **content**: the cloud runs the template's seed (`pnpm seed` in the template's source folder) against the running site. On a fresh site the seed makes the first account with the setup code: the service account "tinyzoo", with a random password. Then it fills the demo content.
-4. **account**: the cloud signs in as the service account, writes the site's name into its settings, and invites the owner as an administrator.
+4. **account**: the cloud signs in as the service account, writes the site's name into its settings (and, for a template with looks, the chosen look and its default colours), and invites the owner as an administrator.
 
 Steps 3 and 4 are the same for every driver (`server/utils/provision.ts`). They run in the background, never inside a request. Each step is written down before and after, so:
 
@@ -105,16 +105,18 @@ After `templates:build` runs again, restart the sites (stop the app, stop their 
 
 ### Templates
 
-`shared/templates.ts` is the registry: twenty-one entries, each with its name, one sentence and three or four points in both languages, its field for the filter, and its animal. One is ready: **Basic website** (`basic`, from `packages/cms/starter`). The other twenty are planned and have no source yet. The server refuses to make a site from a template that is not ready, whatever `NUXT_PUBLIC_SHOW_PLANNED` says.
+`shared/templates.ts` is the registry: twenty-one entries, each with its name, one sentence and three or four points in both languages, its field for the filter, and its animal. Two are ready: **Basic website** (`basic`, from `packages/cms/starter`) and **Photographer** (`photographer`, from `templates/photographer`). The other nineteen are planned and have no source yet. The server refuses to make a site from a template that is not ready, whatever `NUXT_PUBLIC_SHOW_PLANNED` says.
 
-Adding a real template: give its entry `ready: true`, a `sourceDir` and a `preview` picture under `public/templates/`, and add it to `scripts/build-templates.mjs`.
+A template may come in several **looks**: one content model, one set of demo content and one build, drawn in different designs. Photographer has three (Ateliér, Negativ, Zápisník). The registry lists a template's looks (id, name and one sentence in both languages, a picture, the look's default colours); the wizard shows them as its second step; the choice is kept in `sites.look`, written into the site's settings (`look`, `colors`) when the site is made, and its owner changes it afterwards in the site's admin (*Site settings*). The cloud does not follow that change: its page names the look the site was made with. How a template implements looks: [`templates/README.md`](../templates/README.md).
+
+Adding a real template: give its entry `ready: true`, a `sourceDir`, a `preview` picture under `public/templates/` and its `looks`, and add it to `scripts/build-templates.mjs` and to `templateEntries` in `scripts/lib.mjs`. `templates:build <id>` builds one.
 
 ## Checks
 
 ```sh
 pnpm --filter tinyzoo-cloud typecheck
 pnpm vitest run --project unit test/unit/cloud-*.spec.ts   # slugs, the step machine, ports, the registry and the texts
-pnpm --filter tinyzoo-cloud e2e                            # the whole flow in a browser, about 2 minutes
+pnpm --filter tinyzoo-cloud e2e                            # the whole flow in a browser, both templates, about 2 minutes
 pnpm --filter tinyzoo-cloud walkthrough                    # records the videos and screenshots into cloud/.preview/
 ```
 
@@ -126,7 +128,7 @@ pnpm --filter tinyzoo-cloud walkthrough                    # records the videos 
 - Custom domains.
 - Real e-mail delivery set up (the SMTP transport is there, as in Keeper; nothing is configured).
 - Deploying: the cloud app itself has no deployment, and the Pushbase driver has not been run.
-- The twenty planned templates.
+- The nineteen planned templates.
 - Single sign-on from the cloud account into a site's admin (today: the invitation).
 - The site's own name and logo in its admin: the admin shows the name compiled into the template's build ("Můj web").
 - Deleting an account, changing its e-mail address, and anything for the people who run the service (a list of all sites, stopping one).
@@ -134,4 +136,4 @@ pnpm --filter tinyzoo-cloud walkthrough                    # records the videos 
 
 ## Schema
 
-`server/db/schema.ts`: `users`, `email_tokens` (the links sent by e-mail, stored as SHA-256), `sites`. After a change run `pnpm --filter tinyzoo-cloud db:generate` and commit the migration.
+`server/db/schema.ts`: `users`, `email_tokens` (the links sent by e-mail, stored as SHA-256), `sites` (with the template and the look each was made from). After a change run `pnpm --filter tinyzoo-cloud db:generate` and commit the migration.

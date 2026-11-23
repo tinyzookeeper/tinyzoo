@@ -314,13 +314,23 @@ async function main() {
     const body = Object.fromEntries(Object.entries(row).filter(([k]) => !skip.has(k) && !k.endsWith('__media') && !(k.endsWith('Id') && k.slice(0, -2) in row)))
     const messages = await (await fetch('/api/cms/enquiry', { headers: json })).json()
     const put = await fetch('/api/cms/_singleton/siteSettings', { method: 'PUT', headers: json, body: JSON.stringify({ ...body, look: 'zapisnik', colors: 'svestka' }) })
-    return { was: { look: row.look, colors: row.colors, siteName: row.siteName }, put: put.status, enquiries: (messages.items ?? messages.rows ?? []).length }
+    return { was: { look: row.look, colors: row.colors, siteName: row.siteName }, put: put.status, enquiries: (messages.items ?? messages.rows ?? []).length, body }
   })
   check('the settings hold what the wizard chose', changed.was.look === 'negativ' && changed.was.colors === 'mosaz' && changed.was.siteName === 'Ateliér Světlo', JSON.stringify(changed.was))
   check('the enquiry arrived in the admin', changed.enquiries === 1, JSON.stringify(changed))
   check('the owner can save another look and colours', changed.put === 200, String(changed.put))
   await pw.goto(photo.site.publicUrl, { waitUntil: 'networkidle' })
   check('the website follows: another look, other colours, the same content', JSON.stringify(await lookOn(pw)) === JSON.stringify({ look: 'zapisnik', colors: 'svestka', brand: '#753a57' }) && (await pw.locator('h1').first().innerText()).includes('Fotím') && await pw.locator('.prints a.print').count() === 14, JSON.stringify(await lookOn(pw)))
+  // Every look draws the same page: one main heading, the same sections, whatever the look.
+  const drawn = {}
+  for (const look of ['atelier', 'negativ', 'zapisnik']) {
+    await pw.evaluate(({ body, look }) => fetch('/api/cms/_singleton/siteSettings', { method: 'PUT', headers: { accept: 'application/json', 'content-type': 'application/json' }, body: JSON.stringify({ ...body, look, colors: 'bronz' }) }), { body: changed.body, look })
+    await pw.goto(photo.site.publicUrl, { waitUntil: 'networkidle' })
+    drawn[look] = await pw.evaluate(() => ({ look: document.documentElement.dataset.look, colors: document.documentElement.dataset.colors, h1: document.querySelectorAll('h1').length, headings: [...document.querySelectorAll('main h1, main h2')].map((h) => h.textContent.trim().replace(/\s+/g, ' ').toLowerCase()).join(' | ') }))
+  }
+  check('each look has one main heading on the home page', Object.values(drawn).every((d) => d.h1 === 1), JSON.stringify(drawn))
+  check('the three looks show the same sections in the same order', new Set(Object.values(drawn).map((d) => d.headings)).size === 1, JSON.stringify(drawn))
+  check('colours of another look give way to the look\'s own', drawn.atelier.colors === 'bronz' && drawn.negativ.colors === 'mosaz' && drawn.zapisnik.colors === 'inkoust', JSON.stringify(drawn))
   await pw.close()
 
   const badLook = await pp.request.post(`${base}/api/sites`, { data: { name: 'X', slug: `e2e-y-${stamp}`, template: 'photographer', look: 'nope' } })

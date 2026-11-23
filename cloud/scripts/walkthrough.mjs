@@ -6,20 +6,23 @@
 //                                                        # against a running app: the main site stays
 //
 // It makes, in cloud/.preview/:
-//   walkthrough-desktop.mp4   one continuous take at 1440×900, in Czech: start page → template →
-//                             name → account → being made → the site's page → the website →
-//                             invitation → admin, where the home page's heading is changed and
-//                             seen on the site. The mouse is drawn (Playwright's video has none).
+//   walkthrough-desktop.mp4   one continuous take at 1440×900, in Czech: start page → template
+//                             (Photographer) → its look → name → account → being made → the
+//                             site's page → the website → invitation → admin, where the home
+//                             page's heading is changed, then the look and its colours, and
+//                             both are seen on the site. The mouse is drawn (Playwright's video has none).
 //   walkthrough-phone.mp4     the same way in, on a phone-sized screen (a touch dot for the finger)
 //   screens/*.png             every screen at 1440 px and 390 px, and three in dark mode
+//   looks/*.jpg               the Photographer site in each of its three looks: the first screen
+//                             and the whole home page, at 1440 px and 390 px
 //   index.html                all of it on one page
 //
-// Needs the template built (pnpm --filter tinyzoo-cloud templates:build) and ffmpeg.
+// Needs the templates built (pnpm --filter tinyzoo-cloud templates:build) and ffmpeg.
 import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
-import { arg, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, human, installCursor, log, open, recordFrames, recreateDatabase, sleep, startCloud, templateEntry, waitFor } from './lib.mjs'
+import { arg, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, human, installCursor, log, open, recordFrames, recreateDatabase, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
 
 const keep = arg('keep', false) === true
 const given = arg('url', null)
@@ -29,24 +32,31 @@ const DB = 'tz_cloud_walk'
 const dataDir = join(cloudDir, '.data', 'walk', 'sites')
 const preview = join(cloudDir, '.preview')
 const screens = join(preview, 'screens')
+const looksDir = join(preview, 'looks')
 const raw = join(preview, '.raw')
 const stamp = Date.now().toString(36).slice(-4)
 
-if (!given && !existsSync(templateEntry)) {
-  console.error(`The template is not built (${templateEntry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+for (const [id, entry] of Object.entries(templateEntries)) {
+  if (given || existsSync(entry)) continue
+  console.error(`The template "${id}" is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
   process.exit(2)
 }
 mkdirSync(screens, { recursive: true })
+mkdirSync(looksDir, { recursive: true })
 rmSync(raw, { recursive: true, force: true })
 mkdirSync(raw, { recursive: true })
 
 // The people of the walkthrough. Against a running app the addresses must be free: a short
 // stamp is added when they are not.
+// All three make a Photographer website (the template with looks). `suggested` is the address
+// the wizard offers for the name: typed over only when this run needs another.
 const people = {
-  desktop: { name: 'Jana Nováková', email: 'jana@example.com', password: 'pekarna-na-ruzku-1', site: 'Pekárna Na Růžku', slug: 'pekarna-na-ruzku', adminPassword: 'administrace-jana-1' },
-  phone: { name: 'Tomáš Dvořák', email: 'tomas@example.com', password: 'kola-od-tomase-1', site: 'Kola od Tomáše', slug: 'kola-od-tomase' },
-  screens: { name: 'Eva Králová', email: 'eva@example.com', password: 'kvetiny-od-evy-1', site: 'Květinářství Fialka', slug: 'kvetinarstvi-fialka' },
+  desktop: { name: 'Johana Loudová', email: 'johana@example.com', password: 'fotim-od-roku-2014', site: 'Johana Loudová', slug: 'johana-loudova', suggested: 'johana-loudova', look: 'negativ', adminPassword: 'administrace-johana-1' },
+  phone: { name: 'Tereza Malá', email: 'tereza@example.com', password: 'tereza-foti-rada-1', site: 'Tereza Malá', slug: 'tereza-mala', suggested: 'tereza-mala', look: 'zapisnik' },
+  // (three sites, one in each look: the screenshots of the looks come from them)
+  screens: { name: 'Eva Králová', email: 'eva@example.com', password: 'fotky-od-evy-12', site: 'Johana Loudová', slug: 'foto' },
 }
+const LOOKS = ['atelier', 'negativ', 'zapisnik']
 
 let cloud = null
 let browser = null
@@ -110,24 +120,33 @@ async function desktopTake(base) {
   await hand.read(1800)
   await hand.click(page.locator('[data-field=hospitality]'))
   await hand.read(1300)
-  await hand.click(page.locator('[data-field=services]'))
-  await hand.read(1300)
-  await hand.click(page.locator('[data-field=all]'))
-  await hand.read(700)
-  await hand.click(page.locator('[data-template=basic]'))
-  await hand.read(900)
+  await hand.click(page.locator('[data-field=personal]'))
+  await hand.read(1500)
+  await hand.click(page.locator('[data-template=photographer]'))
+  await hand.read(1100)
   await hand.click(page.locator('[data-next]').first())
 
-  // 2 · the name and the address.
+  // 2 · the look: the three side by side, one picked after a look at each.
+  await page.waitForSelector('[data-step=look]')
+  await hand.read(1800)
+  for (const look of LOOKS) {
+    await hand.hover(page.locator(`[data-look=${look}]`))
+    await hand.read(1500)
+  }
+  await hand.click(page.locator(`[data-look=${who.look}]`))
+  await hand.read(1200)
+  await hand.click(page.locator('[data-next]').first())
+
+  // 3 · the name and the address.
   await page.waitForSelector('[data-field-name]')
   await hand.read(900)
   await hand.type(page.locator('[data-field-name]'), who.site)
-  if (who.slug !== 'pekarna-na-ruzku') await hand.type(page.locator('[data-field-slug]'), who.slug, { clear: true })
+  if (who.slug !== who.suggested) await hand.type(page.locator('[data-field-slug]'), who.slug, { clear: true })
   await page.waitForSelector('[data-slug-ok]')
   await hand.read(1900)
   await hand.click(page.locator('[data-next]').first())
 
-  // 3 · the account.
+  // 4 · the account.
   await page.waitForSelector('[data-field-person]')
   await hand.read(800)
   await hand.type(page.locator('[data-field-person]'), who.name)
@@ -147,11 +166,14 @@ async function desktopTake(base) {
   await hand.read(1200)
   await hand.click(page.locator('[data-open-site]'), { after: 100 })
   await hand.arrive()
-  await hand.read(2600)
-  await hand.scroll(700, 1400)
-  await hand.read(1500)
-  await hand.scroll(-700, 900)
-  await hand.read(600)
+  await hand.read(2800)
+  // Down the home page: the gallery, one day, the prices.
+  for (const by of [900, 1100, 1300, 1500]) {
+    await hand.scroll(by, 1500)
+    await hand.read(1500)
+  }
+  await hand.scroll(-4800, 1400)
+  await hand.read(700)
   await page.goBack()
   await hand.arrive()
   await page.waitForSelector('[data-invite]')
@@ -180,23 +202,43 @@ async function desktopTake(base) {
   await hand.click(page.getByRole('button', { name: /^Úvod/ }).first())
   await page.waitForSelector('input[name=heading]')
   await hand.read(900)
-  const heading = 'Pečeme pro celou ulici.'
+  const heading = 'Fotím lidi tak, jak jsou.'
   await hand.type(page.locator('input[name=heading]'), heading, { clear: true })
   await hand.read(2200)
   await hand.click(page.getByRole('button', { name: 'Aktualizovat' }).first())
   await hand.read(2600)
 
-  // And see it on the site.
+  // Another look and other colours, in Site settings.
   const site = new URL(page.url()).origin
+  await page.goto(`${site}/admin/siteSettings`)
+  await page.waitForLoadState('networkidle')
+  await hand.arrive()
+  await hand.read(1800)
+  await hand.click(page.getByRole('radio', { name: 'Zápisník' }))
+  await hand.read(900)
+  await hand.click(page.getByRole('combobox').filter({ hasText: '·' }).first())
+  await hand.read(900)
+  await hand.click(page.getByRole('option', { name: 'Zápisník · Jedle' }))
+  await hand.read(1200)
+  await hand.click(page.getByRole('button', { name: 'Uložit', exact: true }).first())
+  await hand.read(2400)
+
+  // And see both on the site: the new heading, in the new look.
   const view = page.locator('a[href="/"]').filter({ hasText: 'Zobrazit web' }).first()
   if (await view.isVisible().catch(() => false)) await hand.click(view)
   else await page.goto(site)
   await page.waitForURL(`${site}/`)
   await hand.arrive()
   const shown = await page.locator('h1').first().innerText()
-  if (!shown.includes('Pečeme pro celou ulici')) throw new Error(`the site still says "${shown}"`)
+  if (!shown.includes('Fotím lidi tak')) throw new Error(`the site still says "${shown}"`)
+  const look = await page.evaluate(() => `${document.documentElement.dataset.look}/${document.documentElement.dataset.colors}`)
+  if (look !== 'zapisnik/jedle') throw new Error(`the site is still drawn as ${look}`)
   await hand.rest(560, 430)
-  await hand.read(4200)
+  await hand.read(3000)
+  await hand.scroll(900, 1500)
+  await hand.read(2200)
+  await hand.scroll(-900, 1000)
+  await hand.read(1500)
 
   const video = page.video()
   await ctx.close()
@@ -235,11 +277,20 @@ async function phoneTake(base) {
   await hand.scroll(500, 1000)
   await hand.read(900)
   await hand.scroll(-500, 700)
-  await hand.click(page.locator('[data-template=basic]'))
+  await hand.click(page.locator('[data-template=photographer]'))
+  await hand.click(page.locator('[data-next]').first())
+  // The looks, one under the other on a phone.
+  await page.waitForSelector('[data-step=look]')
+  await hand.read(1500)
+  await hand.scroll(900, 1500)
+  await hand.read(1100)
+  await hand.scroll(500, 1000)
+  await hand.click(page.locator(`[data-look=${who.look}]`))
+  await hand.read(900)
   await hand.click(page.locator('[data-next]').first())
   await page.waitForSelector('[data-field-name]')
   await hand.type(page.locator('[data-field-name]'), who.site)
-  if (who.slug !== 'kola-od-tomase') await hand.type(page.locator('[data-field-slug]'), who.slug, { clear: true })
+  if (who.slug !== who.suggested) await hand.type(page.locator('[data-field-slug]'), who.slug, { clear: true })
   await page.waitForSelector('[data-slug-ok]')
   await hand.read(1500)
   await hand.click(page.locator('[data-next]').first())
@@ -261,9 +312,11 @@ async function phoneTake(base) {
   await hand.click(page.locator('[data-open-site]'), { after: 100 })
   await hand.arrive()
   await hand.read(2200)
-  await hand.scroll(900, 1500)
-  await hand.read(2200)
-  await hand.scroll(-900, 1000)
+  for (const by of [900, 1200, 1400]) {
+    await hand.scroll(by, 1500)
+    await hand.read(1700)
+  }
+  await hand.scroll(-3500, 1200)
   await hand.read(1200)
 
   await film.stop(join(preview, 'walkthrough-phone.mp4'))
@@ -290,12 +343,23 @@ async function screensPass(base, main) {
     const res = await ctx.request.post(`${base}/api/auth/login`, { data: { email: person.email, password: person.password } })
     if (!res.ok()) throw new Error(`could not sign in as ${person.email}`)
   }
-  /** The wizard up to its last step, with a screenshot of each, then the site being made and made. */
-  const wizard = async (page, opts, { slug, account }) => {
+  const made = {} // look → the site's address
+  /** The first two steps: Photographer, and the look (a screenshot of each when asked for). */
+  const pickLook = async (page, opts, look) => {
     await open(page, `${base}/new`)
     await page.waitForSelector('[data-wizard=ready]')
+    await page.locator('[data-template=photographer]').click()
     if (opts.wizardShots) await shot(page, '02-template', { ...opts, full: false })
     await page.locator('[data-next]').first().click()
+    await page.waitForSelector('[data-step=look]')
+    await page.locator(`[data-look=${look}]`).click()
+    await page.locator('[data-look] img').first().evaluate((img) => img.decode?.())
+    if (opts.wizardShots) await shot(page, '02b-look', opts)
+    await page.locator('[data-next]').first().click()
+  }
+  /** The wizard up to its last step, with a screenshot of each, then the site being made and made. */
+  const wizard = async (page, opts, { slug, account, look }) => {
+    await pickLook(page, opts, look)
     await page.locator('[data-field-name]').fill(who.site)
     await page.locator('[data-field-slug]').fill(slug)
     await page.waitForSelector('[data-slug-ok]')
@@ -319,6 +383,7 @@ async function screensPass(base, main) {
     await page.waitForSelector('[data-site-preview] iframe')
     await sleep(1800)
     await shot(page, '07-site-page', opts)
+    made[look] = await page.locator('[data-open-site]').getAttribute('href')
     return id
   }
 
@@ -335,16 +400,13 @@ async function screensPass(base, main) {
     await open(page, `${base}/forgot`)
     await shot(page, '11-forgotten-password', opts)
     if (first) {
-      await wizard(page, opts, { slug: who.slug, account: true })
+      await wizard(page, opts, { slug: `${who.slug}-atelier`, account: true, look: 'atelier' })
     }
     else {
       // The account step is only shown signed out: take it first, then sign in for the rest.
-      await open(page, `${base}/new`)
-      await page.waitForSelector('[data-wizard=ready]')
-      await shot(page, '02-template', { ...opts, full: false })
-      await page.locator('[data-next]').first().click()
+      await pickLook(page, opts, 'negativ')
       await page.locator('[data-field-name]').fill(who.site)
-      await page.locator('[data-field-slug]').fill(`${who.slug}-2`)
+      await page.locator('[data-field-slug]').fill(`${who.slug}-negativ`)
       await page.waitForSelector('[data-slug-ok]')
       await shot(page, '03-your-site', opts)
       await page.locator('[data-next]').first().click()
@@ -354,7 +416,7 @@ async function screensPass(base, main) {
       await shot(page, '04-your-account', opts)
       await page.evaluate(() => localStorage.removeItem('tz-cloud-new'))
       await signIn(ctx, who)
-      await wizard(page, { size, wizardShots: false }, { slug: `${who.slug}-2`, account: false })
+      await wizard(page, { size, wizardShots: false }, { slug: `${who.slug}-negativ`, account: false, look: 'negativ' })
     }
     await open(page, `${base}/sites`)
     await page.waitForSelector('[data-site]')
@@ -385,8 +447,33 @@ async function screensPass(base, main) {
   await open(page, base)
   await shot(page, '01-start', dark)
   await signIn(ctx, who)
-  await wizard(page, dark, { slug: `${who.slug}-3`, account: false })
+  await wizard(page, dark, { slug: `${who.slug}-zapisnik`, account: false, look: 'zapisnik' })
   await ctx.close()
+
+  // The three sites: the first screen and the whole home page of each look, at both widths.
+  for (const look of LOOKS) {
+    if (!made[look]) continue
+    for (const size of ['desktop', 'phone']) {
+      const c = await context(size)
+      const p = await c.newPage()
+      await p.goto(made[look], { waitUntil: 'networkidle' })
+      await p.evaluate(() => document.fonts.ready)
+      await p.screenshot({ path: join(looksDir, `${look}-${size}-top.jpg`), type: 'jpeg', quality: 86 })
+      // Pictures load as they come into view: walk down the page first, then take all of it.
+      await p.evaluate(async () => {
+        for (const img of document.images) img.loading = 'eager'
+        for (let y = 0; y < document.documentElement.scrollHeight; y += window.innerHeight) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 200)) }
+        const shown = [...document.images].filter((i) => i.offsetParent !== null)
+        await Promise.all(shown.map((i) => (i.complete ? null : new Promise((r) => { i.addEventListener('load', r); i.addEventListener('error', r); setTimeout(r, 8000) }))))
+        await Promise.all(shown.map((i) => i.decode?.().catch(() => {})))
+        window.scrollTo(0, 0)
+      })
+      await sleep(500)
+      await p.screenshot({ path: join(looksDir, `${look}-${size}.jpg`), type: 'jpeg', quality: 80, fullPage: true })
+      await c.close()
+    }
+    log(`  looks/${look}-*.jpg`)
+  }
   return shots
 }
 
@@ -394,10 +481,10 @@ function indexHtml(shots) {
   const have = (f) => existsSync(join(preview, f))
   const extra = existsSync(screens) ? readdirSync(screens).filter((f) => f.startsWith('e2e-')).sort() : []
   const titles = {
-    '01-start': 'Úvodní stránka', '02-template': 'Průvodce · šablona', '03-your-site': 'Průvodce · váš web', '04-your-account': 'Průvodce · váš účet',
+    '01-start': 'Úvodní stránka', '02-template': 'Průvodce · šablona', '02b-look': 'Průvodce · vzhled', '03-your-site': 'Průvodce · váš web', '04-your-account': 'Průvodce · váš účet',
     '05-being-made': 'Web se staví', '06-made': 'Hotovo', '07-site-page': 'Stránka webu (poprvé)', '08-my-websites': 'Moje weby', '09-account': 'Účet',
     '10-sign-in': 'Přihlášení', '11-forgotten-password': 'Zapomenuté heslo', '12-site-page-after-first-visit': 'Stránka webu (po prvním vstupu do administrace)',
-    'e2e-being-made': 'Web se staví (z e2e)', 'e2e-failed': 'Krok se nepovedl · Zkusit znovu', 'e2e-waiting': 'Čeká na potvrzení e-mailu', 'e2e-sites-limit': 'Moje weby · limit',
+    'e2e-being-made': 'Web se staví (z e2e)', 'e2e-look': 'Průvodce · vzhled (z e2e)', 'e2e-failed': 'Krok se nepovedl · Zkusit znovu', 'e2e-waiting': 'Čeká na potvrzení e-mailu', 'e2e-sites-limit': 'Moje weby · limit',
   }
   const group = (files) => {
     const by = new Map()
@@ -406,6 +493,11 @@ function indexHtml(shots) {
   }
   const fig = (f) => `<figure class="${f.includes('--390') ? 'phone' : 'wide'}"><a href="screens/${f}"><img loading="lazy" src="screens/${f}" alt=""></a><figcaption>${f.includes('-dark') ? 'tmavý režim · ' : ''}${f.includes('--390') ? '390 px' : '1440 px'}</figcaption></figure>`
   const section = ([key, files]) => `<section><h3>${titles[key] ?? key}</h3><div class="row">${files.sort((a, b) => a.includes('--390') - b.includes('--390') || a.localeCompare(b)).map(fig).join('')}</div></section>`
+  const LOOK_NAMES = { atelier: 'Ateliér', negativ: 'Negativ', zapisnik: 'Zápisník' }
+  const lookFig = (look, size) => (have(`looks/${look}-${size}-top.jpg`)
+    ? `<figure class="${size === 'phone' ? 'phone' : 'wide'}"><a href="looks/${look}-${size}.jpg"><img loading="lazy" src="looks/${look}-${size}-top.jpg" alt=""></a><figcaption>${size === 'phone' ? '390 px' : '1440 px'} · klepnutím celá stránka</figcaption></figure>`
+    : '')
+  const looksHtml = LOOKS.filter((look) => have(`looks/${look}-desktop-top.jpg`)).map((look) => `<section><h3>${LOOK_NAMES[look]}</h3><div class="row">${lookFig(look, 'desktop')}${lookFig(look, 'phone')}</div></section>`).join('\n')
   return `<!doctype html>
 <html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tinyzoo cloud · náhled</title>
@@ -437,6 +529,7 @@ function indexHtml(shots) {
   <div>${have('walkthrough-desktop.mp4') ? '<video controls preload="metadata" src="walkthrough-desktop.mp4"></video><p style="margin-top:8px">Počítač, 1440 × 900, česky.</p>' : '<p>Video z počítače chybí.</p>'}</div>
   <div>${have('walkthrough-phone.mp4') ? '<video controls preload="metadata" src="walkthrough-phone.mp4"></video><p style="margin-top:8px">Telefon, 390 × 844.</p>' : '<p>Video z telefonu chybí.</p>'}</div>
 </div>
+${looksHtml ? `<h2>Šablona Fotograf · tři vzhledy</h2>\n<p>Jeden web, jeden obsah, tři vzhledy. Každý je web vytvořený průvodcem, s ukázkovým obsahem.</p>\n${looksHtml}` : ''}
 <h2>Obrazovky</h2>
 ${group(shots).map(section).join('\n')}
 ${extra.length ? `<h2>Stavy z e2e testu</h2>${group(extra).map(section).join('\n')}` : ''}

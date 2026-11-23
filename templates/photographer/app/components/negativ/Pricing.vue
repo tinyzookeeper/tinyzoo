@@ -28,14 +28,14 @@ const size = computed(() => byLength(props.block.heading, [
         <span class="m md:col-span-1 md:pt-2" :class="p.highlighted ? '' : 'text-dim'">{{ no(i) }}</span>
         <div class="md:col-span-4">
           <p v-if="p.highlighted && p.highlightLabel" class="m mb-2 font-medium">{{ p.highlightLabel }}</p>
-          <h3 class="d text-[2.7rem] md:text-[3.4rem]">{{ p.name }}</h3>
+          <h3 class="d text-[2.7rem] md:text-[2.6rem] lg:text-[3.4rem]">{{ p.name }}</h3>
           <p v-if="p.description" class="mt-2" :class="p.highlighted ? '' : 'text-dim'">{{ tidyText(p.description) }}</p>
         </div>
         <ul class="md:col-span-4 m grid gap-y-1.5 content-start md:pt-2">
           <li v-for="line in p.includes" :key="line.id">{{ line.text }}</li>
         </ul>
         <div class="md:col-span-3 md:text-right">
-          <p class="d text-[4rem] md:text-[4.6rem] whitespace-nowrap">{{ formatPrice(p.price) }} <span class="text-[0.5em]">Kč</span></p>
+          <p class="d text-[4rem] md:text-[3.1rem] lg:text-[4.6rem] whitespace-nowrap">{{ formatPrice(p.price) }} <span class="text-[0.5em]">Kč</span></p>
           <NuxtLink v-if="p.highlighted && block.buttonLabel && block.buttonUrl" class="btn btn-ink m !font-medium mt-4" :to="siteHref(block.buttonUrl)">{{ block.buttonLabel }}</NuxtLink>
         </div>
       </article>
