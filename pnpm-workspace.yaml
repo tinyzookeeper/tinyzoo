@@ -1,6 +1,8 @@
 packages:
   - packages/*
   - packages/cms/starter
+  # The hosted version's website templates, and what they share (templates/kit).
+  - templates/*
   - site
   - keeper
   - cloud

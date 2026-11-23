@@ -1,0 +1,83 @@
+/* Ateliér: a quiet gallery wall. White paper, hairlines, a thin serif (Newsreader) with small
+   spaced capitals (Jost), photographs shown plain with a caption underneath.
+   Written without a cascade layer on purpose, as the design was: these rules win over
+   utilities where both speak (a link's hover colour, say). */
+html[data-look="atelier"] {
+  --font-display: "Newsreader", "Times New Roman", serif;
+  --font-sans: "Jost", system-ui, sans-serif;
+  /* The colours of the first preset (Bronz); a preset from the settings overrides the first five. */
+  --brand: #7a5a3a;
+  --brand-ink: #ffffff;
+  --paper: #faf8f4;
+  --tint: #f1ece3;
+  --line: #dfd8cc;
+  --ink: #1d1b18;
+  --body: #46423b;
+  --quiet: #6b665e;
+
+  body { font-family: var(--font-sans); color: var(--body); background: var(--paper); font-size: 1.0625rem; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { font-family: var(--font-display); color: var(--ink); font-weight: 300; letter-spacing: -0.012em; }
+  em { font-style: italic; }
+  .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+  .label { font-family: var(--font-sans); font-size: 0.75rem; line-height: 1.2; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; }
+  .wrap { max-width: 80rem; margin-inline: auto; padding-inline: 1.25rem; }
+  @media (min-width: 768px) { .wrap { padding-inline: 2.5rem; } }
+
+  /* Text link with a hairline */
+  .tlink { display: inline-flex; align-items: center; gap: 0.6rem; min-height: 44px; color: var(--ink); background: linear-gradient(currentColor, currentColor) 0 calc(100% - 9px) / 100% 1px no-repeat; transition: color .2s; }
+  .tlink:hover { color: var(--brand); }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.7rem; min-height: 48px; padding: 0 1.6rem; background: var(--ink); color: var(--paper); transition: background .2s; cursor: pointer; }
+  .btn:hover { background: var(--brand); color: var(--brand-ink); }
+  .btn[disabled] { opacity: .6; cursor: progress; }
+  .btn-line { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+  .btn-line:hover { background: var(--ink); color: var(--paper); }
+
+  .navlink { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); transition: color .2s; }
+  .navlink:hover { color: var(--brand); }
+  .navlink.router-link-exact-active { color: var(--brand); }
+
+  /* Category tabs */
+  .tab { display: inline-flex; align-items: baseline; gap: 0.4rem; min-height: 44px; padding: 0 0.1rem; color: var(--quiet); font-family: var(--font-display); font-size: 1.3rem; border-bottom: 1px solid transparent; transition: color .2s, border-color .2s; cursor: pointer; }
+  .tab sup { font-family: var(--font-sans); font-size: 0.7rem; letter-spacing: 0.06em; top: -0.7em; }
+  .tab:hover { color: var(--ink); }
+  .tab[aria-pressed="true"], .tab[aria-current="page"] { color: var(--ink); border-color: var(--ink); font-style: italic; }
+
+  /* Photographs: plain, with a slow zoom on the ones that lead somewhere */
+  .ph { display: block; overflow: hidden; background: var(--tint); }
+  .ph img { width: 100%; height: 100%; object-fit: cover; transition: transform .9s cubic-bezier(.2,.6,.2,1); }
+  a.ph:hover img { transform: scale(1.025); }
+
+  /* Story rows: photographs of different shapes share one height */
+  .jrow { display: flex; flex-wrap: wrap; gap: 1.5rem 0.75rem; }
+  .jrow > figure { flex: var(--ar) 1 0%; min-width: 0; }
+  .jrow > figure.m-full { flex-basis: 100%; }
+  .jrow .ph { aspect-ratio: var(--ar); }
+  @media (min-width: 768px) {
+    .jrow { flex-wrap: nowrap; gap: 1.5rem; }
+    .jrow > figure.m-full { flex-basis: 0%; }
+  }
+
+  /* Form: underlined fields */
+  .field label { display: block; margin-bottom: 0.2rem; color: var(--quiet); }
+  .field input, .field select, .field textarea { width: 100%; min-height: 48px; padding: 0.6rem 0; background: transparent; border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; color: var(--ink); font: inherit; font-family: var(--font-display); font-size: 1.25rem; }
+  .field textarea { min-height: 7.5rem; resize: vertical; line-height: 1.45; display: block; }
+  .field ::placeholder { color: var(--quiet); font-style: italic; opacity: 1; }
+  .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible { outline: none; border-bottom-color: var(--brand); box-shadow: 0 1px 0 0 var(--brand); }
+  .field select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%); background-position: calc(100% - 9px) 55%, calc(100% - 4px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+  .field [aria-invalid="true"] { border-bottom-color: #b3261e; }
+  .field .field-error { margin-top: 0.35rem; font-size: 0.92rem; line-height: 1.35; color: #b3261e; }
+
+  /* Rich text of a free page */
+  .prose-look { max-width: 44rem; }
+  .prose-look > * + * { margin-top: 1rem; }
+  .prose-look h2 { font-size: 2rem; line-height: 1.12; margin-top: 2.6rem; }
+  .prose-look h3 { font-size: 1.5rem; line-height: 1.2; margin-top: 2rem; font-weight: 400; }
+  .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+  .prose-look a:hover { color: var(--brand); }
+  .prose-look ul { list-style: none; border-top: 1px solid var(--line); }
+  .prose-look ul li { padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+  .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+  .prose-look blockquote { font-family: var(--font-display); font-style: italic; font-size: 1.5rem; line-height: 1.35; color: var(--ink); margin-block: 1.8rem; }
+  .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
+  .prose-look strong { color: var(--ink); font-weight: 500; }
+}
