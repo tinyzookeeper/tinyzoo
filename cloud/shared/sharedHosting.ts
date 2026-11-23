@@ -84,27 +84,36 @@ export function passwordOfDatabaseUrl(databaseUrl: unknown): string | null {
 /** What of a site's environment (server/utils/sites.ts, siteEnv) is the site's own, and what is the same for every site. */
 export interface SplitSiteEnv {
   /** The site's own secrets: they go into its row of the site directory. */
-  site: { secret: string; setupToken: string; statusToken: string }
+  site: { secret: string; setupToken: string; statusToken: string; account: SharedSiteAccount | null }
   /** The rest: settings of the process that serves every site of the template (the mail transport, migrations at start). */
   process: Record<string, string>
 }
 
+/** The site's client at the account service (the cloud as the issuer of sign-in): `cms.auth.account` of the site's settings. */
+export interface SharedSiteAccount { issuer: string; clientId: string; clientSecret: string }
+
 const SITE_ENV = { NUXT_APP_SECRET: 'secret', NUXT_CMS_AUTH_SETUP_TOKEN: 'setupToken', NUXT_CMS_STATUS_TOKEN: 'statusToken' } as const
+const ACCOUNT_ENV = { NUXT_CMS_AUTH_ACCOUNT_ISSUER: 'issuer', NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID: 'clientId', NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET: 'clientSecret' } as const
 
 /**
  * Split the environment the cloud decides for a site. With a process per site all of it was
  * that process's environment; with one process for many sites the secrets are the site's row
- * and only what is the same for every site stays in the environment.
+ * and only what is the same for every site stays in the environment. The site's client at the
+ * account service (three values, all or none) is the site's own too.
  */
 export function splitSiteEnv(env: Record<string, string>): SplitSiteEnv {
   const site = { secret: '', setupToken: '', statusToken: '' }
+  const account: SharedSiteAccount = { issuer: '', clientId: '', clientSecret: '' }
   const rest: Record<string, string> = {}
   for (const [name, value] of Object.entries(env)) {
     if (name in SITE_ENV) site[SITE_ENV[name as keyof typeof SITE_ENV]] = value
+    else if (name in ACCOUNT_ENV) account[ACCOUNT_ENV[name as keyof typeof ACCOUNT_ENV]] = value
     else rest[name] = value
   }
   if (site.secret.length < 32) throw new Error('The site\'s app secret must be at least 32 characters')
-  return { site, process: rest }
+  const given = Object.values(account).filter(Boolean).length
+  if (given !== 0 && given !== 3) throw new Error('The site\'s account settings must come together: the issuer, the client id and the client secret')
+  return { site: { ...site, account: given ? account : null }, process: rest }
 }
 
 /** A site's row in the site directory (packages/cms/server/utils/cmsSite.ts reads it). */
@@ -115,7 +124,7 @@ export interface SharedSiteRow {
   databaseUrl: string
   secret: string
   config: {
-    auth: { setupToken: string }
+    auth: { setupToken: string; account?: SharedSiteAccount }
     status: { token: string }
     storage: { driver: 'local'; local: { dir: string } }
     mail?: { file: { dir: string } }
@@ -146,7 +155,7 @@ export function sharedSiteRow(input: SharedSiteRowInput): SharedSiteRow {
     databaseUrl: input.databaseUrl,
     secret: split.site.secret,
     config: {
-      auth: { setupToken: split.site.setupToken },
+      auth: { setupToken: split.site.setupToken, ...(split.site.account ? { account: split.site.account } : {}) },
       status: { token: split.site.statusToken },
       storage: { driver: 'local', local: { dir: `${dir}/uploads` } },
       // E-mails written to files get a folder per site; any other transport needs nothing here.

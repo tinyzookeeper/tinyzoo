@@ -1,10 +1,13 @@
 <script setup lang="ts">
+// Signing in. Afterwards the page goes where it was asked to (`next`, a path of this app only):
+// a page that needed a signed-in person, or a website's sign-in through the account.
 definePageMeta({ layout: 'bare' })
 const t = useT()
 const errorText = useErrorText()
-const route = useRoute()
 const { refresh } = useAccount()
+const { fromSite, go, site, loadSite, withNext } = useReturn()
 useHead({ title: () => t('login.title') })
+await loadSite()
 
 const form = reactive({ email: '', password: '' })
 const busy = ref(false)
@@ -17,8 +20,7 @@ async function submit() {
     await $fetch('/api/auth/login', { method: 'POST', body: form })
     const account = await refresh()
     if (account.user) useLocaleCookie().value = account.user.locale
-    const next = typeof route.query.next === 'string' && /^\/(?![/\\])/.test(route.query.next) ? route.query.next : '/sites'
-    await navigateTo(next)
+    await go()
   }
   catch (err) {
     error.value = errorText(err, 'login.failed')
@@ -34,7 +36,7 @@ async function submit() {
     <div class="mb-8 text-center">
       <ZAnimal name="panda" class="mx-auto mb-5 h-20 w-auto" />
       <h1 class="z-display text-[1.75rem] leading-tight text-highlighted">{{ t('login.title') }}</h1>
-      <p class="z-moment-text mt-1 text-[0.9375rem]">{{ t('login.lead') }}</p>
+      <p class="z-moment-text mt-1 text-[0.9375rem] text-pretty" :data-continue-to="site?.host">{{ site ? t('login.continueTo', { name: site.name }) : t('login.lead') }}</p>
     </div>
 
     <form class="flex flex-col gap-4" @submit.prevent="submit">
@@ -50,7 +52,9 @@ async function submit() {
     </form>
     <p class="z-moment-text mt-6 text-center text-sm">
       {{ t('login.noAccount') }}
-      <NuxtLink to="/new" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4">{{ t('home.cta') }}</NuxtLink>
+      <!-- Somebody who came from a website only needs an account; anybody else starts with a website. -->
+      <NuxtLink v-if="fromSite" :to="withNext('/signup')" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4" data-signup>{{ t('login.createAccount') }}</NuxtLink>
+      <NuxtLink v-else to="/new" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4">{{ t('home.cta') }}</NuxtLink>
     </p>
   </div>
 </template>

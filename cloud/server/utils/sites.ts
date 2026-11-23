@@ -1,6 +1,7 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
+import { adminThroughAccount } from '#shared/account'
 import type { SiteView } from '#shared/api'
 import { normalizeSteps } from '#shared/steps'
 import { templateById } from '#shared/templates'
@@ -17,12 +18,23 @@ export interface SiteSecrets {
   statusToken: string
   /** The password of the service account the cloud keeps on the site. */
   servicePassword: string
+  /**
+   * The site's client at the account service (server/utils/account.ts): its id and its secret,
+   * handed to the site as NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID and _CLIENT_SECRET. A site made before
+   * the account service has none until it is next seen to.
+   */
+  accountClientId?: string
+  accountClientSecret?: string
 }
 
 const random = (bytes: number) => randomBytes(bytes).toString('base64url')
 
+/** A new client for the account service: its id (the client_id, a uuid) and its secret. */
+export const newAccountClientSecrets = (): Required<Pick<SiteSecrets, 'accountClientId' | 'accountClientSecret'>> =>
+  ({ accountClientId: randomUUID(), accountClientSecret: random(32) })
+
 export function newSiteSecrets(): SiteSecrets {
-  return { appSecret: random(36), setupToken: random(24), statusToken: random(32), servicePassword: random(24) }
+  return { appSecret: random(36), setupToken: random(24), statusToken: random(32), servicePassword: random(24), ...newAccountClientSecrets() }
 }
 
 export function readSecrets(row: Pick<SiteRow, 'secrets' | 'slug'>): SiteSecrets {
@@ -40,6 +52,10 @@ export function siteEnv(secrets: SiteSecrets): Record<string, string> {
     NUXT_CMS_MIGRATIONS_ON_START: 'true',
     // The cloud hands the invitation link over itself; the site's own e-mails are only printed.
     NUXT_CMS_MAIL_TRANSPORT: 'log',
+    // Sign-in through the account: the cloud is the issuer, the site is its client.
+    ...(secrets.accountClientId && secrets.accountClientSecret
+      ? { NUXT_CMS_AUTH_ACCOUNT_ISSUER: publicUrl(), NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID: secrets.accountClientId, NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET: secrets.accountClientSecret }
+      : {}),
   }
 }
 
@@ -53,9 +69,13 @@ export function hostedSite(row: SiteRow): HostedSite {
   }
 }
 
+/** How long a site's invitation works (tinyzoo's own rule: 7 days). */
+const INVITE_TTL_MS = 7 * 24 * 60 * 60_000
+
 /** A site as its owner's browser gets it: no secret, and the invitation link only while it is still needed. */
 export function toSiteView(row: SiteRow): SiteView {
   const accepted = !!row.ownerAcceptedAt
+  const inviteUrl = row.status === 'ready' && !accepted ? decryptSecret(row.inviteUrl) : null
   return {
     id: row.id,
     name: row.name,
@@ -64,10 +84,12 @@ export function toSiteView(row: SiteRow): SiteView {
     look: row.look,
     status: row.status,
     publicUrl: row.publicUrl,
-    adminUrl: row.publicUrl ? `${row.publicUrl}/admin` : null,
+    adminUrl: row.publicUrl ? adminThroughAccount(row.publicUrl) : null,
+    adminPasswordUrl: row.publicUrl ? `${row.publicUrl}/admin` : null,
     steps: normalizeSteps(row.steps),
     errorDetail: import.meta.dev ? row.error : null,
-    inviteUrl: row.status === 'ready' && !accepted ? decryptSecret(row.inviteUrl) : null,
+    inviteUrl,
+    inviteExpired: !!inviteUrl && !!row.inviteSentAt && Date.now() - row.inviteSentAt.getTime() > INVITE_TTL_MS,
     ownerAccepted: accepted,
     createdAt: row.createdAt.toISOString(),
     readyAt: row.readyAt?.toISOString() ?? null,

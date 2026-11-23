@@ -115,8 +115,8 @@ export function resetEmail(to: { email: string; name: string; locale: Locale }, 
 export function siteReadyEmail(to: { email: string; name: string; locale: Locale }, site: { name: string; publicUrl: string }, pageUrl: string): Mail {
   const n = firstName(to.name)
   const body = to.locale === 'en'
-    ? letter({ hello: n ? `Hello ${n},` : 'Hello,', lines: [`Your website “${site.name}” is live at ${site.publicUrl}.`, 'Open your website’s details to set your admin password. Then you can edit your text and images.'], button: 'View website details', url: pageUrl, after: 'You can replace the demo content with your own in the admin.' })
-    : letter({ hello: n ? `Dobrý den, ${n},` : 'Dobrý den,', lines: [`Váš web „${site.name}“ běží na adrese ${site.publicUrl}.`, 'V přehledu webu si nastavíte heslo do administrace. Pak můžete upravovat texty i obrázky.'], button: 'Otevřít přehled webu', url: pageUrl, after: 'Ukázkový obsah můžete v administraci nahradit vlastním.' })
+    ? letter({ hello: n ? `Hello ${n},` : 'Hello,', lines: [`Your website “${site.name}” is live at ${site.publicUrl}.`, 'Open the admin from your website’s details to edit your text and images.'], button: 'View website details', url: pageUrl, after: 'You can replace the demo content with your own in the admin.' })
+    : letter({ hello: n ? `Dobrý den, ${n},` : 'Dobrý den,', lines: [`Váš web „${site.name}“ běží na adrese ${site.publicUrl}.`, 'Z přehledu webu otevřete administraci a můžete upravovat texty i obrázky.'], button: 'Otevřít přehled webu', url: pageUrl, after: 'Ukázkový obsah můžete v administraci nahradit vlastním.' })
   return { to: to.email, subject: to.locale === 'en' ? `${site.name} is ready` : `Web „${site.name}“ je připravený`, ...body }
 }
 

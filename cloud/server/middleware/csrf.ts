@@ -4,6 +4,12 @@
 //  1. carry a JSON body (or none): a plain HTML form cannot send application/json, and
 //  2. when the browser says where it comes from (Sec-Fetch-Site), come from the same origin
 //     (or be typed by the user: 'none').
+//
+// It guards /api/** and nothing else. The account service's routes for websites (POST
+// /oauth/token, /oauth/sites, /oauth/membership; server/routes/oauth) are outside it on
+// purpose: they are called by a website's server, never with the cloud's cookie, and prove
+// themselves with the client's secret (and, for a code, its PKCE verifier). They never read the
+// session, so a cross-site request to them carries no authority this guard would have to protect.
 const SAFE = new Set(['GET', 'HEAD', 'OPTIONS'])
 
 export default defineEventHandler((event) => {

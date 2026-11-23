@@ -14,19 +14,54 @@ export interface SiteView {
   status: SiteStatus
   /** The website's address, once it has one. */
   publicUrl: string | null
-  /** Its admin's address. */
+  /** The way into its admin through the account: the site sends the browser to the account and gets it back signed in. */
   adminUrl: string | null
+  /** Its admin's own address, with the site's own sign-in (an e-mail and a password of that site). */
+  adminPasswordUrl: string | null
   steps: Step[]
   /** Technical detail of a failure. Only in development. */
   errorDetail: string | null
-  /** The link where the owner chooses a password for the admin; null once they have. */
+  /** The link where the owner may choose a password for this site's admin (the second way in); null once they have been in. */
   inviteUrl: string | null
+  /** The link is older than an invitation lasts: a new one must be made. */
+  inviteExpired: boolean
   ownerAccepted: boolean
   createdAt: string
   readyAt: string | null
 }
 
 export interface SiteRuntime { running: boolean; memoryBytes: number | null }
+
+/** A website somebody runs themselves, connected to their account so its admin opens through the account. */
+export interface ConnectedSiteView {
+  /** Its client id at the account service. */
+  id: string
+  name: string
+  url: string
+  adminUrl: string
+  createdAt: string
+}
+
+/** Another owner's website the person signed in to through the account. */
+export interface MemberSiteView {
+  id: string
+  name: string
+  url: string
+  /** The role the website last reported for the person; null until it has. */
+  role: string | null
+  adminUrl: string
+}
+
+/** What a website is given to sign people in through the account. The secret is shown once. */
+export interface ClientCredentials { issuer: string; clientId: string; clientSecret: string }
+
+/** "My websites": the person's own, the ones they connected, and the ones of others they may edit. */
+export interface SitesView {
+  sites: SiteView[]
+  max: number
+  connected: ConnectedSiteView[]
+  member: MemberSiteView[]
+}
 
 export interface AccountView {
   user: { id: string; name: string; email: string; locale: Locale; emailVerified: boolean } | null
