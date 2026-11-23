@@ -1,0 +1,76 @@
+/* Návod: the page as a well-made instruction manual. Every screen of the product is a numbered
+   figure with brand-coloured callout pins, a ruled table does the pricing, a revision list the
+   changelog. Geist for text and headings, Geist Mono for labels, figure captions, times and figures.
+   Written in the cascade layers the design was written in: utilities win over these rules where
+   both speak. The design's "mute" is `quiet` here and its "text" is `body` (Nuxt UI's names). */
+html[data-look="navod"] {
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+  /* The colours of the first preset (Zelená); a preset from the settings overrides some of them. */
+  --ground: #eceeeb; --sheet: #ffffff; --ink: #121617; --body: #2e3536; --quiet: #586163; --line: #cdd2cf;
+  --brand: #0d7a55; --brand-ink: #ffffff; --tint: #dcebe3; --am: #fae7a2; --pm: #cbdfee;
+}
+
+@layer base {
+  html[data-look="navod"] {
+    -webkit-text-size-adjust: 100%;
+    body { font-family: var(--font-sans); font-size: 17px; line-height: 1.6; color: var(--body); background: var(--ground); -webkit-font-smoothing: antialiased; font-feature-settings: "ss01", "cv11"; }
+    summary::-webkit-details-marker { display: none; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+  }
+}
+
+@layer components {
+  html[data-look="navod"] {
+    .wrap { max-width: 1240px; margin-inline: auto; padding-inline: 20px; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 32px; } }
+    .label { font-family: var(--font-mono); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px; font-weight: 600; font-size: 16px; border-radius: 2px; transition: background-color .15s, color .15s, border-color .15s; cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-main { background: var(--ink); color: var(--sheet); }
+    .btn-main:hover { background: var(--brand); color: var(--brand-ink); }
+    .btn-line { border: 1px solid var(--ink); color: var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--sheet); }
+    .co { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); font-family: var(--font-mono); font-size: 11px; font-weight: 500; line-height: 1; flex: none; }
+    .co-pin { position: absolute; top: -9px; right: -9px; z-index: 2; box-shadow: 0 0 0 2px var(--sheet); }
+    .fig-frame { background: var(--sheet); border: 1px solid var(--ink); }
+    .hatch { background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--ink) 13%, transparent) 5px 6px); }
+    .link { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent); text-underline-offset: 4px; transition: text-decoration-color .15s, color .15s; }
+    .link:hover { text-decoration-color: var(--brand); color: var(--brand); }
+
+    /* The fields of the contact form (the sign-up field has its own, on the dark strip). */
+    .field-label { display: block; font-size: 14px; font-weight: 500; color: var(--ink); }
+    .field-control { display: block; width: 100%; margin-top: 0.375rem; height: 48px; padding: 0 12px; border: 1px solid color-mix(in srgb, var(--ink) 40%, transparent); background: var(--sheet); font-size: 16px; font-weight: 400; color: var(--ink); border-radius: 0; }
+    textarea.field-control { height: auto; padding-block: 10px; }
+    .field-control:focus { border-color: var(--ink); }
+    .field-control[aria-invalid="true"] { border-color: #a3261e; }
+    .field-error { margin-top: 0.35rem; font-size: 14px; line-height: 1.4; color: #a3261e; }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; color: var(--ink); margin-top: 2.4rem; }
+    .prose-look h3 { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.2; color: var(--ink); margin-top: 2rem; }
+    .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ink) 35%, transparent); text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--brand); }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--ink); }
+    .prose-look ul li { padding: 0.6rem 0; border-bottom: 1px solid var(--line); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-size: 20px; line-height: 1.5; color: var(--ink); margin-block: 1.6rem; padding-left: 1.2rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; border: 1px solid var(--ink); }
+    .prose-look strong { color: var(--ink); font-weight: 600; }
+  }
+}
+
+/* The audience and the testimonials are two blocks that read as one section: when they stand
+   one after the other, the first gives up its bottom padding and the second is ruled off at
+   the distance the design leaves. */
+@layer components {
+  html[data-look="navod"] {
+    .nv-audience-wrap, .nv-quotes-wrap { padding-block: 4rem; }
+    @media (min-width: 64rem) { .nv-audience-wrap, .nv-quotes-wrap { padding-block: 6rem; } }
+    .nv-audience:has(+ .nv-quotes) .nv-audience-wrap { padding-bottom: 0; }
+    .nv-audience + .nv-quotes .nv-quotes-wrap { padding-top: 3.5rem; }
+    @media (min-width: 64rem) { .nv-audience + .nv-quotes .nv-quotes-wrap { padding-top: 4rem; } }
+  }
+}
