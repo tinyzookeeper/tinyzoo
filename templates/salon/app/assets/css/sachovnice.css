@@ -1,0 +1,66 @@
+/* Šachovnice: the black-and-white tiled salon floor. The whole page in one loud colour with
+   very wide lowercase type, square tiles for everything, and the floor itself running in
+   perspective under the opening. Unbounded for the display lines, labels and prices, Urbanist
+   for the text. Written in the cascade layers the design was written in: utilities win over
+   these rules where both speak. */
+html[data-look="sachovnice"] {
+  --font-display: "Unbounded", sans-serif;
+  --font-sans: "Urbanist", sans-serif;
+  /* The colours of the first preset (Malina); a preset from the settings overrides them. */
+  --brand: #ff6a98;
+  --brand-ink: #141214;
+  --paper: #fff5ea;
+  --ink: #141214;
+  --soft: #5a5357;
+}
+
+@layer base {
+  html[data-look="sachovnice"] {
+    body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); font-weight: 500; -webkit-font-smoothing: antialiased; font-size: 17px; line-height: 1.5; }
+    h1, h2, h3 { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.02em; }
+    :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+    .on-ink :focus-visible { outline-color: var(--brand); }
+    ::selection { background: var(--ink); color: var(--paper); }
+  }
+}
+
+@layer components {
+  html[data-look="sachovnice"] {
+    .wrap { max-width: 1280px; margin-inline: auto; padding-inline: 20px; }
+    @media (min-width: 768px) { .wrap { padding-inline: 40px; } }
+    /* the salon floor: black and light tiles */
+    .checker { background: conic-gradient(var(--ink) 25%, var(--paper) 0 50%, var(--ink) 0 75%, var(--paper) 0) 0 0 / calc(var(--sq, 24px) * 2) calc(var(--sq, 24px) * 2); }
+    .floor-view { perspective: 420px; perspective-origin: 50% 0; overflow: hidden; }
+    .floor { --sq: 70px; height: 720px; margin-inline: -30vw; transform-origin: 50% 0; transform: rotateX(64deg); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 0 28px; font-family: var(--font-display); font-weight: 700; font-size: 15px; border: 2px solid var(--ink); transition: background-color .15s, color .15s; cursor: pointer; }
+    .btn-ink { background: var(--ink); color: var(--paper); }
+    .btn-ink:hover { background: var(--paper); color: var(--ink); }
+    .btn-ink[disabled] { opacity: .6; cursor: progress; }
+    .btn-paper { background: var(--paper); color: var(--ink); }
+    .btn-paper:hover { background: var(--ink); color: var(--paper); }
+    .tag { font-family: var(--font-display); font-weight: 500; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+    .field { width: 100%; min-height: 54px; padding: 0 16px; background: #fff; color: var(--ink); border: 2px solid var(--ink); border-radius: 0; font: 600 17px var(--font-sans); }
+    .field:focus { outline: 3px solid var(--brand); outline-offset: 0; }
+    .field[aria-invalid="true"] { outline: 3px solid var(--ink); outline-offset: 0; }
+    .field-error { margin-top: 6px; font-size: 15px; font-weight: 800; }
+    .brow { transition: background-color .12s; }
+    .brow:hover { background: var(--brand); color: var(--brand-ink); }
+    .q { display: inline-block; width: 8px; height: 8px; background: currentColor; margin-left: 2px; }
+    .q:nth-child(4n+1):not(:first-child) { margin-left: 6px; }
+    .q:first-child { margin-left: 0; }
+    .pair:hover img { transform: scale(1.04); }
+
+    /* the text page's body (the "Text" block) */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 1.7rem; line-height: 1.1; margin-top: 2.6rem; }
+    .prose-look h3 { font-size: 1.3rem; line-height: 1.2; margin-top: 2rem; }
+    .prose-look a { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+    .prose-look a:hover { background: var(--brand); color: var(--brand-ink); }
+    .prose-look ul { list-style: square; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; line-height: 1.3; margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; border: 2px solid var(--ink); margin-block: 1.8rem; }
+    .prose-look strong { font-weight: 800; }
+  }
+}
