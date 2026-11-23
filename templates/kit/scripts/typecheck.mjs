@@ -1,4 +1,5 @@
-// `typecheck`: the types of this site's own files, templates included (vue-tsc 3).
+// `typecheck` of a template (run in its folder: `node ../kit/scripts/typecheck.mjs`): the types
+// of the template's own files and the kit's, Vue templates included (vue-tsc 3).
 //
 // The block components take their props from the generated client (app/lib/cms-content.ts),
 // so renaming a field in cms.config.ts and running the `cms:client` script makes every template
@@ -19,8 +20,9 @@ if (prepared.status !== 0) {
   process.exit(prepared.status ?? 1)
 }
 
-// An error starts at the file name; its explanation continues on indented lines.
-const own = (file) => !file.startsWith('.') && !file.includes('node_modules') && !/^[a-zA-Z]:|^\//.test(file)
+// An error starts at the file name; its explanation continues on indented lines. The template
+// kit beside the template (../kit) is checked with it: its files are part of every template.
+const own = (file) => !file.includes('node_modules') && !/^[a-zA-Z]:|^\//.test(file) && (!file.startsWith('.') || file.startsWith('../kit/'))
 const findings = []
 for (const project of ['.nuxt/tsconfig.app.json', '.nuxt/tsconfig.server.json']) {
   const res = run('vue-tsc', ['--noEmit', '--pretty', 'false', '-p', project])

@@ -1,6 +1,6 @@
 // The home page is the page with the address "home", but the website shows it at /: that is
 // the address the sitemap lists (/home only redirects there).
-import { siteHref } from '../../app/utils/site'
+import { siteHref } from '../../app/utils/format'
 
 export default defineNitroPlugin((nitro) => {
   nitro.hooks.hook('cms:sitemap', (entries) => {

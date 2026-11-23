@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { emphasisParts, plainEmphasis, tidyText } from '../../templates/kit/app/utils/emphasis'
 import { defineSingleton, f } from 'tinyzoo'
 import { defineLooks, presetStyle, presetSwatch } from '../../templates/kit/looks'
-import { byLength, formatDate, formatPrice, mixAlbumPhotos, paragraphs, shapeOf, siteHref, socialHandle, telHref, tileCategories, frameCode } from '../../templates/photographer/app/utils/site'
+import { byLength, dateParts, formatDate, formatPrice, paragraphs, siteHref, socialHandle, telHref, timeAttr } from '../../templates/kit/app/utils/format'
+import { mixAlbumPhotos, shapeOf, tileCategories, frameCode } from '../../templates/photographer/app/utils/site'
 import type { Album } from '../../templates/photographer/app/lib/cms-content'
 
 // What the hosted templates share (templates/kit), and the Photographer template's own helpers.
@@ -133,6 +134,15 @@ describe('the Photographer template\'s helpers', () => {
     expect(socialHandle('https://www.instagram.com')).toBe('Instagram')
     expect(siteHref('/home')).toBe('/')
     expect(siteHref('/cenik')).toBe('/cenik')
+    expect(siteHref('/home#program')).toBe('/#program')
+    expect(siteHref('/homestead')).toBe('/homestead')
+    expect(siteHref('/#ucast')).toBe('/#ucast')
+    expect(dateParts('2027-06-19T10:30:00Z')).toMatchObject({ weekday: 'sobota', day: '19', month: 'června', year: '2027', time: '12.30', date: '19. června 2027', iso: '2027-06-19T12:30' })
+    expect(dateParts('2027-04-29T22:00:00Z')).toMatchObject({ weekday: 'pátek', date: '30. dubna 2027', time: '', iso: '2027-04-30' })
+    expect(dateParts('')).toBeNull()
+    expect(timeAttr('11.30')).toBe('11:30')
+    expect(timeAttr('2.00')).toBe('02:00')
+    expect(timeAttr('po půlnoci')).toBe('')
     expect(paragraphs('Jedna.\n\nDva.\n \nTři.')).toEqual(['Jedna.', 'Dva.', 'Tři.'])
   })
 

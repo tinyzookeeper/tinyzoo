@@ -1,7 +1,12 @@
-// The website's own words (what is not content: "Menu", "All", the errors) and the small
-// helpers every look uses. The content is in the CMS; Nuxt auto-imports what is exported here.
-// (a relative address, not `~/…`: the unit specs load this file outside Nuxt, where the alias means nothing)
+// The website's own words (what is not content: "Menu", "All", the errors) and the helpers of
+// the gallery. The content is in the CMS; Nuxt auto-imports what is exported here. (Addresses,
+// prices and dates are the template kit's: templates/kit/app/utils/format.ts.)
+// (relative addresses, not `~/…`: the unit specs load this file outside Nuxt, where the alias means nothing)
+import type { EntryPage } from '../../../kit/app/utils/blocks'
 import type { Album, Page } from '../lib/cms-content'
+
+/** A page's block of one type, typed from the generated client. */
+export type BlockOf<T extends Page['sections'][number]['type']> = Extract<Page['sections'][number], { type: T }>
 
 export const DEFAULT_LANGUAGE = 'cs'
 
@@ -72,6 +77,12 @@ export const WORDS: Record<string, Words> = {
 
 export const wordsOf = (code: string): Words => WORDS[code] ?? WORDS[DEFAULT_LANGUAGE]!
 
+/** The addresses that lead to an entry instead of a page from blocks: a category of the gallery, an album. */
+export const ENTRY_PAGES: EntryPage[] = [
+  { kind: 'category', prefix: 'galerie', entity: 'category', part: 'Albums', titleField: 'name', descriptionField: 'description' },
+  { kind: 'album', prefix: 'album', entity: 'album', part: 'Album', descriptionField: 'summary', imageField: 'cover' },
+]
+
 /**
  * The looks that lay their headline over the opening's photograph: they take the block's
  * photograph for dark looks when it has one.
@@ -82,46 +93,6 @@ const DARK_OPENINGS: readonly string[] = ['negativ']
 export function openingPhoto(block: BlockOf<'hero'>, look: string) {
   return (DARK_OPENINGS.includes(look) ? block.darkImage : null) ?? block.images[0]?.image ?? null
 }
-
-/** An address from the content API as the website writes it: the home page (address `home`) is `/`. */
-export function siteHref(path: string | null | undefined): string {
-  if (!path) return '/'
-  return path.replace(/^\/home\/?$/, '') || '/'
-}
-
-/** Whether a link leaves the website (opens in a new tab). */
-export const isExternal = (url: string | null | undefined): boolean => /^https?:\/\//i.test(url ?? '')
-
-/** 19900 → "19 900" with a non-breaking space, the Czech way. */
-export const formatPrice = (n: number | string | null | undefined): string => new Intl.NumberFormat('cs-CZ').format(Number(n ?? 0)).replace(/\s/g, ' ')
-
-/** "+420 731 482 906" → "tel:+420731482906" */
-export const telHref = (phone: string): string => `tel:${phone.replace(/[^\d+]/g, '')}`
-
-/** "https://www.instagram.com/johana.loudova/" → "@johana.loudova" */
-export function socialHandle(url: string | null | undefined): string {
-  const last = (url ?? '').replace(/[?#].*$/, '').split('/').filter(Boolean).pop() ?? ''
-  return last && !last.includes('.com') ? `@${last.replace(/^@/, '')}` : 'Instagram'
-}
-
-/** A text's paragraphs: an empty line starts a new one. */
-export const paragraphs = (text: string | null | undefined): string[] => (text ?? '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
-
-/** A date as Czech writes it: "22. srpna 2026" (`short`: "8/2026"). */
-export function formatDate(iso: string | null | undefined, style: 'long' | 'short' = 'long'): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  // (all-day dates are stored at 0:00 in the admin's time zone, Europe/Prague)
-  const parts = new Intl.DateTimeFormat('cs-CZ', { timeZone: 'Europe/Prague', day: 'numeric', month: style === 'long' ? 'long' : 'numeric', year: 'numeric' }).formatToParts(d)
-  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? ''
-  return style === 'long' ? `${get('day')}. ${get('month')} ${get('year')}` : `${get('month')}/${get('year')}`
-}
-
-// ── photographs of the gallery ──
-
-/** A page's block of one type, typed from the generated client. */
-export type BlockOf<T extends Page['sections'][number]['type']> = Extract<Page['sections'][number], { type: T }>
 
 /** One picture of the gallery: a photograph of an album, with what a look writes under it. */
 export interface GalleryTile {
@@ -206,14 +177,3 @@ export const albumHref = (album: { slug: string }): string => `/album/${album.sl
 export const categoryHref = (category: { slug: string }): string => `/galerie/${category.slug}`
 /** Where all albums are: the page with the "All albums" block, and the categories under it. */
 export const GALLERY_PATH = '/galerie'
-
-/**
- * A class by the length of a text, for type so large that a long heading needs a smaller size:
- * `byLength(heading, [[12, 'text-[12vw]'], [30, 'text-[8vw]']], 'text-[6vw]')` gives the first
- * class whose limit the text fits, else the last one.
- */
-export function byLength(text: string | null | undefined, steps: Array<[max: number, cls: string]>, otherwise: string): string {
-  // (without the asterisks of a marked part)
-  const n = (text ?? '').replace(/\*/g, '').trim().length
-  return steps.find(([max]) => n <= max)?.[1] ?? otherwise
-}

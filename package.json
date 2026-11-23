@@ -13,7 +13,7 @@
     "test:unit": "vitest run --project unit",
     "test:api": "vitest run --project api",
     "test:watch": "vitest --project unit",
-    "typecheck": "tsc -p tsconfig.json && pnpm docs:check && pnpm --filter playground --filter tinyzoo-starter --filter tinyzoo-web --filter tinyzoo-keeper --filter tinyzoo-cloud --filter tinyzoo-template-photographer --workspace-concurrency=4 typecheck",
+    "typecheck": "tsc -p tsconfig.json && pnpm docs:check && pnpm --filter playground --filter tinyzoo-starter --filter tinyzoo-web --filter tinyzoo-keeper --filter tinyzoo-cloud --filter \"tinyzoo-template-*\" --workspace-concurrency=4 typecheck",
     "build": "node scripts/build-check.mjs",
     "check": "pnpm typecheck && pnpm test",
     "check:consumer": "node scripts/consumer-check.mjs",
