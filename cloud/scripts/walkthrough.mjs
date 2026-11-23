@@ -77,7 +77,7 @@ mkdirSync(looksDir, { recursive: true })
 // `suggested` is the address the wizard offers for the name: typed over only when this run
 // needs another (against a running app an earlier run may hold it).
 const people = {
-  desktop: { name: 'Johana Loudová', email: 'johana@example.com', password: 'fotim-od-roku-2014', site: 'Johana Loudová', slug: 'johana-loudova', suggested: 'johana-loudova', look: 'negativ', nextLook: 'zapisnik', nextColors: 'jedle', adminPassword: 'administrace-johana-1', heading: 'Fotím lidi *tak, jak jsou.*', headingSays: 'Fotím lidi' },
+  desktop: { name: 'Johana Loudová', email: 'johana@example.com', password: 'fotim-od-roku-2014', site: 'Johana Loudová', slug: 'johana-loudova', suggested: 'johana-loudova', look: 'negativ', nextLook: 'zapisnik', adminPassword: 'administrace-johana-1', heading: 'Fotím lidi *tak, jak jsou.*', headingSays: 'Fotím lidi' },
   phone: { name: 'Tereza Malá', email: 'tereza@example.com', password: 'tereza-foti-rada-1', site: 'Tereza Malá', slug: 'tereza-mala', suggested: 'tereza-mala', look: 'zapisnik' },
   // (three sites, one in each look: the screenshots of the looks come from them)
   screens: { name: 'Eva Králová', email: 'eva@example.com', password: 'fotky-od-evy-12', site: 'Johana Loudová', slug: 'foto' },
@@ -96,8 +96,6 @@ const filmed = []
 
 // The admin's own words for its buttons, by their keys (packages/cms/app/i18n/cs.ts).
 const admin = (await import(join(repoRoot, 'packages/cms/app/i18n/cs.ts'))).default
-// The Photographer template's colours, in the order its settings list them (templates/photographer/looks.ts).
-const { looks: photographerLooks } = await import(join(repoRoot, 'templates/photographer/looks.ts'))
 
 /** Wait until a page of the admin has loaded what it shows (not forever: the editor's live preview may go on loading pictures). */
 const quiet = (page) => page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {})
@@ -342,12 +340,6 @@ async function desktopTake() {
   await arrive()
   await h.read(1500)
   await h.click(page.locator(`button[role=radio][value=${who.nextLook}]`))
-  await h.read(800)
-  // … and that look's other colours: the list holds every look's, in the template's order.
-  await h.click(page.locator('#cms-field-colors'))
-  await page.waitForSelector('[role=option]')
-  await h.read(800)
-  await h.click(page.getByRole('option').nth(photographerLooks.presetIds.indexOf(who.nextColors)))
   await h.read(900)
   await h.click(page.getByRole('button', { name: admin.common.save, exact: true }).first())
   await h.read(2000)
@@ -358,8 +350,8 @@ async function desktopTake() {
   await arrive()
   const shown = await page.locator('h1').first().innerText()
   if (!shown.includes(who.headingSays)) throw new Error(`the site still says "${shown}"`)
-  const look = await page.evaluate(() => `${document.documentElement.dataset.look}/${document.documentElement.dataset.colors}`)
-  if (look !== `${who.nextLook}/${who.nextColors}`) throw new Error(`the site is still drawn as ${look}`)
+  const look = await page.evaluate(() => document.documentElement.dataset.look)
+  if (look !== who.nextLook) throw new Error(`the site is still drawn as ${look}`)
   await h.rest(700, 560)
   await h.read(2800)
   await h.scroll(900, { ms: 1500 })
@@ -390,17 +382,17 @@ async function phoneTake() {
   const { reel, h } = await roll(setup, take, file)
   const arrive = async () => { await page.waitForLoadState('domcontentloaded').catch(() => {}); await h.settle(); await quiet(page); await h.settle() }
 
-  await h.read(2000)
-  await h.scroll(520, { ms: 1200 })
-  await h.read(1600)
-  await h.scroll(-520, { ms: 900 })
+  await h.read(1800)
+  await h.scroll(520, { ms: 1100 })
+  await h.read(1300)
+  await h.scroll(-520, { ms: 800 })
   await h.click(page.locator('[data-cta]'))
   await page.waitForSelector('[data-wizard=ready]')
   // The gallery: a few cards pass, then Photographer, by one of its looks.
-  await h.read(1200)
-  await h.scroll(1500, { ms: 2600 })
-  await h.read(800)
-  await h.scroll(-1500, { ms: 1200 })
+  await h.read(1000)
+  await h.scroll(1900, { ms: 2600 })
+  await h.read(600)
+  await h.scroll(-1900, { ms: 1100 })
   await h.click(page.locator(`[data-template=photographer] [data-look-thumb=${who.look}]`))
   await h.read(900)
   await h.click(page.locator('[data-next]').first())
@@ -430,19 +422,16 @@ async function phoneTake() {
   await h.rest(330, 760)
   await page.waitForSelector('[data-site-name]')
   await page.waitForSelector('[data-site-preview] iframe.is-loaded').catch(() => {})
-  await h.read(2400)
-  await h.scroll(420, { ms: 1100 })
-  await h.read(1300)
-  await h.scroll(-420, { ms: 900 })
+  await h.read(2200)
   await h.click(page.locator('[data-open-site]'), { after: 100 })
   await arrive()
-  await h.read(2200)
+  await h.read(2000)
   for (const by of [820, 1100, 1300]) {
-    await h.scroll(by, { ms: 1500 })
-    await h.read(1400)
+    await h.scroll(by, { ms: 1400 })
+    await h.read(1200)
   }
-  await h.scroll(-3220, { ms: 1400 })
-  await h.read(1500)
+  await h.scroll(-3220, { ms: 1300 })
+  await h.read(1400)
 
   await finish(reel, take, file)
   if (setup.problems.length) log(`  page errors: ${[...new Set(setup.problems)].join(' | ')}`)

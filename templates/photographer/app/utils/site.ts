@@ -1,6 +1,7 @@
 // The website's own words (what is not content: "Menu", "All", the errors) and the small
 // helpers every look uses. The content is in the CMS; Nuxt auto-imports what is exported here.
-import type { Album, Page } from '~/lib/cms-content'
+// (a relative address, not `~/…`: the unit specs load this file outside Nuxt, where the alias means nothing)
+import type { Album, Page } from '../lib/cms-content'
 
 export const DEFAULT_LANGUAGE = 'cs'
 
