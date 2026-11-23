@@ -257,7 +257,7 @@ export default defineSeed(async (s) => {
     availability: 'Na rok 2027 mám volné termíny v květnu, červnu a září.',
     phone: '731 482 906',
     // (addresses that lead nowhere: the demo's contacts are not anybody's)
-    email: 'johana@johanaloudova.example',
+    email: 'johana@loudova.example',
     address: 'Toulovcovo náměstí 14, Litomyšl',
     addressNote: 'po předchozí domluvě',
     instagram: 'https://instagram.example/johana.loudova',

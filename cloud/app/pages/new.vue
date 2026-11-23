@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { SlugCheck } from '#shared/api'
 import { SLUG_MAX, slugProblem, suggestSlug, tidySlugInput } from '#shared/slug'
-import { FIELDS, fieldsOf, templateById, visibleTemplates, type FieldId } from '#shared/templates'
+import { FIELDS, fieldsOf, hasLookChoice, lookOf, templateById, visibleTemplates, type FieldId } from '#shared/templates'
 
-// Create a website: a template, the site's name and address, and (signed out) an account.
-// One route, three steps; what was typed survives a reload (kept in this browser, never the password).
+// Create a website: a template, its look (when the template has several), the site's name and
+// address, and (signed out) an account. One route, up to four steps; what was typed survives a
+// reload (kept in this browser, never the password).
 const t = useT()
 const l = useL()
 const errorText = useErrorText()
@@ -17,29 +18,42 @@ const showPlanned = String(config.public.showPlanned) === 'true'
 const templates = visibleTemplates(showPlanned)
 const fields = fieldsOf(templates)
 
-interface Draft { step: number; template: string; name: string; slug: string; slugTouched: boolean; personName: string; email: string }
+type StepId = 'template' | 'look' | 'site' | 'account'
+interface Draft { at: StepId; template: string; look: string; name: string; slug: string; slugTouched: boolean; personName: string; email: string }
 const KEY = 'tz-cloud-new'
-const draft = reactive<Draft>({ step: 1, template: templates.find((x) => x.ready)?.id ?? '', name: '', slug: '', slugTouched: false, personName: '', email: '' })
+const firstReady = templates.find((x) => x.ready) ?? null
+const draft = reactive<Draft>({ at: 'template', template: firstReady?.id ?? '', look: lookOf(firstReady, null)?.id ?? '', name: '', slug: '', slugTouched: false, personName: '', email: '' })
 const password = ref('')
 const restored = ref(false)
+const chosen = computed(() => templateById(draft.template))
+const chosenLook = computed(() => lookOf(chosen.value, draft.look))
+
+// The steps this run has: the look only for a template that has a choice of them, the account
+// only for someone who is not signed in.
+const stepIds = computed<StepId[]>(() => ['template', ...(hasLookChoice(chosen.value) ? ['look' as const] : []), 'site', ...(signedIn.value ? [] : ['account' as const])])
+const stepNumber = computed(() => Math.max(1, stepIds.value.indexOf(draft.at) + 1))
+const isLast = computed(() => stepNumber.value === stepIds.value.length)
+// Another template has other looks: start from its default one.
+watch(() => draft.template, () => { draft.look = lookOf(chosen.value, draft.look)?.id ?? '' })
 
 onMounted(() => {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Partial<Draft> | null
     if (saved && typeof saved === 'object') {
       if (typeof saved.template === 'string' && templateById(saved.template)?.ready) draft.template = saved.template
+      draft.look = lookOf(templateById(draft.template), typeof saved.look === 'string' ? saved.look : null)?.id ?? ''
       if (typeof saved.name === 'string') draft.name = saved.name.slice(0, 80)
       if (typeof saved.slug === 'string') draft.slug = tidySlugInput(saved.slug)
       draft.slugTouched = saved.slugTouched === true
       if (typeof saved.personName === 'string') draft.personName = saved.personName.slice(0, 100)
       if (typeof saved.email === 'string') draft.email = saved.email.slice(0, 254)
-      if (Number.isInteger(saved.step)) draft.step = Math.min(Math.max(saved.step!, 1), stepCount.value)
+      if (typeof saved.at === 'string' && (stepIds.value as string[]).includes(saved.at)) draft.at = saved.at as StepId
     }
   }
   catch { /* nothing kept */ }
   // Never land on a step whose earlier answers are missing.
-  if (draft.step > 1 && !draft.template) draft.step = 1
-  if (draft.step > 2 && (!draft.name.trim() || slugProblem(draft.slug))) draft.step = 2
+  if (draft.at !== 'template' && !draft.template) draft.at = 'template'
+  if (draft.at === 'account' && (!draft.name.trim() || slugProblem(draft.slug))) draft.at = 'site'
   restored.value = true
   if (draft.slug) void check()
 })
@@ -48,15 +62,14 @@ watch(draft, () => {
   try { localStorage.setItem(KEY, JSON.stringify(draft)) } catch { /* private mode */ }
 }, { deep: true })
 
-const stepLabels = computed(() => [t('new.stepTemplate'), t('new.stepSite'), ...(signedIn.value ? [] : [t('new.stepAccount')])])
-const stepCount = computed(() => stepLabels.value.length)
+const STEP_LABEL = { template: 'new.stepTemplate', look: 'new.stepLook', site: 'new.stepSite', account: 'new.stepAccount' } as const
+const stepLabels = computed(() => stepIds.value.map((id) => t(STEP_LABEL[id])))
 const atLimit = computed(() => signedIn.value && account.value.sites.used >= account.value.sites.max)
 
 // ── step 1: the template ──
 const field = ref<FieldId | 'all'>('all')
 const pills = computed(() => [{ id: 'all' as const, label: t('new.allFields') }, ...fields.map((id) => ({ id, label: l(FIELDS[id]) }))])
 const shown = computed(() => templates.filter((x) => field.value === 'all' || x.field === field.value))
-const chosen = computed(() => templateById(draft.template))
 
 // ── step 2: the name and the address ──
 const slugState = ref<'idle' | 'checking' | 'ok' | 'bad'>('idle')
@@ -120,15 +133,21 @@ const error = ref('')
 const emailTaken = ref(false)
 const accountOk = computed(() => draft.personName.trim().length > 0 && /.+@.+\..+/.test(draft.email) && password.value.length >= 10)
 
-function go(step: number) {
+function go(to: StepId) {
   error.value = ''
-  draft.step = step
+  draft.at = to
   if (import.meta.client) window.scrollTo({ top: 0, behavior: 'smooth' })
 }
+/** The step marks count from 1; a step behind is clickable. */
+const goNumber = (n: number) => { const id = stepIds.value[n - 1]; if (id) go(id) }
+const back = () => goNumber(stepNumber.value - 1)
 function next() {
-  if (draft.step === 1 && chosen.value?.ready) return go(2)
-  if (draft.step === 2 && siteStepOk.value) return signedIn.value ? create() : go(3)
-  if (draft.step === 3 && accountOk.value) return create()
+  const after = stepIds.value[stepNumber.value]
+  if (draft.at === 'template' && !chosen.value?.ready) return
+  if (draft.at === 'look' && !chosenLook.value) return
+  if (draft.at === 'site' && !siteStepOk.value) return
+  if (draft.at === 'account' && !accountOk.value) return
+  return after ? go(after) : create()
 }
 
 async function create() {
@@ -147,7 +166,7 @@ async function create() {
       }
       await refresh()
     }
-    const { site } = await $fetch<{ site: { id: string } }>('/api/sites', { method: 'POST', body: { name: draft.name.trim(), slug: draft.slug, template: draft.template } })
+    const { site } = await $fetch<{ site: { id: string } }>('/api/sites', { method: 'POST', body: { name: draft.name.trim(), slug: draft.slug, template: draft.template, look: chosenLook.value?.id ?? null } })
     try { localStorage.removeItem(KEY) } catch { /* nothing kept */ }
     restored.value = false
     await refresh()
@@ -156,7 +175,7 @@ async function create() {
   catch (err: any) {
     error.value = errorText(err, 'new.failed')
     // The address was taken meanwhile: back to the step where it is chosen.
-    if (String(err?.data?.data?.code ?? '').startsWith('slug.')) { draft.step = 2; void check() }
+    if (String(err?.data?.data?.code ?? '').startsWith('slug.')) { draft.at = 'site'; void check() }
   }
   finally {
     busy.value = false
@@ -164,9 +183,9 @@ async function create() {
 }
 
 const peekers = computed(() => [
-  { animal: chosen.value?.animal ?? 'elephant', up: true, busy: draft.step === 2 },
+  { animal: chosen.value?.animal ?? 'elephant', up: true, busy: draft.at === 'site' },
   { animal: 'chick', up: draft.name.trim().length > 0 },
-  { animal: 'panda', up: draft.step === 3 || (signedIn.value && siteStepOk.value) },
+  { animal: 'panda', up: draft.at === 'account' || (signedIn.value && siteStepOk.value) },
 ])
 </script>
 
@@ -180,11 +199,11 @@ const peekers = computed(() => [
     <template v-else>
       <header class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <h1 class="z-display text-[1.75rem] leading-tight text-highlighted sm:text-4xl">{{ t('new.title') }}</h1>
-        <WizardSteps :steps="stepLabels" :current="draft.step" @go="go" />
+        <WizardSteps :steps="stepLabels" :current="stepNumber" @go="goNumber" />
       </header>
 
       <!-- 1 · Template -->
-      <section v-if="draft.step === 1" class="mt-8" data-step="template">
+      <section v-if="draft.at === 'template'" class="mt-8" data-step="template">
         <p class="max-w-2xl text-[0.9375rem] leading-relaxed text-pretty text-muted">{{ t('new.templateLead') }}</p>
 
         <template v-if="pills.length > 2">
@@ -211,10 +230,26 @@ const peekers = computed(() => [
         </div>
       </section>
 
-      <!-- 2 · Your site, 3 · Your account: the form on the left, the site taking shape on the right. -->
+      <!-- 2 · Look (only for a template with several): its looks side by side, as tall pictures. -->
+      <section v-else-if="draft.at === 'look' && chosen" class="mt-8" data-step="look">
+        <h2 class="z-title text-xl text-highlighted">{{ t('new.lookTitle') }}</h2>
+        <p class="mt-1 max-w-2xl text-[0.9375rem] leading-relaxed text-pretty text-muted">{{ t('new.lookLead', { template: l(chosen.name) }) }}</p>
+
+        <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5" role="radiogroup" :aria-label="t('new.stepLook')">
+          <LookCard v-for="(x, i) in chosen.looks" :key="x.id" :look="x" :selected="draft.look === x.id" :is-default="i === 0" @pick="draft.look = $event" />
+        </div>
+
+        <div class="sticky bottom-0 z-10 -mx-4 mt-8 flex items-center gap-3 border-t border-default bg-(--ui-bg)/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+          <UButton :label="t('new.back')" color="neutral" variant="ghost" size="lg" icon="i-lucide-arrow-left" @click="back" />
+          <p class="ml-auto min-w-0 truncate text-sm text-muted"><template v-if="chosenLook"><span class="hidden sm:inline">{{ t('new.picked') }} </span><span class="font-medium text-highlighted" data-picked-look>{{ l(chosenLook.name) }}</span></template></p>
+          <UButton :label="t('new.continue')" size="lg" trailing-icon="i-lucide-arrow-right" :disabled="!chosenLook" data-next @click="next" />
+        </div>
+      </section>
+
+      <!-- Your site, Your account: the form on the left, the site taking shape on the right. -->
       <section v-else class="mt-8 grid grid-cols-[minmax(0,1fr)] items-start gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] lg:gap-14">
         <form class="flex max-w-lg flex-col gap-6" novalidate @submit.prevent="next">
-          <template v-if="draft.step === 2">
+          <template v-if="draft.at === 'site'">
             <div data-step="site">
               <h2 class="z-title text-xl text-highlighted">{{ t('new.siteTitle') }}</h2>
               <p class="mt-1 text-[0.9375rem] text-pretty text-muted">{{ t('new.siteLead') }}</p>
@@ -261,15 +296,15 @@ const peekers = computed(() => [
           <UAlert v-if="error" color="error" variant="soft" icon="i-lucide-circle-alert" :description="error" :actions="emailTaken ? [{ label: t('nav.signIn'), to: '/login?next=/new', color: 'neutral', variant: 'outline' }] : undefined" />
 
           <div class="flex items-center gap-3">
-            <UButton :label="t('new.back')" color="neutral" variant="ghost" size="lg" icon="i-lucide-arrow-left" @click="go(draft.step - 1)" />
+            <UButton :label="t('new.back')" color="neutral" variant="ghost" size="lg" icon="i-lucide-arrow-left" @click="back" />
             <UButton
               type="submit" size="lg" class="ml-auto px-5" :loading="busy" data-next
-              :label="draft.step === stepCount ? t('new.create') : t('new.continue')"
-              :trailing-icon="draft.step === stepCount ? 'i-lucide-sparkles' : 'i-lucide-arrow-right'"
-              :disabled="draft.step === 2 ? !siteStepOk : !accountOk"
+              :label="isLast ? t('new.create') : t('new.continue')"
+              :trailing-icon="isLast ? 'i-lucide-sparkles' : 'i-lucide-arrow-right'"
+              :disabled="draft.at === 'site' ? !siteStepOk : !accountOk"
             />
           </div>
-          <p v-if="draft.step === stepCount" class="-mt-2 text-sm text-dimmed">{{ t('new.createNote') }}</p>
+          <p v-if="isLast" class="-mt-2 text-sm text-dimmed">{{ t('new.createNote') }}</p>
         </form>
 
         <!-- The site taking shape: its name in the header, its address in the bar. -->
@@ -278,6 +313,10 @@ const peekers = computed(() => [
           <dl class="mt-6 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-sm">
             <dt class="z-moment-text">{{ t('new.stepTemplate') }}</dt>
             <dd class="truncate text-right font-medium text-highlighted">{{ chosen ? l(chosen.name) : '—' }}</dd>
+            <template v-if="chosenLook">
+              <dt class="z-moment-text">{{ t('new.stepLook') }}</dt>
+              <dd class="truncate text-right font-medium text-highlighted">{{ l(chosenLook.name) }}</dd>
+            </template>
             <dt class="z-moment-text">{{ t('new.address') }}</dt>
             <dd class="truncate text-right font-mono text-[0.8125rem] text-highlighted">{{ address }}</dd>
           </dl>

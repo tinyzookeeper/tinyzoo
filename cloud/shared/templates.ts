@@ -1,8 +1,14 @@
-// The templates a website can start from. One really exists today: `basic`, built from
-// packages/cms/starter. The other twenty are planned: they are listed here so the gallery,
-// its filter and its texts are ready, and they show only with NUXT_PUBLIC_SHOW_PLANNED=true,
-// marked as not available and not selectable. A customer never sees them without the flag,
-// and the server refuses to make a site from one (`ready: false`) whatever the flag says.
+// The templates a website can start from. Two really exist today: `basic`, built from
+// packages/cms/starter, and `photographer`, from templates/photographer. The other nineteen
+// are planned: they are listed here so the gallery, its filter and its texts are ready, and
+// they show only with NUXT_PUBLIC_SHOW_PLANNED=true, marked as not available and not
+// selectable. A customer never sees them without the flag, and the server refuses to make a
+// site from one (`ready: false`) whatever the flag says.
+//
+// A template may come in several looks: one content model and one build, drawn in different
+// designs. The person picks one when making the site; it is written into the site's settings
+// (the fields `look` and `colors`), where its owner can change it later. The ids here are the ones the
+// template itself lists (templates/<id>/looks.ts): a unit spec keeps the two equal.
 
 export type Locale = 'cs' | 'en'
 export type L = Record<Locale, string>
@@ -19,6 +25,19 @@ export const FIELDS: Record<FieldId, L> = {
   community: { cs: 'Sport a komunita', en: 'Sport and community' },
   property: { cs: 'Reality a stavby', en: 'Property and building' },
   business: { cs: 'Obchod a produkty', en: 'Shops and products' },
+}
+
+/** One design of a template. */
+export interface LookDef {
+  /** As the template's own looks.ts names it: what is written into the site's settings. */
+  id: string
+  name: L
+  /** One sentence: what the look is like. */
+  description: L
+  /** A picture of the finished website in this look (under /public). */
+  preview: string
+  /** The look's default colours, as the template names them: written into the settings beside the look. */
+  colors: string
 }
 
 export interface TemplateDef {
@@ -39,10 +58,12 @@ export interface TemplateDef {
   animal: string
   /** A picture of the finished website (under /public), when there is one. */
   preview: string | null
+  /** Its looks, the default first. Empty for a template with one design. */
+  looks: LookDef[]
 }
 
 const planned = (id: string, field: FieldId, animal: string, name: L, description: L, features: L[]): TemplateDef =>
-  ({ id, ready: false, field, name, description, features, sourceDir: null, seed: false, animal, preview: null })
+  ({ id, ready: false, field, name, description, features, sourceDir: null, seed: false, animal, preview: null, looks: [] })
 
 export const TEMPLATES: TemplateDef[] = [
   {
@@ -64,15 +85,52 @@ export const TEMPLATES: TemplateDef[] = [
     seed: true,
     animal: 'elephant',
     preview: '/templates/basic.jpg',
+    looks: [],
   },
   planned('individual', 'personal', 'fox',
     { cs: 'Živnostník a konzultant', en: 'Freelancer and consultant' },
     { cs: 'Kdo jste, co nabízíte a jak si s vámi domluvit schůzku.', en: 'Who you are, what you offer and how to arrange a meeting.' },
     [{ cs: 'Služby a ceník', en: 'Services and prices' }, { cs: 'Reference', en: 'References' }, { cs: 'Domluvení schůzky', en: 'Arranging a meeting' }]),
-  planned('photographer', 'personal', 'owl',
-    { cs: 'Fotograf', en: 'Photographer' },
-    { cs: 'Galerie zakázek, balíčky focení a poptávka termínu.', en: 'Galleries of your work, shooting packages and a date request.' },
-    [{ cs: 'Galerie', en: 'Galleries' }, { cs: 'Balíčky a ceny', en: 'Packages and prices' }, { cs: 'Poptávka termínu', en: 'Date request' }]),
+  {
+    id: 'photographer',
+    ready: true,
+    field: 'personal',
+    name: { cs: 'Fotograf', en: 'Photographer' },
+    description: { cs: 'Galerie zakázek, balíčky focení a poptávka termínu.', en: 'Galleries of your work, shooting packages and a date request.' },
+    features: [
+      { cs: 'Galerie', en: 'Galleries' },
+      { cs: 'Balíčky a ceny', en: 'Packages and prices' },
+      { cs: 'Poptávka termínu', en: 'Date request' },
+      { cs: 'Tři vzhledy', en: 'Three looks' },
+    ],
+    sourceDir: 'templates/photographer',
+    seed: true,
+    animal: 'owl',
+    preview: '/templates/photographer.jpg',
+    looks: [
+      {
+        id: 'atelier',
+        name: { cs: 'Ateliér', en: 'Atelier' },
+        description: { cs: 'Klidná galerijní stěna: bílý papír, jemné linky a tenké patkové písmo.', en: 'A quiet gallery wall: white paper, fine lines and a thin serif.' },
+        preview: '/templates/photographer/atelier.jpg',
+        colors: 'bronz',
+      },
+      {
+        id: 'negativ',
+        name: { cs: 'Negativ', en: 'Negative' },
+        description: { cs: 'Tmavý a výrazný: fotky od kraje ke kraji a velké titulky.', en: 'Dark and striking: photographs from edge to edge and large headlines.' },
+        preview: '/templates/photographer/negativ.jpg',
+        colors: 'mosaz',
+      },
+      {
+        id: 'zapisnik',
+        name: { cs: 'Zápisník', en: 'Notebook' },
+        description: { cs: 'Osobní album: fotky s bílým okrajem a ručně psané poznámky.', en: 'A personal album: prints with white borders and handwritten notes.' },
+        preview: '/templates/photographer/zapisnik.jpg',
+        colors: 'inkoust',
+      },
+    ],
+  },
   planned('wedding', 'personal', 'butterfly',
     { cs: 'Svatba', en: 'Wedding' },
     { cs: 'Web pro svatební hosty: program dne, místo, ubytování a potvrzení účasti.', en: 'A site for wedding guests: the programme of the day, the venue, places to stay and RSVP.' },
@@ -150,6 +208,15 @@ export const TEMPLATES: TemplateDef[] = [
 export function templateById(id: string | null | undefined): TemplateDef | null {
   return TEMPLATES.find((t) => t.id === id) ?? null
 }
+
+/** A template's look by its id; the default (first) one when the id is unknown or missing. Null for a template without looks. */
+export function lookOf(template: TemplateDef | null | undefined, id: string | null | undefined): LookDef | null {
+  if (!template?.looks.length) return null
+  return template.looks.find((l) => l.id === id) ?? template.looks[0]!
+}
+
+/** Whether a person chooses a look for this template: only when there is more than one. */
+export const hasLookChoice = (template: TemplateDef | null | undefined): boolean => (template?.looks.length ?? 0) > 1
 
 /** What the gallery shows: the ready templates, and the planned ones only when asked for. */
 export function visibleTemplates(showPlanned: boolean): TemplateDef[] {

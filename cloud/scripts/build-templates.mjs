@@ -9,7 +9,17 @@ import { fileURLToPath } from 'node:url'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 // The ready templates of shared/templates.ts: [id, workspace package, source folder].
-const templates = [['basic', 'tinyzoo-starter', 'packages/cms/starter']]
+const all = [
+  ['basic', 'tinyzoo-starter', 'packages/cms/starter'],
+  ['photographer', 'tinyzoo-template-photographer', 'templates/photographer'],
+]
+// `templates:build photographer` builds only the ones named.
+const only = process.argv.slice(2)
+const templates = only.length ? all.filter(([id]) => only.includes(id)) : all
+if (!templates.length) {
+  console.error(`No such template: ${only.join(', ')} (there are: ${all.map(([id]) => id).join(', ')})`)
+  process.exit(2)
+}
 
 for (const [id, pkg, dir] of templates) {
   console.log(`\n▸ ${id}: pnpm --filter ${pkg} build`)

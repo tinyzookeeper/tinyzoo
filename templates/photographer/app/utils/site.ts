@@ -199,6 +199,7 @@ export const GALLERY_PATH = '/galerie'
  * class whose limit the text fits, else the last one.
  */
 export function byLength(text: string | null | undefined, steps: Array<[max: number, cls: string]>, otherwise: string): string {
-  const n = plainEmphasis(text).trim().length
+  // (without the asterisks of a marked part)
+  const n = (text ?? '').replace(/\*/g, '').trim().length
   return steps.find(([max]) => n <= max)?.[1] ?? otherwise
 }

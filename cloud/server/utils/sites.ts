@@ -61,6 +61,7 @@ export function toSiteView(row: SiteRow): SiteView {
     name: row.name,
     slug: row.slug,
     template: row.template,
+    look: row.look,
     status: row.status,
     publicUrl: row.publicUrl,
     adminUrl: row.publicUrl ? `${row.publicUrl}/admin` : null,

@@ -65,7 +65,8 @@ export function presetStyle(preset: ColorPreset): string {
     .join(';')
 }
 
-export function defineLooks<const L extends LookDef>(all: readonly [L, ...L[]]): Looks<L> {
+export function defineLooks<const T extends readonly [LookDef, ...LookDef[]]>(all: T): Looks<T[number]> {
+  type L = T[number]
   const seen = new Set<string>()
   for (const look of all) {
     for (const preset of look.presets) {
@@ -73,8 +74,8 @@ export function defineLooks<const L extends LookDef>(all: readonly [L, ...L[]]):
       seen.add(preset.id)
     }
   }
-  const labels = {} as Record<string, LookText>
-  const presetLabels = {} as Record<string, LookText>
+  const labels: Record<string, LookText> = {}
+  const presetLabels: Record<string, LookText> = {}
   for (const look of all) {
     labels[look.id] = look.name
     for (const preset of look.presets) presetLabels[preset.id] = { cs: `${look.name.cs} · ${preset.name.cs}`, en: `${look.name.en} · ${preset.name.en}` }
@@ -86,7 +87,7 @@ export function defineLooks<const L extends LookDef>(all: readonly [L, ...L[]]):
     labels: labels as Looks<L>['labels'],
     presetLabels: presetLabels as Looks<L>['presetLabels'],
     resolve(lookId, presetId) {
-      const look = all.find((l) => l.id === lookId) ?? all[0]
+      const look: L = all.find((l) => l.id === lookId) ?? all[0]
       const preset = look.presets.find((p) => p.id === presetId) ?? look.presets[0]
       return { look, preset, style: presetStyle(preset) }
     },

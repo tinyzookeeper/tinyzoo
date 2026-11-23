@@ -8,7 +8,8 @@
 //
 // What it proves: sign-up through the wizard, a site made and served with the chosen name,
 // the invitation into the admin, two sites made at the same moment, the limit, ownership and
-// CSRF checks, removal (process, database and folder gone), a failed step and "Try again",
+// CSRF checks, a template with looks (the look is chosen in the wizard, kept, shown by the
+// site and changed in its admin), removal (process, database and folder gone), a failed step and "Try again",
 // a restart of the cloud app bringing stopped sites back, the confirm-your-e-mail-first mode,
 // forgot password, and both languages. It also measures how long creation takes and how much
 // memory a site process holds.
@@ -17,7 +18,7 @@ import { join } from 'node:path'
 import { chromium } from 'playwright'
 import {
   alive, arg, cleanSites, cloudDir, databaseExists, dbUrl, dropDatabase, freePortFrom, log, open, recreateDatabase,
-  siteProcesses, sleep, startCloud, stopSiteProcesses, templateEntry, waitFor,
+  siteProcesses, sleep, startCloud, stopSiteProcesses, templateEntries, templateEntry, waitFor,
 } from './lib.mjs'
 
 const keep = arg('keep', false) === true
@@ -36,8 +37,9 @@ function check(name, ok, detail = '') {
   if (!ok) throw new Error(`failed: ${name}${detail ? ` (${detail})` : ''}`)
 }
 
-if (!existsSync(templateEntry)) {
-  console.error(`The template is not built (${templateEntry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+for (const [id, entry] of Object.entries(templateEntries)) {
+  if (existsSync(entry)) continue
+  console.error(`The template "${id}" is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
   process.exit(2)
 }
 mkdirSync(shots, { recursive: true })
@@ -126,6 +128,8 @@ async function main() {
   check('the field filter narrows the gallery', await page.locator('[data-template]').count() === 2)
   await page.locator('[data-field=all]').click()
   await page.locator('[data-next]').first().click()
+  await page.waitForSelector('[data-step=site]')
+  check('a template with one design goes straight to the site\'s name', await page.locator('[data-step=look]').count() === 0 && await page.locator('ol [aria-current=step]').innerText() === '2\nVáš web')
   await page.locator('[data-field-name]').fill('Pekárna U Žlutého koně')
   await page.waitForSelector('[data-slug-ok]')
   check('the address is suggested from the name', await page.locator('[data-field-slug]').inputValue() === 'pekarna-u-zluteho-kone')
@@ -240,6 +244,94 @@ async function main() {
   check('no secret reaches the browser', !/servicePassword|appSecret|setupToken|statusToken|NUXT_APP_SECRET/.test(secrets))
   await other.close()
   await anon.close()
+
+  // ── a template with looks ──
+  log('6b · a template with looks: Photographer')
+  const ctxP = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'cs-CZ' })
+  const pp = await ctxP.newPage()
+  const johana = { name: 'Johana Loudová', email: `johana-${stamp}@example.com`, password: 'dlouhe-heslo-johany-1' }
+  await open(pp, `${base}/new`)
+  await pp.waitForSelector('[data-wizard=ready]')
+  await pp.locator('[data-template=photographer]').click()
+  await pp.locator('[data-next]').first().click()
+  await pp.waitForSelector('[data-step=look]')
+  check('picking Photographer leads to its looks', await pp.locator('[data-look]').count() === 3)
+  check('the first look is chosen to begin with', await pp.locator('[data-look=atelier][aria-checked=true]').count() === 1)
+  check('the wizard has four steps now', await pp.locator('ol [aria-current=step]').innerText() === '2\nVzhled' && await pp.locator('ol > li').count() === 4)
+  await pp.screenshot({ path: join(shots, 'e2e-look.png'), fullPage: true })
+  await pp.locator('[data-look=negativ]').click()
+  check('another look can be picked', await pp.locator('[data-look=negativ][aria-checked=true]').count() === 1 && await pp.locator('[data-picked-look]').innerText() === 'Negativ')
+  await pp.reload()
+  await pp.waitForSelector('html[data-app-ready]')
+  await pp.waitForSelector('[data-wizard=ready]')
+  check('a reload keeps the step and the look', await pp.locator('[data-look=negativ][aria-checked=true]').count() === 1)
+  await pp.locator('[data-next]').first().click()
+  await pp.locator('[data-field-name]').fill('Ateliér Světlo')
+  await pp.locator('[data-field-slug]').fill(`e2e-atelier-${stamp}`)
+  await pp.waitForSelector('[data-slug-ok]')
+  check('the look is in the summary beside the template', (await pp.locator('aside dl').innerText()).replace(/\s+/g, ' ').includes('Šablona Fotograf Vzhled Negativ'))
+  await pp.locator('[data-next]').first().click()
+  await pp.locator('[data-field-person]').fill(johana.name)
+  await pp.locator('[data-field-email]').fill(johana.email)
+  await pp.locator('[data-field-password]').fill(johana.password)
+  await pp.locator('[data-next]').first().click()
+  await pp.waitForURL(/\/sites\/[0-9a-f-]{36}$/)
+  await pp.waitForSelector('[data-site-name]', { timeout: 180_000 })
+  const photo = await apiSite(pp, base, siteIdOf(pp))
+  check('the Photographer site is ready, with its look kept', photo?.site.status === 'ready' && photo.site.template === 'photographer' && photo.site.look === 'negativ', JSON.stringify([photo?.site.status, photo?.site.look]))
+  measures.creation.push({ site: photo.site.slug, template: 'photographer', serverMs: Date.parse(photo.site.readyAt) - Date.parse(photo.site.createdAt), steps: tookMs(photo.site) })
+  log(`    made in ${Date.parse(photo.site.readyAt) - Date.parse(photo.site.createdAt)} ms on the server (${JSON.stringify(tookMs(photo.site))})`)
+  check('its page in the cloud names the look', (await pp.locator('main').innerText()).replace(/\s+/g, ' ').includes('Vzhled Negativ'))
+
+  const pw = await ctxP.newPage()
+  await pw.goto(photo.site.publicUrl, { waitUntil: 'networkidle' })
+  const lookOn = (p) => p.evaluate(() => ({ look: document.documentElement.dataset.look, colors: document.documentElement.dataset.colors, brand: getComputedStyle(document.documentElement).getPropertyValue('--brand').trim() }))
+  check('the website is drawn in the chosen look, in its default colours', JSON.stringify(await lookOn(pw)) === JSON.stringify({ look: 'negativ', colors: 'mosaz', brand: '#d4b57e' }), JSON.stringify(await lookOn(pw)))
+  check('it shows the chosen name as its wordmark', (await pw.locator('header').first().innerText()).toLowerCase().includes('ateliér světlo') && (await pw.locator('footer').innerText()).toLowerCase().includes('ateliér světlo'))
+  check('it holds the demo content', (await pw.locator('h1').first().innerText()).toLowerCase().includes('fotím') && await pw.locator('.mosaic a.tile').count() === 14)
+  check('its photographs are served', await pw.evaluate(async () => { const img = document.querySelector('.mosaic img'); return !!img && (await fetch(img.currentSrc)).ok }))
+  for (const path of ['/galerie', '/galerie/svatby', '/album/anna-a-vojta', '/cenik', '/o-mne', '/kontakt', '/ochrana-osobnich-udaju']) {
+    const res = await pw.goto(photo.site.publicUrl + path, { waitUntil: 'networkidle' })
+    check(`${path} answers with one heading`, res.status() === 200 && await pw.locator('h1').count() === 1, `${res.status()}`)
+  }
+  await pw.goto(`${photo.site.publicUrl}/kontakt`, { waitUntil: 'networkidle' })
+  await pw.locator('form [name=name]').fill('Tereza Malá')
+  await pw.locator('form [name=email]').fill(`tereza-${stamp}@example.com`)
+  await pw.locator('form [name=message]').fill('Dobrý den, máte volno 12. 6. 2027?')
+  await pw.locator('form button[type=submit]').click()
+  await pw.locator('[role=status]').waitFor({ timeout: 15_000 })
+  check('the enquiry form sends', (await pw.locator('[role=status]').innerText()).includes('Děkuji'))
+
+  // Its owner changes the look and the colours in the site's own admin (here through the admin's API, signed in by the invitation).
+  await pw.goto(await pp.locator('[data-invite]').getAttribute('href'), { waitUntil: 'networkidle' })
+  await pw.locator('input[type=password]').fill('heslo-do-administrace-2')
+  await pw.locator('button[type=submit]').first().click()
+  await pw.waitForURL(/\/admin\/?$/, { timeout: 20_000 })
+  const changed = await pw.evaluate(async () => {
+    const json = { accept: 'application/json', 'content-type': 'application/json' }
+    const { row } = await (await fetch('/api/cms/_singleton/siteSettings', { headers: json })).json()
+    const skip = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
+    const body = Object.fromEntries(Object.entries(row).filter(([k]) => !skip.has(k) && !k.endsWith('__media') && !(k.endsWith('Id') && k.slice(0, -2) in row)))
+    const messages = await (await fetch('/api/cms/enquiry', { headers: json })).json()
+    const put = await fetch('/api/cms/_singleton/siteSettings', { method: 'PUT', headers: json, body: JSON.stringify({ ...body, look: 'zapisnik', colors: 'svestka' }) })
+    return { was: { look: row.look, colors: row.colors, siteName: row.siteName }, put: put.status, enquiries: (messages.items ?? messages.rows ?? []).length }
+  })
+  check('the settings hold what the wizard chose', changed.was.look === 'negativ' && changed.was.colors === 'mosaz' && changed.was.siteName === 'Ateliér Světlo', JSON.stringify(changed.was))
+  check('the enquiry arrived in the admin', changed.enquiries === 1, JSON.stringify(changed))
+  check('the owner can save another look and colours', changed.put === 200, String(changed.put))
+  await pw.goto(photo.site.publicUrl, { waitUntil: 'networkidle' })
+  check('the website follows: another look, other colours, the same content', JSON.stringify(await lookOn(pw)) === JSON.stringify({ look: 'zapisnik', colors: 'svestka', brand: '#753a57' }) && (await pw.locator('h1').first().innerText()).includes('Fotím') && await pw.locator('.prints a.print').count() === 14, JSON.stringify(await lookOn(pw)))
+  await pw.close()
+
+  const badLook = await pp.request.post(`${base}/api/sites`, { data: { name: 'X', slug: `e2e-y-${stamp}`, template: 'photographer', look: 'nope' } })
+  check('a look the template does not have is refused by the server', badLook.status() === 422 && (await badLook.json()).data?.code === 'look.unavailable')
+  check('a look for a template without looks is refused too', (await pp.request.post(`${base}/api/sites`, { data: { name: 'X', slug: `e2e-y-${stamp}`, template: 'basic', look: 'atelier' } })).status() === 422)
+  // (removed here, so the counts of the sections that follow stay Jana's three)
+  const photoPid = (await siteProcesses(dataDir)).find((p) => p.slug === photo.site.slug)?.pid
+  check('removing it is accepted', (await pp.request.post(`${base}/api/sites/${photo.site.id}/remove`, { data: { confirm: photo.site.slug } })).ok())
+  await waitFor(async () => !(await alive(photoPid)) && !existsSync(join(dataDir, photo.site.slug)), { what: 'the Photographer site to be removed' })
+  check('its process, folder and database are gone', !(await databaseExists(`tzc_e2e_${photo.site.slug.replace(/-/g, '_')}`)))
+  await ctxP.close()
 
   // ── memory, after a few page loads ──
   for (const p of await siteProcesses(dataDir)) measures.memory.push({ site: p.slug, rssMB: Math.round(p.rssBytes / 1048576) })

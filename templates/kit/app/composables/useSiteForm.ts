@@ -28,7 +28,10 @@ const MESSAGES = {
 
 export async function useSiteForm(name: string, locale: MaybeRefOrGetter<string | undefined>) {
   const lang = computed(() => toValue(locale) || undefined)
-  const { data: schema, error: loadError } = await useFetch<any>(`/api/content/_form/${name}`, { query: { locale: lang }, key: `site-form-${name}` })
+  // (asked for now, waited for at the end: what follows has to be set up before the first `await`,
+  // while the component that uses the form is still the one being set up)
+  const request = useFetch<any>(`/api/content/_form/${name}`, { query: { locale: lang }, key: `site-form-${name}` })
+  const schema = request.data
 
   const values = reactive<Record<string, any>>({})
   watch(schema, (s) => {
@@ -91,6 +94,8 @@ export async function useSiteForm(name: string, locale: MaybeRefOrGetter<string 
     }
   }
 
+  await request
+
   return {
     name,
     /** The form element: `<form :ref="form.el">`. */
@@ -100,7 +105,7 @@ export async function useSiteForm(name: string, locale: MaybeRefOrGetter<string 
     successMessage: computed<string>(() => schema.value?.successMessage ?? ''),
     turnstileSiteKey: computed<string | null>(() => schema.value?.turnstileSiteKey ?? null),
     /** The form could not be read at all. */
-    unavailable: computed(() => !!loadError.value || !schema.value),
+    unavailable: computed(() => !!request.error.value || !schema.value),
     values, errors, sending, sent, failure, submit,
     /** An id for a field's input and its label. */
     id: (key: string) => `form-${name}-${key}`,

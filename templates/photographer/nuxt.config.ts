@@ -16,16 +16,18 @@ export default defineNuxtConfig({
   fonts: {
     families: [
       // Ateliér
-      { name: 'Newsreader', provider: 'google', weights: ['300 500'], styles: ['normal', 'italic'], variableAxis: { opsz: [['6', '72']] }, global: true },
+      { name: 'Newsreader', provider: 'google', weights: ['300 500'], styles: ['normal', 'italic'], global: true },
       { name: 'Jost', provider: 'google', weights: [400, 500], global: true },
       // Negativ (Archivo's width axis: 62 % for the display type)
-      { name: 'Archivo', provider: 'google', weights: ['400 900'], variableAxis: { wdth: [['62', '125']] }, global: true },
+      { name: 'Archivo', provider: 'google', weights: ['400 900'], global: true },
       { name: 'JetBrains Mono', provider: 'google', weights: [400, 500], global: true },
       // Zápisník
       { name: 'Young Serif', provider: 'google', weights: [400], global: true },
       { name: 'Karla', provider: 'google', weights: [400, 500, 700], global: true },
       { name: 'Caveat', provider: 'google', weights: [500, 600], global: true },
     ],
+    // Axes beyond weight, asked of Google itself (it serves the file with the axis in it).
+    google: { experimental: { variableAxis: { Archivo: { wdth: [['62', '125']] }, Newsreader: { opsz: [['6', '72']] } } } },
   },
   compatibilityDate: '2025-06-01',
 })

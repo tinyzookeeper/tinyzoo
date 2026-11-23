@@ -15,6 +15,11 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 export const cloudDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const repoRoot = resolve(cloudDir, '..')
 export const templateEntry = join(repoRoot, 'packages/cms/starter/.output/server/index.mjs')
+/** The built server of each ready template (scripts/build-templates.mjs makes them). */
+export const templateEntries = {
+  basic: templateEntry,
+  photographer: join(repoRoot, 'templates/photographer/.output/server/index.mjs'),
+}
 export const PG_URL = process.env.CLOUD_PG_URL || 'postgres://cms:cms@localhost:5434/postgres'
 
 export function arg(name, fallback = undefined) {

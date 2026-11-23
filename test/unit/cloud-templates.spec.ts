@@ -4,12 +4,14 @@ import { describe, expect, it } from 'vitest'
 import { cs } from '../../cloud/app/i18n/cs'
 import { en } from '../../cloud/app/i18n/en'
 import { STEP_IDS } from '../../cloud/shared/steps'
-import { FIELD_IDS, FIELDS, fieldsOf, templateById, TEMPLATES, visibleTemplates } from '../../cloud/shared/templates'
+import { FIELD_IDS, FIELDS, fieldsOf, hasLookChoice, lookOf, templateById, TEMPLATES, visibleTemplates } from '../../cloud/shared/templates'
+import { looks as photographerLooks } from '../../templates/photographer/looks'
 import { repoRoot } from '../setup/database'
 
-// The templates a hosted website can start from: one that exists, twenty that are planned.
+// The templates a hosted website can start from: two that exist, nineteen that are planned.
+const READY = ['basic', 'photographer']
 const PLANNED = [
-  'individual', 'photographer', 'wedding', 'realty', 'restaurant', 'sports-club', 'trades', 'studio', 'development', 'accommodation',
+  'individual', 'wedding', 'realty', 'restaurant', 'sports-club', 'trades', 'studio', 'development', 'accommodation',
   'office', 'salon', 'event', 'medical', 'car-service', 'construction', 'shop', 'association', 'blog', 'software',
 ]
 const both = (pair: Record<string, string>, what: string) => {
@@ -18,18 +20,19 @@ const both = (pair: Record<string, string>, what: string) => {
 }
 
 describe('the template registry', () => {
-  it('holds twenty-one templates: basic, and the twenty planned ones', () => {
+  it('holds twenty-one templates: the two ready ones and the nineteen planned', () => {
     expect(TEMPLATES).toHaveLength(21)
-    expect(TEMPLATES.map((t) => t.id).sort()).toEqual(['basic', ...PLANNED].sort())
+    expect(TEMPLATES.map((t) => t.id).sort()).toEqual([...READY, ...PLANNED].sort())
     expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(21)
   })
 
-  it('has exactly one template a site can be made from today', () => {
+  it('has exactly two templates a site can be made from today', () => {
     const ready = TEMPLATES.filter((t) => t.ready)
-    expect(ready.map((t) => t.id)).toEqual(['basic'])
+    expect(ready.map((t) => t.id)).toEqual(READY)
     for (const t of TEMPLATES.filter((t) => !t.ready)) {
       expect(t.sourceDir, t.id).toBeNull()
       expect(t.seed, t.id).toBe(false)
+      expect(t.looks, t.id).toEqual([])
     }
   })
 
@@ -73,9 +76,9 @@ describe('the template registry', () => {
   })
 
   it('shows a customer only what is ready, and the planned ones only when asked', () => {
-    expect(visibleTemplates(false).map((t) => t.id)).toEqual(['basic'])
+    expect(visibleTemplates(false).map((t) => t.id)).toEqual(READY)
     expect(visibleTemplates(true)).toHaveLength(21)
-    expect(fieldsOf(visibleTemplates(false))).toEqual(['general'])
+    expect(fieldsOf(visibleTemplates(false))).toEqual(['general', 'personal'])
   })
 
   it('finds a template by its id', () => {
@@ -83,6 +86,60 @@ describe('the template registry', () => {
     expect(templateById('restaurant')?.ready).toBe(false)
     expect(templateById('nope')).toBeNull()
     expect(templateById(null)).toBeNull()
+  })
+})
+
+describe('the looks of a template', () => {
+  it('are written in both languages, each with a picture that exists', () => {
+    for (const t of TEMPLATES) {
+      expect(new Set(t.looks.map((l) => l.id)).size, `${t.id}: look ids`).toBe(t.looks.length)
+      for (const look of t.looks) {
+        expect(look.id, `${t.id} look`).toMatch(/^[a-z]+(-[a-z]+)*$/)
+        both(look.name, `${t.id}/${look.id} name`)
+        both(look.description, `${t.id}/${look.id} description`)
+        for (const text of Object.values(look.description)) expect(/[.!?]$/.test(text), `${t.id}/${look.id}: ${text}`).toBe(true)
+        expect(existsSync(join(repoRoot, 'cloud', 'public', look.preview)), look.preview).toBe(true)
+      }
+    }
+  })
+
+  it('are the ones the template itself lists, in its order, with its default colours', () => {
+    // templates/photographer/looks.ts is what the site reads; the cloud writes these ids into its settings.
+    const photographer = templateById('photographer')!
+    expect(photographer.looks.map((l) => l.id)).toEqual([...photographerLooks.ids])
+    for (const look of photographer.looks) {
+      const own = photographerLooks.all.find((l) => l.id === look.id)!
+      expect(look.colors, look.id).toBe(own.presets[0].id)
+      expect(look.name, look.id).toEqual(own.name)
+    }
+  })
+
+  it('offer a choice only when there is more than one', () => {
+    expect(hasLookChoice(templateById('photographer'))).toBe(true)
+    expect(hasLookChoice(templateById('basic'))).toBe(false)
+    expect(hasLookChoice(null)).toBe(false)
+  })
+
+  it('fall back to the template\'s first look, and to none for a template without looks', () => {
+    const photographer = templateById('photographer')
+    expect(lookOf(photographer, 'negativ')?.id).toBe('negativ')
+    expect(lookOf(photographer, 'nope')?.id).toBe('atelier')
+    expect(lookOf(photographer, null)?.id).toBe('atelier')
+    expect(lookOf(templateById('basic'), 'atelier')).toBeNull()
+    expect(lookOf(null, 'atelier')).toBeNull()
+  })
+
+  it('resolve on the site as they were chosen: colours of another look give way to the look\'s own', () => {
+    expect(photographerLooks.resolve('negativ', 'salvej').preset.id).toBe('salvej')
+    expect(photographerLooks.resolve('negativ', 'bronz').preset.id).toBe('mosaz')
+    expect(photographerLooks.resolve('nope', null).look.id).toBe('atelier')
+    expect(photographerLooks.resolve('zapisnik', 'jedle').style).toBe('--brand:#34604e;--brand-ink:#ffffff;--paper:#f6f6f3;--tint:#e2e9e3;--ink:#19211d')
+    // Every preset of a look sets the same variables: switching colours never leaves one behind.
+    for (const look of photographerLooks.all) {
+      const keys = (vars: object) => Object.keys(vars).sort().join()
+      for (const preset of look.presets) expect(keys(preset.vars), `${look.id}/${preset.id}`).toBe(keys(look.presets[0].vars))
+    }
+    expect(new Set(photographerLooks.presetIds).size).toBe(photographerLooks.presetIds.length)
   })
 })
 
@@ -114,6 +171,9 @@ describe('the pages\' texts', () => {
   it('never mention how the product was built, compare it with others, or promise', () => {
     const banned = /\b(AI|umělá inteligence|umělou inteligencí|artificial intelligence|AI agents?|slibujeme|zvažujeme|brzy|coming soon|we promise|wordpress|wix|webnode)\b/
     for (const [key, text] of [...Object.entries(cs), ...Object.entries(en)]) expect(banned.test(text), `${key}: ${text}`).toBe(false)
-    for (const t of TEMPLATES) for (const text of [...Object.values(t.name), ...Object.values(t.description)]) expect(banned.test(text), text).toBe(false)
+    for (const t of TEMPLATES) {
+      const texts = [t.name, t.description, ...t.features, ...t.looks.flatMap((l) => [l.name, l.description])].flatMap((pair) => Object.values(pair))
+      for (const text of texts) expect(banned.test(text), text).toBe(false)
+    }
   })
 })

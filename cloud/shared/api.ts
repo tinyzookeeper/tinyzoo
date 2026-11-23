@@ -9,6 +9,8 @@ export interface SiteView {
   name: string
   slug: string
   template: string
+  /** The look chosen when the site was made; null for a template with one design. */
+  look: string | null
   status: SiteStatus
   /** The website's address, once it has one. */
   publicUrl: string | null

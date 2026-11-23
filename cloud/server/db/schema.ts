@@ -48,6 +48,8 @@ export const sites = pgTable('sites', {
   // The address: <slug>.localhost:<port> locally, <slug>.pushbase.app on Pushbase. Also the database's and the folder's name.
   slug: text('slug').notNull(),
   template: text('template').notNull(),
+  // The look of the template chosen in the wizard (shared/templates.ts); null for a template with one design.
+  look: text('look'),
   status: text('status').$type<SiteStatus>().notNull().default('creating'),
   // The hosting driver that made it (local, pushbase): it also runs and removes it.
   driver: text('driver').notNull(),

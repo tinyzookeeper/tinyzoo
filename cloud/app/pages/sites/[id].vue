@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SiteRuntime, SiteView } from '#shared/api'
-import { templateById } from '#shared/templates'
+import { lookOf, templateById } from '#shared/templates'
 import type { Fact } from '~/components/FactList.vue'
 
 // One website. While it is being made: the steps, live. Then its own page: its address, the
@@ -118,9 +118,12 @@ async function remove() {
 }
 
 const template = computed(() => templateById(site.value.template))
+// The look the site was made with (its owner may have changed it in the site's admin since).
+const look = computed(() => (site.value.look ? lookOf(template.value, site.value.look) : null))
 const facts = computed<Fact[]>(() => [
   { label: t('site.address'), value: hostOf(site.value.publicUrl), mono: true, to: site.value.publicUrl ?? undefined },
   { label: t('site.template'), value: template.value ? l(template.value.name) : site.value.template },
+  ...(look.value ? [{ label: t('site.look'), value: l(look.value.name) }] : []),
   { label: t('site.created'), value: formatDateTime(site.value.readyAt ?? site.value.createdAt, locale.value) },
   ...(runtime.value ? [{ label: t('site.state'), value: runtime.value.running ? t('site.running') : t('site.stopped') }] : []),
 ])

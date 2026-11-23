@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { and, eq, inArray } from 'drizzle-orm'
 import { beginStep, completeStep, failStep, initialSteps, isDone, nextStep, normalizeSteps, resumeSteps, type Step, type StepId } from '#shared/steps'
-import { templateById, type TemplateDef } from '#shared/templates'
+import { lookOf, templateById, type LookDef, type TemplateDef } from '#shared/templates'
 import type { SiteRow } from '../db/schema'
 import { HostingError, hostingDriverName, useHosting } from '../hosting'
 
@@ -12,8 +12,9 @@ import { HostingError, hostingDriverName, useHosting } from '../hosting'
 //   database, start   the hosting driver: infrastructure, until the site answers
 //   content           the template's seed, run against the site: it creates the service
 //                     account "tinyzoo" and fills the demo content
-//   account           the cloud signs in as the service account, writes the site's name and
-//                     invites the owner as an administrator; the link is kept for their page
+//   account           the cloud signs in as the service account, writes the site's name (and
+//                     the look chosen in the wizard) into its settings and invites the owner
+//                     as an administrator; the link is kept for their page
 //
 // It runs in the background, never inside a request. Each step is written down before and
 // after, so a failure shows where it was, "Try again" goes on from there, and a restart of the
@@ -106,7 +107,7 @@ async function provision(siteId: string): Promise<void> {
     await step('account', async () => {
       const [owner] = await useDb().select().from(schema.users).where(eq(schema.users.id, site.ownerId))
       if (!owner) throw new StepError('account_failed', 'the owner\'s account is gone')
-      const handed = await handOver(internalUrl, secrets, { name: site.name }, owner)
+      const handed = await handOver(internalUrl, secrets, { name: site.name, look: lookOf(template, site.look) }, owner)
       await saveSite(site.id, {
         inviteUrl: handed.inviteUrl ? encryptSecret(handed.inviteUrl) : null,
         inviteSentAt: handed.inviteUrl ? new Date() : site.inviteSentAt,
@@ -240,16 +241,19 @@ async function inviteOwner(client: SiteClient, owner: { email: string; name: str
   return { inviteUrl: again.inviteUrl, accepted: false }
 }
 
-async function handOver(internalUrl: string, secrets: SiteSecrets, site: { name: string }, owner: { email: string; name: string; locale: string }): Promise<{ inviteUrl: string | null; accepted: boolean }> {
+async function handOver(internalUrl: string, secrets: SiteSecrets, site: { name: string; look: LookDef | null }, owner: { email: string; name: string; locale: string }): Promise<{ inviteUrl: string | null; accepted: boolean }> {
   try {
     const client = await serviceClient(internalUrl, secrets)
-    // The site's name is content: read the settings, change the name, write them back whole.
+    // The site's name and look are content: read the settings, change them, write them back
+    // whole. Every template with looks keeps the choice in the same two fields: `look`, and
+    // `colors` (the look's default colours, so the two agree from the start).
+    const mine = { siteName: site.name, ...(site.look ? { look: site.look.id, colors: site.look.colors } : {}) }
     const settings = await client.get<{ row: Record<string, unknown> | null }>('/api/cms/_singleton/siteSettings')
-    if (settings.row && settings.row.siteName !== site.name) {
-      await client.put('/api/cms/_singleton/siteSettings', { ...writableRow(settings.row), siteName: site.name })
+    if (!settings.row) {
+      await client.put('/api/cms/_singleton/siteSettings', mine)
     }
-    else if (!settings.row) {
-      await client.put('/api/cms/_singleton/siteSettings', { siteName: site.name })
+    else if (Object.entries(mine).some(([key, value]) => settings.row![key] !== value)) {
+      await client.put('/api/cms/_singleton/siteSettings', { ...writableRow(settings.row), ...mine })
     }
     // The invitation e-mail (printed by the site) and page follow the inviter's language.
     await client.request('PATCH', '/api/cms/_auth/me', { locale: owner.locale }).catch(() => {})
@@ -306,7 +310,7 @@ export async function noteAcceptance(site: SiteRow): Promise<SiteRow> {
 // ── making, retrying, removing ──────────────────────────────────────────────────
 
 /** A new website for someone. It starts at once, or waits until its owner confirms their e-mail. */
-export async function createSite(owner: Me, input: { name: string; slug: string; template: string }): Promise<SiteRow> {
+export async function createSite(owner: Me, input: { name: string; slug: string; template: string; look: string | null }): Promise<SiteRow> {
   const waits = requireVerifiedEmail() && !owner.emailVerifiedAt
   let row: SiteRow | undefined
   try {
@@ -315,6 +319,7 @@ export async function createSite(owner: Me, input: { name: string; slug: string;
       name: input.name,
       slug: input.slug,
       template: input.template,
+      look: input.look,
       status: waits ? 'waiting' : 'creating',
       driver: hostingDriverName(),
       secrets: encryptSecret(JSON.stringify(newSiteSecrets())),
