@@ -1,0 +1,45 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The two looks (looks.ts): each styles the website under html[data-look="<id>"]. */
+@import "./casomira.css";
+@import "./soutisk.css";
+
+/* Tailwind must also scan the CMS's own components (the admin) and the template kit's. */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The looks' tokens as utilities: bg-bg, text-led, bg-c1, border-line, font-led… Each look
+   gives the variables behind them their values (under html[data-look="…"], in the two files
+   above), and a colour preset from the site's settings overrides the colours inline on <html>.
+   Outside a look (the admin) none of these is set, and none is used.
+   The names keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses. */
+@theme {
+  --font-display: system-ui, sans-serif;
+  --font-led: monospace;
+
+  /* Časomíra: the dark housing, the lit diode and the text on it */
+  --color-led: var(--led);
+  --color-led-ink: var(--led-ink);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-text: var(--text);
+  --color-quiet: var(--quiet);
+
+  /* Soutisk: three inks on paper */
+  --color-c1: var(--c1);
+  --color-c2: var(--c2);
+  --color-c3: var(--c3);
+  --color-paper: var(--paper);
+  --color-paper2: var(--paper2);
+  --color-ink: var(--ink);
+}
+
+/* Long words and addresses wrap instead of pushing the page wider on phones. A section reached
+   from the menu (/#program) stops a little under the top of the window. */
+@layer base {
+  html[data-look] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-look] { scroll-behavior: smooth; }
+  html[data-look] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-look] { scroll-behavior: auto; } }
+}
