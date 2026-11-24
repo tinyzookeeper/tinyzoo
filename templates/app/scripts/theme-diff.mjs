@@ -71,18 +71,49 @@ export const parseMainCss = (text) => {
 
 const capital = (id) => id.charAt(0).toUpperCase() + id.slice(1)
 
-// The design.css of a design: its differing theme values, then its own rules.
+// The design.css of a design: its differing theme values, then its own rules. A typeface token
+// (`--font-*`) is left out: @nuxt/fonts writes a family's @font-face rules into every stylesheet
+// that names it, and this one is part of the app's main stylesheet, which every site loads. A
+// look that reads the template's default typeface names it in its own stylesheet instead (the
+// script lists such looks).
 export const designCss = (id, differing, rules) => {
   const Id = capital(id)
   const parts = [
     `/* ${Id}'s own rules from its main.css, for ${Id}'s sites only (html[data-design="${id}"]).\n   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */`,
   ]
-  if (differing.length) {
-    const lines = differing.map(([name, value]) => `    ${name}: ${value};`).join('\n')
+  const themed = differing.filter(([name]) => !name.startsWith('--font-'))
+  if (themed.length) {
+    const lines = themed.map(([name, value]) => `    ${name}: ${value};`).join('\n')
     parts.push(`/* Its theme values that differ from the app's: in the theme layer, so a look's own value still wins. */\n@layer theme {\n  html[data-design="${id}"] {\n${lines}\n  }\n}`)
   }
   if (rules.trim()) parts.push(rules.replaceAll('html[data-look]', `html[data-design="${id}"]`))
   return `${parts.join('\n\n')}\n`
+}
+
+// The looks that read one of the template's typeface tokens (`--font-*`) without setting it, and so
+// draw in the template's default typeface: `[{ look, token, value }]`. design.css leaves typeface
+// tokens out (see designCss), so such a look names the family in its own stylesheet, which is also
+// where @nuxt/fonts then writes the family's @font-face rules. A look reads a token through its
+// stylesheet, its own components, and the components every look draws (the blocks in
+// app/components/global and those at the root of app/components).
+export const fontAdvice = (root, differing) => {
+  const cssDir = join(root, 'app/assets/css')
+  const looks = readdirSync(cssDir).filter((file) => file.endsWith('.css') && !['main.css', 'design.css'].includes(file))
+  const componentsRoot = join(root, 'app/components')
+  const vueIn = (dir) => (existsSync(dir) ? readdirSync(dir).filter((name) => name.endsWith('.vue')).map((name) => readFileSync(join(dir, name), 'utf8')) : [])
+  const shared = [...vueIn(join(componentsRoot, 'global')), ...vueIn(componentsRoot)]
+  const found = []
+  for (const [token, value] of differing.filter(([name]) => name.startsWith('--font-'))) {
+    const suffix = token.slice('--font-'.length)
+    const reads = (source) => new RegExp(`(^|[^\\w-])font-${suffix}(?![\\w-])`).test(source) || source.includes(`var(${token})`)
+    for (const file of looks) {
+      const look = file.replace(/\.css$/, '')
+      const sheet = readFileSync(join(cssDir, file), 'utf8')
+      if (sheet.includes(`${token}:`)) continue
+      if (sheet.includes(`var(${token})`) || [...vueIn(join(componentsRoot, look)), ...shared].some(reads)) found.push({ look, token, value })
+    }
+  }
+  return found
 }
 
 const squash = (value) => value.replace(/\s+/g, ' ').trim()
@@ -111,28 +142,10 @@ const main = () => {
   console.log(`a. tokens the app's @theme lacks (${missing.length})`)
   for (const [name, value] of missing) console.log(`   ${name}: ${value}`)
   console.log(`b. tokens whose value differs from the app's (${differing.length})`)
-  for (const [name, value] of differing) console.log(`   ${name}\n     app:      ${app.get(name)}\n     template: ${value}`)
+  for (const [name, value] of differing) console.log(`   ${name}\n     app:      ${app.get(name)}\n     template: ${value}${name.startsWith('--font-') ? '\n     (a typeface: not in design.css; see d)' : ''}`)
   console.log(`c. design.css\n${css.replace(/^/gm, '   | ')}`)
 
-  // A look that reads a font token it does not set itself gets the app's value, not the template's.
-  const looks = readdirSync(cssDir).filter((file) => file.endsWith('.css') && !['main.css', 'design.css'].includes(file))
-  const advice = []
-  for (const [token, value] of differing.filter(([name]) => name.startsWith('--font-'))) {
-    const suffix = token.slice('--font-'.length)
-    for (const file of looks) {
-      const look = file.replace(/\.css$/, '')
-      const sheet = readFileSync(join(cssDir, file), 'utf8')
-      const componentsDir = join(templates, id, 'app/components', look)
-      const components = existsSync(componentsDir)
-        ? readdirSync(componentsDir).filter((name) => name.endsWith('.vue')).map((name) => readFileSync(join(componentsDir, name), 'utf8'))
-        : []
-      const usesClass = components.some((source) => new RegExp(`(^|[^\\w-])font-${suffix}(?![\\w-])`).test(source))
-      const usesVar = sheet.includes(`var(${token})`)
-      if ((usesVar || usesClass) && !sheet.includes(`${token}:`)) {
-        advice.push(`   look ${look} uses ${token} but does not set it; add \`${token}: ${value};\` to its html[data-look="${look}"] block`)
-      }
-    }
-  }
+  const advice = fontAdvice(join(templates, id), differing).map(({ look, token, value }) => `   look ${look} uses ${token} but does not set it; add \`${token}: ${value};\` to its html[data-look="${look}"] block`)
   console.log(`d. looks that use a differing font token without setting it (${advice.length})`)
   for (const line of advice) console.log(line)
 

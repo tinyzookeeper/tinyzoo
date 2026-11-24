@@ -1,6 +1,8 @@
 import { createRequire } from 'node:module'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
 import {
   checkDesigns, componentName, guardCode, handlerRoute, pascalId, rewriteComponents, scanDesign,
   type DesignScan,
@@ -10,8 +12,8 @@ import photographerFonts from '../../templates/photographer/fonts'
 import weddingFonts from '../../templates/wedding/fonts'
 import restaurantFonts from '../../templates/restaurant/fonts'
 // @ts-expect-error plain .mjs without types
-import { designCss, parseMainCss } from '../../templates/app/scripts/theme-diff.mjs'
-import { readFileSync } from 'node:fs'
+import { designCss, fontAdvice, parseMainCss } from '../../templates/app/scripts/theme-diff.mjs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 
 // magic-string is a dependency of the kit, not of the repo root.
 const MagicString = createRequire(new URL('../../templates/kit/package.json', import.meta.url))('magic-string') as new (code: string) => Parameters<typeof rewriteComponents>[0]
@@ -280,5 +282,41 @@ describe('a design\'s own stylesheet', () => {
     const css: string = designCss('restaurant', [['--color-night', '#111']], parsed.rules)
     expect(css).toContain('@layer theme')
     expect(css).toContain('--color-night: #111;')
+  })
+
+  it('leaves typeface tokens to the looks (the main stylesheet would carry their @font-face rules)', () => {
+    const css: string = designCss('blog', [['--font-display', '"Spectral", serif'], ['--color-rule', 'red']], '')
+    expect(css).toContain('--color-rule: red;')
+    expect(css).not.toContain('--font-display')
+    expect(designCss('blog', [['--font-display', '"Spectral", serif']], '')).not.toContain('@layer theme')
+  })
+})
+
+describe('looks that read their template\'s default typeface', () => {
+  // A template folder of two looks: `a` sets --font-display, `b` does not.
+  const root = mkdtempSync(join(tmpdir(), 'tz-font-advice-'))
+  const write = (file: string, text: string) => { mkdirSync(dirname(join(root, file)), { recursive: true }); writeFileSync(join(root, file), text) }
+  write('app/assets/css/main.css', '@theme { --font-display: "Spectral", serif; }')
+  write('app/assets/css/a.css', 'html[data-look="a"] { --font-display: "Besley", serif; }')
+  write('app/assets/css/b.css', 'html[data-look="b"] { --font-sans: "Rubik", sans-serif; }')
+  write('app/components/a/Hero.vue', '<template><h1 class="font-display" /></template>')
+  write('app/components/b/Hero.vue', '<template><h1 class="font-sans" /></template>')
+  const differing: [string, string][] = [['--font-display', '"Spectral", serif']]
+  afterAll(() => rmSync(root, { recursive: true, force: true }))
+
+  it('finds none when no look reads the token without setting it', () => {
+    expect(fontAdvice(root, differing)).toEqual([])
+  })
+
+  it('finds a look whose blocks read it (the blocks are drawn in every look)', () => {
+    write('app/components/global/BlockText.vue', '<template><h2 class="font-display" /></template>')
+    expect(fontAdvice(root, differing)).toEqual([{ look: 'b', token: '--font-display', value: '"Spectral", serif' }])
+    rmSync(join(root, 'app/components/global'), { recursive: true })
+  })
+
+  it('finds a look whose stylesheet reads it, and none for a token that does not differ', () => {
+    write('app/assets/css/b.css', 'html[data-look="b"] h1 { font-family: var(--font-display); }')
+    expect(fontAdvice(root, differing).map((a) => a.look)).toEqual(['b'])
+    expect(fontAdvice(root, [['--color-rule', 'red']])).toEqual([])
   })
 })
