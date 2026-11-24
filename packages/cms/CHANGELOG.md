@@ -1,5 +1,15 @@
 # tinyzoo
 
+## 1.13.0
+
+### Minor Changes
+
+- A site that moves to another address can redirect its old one. Name the old host names in `cms.redirectHosts` (`NUXT_CMS_REDIRECT_HOSTS`, separated by commas): a page asked for on one of them is redirected for good (301) to the same path and query on `cms.publicUrl`. The API, build assets and `/.well-known/` still answer on the old name, so a monitor or a connected tool that calls it with a token keeps working.
+
+### Patch Changes
+
+- The link to the documentation in a new project's `AGENTS.md` points to the website's new address, https://tinyzoo.site. The old address still works.
+
 ## 1.12.0
 
 ### Minor Changes
