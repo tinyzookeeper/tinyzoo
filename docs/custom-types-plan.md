@@ -416,4 +416,55 @@ All were throwaway, in a scratch folder outside the repository, against a Postgr
 
 ## 14. What is built
 
-Nothing yet. This section is filled in as the parts land.
+Built on the branch `feat/custom-types`, local only: nothing is released or deployed. The feature is off unless `NUXT_CMS_CUSTOM_TYPES=on` in multi-tenant mode; with it off the server runs no line of it.
+
+### Part 1: the core (`packages/cms/src`)
+
+- `model-doc.ts`: the document (`parseModelDoc`), the operations (`applyModelOps`), names made from labels, the limits, and what is due for deletion (`modelPurgeDue`). A refusal is a `ModelProblem` with a stable code.
+- `model-map.ts`: `modelEntities(doc, design)` builds the types through `defineEntity` and `f.*`. It never throws: a type or a field that cannot be built is left out and named.
+- `model-ddl.ts`: `customShape`, `planModelDdl` and `assertAllowedStatement`.
+- All of it is internal (not part of the public surface). 167 unit tests, among them: a document's types give the same admin graph as the same types written in code; the planner's statements equal drizzle-kit's for new types (with translations and a many-to-many relation), new fields and a new choice; every refusal; a list of hostile statements the allowed list turns away.
+
+**Decided while building.**
+
+- A picture, a file and a relation are always optional (section 2).
+- A removed choice stays a value of its field. The mapper names it in the field's `meta.removedOptions`, and the admin's choice control stops offering it.
+- Leaving manual order is refused: it would drop the `position` column.
+- A required field can be added to a type that has no entries. The column is added optional and made required in the same transaction.
+- A switch and a gallery always hold a value, so a hidden one waits the full 30 days.
+- `order: { by }` reaches no entity (`defineEntity` has no default order). The generic blocks read it from the document.
+
+### Part 2: the server
+
+- `server/utils/cmsCustomTypes.ts`: the switch (`NUXT_CMS_CUSTOM_TYPES=on`, multi-tenant mode only) and a site's own settings in its directory row (`config.customTypes`: `enabled`, `types`, `fields`, `options`).
+- `server/utils/cmsModel.ts`: a site's own types are read once per instance, after its migrations, and laid over the design's shared model. `cmsSiteReady()` is what both gates wait for now. Every other way into a site waits for it too: the sockets (`cmsSocketSite.ts`), the live hub and the shared-editing engine, the scheduled tasks, the search index, the status route.
+- `server/utils/cmsModelChange.ts`: `cmsChangeModel`, the structure function, as section 5 describes it; `linksToType` for the guard; the `model` channel between instances.
+- `server/utils/cmsSite.ts`: `cmsRetireCurrentSite`, `cmsRetireSite`, and a count of each site's loads.
+- Routes for administrators: `GET` and `POST /api/cms/_model`, `GET /api/cms/_model/usage`, `GET /api/cms/_model/history`. The operator's `GET /api/health/sites` names each site's `loads` and the version of its own types.
+- The later deletion runs when a site is loaded and every six hours while it stays loaded.
+
+**Measured** (the playground, two sites, on this machine):
+
+| | |
+|---|---|
+| A change of structure over HTTP | 12 ms in the middle (7 to 30 ms) |
+| The first request after it, which makes the fresh instance | 16 ms (2 ms on a warm instance) |
+| From one instance to the other | 19 ms |
+| A change that meets a locked row of the same table | refused as busy after 2.0 s; the site answers on |
+| The search index after a change | 10 ms, with a handful of entries; a large site was not measured |
+
+**Tests.** `test/api/tenants-custom.spec.ts`: two sites with types of their own in one process. It covers what section 10 lists, and a fresh process that must wait for a site's types before its first answer. Four leaks were put into a temporary build one at a time, and the suite failed each time:
+
+| Leak | Tests that failed |
+|---|---|
+| The loaded types kept once for the process | 22 to 27 of 31, the isolation tests among them |
+| A change announced to every site, not its own | the two-instance test: the other site's model was gone there |
+| The statements run on another site's pool | 27 of 30 |
+| The API gate not waiting for the types | the fresh-process test, which was added because nothing failed at first |
+
+**Found on the way.**
+
+- A type or field name from a request could reach an inherited key of an object (`__proto__`). Names from a request now only pick things that exist, by their own keys.
+- The routes ask for a session first (401), then whether the site has the feature (404), then for an administrator (403). The other order changed what an address of that shape answered before the feature existed.
+- A line of the audit log can now be written inside a transaction, so it is kept or rolled back with the change.
+- Scheduled tasks load every site on each round before they ask whether it has work. The new count of loads shows it; it was so before.

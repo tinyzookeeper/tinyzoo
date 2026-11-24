@@ -250,8 +250,10 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
   if (!beforeLoad) {
     // Requests under way finish with the model they started with; the next one reads the new model.
     cmsRetireCurrentSite()
+    // The message names its site now: by the time the store answers, this work's instance may be gone.
+    const message = channelMessage({ origin: instanceId(), version: result.version })
     const announced = useCmsStore()
-      .then((store) => store.publish(MODEL_CHANNEL, channelMessage({ origin: instanceId(), version: result.version })))
+      .then((store) => store.publish(MODEL_CHANNEL, message))
       .catch((err) => console.error('[cms] could not announce a change of the content types', scrubError(err)))
     if (typeof event?.waitUntil === 'function') event.waitUntil(announced)
   }
