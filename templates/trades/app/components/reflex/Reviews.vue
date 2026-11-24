@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Reflex's reviews: on black, the quotes in bold type in columns divided by heavy rules.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'reviews'>; first?: boolean; items: Review[] }>()
 // The first column has no padding on its left, the last none on its right.

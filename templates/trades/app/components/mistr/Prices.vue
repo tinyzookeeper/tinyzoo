@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Mistr's price list: the price list in ruled groups on the right, the heading and a box of
 // what the price always includes (staying in view while the list scrolls) on the left.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; items: Service[] }>()
 const words = useSiteWords()

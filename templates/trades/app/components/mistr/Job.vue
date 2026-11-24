@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Mistr's page of one job: the photographs, the name, a small table of the facts and the text,
 // drawn as the first job of the home page is, with the way back and the phone number.
-import type { Job } from '~/lib/cms-content'
+import type { Job } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Job }>()
 const { settings, phone, cta, words } = await useTrades()

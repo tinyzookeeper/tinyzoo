@@ -2,7 +2,7 @@
 // Reflex's about: the owner's photograph filling the left of the section (a tall band on a
 // phone), the text and the licences as heavy ruled lines on the right, and the team's
 // photographs as a pair edge to edge under it.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'about'>; first?: boolean; anchor?: string; owner: CmsMedia | null }>()
 </script>

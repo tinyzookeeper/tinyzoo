@@ -2,7 +2,7 @@
 // Reflex's jobs: an edge-to-edge wall of tiles on black. A job with a before and after pair takes
 // a full row (two photographs and its text), a job with one photograph half a row (its photograph
 // and its text), and the link to all jobs fills the rest in the signal colour.
-import type { Job } from '~/lib/cms-content'
+import type { Job } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'jobs'>; first?: boolean; anchor?: string; jobs: Job[]; total: number }>()
 const words = useSiteWords()

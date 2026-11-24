@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Mistr's about: a photograph of the team with a caption, the text and the licences as ruled lines.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'about'>; first?: boolean; anchor?: string; owner: CmsMedia | null }>()
 </script>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Mistr's area: the text and a photograph on the left, the towns as a ruled list on the right.
-import type { Town } from '~/lib/cms-content'
+import type { Town } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'area'>; first?: boolean; anchor?: string; items: Town[] }>()
 const words = useSiteWords()

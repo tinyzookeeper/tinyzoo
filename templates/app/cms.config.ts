@@ -7,6 +7,7 @@ import * as individual from '../individual/cms.config'
 import * as photographer from '../photographer/cms.config'
 import * as wedding from '../wedding/cms.config'
 import * as blog from '../blog/cms.config'
+import * as trades from '../trades/cms.config'
 import * as restaurant from '../restaurant/cms.config'
 
 export const models = defineModels({
@@ -14,5 +15,6 @@ export const models = defineModels({
   photographer: { config: photographer, migrations: '../photographer/server/db/migrations' },
   wedding: { config: wedding, migrations: '../wedding/server/db/migrations' },
   blog: { config: blog, migrations: '../blog/server/db/migrations' },
+  trades: { config: trades, migrations: '../trades/server/db/migrations' },
   restaurant: { config: restaurant, migrations: '../restaurant/server/db/migrations' },
 })

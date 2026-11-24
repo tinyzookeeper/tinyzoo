@@ -1,0 +1,9 @@
+/* Trades's own rules from its main.css, for Trades's sites only (html[data-design="trades"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+@layer base {
+  html[data-design="trades"] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-design="trades"] { scroll-behavior: smooth; }
+  html[data-design="trades"] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="trades"] { scroll-behavior: auto; } }
+}

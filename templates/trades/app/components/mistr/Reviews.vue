@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Mistr's reviews: three quotes in a row between two hairlines, each signed under a rule.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; items: Review[] }>()
 </script>
