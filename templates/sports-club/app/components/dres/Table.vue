@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Dres's league table: a black block with the club's place as a huge numeral beside the table,
 // the club's own row filled with the club colour.
-import type { TableView } from '~/composables/useClub'
+import type { TableView } from '../../composables/useClub'
 
 const props = defineProps<{ block: BlockOf<'table'>; first?: boolean; anchor?: string; table: TableView }>()
 const words = useSiteWords()

@@ -2,7 +2,7 @@
 // Zpravodaj's opening: the next match as a ruled programme card, the two teams as the headline,
 // four facts and a framed photograph. Before the first kick-off is known (the server's answer,
 // the browser's first drawing) it shows the first match without a score; see useNow.
-import type { NextView } from '~/composables/useClub'
+import type { NextView } from '../../composables/useClub'
 
 const props = defineProps<{ block: BlockOf<'nextMatch'>; first?: boolean; next: NextView }>()
 const { settings, name, words } = await useClub()

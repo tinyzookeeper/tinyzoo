@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The league table as Zpravodaj sets it: ruled, the club's own row tinted. It stands on its own
 // (Table.vue) or beside the fixtures (Fixtures.vue).
-import type { TableView } from '~/composables/useClub'
+import type { TableView } from '../../composables/useClub'
 
 defineProps<{ block: BlockOf<'table'>; table: TableView; first?: boolean; anchor?: string }>()
 const words = useSiteWords()

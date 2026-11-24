@@ -2,7 +2,7 @@
 // Hřiště's opening: a short headline, one wide photograph and the next match as a white
 // scoreboard card laid over the photograph's lower edge: both teams (with their place in the
 // table), the kick-off in large numerals, the ground, the admission and two buttons.
-import type { NextView } from '~/composables/useClub'
+import type { NextView } from '../../composables/useClub'
 
 const props = defineProps<{ block: BlockOf<'nextMatch'>; first?: boolean; next: NextView }>()
 const { settings, name, words } = await useClub()

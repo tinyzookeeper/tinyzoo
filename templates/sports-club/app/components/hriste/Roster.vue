@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Hřiště's squad: four colour portraits with the shirt number beside the name, then everybody in
 // a list by number, in two or three columns.
-import type { Player } from '~/lib/cms-content'
+import type { Player } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'roster'>; first?: boolean; anchor?: string; players: Player[] }>()
 const words = useSiteWords()

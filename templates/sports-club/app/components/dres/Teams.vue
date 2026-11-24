@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Dres's teams: bordered tiles with the team's mark in huge capitals, turning black on hover.
 // A row to swipe on a phone, a grid from the width of a tablet.
-import type { Squad } from '~/lib/cms-content'
+import type { Squad } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'teams'>; first?: boolean; anchor?: string; squads: Squad[] }>()
 const words = useSiteWords()

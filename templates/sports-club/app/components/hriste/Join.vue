@@ -2,7 +2,7 @@
 // Hřiště's membership drive: the one full block of club colour. The training photograph, and over
 // its lower edge a panel with chalk lines of the pitch: the age groups on the left, the form on a
 // white card on the right.
-import type { AgeGroup } from '~/lib/cms-content'
+import type { AgeGroup } from '../../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 const props = defineProps<{ block: BlockOf<'join'>; first?: boolean; anchor?: string; groups: AgeGroup[]; form: SiteForm }>()

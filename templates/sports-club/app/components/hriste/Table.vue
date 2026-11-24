@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Hřiště's league table: a white card on a tinted band, the club's own row in a soft tint of the
 // club colour with rounded ends; beside it the photograph and a few words.
-import type { TableView } from '~/composables/useClub'
+import type { TableView } from '../../composables/useClub'
 
 const props = defineProps<{ block: BlockOf<'table'>; first?: boolean; anchor?: string; table: TableView }>()
 const words = useSiteWords()

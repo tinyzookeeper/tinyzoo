@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Dres's fixtures: a segmented switch for the teams and one list of scoreboard rows, home team
 // and away team facing each other round the score, which sits in a box coloured by the outcome.
-import type { Squad } from '~/lib/cms-content'
-import type { TableView } from '~/composables/useClub'
+import type { Squad } from '../../lib/cms-content'
+import type { TableView } from '../../composables/useClub'
 
 const props = defineProps<{
   block: BlockOf<'fixtures'>; first?: boolean; anchor?: string; squads: Squad[]; matches: MatchView[]

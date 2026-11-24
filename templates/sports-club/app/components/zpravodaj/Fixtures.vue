@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Zpravodaj's fixtures: text tabs for the teams, the coming matches and the played ones as ruled
 // lists, with the league table beside them when it follows this block on the page.
-import type { Squad } from '~/lib/cms-content'
-import type { TableView } from '~/composables/useClub'
+import type { Squad } from '../../lib/cms-content'
+import type { TableView } from '../../composables/useClub'
 
 const props = defineProps<{
   block: BlockOf<'fixtures'>; first?: boolean; anchor?: string; squads: Squad[]; matches: MatchView[]

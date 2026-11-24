@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Dres's squad: a grid of tiles, each with the shirt number in huge capitals; a player with a
 // photograph gets it under a dark gradient, and the coaching staff has a black tile of its own.
-import type { Player } from '~/lib/cms-content'
+import type { Player } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'roster'>; first?: boolean; anchor?: string; players: Player[] }>()
 const words = useSiteWords()

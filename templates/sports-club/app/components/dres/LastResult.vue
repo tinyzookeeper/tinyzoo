@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Dres's photograph with the last result on a paper tab laid over its corner: the score in a box
 // of the colour of the outcome, the two teams, the scorers.
-import type { LastView } from '~/composables/useClub'
+import type { LastView } from '../../composables/useClub'
 
 const props = defineProps<{ block: BlockOf<'lastResult'>; first?: boolean; last: LastView }>()
 const { words } = await useClub()

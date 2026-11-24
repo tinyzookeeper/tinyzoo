@@ -2,7 +2,7 @@
 // Dres's news: the newest article as a photograph with a black card beside it (red when hovered),
 // the others as photographs with a headline under them: a row to swipe on a phone, a grid of three
 // from the width of a tablet.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; items: Article[] }>()
 const words = useSiteWords()

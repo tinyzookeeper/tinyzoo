@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Hřiště's club page: the photograph of the ground with its caption beside the story and three
 // figures in soft tiles; under them the ground as a list of facts and the committee.
-import type { Committee } from '~/lib/cms-content'
+import type { Committee } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'about'>; first?: boolean; anchor?: string; committee: Committee[] }>()
 const { settings, words } = await useClub()

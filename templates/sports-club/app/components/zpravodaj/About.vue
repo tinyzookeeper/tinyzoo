@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zpravodaj's club page: the story and three figures, the committee as a ruled list, the framed
 // photograph of the ground with its caption, the ground's address and the match-day facts.
-import type { Committee } from '~/lib/cms-content'
+import type { Committee } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'about'>; first?: boolean; anchor?: string; committee: Committee[] }>()
 const { settings, words } = await useClub()

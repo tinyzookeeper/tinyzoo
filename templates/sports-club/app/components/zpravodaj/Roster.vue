@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Zpravodaj's squad: four framed portraits, then every player in four columns by position.
-import type { Player } from '~/lib/cms-content'
+import type { Player } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'roster'>; first?: boolean; anchor?: string; players: Player[] }>()
 const words = useSiteWords()

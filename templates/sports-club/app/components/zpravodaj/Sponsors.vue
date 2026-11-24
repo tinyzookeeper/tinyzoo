@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zpravodaj's partners: a ruled list by level, the names set in the headline face, the larger
 // the more they give.
-import type { Sponsor } from '~/lib/cms-content'
+import type { Sponsor } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'sponsors'>; first?: boolean; anchor?: string; items: Sponsor[] }>()
 const words = useSiteWords()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zpravodaj's news: the newest article large with a framed photograph, the next three beside it
 // as small rows; on a list of all articles the rest follow below as the same rows.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; items: Article[] }>()
 const words = useSiteWords()

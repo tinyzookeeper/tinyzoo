@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Dres's article page: the section and date in small capitals over a headline in heavy wide
 // letters, the photograph across the whole width and the text in a column.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Article }>()
 const words = useSiteWords()

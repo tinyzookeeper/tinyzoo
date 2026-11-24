@@ -12,6 +12,7 @@ import medical from '../medical/fonts'
 import office from '../office/fonts'
 import restaurant from '../restaurant/fonts'
 import accommodation from '../accommodation/fonts'
+import sportsClub from '../sports-club/fonts'
 
 export const DESIGNS: Record<string, DesignFonts> = {
   individual,
@@ -25,4 +26,5 @@ export const DESIGNS: Record<string, DesignFonts> = {
   office,
   restaurant,
   accommodation,
+  'sports-club': sportsClub,
 }

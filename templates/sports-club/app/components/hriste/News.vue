@@ -2,7 +2,7 @@
 // Hřiště's news: the newest article large beside a soft-cornered photograph, the others as cards
 // with a photograph, a pill for the section and the first words: a row to swipe on a phone, a
 // grid of three from the width of a tablet.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; items: Article[] }>()
 const words = useSiteWords()
