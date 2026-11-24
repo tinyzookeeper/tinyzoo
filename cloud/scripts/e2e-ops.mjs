@@ -2,15 +2,21 @@
 // owner's own, the limits of a plan, moving a website out and in, and closing a Postgres
 // server to the websites' database users.
 //
-//   pnpm --filter tinyzoo-cloud e2e:ops     # needs the template built: pnpm --filter tinyzoo-cloud templates:build photographer
+//   pnpm --filter tinyzoo-cloud e2e:ops     # needs both apps built: pnpm --filter tinyzoo-cloud templates:build
 //
 // It starts a cloud app of its own with the shared driver and NUXT_HOSTING_SHARED_DIRECTORY=postgres
-// (database tz_cloud_ops_e2e, data under .data/ops-e2e, template ports 4580–4599, site
-// databases and users tzops_e2e_…, the app on 3296 or the next free port, its own build
+// (database tz_cloud_ops_e2e, data under .data/ops-e2e, app ports 4580–4599, site
+// databases and users tzops_e2e_…, the cloud on 3296 or the next free port, its own build
 // folder) and removes everything it made at the end (--keep leaves it). The names and ports
 // can be set from the environment: E2E_OPS_DB, E2E_OPS_SITE_PREFIX, E2E_OPS_PORT,
 // E2E_OPS_SITE_PORTS ("4580-4599"), E2E_OPS_DATA (the folder's name under .data); the Postgres
-// server from CLOUD_PG_URL.
+// server from CLOUD_PG_URL. Unless those are set, CLOUD_RUN_TAG and CLOUD_PORT_SHIFT give the
+// run names and ports of its own, as for scripts/e2e.mjs (lib.mjs `runDb`, `runSitePrefix`,
+// `runPort`), so a second checkout can run it beside the first.
+//
+// Two apps use the table `tenant_sites`: the one app (Photographer sites) and the Basic app (a
+// Basic site). Each app's process reads it with a role of its own that sees only the rows of its
+// own app; the column `template` holds the app's id and a kit site's row names its template as `model`.
 //
 // `tinyzoo backup` and `restore` need pg_dump, pg_restore and psql. On a machine without them
 // the script uses the wrappers in scripts/pg-tools, which run the tools inside the Postgres
@@ -32,23 +38,26 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { promisify } from 'node:util'
 import pg from 'pg'
-import { alive, arg, cloudDir, dbUrl, freePortFrom, log, PG_URL, portFree, repoRoot, sleep, startCloud, templateEntries, waitFor, withPg } from './lib.mjs'
+import { alive, appEntries, arg, cloudDir, dbUrl, freePortFrom, log, PG_URL, portFree, repoRoot, runDb, runPort, runSitePrefix, sleep, startCloud, waitFor, withPg } from './lib.mjs'
 
 const run = promisify(execFile)
 const keep = arg('keep', false) === true
-const DB = process.env.E2E_OPS_DB || 'tz_cloud_ops_e2e'
-const PREFIX = process.env.E2E_OPS_SITE_PREFIX || 'tzops_e2e'
-const [portFrom, portTo] = (process.env.E2E_OPS_SITE_PORTS || '4580-4599').split('-').map(Number)
+const DB = process.env.E2E_OPS_DB || runDb('tz_cloud_ops_e2e')
+const PREFIX = process.env.E2E_OPS_SITE_PREFIX || runSitePrefix('tzops_e2e')
+const [portFrom, portTo] = (process.env.E2E_OPS_SITE_PORTS || `${runPort(4580)}-${runPort(4599)}`).split('-').map(Number)
 const PORTS = { from: portFrom, to: portTo }
-const APP_PORT = Number(process.env.E2E_OPS_PORT) || 3296
-const dataDir = join(cloudDir, '.data', process.env.E2E_OPS_DATA || 'ops-e2e')
+const APP_PORT = Number(process.env.E2E_OPS_PORT) || runPort(3296)
+const dataDir = join(cloudDir, '.data', process.env.E2E_OPS_DATA || runDb('ops-e2e'))
 const CLOSE_URL = process.env.E2E_OPS_CLOSE_URL || ''
-if (!/^[a-z][a-z0-9_]*_e2e$/.test(DB)) { console.error(`E2E_OPS_DB must be a database of this script's own, named …_e2e (it is dropped): ${DB}`); process.exit(2) }
+// The database is dropped at the end, so only one that is this script's own: named …_e2e, or …_e2e_<run tag>.
+if (!/^[a-z][a-z0-9_]*_e2e(_[a-z0-9]+)?$/.test(DB)) { console.error(`E2E_OPS_DB must be a database of this script's own, named …_e2e (it is dropped): ${DB}`); process.exit(2) }
 if (!/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(PREFIX)) { console.error(`E2E_OPS_SITE_PREFIX is not a usable prefix: ${PREFIX}`); process.exit(2) }
 if (!Number.isInteger(PORTS.from) || !Number.isInteger(PORTS.to) || PORTS.to < PORTS.from + 1) { console.error('E2E_OPS_SITE_PORTS must be "from-to", two ports or more'); process.exit(2) }
 if (CLOSE_URL && new URL(CLOSE_URL).host === new URL(PG_URL).host) { console.error('E2E_OPS_CLOSE_URL must be a Postgres of its own, not the server the run itself uses: postgres:close changes every database of it.'); process.exit(2) }
 
-const templateDir = join(dataDir, 'photographer')
+// One folder per app (`<data>/<app id>/`). The one app serves the Photographer sites; the Basic app the Basic site.
+const templateDir = join(dataDir, 'templates')
+const basicDir = join(dataDir, 'basic')
 const workDir = join(dataDir, '_e2e')
 const singleDir = join(dataDir, '_single')
 const preview = join(cloudDir, '.preview')
@@ -59,7 +68,10 @@ const results = []
 const measures = {}
 const KEY = `directory-key-${randomBytes(24).toString('base64url')}`
 const TEMPLATE = 'photographer'
-const READER = `${PREFIX}_reader_${TEMPLATE}`
+// The apps and the roles their processes read the table with (`<prefix>_reader_<app id>`).
+const APP = 'templates'
+const READER = `${PREFIX}_reader_${APP}`
+const READER_BASIC = `${PREFIX}_reader_basic`
 const SINGLE_DB = `${PREFIX}_single`
 const photographerDir = join(repoRoot, 'templates', 'photographer')
 
@@ -70,9 +82,11 @@ function check(name, ok, detail = '') {
 }
 const note = (text) => log('   ', text)
 
-if (!existsSync(templateEntries.photographer)) {
-  console.error(`The template "photographer" is not built (${templateEntries.photographer}).\nRun: pnpm --filter tinyzoo-cloud templates:build photographer`)
-  process.exit(2)
+for (const id of ['templates', 'basic']) {
+  if (!existsSync(appEntries[id])) {
+    console.error(`The app "${id}" is not built (${appEntries[id]}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+    process.exit(2)
+  }
 }
 
 // ── the Postgres tools tinyzoo's command line needs ──
@@ -122,7 +136,7 @@ class Http {
 
 const dropCloudDatabase = () => withPg((c) => c.query(`drop database if exists "${DB}" with (force)`))
 const SITE_NAME = new RegExp(`^${PREFIX}_[0-9a-f]{8}(_[0-9a-f]{4}){3}_[0-9a-f]{12}$`)
-const OWN_NAME = (name) => SITE_NAME.test(name) || name === READER || name === SINGLE_DB
+const OWN_NAME = (name) => SITE_NAME.test(name) || name === READER || name === READER_BASIC || name === SINGLE_DB
 const own = (name) => {
   if (!OWN_NAME(name)) throw new Error(`refusing to touch ${name}`)
   return `"${name}"`
@@ -150,15 +164,18 @@ const cloudQuery = (text, params) => query(dbUrl(DB), text, params)
 
 // ── the processes of this run's data folder ──
 
-/** Processes this run started: the template's (the shared driver's `--template-dir=<folder>`) and the single site's (`--ops-single=<folder>`). */
+/** Processes this run started: the apps' (the shared driver's `--app-dir=<folder>`) and the moved-out site's (`--ops-single=<folder>`). */
 async function ownProcesses() {
   const { stdout } = await run('ps', ['-axo', 'pid=,rss=,command='])
-  const markers = [`--template-dir=${resolve(dataDir)}/`, `--ops-single=${resolve(singleDir)}`]
+  const appMarker = `--app-dir=${resolve(dataDir)}/`
+  const markers = [appMarker, `--ops-single=${resolve(singleDir)}`]
   return stdout.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter(Boolean)
     .filter((m) => m[3].split(/\s+/).some((word) => markers.some((marker) => word.startsWith(marker))))
-    .map((m) => ({ pid: Number(m[1]), rssBytes: Number(m[2]) * 1024, single: m[3].includes('--ops-single='), command: m[3] }))
+    .map((m) => ({ pid: Number(m[1]), rssBytes: Number(m[2]) * 1024, single: m[3].includes('--ops-single='), app: m[3].includes(appMarker) ? m[3].split(appMarker)[1].split(/\s/)[0] : null, command: m[3] }))
 }
-const templateProcesses = async () => (await ownProcesses()).filter((p) => !p.single)
+/** The one app's process (the Photographer sites) and the Basic app's. */
+const templateProcesses = async () => (await ownProcesses()).filter((p) => p.app === APP)
+const basicProcesses = async () => (await ownProcesses()).filter((p) => p.app === 'basic')
 
 /** Stop them: only pids whose command line carries one of this run's markers, asked first, then insisted on. */
 async function stopProcesses(which = () => true) {
@@ -182,7 +199,7 @@ async function listeners(port) {
   catch { return [] }
 }
 
-/** Remove everything a run made: its processes, the cloud's database, its site databases and users (the reader too), its folder. */
+/** Remove everything a run made: its processes, the cloud's database, its site databases and users (the readers too), its folder. */
 async function cleanUp() {
   const stopped = await stopProcesses()
   // The cloud's database first: the reader's rights are on it, and a role with rights cannot be dropped.
@@ -197,7 +214,7 @@ async function cleanUp() {
   return { processes: stopped.map((p) => p.pid), databases: databases.length, roles: roles.length }
 }
 
-// ── the directory's secrets, read as the template's process reads them (written out here: nothing of tinyzoo's server is imported) ──
+// ── the directory's secrets, read as an app's process reads them (written out here: nothing of tinyzoo's server is imported) ──
 
 function decrypt(value, key = KEY) {
   if (!String(value).startsWith('enc:v1:')) return value
@@ -219,7 +236,7 @@ function filesUnder(dir) {
   return readdirSync(dir, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).map((e) => join(e.parentPath ?? e.path, e.name))
 }
 const mode = (file) => (statSync(file).mode & 0o777).toString(8)
-const appFile = () => JSON.parse(readFileSync(join(templateDir, 'app.json'), 'utf8'))
+const appFile = (dir = templateDir) => JSON.parse(readFileSync(join(dir, 'app.json'), 'utf8'))
 const templateLog = () => (existsSync(join(templateDir, 'server.log')) ? readFileSync(join(templateDir, 'server.log'), 'utf8') : '')
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex')
 
@@ -239,7 +256,7 @@ const page = async (url, path = '/', init = {}) => {
 }
 const siteStatus = (url, token) => fetch(`${url}/api/health/status`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000), redirect: 'manual' }).then(async (res) => ({ status: res.status, body: await res.json().catch(() => null) }))
 
-/** tinyzoo's command line, run the way the cloud runs it: from the template's own packages, the database and the upload folder in the environment. */
+/** tinyzoo's command line, run the way the cloud runs it: from the template's own folder and packages, the database and the upload folder in the environment. */
 async function tinyzoo(args, { databaseUrl, uploadsDir, cwd }) {
   return run(join(photographerDir, 'node_modules', '.bin', 'tsx'), [join(photographerDir, 'node_modules', 'tinyzoo', 'cli', 'index.ts'), ...args], {
     cwd, maxBuffer: 16 * 1024 * 1024,
@@ -265,16 +282,27 @@ let cloud = null
 let single = null
 mkdirSync(preview, { recursive: true })
 
-/** Start the Photographer build as an ordinary single-site process of this run (its own marker), and wait until it answers. */
-async function startSingle(port, env) {
+/**
+ * Start the one app as the process of a site that moved out to a server of its own (its own marker), and wait
+ * until it answers. The one app cannot run in single mode: a site is served in multi-tenant mode from a site
+ * directory file that holds that one site (its model, database, secret, hosts, public address, storage folder).
+ * This is how the cloud's local driver runs a site too (server/hosting/local.ts, `localSiteRow` in shared/sharedHosting.ts).
+ * `appSecret` is the process's own secret, which seals the people's sessions.
+ */
+async function startSingle(port, { row, appSecret, cookieName }) {
+  writeFileSync(join(singleDir, 'sites.json'), `${JSON.stringify({ sites: [row] }, null, 2)}\n`, { mode: 0o600 })
   const out = openSync(join(singleDir, 'server.log'), 'a', 0o600)
-  const child = spawn(process.execPath, [templateEntries.photographer, `--ops-single=${resolve(singleDir)}`], {
+  const child = spawn(process.execPath, [appEntries.templates, `--ops-single=${resolve(singleDir)}`], {
     cwd: singleDir, detached: true, stdio: ['ignore', out, out],
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(port), NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_MAIL_TRANSPORT: 'log', ...env },
+    env: {
+      PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', NODE_ENV: 'production', HOST: '127.0.0.1', PORT: String(port),
+      NUXT_CMS_TENANCY_MODE: 'multi', NUXT_CMS_TENANCY_FILE: join(singleDir, 'sites.json'), NUXT_APP_SECRET: appSecret, NUXT_SESSION_NAME: cookieName,
+      NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_MAIL_TRANSPORT: 'log',
+    },
   })
   child.unref()
   const url = `http://127.0.0.1:${port}`
-  await waitFor(async () => (await ready(url))?.migrations === 'done', { timeout: 120_000, every: 300, what: 'the single-site process to answer' })
+  await waitFor(async () => (await ready(url))?.migrations === 'done', { timeout: 120_000, every: 300, what: 'the process of the moved-out site to answer' })
   return { pid: child.pid, url }
 }
 
@@ -304,11 +332,14 @@ async function main() {
       ...toolEnv,
   }
   cloud = await startCloud({ port, logFile, env: cloudEnv })
+  // Nuxt moves to another port by itself when its own is taken in the moment between the check and the start
+  // (another script of a second run); the answer on `port` would then be somebody else's cloud.
+  if (!readFileSync(logFile, 'utf8').includes(`Local:    http://localhost:${port}/`)) throw new Error(`the cloud app did not start on port ${port} (it was taken a moment before): ${logFile}`)
   log(`cloud app up at ${cloud.url} (shared driver, the site directory in Postgres)`)
   if (toolEnv.TINYZOO_PG_DUMP) note(`pg_dump, pg_restore and psql through ${toolEnv.TINYZOO_PG_DUMP.replace(/pg_dump$/, '')} (inside the container ${toolEnv.TINYZOO_PG_CONTAINER ?? 'tz-mt-pg'})`)
 
-  // ── two accounts, two Photographer sites of the first ──
-  log('0 · two accounts; the first makes two Photographer sites at the same moment')
+  // ── two accounts; two Photographer sites and a Basic site of the first ──
+  log('0 · two accounts; the first makes two Photographer sites and a Basic site at the same moment')
   const api = new Http(cloud.url)
   const owner = { name: 'Johana Loudová', email: `johana-${stamp}@example.com`, password: 'dlouhe-heslo-johany-1' }
   const signedUp = await api.post('/api/auth/signup', owner)
@@ -319,61 +350,79 @@ async function main() {
   const wanted = [
     { name: 'Ateliér Světlo', slug: `ops-svetlo-${stamp}`, template: TEMPLATE, look: 'negativ' },
     { name: 'Foto Zápisník', slug: `ops-zapisnik-${stamp}`, template: TEMPLATE, look: 'zapisnik' },
+    { name: 'Pekárna U Mostu', slug: `ops-pekarna-${stamp}`, template: 'basic' },
   ]
   const made = await Promise.all(wanted.map((w) => api.post('/api/sites', w)))
-  check('both sites are accepted', made.every((r) => r.status === 201), made.map((r) => `${r.status} ${r.text.slice(0, 200)}`).join(' | '))
+  check('all three sites are accepted', made.every((r) => r.status === 201), made.map((r) => `${r.status} ${r.text.slice(0, 200)}`).join(' | '))
   const untilReady = async (id, what) => waitFor(async () => {
     const now = (await api.get(`/api/sites/${id}?runtime=1`)).body
     if (now?.site.status === 'failed') throw new Error(`${what} failed: ${JSON.stringify(now.site.steps)} ${now.site.errorDetail ?? ''}`)
     return now?.site.status === 'ready' ? now : null
   }, { timeout: 300_000, every: 500, what: `${what} to be ready` })
-  const [first, second] = await Promise.all(made.map((r, i) => untilReady(r.body.site.id, `site ${i + 1}`)))
+  const [first, second, basicMade] = await Promise.all(made.map((r, i) => untilReady(r.body.site.id, `site ${i + 1}`)))
   let one = first.site
   const two = second.site
-  check('both sites are ready', one.status === 'ready' && two.status === 'ready')
+  const bas = basicMade.site
+  check('all three sites are ready', one.status === 'ready' && two.status === 'ready' && bas.status === 'ready')
   const sitePort = Number(new URL(one.publicUrl).port)
   const service1 = `http://${one.slug}.localhost:${sitePort}`
   const service2 = `http://${two.slug}.localhost:${sitePort}`
-  check('each is at <slug>.localhost on the template\'s port', one.publicUrl === service1 && two.publicUrl === service2, `${one.publicUrl} ${two.publicUrl}`)
+  check('each Photographer site is at <slug>.localhost on the one app\'s port', one.publicUrl === service1 && two.publicUrl === service2, `${one.publicUrl} ${two.publicUrl}`)
+  const basicPort = Number(new URL(bas.publicUrl).port)
+  const serviceB = `http://${bas.slug}.localhost:${basicPort}`
+  check('the Basic site is at <slug>.localhost on the Basic app\'s own port', bas.publicUrl === serviceB && basicPort !== sitePort, `${bas.publicUrl} (the one app on ${sitePort})`)
 
   // ── 1 · the directory in Postgres ──
-  log('1 · one process serves both sites, and reads them from the table')
+  log('1 · one process serves both Photographer sites and another the Basic site; both read the table, each only its own rows')
   const app = appFile()
   const pid = app.pid
   const procs = await templateProcesses()
-  check('one process listens on the template\'s port, the one app.json names, with the template folder\'s marker', (await listeners(sitePort)).join() === String(pid) && procs.length === 1 && procs[0].pid === pid, `listening ${(await listeners(sitePort)).join(',')}; app.json ${pid}; processes ${procs.map((p) => p.pid)}`)
-  check('both sites answer ready from it, each with its database migrated', (await Promise.all([service1, service2].map(ready))).every((r) => r?.ok === true && r.migrations === 'done'))
+  check('one process listens on the one app\'s port, the one app.json names, with the app folder\'s marker', (await listeners(sitePort)).join() === String(pid) && procs.length === 1 && procs[0].pid === pid, `listening ${(await listeners(sitePort)).join(',')}; app.json ${pid}; processes ${procs.map((p) => p.pid)}`)
+  const basicApp = appFile(basicDir)
+  const basicProcs = await basicProcesses()
+  check('the Basic site is served by another process, on another port, with its own folder and marker', basicProcs.length === 1 && basicProcs[0].pid === basicApp.pid && basicApp.pid !== pid && (await listeners(basicPort)).join() === String(basicApp.pid) && basicApp.port === basicPort, `${basicApp.pid}:${basicApp.port}`)
+  check('both Photographer sites answer ready from the one app\'s process, each with its database migrated, and the Basic site from its own', (await Promise.all([service1, service2, serviceB].map(ready))).every((r) => r?.ok === true && r.migrations === 'done'))
   const stored = await tableRows()
-  check('the table holds a row for each site, under the template\'s id, and nothing else', Object.keys(stored).sort().join() === [one.id, two.id].sort().join() && Object.values(stored).every((r) => r.template === TEMPLATE), JSON.stringify(Object.values(stored).map((r) => [r.id, r.template])))
-  check('there is no directory file in the template\'s folder', !existsSync(join(templateDir, 'sites.json')), readdirSync(templateDir).join(' '))
-  const row1 = openRow(stored[one.id].row), row2 = openRow(stored[two.id].row)
-  const secrets = [...secretsOf(row1), ...secretsOf(row2)]
+  check('the table holds a row for each of the three sites; the column `template` holds the app\'s id: `templates` for Photographer sites, `basic` for the Basic site', Object.keys(stored).sort().join() === [one.id, two.id, bas.id].sort().join() && stored[one.id].template === APP && stored[two.id].template === APP && stored[bas.id].template === 'basic', JSON.stringify(Object.values(stored).map((r) => [r.id, r.template])))
+  check('the rows of the kit\'s sites carry their template as `model`, the Basic site\'s row has none', stored[one.id].row.model === TEMPLATE && stored[two.id].row.model === TEMPLATE && !('model' in stored[bas.id].row), JSON.stringify(Object.values(stored).map((r) => [r.id, r.row.model])))
+  check('there is no directory file in either app\'s folder', !existsSync(join(templateDir, 'sites.json')) && !existsSync(join(basicDir, 'sites.json')), `${readdirSync(templateDir).join(' ')} | ${readdirSync(basicDir).join(' ')}`)
+  const row1 = openRow(stored[one.id].row), row2 = openRow(stored[two.id].row), rowB = openRow(stored[bas.id].row)
+  const secrets = [...secretsOf(row1), ...secretsOf(row2), ...secretsOf(rowB)]
   check('every secret of a row is stored encrypted: the database address, the site\'s secret, its setup code, its status token, its client secret',
-    [stored[one.id].row, stored[two.id].row].every((r) => [r.databaseUrl, r.secret, r.config.auth.setupToken, r.config.status.token, r.config.auth.account.clientSecret].every((v) => String(v).startsWith('enc:v1:'))))
-  check('decrypted with the directory key they are ten secrets, all different', secrets.length === 10 && new Set(secrets).size === 10 && secrets.every((x) => x.length >= 24))
+    [stored[one.id].row, stored[two.id].row, stored[bas.id].row].every((r) => [r.databaseUrl, r.secret, r.config.auth.setupToken, r.config.status.token, r.config.auth.account.clientSecret].every((v) => String(v).startsWith('enc:v1:'))))
+  check('decrypted with the directory key they are fifteen secrets, all different', secrets.length === 15 && new Set(secrets).size === 15 && secrets.every((x) => x.length >= 24))
   const tableText = (await cloudQuery('select string_agg(row::text, \' \') as text from tenant_sites'))[0].text
   check('the table holds no password and no secret in plain text', !secrets.some((x) => tableText.includes(x)) && !/postgres(ql)?:\/\//.test(tableText))
-  const who = await Promise.all([row1, row2].map((r) => query(r.databaseUrl, 'select current_user as u, current_database() as d, (select count(*)::int from cms_users) as people')))
-  check('the decrypted address opens each site\'s own database as the site\'s own user', who.every((w, i) => w[0].u === `${PREFIX}_${[one, two][i].id.replace(/-/g, '_')}` && w[0].d === w[0].u && w[0].people >= 2), JSON.stringify(who))
+  const who = await Promise.all([row1, row2, rowB].map((r) => query(r.databaseUrl, 'select current_user as u, current_database() as d, (select count(*)::int from cms_users) as people')))
+  check('the decrypted address opens each site\'s own database as the site\'s own user', who.every((w, i) => w[0].u === `${PREFIX}_${[one, two, bas][i].id.replace(/-/g, '_')}` && w[0].d === w[0].u && w[0].people >= 2), JSON.stringify(who))
   const kept = (await cloudQuery('select driver_state::text as state, secrets from sites')).map((r) => `${r.state} ${r.secrets}`).join(' ')
   check('the cloud keeps the sites\' secrets encrypted too', kept.includes('"databasePassword": "v1.') && !secrets.some((x) => kept.includes(x)))
-  const sent = JSON.stringify([first, second]) + JSON.stringify((await api.get('/api/sites')).body)
+  const sent = JSON.stringify([first, second, basicMade]) + JSON.stringify((await api.get('/api/sites')).body)
   check('no secret is sent to the owner\'s browser', !secrets.some((x) => sent.includes(x)) && !/databaseUrl|databasePassword|driverState/.test(sent))
-  // The process's own environment (ps shows it for one's own processes).
+  // The processes' own environment (ps shows it for one's own processes).
   const environment = (await run('ps', ['eww', '-o', 'command=', '-p', String(pid)])).stdout
-  check('ps shows the process\'s environment: multi-tenant mode, the table\'s address, the template\'s id',
-    environment.includes('NUXT_CMS_TENANCY_MODE=multi') && environment.includes('NUXT_CMS_TENANCY_DATABASE_URL=') && environment.includes(`NUXT_CMS_TENANCY_TEMPLATE=${TEMPLATE}`), 'ps did not show the environment')
-  check('its command line and environment hold no secret of a site', !secrets.some((x) => environment.includes(x)), 'a secret of a site is in it')
-  check('and name no directory file', !environment.includes('NUXT_CMS_TENANCY_FILE') && !environment.includes('sites.json'))
+  const environmentB = (await run('ps', ['eww', '-o', 'command=', '-p', String(basicApp.pid)])).stdout
+  check('ps shows the process\'s environment: multi-tenant mode, the table\'s address, the app\'s id (NUXT_CMS_TENANCY_TEMPLATE=templates; the Basic app\'s says basic)',
+    environment.includes('NUXT_CMS_TENANCY_MODE=multi') && environment.includes('NUXT_CMS_TENANCY_DATABASE_URL=') && environment.includes(`NUXT_CMS_TENANCY_TEMPLATE=${APP}`) && environmentB.includes('NUXT_CMS_TENANCY_TEMPLATE=basic') && !environment.includes('NUXT_CMS_TENANCY_TEMPLATE=basic'), 'ps did not show the environment')
+  check('their command lines and environments hold no secret of a site', !secrets.some((x) => environment.includes(x) || environmentB.includes(x)), 'a secret of a site is in it')
+  check('and name no directory file', !environment.includes('NUXT_CMS_TENANCY_FILE') && !environment.includes('sites.json') && !environmentB.includes('NUXT_CMS_TENANCY_FILE'))
   const readerUrl = environment.match(/NUXT_CMS_TENANCY_DATABASE_URL=(\S+)/)?.[1] ?? ''
   const reader = new URL(readerUrl)
-  check('the process reads the table as the reader, a role of its own, in the cloud\'s database', reader.username === READER && reader.pathname === `/${DB}` && reader.password.length >= 24 && reader.username !== new URL(PG_URL).username, `${reader.username} ${reader.pathname}`)
+  const readerUrlB = environmentB.match(/NUXT_CMS_TENANCY_DATABASE_URL=(\S+)/)?.[1] ?? ''
+  const readerB = new URL(readerUrlB)
+  check('each process reads the table as a reader of its own app, a role of its own, in the cloud\'s database', reader.username === READER && readerB.username === READER_BASIC && reader.pathname === `/${DB}` && readerB.pathname === `/${DB}` && reader.password.length >= 24 && readerB.password.length >= 24 && reader.password !== readerB.password && reader.username !== new URL(PG_URL).username, `${reader.username} ${readerB.username} ${reader.pathname}`)
   const administrator = new URL(PG_URL)
   check('what the process holds of its own: the directory key and the reader\'s password, and no administrator\'s address', environment.includes(`NUXT_CMS_TENANCY_KEY=${KEY}`) && !environment.includes(`${administrator.username}:${administrator.password}@`) && !environment.includes('NUXT_DATABASE_URL') && !/(^|\s)DATABASE_URL=/.test(environment))
-  check('the cloud keeps the reader\'s password and the process\'s operator token encrypted in app.json', app.reader?.role === READER && String(app.reader.password).startsWith('v1.') && String(app.operator).startsWith('v1.') && !JSON.stringify(app).includes(reader.password) && mode(join(templateDir, 'app.json')) === '600', JSON.stringify(Object.keys(app)))
-  const facts = (await withPg((c) => c.query('select rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolreplication from pg_roles where rolname = $1', [READER]))).rows[0]
-  check('the reader is a plain login', facts?.rolcanlogin === true && !facts.rolsuper && !facts.rolcreatedb && !facts.rolcreaterole && !facts.rolreplication, JSON.stringify(facts))
-  check('the reader can read the table', (await query(readerUrl, 'select count(*)::int as n from tenant_sites'))[0].n === 2)
+  check('the cloud keeps the reader\'s password and the process\'s operator token encrypted in app.json', app.reader?.role === READER && String(app.reader.password).startsWith('v1.') && String(app.operator).startsWith('v1.') && !JSON.stringify(app).includes(reader.password) && mode(join(templateDir, 'app.json')) === '600' && basicApp.reader?.role === READER_BASIC && String(basicApp.reader.password).startsWith('v1.'), JSON.stringify(Object.keys(app)))
+  const facts = (await withPg((c) => c.query('select rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole, rolreplication from pg_roles where rolname = any($1) order by 1', [[READER, READER_BASIC]]))).rows
+  check('the readers are plain logins', facts.length === 2 && facts.every((f) => f.rolcanlogin === true && !f.rolsuper && !f.rolcreatedb && !f.rolcreaterole && !f.rolreplication), JSON.stringify(facts))
+  // Row level security: the grant is on the whole table, and each reader sees only the rows of its own app.
+  const seen = await query(readerUrl, 'select id, template from tenant_sites order by id')
+  const seenB = await query(readerUrlB, 'select id, template from tenant_sites order by id')
+  check('the one app\'s reader sees only the `templates` rows: two sites, their ids, and none of `basic`\'s', seen.length === 2 && seen.map((r) => r.id).sort().join() === [one.id, two.id].sort().join() && seen.every((r) => r.template === APP) && (await query(readerUrl, 'select count(*)::int as n from tenant_sites where template = \'basic\''))[0].n === 0 && !seen.some((r) => r.id === bas.id), JSON.stringify(seen))
+  check('the Basic app\'s reader sees only the `basic` row: the one Basic site, and none of `templates`\'', seenB.length === 1 && seenB[0].id === bas.id && seenB[0].template === 'basic' && (await query(readerUrlB, 'select count(*)::int as n from tenant_sites where template = \'templates\''))[0].n === 0, JSON.stringify(seenB))
+  const policies = (await cloudQuery('select policyname, cmd, roles::text as roles from pg_policies where tablename = \'tenant_sites\' order by 1')).map((r) => `${r.policyname}:${r.cmd}`)
+  check('the table has row level security with one policy per reader, named like it, for SELECT', (await cloudQuery('select relrowsecurity from pg_class where relname = \'tenant_sites\''))[0].relrowsecurity === true && JSON.stringify(policies) === JSON.stringify([`${READER}:SELECT`, `${READER_BASIC}:SELECT`].sort()), JSON.stringify(policies))
   const granted = await query(readerUrl, 'select table_name, privilege_type from information_schema.table_privileges where grantee = current_user order by 1, 2')
   check('its only right on a table is SELECT on tenant_sites', JSON.stringify(granted) === JSON.stringify([{ table_name: 'tenant_sites', privilege_type: 'SELECT' }]), JSON.stringify(granted))
   const others = await Promise.all(['sites', 'users', 'account_clients', 'site_domains'].map((table) => refusal(readerUrl, `select 1 from ${table} limit 1`)))
@@ -414,7 +463,7 @@ async function main() {
   measures.removeMs = Math.max(0, goneMs - rowGoneMs)
   check(`a removed row: the site answers 404 (${measures.removeMs} ms after its row left the table)`, measures.removeMs < 2500, `${measures.removeMs} ms`)
   await waitFor(async () => (await cloudQuery('select status from sites where id = $1', [third.id]))[0]?.status === 'removed', { timeout: 30_000, what: 'the third site to be removed' })
-  check('its database and user are gone, the other two sites keep answering from the same process', !(await siteDatabases()).some((n) => n.includes(third.id.replace(/-/g, '_'))) && !(await siteRoles()).some((n) => n.includes(third.id.replace(/-/g, '_'))) && (await page(service1)).status === 200 && (await page(service2)).status === 200 && (await templateProcesses()).map((p) => p.pid).join() === String(pid))
+  check('its database and user are gone, the other sites keep answering from their processes', !(await siteDatabases()).some((n) => n.includes(third.id.replace(/-/g, '_'))) && !(await siteRoles()).some((n) => n.includes(third.id.replace(/-/g, '_'))) && (await page(service1)).status === 200 && (await page(service2)).status === 200 && (await page(serviceB)).status === 200 && (await templateProcesses()).map((p) => p.pid).join() === String(pid) && (await basicProcesses()).map((p) => p.pid).join() === String(basicApp.pid) && Object.keys(await tableRows()).sort().join() === [one.id, two.id, bas.id].sort().join())
 
   // ── 3 · a domain of the owner's own ──
   log('3 · a domain of the owner\'s own for site 1')
@@ -606,7 +655,7 @@ async function main() {
   asForm.append('file', new Blob([randomBytes(64)]), 'x.tar')
   check('refused: a form another website could make a browser send (multipart)', (await api.request('POST', `/api/sites/import?slug=${newSlug}`, { form: asForm })).status === 415)
   check('no upload that was refused is left on the disk', filesUnder(join(dataDir, '_imports')).length === 0, filesUnder(join(dataDir, '_imports')).join(' '))
-  check('and no site was made by any of them', (await api.get('/api/sites')).body.sites.length === 2)
+  check('and no site was made by any of them', (await api.get('/api/sites')).body.sites.length === 3)
 
   const imported = await sendArchive(api, archive, newSlug)
   check('the archive is taken in: a new site is being made', imported.status === 201 && imported.body.site.slug === newSlug && imported.body.site.imported === true && imported.body.site.template === TEMPLATE && imported.body.site.name === 'Ateliér Světlo', `${imported.status} ${imported.text.slice(0, 300)}`)
@@ -697,7 +746,7 @@ async function main() {
   check('deleting the moved website ends the redirect too: its address answers 404 and is free', removal.status === 200 && (await page(service1)).status === 404 && (await api.get(`/api/slug?slug=${one.slug}`)).body?.ok === true)
 
   // ── 6 · out to a server of its own ──
-  log('6 · moving out to a server of its own: an ordinary single-site process, restored from the archive')
+  log('6 · moving out to a server of its own: the one app as a process of its own for the one site, restored from the archive')
   mkdirSync(join(singleDir, 'uploads'), { recursive: true })
   await withPg(async (c) => { await c.query(`drop database if exists ${own(SINGLE_DB)} with (force)`); await c.query(`create database ${own(SINGLE_DB)}`) })
   const singleDb = dbUrl(SINGLE_DB)
@@ -707,23 +756,27 @@ async function main() {
   if (!(await portFree(singlePort))) throw new Error(`port ${singlePort} is in use`)
   const singleUrl = `http://127.0.0.1:${singlePort}`
   const cookieName = [...editor1.cookies.keys()][0]
-  const settings = {
-    NUXT_CMS_DATABASE_URL: singleDb, NUXT_CMS_STORAGE_DRIVER: 'local', NUXT_CMS_STORAGE_LOCAL_DIR: join(singleDir, 'uploads'),
-    NUXT_CMS_PUBLIC_URL: singleUrl, NUXT_CMS_STATUS_TOKEN: siteJson.statusToken, NUXT_SESSION_NAME: cookieName,
+  // The one app has no single-site mode: the restored site runs on it in multi-tenant mode, from a site directory
+  // file that holds this one site, as the cloud's local driver runs any site. The row is made as that driver makes one
+  // (`localSiteRow`): the site's own id and model, its database, the secret site.json carries, its address and its folder.
+  const movedRow = {
+    id: one.id, hosts: ['127.0.0.1'], publicUrl: singleUrl, databaseUrl: singleDb, secret: siteJson.secret, model: siteJson.template,
+    config: { auth: { setupToken: randomBytes(24).toString('base64url') }, status: { token: siteJson.statusToken }, storage: { driver: 'local', local: { dir: join(singleDir, 'uploads') } } },
   }
-  // First with what site.json carries: the site's own secret as the app secret.
-  single = await startSingle(singlePort, { ...settings, NUXT_APP_SECRET: siteJson.secret })
+  // First with what site.json carries: the site's own secret as the process's app secret.
+  single = await startSingle(singlePort, { row: movedRow, appSecret: siteJson.secret, cookieName })
   const homeSingle = await page(singleUrl)
-  check('the site runs as a process of its own (single mode) with the same content', (await ready(singleUrl))?.migrations === 'done' && homeSingle.status === 200 && homeSingle.text.includes('Ateliér Světlo') && homeSingle.text.includes('data-look="negativ"') && (await new Http(singleUrl).get('/api/content/category')).text.includes(entry.slug) && !(await new Http(singleUrl).get('/api/content/category')).text.includes(onlyNew.slug), `${homeSingle.status}`)
+  check('the site runs as a process of its own (the one app, one site in its directory) with the same content and the same design', (await ready(singleUrl))?.migrations === 'done' && homeSingle.status === 200 && homeSingle.text.includes('Ateliér Světlo') && homeSingle.text.includes('data-look="negativ"') && /<html\b[^>]*data-design="photographer"/.test(homeSingle.text) && (await new Http(singleUrl).get('/api/content/category')).text.includes(entry.slug) && !(await new Http(singleUrl).get('/api/content/category')).text.includes(onlyNew.slug), `${homeSingle.status}`)
+  check('it is a process of its own: another pid and port than the shared app\'s, with the marker of this step', single.pid !== pid && (await ownProcesses()).some((p) => p.single && p.pid === single.pid) && (await templateProcesses()).map((p) => p.pid).join() === String(pid))
   check('the same media, byte for byte', Buffer.from(await (await fetch(singleUrl + filePath)).arrayBuffer()).equals(PNG))
   check('the status token carried in site.json opens its status: monitoring keeps working', (await siteStatus(singleUrl, siteJson.statusToken)).body?.people?.active === people1.split(',').filter((p) => p.endsWith(':active')).length)
   const editorSingle = new Http(singleUrl)
   check('people sign in with the passwords they had', (await editorSingle.post('/api/cms/_auth/login', { email: editor.email, password: editor.password })).status === 200 && (await editorSingle.get('/api/cms/_auth/me')).body?.user?.email === editor.email)
   const withSiteSecret = (await new Http(singleUrl).get('/api/cms/_auth/me', { cookie: editor1.cookie })).status
-  check('with the site\'s own secret as the app secret, a session from before the move is NOT accepted (401): shared hosting seals the cookie with the secret of the template\'s process, which no archive carries', withSiteSecret === 401, String(withSiteSecret))
-  // Then with the secret the cookie was sealed with: the template process's own (app.json), which only whoever runs the service has.
+  check('with the site\'s own secret as the app secret, a session from before the move is NOT accepted (401): shared hosting seals the cookie with the secret of the app\'s process, which no archive carries', withSiteSecret === 401, String(withSiteSecret))
+  // Then with the secret the cookie was sealed with: the app process's own (app.json), which only whoever runs the service has.
   await stopProcesses((p) => p.single)
-  single = await startSingle(singlePort, { ...settings, NUXT_APP_SECRET: app.secret })
+  single = await startSingle(singlePort, { row: movedRow, appSecret: app.secret, cookieName })
   const survived = await new Http(singleUrl).get('/api/cms/_auth/me', { cookie: editor1.cookie })
   check('with the secret of the shared process as the app secret (and the same cookie name and database), the same session works: 200, the same person', survived.status === 200 && survived.body?.user?.email === editor.email, `${survived.status} ${survived.text.slice(0, 200)}`)
   check('the owner\'s session from before the move works there too', (await new Http(singleUrl).get('/api/cms/_auth/me', { cookie: site1.cookie })).body?.user?.email === owner.email)
@@ -736,21 +789,23 @@ async function main() {
   cloud = await startCloud({ port, logFile, env: { ...cloudEnv, NUXT_HOSTING_SHARED_DIRECTORY: 'file' } })
   check('the owner signs in to the restarted cloud', (await api.post('/api/auth/login', { email: owner.email, password: owner.password })).status === 200)
   const pidBefore = (await templateProcesses()).map((p) => p.pid).join()
+  const basicPidBefore = (await basicProcesses()).map((p) => p.pid).join()
   const refusedSwitch = await api.post(`/api/sites/${two.id}/invite`)
   const said = () => readFileSync(logFile, 'utf8')
   check('the running process still reads the table: the cloud does not stop it, it says what to do', refusedSwitch.status === 502 && pidBefore === String(pid) && /reads its site directory from the database, and NUXT_HOSTING_SHARED_DIRECTORY now says file\. Stop that process/.test(said()), `${refusedSwitch.status} ${refusedSwitch.text.slice(0, 200)}`)
   check('the sites are served meanwhile, by that process', (await page(service2)).status === 200 && (await page(serviceNew)).status === 200 && !existsSync(join(templateDir, 'sites.json')))
-  check('the script stops the one template process it knows by its marker', (await stopProcesses((p) => !p.single)).map((p) => p.pid).join() === String(pid) && !(await alive(pid)))
+  check('the script stops the one app\'s process by its marker, and only that one: the Basic app\'s keeps running and serving', (await stopProcesses((p) => p.app === APP)).map((p) => p.pid).join() === String(pid) && !(await alive(pid)) && (await basicProcesses()).map((p) => p.pid).join() === basicPidBefore && (await page(serviceB)).status === 200)
   const switched = await api.post(`/api/sites/${two.id}/invite`)
-  check('the cloud starts the process again, now with the file', switched.status === 200 && (await templateProcesses()).length === 1 && (await templateProcesses())[0].pid !== pid && appFile().port === sitePort, `${switched.status} ${switched.text.slice(0, 200)}`)
+  check('the cloud starts the one app\'s process again, now with the file', switched.status === 200 && (await templateProcesses()).length === 1 && (await templateProcesses())[0].pid !== pid && appFile().port === sitePort, `${switched.status} ${switched.text.slice(0, 200)}`)
   const fileText = readFileSync(join(templateDir, 'sites.json'), 'utf8')
   const fileRows = JSON.parse(fileText).sites
-  check('the file holds the rows of every site of the template, written again from what the cloud keeps, readable by its owner only', fileRows.map((r) => r.id).sort().join() === [two.id, fresh.id].sort().join() && mode(join(templateDir, 'sites.json')) === '600', fileRows.map((r) => r.id).join())
+  check('the file holds the rows of every site of the one app, written again from what the cloud keeps, readable by its owner only', fileRows.map((r) => r.id).sort().join() === [two.id, fresh.id].sort().join() && mode(join(templateDir, 'sites.json')) === '600', fileRows.map((r) => r.id).join())
   const fileSecrets = fileRows.flatMap((r) => secretsOf(openRow(r)))
   check('with the key set the file holds no password and no secret in plain text either', fileRows.every((r) => [r.databaseUrl, r.secret, r.config.auth.setupToken, r.config.status.token, r.config.auth.account.clientSecret].every((v) => String(v).startsWith('enc:v1:'))) && fileSecrets.length === 10 && !fileSecrets.some((x) => fileText.includes(x)) && !/postgres(ql)?:\/\//.test(fileText))
   const environment8 = (await run('ps', ['eww', '-o', 'command=', '-p', String(appFile().pid)])).stdout
   check('the new process is told the file and the key, no database of a directory, and no secret of a site', environment8.includes(`NUXT_CMS_TENANCY_FILE=${join(templateDir, 'sites.json')}`) && environment8.includes(`NUXT_CMS_TENANCY_KEY=${KEY}`) && !environment8.includes('NUXT_CMS_TENANCY_DATABASE_URL') && !fileSecrets.some((x) => environment8.includes(x)), 'ps did not show what was expected')
   check('both sites answer from it with their content, and a session from before still counts', (await page(service2)).text.includes('Foto Zápisník') && (await new Http(serviceNew).get('/api/content/category')).text.includes(onlyNew.slug) && (await editorNew.get('/api/cms/_auth/me')).body?.user?.email === editor.email)
+  check('the Basic site\'s row stays in the table (its app still reads it there): the file holds nothing of it', !fileRows.some((r) => r.id === bas.id) && (await tableRows())[bas.id]?.template === 'basic' && !('model' in (await tableRows())[bas.id].row) && (await page(serviceB)).text.includes('Pekárna U Mostu'))
 
   // ── 7 · closing a Postgres server to the sites' users ──
   if (!CLOSE_URL) {
@@ -807,8 +862,8 @@ catch (err) {
 finally {
   const missed = results.filter((r) => !r.ok)
   if (!failed && missed.length) failed = new Error(`failed: ${missed.map((r) => r.name).join('; ')}`)
-  if (failed && existsSync(join(templateDir, 'server.log'))) console.error('--- last lines of the template process\'s log ---\n' + templateLog().split('\n').slice(-25).join('\n'))
-  if (failed && existsSync(join(singleDir, 'server.log'))) console.error('--- last lines of the single-site process\'s log ---\n' + readFileSync(join(singleDir, 'server.log'), 'utf8').split('\n').slice(-15).join('\n'))
+  if (failed && existsSync(join(templateDir, 'server.log'))) console.error('--- last lines of the one app process\'s log ---\n' + templateLog().split('\n').slice(-25).join('\n'))
+  if (failed && existsSync(join(singleDir, 'server.log'))) console.error('--- last lines of the moved-out site\'s process log ---\n' + readFileSync(join(singleDir, 'server.log'), 'utf8').split('\n').slice(-15).join('\n'))
   await cloud?.stop().catch(() => {})
   if (keep) {
     const procs = await ownProcesses().catch(() => [])
