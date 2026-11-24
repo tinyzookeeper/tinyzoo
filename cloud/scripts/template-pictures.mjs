@@ -14,7 +14,7 @@
 //   <slug>/<look>-card.webp    800 × 500, the gallery's card
 //   <slug>/<look>-thumb.webp   240 × 150, the small pictures of a card's other looks
 //
-// From real sites (--real; needs the templates built and Postgres): the script starts a cloud
+// From real sites (--real; needs the two apps built and Postgres): the script starts a cloud
 // app of its own, makes one site of every look of every built template, and takes the same two
 // pictures of each, plus
 //   <id>/<look>-top.webp       1440 × 900, the first screen with the site's name left out: the
@@ -22,7 +22,8 @@
 //   <id>/<look>-tall.webp      900 × 1350, the top of the home page, for the look step
 // It also measures where and how the site writes its name (the wordmark: place, size, colour,
 // typeface) and copies the typeface's files to public/templates/fonts/, so the typed name can be
-// set in it.
+// set in it. Every site is a process of its app in multi-tenant mode (the hosted templates' ones
+// of the one app).
 //
 // A template without looks (Basic) has one set of pictures, named after the template.
 import { execFileSync } from 'node:child_process'
@@ -30,7 +31,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import { arg, BUILT_TEMPLATES, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, log, looksOf, recreateDatabase, repoRoot, runDb, runPort, runPrefix, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
+import { arg, BUILT_TEMPLATES, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, log, looksOf, missingDesigns, recreateDatabase, repoRoot, runDb, runPort, runPrefix, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
 
 const sharp = createRequire(join(repoRoot, 'packages/cms/package.json'))('sharp')
 const out = join(cloudDir, 'public', 'templates')
@@ -184,9 +185,17 @@ const measure = (page, selector) => page.evaluate((selector) => {
 
 async function fromRealSites() {
   const { chromium } = await import('playwright')
-  for (const [id, entry] of Object.entries(templateEntries)) {
-    if (existsSync(entry) || (only && !only.includes(id))) continue
-    console.error(`The template "${id}" is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+  // The apps that serve the templates photographed (the one app for the hosted ones, the Basic website's own), and with --only
+  // only those: the one app may be built with some designs only (`templates:build photographer`).
+  const wanted = BUILT_TEMPLATES.map((t) => t.id).filter((id) => !only || only.includes(id))
+  for (const entry of new Set(wanted.map((id) => templateEntries[id]))) {
+    if (existsSync(entry)) continue
+    console.error(`An app is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+    process.exit(2)
+  }
+  const lacking = missingDesigns(wanted)
+  if (lacking.length) {
+    console.error(`The one app was built without the design(s) ${lacking.join(', ')}.\nRun: pnpm --filter tinyzoo-cloud templates:build`)
     process.exit(2)
   }
   const DB = runDb('tz_cloud_pics')
