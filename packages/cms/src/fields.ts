@@ -1,7 +1,8 @@
 import type { LocalizedText } from './i18n'
 import { isSafeLink } from './richtext'
 import { looksLikeLinkRef } from './linkref'
-import { type BlockDef, type BlockValue, type BlocksValue, type GroupValue, blocksGraph, blocksSchema, checkContainedFields, defineBlock, groupGraph } from './blocks'
+import { type BlockDef, type BlockValue, type BlocksValue, type GroupValue, blocksGraph, blocksSchema, checkContainedFields, checkNoBinding, defineBlock, groupGraph } from './blocks'
+import { bindingSchema, type CmsBinding } from './binding'
 import {
   boolean, integer, jsonb, numeric, text, timestamp, uuid,
   type PgColumnBuilder,
@@ -399,6 +400,7 @@ export const f = {
     /** …and bring an item stored at `fromVersion` to `fromVersion + 1` here (called once per step). */
     upgrade?: BlockDef['upgrade']
   }) => {
+    checkNoBinding('List item', o.fields)
     const blocks = { [o.itemType ?? 'item']: defineBlock({ label: o.itemLabel ?? { en: 'Item', cs: 'Položka', de: 'Eintrag' }, icon: 'i-lucide-list', fields: o.fields, version: o.version, upgrade: o.upgrade }) } as Record<string, BlockDef>
     return as<ScalarKind<CmsListValue<F, K>, CmsListValue<F, K>, true>>(createField({
       type: 'blocks', ui: { edit: 'CmsFieldBlocks', cell: 'CmsCellBlocks' },
@@ -518,3 +520,22 @@ export const f = {
     }, { isRequired: !!o.required, isOptional: ownsColumn ? !o.required : false }))
   },
 }
+
+/**
+ * The field of a block that holds a binding: which custom type the block shows and which
+ * of its fields go where (`CmsBinding`). Only the blocks `customTypeBlocks()` makes use it.
+ * `'entries'` is a list of a type's entries, `'chosen'` entries picked by hand. Not part of
+ * `f`: a binding is refused anywhere but as a field of a block.
+ *
+ * @internal
+ */
+export function bindingField(kind: 'entries' | 'chosen') {
+  return as<ScalarKind<CmsBinding, CmsBinding, true>>(createField({
+    type: 'binding', ui: { edit: 'CmsFieldBinding', cell: 'CmsCellText' },
+    base: { kind: 'jsonb' }, tsType: 'CmsBinding',
+    meta: { binding: kind },
+    zod: () => bindingSchema,
+  }))
+}
+
+export { bindingSchema }

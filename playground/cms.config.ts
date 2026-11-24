@@ -1,4 +1,4 @@
-import { defineAdminMenu, defineBlock, defineEntity, defineLocales, defineModels, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
+import { customTypeBlocks, defineAdminMenu, defineBlock, defineEntity, defineLocales, defineModels, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
 import { defineForm, defineFormSettings, formsPlugin } from "tinyzoo/forms"
 import { analyticsPlugin } from "tinyzoo/analytics"
 import { consentPlugin } from "tinyzoo/consent"
@@ -318,6 +318,8 @@ export const Page = definePages({
         }).label({ en: "Cards", cs: "Karty", de: "Karten" }),
       },
     }),
+    // Entries of the site's own content types, as a list or picked by hand.
+    ...customTypeBlocks(),
   },
 })
 

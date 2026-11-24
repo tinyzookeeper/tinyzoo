@@ -389,7 +389,10 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
     )
   }
   const fields = def.fields as unknown as Record<string, FieldDescriptor>
-  for (const key of Object.keys(fields)) {
+  for (const [key, fld] of Object.entries(fields)) {
+    if (fld.type === 'binding') {
+      throw new Error(`Field "${key}" in "${name}" has type "binding": a binding is a field of a block only (made by customTypeBlocks()), not of a collection or a global.`)
+    }
     if (key.startsWith('_')) {
       throw new Error(`Field "${key}" in "${name}": names starting with "_" are reserved by the CMS. Rename the field; a rename is a migration: see "Renaming a field": ${docsUrl('renamingField')}`)
     }

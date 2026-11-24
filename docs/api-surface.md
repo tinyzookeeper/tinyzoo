@@ -129,6 +129,7 @@ Import these in `cms.config.ts` and in code that uses the config's types. Anythi
 | `defineAdminMenu(menu)` | the admin's menu: the rows beside Home, the groups and their order, what sits behind "Settings", the order of the forms ([the menu](guide/admin.md#the-menu)) |
 | `defineRoles(roles)` | the site's own roles, each extending `editor` or `author`: per-collection operations, `publish`, `media` ([roles](guide/roles.md)) |
 | `defineModels(models)` | **experimental**, may change in a minor: the content models one build carries (`CmsModelDef`: `config` and the `migrations` folder; `defineModels` returns `CmsModels`), for multi-tenant mode, where each site's directory row names its `model`. Without it, `cms.config.ts` is the one model |
+| `customTypeBlocks()` | **experimental**, may change in a minor: the two page blocks that show the entries of a content type the site made for itself (`x_entries`, a list; `x_chosen`, entries picked by hand). Spread it into the blocks of `definePages`: `blocks: { hero, ...customTypeBlocks() }`. Blocks are stored in one column, so it needs no migration |
 | `definePages(opts)` | the ready-made pages collection (blocks, SEO, preview, optionally a tree) |
 | `defineNavigation(opts)` | site menus as one global (`/api/content/_global/navigation`) |
 | `defineRedirects(opts)` | the redirects collection |
@@ -230,7 +231,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 |---|---|
 | Data shapes | `Row`, `Insert`, `Update` (of an entity), `Entity`, `EntityDef`, `ContentConfig`, `PublishConfig`, `TreeConfig`, `CmsEditorLayout`, `CmsListLayout`, `CmsFormSection` |
 | Fields | `FieldDescriptor`, `AnyFieldDescriptor`, `FieldKind`, `FieldUi`, `Nullable`, `Defaulted`, `OnDelete`, `RelationKind`, `RelationSpec` |
-| Values | `RichTextDoc`, `CmsBlock`, `BlockDef`, `BlockValue`, `BlocksValue`, `GroupValue`, `CmsListValue`, `CmsGalleryValue` |
+| Values | `RichTextDoc`, `CmsBlock`, `BlockDef`, `BlockValue`, `BlocksValue`, `GroupValue`, `CmsListValue`, `CmsGalleryValue`, `CmsBinding` (what `customTypeBlocks()`'s blocks store in `source`) |
 | Languages and text | `LocalesDef`, `LocalizedText`, `PathTemplate` |
 | The admin's menu | `CmsAdminMenuInput` (what `defineAdminMenu` takes), `CmsAdminMenuDef` (what it returns), `CmsAdminMenuItem` (one row), `CmsAdminMenuBuiltin` (`'@forms'`, `'@media'`, `'@team'`, `'@privacy'`, `'@about'`) |
 | Users and roles | `CmsAccessUser` (what an `access` rule is given: `id`, `email`, `name`, `role`, `base`, `locale`, and what an external sign-in adds as `unknown`), `CmsRole` (`'admin' \| 'editor' \| 'author'`), `CmsRoleBase`, `CmsRoleDef`, `CmsRoleRef`, `CmsRoleInput`, `CmsRoles`, `CmsEntityOp`, `CmsMediaAccess`, `CmsFieldAccess` |

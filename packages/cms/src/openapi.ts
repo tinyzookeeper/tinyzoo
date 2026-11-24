@@ -1,4 +1,4 @@
-import { buildContentModel, type ContentField, type ContentFieldType, type ContentShape } from './content-shape'
+import { buildContentModel, modelHasBinding, type ContentField, type ContentFieldType, type ContentShape } from './content-shape'
 
 // Emit an OpenAPI 3.1 document describing the PUBLIC content API, generated from
 // cms.config.ts. Every public collection gets concrete `/api/content/<name>` and
@@ -71,6 +71,7 @@ function fieldSchema(t: ContentFieldType): JsonSchema {
     case 'richtext': return REF('RichTextDoc')
     case 'media': return REF('CmsMedia')
     case 'gallery': return { type: 'array', items: REF('CmsGalleryItem') }
+    case 'binding': return REF('CmsBinding')
     case 'relation-one': return REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`)
     case 'relation-many': return { type: 'array', items: REF(t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`) }
     case 'blocks': {
@@ -202,6 +203,32 @@ export function buildOpenApiDocument(config: Record<string, any>, opts: OpenApiO
       properties: { ...MEDIA_PROPERTIES, caption: { type: ['string', 'null'] } },
       required: [...MEDIA_REQUIRED, 'caption'],
     },
+  }
+
+  if (modelHasBinding(model)) {
+    const place = { type: ['string', 'null'] }
+    schemas.CmsBinding = {
+      type: 'object',
+      description: 'Which custom type a block shows, and which field goes to which place.',
+      additionalProperties: false,
+      properties: {
+        type: { type: 'string' },
+        show: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { image: place, text: place, date: place, label: place, more: { type: 'array', maxItems: 6, items: { type: 'string' } } },
+        },
+        order: {
+          type: ['object', 'null'],
+          additionalProperties: false,
+          properties: { by: { type: 'string' }, dir: { type: 'string', enum: ['asc', 'desc'] } },
+          required: ['by', 'dir'],
+        },
+        limit: { type: ['integer', 'null'], minimum: 1, maximum: 48 },
+        entries: { type: 'array', maxItems: 12, items: { type: 'string', format: 'uuid' } },
+      },
+      required: ['type'],
+    }
   }
 
   // Embedded (nested public) + ref (nested non-public) target schemas.

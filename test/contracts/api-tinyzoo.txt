@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (131) ─────────────────────────────────────────────────
+// ── public (133) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -98,6 +98,23 @@ export interface CmsAdminMenuInput {
 export type CmsAdminMenuItem = {
     name: string;
 } | CmsAdminMenuBuiltin | (string & {});
+
+export interface CmsBinding {
+    type: string;
+    show?: {
+        image?: string | null;
+        text?: string | null;
+        date?: string | null;
+        label?: string | null;
+        more?: string[];
+    };
+    order?: {
+        by: string;
+        dir: 'asc' | 'desc';
+    } | null;
+    limit?: number | null;
+    entries?: string[];
+}
 
 export interface CmsBlock {
     id: string;
@@ -950,6 +967,8 @@ export interface UpgradeStep {
     run: (ctx: UpgradeContext) => void | Promise<void>;
 }
 
+export function customTypeBlocks(): CustomTypeBlocks;
+
 export function defineAdminMenu(input: CmsAdminMenuInput): CmsAdminMenuDef;
 
 export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: BlockDef<F>): BlockDef<F>;
@@ -1112,7 +1131,11 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (257): exported, not part of the frozen API, may change in any minor ──
+// ── internal (262): exported, not part of the frozen API, may change in any minor ──
+const BINDING_ENTRIES_MAX
+const BINDING_LIMIT_DEFAULT
+const BINDING_LIMIT_MAX
+const BINDING_MORE_MAX
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
@@ -1126,6 +1149,7 @@ const CMS_MEDIA_ACCESS
 const CMS_ROLES
 const CMS_ROLE_BASES
 const CORE_UPGRADE_STEPS
+const CUSTOM_BLOCK_TYPES
 const CUSTOM_PREFIX
 interface CmsAccentScheme
 type CmsAdminIconLink

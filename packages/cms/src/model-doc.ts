@@ -252,8 +252,10 @@ const MAPPER_KEYS: readonly string[] = ['slug', 'status', 'position']
 const SYSTEM_COLUMNS: readonly string[] = ['id', 'created_at', 'updated_at', 'created_by', 'updated_by', 'slug', 'status', 'position']
 
 const LANG = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})?$/
-const TYPE_NAME = new RegExp(`^${CUSTOM_PREFIX}[a-z][a-z0-9]*(?:_[a-z0-9]+)*$`)
-const FIELD_KEY = /^[a-z][a-zA-Z0-9]*$/
+/** What a custom type's name looks like (its length is checked apart). @internal */
+export const TYPE_NAME = new RegExp(`^${CUSTOM_PREFIX}[a-z][a-z0-9]*(?:_[a-z0-9]+)*$`)
+/** What a custom type's field key looks like. @internal */
+export const FIELD_KEY = /^[a-z][a-zA-Z0-9]*$/
 const PAGE_PREFIX = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const OPTION_VALUE = /^[a-z0-9][a-z0-9_-]*$/
 const ICON = /^i-[a-z0-9]+(?:-[a-z0-9]+)*$/

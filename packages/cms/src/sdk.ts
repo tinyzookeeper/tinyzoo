@@ -1,4 +1,4 @@
-import { buildContentModel, type ContentField, type ContentFieldType, type EmbeddedShape, type RefShape } from './content-shape'
+import { buildContentModel, modelHasBinding, type ContentField, type ContentFieldType, type EmbeddedShape, type RefShape } from './content-shape'
 
 // Emit a self-contained, strictly-typed TypeScript client binding for the public
 // content API, generated from cms.config.ts. The output declares one interface per
@@ -31,6 +31,7 @@ function tsType(t: ContentFieldType): string {
     case 'richtext': return 'RichTextDoc'
     case 'media': return 'CmsMedia'
     case 'gallery': return 'CmsGalleryItem[]'
+    case 'binding': return 'CmsBinding'
     case 'relation-one': return t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`
     case 'relation-many': return `${t.public ? `${pascalRef(t.target)}Embedded` : `${pascalRef(t.target)}Ref`}[]`
     case 'blocks': {
@@ -123,6 +124,23 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('  caption: string | null')
   out.push('}')
   out.push('')
+  // Only a site that uses the blocks of customTypeBlocks() gets this one.
+  if (modelHasBinding(model)) {
+    out.push('/** Which custom type a block shows, and which field goes to which place. */')
+    out.push('export interface CmsBinding {')
+    out.push('  /** The custom type, for example `x_course`. */')
+    out.push('  type: string')
+    out.push('  /** The fields that go to the places of a card. */')
+    out.push('  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }')
+    out.push("  /** A list only: the field to order by. Null or left out is the type's own order. */")
+    out.push("  order?: { by: string; dir: 'asc' | 'desc' } | null")
+    out.push('  /** A list only: how many entries, 1 to 48. Left out is 6. */')
+    out.push('  limit?: number | null')
+    out.push('  /** Chosen entries only: their ids, in the picked order. */')
+    out.push('  entries?: string[]')
+    out.push('}')
+    out.push('')
+  }
 
   // Embedded + ref shapes (nested populated targets).
   if (model.embedded.length || model.refs.length) {

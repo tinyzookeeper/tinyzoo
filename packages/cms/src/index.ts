@@ -4,6 +4,7 @@ export type { CmsEntity, CmsRegistry, ContentConfig, PublishConfig, EntityDef, E
 export { f, snake, camel, pascal, buildColumn, serializeColumn, type CmsGalleryValue, type CmsListValue } from './fields'
 export { seo, linkBlock, definePages, defineNavigation, defineRedirects, FORM_FIELD_TYPES } from './presets'
 export { defineBlock, blocksSchema, mediaIdsInBlocks, mediaIdsInFields, blockMediaKeys, BLOCK_FIELD_TYPES, blockVersion, storedBlockVersion, upgradeBlock, upgradeBlocks, upgradeListItems, upgradeStoredRow, logUpgradeFailure, UPGRADE_FAILED_KEY, UNKNOWN_BLOCK_TYPE, type UpgradeIssue, type UpgradeOptions, type BlockDef, type BlockValue, type BlocksValue, type GroupValue, type CmsBlock } from './blocks'
+export { customTypeBlocks, CUSTOM_BLOCK_TYPES, BINDING_LIMIT_DEFAULT, BINDING_LIMIT_MAX, BINDING_ENTRIES_MAX, BINDING_MORE_MAX, type CmsBinding } from './custom-blocks'
 export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'
 export { defineAdminMenu, menuSources, resolveMenu, CMS_ADMIN_MENU_BUILTINS, CMS_ADMIN_MENU_GROUPS, type CmsAdminMenuDef, type CmsAdminMenuInput, type CmsAdminMenuBuiltin, type CmsAdminMenuItem, type CmsAdminMenuLayout, type CmsAdminMenuSource, type CmsAdminMenuSaved } from './menu'
