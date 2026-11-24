@@ -2,7 +2,7 @@
 
 **Status (2026-11-24):** an exploration. Nothing here is built into the product and nothing is decided. The experiments were throwaway: they ran on this machine against a Postgres 16.16 of their own, and their temporary changes were removed afterwards (2.14 says what each one showed). Where a number is an estimate, it says so.
 
-**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs.
+**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18.
 
 Part 1 is the short read with the recommendation and the decisions to make. Part 2 holds the details behind it.
 
@@ -479,7 +479,7 @@ What a visitor downloads for a look's home page with an empty cache (pictures le
 
 **Not done yet.**
 
-- The cloud still runs each template's own build. The local driver starts a template's server for one site in single mode; the one app runs in multi-tenant mode only, so the driver (or a new one) must write a directory row with the site's `model`, as the shared driver does. `templates:build`, `pictures --real` and `e2e --templates` work with the templates' own builds; the pictures above were taken with `templates/app/scripts/shots.mjs`.
+- (Done in 2.18.) The cloud still runs each template's own build. The local driver starts a template's server for one site in single mode; the one app runs in multi-tenant mode only, so the driver (or a new one) must write a directory row with the site's `model`, as the shared driver does. `templates:build`, `pictures --real` and `e2e --templates` work with the templates' own builds; the pictures above were taken with `templates/app/scripts/shots.mjs`.
 - After the cloud has switched: the templates' own `nuxt.config.ts`, `main.css` and build scripts go, and so does the kit's way of building one template.
 
 **Moving a template** (`<id>`), from the repository's root (how all 17 were moved):
@@ -490,3 +490,43 @@ What a visitor downloads for a look's home page with an empty cache (pictures le
 4. Add the design to `templates/app/designs.ts` and the model to `templates/app/cms.config.ts`, in the order of `cloud/scripts/lib.mjs`.
 5. Set the template's `typecheck` script to `node ../kit/scripts/typecheck.mjs && node ../app/scripts/typecheck.mjs <id>` and run it.
 6. Build both, take the pictures of both with `shots.mjs` (the same `--now`, seeded on the same day) and compare them with `compare-shots.mjs`.
+
+## 2.18 What is built: the cloud runs the one app
+
+Built on the branch `feat/one-app`, local only: nothing is released or deployed, and nothing changed on Pushbase or on the account service that is live. `packages/cms` did not change.
+
+**An app serves a set of templates.** `cloud/shared/templates.ts` lists the apps (`APPS`), and each template names the app that serves it:
+
+| App | Folder | Templates | Its site's row |
+|---|---|---|---|
+| `templates` | `templates/app`, the one app | the 20 hosted templates | `model: '<template id>'` |
+| `basic` | `packages/cms/starter` | the Basic website | no `model` (the app has a model of its own) |
+
+The Basic website is not in the one app: it is not built on the template kit, and it ships in the npm package. It stays an app of its own, and the code has one path for both: everything that was per template is per app.
+
+**The shared driver** starts one process per app: one for all 20 templates, one for the Basic website. Its folder is `<data>/<app id>/` (`app.json`, `sites.json`, `server.log`, a folder per site), its marker argument is `--app-dir=<folder>`, and its port is one per app. Each site keeps its own database and its own database user, as before. A site's row carries `model` for an app that has several.
+
+**The directory in Postgres.** The column `template` of `tenant_sites` now holds the **app's** id, and an app's process reads its rows with `NUXT_CMS_TENANCY_TEMPLATE=<app id>`. This is the smallest change: the column and the variable stay, only what they name changes, and the site's template is in its row (`model`). The reader is one per app (`<prefix>_reader_<app id>`). Until now a reader could `SELECT` every row of the table, of every template (the secrets in them are encrypted, but every process holds the key); the process only asked for its own. Now row-level security limits each reader to its own app's rows: the driver turns it on for the table and gives each reader a policy of its own (`template = '<app id>'`). The cloud's own user owns the table and is not limited, so it must be the user that runs the cloud's migrations.
+
+**The local driver** (one process per site, for development) could not run a hosted template any more: the one app has no model of its own, so it does not run in single mode. Every site, of either app, now runs in multi-tenant mode with a site directory of that one site, `sites.json` in the site's folder (mode 0600, written before every start). The row lists `127.0.0.1` as another host name of the site, because the cloud reaches a local site at `http://127.0.0.1:<port>`. The rest of what the driver promises stays: a process, a port, a database `tzc_<slug>` and a folder per site, and the same addresses.
+
+**The build.** `templates:build` builds the two apps one after the other, not 21 apps. With names (`templates:build photographer,wedding`) it builds the one app with only those designs (`TZ_DESIGNS`), which is quicker. The build writes which designs it holds into `templates/app/.output/tinyzoo-designs.json`; both drivers refuse a site of a template that is not in it, with the command that builds it. The whole build took 49.6 s on this machine (the one app and the starter, warm font cache), with the 15 expected warnings about looks that lack some parts.
+
+**Fonts are kept between builds.** @nuxt/fonts keeps what it downloads in `node_modules/.cache/nuxt/fonts/` of the app it builds: Google's answers for a week, the font files without end. `templates:build` makes that folder of both apps a link to one folder that stays: `node_modules/.cache/tinyzoo-fonts` of the repository, or `TZ_FONTS_CACHE`. Whatever an app's own folder held is copied into it first. The first build after the change downloaded no font: every file was in the folder already. A build machine must keep that folder from one build to the next (a cache mount, with `TZ_FONTS_CACHE` pointing at it); without it every build downloads the fonts again and may get other files.
+
+**What only makes sense now, checked** (`e2e:shared`, `e2e:ops`): two sites of different templates (Photographer and Wedding) are served by the same process, on the same port; each has its own database and user (refused on the other's), only its own model's tables and its own model's migrations; each page carries `data-design` of its own template and exactly one look stylesheet, its own look's, after the main one; a collection of one template answers 404 on a site of the other, for reading and for writing, in the content API and in the admin's; Wedding's `POST /api/gift/:id/reserve` answers 404 on a Photographer site and on a Basic site and changes nothing; the Basic site is served by the other process; deleting a site leaves the rows, databases, sessions and content of the others as they were. With the directory in Postgres, the `templates` reader sees exactly the two kit sites' rows and none of Basic's, and the `basic` reader only its own.
+
+**What the platform in front must provide now** (in place of 2.14's "one long-running process per template"):
+
+1. **Two long-running processes**, not one per template: the one app for all hosted templates, and the Basic website's app. Each is started with the directory's address and key, restarted on a release, and has the health routes that need no site (`/api/health/live`, `/api/health/ready`). The one app with one site of each of its 52 looks held 1 443 MB after a warm-up (2.17); `e2e:shared` measured 722 MB with three sites just made, and 366 MB for the Basic website's process with one.
+2. **Routing by host** to the process of the site's app: every service address and every verified domain of a hosted template goes to the one app's process, those of a Basic website to the other. The host name alone does not say which; the platform needs the site's app from the cloud (the site's row, or a list the cloud gives it). One process for every site would need the Basic website in the one app.
+3. **A build machine with about 6.5 GB of memory** for the one app's build (it peaks there), and the kept font folder above. The build of both apps takes under a minute.
+4. Everything else of 2.14 stays: the certificates, a storage key per site, `postgres:close` once per server.
+
+**Checks run** (Postgres 16 of its own, one build at a time; the numbers are this run's): the cloud's unit specs (10 files, 183 tests), the specs of the designs and of module state, the cloud's type-check and the repository's, the build; `e2e:shared` 120 checks in 31 s; `e2e:ops` 178 checks in 49 s (its last part, `postgres:close`, needs a Postgres server of its own and was left out); `e2e:account` 163 checks in 17 s; `e2e:signin` 88 checks in 75 s; `e2e` (the local driver) with all 20 hosted templates in every look and palette, 676 checks; the whole `e2e` (Basic websites, the wizard, Photographer's own section, then all 20 templates), 750 checks, each site made in 1.7 to 2.2 s; `pictures --real` for Basic, Photographer and Wedding (the files were compared and put back: 24 of the 28 pictures came out the same to the byte; Wedding's Večer and Magazín card and thumb pictures differed, by 3 of 255 on average, and the cause was not found); `walkthrough --quick`.
+
+**Left open.**
+
+- Whether to remove the templates' own builds (their `nuxt.config.ts`, `main.css`, build scripts and the kit's way of building one template). The cloud no longer uses them. A website that moves out of shared hosting is run by `e2e:ops` on the one app with a site directory of that one site, as the local driver runs a site; whether a customer gets that, or a template's own build, is not decided.
+- Sites made with the shared driver before this change (per-template folders and rows) are not carried over. No such site exists outside development machines.
+- Basic websites in the one app, which would leave one process for every site.
