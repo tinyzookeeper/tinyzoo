@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Celý rok's "what you find here": a tall photograph with its caption beside the features,
 // two to a row, each a name in Gloock over a quiet line.
-import type { Feature } from '~/lib/cms-content'
+import type { Feature } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'house'>; first?: boolean; anchor?: string; features: Feature[] }>()
 </script>

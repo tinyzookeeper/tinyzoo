@@ -12,6 +12,7 @@
 @import "../../../../medical/app/assets/css/design.css";
 @import "../../../../office/app/assets/css/design.css";
 @import "../../../../restaurant/app/assets/css/design.css";
+@import "../../../../accommodation/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
@@ -26,6 +27,7 @@
 @source "../../../../medical";
 @source "../../../../office";
 @source "../../../../restaurant";
+@source "../../../../accommodation";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -102,4 +104,6 @@
   --color-signal: var(--signal);
   --color-signal-ink: var(--signal-ink);
   --color-signal-text: var(--signal-text);
+  /* Accommodation */
+  --color-off: var(--off);
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Ode dveří's reviews: soft cards, each with the guest, the town, the month and the room.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; anchor?: string; reviews: Review[] }>()
 const { words } = await useStay()

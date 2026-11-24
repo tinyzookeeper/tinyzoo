@@ -2,7 +2,7 @@
 // Celý rok's enquiry: what happens next beside a form on the raised surface. The room is a
 // choice of the guesthouse's own rooms; the dates are written out, as on paper.
 import type { SiteForm } from '#imports'
-import type { Room } from '~/lib/cms-content'
+import type { Room } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'enquiry'>; first?: boolean; anchor?: string; form: SiteForm; rooms: Room[] }>()
 const { settings, words, tel } = await useStay()

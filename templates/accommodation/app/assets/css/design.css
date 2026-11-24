@@ -1,0 +1,9 @@
+/* Accommodation's own rules from its main.css, for Accommodation's sites only (html[data-design="accommodation"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+@layer base {
+  html[data-design="accommodation"] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-design="accommodation"] { scroll-behavior: smooth; }
+  html[data-design="accommodation"] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="accommodation"] { scroll-behavior: auto; } }
+}

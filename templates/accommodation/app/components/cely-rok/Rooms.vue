@@ -2,7 +2,7 @@
 // Celý rok's rooms: two large cards to a row, each with a photograph and its counter, the name
 // and the price from on one line, the beds, the area and the floor, a sentence, and the price
 // in each season under a hairline.
-import type { Season } from '~/lib/cms-content'
+import type { Season } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'rooms'>; first?: boolean; anchor?: string; rooms: RoomRow[]; seasons: Season[] }>()
 const { words } = await useStay()

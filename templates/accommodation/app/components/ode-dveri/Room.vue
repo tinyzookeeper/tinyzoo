@@ -2,7 +2,7 @@
 // Ode dveří's page of one room: the kind of room and its name over a large rounded photograph
 // with the others beneath it, the beds and the area, what the room is like, its equipment as
 // pills, and the price with a button to enquire.
-import type { Room } from '~/lib/cms-content'
+import type { Room } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Room }>()
 const { words } = await useStay()

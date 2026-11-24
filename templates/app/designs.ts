@@ -11,6 +11,7 @@ import salon from '../salon/fonts'
 import medical from '../medical/fonts'
 import office from '../office/fonts'
 import restaurant from '../restaurant/fonts'
+import accommodation from '../accommodation/fonts'
 
 export const DESIGNS: Record<string, DesignFonts> = {
   individual,
@@ -23,4 +24,5 @@ export const DESIGNS: Record<string, DesignFonts> = {
   medical,
   office,
   restaurant,
+  accommodation,
 }

@@ -2,7 +2,7 @@
 // Ode dveří's rooms: wide rows that alternate sides, each a photograph with its counter beside
 // the kind of room, the name, the beds and the area, a sentence, the equipment as soft pills,
 // the price from with the other seasons under it, and a button.
-import type { Season } from '~/lib/cms-content'
+import type { Season } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'rooms'>; first?: boolean; anchor?: string; rooms: RoomRow[]; seasons: Season[] }>()
 const { words } = await useStay()

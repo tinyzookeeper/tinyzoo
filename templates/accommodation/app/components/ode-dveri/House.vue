@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Ode dveří's "in the house": on a soft band, a heading, a line and a photograph beside the
 // list of what the house offers, each led by how far it is from the rooms.
-import type { Feature } from '~/lib/cms-content'
+import type { Feature } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'house'>; first?: boolean; anchor?: string; features: Feature[] }>()
 </script>
