@@ -1129,3 +1129,65 @@ describe('applyModelOps purity', () => {
     expect(notes).toEqual([])
   })
 })
+
+describe('the times of the later deletion, given by the caller', () => {
+  const T0 = new Date('2026-10-01T00:00:00.000Z')
+  const MIN = 60 * 1000
+  const after = (ms: number) => new Date(T0.getTime() + ms)
+  const hide = (counts?: ModelContext['counts']) => apply(courses(), [{ op: 'field.remove', type: 'x_course', key: 'price' }], ctx({ now: T0, counts })).doc
+  const times = { purgeAfterMs: 10 * MIN, purgeEmptyAfterMs: 2 * MIN }
+  const price = [{ type: 'x_course', key: 'price' }]
+
+  it('decides a hidden empty field by the short empty time', () => {
+    const doc = hide({ values: { 'x_course.price': 0 } })
+    expect(modelPurgeDue(doc, after(MIN), times).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(2 * MIN), times).fields).toEqual(price)
+  })
+
+  it('keeps a hidden field with content until the long time', () => {
+    const doc = hide({ values: { 'x_course.price': 5 } })
+    expect(modelPurgeDue(doc, after(2 * MIN), times).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(9 * MIN), times).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(10 * MIN), times).fields).toEqual(price)
+  })
+
+  it('can take only one of the two times and keep the default of the other', () => {
+    const doc = hide({ values: { 'x_course.price': 5 } })
+    expect(modelPurgeDue(doc, after(2 * MIN), { purgeEmptyAfterMs: MIN }).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(10 * MIN), { purgeAfterMs: 10 * MIN }).fields).toEqual(price)
+  })
+
+  it('keeps the defaults of 30 days and an hour when no times are given', () => {
+    const full = hide({ values: { 'x_course.price': 5 } })
+    expect(modelPurgeDue(full, after(30 * DAY - 1)).fields).toEqual([])
+    expect(modelPurgeDue(full, after(30 * DAY)).fields).toEqual(price)
+    const none = hide({ values: { 'x_course.price': 0 } })
+    expect(modelPurgeDue(none, after(59 * MIN)).fields).toEqual([])
+    expect(modelPurgeDue(none, after(60 * MIN)).fields).toEqual(price)
+    expect(modelPurgeDue(none, after(60 * MIN), {}).fields).toEqual(price)
+  })
+
+  it('purges a field that is due by the times of the context', () => {
+    const doc = hide({ values: { 'x_course.price': 0 } })
+    const { doc: next } = apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true, ...times }))
+    expect(course(next).fields.some((f) => f.key === 'price')).toBe(false)
+  })
+
+  it('refuses a purge of a field that is not due by the times of the context', () => {
+    const doc = hide({ values: { 'x_course.price': 5 } })
+    const p = refusal(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true, ...times })))
+    expect(p.code).toBe('not-due')
+    expect(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(10 * MIN), internal: true, ...times }))).not.toThrow()
+  })
+
+  it('refuses the same purge with the default times', () => {
+    const doc = hide({ values: { 'x_course.price': 0 } })
+    expect(refusal(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true }))).code).toBe('not-due')
+  })
+
+  it('purges a removed type by the times of the context too', () => {
+    const doc = apply(courses(), [{ op: 'type.remove', type: 'x_course' }], ctx({ now: T0 })).doc
+    expect(refusal(() => apply(doc, [{ op: 'purge', types: ['x_course'] }], ctx({ now: after(MIN), internal: true, ...times }))).code).toBe('not-due')
+    expect(() => apply(doc, [{ op: 'purge', types: ['x_course'] }], ctx({ now: after(10 * MIN), internal: true, ...times }))).not.toThrow()
+  })
+})
