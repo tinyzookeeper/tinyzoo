@@ -14,7 +14,7 @@ a minute and a half for a pull request that leaves the API tests out):
 
 | Job | What |
 |---|---|
-| `typecheck` | `pnpm typecheck`: the code, the docs' examples and the Vue templates of the admin, playground, starter, website and Keeper (the four apps at once) |
+| `typecheck` | `pnpm typecheck` in three parts, each on its own runner: the code, the docs' examples and the Vue templates of the admin, playground, starter, website, Keeper and the cloud (`code`); the hosted templates in two halves (`templates-1`, `templates-2`) |
 | `unit` | `pnpm test:unit` |
 | `check` | green when both passed (the check branch protection asks for) |
 | `api (part 1–4 of 4)` | `pnpm test:api --shard=<n>/4`: the built playground over HTTP against Postgres and Redis, a quarter of the spec files on each of four runners. Each part's production build is the build check. On a pull request only when it changes `packages/`, `playground/`, the API specs and their setup, or the workspace and lockfile: not for one that changes only the website, Keeper or the docs. Not on the version pull request (below) |
