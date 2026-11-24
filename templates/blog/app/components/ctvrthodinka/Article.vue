@@ -2,7 +2,7 @@
 // Čtvrthodinka's article: the section and the clock of its reading time, a heavy headline, the
 // standfirst in italics, a rounded photograph, the text, then the author, the series and more
 // from its section.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Article }>()
 const { words } = await useBlog()

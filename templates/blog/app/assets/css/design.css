@@ -1,0 +1,16 @@
+/* Blog's own rules from its main.css, for Blog's sites only (html[data-design="blog"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+/* Its theme values that differ from the app's: in the theme layer, so a look's own value still wins. */
+@layer theme {
+  html[data-design="blog"] {
+    --color-rule: color-mix(in oklab, var(--ink) 18%, transparent);
+  }
+}
+
+@layer base {
+  html[data-design="blog"] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-design="blog"] { scroll-behavior: smooth; }
+  html[data-design="blog"] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="blog"] { scroll-behavior: auto; } }
+}

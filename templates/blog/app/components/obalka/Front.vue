@@ -2,7 +2,7 @@
 // Obálka's front page: the lead photograph fills the first screen under the magazine's name, the
 // lead headline stands on the picture at the right and the short articles are cover lines (under
 // the picture on a phone). The header lies over its top edge.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'front'>; first?: boolean; articles: Article[] }>()
 const { settings, name, words } = await useBlog()

@@ -4,11 +4,13 @@ import type { DesignFonts } from 'tinyzoo-template-kit/fonts'
 import individual from '../individual/fonts'
 import photographer from '../photographer/fonts'
 import wedding from '../wedding/fonts'
+import blog from '../blog/fonts'
 import restaurant from '../restaurant/fonts'
 
 export const DESIGNS: Record<string, DesignFonts> = {
   individual,
   photographer,
   wedding,
+  blog,
   restaurant,
 }

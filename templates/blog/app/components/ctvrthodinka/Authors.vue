@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Čtvrthodinka's authors: round portraits with their role, a few words, and their articles and
 // hours of reading.
-import type { Article, Author } from '~/lib/cms-content'
+import type { Article, Author } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'authors'>; first?: boolean; anchor?: string; articles: Article[]; authors: Author[] }>()
 const { words } = await useBlog()

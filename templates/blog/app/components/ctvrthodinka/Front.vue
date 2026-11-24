@@ -2,7 +2,7 @@
 // Čtvrthodinka's opening: "How much time do you have?" with three shelves to choose from (the
 // articles outside the one chosen step back, and a line says how many are left lit) beside the
 // lead article with the clock of its reading time on its photograph.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'front'>; first?: boolean; articles: Article[] }>()
 const { words } = await useBlog()

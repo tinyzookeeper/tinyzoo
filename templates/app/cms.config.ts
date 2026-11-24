@@ -6,11 +6,13 @@ import { defineModels } from 'tinyzoo'
 import * as individual from '../individual/cms.config'
 import * as photographer from '../photographer/cms.config'
 import * as wedding from '../wedding/cms.config'
+import * as blog from '../blog/cms.config'
 import * as restaurant from '../restaurant/cms.config'
 
 export const models = defineModels({
   individual: { config: individual, migrations: '../individual/server/db/migrations' },
   photographer: { config: photographer, migrations: '../photographer/server/db/migrations' },
   wedding: { config: wedding, migrations: '../wedding/server/db/migrations' },
+  blog: { config: blog, migrations: '../blog/server/db/migrations' },
   restaurant: { config: restaurant, migrations: '../restaurant/server/db/migrations' },
 })

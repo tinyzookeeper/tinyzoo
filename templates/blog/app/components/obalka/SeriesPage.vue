@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // A series' page (/serial/rok-na-samote): the dark band with its latest part, and every part.
-import type { Series } from '~/lib/cms-content'
+import type { Series } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Series }>()
 const { words } = await useBlog()

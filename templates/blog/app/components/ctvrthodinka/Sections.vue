@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Čtvrthodinka's sections as a table: the name and the line about it on the left, the latest
 // three articles with the clocks of their reading time on the right.
-import type { Article, Section } from '~/lib/cms-content'
+import type { Article, Section } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'sections'>; first?: boolean; anchor?: string; articles: Article[]; sections: Section[] }>()
 const { words } = await useBlog()

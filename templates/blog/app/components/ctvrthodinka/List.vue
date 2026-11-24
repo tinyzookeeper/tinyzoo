@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Čtvrthodinka's staircase: the articles from the shortest to the longest, each a bar as long as
 // its minutes (a rounded bar with the number in it) and a headline that grows with it.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: { heading: string; text?: string | null; links?: BlockOf<'list'>['links'] }; first?: boolean; anchor?: string; items: Article[] }>()
 const { words } = await useBlog()

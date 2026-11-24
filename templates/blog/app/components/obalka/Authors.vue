@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Obálka's authors: a tinted band, a heading and three portraits (4:5) with their name, role, number
 // of articles and a few words. On a phone the portrait stands beside the text.
-import type { Article, Author } from '~/lib/cms-content'
+import type { Article, Author } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'authors'>; first?: boolean; anchor?: string; articles: Article[]; authors: Author[] }>()
 const { words } = await useBlog()

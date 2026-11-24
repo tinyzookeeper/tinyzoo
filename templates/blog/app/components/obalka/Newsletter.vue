@@ -2,7 +2,7 @@
 // Obálka's most read (numbered in italics) beside the newsletter, a block in the brand colour
 // with a field and a button.
 import type { SiteForm } from '#imports'
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'newsletter'>; first?: boolean; anchor?: string; articles: Article[]; form: SiteForm }>()
 const { words } = await useBlog()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Obálka's three larger articles: one large with its photograph, one beside it, a smaller one
 // with a thumbnail, in an uneven split.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'picks'>; first?: boolean; anchor?: string; articles: Article[] }>()
 const { words } = await useBlog()
