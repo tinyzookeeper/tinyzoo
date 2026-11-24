@@ -26,6 +26,19 @@
   --color-elephant: #67B1F9;
 }
 
+/* The cookie banner (tinyzoo's <CmsConsent />) on the brand: paper and ink, both choices in
+   charcoal, the site's corners and Manrope. On :root, because the banner sits beside the layout. */
+:root {
+  --cms-consent-bg: var(--color-paper);
+  --cms-consent-fg: var(--color-ink);
+  --cms-consent-button-bg: var(--color-charcoal);
+  --cms-consent-button-fg: #fff;
+  --cms-consent-border: rgb(19 19 19 / 0.1);
+  --cms-consent-radius: 0.75rem;
+  --cms-consent-font: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --cms-consent-backdrop: rgb(24 25 28 / 0.55);
+}
+
 /* The website only (the admin under /admin keeps its own look and dark mode):
    Nuxt UI's tokens follow the brand, charcoal buttons and warm greys. */
 .site {

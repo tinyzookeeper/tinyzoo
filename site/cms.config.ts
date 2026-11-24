@@ -3,6 +3,7 @@ import {
   definePages, defineRedirects, defineSingleton, eq, f, seo,
 } from 'tinyzoo'
 import { analyticsPlugin } from 'tinyzoo/analytics'
+import { consentPlugin } from 'tinyzoo/consent'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 
 // The tinyzoo website: what it is, where it is heading, and the way into the demo.
@@ -309,9 +310,10 @@ export const Plan = defineEntity('plan', {
 export const Navigation = defineNavigation({ localized: true })
 export const Redirect = defineRedirects()
 
-// Plugins add features with their own admin pages, routes and tables: Forms, and Analytics,
-// which counts the website's visits without a cookie (so there is no cookie banner here).
-export const plugins = [formsPlugin(), analyticsPlugin()]
+// Plugins add features with their own admin pages, routes and tables: Forms, the cookie banner
+// and Analytics. The banner asks only about statistics (the site has no ads or pixels), and the
+// analytics follow the choice: everyone is counted without a cookie, a yes adds the consent id.
+export const plugins = [formsPlugin(), consentPlugin({ localized: true, categories: ['analytics'] }), analyticsPlugin()]
 
 export const Feedback = defineForm('feedback', {
   label: { en: 'Pilot feedback', cs: 'Zpětná vazba', de: 'Feedback zum Pilotprojekt' },

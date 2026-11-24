@@ -189,6 +189,49 @@ export const analyticsSettings = pgTable('analytics_settings', {
   updatedBy: uuid('updated_by'),
 })
 
+export const consentSettings = pgTable('consent_settings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  title: text('title'),
+  body: text('body'),
+  acceptAll: text('accept_all'),
+  rejectAll: text('reject_all'),
+  settings: text('settings'),
+  save: text('save'),
+  settingsTitle: text('settings_title'),
+  necessaryLabel: text('necessary_label'),
+  necessaryText: text('necessary_text'),
+  analyticsLabel: text('analytics_label'),
+  analyticsText: text('analytics_text'),
+  privacyLabel: text('privacy_label'),
+  privacyUrl: text('privacy_url'),
+  version: integer('version').notNull().default(1),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  createdBy: uuid('created_by'),
+  updatedBy: uuid('updated_by'),
+})
+
+export const consentSettingsLocales = pgTable('consent_settings_locales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  parentId: uuid('parent_id').notNull().references(() => consentSettings.id, { onDelete: 'cascade' }),
+  locale: text('locale').notNull(),
+  title: text('title'),
+  body: text('body'),
+  acceptAll: text('accept_all'),
+  rejectAll: text('reject_all'),
+  settings: text('settings'),
+  save: text('save'),
+  settingsTitle: text('settings_title'),
+  necessaryLabel: text('necessary_label'),
+  necessaryText: text('necessary_text'),
+  analyticsLabel: text('analytics_label'),
+  analyticsText: text('analytics_text'),
+  privacyLabel: text('privacy_label'),
+  privacyUrl: text('privacy_url'),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+}, (t) => [uniqueIndex('consent_settings_locales_parent_locale_unique').on(t.parentId, t.locale)])
+
 export const feedback = pgTable('feedback', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
@@ -355,6 +398,19 @@ export const siteSettingsLocales = pgTable('site_settings_locales', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('site_settings_locales_parent_locale_unique').on(t.parentId, t.locale)])
+
+// the plugin "consent"
+export const consentLog = pgTable('consent_log', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  consentId: text('consent_id').notNull(),
+  at: timestamp('at', { withTimezone: true, mode: 'date', precision: 3 }).notNull().defaultNow(),
+  action: text('action').notNull(),
+  choice: jsonb('choice').notNull(),
+  version: integer('version').notNull(),
+}, (t) => [
+  index('consent_log_consent_idx').on(t.consentId, t.at),
+  index('consent_log_at_idx').on(t.at),
+])
 
 // the plugin "analytics"
 export const analyticsEvents = pgTable('analytics_events', {
