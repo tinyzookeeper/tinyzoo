@@ -154,17 +154,17 @@ The services reach the website with the texts, in the visitor's language: in the
 
 `<CmsConsent />` shows the banner until the visitor chooses:
 
-- **"Reject all" and "Accept all"** sit side by side, the same size and the same style. The Czech data protection office (ÚOOÚ) and the European Data Protection Board expect saying no to be as easy as saying yes.
-- **"Settings"** opens a dialog with one switch per category. `necessary` is shown, switched on, and cannot be changed. Under each category, "Services and cookies" unfolds its [services](#services-and-cookies).
+- **"Accept all" and "Reject all"** sit side by side, the same size and the same style. The Czech data protection office (ÚOOÚ) and the European Data Protection Board expect saying no to be as easy as saying yes.
+- **"Settings"**, a quieter line under them, opens a dialog with one switch per category. `necessary` is shown, switched on, and cannot be changed. Under each category, "Services and cookies" unfolds its [services](#services-and-cookies).
 - The privacy policy link, when editors gave one.
 
 It works with the keyboard and a screen reader:
 
-- When the banner appears on a page nobody has used yet, it takes the focus, so it is reached first.
+- When the banner appears on a page nobody has used yet, it takes the focus, so it is reached first. It draws no focus ring for that (nothing looks selected); the next Tab lands on its first button, which shows one.
 - The settings are a modal dialog: the focus stays inside, Escape closes it without saving, and the focus goes back where it was.
 - The switches are checkboxes with the role `switch`, each named by its category.
 
-At phone width the banner fills the bottom of the screen. "Reject all" and "Accept all" stay side by side, and "Settings" goes under them.
+On a large screen the banner is a small card in the bottom right corner. At phone width it runs along the bottom edge of the screen, and the settings dialog rises from the bottom. "Accept all" and "Reject all" stay side by side, and "Settings" goes under them.
 
 The banner is not shown while the page is rendered on the server, nor in the admin. It appears in the browser once the cookie is read, so a page cached by a CDN never carries one visitor's choice to another.
 
@@ -187,7 +187,7 @@ The colours follow the page's own (`Canvas` and `CanvasText`), light or dark. Se
   --cms-consent-border: #e3e3e3;
   --cms-consent-radius: 12px;
   --cms-consent-font: 'Inter', sans-serif;
-  --cms-consent-width: 36rem;         /* the banner's width on a large screen */
+  --cms-consent-width: 25rem;         /* the banner's width on a large screen */
   --cms-consent-z: 1000;              /* above the site's own fixed elements */
 }
 ```

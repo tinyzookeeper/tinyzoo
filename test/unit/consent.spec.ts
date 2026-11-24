@@ -517,7 +517,7 @@ describe('the styles', () => {
   it('"Accept all" and "Reject all" look the same, in the banner and in the settings', () => {
     const vue = readFileSync(join(cms, 'consent/components/CmsConsent.vue'), 'utf8')
     const buttons = [...vue.matchAll(/<button[^>]*class="([^"]+)"[^>]*>\{\{ texts\.(acceptAll|rejectAll) \}\}/g)].map((m) => [m[2], m[1]])
-    expect(buttons).toEqual([['rejectAll', 'cms-consent__btn'], ['acceptAll', 'cms-consent__btn'], ['rejectAll', 'cms-consent__btn'], ['acceptAll', 'cms-consent__btn']])
+    expect(buttons).toEqual([['acceptAll', 'cms-consent__btn'], ['rejectAll', 'cms-consent__btn'], ['acceptAll', 'cms-consent__btn'], ['rejectAll', 'cms-consent__btn']])
   })
   it('the admin page uses only utility classes the admin itself uses (a site\'s Tailwind scans tinyzoo\'s app/ only)', () => {
     const app = files(join(cms, 'app')).filter((f) => /\.(vue|ts)$/.test(f)).map((f) => readFileSync(f, 'utf8')).join('\n')
