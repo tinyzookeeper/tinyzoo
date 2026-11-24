@@ -82,7 +82,7 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `NUXT_ACCOUNT_CODE_TTL_SECONDS` | how long a one-time code of a sign-in works. 60, and never more; `e2e:account` sets 3 so that it need not wait for a code to grow old |
 | `NUXT_MAX_SITES_PER_USER` | how many websites one account may have (default 3) |
 | `NUXT_REQUIRE_VERIFIED_EMAIL` | `true`: a site is made only after the e-mail is confirmed. Default: `false` in development, `true` in production |
-| `NUXT_PUBLIC_SHOW_PLANNED` | `true` shows the nineteen planned templates in the gallery as they were designed, marked *Not available yet* and not selectable. Without it a customer never sees them |
+| `NUXT_PUBLIC_SHOW_PLANNED` | `true` shows the planned templates (those not built yet) in the gallery as they were designed, marked *Not available yet* and not selectable. Without it a customer never sees them |
 | `NUXT_HOSTING_DRIVER` | `local` (default), `shared` or `pushbase` |
 | `NUXT_HOSTING_LOCAL_PORT_FROM`, `_TO` | the local driver's ports, one per site (default 4300–4399) |
 | `NUXT_HOSTING_LOCAL_DATA_DIR` | where the sites' folders live (default `cloud/.data/sites`) |
@@ -258,7 +258,7 @@ pnpm --filter tinyzoo-cloud postgres:close --url postgres://<a superuser>@<host>
 
 ### Templates
 
-`shared/templates.ts` is the registry: twenty-one entries, each with its name, one sentence and three or four points in both languages, its field for the filter, its animal, and its looks (id, name and one sentence in both languages): 52 looks in all. Two templates are ready: **Basic website** (`basic`, from `packages/cms/starter`) and **Photographer** (`photographer`, from `templates/photographer`). The other nineteen are planned: designed and approved, with no source yet. The server refuses to make a site from a template that is not ready, whatever `NUXT_PUBLIC_SHOW_PLANNED` says.
+`shared/templates.ts` is the registry: twenty-one entries, each with its name, one sentence and three or four points in both languages, its field for the filter, its animal, and its looks (id, name and one sentence in both languages): 52 looks in all. Every template is ready: **Basic website** (`basic`, from `packages/cms/starter`) and the twenty hosted ones from `templates/<id>` (`hosted(…)`; Photographer is the pilot). A template that is not built yet is `planned(…)`: the gallery shows it only with `NUXT_PUBLIC_SHOW_PLANNED=true`, marked as not available, and the server refuses to make a site from it whatever the flag says.
 
 A template may come in several **looks**: one content model, one set of demo content and one build, drawn in different designs. Photographer has three (Ateliér, Negativ, Zápisník). The registry lists a template's looks (id, name and one sentence in both languages, and for a ready template the look's default colours); the wizard shows them as its second step; the choice is kept in `sites.look`, written into the site's settings (`look`, `colors`) when the site is made, and its owner changes it afterwards in the site's admin (*Site settings*). The cloud follows that change: the site's page asks the site which look it shows and keeps the answer. How a template implements looks: [`templates/README.md`](../templates/README.md).
 
@@ -266,19 +266,25 @@ A template may come in several **looks**: one content model, one set of demo con
 
 ```sh
 pnpm --filter tinyzoo-cloud pictures          # the planned templates, from the designs folder (template-designs/)
-pnpm --filter tinyzoo-cloud pictures --real   # the built templates, from real sites the script makes (about a minute)
+pnpm --filter tinyzoo-cloud pictures --real   # the built templates, from real sites the script makes (about ten seconds a look)
+pnpm --filter tinyzoo-cloud pictures --real --only wedding   # only these built templates
 ```
 
-From the designs, a look is alive when `template-designs/<slug>/<a|b|c>.html` exists; its name is the `## A · Name` heading of the folder's `notes.md`, its picture `shots/<letter>-top.jpg`. Each look gets a `card` (800 × 500) and a `thumb` (240 × 150). A built template's looks get, from a real site with the demo content, also `top` (the first screen with the site's name left out) and `tall` (the top of the home page, for the look step), and the script measures where and how the site writes its name and copies that typeface's files to `public/templates/fonts/`: that is how the wizard writes the typed name into the look. What the script found is in `shared/template-pictures.json`; a unit spec keeps the registry's looks equal to it. The designs folder is not in the repository: the script looks for it beside the repository (or beside the main checkout of a worktree), or takes `--designs <folder>`.
+The built templates' sites are pictured with the browser's clock at a weekday morning (the first Wednesday from the day of the run, 9.40), so what a template works out from "now" (open or closed, today's lessons) looks the same whenever the script runs.
 
-Adding a real template: give its entry `ready: true`, a `sourceDir` and its looks' `colors`, add it to `scripts/build-templates.mjs`, to `templateEntries` in `scripts/lib.mjs` and to `DEMO` and `WORDMARK` in `scripts/template-pictures.mjs`, then run `pictures --real`. `templates:build <id>` builds one.
+From the designs (a planned template), a look is alive when `template-designs/<slug>/<a|b|c>.html` exists; its name is the `## A · Name` heading of the folder's `notes.md`, its picture `shots/<letter>-top.jpg`. Each look gets a `card` (800 × 500) and a `thumb` (240 × 150). A built template's looks get, from a real site with the demo content, also `top` (the first screen with the site's name left out) and `tall` (the top of the home page, for the look step), and the script measures where and how the site writes its name and copies that typeface's files to `public/templates/fonts/`: that is how the wizard writes the typed name into the look. What the script found is in `shared/template-pictures.json`; a unit spec keeps the registry's looks equal to it. The designs folder is not in the repository: the script looks for it beside the repository (or beside the main checkout of a worktree), or takes `--designs <folder>`.
+
+Adding a real template: make its entry `hosted(…)` with each look's default colours, add it to `BUILT_TEMPLATES` in `scripts/lib.mjs` (what its demo content is called, where it writes the site's name) and its checks to `scripts/e2e-templates.mjs`, then run `templates:build <id>`, `pictures --real --only <id>` and `e2e --templates <id>`. The steps for the template itself: [`templates/README.md`](../templates/README.md).
+
+A look that writes the site's name large on its first screen (a wedding's names) is measured there instead of in the header (`wordmark` in `BUILT_TEMPLATES`): the wizard sets a long name smaller until it fits (`fit`), in italics where the look does.
 
 ## Checks
 
 ```sh
 pnpm --filter tinyzoo-cloud typecheck
 pnpm vitest run --project unit test/unit/cloud-*.spec.ts   # slugs, the step machine, ports, the shared driver's names and rows, the directory's encryption, domains, moves, the account service's checks, the registry and the texts
-pnpm --filter tinyzoo-cloud e2e                            # the whole flow in a browser, both templates, about 2 minutes
+pnpm --filter tinyzoo-cloud e2e                            # the whole flow in a browser, then every hosted template in every look and palette
+pnpm --filter tinyzoo-cloud e2e --templates wedding        # only these hosted templates' part (about half a minute each)
 pnpm --filter tinyzoo-cloud e2e:shared                     # the shared driver: two Photographer sites from one process, about half a minute
 pnpm --filter tinyzoo-cloud e2e:account                    # the account service: the protocol, then one real Photographer site, about half a minute
 pnpm --filter tinyzoo-cloud e2e:signin                     # sign-in through the account for real: the cloud, real sites, a real browser, about a minute
@@ -286,6 +292,8 @@ pnpm --filter tinyzoo-cloud e2e:ops                        # the directory in Po
 pnpm --filter tinyzoo-cloud walkthrough                    # films the walkthrough and takes the screenshots into cloud/.preview/, about 40 minutes
 pnpm --filter tinyzoo-cloud walkthrough --quick            # the two films small and fast, to try things out, about 10 minutes
 ```
+
+A second checkout on the same machine (a git worktree) runs these beside the first with `CLOUD_RUN_TAG=tpl CLOUD_PORT_SHIFT=200`: databases and ports of its own (`e2e` and `pictures`; see `scripts/lib.mjs`).
 
 `e2e`, `e2e:shared`, `e2e:account`, `e2e:signin`, `e2e:ops`, `walkthrough` and `pictures --real` start a cloud app of their own beside yours (database `tz_cloud_e2e` / `tz_cloud_mt_e2e` / `tz_cloud_account_e2e` / `tz_cloud_signin_e2e` / `tz_cloud_ops_e2e` / `tz_cloud_walk` / `tz_cloud_pics`, sites under `.data/e2e` / `.data/mt-e2e` / `.data/account-e2e` / `.data/signin-e2e` / `.data/ops-e2e` / `.data/walk` / `.data/pics`, their own ports and database prefix) and remove what they made. `--keep` leaves it. All of them take the Postgres server from `CLOUD_PG_URL`. `e2e:shared`, `e2e:account`, `e2e:signin` and `e2e:ops` also take their names and ports from the environment, for a machine where the defaults are taken: `E2E_SHARED_DB`, `E2E_SHARED_SITE_PREFIX`, `E2E_SHARED_PORT`, `E2E_SHARED_SITE_PORTS`, `E2E_SHARED_DATA`, the same with `E2E_ACCOUNT_` and `E2E_OPS_`, and with `E2E_SIGNIN_` (plus `E2E_SIGNIN_OWN_PORTS`, two ports for the websites it runs itself).
 
@@ -312,7 +320,6 @@ pnpm --filter tinyzoo-cloud walkthrough --quick            # the two films small
 - Of moving: a move into shared hosting from a server whose archive has no `site.json` (a plain `tinyzoo backup`): write the file by hand (`shared/transfer.ts`, `SiteFile`). A site on the local driver cannot be moved or have a domain. Pausing a site has no page (the state exists in the directory).
 - Real e-mail delivery set up (the SMTP transport is there, as in Keeper; nothing is configured).
 - Deploying: the cloud app itself has no deployment, and the Pushbase driver has not been run.
-- The nineteen planned templates (their designs are finished; the gallery shows them).
 - Of the account: a page of one owner's people across their websites (who has which role where), signing out of every website at once, a second factor, and coming back to the website after *Forgot your password?* (the new password signs the person in to the cloud; they open the website again). The limits of the account service are in memory, for one instance of the cloud app.
 - The recorded walkthrough still tells the earlier story of the way into the admin (a password chosen by the invitation); it has not been filmed again.
 - The site's own logo in its admin (its name is there: `cms.admin.nameFrom`).

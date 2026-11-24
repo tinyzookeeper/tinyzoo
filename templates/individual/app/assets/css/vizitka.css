@@ -1,0 +1,90 @@
+/* Vizitka: a well-printed business card grown into a page. One solid panel of the brand
+   colour with a sturdy serif statement beside a full-height portrait, then square, ruled
+   sections where the services read as a real price list. Literata (display, quotes) with
+   Albert Sans (text, small-caps labels). Written in the cascade layers the design was
+   written in: utilities win over these rules where both speak. */
+html[data-look="vizitka"] {
+  --font-display: "Literata", Georgia, serif;
+  --font-sans: "Albert Sans", system-ui, sans-serif;
+  /* The colours of the first preset (Petrol); a preset from the settings overrides them. */
+  --paper: #fbfaf7;
+  --tint: #f0efe9;
+  --line: #d9d7ce;
+  --ink: #172022;
+  --body: #3d484a;
+  --quiet: #5c6669;
+  --brand: #1f4f58;
+  --brand-ink: #f7f4ec;
+}
+
+@layer base {
+  html[data-look="vizitka"] {
+    body { font-family: var(--font-sans); color: var(--body); background: var(--paper); font-size: 1.0625rem; line-height: 1.65; -webkit-font-smoothing: antialiased; }
+    h1, h2, h3 { font-family: var(--font-display); color: var(--ink); font-weight: 500; letter-spacing: -0.014em; text-wrap: balance; }
+    /* (a marked part of a heading stays as it is: this look has no use for emphasis) */
+    h1 em, h2 em, h3 em { font-style: normal; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+    .on-brand :focus-visible { outline-color: var(--brand-ink); }
+  }
+}
+
+@layer components {
+  html[data-look="vizitka"] {
+    .wrap { max-width: 80rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 768px) { .wrap { padding-inline: 2.5rem; } }
+    .label { font-family: var(--font-sans); font-size: 0.75rem; line-height: 1.3; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+    .serif { font-family: var(--font-display); }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.7rem; min-height: 52px; padding: 0 1.75rem; font-weight: 600; font-size: 0.975rem; background: var(--brand); color: var(--brand-ink); transition: background .2s, color .2s; cursor: pointer; }
+    .btn:hover { background: var(--ink); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-paper { background: var(--brand-ink); color: var(--brand); }
+    .btn-paper:hover { background: var(--ink); color: var(--brand-ink); }
+    .btn-line { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--paper); }
+
+    .tlink { display: inline-flex; align-items: center; gap: 0.55rem; min-height: 44px; font-weight: 600; font-size: 0.975rem; color: var(--brand); background: linear-gradient(currentColor, currentColor) 0 calc(100% - 9px) / 100% 1px no-repeat; transition: gap .2s; }
+    .tlink:hover { gap: 0.9rem; }
+    .on-brand .tlink { color: var(--brand-ink); }
+
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; font-size: 0.975rem; font-weight: 500; color: var(--ink); transition: color .2s; }
+    .navlink:hover { color: var(--brand); }
+
+    /* The opening panel bleeds to the left edge; its text keeps the page margin */
+    .hero-pad { padding-inline: 1.25rem; }
+    @media (min-width: 768px) { .hero-pad { padding-inline: 2.5rem; } }
+    @media (min-width: 1024px) { .hero-pad { padding-left: max(2.5rem, calc((100vw - 80rem) / 2 + 2.5rem)); padding-right: 4rem; } }
+
+    .ph { display: block; overflow: hidden; background: var(--tint); }
+    .ph img { width: 100%; height: 100%; object-fit: cover; transition: transform .9s cubic-bezier(.2,.6,.2,1); }
+    a:hover .ph img { transform: scale(1.025); }
+
+    /* Price list rows */
+    .srow { transition: background .2s; }
+    .srow:hover { background: var(--tint); }
+
+    /* Form */
+    .field label, .field legend { display: block; margin-bottom: 0.45rem; color: var(--ink); font-weight: 600; font-size: 0.9rem; }
+    .field input[type=text], .field input[type=email], .field textarea { width: 100%; min-height: 52px; padding: 0.8rem 1rem; background: var(--paper); border: 1px solid var(--line); border-radius: 0; color: var(--ink); font: inherit; transition: border-color .2s; }
+    .field textarea { min-height: 8rem; resize: vertical; line-height: 1.5; }
+    .field ::placeholder { color: var(--quiet); opacity: 1; }
+    .field input:hover, .field textarea:hover { border-color: var(--quiet); }
+    .field input:focus-visible, .field textarea:focus-visible { outline: 2px solid var(--brand); outline-offset: 0; border-color: var(--brand); }
+    .field label.chip { margin-bottom: 0; font-weight: 400; display: inline-flex; align-items: center; min-height: 48px; padding: 0 1.1rem; background: var(--paper); border: 1px solid var(--line); color: var(--ink); font-size: 0.95rem; cursor: pointer; transition: background .2s, border-color .2s, color .2s; }
+    .field label.chip:hover { border-color: var(--quiet); }
+    .field input:checked + label.chip { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+    input:focus-visible + .chip { outline: 2px solid var(--brand); outline-offset: 3px; }
+    .field-error { margin-top: 0.4rem; font-size: 0.9rem; color: var(--brand); font-weight: 600; }
+
+    /* A text written for the article's and the project's own page */
+    .prose-look { max-width: 40rem; }
+    .prose-look > * + * { margin-top: 1.1rem; }
+    .prose-look h2 { font-size: 1.9rem; line-height: 1.15; margin-top: 2.4rem; }
+    .prose-look h3 { font-size: 1.4rem; line-height: 1.2; margin-top: 2rem; }
+    .prose-look ul { list-style: disc; padding-left: 1.4rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.4rem; }
+    .prose-look a { color: var(--brand); text-decoration: underline; text-underline-offset: 4px; }
+    .prose-look blockquote { font-family: var(--font-display); font-style: italic; font-size: 1.35rem; color: var(--ink); padding-left: 1.25rem; }
+    .prose-look img { width: 100%; height: auto; }
+  }
+}

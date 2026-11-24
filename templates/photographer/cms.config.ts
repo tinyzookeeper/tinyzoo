@@ -36,16 +36,20 @@ export const SiteSettings = defineSingleton('siteSettings', {
       .help({ en: 'Your name or your studio’s name. It appears in the header and footer.', cs: 'Vaše jméno nebo název ateliéru. Zobrazí se v záhlaví a zápatí.' }),
     logo: f.media({ accept: 'image/*' }).optional().label({ en: 'Logo', cs: 'Logo' })
       .help({ en: 'Upload a logo to show it in place of the name.', cs: 'Nahrajte logo a zobrazí se místo názvu.' }),
-    look: f.select({ options: looks.ids, default: looks.ids[0], labels: looks.labels }).label({ en: 'Look', cs: 'Vzhled' })
+    look: f.select(looks.fields.look).label({ en: 'Look', cs: 'Vzhled' })
       .help({ en: 'Choose how your website displays your content.', cs: 'Zvolte, jak se na webu zobrazí váš obsah.' }),
-    colors: f.select({ options: looks.presetIds, default: looks.presetIds[0], labels: looks.presetLabels }).label({ en: 'Colours', cs: 'Barvy' })
-      .help({ en: 'Each look has three colour palettes. Choose one labelled with your look’s name.', cs: 'Každý vzhled má tři barevné palety. Vyberte některou s názvem svého vzhledu.' }),
+    // Only the chosen look's palettes are offered; a change of look moves the colours to its first one.
+    colors: f.select(looks.fields.colors).label({ en: 'Colours', cs: 'Barvy' })
+      .help({ en: 'Each look has three colour palettes.', cs: 'Každý vzhled má tři barevné palety.' }),
     tagline: f.text({ multiline: true }).optional().label({ en: 'Short description', cs: 'Krátký popis' })
       .help({ en: 'One or two sentences for the footer.', cs: 'Jedna nebo dvě věty do zápatí.' }),
     ctaLabel: f.text().optional().label({ en: 'Header button text', cs: 'Text tlačítka v záhlaví' }),
     ctaUrl: f.text({ format: 'link' }).optional().label({ en: 'Button destination', cs: 'Cíl tlačítka' }),
     availability: f.text().optional().label({ en: 'Free dates', cs: 'Volné termíny' })
-      .help({ en: 'A short note for visitors at the top of the home page.', cs: 'Krátká zpráva pro návštěvníky v úvodu webu.' }),
+      .help({
+        en: 'A short note for visitors at the top of the home page. Negative sets parts separated by a dot ( · ) apart, as a row of dates.',
+        cs: 'Krátká zpráva pro návštěvníky v úvodu webu. Negativ staví části oddělené tečkou ( · ) vedle sebe, jako řadu termínů.',
+      }),
     phone: f.text().optional().label({ en: 'Phone', cs: 'Telefon' }),
     email: f.text({ format: 'email' }).optional().label({ en: 'E-mail', cs: 'E-mail' }),
     address: f.text().optional().label({ en: 'Studio address', cs: 'Adresa ateliéru' }),

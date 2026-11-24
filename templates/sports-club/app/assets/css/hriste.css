@@ -1,0 +1,106 @@
+/* Hřiště: the club as it looks on a Saturday afternoon. A clean white page, big colour
+   photographs with soft corners, headings that lean forward (Red Hat Display in bold italic),
+   and the match data set like a scoreboard a parent reads on a phone in two seconds.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="hriste"] {
+  --font-display: "Red Hat Display", system-ui, sans-serif;
+  --font-sans: "Red Hat Text", system-ui, sans-serif;
+  /* The colours of the first preset (Červenobílí); a preset from the settings overrides them. */
+  --brand: #cf2330;
+  --brand-ink: #ffffff;
+  --pitch: #12261d;
+  --ink: #16211c;
+  --quiet: #56645b;
+  --tint: #f3f6f1;
+  --line: #e0e6de;
+  --brand-soft: color-mix(in srgb, var(--brand) 9%, #fff);
+  --shadow-card: 0 1px 2px rgb(16 32 24 / .06), 0 22px 48px -18px rgb(16 32 24 / .28);
+}
+
+@keyframes hriste-rise { from { opacity: 0; transform: translateY(16px); } }
+
+@layer base {
+  html[data-look="hriste"] {
+    -webkit-text-size-adjust: 100%;
+    body { background: #fff; color: var(--ink); font-family: var(--font-sans); font-size: 17px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    .site :focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+    .on-dark :focus-visible { outline-color: #fff; }
+  }
+}
+
+@layer components {
+  html[data-look="hriste"] {
+    .wrap { margin-inline: auto; width: 100%; max-width: 1304px; padding-inline: 1rem; }
+    @media (min-width: 40rem) { .wrap { padding-inline: 2rem; } }
+    /* Headings lean forward: the one bit of movement in the type. */
+    .disp { font-family: var(--font-display); font-style: italic; font-weight: 800; letter-spacing: -.02em; word-spacing: .07em; line-height: 1.06; color: var(--ink); }
+    .h2 { font-size: clamp(31px, 3.5vw, 46px); }
+    /* (a number in a narrow box overflows it rather than breaking in two) */
+    .num { overflow-wrap: normal; font-family: var(--font-display); font-style: italic; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; line-height: 1; }
+    .eyebrow { font-family: var(--font-display); font-weight: 700; font-size: 13px; line-height: 1.3; letter-spacing: .09em; text-transform: uppercase; color: var(--quiet); }
+    /* Two slanted bars in the club colour in front of a section heading. */
+    .slash { display: inline-block; width: .62em; height: .7em; margin-right: .32em; background: linear-gradient(90deg, var(--brand) 0 36%, transparent 36% 64%, var(--brand) 64% 100%); transform: skewX(-16deg); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 0 24px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); font-family: var(--font-display); font-weight: 800; font-size: 16px; white-space: nowrap; transition: background-color .15s, transform .15s; cursor: pointer; }
+    .btn:hover { background: color-mix(in srgb, var(--brand) 86%, #000); }
+    .btn:active { transform: translateY(1px); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-soft { background: var(--tint); color: var(--ink); }
+    .btn-soft:hover { background: var(--line); }
+    .btn-dark { background: var(--pitch); color: #fff; }
+    .btn-dark:hover { background: color-mix(in srgb, var(--pitch) 82%, #fff); }
+    .link { font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-decoration-thickness: 2px; text-underline-offset: 4px; transition: color .15s, text-decoration-color .15s; }
+    .link:hover { color: var(--brand); text-decoration-color: currentColor; }
+    .more { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-family: var(--font-display); font-weight: 800; font-size: 16px; transition: color .15s; }
+    .more svg, .more [class*="i-lucide"] { transition: transform .15s; }
+    .more:hover { color: var(--brand); }
+    .more:hover svg, .more:hover [class*="i-lucide"] { transform: translateX(3px); }
+    .photo { overflow: hidden; border-radius: 28px; background: var(--tint); }
+    .avatar { display: grid; place-items: center; flex: none; border-radius: 999px; background: var(--tint); color: var(--quiet); font-family: var(--font-display); font-style: italic; font-weight: 800; letter-spacing: -.01em; }
+    .avatar-us { background: var(--brand); color: var(--brand-ink); }
+    .tile { display: grid; place-items: center; width: 46px; height: 50px; border-radius: 12px; background: var(--pitch); color: #fff; font-size: 28px; }
+    .tile-us { background: var(--brand); color: var(--brand-ink); }
+    .res { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 999px; font-family: var(--font-display); font-weight: 800; font-size: 14px; }
+    .res-V { background: var(--brand); color: var(--brand-ink); }
+    .res-R { background: var(--line); color: var(--ink); }
+    .res-P { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink) 38%, transparent); }
+    .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 999px; background: var(--tint); }
+    .seg button { min-height: 44px; padding: 0 18px; border-radius: 999px; font-family: var(--font-display); font-weight: 800; font-size: 15px; white-space: nowrap; color: var(--quiet); transition: background-color .15s, color .15s; cursor: pointer; }
+    .seg button:hover { color: var(--ink); }
+    .seg button[aria-selected="true"] { background: var(--pitch); color: #fff; }
+    .tbl tbody tr + tr > * { border-top: 1px solid var(--line); }
+    .tbl tbody tr.us > *, .tbl tbody tr.us + tr > * { border-top-color: transparent; }
+    .tbl tbody tr.us > * { background: var(--brand-soft); }
+    .tbl tbody tr.us > :first-child { border-radius: 14px 0 0 14px; }
+    .tbl tbody tr.us > :last-child { border-radius: 0 14px 14px 0; }
+    .field { width: 100%; min-height: 48px; margin-top: 6px; padding: 0 14px; border-radius: 12px; background: var(--tint); border: 1.5px solid transparent; color: var(--ink); font-size: 16px; transition: border-color .15s, background-color .15s; }
+    .field:hover { border-color: var(--line); }
+    .field:focus { outline: none; background: #fff; border-color: var(--brand); }
+    .field[aria-invalid="true"] { border-color: var(--brand); }
+    .field-error { margin-top: 0.3rem; font-size: 14px; line-height: 1.4; font-weight: 500; color: var(--brand); }
+    .chalk { position: absolute; pointer-events: none; fill: none; stroke: currentColor; stroke-width: 2.5; }
+    .zoom img { transition: transform .5s cubic-bezier(.2, .7, .2, 1); }
+    .zoom:hover img { transform: scale(1.035); }
+
+    /* The text of an article or a plain page (the editor's rich text). */
+    .prose-look { max-width: 44rem; font-size: 18px; }
+    .prose-look > * + * { margin-top: 1.1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-style: italic; font-weight: 800; letter-spacing: -.02em; font-size: 1.9rem; line-height: 1.1; margin-top: 2.4rem; color: var(--ink); }
+    .prose-look h3 { font-family: var(--font-display); font-style: italic; font-weight: 800; letter-spacing: -.02em; font-size: 1.4rem; line-height: 1.15; margin-top: 1.8rem; color: var(--ink); }
+    .prose-look a { font-weight: 600; text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--brand); text-decoration-color: currentColor; }
+    .prose-look ul { list-style: disc; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { background: var(--tint); border-radius: 20px; padding: 1.2rem 1.5rem; font-family: var(--font-display); font-style: italic; font-weight: 700; font-size: 1.3rem; line-height: 1.35; }
+    .prose-look img { width: 100%; height: auto; border-radius: 24px; }
+    .prose-look strong { font-weight: 700; color: var(--ink); }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html[data-look="hriste"] {
+    .rise { animation: hriste-rise .6s cubic-bezier(.2, .7, .2, 1) both; }
+    .rise-2 { animation-delay: .08s; }
+    .rise-3 { animation-delay: .16s; }
+  }
+}

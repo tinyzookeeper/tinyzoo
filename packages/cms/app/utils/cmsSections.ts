@@ -148,7 +148,26 @@ export function cmsFieldIcon(f: CmsFormFieldLike): string | undefined {
   return undefined
 }
 
-/** A choice of a few options shows as buttons in the content column, a dropdown elsewhere. */
+/**
+ * A choice of a few options shows as buttons in the content column, a dropdown elsewhere.
+ * A choice whose options follow another field (`optionsBy`) counts the longest list it can
+ * offer, so it does not turn from buttons into a dropdown when the other field changes.
+ */
 export function cmsSelectAsButtons(f: CmsFormFieldLike, placement: 'main' | 'sidebar' = 'main'): boolean {
-  return f.type === 'select' && placement === 'main' && ((f.meta?.options as unknown[] | undefined)?.length ?? 0) <= 5
+  if (f.type !== 'select' || placement !== 'main') return false
+  const by = f.meta?.optionsBy as { options: Record<string, unknown[]> } | undefined
+  const most = by ? Math.max(0, ...Object.values(by.options).map((list) => list.length)) : ((f.meta?.options as unknown[] | undefined)?.length ?? 0)
+  return most <= 5
+}
+
+/**
+ * The options a choice offers now. With `f.select({ optionsBy })` those listed under the
+ * other field's value, in the field's own order; every option when that value is not listed
+ * (or not chosen yet).
+ */
+export function cmsSelectOffered(f: CmsFormFieldLike, otherValue: unknown): string[] {
+  const all = (f.meta?.options as string[] | undefined) ?? []
+  const by = f.meta?.optionsBy as { options: Record<string, string[]> } | undefined
+  const listed = by && typeof otherValue === 'string' && Object.hasOwn(by.options, otherValue) ? by.options[otherValue] : null
+  return listed ? all.filter((v) => listed.includes(v)) : all
 }

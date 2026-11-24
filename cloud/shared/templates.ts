@@ -1,6 +1,6 @@
-// The templates a website can start from. Two really exist today: `basic`, built from
-// packages/cms/starter, and `photographer`, from templates/photographer. The other nineteen
-// are planned: their designs are finished and approved, so the gallery shows each as it will
+// The templates a website can start from. Some really exist: `basic`, built from
+// packages/cms/starter, and the hosted ones built from templates/<id> (`hosted(…)` below and
+// Photographer). The rest are planned: their designs are finished and approved, so the gallery shows each as it will
 // look, but only with NUXT_PUBLIC_SHOW_PLANNED=true, marked as not available and not
 // selectable. A customer never sees them without the flag, and the server refuses to make a
 // site from one (`ready: false`) whatever the flag says.
@@ -65,9 +65,12 @@ export interface TemplateDef {
   looks: LookDef[]
 }
 
-const look = (id: string, cs: string, en: string, csText: string, enText: string): LookDef => ({ id, name: { cs, en }, description: { cs: csText, en: enText } })
+const look = (id: string, cs: string, en: string, csText: string, enText: string, colors?: string): LookDef => ({ id, name: { cs, en }, description: { cs: csText, en: enText }, ...(colors ? { colors } : {}) })
 const planned = (id: string, field: FieldId, animal: string, name: L, description: L, features: L[], looks: LookDef[]): TemplateDef =>
   ({ id, ready: false, field, name, description, features, sourceDir: null, seed: false, animal, looks })
+/** A hosted template that is built (templates/<id>): each of its looks names its default colours as the sixth argument of `look(…)`. */
+const hosted = (id: string, field: FieldId, animal: string, name: L, description: L, features: L[], looks: LookDef[]): TemplateDef =>
+  ({ id, ready: true, field, name, description, features, sourceDir: `templates/${id}`, seed: true, animal, looks })
 
 export const TEMPLATES: TemplateDef[] = [
   {
@@ -90,14 +93,14 @@ export const TEMPLATES: TemplateDef[] = [
     animal: 'elephant',
     looks: [],
   },
-  planned('individual', 'personal', 'fox',
+  hosted('individual', 'personal', 'fox',
     { cs: 'Živnostník a konzultant', en: 'Freelancer and consultant' },
     { cs: 'Představte se a ukažte své služby, ceny a práci pro klienty.', en: 'Introduce yourself and show your services, prices and client work.' },
     [{ cs: 'Služby a ceník', en: 'Services and prices' }, { cs: 'Projekty a reference', en: 'Projects and testimonials' }, { cs: 'Články', en: 'Articles' }],
     [
-      look('vizitka', 'Vizitka', 'Business Card', 'Sytá barva, výrazné patkové písmo a služby v přehledném ceníku.', 'A solid block of colour, bold serif type and a clear price list for your services.'),
-      look('zvyraznovac', 'Zvýrazňovač', 'Highlighter', 'Velký černý nadpis na bílém podkladu se slovy zvýrazněnými barvou.', 'A big black headline on white, with colour highlighting the key words.'),
-      look('rozhovor', 'Rozhovor', 'Conversation', 'Otázky v bublinách, odpovědi pod nimi a měkké oblé tvary.', 'Questions in speech bubbles, answers underneath and softly rounded shapes.'),
+      look('vizitka', 'Vizitka', 'Business Card', 'Sytá barva, výrazné patkové písmo a služby v přehledném ceníku.', 'A solid block of colour, bold serif type and a clear price list for your services.', 'petrol'),
+      look('zvyraznovac', 'Zvýrazňovač', 'Highlighter', 'Velký černý nadpis na bílém podkladu se slovy zvýrazněnými barvou.', 'A big black headline on white, with colour highlighting the key words.', 'zluta'),
+      look('rozhovor', 'Rozhovor', 'Conversation', 'Otázky v bublinách, odpovědi pod nimi a měkké oblé tvary.', 'Questions in speech bubbles, answers underneath and softly rounded shapes.', 'rajce'),
     ]),
   {
     id: 'photographer',
@@ -134,159 +137,159 @@ export const TEMPLATES: TemplateDef[] = [
       },
     ],
   },
-  planned('wedding', 'personal', 'butterfly',
+  hosted('wedding', 'personal', 'butterfly',
     { cs: 'Svatba', en: 'Wedding' },
     { cs: 'Hosté najdou program, místo, ubytování a dary a mohou potvrdit účast.', en: 'Give guests the schedule, venue, places to stay, gift ideas and a way to RSVP.' },
     [{ cs: 'Program dne', en: 'Wedding schedule' }, { cs: 'Místo a ubytování', en: 'Venue and places to stay' }, { cs: 'Dary', en: 'Gifts' }, { cs: 'Potvrzení účasti', en: 'RSVP' }],
     [
-      look('oznameni', 'Oznámení', 'Announcement', 'Jména na střed, klasické písmo a fotografie v paspartách jako na svatebním oznámení.', 'Centred names, classic type and framed photos give it the feel of a printed wedding invitation.'),
-      look('vecer', 'Večer', 'Evening', 'Tmavé pozadí se světýlky, jména v jemné kurzivě a kartička k potvrzení účasti.', 'Fairy lights on a dark background, names in delicate italics and an RSVP card.'),
-      look('magazin', 'Magazín', 'Magazine', 'Velká jména a široké fotografie na bílé stránce jako ve svatebním časopise.', 'Large names and wide photos on a white page, laid out like a wedding magazine.'),
+      look('oznameni', 'Oznámení', 'Announcement', 'Jména na střed, klasické písmo a fotografie v paspartách jako na svatebním oznámení.', 'Centred names, classic type and framed photos give it the feel of a printed wedding invitation.', 'salvej'),
+      look('vecer', 'Večer', 'Evening', 'Tmavé pozadí se světýlky, jména v jemné kurzivě a kartička k potvrzení účasti.', 'Fairy lights on a dark background, names in delicate italics and an RSVP card.', 'les'),
+      look('magazin', 'Magazín', 'Magazine', 'Velká jména a široké fotografie na bílé stránce jako ve svatebním časopise.', 'Large names and wide photos on a white page, laid out like a wedding magazine.', 'pisek'),
     ]),
-  planned('blog', 'personal', 'bird',
+  hosted('blog', 'personal', 'bird',
     { cs: 'Blog a magazín', en: 'Blog and magazine' },
     { cs: 'Články, rubriky, seriály, autoři a odběr novinek.', en: 'Articles, sections, series, authors and a newsletter.' },
     [{ cs: 'Články a rubriky', en: 'Articles and sections' }, { cs: 'Seriály', en: 'Series' }, { cs: 'Autoři', en: 'Authors' }, { cs: 'Odběr novinek', en: 'Newsletter' }],
     [
-      look('obalka', 'Obálka', 'Cover', 'Úvodní fotografie přes celou obrazovku připomíná obálku časopisu.', 'A full-screen lead photo gives the home page the feel of a magazine cover.'),
-      look('ctvrthodinka', 'Čtvrthodinka', 'Quarter of an Hour', 'Články se řadí podle délky čtení a každý má vlastní ciferník.', 'Articles are grouped by reading time, with a clock face on each one.'),
+      look('obalka', 'Obálka', 'Cover', 'Úvodní fotografie přes celou obrazovku připomíná obálku časopisu.', 'A full-screen lead photo gives the home page the feel of a magazine cover.', 'mech'),
+      look('ctvrthodinka', 'Čtvrthodinka', 'Quarter of an Hour', 'Články se řadí podle délky čtení a každý má vlastní ciferník.', 'Articles are grouped by reading time, with a clock face on each one.', 'jedle'),
     ]),
-  planned('trades', 'services', 'hedgehog',
+  hosted('trades', 'services', 'hedgehog',
     { cs: 'Řemeslník a místní služby', en: 'Trades and local services' },
     { cs: 'Ukažte své služby, ceny a hotové zakázky i to, kam za zákazníky jezdíte.', en: 'Show your services, prices, past jobs and the areas you cover.' },
     [{ cs: 'Služby a ceny', en: 'Services and prices' }, { cs: 'Ukázky zakázek', en: 'Past work' }, { cs: 'Recenze', en: 'Reviews' }, { cs: 'Poptávka', en: 'Enquiry' }],
     [
-      look('mistr', 'Mistr', 'Master', 'Teplá bílá, tenké linky a ceník rozdělený podle služeb.', 'Warm white, fine lines and a price list grouped by service.'),
-      look('reflex', 'Reflex', 'Hi-Vis', 'Výrazná barva, černé plochy a telefonní číslo, které hned uvidíte.', 'A high-visibility colour, black panels and a phone number that’s easy to spot.'),
+      look('mistr', 'Mistr', 'Master', 'Teplá bílá, tenké linky a ceník rozdělený podle služeb.', 'Warm white, fine lines and a price list grouped by service.', 'modra'),
+      look('reflex', 'Reflex', 'Hi-Vis', 'Výrazná barva, černé plochy a telefonní číslo, které hned uvidíte.', 'A high-visibility colour, black panels and a phone number that’s easy to spot.', 'zluta'),
     ]),
-  planned('car-service', 'services', 'raccoon',
+  hosted('car-service', 'services', 'raccoon',
     { cs: 'Autoservis', en: 'Garage' },
     { cs: 'Uveďte služby, ceny, značky aut a sezónní akce i možnost objednat se.', en: 'List your services, prices, makes and seasonal offers, with a way to book.' },
     [{ cs: 'Služby a ceník', en: 'Services and prices' }, { cs: 'Značky', en: 'Car makes' }, { cs: 'Sezónní akce', en: 'Seasonal offers' }, { cs: 'Objednání termínu', en: 'Bookings' }],
     [
-      look('cesta', 'Cesta', 'Road', 'Světlé pozadí, velké písmo, sytá zelená a průběh opravy ve čtyřech krocích.', 'A light background, large type, deep green and four steps showing how a repair works.'),
-      look('kontrolky', 'Kontrolky', 'Warning Lights', 'Na tmavém pozadí svítí šest kontrolek, které vedou k jednotlivým službám v ceníku.', 'Six dashboard lights on a dark background link to services in the price list.'),
-      look('supliky', 'Šuplíky', 'Drawers', 'Červená skříňka na nářadí dává každé skupině služeb v ceníku vlastní šuplík.', 'A red tool chest gives each group of services its own drawer in the price list.'),
+      look('cesta', 'Cesta', 'Road', 'Světlé pozadí, velké písmo, sytá zelená a průběh opravy ve čtyřech krocích.', 'A light background, large type, deep green and four steps showing how a repair works.', 'modra'),
+      look('kontrolky', 'Kontrolky', 'Warning Lights', 'Na tmavém pozadí svítí šest kontrolek, které vedou k jednotlivým službám v ceníku.', 'Six dashboard lights on a dark background link to services in the price list.', 'podsviceni'),
+      look('supliky', 'Šuplíky', 'Drawers', 'Červená skříňka na nářadí dává každé skupině služeb v ceníku vlastní šuplík.', 'A red tool chest gives each group of services its own drawer in the price list.', 'cervena'),
     ]),
-  planned('salon', 'services', 'poodle',
+  hosted('salon', 'services', 'poodle',
     { cs: 'Salon a kadeřnictví', en: 'Hair and beauty salon' },
     { cs: 'Představte svůj tým, služby, ceník a ukázky práce a dejte zákazníkům možnost se objednat.', en: 'Introduce your team, show your work and prices, and let customers book.' },
     [{ cs: 'Ceník', en: 'Price list' }, { cs: 'Tým', en: 'Team' }, { cs: 'Ukázky práce', en: 'Portfolio' }, { cs: 'Objednání', en: 'Booking' }],
     [
-      look('zrcadlo', 'Zrcadlo', 'Mirror', 'Chladné odstíny, fotografie v oválech a malé ciferníky s délkou služby.', 'Cool tones, oval photos and small clock faces showing how long each service takes.'),
-      look('sachovnice', 'Šachovnice', 'Chessboard', 'Široké písmo a čtvercové dlaždice na pozadí ve výrazné barvě.', 'Wide lettering and square tiles on a bold background.'),
-      look('vyloha', 'Výloha', 'Shop Window', 'Krémové a mosazné písmo a smaltované cedulky vyniknou na tmavě zelené.', 'Cream and brass lettering and enamel signs stand out against dark green.'),
+      look('zrcadlo', 'Zrcadlo', 'Mirror', 'Chladné odstíny, fotografie v oválech a malé ciferníky s délkou služby.', 'Cool tones, oval photos and small clock faces showing how long each service takes.', 'mlha'),
+      look('sachovnice', 'Šachovnice', 'Chessboard', 'Široké písmo a čtvercové dlaždice na pozadí ve výrazné barvě.', 'Wide lettering and square tiles on a bold background.', 'malina'),
+      look('vyloha', 'Výloha', 'Shop Window', 'Krémové a mosazné písmo a smaltované cedulky vyniknou na tmavě zelené.', 'Cream and brass lettering and enamel signs stand out against dark green.', 'lahvova'),
     ]),
-  planned('medical', 'services', 'koala',
+  hosted('medical', 'services', 'koala',
     { cs: 'Ordinace', en: 'Medical practice' },
     { cs: 'Ordinační hodiny, oznámení, služby, tým a žádost o termín.', en: 'Opening hours, notices, services, staff and a way to request an appointment.' },
     [{ cs: 'Ordinační hodiny', en: 'Opening hours' }, { cs: 'Oznámení', en: 'Notices' }, { cs: 'Služby a tým', en: 'Services and team' }, { cs: 'Žádost o termín', en: 'Appointment request' }],
     [
-      look('cekarna', 'Čekárna', 'Waiting Room', 'Bílá stránka s dobře čitelným písmem a dnešními ordinačními hodinami v úvodu.', 'A white page with clear lettering and today’s opening hours near the top.'),
-      look('cifernik', 'Ciferník', 'Clock Face', 'Každý den má vlastní ciferník s barevně vyznačenými ordinačními hodinami.', 'Each day has a clock face with opening hours marked in colour.'),
+      look('cekarna', 'Čekárna', 'Waiting Room', 'Bílá stránka s dobře čitelným písmem a dnešními ordinačními hodinami v úvodu.', 'A white page with clear lettering and today’s opening hours near the top.', 'inkoust'),
+      look('cifernik', 'Ciferník', 'Clock Face', 'Každý den má vlastní ciferník s barevně vyznačenými ordinačními hodinami.', 'Each day has a clock face with opening hours marked in colour.', 'tyrkys'),
     ]),
-  planned('office', 'services', 'penguin',
+  hosted('office', 'services', 'penguin',
     { cs: 'Účetní, advokát a architekt', en: 'Accountant, lawyer and architect' },
     { cs: 'Služby s cenami, tým, případy z praxe a články.', en: 'Services and prices, profiles of your team, case studies and articles.' },
     [{ cs: 'Služby a ceník', en: 'Services and prices' }, { cs: 'Tým', en: 'Team' }, { cs: 'Případy z praxe', en: 'Case studies' }],
     [
-      look('lhuty', 'Lhůty', 'Deadlines', 'Pod úvodem najdete nejbližší termíny na časové ose připomínající pravítko.', 'Below the introduction, upcoming deadlines sit on a timeline marked like a ruler.'),
-      look('sanony', 'Šanony', 'Binders', 'Karty služeb připomínají hřbety šanonů a ceník má vlastní sloupec.', 'Service cards look like binder spines, with the price list in its own column.'),
+      look('lhuty', 'Lhůty', 'Deadlines', 'Pod úvodem najdete nejbližší termíny na časové ose připomínající pravítko.', 'Below the introduction, upcoming deadlines sit on a timeline marked like a ruler.', 'inkoust'),
+      look('sanony', 'Šanony', 'Binders', 'Karty služeb připomínají hřbety šanonů a ceník má vlastní sloupec.', 'Service cards look like binder spines, with the price list in its own column.', 'rumelka'),
     ]),
-  planned('restaurant', 'hospitality', 'pig',
+  hosted('restaurant', 'hospitality', 'pig',
     { cs: 'Restaurace a kavárna', en: 'Restaurant and café' },
     { cs: 'Jídelní lístek, denní menu, otevírací doba a rezervace stolu.', en: 'Show your menu, daily specials and opening hours, and let guests book a table.' },
     [{ cs: 'Jídelní lístek', en: 'Menu' }, { cs: 'Denní menu', en: 'Daily specials' }, { cs: 'Rezervace stolu', en: 'Table booking' }],
     [
-      look('salon', 'Salon', 'Dining Room', 'Tmavá stránka s mosaznými linkami a jídelním lístkem na krémových kartách.', 'A dark page with fine brass lines and a menu on cream cards.'),
-      look('talir', 'Talíř', 'Plate', 'Sytá barva, velký nadpis a fotografie jídel pořízené shora.', 'A bold colour, a large headline and overhead photos of the food.'),
-      look('paragon', 'Paragon', 'Receipt', 'Strojové písmo, červené razítko a poznámky tužkou připomínají hospodský účet.', 'Typewriter lettering, a red stamp and pencil notes recall a pub receipt.'),
+      look('salon', 'Salon', 'Dining Room', 'Tmavá stránka s mosaznými linkami a jídelním lístkem na krémových kartách.', 'A dark page with fine brass lines and a menu on cream cards.', 'lahvova'),
+      look('talir', 'Talíř', 'Plate', 'Sytá barva, velký nadpis a fotografie jídel pořízené shora.', 'A bold colour, a large headline and overhead photos of the food.', 'horcice'),
+      look('paragon', 'Paragon', 'Receipt', 'Strojové písmo, červené razítko a poznámky tužkou připomínají hospodský účet.', 'Typewriter lettering, a red stamp and pencil notes recall a pub receipt.', 'inkoust'),
     ]),
-  planned('accommodation', 'hospitality', 'sheep',
+  hosted('accommodation', 'hospitality', 'sheep',
     { cs: 'Ubytování', en: 'Accommodation' },
     { cs: 'Představte pokoje, ceny a tipy na výlety a dejte hostům možnost se ozvat.', en: 'Show your rooms, rates and things to do nearby, with a way to enquire about a stay.' },
     [{ cs: 'Pokoje a ceník', en: 'Rooms and prices' }, { cs: 'Výlety v okolí', en: 'Things to do nearby' }, { cs: 'Poptávka pobytu', en: 'Booking enquiries' }],
     [
-      look('cely-rok', 'Celý rok', 'All Year', 'Tmavé pozadí, široká úvodní fotografie a ceny v pásu s dvanácti měsíci.', 'A dark background, a wide lead photo and prices along a twelve-month strip.'),
-      look('ode-dveri', 'Ode dveří', 'From the Door', 'Světlá stránka s fotografiemi pokojů a tipy na výlety s uvedenou vzdáleností.', 'A light page with room photos and tips for days out, with distances from the door.'),
+      look('cely-rok', 'Celý rok', 'All Year', 'Tmavé pozadí, široká úvodní fotografie a ceny v pásu s dvanácti měsíci.', 'A dark background, a wide lead photo and prices along a twelve-month strip.', 'vres'),
+      look('ode-dveri', 'Ode dveří', 'From the Door', 'Světlá stránka s fotografiemi pokojů a tipy na výlety s uvedenou vzdáleností.', 'A light page with room photos and tips for days out, with distances from the door.', 'bridlice'),
     ]),
-  planned('sports-club', 'community', 'lion',
+  hosted('sports-club', 'community', 'lion',
     { cs: 'Sportovní klub', en: 'Sports club' },
     { cs: 'Týmy, rozpis zápasů, výsledky a nábor nových členů.', en: 'Show your teams, fixtures and results, and invite new members to join.' },
     [{ cs: 'Týmy', en: 'Teams' }, { cs: 'Zápasy a výsledky', en: 'Fixtures and results' }, { cs: 'Aktuality', en: 'News' }, { cs: 'Nábor', en: 'Join the club' }],
     [
-      look('zpravodaj', 'Zpravodaj', 'Bulletin', 'Teplý odstín bílé, tenké linky a barevné fotografie s popisky jako v klubovém zpravodaji.', 'Warm white, fine lines and captioned colour photos in a club bulletin layout.'),
-      look('dres', 'Dres', 'Jersey', 'Klubové barvy, pruhy a velká čísla jako na dresu.', 'Club colours, stripes and large numbers like those on a team shirt.'),
-      look('hriste', 'Hřiště', 'Pitch', 'Bílé pozadí, velké fotografie a rozpis zápasů ve stylu výsledkové tabule.', 'A white background, large photos and fixtures laid out like a scoreboard.'),
+      look('zpravodaj', 'Zpravodaj', 'Bulletin', 'Teplý odstín bílé, tenké linky a barevné fotografie s popisky jako v klubovém zpravodaji.', 'Warm white, fine lines and captioned colour photos in a club bulletin layout.', 'cervenobili'),
+      look('dres', 'Dres', 'Jersey', 'Klubové barvy, pruhy a velká čísla jako na dresu.', 'Club colours, stripes and large numbers like those on a team shirt.', 'rudi'),
+      look('hriste', 'Hřiště', 'Pitch', 'Bílé pozadí, velké fotografie a rozpis zápasů ve stylu výsledkové tabule.', 'A white background, large photos and fixtures laid out like a scoreboard.', 'cervena'),
     ]),
-  planned('studio', 'community', 'deer',
+  hosted('studio', 'community', 'deer',
     { cs: 'Taneční, jógové a fitness studio', en: 'Dance, yoga and fitness studio' },
     { cs: 'Rozvrh lekcí, kurzy, lektoři, ceník a přihlášky.', en: 'Class timetables, courses, instructors, prices and sign-ups.' },
     [{ cs: 'Rozvrh', en: 'Timetable' }, { cs: 'Kurzy a lektoři', en: 'Courses and instructors' }, { cs: 'Ceník', en: 'Prices' }, { cs: 'Přihlášky', en: 'Sign-ups' }],
     [
-      look('sal', 'Sál', 'Hall', 'Světlé pozadí, bílé karty a patkové písmo jako v knize.', 'A pale background, white cards and classic book-style lettering.'),
-      look('tabule', 'Tabule', 'Board', 'Dnešní lekce najdete hned v úvodu, vysázené jako na odjezdové tabuli.', 'Today’s classes appear at the top, laid out like a departures board.'),
-      look('deka', 'Deka', 'Blanket', 'Každý druh lekce má svou barvu a v týdenním rozvrhu z nich vznikají pruhy.', 'Each type of class has a colour, forming stripes across the weekly timetable.'),
+      look('sal', 'Sál', 'Hall', 'Světlé pozadí, bílé karty a patkové písmo jako v knize.', 'A pale background, white cards and classic book-style lettering.', 'borovice'),
+      look('tabule', 'Tabule', 'Board', 'Dnešní lekce najdete hned v úvodu, vysázené jako na odjezdové tabuli.', 'Today’s classes appear at the top, laid out like a departures board.', 'kobalt'),
+      look('deka', 'Deka', 'Blanket', 'Každý druh lekce má svou barvu a v týdenním rozvrhu z nich vznikají pruhy.', 'Each type of class has a colour, forming stripes across the weekly timetable.', 'slunce'),
     ]),
-  planned('event', 'community', 'duck',
+  hosted('event', 'community', 'duck',
     { cs: 'Festival a závod', en: 'Festival and race' },
     { cs: 'Přehled programu nebo tras, vstupenek či startovného, výsledků a informací k návštěvě.', en: 'Share the programme or routes, tickets or entry fees, results and visitor information.' },
     [{ cs: 'Program a trasy', en: 'Programme and routes' }, { cs: 'Startovné a vstupenky', en: 'Entry fees and tickets' }, { cs: 'Výsledky', en: 'Results' }, { cs: 'Praktické informace', en: 'Practical information' }],
     [
-      look('casomira', 'Časomíra', 'Race Clock', 'Čísla na tmavém pozadí svítí jako časomíra v cíli.', 'Numbers glow on a dark background like a clock at the finish line.'),
-      look('soutisk', 'Soutisk', 'Overprint', 'Tři překrývající se kopce a kulatá fotografie nad nimi jako na tištěném plakátu.', 'Three overlapping hills and a round photo above them, laid out like a printed poster.'),
+      look('casomira', 'Časomíra', 'Race Clock', 'Čísla na tmavém pozadí svítí jako časomíra v cíli.', 'Numbers glow on a dark background like a clock at the finish line.', 'cervena'),
+      look('soutisk', 'Soutisk', 'Overprint', 'Tři překrývající se kopce a kulatá fotografie nad nimi jako na tištěném plakátu.', 'Three overlapping hills and a round photo above them, laid out like a printed poster.', 'cinober'),
     ]),
-  planned('association', 'community', 'bee',
+  hosted('association', 'community', 'bee',
     { cs: 'Spolek a nezisková organizace', en: 'Association and non-profit' },
     { cs: 'Ukažte, čemu se věnujete, co chystáte a jak vás mohou lidé podpořit.', en: 'Explain what you do, what’s coming up and how people can support you.' },
     [{ cs: 'Projekty', en: 'Projects' }, { cs: 'Akce', en: 'Events' }, { cs: 'Dokumenty a hospodaření', en: 'Documents and accounts' }, { cs: 'Podpora', en: 'Ways to help' }],
     [
-      look('ctvero-dob', 'Čtvero dob', 'Four Seasons', 'Pás dvanácti měsíců ukazuje, co se kdy koná, a projekty mají barvy ročních období.', 'A twelve-month strip shows what’s on, with projects in seasonal colours.'),
+      look('ctvero-dob', 'Čtvero dob', 'Four Seasons', 'Pás dvanácti měsíců ukazuje, co se kdy koná, a projekty mají barvy ročních období.', 'A twelve-month strip shows what’s on, with projects in seasonal colours.', 'sad'),
     ]),
-  planned('realty', 'property', 'seal',
+  hosted('realty', 'property', 'seal',
     { cs: 'Realitní makléř a kancelář', en: 'Estate agent and agency' },
     { cs: 'Představte nemovitosti s fotografiemi a podrobnostmi, své makléře i reference.', en: 'Show property listings with photos and details, introduce your agents and share testimonials.' },
     [{ cs: 'Nabídka nemovitostí', en: 'Listings' }, { cs: 'Makléři', en: 'Agents' }, { cs: 'Reference', en: 'Testimonials' }],
     [
-      look('katastr', 'Katastr', 'Land Register', 'Na bílém pozadí oddělují tenké linky nabídky vysázené jako záznamy z katastru.', 'Fine lines on a white background separate listings laid out like land register entries.'),
-      look('cedule', 'Cedule', 'Banner', 'Výrazná barva, tučné písmo a nabídky, u kterých hned vidíte cenu.', 'A bold colour, heavy type and listings that put the price first.'),
-      look('rozsviceno', 'Rozsvíceno', 'Lights On', 'Teplá žlutá na tmavém pozadí a vyhledávání ve formě krátké věty.', 'Warm yellow against a dark background, with search controls that read like a sentence.'),
+      look('katastr', 'Katastr', 'Land Register', 'Na bílém pozadí oddělují tenké linky nabídky vysázené jako záznamy z katastru.', 'Fine lines on a white background separate listings laid out like land register entries.', 'petrol'),
+      look('cedule', 'Cedule', 'Banner', 'Výrazná barva, tučné písmo a nabídky, u kterých hned vidíte cenu.', 'A bold colour, heavy type and listings that put the price first.', 'zluta'),
+      look('rozsviceno', 'Rozsvíceno', 'Lights On', 'Teplá žlutá na tmavém pozadí a vyhledávání ve formě krátké věty.', 'Warm yellow against a dark background, with search controls that read like a sentence.', 'soumrak'),
     ]),
-  planned('development', 'property', 'whale',
+  hosted('development', 'property', 'whale',
     { cs: 'Developerský projekt', en: 'Property development' },
     { cs: 'Představení projektu, nabídka bytů s půdorysy a stav výstavby.', en: 'Introduce the development, show available flats and floor plans, and share construction updates.' },
     [{ cs: 'Byty a půdorysy', en: 'Flats and floor plans' }, { cs: 'Místo', en: 'Location' }, { cs: 'Stav výstavby', en: 'Construction progress' }],
     [
-      look('modrotisk', 'Modrotisk', 'Blueprint', 'Bílé linky na sytě modrém pozadí ukazují pohled na dům i jeho rozměry.', 'White lines on deep blue show the building and its dimensions.'),
-      look('patra', 'Patra', 'Floors', 'Bílá stránka s úzkým písmem a ceníkem bytů podle podlaží.', 'A white page with narrow lettering and flat prices grouped by floor.'),
-      look('po-slunci', 'Po slunci', 'By the Sun', 'Bílá stránka s oblými tvary ukazuje, kdy do kterého bytu svítí slunce.', 'A white page with rounded shapes shows when each flat gets sunlight.'),
+      look('modrotisk', 'Modrotisk', 'Blueprint', 'Bílé linky na sytě modrém pozadí ukazují pohled na dům i jeho rozměry.', 'White lines on deep blue show the building and its dimensions.', 'modrotisk'),
+      look('patra', 'Patra', 'Floors', 'Bílá stránka s úzkým písmem a ceníkem bytů podle podlaží.', 'A white page with narrow lettering and flat prices grouped by floor.', 'bronz'),
+      look('po-slunci', 'Po slunci', 'By the Sun', 'Bílá stránka s oblými tvary ukazuje, kdy do kterého bytu svítí slunce.', 'A white page with rounded shapes shows when each flat gets sunlight.', 'more'),
     ]),
-  planned('construction', 'property', 'turtle',
+  hosted('construction', 'property', 'turtle',
     { cs: 'Stavební firma a architektonické studio', en: 'Builders and architects' },
     { cs: 'Ukažte dokončené stavby, představte tým a služby a přijímejte poptávky.', en: 'Show completed projects, introduce your team and services, and take enquiries.' },
     [{ cs: 'Hotové projekty', en: 'Completed projects' }, { cs: 'Služby a ceny', en: 'Services and prices' }, { cs: 'Poptávka', en: 'Enquiry' }],
     [
-      look('vykres', 'Výkres', 'Drawing', 'Na bílém pozadí vystupují černé linky a údaje zapsané jako kóty ve výkresu.', 'Black lines and labels on white recall the dimensions on a building plan.'),
-      look('harmonogram', 'Harmonogram', 'Schedule', 'Na grafitovém pozadí ukazují pruhy v týdenní mřížce, jak dlouho práce trvají.', 'Bars on a weekly grid show how long each stage takes, against a graphite background.'),
-      look('zdivo', 'Zdivo', 'Brickwork', 'Na světlém pozadí se střídají cihlové bloky a kresba domu od základů po střechu.', 'Brick-coloured blocks sit on a pale background beside a drawing of a house from foundations to roof.'),
+      look('vykres', 'Výkres', 'Drawing', 'Na bílém pozadí vystupují černé linky a údaje zapsané jako kóty ve výkresu.', 'Black lines and labels on white recall the dimensions on a building plan.', 'tuzka'),
+      look('harmonogram', 'Harmonogram', 'Schedule', 'Na grafitovém pozadí ukazují pruhy v týdenní mřížce, jak dlouho práce trvají.', 'Bars on a weekly grid show how long each stage takes, against a graphite background.', 'laser'),
+      look('zdivo', 'Zdivo', 'Brickwork', 'Na světlém pozadí se střídají cihlové bloky a kresba domu od základů po střechu.', 'Brick-coloured blocks sit on a pale background beside a drawing of a house from foundations to roof.', 'cihla'),
     ]),
-  planned('shop', 'business', 'mouse',
+  hosted('shop', 'business', 'mouse',
     { cs: 'Kamenný obchod', en: 'Local shop' },
     { cs: 'Ukažte, co prodáváte, co je u vás nového, kdy máte otevřeno a jak se k vám lidé dostanou.', en: 'Show what’s on your shelves, what’s new, when you’re open and how to find you.' },
     [{ cs: 'Sortiment', en: 'What you sell' }, { cs: 'Vybrané zboží', en: 'Featured products' }, { cs: 'Otevírací doba a mapa', en: 'Opening hours and map' }],
     [
-      look('portal', 'Portál', 'Shopfront', 'Název je na dřevěném štítu a v úvodu se objevuje výloha s cedulkou „Otevřeno“.', 'A wooden sign carries the name, above a shop window with an ‘Open’ sign.'),
-      look('regal', 'Regál', 'Shelf', 'Zboží je v řadách jako v regálu, s cenovkami přímo pod ním.', 'Products sit in rows like items on a shelf, with price labels underneath.'),
-      look('na-hacku', 'Na háčku', 'On the Hook', 'Zboží je rozvěšené na dřevěných kolících jako na děrované stěně za pultem.', 'Products hang from wooden pegs like items on a shop’s pegboard.'),
+      look('portal', 'Portál', 'Shopfront', 'Název je na dřevěném štítu a v úvodu se objevuje výloha s cedulkou „Otevřeno“.', 'A wooden sign carries the name, above a shop window with an ‘Open’ sign.', 'lahvova'),
+      look('regal', 'Regál', 'Shelf', 'Zboží je v řadách jako v regálu, s cenovkami přímo pod ním.', 'Products sit in rows like items on a shelf, with price labels underneath.', 'smalt'),
+      look('na-hacku', 'Na háčku', 'On the Hook', 'Zboží je rozvěšené na dřevěných kolících jako na děrované stěně za pultem.', 'Products hang from wooden pegs like items on a shop’s pegboard.', 'zelena'),
     ]),
-  planned('software', 'business', 'octopus',
+  hosted('software', 'business', 'octopus',
     { cs: 'Softwarový produkt', en: 'Software product' },
     { cs: 'Funkce, ceník, přehled změn a časté otázky.', en: 'Explain what your product does, show prices, share updates and answer common questions.' },
     [{ cs: 'Funkce a ceník', en: 'Features and pricing' }, { cs: 'Přehled změn', en: 'Changelog' }, { cs: 'Časté otázky', en: 'FAQs' }],
     [
-      look('navod', 'Návod', 'Manual', 'Očíslované obrázky ukazují jednotlivé obrazovky a popisky vysvětlují, co na nich najdete.', 'Numbered screenshots show each screen, with notes pointing out what’s on it.'),
-      look('magnety', 'Magnety', 'Magnets', 'Výrazná barva a názvy funkcí na pruzích připomínají tabuli s rozpisem směn.', 'A bold colour and feature names on strips give the page the look of a shift board.'),
-      look('jeden-den', 'Jeden den', 'One Day', 'Vlevo běží časová osa a pozadí se mění od ranního světla po noční tmu.', 'A timeline runs down the left as the background shifts from dawn to night.'),
+      look('navod', 'Návod', 'Manual', 'Očíslované obrázky ukazují jednotlivé obrazovky a popisky vysvětlují, co na nich najdete.', 'Numbered screenshots show each screen, with notes pointing out what’s on it.', 'zelena'),
+      look('magnety', 'Magnety', 'Magnets', 'Výrazná barva a názvy funkcí na pruzích připomínají tabuli s rozpisem směn.', 'A bold colour and feature names on strips give the page the look of a shift board.', 'odpoledne'),
+      look('jeden-den', 'Jeden den', 'One Day', 'Vlevo běží časová osa a pozadí se mění od ranního světla po noční tmu.', 'A timeline runs down the left as the background shifts from dawn to night.', 'podzim'),
     ]),
 ]
 
@@ -349,6 +352,12 @@ export interface WordmarkDef {
   y: number
   /** The room the name has. */
   maxWidth: number
+  /** A name too long for its room is set smaller until it fits (a wedding's names open the page, large); without it the name is cut. */
+  fit?: boolean
+  /** The look sets the whole name in italics. */
+  italic?: boolean
+  /** The kind of typeface the look falls back on (`serif`…), until the look's own has loaded. */
+  generic?: string
   /** Font size in pixels. */
   size: number
   family: string

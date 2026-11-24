@@ -24,6 +24,11 @@ export interface ColorPreset<Id extends string = string> {
   name: LookText
   /** CSS variables the preset sets, e.g. `{ '--brand': '#7a5a3a' }`. */
   vars: Record<`--${string}`, string>
+  /**
+   * The colours that stand for the preset in the admin, as dots beside its name (hex). Left out:
+   * the brand colour, the background and one more tone, picked from `vars` by their usual names.
+   */
+  swatch?: readonly string[]
 }
 
 export interface LookDef<Id extends string = string, PresetId extends string = string> {
@@ -50,6 +55,23 @@ export interface Looks<L extends LookDef> {
   labels: Record<L['id'], LookText>
   /** The select's labels: "Ateliér · Bronz", so the list reads grouped by look. */
   presetLabels: Record<L['presets'][number]['id'], LookText>
+  /** The select's labels where only one look's presets are offered: "Bronz". */
+  presetNames: Record<L['presets'][number]['id'], LookText>
+  /** Each look's preset ids, for `f.select({ optionsBy: { field: 'look', options: looks.presetsByLook } })`. */
+  presetsByLook: Record<L['id'], L['presets'][number]['id'][]>
+  /** Each preset's colours as dots, for `f.select({ swatches: looks.swatches })`. */
+  swatches: Record<L['presets'][number]['id'], string[]>
+  /**
+   * The two choices of Site settings, ready for `f.select(…)`: the look, and the colours, which
+   * offer only the chosen look's presets (with their colours as dots).
+   */
+  fields: {
+    look: { options: Looks<L>['ids']; default: L['id']; labels: Looks<L>['labels'] }
+    colors: {
+      options: Looks<L>['presetIds']; default: L['presets'][number]['id']; labels: Looks<L>['presetNames']
+      optionsBy: { field: 'look'; options: Looks<L>['presetsByLook'] }; swatches: Looks<L>['swatches']
+    }
+  }
   /**
    * The look and colours a site shows. An unknown look is the first one; colours that belong
    * to another look (the look was changed, the colours were not) are the look's default.
@@ -65,6 +87,26 @@ export function presetStyle(preset: ColorPreset): string {
     .join(';')
 }
 
+const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
+// The variables a look's presets usually set, by what they are: the brand colour, the page's
+// background, and one more tone that tells presets with the same brand apart.
+const SWATCH_VARS: readonly (readonly `--${string}`[])[] = [
+  ['--brand', '--accent'],
+  ['--paper', '--bg', '--night', '--page', '--ground'],
+  ['--tint', '--panel', '--card', '--deep', '--ink', '--fg'],
+]
+
+/** The colours that stand for a preset: its own `swatch`, else up to three picked from its variables. */
+export function presetSwatch(preset: ColorPreset): string[] {
+  if (preset.swatch) return preset.swatch.filter((c) => HEX.test(c))
+  const picked: string[] = []
+  for (const names of SWATCH_VARS) {
+    const value = names.map((n) => preset.vars[n]).find((v) => v && HEX.test(v) && !picked.includes(v.toLowerCase()))
+    if (value) picked.push(value.toLowerCase())
+  }
+  return picked
+}
+
 export function defineLooks<const T extends readonly [LookDef, ...LookDef[]]>(all: T): Looks<T[number]> {
   type L = T[number]
   const seen = new Set<string>()
@@ -76,16 +118,36 @@ export function defineLooks<const T extends readonly [LookDef, ...LookDef[]]>(al
   }
   const labels: Record<string, LookText> = {}
   const presetLabels: Record<string, LookText> = {}
+  const presetNames: Record<string, LookText> = {}
+  const presetsByLook: Record<string, string[]> = {}
+  const swatches: Record<string, string[]> = {}
   for (const look of all) {
     labels[look.id] = look.name
-    for (const preset of look.presets) presetLabels[preset.id] = { cs: `${look.name.cs} · ${preset.name.cs}`, en: `${look.name.en} · ${preset.name.en}` }
+    presetsByLook[look.id] = look.presets.map((p) => p.id)
+    for (const preset of look.presets) {
+      presetLabels[preset.id] = { cs: `${look.name.cs} · ${preset.name.cs}`, en: `${look.name.en} · ${preset.name.en}` }
+      presetNames[preset.id] = preset.name
+      swatches[preset.id] = presetSwatch(preset)
+    }
   }
+  const ids = all.map((l) => l.id) as unknown as Looks<L>['ids']
+  const presetIds = all.flatMap((l) => l.presets.map((p) => p.id)) as unknown as Looks<L>['presetIds']
   return {
     all,
-    ids: all.map((l) => l.id) as unknown as Looks<L>['ids'],
-    presetIds: all.flatMap((l) => l.presets.map((p) => p.id)) as unknown as Looks<L>['presetIds'],
+    ids,
+    presetIds,
     labels: labels as Looks<L>['labels'],
     presetLabels: presetLabels as Looks<L>['presetLabels'],
+    presetNames: presetNames as Looks<L>['presetNames'],
+    presetsByLook: presetsByLook as Looks<L>['presetsByLook'],
+    swatches: swatches as Looks<L>['swatches'],
+    fields: {
+      look: { options: ids, default: ids[0], labels: labels as Looks<L>['labels'] },
+      colors: {
+        options: presetIds, default: presetIds[0], labels: presetNames as Looks<L>['presetNames'],
+        optionsBy: { field: 'look', options: presetsByLook as Looks<L>['presetsByLook'] }, swatches: swatches as Looks<L>['swatches'],
+      },
+    },
     resolve(lookId, presetId) {
       const look: L = all.find((l) => l.id === lookId) ?? all[0]
       const preset = look.presets.find((p) => p.id === presetId) ?? look.presets[0]

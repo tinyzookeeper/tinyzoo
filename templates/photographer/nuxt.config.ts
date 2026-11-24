@@ -4,7 +4,8 @@
 // Nothing here belongs to one site. The look, the colours, the name and the logo come from
 // the site's own settings at run time, so one build serves every site made from the template.
 export default defineNuxtConfig({
-  extends: ['tinyzoo/layer', 'tinyzoo-template-kit/layer'],
+  // (the kit first: what it sets, such as the admin's name, stands over tinyzoo's own defaults)
+  extends: ['tinyzoo-template-kit/layer', 'tinyzoo/layer'],
   modules: ['@nuxt/ui', 'nuxt-auth-utils'],
   build: { transpile: ['@tinyzoo/client', 'tinyzoo-template-kit'] },
   css: ['~/assets/css/main.css'],

@@ -1,0 +1,112 @@
+/* Portál: the painted wooden shopfront. The name on a fascia board in cream letters with a
+   gilded shadow, the opening as a shop window beside the door with its hanging sign, panels of
+   joinery underneath, one lit section for the goods. Vollkorn for the headings and the shopkeeper's
+   voice, Commissioner for the text and the spaced capitals.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="portal"] {
+  --font-display: "Vollkorn", Georgia, serif;
+  --font-sans: "Commissioner", system-ui, sans-serif;
+  /* The colours of the first preset (Lahvová); a preset from the settings overrides them. */
+  --wood: #17352b;
+  --wood-hi: #20453a;
+  --wood-lo: #0f251e;
+  --cream: #f1e7d1;
+  --glass: #efe4cb;
+  --brass: #d0aa62;
+  --brass-lo: #8b6a2c;
+  --rule: color-mix(in srgb, var(--brass) 38%, transparent);
+}
+
+@layer base {
+  html[data-look="portal"] {
+    body { font-family: var(--font-sans); background: var(--wood); color: var(--cream); font-size: 1.0625rem; line-height: 1.6; -webkit-font-smoothing: antialiased; font-variant-numeric: lining-nums; }
+    h1, h2, h3 { font-family: var(--font-display); font-weight: 600; line-height: 1.1; letter-spacing: -0.01em; text-wrap: balance; }
+    .site :focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+    .lit :focus-visible { outline-color: var(--wood); }
+    ::selection { background: var(--brass); color: var(--wood-lo); }
+  }
+}
+
+@layer components {
+  html[data-look="portal"] {
+    .wrap { max-width: 78rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 768px) { .wrap { padding-inline: 2.5rem; } }
+    .caps { font-size: 0.74rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; }
+    .voice { font-family: var(--font-display); font-style: italic; font-weight: 400; }
+    .fig { font-family: var(--font-display); font-weight: 600; font-variant-numeric: lining-nums; }
+
+    /* The fascia: the name board above the window, cream letters with a gilded block shadow */
+    .fascia { border-block: 1px solid var(--rule); box-shadow: 0 -5px 0 -4px var(--rule), 0 5px 0 -4px var(--rule); background: var(--wood-hi); }
+    .fascia-name { font-family: var(--font-display); font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em; line-height: 1; color: var(--cream); text-shadow: 0.03em 0.035em 0 var(--brass-lo); white-space: nowrap; }
+
+    /* A panel of the joinery: a raised field inside a thin gilded line */
+    .panel { background: var(--wood-hi); box-shadow: inset 0 0 0 1px var(--rule), inset 0 0 0 7px var(--wood-hi), inset 0 0 0 8px color-mix(in srgb, var(--brass) 18%, transparent); }
+    .frame { padding: 9px; background: var(--wood-hi); box-shadow: inset 0 0 0 1px var(--rule); }
+    .frame > img, .frame > .crop { display: block; width: 100%; }
+    .lit .frame { background: transparent; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wood) 35%, transparent); padding: 7px; }
+
+    /* The shop window: glazing bars over the photograph */
+    .glazing { position: absolute; inset: 0; pointer-events: none; background:
+      linear-gradient(var(--wood-hi), var(--wood-hi)) 0 21% / 100% 9px no-repeat,
+      linear-gradient(var(--wood-hi), var(--wood-hi)) 33.6% 0 / 9px 100% no-repeat,
+      linear-gradient(var(--wood-hi), var(--wood-hi)) 66.4% 0 / 9px 100% no-repeat; }
+
+    /* The sign on the door. Until the browser knows the visitor's clock it holds its place and says nothing. */
+    .sign { position: relative; display: inline-flex; flex-direction: column; align-items: center; padding: 0.7rem 1.5rem 0.6rem; background: var(--cream); color: var(--wood-lo); transform: rotate(-2deg); box-shadow: 0 10px 18px -10px rgba(0,0,0,.6), inset 0 0 0 3px var(--cream), inset 0 0 0 4px color-mix(in srgb, var(--wood) 55%, transparent); }
+    .sign-word { font-family: var(--font-display); font-weight: 800; font-size: 1.45rem; letter-spacing: 0.14em; text-transform: uppercase; line-height: 1; }
+    .sign[data-state="closed"] { background: var(--wood-lo); color: var(--brass); box-shadow: 0 10px 18px -10px rgba(0,0,0,.6), inset 0 0 0 3px var(--wood-lo), inset 0 0 0 4px var(--rule); }
+    .sign[data-state="unknown"] { visibility: hidden; }
+    [data-state="unknown"] { visibility: hidden; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; min-height: 52px; padding: 0 1.6rem; background: var(--brass); color: var(--wood-lo); font-weight: 600; font-size: 1rem; cursor: pointer; transition: background .2s, color .2s, box-shadow .2s; }
+    .btn:hover { background: var(--cream); }
+    .btn-line { background: transparent; color: var(--cream); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cream) 55%, transparent); }
+    .btn-line:hover { background: transparent; box-shadow: inset 0 0 0 1px var(--brass); color: var(--brass); }
+    .lit .btn { background: var(--wood); color: var(--cream); }
+    .lit .btn:hover { background: var(--wood-lo); }
+    .lit form .btn { background: var(--brass); color: var(--wood-lo); }
+    .lit form .btn:hover { background: var(--cream); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .lit form :focus-visible { outline-color: var(--brass); }
+
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: color-mix(in srgb, var(--cream) 82%, transparent); transition: color .2s; }
+    .navlink:hover { color: var(--brass); }
+    .tlink { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.28em; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); transition: text-decoration-color .2s, color .2s; }
+    .tlink:hover { text-decoration-color: currentColor; }
+
+    /* One thing out of a photograph of three in a row: --cx, --cy say where it is, --z how close */
+    .crop { position: relative; overflow: hidden; }
+    .crop img { position: absolute; max-width: none; height: auto; width: calc(300% * var(--z, 1)); left: calc((0.5 - var(--cx, 0.5) * 3 * var(--z, 1)) * 100%); top: 50%; transform: translateY(calc(var(--cy, 0.5) * -100%)); }
+    .crop-whole img { position: static; width: 100%; height: 100%; object-fit: cover; transform: none; }
+
+    .leader { flex: 1 1 2rem; min-width: 1.5rem; border-bottom: 2px dotted color-mix(in srgb, var(--cream) 35%, transparent); transform: translateY(-0.3em); }
+
+    .field { width: 100%; min-height: 50px; padding: 0.7rem 0.9rem; background: color-mix(in srgb, #fff 45%, var(--glass)); color: var(--wood-lo); border: 1px solid color-mix(in srgb, var(--wood) 45%, transparent); font: inherit; transition: border-color .2s, background .2s; }
+    .field:hover { border-color: var(--wood); }
+    .field:focus { outline: 2px solid var(--wood); outline-offset: 1px; background: #fff; }
+    .field::placeholder { color: color-mix(in srgb, var(--wood-lo) 58%, transparent); }
+    .field[aria-invalid="true"] { border-color: #a3261e; }
+    .field-error { margin-top: 0.3rem; font-size: 0.95rem; line-height: 1.4; color: #ffb3a8; }
+
+    .day { display: flex; align-items: baseline; gap: 0.75rem; padding: 0.6rem 0.9rem; }
+    .day.is-today { background: var(--brass); color: var(--wood-lo); }
+    .day .today-mark { display: none; }
+    .day.is-today .today-mark { display: inline; }
+    .day.is-today .leader { border-color: color-mix(in srgb, var(--wood-lo) 45%, transparent); }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 1.9rem; line-height: 1.15; margin-top: 2.4rem; }
+    .prose-look h3 { font-size: 1.4rem; line-height: 1.2; margin-top: 1.8rem; }
+    .prose-look a { text-decoration: underline; text-decoration-color: var(--brass); text-underline-offset: 0.25em; }
+    .prose-look a:hover { color: var(--brass); }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--rule); }
+    .prose-look ul li { padding: 0.55rem 0; border-bottom: 1px solid var(--rule); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-style: italic; font-size: 1.4rem; line-height: 1.35; color: var(--brass); margin-block: 1.6rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.6rem; }
+    .prose-look strong { font-weight: 700; }
+  }
+}

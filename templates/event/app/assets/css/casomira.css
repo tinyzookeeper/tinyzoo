@@ -1,0 +1,111 @@
+/* Časomíra: the finish-line clock. A dark page where every number that matters (the
+   countdown, the distances, the fees, the start times, the winning times, the places left) is
+   lit in a dot-matrix face (Doto) on a housing of unlit diodes; everything else stays quiet
+   (Chivo, with Chivo Mono for labels and data).
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="casomira"] {
+  --font-display: "Chivo", system-ui, sans-serif;
+  --font-sans: "Chivo", system-ui, sans-serif;
+  --font-mono: "Chivo Mono", ui-monospace, monospace;
+  --font-led: "Doto", "Chivo Mono", monospace;
+  /* The colours of the first preset (Časomíra); a preset from the settings overrides them. */
+  --led: #ff5b2b;
+  --led-ink: #0c0e0f;
+  --bg: #0c0e0f;
+  --panel: #15191b;
+  --line: #2c3336;
+  --text: #eef0ec;
+  --quiet: #9ba6a7;
+}
+
+@layer base {
+  html[data-look="casomira"] {
+    body { font-family: var(--font-sans); color: var(--text); background: var(--bg); font-size: 1.0625rem; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    .site :focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+    summary::-webkit-details-marker { display: none; }
+    summary { list-style: none; }
+  }
+}
+
+@layer components {
+  html[data-look="casomira"] {
+    .wrap { max-width: 82rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 2.5rem; } }
+    .mono { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.4; letter-spacing: 0.09em; text-transform: uppercase; }
+    .led { font-family: var(--font-led); font-weight: 900; color: var(--led); line-height: 1; font-variant-numeric: tabular-nums; }
+    .h2 { font-weight: 800; font-size: clamp(2.2rem, 4.6vw, 3.9rem); line-height: 1; letter-spacing: -0.035em; }
+    /* the colon of the clock is two drawn dots: the font's own would be too small */
+    .led .c { display: inline-block; width: .115em; height: .4em; margin: 0 .13em; vertical-align: .13em; overflow: hidden; text-indent: -99em; background: linear-gradient(currentColor, currentColor) top / 100% .115em no-repeat, linear-gradient(currentColor, currentColor) bottom / 100% .115em no-repeat; }
+    .clock { display: flex; align-items: flex-start; }
+    .clock .sep { display: block; flex: none; width: .115em; height: .4em; margin: .28em .2em 0; opacity: .6; background: linear-gradient(currentColor, currentColor) top / 100% .115em no-repeat, linear-gradient(currentColor, currentColor) bottom / 100% .115em no-repeat; }
+    .clock .unit { display: block; margin-top: .6rem; color: var(--quiet); font-weight: 400; }
+    .idx { display: flex; align-items: center; gap: 0.75rem; color: var(--quiet); }
+    .idx::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--led); flex: none; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.7rem; min-height: 56px; padding: 0 1.6rem; background: var(--led); color: var(--led-ink); font-weight: 800; font-size: 1.05rem; letter-spacing: -0.005em; border-radius: 3px; transition: background .15s, color .15s; cursor: pointer; }
+    .btn:hover { background: var(--text); color: var(--bg); }
+    .btn .ico { transition: transform .15s; }
+    .btn:hover .ico { transform: translate(2px, -2px); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-line { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--quiet); }
+    .btn-line:hover { background: var(--text); color: var(--bg); box-shadow: none; }
+    .ulink { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; box-shadow: inset 0 -1px 0 var(--quiet); transition: color .15s, box-shadow .15s; }
+    .ulink:hover { color: var(--led); box-shadow: inset 0 -1px 0 var(--led); }
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; color: var(--text); transition: color .15s; }
+    .navlink:hover { color: var(--led); }
+
+    /* the housing of a finish-line clock: unlit diodes behind the lit ones */
+    .board { background-color: #050606; border: 1px solid var(--line); border-radius: 6px; background-image: radial-gradient(circle, color-mix(in srgb, var(--led) 16%, transparent) 1px, transparent 1.5px); background-size: 9px 9px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+    .scrim { background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 45%, transparent) 0%, transparent 24%, color-mix(in srgb, var(--bg) 12%, transparent) 60%, var(--bg) 100%); }
+    .scrim-l { background: linear-gradient(90deg, color-mix(in srgb, var(--bg) 62%, transparent), color-mix(in srgb, var(--bg) 26%, transparent) 42%, transparent 58%); }
+    /* daylight photos are graded down so they sit in the dark page; full colour on hover */
+    .ph { filter: saturate(.45) brightness(.8) contrast(1.1); transition: filter .35s; }
+    .ph:hover, figure:focus-within .ph { filter: none; }
+
+    /* places taken, as a row of diodes */
+    .meter { display: block; height: 10px; background: linear-gradient(90deg, var(--led) calc(var(--p) * 1%), var(--line) 0); -webkit-mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 8px); mask: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 8px); }
+    .kmgrid { background-image: linear-gradient(90deg, var(--line) 1px, transparent 1px); background-size: 24.9% 100%; }
+    .strip-pad { padding-inline: 1.25rem; }
+    @media (min-width: 48rem) { .strip-pad { padding-inline: max(2.5rem, calc((100vw - 82rem) / 2 + 2.5rem)); } }
+
+    /* a text page: the rich text of a block */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-weight: 800; font-size: 2rem; letter-spacing: -0.03em; line-height: 1.1; margin-top: 2.6rem; color: var(--text); }
+    .prose-look h3 { font-weight: 800; font-size: 1.4rem; letter-spacing: -0.02em; line-height: 1.2; margin-top: 2rem; color: var(--text); }
+    .prose-look a { text-decoration: underline; text-decoration-color: var(--led); text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--led); }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--line); }
+    .prose-look ul li { padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-weight: 800; font-size: 1.4rem; line-height: 1.3; color: var(--text); margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; border-radius: 6px; }
+    .prose-look strong { color: var(--text); font-weight: 700; }
+
+    /* the form of the contact page */
+    .field label { display: block; }
+    .field input, .field textarea { width: 100%; min-height: 52px; padding: 0.7rem 1rem; background: #050606; color: var(--text); border: 1px solid var(--line); border-radius: 3px; }
+    .field textarea { min-height: 9rem; }
+    .field input:focus, .field textarea:focus { border-color: var(--led); outline: none; }
+    .field [aria-invalid="true"] { border-color: #ff6b6b; }
+    .field-error { margin-top: 0.4rem; color: #ff9b9b; font-size: 0.95rem; }
+
+    /* the plan */
+    .pl-forest { fill: #131a17; }
+    .pl-contour { fill: none; stroke: #2f3a36; stroke-width: 1; }
+    .pl-meadow { fill: none; stroke: var(--quiet); stroke-width: 1.5; stroke-dasharray: 5 5; }
+    .pl-water { fill: #16242b; stroke: #36505c; stroke-width: 1.5; }
+    .pl-road { fill: none; stroke: #454e52; stroke-width: 8; stroke-linecap: round; }
+    .pl-lane { fill: none; stroke: #454e52; stroke-width: 4; stroke-linecap: round; }
+    .pl-house { fill: #343c40; }
+    .pl-hall { fill: var(--text); }
+    .pl-pitch { fill: none; stroke: var(--text); stroke-width: 1.5; }
+    .pl-tent { fill: none; stroke: var(--text); stroke-width: 1.5; }
+    .pl-route { fill: none; stroke: var(--led); stroke-width: 3; stroke-dasharray: 2 8; stroke-linecap: round; }
+    .pl-dot { fill: var(--led); }
+    .pl-dot-t { fill: var(--led-ink); font-family: var(--font-mono); font-weight: 500; font-size: 18px; text-anchor: middle; }
+    .pl-txt { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; fill: var(--quiet); }
+  }
+}

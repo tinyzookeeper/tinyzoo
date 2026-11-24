@@ -1,0 +1,84 @@
+/* Šuplíky: the red tool chest of the workshop. Everything raised is lacquered and has a darker
+   lower edge; the price guide is the chest with one drawer per group, its aluminium pull and its
+   label; the page speaks of three named mechanics. Kanit in bold italic for the headings, Rubik
+   for the text. Written in the cascade layers the design was written in: utilities win over these
+   rules where both speak. */
+html[data-look="supliky"] {
+  --font-display: "Kanit", sans-serif;
+  --font-sans: "Rubik", sans-serif;
+  /* The colours of the first preset (Červená); a preset from the settings overrides them. */
+  --brand: #c5281c;
+  --brand-deep: #96190f;
+  --brand-ink: #ffffff;
+  --paper: #f4ecde;
+  --tint: #e9dcc6;
+  --card: #fffaf0;
+  --edge: #dccdb3;
+  --ink: #1f1b19;
+  --quiet: #675c54;
+}
+
+@layer base {
+  html[data-look="supliky"] {
+    body { font-family: var(--font-sans); color: var(--ink); background: var(--paper); font-size: 17px; line-height: 1.6; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
+    h1, h2, h3, h4 { font-family: var(--font-display); font-style: italic; font-weight: 700; line-height: 1.0; text-wrap: balance; }
+    .site :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
+    ::selection { background: var(--brand); color: var(--brand-ink); }
+    summary { list-style: none; cursor: pointer; }
+    summary::-webkit-details-marker { display: none; }
+  }
+}
+
+@layer components {
+  html[data-look="supliky"] {
+    .wrap { max-width: 1240px; margin-inline: auto; padding-inline: 20px; }
+    .kicker { font-family: var(--font-sans); font-weight: 600; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; }
+    .num { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
+    /* chunky, lacquered: every raised thing has a darker lower edge */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; padding: 0 26px; border-radius: 16px; font-family: var(--font-display); font-weight: 700; font-style: italic; font-size: 20px; transition: transform .12s, box-shadow .12s, background-color .15s; cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); box-shadow: 0 5px 0 var(--brand-deep); }
+    .btn-brand:hover { transform: translateY(2px); box-shadow: 0 3px 0 var(--brand-deep); }
+    .btn-ink { background: var(--ink); color: #fff; box-shadow: 0 5px 0 #000; }
+    .btn-ink:hover { transform: translateY(2px); box-shadow: 0 3px 0 #000; }
+    .btn-card { background: var(--card); color: var(--ink); box-shadow: 0 5px 0 var(--edge); }
+    .btn-card:hover { transform: translateY(2px); box-shadow: 0 3px 0 var(--edge); }
+    .slab { background: var(--card); border-radius: 24px; box-shadow: 0 6px 0 var(--edge); }
+    /* the aluminium pull along the top of a drawer */
+    .pull { display: block; height: 14px; background: linear-gradient(180deg, #f3f4f4 0%, #c4c8cb 45%, #8e959a 100%); box-shadow: inset 0 -2px 0 rgba(0,0,0,.28); }
+    .tag { display: inline-block; background: var(--card); color: var(--ink); border-radius: 8px; box-shadow: 0 0 0 2.5px #b3b9bd, 0 3px 0 2.5px rgba(0,0,0,.22); }
+    .patch { display: inline-block; background: var(--card); color: var(--ink); border-radius: 999px; padding: 9px 26px 8px; outline: 2px dashed var(--brand); outline-offset: -6px; font-family: var(--font-display); font-style: italic; font-weight: 700; font-size: 26px; line-height: 1; box-shadow: 0 4px 0 rgba(0,0,0,.18); }
+    .spz { display: inline-flex; align-items: stretch; background: #fff; color: #1f1b19; border: 2px solid #1f1b19; border-radius: 7px; overflow: hidden; font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1; }
+    .spz::before { content: ""; width: 13px; background: #1d4ea3; flex: none; }
+    .spz > span { padding: 6px 11px 5px; }
+    .tyre { display: grid; place-items: center; border-radius: 999px; background: var(--card); border: 15px solid var(--ink); box-shadow: inset 0 0 0 4px #b9bec2, 0 0 0 2px var(--ink); outline: 3px dotted var(--tint); outline-offset: -9px; }
+    .field { width: 100%; min-height: 54px; padding: 13px 16px; border-radius: 14px; border: 2px solid var(--edge); background: #fff; font: inherit; color: var(--ink); }
+    .field:focus { outline: 3px solid var(--ink); outline-offset: 1px; border-color: var(--ink); }
+    .field[aria-invalid="true"] { border-color: var(--brand); }
+    .field-error { margin-top: 0.3rem; font-size: 14px; line-height: 1.4; font-weight: 500; color: var(--brand-deep); }
+    .navlink { font-weight: 500; font-size: 17px; padding: 12px 0; text-decoration: underline transparent 3px; text-underline-offset: 7px; transition: text-decoration-color .15s; }
+    .navlink:hover { text-decoration-color: var(--brand); }
+
+    /* The sections that share one background when they follow each other: the makes and, under
+       them, the extras (the design has them in one section). */
+    .blk-makes, .blk-extras { background: var(--card); padding-block: 4rem; }
+    @media (min-width: 64rem) { .blk-makes, .blk-extras { padding-block: 6rem; } }
+    .blk-makes:has(+ .blk-extras) { padding-bottom: 0; }
+    .blk-makes + .blk-extras { padding-top: 4rem; }
+    @media (min-width: 64rem) { .blk-makes + .blk-extras { padding-top: 5rem; } }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 2.2rem; line-height: 1.05; margin-top: 2.6rem; }
+    .prose-look h3 { font-size: 1.6rem; line-height: 1.1; margin-top: 2rem; }
+    .prose-look a { color: var(--brand); text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+    .prose-look a:hover { color: var(--ink); }
+    .prose-look ul { list-style: disc; padding-left: 1.4rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.4rem; }
+    .prose-look li + li { margin-top: 0.4rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-style: italic; font-weight: 700; font-size: 1.6rem; line-height: 1.2; margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; border-radius: 28px; margin-block: 1.8rem; }
+    .prose-look strong { font-weight: 600; }
+  }
+}

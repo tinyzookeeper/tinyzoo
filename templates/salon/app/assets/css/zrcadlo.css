@@ -1,0 +1,68 @@
+/* Zrcadlo: the salon mirror in daylight. A calm, cool page where every photograph sits in an
+   oval or round mirror with a thin rim, and the time a service takes is a small clock face.
+   Tenor Sans for the display lines (also prices and the phone number), Plus Jakarta Sans for
+   the text. Written in the cascade layers the design was written in: utilities win over these
+   rules where both speak. */
+html[data-look="zrcadlo"] {
+  --font-display: "Tenor Sans", sans-serif;
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  /* The colours of the first preset (Mlha); a preset from the settings overrides them. */
+  --paper: #e6edf2;
+  --surface: #f8fafc;
+  --ink: #15233d;
+  --body: #33405a;
+  --quiet: #56627a;
+  --brand: #24417d;
+  --brand-ink: #ffffff;
+  --accent: #f2b79c;
+  --line: #c9d4de;
+}
+
+@layer base {
+  html[data-look="zrcadlo"] {
+    body { background: var(--paper); color: var(--body); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; font-size: 16px; line-height: 1.6; }
+    h1, h2, h3 { font-family: var(--font-display); font-weight: 400; color: var(--ink); }
+    :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+    ::selection { background: var(--accent); color: var(--ink); }
+  }
+}
+
+@layer components {
+  html[data-look="zrcadlo"] {
+    .wrap { max-width: 1240px; margin-inline: auto; padding-inline: 20px; }
+    @media (min-width: 768px) { .wrap { padding-inline: 40px; } }
+    .label { font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--quiet); }
+    /* a mirror: an oval with a thin rim standing off the glass */
+    .mirror { border-radius: 50%; box-shadow: 0 0 0 9px var(--paper), 0 0 0 10px var(--ink); overflow: hidden; }
+    .mirror-on-surface { box-shadow: 0 0 0 9px var(--surface), 0 0 0 10px var(--ink); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 999px; font-weight: 600; font-size: 16px; transition: background-color .2s, color .2s, box-shadow .2s, transform .2s; cursor: pointer; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); }
+    .btn-brand:hover { background: var(--ink); }
+    .btn-brand[disabled] { opacity: .6; cursor: progress; }
+    .btn-line { box-shadow: inset 0 0 0 1px var(--ink); color: var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--surface); }
+    .field { width: 100%; min-height: 52px; padding: 0 18px; border-radius: 16px; background: var(--paper); color: var(--ink); border: 1px solid transparent; font-size: 16px; transition: border-color .2s, background-color .2s; }
+    .field:hover { border-color: var(--line); }
+    .field:focus { outline: none; border-color: var(--brand); background: var(--surface); }
+    .field[aria-invalid="true"] { border-color: #b3261e; }
+    .field-error { margin-top: 6px; font-size: 14px; font-weight: 600; color: #b3261e; }
+    .dial { width: 18px; height: 18px; flex: none; }
+    .price-row { transition: background-color .15s; }
+    .price-row:hover { background: var(--paper); }
+    .price-row:hover .go { opacity: 1; transform: none; }
+    .go { opacity: 0; transform: translateX(-4px); transition: opacity .15s, transform .15s; }
+
+    /* the text page's body (the "Text" block) */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 2rem; line-height: 1.15; margin-top: 2.6rem; }
+    .prose-look h3 { font-size: 1.5rem; line-height: 1.2; margin-top: 2rem; }
+    .prose-look a { color: var(--brand); text-decoration: underline; text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--ink); }
+    .prose-look ul { list-style: disc; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.3; color: var(--ink); margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; border-radius: 28px; margin-block: 1.8rem; }
+    .prose-look strong { color: var(--ink); font-weight: 600; }
+  }
+}

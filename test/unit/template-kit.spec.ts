@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { emphasisParts, plainEmphasis, tidyText } from '../../templates/kit/app/utils/emphasis'
-import { defineLooks, presetStyle } from '../../templates/kit/looks'
-import { byLength, formatDate, formatPrice, mixAlbumPhotos, paragraphs, shapeOf, siteHref, socialHandle, telHref, tileCategories, frameCode } from '../../templates/photographer/app/utils/site'
+import { defineSingleton, f } from 'tinyzoo'
+import { defineLooks, presetStyle, presetSwatch } from '../../templates/kit/looks'
+import { byLength, dateParts, formatDate, formatPrice, paragraphs, siteHref, socialHandle, telHref, timeAttr } from '../../templates/kit/app/utils/format'
+import { mixAlbumPhotos, shapeOf, tileCategories, frameCode } from '../../templates/photographer/app/utils/site'
 import type { Album } from '../../templates/photographer/app/lib/cms-content'
 
 // What the hosted templates share (templates/kit), and the Photographer template's own helpers.
@@ -52,6 +54,20 @@ describe('looks and colour presets', () => {
     expect(looks.presetIds).toEqual(['a', 'b', 'c'])
     expect(looks.labels.two).toEqual({ cs: 'Dva', en: 'Two' })
     expect(looks.presetLabels.b).toEqual({ cs: 'Jedna · B', en: 'One · B' })
+  })
+
+  it('give the colours choice only the chosen look\'s presets, with their colours as dots', () => {
+    expect(looks.presetsByLook).toEqual({ one: ['a', 'b'], two: ['c'] })
+    expect(looks.presetNames.b).toEqual({ cs: 'B', en: 'B' })
+    // The brand colour, then the background when it is a plain hex colour (`rgb(0 0 0)` is not).
+    expect(looks.swatches).toEqual({ a: ['#112233'], b: ['#445566'], c: ['#778899'] })
+    expect(presetSwatch({ id: 'p', name: { cs: 'P', en: 'P' }, vars: { '--paper': '#FAF8F4', '--brand': '#7a5a3a', '--tint': '#f1ece3', '--line': '#dfd8cc' } })).toEqual(['#7a5a3a', '#faf8f4', '#f1ece3'])
+    expect(presetSwatch({ id: 'p', name: { cs: 'P', en: 'P' }, vars: { '--brand': '#7a5a3a' }, swatch: ['#000000', '#ffffff'] })).toEqual(['#000000', '#ffffff'])
+    expect(looks.fields.look).toEqual({ options: ['one', 'two'], default: 'one', labels: looks.labels })
+    expect(looks.fields.colors).toMatchObject({ options: ['a', 'b', 'c'], default: 'a', optionsBy: { field: 'look', options: looks.presetsByLook } })
+    // The pair is what f.select takes: the content model accepts it as it is.
+    const settings = defineSingleton('settings', { label: 'S', titleField: 'look', fields: { look: f.select(looks.fields.look), colors: f.select(looks.fields.colors) } })
+    expect((settings.fields.colors.meta as any).optionsBy.field).toBe('look')
   })
 
   it('resolve to the first look and the look\'s first colours when a choice is missing or foreign', () => {
@@ -118,6 +134,15 @@ describe('the Photographer template\'s helpers', () => {
     expect(socialHandle('https://www.instagram.com')).toBe('Instagram')
     expect(siteHref('/home')).toBe('/')
     expect(siteHref('/cenik')).toBe('/cenik')
+    expect(siteHref('/home#program')).toBe('/#program')
+    expect(siteHref('/homestead')).toBe('/homestead')
+    expect(siteHref('/#ucast')).toBe('/#ucast')
+    expect(dateParts('2027-06-19T10:30:00Z')).toMatchObject({ weekday: 'sobota', day: '19', month: 'června', year: '2027', time: '12.30', date: '19. června 2027', iso: '2027-06-19T12:30' })
+    expect(dateParts('2027-04-29T22:00:00Z')).toMatchObject({ weekday: 'pátek', date: '30. dubna 2027', time: '', iso: '2027-04-30' })
+    expect(dateParts('')).toBeNull()
+    expect(timeAttr('11.30')).toBe('11:30')
+    expect(timeAttr('2.00')).toBe('02:00')
+    expect(timeAttr('po půlnoci')).toBe('')
     expect(paragraphs('Jedna.\n\nDva.\n \nTři.')).toEqual(['Jedna.', 'Dva.', 'Tři.'])
   })
 

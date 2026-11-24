@@ -1,0 +1,137 @@
+/* Cedule: the banner an agent hangs on a balcony, turned into a website. One loud colour, very
+   heavy type (Epilogue), 2 px black rules, a mono (Azeret Mono) for labels and parameters, and
+   the listings as one ruled sheet with the price first. Written in the cascade layers the
+   design was written in: utilities win over these rules where both speak. */
+html[data-look="cedule"] {
+  --font-sans: "Epilogue", system-ui, sans-serif;
+  --font-mono: "Azeret Mono", ui-monospace, monospace;
+  /* The colours of the first preset (Žlutá); a preset from the settings overrides them. */
+  --paper: #ffffff;
+  --tint: #f1f0ea;
+  --ink: #111110;
+  --quiet: #595953;
+  --brand: #ffd60a;
+  --brand-ink: #111110;
+  --brand-on-dark: #ffd60a;
+}
+
+@layer base {
+  html[data-look="cedule"] {
+    body { font-family: var(--font-sans); color: var(--ink); background: var(--paper); font-size: 1rem; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    h1, h2, h3 { font-weight: 800; letter-spacing: -0.035em; line-height: 0.95; }
+    .site :focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+    .on-dark :focus-visible { outline-color: var(--brand-on-dark); }
+    ::selection { background: var(--ink); color: var(--paper); }
+  }
+}
+
+@layer components {
+  html[data-look="cedule"] {
+    .wrap { max-width: 90rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 768px) { .wrap { padding-inline: 2.5rem; } }
+    .mono { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.35; letter-spacing: 0; }
+    .caps { text-transform: uppercase; letter-spacing: 0.08em; }
+    .num { font-variant-numeric: tabular-nums; }
+
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.15rem; font-weight: 600; font-size: 0.97rem; box-shadow: inset 0 0 0 0 var(--brand); transition: box-shadow .2s; }
+    .navlink:hover { box-shadow: inset 0 -3px 0 0 var(--ink); }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; min-height: 52px; padding: 0 1.6rem; background: var(--ink); color: var(--paper); font-weight: 700; letter-spacing: -0.01em; border: 2px solid var(--ink); transition: background .15s, color .15s; cursor: pointer; }
+    .btn:hover { background: var(--paper); color: var(--ink); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+    .btn-brand:hover { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+    .btn-ghost { background: transparent; color: var(--ink); }
+    .btn-ghost:hover { background: var(--ink); color: var(--paper); }
+    .btn .ic { transition: transform .15s; }
+    .btn:hover .ic { transform: translateX(3px); }
+
+    /* Search bar */
+    .search { display: grid; grid-template-columns: 1fr 1fr; background: var(--paper); border: 2px solid var(--ink); color: var(--ink); }
+    .search .cell { padding: 0.7rem 1rem 0.65rem; border-bottom: 2px solid var(--ink); min-width: 0; }
+    .search .cell:nth-child(odd):not(:first-child) { border-left: 2px solid var(--ink); }
+    .search .cell.full { grid-column: 1 / -1; padding: 0; }
+    .search .mono { display: block; color: var(--quiet); }
+    .search select { width: 100%; min-height: 32px; appearance: none; border: 0; background: transparent; font: inherit; font-weight: 700; font-size: 1.05rem; letter-spacing: -0.01em; cursor: pointer; padding-right: 1.4rem; background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%); background-position: calc(100% - 10px) 55%, calc(100% - 4px) 55%; background-size: 6px 6px; background-repeat: no-repeat; }
+    .seg { display: grid; grid-template-columns: 1fr 1fr; height: 100%; }
+    .seg button { min-height: 56px; font-weight: 800; font-size: 1.1rem; letter-spacing: -0.02em; cursor: pointer; transition: background .15s, color .15s; }
+    .seg button + button { border-left: 2px solid var(--ink); }
+    .seg button:hover { background: var(--tint); }
+    .seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+    .search .go { grid-column: auto; min-height: 60px; border: 0; border-left: 2px solid var(--ink); }
+    .search .go:hover { background: var(--brand); color: var(--brand-ink); }
+    @media (min-width: 1024px) {
+      .search { grid-template-columns: 1.3fr 1fr 1.2fr 1fr auto; }
+      .search .cell { border-bottom: 0; border-left: 0 !important; border-right: 2px solid var(--ink); padding: 0.95rem 1.4rem 0.85rem; }
+      .search .cell.full { grid-column: auto; padding: 0; }
+      .seg button { min-height: 76px; font-size: 1.25rem; }
+      .search .go { border-left: 0; min-height: 76px; padding: 0 2.6rem; font-size: 1.15rem; }
+    }
+
+    /* Filter chips */
+    .chip { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; padding: 0 1rem; border: 2px solid var(--ink); font-weight: 700; font-size: 0.95rem; letter-spacing: -0.01em; white-space: nowrap; cursor: pointer; transition: background .15s, color .15s; }
+    .chip small { font-family: var(--font-mono); font-weight: 400; font-size: 0.72rem; }
+    .chip:hover { background: var(--brand); color: var(--brand-ink); }
+    .chip[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+    /* Listing card: cells of one ruled sheet */
+    .sheet { display: grid; border-top: 2px solid var(--ink); border-left: 2px solid var(--ink); }
+    .sheet > * { border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); min-width: 0; }
+    .listing { display: grid; grid-template-columns: 38% 1fr; background: var(--paper); transition: background .15s, color .15s; }
+    .listing .ph { position: relative; display: block; overflow: hidden; background: var(--tint); min-height: 9.5rem; }
+    .listing .ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .5s cubic-bezier(.2,.6,.2,1); }
+    .listing:hover .ph img { transform: scale(1.04); }
+    .listing .body { display: flex; flex-direction: column; padding: 0.85rem 0.9rem 0.9rem; border-left: 2px solid var(--ink); }
+    .listing:hover { background: var(--brand); color: var(--brand-ink); }
+    .listing .price { font-weight: 800; font-size: 1.3rem; line-height: 1; letter-spacing: -0.035em; font-variant-numeric: tabular-nums; }
+    .listing .soft { color: var(--quiet); transition: color .15s; }
+    .listing:hover .soft { color: inherit; }
+    .state { position: absolute; left: 0; top: 0; padding: 0.4rem 0.6rem; background: var(--brand); color: var(--brand-ink); font-family: var(--font-mono); font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); }
+    .state.is-reserved { background: var(--paper); color: var(--ink); }
+    .state.is-sold { background: var(--ink); color: var(--paper); }
+    .is-sold-card .ph img { filter: grayscale(1) contrast(1.05); }
+    .is-sold-card .price { text-decoration: line-through; text-decoration-thickness: 2px; }
+    @media (min-width: 640px) {
+      .listing { display: flex; flex-direction: column; }
+      .listing .ph { aspect-ratio: 4 / 3; min-height: 0; }
+      .listing .body { flex: 1; padding: 1.1rem 1.25rem 1.2rem; border-left: 0; border-top: 2px solid var(--ink); }
+      .listing .price { font-size: 1.75rem; }
+      .state { font-size: 0.72rem; padding: 0.5rem 0.75rem; }
+    }
+
+    /* Parameter table */
+    .params { border-top: 2px solid var(--ink); }
+    .params > div { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: 0.7rem 0; border-bottom: 1px solid var(--ink); }
+    .params dt { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--quiet); white-space: nowrap; }
+    .params dd { font-weight: 700; text-align: right; letter-spacing: -0.01em; }
+
+    /* Forms */
+    .field label { display: block; margin-bottom: 0.35rem; }
+    .field input, .field select, .field textarea { width: 100%; min-height: 52px; padding: 0.7rem 0.9rem; background: #fff; color: #111110; border: 2px solid var(--ink); border-radius: 0; font: inherit; font-weight: 600; }
+    .field textarea { min-height: 7.5rem; resize: vertical; }
+    .field ::placeholder { color: #595953; opacity: 1; font-weight: 400; }
+    .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+    .field select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #111110 50%), linear-gradient(135deg, #111110 50%, transparent 50%); background-position: calc(100% - 22px) 54%, calc(100% - 16px) 54%; background-size: 6px 6px; background-repeat: no-repeat; padding-right: 2.4rem; }
+    .field [aria-invalid="true"] { border-color: #c4120a; }
+    .field .field-error { margin-top: 0.3rem; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; color: #c4120a; }
+    .on-dark .field-error { color: #ff9b94; }
+    .on-brand .field-error { color: #8a0a05; }
+
+    .big-link { box-shadow: inset 0 -2px 0 0 currentColor; transition: background .15s, color .15s, box-shadow .15s; }
+    .big-link:hover { background: var(--brand); color: var(--brand-ink); box-shadow: inset 0 -2px 0 0 var(--ink); }
+
+    /* The property's own page and the prose of a free page */
+    .prose-look { max-width: 44rem; font-weight: 500; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 2.4rem; line-height: 0.95; margin-top: 2.6rem; }
+    .prose-look h3 { font-size: 1.6rem; line-height: 1; margin-top: 2rem; }
+    .prose-look a { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+    .prose-look a:hover { background: var(--brand); color: var(--brand-ink); }
+    .prose-look ul { list-style: none; border-top: 2px solid var(--ink); }
+    .prose-look ul li { padding: 0.6rem 0; border-bottom: 1px solid var(--ink); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-weight: 800; font-size: 1.6rem; line-height: 1.1; letter-spacing: -0.03em; }
+    .prose-look img { width: 100%; height: auto; border: 2px solid var(--ink); }
+    .prose-look strong { font-weight: 800; }
+  }
+}

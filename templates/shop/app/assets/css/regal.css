@@ -1,0 +1,118 @@
+/* Regál: the shelf and its price rail. Everything stands on a board, the rail under it carries
+   the labels (names, prices, dates), the shopkeeper's talk hangs below. Schibsted Grotesk for
+   the text and the headings (700, never heavier), Saira Extra Condensed for labels, prices and
+   hours. Colours from the photographs: the green of the shelves, brass flags, a warm near-white.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="regal"] {
+  --font-sans: "Schibsted Grotesk", system-ui, sans-serif;
+  --font-cond: "Saira Extra Condensed", "Arial Narrow", sans-serif;
+  /* The colours of the first preset (Smalt); a preset from the settings overrides them. */
+  --paper: #f6f5f2;
+  --tint: #e9e8e3;
+  --ink: #1a1e2a;
+  --rail: #2b3557;
+  --rail-ink: #ffffff;
+  --signal: #dcae52;
+  --signal-ink: #1a1e2a;
+}
+
+@layer base {
+  html[data-look="regal"] {
+    body { font-family: var(--font-sans); background: var(--paper); color: var(--ink); font-size: 1.0625rem; line-height: 1.55; -webkit-font-smoothing: antialiased; overflow-x: clip; }
+    h1, h2, h3 { font-weight: 700; line-height: 1.02; letter-spacing: -0.03em; text-wrap: balance; }
+    .site :focus-visible { outline: 3px solid var(--rail); outline-offset: 2px; }
+    .on-dark :focus-visible, .on-rail :focus-visible { outline-color: var(--signal); }
+    ::selection { background: var(--rail); color: var(--rail-ink); }
+  }
+}
+
+@layer components {
+  html[data-look="regal"] {
+    .wrap { max-width: 88rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 768px) { .wrap { padding-inline: 2.5rem; } }
+    .cond { font-family: var(--font-cond); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1; }
+    .num { font-family: var(--font-cond); font-weight: 700; line-height: 0.9; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+    /* Until the browser knows the visitor's clock the time-bound words hold their place and say nothing. */
+    [data-state="unknown"] { visibility: hidden; }
+    .dot { display: inline-block; width: 0.62em; height: 0.62em; border-radius: 999px; background: var(--signal); }
+    .dot[data-closed="true"] { background: transparent; box-shadow: inset 0 0 0 2px currentColor; }
+
+    /* A shelf: things stand on the board, the rail under them carries the labels, the talk hangs below */
+    .shelf { display: grid; row-gap: 0; }
+    .bay { display: grid; grid-template-rows: subgrid; grid-row: span 3; min-width: 0; }
+    .stand { position: relative; align-self: end; padding-inline: 5px; }
+    .stand img { display: block; width: 100%; object-fit: cover; }
+    .rail { background: var(--rail); color: var(--rail-ink); border-top: 6px solid var(--ink); padding: 0.7rem 0.9rem 0.8rem; }
+    .bay + .bay .rail { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--rail-ink) 28%, transparent); }
+    .talk { padding: 1rem 0.9rem 3rem; }
+    .rail-thin { padding: 6px 5px; }
+    .ticket { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.5rem; height: 100%; background: #fff; color: var(--ink); padding: 0.55rem 0.7rem 0.5rem; }
+    .wob { position: absolute; left: 5px; bottom: 0; padding: 0.3rem 0.55rem 0.25rem; background: var(--signal); color: var(--signal-ink); font-family: var(--font-cond); font-weight: 700; font-size: 1.05rem; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1; }
+    .wob-ink { background: var(--ink); color: var(--paper); }
+
+    /* One thing out of a photograph of three in a row: --cx, --cy say where it is, --z how close */
+    .crop { position: relative; overflow: hidden; }
+    .crop img { position: absolute; max-width: none; height: auto; width: calc(300% * var(--z, 1)); left: calc((0.5 - var(--cx, 0.5) * 3 * var(--z, 1)) * 100%); top: 50%; transform: translateY(calc(var(--cy, 0.5) * -100%)); }
+    .crop-whole img { position: static; width: 100%; height: 100%; object-fit: cover; transform: none; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; min-height: 54px; padding: 0 1.5rem; background: var(--ink); color: var(--paper); font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; cursor: pointer; transition: background .15s, color .15s, transform .15s; }
+    .btn:hover { background: var(--rail); color: var(--rail-ink); }
+    .btn .icon { transition: transform .15s; }
+    .btn:hover .icon { transform: translateX(3px); }
+    .btn-line { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--paper); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .on-rail .btn { background: var(--signal); color: var(--signal-ink); }
+    .on-rail .btn:hover { background: #fff; color: var(--ink); }
+    .act { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.85rem; font-weight: 700; font-size: 0.92rem; box-shadow: inset 0 0 0 2px var(--ink); transition: background .15s, color .15s; }
+    .act:hover { background: var(--ink); color: var(--paper); }
+    .act-fill { background: var(--ink); color: var(--paper); }
+    .act-fill:hover { background: var(--rail); color: var(--rail-ink); box-shadow: inset 0 0 0 2px var(--rail); }
+
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; font-size: 0.97rem; letter-spacing: -0.01em; box-shadow: inset 0 -2px 0 transparent; transition: box-shadow .15s; }
+    .navlink:hover { box-shadow: inset 0 -3px 0 var(--rail); }
+    .ulink { box-shadow: inset 0 -2px 0 currentColor; transition: box-shadow .15s; }
+    .ulink:hover { box-shadow: inset 0 -0.45em 0 color-mix(in srgb, currentColor 30%, transparent); }
+
+    .field { width: 100%; min-height: 54px; padding: 0.8rem 0.95rem; background: #fff; color: var(--ink); border: 0; box-shadow: inset 0 0 0 2px transparent; font: inherit; transition: box-shadow .15s; }
+    .field:hover { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ink) 45%, transparent); }
+    .field:focus { outline: 0; box-shadow: inset 0 0 0 3px var(--ink); }
+    .field::placeholder { color: color-mix(in srgb, var(--ink) 55%, transparent); }
+    .field[aria-invalid="true"] { box-shadow: inset 0 0 0 3px var(--signal); }
+    .field-error { margin-top: 0.3rem; font-size: 0.95rem; line-height: 1.35; font-weight: 600; }
+
+    .day { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 1rem; padding: 0.55rem 0.9rem; border-bottom: 2px solid var(--ink); }
+    .day .mark { display: none; }
+    .day.is-today { background: var(--ink); color: var(--paper); }
+    .day.is-today .mark { display: inline-block; margin-left: 0.6rem; padding: 0.2rem 0.45rem 0.15rem; background: var(--signal); color: var(--signal-ink); font-size: 1rem; vertical-align: 0.2em; }
+
+    /* Picked items: a row to swipe on a phone, shelves of three or five from a tablet up; the empty place takes what is left of the last shelf */
+    .picks { container-type: inline-size; }
+    .picks .shelf-item { display: flex; flex-direction: column; min-width: 0; }
+    .picks .ticket { min-height: 3.6rem; height: auto; }
+    .picks .rail { flex: none; }
+    .picks .stand { align-self: stretch; }
+    .hole { aspect-ratio: 1; }
+    @media (min-width: 768px) {
+      .picks .filler { flex-grow: 1; }
+      .hole { aspect-ratio: auto; height: calc(100cqw / 3 - 10px); }
+    }
+    @media (min-width: 1280px) {
+      .hole { height: calc(100cqw / 5 - 10px); }
+    }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 2rem; line-height: 1.1; margin-top: 2.4rem; }
+    .prose-look h3 { font-size: 1.4rem; line-height: 1.15; margin-top: 1.8rem; }
+    .prose-look a { box-shadow: inset 0 -2px 0 currentColor; }
+    .prose-look a:hover { box-shadow: inset 0 -0.45em 0 color-mix(in srgb, currentColor 30%, transparent); }
+    .prose-look ul { list-style: none; border-top: 6px solid var(--ink); }
+    .prose-look ul li { padding: 0.55rem 0; border-bottom: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-size: 1.4rem; line-height: 1.2; font-weight: 700; border-top: 6px solid var(--ink); padding-top: 0.8rem; margin-block: 1.6rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.6rem; }
+  }
+}

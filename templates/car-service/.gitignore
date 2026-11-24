@@ -1,0 +1,8 @@
+node_modules
+.nuxt
+.output
+.data
+.cms-uploads
+.cms-mail
+.env
+.DS_Store

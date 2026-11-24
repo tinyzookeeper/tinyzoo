@@ -1,0 +1,83 @@
+/* Čtvero dob: the association's year. White and one quiet second ground, one brand colour and
+   the four seasons as pale tints (winter mist, young leaves, straw, autumn leaves); every project
+   and every month wears the tint of its season. Vollkorn for the headings and the figures
+   (italic for the second voice), Asap for the text.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="ctvero-dob"] {
+  --font-display: "Vollkorn", Georgia, serif;
+  --font-sans: "Asap", system-ui, sans-serif;
+  /* The colours of the first preset (Sad); a preset from the settings overrides them. */
+  --paper: #ffffff;
+  --sand: #f4f5f0;
+  --ink: #1d2621;
+  --brand: #2a5135;
+  --brand-ink: #ffffff;
+  /* The four seasons, one family for every preset; the -m colours are the small marks (dots). */
+  --zima: #dbe5ea;
+  --jaro: #dde8d2;
+  --leto: #f0e7c2;
+  --podzim: #f1dcc5;
+  --zima-m: #5b8dab;
+  --jaro-m: #619655;
+  --leto-m: #c9a43a;
+  --podzim-m: #c8713b;
+  --body: color-mix(in srgb, var(--ink) 86%, var(--paper));
+  --rule: color-mix(in srgb, var(--ink) 16%, transparent);
+}
+
+@layer base {
+  html[data-look="ctvero-dob"] {
+    body { font-family: var(--font-sans); color: var(--body); background: var(--paper); font-size: 1.0625rem; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    h1, h2, h3 { font-family: var(--font-display); color: var(--ink); font-weight: 700; letter-spacing: -0.012em; line-height: 1.06; text-wrap: balance; }
+    h1 em, h2 em, h3 em { font-style: italic; font-weight: 600; }
+    h1 em { color: var(--brand); }
+    .site :focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 8px; }
+    .on-dark :focus-visible { outline-color: #fff; }
+    input, select, textarea { font: inherit; }
+  }
+}
+
+@layer components {
+  html[data-look="ctvero-dob"] {
+    .wrap { max-width: 79rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 2.5rem; } }
+    .h2 { font-size: clamp(2.05rem, 3.9vw, 3.2rem); }
+    .serif { font-family: var(--font-display); }
+    .lnum { font-feature-settings: "lnum" 1; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; min-height: 52px; padding: 0 1.5rem; border-radius: 16px; font-weight: 600; font-size: 1.0625rem; background: var(--brand); color: var(--brand-ink); transition: background .18s, color .18s, transform .18s, box-shadow .18s; cursor: pointer; }
+    .btn:hover { background: var(--ink); color: var(--paper); transform: translateY(-2px); }
+    .btn[disabled] { opacity: .6; cursor: progress; transform: none; }
+    .btn-line { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--paper); }
+    .on-dark .btn { background: var(--paper); color: var(--brand); }
+    .on-dark .btn:hover { background: var(--podzim); color: var(--ink); }
+    .chip { display: inline-flex; align-items: center; gap: 0.45rem; min-height: 30px; padding: 0.1rem 0.85rem; border-radius: 999px; background: var(--paper); color: var(--ink); font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
+    .u { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, var(--brand) 55%, transparent); }
+    .u:hover { color: var(--brand); text-decoration-color: var(--brand); }
+    .on-dark .u { color: inherit; text-decoration-color: color-mix(in srgb, currentColor 55%, transparent); }
+    .on-dark .u:hover { color: inherit; text-decoration-color: currentColor; }
+    .tap { display: inline-flex; align-items: center; min-height: 44px; }
+    .field { width: 100%; min-height: 50px; padding: 0.65rem 0.95rem; border-radius: 14px; background: #fff; color: var(--ink); border: 1.5px solid color-mix(in srgb, var(--ink) 50%, var(--paper)); }
+    .field:focus { outline: 3px solid var(--brand); outline-offset: 1px; }
+    .field[aria-invalid="true"] { border-color: #a3261e; }
+    .field-error { margin-top: 0.3rem; font-size: 0.95rem; line-height: 1.4; color: #a3261e; }
+    .card { background: var(--paper); border-radius: 24px; box-shadow: 0 1px 2px rgb(20 30 25 / 0.05), 0 8px 24px rgb(20 30 25 / 0.05); }
+    .nav-a { padding: 0.55rem 0.8rem; border-radius: 12px; font-weight: 500; color: var(--ink); }
+    .nav-a:hover { background: var(--paper); }
+
+    /* Rich text of a free page and of a piece of news */
+    .prose-look { max-width: 46rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-size: 2rem; line-height: 1.1; margin-top: 2.4rem; }
+    .prose-look h3 { font-family: var(--font-display); font-weight: 700; color: var(--ink); font-size: 1.5rem; line-height: 1.15; margin-top: 1.8rem; }
+    .prose-look a { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, var(--brand) 55%, transparent); }
+    .prose-look a:hover { color: var(--brand); text-decoration-color: var(--brand); }
+    .prose-look ul { list-style: disc; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look li { padding-left: 0.2rem; margin-top: 0.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-style: italic; font-weight: 600; font-size: 1.5rem; line-height: 1.3; color: var(--ink); margin-block: 1.6rem; }
+    .prose-look img { width: 100%; height: auto; border-radius: 18px; margin-block: 1.6rem; }
+    .prose-look strong { color: var(--ink); font-weight: 600; }
+  }
+}

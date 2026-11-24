@@ -1,0 +1,88 @@
+/* Oznámení: a letterpress wedding announcement turned into a page. One Caslon family
+   (Display for names, headings and times; Text for the rest, its italic for the personal
+   lines), centred names with an italic ampersand, an oval cameo, hairlines and matted
+   photographs. Written in the cascade layers the design was written in: utilities win over
+   these rules where both speak. */
+html[data-look="oznameni"] {
+  --font-display: "Libre Caslon Display", "Libre Caslon Text", Georgia, serif;
+  --font-serif: "Libre Caslon Text", Georgia, serif;
+  /* The colours of the first preset (Šalvěj); a preset from the settings overrides them. */
+  --paper: #f6f3ea;
+  --card: #fdfbf5;
+  --tint: #e8ebdd;
+  --line: #d6d4c2;
+  --ink: #262a24;
+  --body: #484d44;
+  --quiet: #666b5f;
+  --brand: #55654c;
+  --brand-ink: #ffffff;
+}
+
+@layer base {
+  html[data-look="oznameni"] {
+    body { font-family: var(--font-serif); color: var(--body); background: var(--paper); font-size: 1rem; line-height: 1.8; -webkit-font-smoothing: antialiased; }
+    h1, h2, h3 { font-family: var(--font-display); color: var(--ink); font-weight: 400; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+    ::selection { background: var(--tint); color: var(--ink); }
+  }
+}
+
+@layer components {
+  html[data-look="oznameni"] {
+    .wrap { max-width: 76rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 768px) { .wrap { padding-inline: 2.5rem; } }
+    .label { font-size: 0.7rem; line-height: 1.4; letter-spacing: 0.24em; text-transform: uppercase; }
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); background: linear-gradient(currentColor, currentColor) 0 calc(100% - 10px) / 0 1px no-repeat; transition: background-size .3s, color .2s; }
+    .navlink:hover { background-size: 100% 1px; color: var(--brand); }
+    .amp { font-family: var(--font-serif); font-style: italic; color: var(--brand); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.7rem; min-height: 50px; padding: 0 2rem; background: var(--brand); color: var(--brand-ink); border: 1px solid var(--brand); transition: background .2s, color .2s; cursor: pointer; }
+    .btn:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-line { background: transparent; color: var(--ink); border-color: var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--paper); }
+    .tlink { display: inline-flex; align-items: center; gap: 0.55rem; min-height: 44px; color: var(--ink); background: linear-gradient(currentColor, currentColor) 0 calc(100% - 10px) / 100% 1px no-repeat; transition: color .2s; }
+    .tlink:hover { color: var(--brand); }
+    .orn { display: flex; align-items: center; justify-content: center; gap: 0.9rem; color: var(--brand); }
+    .orn i { display: block; width: 4.5rem; height: 1px; background: var(--line); }
+    .frame { padding: 9px; border: 1px solid var(--line); background: var(--card); }
+    .frame img { display: block; width: 100%; height: 100%; object-fit: cover; }
+    .oval { padding: 11px; border: 1px solid var(--brand); border-radius: 50%; }
+    .oval > div { border-radius: 50%; overflow: hidden; aspect-ratio: 3 / 4; }
+    .oval img { width: 100%; height: 100%; object-fit: cover; }
+    .rule-pair { border-block: 1px solid var(--line); padding-block: 1.4rem; }
+
+    /* The reply form: underlined fields, two large toggles */
+    .field label, .field legend { display: block; margin-bottom: 0.15rem; color: var(--quiet); }
+    .field legend { margin-bottom: 0.75rem; }
+    .field input[type="text"], .field select, .field textarea { width: 100%; min-height: 48px; padding: 0.55rem 0; background: transparent; border: 0; border-bottom: 1px solid var(--ink); border-radius: 0; color: var(--ink); font: inherit; font-size: 1.1rem; }
+    .field textarea { min-height: 6.5rem; resize: vertical; line-height: 1.6; }
+    .field ::placeholder { color: var(--quiet); font-style: italic; opacity: 1; }
+    .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible { outline: none; border-bottom-color: var(--brand); box-shadow: 0 1px 0 0 var(--brand); }
+    .field select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--ink) 50%), linear-gradient(135deg, var(--ink) 50%, transparent 50%); background-position: calc(100% - 9px) 55%, calc(100% - 4px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+    .field [aria-invalid="true"] { border-bottom-color: #a3261e; }
+    .field .field-error { margin-top: 0.35rem; font-size: 0.92rem; line-height: 1.4; color: #a3261e; }
+    .field .choice { display: block; margin: 0; }
+    .choice span { display: flex; align-items: center; justify-content: center; min-height: 54px; padding: 0.6rem 0.75rem; text-align: center; line-height: 1.15; border: 1px solid var(--ink); color: var(--ink); font-family: var(--font-display); font-size: 1.3rem; cursor: pointer; transition: background .2s, color .2s; }
+    .choice:hover span { background: var(--tint); }
+    .choice input:checked + span { background: var(--ink); color: var(--paper); }
+    .choice input:focus-visible + span { outline: 2px solid var(--brand); outline-offset: 3px; }
+    .check { display: flex; align-items: flex-start; gap: 0.75rem; min-height: 44px; cursor: pointer; color: var(--ink); }
+    .check input { margin-top: 0.45rem; width: 18px; height: 18px; flex: none; accent-color: var(--brand); }
+
+    .gift-name.is-reserved { color: var(--quiet); }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 42rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 2rem; line-height: 1.15; margin-top: 2.6rem; }
+    .prose-look h3 { font-size: 1.5rem; line-height: 1.2; margin-top: 2rem; }
+    .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--brand); }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--line); }
+    .prose-look ul li { padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-style: italic; font-size: 1.3rem; line-height: 1.5; color: var(--ink); margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
+    .prose-look strong { color: var(--ink); font-weight: 700; }
+  }
+}

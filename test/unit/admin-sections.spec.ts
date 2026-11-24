@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { defineEntity, f } from 'tinyzoo'
+import { defineEntity, defineSingleton, f } from 'tinyzoo'
 import {
-  cmsFieldIcon, cmsFormSections, cmsIsShortField, cmsNeedsSectionMenu, cmsSelectAsButtons, cmsWaitingFields,
+  cmsFieldIcon, cmsFormSections, cmsIsShortField, cmsNeedsSectionMenu, cmsSelectAsButtons, cmsSelectOffered, cmsWaitingFields,
 } from '../../packages/cms/app/utils/cmsSections'
 
 // A form reads as a few titled sections; empty optional fields wait behind "+ Add …".
@@ -90,6 +90,57 @@ describe('field controls', () => {
     expect(cmsSelectAsButtons(kind)).toBe(true)
     expect(cmsSelectAsButtons(kind, 'sidebar')).toBe(false)
     expect(cmsSelectAsButtons(fld('x', 'select', { meta: { options: ['1', '2', '3', '4', '5', '6'] } }))).toBe(false)
+  })
+
+  // f.select({ optionsBy }): the colours of the chosen look.
+  describe('a choice whose options follow another field', () => {
+    const settings = () => defineSingleton('settings', {
+      label: 'Settings', titleField: 'look',
+      fields: {
+        look: f.select({ options: ['atelier', 'negativ'] as const, default: 'atelier' }),
+        colors: f.select({
+          options: ['bronz', 'oliva', 'mosaz', 'salvej'] as const, default: 'bronz',
+          optionsBy: { field: 'look', options: { atelier: ['bronz', 'oliva'], negativ: ['salvej', 'mosaz'] } },
+          swatches: { bronz: ['#7a5a3a', '#faf8f4'] },
+        }),
+      },
+    })
+
+    it('offers the options listed under the other field\'s value, in the field\'s own order', () => {
+      const colors = { key: 'colors', type: 'select', meta: settings().fields.colors.meta }
+      expect(cmsSelectOffered(colors, 'atelier')).toEqual(['bronz', 'oliva'])
+      expect(cmsSelectOffered(colors, 'negativ')).toEqual(['mosaz', 'salvej'])
+      // A value nothing is listed under (or none yet) offers everything.
+      expect(cmsSelectOffered(colors, 'zapisnik')).toEqual(['bronz', 'oliva', 'mosaz', 'salvej'])
+      expect(cmsSelectOffered(colors, undefined)).toEqual(['bronz', 'oliva', 'mosaz', 'salvej'])
+      expect(cmsSelectOffered(colors, 'constructor')).toEqual(['bronz', 'oliva', 'mosaz', 'salvej'])
+      expect(cmsSelectOffered(fld('kind', 'select', { meta: { options: ['a', 'b'] } }), 'a')).toEqual(['a', 'b'])
+    })
+
+    it('stays buttons by the longest list it can offer, not by all its options', () => {
+      const options = ['a1', 'a2', 'a3', 'b1', 'b2', 'b3', 'c1', 'c2', 'c3']
+      const by = { field: 'look', options: { a: ['a1', 'a2', 'a3'], b: ['b1', 'b2', 'b3'], c: ['c1', 'c2', 'c3'] } }
+      expect(cmsSelectAsButtons(fld('colors', 'select', { meta: { options } }))).toBe(false)
+      expect(cmsSelectAsButtons(fld('colors', 'select', { meta: { options, optionsBy: by } }))).toBe(true)
+    })
+
+    it('keeps the swatches and the rule in the field\'s description for the admin', () => {
+      const meta = settings().fields.colors.meta as any
+      expect(meta.optionsBy.field).toBe('look')
+      expect(meta.swatches.bronz).toEqual(['#7a5a3a', '#faf8f4'])
+    })
+
+    it('refuses a rule that names something that is not there', () => {
+      const look = () => f.select({ options: ['atelier', 'negativ'] as const })
+      expect(() => f.select({ options: ['bronz'] as const, optionsBy: { field: 'look', options: { atelier: ['modra' as 'bronz'] } } })).toThrow(/not one of the options/)
+      expect(() => f.select({ options: ['bronz'] as const, optionsBy: { field: 'look', options: { atelier: [] } } })).toThrow(/no option/)
+      expect(() => f.select({ options: ['bronz'] as const, swatches: { bronz: ['red; x'] } })).toThrow(/not a hex colour/)
+      const colors = (field: string, value = 'atelier') => f.select({ options: ['bronz'] as const, optionsBy: { field, options: { [value]: ['bronz'] } } })
+      expect(() => defineSingleton('s1', { label: 'S', titleField: 'look', fields: { look: look(), colors: colors('vzhled') } })).toThrow(/must name another choice/)
+      expect(() => defineSingleton('s2', { label: 'S', titleField: 'look', fields: { look: f.text(), colors: colors('look') } })).toThrow(/must name another choice/)
+      expect(() => defineSingleton('s3', { label: 'S', titleField: 'look', fields: { look: look(), colors: colors('look', 'zapisnik') } })).toThrow(/not an option of "look"/)
+      expect(() => defineEntity('e1', { label: 'E', titleField: 'look', fields: { look: look(), colors: colors('look') } })).not.toThrow()
+    })
   })
 
   it('puts single-line fields side by side in two-column sections', () => {

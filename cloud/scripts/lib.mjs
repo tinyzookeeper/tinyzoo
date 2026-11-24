@@ -14,13 +14,64 @@ const run = promisify(execFile)
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 export const cloudDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const repoRoot = resolve(cloudDir, '..')
-export const templateEntry = join(repoRoot, 'packages/cms/starter/.output/server/index.mjs')
+// A hosted template (templates/<id>, package tinyzoo-template-<id>): what its demo content is
+// called in its pictures, where it writes the site's name (`wordmark`: what the wizard's typed
+// name replaces; by default the first visible element marked `data-wordmark`, in the header or
+// opening the page) and what else of the name to leave out of that picture (`hide`: a monogram).
+const hosted = (id, demoName, { wordmark = '[data-wordmark]', hide = null } = {}) =>
+  ({ id, pkg: `tinyzoo-template-${id}`, dir: `templates/${id}`, demoName, wordmark, hide })
+
+/**
+ * The ready templates of shared/templates.ts, in its order: what `templates:build` builds,
+ * what `pictures --real` photographs and what `e2e` makes sites from. A template's looks are
+ * read from its own looks.ts (`looksOf`).
+ */
+export const BUILT_TEMPLATES = [
+  { id: 'basic', pkg: 'tinyzoo-starter', dir: 'packages/cms/starter', demoName: 'Pekárna Na Růžku', wordmark: 'header .site-header > a > span', hide: null },
+  hosted('individual', 'Magda Šubrtová'),
+  hosted('photographer', 'Johana Loudová'),
+  // The names open the page, large: the wizard writes the typed ones there; the header's monogram is left out.
+  hosted('wedding', 'Anežka a Šimon', { wordmark: 'main [data-wordmark]', hide: 'header [data-monogram]' }),
+  hosted('blog', 'Souvrať'),
+  hosted('trades', 'Jirsák'),
+  hosted('car-service', 'Autoservis U Vlečky'),
+  hosted('salon', 'Pěšinka'),
+  hosted('medical', 'Ordinace U Lípy'),
+  hosted('office', 'Tesař & Vondrová'),
+  hosted('restaurant', 'Kmín'),
+  hosted('accommodation', 'Vřesovka'),
+  hosted('sports-club', 'Tatran Hořany'),
+  hosted('studio', 'Osnova'),
+  hosted('event', 'Tři vrchy'),
+  hosted('association', 'Planá hruška'),
+  hosted('realty', 'Práh'),
+  hosted('development', 'Starý sad'),
+  hosted('construction', 'Stavby Doubrava'),
+  hosted('shop', 'U Dvou klíčů'),
+  hosted('software', 'Odpolka'),
+]
 /** The built server of each ready template (scripts/build-templates.mjs makes them). */
-export const templateEntries = {
-  basic: templateEntry,
-  photographer: join(repoRoot, 'templates/photographer/.output/server/index.mjs'),
+export const templateEntries = Object.fromEntries(BUILT_TEMPLATES.map((t) => [t.id, join(repoRoot, t.dir, '.output/server/index.mjs')]))
+export const templateEntry = templateEntries.basic
+
+/** A template's looks as its own looks.ts lists them (`{ ids, all }`); null for a template with one unnamed design. */
+export async function looksOf(template) {
+  const file = join(repoRoot, template.dir, 'looks.ts')
+  return existsSync(file) ? (await import(file)).looks : null
 }
+
 export const PG_URL = process.env.CLOUD_PG_URL || 'postgres://cms:cms@localhost:5434/postgres'
+
+// A second checkout of the repository on the same machine (a git worktree) runs these scripts
+// beside the first: `CLOUD_RUN_TAG=tpl` gives its runs databases of their own (tz_cloud_e2e_tpl,
+// tzc_e2etpl_…), `CLOUD_PORT_SHIFT=200` ports of their own.
+const runTag = (process.env.CLOUD_RUN_TAG || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+/** "tz_cloud_e2e" → "tz_cloud_e2e_tpl" with CLOUD_RUN_TAG=tpl. */
+export const runDb = (name) => (runTag ? `${name}_${runTag}` : name)
+/** "tzc_e2e_" → "tzc_e2etpl_" with CLOUD_RUN_TAG=tpl (one word after tzc_: the cloud's own rule for a prefix). */
+export const runPrefix = (prefix) => (runTag ? `${prefix.replace(/_$/, '')}${runTag}_` : prefix)
+/** 4350 → 4550 with CLOUD_PORT_SHIFT=200. */
+export const runPort = (port) => port + (Number(process.env.CLOUD_PORT_SHIFT) || 0)
 
 export function arg(name, fallback = undefined) {
   const i = process.argv.indexOf(`--${name}`)

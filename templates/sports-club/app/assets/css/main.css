@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The three looks (looks.ts): each styles the website under html[data-look="<id>"]. */
+@import "./zpravodaj.css";
+@import "./dres.css";
+@import "./hriste.css";
+
+/* Tailwind must also scan the CMS's own components (the admin) and the template kit's. */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The looks' tokens as utilities: bg-paper, text-ink, border-line, font-display… Each look
+   gives the variables behind them their values (under html[data-look="…"], in the three
+   files above), and a colour preset from the site's settings overrides the colours inline on
+   <html>. Outside a look (the admin) none of these is set, and none is used.
+   The names keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses. */
+@theme {
+  --font-display: Georgia, "Times New Roman", serif;
+
+  --color-paper: var(--paper);
+  --color-tint: var(--tint);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-quiet: var(--quiet);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+
+  /* Zpravodaj: the club's second colour (the stripe of the crest, the highlight on the club colour) */
+  --color-second: var(--second);
+  /* Dres: the club colour on black, and the stone of a tile */
+  --color-brand-lite: var(--brand-lite);
+  --color-stone: var(--stone);
+  /* Hřiště: the club colour's pale tint, and the dark pitch green (or navy) */
+  --color-brand-soft: var(--brand-soft);
+  --color-pitch: var(--pitch);
+}
+
+/* Long words and addresses wrap instead of pushing the page wider on phones. A section reached
+   from the menu (/#zapasy) stops a little under the top of the window. */
+@layer base {
+  html[data-look] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-look] { scroll-behavior: smooth; }
+  html[data-look] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-look] { scroll-behavior: auto; } }
+}

@@ -1,0 +1,77 @@
+/* Obálka: a magazine cover. The lead photograph fills the first screen under a name set in
+   extra-light Spectral, the issue opens as a contents page, and the series is a dark band.
+   Spectral for the name, headlines and text (extra-light for the large ones, italic for the
+   second voice), Inria Sans for labels, bylines and navigation. Written in the cascade layers
+   the design was written in: utilities win over these rules where both speak. */
+html[data-look="obalka"] {
+  --font-display: "Spectral", "Times New Roman", serif;
+  --font-sans: "Inria Sans", system-ui, sans-serif;
+  /* The colours of the first preset (Mech); a preset from the settings overrides them. */
+  --paper: #ffffff;
+  --ink: #15181a;
+  --quiet: #5a6064;
+  --line: #dcdfdd;
+  --tint: #edf1ec;
+  --brand: #2c5239;
+  --brand-ink: #ffffff;
+  --deep: #18241c;
+  --deep-ink: #eef2ea;
+  --deep-soft: #a9b8aa;
+}
+
+@layer base {
+  html[data-look="obalka"] {
+    body { font-family: var(--font-sans); background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+    .site a:focus-visible, .site button:focus-visible, .site input:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+    ::selection { background: var(--brand); color: var(--brand-ink); }
+    h2, h3 { text-wrap: balance; }
+    p { text-wrap: pretty; }
+  }
+}
+
+@layer components {
+  html[data-look="obalka"] {
+    .wrap { max-width: 1360px; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 64rem) { .wrap { padding-inline: 2.5rem; } }
+    .kicker { font-family: var(--font-sans); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
+    .byline { font-family: var(--font-sans); font-size: 0.86rem; letter-spacing: 0.01em; }
+    .cover { background: #0b100e; }
+    .cover-scrim {
+      background:
+        linear-gradient(to bottom, rgb(11 16 14 / 0.66) 0%, rgb(11 16 14 / 0.4) 24%, rgb(11 16 14 / 0) 46%),
+        linear-gradient(to top, rgb(11 16 14 / 1) 0%, rgb(11 16 14 / 0.82) 12%, rgb(11 16 14 / 0) 40%);
+    }
+    @media (min-width: 64rem) {
+      .cover-scrim {
+        background:
+          linear-gradient(to bottom, rgb(11 16 14 / 0.66) 0%, rgb(11 16 14 / 0.42) 22%, rgb(11 16 14 / 0) 44%),
+          linear-gradient(to top, rgb(11 16 14 / 0.9) 0%, rgb(11 16 14 / 0.66) 22%, rgb(11 16 14 / 0.3) 36%, rgb(11 16 14 / 0) 50%);
+      }
+    }
+    .halo { text-shadow: 0 0 14px rgb(11 16 14 / 0.55), 0 1px 2px rgb(11 16 14 / 0.4); }
+    .lift { text-decoration-line: underline; text-decoration-color: transparent; text-decoration-thickness: 1px; text-underline-offset: 0.18em; transition: text-decoration-color .2s, color .2s; }
+    a:hover .lift, a:focus-visible .lift, a.lift:hover { text-decoration-color: currentColor; }
+    .zoom { overflow: hidden; }
+    .zoom img { transition: transform .7s cubic-bezier(.2,.6,.2,1); }
+    a:hover .zoom img { transform: scale(1.03); }
+    .noscroll { scrollbar-width: none; }
+    .noscroll::-webkit-scrollbar { display: none; }
+
+    /* The text of an article and of a plain page: Spectral at reading size */
+    .prose-look { font-family: var(--font-display); font-size: 1.2rem; line-height: 1.7; color: var(--ink); }
+    .prose-look > * + * { margin-top: 1.3em; }
+    .prose-look h2 { font-size: 2.1rem; font-weight: 300; line-height: 1.15; letter-spacing: -0.015em; margin-top: 2em; }
+    .prose-look h3 { font-size: 1.5rem; font-weight: 400; line-height: 1.2; margin-top: 1.8em; }
+    .prose-look a { color: var(--brand); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+    .prose-look ul, .prose-look ol { padding-left: 1.4em; }
+    .prose-look ul { list-style: disc; }
+    .prose-look ol { list-style: decimal; }
+    .prose-look li + li { margin-top: 0.4em; }
+    .prose-look blockquote { font-style: italic; font-weight: 300; font-size: 1.45rem; line-height: 1.4; padding-left: 1.5em; }
+    .prose-look img { width: 100%; height: auto; }
+    .prose-look hr { border-color: var(--line); }
+
+    /* The search box and the newsletter field share one shape */
+    .search-input::-webkit-search-cancel-button { display: none; }
+  }
+}

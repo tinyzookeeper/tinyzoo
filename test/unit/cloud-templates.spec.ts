@@ -5,13 +5,21 @@ import { cs } from '../../cloud/app/i18n/cs'
 import { en } from '../../cloud/app/i18n/en'
 import { STEP_IDS } from '../../cloud/shared/steps'
 import { FIELD_IDS, FIELDS, fieldsOf, hasLookChoice, lookOf, measuredLooks, pictureLooks, pictureOf, templateById, TEMPLATES, visibleTemplates, wordmarkOf } from '../../cloud/shared/templates'
+import type { LookDef as KitLook, Looks } from '../../templates/kit/looks'
 import { looks as photographerLooks } from '../../templates/photographer/looks'
 import { repoRoot } from '../setup/database'
 
-// The templates a hosted website can start from: two that exist, nineteen that are planned
-// (designed and approved, not built).
-const READY = ['basic', 'photographer']
-const PLANNED = [
+// The templates a hosted website can start from: Basic, and twenty designed ones, of which
+// some are built and the rest planned (designed and approved, not built yet).
+
+// The looks of every hosted template that is built, as the template itself lists them
+// (templates/<id>/looks.ts; a template is built once the cloud's scripts list it).
+const BUILT_IDS = [...readFileSync(join(repoRoot, 'cloud', 'scripts', 'lib.mjs'), 'utf8').matchAll(/^\s*hosted\('([a-z-]+)'/gm)].map((m) => m[1]!)
+const HOSTED_LOOKS: Record<string, Looks<KitLook>> = {}
+for (const id of BUILT_IDS) HOSTED_LOOKS[id] = (await import(/* @vite-ignore */ join(repoRoot, 'templates', id, 'looks.ts'))).looks
+// The templates a site can be made from today: Basic (the starter) and the hosted ones that are built.
+const READY = TEMPLATES.filter((t) => t.id === 'basic' || t.id in HOSTED_LOOKS).map((t) => t.id)
+const DESIGNED = [
   'individual', 'wedding', 'realty', 'restaurant', 'sports-club', 'trades', 'studio', 'development', 'accommodation',
   'office', 'salon', 'event', 'medical', 'car-service', 'construction', 'shop', 'association', 'blog', 'software',
 ]
@@ -21,15 +29,21 @@ const both = (pair: Record<string, string>, what: string) => {
 }
 
 describe('the template registry', () => {
-  it('holds twenty-one templates: the two ready ones and the nineteen planned', () => {
+  it('holds twenty-one templates: Basic and the twenty designed ones, built or planned', () => {
     expect(TEMPLATES).toHaveLength(21)
-    expect(TEMPLATES.map((t) => t.id).sort()).toEqual([...READY, ...PLANNED].sort())
+    expect(TEMPLATES.map((t) => t.id).sort()).toEqual(['basic', 'photographer', ...DESIGNED].sort())
+    // What is not built yet is planned.
+    expect(TEMPLATES.filter((t) => !t.ready).map((t) => t.id).sort()).toEqual(DESIGNED.filter((id) => !READY.includes(id)).sort())
     expect(new Set(TEMPLATES.map((t) => t.id)).size).toBe(21)
   })
 
-  it('has exactly two templates a site can be made from today', () => {
+  it('marks as ready exactly the templates that are built, the same ones the scripts build', async () => {
     const ready = TEMPLATES.filter((t) => t.ready)
     expect(ready.map((t) => t.id)).toEqual(READY)
+    // scripts/lib.mjs lists what `templates:build`, `pictures --real` and `e2e` work with.
+    const lib: { BUILT_TEMPLATES: Array<{ id: string; dir: string }> } = await import(/* @vite-ignore */ join(repoRoot, 'cloud', 'scripts', 'lib.mjs'))
+    expect(lib.BUILT_TEMPLATES.map((t) => t.id)).toEqual(READY)
+    for (const built of lib.BUILT_TEMPLATES) expect(built.dir, built.id).toBe(templateById(built.id)!.sourceDir)
     for (const t of TEMPLATES.filter((t) => !t.ready)) {
       expect(t.sourceDir, t.id).toBeNull()
       expect(t.seed, t.id).toBe(false)
@@ -80,12 +94,13 @@ describe('the template registry', () => {
   it('shows a customer only what is ready, and the planned ones only when asked', () => {
     expect(visibleTemplates(false).map((t) => t.id)).toEqual(READY)
     expect(visibleTemplates(true)).toHaveLength(21)
-    expect(fieldsOf(visibleTemplates(false))).toEqual(['general', 'personal'])
+    expect(fieldsOf(visibleTemplates(false))).toEqual(FIELD_IDS.filter((f) => TEMPLATES.some((t) => t.ready && t.field === f)))
+    expect(fieldsOf(visibleTemplates(false)).slice(0, 2)).toEqual(['general', 'personal'])
   })
 
   it('finds a template by its id', () => {
     expect(templateById('basic')?.ready).toBe(true)
-    expect(templateById('restaurant')?.ready).toBe(false)
+    expect(templateById('restaurant')?.ready).toBe(READY.includes('restaurant'))
     expect(templateById('nope')).toBeNull()
     expect(templateById(null)).toBeNull()
   })
@@ -138,7 +153,8 @@ describe('the looks of a template', () => {
         expect(w.size, `${t.id}/${look.id}`).toBeGreaterThan(8)
         expect(w.x).toBeGreaterThanOrEqual(0)
         expect(w.x).toBeLessThan(1440)
-        expect(w.y).toBeLessThan(200)
+        // (in the header, or opening the page: a wedding's names)
+        expect(w.y).toBeLessThan(w.fit ? 600 : 200)
         expect(w.fonts.length, `${t.id}/${look.id} fonts`).toBeGreaterThan(0)
         for (const font of w.fonts) expect(existsSync(file(font.src)), font.src).toBe(true)
       }
@@ -146,18 +162,32 @@ describe('the looks of a template', () => {
     // A template with one unnamed design is found without a look; a planned one has no measure.
     expect(wordmarkOf('basic', null)?.family).toBe('Inter')
     expect(wordmarkOf('photographer', 'atelier')?.anchor).toBe('center')
-    expect(wordmarkOf('restaurant', 'salon')).toBeNull()
+    // (a planned template has no measure: its pictures come from its design)
+    for (const t of TEMPLATES.filter((t) => !t.ready)) expect(wordmarkOf(t.id, t.looks[0]?.id), t.id).toBeNull()
+    expect(wordmarkOf('no-such-template', 'salon')).toBeNull()
     expect(wordmarkOf(null, null)).toBeNull()
   })
 
   it('are the ones the template itself lists, in its order, with its default colours', () => {
-    // templates/photographer/looks.ts is what the site reads; the cloud writes these ids into its settings.
-    const photographer = templateById('photographer')!
-    expect(photographer.looks.map((l) => l.id)).toEqual([...photographerLooks.ids])
-    for (const look of photographer.looks) {
-      const own = photographerLooks.all.find((l) => l.id === look.id)!
-      expect(look.colors, look.id).toBe(own.presets[0].id as string)
-      expect(look.name, look.id).toEqual(own.name)
+    // templates/<id>/looks.ts is what the site reads; the cloud writes these ids into its settings.
+    const hosted = TEMPLATES.filter((t) => t.ready && t.sourceDir?.startsWith('templates/'))
+    expect(hosted.map((t) => t.id).sort()).toEqual(Object.keys(HOSTED_LOOKS).sort())
+    for (const t of hosted) {
+      const own = HOSTED_LOOKS[t.id]!
+      expect(t.looks.map((l) => l.id), t.id).toEqual([...own.ids])
+      for (const look of t.looks) {
+        const ownLook = own.all.find((l) => l.id === look.id)!
+        expect(look.colors, `${t.id}/${look.id}`).toBe(ownLook.presets[0].id)
+        expect(look.name, `${t.id}/${look.id}`).toEqual(ownLook.name)
+      }
+      // Every preset of a look sets the same variables: switching colours never leaves one behind.
+      for (const look of own.all) {
+        const keys = (vars: object) => Object.keys(vars).sort().join()
+        for (const preset of look.presets) expect(keys(preset.vars), `${t.id}/${look.id}/${preset.id}`).toBe(keys(look.presets[0].vars))
+        expect(look.presets.length, `${t.id}/${look.id}`).toBe(3)
+      }
+      // A site's source folder exists, with the demo content the cloud puts in.
+      expect(existsSync(join(repoRoot, t.sourceDir!, 'seed', 'index.ts')), t.id).toBe(true)
     }
   })
 

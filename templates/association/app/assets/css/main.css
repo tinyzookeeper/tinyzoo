@@ -1,0 +1,40 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The look (looks.ts) styles the website under html[data-look="<id>"]. */
+@import "./ctvero-dob.css";
+
+/* Tailwind must also scan the CMS's own components (the admin) and the template kit's. */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The look's tokens as utilities: bg-paper, text-ink, bg-zima, bg-podzim-m… The look gives the
+   variables behind them their values (under html[data-look="…"], in the file above), and a
+   colour preset from the site's settings overrides the colours inline on <html>. Outside a
+   look (the admin) none of these is set, and none is used.
+   The names keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses. */
+@theme {
+  --font-display: "Vollkorn", Georgia, serif;
+
+  --color-paper: var(--paper);
+  --color-sand: var(--sand);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+
+  /* the four seasons: pale tints for the cards, and their small marks */
+  --color-zima: var(--zima);
+  --color-jaro: var(--jaro);
+  --color-leto: var(--leto);
+  --color-podzim: var(--podzim);
+  --color-zima-m: var(--zima-m);
+  --color-jaro-m: var(--jaro-m);
+  --color-leto-m: var(--leto-m);
+  --color-podzim-m: var(--podzim-m);
+}
+
+/* A section reached from the menu (/#akce) stops a little under the top of the window. */
+@layer base {
+  html[data-look] { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html[data-look] { scroll-behavior: auto; } }
+}

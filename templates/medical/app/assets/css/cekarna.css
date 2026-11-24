@@ -1,0 +1,76 @@
+/* Čekárna: the waiting room in daylight. A white page with a lot of air, large calm type
+   (Wix Madefor, 18 px base), rounded photographs, soft tinted surfaces instead of bordered
+   boxes, and today's hours in one soft band. Written in the cascade layers the design was
+   written in: utilities win over these rules where both speak. */
+html[data-look="cekarna"] {
+  --font-display: "Wix Madefor Display", system-ui, sans-serif;
+  --font-sans: "Wix Madefor Text", system-ui, sans-serif;
+  /* The colours of the first preset (Inkoust); a preset from the settings overrides them. */
+  --tint: #f3f5f8;
+  --line: #e1e6ee;
+  --ink: #141c2b;
+  --body: #3b4558;
+  --quiet: #5e687b;
+  --brand: #27416e;
+  --brand-ink: #ffffff;
+  --brand-tint: #e3eaf6;
+  /* What no palette changes: the amber notice and the green of "open now" */
+  --note: #7a4f00;
+  --note-tint: #fdf4de;
+  --ok: #2f9d6a;
+}
+
+@layer base {
+  html[data-look="cekarna"] {
+    font-size: 18px;
+    body { font-family: var(--font-sans); color: var(--body); background: #fff; line-height: 1.62; -webkit-font-smoothing: antialiased; }
+    h1, h2, h3 { font-family: var(--font-display); color: var(--ink); font-weight: 600; letter-spacing: -0.022em; line-height: 1.1; text-wrap: balance; }
+    :focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+    ::selection { background: var(--brand); color: var(--brand-ink); }
+  }
+}
+
+@layer components {
+  html[data-look="cekarna"] {
+    .wrap { width: 100%; max-width: 72rem; margin-inline: auto; padding-inline: 1.2rem; }
+    @media (min-width: 64rem) { .wrap { padding-inline: 2.5rem; } }
+    .ic { display: inline-block; width: 1em; height: 1em; flex: none; vertical-align: -0.125em; }
+    .kicker { font-weight: 600; color: var(--brand); font-size: 1rem; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: .55rem; min-height: 3.2rem; padding: .7rem 1.5rem; border-radius: 14px; font-weight: 600; transition: background-color .15s, color .15s, box-shadow .15s; cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); }
+    .btn-brand:hover { background: var(--ink); }
+    .btn-soft { background: var(--tint); color: var(--ink); }
+    .btn-soft:hover { background: var(--brand-tint); }
+    .navlink { padding: .6rem .1rem; color: var(--ink); font-weight: 500; font-size: .95rem; transition: color .15s; }
+    .navlink:hover { color: var(--brand); }
+    .field { width: 100%; min-height: 3.3rem; padding: .7rem 1rem; border: 1.5px solid transparent; border-radius: 12px; background: #fff; color: var(--ink); font: inherit; box-shadow: 0 0 0 1px var(--line); transition: box-shadow .15s; }
+    .field:hover { box-shadow: 0 0 0 1px var(--quiet); }
+    .field:focus { outline: none; box-shadow: 0 0 0 2.5px var(--brand); }
+    .field[aria-invalid="true"] { box-shadow: 0 0 0 2px #a3261e; }
+    .label { display: block; margin-bottom: .4rem; font-weight: 600; color: var(--ink); font-size: .95rem; }
+    .field-error { margin-top: .35rem; font-size: .9rem; line-height: 1.4; color: #a3261e; }
+    .chip input { position: absolute; opacity: 0; }
+    .chip span { display: inline-flex; align-items: center; min-height: 3rem; padding: .5rem 1.1rem; border-radius: 12px; background: #fff; color: var(--ink); font-weight: 500; cursor: pointer; box-shadow: 0 0 0 1px var(--line); transition: box-shadow .15s, background-color .15s; }
+    .chip span:hover { box-shadow: 0 0 0 1px var(--quiet); }
+    .chip input:checked + span { background: var(--brand); color: var(--brand-ink); box-shadow: none; }
+    .chip input:focus-visible + span { outline: 3px solid var(--brand); outline-offset: 3px; }
+    .num { font-variant-numeric: tabular-nums; }
+    .photo { border-radius: 24px; object-fit: cover; }
+    @media (min-width: 64rem) { .photo { border-radius: 28px; } }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 42rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 1.9rem; line-height: 1.12; margin-top: 2.6rem; }
+    .prose-look h3 { font-size: 1.4rem; line-height: 1.2; margin-top: 2rem; }
+    .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 2px; text-decoration-color: var(--line); text-underline-offset: 4px; }
+    .prose-look a:hover { text-decoration-color: var(--brand); }
+    .prose-look ul { list-style: disc; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look li + li { margin-top: .4rem; }
+    .prose-look blockquote { border-radius: 20px; background: var(--tint); padding: 1.2rem 1.5rem; color: var(--ink); }
+    .prose-look img { width: 100%; height: auto; border-radius: 24px; margin-block: 1.8rem; }
+    .prose-look strong { color: var(--ink); font-weight: 600; }
+  }
+}

@@ -1,0 +1,81 @@
+/* Lhůty: an office kept like a measuring instrument. Cool paper, navy ink and one signal colour;
+   IBM Plex Serif for headings, Plex Sans for text and Plex Mono for dates, prices and labels.
+   Under the opening runs a ruler of the nearest deadlines, and the same ticks, dates and tabular
+   figures order everything else.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="lhuty"] {
+  --font-display: "IBM Plex Serif", Georgia, serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* The colours of the first preset (Inkoust); a preset from the settings overrides them. */
+  --paper: #f2f4f7; --card: #ffffff; --tint: #e5eaf1; --line: #c9d2de;
+  --ink: #0e2240; --quiet: #56637a;
+  --brand: #14315c; --brand-ink: #ffffff; --brand-soft: #bcc8da;
+  --signal: #f2a516; --signal-ink: #1c1300; --signal-text: #8a5000;
+}
+
+@layer base {
+  html[data-look="lhuty"] {
+    body { background: var(--paper); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+    :focus-visible { outline: 2px solid var(--signal-text); outline-offset: 3px; }
+    summary::-webkit-details-marker { display: none; }
+  }
+}
+
+@layer components {
+  html[data-look="lhuty"] {
+    .wrap { margin-inline: auto; max-width: 1248px; padding-inline: 1.25rem; }
+    .label { font-family: var(--font-mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+    .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+    .btn { display: inline-flex; align-items: center; gap: .6rem; min-height: 48px; padding: 0 1.4rem; font-weight: 500; font-size: 16px; cursor: pointer; transition: background-color .15s, color .15s, box-shadow .15s; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); }
+    .btn-brand:hover { background: var(--ink); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .ulink { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; text-decoration-thickness: 1px; transition: text-decoration-color .15s; }
+    .ulink:hover { text-decoration-color: currentColor; }
+    .chip { display: inline-block; background: var(--signal); color: var(--signal-ink); font-family: var(--font-mono); font-size: 11px; line-height: 1; padding: 4px 6px; letter-spacing: .02em; white-space: nowrap; }
+    /* a short ruler of ticks, used as the small ornament before labels */
+    .ticks { display: inline-block; width: 37px; height: 10px; vertical-align: baseline; margin-right: .7rem; background: repeating-linear-gradient(to right, currentColor 0 1px, transparent 1px 6px); -webkit-mask: linear-gradient(#000 0 0) 0 100% / 100% 50% no-repeat, linear-gradient(#000 0 0) 0 0 / 1px 100% no-repeat, linear-gradient(#000 0 0) 36px 0 / 1px 100% no-repeat; mask: linear-gradient(#000 0 0) 0 100% / 100% 50% no-repeat, linear-gradient(#000 0 0) 0 0 / 1px 100% no-repeat, linear-gradient(#000 0 0) 36px 0 / 1px 100% no-repeat; }
+
+    /* The year ruler. On a phone it is a plain list beside a vertical strip of ticks;
+       from xl up every deadline hangs on a 100-day scale, 12 px a day. */
+    .ruler { position: relative; padding-left: 26px; min-height: 2.5rem; background: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px 8px) 0 0 / 9px 100% no-repeat, repeating-linear-gradient(to bottom, var(--ink) 0 1px, transparent 1px 56px) 0 0 / 15px 100% no-repeat; }
+    .flag { padding: .7rem 0; border-bottom: 1px solid var(--line); font-size: 15px; line-height: 1.35; }
+    .flag:last-of-type { border-bottom: 0; }
+    .month, .ruler-today { display: none; }
+    @media (width >= 80rem) {
+      .ruler { --d: 12px; width: 1200px; height: 222px; padding-left: 0; background: none; }
+      .ruler::before { content: ""; position: absolute; left: 0; right: 0; bottom: 58px; height: 8px; background: repeating-linear-gradient(to right, var(--quiet) 0 1px, transparent 1px var(--d)); border-bottom: 1px solid var(--ink); }
+      .ruler::after { content: ""; position: absolute; left: calc(2 * var(--d)); right: 0; bottom: 58px; height: 15px; background: repeating-linear-gradient(to right, var(--ink) 0 1px, transparent 1px calc(7 * var(--d))); }
+      .flag { position: absolute; left: calc(var(--n) * var(--d)); top: calc(var(--lv) * 76px); bottom: 58px; width: 218px; padding: 0 0 0 10px; border-bottom: 0; border-left: 1px solid var(--ink); font-size: 14px; }
+      .flag::after { content: ""; position: absolute; left: -4px; bottom: -3px; width: 7px; height: 7px; background: var(--ink); border-radius: 50%; }
+      .month { display: block; position: absolute; left: calc(var(--n) * var(--d)); bottom: 12px; height: 46px; padding: 26px 0 0 8px; border-left: 1px solid var(--ink); font-family: var(--font-mono); font-size: 12px; line-height: 1; letter-spacing: .08em; text-transform: uppercase; color: var(--quiet); }
+      .ruler-today { display: block; position: absolute; left: calc(2 * var(--d) - 6px); bottom: 51px; width: 13px; height: 13px; background: var(--signal); border-radius: 50%; box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal) 30%, transparent); }
+    }
+
+    .field { display: block; width: 100%; min-height: 48px; padding: .7rem .85rem; background: var(--paper); border: 1px solid var(--line); color: var(--ink); font-size: 16px; transition: border-color .15s, background-color .15s; }
+    .field:hover { border-color: var(--quiet); }
+    .field:focus { outline: none; border-color: var(--ink); background: var(--card); box-shadow: 0 0 0 3px color-mix(in srgb, var(--signal) 45%, transparent); }
+    .field ::placeholder, .field::placeholder { color: var(--quiet); opacity: .8; }
+    .field[aria-invalid="true"] { border-color: #a3261e; }
+    .field-error { margin-top: .35rem; font-size: 14px; line-height: 1.4; color: #a3261e; }
+    .hours-row { display: grid; grid-template-columns: 2.2rem 1fr 6.6rem; align-items: center; gap: .75rem; }
+    .hours-track { position: relative; height: 14px; background: repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px calc(100% / 11)); border-right: 1px solid var(--line); }
+    .hours-bar { position: absolute; top: 2px; bottom: 2px; background: var(--brand); }
+
+    /* Rich text of a free page, a case or an article */
+    .prose-look { max-width: 44rem; font-size: 16.5px; line-height: 1.6; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-size: 28px; line-height: 1.2; margin-top: 2.4rem; }
+    .prose-look h3 { font-family: var(--font-display); font-size: 22px; line-height: 1.25; margin-top: 2rem; }
+    .prose-look a { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 4px; text-decoration-thickness: 1px; }
+    .prose-look a:hover { text-decoration-color: currentColor; }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--ink); }
+    .prose-look ul li { padding: .6rem 0; border-bottom: 1px solid var(--line); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-size: 22px; line-height: 1.35; margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
+    .prose-look strong { font-weight: 600; }
+  }
+}

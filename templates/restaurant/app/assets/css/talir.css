@@ -1,0 +1,110 @@
+/* Talíř: a poster. One loud colour, a headline as wide as the page, tables drawn with 2 px
+   black rules, and food photographed from above cut into circles like plates on the table.
+   One variable family (Anybody) at three widths (expanded black for headlines, condensed bold
+   for labels and buttons, semi-condensed for prices and numbers) with Hanken Grotesk for text.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="talir"] {
+  --font-display: "Anybody", "Arial Black", sans-serif;
+  --font-sans: "Hanken Grotesk", system-ui, sans-serif;
+  /* The colours of the first preset (Hořčice); a preset from the settings overrides them. */
+  --brand: #f6c519;
+  --brand-ink: #151412;
+  --pop: #f6c519;
+  --paper: #f5f2e9;
+  --ink: #151412;
+}
+
+@layer base {
+  html[data-look="talir"] {
+    background: var(--paper);
+    body { font-family: var(--font-sans); font-size: 1.0625rem; line-height: 1.55; color: var(--ink); background: var(--paper); -webkit-font-smoothing: antialiased; }
+    :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+    .on-ink :focus-visible { outline-color: var(--pop); }
+    .on-brand :focus-visible { outline-color: var(--brand-ink); }
+    ::selection { background: var(--ink); color: var(--paper); }
+  }
+}
+
+@layer components {
+  html[data-look="talir"] {
+    .wrap { width: 100%; max-width: 1480px; margin-inline: auto; padding-inline: 18px; }
+    .wide { font-family: var(--font-display); font-stretch: 128%; font-weight: 900; text-transform: uppercase; letter-spacing: -.015em; line-height: .98; }
+    .cap { font-family: var(--font-display); font-stretch: 72%; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; font-size: .9rem; line-height: 1.25; }
+    .num { font-family: var(--font-display); font-stretch: 86%; font-weight: 800; letter-spacing: -.01em; line-height: 1; }
+    .muted { color: color-mix(in srgb, currentColor 72%, transparent); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: .6em; min-height: 52px; padding: .5em 1.6em; border-radius: 999px; border: 2px solid currentColor; font-family: var(--font-display); font-stretch: 78%; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 1rem; transition: background-color .15s, color .15s, transform .15s; }
+    .btn:active { transform: translateY(1px); }
+    .btn-ink { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .btn-ink:hover { background: transparent; color: var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+    .on-brand .btn-solid { background: var(--brand-ink); color: var(--brand); border-color: var(--brand-ink); }
+    .on-brand .btn-solid:hover { background: transparent; color: var(--brand-ink); }
+    .on-brand .btn-line:hover { background: var(--brand-ink); color: var(--brand); border-color: var(--brand-ink); }
+    .navlink { font-family: var(--font-display); font-stretch: 78%; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 1rem; padding: 12px 2px; background: linear-gradient(currentColor, currentColor) left 80% / 0 2px no-repeat; transition: background-size .2s; }
+    .navlink:hover { background-size: 100% 2px; }
+    .ulink { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+    .ulink:hover { text-decoration-thickness: 4px; }
+    .tag { display: inline-block; font-family: var(--font-display); font-stretch: 72%; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: .72rem; line-height: 1; padding: .32em .6em .28em; border-radius: 999px; background: var(--brand); color: var(--brand-ink); vertical-align: .22em; margin-left: .4rem; white-space: nowrap; }
+    .plate { border-radius: 999px; aspect-ratio: 1; object-fit: cover; width: 100%; }
+    /* daily menu rows */
+    .lunch > li { display: grid; grid-template-columns: 2.4rem 1fr auto; column-gap: .75rem; align-items: start; padding-block: 1.1rem; border-top: 2px solid var(--ink); }
+    .lunch > li:last-child { border-bottom: 2px solid var(--ink); }
+    .lunch .n { font-size: 1.9rem; }
+    .lunch h3 { font-weight: 700; font-size: 1.16rem; line-height: 1.3; }
+    .lunch .p { font-size: 1.5rem; white-space: nowrap; padding-top: .1rem; }
+    /* menu card table */
+    .rows > li { display: grid; grid-template-columns: 1fr auto; column-gap: 1rem; row-gap: .35rem; padding-block: 1rem; border-top: 2px solid var(--ink); }
+    .rows > li:last-child { border-bottom: 2px solid var(--ink); }
+    .rows h4 { font-weight: 700; font-size: 1.16rem; line-height: 1.3; }
+    .rows .desc { font-size: 1rem; }
+    .rows .meta { grid-column: 1 / -1; grid-row: 2; display: flex; gap: .9rem; }
+    .rows .p { font-size: 1.4rem; white-space: nowrap; }
+    .tab { display: inline-flex; align-items: center; min-height: 48px; padding: .3em 1.25em; border: 2px solid var(--ink); border-radius: 999px; font-family: var(--font-display); font-stretch: 78%; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 1rem; white-space: nowrap; cursor: pointer; transition: background-color .15s, color .15s; }
+    .tab:hover { background: var(--brand); color: var(--brand-ink); }
+    .tab[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+    /* hours */
+    .hours li { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: .7rem .9rem; border-top: 2px solid var(--ink); }
+    .hours li:last-child { border-bottom: 2px solid var(--ink); }
+    .hours li.is-today { background: var(--brand); color: var(--brand-ink); }
+    .hours .now { font-size: .7em; margin-left: .7em; letter-spacing: .08em; }
+    [data-open] .dot { display: inline-block; width: .62em; height: .62em; border-radius: 999px; background: currentColor; margin-right: .45em; }
+    [data-open][data-state="closed"] .dot { background: transparent; box-shadow: inset 0 0 0 2px currentColor; }
+    /* form */
+    .field label { display: block; margin-bottom: .4rem; font-family: var(--font-display); font-stretch: 72%; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; font-size: .9rem; line-height: 1.25; }
+    .field input, .field select, .field textarea { width: 100%; min-height: 54px; padding: .7rem 1rem; background: var(--paper); color: var(--ink); border: 2px solid var(--brand-ink); border-radius: 0; font: inherit; font-size: 1.1rem; font-weight: 500; transition: box-shadow .15s; }
+    .field textarea { min-height: 104px; resize: vertical; }
+    .field input:hover, .field select:hover, .field textarea:hover { box-shadow: 4px 4px 0 var(--brand-ink); }
+    .field input:focus, .field select:focus, .field textarea:focus { outline: none; box-shadow: 6px 6px 0 var(--brand-ink); }
+    .field ::placeholder { color: color-mix(in srgb, var(--ink) 62%, var(--paper)); opacity: 1; font-weight: 400; }
+    .field-error { margin-top: .35rem; font-weight: 700; }
+    .plan text { font-family: var(--font-display); font-stretch: 72%; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; font-size: 12.5px; fill: var(--ink); }
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-stretch: 110%; font-weight: 900; text-transform: uppercase; font-size: 1.9rem; line-height: 1.05; margin-top: 2.4rem; }
+    .prose-look h3 { font-weight: 700; font-size: 1.3rem; margin-top: 1.8rem; }
+    .prose-look a { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
+    .prose-look ul { list-style: none; }
+    .prose-look ul li { padding: .55rem 0; border-top: 2px solid var(--ink); }
+    .prose-look ul li:last-child { border-bottom: 2px solid var(--ink); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-weight: 700; font-size: 1.5rem; line-height: 1.3; margin-block: 1.6rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.6rem; }
+  }
+}
+
+@layer components {
+  html[data-look="talir"] {
+    @media (min-width: 64rem) {
+      .wrap { padding-inline: 40px; }
+      .lunch > li { grid-template-columns: 4.5rem 1fr auto; column-gap: 1.25rem; padding-block: 1.35rem; }
+      .lunch .n { font-size: 2.6rem; }
+      .lunch h3 { font-size: 1.4rem; }
+      .lunch .p { font-size: 2.1rem; }
+      .rows > li { grid-template-columns: 1fr 5.5rem 8.5rem 7rem; column-gap: 1.5rem; align-items: baseline; padding-block: 1.15rem; }
+      .rows .meta { display: contents; }
+      .rows .p { font-size: 1.7rem; text-align: right; }
+      .rows h4 { font-size: 1.3rem; }
+    }
+  }
+}

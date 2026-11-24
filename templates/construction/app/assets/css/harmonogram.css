@@ -1,0 +1,80 @@
+/* Harmonogram: the build schedule as the website. A graphite page levelled to one green
+   cross-laser line, with every duration (running sites, finished projects, the stages of a
+   build, the distances) drawn as a bar on a week grid. Schibsted Grotesk (headings in 800,
+   text in 400–600) and Red Hat Mono (labels, weeks, dates, parameters), with one light slab for
+   the facts. Written in the cascade layers the design was written in: utilities win over these
+   rules where both speak. */
+html[data-look="harmonogram"] {
+  --font-display: "Schibsted Grotesk", sans-serif;
+  --font-sans: "Schibsted Grotesk", sans-serif;
+  --font-mono: "Red Hat Mono", monospace;
+  /* The colours of the first preset (Zelený laser); a preset from the settings overrides them. */
+  --bg: #151719; --surface: #1e2124; --raised: #2a2e32; --line: #3b4146;
+  --text: #eef0ea; --quiet: #a5aba6;
+  --brand: #5bf36d; --brand-ink: #06140a;
+  --paper: #eceee8; --ink: #151719;
+  background: var(--bg);
+}
+
+@layer base {
+  html[data-look="harmonogram"] {
+    body { font-family: var(--font-sans); color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+  }
+}
+
+@layer components {
+  html[data-look="harmonogram"] {
+    .wrap { max-width: 1320px; margin-inline: auto; padding-inline: 20px; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 40px; } }
+
+    .mono { font-family: var(--font-mono); font-size: 12.5px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--quiet); }
+    .num { font-family: var(--font-mono); font-feature-settings: "tnum" 1; }
+
+    /* the laser: one level line the page is set to */
+    .laser-h { position: relative; height: 2px; }
+    .laser-h::before { content: ""; position: absolute; left: -100vw; right: -100vw; top: 0; height: 2px; background: var(--brand); box-shadow: 0 0 14px 1px color-mix(in srgb, var(--brand) 55%, transparent); pointer-events: none; }
+    .laser-v { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--brand); box-shadow: 0 0 14px 1px color-mix(in srgb, var(--brand) 55%, transparent); pointer-events: none; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 24px; font-weight: 700; font-size: 16px; letter-spacing: -.01em; transition: background-color .15s, color .15s, border-color .15s, transform .15s; cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); }
+    .btn-brand:hover { background: var(--text); color: var(--bg); }
+    .btn-ghost { border: 1px solid var(--line); color: var(--text); }
+    .btn-ghost:hover { border-color: var(--brand); color: var(--brand); }
+
+    /* a bar on a week grid: --w weeks wide, the bar starts at --s and lasts --d */
+    .track { position: relative; height: 26px; background: repeating-linear-gradient(to right, var(--line) 0 1px, transparent 1px calc(100% / var(--w))); border-right: 1px solid var(--line); }
+    .bar { position: absolute; top: 4px; bottom: 4px; left: calc(var(--s, 0) / var(--w) * 100%); width: calc(var(--d) / var(--w) * 100%); background: var(--brand); transition: width .7s ease; }
+    .bar-plan { background: none; box-shadow: inset 0 0 0 1px var(--quiet); }
+    .kd { position: absolute; top: 50%; left: calc(var(--at) / var(--w) * 100%); width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; transform: rotate(45deg); background: var(--bg); box-shadow: 0 0 0 1.5px var(--brand); }
+    .pay { position: absolute; top: 50%; left: calc(var(--at) / var(--w) * 100%); width: 9px; height: 9px; margin: -4.5px 0 0 -9px; background: var(--text); }
+    .pay b { position: absolute; right: 2px; bottom: 13px; font: 500 11px/1 var(--font-mono); color: var(--text); white-space: nowrap; }
+
+    .field { width: 100%; min-height: 50px; padding: 11px 14px; background: var(--bg); border: 1px solid var(--line); color: var(--text); font-size: 16px; border-radius: 0; }
+    .field::placeholder { color: var(--quiet); opacity: .75; }
+    .field:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+    .opt { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 8px 14px; border: 1px solid var(--line); background: var(--bg); color: var(--text); cursor: pointer; font-size: 15px; }
+    .opt:has(input:checked) { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand); }
+    .opt input { accent-color: var(--brand); }
+    .field-error { margin-top: 6px; font-size: 14px; color: var(--brand); }
+
+    .filter { min-height: 44px; padding: 0 16px; font-family: var(--font-mono); font-size: 13px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: var(--text); border: 1px solid var(--line); white-space: nowrap; transition: border-color .15s, background-color .15s, color .15s; cursor: pointer; }
+    .filter:hover { border-color: var(--brand); }
+    .filter[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+
+    /* Text pages written in the editor (the privacy page): headings, lists and links in the look's own lines. */
+    .prose-look { max-width: 42rem; font-size: 17px; line-height: 1.6; color: var(--quiet); }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-weight: 800; font-size: 1.9rem; line-height: 1.05; letter-spacing: -.03em; color: var(--text); margin-top: 2.6rem; }
+    .prose-look h3 { font-weight: 700; font-size: 1.35rem; line-height: 1.15; letter-spacing: -.02em; color: var(--text); margin-top: 2rem; }
+    .prose-look a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--brand); }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--line); }
+    .prose-look ul li { padding: .55rem 0; border-bottom: 1px solid var(--line); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-weight: 600; font-size: 1.3rem; line-height: 1.35; color: var(--text); margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
+    .prose-look strong { color: var(--text); font-weight: 700; }
+  }
+}

@@ -17,7 +17,8 @@ const size = computed(() => byLength(props.block.heading, [
     <div class="pad grid md:grid-cols-12 gap-x-10 gap-y-10 py-14 md:py-24">
       <div class="md:col-span-5 flex flex-col">
         <p v-if="block.eyebrow" class="m mb-4">{{ block.eyebrow }}</p>
-        <component :is="first ? 'h1' : 'h2'" class="d" :class="size"><KitMarked :text="block.heading" plain /></component>
+        <!-- On a desktop a word as wide as the design's own "Napište." may reach a little past its column, as it does there, instead of breaking before its full stop. -->
+        <component :is="first ? 'h1' : 'h2'" class="d md:[overflow-wrap:normal]" :class="size"><KitMarked :text="block.heading" plain /></component>
         <p v-if="block.text" class="mt-5 mb-9 text-[1.2rem] leading-snug font-medium max-w-[24rem]">{{ tidyText(block.text) }}</p>
         <dl class="m mt-auto grid grid-cols-[6.5rem_1fr] border-t-2 border-brand-ink">
           <template v-if="settings?.phone">

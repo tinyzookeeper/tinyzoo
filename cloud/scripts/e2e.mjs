@@ -5,25 +5,34 @@
 // It starts a cloud app of its own (database tz_cloud_e2e, sites under .data/e2e, ports
 // 4350–4369, app on 3290 or the next free port), so the developer's own data and running
 // app are not touched, and removes everything it made at the end (--keep leaves it).
+// `--templates wedding,salon` runs only the hosted templates' part, for those templates.
+// (A second checkout on the same machine: CLOUD_RUN_TAG and CLOUD_PORT_SHIFT, see lib.mjs.)
 //
 // What it proves: sign-up through the wizard, a site made and served with the chosen name,
 // the invitation into the admin, two sites made at the same moment, the limit, ownership and
 // CSRF checks, a template with looks (the look is chosen in the wizard, kept, shown by the
 // site and changed in its admin), removal (process, database and folder gone), a failed step and "Try again",
 // a restart of the cloud app bringing stopped sites back, the confirm-your-e-mail-first mode,
-// forgot password, and both languages. It also measures how long creation takes and how much
+// forgot password, and both languages; and every hosted template in every look and palette,
+// with its own checks (scripts/e2e-templates.mjs). It also measures how long creation takes and how much
 // memory a site process holds.
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
 import {
   alive, arg, cleanSites, cloudDir, databaseExists, dbUrl, dropDatabase, freePortFrom, log, open, recreateDatabase,
-  siteProcesses, sleep, startCloud, stopSiteProcesses, templateEntries, templateEntry, waitFor,
+  runDb, runPort, runPrefix, siteProcesses, sleep, startCloud, stopSiteProcesses, templateEntries, templateEntry, waitFor,
 } from './lib.mjs'
+import { checkHostedTemplates } from './e2e-templates.mjs'
 
 const keep = arg('keep', false) === true
 const headed = arg('headed', false) === true
-const DB = 'tz_cloud_e2e'
+// --templates wedding,salon: only the hosted templates' part, for these (see e2e-templates.mjs).
+const onlyTemplates = typeof arg('templates', null) === 'string' ? arg('templates').split(',') : null
+// A template that is designed but not built yet, if the registry still has one.
+const plannedId = /^\s*planned\('([a-z-]+)'/m.exec(readFileSync(join(cloudDir, 'shared', 'templates.ts'), 'utf8'))?.[1] ?? null
+const DB = runDb('tz_cloud_e2e')
+const PREFIX = runPrefix('tzc_e2e_')
 const dataDir = join(cloudDir, '.data', 'e2e', 'sites')
 const preview = join(cloudDir, '.preview')
 const shots = join(preview, 'screens')
@@ -38,7 +47,8 @@ function check(name, ok, detail = '') {
 }
 
 for (const [id, entry] of Object.entries(templateEntries)) {
-  if (existsSync(entry)) continue
+  // (with --templates only those templates have to be built)
+  if (existsSync(entry) || (onlyTemplates && !onlyTemplates.includes(id))) continue
   console.error(`The template "${id}" is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
   process.exit(2)
 }
@@ -48,9 +58,9 @@ const cloudEnv = (extra = {}) => ({
   NUXT_DATABASE_URL: dbUrl(DB),
   NUXT_HOSTING_DRIVER: 'local',
   NUXT_HOSTING_LOCAL_DATA_DIR: dataDir,
-  NUXT_HOSTING_LOCAL_DATABASE_PREFIX: 'tzc_e2e_',
-  NUXT_HOSTING_LOCAL_PORT_FROM: '4350',
-  NUXT_HOSTING_LOCAL_PORT_TO: '4369',
+  NUXT_HOSTING_LOCAL_DATABASE_PREFIX: PREFIX,
+  NUXT_HOSTING_LOCAL_PORT_FROM: String(runPort(4350)),
+  NUXT_HOSTING_LOCAL_PORT_TO: String(runPort(4369)),
   NUXT_MAX_SITES_PER_USER: '3',
   NUXT_REQUIRE_VERIFIED_EMAIL: 'false',
   NUXT_PUBLIC_SHOW_PLANNED: 'true',
@@ -101,14 +111,27 @@ function tookMs(site) {
 
 async function main() {
   log('preparing: a clean database and folder for this run')
-  await cleanSites(dataDir, 'tzc_e2e_')
+  await cleanSites(dataDir, PREFIX)
   await recreateDatabase(DB)
-  const port = await freePortFrom(3290)
+  const port = await freePortFrom(runPort(3290))
   cloud = await startCloud({ port, env: cloudEnv(), logFile: join(preview, 'e2e-cloud.log') })
   const base = cloud.url
   log(`cloud app up at ${base}`)
 
   browser = await chromium.launch({ headless: !headed })
+  // The hosted templates, each through the same checks and its own (e2e-templates.mjs), as a person of their own.
+  const hostedTemplates = async (only) => {
+    const signUp = async (id) => {
+      const ctxT = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'cs-CZ' })
+      const signed = await ctxT.request.post(`${base}/api/auth/signup`, { data: { name: 'Šablony', email: `sablony-${id}-${stamp}@example.com`, password: 'dlouhe-heslo-sablon-1', locale: 'cs' } })
+      check(`a person for the templates' part signs up (from ${id} on)`, signed.ok(), String(signed.status()))
+      return ctxT
+    }
+    // (Photographer has its own section above: the wizard, the lightbox, the enquiry)
+    await checkHostedTemplates({ browser, signUp, base, stamp, dataDir, check, measures, only, skip: ['photographer'] })
+  }
+  if (onlyTemplates) return hostedTemplates(onlyTemplates)
+
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'cs-CZ' })
   const page = await ctx.newPage()
   const jana = { name: 'Jana Nováková', email: `jana-${stamp}@example.com`, password: 'dlouhe-heslo-jany-1' }
@@ -120,9 +143,14 @@ async function main() {
   await page.locator('[data-cta]').click()
   await page.waitForURL('**/new')
   await page.waitForSelector('[data-wizard=ready]')
-  check('planned templates show with the flag, marked', await page.locator('[data-template=restaurant][data-ready=false]').count() === 1 && await page.locator('[data-template=restaurant] [role=radio]').count() === 0)
-  await page.locator('[data-template=restaurant]').click({ force: true })
-  check('a planned template cannot be picked', await page.locator('[data-template=basic] [role=radio][aria-checked=true]').count() === 1)
+  // A template that is designed but not built yet (`planned(…)` in shared/templates.ts) shows
+  // with the flag, marked, and cannot be picked. (Today every template is built: nothing to try.)
+  if (plannedId) {
+    check('planned templates show with the flag, marked', await page.locator(`[data-template=${plannedId}][data-ready=false]`).count() === 1 && await page.locator(`[data-template=${plannedId}] [role=radio]`).count() === 0)
+    await page.locator(`[data-template=${plannedId}]`).click({ force: true })
+    check('a planned template cannot be picked', await page.locator('[data-template=basic] [role=radio][aria-checked=true]').count() === 1)
+  }
+  else log('    (no planned template in the registry: every one is built)')
   check('twenty-one templates in the gallery', await page.locator('[data-template]').count() === 21)
   // Every card shows a real design: its picture loads, and a template with several looks lets them be glanced at.
   const pictures = await page.evaluate(async () => {
@@ -133,7 +161,9 @@ async function main() {
   })
   check('every card shows its template\'s real picture', pictures.loaded === 21 && pictures.thumbs === 51, JSON.stringify(pictures))
   await page.locator('[data-template=restaurant] [data-look-thumb=talir]').click()
-  check('a planned template\'s looks can be glanced at, and it still cannot be picked', await page.locator('[data-template=restaurant][data-shown-look=talir]').count() === 1 && await page.locator('[data-template=basic] [role=radio][aria-checked=true]').count() === 1)
+  check('a template\'s other looks can be glanced at on its card', await page.locator('[data-template=restaurant][data-shown-look=talir]').count() === 1)
+  // (glancing chose that template: back to the one this walk is about)
+  await page.locator('[data-template=basic]').click()
   await page.locator('[data-field=hospitality]').click()
   check('the field filter narrows the gallery', await page.locator('[data-template]').count() === 2)
   await page.locator('[data-field=all]').click()
@@ -170,7 +200,8 @@ async function main() {
   const realMs = Date.parse(first.site.readyAt) - Date.parse(first.site.createdAt)
   measures.creation.push({ site: first.site.slug, serverMs: realMs, screenMs, steps: tookMs(first.site) })
   log(`    made in ${realMs} ms on the server (${JSON.stringify(tookMs(first.site))}), ${screenMs} ms on screen`)
-  check('its address is <slug>.localhost:<port>', new RegExp(`^http://e2e-pekarna-${stamp}\\.localhost:43[56]\\d$`).test(first.site.publicUrl), first.site.publicUrl)
+  const firstPort = Number(/^http:\/\/e2e-pekarna-[a-z0-9]+\.localhost:(\d+)$/.exec(first.site.publicUrl)?.[1])
+  check('its address is <slug>.localhost:<port>, a port of this run\'s range', first.site.publicUrl.startsWith(`http://e2e-pekarna-${stamp}.localhost:`) && firstPort >= runPort(4350) && firstPort <= runPort(4369), first.site.publicUrl)
 
   // ── the website itself ──
   log('2 · the website')
@@ -243,7 +274,7 @@ async function main() {
   check('they cannot get an invitation link to it', (await other.request.post(`${base}/api/sites/${first.site.id}/invite`)).status() === 404)
   const taken = await (await other.request.get(`${base}/api/slug?slug=${first.site.slug}`)).json()
   check('a taken address is reported, with a free one close to it', taken.problem === 'taken' && taken.suggestion === `${first.site.slug}-2`, JSON.stringify(taken))
-  check('a planned template is refused by the server', (await other.request.post(`${base}/api/sites`, { data: { name: 'X', slug: `e2e-x-${stamp}`, template: 'restaurant' } })).status() === 422)
+  check('a template that is planned, or that does not exist, is refused by the server', (await other.request.post(`${base}/api/sites`, { data: { name: 'X', slug: `e2e-x-${stamp}`, template: plannedId ?? 'no-such-template' } })).status() === 422)
   check('a bad address is refused by the server', (await other.request.post(`${base}/api/sites`, { data: { name: 'X', slug: 'Bad_Slug"; drop', template: 'basic' } })).status() === 422)
   const anon = await browser.newContext()
   check('signed out, the API answers 401', (await anon.request.get(`${base}/api/sites`)).status() === 401)
@@ -379,8 +410,12 @@ async function main() {
   const photoPid = (await siteProcesses(dataDir)).find((p) => p.slug === photo.site.slug)?.pid
   check('removing it is accepted', (await pp.request.post(`${base}/api/sites/${photo.site.id}/remove`, { data: { confirm: photo.site.slug } })).ok())
   await waitFor(async () => !(await alive(photoPid)) && !existsSync(join(dataDir, photo.site.slug)), { what: 'the Photographer site to be removed' })
-  check('its process, folder and database are gone', !(await databaseExists(`tzc_e2e_${photo.site.slug.replace(/-/g, '_')}`)))
+  check('its process, folder and database are gone', !(await databaseExists(`${PREFIX}${photo.site.slug.replace(/-/g, '_')}`)))
   await ctxP.close()
+
+  // ── every other hosted template ──
+  log('6c · the hosted templates')
+  await hostedTemplates(null)
 
   // ── memory, after a few page loads ──
   for (const p of await siteProcesses(dataDir)) measures.memory.push({ site: p.slug, rssMB: Math.round(p.rssBytes / 1048576) })
@@ -390,7 +425,7 @@ async function main() {
   log('7 · delete a website')
   const doomed = both[1].site
   const doomedPid = (await siteProcesses(dataDir)).find((p) => p.slug === doomed.slug)?.pid
-  const doomedDb = `tzc_e2e_${doomed.slug.replace(/-/g, '_')}`
+  const doomedDb = `${PREFIX}${doomed.slug.replace(/-/g, '_')}`
   check('before: its process, database and folder exist', !!doomedPid && await databaseExists(doomedDb) && existsSync(join(dataDir, doomed.slug)))
   await open(page, `${base}/sites/${doomed.id}`)
   await page.locator('[data-delete]').click()
@@ -506,7 +541,7 @@ finally {
   await browser?.close().catch(() => {})
   await cloud?.stop().catch(() => {})
   if (!keep) {
-    await cleanSites(dataDir, 'tzc_e2e_').catch((e) => console.error('cleanup:', e.message))
+    await cleanSites(dataDir, PREFIX).catch((e) => console.error('cleanup:', e.message))
     await dropDatabase(DB).catch(() => {})
   }
   const summary = { at: new Date().toISOString(), ok: !failed, checks: results.length, failedAt: failed ? String(failed.message) : null, measures, results }
