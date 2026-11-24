@@ -79,6 +79,7 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `NUXT_APP_SECRET` | seals the sign-in cookie, 32+ characters |
 | `NUXT_CLOUD_SECRET` | encrypts what is kept about each site (its secrets, the invitation link), 32+ characters. Changing it makes them unreadable |
 | `NUXT_PUBLIC_URL` | the cloud's own address: for links in e-mails, and the issuer address every site is told for sign-in through the account. The sites' servers must be able to reach it |
+| `NUXT_REDIRECT_HOSTS` | host names the app used to be reached at, separated by commas: a page asked for on one of them is redirected (301) to `NUXT_PUBLIC_URL`. The API, `/oauth` and `/.well-known` still answer there |
 | `NUXT_ACCOUNT_CODE_TTL_SECONDS` | how long a one-time code of a sign-in works. 60, and never more; `e2e:account` sets 3 so that it need not wait for a code to grow old |
 | `NUXT_MAX_SITES_PER_USER` | how many websites one account may have (default 3) |
 | `NUXT_REQUIRE_VERIFIED_EMAIL` | `true`: a site is made only after the e-mail is confirmed. Default: `false` in development, `true` in production |

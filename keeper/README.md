@@ -98,7 +98,8 @@ The database (`NUXT_DATABASE_URL`) is migrated when Keeper starts: the SQL ships
 | `NUXT_APP_SECRET` | seals the sign-in cookie, 32+ characters (`openssl rand -base64 32`) |
 | `NUXT_KEEPER_SECRET` | encrypts the stored site tokens, 32+ characters. Changing it makes them unreadable |
 | `NUXT_SETUP_TOKEN` | asked for when the first account is made; required in production |
-| `NUXT_PUBLIC_URL` | Keeper's address, for links in e-mails |
+| `NUXT_PUBLIC_URL` | Keeper's address, for links in e-mails and for tools that sign in to its MCP server |
+| `NUXT_REDIRECT_HOSTS` | host names Keeper used to be reached at, separated by commas: a page asked for on one of them is redirected (301) to `NUXT_PUBLIC_URL`. The API, `/mcp` and the sign-in endpoints for tools still answer there, so connected tools keep working |
 | `NUXT_MAIL_TRANSPORT` | `smtp` sends alerts and invitations; `log` (default) only prints them |
 | `NUXT_MAIL_FROM` | the sender, e.g. `Keeper <keeper@example.com>` (default: the SMTP user) |
 | `NUXT_MAIL_SMTP_HOST`, `_PORT`, `_USER`, `_PASS` | the SMTP server (port 587 by default) |
