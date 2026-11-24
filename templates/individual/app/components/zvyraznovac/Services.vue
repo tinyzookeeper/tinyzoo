@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zvýrazňovač's services: numbered full-width rows with the price under the marker; a row
 // fills with the brand colour when the pointer is on it.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 const words = useSiteWords()

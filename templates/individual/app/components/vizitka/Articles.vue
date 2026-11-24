@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Vizitka's articles: a text-only list, the date, the headline in the serif and the first
 // lines of each, beside a short introduction.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'articles'>; first?: boolean; anchor?: string; items: Article[] }>()
 const words = useSiteWords()

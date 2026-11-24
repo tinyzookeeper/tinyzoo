@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Vizitka's project page: the client and the year, the headline, what was done and the result
 // as a large figure on a tinted band, then the photograph and the story.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ entry: Project }>()
 const { settings, words } = await useProfile()

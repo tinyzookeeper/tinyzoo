@@ -2,6 +2,7 @@
 @import "@nuxt/ui";
 /* Each design's own rules, all under html[data-design="<id>"]: they never touch another design.
    (The looks' stylesheets are not here: each is a file of its own, linked on its look's pages.) */
+@import "../../../../individual/app/assets/css/design.css";
 @import "../../../../photographer/app/assets/css/design.css";
 @import "../../../../wedding/app/assets/css/design.css";
 @import "../../../../restaurant/app/assets/css/design.css";
@@ -9,6 +10,7 @@
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
 @source "../../../node_modules/tinyzoo-template-kit/app";
+@source "../../../../individual";
 @source "../../../../photographer";
 @source "../../../../wedding";
 @source "../../../../restaurant";

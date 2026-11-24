@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zvýrazňovač's articles: big linked headlines under heavy rules, each with a small
 // black-and-white thumbnail; the marker lights the headline under the pointer.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'articles'>; first?: boolean; anchor?: string; items: Article[] }>()
 const words = useSiteWords()

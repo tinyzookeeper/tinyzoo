@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zvýrazňovač's article page: the date in mono, the headline in the heavy type with the first
 // lines under it, then the text in one column.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ entry: Article }>()
 const { settings, words } = await useProfile()

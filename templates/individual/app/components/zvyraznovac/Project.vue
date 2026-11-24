@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zvýrazňovač's project page: on black, the result at poster size with the client, the
 // headline in the heavy type and a black-and-white photograph; then the story.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ entry: Project }>()
 const { settings, words } = await useProfile()

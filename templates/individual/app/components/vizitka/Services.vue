@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Vizitka's services: a real price list. A ruled table with the columns service, for whom,
 // how long and price (a stacked row on a phone), then a note and a link to the call.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 const words = useSiteWords()

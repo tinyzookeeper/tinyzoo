@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Vizitka's testimonials: on the brand colour, the first one large in italics and the others
 // in two columns under a rule. The heading is the small capitals line above them.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 </script>

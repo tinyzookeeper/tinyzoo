@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Rozhovor's project page: a photograph on a rounded frame, the result in a bubble on its
 // edge, the headline and what was done beside it, then the story.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ entry: Project }>()
 const { settings, words } = await useProfile()

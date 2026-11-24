@@ -2,7 +2,7 @@
 // Zvýrazňovač's projects: on black, the number first. The result is the largest thing on the
 // page, the client and the story stand beside it and a small black-and-white photograph ends
 // each row.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'projects'>; first?: boolean; anchor?: string; items: Project[] }>()
 const words = useSiteWords()
