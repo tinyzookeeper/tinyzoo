@@ -111,7 +111,8 @@ function start(): void {
   // A timer carries no site of its own: the heartbeat is run inside the hub's, looked up as the directory has it now.
   h.timer = setInterval(() => {
     const site = cmsSiteById(h.site)
-    if (site) void runInCmsSite(site, heartbeat)
+    // (A site whose own content types cannot be read just now skips this beat.)
+    if (site) void runInCmsSite(site, () => cmsAfterSiteReady(heartbeat, () => {}))
   }, cmsTimerMs('CMS_TEST_LIVE_HEARTBEAT_MS', HEARTBEAT_MS))
   ;(h.timer as any).unref?.()
   h.stopChanges = onCmsChange((change) => { void deliverChange(change).catch((err) => console.error('[cms] realtime delivery failed', scrubError(err))) })
@@ -126,7 +127,7 @@ function start(): void {
         // hub here, because nobody is connected to that site: nothing to tell, nothing kept.
         const to = running.get(channelSiteId(msg) ?? '')
         const site = to ? cmsSiteById(to.site) : null
-        if (site) runInCmsSite(site, () => onRemote(msg))
+        if (site) runInCmsSite(site, () => cmsAfterSiteReady(() => onRemote(msg), () => {}))
       }
       catch { /* not ours */ }
     })

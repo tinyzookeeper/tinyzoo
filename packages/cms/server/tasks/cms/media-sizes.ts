@@ -16,7 +16,8 @@ export default defineTask({
         await forEachCmsSite(async () => { pictures += (await runMediaSizes()) ?? 0 }, { concurrency: 5, what: 'smaller copies of pictures' })
         return
       }
-      Object.assign(sites, await runInDueSites('smaller copies of pictures', mediaSizesMayWantRun, async () => { pictures += (await runMediaSizes()) ?? 0 }))
+      // A site with its own content types reads them first, as a request would (at once with the feature off).
+      Object.assign(sites, await runInDueSites('smaller copies of pictures', mediaSizesMayWantRun, async () => { pictures += (await cmsAfterSiteReady(() => runMediaSizes())) ?? 0 }))
     })
     const result: Record<string, number> = { pictures }
     if (!cmsIsMultiTenant()) return { result }

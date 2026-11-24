@@ -4,7 +4,8 @@
 export default defineNitroPlugin(() => {
   if (import.meta.prerender) return
   onCmsSiteStart(() => {
-    cmsMigrationsReady()
+    // Once the site can serve: migrated, and its own content types read (they are in the index too).
+    cmsSiteReady()
       .then(() => ensureSearchIndex())
       .catch((err) => {
         const hint = missingTableHint(err)

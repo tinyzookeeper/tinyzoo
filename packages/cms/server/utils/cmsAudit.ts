@@ -9,6 +9,8 @@
  * entry.update, entry.delete, entry.publish, entry.unpublish, settings.update,
  * media.upload, media.delete, retention.purge, privacy.export, privacy.delete, token.create, token.revoke,
  * menu.update, menu.reset (the admin's menu arranged for the site, or put back),
+ * model.change (the site's own content types changed: `meta.version`, `meta.ops` in short, `meta.statements`;
+ * `meta.internal` for the server's own later deletion),
  * auth.account_link (a user was linked to a tinyzoo account; `meta.issuer`).
  * A sign-in through the tinyzoo account (cmsAccount.ts) is `auth.login` with `meta.via: 'account'`
  * (an invitation accepted that way: `auth.invite_accept` with the same), a refused one
@@ -27,18 +29,25 @@ export async function audit(
   event: any,
   action: string,
   data: { entity?: string | null; recordId?: string | null; meta?: Record<string, unknown> | null; userId?: string | null } = {},
+  /** A transaction the line belongs to: it is written, or rolled back, with the rest. Its failure is then the transaction's. */
+  tx?: any,
 ): Promise<void> {
-  try {
+  const write = async () => {
     const { db, reg } = useCms()
     // Done through the MCP server with a personal access token: which one.
     const token = data.userId === undefined ? event?.context?.cmsUser?.token?.id : undefined
-    await db.insert(reg.cmsAudit).values({
+    await (tx ?? db).insert(reg.cmsAudit).values({
       userId: data.userId !== undefined ? data.userId : (event?.context?.cmsUser?.id ?? null),
       action,
       entity: data.entity ?? null,
       recordId: data.recordId ?? null,
       meta: token ? { ...data.meta, via: 'mcp', tokenId: token } : data.meta ?? null,
     })
+  }
+  // Inside a transaction a failed write has aborted it: swallowing the error would let the rest go on as if it had worked.
+  if (tx) return write()
+  try {
+    await write()
   }
   catch (err) {
     console.error('[cms] audit write failed', action, scrubError(err))

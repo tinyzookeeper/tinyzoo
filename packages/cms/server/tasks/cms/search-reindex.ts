@@ -7,6 +7,8 @@ export default defineTask({
     let rows: number | null = null
     await runReportedTask('cms:search-reindex', async () => {
       await forEachCmsSite(async () => {
+        // A site with its own content types reads them first: they are in the index too (at once with the feature off).
+        await cmsAfterSiteReady(() => undefined)
         const { db, reg } = useCms()
         const n = await rebuildSearchIndex(db, reg)
         if (n != null) rows = (rows ?? 0) + n

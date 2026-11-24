@@ -15,7 +15,8 @@ export default defineTask({
         await forEachCmsSite(async () => { announced += (await announceScheduled()) ?? 0 }, { concurrency: 5, what: 'scheduled publishing' })
         return
       }
-      Object.assign(sites, await runInDueSites('scheduled publishing', scheduledWorkMayBeDue, async () => { announced += (await announceScheduled({ remember: true })) ?? 0 }))
+      // A site with its own content types reads them first, as a request would (at once with the feature off).
+      Object.assign(sites, await runInDueSites('scheduled publishing', scheduledWorkMayBeDue, async () => { announced += (await cmsAfterSiteReady(() => announceScheduled({ remember: true }))) ?? 0 }))
     })
     const result: Record<string, number> = { announced }
     if (!cmsIsMultiTenant()) return { result }
