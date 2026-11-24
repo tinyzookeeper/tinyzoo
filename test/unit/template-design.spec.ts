@@ -14,7 +14,7 @@ import { designCss, parseMainCss } from '../../templates/app/scripts/theme-diff.
 import { readFileSync } from 'node:fs'
 
 // magic-string is a dependency of the kit, not of the repo root.
-const MagicString = createRequire(new URL('../../templates/kit/package.json', import.meta.url))('magic-string') as typeof import('magic-string').default
+const MagicString = createRequire(new URL('../../templates/kit/package.json', import.meta.url))('magic-string') as new (code: string) => Parameters<typeof rewriteComponents>[0]
 
 // How the one app reads a template's folder as a design (templates/kit/design-build.ts, fonts.ts)
 // and writes a design's own stylesheet (templates/app/scripts/theme-diff.mjs). No Nuxt, no database.
