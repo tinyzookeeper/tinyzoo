@@ -38,6 +38,7 @@ export interface CmsModuleOptions {
         };
     };
     publicUrl?: string;
+    redirectHosts?: string[] | string;
     mail?: {
         transport?: 'log' | 'file' | 'smtp';
         from?: string;

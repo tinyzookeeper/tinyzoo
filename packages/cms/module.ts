@@ -104,6 +104,12 @@ export interface CmsModuleOptions {
    */
   publicUrl?: string
   /**
+   * Host names the site used to be reached at, e.g. ['old.example.com']. A page asked for
+   * on one of them is redirected (301) to `publicUrl`, path and query kept; the API still
+   * answers there. Env: NUXT_CMS_REDIRECT_HOSTS (separated by commas).
+   */
+  redirectHosts?: string[] | string
+  /**
    * Outgoing email (invites, password resets).
    *  - 'log' (default): print to the server log
    *  - 'file': write each email as JSON into `file.dir` (local development, tests)
@@ -457,6 +463,8 @@ export {}
       },
       // Empty defaults so NUXT_CMS_PUBLIC_URL / NUXT_CMS_MAIL_* bind at runtime.
       publicUrl: options.publicUrl || '',
+      // A text, so that NUXT_CMS_REDIRECT_HOSTS binds at runtime: host names separated by commas.
+      redirectHosts: Array.isArray(options.redirectHosts) ? options.redirectHosts.join(',') : options.redirectHosts || '',
       mail: {
         transport: options.mail?.transport || 'log',
         from: options.mail?.from || '',

@@ -79,11 +79,12 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `NUXT_APP_SECRET` | seals the sign-in cookie, 32+ characters |
 | `NUXT_CLOUD_SECRET` | encrypts what is kept about each site (its secrets, the invitation link), 32+ characters. Changing it makes them unreadable |
 | `NUXT_PUBLIC_URL` | the cloud's own address: for links in e-mails, and the issuer address every site is told for sign-in through the account. The sites' servers must be able to reach it |
+| `NUXT_REDIRECT_HOSTS` | host names the app used to be reached at, separated by commas: a page asked for on one of them is redirected (301) to `NUXT_PUBLIC_URL`. The API, `/oauth` and `/.well-known` still answer there |
 | `NUXT_ACCOUNT_CODE_TTL_SECONDS` | how long a one-time code of a sign-in works. 60, and never more; `e2e:account` sets 3 so that it need not wait for a code to grow old |
 | `NUXT_MAX_SITES_PER_USER` | how many websites one account may have (default 3) |
 | `NUXT_REQUIRE_VERIFIED_EMAIL` | `true`: a site is made only after the e-mail is confirmed. Default: `false` in development, `true` in production |
 | `NUXT_PUBLIC_SHOW_PLANNED` | `true` shows the planned templates (those not built yet) in the gallery as they were designed, marked *Not available yet* and not selectable. Without it a customer never sees them |
-| `NUXT_HOSTING_DRIVER` | `local` (default), `shared` or `pushbase` |
+| `NUXT_HOSTING_DRIVER` | `local` (default), `shared` or `pushbase`; `none` makes no website: the app is the account service alone (*Deploying the account service*, below) |
 | `NUXT_HOSTING_LOCAL_PORT_FROM`, `_TO` | the local driver's ports, one per site (default 4300–4399) |
 | `NUXT_HOSTING_LOCAL_DATA_DIR` | where the sites' folders live (default `cloud/.data/sites`) |
 | `NUXT_HOSTING_LOCAL_DATABASE_PREFIX` | what the sites' databases are called before the slug (default `tzc_`) |
@@ -106,6 +107,20 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `CLOUD_DEV_HOSTS` | more names the dev server answers to (`.pushbase.app`), for a proxy in front of it |
 
 The sign-in cookie is called `tinyzoo-cloud`, not nuxt-auth-utils' default: on `localhost` cookies are shared across ports, and the sites use the default name.
+
+## Deploying the account service
+
+With `NUXT_HOSTING_DRIVER=none` the app makes no website. It keeps the accounts, signs people in to the websites connected to it (*Connect a website*), and lists each person's websites. The start page and the wizard lead to the sign-in page, nothing offers a new website, and `POST /api/sites` answers 409. It needs Postgres and nothing on disk.
+
+`cloud/Dockerfile` builds that: the app alone, with `none` as the image's default. On Pushbase:
+
+```sh
+node scripts/deploy-site.mjs <project> --dockerfile cloud/Dockerfile --without templates
+```
+
+Its environment: `DATABASE_URL` (a database of its own; the app migrates it when it starts), `NUXT_APP_SECRET`, `NUXT_CLOUD_SECRET`, `NUXT_PUBLIC_URL` (its public address, which every connected website stores as the issuer: choose it once), and the `NUXT_MAIL_*` settings. A person is let in to a website only with a confirmed e-mail, so without `NUXT_MAIL_TRANSPORT=smtp` the confirmation link of each new account has to be read from the server log.
+
+A website that runs by itself is connected in three steps: its owner signs in here, adds it under *Connect a website* (its name and address), and sets the three lines shown there in the website's environment (`NUXT_CMS_AUTH_ACCOUNT_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET`; tinyzoo 1.12 or newer). The website's users are matched to accounts by their confirmed e-mail.
 
 ## How a site gets made
 

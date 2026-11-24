@@ -138,6 +138,7 @@ Generate secrets with `openssl rand -base64 32` and set them on the platform, ne
 | `NUXT_APP_SECRET` | yes | Nuxt's app secret, at least 32 characters. See [The app secret](#the-app-secret) |
 | `NUXT_CMS_PUBLIC_URL` | yes | the admin's public address, e.g. `https://www.example.cz`. See [The public address](#the-public-address) |
 | `NUXT_SITE_URL`, `NUXT_SITE_INDEXABLE` | optional | [Nuxt SEO's site config](https://nuxtseo.com/docs/site-config). See [The public address](#the-public-address) |
+| `NUXT_CMS_REDIRECT_HOSTS` | optional | host names the site used to be reached at, separated by commas. See [Moving to another address](#moving-to-another-address) |
 | `NUXT_CMS_MIGRATIONS_ON_START` | recommended | `true`: apply bundled migrations at start (see [Migrations](#migrations)) |
 | `REDIS_URL` | with > 1 replica | `NUXT_CMS_REDIS_URL` overrides |
 | `NUXT_CMS_REDIS_PREFIX` | optional | namespace for keys and channels; default `cms:<database name>`, so environments sharing one Redis stay apart |
@@ -193,6 +194,23 @@ Mail clients load the logo in emails from `<NUXT_CMS_PUBLIC_URL>/api/cms/_brand/
 
 - `NUXT_SITE_URL` is the address `/sitemap.xml` starts with when the website's address is not `NUXT_CMS_PUBLIC_URL`.
 - `NUXT_SITE_INDEXABLE=false` keeps a copy of a site (a demo, a staging site) out of search engines, with `@nuxtjs/robots`.
+
+### Moving to another address
+
+When a site gets a new address (its own domain in place of the host's name, say), point the new name at the app, set `NUXT_CMS_PUBLIC_URL` (and `NUXT_SITE_URL`, when set) to it, and name the old host in `NUXT_CMS_REDIRECT_HOSTS`:
+
+```sh
+NUXT_CMS_PUBLIC_URL=https://www.example.cz
+NUXT_CMS_REDIRECT_HOSTS=example.pushbase.app
+```
+
+A page asked for on an old name is then redirected for good (301) to the same path and query on the public address: the website's pages, the admin, `/sitemap.xml`. Several old names are separated by commas. `cms.redirectHosts` in `nuxt.config.ts` is the same setting as a list.
+
+What still answers on the old name: everything under `/api/`, build assets and `/.well-known/`. A program that calls the old address with a token (a monitor reading `/api/health/status`, an MCP client) keeps working, because a redirect to another origin would drop its `Authorization` header. Point such programs at the new address when convenient.
+
+People sign in again on the new address: a session cookie belongs to the host name it was set on.
+
+In multi-tenant mode this setting is not read. Each site's row names its hosts, and a host that is not the site's public one is redirected there.
 
 ### Trusted proxies
 

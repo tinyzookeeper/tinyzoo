@@ -3,7 +3,7 @@
 // run that stopped halfway can be run again. For a site seeded before the collection
 // existed, such as the live website after the deploy that added it:
 //
-//   SEED_URL=https://tinyzoo.pushbase.app SEED_EMAIL=… SEED_PASSWORD=… pnpm seed:plans
+//   SEED_URL=https://tinyzoo.site SEED_EMAIL=… SEED_PASSWORD=… pnpm seed:plans
 //
 // It signs in as an existing administrator and touches nothing but the plans.
 //

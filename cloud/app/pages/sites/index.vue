@@ -46,19 +46,24 @@ const roleName = (role: string) => (role in KNOWN_ROLES ? t(KNOWN_ROLES[role as 
     <header class="flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 class="z-display text-[1.75rem] leading-tight text-highlighted sm:text-4xl">{{ firstName ? t('sites.hello', { name: firstName }) : t('sites.title') }}</h1>
-        <p class="mt-1.5 text-[0.9375rem] text-muted">{{ sites.length ? t('sites.count', { used: sites.length, max }) : t('sites.none') }}</p>
+        <p class="mt-1.5 text-[0.9375rem] text-muted">{{ !account.canCreate && !sites.length ? t('sites.accountLead') : sites.length ? t('sites.count', { used: sites.length, max }) : t('sites.none') }}</p>
       </div>
-      <UButton v-if="sites.length && !atLimit" to="/new" :label="t('sites.another')" icon="i-lucide-plus" size="lg" data-another />
+      <UButton v-if="account.canCreate && sites.length && !atLimit" to="/new" :label="t('sites.another')" icon="i-lucide-plus" size="lg" data-another />
     </header>
 
     <VerifyNote class="mt-6" />
 
-    <ZEmpty v-if="nothing" class="mt-8" animal="elephant" :title="t('sites.emptyTitle')" :description="t('sites.emptyText')">
+    <ZEmpty v-if="nothing && account.canCreate" class="mt-8" animal="elephant" :title="t('sites.emptyTitle')" :description="t('sites.emptyText')">
       <UButton to="/new" :label="t('home.cta')" size="lg" trailing-icon="i-lucide-arrow-right" />
+    </ZEmpty>
+    <!-- No website is made here: an empty account starts by connecting one it runs. -->
+    <ZEmpty v-else-if="nothing" class="mt-8" animal="elephant" :title="t('sites.accountEmptyTitle')" :description="t('sites.accountEmptyText')" data-account-empty>
+      <UButton to="/sites/connect" :label="t('connect.submit')" size="lg" trailing-icon="i-lucide-arrow-right" />
     </ZEmpty>
 
     <template v-else>
-      <!-- The websites made here. -->
+      <!-- The websites made here (where none is made and none was: nothing of this). -->
+      <template v-if="account.canCreate || sites.length">
       <h2 v-if="connected.length || member.length" class="z-label mt-8">{{ t('sites.mineTitle') }}</h2>
       <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" :class="connected.length || member.length ? 'mt-3' : 'mt-8'">
         <li v-for="s in sites" :key="s.id" class="site z-card flex h-full flex-col overflow-hidden transition hover:border-(--ui-border-accented)">
@@ -86,17 +91,18 @@ const roleName = (role: string) => (role in KNOWN_ROLES ? t(KNOWN_ROLES[role as 
             <UIcon name="i-lucide-arrow-up-right" class="size-4 shrink-0 text-dimmed" />
           </a>
         </li>
-        <li v-if="!atLimit">
+        <li v-if="account.canCreate && !atLimit">
           <NuxtLink to="/new" class="flex h-full min-h-48 flex-col items-center justify-center gap-2 rounded-[0.875rem] border border-dashed border-(--ui-border-accented) p-6 text-center text-muted transition hover:border-(--ui-primary) hover:text-highlighted">
             <span class="inline-flex size-10 items-center justify-center rounded-full bg-(--z-moment-bg)"><UIcon name="i-lucide-plus" class="size-5" /></span>
             <span class="font-medium">{{ sites.length ? t('sites.another') : t('home.cta') }}</span>
           </NuxtLink>
         </li>
       </ul>
-      <p v-if="atLimit" class="z-note mt-6 flex items-start gap-3 p-4 text-sm text-pretty" data-limit>
+      <p v-if="account.canCreate && atLimit" class="z-note mt-6 flex items-start gap-3 p-4 text-sm text-pretty" data-limit>
         <UIcon name="i-lucide-info" class="mt-0.5 size-4 shrink-0" />
         <span>{{ t('sites.limit', { max }) }}</span>
       </p>
+      </template>
 
       <!-- Other people's websites I signed in to through my account: only the way into their admin. -->
       <section v-if="member.length" class="mt-12" data-member-sites>
@@ -132,7 +138,7 @@ const roleName = (role: string) => (role in KNOWN_ROLES ? t(KNOWN_ROLES[role as 
     </template>
 
     <!-- The way to connect a website that runs elsewhere. -->
-    <p v-if="!connected.length" class="mt-10 text-sm text-muted" data-connect-hint>
+    <p v-if="!connected.length && !(nothing && !account.canCreate)" class="mt-10 text-sm text-muted" data-connect-hint>
       {{ t('sites.connectHint') }}
       <NuxtLink to="/sites/connect" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4">{{ t('sites.connectLink') }}</NuxtLink>
     </p>

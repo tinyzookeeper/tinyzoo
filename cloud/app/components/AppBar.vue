@@ -2,10 +2,10 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 
 // The top bar: tinyzoo's logo, then (signed in) "My websites" and the account's menu, or
-// (signed out) sign in and "Create your website". The language and the colour mode are here
-// on every page.
+// (signed out) sign in and "Create your website" (where websites are made). The language and
+// the colour mode are here on every page.
 const t = useT()
-const { user, signedIn, signOut } = useAccount()
+const { user, signedIn, signOut, account } = useAccount()
 const { locale, setLocale } = useLocale()
 const colorMode = useColorMode()
 const dark = computed(() => colorMode.value === 'dark')
@@ -51,7 +51,7 @@ const menu = computed<DropdownMenuItem[][]>(() => [
       </template>
       <template v-else>
         <UButton to="/login" :label="t('nav.signIn')" color="neutral" variant="ghost" />
-        <UButton to="/new" :label="t('nav.create')" class="hidden sm:inline-flex" />
+        <UButton v-if="account.canCreate" to="/new" :label="t('nav.create')" class="hidden sm:inline-flex" />
       </template>
     </div>
   </header>

@@ -1,6 +1,6 @@
 import type { AccountView } from '#shared/api'
 
-const EMPTY: AccountView = { user: null, sites: { used: 0, max: 3 }, requireVerifiedEmail: false, devVerifyUrl: null, siteHost: '.localhost', canImport: false }
+const EMPTY: AccountView = { user: null, sites: { used: 0, max: 3 }, requireVerifiedEmail: false, devVerifyUrl: null, siteHost: '.localhost', canImport: false, canCreate: true }
 
 /** Who is signed in, and the few settings the pages need. Loaded once per page load (plugins/account.ts) and after signing in or out. */
 export function useAccount() {

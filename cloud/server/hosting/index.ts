@@ -8,10 +8,18 @@ export * from './types'
 const drivers: Record<string, () => HostingDriver> = { local: localDriver, shared: sharedDriver, pushbase: pushbaseDriver }
 const made = new Map<string, HostingDriver>()
 
-/** The driver new websites are made with: NUXT_HOSTING_DRIVER (local by default). */
+/** NUXT_HOSTING_DRIVER=none: no website is made here. The app is the account service alone. */
+export const NO_HOSTING = 'none'
+
+/** The driver new websites are made with: NUXT_HOSTING_DRIVER (local by default), or `none`. */
 export function hostingDriverName(): string {
   const name = String((useRuntimeConfig().hosting as any)?.driver || 'local')
-  return name in drivers ? name : 'local'
+  return name === NO_HOSTING || name in drivers ? name : 'local'
+}
+
+/** Whether websites are made here at all. */
+export function makesSites(): boolean {
+  return hostingDriverName() !== NO_HOSTING
 }
 
 /** A driver by name: a website is always run and removed by the driver that made it. */

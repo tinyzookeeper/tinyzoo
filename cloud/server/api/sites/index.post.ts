@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { slugProblem } from '#shared/slug'
 import { lookOf, templateById } from '#shared/templates'
+import { makesSites } from '../../hosting'
 
 // Make a website: a template (and its look, when it has several), a name and an address. It
 // is made in the background; the answer is the site as it is now (its page shows the steps).
@@ -13,6 +14,7 @@ const input = z.object({
 
 export default defineEventHandler(async (event) => {
   const me = await requireUser(event)
+  if (!makesSites()) throw fail(409, 'sites.unavailable', 'Websites are not made here')
   const data = await readInput(event, input)
   if (tooManyAttempts(`create:${me.id}`, 10, 60 * 60_000)) throw fail(429, 'tooMany', 'Too many attempts, try again later')
   const template = templateById(data.template)

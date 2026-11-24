@@ -34,6 +34,9 @@ export default defineNuxtConfig({
     cloudSecret: '',
     // NUXT_PUBLIC_URL: the cloud's own address, for links in e-mails.
     publicUrl: '',
+    // NUXT_REDIRECT_HOSTS: host names the app used to be reached at, separated by commas. Pages
+    // asked for there are redirected to NUXT_PUBLIC_URL (server/middleware/hosts.ts).
+    redirectHosts: '',
     // NUXT_MIGRATIONS_DIR: a folder of SQL migrations to use instead of the bundled ones.
     migrationsDir: '',
     // NUXT_MAX_SITES_PER_USER
@@ -48,7 +51,7 @@ export default defineNuxtConfig({
     // A minute, and never longer; the checks set a shorter time (shared/account.ts).
     accountCodeTtlSeconds: '',
     hosting: {
-      // NUXT_HOSTING_DRIVER: local | shared | pushbase
+      // NUXT_HOSTING_DRIVER: local | shared | pushbase, or none (no website is made: the account service alone)
       driver: 'local',
       local: {
         // NUXT_HOSTING_LOCAL_PORT_FROM / _TO: one port per website.

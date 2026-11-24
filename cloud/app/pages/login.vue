@@ -4,7 +4,7 @@
 definePageMeta({ layout: 'bare' })
 const t = useT()
 const errorText = useErrorText()
-const { refresh } = useAccount()
+const { refresh, account } = useAccount()
 const { fromSite, go, site, loadSite, withNext } = useReturn()
 useHead({ title: () => t('login.title') })
 await loadSite()
@@ -52,8 +52,8 @@ async function submit() {
     </form>
     <p class="z-moment-text mt-6 text-center text-sm">
       {{ t('login.noAccount') }}
-      <!-- Somebody who came from a website only needs an account; anybody else starts with a website. -->
-      <NuxtLink v-if="fromSite" :to="withNext('/signup')" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4" data-signup>{{ t('login.createAccount') }}</NuxtLink>
+      <!-- Somebody who came from a website only needs an account, as does everybody where no website is made; anybody else starts with a website. -->
+      <NuxtLink v-if="fromSite || !account.canCreate" :to="withNext('/signup')" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4" data-signup>{{ t('login.createAccount') }}</NuxtLink>
       <NuxtLink v-else to="/new" class="font-medium text-highlighted underline decoration-(--ui-border-accented) underline-offset-4">{{ t('home.cta') }}</NuxtLink>
     </p>
   </div>

@@ -335,6 +335,7 @@ Every option reaches the runtime config as `cms.<option>`. Every runtime value c
 |---|---|---|
 | `config` | | path of the config, relative to the site (`cms.config.ts`; build time) |
 | `migrations.dir`, `migrations.onStart` | `NUXT_CMS_MIGRATIONS_ON_START` | the migrations bundled into the build; apply them when the server starts |
+| `redirectHosts` | `NUXT_CMS_REDIRECT_HOSTS` | host names the site used to be reached at: a page asked for on one of them is redirected (301) to `publicUrl`; the API still answers there |
 | `publicUrl` | `NUXT_CMS_PUBLIC_URL` | the public address of the site (links and the logo in emails, the sitemap, and the OpenAPI server address unless `content.publicUrl` says otherwise) |
 | `auth.mode`, `auth.trustedProxies`, `auth.ipHeader` | `NUXT_CMS_AUTH_MODE`, `NUXT_CMS_AUTH_TRUSTED_PROXIES`, `NUXT_CMS_AUTH_IP_HEADER` | `builtin` or `external` sign-in; proxies in front of the app; the client-IP header |
 | | `NUXT_CMS_AUTH_SETUP_TOKEN` | the code first-run setup asks for. It is an environment variable only, on purpose: it is a secret, and an option would write it into the build and into `nuxt.config.ts`, which is committed |

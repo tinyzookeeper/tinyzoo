@@ -48,6 +48,9 @@ export default defineNuxtConfig({
     setupToken: '',
     // NUXT_PUBLIC_URL: Keeper's own address, for links in alert e-mails.
     publicUrl: '',
+    // NUXT_REDIRECT_HOSTS: host names Keeper used to be reached at, separated by commas. Pages
+    // asked for there are redirected to NUXT_PUBLIC_URL (server/middleware/hosts.ts).
+    redirectHosts: '',
     // NUXT_MIGRATIONS_DIR: a folder of SQL migrations to use instead of the bundled ones.
     migrationsDir: '',
     checks: {

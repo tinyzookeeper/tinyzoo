@@ -73,5 +73,8 @@ export default defineNitroPlugin(() => {
   if (!String(cms.publicUrl || '').trim()) {
     console.warn('[cms] NUXT_CMS_PUBLIC_URL is not set: the links in invitation and password-reset emails need the site\'s public address '
       + '(e.g. https://cms.example.com), and so does /sitemap.xml (a 404 until it, or NUXT_SITE_URL, is set). Set it in the environment.')
+    if (String(cms.redirectHosts || '').trim()) {
+      console.warn('[cms] NUXT_CMS_REDIRECT_HOSTS is set, but NUXT_CMS_PUBLIC_URL is not: nothing is redirected until the site\'s public address is known.')
+    }
   }
 })
