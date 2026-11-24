@@ -2,7 +2,7 @@
 
 **Status (2026-11-24):** an exploration. Nothing here is built into the product and nothing is decided. The experiments were throwaway: they ran on this machine against a Postgres 16.16 of their own, and their temporary changes were removed afterwards (2.14 says what each one showed). Where a number is an estimate, it says so.
 
-**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18.
+**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18. Step 2 has its detailed design in `docs/custom-types-plan.md` (2.19).
 
 Part 1 is the short read with the recommendation and the decisions to make. Part 2 holds the details behind it.
 
@@ -530,3 +530,14 @@ The Basic website is not in the one app: it is not built on the template kit, an
 - Whether to remove the templates' own builds (their `nuxt.config.ts`, `main.css`, build scripts and the kit's way of building one template). The cloud no longer uses them. A website that moves out of shared hosting is run by `e2e:ops` on the one app with a site directory of that one site, as the local driver runs a site; whether a customer gets that, or a template's own build, is not decided.
 - Sites made with the shared driver before this change (per-template folders and rows) are not carried over. No such site exists outside development machines.
 - Basic websites in the one app, which would leave one process for every site.
+
+## 2.19 Step 2: the detailed design
+
+Step 2 (custom types and generic blocks) is designed in detail in `docs/custom-types-plan.md`: the model document's format, how a site's model is loaded and how a change spreads, the run-time statements and their allowed list, names, the guard's rule for every kind of change, the generic blocks and their bindings, the structure editor's screens, the tests, the order of work, and what the first version leaves out.
+
+Three things there correct this document:
+
+- **The looks share no tokens** (2.11 said they do). No CSS variable is defined by all 52 looks. The generic blocks take their look from each look's own text styles (`.prose-look`, in every look) and from the colour and typeface the page inherits.
+- **No index of bindings is kept** (2.6 said one is). The stored pages are read when a change needs to know where a field is shown: 6 ms for 2 000 pages.
+- **Translations, a many-to-many relation and choice types made at run time** (2.15 listed them as not explored) work through one small planner that reads the engine's own table objects; its statements are the ones drizzle-kit makes.
+
