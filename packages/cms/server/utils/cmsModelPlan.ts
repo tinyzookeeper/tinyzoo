@@ -188,14 +188,18 @@ export async function runModelStatements(exec: (text: string) => Promise<unknown
   }
 }
 
-/** The design's types as the structure editor shows them (read-only) and offers them as targets of a relation. */
-export function describeDesignTypes(reg: CmsRegistry): { name: string; label: unknown; labelSingular: unknown; icon: string | null; singleton: boolean; fields: { key: string; type: string; label: unknown }[] }[] {
+/**
+ * The design's types as the structure editor shows them (read-only). `relatable`: a collection of
+ * content a field may sensibly point at; forms' messages, redirects and what a plugin keeps are not.
+ */
+export function describeDesignTypes(reg: CmsRegistry): { name: string; label: unknown; labelSingular: unknown; icon: string | null; singleton: boolean; relatable: boolean; fields: { key: string; type: string; label: unknown }[] }[] {
   return reg.entities.map((e) => ({
     name: e.name,
     label: e.label,
     labelSingular: e.labelSingular ?? e.label,
     icon: e.icon ?? null,
     singleton: !!e.singleton,
+    relatable: !e.singleton && !(e as { preset?: string }).preset && !reg.pluginOf.has(e.name),
     fields: Object.entries(e.fields as Record<string, any>).map(([key, fld]) => ({ key, type: String(fld.type), label: fld.meta?.label ?? key })),
   }))
 }

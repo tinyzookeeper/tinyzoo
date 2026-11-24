@@ -33,6 +33,8 @@ export interface CmsModelDesignType {
   labelSingular?: ModelLabel | string | null
   icon?: string | null
   singleton: boolean
+  /** A collection of content a field may point at (not a form's messages, redirects or a plugin's own). */
+  relatable?: boolean
   fields: { key: string; type: string; label: ModelLabel | string | null }[]
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { assertAllowedStatement, buildRegistry, defineEntity, defineLocales, defineSingleton, f } from '../../packages/cms/src/index'
+import { assertAllowedStatement, buildRegistry, defineEntity, defineLocales, defineRedirects, defineSingleton, f } from '../../packages/cms/src/index'
 import { applyModelOps, DEFAULT_MODEL_LIMITS, emptyModelDoc, type ModelContext, type ModelOp } from '../../packages/cms/src/model-doc'
 import { modelEntities } from '../../packages/cms/src/model-map'
 import {
@@ -284,9 +284,18 @@ describe('describeDesignTypes', () => {
     } as any)
     const out = describeDesignTypes(reg)
     expect(out.find((t) => t.name === 'post')).toEqual({
-      name: 'post', label: { en: 'Posts' }, labelSingular: { en: 'Post' }, icon: 'i-lucide-newspaper', singleton: false,
+      name: 'post', label: { en: 'Posts' }, labelSingular: { en: 'Post' }, icon: 'i-lucide-newspaper', singleton: false, relatable: true,
       fields: [{ key: 'title', type: 'text', label: { en: 'Title' } }, { key: 'views', type: 'number', label: 'views' }],
     })
-    expect(out.find((t) => t.name === 'settings')).toMatchObject({ singleton: true, icon: null, labelSingular: 'Settings' })
+    expect(out.find((t) => t.name === 'settings')).toMatchObject({ singleton: true, relatable: false, icon: null, labelSingular: 'Settings' })
+  })
+
+  it('offers a collection of content as the target of a link, and not redirects', () => {
+    const out = describeDesignTypes(buildRegistry({
+      Post: defineEntity('post', { label: 'Posts', titleField: 'title', fields: { title: f.text({ required: true }) } }),
+      Redirect: defineRedirects(),
+    } as any))
+    expect(out.find((t) => t.name === 'post')!.relatable).toBe(true)
+    expect(out.find((t) => t.name === 'redirect')!.relatable).toBe(false)
   })
 })

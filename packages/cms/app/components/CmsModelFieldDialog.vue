@@ -88,7 +88,7 @@ const preset = computed({ get: () => cmsModelPreset(form) || NONE, set: (v: stri
 // The types a link can point at: the site's own, then the design's collections.
 const targets = computed(() => [
   ...cmsModelVisibleTypes(props.data.doc).map((x) => ({ label: tl(x.label as any, x.name), value: x.name })),
-  ...props.data.design.filter((d) => !d.singleton).map((d) => ({ label: tl(d.label as any, d.name), value: d.name })),
+  ...props.data.design.filter((d) => !d.singleton && d.relatable !== false).map((d) => ({ label: tl(d.label as any, d.name), value: d.name })),
 ])
 const targetName = (to: string) => targets.value.find((x) => x.value === to)?.label ?? to
 const target = computed({ get: () => form.to || undefined, set: (v: string | undefined) => { form.to = v ?? '' } })
