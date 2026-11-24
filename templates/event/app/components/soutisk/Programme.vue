@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Soutisk's programme: rows with time pills (the starts in vermilion, the ceremonies in
 // yellow) beside a photograph whose top edge is cut as a line of hills, with a printed sun at its corner.
-import type { ProgramItem } from '~/lib/cms-content'
+import type { ProgramItem } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'programme'>; first?: boolean; anchor?: string; items: ProgramItem[] }>()
 const photo = computed(() => [...props.block.photos].reverse().find((p) => p.image) ?? null)

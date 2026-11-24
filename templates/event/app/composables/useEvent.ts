@@ -1,7 +1,7 @@
 // What the Event's blocks draw from: the facts of the event (Site settings), what follows from
 // the date, and the collections. (The site-wide content, the page and `useSiteList` are the
 // template kit's.)
-import type { FeePeriod, NewsItem, Partner, ProgramItem, Question, Result, Track, VenuePoint } from '~/lib/cms-content'
+import type { FeePeriod, NewsItem, Partner, ProgramItem, Question, Result, Track, VenuePoint } from '../lib/cms-content'
 
 /** The routes, in the editors' order. */
 export const useTracks = () => useSiteList<Track>('site-tracks', 'track')

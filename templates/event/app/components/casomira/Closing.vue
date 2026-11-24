@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Časomíra's closing call: a board that shows the places still free, in lit figures, and the
 // registration button.
-import type { Track } from '~/lib/cms-content'
+import type { Track } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'closing'>; first?: boolean; tracks: Track[] }>()
 const { words, cta, phase } = await useEvent()

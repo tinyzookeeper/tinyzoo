@@ -16,6 +16,7 @@ import * as restaurant from '../restaurant/cms.config'
 import * as accommodation from '../accommodation/cms.config'
 import * as sportsClub from '../sports-club/cms.config'
 import * as studio from '../studio/cms.config'
+import * as event from '../event/cms.config'
 
 export const models = defineModels({
   individual: { config: individual, migrations: '../individual/server/db/migrations' },
@@ -31,4 +32,5 @@ export const models = defineModels({
   accommodation: { config: accommodation, migrations: '../accommodation/server/db/migrations' },
   'sports-club': { config: sportsClub, migrations: '../sports-club/server/db/migrations' },
   studio: { config: studio, migrations: '../studio/server/db/migrations' },
+  event: { config: event, migrations: '../event/server/db/migrations' },
 })

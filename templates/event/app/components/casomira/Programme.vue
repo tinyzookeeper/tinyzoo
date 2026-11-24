@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Časomíra's programme: a list with the times lit in the dot-matrix face; the starts in the
 // colour of the diodes. A photograph and its caption stand beside the heading.
-import type { ProgramItem } from '~/lib/cms-content'
+import type { ProgramItem } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'programme'>; first?: boolean; anchor?: string; items: ProgramItem[] }>()
 const { words } = await useEvent()

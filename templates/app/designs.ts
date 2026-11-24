@@ -14,6 +14,7 @@ import restaurant from '../restaurant/fonts'
 import accommodation from '../accommodation/fonts'
 import sportsClub from '../sports-club/fonts'
 import studio from '../studio/fonts'
+import event from '../event/fonts'
 
 export const DESIGNS: Record<string, DesignFonts> = {
   individual,
@@ -29,4 +30,5 @@ export const DESIGNS: Record<string, DesignFonts> = {
   accommodation,
   'sports-club': sportsClub,
   studio,
+  event,
 }

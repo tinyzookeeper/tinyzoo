@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Soutisk's questions: rounded boxes, the plus turning to a cross when one opens, and a line
 // beside them that sends whoever misses an answer to the phone.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'faq'>; first?: boolean; anchor?: string; items: Question[] }>()
 const { settings } = await useEvent()

@@ -1,0 +1,16 @@
+/* Event's own rules from its main.css, for Event's sites only (html[data-design="event"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+/* Its theme values that differ from the app's: in the theme layer, so a look's own value still wins. */
+@layer theme {
+  html[data-design="event"] {
+    --font-display: system-ui, sans-serif;
+  }
+}
+
+@layer base {
+  html[data-design="event"] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-design="event"] { scroll-behavior: smooth; }
+  html[data-design="event"] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="event"] { scroll-behavior: auto; } }
+}

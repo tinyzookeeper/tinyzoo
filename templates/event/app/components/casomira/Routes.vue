@@ -2,7 +2,7 @@
 // Časomíra's routes: one lane for each on a shared kilometre axis. Each profile is drawn at its
 // true relative length (the longest route fills the lane, one a quarter as long a quarter of
 // it), with the figures in mono and the places left as a row of diodes.
-import type { Track } from '~/lib/cms-content'
+import type { Track } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'routes'>; first?: boolean; anchor?: string; tracks: Track[] }>()
 const { words, registerUrl } = await useEvent()

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Soutisk's news: three paper cards on yellow, each with its date on a dark pill.
-import type { NewsItem } from '~/lib/cms-content'
+import type { NewsItem } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; items: NewsItem[] }>()
 const { words } = await useEvent()
