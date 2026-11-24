@@ -3,7 +3,7 @@
 // seeded (run shots.mjs with --keep first).
 //
 //   node templates/app/scripts/measure.mjs --pg <postgres url> --prefix tzshots_a_ --out <file.json>
-//        --group <entry>=<template,template>[:model] [--group …] [--templates-dir <folder>] [--skip-downloads]
+//        --group <entry>=<template,template>[:model] [--group …] [--templates-dir <folder>] [--data <sites' folder>] [--skip-downloads]
 //
 // Each group is one server process serving one site per look of its templates (`:model` when
 // the rows name their content model: the one app). All groups run at the same time, as the
@@ -52,10 +52,12 @@ try {
   let port = 4900
   for (const g of groups) {
     port = await freePortFrom(port)
-    const dataDir = resolve(dirname(outFile), `${prefix}measure-${running.length}`)
+    // The sites' folders of the run that made them (their uploads), one directory file per process.
+    const dataDir = resolve(arg('data', join(dirname(outFile), `${prefix}data`)))
+    const n = running.length
     const rows = await makeSites({ pgUrl, prefix, dataDir, port, sites: await sitesFor(templatesDir, g.templates), model: g.model, keep: true })
-    writeDirectory(join(dataDir, 'sites.json'), rows)
-    const server = await startServer({ entry: g.entry, directoryFile: join(dataDir, 'sites.json'), port, logFile: join(dataDir, 'server.log') })
+    writeDirectory(join(dataDir, `measure-${n}.json`), rows)
+    const server = await startServer({ entry: g.entry, directoryFile: join(dataDir, `measure-${n}.json`), port, logFile: join(dataDir, `measure-${n}.log`) })
     log(`${g.templates.join(',')}: pid ${server.pid} on ${port}, answering after ${Math.round(server.readyMs)} ms`)
     running.push({ g, rows, server, out: { entry: g.entry, templates: g.templates, pid: server.pid, startMs: Math.round(server.readyMs), sites: {} } })
     port++

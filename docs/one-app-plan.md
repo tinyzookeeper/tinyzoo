@@ -423,3 +423,84 @@ export const models = defineModels({
 - A plugin's `entityPanels` names collections, so every model must have those collections.
 
 **For the hosted app (the rest of step 1).** The app's `cms.config.ts` imports every template's `cms.config.ts` and lists them in `defineModels`, each with its migrations folder. The app needs no model of its own. The cloud's shared driver writes `model: '<template id>'` into each site's row, and one process serves every template, started like today's template process: `NUXT_CMS_TENANCY_MODE=multi` with the directory's settings. Not built yet: the merged frontend (2.3), the cloud's driver writing `model`, and one process for all templates in the cloud.
+
+## 2.17 What is built: the designs in one app, and what it costs
+
+Built on the branch `feat/one-app`, local only. Three templates are in the one app: Photographer, Wedding and Restaurant. The other 17 build as before, each on its own, and the cloud still runs the templates' own builds.
+
+**What is built.**
+
+- `templates/app/` (package `tinyzoo-template-app`): the one app. It extends the kit and tinyzoo as a template does. `designs.ts` lists its designs (their typefaces), `cms.config.ts` the same ids as content models (`defineModels`). It has no model of its own, so it runs in multi-tenant mode only. A site is drawn in the design its model names.
+- The kit's module (`templates/kit/module.ts`) builds in two ways. In a template's own build nothing changes for the template. In the one app it keeps each design's names its own: inside `templates/photographer`, `wordsOf`, `<LookAlbum>` and `<AtelierHero>` are Photographer's, as in its own build. Blocks are registered as `<Id>Block<Type>` (`PhotographerBlockHero`) and `<CmsBlocks>` gets the prefix. A design's server handlers answer only on its own sites (Wedding's `POST /api/gift/:id/reserve` answers 404 on a Photographer site). Before a build it checks that look ids are unique, that every look has its stylesheet, and that no two designs answer the same address.
+- At run time a design is one object, `useDesign()`: its words, entry pages, looks, block prefix, look parts and look stylesheets. The server takes the design from the site's content model (`cmsSiteModel().name`, in the kit's `server/middleware/design.ts`); the browser gets it with the page. It never comes from the request. `packages/cms` is unchanged.
+- Each look part is a chunk of its own, loaded when a page of its look needs it, on the server and in the browser before the page is drawn. The admin's live preview changes the look in place: the new look's parts and stylesheet load and take over.
+- Each look's stylesheet is a file of its own, linked after the main stylesheet only on that look's pages. It holds the look's `@font-face` rules: in the one app no design's typeface is global, so the HTML no longer carries every family's rules. (The admin's three families stay global, as before.) The look's file goes through the same CSS steps as before, when it was part of `main.css`.
+- One main stylesheet for all designs. The utilities of all 20 templates together add about 27 KB gzipped to one template's (39 KB against 11 to 13 KB, measured with Tailwind's CLI), under the 40 KB limit of the plan, so there is no stylesheet per design. A design's own base rules and its theme values that differ from the shared ones are in its `design.css`, under `html[data-design="<id>"]`.
+- Type checks: one TypeScript project per design (`templates/app/scripts/typecheck.mjs <id>`, about 7 seconds), as strict as the template's own. A broken field in Photographer's generated client fails Photographer's check only. A moved template's `pnpm typecheck` runs both its own check and the one app's.
+- Scripts in `templates/app/scripts`: `relative-imports.mjs` and `theme-diff.mjs` (the two mechanical steps of moving a template), `dev.mjs` (`pnpm --filter tinyzoo-template-app dev <id>`: the development server with that design and one site of it), and `sites.mjs`, `serve.mjs`, `shots.mjs`, `compare-shots.mjs`, `measure.mjs` (sites made by hand for a built server, pictures of every look, their comparison, and the numbers below).
+
+**Every look renders as before.** 51 pictures of the three templates (each look's home page at 1440 and 390 pixels wide, its two other colour presets, Photographer's album and category pages, each look's 404 page), taken from each template's own build on `main` and from the one app with the same sites and content: all 51 are identical to the pixel. One thing to know when comparing: Google Fonts answers the same request with different font files at different times (static files or generated ones). Two builds of `main` an hour apart differed by up to 0.16 % of the pixels on one look (Ateliér) for this reason alone. The comparison above used builds whose font files came from the same kind of answer.
+
+**The numbers.** One machine (Apple silicon, 16 cores, 64 GB), Node 24, production builds. "Today" is the three templates each built and run on its own; "one app" carries the three designs. Memory is the resident memory of the processes, each serving one site per look (9 sites in all).
+
+| | Today: 3 templates | One app, 1 design | One app, 3 designs |
+|---|---|---|---|
+| Build, warm font cache | 17.1 + 16.6 + 16.9 = 50.6 s | 17.1 s | 18.8 s and 20.0 s |
+| Build, cold | 22.3 + 18.1 + 18.3 = 58.7 s | 18.4 s | 20.7 s |
+| Peak memory of a build | 4.1 GB each (warm) | 4.3 GB | 4.4 GB (4.7 GB cold) |
+| `.output` | 56.9 + 56.0 + 55.8 = 168.7 MB | 58.2 MB | 61.6 MB |
+| Browser files (`_nuxt`) | 244 JS + 8 CSS each | 300 JS + 14 CSS | 415 JS + 20 CSS |
+| Main stylesheet | 276–283 KB, 40–42 KB gzipped (with its three looks) | 281 KB, 41 KB gzipped | 281 KB, 41 KB gzipped (no looks) |
+| Process answers after start | 0.52–0.54 s each | 0.85 s | 1.15 s |
+| Memory 30 s after start | 300 + 301 + 301 = 902 MB | 302 MB | 304 MB |
+| Memory after the warm-up | 537 + 528 + 581 = 1 646 MB | 584 MB | 640 MB |
+| Memory 60 s later | 1 646 MB | 584 MB | 640 MB |
+| First answer of a site after start | 205–232 ms for each template's first site, 58–77 ms for the others | 252 ms, then 116 ms | 238 ms for the first site; 162 and 136 ms for the first site of the other two designs; 95–120 ms for the rest |
+| Home page, 200 in a row (median / 95th percentile) | 39–45 ms / 45–51 ms | 34–36 ms / 40–42 ms | 33–36 ms / 37–41 ms |
+| Development server, first page | 10.4–11.2 s (Photographer) | 8.3–8.6 s | 7.9–8.1 s |
+
+The warm-up was, for every site, 50 rounds of its home page, its entry pages, a missing address, `/sitemap.xml`, `/robots.txt` and `/admin/login`. Memory did not fall in the 60 seconds after it.
+
+What a visitor downloads for a look's home page with an empty cache (pictures left out; gzipped sizes; "JS" counts the scripts and the chunks Nuxt preloads):
+
+| Look | HTML | CSS (files, size) | JS (files, size) | Typefaces (files, size) |
+|---|---|---|---|---|
+| Photographer, Ateliér | 30 → 25 KB | 1, 42 KB → 3, 45 KB | 165, 737 KB → 181, 714 KB | 7, 523 KB → same |
+| Photographer, Negativ | 31 → 26 KB | 1, 42 KB → 3, 46 KB | 165, 737 KB → 182, 725 KB | 4, 214 KB → same |
+| Photographer, Zápisník | 32 → 27 KB | 1, 42 KB → 3, 45 KB | 165, 737 KB → 181, 715 KB | 4, 65 KB → same |
+| Wedding, Oznámení | 32 → 28 KB | 1, 40 KB → 3, 44 KB | 165, 733 KB → 185, 727 KB | 6, 82 KB → same |
+| Wedding, Večer | 32 → 29 KB | 1, 40 KB → 3, 45 KB | 165, 733 KB → 185, 727 KB | 6, 493 KB → same |
+| Wedding, Magazín | 32 → 29 KB | 1, 40 KB → 3, 45 KB | 165, 733 KB → 184, 717 KB | 6, 202 KB → same |
+| Restaurant, Salon | 35 → 30 KB | 1, 41 KB → 3, 45 KB | 163, 738 KB → 182, 729 KB | 6, 160 KB → same |
+| Restaurant, Talíř | 33 → 29 KB | 1, 41 KB → 3, 45 KB | 163, 738 KB → 182, 729 KB | 4, 153 KB → same |
+| Restaurant, Paragon | 34 → 29 KB | 1, 41 KB → 3, 45 KB | 163, 738 KB → 182, 729 KB | 6, 90 KB → same |
+
+On average a page is 12 KB smaller (809 KB → 797 KB gzipped): the HTML loses the design families' `@font-face` rules, the scripts lose the other looks' parts, the stylesheets gain the look's own file and a small one that a template's own build put into the HTML. Each look loads exactly the typefaces it loaded before.
+
+**Extrapolated to 20 designs.** This is an extrapolation from one and three designs, the way the plan describes it (value(20) = value(1) + 19 × (value(3) − value(1)) / 2), not a measurement:
+
+| | Today: 20 templates | One app with 20 designs (extrapolated) |
+|---|---|---|
+| Build | about 20 × 17 s = 5.7 min | about 17.1 + 19 × 1.2 = 40 s |
+| Peak memory of a build | 4.1 GB, 20 times | about 5.3 GB, once |
+| `.output` | about 20 × 56 MB = 1.1 GB | about 58 + 19 × 1.7 = 90 MB |
+| Memory after the warm-up, three sites per design | about 20 × 550 MB = 11 GB in 20 processes | about 584 + 19 × 28 = 1.1 GB in one process |
+
+The memory of the one app grew by 28 MB for each further design in this measurement, and that includes its three sites. Sites use memory of their own too; a process with hundreds of sites needs its own measurement.
+
+**Against the plan's rules.** CSS: the union adds 27 KB, under 40 KB (one stylesheet). Memory: one app with three designs needs 640 MB after the warm-up, 1.2 times one template's 549 MB on average, under the limit of 1.3. Build: the extrapolated 20-design build is about 40 seconds, far under 10 minutes.
+
+**Not done yet.**
+
+- The cloud still runs each template's own build. The local driver starts a template's server for one site in single mode; the one app runs in multi-tenant mode only, so the driver (or a new one) must write a directory row with the site's `model`, as the shared driver does. `templates:build`, `pictures --real` and `e2e --templates` work with the templates' own builds; the pictures above were taken with `templates/app/scripts/shots.mjs`.
+- The other 17 templates. Moving one takes a few minutes of mechanical steps (below) plus its pictures. Blog's `ctvrthodinka` and Trades' `mistr` need one line each in their look's stylesheet (a typeface their template's theme gives them by default); `theme-diff.mjs` does not report them yet.
+- After the cloud has switched: the templates' own `nuxt.config.ts`, `main.css` and build scripts go, and so does the kit's way of building one template.
+
+**Moving a template** (`<id>`), from the repository's root:
+
+1. `node templates/app/scripts/relative-imports.mjs <id>`
+2. Move the `fonts` families of `templates/<id>/nuxt.config.ts` into `templates/<id>/fonts.ts` (without `global`) and set `fonts: ownFonts(designFonts)` in `nuxt.config.ts`.
+3. `node templates/app/scripts/theme-diff.mjs <id> --write`, then add its `design.css` `@import` and an `@source "../../../../<id>";` line to `templates/app/app/assets/css/main.css`.
+4. Add the design to `templates/app/designs.ts` and the model to `templates/app/cms.config.ts`.
+5. Set the template's `typecheck` script to `node ../kit/scripts/typecheck.mjs && node ../app/scripts/typecheck.mjs <id>` and run it.
+6. Build both, take the pictures of both with `shots.mjs` and compare them with `compare-shots.mjs`.

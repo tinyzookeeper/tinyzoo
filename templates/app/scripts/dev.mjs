@@ -1,8 +1,9 @@
 // Work on one template in the one app: the development server with only that design, and one
 // site of it at http://localhost:<port>.
 //
-//   pnpm --filter tinyzoo-template-app dev photographer [--port 3000]
+//   pnpm --filter tinyzoo-template-app dev photographer [--port 3000] [--all]
 //
+// `--all`: the development server with every design of the app (the site is still drawn in its own).
 // The one app has no content model of its own, so it runs in multi-tenant mode only. This script
 // writes a site directory with one site (its model and design: the template), makes the site's
 // database if it is not there yet (`tz_app_<id>_dev` on the Postgres server of DATABASE_URL,
@@ -20,7 +21,7 @@ const id = process.argv[2]
 // The designs of designs.ts, read as text (its imports are written for Nuxt's loader, not Node's).
 const designs = [...(/DESIGNS[^=]*=\s*\{([^}]*)\}/.exec(readFileSync(join(appDir, 'designs.ts'), 'utf8'))?.[1] ?? '').matchAll(/^\s*['"]?([a-z][a-z0-9-]*)['"]?\s*[:,]/gm)].map((m) => m[1])
 if (!id || !designs.includes(id)) {
-  console.error(`usage: pnpm dev <design> [--port 3000]   (the designs of this app: ${designs.join(', ') || 'none yet'})`)
+  console.error(`usage: pnpm dev <design> [--port 3000] [--all]   (the designs of this app: ${designs.join(', ') || 'none yet'})`)
   process.exit(2)
 }
 const port = Number(arg('port', 3000))
@@ -65,7 +66,7 @@ writeFileSync(directoryFile, JSON.stringify({
 const child = spawn('pnpm', ['exec', 'nuxt', 'dev', '--port', String(port)], {
   cwd: appDir, stdio: 'inherit',
   env: {
-    ...process.env, TZ_DESIGNS: id, NUXT_APP_SECRET: secret,
+    ...process.env, ...(arg('all', false) === true ? {} : { TZ_DESIGNS: id }), NUXT_APP_SECRET: secret,
     NUXT_CMS_TENANCY_MODE: 'multi', NUXT_CMS_TENANCY_FILE: directoryFile, NUXT_CMS_MIGRATIONS_ON_START: 'true', NUXT_CMS_MAIL_TRANSPORT: 'file',
   },
 })
