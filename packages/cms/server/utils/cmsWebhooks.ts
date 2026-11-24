@@ -28,7 +28,7 @@ const retryDelays = (): number[] => { const first = cmsTimerMs('CMS_TEST_WEBHOOK
 const TIMEOUT_MS = 5_000
 
 export function webhookConfig(): { urls: string[]; secret: string } {
-  const cfg = (useRuntimeConfig().cms as any)?.webhooks ?? {}
+  const cfg = cmsSettings().webhooks ?? {}
   const raw: string = Array.isArray(cfg.urls) ? cfg.urls.join(',') : String(cfg.urls || '')
   const urls = raw.split(/[\s,]+/).map((u) => u.trim()).filter((u) => {
     try {
@@ -50,16 +50,17 @@ export async function signWebhook(secret: string, timestamp: number, body: strin
   return toHex(await crypto.subtle.sign('HMAC', key, enc.encode(`${timestamp}.${body}`)))
 }
 
-let warnedUnsigned = false
+const warnedUnsigned = cmsProcessWide({ done: false }, 'one log line per process')
 
 /** Send a change to every webhook URL. Never rejects. */
 export async function sendWebhooks(change: CmsChange): Promise<void> {
+  // Read now, inside the site: the retries run later, from timers.
   const { urls, secret } = webhookConfig()
   if (!urls.length) return
   if (!secret) {
     const production = typeof process !== 'undefined' && process.env?.NODE_ENV === 'production'
-    if (!warnedUnsigned) {
-      warnedUnsigned = true
+    if (!warnedUnsigned.done) {
+      warnedUnsigned.done = true
       console.warn(production
         ? '[cms] webhooks are not sent: set NUXT_CMS_WEBHOOKS_SECRET'
         : '[cms] webhooks are sent unsigned (development) — set NUXT_CMS_WEBHOOKS_SECRET')

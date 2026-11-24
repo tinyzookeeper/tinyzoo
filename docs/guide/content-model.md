@@ -104,7 +104,7 @@ Every field is made by an `f.*` factory, then refined with modifiers. The set is
 | `f.number({ int, min, max })` | a number box | `integer` (`int: false`: `numeric(12,2)`) | counts, positions, prices |
 | `f.boolean({ default, mustBeTrue })` | a switch | `boolean`, never null (default `false`) | "Show on the home page", "Open in a new tab" |
 | `f.datetime({ default: 'now', allDay })` | a date and time picker in the admin's time zone | `timestamptz` | when something happens or goes live |
-| `f.select({ options, default, labels, icons })` | a choice | a Postgres enum | status, kind, category |
+| `f.select({ options, default, labels, icons, optionsBy, swatches })` | a choice | a Postgres enum | status, kind, category |
 | `f.richtext()` | a rich-text editor: headings, bold, lists, quotes, links, inline pictures | `jsonb` (a TipTap document) | articles and formatted text |
 | `f.color()` | a colour picker and a `#rrggbb` box | `text` | a category's colour, an accent |
 | `f.media({ accept })` | a picture from the media library, or an upload | a foreign key to the library | one picture |
@@ -163,6 +163,19 @@ Fields in the admin read as a few titled sections. Name them with `admin.section
 **Datetime.** `allDay: true` adds an "All day" switch and stores the time as 0:00 in the admin's time zone (`cms.admin.timeZone`, `Europe/Prague` unless you set another). The content API sends it in UTC, so a frontend in another zone must format it in the admin's zone. See [all-day dates](content-api-reference.md#all-day-dates).
 
 **Select.** `options` must be `as const`. `labels` give each option a name per admin language, and `icons` give it an icon.
+
+`optionsBy` makes the options the admin offers depend on another choice of the same form, such as the colours of the chosen look:
+
+```ts
+look: f.select({ options: ['atelier', 'negativ'] as const, default: 'atelier' }),
+colors: f.select({
+  options: ['bronz', 'oliva', 'mosaz', 'salvej'] as const, default: 'bronz',
+  optionsBy: { field: 'look', options: { atelier: ['bronz', 'oliva'], negativ: ['mosaz', 'salvej'] } },
+  swatches: { bronz: ['#7a5a3a', '#faf8f4'], oliva: ['#4e5b3a', '#f9f9f3'] },
+}),
+```
+
+While `look` is `atelier` the admin offers `bronz` and `oliva`. When an editor changes `look` and the chosen colours are no longer offered, the admin moves them to the first option that is. A value of the other field that has no list offers every option. The rule is the admin's: the column and the content API still take any of `options`, so the website decides what a pair that does not match means. `swatches` shows a few hex colours as dots beside an option's name.
 
 **Rich text.** The TipTap document is sanitised on write and at render. Draw it with `<CmsContent :doc="…" />`. Its node and mark names are frozen for 1.x, and a minor release may add new ones ([rich text](content-api-reference.md#rich-text)).
 

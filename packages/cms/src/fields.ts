@@ -323,15 +323,39 @@ export const f = {
       labels?: Partial<Record<T[number], LocalizedText>>
       /** An icon per option (any Iconify name, e.g. `i-lucide-trophy`), shown on the choice buttons. */
       icons?: Partial<Record<T[number], string>>
+      /**
+       * The options the admin offers depend on another choice of the same form:
+       * `{ field: 'look', options: { atelier: ['bronz', 'oliva'], negativ: ['mosaz'] } }` offers
+       * `bronz` and `oliva` while `look` is `atelier`. When the other field changes and the
+       * value is no longer offered, the admin moves it to the first option that is. A value of
+       * the other field that is not listed offers every option. The stored value is still any
+       * of `options`: the content API takes each of them.
+       */
+      optionsBy?: { field: string; options: Record<string, readonly T[number][]> }
+      /** A few colours per option (hex, e.g. `['#7a5a3a', '#faf8f4']`), shown as dots beside its name: a palette. */
+      swatches?: Partial<Record<T[number], readonly string[]>>
     },
-  ) =>
-    as<ScalarKind<T[number], T[number], undefined extends D ? false : true>>(createField({
+  ) => {
+    for (const [value, list] of Object.entries(o.optionsBy?.options ?? {})) {
+      const unknown = list.find((v) => !o.options.includes(v))
+      if (unknown !== undefined) throw new Error(`f.select: optionsBy lists "${unknown}" under "${value}", which is not one of the options.`)
+      if (!list.length) throw new Error(`f.select: optionsBy lists no option under "${value}".`)
+    }
+    for (const [value, colors] of Object.entries(o.swatches ?? {}) as [string, readonly string[]][]) {
+      const bad = colors.find((c) => !/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(c))
+      if (bad !== undefined) throw new Error(`f.select: the swatch "${bad}" of "${value}" is not a hex colour (for example "#7a5a3a").`)
+    }
+    return as<ScalarKind<T[number], T[number], undefined extends D ? false : true>>(createField({
       type: 'select', ui: { edit: 'CmsFieldSelect', cell: 'CmsCellBadge' },
       base: { kind: 'enum', values: o.options },
       tsType: o.options.map((v) => `'${v}'`).join(' | '),
-      meta: { options: o.options, ...(o.labels ? { labels: o.labels } : {}), ...(o.icons ? { icons: o.icons } : {}) },
+      meta: {
+        options: o.options, ...(o.labels ? { labels: o.labels } : {}), ...(o.icons ? { icons: o.icons } : {}),
+        ...(o.optionsBy ? { optionsBy: o.optionsBy } : {}), ...(o.swatches ? { swatches: o.swatches } : {}),
+      },
       zod: () => z.enum([...o.options] as [string, ...string[]]),
-    }, { default: o.default })),
+    }, { default: o.default }))
+  },
 
   richtext: () =>
     as<ScalarKind<RichTextDoc>>(createField({

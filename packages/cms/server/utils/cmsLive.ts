@@ -18,6 +18,13 @@ import { eq, inArray, type CmsChange } from 'tinyzoo'
  * people disappear on their own). Content changes arrive through onCmsChange, which
  * already covers changes saved on other replicas.
  *
+ * Multi-tenant mode: a hub per site (its sockets, topics, presence and names), so people
+ * on `list:post` of one site never hear about another site's, whatever ids the two share.
+ * A hub runs while someone is connected to its site here: its heartbeat runs inside the
+ * site, and a presence message on the shared channel names its site. A hub that starts
+ * asks the other replicas who is on the site (`hello`), so its first person does not
+ * wait a heartbeat to see the colleagues connected elsewhere.
+ *
  * Server → browser messages:
  *   { type: 'presence', topic, people: [{ id, name, editing }] }   (including you)
  *   { type: 'change', topic, change: { type, entity, id, locale, by, byName, at } }
@@ -70,13 +77,28 @@ const MAX_SOCKETS_PER_USER = 10
 const RATE_WINDOW_MS = 10_000
 const RATE_MAX = 60
 
-const local = new Map<string, LocalPeer>()
-/** topic → `${instance}:${peer}` → what another replica said about one of its peers. */
-const remote = new Map<string, Map<string, { person: Person; at: number }>>()
+/** One site's hub (single mode: the one there is). */
+interface Hub {
+  /** The site's id: the heartbeat and a message from another replica find the site by it. */
+  site: string
+  local: Map<string, LocalPeer>
+  /** topic → `${instance}:${peer}` → what another replica said about one of its peers. */
+  remote: Map<string, Map<string, { person: Person; at: number }>>
+  /** People's names for change notices, kept a minute. */
+  names: Map<string, { name: string; at: number }>
+  timer: ReturnType<typeof setInterval> | null
+  stopChanges: (() => void) | null
+}
 
-let started: Promise<void> | null = null
-let timer: ReturnType<typeof setInterval> | null = null
-let stopChanges: (() => void) | null = null
+/** A site that is unloaded (it left the directory, or its row changed) lets its sockets go: a live browser reconnects and is admitted afresh. */
+const hub = cmsSiteScoped<Hub>(() => ({ site: useCmsSite().id, local: new Map(), remote: new Map(), names: new Map(), timer: null, stopChanges: null }), {
+  dispose: (h) => stopHub(h, 4000, 'Reconnect'),
+  // A site with open admin tabs is in use, however long ago its last request was.
+  inUse: (h) => h.local.size > 0,
+})
+/** The hubs that run, by site id. */
+const running = cmsProcessWide(new Map<string, Hub>(), 'the hubs that run: the one subscription below finds the hub a message is for, and a stopping server stops them all')
+const listening = cmsProcessWide({ started: null as Promise<void> | null }, 'one subscription to the live channel serves every site')
 
 /**
  * Start listening to other replicas and to content changes (once, on the first
@@ -84,36 +106,68 @@ let stopChanges: (() => void) | null = null
  * socket — presence then stays on this instance until it is back.
  */
 function start(): void {
-  if (started) return
-  timer = setInterval(() => { void heartbeat() }, cmsTimerMs('CMS_TEST_LIVE_HEARTBEAT_MS', HEARTBEAT_MS))
-  ;(timer as any).unref?.()
-  stopChanges = onCmsChange((change) => { void deliverChange(change).catch((err) => console.error('[cms] realtime delivery failed', scrubError(err))) })
-  started = (async () => {
+  const h = hub()
+  if (h.timer) return
+  // A timer carries no site of its own: the heartbeat is run inside the hub's, looked up as the directory has it now.
+  h.timer = setInterval(() => {
+    const site = cmsSiteById(h.site)
+    if (site) void runInCmsSite(site, heartbeat)
+  }, cmsTimerMs('CMS_TEST_LIVE_HEARTBEAT_MS', HEARTBEAT_MS))
+  ;(h.timer as any).unref?.()
+  h.stopChanges = onCmsChange((change) => { void deliverChange(change).catch((err) => console.error('[cms] realtime delivery failed', scrubError(err))) })
+  running.set(h.site, h)
+  // One subscription for the process, made by the first hub but not inside its site.
+  listening.started ??= outsideCmsSite(() => (async () => {
     const store = await useCmsStore()
     await store.subscribe(LIVE_CHANNEL, (raw) => {
       try {
-        onRemote(JSON.parse(raw))
+        const msg = JSON.parse(raw)
+        // The message names its site (multi-tenant mode) and is for that site's hub. No
+        // hub here, because nobody is connected to that site: nothing to tell, nothing kept.
+        const to = running.get(channelSiteId(msg) ?? '')
+        const site = to ? cmsSiteById(to.site) : null
+        if (site) runInCmsSite(site, () => onRemote(msg))
       }
       catch { /* not ours */ }
     })
-  })().catch((err) => console.error('[cms] realtime cannot hear other instances', scrubError(err)))
+  })().catch((err) => console.error('[cms] realtime cannot hear other instances', scrubError(err))))
+  // Multi-tenant mode: this hub started with the site's first socket on this instance, so it has
+  // not been listening for the site and knows nobody on the other instances. They would say who
+  // is there at their next heartbeat (up to 20 s): ask them now, once this instance listens.
+  if (cmsIsMultiTenant()) void listening.started.then(() => askWhoIsHere())
 }
 
-/** Stop timers and listeners (server shutdown, dev reload). */
+/** Ask the other instances to announce their people of the current site again (see `onRemote`). */
+async function askWhoIsHere(): Promise<void> {
+  try {
+    const store = await useCmsStore()
+    await store.publish(LIVE_CHANNEL, channelMessage({ origin: instanceId(), hello: true }))
+  }
+  catch { /* their next heartbeat says it */ }
+}
+
+/** Stop one hub: its timer, its listener, its sockets. Needs no current site (a site being unloaded has none). */
+function stopHub(h: Hub, code: number, reason: string): void {
+  if (h.timer) clearInterval(h.timer)
+  h.timer = null
+  h.stopChanges?.()
+  h.stopChanges = null
+  if (running.get(h.site) === h) running.delete(h.site)
+  for (const p of h.local.values()) p.socket.close(code, reason)
+  h.local.clear()
+  h.remote.clear()
+}
+
+/** Stop timers and listeners (server shutdown, dev reload): every site's hub. */
 export function stopLive(): void {
-  if (timer) clearInterval(timer)
-  timer = null
-  stopChanges?.()
-  stopChanges = null
-  started = null
-  for (const p of local.values()) p.socket.close(1001, 'Server shutting down')
-  local.clear()
-  remote.clear()
+  for (const h of [...running.values()]) stopHub(h, 1001, 'Server shutting down')
+  listening.started = null
 }
 
 // ── connections ──
 
 export function liveOpen(socket: LiveSocket, user: CmsUser, sv: number, iat: number): void {
+  const { local } = hub()
   const mine = [...local.values()].filter((p) => p.user.id === user.id)
   if (mine.length >= MAX_SOCKETS_PER_USER) {
     // Too many tabs: the oldest one gives way.
@@ -127,6 +181,7 @@ export function liveOpen(socket: LiveSocket, user: CmsUser, sv: number, iat: num
 }
 
 export function liveClose(socket: LiveSocket): void {
+  const { local } = hub()
   const p = local.get(socket.id)
   if (!p) return
   local.delete(socket.id)
@@ -137,6 +192,7 @@ export function liveClose(socket: LiveSocket): void {
 }
 
 export function liveMessage(socket: LiveSocket, text: string): Promise<void> {
+  const { local } = hub()
   const p = local.get(socket.id)
   if (!p) return Promise.resolve()
   const now = Date.now()
@@ -152,6 +208,7 @@ export function liveMessage(socket: LiveSocket, text: string): Promise<void> {
 }
 
 async function handle(p: LocalPeer, text: string): Promise<void> {
+  const { local } = hub()
   if (!local.has(p.socket.id)) return // closed meanwhile
   if (text.length > MAX_MESSAGE) return send(p, { type: 'error', message: 'Message too large' })
   let msg: any
@@ -229,6 +286,7 @@ const personOf = (p: LocalPeer, topic: string): Person => ({ id: p.user.id, name
 
 /** Everyone on a topic, one entry per person (several tabs: editing if any tab is). */
 export function presenceOf(topic: string): Person[] {
+  const { local, remote } = hub()
   const byId = new Map<string, Person>()
   const add = (person: Person) => {
     const seen = byId.get(person.id)
@@ -243,27 +301,35 @@ export function presenceOf(topic: string): Person[] {
 
 function broadcastPresence(topic: string): void {
   const people = presenceOf(topic)
-  for (const p of local.values()) if (p.topics.has(topic)) send(p, { type: 'presence', topic, people })
+  for (const p of hub().local.values()) if (p.topics.has(topic)) send(p, { type: 'presence', topic, people })
 }
 
-let lastAnnounceError = 0
+const announceError = cmsProcessWide({ at: 0 }, 'a log throttle: one line a minute while Redis is down, whatever the site')
 
 async function announce(topic: string, peerId: string, person: Person | null): Promise<void> {
   try {
     const store = await useCmsStore()
-    await store.publish(LIVE_CHANNEL, JSON.stringify({ origin: instanceId(), topic, peer: peerId, person }))
+    await store.publish(LIVE_CHANNEL, channelMessage({ origin: instanceId(), topic, peer: peerId, person }))
   }
   catch (err) {
     // One line a minute is enough while Redis is down.
-    if (Date.now() - lastAnnounceError > 60_000) {
-      lastAnnounceError = Date.now()
+    if (Date.now() - announceError.at > 60_000) {
+      announceError.at = Date.now()
       console.error('[cms] realtime announce failed', safeErrorMessage(err))
     }
   }
 }
 
+/** What another replica said about one of its peers of this site (called inside the site). */
 function onRemote(msg: any): void {
-  if (!msg || msg.origin === instanceId() || typeof msg.topic !== 'string' || typeof msg.peer !== 'string') return
+  const { local, remote } = hub()
+  if (!msg || msg.origin === instanceId()) return
+  if (msg.hello === true) {
+    // Another instance started its hub for this site and asks who is here: say it again now.
+    for (const [id, p] of local) for (const topic of p.topics.keys()) void announce(topic, id, personOf(p, topic))
+    return
+  }
+  if (typeof msg.topic !== 'string' || typeof msg.peer !== 'string') return
   if (!parseTopic(msg.topic)) return
   const key = `${msg.origin}:${msg.peer}`
   let map = remote.get(msg.topic)
@@ -287,6 +353,13 @@ function onRemote(msg: any): void {
  * quiet, and drop sockets whose account may no longer be used.
  */
 async function heartbeat(): Promise<void> {
+  const h = hub()
+  const { local, remote } = h
+  // Multi-tenant mode: a site nobody is connected to here keeps no timer and no list of
+  // other replicas' people; its next socket starts the hub again. (The one hub of single
+  // mode runs on, as always.) Not at once when the last socket leaves: a tab that
+  // reloads is back before the next beat.
+  if (cmsIsMultiTenant() && !local.size) return stopHub(h, 4000, 'Reconnect')
   const now0 = Date.now()
   for (const p of [...local.values()]) {
     // Gone quiet (no answer to the last pings) or open too long: drop it — a live
@@ -313,6 +386,7 @@ async function heartbeat(): Promise<void> {
 
 /** Entry watches under a row rule (authors' own entries): still allowed? */
 async function recheckRowWatches(): Promise<void> {
+  const { local } = hub()
   for (const p of [...local.values()]) {
     for (const [topic, w] of [...p.topics]) {
       if (!w.rowFiltered || !topic.startsWith('entry:')) continue
@@ -326,6 +400,7 @@ async function recheckRowWatches(): Promise<void> {
 }
 
 async function recheckAccounts(): Promise<void> {
+  const { local } = hub()
   const ids = [...new Set([...local.values()].map((p) => p.user.id))]
   if (!ids.length) return
   const { db, reg } = useCms()
@@ -345,10 +420,9 @@ async function recheckAccounts(): Promise<void> {
 
 // ── content changes ──
 
-const names = new Map<string, { name: string; at: number }>()
-
 async function nameOf(userId: string | null): Promise<string | null> {
   if (!userId) return null
+  const { names } = hub()
   const hit = names.get(userId)
   if (hit && Date.now() - hit.at < 60_000) return hit.name
   try {
@@ -365,6 +439,7 @@ async function nameOf(userId: string | null): Promise<string | null> {
 }
 
 async function deliverChange(change: CmsChange): Promise<void> {
+  const { local } = hub()
   const topics = [`list:${change.entity}`, `entry:${change.entity}:${change.id}`]
   const recipients = [...local.values()].filter((p) => topics.some((t) => p.topics.has(t)))
   if (!recipients.length) return
@@ -392,5 +467,6 @@ function send(p: LocalPeer, msg: unknown): void {
 
 /** For tests and diagnostics. */
 export function liveStats() {
+  const { local, remote, timer } = hub()
   return { sockets: local.size, remoteTopics: remote.size, running: !!timer }
 }

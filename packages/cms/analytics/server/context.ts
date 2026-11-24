@@ -31,14 +31,15 @@ export function serverAllowsCollecting(): boolean {
 // ── the settings (analytics_settings): collect or not ─────────────────────────────
 const SETTINGS = 'analytics_settings'
 const SETTINGS_MS = 30_000
-let settings: { at: number; collect: boolean } | null = null
+const settingsCache = cmsSiteScoped<{ at: number; collect: boolean } | null>(() => null)
 
 export function forgetSettings(): void {
-  settings = null
+  settingsCache.set(null)
 }
 
 /** Whether an administrator left collecting on (true until the settings say otherwise). */
 export async function settingsAllowCollecting(): Promise<boolean> {
+  const settings = settingsCache()
   if (settings && Date.now() - settings.at < SETTINGS_MS) return settings.collect
   const { db, reg } = useCms()
   const e = reg.byName.get(SETTINGS)
@@ -47,7 +48,7 @@ export async function settingsAllowCollecting(): Promise<boolean> {
     const [row]: any[] = await db.select({ collect: (e.table as any).collect }).from(e.table).limit(1)
     if (row && row.collect === false) collect = false
   }
-  settings = { at: Date.now(), collect }
+  settingsCache.set({ at: Date.now(), collect })
   return collect
 }
 
@@ -64,44 +65,44 @@ export function requireAnalyticsReader(event: any) {
 }
 
 // ── the day's salt ─────────────────────────────────────────────────────────────────
-let salt: StoredSalt | null = null
-let saltLoading: Promise<StoredSalt> | null = null
+const saltState = cmsSiteScoped<{ salt: StoredSalt | null; loading: Promise<StoredSalt> | null }>(() => ({ salt: null, loading: null }))
 
 /**
  * The salt of `day`. One row in `cms_state`, replaced on the first visit of a new day (the old
  * one is gone with it), so every server of the site hashes with the same salt.
  */
 export async function saltOf(day: string): Promise<string> {
-  if (salt && salt.day >= day) return salt.salt
-  saltLoading ??= loadSalt(day).finally(() => { saltLoading = null })
-  return (await saltLoading).salt
+  const state = saltState()
+  if (state.salt && state.salt.day >= day) return state.salt.salt
+  state.loading ??= loadSalt(day).finally(() => { state.loading = null })
+  return (await state.loading).salt
 }
 
 async function loadSalt(day: string): Promise<StoredSalt> {
   const { db, reg } = useCms()
+  const state = saltState()
   const s = reg.cmsState
   const [row]: any[] = await db.select({ value: s.value }).from(s).where(eq(s.key, SALT_KEY))
   const next = saltFor(row?.value, day)
-  if (!next.changed) return (salt = next.salt)
+  if (!next.changed) return (state.salt = next.salt)
   // Replace only an older day's salt: when two servers start a day at once, the first one wins.
   const value = JSON.stringify(next.salt)
   const res: any = await db.execute(sql`insert into ${s} (key, value, updated_at) values (${SALT_KEY}, ${value}::jsonb, now())
     on conflict (key) do update set value = excluded.value, updated_at = now()
     where (${s.value}->>'day') < (excluded.value->>'day') returning value`)
-  if (res?.rows?.length) return (salt = next.salt)
+  if (res?.rows?.length) return (state.salt = next.salt)
   const [won]: any[] = await db.select({ value: s.value }).from(s).where(eq(s.key, SALT_KEY))
-  return (salt = saltFor(won?.value, day).salt)
+  return (state.salt = saltFor(won?.value, day).salt)
 }
 
 // ── which entry an address shows ───────────────────────────────────────────────────
 export interface EntryRef { entity: string; id: string; locale: string | null }
 
 const PATHS_MS = 10 * 60_000
-let paths: { at: number; map: Map<string, EntryRef> } | null = null
-let pathsLoading: Promise<Map<string, EntryRef>> | null = null
+const pathsState = cmsSiteScoped<{ paths: { at: number; map: Map<string, EntryRef> } | null; loading: Promise<Map<string, EntryRef>> | null }>(() => ({ paths: null, loading: null }))
 
 export function forgetEntryPaths(): void {
-  paths = null
+  pathsState().paths = null
 }
 
 /**
@@ -110,12 +111,13 @@ export function forgetEntryPaths(): void {
  * sitemap and links resolve them. Kept for ten minutes, and forgotten when content changes.
  */
 export async function entryAt(path: string): Promise<EntryRef | null> {
-  if (!paths || Date.now() - paths.at > PATHS_MS) {
-    pathsLoading ??= loadEntryPaths().finally(() => { pathsLoading = null })
-    const map = await pathsLoading
-    paths = { at: Date.now(), map }
+  const state = pathsState()
+  if (!state.paths || Date.now() - state.paths.at > PATHS_MS) {
+    state.loading ??= loadEntryPaths().finally(() => { state.loading = null })
+    const map = await state.loading
+    state.paths = { at: Date.now(), map }
   }
-  return paths.map.get(path) ?? null
+  return state.paths.map.get(path) ?? null
 }
 
 async function loadEntryPaths(): Promise<Map<string, EntryRef>> {

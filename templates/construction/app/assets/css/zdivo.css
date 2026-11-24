@@ -1,0 +1,99 @@
+/* Zdivo: the page laid like a wall. Plaster-coloured ground as the mortar, terracotta blocks in
+   a running bond (full bricks, half bricks, the joint moving from course to course), and the
+   build as a house that grows from the footing up to the topping-out tree. Rokkitt (a blocky
+   slab: headings, figures, quotes in italic) and Familjen Grotesk (text). Written in the
+   cascade layers the design was written in: utilities win over these rules where both speak. */
+html[data-look="zdivo"] {
+  --font-display: "Rokkitt", serif;
+  --font-sans: "Familjen Grotesk", sans-serif;
+  /* The colours of the first preset (Cihla); a preset from the settings overrides them. */
+  --plaster: #efe7d8; --card: #faf5ea; --ink: #24160f; --text: #47372d; --quiet: #6b594c;
+  --brand: #a9401f; --brand-ink: #fff8ec; --brand-d: #8f351a; --brand-2: #d06c41; --brand-3: #e6a47f;
+  --concrete: #56524d; --timber: #e4c690;
+  background: var(--plaster);
+}
+
+@layer base {
+  html[data-look="zdivo"] {
+    body { font-family: var(--font-sans); color: var(--text); background: var(--plaster); font-size: 17px; -webkit-font-smoothing: antialiased; }
+    .site :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  }
+}
+
+@layer components {
+  html[data-look="zdivo"] {
+    .wrap { max-width: 1280px; margin-inline: auto; padding-inline: 20px; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 40px; } }
+
+    [class*="font-display"], .h2, .brick b, .course h3, .course .d { word-spacing: -.12em; }
+    .eyebrow { font-weight: 600; font-size: 15px; letter-spacing: .01em; color: var(--brand); }
+    .h2 { font-family: var(--font-display); font-weight: 800; font-size: 44px; line-height: .98; letter-spacing: -.015em; color: var(--ink); }
+    @media (min-width: 40rem) { .h2 { font-size: 62px; } }
+
+    /* the wall: bricks in a running bond, the page colour is the mortar */
+    .wall { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    @media (min-width: 64rem) { .wall { grid-template-columns: repeat(24, minmax(0, 1fr)); } }
+    .brick { border-radius: 4px; min-height: 96px; padding: 12px 16px; display: flex; flex-direction: column; justify-content: center; }
+    @media (min-width: 64rem) { .brick { min-height: 108px; padding: 14px 22px; } }
+    .t1 { background: var(--brand); color: var(--brand-ink); }
+    .t1d { background: var(--brand-d); color: var(--brand-ink); }
+    .t2 { background: var(--brand-2); color: var(--ink); }
+    .t3 { background: var(--brand-3); color: var(--ink); }
+    .brick b { font-family: var(--font-display); font-weight: 800; font-size: 34px; line-height: .95; letter-spacing: -.01em; }
+    @media (min-width: 64rem) { .brick b { font-size: 44px; } }
+    .brick span { font-size: 14px; line-height: 1.25; margin-top: 4px; font-weight: 500; }
+    @media (min-width: 64rem) { .brick span { font-size: 15px; } }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 24px; border-radius: 4px; font-weight: 700; font-size: 17px; transition: background-color .15s, color .15s, transform .15s; cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); }
+    .btn-brand:hover { background: var(--ink); color: var(--plaster); }
+    .btn-ink { background: var(--ink); color: var(--plaster); }
+    .btn-ink:hover { background: var(--card); color: var(--ink); }
+    .btn-line { box-shadow: inset 0 0 0 2px var(--ink); color: var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--plaster); }
+
+    .field { width: 100%; min-height: 50px; padding: 11px 14px; background: #fff; border: 2px solid color-mix(in srgb, var(--ink) 22%, transparent); border-radius: 4px; color: var(--ink); font-size: 16px; }
+    .field::placeholder { color: var(--quiet); opacity: .75; }
+    .field:focus { outline: none; border-color: var(--ink); }
+    .opt { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 8px 14px; border: 2px solid color-mix(in srgb, var(--ink) 22%, transparent); border-radius: 4px; background: #fff; color: var(--ink); cursor: pointer; font-size: 15px; font-weight: 500; }
+    .opt:has(input:checked) { border-color: var(--brand); background: color-mix(in srgb, var(--brand-3) 35%, #fff); }
+    .opt input { accent-color: var(--brand); }
+    .flabel { display: block; margin-bottom: 6px; font-size: 14px; font-weight: 600; color: var(--ink); }
+    .field-error { margin-top: 6px; font-size: 14px; font-weight: 600; color: var(--brand-d); }
+
+    .filter { min-height: 44px; padding: 0 16px; border-radius: 4px; font-weight: 600; font-size: 15px; color: var(--ink); background: var(--card); white-space: nowrap; transition: background-color .15s, color .15s; cursor: pointer; }
+    .filter:hover { background: var(--brand-3); }
+    .filter[aria-pressed="true"] { background: var(--ink); color: var(--plaster); }
+
+    /* courses of the build: concrete below, clay in the middle, timber on top */
+    .course { border-radius: 4px; padding: 14px 18px; display: grid; grid-template-columns: 34px 1fr auto; column-gap: 12px; align-items: center; }
+    @media (min-width: 40rem) { .course { grid-template-columns: 40px 200px 1fr auto; padding: 14px 24px; column-gap: 16px; } }
+    .course .n { font-family: var(--font-display); font-weight: 800; font-size: 26px; line-height: 1; opacity: .7; }
+    .course h3 { font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1.05; }
+    .course p { font-size: 15px; line-height: 1.4; grid-column: 2 / -1; margin-top: 4px; }
+    @media (min-width: 40rem) { .course p { grid-column: auto; margin-top: 0; } }
+    .course .d { font-family: var(--font-display); font-weight: 700; font-size: 22px; white-space: nowrap; text-align: right; }
+    .course .d { grid-column: 3; grid-row: 1; }
+    @media (min-width: 40rem) { .course .d { grid-column: auto; grid-row: auto; } }
+    .c-concrete { background: var(--concrete); color: #f4efe6; }
+    .c-clay { background: var(--brand); color: var(--brand-ink); }
+    .c-clay-d { background: var(--brand-d); color: var(--brand-ink); }
+    .c-timber { background: var(--timber); color: var(--ink); }
+
+    .bond-bg { background-color: var(--brand); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='144'%3E%3Cpath d='M0 1.5H280M0 73.5H280M1.5 0V72M141.5 72V144' stroke='%23000' stroke-opacity='.11' stroke-width='3' fill='none'/%3E%3C/svg%3E"); }
+
+    /* Text pages written in the editor (the privacy page): headings, lists and links in the look's own lines. */
+    .prose-look { max-width: 42rem; font-size: 17px; line-height: 1.55; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-weight: 800; font-size: 2rem; line-height: 1; letter-spacing: -.015em; color: var(--ink); margin-top: 2.4rem; word-spacing: -.12em; }
+    .prose-look h3 { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; line-height: 1.05; color: var(--ink); margin-top: 1.8rem; word-spacing: -.12em; }
+    .prose-look a { color: var(--brand); font-weight: 600; text-decoration: underline; text-underline-offset: 4px; }
+    .prose-look a:hover { text-decoration: none; }
+    .prose-look ul { list-style: disc; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-style: italic; font-weight: 500; font-size: 1.6rem; line-height: 1.18; color: var(--ink); background: var(--card); border-radius: 4px; padding: 1.25rem 1.5rem; }
+    .prose-look img { width: 100%; height: auto; border-radius: 4px; margin-block: 1.8rem; }
+    .prose-look strong { color: var(--ink); font-weight: 700; }
+  }
+}

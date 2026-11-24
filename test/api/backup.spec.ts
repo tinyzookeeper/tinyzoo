@@ -76,7 +76,7 @@ describe.skipIf(skip)('backup and restore', () => {
   let dst: Awaited<ReturnType<typeof bareDatabase>>
   let dir: string
   const local = (name: string): StorageSettings => ({ driver: 'local', localDir: join(dir, name), s3: { endpoint: '', region: '', bucket: '', accessKeyId: '', secretAccessKey: '' } })
-  const s3 = (endpoint: string): StorageSettings => ({ driver: 's3', localDir: '', s3: { endpoint, region: 'us-east-1', bucket: 'bucket', accessKeyId: 'AKIATEST', secretAccessKey: 'secret' } })
+  const s3 = (endpoint: string, prefix?: string): StorageSettings => ({ driver: 's3', localDir: '', s3: { endpoint, region: 'us-east-1', bucket: 'bucket', accessKeyId: 'AKIATEST', secretAccessKey: 'secret', prefix } })
   const settings = (databaseUrl: string, storage: StorageSettings): BackupSettings => ({ databaseUrl, storage })
 
   beforeAll(async () => {
@@ -187,6 +187,40 @@ describe.skipIf(skip)('backup and restore', () => {
         finally { await scratch.drop() }
       }
       finally { await target.stop() }
+      expect(bucket.unsigned).toEqual([])
+    }
+    finally { await bucket.stop() }
+  })
+
+  it('backs up a site that has a place of its own in a shared bucket (a prefix): exactly its files, under their keys without the prefix; a restore puts them under the target\'s prefix', async () => {
+    const bucket = s3Server()
+    const endpoint = await bucket.start()
+    try {
+      bucket.objects.set('sites/a/2026/11/a.png', { body: png, type: 'image/png' })
+      bucket.objects.set('sites/a/2026/11/b.txt', { body: Buffer.from('a\'s file'), type: 'text/plain' })
+      // Other sites in the same bucket, and a file at the root, under the very same keys.
+      bucket.objects.set('sites/b/2026/11/b.txt', { body: Buffer.from('b\'s file'), type: 'text/plain' })
+      bucket.objects.set('2026/11/b.txt', { body: Buffer.from('the root\'s file'), type: 'text/plain' })
+      const file = join(dir, 's3-prefix.tar')
+      const manifest = await runBackup(settings(src.url, s3(endpoint, 'sites/a/')), file, silent)
+      expect(manifest.media.map((m) => m.key).sort()).toEqual(['2026/11/a.png', '2026/11/b.txt'])
+      expect(manifest.missingMedia).toEqual(['2026/11/gone.png'])
+      const listing = spawnSync('tar', ['-tf', file], { encoding: 'utf8' }).stdout.split('\n').map((l) => l.replace(/^\.\//, ''))
+      expect(listing).toEqual(expect.arrayContaining(['media/2026/11/a.png', 'media/2026/11/b.txt']))
+      expect(listing.some((l) => l.includes('sites/'))).toBe(false)
+      expect(spawnSync('tar', ['-xOf', file, 'media/2026/11/b.txt'], { encoding: 'utf8' }).stdout).toBe('a\'s file')
+
+      const scratch = await bareDatabase('bkp_s3_prefix')
+      try {
+        await runRestore(settings(scratch.url, s3(endpoint, 'sites/c')), file, { yes: true }, silent)
+        expect(bucket.objects.get('sites/c/2026/11/b.txt')!.body.toString()).toBe('a\'s file')
+        expect(bucket.objects.get('sites/c/2026/11/a.png')!.type).toBe('image/png')
+        // Nothing else in the bucket was touched.
+        expect(bucket.objects.get('sites/b/2026/11/b.txt')!.body.toString()).toBe('b\'s file')
+        expect(bucket.objects.get('2026/11/b.txt')!.body.toString()).toBe('the root\'s file')
+        expect(bucket.objects.get('sites/a/2026/11/b.txt')!.body.toString()).toBe('a\'s file')
+      }
+      finally { await scratch.drop() }
       expect(bucket.unsigned).toEqual([])
     }
     finally { await bucket.stop() }

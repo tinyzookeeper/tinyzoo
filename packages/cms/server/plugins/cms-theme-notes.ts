@@ -3,6 +3,8 @@
 // what it finds in the files. Production adjusts quietly (cmsPublicAdminTheme sends no notes either).
 export default defineNitroPlugin(() => {
   if (!import.meta.dev || import.meta.prerender) return
+  // No site at start in multi mode.
+  if (cmsIsMultiTenant()) return
   // At start there is no request: the site's own settings (one site per server today).
   void cmsAdminTheme()
     .then((theme) => {

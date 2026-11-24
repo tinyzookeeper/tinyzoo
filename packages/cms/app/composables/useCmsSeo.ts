@@ -40,7 +40,9 @@ export function useCmsSeo(
   // carried to the browser, so client-side navigation writes the same tags.
   const base = useState<string>('cms-seo-base', () => {
     if (!import.meta.server) return ''
-    const configured = String((useRuntimeConfig() as any).cms?.publicUrl || '').replace(/\/+$/, '')
+    // Many sites share the server in multi mode: the request carries the site's own address.
+    const own = useRequestEvent()?.context?.cmsPublicUrl
+    const configured = String(typeof own === 'string' && own ? own : (useRuntimeConfig() as any).cms?.publicUrl || '').replace(/\/+$/, '')
     return configured || (import.meta.dev ? useRequestURL().origin : '')
   })
   // This item in every language it exists in: { cs: '/o-nas', en: '/en/about' }.

@@ -18,7 +18,8 @@ export interface ServedMedia {
 const POSITIVE_MS = 60_000
 const NEGATIVE_MS = 30_000
 const MAX_ENTRIES = 5000
-const cache = new Map<string, { value: ServedMedia | null; until: number }>()
+// Per site: the same key can name different files in two sites.
+const cache = cmsSiteScoped(() => new Map<string, { value: ServedMedia | null; until: number }>())
 
 /** `_w/640/2026/01/<uuid>.png.webp` → `2026/01/<uuid>.png` (a resized copy's original), else the key itself. */
 export function originalKeyOf(key: string): string | null {
@@ -32,19 +33,19 @@ export function originalKeyOf(key: string): string | null {
 export async function servedMedia(key: string): Promise<ServedMedia | null> {
   const original = originalKeyOf(key)
   if (!original) return null
-  const hit = cache.get(original)
+  const hit = cache().get(original)
   if (hit && hit.until > Date.now()) return hit.value
   const { db, reg } = useCms()
   const [row] = await db.select({ name: reg.cmsMedia.name, mime: reg.cmsMedia.mime }).from(reg.cmsMedia).where(eq(reg.cmsMedia.key, original)).limit(1)
   const value = row ? { name: row.name ?? null, mime: row.mime } : null
-  if (cache.size >= MAX_ENTRIES) cache.clear()
-  cache.set(original, { value, until: Date.now() + (value ? POSITIVE_MS : NEGATIVE_MS) })
+  if (cache().size >= MAX_ENTRIES) cache().clear()
+  cache().set(original, { value, until: Date.now() + (value ? POSITIVE_MS : NEGATIVE_MS) })
   return value
 }
 
 /** Forget a key (its file was just deleted). Other instances' copies expire by themselves. */
 export function forgetServedMedia(key: string): void {
-  cache.delete(key)
+  cache().delete(key)
 }
 
 /**

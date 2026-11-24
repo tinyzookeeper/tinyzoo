@@ -9,7 +9,7 @@ export interface CmsMailConfig {
 }
 
 export function cmsMailConfig(): CmsMailConfig {
-  const m = ((useRuntimeConfig().cms as any)?.mail ?? {}) as Partial<CmsMailConfig>
+  const m = (cmsSettings().mail ?? {}) as Partial<CmsMailConfig>
   return {
     transport: (m.transport as CmsMailConfig['transport']) || 'log',
     from: m.from || 'CMS <no-reply@localhost>',

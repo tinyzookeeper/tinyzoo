@@ -41,17 +41,20 @@ interface SourceEntry {
   until: number
 }
 
-const sources = new Map<string, SourceEntry>()
-const reading = new Map<string, Promise<CmsBrandSourceRead | null>>()
-const files = new Map<string, Buffer | { failed: true }>()
-const drawing = new Map<string, Promise<Buffer | null>>()
-const logged = new Set<string>()
+// Per site: two sites can use the same relative logo address for different files.
+const state = cmsSiteScoped(() => ({
+  sources: new Map<string, SourceEntry>(),
+  reading: new Map<string, Promise<CmsBrandSourceRead | null>>(),
+  files: new Map<string, Buffer | { failed: true }>(),
+  drawing: new Map<string, Promise<Buffer | null>>(),
+  logged: new Set<string>(),
+}))
 
-let tinyzooMark: CmsBrandSourceRead | null = null
+const tinyzooMark = cmsProcessWide<{ read: CmsBrandSourceRead | null }>({ read: null }, 'tinyzoo\'s own mark, the same for every site')
 /** tinyzoo's own mark: the icons without a client's mark, or when it cannot be read. */
 export function tinyzooMarkSource(): CmsBrandSourceRead {
-  tinyzooMark ??= { bytes: Buffer.from(TINYZOO_MARK_SVG), version: brandFileVersion(TINYZOO_MARK_SVG) }
-  return tinyzooMark
+  tinyzooMark.read ??= { bytes: Buffer.from(TINYZOO_MARK_SVG), version: brandFileVersion(TINYZOO_MARK_SVG) }
+  return tinyzooMark.read
 }
 
 function keep<V>(map: Map<string, V>, key: string, value: V, max: number) {
@@ -61,8 +64,8 @@ function keep<V>(map: Map<string, V>, key: string, value: V, max: number) {
 }
 
 function warnOnce(key: string, message: string) {
-  if (logged.has(key)) return
-  logged.add(key)
+  if (state().logged.has(key)) return
+  state().logged.add(key)
   console.warn(message)
 }
 
@@ -94,26 +97,26 @@ async function loadLogo(address: string): Promise<Buffer> {
 }
 
 function readAgain(address: string): Promise<CmsBrandSourceRead | null> {
-  let job = reading.get(address)
+  let job = state().reading.get(address)
   if (job) return job
   job = (async () => {
-    const before = sources.get(address)?.read ?? null
+    const before = state().sources.get(address)?.read ?? null
     try {
       const bytes = await loadLogo(address)
       const version = brandFileVersion(bytes)
       if (version !== before?.version) await checkLogoBytes(bytes)
       const read = version === before?.version ? before : { bytes, version }
-      keep(sources, address, { read, until: Date.now() + (isDev() ? 0 : BRAND_REFRESH_MS) }, MAX_SOURCES)
+      keep(state().sources, address, { read, until: Date.now() + (isDev() ? 0 : BRAND_REFRESH_MS) }, MAX_SOURCES)
       return read
     }
     catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
       warnOnce(`${address}\n${reason}`, `[cms] the admin logo ${JSON.stringify(address)} (cms.admin.logo) cannot be read: ${reason}. ${before ? 'The last good copy is used until it can.' : 'Until it can, the emails show the site’s name and the tab and home-screen icons are tinyzoo’s mark.'}`)
-      keep(sources, address, { read: before, until: Date.now() + (isDev() ? 0 : RETRY_AFTER_MS) }, MAX_SOURCES)
+      keep(state().sources, address, { read: before, until: Date.now() + (isDev() ? 0 : RETRY_AFTER_MS) }, MAX_SOURCES)
       return before
     }
-  })().finally(() => reading.delete(address))
-  reading.set(address, job)
+  })().finally(() => state().reading.delete(address))
+  state().reading.set(address, job)
   return job
 }
 
@@ -123,7 +126,7 @@ function readAgain(address: string): Promise<CmsBrandSourceRead | null> {
  * development reads the file every time.
  */
 export async function brandSource(address: string): Promise<CmsBrandSourceRead | null> {
-  const entry = sources.get(address)
+  const entry = state().sources.get(address)
   if (entry && Date.now() < entry.until) return entry.read
   if (entry?.read && !isDev()) {
     void readAgain(address)
@@ -140,21 +143,21 @@ export async function brandLogoFiles(logo: Pick<CmsAdminTheme['logo'], 'full' | 
 
 function draw(file: CmsBrandFile, source: CmsBrandSourceRead, address: string): Promise<Buffer | null> {
   const key = `${file}\n${source.version}`
-  const hit = files.get(key)
+  const hit = state().files.get(key)
   if (hit) return Promise.resolve(Buffer.isBuffer(hit) ? hit : null)
-  let job = drawing.get(key)
+  let job = state().drawing.get(key)
   if (!job) {
     // Drawn in the picture queue: never side by side with a photo being resized.
     job = cmsImageJob(() => renderBrandFile(file, source.bytes)).then((png) => {
-      keep(files, key, png, MAX_FILES)
+      keep(state().files, key, png, MAX_FILES)
       return png
     }, (err) => {
       // The same bytes fail the same way: remembered for this version, a changed file is a new one.
-      keep(files, key, { failed: true }, MAX_FILES)
+      keep(state().files, key, { failed: true }, MAX_FILES)
       warnOnce(key, `[cms] the admin logo ${JSON.stringify(address)} could not be made into ${file}: ${err instanceof Error ? err.message : String(err)}. Check cms.admin.logo in app.config.`)
       return null
-    }).finally(() => drawing.delete(key))
-    drawing.set(key, job)
+    }).finally(() => state().drawing.delete(key))
+    state().drawing.set(key, job)
   }
   return job
 }
@@ -179,7 +182,7 @@ export async function brandFilePng(file: CmsBrandFile, theme: Pick<CmsAdminTheme
 
 /** Forgets everything read and made (tests). @internal */
 export function resetBrandSources() {
-  sources.clear()
-  files.clear()
-  logged.clear()
+  state().sources.clear()
+  state().files.clear()
+  state().logged.clear()
 }

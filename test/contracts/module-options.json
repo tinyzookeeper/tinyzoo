@@ -57,7 +57,12 @@
       "mode": "builtin",
       "trustedProxies": 1,
       "ipHeader": "",
-      "setupToken": ""
+      "setupToken": "",
+      "account": {
+        "issuer": "",
+        "clientId": "",
+        "clientSecret": ""
+      }
     },
     "publicUrl": "",
     "mail": {
@@ -87,9 +92,11 @@
         "accessKeyId": "",
         "secretAccessKey": "",
         "publicBaseUrl": "",
-        "delivery": ""
+        "delivery": "",
+        "prefix": ""
       },
       "maxSizeMb": 10,
+      "maxBytes": 0,
       "maxBytesPerUser": 0,
       "uploadRatePerMin": 60
     },
@@ -179,6 +186,18 @@
       "default": ""
     },
     {
+      "name": "NUXT_CMS_AUTH_ACCOUNT_ISSUER",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET",
+      "default": ""
+    },
+    {
       "name": "NUXT_CMS_PUBLIC_URL",
       "default": ""
     },
@@ -255,8 +274,16 @@
       "default": ""
     },
     {
+      "name": "NUXT_CMS_STORAGE_S3_PREFIX",
+      "default": ""
+    },
+    {
       "name": "NUXT_CMS_STORAGE_MAX_SIZE_MB",
       "default": 10
+    },
+    {
+      "name": "NUXT_CMS_STORAGE_MAX_BYTES",
+      "default": 0
     },
     {
       "name": "NUXT_CMS_STORAGE_MAX_BYTES_PER_USER",

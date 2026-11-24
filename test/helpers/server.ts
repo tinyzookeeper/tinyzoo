@@ -51,7 +51,8 @@ export interface SpawnedServer {
  * of the playground than the shared one.
  */
 export async function startServer(databaseUrl: string, env: Record<string, string> = {}, entry: string = builtServer): Promise<SpawnedServer> {
-  const port = await freePort()
+  // `env.PORT`: a port the caller chose (the multi-tenant helper writes it into its site directory first).
+  const port = env.PORT ? Number(env.PORT) : await freePort()
   const baseURL = `http://127.0.0.1:${port}`
   const logs: string[] = []
   // The app secret is only what this server is given: a secret (or stand-in) exported in the

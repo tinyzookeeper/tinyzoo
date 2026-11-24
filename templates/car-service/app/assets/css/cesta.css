@@ -1,0 +1,83 @@
+/* Cesta: a clean, bright page for a careful owner. Large calm type (Red Hat), big photographs,
+   one deep colour used sparingly; the repair as four stops on one road, the way here as a drawn
+   junction. Written in the cascade layers the design was written in: utilities win over these
+   rules where both speak. */
+html[data-look="cesta"] {
+  --font-display: "Red Hat Display", sans-serif;
+  --font-sans: "Red Hat Text", sans-serif;
+  /* The colours of the first preset (Modrá); a preset from the settings overrides them. */
+  --brand: #1d4fb8;
+  --brand-ink: #ffffff;
+  --tint: #e8eefa;
+  --paper: #f4f5f7;
+  --line: #e1e4ea;
+  --ink: #14181b;
+  --quiet: #59626b;
+}
+
+@layer base {
+  html[data-look="cesta"] {
+    -webkit-text-size-adjust: 100%;
+    body { font-family: var(--font-sans); color: var(--ink); background: #fff; font-size: 18px; line-height: 1.6; -webkit-font-smoothing: auto; -moz-osx-font-smoothing: auto; }
+    h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.06; letter-spacing: -0.02em; text-wrap: balance; }
+    .site :focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 6px; }
+    ::selection { background: var(--brand); color: var(--brand-ink); }
+    summary { list-style: none; cursor: pointer; }
+    summary::-webkit-details-marker { display: none; }
+  }
+}
+
+@layer components {
+  html[data-look="cesta"] {
+    .wrap { max-width: 1240px; margin-inline: auto; padding-inline: 20px; }
+    .kicker { font-family: var(--font-display); font-weight: 700; font-size: 16px; color: var(--brand); }
+    .num { font-family: var(--font-display); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 56px; padding: 0 30px; border-radius: 999px; font-family: var(--font-display); font-weight: 700; font-size: 18px; transition: background-color .15s, color .15s, box-shadow .15s; cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); }
+    .btn-brand:hover { background: var(--ink); }
+    .btn-soft { background: var(--tint); color: var(--ink); }
+    .btn-soft:hover { background: var(--ink); color: #fff; }
+    .btn-white { background: #fff; color: var(--ink); }
+    .btn-white:hover { background: var(--ink); color: #fff; }
+    .disc { display: grid; place-items: center; flex: none; width: 52px; height: 52px; border-radius: 999px; background: var(--tint); color: var(--brand); font-size: 24px; }
+    .lane { height: 2px; background: repeating-linear-gradient(90deg, #fff 0 22px, transparent 22px 44px); }
+    .lane-v { width: 2px; background: repeating-linear-gradient(180deg, #fff 0 18px, transparent 18px 36px); }
+    .field { width: 100%; min-height: 54px; padding: 13px 16px; border-radius: 14px; border: 1.5px solid #c9cfcc; background: #fff; font: inherit; color: var(--ink); transition: border-color .15s; }
+    .field:hover { border-color: var(--quiet); }
+    .field:focus { outline: 3px solid color-mix(in srgb, var(--brand) 35%, transparent); outline-offset: 0; border-color: var(--brand); }
+    .field[aria-invalid="true"] { border-color: #b3261e; }
+    .field-error { margin-top: 0.35rem; font-size: 15px; line-height: 1.4; color: #b3261e; }
+    .navlink { font-weight: 500; font-size: 17px; padding: 12px 0; color: var(--ink); transition: color .15s; }
+    .navlink:hover { color: var(--brand); }
+
+    /* The sections that share one background when they follow each other: the makes and, under
+       them, the extras (the design has them in one section). */
+    .blk-makes, .blk-extras { background: var(--paper); padding-block: 4rem; }
+    @media (min-width: 64rem) { .blk-makes, .blk-extras { padding-block: 6rem; } }
+    .blk-makes:has(+ .blk-extras) { padding-bottom: 0; }
+    .blk-makes + .blk-extras { padding-top: 5rem; }
+    @media (min-width: 64rem) { .blk-makes + .blk-extras { padding-top: 7rem; } }
+
+    /* The road of the four stops: as many columns as there are stops */
+    @media (min-width: 64rem) { .road { grid-template-columns: repeat(var(--stops), minmax(0, 1fr)); } }
+
+    /* The price guide: a group that a link has just opened */
+    .group.flash > summary h3 { color: var(--brand); }
+    .group h3 { transition: color .5s; }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-weight: 800; font-size: 2.2rem; line-height: 1.1; margin-top: 2.6rem; }
+    .prose-look h3 { font-weight: 700; font-size: 1.6rem; line-height: 1.15; margin-top: 2rem; }
+    .prose-look a { color: var(--brand); text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+    .prose-look a:hover { color: var(--ink); }
+    .prose-look ul { list-style: disc; padding-left: 1.4rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.4rem; }
+    .prose-look li + li { margin-top: 0.4rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; line-height: 1.3; margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; border-radius: 24px; margin-block: 1.8rem; }
+    .prose-look strong { font-weight: 600; }
+  }
+}

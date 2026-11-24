@@ -18,12 +18,14 @@ export default defineNitroPlugin((nitro) => {
   const hooks = nitro.hooks as any
 
   hooks.hook('site-config:init', ({ siteConfig }: { siteConfig: { push: (c: Record<string, unknown>) => void } }) => {
-    const url = String((useRuntimeConfig().cms as any)?.publicUrl || '').trim()
+    // Asked for every request, also the ones with no site (multi-tenant mode: a health check by IP).
+    if (!currentCmsSite()) return
+    const url = String(cmsSettings().publicUrl || '').trim()
     if (url) siteConfig.push({ _context: 'tinyzoo:publicUrl', _priority: PUBLIC_URL_PRIORITY, url })
   })
 
   hooks.hook('sitemap:input', async (ctx: { urls: SitemapUrl[] }) => {
-    if ((useRuntimeConfig().cms as any)?.content?.token) return
+    if (cmsSettings().content?.token) return
     const { db, reg } = useCms()
     const fallback = reg.locales?.default ?? null
     for (const e of await sitemapEntries(db, reg)) {

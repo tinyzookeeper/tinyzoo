@@ -68,6 +68,11 @@ export interface CmsStatus {
     files: number
     bytes: number
     /**
+     * How much the site may store in all, in bytes (`cms.storage.maxBytes`): `bytes` is
+     * counted against it. Absent when the site has no limit (and from a tinyzoo that predates this key).
+     */
+    limitBytes?: number
+    /**
      * The pictures' smaller copies (made after each upload, in the background): how many
      * pictures have all of theirs, how many still wait (just uploaded, or from before copies
      * were made that way), and how many could not be resized (their original is shown).

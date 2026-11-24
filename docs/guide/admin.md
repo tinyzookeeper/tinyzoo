@@ -57,6 +57,46 @@ cms: {
 - Rate limits are shared by every replica when the site has Redis or Valkey (`REDIS_URL`, or `NUXT_CMS_REDIS_URL`). Without it, each instance counts on its own, which is right for one instance ([deploying](../deploying.md#what-runs)).
 - When Redis does not answer, each instance counts on its own until it does. An outage neither locks people out nor turns the limits off.
 
+### Signing in with the tinyzoo account (experimental)
+
+A site can let people sign in with their **tinyzoo account** next to the site's own password. One account then opens every website the person belongs to, and the site's name at the top of the admin becomes a switcher between them. This is experimental: the settings and the behaviour can change in a minor release.
+
+Switch it on with three settings. The account service gives a site its client id and secret when the site is connected to an account:
+
+```ts
+cms: {
+  auth: {
+    account: {
+      issuer: 'https://account.example.com',   // NUXT_CMS_AUTH_ACCOUNT_ISSUER: the account service's address
+      clientId: 'tz_…',                        // NUXT_CMS_AUTH_ACCOUNT_CLIENT_ID
+      // clientSecret: set NUXT_CMS_AUTH_ACCOUNT_CLIENT_SECRET in the environment. An option is written into the build.
+    },
+  },
+}
+```
+
+All three must be set, with the built-in sign-in (`auth.mode: 'builtin'`) and `cms.publicUrl`. Without them nothing changes: no button, no route, no request.
+
+The account service sends the browser back to `<publicUrl>/api/cms/_auth/account/callback`, and accepts that address only when it is exactly the one it keeps for the site. The site therefore sends its public address in a normal form: lower-case host, no default port, no trailing slash. `https://Example.com:443/` and `https://example.com` give the same return address.
+
+**What a person sees.** The sign-in page has a button, "Sign in with your tinyzoo account", above the password form. The password keeps working. Signed in, someone who belongs to other websites of the same owner sees the site's name at the top of the menu as a button: it lists their websites with their role in each, and "All my websites" leads to the account. A website that has not told the account the person's role yet is listed by its name alone. Choosing a website opens its admin without a form. The account page says in one line whether the person's user is connected to an account.
+
+**How an account finds its user.** Roles and people stay on the site, in `cms_users`. The account only says who the person is; the site decides whether they get in:
+
+1. A user already connected to this account signs in. The connection is by the account's id, so it holds when the person changes their email address at the account.
+2. Otherwise the site looks for a user with the account's email address, and only when the account service says that address is verified. An active user is connected and signed in. An invited user is accepted: they become active with the account's name and no password, and the invitation link stops working. The proof is the verified address, not the link, so this also works after the link has run out (7 days), as long as the invitation was not taken back by removing the user. The invitation email and page say that the account works, and the page of a link that no longer works offers it.
+3. Otherwise the person sees "This account has no access to this website". An administrator invites their address from Settings → Team, as always. An account whose email address is not confirmed yet is told to confirm it first.
+
+A disabled user is refused. A user connected to one account is never handed to another account that later holds the same address. Removing a user removes the connection, and so does erasing a person in Settings → Privacy ([the privacy tools](../deploying.md#privacy-gdpr)); the account service is told both times.
+
+**What stays as it was.** The session is the site's own: disabling someone, changing their role or "sign out everywhere" take effect on the next request. The account service is told a person's role on the site, and when the site stops letting them in, so the switcher can show it; it never decides rights. After a sign-in the site tells it before the browser goes on, so the person's list of websites is right on the next page. Signing out of a site ends that site's session only, and signing out of the account ends no site's session.
+
+**Somebody with no password here.** Someone accepted through the account has no password on the site. Their account page says that they sign in with their account, and offers to send a link to their address where they choose a password for this website: the same email as "Forgot password?". Until they have one, the forms that are confirmed with a password (their own sign-in email, somebody else's email in Team) say so instead of asking for it.
+
+**When something is in the way.** The sign-in page says what happened, in one notice above the form, and the password form stays usable: the account service did not answer (the site asks it before it sends the browser there, so nobody is left on a browser's error page; open sessions keep working), the sign-in took over ten minutes, or there were too many sign-ins from one address (60 in 15 minutes).
+
+A sign-in through the account is `auth.login` in the audit log with `via: account`; a refused one is `auth.login_failed` with the reason.
+
 ### Email while developing
 
 Locally, `docker compose --profile mail up -d` starts Mailpit. Set `NUXT_CMS_MAIL_TRANSPORT=smtp NUXT_CMS_MAIL_SMTP_HOST=localhost NUXT_CMS_MAIL_SMTP_PORT=1025`, and read the emails at http://localhost:8025.
@@ -96,6 +136,8 @@ export default defineAppConfig({
 ```
 
 The server reads `cms.admin` when it runs and gives the admin and the emails one resolved theme (`GET /api/cms/_theme`). Name, colour and logos come from there, so changing `cms.admin` in the browser at run time (`updateAppConfig`) does not change them.
+
+**The name from the site's content.** `nameFrom: 'siteSettings.siteName'` (a global and one of its text fields) makes the admin take its name from that field when it runs, so an editor who renames the site in *Site settings* renames the admin too, and one build can serve sites with different names. While the field is empty the admin keeps `name`. A site that does not set `nameFrom` is unchanged.
 
 ![The sign-in page of a made-up bakery: the hedgehog in a muted terracotta, the bakery's logo, a faint warm background and a terracotta "Sign in" button](../screenshots/0.7/en/admin-brand-signin.png)
 

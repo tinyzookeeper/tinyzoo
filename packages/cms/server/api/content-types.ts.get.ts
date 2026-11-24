@@ -6,12 +6,12 @@ import * as cmsConfig from '#cms/config'
 // bindings for this CMS. A separate frontend can `curl` it straight into its src:
 //   curl https://cms.example.com/api/content-types.ts -o src/cms-content.ts
 // Pure function of the immutable config → built once and cached.
-let cached: string | undefined
+const cached = cmsProcessWide<{ text?: string }>({}, 'generated from the content model, the same for every site')
 
 export default defineEventHandler((event) => {
   assertContentAuth(event)
-  if (cached === undefined) cached = emitContentTypes(cmsConfig as Record<string, any>)
+  cached.text ??= emitContentTypes(cmsConfig as Record<string, any>)
   setContentCache(event)
   setResponseHeader(event, 'content-type', 'text/plain; charset=utf-8')
-  return cached
+  return cached.text
 })

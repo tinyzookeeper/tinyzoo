@@ -1,8 +1,11 @@
 packages:
   - packages/*
   - packages/cms/starter
+  # The hosted version's website templates, and what they share (templates/kit).
+  - templates/*
   - site
   - keeper
+  - cloud
   - playground
 
 # One copy of the editor stack: collaborative editing breaks when two ProseMirror

@@ -1,0 +1,173 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+/* `dark:` follows the colour mode set on <html> (class="dark"), not the system setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * tinyzoo's look, as in the admin (packages/cms/app/assets/css/cms-admin.css) and Keeper:
+ * a white page with true greys and ink text, charcoal for the one primary action, cream for
+ * the brand's moments (the start page, the wizard's stage, the "being made" screen, empty
+ * states). Dark is "charcoal night": greys lean toward the mascot's charcoal, text is cream,
+ * and the primary flips to a cream button with ink text.
+ *
+ * html:root (0,1,1) and html.dark:root (0,2,1) outrank the :root colours Nuxt UI writes.
+ */
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Manrope", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-ink: #131313;
+  --color-charcoal: #2E3035;
+  --color-cream: #F9F5EF;
+}
+
+html:root, html.dark:root {
+  --ui-color-neutral-50: oklch(98.5% 0 0);
+  --ui-color-neutral-100: oklch(96.7% 0 0);
+  --ui-color-neutral-200: oklch(92.2% 0 0);
+  --ui-color-neutral-300: oklch(87% 0 0);
+  --ui-color-neutral-400: oklch(70.8% 0 0);
+  --ui-color-neutral-500: oklch(55.6% 0 0);
+  --ui-color-neutral-600: oklch(43.9% 0 0);
+  --ui-color-neutral-700: oklch(37.1% 0 0);
+  --ui-color-neutral-800: oklch(26.9% 0 0);
+  --ui-color-neutral-900: oklch(20.5% 0 0);
+  --ui-color-neutral-950: oklch(14.5% 0 0);
+
+  --ui-primary: #2E3035;
+  --ui-text-dimmed: oklch(54% 0 0);
+  --ui-text-muted: oklch(50% 0 0);
+  --ui-text-toned: var(--ui-color-neutral-600);
+  --ui-text: oklch(30% 0 0);
+  --ui-text-highlighted: #131313;
+  --ui-text-inverted: #fff;
+  --ui-error: var(--ui-color-error-700);
+  --ui-success: var(--ui-color-success-800);
+  --ui-warning: var(--ui-color-warning-800);
+  --ui-info: var(--ui-color-info-700);
+  --ui-border: var(--ui-color-neutral-200);
+  --ui-border-muted: var(--ui-color-neutral-100);
+  --ui-border-accented: var(--ui-color-neutral-300);
+  --ui-bg: #fff;
+  --ui-bg-muted: var(--ui-color-neutral-50);
+  --ui-bg-elevated: var(--ui-color-neutral-100);
+  --ui-bg-accented: var(--ui-color-neutral-200);
+  --ui-bg-inverted: var(--ui-color-neutral-900);
+  --ui-radius: 0.5rem;
+
+  --z-surface: #fff;
+  --z-moment-bg: #F9F5EF;
+  --z-moment-strong: #F1EADF;
+  --z-moment-line: #E7DDCD;
+  --z-moment-text: #6E675D;
+  /* The little website drawn on the start page, in the wizard and while a site is made. */
+  --z-paper: #fff;
+  --z-paper-line: #E9E2D6;
+  --z-paper-ink: #2E3035;
+  --z-paper-soft: #EFE9DF;
+  --z-paper-softer: #F6F1E9;
+  --z-warm: #C8644F;
+  --z-warm-soft: #F3DDD5;
+  --z-ok: #4F9A68;
+  --z-shadow: 0 30px 60px -30px rgb(60 45 20 / 0.35), 0 2px 6px -2px rgb(60 45 20 / 0.12);
+}
+
+html.dark:root {
+  --ui-color-neutral-50: #F9F5EF;
+  --ui-color-neutral-100: #EEEAE4;
+  --ui-color-neutral-200: #D8D4CD;
+  --ui-color-neutral-300: #C2BEB7;
+  --ui-color-neutral-400: #A09D97;
+  --ui-color-neutral-500: #77756F;
+  --ui-color-neutral-600: #4A4C52;
+  --ui-color-neutral-700: #3A3C42;
+  --ui-color-neutral-800: #2E3035;
+  --ui-color-neutral-900: #1E1F23;
+  --ui-color-neutral-950: #18191C;
+
+  --ui-primary: #F9F5EF;
+  --ui-error: var(--ui-color-error-400);
+  --ui-success: var(--ui-color-success-400);
+  --ui-warning: var(--ui-color-warning-400);
+  --ui-info: var(--ui-color-info-400);
+  --ui-text-dimmed: #A09D97;
+  --ui-text-muted: #B2AEA7;
+  --ui-text-toned: #C2BEB7;
+  --ui-text: #D8D4CD;
+  --ui-text-highlighted: #F9F5EF;
+  --ui-text-inverted: #131313;
+  --ui-bg: #18191C;
+  --ui-bg-muted: #1B1C1F;
+  --ui-bg-elevated: #26282C;
+  --ui-bg-accented: #2E3035;
+  --ui-bg-inverted: #F9F5EF;
+  --ui-border: #2D2F34;
+  --ui-border-muted: #25272B;
+  --ui-border-accented: #3A3C42;
+
+  --z-surface: #1E1F23;
+  --z-moment-bg: #26282C;
+  --z-moment-strong: #2E3035;
+  --z-moment-line: #3A3C42;
+  --z-moment-text: #B2AEA7;
+  --z-paper: #1E1F23;
+  --z-paper-line: #3A3C42;
+  --z-paper-ink: #F9F5EF;
+  --z-paper-soft: #34363B;
+  --z-paper-softer: #2A2C31;
+  --z-warm: #CC6C55;
+  --z-warm-soft: #4A332D;
+  --z-ok: #5FAE7A;
+  --z-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.7), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+}
+
+/* The cream primary button carries ink text in dark mode. */
+html.dark .bg-primary { color: #131313; }
+
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; font-feature-settings: "cv11", "ss01"; }
+body { background: var(--ui-bg); color: var(--ui-text); }
+
+@layer base {
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), summary { cursor: pointer; }
+  p, li, dd, td, th { overflow-wrap: anywhere; }
+}
+
+@layer components {
+  /* Titles and moments: Manrope, heavier and tighter. */
+  .z-display { font-family: var(--font-display); font-weight: 800; letter-spacing: -0.025em; }
+  .z-title { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; }
+
+  /* The one frame: a hairline border, no shadow. Never nested. */
+  .z-card { background: var(--z-surface); border: 1px solid var(--ui-border); border-radius: calc(var(--ui-radius) * 1.75); }
+
+  /* A brand moment: cream in light mode, charcoal in dark. */
+  .z-moment { background: var(--z-moment-bg); border-radius: calc(var(--ui-radius) * 2.5); color: var(--ui-text); }
+  .z-moment-text { color: var(--z-moment-text); }
+
+  /* A section's name, above its card. */
+  .z-label { font-size: 0.8125rem; font-weight: 600; color: var(--ui-text-highlighted); }
+
+  /* An animal on its little cream tile. */
+  .z-tile { background: var(--z-moment-bg); border-radius: calc(var(--ui-radius) * 1.5); display: inline-flex; align-items: flex-end; justify-content: center; flex: none; overflow: hidden; }
+
+  /* A calm note on cream: something worth knowing, not a warning. */
+  .z-note { background: var(--z-moment-bg); border: 1px solid var(--z-moment-line); border-radius: calc(var(--ui-radius) * 1.5); }
+
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Something that arrives: a short rise, nothing bouncy. */
+  .z-rise { animation: z-rise 420ms cubic-bezier(.2,.7,.2,1) both; }
+  .z-rise-1 { animation-delay: 60ms; }
+  .z-rise-2 { animation-delay: 140ms; }
+  .z-rise-3 { animation-delay: 220ms; }
+  .z-rise-4 { animation-delay: 300ms; }
+}
+
+@keyframes z-rise { from { opacity: 0; transform: translateY(0.75rem); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

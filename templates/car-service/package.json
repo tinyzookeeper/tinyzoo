@@ -1,0 +1,40 @@
+{
+  "name": "tinyzoo-template-car-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The hosted template \"car-service\", in the looks of its approved designs.",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "typecheck": "node ../kit/scripts/typecheck.mjs",
+    "db:generate": "tinyzoo generate",
+    "db:migrate": "tinyzoo up",
+    "seed": "tinyzoo seed",
+    "cms:client": "tinyzoo client app/lib/cms-content.ts"
+  },
+  "dependencies": {
+    "@internationalized/date": "^3.12.2",
+    "@nuxt/ui": "^4.0.0",
+    "@tinyzoo/client": "workspace:*",
+    "drizzle-orm": "^0.45.4",
+    "nuxt": "^4.6.4",
+    "nuxt-auth-utils": "^0.6.2",
+    "pg": "^8.16.3",
+    "tailwindcss": "^4.3.1",
+    "tinyzoo": "workspace:*",
+    "tinyzoo-template-kit": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@iconify-json/lucide": "^1.2.114",
+    "drizzle-kit": "^0.31.11",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vue-tsc": "^3.3.14"
+  },
+  "engines": {
+    "node": "^22.22.3 || ^24.15.0 || >=26.0.0"
+  }
+}

@@ -1,0 +1,13 @@
+<script setup lang="ts">
+// A page of plain text (the privacy page, say): a headline and the editor's rich text, in a column.
+defineProps<{ block: BlockOf<'text'>; first?: boolean }>()
+</script>
+
+<template>
+  <section class="wrap py-16 lg:py-24">
+    <div class="max-w-[44rem]">
+      <component :is="first ? 'h1' : 'h2'" v-if="block.heading" class="h2 mb-8"><KitMarked :text="block.heading" plain /></component>
+      <CmsContent v-if="block.body" :doc="block.body" class="prose-look" />
+    </div>
+  </section>
+</template>

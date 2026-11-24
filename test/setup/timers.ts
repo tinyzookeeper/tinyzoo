@@ -19,8 +19,12 @@ export const TEST_TIMERS = {
   CMS_TEST_ANALYTICS_FLUSH_MS: process.env.CMS_TEST_ANALYTICS_FLUSH_MS ?? '100',
 } as const
 
-/** The scheduled tasks of the test build (cron with seconds): scheduled entries every second, retention every 3 s (production: every minute, daily). */
-export const BUILD_CRON = { CMS_TEST_SCHEDULER_CRON: '* * * * * *', CMS_TEST_RETENTION_CRON: '*/3 * * * * *' } as const
+/**
+ * The scheduled tasks of the test build (cron with seconds): scheduled entries every second, retention every 3 s
+ * (production: every minute, daily), and the smaller copies of pictures every second besides their minute
+ * (the multi-tenant specs watch which sites that task looks at).
+ */
+export const BUILD_CRON = { CMS_TEST_SCHEDULER_CRON: '* * * * * *', CMS_TEST_RETENTION_CRON: '*/3 * * * * *', CMS_TEST_MEDIA_SIZES_CRON: '* * * * * *' } as const
 
 /**
  * Secrets in the environment of the test build, each recognisable: a build must not write any

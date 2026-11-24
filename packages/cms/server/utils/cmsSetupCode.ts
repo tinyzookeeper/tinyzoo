@@ -65,8 +65,10 @@ export async function ensureSetupCode(opts: { reissue?: boolean } = {}): Promise
     }).returning({ key: s.key })
     : await insert.onConflictDoNothing().returning({ key: s.key })
   if (rows.length) {
-    const base = String((useRuntimeConfig().cms as any)?.publicUrl || '').replace(/\/+$/, '')
-    console.warn(`[cms] No administrator yet. Setup code: ${code} — open ${base}/admin/setup`)
+    const base = String(cmsSettings().publicUrl || '').replace(/\/+$/, '')
+    // Many sites share one log: say which one this code is for.
+    const site = cmsIsMultiTenant() ? ` (site ${useCmsSite().id})` : ''
+    console.warn(`[cms] No administrator yet${site}. Setup code: ${code} — open ${base}/admin/setup`)
     return 'issued'
   }
   if (opts.reissue) console.warn('[cms] No administrator yet. A setup code was issued a moment ago (by another instance) — look for "Setup code:" in the log.')

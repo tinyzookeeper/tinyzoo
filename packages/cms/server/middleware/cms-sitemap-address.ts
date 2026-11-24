@@ -5,12 +5,13 @@
 // logged that NUXT_CMS_PUBLIC_URL is missing. Development uses the request's address.
 const SITEMAP_ROUTE = /^\/(?:[^/?#]*sitemap[^/?#]*\.xml|__sitemap__\/)/
 
-let configured: boolean | undefined
+// Per site: each site has its own address.
+const configured = cmsSiteScoped<boolean | undefined>(() => undefined)
 
 /** Whether the site's address is configured anywhere the site config reads it from (not the request). */
 function configuredSiteUrl(): boolean {
   const config = useRuntimeConfig() as any
-  if (String(config.cms?.publicUrl || '').trim()) return true
+  if (String(cmsSettings().publicUrl || '').trim()) return true
   if (process.env.NUXT_SITE_URL || process.env.NUXT_PUBLIC_SITE_URL) return true
   if (config.site?.url || config.public?.site?.url) return true
   // nuxt.config's `site.url`: the build-time entries of nuxt-site-config.
@@ -19,6 +20,8 @@ function configuredSiteUrl(): boolean {
 
 export default defineEventHandler((event) => {
   if (import.meta.dev || process.env.NODE_ENV !== 'production' || !SITEMAP_ROUTE.test(event.path || '')) return
-  configured ??= configuredSiteUrl()
-  if (!configured) throw createError({ statusCode: 404, statusMessage: 'Not found' })
+  // A site of the directory always has an address (the directory requires it).
+  if (cmsIsMultiTenant()) return
+  if (configured() === undefined) configured.set(configuredSiteUrl())
+  if (!configured()) throw createError({ statusCode: 404, statusMessage: 'Not found' })
 })

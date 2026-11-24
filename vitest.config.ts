@@ -13,6 +13,8 @@ export default defineConfig({
           include: ['test/unit/**/*.spec.ts'],
           environment: 'node',
           globalSetup: ['test/setup/prepare-starter.ts'],
+          // Server files loaded directly call Nitro's auto-imported site helpers as globals.
+          setupFiles: ['test/setup/site-globals.ts'],
         },
       },
       {

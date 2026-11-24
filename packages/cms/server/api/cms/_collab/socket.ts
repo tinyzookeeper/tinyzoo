@@ -14,13 +14,18 @@
 // pong as activity, so a tab that is open but quiet (in the background) stays
 // connected and a dead one is noticed. Checked here; a miss closes the connection
 // with a logged error instead of running without them.
+//
+// Multi-tenant mode: the socket finds its site at the upgrade and every hook below runs
+// inside it (cmsSocketHooksInSite). What is kept about sockets is kept per site, and the
+// site's own engine is started by its first socket: `open` waits for it, and the frames
+// that arrive meanwhile are kept, as above.
 const MAX_SOCKETS_PER_USER = 10
 // Shared-editing messages are small; the `ws` default (100 MiB) is not.
 const MAX_PAYLOAD_BYTES = 2 * 1024 * 1024
 /** Frames a socket may send before the server has taken it (it sends a handful). */
 const MAX_EARLY_FRAMES = 100
 const PING_MS = 30_000
-const socketsByUser = new Map<string, Set<any>>()
+const socketsByUser = cmsSiteScoped(() => new Map<string, Set<any>>())
 
 interface CollabPeerState {
   userId: string
@@ -31,15 +36,34 @@ interface CollabPeerState {
   closed?: { code: number; reason: string }
   ping?: ReturnType<typeof setInterval>
 }
-const peers = new WeakMap<object, CollabPeerState>()
+/**
+ * Every open socket of the site. A site that is unloaded (it left the directory, or its row
+ * changed) lets them go as `close` below would: no later hook finds them here again.
+ */
+const peers = cmsSiteScoped(() => new Map<object, CollabPeerState>(), {
+  // A site with a document open for shared editing is in use.
+  inUse: (open) => open.size > 0,
+  dispose(open) {
+    for (const [peer, state] of open) {
+      state.closed = { code: 1001, reason: 'Reconnect' }
+      state.early.length = 0
+      if (state.ping) clearInterval(state.ping)
+      try { state.connection?.handleClose(state.closed) }
+      catch { /* its engine is going too */ }
+      try { (peer as any).close?.(4000, 'Reconnect') }
+      catch { /* already closing */ }
+    }
+    open.clear()
+  },
+})
 
 function forget(peer: any, state: CollabPeerState) {
-  const mine = socketsByUser.get(state.userId)
+  const mine = socketsByUser().get(state.userId)
   mine?.delete(peer)
-  if (mine && !mine.size) socketsByUser.delete(state.userId)
+  if (mine && !mine.size) socketsByUser().delete(state.userId)
 }
 
-export default defineWebSocketHandler({
+export default defineWebSocketHandler(cmsSocketHooksInSite({
   upgrade(request: any) {
     return admitAdminSocket(request)
   },
@@ -53,16 +77,16 @@ export default defineWebSocketHandler({
     }
     ws._receiver._maxPayload = MAX_PAYLOAD_BYTES
     const state: CollabPeerState = { userId: user.id, early: [] }
-    peers.set(peer, state)
+    peers().set(peer, state)
     // Too many tabs: the oldest gives way (as on the realtime socket).
-    const mine = socketsByUser.get(user.id) ?? new Set()
+    const mine = socketsByUser().get(user.id) ?? new Set()
     if (mine.size >= MAX_SOCKETS_PER_USER) {
       const oldest = mine.values().next().value
       mine.delete(oldest)
       oldest?.close?.(4429, 'Too many open tabs')
     }
     mine.add(peer)
-    socketsByUser.set(user.id, mine)
+    socketsByUser().set(user.id, mine)
     const server = await useCollabServer()
     if (state.closed) return // gone while the server started
     const connection = server.handleConnection(peer.websocket, peer.request, { user, sv: peer.context.cmsSessionVersion, iat: peer.context.cmsSignedInAt })
@@ -76,7 +100,7 @@ export default defineWebSocketHandler({
     for (const frame of state.early.splice(0)) connection.handleMessage(frame)
   },
   message(peer: any, message: any) {
-    const state = peers.get(peer)
+    const state = peers().get(peer)
     if (!state) return
     const data: Uint8Array = message.uint8Array()
     if (state.connection) return state.connection.handleMessage(data)
@@ -84,16 +108,16 @@ export default defineWebSocketHandler({
     state.early.push(data)
   },
   close(peer: any, event: any) {
-    const state = peers.get(peer)
+    const state = peers().get(peer)
     if (!state) return
     state.closed = { code: Number(event?.code) || 1005, reason: String(event?.reason ?? '') }
     state.early.length = 0
     if (state.ping) clearInterval(state.ping)
     forget(peer, state)
     state.connection?.handleClose(state.closed)
-    peers.delete(peer)
+    peers().delete(peer)
   },
   error(_peer: any, err: any) {
     console.error('[cms] collab socket error', err?.message ?? err)
   },
-})
+}, { writes: true }))

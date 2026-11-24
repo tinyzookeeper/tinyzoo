@@ -1,0 +1,76 @@
+/* Jeden den: the home page is one working day. A time rail runs down the left edge (06:40, 07:00,
+   12:00 … 22:00), each section is an entry in it, and the background goes from dawn through noon
+   and afternoon to dusk and night. On a phone the rail becomes a line of time above each section.
+   Eczar for headings and quotes, Reddit Sans for text, Reddit Mono for times.
+   Written in the cascade layers the design was written in: utilities win over these rules where
+   both speak. Keyframes (none here) would start with "jeden-den-". */
+html[data-look="jeden-den"] {
+  --font-display: "Eczar", Georgia, serif;
+  --font-sans: "Reddit Sans", system-ui, sans-serif;
+  --font-mono: "Reddit Mono", ui-monospace, monospace;
+  /* The colours of the first preset (Podzim); a preset from the settings overrides them. */
+  --dawn: #f8dcc6; --morning: #fbf1dc; --noon: #fffaf0; --afternoon: #f7d8a2; --late: #f0bd8c;
+  --dusk: #2f4a5c; --evening: #223649; --night: #141e2f;
+  --brand: #bb3f17; --brand-ink: #ffffff; --ink: #2b1d12; --cream: #fbf1dc; --card: #fffdf8;
+  --am: #fbe2a0; --pm: #f3bb8f; --lamp: #f8d98b;
+}
+
+@layer base {
+  html[data-look="jeden-den"] {
+    body { font-family: var(--font-sans); font-size: 17px; line-height: 1.6; color: var(--ink); background: var(--dawn); -webkit-font-smoothing: antialiased; }
+    summary::-webkit-details-marker { display: none; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 4px; }
+    .dark-band :focus-visible { outline-color: var(--lamp); }
+  }
+}
+
+@layer components {
+  html[data-look="jeden-den"] {
+    .wrap { max-width: 1280px; margin-inline: auto; padding-inline: 20px; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 32px; } }
+    .time { font-family: var(--font-mono); font-weight: 500; font-size: 13px; letter-spacing: .01em; }
+    .h2 { font-family: var(--font-display); font-weight: 600; line-height: 1.08; letter-spacing: -.01em; }
+    .card { background: var(--card); color: var(--ink); border-radius: 18px; box-shadow: 0 1px 0 rgb(60 30 10 / .06), 0 22px 44px -28px rgb(60 30 10 / .45); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 24px; border-radius: 12px; font-weight: 600; font-size: 17px; transition: background-color .15s, color .15s, box-shadow .15s; cursor: pointer; }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-brand { background: var(--brand); color: var(--brand-ink); box-shadow: 0 3px 0 color-mix(in srgb, var(--brand) 60%, var(--ink)); }
+    .btn-brand:hover { background: color-mix(in srgb, var(--brand) 86%, var(--ink)); }
+    .btn-line { box-shadow: inset 0 0 0 1.5px var(--ink); color: var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--cream); }
+    .btn-lamp { background: var(--lamp); color: var(--night); box-shadow: 0 3px 0 color-mix(in srgb, var(--lamp) 55%, var(--night)); }
+    .btn-lamp:hover { background: var(--cream); }
+    .hatch { background-image: repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--ink) 14%, transparent) 5px 6px); }
+    .ul { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px; text-decoration-color: color-mix(in srgb, currentColor 45%, transparent); transition: text-decoration-color .15s; }
+    .ul:hover { text-decoration-color: currentColor; }
+    /* the time rail: on a phone a line above the section, on a desktop a column on the left */
+    .rail-in { display: flex; align-items: center; gap: 10px; }
+    .rail-in .what { font-size: 14px; opacity: .8; }
+    @media (min-width: 64rem) {
+      .rail { border-right: 1px solid color-mix(in srgb, currentColor 22%, transparent); }
+      .rail-in { position: sticky; top: 28px; display: block; padding-right: 22px; text-align: right; }
+      .rail-in::after { content: ""; position: absolute; right: 0; top: 37px; width: 10px; height: 1px; background: currentColor; }
+      .rail-in .time { display: block; margin-top: 6px; font-size: 15px; }
+      .rail-in .what { display: block; margin-top: 2px; font-size: 13px; line-height: 1.3; }
+    }
+
+    /* The fields of the contact form, on its light card. */
+    .field-label { display: block; font-size: 14px; font-weight: 500; }
+    .field-control { display: block; width: 100%; margin-top: 0.375rem; height: 48px; padding: 0 12px; border-radius: 10px; background: var(--morning); font-size: 16px; font-weight: 400; color: var(--ink); box-shadow: inset 0 0 0 1px rgb(43 29 18 / .25); }
+    textarea.field-control { height: auto; padding-block: 10px; }
+    .field-control:focus { outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
+    .field-control[aria-invalid="true"] { box-shadow: inset 0 0 0 2px #a3261e; }
+    .field-error { margin-top: 0.35rem; font-size: 14px; line-height: 1.4; color: #a3261e; }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-weight: 600; font-size: 30px; line-height: 1.1; margin-top: 2.4rem; }
+    .prose-look h3 { font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 1.15; margin-top: 2rem; }
+    .prose-look a { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 4px; text-decoration-color: var(--brand); }
+    .prose-look ul { list-style: disc; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-weight: 500; font-size: 26px; line-height: 1.25; margin-block: 1.8rem; padding: 1.2rem 1.5rem; background: var(--card); border-radius: 18px; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; border-radius: 18px; }
+    .prose-look strong { font-weight: 600; }
+  }
+}

@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The three looks (looks.ts): each styles the website under html[data-look="<id>"]. */
+@import "./portal.css";
+@import "./regal.css";
+@import "./na-hacku.css";
+
+/* Tailwind must also scan the CMS's own components (the admin) and the template kit's. */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The looks' tokens as utilities: bg-wood, text-cream, bg-rail, text-ink, bg-board… Each look
+   gives the variables behind them their values (under html[data-look="…"], in the three files
+   above), and a colour preset from the site's settings overrides the colours inline on
+   <html>. Outside a look (the admin) none of these is set, and none is used.
+   The names keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses.
+   `ink` and `tint` are used by two looks: each sets its own values. */
+@theme {
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-cond: system-ui, sans-serif;
+
+  /* Portál: the painted shopfront */
+  --color-wood: var(--wood);
+  --color-wood-hi: var(--wood-hi);
+  --color-wood-lo: var(--wood-lo);
+  --color-cream: var(--cream);
+  --color-glass: var(--glass);
+  --color-brass: var(--brass);
+  --color-brass-lo: var(--brass-lo);
+
+  /* Regál: the shelf and its price rail */
+  --color-paper: var(--paper);
+  --color-rail: var(--rail);
+  --color-rail-ink: var(--rail-ink);
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+
+  /* Na háčku: the pegboard */
+  --color-board: var(--board);
+  --color-board-lo: var(--board-lo);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-card: var(--card);
+  --color-wall: var(--wall);
+  --color-pop: var(--pop);
+  --color-peg: var(--peg);
+
+  /* Regál and Na háčku */
+  --color-tint: var(--tint);
+  --color-ink: var(--ink);
+}
+
+/* Long words and addresses wrap instead of pushing the page wider on phones. A section reached
+   from the menu (/#sluzby) stops a little under the top of the window. */
+@layer base {
+  html[data-look] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-look] { scroll-behavior: smooth; }
+  html[data-look] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-look] { scroll-behavior: auto; } }
+}

@@ -1,0 +1,93 @@
+/* Výloha: lettering painted on the shop window. A dark page with cream and brass sign-painter's
+   type, panels with scooped corners and enamel plates for buttons; the opening is the window
+   itself. Marcellus for the display lines (capitals with wide tracking, prices, the arched
+   line), Cabin for the text. Written in the cascade layers the design was written in:
+   utilities win over these rules where both speak. */
+html[data-look="vyloha"] {
+  --font-display: "Marcellus", serif;
+  --font-sans: "Cabin", sans-serif;
+  /* The colours of the first preset (Lahvová); a preset from the settings overrides them. */
+  --glass: #0f2b22;
+  --pane: #17392d;
+  --cream: #f3e9d2;
+  --brass: #d3ab60;
+  --shade: #06150f;
+}
+
+@layer base {
+  html[data-look="vyloha"] {
+    body { background: var(--glass); color: color-mix(in srgb, var(--cream) 86%, var(--glass)); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; font-size: 17px; line-height: 1.6; }
+    h1, h2, h3 { font-family: var(--font-display); font-weight: 400; color: var(--cream); }
+    :focus-visible { outline: 2px solid var(--brass); outline-offset: 4px; }
+    .on-cream :focus-visible { outline-color: var(--glass); }
+    ::selection { background: var(--brass); color: var(--shade); }
+  }
+}
+
+@layer components {
+  html[data-look="vyloha"] {
+    .wrap { max-width: 1240px; margin-inline: auto; padding-inline: 20px; }
+    @media (min-width: 768px) { .wrap { padding-inline: 40px; } }
+    /* lettering painted on glass: a fill and a hard shade to the lower right */
+    .lettering { color: var(--cream); text-shadow: .045em .045em 0 var(--shade); }
+    .gilt { color: var(--brass); text-shadow: .06em .06em 0 var(--shade); }
+    .caps { font-family: var(--font-display); text-transform: uppercase; letter-spacing: .2em; font-size: 13px; }
+    /* a sign-painter's panel: a thin line with corners scooped inward */
+    .panel { --r: 18px; --c: var(--brass);
+      background:
+        radial-gradient(circle at 0 0, transparent calc(var(--r) - 1.2px), var(--c) calc(var(--r) - .6px), var(--c) var(--r), transparent calc(var(--r) + .6px)) 0 0 / calc(var(--r) + 1px) calc(var(--r) + 1px) no-repeat,
+        radial-gradient(circle at 100% 0, transparent calc(var(--r) - 1.2px), var(--c) calc(var(--r) - .6px), var(--c) var(--r), transparent calc(var(--r) + .6px)) 100% 0 / calc(var(--r) + 1px) calc(var(--r) + 1px) no-repeat,
+        radial-gradient(circle at 0 100%, transparent calc(var(--r) - 1.2px), var(--c) calc(var(--r) - .6px), var(--c) var(--r), transparent calc(var(--r) + .6px)) 0 100% / calc(var(--r) + 1px) calc(var(--r) + 1px) no-repeat,
+        radial-gradient(circle at 100% 100%, transparent calc(var(--r) - 1.2px), var(--c) calc(var(--r) - .6px), var(--c) var(--r), transparent calc(var(--r) + .6px)) 100% 100% / calc(var(--r) + 1px) calc(var(--r) + 1px) no-repeat,
+        linear-gradient(var(--c), var(--c)) var(--r) 0 / calc(100% - 2 * var(--r)) 1px no-repeat,
+        linear-gradient(var(--c), var(--c)) var(--r) 100% / calc(100% - 2 * var(--r)) 1px no-repeat,
+        linear-gradient(var(--c), var(--c)) 0 var(--r) / 1px calc(100% - 2 * var(--r)) no-repeat,
+        linear-gradient(var(--c), var(--c)) 100% var(--r) / 1px calc(100% - 2 * var(--r)) no-repeat;
+    }
+    /* an enamel plate: a filled shape with the same scooped corners */
+    .plate { position: relative; isolation: isolate; }
+    .plate::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--plate, var(--cream)); --r: var(--pr, 10px);
+      mask:
+        radial-gradient(circle var(--r) at 0 0, #0000 97%, #000) top left / calc(50% + 1px) calc(50% + 1px) no-repeat,
+        radial-gradient(circle var(--r) at 100% 0, #0000 97%, #000) top right / calc(50% + 1px) calc(50% + 1px) no-repeat,
+        radial-gradient(circle var(--r) at 0 100%, #0000 97%, #000) bottom left / calc(50% + 1px) calc(50% + 1px) no-repeat,
+        radial-gradient(circle var(--r) at 100% 100%, #0000 97%, #000) bottom right / calc(50% + 1px) calc(50% + 1px) no-repeat;
+      transition: background-color .2s; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 54px; padding: 0 30px; font-family: var(--font-display); font-size: 15px; letter-spacing: .16em; text-transform: uppercase; transition: color .2s; --pr: 9px; }
+    .btn-cream { color: var(--glass); }
+    .btn-cream:hover { --plate: var(--brass); }
+    .btn-line { --r: 10px; color: var(--cream); }
+    .btn-line:hover { color: var(--brass); }
+    .btn-glass { --plate: var(--glass); color: var(--cream); }
+    .btn-glass:hover { --plate: var(--shade); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .flanked { display: flex; align-items: center; gap: 18px; }
+    .flanked::before, .flanked::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--brass) 55%, transparent); }
+    .dia { display: inline-block; width: 7px; height: 7px; background: var(--brass); transform: rotate(45deg); flex: none; }
+    .leader { flex: 1; min-width: 14px; border-bottom: 2px dotted color-mix(in srgb, var(--brass) 55%, transparent); transform: translateY(-5px); }
+    .crow { transition: color .15s; }
+    .crow:hover .cname { color: var(--brass); }
+    .crow:hover .leader { border-color: var(--brass); }
+    .frame { padding: 6px; border: 1px solid color-mix(in srgb, var(--brass) 70%, transparent); }
+    .field { width: 100%; min-height: 54px; padding: 0 2px; background: transparent; color: var(--glass); border: 0; border-bottom: 2px solid color-mix(in srgb, var(--glass) 35%, transparent); border-radius: 0; font: 500 18px var(--font-sans); transition: border-color .2s; }
+    .field:hover, .field:focus { border-color: var(--glass); outline: none; }
+    .field:focus-visible { box-shadow: 0 2px 0 var(--glass); }
+    .field[aria-invalid="true"] { border-color: #8a1c1c; }
+    .field-error { margin-top: 4px; font-size: 15px; font-weight: 600; color: #8a1c1c; }
+    .field option, .field optgroup { color: #111; background: #fff; }
+
+    /* the text page's body (the "Text" block) */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-size: 2rem; line-height: 1.15; margin-top: 2.6rem; }
+    .prose-look h3 { font-size: 1.5rem; line-height: 1.2; margin-top: 2rem; }
+    .prose-look a { color: var(--cream); text-decoration: underline; text-decoration-color: var(--brass); text-underline-offset: 6px; }
+    .prose-look a:hover { color: var(--brass); }
+    .prose-look ul { list-style: none; }
+    .prose-look ul li { padding: .4rem 0; border-bottom: 1px dotted color-mix(in srgb, var(--brass) 55%, transparent); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.35; color: var(--cream); margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; padding: 6px; border: 1px solid color-mix(in srgb, var(--brass) 70%, transparent); margin-block: 1.8rem; }
+    .prose-look strong { color: var(--cream); font-weight: 700; }
+  }
+}

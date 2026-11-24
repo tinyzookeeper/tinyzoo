@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from 'tinyzoo'
-import { Hocuspocus } from '@hocuspocus/server'
+import { Hocuspocus, type Configuration } from '@hocuspocus/server'
 import * as Y from 'yjs'
 import { REDIS_PROTOCOL } from '../store/redis'
 
@@ -19,6 +19,13 @@ import { REDIS_PROTOCOL } from '../store/redis'
  * into the same `cms_collab` row. Who has a document open is then known per replica
  * only, so each replica also lists its open documents in Redis (see `Presence`), and
  * "the last one left" means: no connection here and none listed by another replica.
+ *
+ * Multi-tenant mode: an engine per site, started by the site's first shared-editing
+ * socket. Documents are held by name, and two sites made from one template have entries
+ * with the same ids: with an engine each, their documents cannot meet. Hocuspocus calls
+ * its hooks from socket events and timers, which carry no site, so each engine's hooks,
+ * and its heartbeat, name their site and run inside it. In Redis the site's id is part
+ * of the prefix.
  */
 
 interface CollabContext {
@@ -52,7 +59,7 @@ const BROADCAST_STATELESS = 6
 /** Who is in a document, across replicas: this replica's entries in a Redis sorted set per document. */
 const PRESENCE_TTL_MS = 90_000
 /** This replica, as the presence lists name it. */
-const REPLICA_ID = crypto.randomUUID()
+const REPLICA_ID = cmsProcessWide(crypto.randomUUID(), 'names this process in the presence lists, whatever the site')
 
 interface Presence {
   /** This replica has a connection in the document (refreshed every heartbeat; expires if the replica dies). */
@@ -89,25 +96,38 @@ async function createPresence(redisUrl: string, prefix: string): Promise<Presenc
   }
 }
 
-let presence: Presence | null = null
+/** One site's engine and what goes with it (single mode: the one there is). */
+interface Collab {
+  /** The site's id: the hooks and the heartbeat find the site by it. */
+  site: string
+  presence: Presence | null
+  instance: Hocuspocus | null
+  starting: Promise<Hocuspocus> | null
+  heartbeat: ReturnType<typeof setInterval> | null
+  lastPurge: number
+  /** The heartbeat while it runs: a document's last tab waits for it before marking the document idle. */
+  beating: Promise<void> | null
+  /** The epoch each loaded document belongs to (what it may store into). */
+  loadedEpoch: Map<string, string>
+  /** Documents opened on each socket. */
+  docsBySocket: Map<string, Set<string>>
+}
 
-let instance: Hocuspocus | null = null
-let starting: Promise<Hocuspocus> | null = null
-let heartbeat: ReturnType<typeof setInterval> | null = null
-let lastPurge = 0
-/** The heartbeat while it runs: a document's last tab waits for it before marking the document idle. */
-let beating: Promise<void> | null = null
-/** The epoch each loaded document belongs to (what it may store into). */
-const loadedEpoch = new Map<string, string>()
-/** Documents opened on each socket. */
-const docsBySocket = new Map<string, Set<string>>()
+/** A site that is unloaded (it left the directory, or its row changed) stores what is pending and closes its engine. */
+const collab = cmsSiteScoped<Collab>(() => ({ site: useCmsSite().id, presence: null, instance: null, starting: null, heartbeat: null, lastPurge: 0, beating: null, loadedEpoch: new Map(), docsBySocket: new Map() }), {
+  dispose: (c) => stopCollab(c),
+})
+const engines = cmsProcessWide(new Set<Collab>(), 'the engines that were started, of every site: a stopping server stops them all')
 
+/** The current site's engine, started on first use. */
 export function useCollabServer(): Promise<Hocuspocus> {
-  starting ??= startCollabServer().catch((err) => {
-    starting = null
+  const c = collab()
+  engines.add(c)
+  c.starting ??= startCollabServer(c).catch((err) => {
+    c.starting = null
     throw err
   })
-  return starting
+  return c.starting
 }
 
 /** Close a whole socket: the browser reconnects and is authorised afresh. */
@@ -195,22 +215,45 @@ function awarenessAllowed(ctx: CollabContext, body: ReturnType<typeof reader>, a
   }
 }
 
-async function startCollabServer(): Promise<Hocuspocus> {
+/**
+ * The engine's hooks, each run inside the engine's site. Hocuspocus calls them from socket
+ * events, its own timers and promise chains, where the async context is whatever happened
+ * to be there. The site is looked up by id every time, as the directory has it now (a row
+ * that changed is not answered from the old one); one that left has no hooks any more.
+ */
+function hooksInSite<T extends Partial<Configuration>>(siteId: string, config: T): T {
+  const out: Record<string, any> = { ...config }
+  for (const [name, hook] of Object.entries(config)) {
+    if (typeof hook !== 'function') continue
+    out[name] = (...args: any[]) => {
+      const site = cmsSiteById(siteId)
+      if (!site) return Promise.reject(new Error('This website is not served here any more'))
+      return runInCmsSite(site, () => (hook as any)(...args))
+    }
+  }
+  return out as T
+}
+
+async function startCollabServer(c: Collab): Promise<Hocuspocus> {
+  const { loadedEpoch, docsBySocket } = c
   const extensions: any[] = []
   const redisUrl = String((useRuntimeConfig().cms as any)?.redis?.url || process.env.REDIS_URL || '')
+  // Multi-tenant mode: the site's id in the prefix (`<store prefix>:site:<id>:collab`), so one
+  // site's documents and presence lists are not another's. Single mode: `<store prefix>:collab`.
+  const prefix = redisUrl ? `${cmsStorePrefix()}:${cmsSiteKey('collab')}` : ''
   if (redisUrl) {
     const [{ Redis: RedisExtension }, { default: IORedis }] = await Promise.all([import('@hocuspocus/extension-redis'), import('ioredis')])
-    extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { protocol: REDIS_PROTOCOL, maxRetriesPerRequest: null }) as any, prefix: `${cmsStorePrefix()}:collab` } as any))
+    extensions.push(new RedisExtension({ createClient: () => new IORedis(redisUrl, { protocol: REDIS_PROTOCOL, maxRetriesPerRequest: null }) as any, prefix } as any))
   }
 
   // "Nobody has it open" is known the moment the last tab leaves: with one instance
   // from its own connections, with several (Redis) from the replicas' presence lists.
   // If Redis cannot say, only the 90 s activity window does.
-  presence = redisUrl ? await createPresence(redisUrl, `${cmsStorePrefix()}:collab`).catch((err) => {
+  c.presence = redisUrl ? await createPresence(redisUrl, prefix).catch((err) => {
     console.error('[cms] collab presence unavailable', safeErrorMessage(err))
     return null
   }) : null
-  const redisPresence = presence
+  const redisPresence = c.presence
   /** Does anyone have the document open (here, or on another replica)? A guess of yes when unsure. */
   const occupied = async (document: { name: string; getConnectionsCount(): number }): Promise<boolean> => {
     if (document.getConnectionsCount() > 0) return true
@@ -223,7 +266,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
       return true
     }
   }
-  const server: Hocuspocus = new Hocuspocus({
+  const server: Hocuspocus = new Hocuspocus(hooksInSite(c.site, {
     name: 'cms',
     extensions,
     // Store a few seconds after typing stops, and at least every 15 s while it goes on.
@@ -326,7 +369,7 @@ async function startCollabServer(): Promise<Hocuspocus> {
       if (clientsCount === 0) {
         // A heartbeat that counted this tab as a writer may still be writing "being edited":
         // let it finish first, or it would land after "idle" and stay there.
-        await beating?.catch(() => {})
+        await c.beating?.catch(() => {})
         if (redisPresence) {
           // Leave the list first: of two replicas losing their last tab at once, the later one sees it empty.
           await redisPresence.left(documentName).catch(() => {})
@@ -366,14 +409,17 @@ async function startCollabServer(): Promise<Hocuspocus> {
       })().finally(() => { ctx.checking = undefined })
       await ctx.checking
     },
-  })
-  instance = server
+  }))
+  c.instance = server
 
-  heartbeat ??= setInterval(() => {
-    if (beating) return
-    beating = beat().finally(() => { beating = null })
+  c.heartbeat ??= setInterval(() => {
+    if (c.beating) return
+    // A timer carries no site of its own: the heartbeat runs inside the engine's.
+    const site = cmsSiteById(c.site)
+    if (!site) return
+    c.beating = runInCmsSite(site, () => beat(c)).finally(() => { c.beating = null })
   }, cmsTimerMs('CMS_TEST_COLLAB_HEARTBEAT_MS', HEARTBEAT_MS))
-  ;(heartbeat as any).unref?.()
+  ;(c.heartbeat as any).unref?.()
   return server
 }
 
@@ -382,8 +428,8 @@ async function startCollabServer(): Promise<Hocuspocus> {
  * documents someone is editing as active (they are never restarted under them), and
  * now and then forget documents nobody touched for a month.
  */
-async function beat() {
-  const server = instance
+async function beat(engine: Collab) {
+  const server = engine.instance
   if (!server) return
   const { db, reg } = useCms()
   const editing: string[] = []
@@ -407,15 +453,15 @@ async function beat() {
     }
     if (writers) editing.push(doc.name)
     // Keep this replica's place in the document's presence list from expiring.
-    if (presence && doc.getConnectionsCount() > 0) await presence.here(doc.name).catch(() => {})
+    if (engine.presence && doc.getConnectionsCount() > 0) await engine.presence.here(doc.name).catch(() => {})
   }
   try {
     // Only documents that still have a writer now: the re-checks above wait on the database,
     // and a last tab that left meanwhile has marked its document idle.
     const stillEditing = editing.filter((name) => [...(server.documents.get(name)?.getConnections() ?? [])].some((c: any) => !c.readOnly))
     if (stillEditing.length) await db.update(reg.cmsCollab).set({ activeAt: sql`now()` }).where(inArray(reg.cmsCollab.name, stillEditing))
-    if (Date.now() - lastPurge > 60 * 60_000) {
-      lastPurge = Date.now()
+    if (Date.now() - engine.lastPurge > 60 * 60_000) {
+      engine.lastPurge = Date.now()
       await db.delete(reg.cmsCollab).where(sql`${reg.cmsCollab.updatedAt} < now() - interval '30 days' and (${reg.cmsCollab.activeAt} is null or ${reg.cmsCollab.activeAt} < now() - interval '1 day')`)
     }
   }
@@ -439,23 +485,33 @@ export async function dropCollabDocuments(entity: string, id: string, locale?: s
       : (await db.select({ name: c.name }).from(c).where(sql`${c.name} = ${name} or starts_with(${c.name}, ${name + '/'}) or starts_with(${c.name}, ${name + '~'})`)).map((r: any) => r.name)
     if (!names.length) return
     await db.delete(c).where(inArray(c.name, names))
-    for (const n of names) instance?.closeConnections(n)
+    for (const n of names) collab().instance?.closeConnections(n)
   }
   catch (err) {
     console.error('[cms] collab: could not drop documents of', name, safeErrorMessage(err))
   }
 }
 
+/** Stop the engines (server shutdown): every site's. */
 export async function stopCollabServer(): Promise<void> {
-  if (heartbeat) clearInterval(heartbeat)
-  heartbeat = null
-  const server = instance
-  instance = null
-  starting = null
-  const p = presence
-  presence = null
+  await Promise.all([...engines].map((c) => stopCollab(c)))
+}
+
+/** Stop one site's engine. Needs no current site (a site being unloaded has none): the engine's hooks name theirs. */
+async function stopCollab(c: Collab): Promise<void> {
+  engines.delete(c)
+  if (c.heartbeat) clearInterval(c.heartbeat)
+  c.heartbeat = null
+  const server = c.instance
+  c.instance = null
+  const starting = c.starting
+  c.starting = null
+  const p = c.presence
+  c.presence = null
   if (!server) {
     await p?.close()
+    // Multi-tenant mode: a site unloaded while its engine was still starting. Stop it once it is up, or it would stay behind.
+    if (starting && cmsIsMultiTenant()) await starting.then(() => stopCollab(c), () => {})
     return
   }
   server.closeConnections()

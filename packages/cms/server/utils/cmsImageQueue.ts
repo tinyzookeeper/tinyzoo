@@ -16,14 +16,14 @@ import sharp from 'sharp'
 // an upload, or for pictures uploaded before sizes were made that way). A background job never
 // holds up a visitor for longer than the one step that is already running.
 
-let configured = false
+const configured = cmsProcessWide({ done: false }, 'sharp is set up once for the whole process')
 
 /** sharp, set up for a small server (one thread per picture, no cache). */
 export function cmsSharp(): typeof sharp {
-  if (!configured) {
+  if (!configured.done) {
     sharp.concurrency(1)
     sharp.cache(false)
-    configured = true
+    configured.done = true
   }
   return sharp
 }
@@ -38,19 +38,20 @@ interface Job {
 }
 
 const MAX_RUNNING = 1
-const lanes: Record<CmsImageLane, Job[]> = { now: [], background: [] }
-let running = 0
+// One queue for the whole process on purpose: sharp decodes one picture at a time, whichever site asked.
+const lanes = cmsProcessWide<Record<CmsImageLane, Job[]>>({ now: [], background: [] }, 'one picture at a time for the whole process')
+const state = cmsProcessWide({ running: 0 }, 'one picture at a time for the whole process')
 
 function next(): void {
-  while (running < MAX_RUNNING) {
+  while (state.running < MAX_RUNNING) {
     const job = lanes.now.shift() ?? lanes.background.shift()
     if (!job) return
-    running++
+    state.running++
     // A job that throws synchronously still ends here; the queue never stalls on one.
     Promise.resolve()
       .then(job.run)
       .then(job.resolve, job.reject)
-      .finally(() => { running--; next() })
+      .finally(() => { state.running--; next() })
   }
 }
 
@@ -61,12 +62,13 @@ function next(): void {
  */
 export function cmsImageJob<T>(work: () => Promise<T>, lane: CmsImageLane = 'now'): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    lanes[lane].push({ run: work, resolve, reject })
+    // The next job starts from the previous one's .finally: each runs in the site that queued it.
+    lanes[lane].push({ run: bindToCmsSite(work), resolve, reject })
     next()
   })
 }
 
 /** How busy the queue is (for the status and the tests). */
 export function cmsImageQueueState(): { running: number; waiting: number } {
-  return { running, waiting: lanes.now.length + lanes.background.length }
+  return { running: state.running, waiting: lanes.now.length + lanes.background.length }
 }

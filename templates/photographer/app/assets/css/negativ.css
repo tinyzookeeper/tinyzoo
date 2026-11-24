@@ -1,0 +1,120 @@
+/* Negativ: a contact sheet turned poster. Black, edge-to-edge photographs with 4 px gutters,
+   huge condensed capitals (Archivo at 62 % width) and small mono frame numbers (JetBrains Mono),
+   one warm metal accent. Written without a cascade layer, as the design was (see atelier.css). */
+html[data-look="negativ"] {
+  --font-sans: "Archivo", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* The colours of the first preset (Mosaz); a preset from the settings overrides these four. */
+  --brand: #d4b57e;
+  --brand-ink: #100f0d;
+  --bg: #0e0e0d;
+  --fg: #efece6;
+  /* The greys are mixed from text and background, so a light preset gets them right too. */
+  --dim: color-mix(in srgb, var(--fg) 64%, var(--bg));
+  --rule: color-mix(in srgb, var(--fg) 20%, var(--bg));
+  --panel: color-mix(in srgb, var(--fg) 6%, var(--bg));
+  --on-photo: #f3f0ea;
+
+  body { font-family: var(--font-sans); background: var(--bg); color: var(--fg); font-size: 1.0625rem; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+  .on-brand :focus-visible { outline-color: var(--brand-ink); }
+
+  /* Display: condensed, heavy, upper case */
+  .d { font-family: var(--font-sans); font-stretch: 62%; font-weight: 800; text-transform: uppercase; line-height: 0.93; letter-spacing: -0.005em; }
+  /* Meta: small mono */
+  .m { font-family: var(--font-mono); font-size: 0.74rem; line-height: 1.5; letter-spacing: 0.05em; text-transform: uppercase; }
+  .pad { padding-inline: 1.25rem; }
+  @media (min-width: 768px) { .pad { padding-inline: 2.5rem; } }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.75rem; min-height: 48px; padding: 0 1.4rem; background: var(--brand); color: var(--brand-ink); transition: background .15s, color .15s; cursor: pointer; }
+  .btn:hover { background: var(--fg); color: var(--bg); }
+  .btn[disabled] { opacity: .6; cursor: progress; }
+  .btn-hero:hover { background: var(--on-photo); color: #0e0e0d; }
+  .btn-ghost { background: transparent; color: var(--on-photo); box-shadow: inset 0 0 0 1.5px var(--on-photo); }
+  .btn-ghost:hover { background: var(--on-photo); color: #0e0e0d; }
+  .btn-ink { background: var(--brand-ink); color: var(--brand); }
+  .btn-ink:hover { background: transparent; color: var(--brand-ink); box-shadow: inset 0 0 0 2px var(--brand-ink); }
+  .lnk { display: inline-flex; align-items: center; min-height: 44px; transition: color .15s; }
+  .lnk:hover { color: var(--brand); }
+  .lnk.router-link-exact-active { color: var(--brand); }
+  .on-brand .lnk:hover { color: inherit; text-decoration: underline; text-underline-offset: 4px; }
+
+  /* Filter: the category names are the headline */
+  .flt { display: inline-flex; align-items: flex-start; gap: 0.12rem; min-height: 44px; color: var(--dim); cursor: pointer; transition: color .15s; }
+  .flt sup { font-family: var(--font-mono); font-stretch: 100%; font-weight: 400; font-size: 0.72rem; letter-spacing: 0.05em; line-height: 1; margin-top: 0.5em; top: 0; }
+  .flt:hover { color: var(--fg); }
+  .flt[aria-pressed="true"], .flt[aria-current="page"] { color: var(--brand); }
+
+  /* Mosaic: edge to edge, cells of one height, wide pictures take two */
+  .mosaic { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; grid-auto-flow: dense; grid-auto-rows: calc((100vw - 4px) / 2 * 1.25); }
+  @media (min-width: 768px) { .mosaic { grid-template-columns: repeat(3, 1fr); grid-auto-rows: calc((100vw - 8px) / 3 * 1.25); } }
+  @media (min-width: 68.75rem) { .mosaic { grid-template-columns: repeat(5, 1fr); grid-auto-rows: calc((100vw - 16px) / 5 * 1.25); } }
+  .tile { position: relative; display: block; overflow: hidden; background: var(--panel); }
+  .tile.w2 { grid-column: span 2; }
+  .tile img { width: 100%; height: 100%; object-fit: cover; transition: transform .7s cubic-bezier(.2,.6,.2,1); }
+  .tile:hover img { transform: scale(1.035); }
+  .tile .chip { position: absolute; top: 0; left: 0; padding: 0.3rem 0.5rem; background: rgba(10,10,9,.72); color: var(--on-photo); }
+  .tile .cap { position: absolute; inset: auto 0 0 0; padding: 3.5rem 0.9rem 0.8rem; background: linear-gradient(to top, rgba(8,8,7,.88), rgba(8,8,7,0)); color: var(--on-photo); opacity: 0; transform: translateY(6px); transition: opacity .25s, transform .25s; }
+  .tile:hover .cap, .tile:focus-visible .cap { opacity: 1; transform: none; }
+  @media (hover: none) { .tile .cap { opacity: 1; transform: none; } }
+
+  /* Story: two full-width rows on a desktop (on a phone the component draws a row to swipe instead) */
+  .strip { display: none; }
+  @media (min-width: 768px) { .strip { display: grid; gap: 1.75rem 0; } }
+  .strip .row { display: flex; gap: 4px; }
+  .strip figure { flex: var(--ar) 1 0%; min-width: 0; }
+  .frame { aspect-ratio: var(--ar); overflow: hidden; background: var(--bg); }
+  .frame img { width: 100%; height: 100%; object-fit: cover; }
+
+  /* Price rows */
+  .price-row { transition: background .15s; }
+  .price-row:not(.is-top):hover { background: var(--panel); }
+
+  /* Steps: ruled cells, one column, then two, then all in a row */
+  .cells > li { padding-block: 1.5rem; border-color: var(--rule); border-bottom-width: 1px; }
+  .cells > li:last-child { border-bottom-width: 0; }
+  @media (min-width: 640px) {
+    .cells > li:nth-child(even) { padding-left: 2rem; border-left-width: 1px; }
+    .cells > li:nth-last-child(2):nth-child(odd) { border-bottom-width: 0; }
+  }
+  @media (min-width: 68.75rem) {
+    .cells > li { border-bottom-width: 0; padding-inline: 2rem; border-left-width: 1px; }
+    .cells > li:first-child { padding-left: 0; border-left-width: 0; }
+    .cells > li:last-child { padding-right: 0; }
+  }
+
+  /* Form on the colour field */
+  .fld label { display: block; margin-bottom: 0.15rem; }
+  .fld input, .fld select, .fld textarea { width: 100%; min-height: 50px; padding: 0.5rem 0; background: transparent; border: 0; border-bottom: 2px solid var(--brand-ink); border-radius: 0; color: var(--brand-ink); font: inherit; font-size: 1.25rem; font-weight: 500; }
+  .fld textarea { min-height: 7rem; resize: vertical; }
+  .fld ::placeholder { color: color-mix(in srgb, var(--brand-ink) 74%, var(--brand)); font-weight: 400; opacity: 1; }
+  .fld input:focus-visible, .fld select:focus-visible, .fld textarea:focus-visible { outline: none; box-shadow: 0 3px 0 0 var(--brand-ink); }
+  .fld select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, var(--brand-ink) 50%), linear-gradient(135deg, var(--brand-ink) 50%, transparent 50%); background-position: calc(100% - 11px) 55%, calc(100% - 4px) 55%; background-size: 7px 7px; background-repeat: no-repeat; }
+  .fld select option { color: #111; }
+  .fld [aria-invalid="true"] { box-shadow: 0 3px 0 0 var(--brand-ink); }
+  .fld .fld-error { margin-top: 0.4rem; font-weight: 600; font-size: 0.95rem; line-height: 1.35; }
+
+  /* Rich text of a free page */
+  .prose-look { max-width: 44rem; }
+  .prose-look > * + * { margin-top: 1rem; }
+  .prose-look h2 { font-stretch: 62%; font-weight: 800; text-transform: uppercase; line-height: 0.95; font-size: 2.6rem; margin-top: 2.8rem; }
+  .prose-look h3 { font-weight: 600; font-size: 1.35rem; line-height: 1.25; margin-top: 2rem; }
+  .prose-look p, .prose-look li { color: var(--dim); }
+  .prose-look a { color: var(--fg); text-decoration: underline; text-underline-offset: 4px; }
+  .prose-look a:hover { color: var(--brand); }
+  .prose-look ul { border-top: 1px solid var(--rule); }
+  .prose-look ul li { padding: 0.6rem 0; border-bottom: 1px solid var(--rule); }
+  .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+  .prose-look blockquote { font-size: 1.6rem; line-height: 1.25; font-weight: 500; color: var(--fg); margin-block: 1.8rem; }
+  .prose-look blockquote p { color: inherit; }
+  .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
+  .prose-look strong { color: var(--fg); font-weight: 600; }
+
+  /* A photograph opened large (PhotoLightbox.vue): black, the frame number in mono, the caption in the display face */
+  .lb { background: rgba(8, 8, 7, .97); color: var(--on-photo); }
+  .lb__cap { padding-top: 0.8rem; font-family: var(--font-sans); font-stretch: 62%; font-weight: 800; text-transform: uppercase; font-size: 1.5rem; line-height: 1; letter-spacing: 0.005em; color: var(--on-photo); }
+  .lb__count { font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.05em; color: var(--brand); }
+  .lb__btn { color: var(--on-photo); box-shadow: inset 0 0 0 1.5px rgba(243, 240, 234, .45); }
+  .lb__btn:hover { background: var(--on-photo); color: #0e0e0d; box-shadow: none; }
+  .lb :focus-visible { outline-color: var(--on-photo); }
+}

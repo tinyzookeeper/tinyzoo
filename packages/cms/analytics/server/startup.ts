@@ -8,9 +8,12 @@ import { flushViews, forgetConsentId } from './ingest'
 export default defineNitroPlugin((nitroApp) => {
   setAdminTimeZone((useAppConfig() as any)?.cms?.admin?.timeZone)
   nitroApp.hooks.hook('close', async () => {
+    // Single mode: the one buffer. Multi mode: no current site here, so every site's buffer.
     await flushViews()
   })
   nitroApp.hooks.hook('cms:change', (change: any) => {
+    // The hook runs inside the site whose content changed; outside a site there is nothing to forget.
+    if (!currentCmsSite()) return
     // An address may have changed (a new slug, a page moved, an entry published or deleted).
     if (change?.paths?.length) forgetEntryPaths()
     if (change?.entity === 'analytics_settings') forgetSettings()

@@ -39,6 +39,29 @@ interface PendingEmail { email: string; expiresAt: string }
 // Read in the browser after the page is shown: an async load in setup shifts the ids Nuxt UI gives this
 // page's labels and fields between the server and the browser (every label pointed at nothing).
 const pendingEmail = ref<PendingEmail | null>(null)
+// Where people sign in with the tinyzoo account: one line saying whether this user is connected to
+// one (the admin's layout asked already: `_auth/me` says the account is on, the list of websites who is linked).
+const { data: access } = useNuxtData<{ account?: { enabled: boolean }; noPassword?: boolean }>('cms-access')
+// Somebody accepted through the tinyzoo account has no password on this website: the forms below ask for
+// the current one, so for them the page says how they sign in and offers the forgotten-password
+// e-mail as the way to choose a password (a link to their own mailbox is the proof; nothing else sets one).
+const noPassword = computed(() => !!access.value?.noPassword)
+const passwordLink = reactive({ sending: false, sent: false, error: '' })
+async function sendPasswordLink() {
+  passwordLink.error = ''
+  passwordLink.sending = true
+  try {
+    await $fetch('/api/cms/_auth/forgot', { method: 'POST', body: { email: user.value?.email ?? '' } })
+    passwordLink.sent = true
+  }
+  catch (err: any) {
+    passwordLink.error = err?.statusCode === 429 ? t('auth.tooMany') : cmsErrorMessage(err, t('team.actionFailed'))
+  }
+  finally {
+    passwordLink.sending = false
+  }
+}
+const { state: accountSites } = useCmsAccountSites()
 async function refreshEmailState() {
   try {
     pendingEmail.value = (await $fetch<{ pending: PendingEmail | null }>('/api/cms/_auth/email')).pending
@@ -255,15 +278,20 @@ function rightBadges(r: TokenRights): string[] {
             <span class="cms-section__tile"><UIcon name="i-lucide-mail" class="size-4" /></span>
             <div class="min-w-0">
               <h2 id="account-email" class="cms-section__title">{{ t('account.signInEmail') }}</h2>
-              <p class="text-sm text-muted text-pretty">{{ t('account.signInEmailDescription') }}</p>
+              <p class="text-sm text-muted text-pretty" :data-cms-no-password-email="noPassword ? '' : undefined">{{ noPassword ? t('account.noPasswordEmail') : t('account.signInEmailDescription') }}</p>
             </div>
           </header>
           <div class="cms-section__fields">
             <UFormField :label="t('account.currentEmail')" name="currentEmail">
               <UInput :model-value="user?.email ?? ''" disabled icon="i-lucide-mail" class="w-full" />
             </UFormField>
+            <p v-if="access?.account?.enabled && accountSites.loaded" class="flex items-start gap-2 text-sm text-muted text-pretty" data-cms-account-link>
+              <UIcon :name="accountSites.linked ? 'i-lucide-link' : 'i-lucide-unlink'" class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span>{{ accountSites.linked ? t('account.accountConnected') : t('account.accountNotConnected') }}</span>
+            </p>
             <UAlert v-if="isDemo" color="neutral" variant="subtle" icon="i-lucide-info" :title="t('account.demoTitle')" :description="t('account.demoEmail')" />
-            <template v-else>
+            <!-- no password here (the tinyzoo account is the way in): a change is confirmed with one, so the heading says to set it first and the form stays away -->
+            <template v-else-if="!noPassword">
               <!-- a change waiting for its link: what was sent where, what to do if it does not arrive -->
               <UAlert
                 v-if="pendingEmail" color="info" variant="subtle" icon="i-lucide-mail-check" role="status"
@@ -297,10 +325,24 @@ function rightBadges(r: TokenRights): string[] {
             <span class="cms-section__tile"><UIcon name="i-lucide-key-round" class="size-4" /></span>
             <div class="min-w-0">
               <h2 id="account-password" class="cms-section__title">{{ t('account.password') }}</h2>
-              <p class="text-sm text-muted text-pretty">{{ t('account.passwordDescription') }}</p>
+              <p class="text-sm text-muted text-pretty">{{ noPassword ? t('account.noPassword') : t('account.passwordDescription') }}</p>
             </div>
           </header>
           <UAlert v-if="isDemo" color="neutral" variant="subtle" icon="i-lucide-info" :title="t('account.demoTitle')" :description="t('account.demoBody')" />
+          <!-- no password here: a link to the person's own mailbox lets them choose one (the forgotten-password e-mail) -->
+          <div v-else-if="noPassword" class="cms-section__fields" data-cms-no-password>
+            <UAlert
+              v-if="passwordLink.sent" color="info" variant="subtle" icon="i-lucide-mail-check" role="status" data-cms-password-link-sent
+              :title="t('account.noPasswordSentTitle', { email: user?.email ?? '' })" :description="t('account.noPasswordSentBody')"
+            />
+            <template v-else>
+              <p class="text-sm text-toned text-pretty">{{ t('account.noPasswordSet', { email: user?.email ?? '' }) }}</p>
+              <UAlert v-if="passwordLink.error" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="passwordLink.error" role="alert" />
+              <div>
+                <UButton color="neutral" variant="outline" icon="i-lucide-send" :loading="passwordLink.sending" data-cms-password-link @click="sendPasswordLink">{{ t('account.noPasswordSend') }}</UButton>
+              </div>
+            </template>
+          </div>
           <form v-else method="post" ref="pwForm" class="cms-section__fields" novalidate @submit.prevent="changePassword">
             <UFormField :label="t('account.currentPassword')" name="current" :error="pwErrors.current || undefined">
               <CmsPasswordInput v-model="pw.current" autocomplete="current-password" />

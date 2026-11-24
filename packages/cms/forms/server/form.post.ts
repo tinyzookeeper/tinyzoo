@@ -28,10 +28,19 @@ export default defineEventHandler(async (event) => {
 
   const origin = getRequestHeader(event, 'origin')
   if (origin) {
-    const own = new Set([getRequestURL(event).origin])
-    const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '').replace(/\/+$/, '')
-    if (configured) own.add(new URL(configured).origin)
-    if (!own.has(origin)) throw createError({ statusCode: 403, statusMessage: 'Forms accept submissions from this site only' })
+    let ours: boolean
+    if (cmsIsMultiTenant()) {
+      // Many sites share the server: the site's own hosts and its address count, not the request's.
+      try { ours = useCmsSite().hosts.includes(cmsNormalHost(new URL(origin).host)) || new URL(String(cmsSettings().publicUrl || '')).origin === origin }
+      catch { ours = false }
+    }
+    else {
+      const own = new Set([getRequestURL(event).origin])
+      const configured = String(cmsSettings().publicUrl || '').replace(/\/+$/, '')
+      if (configured) own.add(new URL(configured).origin)
+      ours = own.has(origin)
+    }
+    if (!ours) throw createError({ statusCode: 403, statusMessage: 'Forms accept submissions from this site only' })
   }
 
   // Attempts are limited loosely (correcting a typo is fine); accepted messages tightly, below.
@@ -96,7 +105,7 @@ export default defineEventHandler(async (event) => {
   // Tell people; a mail problem never loses the submission.
   const to = await formRecipients(db, reg, e)
   if (to.length) {
-    const base = String((useRuntimeConfig().cms as any)?.publicUrl || '').replace(/\/+$/, '') || getRequestURL(event).origin
+    const base = String(cmsSettings().publicUrl || '').replace(/\/+$/, '') || getRequestURL(event).origin
     const adminUrl = base + '/admin/' + e.name + '/' + row.id
     for (const addr of to) {
       await submissionEmail(event, { to: addr, e, row, adminUrl }).then(sendCmsMail).catch((err: any) => {

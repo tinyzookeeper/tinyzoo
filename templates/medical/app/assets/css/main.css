@@ -1,0 +1,49 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* The two looks (looks.ts): each styles the website under html[data-look="<id>"]. */
+@import "./cekarna.css";
+@import "./cifernik.css";
+
+/* Tailwind must also scan the CMS's own components (the admin) and the template kit's. */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The looks' tokens as utilities: bg-tint, text-ink, border-line, font-display… Each look
+   gives the variables behind them their values (under html[data-look="…"], in the two files
+   above), and a colour preset from the site's settings overrides the colours inline on <html>.
+   Outside a look (the admin) none of these is set, and none is used.
+   The names keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses. */
+@theme {
+  --font-display: system-ui, sans-serif;
+
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-quiet: var(--quiet);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-line: var(--line);
+
+  /* Čekárna: a soft surface, the brand's tint, the amber of a notice and the green of "open" */
+  --color-tint: var(--tint);
+  --color-brand-tint: var(--brand-tint);
+  --color-note: var(--note);
+  --color-note-tint: var(--note-tint);
+  --color-ok: var(--ok);
+
+  /* Ciferník: the page, its white cards, a soft brand, the second colour, the honey accent and the clock's track */
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-soft: var(--soft);
+  --color-second: var(--second);
+  --color-sun: var(--sun);
+  --color-track: var(--track);
+}
+
+/* Long words and addresses wrap instead of pushing the page wider on phones. A section reached
+   from the menu (/#hodiny) stops a little under the top of the window. */
+@layer base {
+  html[data-look] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-look] { scroll-behavior: smooth; }
+  html[data-look] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-look] { scroll-behavior: auto; } }
+}

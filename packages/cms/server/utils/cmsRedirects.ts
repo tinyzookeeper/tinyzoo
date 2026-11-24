@@ -5,7 +5,8 @@ import type { CmsEntity, CmsRegistry } from 'tinyzoo'
 // Loaded into memory and refreshed every 30 s (other replicas) or right after a
 // redirect is created, changed or deleted on this instance.
 type Target = { to: string; status: 301 | 302 }
-let cache: { at: number; map: Map<string, Target> } | null = null
+// Per site: each site has its own redirects.
+const cache = cmsSiteScoped<{ at: number; map: Map<string, Target> } | null>(() => null)
 const TTL_MS = 30_000
 
 export function redirectEntity(reg: CmsRegistry) {
@@ -13,7 +14,7 @@ export function redirectEntity(reg: CmsRegistry) {
 }
 
 export function invalidateRedirects(): void {
-  cache = null
+  cache.reset()
 }
 
 /**
@@ -94,7 +95,8 @@ export async function findRedirect(path: string): Promise<Target | null> {
   const { db, reg } = useCms()
   const e = redirectEntity(reg)
   if (!e) return null
-  if (!cache || Date.now() - cache.at > TTL_MS) {
+  let cached = cache()
+  if (!cached || Date.now() - cached.at > TTL_MS) {
     const rows: any[] = await db.select({ from: e.table.from, to: e.table.to, permanent: e.table.permanent }).from(e.table)
     // A target picked from the site's pages is stored as a reference and follows the page
     // (in the language of the old address); one whose page is gone or not published sends nobody anywhere.
@@ -107,9 +109,10 @@ export async function findRedirect(path: string): Promise<Target | null> {
       if (!to || normalizePath(to) === normalizePath(r.from)) return
       map.set(normalizePath(r.from), { to, status: r.permanent === false ? 302 : 301 })
     })
-    cache = { at: Date.now(), map }
+    cached = { at: Date.now(), map }
+    cache.set(cached)
   }
-  return cache.map.get(normalizePath(path)) ?? null
+  return cached.map.get(normalizePath(path)) ?? null
 }
 
 /**

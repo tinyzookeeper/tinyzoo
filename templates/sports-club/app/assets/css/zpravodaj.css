@@ -1,0 +1,75 @@
+/* Zpravodaj: the club bulletin done properly. Warm white paper, hairlines, a Clarendon headline
+   face (Besley) with Instrument Sans for text, tables and small-caps labels, and framed colour
+   photographs with captions. Written in the cascade layers the design was written in:
+   utilities win over these rules where both speak. */
+html[data-look="zpravodaj"] {
+  --font-display: "Besley", Georgia, serif;
+  --font-sans: "Instrument Sans", system-ui, sans-serif;
+  /* The colours of the first preset (Červenobílí); a preset from the settings overrides them. */
+  --brand: #a51d27;
+  --brand-ink: #ffffff;
+  --second: #ffffff;
+  --paper: #fbfaf7;
+  --tint: #f2eee7;
+  --line: #ded8cc;
+  --ink: #1c1a18;
+  --body: #45413b;
+  --quiet: #6a655d;
+}
+
+@layer base {
+  html[data-look="zpravodaj"] {
+    -webkit-text-size-adjust: 100%;
+    body { background: var(--paper); color: var(--body); font-family: var(--font-sans); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+    .on-brand :focus-visible { outline-color: var(--brand-ink); }
+    h1, h2, h3 { font-family: var(--font-display); color: var(--ink); }
+  }
+}
+
+@layer components {
+  html[data-look="zpravodaj"] {
+    .wrap { width: 100%; max-width: 1232px; margin-inline: auto; padding-inline: 20px; }
+    .label { font-size: 12px; line-height: 1.3; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--quiet); }
+    .h2 { font-size: clamp(28px, 3.2vw, 40px); line-height: 1.12; font-weight: 700; letter-spacing: -.01em; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px; border-radius: 2px; font-weight: 600; font-size: 15px; transition: background-color .15s, color .15s, border-color .15s; cursor: pointer; }
+    .btn-fill { background: var(--brand); color: var(--brand-ink); }
+    .btn-fill:hover { background: color-mix(in srgb, var(--brand) 86%, black); }
+    .btn-line { border: 1px solid var(--ink); color: var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--paper); }
+    .link { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 2px; text-underline-offset: 5px; transition: color .15s; }
+    .link:hover { color: var(--brand); }
+    .frame { border: 1px solid var(--line); padding: 8px; background: #fff; }
+    .tab { min-height: 44px; padding: 0 2px; font-weight: 600; font-size: 15px; color: var(--quiet); border-bottom: 3px solid transparent; margin-bottom: -1px; transition: color .15s, border-color .15s; white-space: nowrap; cursor: pointer; }
+    .tab:hover { color: var(--ink); }
+    .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--brand); }
+    .res { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 2px; font-size: 11px; font-weight: 700; line-height: 1; }
+    .res-V { background: var(--brand); color: var(--brand-ink); }
+    .res-R { background: var(--line); color: var(--ink); }
+    .res-P { box-shadow: inset 0 0 0 1px var(--quiet); color: var(--quiet); }
+    .field { width: 100%; min-height: 48px; padding: 10px 14px; background: #fff; border: 1px solid var(--line); border-radius: 2px; color: var(--ink); font: inherit; transition: border-color .15s; }
+    .field:hover { border-color: var(--quiet); }
+    .field:focus { border-color: var(--brand); outline: 2px solid var(--brand); outline-offset: 0; }
+    .field[aria-invalid="true"] { border-color: #a3261e; }
+    .field-error { margin-top: 0.3rem; font-size: 14px; line-height: 1.4; color: #a3261e; }
+    .num { font-variant-numeric: tabular-nums; }
+    .font-display, .num .font-display { font-variant-numeric: normal; }
+  }
+}
+
+/* The text of an article or a plain page (the editor's rich text). */
+@layer components {
+  html[data-look="zpravodaj"] {
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1.1rem; }
+    .prose-look h2 { font-family: var(--font-display); color: var(--ink); font-weight: 700; font-size: 1.75rem; line-height: 1.15; margin-top: 2.4rem; }
+    .prose-look h3 { font-family: var(--font-display); color: var(--ink); font-weight: 700; font-size: 1.35rem; line-height: 1.2; margin-top: 1.8rem; }
+    .prose-look a { color: var(--ink); font-weight: 600; text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--brand); }
+    .prose-look ul { list-style: disc; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-style: italic; font-size: 1.35rem; line-height: 1.4; color: var(--ink); border-top: 1px solid var(--ink); border-bottom: 1px solid var(--line); padding-block: 1rem; }
+    .prose-look img { width: 100%; height: auto; }
+    .prose-look strong { color: var(--ink); font-weight: 600; }
+  }
+}

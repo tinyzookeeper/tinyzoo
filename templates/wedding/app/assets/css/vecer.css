@@ -1,0 +1,110 @@
+/* Večer: the evening of the wedding as the invitation. A dark page that opens on the couple
+   under strings of lights, the names in a light italic over the sky, champagne hairlines and
+   one ivory reply card. One family (Newsreader) with small tracked capitals (Jost).
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="vecer"] {
+  --font-serif: "Newsreader", Georgia, serif;
+  --font-caps: "Jost", system-ui, sans-serif;
+  /* The colours of the first preset (Les); a preset from the settings overrides them. */
+  --night: #111b17;
+  --panel: #18251f;
+  --line: #32423a;
+  --ink: #f4eddd;
+  --body: #d5cebc;
+  --quiet: #a7a08e;
+  --brand: #d3b784;
+  --brand-ink: #141d18;
+  --card: #f3ecdd;
+  --card-ink: #17211c;
+  --card-body: #454a40;
+  --card-line: #cdc3ac;
+}
+
+@layer base {
+  html[data-look="vecer"] {
+    body { font-family: var(--font-serif); font-weight: 400; font-optical-sizing: auto; color: var(--body); background: var(--night); font-size: 1.125rem; line-height: 1.62; -webkit-font-smoothing: antialiased; font-variant-numeric: lining-nums; }
+    @media (min-width: 64rem) { body { font-size: 1.1875rem; } }
+    h1, h2, h3 { font-family: var(--font-serif); color: var(--ink); font-weight: 400; letter-spacing: -0.01em; }
+    em { font-style: italic; }
+    .site :focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
+    ::selection { background: var(--brand); color: var(--brand-ink); }
+  }
+}
+
+@layer components {
+  html[data-look="vecer"] {
+    .wrap { max-width: 78rem; margin-inline: auto; padding-inline: 1.5rem; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 3rem; } }
+    .label { font-family: var(--font-caps); font-weight: 500; font-size: 0.72rem; line-height: 1.6; letter-spacing: 0.26em; text-transform: uppercase; }
+    .h2 { font-weight: 300; font-size: 2.45rem; line-height: 1.1; letter-spacing: -0.015em; }
+    @media (min-width: 64rem) { .h2 { font-size: 3.5rem; line-height: 1.08; } }
+    .stem { display: block; width: 1px; height: 3.5rem; margin: 0 auto 1.6rem; background: color-mix(in srgb, var(--brand) 65%, transparent); }
+    .numeral { font-style: italic; font-weight: 300; font-size: 2.2rem; line-height: 1; color: var(--brand); }
+    .keyline { outline: 1px solid color-mix(in srgb, var(--brand) 55%, transparent); outline-offset: 11px; }
+    .monogram { display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--brand) 70%, transparent); color: var(--ink); line-height: 1; letter-spacing: 0.06em; }
+
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); background: linear-gradient(var(--brand), var(--brand)) 0 calc(100% - 10px) / 0 1px no-repeat; transition: background-size .6s ease, color .6s ease; }
+    .navlink:hover { background-size: 100% 1px; color: var(--brand); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.7rem; min-height: 54px; padding: 0 2.2rem; background: var(--brand); color: var(--brand-ink); border: 1px solid var(--brand); transition: background .5s ease, color .5s ease, border-color .5s ease; cursor: pointer; }
+    .btn:hover { background: var(--ink); border-color: var(--ink); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-line { background: transparent; color: var(--ink); border-color: color-mix(in srgb, var(--brand) 70%, transparent); }
+    .btn-line:hover { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+    .tlink { display: inline-flex; align-items: center; gap: 0.55rem; min-height: 44px; color: var(--ink); background: linear-gradient(var(--brand), var(--brand)) 0 calc(100% - 10px) / 100% 1px no-repeat; transition: color .5s ease; }
+    .tlink:hover { color: var(--brand); }
+
+    .hero-scrim { background:
+      linear-gradient(to bottom, color-mix(in srgb, var(--night) 84%, transparent) 0%, color-mix(in srgb, var(--night) 66%, transparent) 32%, color-mix(in srgb, var(--night) 42%, transparent) 54%, transparent 74%),
+      linear-gradient(to top, var(--night) 0%, transparent 9%); }
+    .foot-scrim { background: linear-gradient(to bottom, var(--night) 0%, color-mix(in srgb, var(--night) 72%, transparent) 30%, color-mix(in srgb, var(--night) 72%, transparent) 100%); }
+
+    .zoom { overflow: hidden; }
+    .zoom img { width: 100%; height: 100%; object-fit: cover; transition: transform 1.8s cubic-bezier(.2, .6, .2, 1); }
+    .zoom:hover img { transform: scale(1.03); }
+
+    /* The reply card: a light sheet on the dark page. */
+    .reply { background: var(--card); color: var(--card-body); }
+    .reply :focus-visible { outline-color: var(--card-ink); }
+    .reply .field label, .reply .field legend { display: block; margin-bottom: 0.2rem; color: var(--card-body); }
+    .reply .field legend { margin-bottom: 0.75rem; }
+    .reply .field input[type="text"], .reply .field select, .reply .field textarea { width: 100%; min-height: 50px; padding: 0.5rem 0; background: transparent; border: 0; border-bottom: 1px solid var(--card-ink); border-radius: 0; color: var(--card-ink); font: inherit; font-size: 1.2rem; }
+    .reply .field textarea { min-height: 6.5rem; resize: vertical; line-height: 1.45; }
+    .reply .field ::placeholder { color: color-mix(in srgb, var(--card-body) 88%, var(--card)); font-style: italic; opacity: 1; }
+    .reply .field input:focus-visible, .reply .field select:focus-visible, .reply .field textarea:focus-visible { outline: none; box-shadow: 0 1px 0 0 var(--card-ink); }
+    .reply .field select { appearance: none; padding-right: 1.75rem; text-overflow: ellipsis; background-image: linear-gradient(45deg, transparent 50%, var(--card-ink) 50%), linear-gradient(135deg, var(--card-ink) 50%, transparent 50%); background-position: calc(100% - 9px) 55%, calc(100% - 4px) 55%; background-size: 5px 5px; background-repeat: no-repeat; }
+    .reply .field [aria-invalid="true"] { border-bottom-color: #a3261e; }
+    .reply .field .field-error { margin-top: 0.35rem; font-size: 0.95rem; line-height: 1.4; color: #a3261e; }
+    .field .choice { display: block; margin: 0; }
+    .choice span { display: flex; align-items: center; justify-content: center; min-height: 62px; padding: 0.6rem 0.75rem; text-align: center; line-height: 1.1; border: 1px solid var(--card-ink); color: var(--card-ink); font-size: 1.3rem; cursor: pointer; transition: background .4s ease, color .4s ease; }
+    .choice:hover span { background: color-mix(in srgb, var(--card-line) 55%, transparent); }
+    .choice input:checked + span { background: var(--night); border-color: var(--night); color: var(--ink); }
+    .choice input:focus-visible + span { outline: 2px solid var(--card-ink); outline-offset: 4px; }
+    .check { display: flex; align-items: flex-start; gap: 0.75rem; min-height: 44px; cursor: pointer; color: var(--card-ink); }
+    .check input { margin-top: 0.4rem; width: 20px; height: 20px; flex: none; accent-color: var(--card-ink); }
+    .btn-night { background: var(--night); border-color: var(--night); color: var(--ink); }
+    .btn-night:hover { background: var(--panel); border-color: var(--panel); color: var(--brand); }
+
+    .gift-name.is-reserved { color: var(--quiet); }
+
+    @keyframes vecer-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    .rise { animation: vecer-rise .8s ease both; }
+    .rise-2 { animation-delay: .1s; }
+    .rise-3 { animation-delay: .2s; }
+    @media (prefers-reduced-motion: reduce) { .rise { animation: none; } .zoom img { transition: none; } }
+
+    /* Rich text of a free page */
+    .prose-look { max-width: 44rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-weight: 300; font-size: 2.1rem; line-height: 1.15; margin-top: 2.6rem; }
+    .prose-look h3 { font-size: 1.5rem; line-height: 1.2; margin-top: 2rem; }
+    .prose-look a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--brand); text-decoration-thickness: 1px; text-underline-offset: 4px; }
+    .prose-look a:hover { color: var(--brand); }
+    .prose-look ul { list-style: none; border-top: 1px solid var(--line); }
+    .prose-look ul li { padding: 0.55rem 0; border-bottom: 1px solid var(--line); }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-style: italic; font-weight: 300; font-size: 1.5rem; line-height: 1.35; color: var(--ink); margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; }
+    .prose-look strong { color: var(--ink); font-weight: 500; }
+  }
+}

@@ -8,6 +8,8 @@ import { eq, sql } from 'tinyzoo'
 
 /** The demo account's details, or null when the site has no demo. */
 export function cmsDemo(): { email: string; password: string } | null {
+  // The public demo account is off in multi-tenant mode: it would be one shared account for every site.
+  if (cmsIsMultiTenant()) return null
   const d = (useRuntimeConfig().public as any)?.cmsDemo
   const email = String(d?.email ?? '').trim().toLowerCase()
   const password = String(d?.password ?? '')

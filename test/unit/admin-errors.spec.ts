@@ -26,3 +26,21 @@ describe('refused requests in the editor\'s language', () => {
     })
   }
 })
+
+describe('a site whose storage is full', () => {
+  // As the server sends it: 413 with data.code 'storage_full' (the response body's `data`).
+  const full = { statusCode: 413, data: { statusMessage: 'There is not enough storage space left for this file.', data: { code: 'storage_full', limitBytes: 3000, usedBytes: 3000 } } }
+  const sizeOnly = { statusCode: 413, data: { statusMessage: 'File too large (max 10MB)', data: { code: 'file_too_large', maxMb: 10 } } }
+  for (const [name, catalogue, words] of [['cs', cs, /úložišti/], ['en', en, /storage space/], ['de', de, /Speicher/]] as const) {
+    it(`says so in the editor's language, not "the file is too large" (${name})`, () => {
+      const t = say(catalogue) as any
+      const text = cmsRequestError(full, t)
+      expect(text).toBe(t('errors.storageFull'))
+      expect(text).toMatch(words)
+      expect(text).not.toBe(t('errors.tooLarge'))
+      if (name !== 'en') expect(text).not.toContain('There is not enough')
+      // A file over the single-file cap still names that cap.
+      expect(cmsRequestError(sizeOnly, t)).toBe(t('errors.tooLargeMax'))
+    })
+  }
+})

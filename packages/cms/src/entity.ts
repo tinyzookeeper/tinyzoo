@@ -417,6 +417,15 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
   if (orderField && (fields[orderField]?.type !== 'number' || fields[orderField]?.spec?.base.kind !== 'integer')) {
     throw new Error(`admin.list.orderField of "${name}" must be a whole-number field ("${orderField}" is not).`)
   }
+  // A choice whose options follow another field (`f.select({ optionsBy })`): that field is a choice of this form.
+  for (const [key, fld] of Object.entries(fields)) {
+    const by = (fld.meta?.optionsBy as { field: string; options: Record<string, unknown> } | undefined)
+    if (!by) continue
+    const other = fields[by.field]
+    if (by.field === key || other?.type !== 'select') throw new Error(`optionsBy of "${key}" in "${name}" must name another choice (f.select) of "${name}" ("${by.field}" is not).`)
+    const unknown = Object.keys(by.options).find((v) => !(other.meta?.options as string[]).includes(v))
+    if (unknown !== undefined) throw new Error(`optionsBy of "${key}" in "${name}" lists "${unknown}", which is not an option of "${by.field}".`)
+  }
   const sectioned = new Set<string>()
   for (const section of def.admin?.sections ?? []) {
     for (const key of section.fields as string[]) {

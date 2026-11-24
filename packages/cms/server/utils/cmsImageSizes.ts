@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream'
 import { sql } from 'tinyzoo'
 import { CMS_IMAGE_WIDTHS } from '../../shared/image-widths'
+import { cmsSweepDue } from './cmsBackground'
 import { cmsImageJob, cmsSharp } from './cmsImageQueue'
 
 // Smaller copies of uploaded pictures (WebP, at the widths of shared/image-widths.ts), kept
@@ -63,7 +64,8 @@ async function drawWidth(key: string, width: number): Promise<Buffer | null> {
 }
 
 // One resize per picture and width at a time, even when many visitors ask at once.
-const inflight = new Map<string, Promise<Buffer | null>>()
+// (Per site: each site has its own files.)
+const inflight = cmsSiteScoped(() => new Map<string, Promise<Buffer | null>>())
 
 /**
  * The picture `key` at `width` px as WebP: from storage, or made now (in the queue's `now`
@@ -74,7 +76,7 @@ export async function imageVariant(key: string, width: number): Promise<Buffer |
   const vk = variantKey(key, width)
   const stored = await storage.get(vk)
   if (stored) return stored.body
-  let job = inflight.get(vk)
+  let job = inflight().get(vk)
   if (!job) {
     job = (async () => {
       // The original is read in its turn, not before: a page of new pictures waiting in the
@@ -82,8 +84,8 @@ export async function imageVariant(key: string, width: number): Promise<Buffer |
       const out = await cmsImageJob(() => drawWidth(key, width), 'now')
       if (out) await storage.put(vk, out, 'image/webp')
       return out
-    })().finally(() => inflight.delete(vk))
-    inflight.set(vk, job)
+    })().finally(() => inflight().delete(vk))
+    inflight().set(vk, job)
   }
   const out = await job
   // The picture's other widths are probably missing too: make them in the background.
@@ -95,15 +97,16 @@ export async function imageVariant(key: string, width: number): Promise<Buffer |
 // waits for the step that is running and stops the rest, so no copy is written after the
 // picture's copies were removed. (Another replica's worker may still leave one behind in
 // that moment; it is a stray file in the store, never served: the row is gone.)
-const working = new Map<string, Promise<unknown>>()
-const deleted = new Set<string>()
+// Per site: each site has its own files and worker run.
+const working = cmsSiteScoped(() => new Map<string, Promise<unknown>>())
+const deleted = cmsSiteScoped(() => new Set<string>())
 
 /** Remove the smaller copies of a picture (with the original). Missing ones are fine. */
 export async function deleteImageVariants(key: string): Promise<void> {
   const storage = useCmsStorage()
-  const busy = working.get(key)
+  const busy = working().get(key)
   if (busy) {
-    deleted.add(key)
+    deleted().add(key)
     await busy.catch(() => {})
   }
   await Promise.all(CMS_IMAGE_WIDTHS.map((w) => storage.delete(variantKey(key, w)).catch(() => {})))
@@ -122,13 +125,13 @@ export async function makeMediaSizes(picture: { key: string; width: number | nul
   if (!wanted.length) return []
   if (picture.width && picture.height && picture.width * picture.height > MAX_IMAGE_PIXELS) return []
   const job = drawAll(picture.key, wanted)
-  working.set(picture.key, job)
+  working().set(picture.key, job)
   try {
     return await job
   }
   finally {
-    working.delete(picture.key)
-    deleted.delete(picture.key)
+    working().delete(picture.key)
+    deleted().delete(picture.key)
   }
 }
 
@@ -146,12 +149,12 @@ async function drawAll(key: string, wanted: number[]): Promise<number[]> {
   const channels = base.info.channels as 1 | 2 | 3 | 4
   const done: number[] = []
   for (const w of [...wanted].sort((a, b) => b - a)) {
-    if (deleted.has(key)) break
+    if (deleted().has(key)) break
     const out = await cmsImageJob(() => {
       const raw = cmsSharp()(base.data, { raw: { width, height, channels } })
       return (w >= width ? raw : raw.resize({ width: w })).webp({ quality: QUALITY }).toBuffer()
     }, 'background')
-    if (deleted.has(key)) break
+    if (deleted().has(key)) break
     await storage.put(variantKey(key, w), out, 'image/webp')
     done.push(w)
   }
@@ -170,16 +173,19 @@ const RUN_BUDGET_MS = 50_000
 const WIDTHS_TEXT = () => CMS_IMAGE_WIDTHS.join(',')
 const parseWidths = (s: string | null | undefined) => String(s ?? '').split(',').map(Number).filter((n) => n > 0)
 
-let tableExists: boolean | null = null
-let running: Promise<number> | null = null
-let again = false
+// Per site: each site has its own table and its own worker run.
+// `pending` (multi-tenant mode, for the scheduled task): this instance has a reason to run the worker
+// here: nothing is known yet, a picture was uploaded (or asked for) since the last run began, or the
+// last run did not get to the end (its time ran out, or it failed). `lastRunAt`: when a run last ended.
+const sizes = cmsSiteScoped(() => ({ tableExists: null as boolean | null, running: null as Promise<number> | null, again: false, pending: true, lastRunAt: 0 }))
 
 /** The table exists: a site that updated tinyzoo but has not applied its migration yet only makes sizes on request. */
 async function hasTable(db: any): Promise<boolean> {
-  if (tableExists) return true
+  const state = sizes()
+  if (state.tableExists) return true
   const res: any = await db.execute(sql`select to_regclass('cms_media_sizes') is not null as ok`)
-  tableExists = Boolean((res.rows ?? res)[0]?.ok)
-  return tableExists
+  state.tableExists = Boolean((res.rows ?? res)[0]?.ok)
+  return state.tableExists
 }
 
 /**
@@ -228,16 +234,22 @@ async function claimNext(db: any): Promise<PictureRow | null> {
   return ((rows.rows ?? rows)[0] as PictureRow) ?? null
 }
 
-/** Make the sizes of pictures that need them until none is left or the run's time is up. Returns how many pictures were done. */
-async function workOnce(): Promise<number> {
+/**
+ * Make the sizes of pictures that need them until none is left or the run's time is up. Returns how many
+ * pictures were done, and whether it got to the end (false: the time ran out, there may be more).
+ */
+async function workOnce(): Promise<{ pictures: number; finished: boolean }> {
   await cmsMigrationsReady()
   const { db } = useCms()
-  if (!(await hasTable(db))) return 0
+  if (!(await hasTable(db))) return { pictures: 0, finished: true }
   const until = Date.now() + RUN_BUDGET_MS
   let pictures = 0
+  let finished = false
   while (Date.now() < until) {
+    // Multi-tenant mode: the site left the directory while this ran. Its database and folder are being removed: stop.
+    if (cmsSiteHasLeft()) { finished = true; break }
     const picture = await claimNext(db)
-    if (!picture) break
+    if (!picture) { finished = true; break }
     // Widths made on an earlier run (a row that lacks only the ones added since) are kept:
     // only the missing ones are drawn. A row without widths (new, or never finished) makes them all.
     const made = picture.made ? parseWidths(picture.made) : []
@@ -246,6 +258,7 @@ async function workOnce(): Promise<number> {
       await db.execute(sql`update cms_media_sizes set state = 'done', widths = ${WIDTHS_TEXT()}, error = null, updated_at = now() where media_id = ${picture.id}`)
     }
     catch (err: any) {
+      if (cmsSiteHasLeft()) { finished = true; break }
       // A picture the decoder cannot read: its original still shows. Not reported as a server
       // error (nothing is wrong with the site); the status counts it.
       const message = String(err?.message ?? err).slice(0, 300)
@@ -254,7 +267,7 @@ async function workOnce(): Promise<number> {
     }
     pictures++
   }
-  return pictures
+  return { pictures, finished }
 }
 
 /**
@@ -262,20 +275,46 @@ async function workOnce(): Promise<number> {
  * a call while one is running makes it go round once more instead of starting a second.
  */
 export function runMediaSizes(): Promise<number> {
-  if (running) { again = true; return running }
-  running = (async () => {
+  const state = sizes()
+  if (state.running) { state.again = true; return state.running }
+  state.running = (async () => {
     let total = 0
-    do {
-      again = false
-      total += await workOnce()
-    } while (again)
+    try {
+      do {
+        state.again = false
+        // Cleared as the pass begins: a kick during it sets it again (and `again`).
+        state.pending = false
+        const { pictures, finished } = await workOnce()
+        total += pictures
+        if (!finished) state.pending = true
+      } while (state.again)
+    }
+    catch (err) {
+      state.pending = true
+      throw err
+    }
+    finally {
+      state.lastRunAt = Date.now()
+    }
     return total
-  })().finally(() => { running = null })
-  return running
+  })().finally(() => { state.running = null })
+  return state.running
+}
+
+/**
+ * Multi-tenant mode: is there a reason to run the worker in the current site now? Not while a run is
+ * going. Otherwise: a kick or an unfinished run (`pending`), or the site's turn in the slow rotation,
+ * which finds what another instance left (pictures it uploaded, a claim it never finished).
+ */
+export function mediaSizesMayWantRun(): boolean {
+  const state = sizes()
+  if (state.running) return false
+  return state.pending || cmsSweepDue(useCmsSite().id, state.lastRunAt)
 }
 
 /** Start the worker without waiting for it (after an upload): failures are only logged. */
 export function kickMediaSizes(): void {
+  sizes().pending = true
   runMediaSizes().catch((err) => console.warn('[cms] picture sizes:', String(err?.message ?? err).slice(0, 300)))
 }
 

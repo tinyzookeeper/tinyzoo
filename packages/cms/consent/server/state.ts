@@ -25,25 +25,26 @@ interface Cached {
   row: Record<string, unknown> | null
   translations: Map<string, Record<string, unknown> | null>
 }
-let cached: Cached | null = null
-let loading: Promise<Cached> | null = null
+const cache = cmsSiteScoped<{ cached: Cached | null; loading: Promise<Cached> | null }>(() => ({ cached: null, loading: null }))
 
 export function forgetConsentSettings(): void {
-  cached = null
+  cache().cached = null
 }
 
 async function settings(): Promise<Cached> {
-  if (cached && Date.now() - cached.at < SETTINGS_MS) return cached
-  loading ??= (async () => {
+  const state = cache()
+  if (state.cached && Date.now() - state.cached.at < SETTINGS_MS) return state.cached
+  state.loading ??= (async () => {
     const { db, reg } = useCms()
     const e = reg.byName.get(SETTINGS)
     let row: Record<string, unknown> | null = null
     if (e) [row = null] = await db.select().from(e.table).orderBy(e.table.createdAt).limit(1)
     const version = Number(row?.version)
-    cached = { at: Date.now(), version: Number.isInteger(version) && version >= 1 ? version : 1, row, translations: new Map() }
-    return cached
-  })().finally(() => { loading = null })
-  return loading
+    const fresh: Cached = { at: Date.now(), version: Number.isInteger(version) && version >= 1 ? version : 1, row, translations: new Map() }
+    state.cached = fresh
+    return fresh
+  })().finally(() => { state.loading = null })
+  return state.loading
 }
 
 /** The version of the texts now: a choice given under an older one is asked again. */

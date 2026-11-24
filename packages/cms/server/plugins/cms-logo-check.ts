@@ -6,6 +6,8 @@
 
 export default defineNitroPlugin(() => {
   if (!import.meta.dev || import.meta.prerender) return
+  // No site at start in multi mode, and a development check of one site's files makes no sense there.
+  if (cmsIsMultiTenant()) return
   const print = (notes: Array<{ message: string }>) => {
     for (const n of notes) console.warn(`[tinyzoo] ${n.message}`)
   }

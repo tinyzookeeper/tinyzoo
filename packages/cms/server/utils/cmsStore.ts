@@ -31,10 +31,12 @@ function memoryStore(): SharedStore {
   }
 }
 
-let store: Promise<SharedStore> | undefined
+// One store (one Redis connection, or this process's memory) for every site of the process;
+// what belongs to a site carries the site in its key (cmsSiteKey) or in its message.
+const shared = cmsProcessWide({ store: undefined as Promise<SharedStore> | undefined }, 'one connection for the process; keys and messages carry the site')
 
 export function useCmsStore(): Promise<SharedStore> {
-  store ??= (async () => {
+  shared.store ??= (async () => {
     const cfg = (useRuntimeConfig().cms as any)?.redis ?? {}
     const env: Record<string, string | undefined> = typeof process !== 'undefined' ? process.env : {}
     const redisUrl = String(cfg.url || env.REDIS_URL || '')
@@ -50,7 +52,7 @@ export function useCmsStore(): Promise<SharedStore> {
     }
     return memoryStore()
   })()
-  return store
+  return shared.store
 }
 
 /**
@@ -71,11 +73,19 @@ export function cmsStorePrefix(configured: string = (useRuntimeConfig().cms as a
   }
 }
 
+/**
+ * A key of the shared store that belongs to the current site. Multi-tenant mode: the site's
+ * id in front, so one site's sign-in tries never count against another's. Single mode: the key as it is.
+ */
+export function cmsSiteKey(key: string): string {
+  return cmsIsMultiTenant() ? `site:${useCmsSite().id}:${key}` : key
+}
+
 /** Close the store's connections (server shutdown). */
 export async function closeCmsStore(): Promise<void> {
-  if (!store) return
-  const s = await store.catch(() => null)
-  store = undefined
+  if (!shared.store) return
+  const s = await shared.store.catch(() => null)
+  shared.store = undefined
   await s?.close?.()
 }
 
@@ -87,6 +97,7 @@ export async function closeCmsStore(): Promise<void> {
  */
 export async function rateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
   if (max <= 0) return true
+  key = cmsSiteKey(key)
   try {
     const s = await useCmsStore()
     if (s.kind === 'memory') return rateLimitOk(key, max, windowMs)
@@ -100,6 +111,7 @@ export async function rateLimit(key: string, max: number, windowMs: number): Pro
 
 /** Take back the hit `rateLimit` just counted for `key` (a sign-in that worked is not an attempt to guess). */
 export async function rateLimitRefund(key: string, windowMs: number): Promise<void> {
+  key = cmsSiteKey(key)
   try {
     await (await useCmsStore()).unhit(key.slice(0, 200), windowMs)
   }

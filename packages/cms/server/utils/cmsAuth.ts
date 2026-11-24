@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import { and, eq, gt, isNull, ne, sql } from 'tinyzoo'
 import type { CmsRegistry } from 'tinyzoo'
 import { z } from 'zod'
@@ -116,8 +117,20 @@ export async function continueCmsSession(event: any, u: any): Promise<void> {
   await sealCmsSession(event, u, signedInAt)
 }
 
+/**
+ * Multi-tenant mode: what ties a session to its site. The cookie is sealed with the process's
+ * secret, which every site of the process shares; this proof is made with the SITE's own
+ * secret (the site directory), so a session counts only on the site whose secret made it,
+ * and changing a site's secret signs everybody out of that site alone.
+ */
+export function cmsSessionProof(userId: string, signedInAt: number): string {
+  return createHmac('sha256', useCmsSite().secret).update(`${userId}.${signedInAt}`).digest('base64url').slice(0, 32)
+}
+
 async function sealCmsSession(event: any, u: any, iat: number): Promise<void> {
-  await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number, iat } } as any)
+  // Multi-tenant mode: the session names its site, and only that site accepts it (activeAccountOf).
+  const site = cmsIsMultiTenant() ? { site: useCmsSite().id, proof: cmsSessionProof(u.id as string, iat) } : {}
+  await replaceUserSession(event, { user: sessionUser(u), cms: { uid: u.id as string, sv: u.sessionVersion as number, iat, ...site } } as any)
 }
 
 // ── links in emails ────────────────────────────────────────────────────────────
@@ -129,9 +142,10 @@ async function sealCmsSession(event: any, u: any, iat: number): Promise<void> {
  * production the request origin is accepted so local development needs no setup.
  */
 export function adminLink(event: any, path: string): string {
-  const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '').replace(/\/+$/, '')
+  const configured = String(cmsSettings().publicUrl || '').replace(/\/+$/, '')
   if (configured) return configured + path
-  if (import.meta.dev || process.env.NODE_ENV !== 'production' || process.env.CMS_ALLOW_REQUEST_ORIGIN === '1') {
+  // Multi-tenant mode: a site always has its own address, the request's origin is never used.
+  if (!cmsIsMultiTenant() && (import.meta.dev || process.env.NODE_ENV !== 'production' || process.env.CMS_ALLOW_REQUEST_ORIGIN === '1')) {
     return getRequestURL(event).origin + path
   }
   throw createError({ statusCode: 500, statusMessage: 'cms.publicUrl (NUXT_CMS_PUBLIC_URL) must be set to send links by email' })
@@ -154,10 +168,10 @@ export function clientIp(event: any): string {
 }
 
 /** Equal-time sign-in failures: verify against a fixed hash when the account does not exist. */
-let dummyHash: Promise<string> | undefined
+const dummyHash = cmsProcessWide<{ hash?: Promise<string> }>({}, 'a hash of a fixed string, the same for every site')
 export function dummyPasswordHash(): Promise<string> {
-  dummyHash ??= hashPassword('not-a-real-password-just-for-timing')
-  return dummyHash
+  dummyHash.hash ??= hashPassword('not-a-real-password-just-for-timing')
+  return dummyHash.hash
 }
 
 /** Advisory lock serialising changes that could remove the last active administrator. */
@@ -175,5 +189,5 @@ export async function assertAnotherActiveAdmin(db: any, reg: CmsRegistry, except
 
 /** The setup code first-run setup requires, or '' when none is configured. */
 export function setupToken(): string {
-  return String((useRuntimeConfig().cms as any)?.auth?.setupToken || '')
+  return String(cmsSettings().auth?.setupToken || '')
 }

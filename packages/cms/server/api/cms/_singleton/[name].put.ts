@@ -73,6 +73,8 @@ export default defineEventHandler(async (event) => {
     for (const mid of new Set(oldEmbedded)) if (!still.has(mid)) await gcMediaIfOrphan(db, reg, storage, mid, gcScope(user))
   }
 
+  // The admin's name may be a field of this global (cms.admin.nameFrom): read it again next time.
+  resetAdminName()
   await audit(event, 'settings.update', { entity: e.name, recordId: row.id })
   await noteCollabSave(event, { entity: e, id: row.id, locale: null }, row.updatedAt)
   await reportChange(event, { type: 'global.updated', entity: e, id: row.id, before: seenBefore, after: row })

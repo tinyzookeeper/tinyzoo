@@ -233,7 +233,7 @@ export function createCmsMcpServer(user: CmsUser): McpServer {
       })
     }
     return ok({
-      site: (useRuntimeConfig().cms as any)?.publicUrl || undefined,
+      site: cmsSettings().publicUrl || undefined,
       languages: reg.locales ? { default: reg.locales.default, all: reg.locales.locales } : undefined,
       you: { name: user.name, role: role.name, publish: role.publish, media: rights.media ? role.media : 'read' },
       token: { write: rights.write, publish: role.publish, delete: rights.delete, media: rights.media, only: rights.entities ?? undefined },
@@ -513,15 +513,16 @@ export function createCmsMcpServer(user: CmsUser): McpServer {
 
 // ── serving ─────────────────────────────────────────────────────────────────────
 
-let handler: McpHttpHandler | undefined
+// Per site: it is made with the site's upload limit (maxRequestBodySize); a fresh server is built for every request.
+const handler = cmsSiteScoped<McpHttpHandler | undefined>(() => undefined)
 
 /** The one handler for every request: a fresh server per request, for the token's user (passed as authInfo). */
 export function cmsMcpHandler(): McpHttpHandler {
-  handler ??= createMcpHandler(({ authInfo }) => createCmsMcpServer((authInfo?.extra as any)?.user as CmsUser), {
+  if (!handler()) handler.set(createMcpHandler(({ authInfo }) => createCmsMcpServer((authInfo?.extra as any)?.user as CmsUser), {
     responseMode: 'json',
     // Room for a file sent as base64 to upload_media.
     maxRequestBodySize: Math.ceil(maxUploadBytes() * 1.4) + 256 * 1024,
     onerror: (err) => console.error('[cms] mcp', scrubError(err)),
-  })
-  return handler
+  }))
+  return handler()!
 }

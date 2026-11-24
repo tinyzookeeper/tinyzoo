@@ -10,13 +10,16 @@ import { resolveAdminTheme, type CmsAdminTheme } from '../../src/theme'
  *
  * A hosted version that serves several sites from stored settings must not rely on this
  * fallback: app.config would not be the site's theme there. It would wait for the server's.
+ * The one such part today is the name: with `cms.admin.nameFrom` it comes from the site's
+ * content, which only the server knows, so the fallback carries no name (the admin then says
+ * tinyzoo) until the server's theme arrives: never the name compiled into the build.
  */
 export function useCmsAdminTheme() {
   const appConfig = useAppConfig()
   const { data } = useAsyncData<CmsAdminTheme>('cms-admin-theme', () => $fetch<CmsAdminTheme>('/api/cms/_theme'), { dedupe: 'defer' })
   const local = computed(() => {
     const admin = ((appConfig.cms as any)?.admin ?? {}) as Record<string, any>
-    return resolveAdminTheme({ name: admin.name, accent: admin.accent, logo: admin.logo, signature: admin.signature, animals: admin.animals })
+    return resolveAdminTheme({ name: admin.nameFrom ? '' : admin.name, accent: admin.accent, logo: admin.logo, signature: admin.signature, animals: admin.animals })
   })
   return computed<CmsAdminTheme>(() => data.value ?? local.value)
 }

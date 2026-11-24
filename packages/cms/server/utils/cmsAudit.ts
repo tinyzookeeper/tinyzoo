@@ -8,7 +8,11 @@
  * user.role, user.email, user.disable, user.enable, user.delete, entry.create,
  * entry.update, entry.delete, entry.publish, entry.unpublish, settings.update,
  * media.upload, media.delete, retention.purge, privacy.export, privacy.delete, token.create, token.revoke,
- * menu.update, menu.reset (the admin's menu arranged for the site, or put back).
+ * menu.update, menu.reset (the admin's menu arranged for the site, or put back),
+ * auth.account_link (a user was linked to a tinyzoo account; `meta.issuer`).
+ * A sign-in through the tinyzoo account (cmsAccount.ts) is `auth.login` with `meta.via: 'account'`
+ * (an invitation accepted that way: `auth.invite_accept` with the same), a refused one
+ * `auth.login_failed` with `meta.via: 'account'` and `meta.reason`.
  * A change made through the MCP server with a personal access token carries `meta.via: 'mcp'`
  * and the token's `meta.tokenId`.
  *

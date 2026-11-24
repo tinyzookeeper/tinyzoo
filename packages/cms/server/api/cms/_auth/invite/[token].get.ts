@@ -1,13 +1,16 @@
 import { eq } from 'tinyzoo'
 
 // GET /api/cms/_auth/invite/:token — what the accept page shows: who is invited and
-// by whom. 410 when the link is no longer valid.
+// by whom, and whether signing in with the tinyzoo account accepts it too. 410 when the link is no longer valid
+// (with `data.account` when the account is a way in here; nothing more on a site without it).
 export default defineEventHandler(async (event) => {
   assertBuiltinAuth()
   const { db, reg } = useCms()
   const found = await findToken(db, reg, getRouterParam(event, 'token') ?? '', 'invite')
   if (!found || found.user.status !== 'invited') {
-    throw createError({ statusCode: 410, statusMessage: 'This invitation has expired or was already used' })
+    // Where people sign in with the tinyzoo account, the invited address's account still gets in
+    // (a link that ran out) or simply signs in (a link that was used): the page offers that.
+    throw createError({ statusCode: 410, statusMessage: 'This invitation has expired or was already used', ...(cmsAccount() ? { data: { account: { enabled: true } } } : {}) })
   }
   let inviter: string | null = null
   if (found.token.createdBy) {
@@ -15,5 +18,9 @@ export default defineEventHandler(async (event) => {
     inviter = by ? (by.name || by.email) : null
   }
   // A role the site defined carries its own name, in the admin's languages.
-  return { email: found.user.email, name: found.user.name, role: found.user.role, ...(roleOf(found.user)?.label ? { roleLabel: roleOf(found.user)!.label } : {}), inviter }
+  return {
+    email: found.user.email, name: found.user.name, role: found.user.role, ...(roleOf(found.user)?.label ? { roleLabel: roleOf(found.user)!.label } : {}), inviter,
+    // The invitation can also be accepted by signing in with the tinyzoo account of this address.
+    ...(cmsAccount() ? { account: { enabled: true } } : {}),
+  }
 })

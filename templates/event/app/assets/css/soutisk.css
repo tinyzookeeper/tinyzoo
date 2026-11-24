@@ -1,0 +1,97 @@
+/* Soutisk: a hand-printed poster in three inks. Three hills printed over each other (the colours
+   mix where they overlap, which is mix-blend-mode: multiply), a round photograph rising behind
+   them like the sun, and the edge between every two sections cut as a line of hills.
+   Dela Gothic One for display, Rubik for text.
+   Written in the cascade layers the design was written in: utilities win over these rules
+   where both speak. */
+html[data-look="soutisk"] {
+  --font-display: "Dela Gothic One", "Rubik", sans-serif;
+  --font-sans: "Rubik", system-ui, sans-serif;
+  /* The colours of the first preset (Soutisk); a preset from the settings overrides them. */
+  --c1: #f06a45;
+  --c2: #f4c13d;
+  --c3: #1f7480;
+  --paper: #f4efe2;
+  --paper2: #e9e1cd;
+  --ink: #1c2b2d;
+  --quiet: #4b5859;
+}
+
+@layer base {
+  html[data-look="soutisk"] {
+    body { font-family: var(--font-sans); color: var(--ink); background: var(--paper); font-size: 1.0625rem; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    .site :focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; border-radius: 6px; }
+    .on-dark :focus-visible { outline-color: var(--c2); }
+    summary::-webkit-details-marker { display: none; }
+    summary { list-style: none; }
+  }
+}
+
+@layer components {
+  html[data-look="soutisk"] {
+    .wrap { max-width: 82rem; margin-inline: auto; padding-inline: 1.25rem; }
+    @media (min-width: 48rem) { .wrap { padding-inline: 2.5rem; } }
+    .disp { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.02em; line-height: 1; }
+    .h2 { font-family: var(--font-display); font-weight: 400; font-size: clamp(2.1rem, 4.8vw, 3.9rem); line-height: 1.04; letter-spacing: -0.025em; }
+    .kicker { font-weight: 700; font-size: 0.85rem; letter-spacing: 0.1em; text-transform: uppercase; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.6rem; min-height: 56px; padding: 0 1.75rem; border-radius: 999px; background: var(--ink); color: var(--paper); font-weight: 700; font-size: 1.1rem; transition: background .15s, color .15s, transform .15s; cursor: pointer; }
+    .btn:hover { background: var(--c3); color: var(--paper); transform: translateY(-2px); }
+    .btn[disabled] { opacity: .6; cursor: progress; }
+    .btn-line { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 2.5px var(--ink); }
+    .btn-line:hover { background: var(--ink); color: var(--paper); }
+    .btn-light { background: var(--paper); color: var(--ink); }
+    .btn-light:hover { background: var(--c2); color: var(--ink); }
+    .ulink { display: inline-flex; align-items: center; gap: 0.5rem; min-height: 44px; font-weight: 700; text-decoration: underline; text-decoration-thickness: 2.5px; text-underline-offset: 6px; transition: text-decoration-color .15s; }
+    .ulink:hover { text-decoration-color: var(--c1); }
+    .on-dark .ulink:hover { text-decoration-color: var(--c2); }
+    .navlink { display: inline-flex; align-items: center; min-height: 44px; padding: 0 0.9rem; border-radius: 999px; font-weight: 500; transition: background .15s; }
+    .navlink:hover { background: var(--c2); }
+
+    .ink-m { mix-blend-mode: multiply; }
+    /* the edge between two sections is a line of hills */
+    .hills { position: absolute; left: 0; bottom: calc(100% - 1px); width: 100%; height: clamp(2.75rem, 7vw, 6.5rem); display: block; pointer-events: none; }
+    .hillclip { clip-path: url(#soutisk-hillclip); }
+    .card { background: var(--paper); color: var(--ink); border-radius: 28px; }
+    .bar { display: block; height: 14px; border-radius: 999px; background: var(--paper2); overflow: hidden; }
+    .bar > i { display: block; height: 100%; border-radius: 999px; background: var(--hill, var(--c1)); }
+    .pill { display: inline-flex; align-items: center; justify-content: center; min-width: 5.25rem; height: 2.6rem; white-space: nowrap; padding: 0 0.9rem; border-radius: 999px; background: var(--paper2); font-family: var(--font-display); font-size: 1.2rem; letter-spacing: -0.01em; }
+
+    /* a text page: the rich text of a block */
+    .prose-look { max-width: 42rem; }
+    .prose-look > * + * { margin-top: 1rem; }
+    .prose-look h2 { font-family: var(--font-display); font-size: 1.9rem; line-height: 1.1; margin-top: 2.6rem; }
+    .prose-look h3 { font-family: var(--font-display); font-size: 1.4rem; line-height: 1.15; margin-top: 2rem; }
+    .prose-look a { text-decoration: underline; text-decoration-color: var(--c1); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+    .prose-look a:hover { text-decoration-color: var(--c3); }
+    .prose-look ul { list-style: disc; padding-left: 1.3rem; }
+    .prose-look ol { list-style: decimal; padding-left: 1.3rem; }
+    .prose-look blockquote { font-family: var(--font-display); font-size: 1.5rem; line-height: 1.25; margin-block: 1.8rem; }
+    .prose-look img { width: 100%; height: auto; margin-block: 1.8rem; border-radius: 28px; }
+    .prose-look strong { font-weight: 700; }
+
+    /* the form of the contact page */
+    .field label { display: block; font-weight: 700; margin-bottom: 0.35rem; }
+    .field input, .field textarea { width: 100%; min-height: 56px; padding: 0.7rem 1.2rem; background: var(--paper); color: var(--ink); border: 2.5px solid var(--ink); border-radius: 18px; }
+    .field textarea { min-height: 9rem; }
+    .field input:focus, .field textarea:focus { border-color: var(--c3); outline: none; }
+    .field [aria-invalid="true"] { border-color: #b3261e; }
+    .field-error { margin-top: 0.4rem; color: #b3261e; font-weight: 500; font-size: 0.95rem; }
+
+    /* the plan */
+    .pl-forest { fill: var(--c3); }
+    .pl-meadow { fill: var(--c2); }
+    .pl-water { fill: color-mix(in srgb, var(--c3) 45%, var(--paper)); }
+    .pl-road { fill: none; stroke: var(--paper); stroke-width: 12; stroke-linecap: round; }
+    .pl-lane { fill: none; stroke: var(--paper); stroke-width: 7; stroke-linecap: round; }
+    .pl-house { fill: var(--ink); opacity: .35; }
+    .pl-hall { fill: var(--ink); }
+    .pl-pitch { fill: color-mix(in srgb, var(--c3) 22%, var(--paper)); stroke: var(--ink); stroke-width: 2.5; }
+    .pl-pitch-line { fill: none; stroke: var(--ink); stroke-width: 2; }
+    .pl-tent { fill: var(--c1); }
+    .pl-route { fill: none; stroke: var(--ink); stroke-width: 5; stroke-dasharray: 1 11; stroke-linecap: round; }
+    .pl-dot { fill: var(--ink); }
+    .pl-dot-t { fill: var(--paper); font-family: var(--font-display); font-size: 19px; text-anchor: middle; }
+    .pl-txt { font-family: var(--font-sans); font-weight: 700; font-size: 13px; fill: var(--ink); }
+  }
+}

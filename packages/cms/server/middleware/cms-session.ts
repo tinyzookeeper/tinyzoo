@@ -13,6 +13,9 @@ export default defineEventHandler(async (event) => {
   const page = path === '/admin' || path.startsWith('/admin/') || path.startsWith('/admin?')
   if (!path.startsWith('/api/') && !page) return
   if (event.context.cmsUser) return
+  // Multi-tenant mode: a request with no site (the process's own health checks, asked by IP)
+  // has no accounts to look a cookie up in. Single mode always has its one site.
+  if (!currentCmsSite()) return
 
   // A tool of the MCP server (/api/mcp) calling an admin route inside this process, with a
   // personal access token (cmsAccessTokens.ts). Such a request never opens a session, and a
@@ -50,4 +53,6 @@ export default defineEventHandler(async (event) => {
   event.context.cmsSessionVersion = u.sessionVersion
   // When this browser signed in: a session written again keeps it (continueCmsSession).
   event.context.cmsSignedInAt = session.cms.iat
+  // Somebody accepted through the tinyzoo account has no password on this site: their account page says so (`_auth/me`).
+  if (!u.passwordHash) event.context.cmsNoPassword = true
 })

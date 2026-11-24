@@ -21,6 +21,7 @@ const copy = {
     inviteIntro: (inviter: string, site: string, role: string) => `${inviter} invited you to manage the content of ${site} as ${role}.`,
     inviteAction: 'Accept the invitation',
     inviteExpiry: (days: number) => `The link works for ${days} days. If you weren't expecting this, you can ignore it.`,
+    inviteAccount: 'If your tinyzoo account uses this email address, you can also just sign in with it.',
     resetSubject: (site: string) => `Reset your password for ${site}`,
     resetIntro: 'Someone asked to reset the password for this email address. Choose a new password with the link below.',
     resetAction: 'Choose a new password',
@@ -56,6 +57,7 @@ const copy = {
     inviteIntro: (inviter: string, site: string, role: string) => `${inviter} vás zve ke správě obsahu webu ${site} jako ${role}.`,
     inviteAction: 'Přijmout pozvánku',
     inviteExpiry: (days: number) => `Odkaz platí ${days} dní. Pokud jste pozvánku nečekali, můžete ji ignorovat.`,
+    inviteAccount: 'Pokud máte tinyzoo účet s touto e-mailovou adresou, můžete se rovnou přihlásit jím.',
     resetSubject: (site: string) => `Obnovení hesla: ${site}`,
     resetIntro: 'Někdo požádal o obnovení hesla k této e-mailové adrese. Nové heslo nastavíte přes odkaz níže.',
     resetAction: 'Nastavit nové heslo',
@@ -91,6 +93,7 @@ const copy = {
     inviteIntro: (inviter: string, site: string, role: string) => `${inviter} lädt Sie ein, die Inhalte von ${site} als ${role} zu verwalten.`,
     inviteAction: 'Einladung annehmen',
     inviteExpiry: (days: number) => `Der Link ist ${days} Tage gültig. Wenn Sie keine Einladung erwartet haben, können Sie diese E-Mail ignorieren.`,
+    inviteAccount: 'Wenn Ihr tinyzoo-Konto diese E-Mail-Adresse verwendet, können Sie sich auch einfach damit anmelden.',
     resetSubject: (site: string) => `Passwort für ${site} zurücksetzen`,
     resetIntro: 'Für diese E-Mail-Adresse wurde ein neues Passwort angefordert. Über den Link unten können Sie ein neues Passwort festlegen.',
     resetAction: 'Neues Passwort festlegen',
@@ -182,7 +185,7 @@ const TRAILING_SLASHES = /\/+$/
  * email shows the site's name instead of its logo.
  */
 export function emailPublicBase(link?: string): string | null {
-  const configured = String((useRuntimeConfig().cms as any)?.publicUrl || '').trim().replace(TRAILING_SLASHES, '')
+  const configured = String(cmsSettings().publicUrl || '').trim().replace(TRAILING_SLASHES, '')
   if (configured) return configured
   if (!link) return null
   try {
@@ -273,7 +276,8 @@ function roleInSentence(locale: Locale, role: string | undefined): string {
   return roleNames[locale].editor!
 }
 
-export async function inviteEmail(event: unknown, opts: { to: string; inviter: string; url: string; role?: string; locale?: string | null }) {
+/** `account`: the site lets people sign in with the tinyzoo account, so the invitation says that this works too. */
+export async function inviteEmail(event: unknown, opts: { to: string; inviter: string; url: string; role?: string; locale?: string | null; account?: boolean }) {
   const ctx = await emailContext(event, opts.locale)
   const { locale, site } = ctx
   const c = copy[locale]
@@ -281,7 +285,7 @@ export async function inviteEmail(event: unknown, opts: { to: string; inviter: s
   return {
     to: opts.to,
     subject: c.inviteSubject(site),
-    ...layout(ctx, { intro: c.inviteIntro(opts.inviter, site, roleInSentence(locale, opts.role)), action: c.inviteAction, url: opts.url, footer: c.inviteExpiry(days), fallback: c.fallback }),
+    ...layout(ctx, { intro: c.inviteIntro(opts.inviter, site, roleInSentence(locale, opts.role)) + (opts.account ? ' ' + c.inviteAccount : ''), action: c.inviteAction, url: opts.url, footer: c.inviteExpiry(days), fallback: c.fallback }),
   }
 }
 

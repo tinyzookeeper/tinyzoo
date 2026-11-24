@@ -97,6 +97,70 @@ describe('the theme seam', () => {
   })
 })
 
+describe('the name from the site’s content (cms.admin.nameFrom)', () => {
+  const table = { siteName: 'col:siteName', createdAt: 'col:createdAt' }
+  let rows: Array<Record<string, unknown>>
+  let reads: number
+  const stubCms = (entity: Record<string, unknown> | undefined = { singleton: true, table }) => {
+    const query = { from: () => query, orderBy: () => query, limit: async () => { reads++; return rows } }
+    vi.stubGlobal('useCms', () => ({ db: { select: () => query }, reg: { byName: new Map(entity ? [['siteSettings', entity]] : []) } }))
+  }
+  beforeEach(() => {
+    rows = [{ value: 'Johana Loudová' }]
+    reads = 0
+    seam.resetAdminName()
+    stubCms()
+  })
+
+  it('a site that does not opt in keeps cms.admin.name and never reads the content', async () => {
+    admin = { name: 'Můj web' }
+    expect((await seam.cmsAdminTheme(EVENT)).name).toBe('Můj web')
+    expect(reads).toBe(0)
+  })
+
+  it('takes the name from the global’s field, and keeps it for a moment', async () => {
+    admin = { name: 'Můj web', nameFrom: 'siteSettings.siteName' }
+    expect((await seam.cmsAdminTheme(EVENT)).name).toBe('Johana Loudová')
+    expect((await seam.cmsAdminSettings(EVENT)).theme.name).toBe('Johana Loudová')
+    expect(reads).toBe(1)
+  })
+
+  it('reads again after a save (resetAdminName) and after a few seconds', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-23T10:00:00Z'), toFake: ['Date'] })
+    admin = { name: 'Můj web', nameFrom: 'siteSettings.siteName' }
+    await seam.cmsAdminTheme(EVENT)
+    rows = [{ value: '  Ateliér Loudová ' }]
+    seam.resetAdminName()
+    expect((await seam.cmsAdminTheme(EVENT)).name).toBe('Ateliér Loudová')
+    rows = [{ value: 'Foto Loudová' }]
+    expect((await seam.cmsAdminTheme(EVENT)).name).toBe('Ateliér Loudová')
+    vi.setSystemTime(new Date('2026-11-23T10:00:04Z'))
+    expect((await seam.cmsAdminTheme(EVENT)).name).toBe('Foto Loudová')
+  })
+
+  it('falls back to cms.admin.name: an empty field, no row yet, an unknown global or field, a database that cannot be reached', async () => {
+    admin = { name: 'Můj web', nameFrom: 'siteSettings.siteName' }
+    for (const stored of [[{ value: '   ' }], [{ value: null }], []]) {
+      rows = stored
+      seam.resetAdminName()
+      expect((await seam.cmsAdminTheme(EVENT)).name, JSON.stringify(stored)).toBe('Můj web')
+    }
+    rows = [{ value: 'Johana Loudová' }]
+    for (const from of ['settings.siteName', 'siteSettings.title', 'siteName', 42]) {
+      admin = { name: 'Můj web', nameFrom: from }
+      seam.resetAdminName()
+      expect((await seam.cmsAdminTheme(EVENT)).name, String(from)).toBe('Můj web')
+    }
+    admin = { name: 'Můj web', nameFrom: 'siteSettings.siteName' }
+    stubCms({ singleton: false, table }) // a collection is not a global
+    seam.resetAdminName()
+    expect((await seam.cmsAdminTheme(EVENT)).name).toBe('Můj web')
+    vi.stubGlobal('useCms', () => { throw new Error('No database address') })
+    seam.resetAdminName()
+    expect((await seam.cmsAdminTheme(EVENT)).name).toBe('Můj web')
+  })
+})
+
 describe('a mark that cannot be read', () => {
   it('leaves tinyzoo’s mark in every icon file, with one log line, and no broken tab icon', async () => {
     admin = { name: 'Pekárna Novák', logo: { mark: '/brand/gone.svg' } }
