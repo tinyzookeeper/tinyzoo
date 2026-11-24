@@ -328,13 +328,19 @@ export function propOf(key: string, fld: FieldDescriptor): string {
  * Field names the CMS uses itself: system columns, and keys tinyzoo writes onto items
  * (`locale`, `locales`, `paths` of a translated collection; `path`, `breadcrumbs` of a page
  * tree; `preview` is a parameter of the content API). Names starting with "_" are tinyzoo's too.
+ *
+ * @internal
  */
-const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales', 'path', 'paths', 'breadcrumbs', 'preview'])
+export const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales', 'path', 'paths', 'breadcrumbs', 'preview'])
 /** A field key, like an entity name: a letter first, then letters, digits and "_". */
 const FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]*$/
 
-/** Query parameters of the content API's list (`/api/content/:entity?page=…`): a field of that name cannot be filtered by. */
-const LIST_PARAMS = ['page', 'limit', 'sort', 'dir', 'q']
+/**
+ * Query parameters of the content API's list (`/api/content/:entity?page=…`): a field of that name cannot be filtered by.
+ *
+ * @internal
+ */
+export const LIST_PARAMS: readonly string[] = ['page', 'limit', 'sort', 'dir', 'q']
 /** The columns of `<entity>_locales` that hold a language's own publish state (`publish.perLocale`). */
 export const PUBLISH_STATE_COLUMNS = ['published', 'publishedAt', 'firstLiveAt']
 
