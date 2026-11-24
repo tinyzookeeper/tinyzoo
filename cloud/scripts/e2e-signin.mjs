@@ -1,14 +1,16 @@
 // Sign-in with the tinyzoo account for real, locally, in a real browser: the cloud app as the
 // issuer and real tinyzoo sites as its clients (docs/multi-tenant-plan.md, 2.15).
 //
-//   pnpm --filter tinyzoo-cloud e2e:signin     # needs the template built: pnpm --filter tinyzoo-cloud templates:build photographer
+//   pnpm --filter tinyzoo-cloud e2e:signin     # needs both apps built: pnpm --filter tinyzoo-cloud templates:build
 //
 // It starts a cloud app of its own with the shared driver (database tz_cloud_signin_e2e, data
-// under .data/signin-e2e, template ports 4540–4559, site databases and users tzsi_e2e_…, the app
-// on 3285 or the next free port, its own build folder), and two single-site processes of the
-// built Photographer template (ports 4560 and 4561, databases tzsi_e2e_own_a and _b) for the
-// websites somebody runs themselves. It removes everything it made at the end (--keep leaves
-// it; --headed shows the browser). The names and ports can be set from the environment:
+// under .data/signin-e2e, ports 4540–4559 for the one app's process, site databases and users
+// tzsi_e2e_…, the app on 3285 or the next free port, its own build folder), and two single-site
+// processes of the built Basic website (the starter: what a person who runs a tinyzoo website
+// themselves starts from; ports 4560 and 4561, databases tzsi_e2e_own_a and _b) for the websites
+// somebody runs themselves. It removes everything it made at the end (--keep leaves it; --headed
+// shows the browser). With CLOUD_RUN_TAG and CLOUD_PORT_SHIFT (a second checkout beside the
+// first) the names get the tag and the ports the shift. They can also be set from the environment:
 // E2E_SIGNIN_DB, E2E_SIGNIN_SITE_PREFIX, E2E_SIGNIN_PORT, E2E_SIGNIN_SITE_PORTS ("4540-4559"),
 // E2E_SIGNIN_OWN_PORTS ("4560-4561"), E2E_SIGNIN_DATA (the folder's name under .data); the
 // Postgres server from CLOUD_PG_URL.
@@ -27,19 +29,20 @@ import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import pg from 'pg'
 import { chromium, firefox, webkit } from 'playwright'
-import { alive, arg, cloudDir, dbUrl, freePortFrom, log, portFree, sleep, startCloud, templateEntries, waitFor, withPg } from './lib.mjs'
+import { alive, appEntries, arg, cloudDir, dbUrl, freePortFrom, log, portFree, runDb, runPort, runSitePrefix, sleep, startCloud, waitFor, withPg } from './lib.mjs'
 
 const run = promisify(execFile)
 const keep = arg('keep', false) === true
 const headed = arg('headed', false) === true
-const DB = process.env.E2E_SIGNIN_DB || 'tz_cloud_signin_e2e'
-const PREFIX = process.env.E2E_SIGNIN_SITE_PREFIX || 'tzsi_e2e'
-const [portFrom, portTo] = (process.env.E2E_SIGNIN_SITE_PORTS || '4540-4559').split('-').map(Number)
+const DB = process.env.E2E_SIGNIN_DB || runDb('tz_cloud_signin_e2e')
+const PREFIX = process.env.E2E_SIGNIN_SITE_PREFIX || runSitePrefix('tzsi_e2e')
+const [portFrom, portTo] = (process.env.E2E_SIGNIN_SITE_PORTS || `${runPort(4540)}-${runPort(4559)}`).split('-').map(Number)
 const PORTS = { from: portFrom, to: portTo }
-const [ownFrom, ownTo] = (process.env.E2E_SIGNIN_OWN_PORTS || '4560-4561').split('-').map(Number)
-const APP_PORT = Number(process.env.E2E_SIGNIN_PORT) || 3285
-const dataDir = join(cloudDir, '.data', process.env.E2E_SIGNIN_DATA || 'signin-e2e')
-const templateDir = join(dataDir, 'photographer')
+const [ownFrom, ownTo] = (process.env.E2E_SIGNIN_OWN_PORTS || `${runPort(4560)}-${runPort(4561)}`).split('-').map(Number)
+const APP_PORT = Number(process.env.E2E_SIGNIN_PORT) || runPort(3285)
+const dataDir = join(cloudDir, '.data', process.env.E2E_SIGNIN_DATA || runSitePrefix('signin-e2e'))
+// The shared driver keeps one folder per app: the one app serves the cloud-made Photographer sites.
+const appDir = join(dataDir, 'templates')
 const ownDir = join(dataDir, 'own')
 const preview = join(cloudDir, '.preview')
 const shots = join(preview, 'signin')
@@ -50,13 +53,16 @@ const startedAt = Date.now()
 const results = []
 const findings = { hostCookie: {} }
 
-if (!/^[a-z][a-z0-9_]*_e2e$/.test(DB)) { console.error(`E2E_SIGNIN_DB must be a database of this script's own, named …_e2e (it is dropped): ${DB}`); process.exit(2) }
+// The name ends in _e2e, or in _e2e_<tag> when CLOUD_RUN_TAG is set: only such a database is ever dropped.
+if (!/^[a-z][a-z0-9_]*_e2e(_[a-z0-9]+)?$/.test(DB)) { console.error(`E2E_SIGNIN_DB must be a database of this script's own, named …_e2e or …_e2e_<tag> (it is dropped): ${DB}`); process.exit(2) }
 if (!/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(PREFIX)) { console.error(`E2E_SIGNIN_SITE_PREFIX is not a usable prefix: ${PREFIX}`); process.exit(2) }
 if (!Number.isInteger(PORTS.from) || !Number.isInteger(PORTS.to) || PORTS.to < PORTS.from) { console.error('E2E_SIGNIN_SITE_PORTS must be "from-to"'); process.exit(2) }
 if (!Number.isInteger(ownFrom) || !Number.isInteger(ownTo) || ownTo < ownFrom + 1) { console.error('E2E_SIGNIN_OWN_PORTS must be "from-to" with at least two ports'); process.exit(2) }
-if (!existsSync(templateEntries.photographer)) {
-  console.error(`The template "photographer" is not built (${templateEntries.photographer}).\nRun: pnpm --filter tinyzoo-cloud templates:build photographer`)
-  process.exit(2)
+for (const id of ['templates', 'basic']) {
+  if (!existsSync(appEntries[id])) {
+    console.error(`The app "${id}" is not built (${appEntries[id]}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+    process.exit(2)
+  }
 }
 
 /** `go`: a failure is counted and the run goes on. */
@@ -126,8 +132,8 @@ async function processesWith(marker) {
     .filter((m) => m[2].split(/\s+/).some((word) => word.startsWith(marker)))
     .map((m) => ({ pid: Number(m[1]), name: m[2].split(marker)[1].split(/\s/)[0] }))
 }
-/** The template's process the shared driver started under this run's folder (`--template-dir=<folder>`). */
-const templateProcesses = () => processesWith(`--template-dir=${resolve(dataDir)}/`)
+/** The app's process the shared driver started under this run's folder (`--app-dir=<folder>`): one for the one app, as only it has sites here. */
+const appProcesses = () => processesWith(`--app-dir=${resolve(dataDir)}/`)
 /** The single-site processes this script started (`--site-dir=<folder>`, as the local driver marks its own). */
 const ownProcesses = () => processesWith(`--site-dir=${resolve(ownDir)}/`)
 
@@ -146,7 +152,7 @@ async function stopProcesses(list) {
 }
 
 async function cleanUp() {
-  const stopped = [...await stopProcesses(templateProcesses), ...await stopProcesses(ownProcesses)]
+  const stopped = [...await stopProcesses(appProcesses), ...await stopProcesses(ownProcesses)]
   const databases = await siteDatabases()
   const roles = await siteRoles()
   await withPg(async (c) => {
@@ -183,7 +189,7 @@ async function startCloudApp(extra = {}) {
 }
 
 /** The site directory of the shared driver: one row per cloud-made site. */
-const directory = () => JSON.parse(readFileSync(join(templateDir, 'sites.json'), 'utf8')).sites
+const directory = () => JSON.parse(readFileSync(join(appDir, 'sites.json'), 'utf8')).sites
 const rowOf = (siteId) => directory().find((r) => r.id === siteId)
 /** A cloud-made site's own database (as the site's own user). */
 const siteDb = (siteId, text, params) => query(rowOf(siteId).databaseUrl, text, params)
@@ -233,6 +239,8 @@ const meOf = (page) => api(page, 'GET', '/api/cms/_auth/me')
 /** Open the switcher (the site's name at the top of the menu) and read it. On a phone the menu is behind its button. */
 async function openSwitcher(page) {
   const button = page.locator('[data-cms-site-switch]:visible')
+  // On a desktop the switcher shows a moment after the sidebar (it comes with the list of websites): wait for it before looking for the phone's button.
+  await button.first().waitFor({ timeout: 3000 }).catch(() => {})
   if (!(await button.count())) {
     const toggle = page.locator('button[data-sidebar-toggle], [data-slot="sidebar-toggle"], button[aria-label="Open sidebar"], button[aria-label="Otevřít postranní panel"]').first()
     if (await toggle.count()) await toggle.click()
@@ -314,7 +322,7 @@ async function makeSites(person, wanted) {
 }
 const clientIdOf = (siteId) => rowOf(siteId).config.auth.account.clientId
 
-// ── a website somebody runs themselves: the built template as an ordinary single-site process ──
+// ── a website somebody runs themselves: the built Basic website as an ordinary single-site process ──
 
 /** Start one; `publicUrl` is what the site is TOLD its address is (it may be typed in any form). */
 async function startOwnSite({ key, port, publicUrl, envLines }) {
@@ -327,7 +335,7 @@ async function startOwnSite({ key, port, publicUrl, envLines }) {
   const setupToken = randomBytes(18).toString('base64url')
   // The three lines the cloud's "Connect a website you already run" page gave, as they are.
   const account = Object.fromEntries(envLines.split('\n').map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]))
-  const child = spawn(process.execPath, [templateEntries.photographer, `--site-dir=${dir}`], {
+  const child = spawn(process.execPath, [appEntries.basic, `--site-dir=${dir}`], {
     cwd: dir, detached: true, stdio: ['ignore', out, out],
     env: {
       PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}),
@@ -375,7 +383,7 @@ async function main() {
     { name: 'Ateliér Světlo', slug: `si-svetlo-${stamp}`, look: 'atelier' },
     { name: 'Foto Zápisník', slug: `si-zapisnik-${stamp}`, look: 'zapisnik' },
   ])
-  check('two Photographer sites are ready, served by one process, each a client of the account service', new URL(one.publicUrl).port === new URL(two.publicUrl).port && (await templateProcesses()).length === 1 && clientIdOf(one.id) !== clientIdOf(two.id), `${one.publicUrl} ${two.publicUrl}`)
+  check('two Photographer sites are ready, served by one process, each a client of the account service', new URL(one.publicUrl).port === new URL(two.publicUrl).port && (await appProcesses()).length === 1 && clientIdOf(one.id) !== clientIdOf(two.id), `${one.publicUrl} ${two.publicUrl}`)
   const before = await userOf(one.id, owner.email)
   check('site 1 holds the owner as an INVITED administrator with no password', before?.status === 'invited' && before.role === 'admin' && before.has_password === false, JSON.stringify(before))
   await openCloud(owner.page, `/sites/${one.id}`)
@@ -593,7 +601,7 @@ async function main() {
     startOwnSite({ key: 'a', port: ownFrom, publicUrl: addresses.a, envLines: lines.a }),
     startOwnSite({ key: 'b', port: ownFrom + 1, publicUrl: `HTTP://BETA-${stamp}.Localhost:${ownFrom + 1}/`, envLines: lines.b }),
   ])
-  check('two single-site processes of the built Photographer template run, each with its own database and those three lines', (await ownProcesses()).length === 2 && (await alfa.db('select count(*)::int as n from cms_users'))[0].n === 0 && (await beta.db('select count(*)::int as n from cms_users'))[0].n === 0)
+  check('two single-site processes of the built Basic website run, each with its own database and those three lines', (await ownProcesses()).length === 2 && (await alfa.db('select count(*)::int as n from cms_users'))[0].n === 0 && (await beta.db('select count(*)::int as n from cms_users'))[0].n === 0)
   // Each website has an administrator of its own, with a password (the first account, made with the setup code).
   const local = { email: `spravce-${stamp}@example.com`, password: 'heslo-mistniho-spravce-1' }
   const roles = { a: 'admin', b: 'editor' }
@@ -734,13 +742,13 @@ async function main() {
   await visitor.close()
 
   // ════ 10 · the __Host- cookie ════
-  log(`10 · a ${HOST_COOKIE} session cookie on http://<slug>.localhost (the template's process started with NUXT_SESSION_NAME)`)
-  const stoppedTemplate = await stopProcesses(templateProcesses)
+  log(`10 · a ${HOST_COOKIE} session cookie on http://<slug>.localhost (the app's process started with NUXT_SESSION_NAME)`)
+  const stoppedApp = await stopProcesses(appProcesses)
   await startCloudApp({ NUXT_HOSTING_SHARED_SESSION_COOKIE: HOST_COOKIE })
-  await waitFor(async () => { try { return (await fetch(`${one.publicUrl}/api/health/ready`, { signal: AbortSignal.timeout(3000) })).status === 200 } catch { return false } }, { timeout: 120_000, every: 500, what: 'the template\'s process to come back' })
-  const again = await templateProcesses()
+  await waitFor(async () => { try { return (await fetch(`${one.publicUrl}/api/health/ready`, { signal: AbortSignal.timeout(3000) })).status === 200 } catch { return false } }, { timeout: 120_000, every: 500, what: 'the app\'s process to come back' })
+  const again = await appProcesses()
   const environment = (await run('ps', ['eww', '-o', 'command=', '-p', String(again[0].pid)])).stdout
-  check('the cloud app is back and started the template\'s process again, with the session cookie\'s name from the one setting', stoppedTemplate.length === 1 && again.length === 1 && again[0].pid !== stoppedTemplate[0].pid && environment.includes(`NUXT_SESSION_NAME=${HOST_COOKIE}`), environment.includes('NUXT_SESSION_NAME') ? '' : 'NUXT_SESSION_NAME is not in the process\'s environment')
+  check('the cloud app is back and started the app\'s process again, with the session cookie\'s name from the one setting', stoppedApp.length === 1 && again.length === 1 && again[0].pid !== stoppedApp[0].pid && environment.includes(`NUXT_SESSION_NAME=${HOST_COOKIE}`), environment.includes('NUXT_SESSION_NAME') ? '' : 'NUXT_SESSION_NAME is not in the process\'s environment')
   for (const [name, type] of Object.entries({ chromium, firefox, webkit })) {
     if (!existsSync(type.executablePath())) {
       findings.hostCookie[name] = { installed: false }
@@ -822,14 +830,14 @@ finally {
   const missed = results.filter((r) => !r.ok)
   if (!failed && missed.length) failed = new Error(`failed: ${missed.map((r) => r.name).join('; ')}`)
   if (failed) {
-    for (const file of [join(templateDir, 'server.log'), join(ownDir, 'a', 'site.log'), join(ownDir, 'b', 'site.log')]) {
+    for (const file of [join(appDir, 'server.log'), join(ownDir, 'a', 'site.log'), join(ownDir, 'b', 'site.log')]) {
       if (existsSync(file)) console.error(`--- last lines of ${file} ---\n` + readFileSync(file, 'utf8').split('\n').slice(-15).join('\n'))
     }
   }
   await browser?.close().catch(() => {})
   await cloud?.stop().catch(() => {})
   if (keep) {
-    const procs = [...await templateProcesses().catch(() => []), ...await ownProcesses().catch(() => [])]
+    const procs = [...await appProcesses().catch(() => []), ...await ownProcesses().catch(() => [])]
     log(`kept: ${procs.map((p) => `pid ${p.pid} (${p.name})`).join(', ') || 'no process'}, the databases ${PREFIX}_… and ${DB}, and ${dataDir}`)
   }
   else {
