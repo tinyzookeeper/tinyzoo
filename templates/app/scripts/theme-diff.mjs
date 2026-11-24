@@ -3,9 +3,11 @@
 // The one app has a single @theme with every design's tokens. A token the app lacks is added to it;
 // a token the template gives another value goes into the template's design.css (under
 // html[data-design="<id>"], in the theme layer so a look's own value still wins), together with the
-// template's own base rules. Without --write it only prints what would change; when there is
+// template's own base rules. Tailwind's own theme counts as the app's: a template that changes one
+// of its defaults (`--font-mono`) changes it in design.css, never for every design. Without --write it only prints what would change; when there is
 // nothing left to do it says so, which is how a person checks the step is done.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -71,17 +73,20 @@ export const parseMainCss = (text) => {
 
 const capital = (id) => id.charAt(0).toUpperCase() + id.slice(1)
 
-// The design.css of a design: its differing theme values, then its own rules. A typeface token
-// (`--font-*`) is left out: @nuxt/fonts writes a family's @font-face rules into every stylesheet
-// that names it, and this one is part of the app's main stylesheet, which every site loads. A
-// look that reads the template's default typeface names it in its own stylesheet instead (the
-// script lists such looks).
-export const designCss = (id, differing, rules) => {
+/** Whether a token's value names one of the design's web fonts (its fonts.ts families). */
+export const namesWebFont = (value, families) => families.some((f) => value.includes(f))
+
+// The design.css of a design: its differing theme values, then its own rules. A token that names
+// one of the design's web fonts (`--font-display: "Spectral", …`) is left out: @nuxt/fonts writes
+// a family's @font-face rules into every stylesheet that names it, and this one is part of the
+// app's main stylesheet, which every site loads. A look that reads the template's default
+// typeface names it in its own stylesheet instead (the script lists such looks).
+export const designCss = (id, differing, rules, families = []) => {
   const Id = capital(id)
   const parts = [
     `/* ${Id}'s own rules from its main.css, for ${Id}'s sites only (html[data-design="${id}"]).\n   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */`,
   ]
-  const themed = differing.filter(([name]) => !name.startsWith('--font-'))
+  const themed = differing.filter(([name, value]) => !(name.startsWith('--font-') && namesWebFont(value, families)))
   if (themed.length) {
     const lines = themed.map(([name, value]) => `    ${name}: ${value};`).join('\n')
     parts.push(`/* Its theme values that differ from the app's: in the theme layer, so a look's own value still wins. */\n@layer theme {\n  html[data-design="${id}"] {\n${lines}\n  }\n}`)
@@ -90,20 +95,20 @@ export const designCss = (id, differing, rules) => {
   return `${parts.join('\n\n')}\n`
 }
 
-// The looks that read one of the template's typeface tokens (`--font-*`) without setting it, and so
-// draw in the template's default typeface: `[{ look, token, value }]`. design.css leaves typeface
+// The looks that read one of the template's web-font tokens (`--font-*`) without setting it, and so
+// draw in the template's default typeface: `[{ look, token, value }]`. design.css leaves those
 // tokens out (see designCss), so such a look names the family in its own stylesheet, which is also
 // where @nuxt/fonts then writes the family's @font-face rules. A look reads a token through its
 // stylesheet, its own components, and the components every look draws (the blocks in
 // app/components/global and those at the root of app/components).
-export const fontAdvice = (root, differing) => {
+export const fontAdvice = (root, differing, families = []) => {
   const cssDir = join(root, 'app/assets/css')
   const looks = readdirSync(cssDir).filter((file) => file.endsWith('.css') && !['main.css', 'design.css'].includes(file))
   const componentsRoot = join(root, 'app/components')
   const vueIn = (dir) => (existsSync(dir) ? readdirSync(dir).filter((name) => name.endsWith('.vue')).map((name) => readFileSync(join(dir, name), 'utf8')) : [])
   const shared = [...vueIn(join(componentsRoot, 'global')), ...vueIn(componentsRoot)]
   const found = []
-  for (const [token, value] of differing.filter(([name]) => name.startsWith('--font-'))) {
+  for (const [token, value] of differing.filter(([name, v]) => name.startsWith('--font-') && namesWebFont(v, families))) {
     const suffix = token.slice('--font-'.length)
     const reads = (source) => new RegExp(`(^|[^\\w-])font-${suffix}(?![\\w-])`).test(source) || source.includes(`var(${token})`)
     for (const file of looks) {
@@ -117,6 +122,21 @@ export const fontAdvice = (root, differing) => {
 }
 
 const squash = (value) => value.replace(/\s+/g, ' ').trim()
+
+/** Tailwind's own theme (tailwindcss/theme.css), as the app's build reads it: `Map<token, value>`. */
+export const tailwindDefaults = (appDir) => {
+  const file = createRequire(join(appDir, 'package.json')).resolve('tailwindcss/theme.css')
+  // (its @keyframes are not tokens)
+  let text = readFileSync(file, 'utf8')
+  for (let at = text.indexOf('@keyframes'); at !== -1; at = text.indexOf('@keyframes')) text = text.slice(0, at) + text.slice(closing(text, text.indexOf('{', at)) + 1)
+  return new Map(parseMainCss(text).theme)
+}
+
+/** The families of a design's fonts.ts, read as text. */
+export const familiesOf = (root) => {
+  const file = join(root, 'fonts.ts')
+  return existsSync(file) ? [...readFileSync(file, 'utf8').matchAll(/name:\s*'([^']+)'/g)].map((m) => m[1]) : []
+}
 
 const main = () => {
   const usage = 'usage: node templates/app/scripts/theme-diff.mjs <id> [--write]'
@@ -132,21 +152,23 @@ const main = () => {
   const cssDir = join(templates, id, 'app/assets/css')
   const appMain = join(templates, 'app/app/assets/css/main.css')
   const appText = readFileSync(appMain, 'utf8')
-  const app = new Map(parseMainCss(appText).theme)
+  // What a token is in the app: its @theme's value, or else Tailwind's own.
+  const app = new Map([...tailwindDefaults(join(templates, 'app')), ...parseMainCss(appText).theme])
   const own = parseMainCss(readFileSync(join(cssDir, 'main.css'), 'utf8'))
+  const families = familiesOf(join(templates, id))
 
   const missing = own.theme.filter(([name]) => !app.has(name))
   const differing = own.theme.filter(([name, value]) => app.has(name) && squash(app.get(name)) !== squash(value))
-  const css = designCss(id, differing, own.rules)
+  const css = designCss(id, differing, own.rules, families)
 
   console.log(`a. tokens the app's @theme lacks (${missing.length})`)
   for (const [name, value] of missing) console.log(`   ${name}: ${value}`)
   console.log(`b. tokens whose value differs from the app's (${differing.length})`)
-  for (const [name, value] of differing) console.log(`   ${name}\n     app:      ${app.get(name)}\n     template: ${value}${name.startsWith('--font-') ? '\n     (a typeface: not in design.css; see d)' : ''}`)
+  for (const [name, value] of differing) console.log(`   ${name}\n     app:      ${app.get(name)}\n     template: ${value}${name.startsWith('--font-') && namesWebFont(value, families) ? '\n     (a web font: not in design.css; see d)' : ''}`)
   console.log(`c. design.css\n${css.replace(/^/gm, '   | ')}`)
 
-  const advice = fontAdvice(join(templates, id), differing).map(({ look, token, value }) => `   look ${look} uses ${token} but does not set it; add \`${token}: ${value};\` to its html[data-look="${look}"] block`)
-  console.log(`d. looks that use a differing font token without setting it (${advice.length})`)
+  const advice = fontAdvice(join(templates, id), differing, families).map(({ look, token, value }) => `   look ${look} uses ${token} but does not set it; add \`${token}: ${value};\` to its html[data-look="${look}"] block`)
+  console.log(`d. looks that use a differing web-font token without setting it (${advice.length})`)
   for (const line of advice) console.log(line)
 
   const designPath = join(cssDir, 'design.css')

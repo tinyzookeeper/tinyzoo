@@ -12,7 +12,7 @@ import photographerFonts from '../../templates/photographer/fonts'
 import weddingFonts from '../../templates/wedding/fonts'
 import restaurantFonts from '../../templates/restaurant/fonts'
 // @ts-expect-error plain .mjs without types
-import { designCss, fontAdvice, parseMainCss } from '../../templates/app/scripts/theme-diff.mjs'
+import { designCss, fontAdvice, parseMainCss, tailwindDefaults } from '../../templates/app/scripts/theme-diff.mjs'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 
 // magic-string is a dependency of the kit, not of the repo root.
@@ -284,11 +284,24 @@ describe('a design\'s own stylesheet', () => {
     expect(css).toContain('--color-night: #111;')
   })
 
-  it('leaves typeface tokens to the looks (the main stylesheet would carry their @font-face rules)', () => {
-    const css: string = designCss('blog', [['--font-display', '"Spectral", serif'], ['--color-rule', 'red']], '')
+  it('leaves web-font tokens to the looks (the main stylesheet would carry their @font-face rules)', () => {
+    const css: string = designCss('blog', [['--font-display', '"Spectral", serif'], ['--color-rule', 'red']], '', ['Spectral'])
     expect(css).toContain('--color-rule: red;')
     expect(css).not.toContain('--font-display')
-    expect(designCss('blog', [['--font-display', '"Spectral", serif']], '')).not.toContain('@layer theme')
+    expect(designCss('blog', [['--font-display', '"Spectral", serif']], '', ['Spectral'])).not.toContain('@layer theme')
+    // A system typeface has no @font-face rules: it stays, for the design's sites only.
+    expect(designCss('medical', [['--font-display', 'system-ui, sans-serif']], '', ['Atkinson Hyperlegible'])).toContain('--font-display: system-ui, sans-serif;')
+  })
+
+  it('counts Tailwind\'s own theme as the app\'s, so a design never changes a default for every design', () => {
+    const defaults: Map<string, string> = tailwindDefaults(folder('app'))
+    expect(defaults.get('--font-mono')).toMatch(/^ui-monospace, SFMono-Regular/)
+    expect(defaults.get('--color-red-500')).toBeTruthy()
+    expect([...defaults.keys()].every((name) => name.startsWith('--'))).toBe(true)
+    // Individual, Studio and Software give --font-mono a value of their own: in their design.css, not the app's theme.
+    const appTheme = new Map(parseMainCss(readFileSync(`${folder('app')}/app/assets/css/main.css`, 'utf8')).theme)
+    expect(appTheme.has('--font-mono')).toBe(false)
+    expect(readFileSync(`${folder('studio')}/app/assets/css/design.css`, 'utf8')).toContain('--font-mono: ui-monospace, monospace;')
   })
 })
 
@@ -302,21 +315,24 @@ describe('looks that read their template\'s default typeface', () => {
   write('app/components/a/Hero.vue', '<template><h1 class="font-display" /></template>')
   write('app/components/b/Hero.vue', '<template><h1 class="font-sans" /></template>')
   const differing: [string, string][] = [['--font-display', '"Spectral", serif']]
+  const families = ['Spectral', 'Besley', 'Rubik']
   afterAll(() => rmSync(root, { recursive: true, force: true }))
 
   it('finds none when no look reads the token without setting it', () => {
-    expect(fontAdvice(root, differing)).toEqual([])
+    expect(fontAdvice(root, differing, families)).toEqual([])
   })
 
   it('finds a look whose blocks read it (the blocks are drawn in every look)', () => {
     write('app/components/global/BlockText.vue', '<template><h2 class="font-display" /></template>')
-    expect(fontAdvice(root, differing)).toEqual([{ look: 'b', token: '--font-display', value: '"Spectral", serif' }])
+    expect(fontAdvice(root, differing, families)).toEqual([{ look: 'b', token: '--font-display', value: '"Spectral", serif' }])
     rmSync(join(root, 'app/components/global'), { recursive: true })
   })
 
   it('finds a look whose stylesheet reads it, and none for a token that does not differ', () => {
     write('app/assets/css/b.css', 'html[data-look="b"] h1 { font-family: var(--font-display); }')
-    expect(fontAdvice(root, differing).map((a) => a.look)).toEqual(['b'])
-    expect(fontAdvice(root, [['--color-rule', 'red']])).toEqual([])
+    expect(fontAdvice(root, differing, families).map((a) => a.look)).toEqual(['b'])
+    expect(fontAdvice(root, [['--color-rule', 'red']], families)).toEqual([])
+    // A system typeface is in design.css, so a look that reads it needs nothing of its own.
+    expect(fontAdvice(root, [['--font-display', 'system-ui, sans-serif']], families)).toEqual([])
   })
 })
