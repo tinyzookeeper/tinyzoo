@@ -3,8 +3,8 @@
 // figures, and the parts of the day side by side (time above, note below). Today's row sits on
 // a soft band with a "today" tag and a dot at the part that is on now: that comes from the
 // visitor's clock after the page is drawn (useClock), so the server's rows have no band yet.
-import type { OpeningHour } from '~/lib/cms-content'
-import type { DayKey } from '~/utils/site'
+import type { OpeningHour } from '../../lib/cms-content'
+import type { DayKey } from '../../utils/site'
 
 const props = defineProps<{ block: BlockOf<'hours'>; first?: boolean; anchor?: string; hours: OpeningHour[] }>()
 const { settings } = await useMedical()

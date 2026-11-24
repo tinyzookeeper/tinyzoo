@@ -2,7 +2,7 @@
 // Ciferník's notices: the important one in a soft panel with its dates in a large disc, the
 // others as white panels with a small round badge. Only what is valid today (the block hands
 // in those); without any, nothing is drawn. The heading is for screen readers only.
-import type { Notice } from '~/lib/cms-content'
+import type { Notice } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'notices'>; first?: boolean; anchor?: string; notices: Notice[] }>()
 const words = useSiteWords()

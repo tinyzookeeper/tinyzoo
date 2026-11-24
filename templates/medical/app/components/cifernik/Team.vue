@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Ciferník's team: portraits in circles on an offset colour disc, the colour changing from one person to the next.
-import type { TeamMember } from '~/lib/cms-content'
+import type { TeamMember } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; items: TeamMember[] }>()
 const DISCS = ['bg-brand', 'bg-second', 'bg-sun']

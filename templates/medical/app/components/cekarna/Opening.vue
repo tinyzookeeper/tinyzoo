@@ -3,7 +3,7 @@
 // soft band that says today on a single line: the span, each part of the day with "now",
 // tomorrow. Today comes from the visitor's clock after the page is drawn (useClock); until then
 // the band holds its place empty, so the server's page and the browser's first drawing agree.
-import type { OpeningHour } from '~/lib/cms-content'
+import type { OpeningHour } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; hours: OpeningHour[] }>()
 const { settings, words, phoneHref } = await useMedical()

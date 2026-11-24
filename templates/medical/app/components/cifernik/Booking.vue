@@ -2,7 +2,7 @@
 // Ciferník's booking: three numbered steps (call, send a request, a first visit) and what to
 // bring on a soft panel; the request form on a white card beside them.
 import type { SiteForm } from '#imports'
-import type { Insurer, OpeningHour } from '~/lib/cms-content'
+import type { Insurer, OpeningHour } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'booking'>; first?: boolean; anchor?: string; form: SiteForm; insurers: Insurer[]; hours: OpeningHour[] }>()
 const { settings, words, phoneHref, smsHref } = await useMedical()

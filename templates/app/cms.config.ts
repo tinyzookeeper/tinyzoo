@@ -10,6 +10,7 @@ import * as blog from '../blog/cms.config'
 import * as trades from '../trades/cms.config'
 import * as carService from '../car-service/cms.config'
 import * as salon from '../salon/cms.config'
+import * as medical from '../medical/cms.config'
 import * as restaurant from '../restaurant/cms.config'
 
 export const models = defineModels({
@@ -20,5 +21,6 @@ export const models = defineModels({
   trades: { config: trades, migrations: '../trades/server/db/migrations' },
   'car-service': { config: carService, migrations: '../car-service/server/db/migrations' },
   salon: { config: salon, migrations: '../salon/server/db/migrations' },
+  medical: { config: medical, migrations: '../medical/server/db/migrations' },
   restaurant: { config: restaurant, migrations: '../restaurant/server/db/migrations' },
 })

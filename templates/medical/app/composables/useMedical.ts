@@ -1,7 +1,7 @@
 // What the Medical blocks draw from: the opening hours and the other collections, and the
 // facts of the practice (Site settings). (The site-wide content, the page and `useSiteList` are
 // the template kit's.)
-import type { Insurer, Notice, OpeningHour, Service, TeamMember } from '~/lib/cms-content'
+import type { Insurer, Notice, OpeningHour, Service, TeamMember } from '../lib/cms-content'
 
 /** The rows of the opening hours. */
 export const useOpeningHours = () => useSiteList<OpeningHour>('site-hours', 'openingHour')

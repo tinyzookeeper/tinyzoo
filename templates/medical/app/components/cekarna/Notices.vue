@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Čekárna's notices: the important one on a soft amber panel, the others as plain text beside
 // it. Only what is valid today (the block hands in those); without any, nothing is drawn.
-import type { Notice } from '~/lib/cms-content'
+import type { Notice } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'notices'>; first?: boolean; anchor?: string; notices: Notice[] }>()
 const words = useSiteWords()

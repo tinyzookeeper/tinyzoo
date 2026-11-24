@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Čekárna's price list: one soft panel with a photograph on the left and the prices as ruled rows.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'prices'>; first?: boolean; items: Service[] }>()
 const words = useSiteWords()

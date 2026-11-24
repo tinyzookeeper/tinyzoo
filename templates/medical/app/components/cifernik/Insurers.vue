@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Ciferník's insurers: "coins", each with the insurer's code in a ring and its name beside it.
-import type { Insurer } from '~/lib/cms-content'
+import type { Insurer } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'insurers'>; first?: boolean; items: Insurer[] }>()
 </script>

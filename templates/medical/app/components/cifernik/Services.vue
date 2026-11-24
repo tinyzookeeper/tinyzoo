@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Ciferník's services: soft white cards beside the heading and a tall arched photograph.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 </script>
