@@ -163,11 +163,20 @@ export function cmsSelectAsButtons(f: CmsFormFieldLike, placement: 'main' | 'sid
 /**
  * The options a choice offers now. With `f.select({ optionsBy })` those listed under the
  * other field's value, in the field's own order; every option when that value is not listed
- * (or not chosen yet).
+ * (or not chosen yet). A choice that is no longer offered (`meta.removedOptions`, on a site's
+ * own content types) is left out, except the one the entry holds (`held`).
  */
-export function cmsSelectOffered(f: CmsFormFieldLike, otherValue: unknown): string[] {
+export function cmsSelectOffered(f: CmsFormFieldLike, otherValue: unknown, held?: unknown): string[] {
   const all = (f.meta?.options as string[] | undefined) ?? []
   const by = f.meta?.optionsBy as { options: Record<string, string[]> } | undefined
   const listed = by && typeof otherValue === 'string' && Object.hasOwn(by.options, otherValue) ? by.options[otherValue] : null
-  return listed ? all.filter((v) => listed.includes(v)) : all
+  const offered = listed ? all.filter((v) => listed.includes(v)) : all
+  const removed = f.meta?.removedOptions as string[] | undefined
+  return removed?.length ? offered.filter((v) => !removed.includes(v) || v === held) : offered
+}
+
+/** Whether a choice is one that is no longer offered (it shows only where an entry holds it). */
+export function cmsSelectRemoved(f: CmsFormFieldLike, value: unknown): boolean {
+  const removed = f.meta?.removedOptions as string[] | undefined
+  return typeof value === 'string' && !!removed?.includes(value)
 }

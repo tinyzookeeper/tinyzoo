@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defineEntity, defineSingleton, f } from 'tinyzoo'
 import {
-  cmsFieldIcon, cmsFormSections, cmsIsShortField, cmsNeedsSectionMenu, cmsSelectAsButtons, cmsSelectOffered, cmsWaitingFields,
+  cmsFieldIcon, cmsFormSections, cmsIsShortField, cmsNeedsSectionMenu, cmsSelectAsButtons, cmsSelectOffered, cmsSelectRemoved, cmsWaitingFields,
 } from '../../packages/cms/app/utils/cmsSections'
 
 // A form reads as a few titled sections; empty optional fields wait behind "+ Add …".
@@ -115,6 +115,19 @@ describe('field controls', () => {
       expect(cmsSelectOffered(colors, undefined)).toEqual(['bronz', 'oliva', 'mosaz', 'salvej'])
       expect(cmsSelectOffered(colors, 'constructor')).toEqual(['bronz', 'oliva', 'mosaz', 'salvej'])
       expect(cmsSelectOffered(fld('kind', 'select', { meta: { options: ['a', 'b'] } }), 'a')).toEqual(['a', 'b'])
+    })
+
+    it('leaves out a choice that is no longer offered, except the one the entry holds', () => {
+      const level = fld('level', 'select', { meta: { options: ['beginner', 'middle', 'advanced'], removedOptions: ['middle'] } })
+      expect(cmsSelectOffered(level, undefined)).toEqual(['beginner', 'advanced'])
+      expect(cmsSelectOffered(level, undefined, 'beginner')).toEqual(['beginner', 'advanced'])
+      expect(cmsSelectOffered(level, undefined, 'middle')).toEqual(['beginner', 'middle', 'advanced'])
+      expect(cmsSelectRemoved(level, 'middle')).toBe(true)
+      expect(cmsSelectRemoved(level, 'beginner')).toBe(false)
+      // A field without the list is as it was.
+      const plain = fld('kind', 'select', { meta: { options: ['a', 'b'] } })
+      expect(cmsSelectOffered(plain, undefined, 'a')).toEqual(['a', 'b'])
+      expect(cmsSelectRemoved(plain, 'a')).toBe(false)
     })
 
     it('stays buttons by the longest list it can offer, not by all its options', () => {
