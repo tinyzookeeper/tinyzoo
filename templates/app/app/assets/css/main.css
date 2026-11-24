@@ -1,0 +1,24 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* Each design's own rules, all under html[data-design="<id>"]: they never touch another design.
+   (The looks' stylesheets are not here: each is a file of its own, linked on its look's pages.) */
+
+/* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+
+/* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
+   design's. Where designs give a token different values, the value most templates use is here
+   and the others are in their design.css. Each look gives the variables behind them their values
+   (under html[data-look="…"]), and a colour preset from the site's settings overrides the colours
+   inline on <html>. Outside a look (the admin) none of these is set, and none is used. The names
+   keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses. */
+@theme {
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-cond: system-ui, sans-serif;
+  --color-cream: var(--cream);
+  --color-lamp: var(--lamp);
+  --color-night: var(--night);
+  --color-raised: var(--raised);
+  --color-rule: var(--rule);
+}
