@@ -144,11 +144,11 @@ function fileDirectory(opts: DirectoryOptions): SiteDirectory {
 
 /**
  * The reader of an app: a Postgres role that may sign in, connect to the cloud's database
- * and read `tenant_sites`, and only the rows of its own app. Made once; its password is kept
+ * and read `tenant_sites`, and nothing else. Made once; its password is kept
  * encrypted with the app's other state (app.json). When that was lost the role gets a new
  * password: a process that still runs keeps its open connection, and the next start uses the new one.
  */
-async function ensureReader(role: string, appId: string, known: DirectoryReader | undefined): Promise<{ reader: DirectoryReader; password: string }> {
+async function ensureReader(role: string, known: DirectoryReader | undefined): Promise<{ reader: DirectoryReader; password: string }> {
   const pool = usePool()
   const ident = quoteIdent(role)
   const { rows: [db] } = await pool.query<{ name: string }>('select current_database() as name')
@@ -158,28 +158,15 @@ async function ensureReader(role: string, appId: string, known: DirectoryReader 
     await pool.query(`grant connect on database ${quoteIdent(db!.name)} to ${ident}`)
     await pool.query(`grant select on table tenant_sites to ${ident}`)
   }
-  // The grant is on the whole table, so on its own it would let a role read the rows of every
-  // app. Row level security narrows it to the rows of the role's own app. The cloud's own user
-  // owns the table, so the policies do not limit it. The policy is made or changed with one
-  // statement, never dropped and made again: a process that runs reads the table every second
-  // and must never see it empty.
-  const limit = async () => {
-    await pool.query('alter table tenant_sites enable row level security')
-    const has = !!(await pool.query('select 1 from pg_policies where schemaname = current_schema() and tablename = $1 and policyname = $2', ['tenant_sites', role])).rowCount
-    const using = `using (template = ${sqlLiteral(appId)})`
-    await pool.query(has ? `alter policy ${ident} on tenant_sites to ${ident} ${using}` : `create policy ${ident} on tenant_sites for select to ${ident} ${using}`)
-  }
   const kept = exists && known?.role === role ? decryptSecret(known.password) : null
   if (kept) {
     await grant()
-    await limit()
     return { reader: known!, password: kept }
   }
   const password = randomBytes(24).toString('base64url')
   // A role takes no parameters: the password goes in as a literal.
   await pool.query(`${exists ? 'alter' : 'create'} role ${ident} login password ${sqlLiteral(password)} nosuperuser nocreatedb nocreaterole noreplication`)
   await grant()
-  await limit()
   return { reader: { role, password: encryptSecret(password) }, password }
 }
 
@@ -233,7 +220,7 @@ function tableDirectory(opts: DirectoryOptions): SiteDirectory {
     },
     async prepare(known) {
       needKey()
-      const { reader, password } = await ensureReader(sharedReaderRole(opts.appId, opts.databasePrefix), opts.appId, known)
+      const { reader, password } = await ensureReader(sharedReaderRole(opts.appId, opts.databasePrefix), known)
       const { rows: [db] } = await usePool().query<{ name: string }>('select current_database() as name')
       return {
         reader,

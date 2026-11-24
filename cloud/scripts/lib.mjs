@@ -223,13 +223,18 @@ export async function startCloud({ port, env = {}, logFile }) {
     // Nuxt takes another port, without failing, when the one asked for was taken a moment
     // before (two runs starting together): the answer on `port` would then be the other run's
     // app. So the run waits until its own app says where it listens, and stops if that is elsewhere.
-    const said = /Local:\s+(http:\/\/\S+)/.exec(readFileSync(logFile, 'utf8').slice(from))?.[1]
+    // (`from` counts bytes, and the log holds characters of several bytes: cut the bytes, then read them as text.)
+    const said = /Local:\s+(http:\/\/\S+)/.exec(readFileSync(logFile).subarray(from).toString('utf8'))?.[1]
     if (said && !said.startsWith(`${url}/`)) {
       try { process.kill(-child.pid, 'SIGTERM') } catch { /* gone */ }
       throw new Error(`the cloud app started at ${said}, not on port ${port} (it was taken a moment before); see ${logFile}`)
     }
     try { if (said && (await fetch(`${url}/api/account`, { signal: AbortSignal.timeout(3000) })).ok) break } catch { /* not up yet */ }
-    if (Date.now() > until) throw new Error(`the cloud app did not answer; see ${logFile}`)
+    if (Date.now() > until) {
+      // The app is the script's own and nobody holds its `stop()` yet: end it here, or it stays behind.
+      try { process.kill(-child.pid, 'SIGTERM') } catch { /* gone */ }
+      throw new Error(`the cloud app did not answer; see ${logFile}`)
+    }
     await sleep(500)
   }
   // The first page render compiles the client bundle: do it once here, so the browser does not wait on it.
