@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Magazín's questions: rows under a strong rule, the question on the left, the answer on the right.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 </script>

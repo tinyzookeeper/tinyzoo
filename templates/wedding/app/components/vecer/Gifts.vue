@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Večer's gift list: the contribution in a champagne outline, then a ruled list with
 // "Reserve" or a quiet "Reserved", on a panel.
-import type { Gift } from '~/lib/cms-content'
+import type { Gift } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'gifts'>; first?: boolean; anchor?: string; gifts: Gift[] }>()
 const words = useSiteWords()

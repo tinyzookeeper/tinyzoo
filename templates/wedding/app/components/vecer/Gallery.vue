@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Večer's gallery: four portraits, every other one set lower; a row to swipe on a phone.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'gallery'>; first?: boolean; anchor?: string; photos: CmsMedia[] }>()
 const { names, words } = await useWedding()

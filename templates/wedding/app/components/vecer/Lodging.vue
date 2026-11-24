@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Večer's places to stay: three columns divided by hairlines on a panel.
-import type { Lodging } from '~/lib/cms-content'
+import type { Lodging } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'lodging'>; first?: boolean; anchor?: string; items: Lodging[] }>()
 </script>

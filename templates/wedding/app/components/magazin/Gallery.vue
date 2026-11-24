@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Magazín's gallery: a masonry of mixed formats, each photograph in its own shape.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'gallery'>; first?: boolean; anchor?: string; photos: CmsMedia[] }>()
 const SHAPE = { wide: 'aspect-[3/2]', tall: 'aspect-[4/5]', square: 'aspect-square' }

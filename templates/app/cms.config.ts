@@ -4,7 +4,9 @@
 // own, so it runs in multi-tenant mode only.
 import { defineModels } from 'tinyzoo'
 import * as photographer from '../photographer/cms.config'
+import * as wedding from '../wedding/cms.config'
 
 export const models = defineModels({
   photographer: { config: photographer, migrations: '../photographer/server/db/migrations' },
+  wedding: { config: wedding, migrations: '../wedding/server/db/migrations' },
 })

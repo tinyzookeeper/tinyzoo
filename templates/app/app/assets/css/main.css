@@ -3,11 +3,13 @@
 /* Each design's own rules, all under html[data-design="<id>"]: they never touch another design.
    (The looks' stylesheets are not here: each is a file of its own, linked on its look's pages.) */
 @import "../../../../photographer/app/assets/css/design.css";
+@import "../../../../wedding/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
 @source "../../../node_modules/tinyzoo-template-kit/app";
 @source "../../../../photographer";
+@source "../../../../wedding";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -39,4 +41,10 @@
   --color-dim: var(--dim);
   --color-panel: var(--panel);
   --breakpoint-wide: 68.75rem;
+  /* Wedding */
+  --font-caps: system-ui, sans-serif;
+  --color-card-ink: var(--card-ink);
+  --color-card-body: var(--card-body);
+  --color-card-line: var(--card-line);
+  --color-deep: var(--deep);
 }

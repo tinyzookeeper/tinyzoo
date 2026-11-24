@@ -1,6 +1,6 @@
 // What the Wedding's blocks draw from: the facts of the day (Site settings) and the
 // collections. (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { Contact, Gift, Lodging, ProgramItem, Question } from '~/lib/cms-content'
+import type { Contact, Gift, Lodging, ProgramItem, Question } from '../lib/cms-content'
 
 /** The programme of the day, in the editors' order. */
 export const useProgramme = () => useSiteList<ProgramItem>('site-programme', 'programItem')

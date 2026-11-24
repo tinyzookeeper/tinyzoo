@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Oznámení's contacts: centred name cards side by side, the phone set large.
-import type { Contact } from '~/lib/cms-content'
+import type { Contact } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'contacts'>; first?: boolean; anchor?: string; items: Contact[] }>()
 </script>

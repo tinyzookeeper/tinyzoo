@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Oznámení's programme: a ruled list with large serif times beside a matted photograph of the place.
-import type { ProgramItem } from '~/lib/cms-content'
+import type { ProgramItem } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'programme'>; first?: boolean; anchor?: string; items: ProgramItem[] }>()
 const { day } = await useWedding()

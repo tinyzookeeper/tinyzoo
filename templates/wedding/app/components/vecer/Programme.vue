@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Večer's programme: two columns of ruled rows with large champagne times on a panel, then a
 // photograph across the whole page.
-import type { ProgramItem } from '~/lib/cms-content'
+import type { ProgramItem } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'programme'>; first?: boolean; anchor?: string; items: ProgramItem[] }>()
 const { day } = await useWedding()

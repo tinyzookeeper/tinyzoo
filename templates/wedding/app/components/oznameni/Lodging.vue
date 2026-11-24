@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Oznámení's places to stay: a ruled table, the name with its note, the distance, the price, the link.
-import type { Lodging } from '~/lib/cms-content'
+import type { Lodging } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'lodging'>; first?: boolean; anchor?: string; items: Lodging[] }>()
 </script>
