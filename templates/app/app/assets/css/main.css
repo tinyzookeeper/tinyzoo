@@ -10,6 +10,7 @@
 @import "../../../../car-service/app/assets/css/design.css";
 @import "../../../../salon/app/assets/css/design.css";
 @import "../../../../medical/app/assets/css/design.css";
+@import "../../../../office/app/assets/css/design.css";
 @import "../../../../restaurant/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
@@ -23,6 +24,7 @@
 @source "../../../../car-service";
 @source "../../../../salon";
 @source "../../../../medical";
+@source "../../../../office";
 @source "../../../../restaurant";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
@@ -96,4 +98,8 @@
   --color-second: var(--second);
   --color-sun: var(--sun);
   --color-track: var(--track);
+  /* Office */
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-signal-text: var(--signal-text);
 }

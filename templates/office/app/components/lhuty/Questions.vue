@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Lhůty's questions: on a tinted band, the heading on the left and on the right every question
 // as a row between rules that opens to its answer. The first one is open.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 </script>

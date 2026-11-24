@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Lhůty's price list: three groups, each a name and a note on the left and a table of services
 // with figures in mono on the right, between rules.
-import type { Service, ServiceGroup } from '~/lib/cms-content'
+import type { Service, ServiceGroup } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; groups: ServiceGroup[]; services: Service[] }>()
 const grouped = computed(() => groupServices(props.groups, props.services))

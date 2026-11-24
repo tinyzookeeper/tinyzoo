@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šanony's page of one article: a heavy title, the date, the short text and the article between
 // heavy rules.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ entry: Article }>()
 const { words, cta } = await useOffice()

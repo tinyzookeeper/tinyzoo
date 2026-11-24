@@ -2,7 +2,7 @@
 // Šanony's case studies, on the soft tone: three cards, each an ink head with who and how long and
 // the title, the problem and what was done on paper, and the result on the brand colour. The
 // title leads to the case's page.
-import type { CaseStudy } from '~/lib/cms-content'
+import type { CaseStudy } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'cases'>; first?: boolean; anchor?: string; items: CaseStudy[] }>()
 const { words } = await useOffice()

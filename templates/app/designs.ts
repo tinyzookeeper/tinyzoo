@@ -9,6 +9,7 @@ import trades from '../trades/fonts'
 import carService from '../car-service/fonts'
 import salon from '../salon/fonts'
 import medical from '../medical/fonts'
+import office from '../office/fonts'
 import restaurant from '../restaurant/fonts'
 
 export const DESIGNS: Record<string, DesignFonts> = {
@@ -20,5 +21,6 @@ export const DESIGNS: Record<string, DesignFonts> = {
   'car-service': carService,
   salon,
   medical,
+  office,
   restaurant,
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šanony's articles: heavy ruled rows, each a date, a title in heavy type and two sentences, with
 // an arrow on ink that turns to the brand colour when the row is pointed at.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'articles'>; first?: boolean; anchor?: string; items: Article[] }>()
 </script>

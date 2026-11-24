@@ -2,7 +2,7 @@
 // Šanony's people, on black: every person a portrait with a spine beside it that carries the
 // name, the role, a large direct phone number and the e-mail. A row to swipe on a phone; from xl
 // up all of them stand side by side.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'people'>; first?: boolean; anchor?: string; items: Person[] }>()
 </script>

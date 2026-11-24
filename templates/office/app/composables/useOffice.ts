@@ -1,6 +1,6 @@
 // What the Office's blocks draw from: the collections, and the facts of the office (Site
 // settings). (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { Article, CaseStudy, Deadline, Person, Question, Service, ServiceGroup } from '~/lib/cms-content'
+import type { Article, CaseStudy, Deadline, Person, Question, Service, ServiceGroup } from '../lib/cms-content'
 
 /** The groups of the price list, in the editors' order. */
 export const useServiceGroups = () => useSiteList<ServiceGroup>('site-service-groups', 'serviceGroup')
