@@ -2,7 +2,7 @@
 // Regál's first shelf: six departments as photographs of their own shape standing on the board
 // (three to a row on a tablet, two on a phone), the rail under each carrying the name and the
 // price range in condensed capitals, the shopkeeper's sentence and the makers hanging below.
-import type { Range } from '~/lib/cms-content'
+import type { Range } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'ranges'>; first?: boolean; anchor?: string; items: Range[] }>()
 // The shapes the shelf stands: 3:2, 4:5 and square, whatever the photograph's own is nearest to.

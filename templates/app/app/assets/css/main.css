@@ -20,6 +20,7 @@
 @import "../../../../realty/app/assets/css/design.css";
 @import "../../../../development/app/assets/css/design.css";
 @import "../../../../construction/app/assets/css/design.css";
+@import "../../../../shop/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
@@ -42,6 +43,7 @@
 @source "../../../../realty";
 @source "../../../../development";
 @source "../../../../construction";
+@source "../../../../shop";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -162,4 +164,15 @@
   --color-brand-3: var(--brand-3);
   --color-concrete: var(--concrete);
   --color-timber: var(--timber);
+  /* Shop */
+  --color-wood: var(--wood);
+  --color-wood-hi: var(--wood-hi);
+  --color-wood-lo: var(--wood-lo);
+  --color-brass-lo: var(--brass-lo);
+  --color-rail: var(--rail);
+  --color-rail-ink: var(--rail-ink);
+  --color-board: var(--board);
+  --color-board-lo: var(--board-lo);
+  --color-wall: var(--wall);
+  --color-peg: var(--peg);
 }

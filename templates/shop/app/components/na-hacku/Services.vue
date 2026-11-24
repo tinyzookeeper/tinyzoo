@@ -2,7 +2,7 @@
 // Na háčku's services: rounded rows, each with an icon in a green circle, the text and the
 // price as an outlined pill (under the text on a phone, at the right from a tablet), beside a
 // rounded photograph of the counter.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 </script>

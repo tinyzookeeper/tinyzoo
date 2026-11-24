@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Portál's news: dated columns on the darkest wood, the date in brass figures.
-import type { News } from '~/lib/cms-content'
+import type { News } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; items: News[] }>()
 const dayOf = (iso: string) => { const d = dateParts(iso); return d ? `${d.day}. ${d.monthNumber}.` : '' }

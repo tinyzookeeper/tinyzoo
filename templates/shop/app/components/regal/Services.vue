@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Regál's services: the counter photograph full-height on the left, the price list on a light
 // tint on the right, the prices in the rail's colour in big condensed figures.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 </script>

@@ -2,7 +2,7 @@
 // Portál's goods: the one light section, the lit window. Framed photographs on cream, a label,
 // the name and the price on one line, a note in italics, two text links that fill in the
 // enquiry form. Three columns; a row to swipe on a phone.
-import type { Product } from '~/lib/cms-content'
+import type { Product } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'picks'>; first?: boolean; anchor?: string; items: Product[] }>()
 const { words } = await useShop()

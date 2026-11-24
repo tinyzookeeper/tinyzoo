@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Portál's services: a price list with dotted leaders, beside a photograph of the counter.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 </script>

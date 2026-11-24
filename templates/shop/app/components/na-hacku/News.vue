@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Na háčku's news on a quiet surface: the date in a green round badge, the day and the month's name.
-import type { News } from '~/lib/cms-content'
+import type { News } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; items: News[] }>()
 </script>
