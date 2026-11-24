@@ -208,9 +208,15 @@ export default defineNuxtModule<TemplateKitOptions>({
             ].join('\n')
           }
           if ((this as any).environment?.name === 'client') {
+            // The import makes the build emit the file; it gives a full address (http://host/_nuxt/<name>),
+            // while the server writes the address from the app's own base. The link must read the same
+            // on both sides, or the browser changes it when it takes the page over and applies the
+            // stylesheet a second time: so the name is taken from the import and the address made as the server makes it.
             return [
+              "import { buildAssetsURL } from '#internal/nuxt/paths'",
               ...looks.map(([, file], i) => `import css${i} from ${JSON.stringify(`${file}?url`)}`),
-              `export default { ${looks.map(([look], i) => `${JSON.stringify(look)}: css${i}`).join(', ')} }`,
+              "const sameAsServer = (url) => buildAssetsURL(String(url).replace(/[?#].*$/, '').split('/').pop())",
+              `export default { ${looks.map(([look], i) => `${JSON.stringify(look)}: sameAsServer(css${i})`).join(', ')} }`,
             ].join('\n')
           }
           const missing = looks.filter(([, file]) => !emitted.has(file)).map(([look]) => look)
