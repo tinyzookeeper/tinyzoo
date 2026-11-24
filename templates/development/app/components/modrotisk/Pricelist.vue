@@ -2,7 +2,7 @@
 // Modrotisk's price list: the elevation of the building (clicking a bay finds the flat below), a
 // filter of squared-off chips, then a ruled table on a desktop and ruled cards on a phone.
 // Free flats carry "Mám zájem", which chooses the flat in the enquiry form.
-import type { Flat, Floor } from '~/lib/cms-content'
+import type { Flat, Floor } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'pricelist'>; first?: boolean; index?: number; anchor?: string; flats: Flat[]; floors: Floor[]; withOverview?: boolean }>()
 const { settings } = await useSite()

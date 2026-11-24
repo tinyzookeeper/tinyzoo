@@ -2,7 +2,7 @@
 // Patra's price list: the flats stacked under four quiet floor numerals (4, 3, 2, 1), the way the
 // floors sit on top of each other. Each floor has its rows (a table on a desktop, two-line
 // rows on a phone); a floor the filter empties says so, and its numeral fades.
-import type { Flat, Floor } from '~/lib/cms-content'
+import type { Flat, Floor } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'pricelist'>; first?: boolean; anchor?: string; flats: Flat[]; floors: Floor[] }>()
 const words = useSiteWords()

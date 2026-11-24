@@ -2,7 +2,7 @@
 // Patra's standards: a soft band across the page, the heading and a photograph on the left, the
 // standards as ruled pairs of columns on the right, and the closing one as a single line under
 // them.
-import type { Standard } from '~/lib/cms-content'
+import type { Standard } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'standards'>; first?: boolean; anchor?: string; standards: Standard[] }>()
 const photo = computed(() => props.block.photos.find((p) => p.image) ?? null)

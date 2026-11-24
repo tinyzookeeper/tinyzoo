@@ -2,7 +2,7 @@
 // Patra's construction progress: the share built as a large serif number beside the heading, the
 // site today and the house as it will stand, and the stages on a thin bar of segments with a dot at
 // today (a vertical bar on a phone).
-import type { Milestone } from '~/lib/cms-content'
+import type { Milestone } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'progress'>; first?: boolean; anchor?: string; milestones: Milestone[] }>()
 const words = useSiteWords()

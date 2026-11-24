@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Modrotisk's developer: who builds, the finished buildings as a ruled table (year, name, size),
 // and a photograph of one of them in its print frame.
-import type { Reference } from '~/lib/cms-content'
+import type { Reference } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'developer'>; first?: boolean; index?: number; anchor?: string; references: Reference[] }>()
 const caption = computed(() => captionPair(props.block.imageCaption))

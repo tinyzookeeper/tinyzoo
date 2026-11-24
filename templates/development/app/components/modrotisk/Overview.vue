@@ -2,7 +2,7 @@
 // The building at a glance in Blueprint: its sheet with the elevation drawn from the flats.
 // (Blueprint's own page puts the elevation in the price list; this is for a page that has this
 // block, which then takes the elevation out of the price list.)
-import type { Flat, Floor } from '~/lib/cms-content'
+import type { Flat, Floor } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'overview'>; first?: boolean; index?: number; anchor?: string; flats: Flat[]; floors: Floor[] }>()
 </script>

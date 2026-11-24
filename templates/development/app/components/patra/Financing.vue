@@ -2,7 +2,7 @@
 // Patra's financing: the payments as rounded blocks whose widths are in the ratio of the shares
 // (the first on the soft ground, the second tinted, the last in the brand colour), the amounts
 // worked out for the example flat, and the mortgage adviser between two hairlines.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'financing'>; first?: boolean; anchor?: string; flats: Flat[] }>()
 const example = computed(() => flatByNumber(props.flats, props.block.exampleFlat))

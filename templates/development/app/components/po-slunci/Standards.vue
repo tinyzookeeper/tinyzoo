@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Po slunci's standards: two rounded photographs side by side, then every standard with its icon
 // in a yellow circle, four to a row, and the closing line on a soft rounded strip.
-import type { Standard } from '~/lib/cms-content'
+import type { Standard } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'standards'>; first?: boolean; anchor?: string; standards: Standard[] }>()
 const photos = computed(() => props.block.photos.filter((p) => p.image).slice(0, 2))

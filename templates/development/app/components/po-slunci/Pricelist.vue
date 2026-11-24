@@ -3,7 +3,7 @@
 // cards on a phone) where the side a flat faces is a little compass with the sun and the words
 // for when it gets light. Sold flats are dashed and quiet. Free flats carry a round arrow that
 // chooses the flat in the enquiry form.
-import type { Flat, Floor } from '~/lib/cms-content'
+import type { Flat, Floor } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'pricelist'>; first?: boolean; anchor?: string; flats: Flat[]; floors: Floor[] }>()
 const { settings } = await useSite()

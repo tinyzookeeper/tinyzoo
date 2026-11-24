@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The page of one flat in Blueprint: its number set very large and thin, the facts on a
 // dimension chain, the floor plan in its print frame, and the way to ask about it.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Flat }>()
 const words = useSiteWords()

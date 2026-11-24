@@ -2,7 +2,7 @@
 // Patra's building at a glance: a soft panel with the heading and one small square for every
 // flat (free filled, reserved hatched, sold outlined). A square leads to the flat in the price
 // list. The squares are drawn from the flats; on a phone they make two rows.
-import type { Flat, Floor } from '~/lib/cms-content'
+import type { Flat, Floor } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'overview'>; first?: boolean; anchor?: string; flats: Flat[]; floors: Floor[] }>()
 const words = useSiteWords()

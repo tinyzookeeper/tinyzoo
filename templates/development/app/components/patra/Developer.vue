@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Patra's developer: who builds with a photograph of a finished building, and the finished
 // buildings as ruled rows with the year in the brand colour.
-import type { Reference } from '~/lib/cms-content'
+import type { Reference } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'developer'>; first?: boolean; anchor?: string; references: Reference[] }>()
 </script>

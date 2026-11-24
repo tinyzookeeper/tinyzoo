@@ -2,7 +2,7 @@
 // Po slunci's surroundings: the minutes as round stops on a dotted path (the walk in yellow, the
 // car outlined), and two photographs laid in one frame of fixed shape: a rounded rectangle with a
 // circle over its corner.
-import type { Place } from '~/lib/cms-content'
+import type { Place } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'surroundings'>; first?: boolean; anchor?: string; places: Place[] }>()
 const w = useSiteWords().value.poSlunci

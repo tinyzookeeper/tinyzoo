@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Po slunci's opening: on the soft ground the sentence about the sun, the visualisation under a
 // dotted path of the sun from east over south to west, and the four key facts on a white card.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; flats: Flat[] }>()
 const { settings, name } = await useSite()

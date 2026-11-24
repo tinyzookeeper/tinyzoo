@@ -18,6 +18,7 @@
 @import "../../../../event/app/assets/css/design.css";
 @import "../../../../association/app/assets/css/design.css";
 @import "../../../../realty/app/assets/css/design.css";
+@import "../../../../development/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
@@ -38,6 +39,7 @@
 @source "../../../../event";
 @source "../../../../association";
 @source "../../../../realty";
+@source "../../../../development";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here

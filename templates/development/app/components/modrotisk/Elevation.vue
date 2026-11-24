@@ -4,7 +4,7 @@
 // sold ones left empty; a flat the filter hides is dimmed. A click on a bay finds the flat in the
 // price list. Drawn entirely from the flats (their floor, area, state and outdoor space), except
 // the two trees and the hatched ground, which are decoration.
-import type { Flat, Floor } from '~/lib/cms-content'
+import type { Flat, Floor } from '../../lib/cms-content'
 
 const props = defineProps<{ flats: Flat[]; floors: Floor[] }>()
 const { settings } = await useSite()

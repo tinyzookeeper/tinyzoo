@@ -2,7 +2,7 @@
 // Modrotisk's construction progress: the stages as an axis, solid up to now and dashed after it
 // (a vertical line on a phone), under it the site photograph and the state of the work, with
 // the share built and the rows of facts ruled.
-import type { Milestone } from '~/lib/cms-content'
+import type { Milestone } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'progress'>; first?: boolean; index?: number; anchor?: string; milestones: Milestone[] }>()
 const { settings } = await useSite()

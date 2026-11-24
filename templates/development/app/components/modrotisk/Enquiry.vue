@@ -2,7 +2,7 @@
 // Modrotisk's enquiry: the salesperson, her portrait in a print frame, where and when to meet as
 // a ruled list, and the form in a panel with squared-off fields.
 import type { SiteForm } from '#imports'
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'enquiry'>; first?: boolean; index?: number; anchor?: string; form: SiteForm; flats: Flat[] }>()
 const { settings, nav } = await useSite()

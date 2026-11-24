@@ -2,7 +2,7 @@
 // Modrotisk's surroundings: the minutes to each place as a dimension line, drawn as long as the
 // minutes (the longest fills the width), the walk and the car in two lists; two photographs in
 // print frames beside them.
-import type { Place } from '~/lib/cms-content'
+import type { Place } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'surroundings'>; first?: boolean; index?: number; anchor?: string; places: Place[] }>()
 const w = useSiteWords().value.modrotisk

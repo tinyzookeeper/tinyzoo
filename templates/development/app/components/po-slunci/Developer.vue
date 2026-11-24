@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Po slunci's developer: a photograph of a finished building, who builds, and the finished
 // buildings as soft rounded rows with the year in a white chip.
-import type { Reference } from '~/lib/cms-content'
+import type { Reference } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'developer'>; first?: boolean; anchor?: string; references: Reference[] }>()
 </script>

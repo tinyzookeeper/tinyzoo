@@ -2,7 +2,7 @@
 // Po slunci's enquiry: on a soft rounded slab the salesperson, her portrait in a circle with a
 // yellow ring, where and when to meet, and the form on a white rounded card.
 import type { SiteForm } from '#imports'
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'enquiry'>; first?: boolean; anchor?: string; form: SiteForm; flats: Flat[] }>()
 const { settings, nav } = await useSite()

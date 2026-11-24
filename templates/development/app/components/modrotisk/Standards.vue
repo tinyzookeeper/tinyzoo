@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Modrotisk's standards: the heading beside a photograph in its print frame, then the standards
 // as a numbered legend (S 1, S 2…) under ruled lines, three columns wide.
-import type { Standard } from '~/lib/cms-content'
+import type { Standard } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'standards'>; first?: boolean; index?: number; anchor?: string; standards: Standard[] }>()
 const w = useSiteWords().value.modrotisk
