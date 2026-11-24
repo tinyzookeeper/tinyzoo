@@ -2,10 +2,12 @@
 @import "@nuxt/ui";
 /* Each design's own rules, all under html[data-design="<id>"]: they never touch another design.
    (The looks' stylesheets are not here: each is a file of its own, linked on its look's pages.) */
+@import "../../../../photographer/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
 @source "../../../node_modules/tinyzoo-template-kit/app";
+@source "../../../../photographer";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -21,4 +23,20 @@
   --color-night: var(--night);
   --color-raised: var(--raised);
   --color-rule: var(--rule);
+  /* Photographer */
+  --font-hand: cursive;
+  --color-paper: var(--paper);
+  --color-tint: var(--tint);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-quiet: var(--quiet);
+  --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-dim: var(--dim);
+  --color-panel: var(--panel);
+  --breakpoint-wide: 68.75rem;
 }

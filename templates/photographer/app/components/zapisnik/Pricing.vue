@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zápisník's price list: paper cards on the brand colour, the highlighted one dark and
 // tilted, with a note stuck on it.
-import type { Pack } from '~/lib/cms-content'
+import type { Pack } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'pricing'>; packs: Pack[]; first?: boolean }>()
 </script>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Negativ's album page: the title in huge capitals, when and where as a small table, then
 // every photograph in the mosaic.
-import type { Album } from '~/lib/cms-content'
+import type { Album } from '../../lib/cms-content'
 
 const props = defineProps<{ album: Album }>()
 const { settings } = await useSite()

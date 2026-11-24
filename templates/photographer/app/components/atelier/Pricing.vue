@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Ateliér's price list: ruled columns, the highlighted package tinted.
-import type { Pack } from '~/lib/cms-content'
+import type { Pack } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'pricing'>; first?: boolean; packs: Pack[] }>()
 </script>

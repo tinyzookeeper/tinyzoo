@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Ateliér's list of albums (the "All albums" block, and a category's page): the categories as
 // serif tabs that lead to each category's page, the albums as covers in a masonry.
-import type { Album, Category } from '~/lib/cms-content'
+import type { Album, Category } from '../../lib/cms-content'
 
 defineProps<{ eyebrow: string | null; heading: string; text: string | null; albums: Album[]; categories: Category[]; active: string | null; first?: boolean }>()
 const words = useSiteWords()

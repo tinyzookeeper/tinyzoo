@@ -1,6 +1,6 @@
 // The collections the Photographer's blocks draw from. (The site-wide content, the page the
 // visitor is on and `useSiteList` are the template kit's: templates/kit/app/composables/useSite.ts.)
-import type { Album, Category, Pack, Testimonial } from '~/lib/cms-content'
+import type { Album, Category, Pack, Testimonial } from '../lib/cms-content'
 
 /** Every published album, newest first, with its category and photographs. */
 export const useAlbums = () => useSiteList<Album>('site-albums', 'album', { sort: 'date', dir: 'desc' })

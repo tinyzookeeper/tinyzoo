@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zápisník's album page: the title, when and where, then every photograph as a print on the
 // tinted page.
-import type { Album } from '~/lib/cms-content'
+import type { Album } from '../../lib/cms-content'
 
 const props = defineProps<{ album: Album }>()
 const { settings } = await useSite()
