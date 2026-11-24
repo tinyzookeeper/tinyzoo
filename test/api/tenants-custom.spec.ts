@@ -2,7 +2,7 @@ import { readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { type Client, doc } from '../helpers/api'
+import { type Client, doc, signIn } from '../helpers/api'
 import { createAuthor } from '../helpers/fixtures'
 import { repoRoot } from '../setup/database'
 import { expectNoSiteErrors, siteClient, siteQuery, startTenants, type Tenants, type TenantSite, tenantGet, until } from '../helpers/tenants'
@@ -162,6 +162,48 @@ describe('the premise', () => {
     expect(b.entries).toEqual({ x_recipe: 1 })
     // The design's own types are listed for the editor to read.
     expect(a.design.map((d: any) => d.name)).toEqual(expect.arrayContaining(['author', 'post', 'page']))
+  })
+})
+
+const menuKeys = (m: any): string[] => [...m.home, ...m.groups.flatMap((g: any) => g.items), ...m.settings]
+
+describe('the menu', () => {
+  it('has the content types behind Settings, before the team, for an administrator of a site with the feature', async () => {
+    for (const admin of [adminA, adminB]) {
+      const menu = (await admin.get('/api/cms/_menu')).body
+      expect(menu.settings).toContain('@model')
+      expect(menu.settings.indexOf('@model')).toBe(menu.settings.indexOf('@team') - 1)
+      expect(menuKeys(menu).filter((k) => k === '@model')).toHaveLength(1)
+    }
+  })
+
+  it('has no such row for an editor or an author of the same site', async () => {
+    for (const role of ['editor', 'author'] as const) {
+      const menu = (await siteClient(t.a, role).get('/api/cms/_menu')).body
+      expect(menuKeys(menu), role).not.toContain('@model')
+    }
+  })
+
+  it('takes an arrangement that holds the row, and keeps the row when an arrangement leaves it out', async () => {
+    const before = (await adminA.get('/api/cms/_menu')).body
+    try {
+      const groups = Object.fromEntries(before.groups.map((g: any) => [g.id, g.items]))
+      const moved = await adminA.put('/api/cms/_menu', { home: ['@model', ...before.home], groups, settings: before.settings.filter((k: string) => k !== '@model') })
+      expect(moved.status, JSON.stringify(moved.body)).toBe(200)
+      expect(moved.body.home[0]).toBe('@model')
+      const without = await adminA.put('/api/cms/_menu', { home: before.home, groups, settings: before.settings.filter((k: string) => k !== '@model') })
+      expect(without.status).toBe(200)
+      expect(without.body.settings).toContain('@model')
+    }
+    finally {
+      await adminA.delete('/api/cms/_menu')
+    }
+  })
+
+  it('is as it always was on a server without the switch (the single site of this project)', async () => {
+    const menu = (await (await signIn('admin')).get('/api/cms/_menu')).body
+    expect(menu.settings).toContain('@team')
+    expect(menuKeys(menu)).not.toContain('@model')
   })
 })
 
@@ -607,6 +649,10 @@ describe('the function', () => {
       expect((await adminB.get('/api/cms/_model')).status).toBe(404)
       expect((await adminB.post('/api/cms/_model', { baseVersion: versions.at(-1), ops: [{ op: 'type.add', name: 'x_off', label: text('Off') }] })).status).toBe(404)
       expect((await adminB.get('/api/cms/_model/history')).status).toBe(404)
+      // The menu has no row for it, and is the menu of a site without the feature.
+      const menuOff = (await adminB.get('/api/cms/_menu')).body
+      expect(menuKeys(menuOff)).not.toContain('@model')
+      expect(menuOff.settings.slice(-3)).toEqual(['@team', '@privacy', '@about'])
       expect((await adminB.get('/api/cms/x_recipe')).status).toBe(404)
       expect((await get(t.b, '/api/content/x_recipe')).status).toBe(404)
       expect((await get(t.b, '/api/content/x_recipe/polevka')).status).toBe(404)

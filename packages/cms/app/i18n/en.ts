@@ -18,6 +18,7 @@ export default {
     settings: 'Settings',
     viewSite: 'View website',
     openMenu: 'Open menu',
+    model: 'Content types',
     team: 'Team',
     privacy: 'Privacy',
     about: 'About',
@@ -1007,5 +1008,9 @@ export default {
   redirects: {
     shadowsTitle: 'There is a page on this address: “{title}”',
     shadowsBody: 'The redirect wins, so visitors won’t see that page until you delete the redirect. Pick another address instead.',
+  },
+  // A site's own content types: the structure editor (/admin/_model) and what the forms say of it.
+  model: {
+    choiceRemoved: '{label} (no longer offered)',
   },
 } as const

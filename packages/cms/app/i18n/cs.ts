@@ -17,6 +17,7 @@ export default {
     settings: 'Nastavení',
     viewSite: 'Zobrazit web',
     openMenu: 'Otevřít menu',
+    model: 'Typy obsahu',
     team: 'Tým',
     privacy: 'Soukromí',
     about: 'O aplikaci',
@@ -1005,5 +1006,9 @@ export default {
   redirects: {
     shadowsTitle: 'Na téhle adrese je stránka „{title}“',
     shadowsBody: 'Přesměrování má přednost, takže návštěvníci tu stránku neuvidí, dokud přesměrování nesmažete. Zvolte raději jinou adresu.',
+  },
+  // A site's own content types: the structure editor (/admin/_model) and what the forms say of it.
+  model: {
+    choiceRemoved: '{label} (už se nenabízí)',
   },
 } satisfies AdminMessages

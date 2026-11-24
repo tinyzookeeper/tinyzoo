@@ -17,6 +17,7 @@ export default {
     settings: 'Einstellungen',
     viewSite: 'Website ansehen',
     openMenu: 'Menü öffnen',
+    model: 'Inhaltstypen',
     team: 'Team',
     privacy: 'Datenschutz',
     about: 'Über',
@@ -1005,5 +1006,9 @@ export default {
   redirects: {
     shadowsTitle: 'Unter dieser Adresse liegt die Seite „{title}“',
     shadowsBody: 'Die Weiterleitung hat Vorrang, Besucher sehen die Seite also erst wieder, wenn Sie die Weiterleitung löschen. Wählen Sie besser eine andere Adresse.',
+  },
+  // A site's own content types: the structure editor (/admin/_model) and what the forms say of it.
+  model: {
+    choiceRemoved: '{label} (nicht mehr angeboten)',
   },
 } satisfies AdminMessages

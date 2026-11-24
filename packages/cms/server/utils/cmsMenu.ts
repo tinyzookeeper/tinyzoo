@@ -8,9 +8,18 @@ export const CMS_MENU_STATE_KEY = 'admin-menu'
 type PluginPage = { to: string; group: 'content' | 'settings'; adminOnly: boolean }
 const pluginPages = (): PluginPage[] => ((useRuntimeConfig().public.cmsPlugins as any)?.navItems ?? []) as PluginPage[]
 
+/** The row of the site's own content types (experimental, cmsCustomTypes.ts): behind Settings, before the team. */
+const MODEL_ROW = { key: '@model', place: 'settings' } as const
+
 /** Every row the site's menu has (whoever looks), and its forms. */
 export function cmsMenuSite() {
-  return menuSources(useCms().reg.graph, pluginPages())
+  const site = menuSources(useCms().reg.graph, pluginPages())
+  // Only a site with the feature has the row; without it the menu is as it always was.
+  if (!cmsCustomTypes().on) return site
+  const at = site.sources.findIndex((s) => s.key === '@team')
+  const sources = [...site.sources]
+  sources.splice(at < 0 ? sources.length : at, 0, { ...MODEL_ROW })
+  return { ...site, sources }
 }
 
 const keys = z.array(z.string().min(1).max(200)).max(500)
@@ -42,7 +51,7 @@ export async function cmsMenuFor(user: CmsUser): Promise<CmsAdminMenuLayout & { 
   const shown = (key: string) => {
     if (key === '@forms') return forms.length > 0
     if (key === '@media') return role.media !== 'none'
-    if (key === '@team' || key === '@privacy') return !!role.manage
+    if (key === '@team' || key === '@privacy' || key === '@model') return !!role.manage
     if (key === '@about') return true
     if (key.startsWith('/')) return !pages.get(key)?.adminOnly || !!role.manage
     const e = reg.byName.get(key)
