@@ -1,5 +1,26 @@
 # tinyzoo
 
+## 1.12.0
+
+### Minor Changes
+
+- Experimental: people can sign in to the admin with their tinyzoo account, next to the site's own password. With `cms.auth.account` (`NUXT_CMS_AUTH_ACCOUNT_ISSUER`, `_CLIENT_ID`, `_CLIENT_SECRET`) the sign-in page gets a button for the account, and the site's name at the top of the admin becomes a menu of the person's other websites of the same owner, with their role in each. Roles and people stay on the site: the account says who the person is, and the site lets in a user connected to that account, or an active or invited user with the account's verified email address. Somebody accepted this way has no password on the site and can set one from their account page. Without the three settings nothing changes. The admin guide describes it; the settings and the behaviour can change in a minor release.
+- The admin can take its name from the site's own content. With `cms.admin.nameFrom: 'siteSettings.siteName'` (a global and one of its text fields) the sidebar, the tab title, the sign-in pages and the emails show that field's value, read when the site runs: renaming the site in *Site settings* renames the admin, and one build can serve sites with different names. While the field is empty the admin keeps `cms.admin.name`. A site without `nameFrom` behaves as before.
+- Experimental: one running app can serve many sites that share its content model (`NUXT_CMS_TENANCY_MODE=multi`). Each site is found by its host name and has its own database and database user, its own files, sessions, settings and caches; work that names no site gets an error instead of a default site. The mode is not documented for use yet and may change without notice: `docs/multi-tenant-plan.md` holds its design and what was measured.
+
+  - The site directory is a JSON file (`NUXT_CMS_TENANCY_FILE`) or a table in Postgres (`NUXT_CMS_TENANCY_DATABASE_URL`, `NUXT_CMS_TENANCY_TEMPLATE`), reread when it changes. With `NUXT_CMS_TENANCY_KEY` set, the database address and the secret of every site are stored encrypted.
+  - A site has a main host, hosts that redirect to it and hosts it is served on without a redirect, and a state: active, paused, read-only, or moved (every request is redirected to its new address).
+  - One cap on the database connections of all sites together (`NUXT_CMS_TENANCY_MAX_CONNECTIONS`), sites that give their memory back after 15 minutes without use (`NUXT_CMS_TENANCY_IDLE_MINUTES`), scheduled tasks that open a site's database only when that site has work due, and a list of the sites for whoever runs the process (`GET /api/health/sites` with `NUXT_CMS_TENANCY_OPERATOR_TOKEN`).
+
+  A site that does not set the variable runs as before, with one site per app. Inside the package, everything a site keeps in memory is now declared per site (`cmsSiteScoped`) or shared on purpose (`cmsProcessWide`), and a unit test refuses undeclared module-level state in the server code.
+- A choice can follow another choice. `f.select({ optionsBy: { field: 'look', options: { atelier: ['bronz', 'oliva'], negativ: ['mosaz'] } } })` makes the admin offer only the options listed under the other field's value, and move the value to the first of them when the other field changes and the chosen one is no longer offered. `swatches` (`{ bronz: ['#7a5a3a', '#faf8f4'] }`) shows a few colours as dots beside an option's name, for a palette. The stored value is still any of `options`; a select without `optionsBy` behaves as before.
+- Two storage settings.
+
+  - `cms.storage.s3.prefix` (`NUXT_CMS_STORAGE_S3_PREFIX`): a place of the site's own inside a bucket, such as `sites/7f3a`. Every object is stored under it; the keys in the database and the addresses under `proxy` and `redirect` stay as they are. `tinyzoo backup`, `restore`, `export` and `import` use the same place.
+  - `cms.storage.maxBytes` (`NUXT_CMS_STORAGE_MAX_BYTES`): how much the whole site may store. An upload that would go over is refused with `413` and the admin says there is not enough space left. The status route reports the limit as `media.limitBytes`.
+
+  The limit is checked again when the file's row is inserted, under a lock per site, so uploads that arrive together cannot all see room. `maxBytesPerUser` is checked the same way now. With neither set, uploads work as before.
+
 ## 1.11.0
 
 ### Minor Changes
