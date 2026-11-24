@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Deka's instructors: portraits on an offset block in the colour of what the person teaches, and
 // their kinds as pills. On a phone a row to swipe, on a tablet two columns, on a desktop four.
-import type { Instructor, LessonKind } from '~/lib/cms-content'
+import type { Instructor, LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'instructors'>; first?: boolean; anchor?: string; instructors: Instructor[]; kinds: LessonKind[] }>()
 // The thread of one of an instructor's kinds, by where the kind stands in the list of kinds.

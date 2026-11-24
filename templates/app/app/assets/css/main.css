@@ -14,6 +14,7 @@
 @import "../../../../restaurant/app/assets/css/design.css";
 @import "../../../../accommodation/app/assets/css/design.css";
 @import "../../../../sports-club/app/assets/css/design.css";
+@import "../../../../studio/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
@@ -30,6 +31,7 @@
 @source "../../../../restaurant";
 @source "../../../../accommodation";
 @source "../../../../sports-club";
+@source "../../../../studio";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -112,4 +114,12 @@
   --color-brand-lite: var(--brand-lite);
   --color-stone: var(--stone);
   --color-pitch: var(--pitch);
+  /* Studio */
+  --color-warm: var(--warm);
+  --color-accent-ink: var(--accent-ink);
+  --color-k1: var(--k1);
+  --color-k2: var(--k2);
+  --color-k3: var(--k3);
+  --color-k4: var(--k4);
+  --color-k5: var(--k5);
 }

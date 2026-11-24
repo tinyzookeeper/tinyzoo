@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Sál's instructors: four portraits in soft frames with a line about each. On a phone a row to
 // swipe; from a tablet's width all of them are side by side.
-import type { Instructor, LessonKind } from '~/lib/cms-content'
+import type { Instructor, LessonKind } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'instructors'>; first?: boolean; anchor?: string; instructors: Instructor[]; kinds: LessonKind[] }>()
 </script>

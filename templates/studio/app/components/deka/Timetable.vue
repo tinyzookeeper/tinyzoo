@@ -3,7 +3,7 @@
 // evening as blocks in their kind's colour whose width follows their length (a full class is a
 // dashed outline); on a phone and a tablet a list by day, each day a row that opens (today's is
 // open). The legend of colours is the filter; what does not match fades and the pattern stays.
-import type { LessonKind } from '~/lib/cms-content'
+import type { LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'timetable'>; first?: boolean; anchor?: string; slots: Slot[]; kinds: LessonKind[] }>()
 const { words } = await useStudio()

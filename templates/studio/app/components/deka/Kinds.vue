@@ -2,7 +2,7 @@
 // Deka's kinds of classes: photograph cards with a name tag in the kind's thread colour, and a
 // sixth card for those who cannot choose. On a phone a row to swipe, on a tablet two columns,
 // on a desktop three.
-import type { LessonKind } from '~/lib/cms-content'
+import type { LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'kinds'>; first?: boolean; anchor?: string; kinds: LessonKind[]; slots: Slot[] }>()
 const { words } = await useStudio()

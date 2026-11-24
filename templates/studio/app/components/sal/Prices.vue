@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Sál's prices: four ruled columns on a desktop, white cards below it. The highlighted price is
 // filled in the colour of the site and stands out a little above and below the others.
-import type { Tariff } from '~/lib/cms-content'
+import type { Tariff } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; tariffs: Tariff[] }>()
 const { words } = await useStudio()

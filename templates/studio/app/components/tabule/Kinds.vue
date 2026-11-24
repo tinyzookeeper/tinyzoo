@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Tabule's kinds of classes: a big typographic list, numbered, ruled in black; on a desktop a
 // row turns to the colour of the site under the pointer.
-import type { LessonKind } from '~/lib/cms-content'
+import type { LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'kinds'>; first?: boolean; anchor?: string; kinds: LessonKind[]; slots: Slot[] }>()
 const { words } = await useStudio()

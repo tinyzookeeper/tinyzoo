@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Tabule's questions: the heading in capitals and a line to write to on the left, answers ruled
 // in black that open on the right.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 </script>

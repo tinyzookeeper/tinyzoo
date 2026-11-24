@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Deka's prices: four soft cards; the highlighted one is dark with a strip of the blanket on top
 // and rises above and below the others on a desktop.
-import type { Tariff } from '~/lib/cms-content'
+import type { Tariff } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; tariffs: Tariff[] }>()
 const { words } = await useStudio()
