@@ -4,6 +4,8 @@ import { docsPath } from '#shared/docs'
 
 const { settings, nav } = await useSite()
 const { lang, t, to } = useLang()
+// The footer's "Cookie settings" opens the banner's settings again.
+const { open: openCookieSettings } = useConsent()
 // The documentation is in the menus even before an editor adds it there: when a menu has
 // no link to it, it goes right after the link for developers (or at the end).
 function withDocs(links: any[] | null | undefined) {
@@ -149,7 +151,11 @@ onBeforeUnmount(() => clearTimeout(logoTimer))
         </div>
       </div>
       <div class="wrap"><div class="flex flex-wrap items-center justify-between gap-4 border-t border-cream/10 py-6 text-xs text-cream/65">
-        <p>© {{ year }} {{ settings?.siteName ?? 'tinyzoo' }}</p>
+        <p>
+          © {{ year }} {{ settings?.siteName ?? 'tinyzoo' }}
+          <span aria-hidden="true" class="mx-1.5">·</span>
+          <button type="button" class="site-cookies" aria-haspopup="dialog" @click="openCookieSettings()">{{ t('footerCookies') }}</button>
+        </p>
         <div class="flex items-end gap-1" aria-hidden="true">
           <img v-for="a in ['bunny', 'bird', 'fox', 'frog', 'octopus', 'elephant']" :key="a" :src="`/animals/${a}.svg`" alt="" class="h-4 w-auto opacity-80">
         </div>
@@ -159,6 +165,9 @@ onBeforeUnmount(() => clearTimeout(logoTimer))
 </template>
 
 <style>
+/* "Cookie settings" opens the banner's settings: a button that reads as a link of the footer. */
+.site-cookies { padding: 0.5rem 0; font: inherit; color: inherit; cursor: pointer; text-decoration: underline; text-decoration-color: rgb(249 245 239 / 0.3); text-underline-offset: 4px; }
+.site-cookies:hover { text-decoration-color: currentColor; }
 /* The logo's long press opens the design system, not iOS's link callout. */
 .site-logo { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 /* Search: a round icon button beside the language switcher. */
