@@ -1,3 +1,5 @@
+import { CUSTOM_PREFIX } from 'tinyzoo'
+
 // Serializable schema graph that drives /admin. Auth-gated and annotated with
 // per-entity permissions so the dashboard can hide what the user can't touch. Per person:
 // the fields their role may not read are not in it (nor in the list columns, tabs and sections),
@@ -5,7 +7,7 @@
 export default defineEventHandler((event) => {
   const { reg } = useCms()
   const user = requireCmsUser(event)
-  return reg.graph
+  const graph = reg.graph
     .filter((g) => accessWhere(reg.byName.get(g.name)!, 'read', user).allowed)
     .map((g) => {
       const e = reg.byName.get(g.name)!
@@ -40,4 +42,7 @@ export default defineEventHandler((event) => {
         sections: g.sections ? g.sections.map((s: any) => ({ ...s, fields: s.fields.filter(shown) })).filter((s: any) => s.fields.length) : g.sections,
       }
     })
+  // A site with no content type of its own has nothing to show with the blocks that show one, so they are not offered.
+  // The answer is a copy for this request: the graph's objects are shared by every site of the design.
+  return reg.entities.some((e) => e.name.startsWith(CUSTOM_PREFIX)) ? graph : withoutBindingBlocks(graph)
 })

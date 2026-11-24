@@ -1,4 +1,5 @@
-import { applyModelOps, emptyModelDoc, linkFieldsOf, linkRef, ModelProblem, or, parseModelDoc, snake, sql, sqlWithParams, type CmsRegistry, type ModelContext, type ModelDoc, type ModelNote, type ModelOp } from 'tinyzoo'
+import { applyModelOps, emptyModelDoc, linkFieldsOf, linkRef, ModelProblem, or, parseModelDoc, propOf, snake, sql, sqlWithParams, type CmsBinding, type CmsEntity, type CmsRegistry, type ModelContext, type ModelDoc, type ModelNote, type ModelOp } from 'tinyzoo'
+import { bindingBlockTypes, bindingFields, bindingMissing, bindingsIn, bindingUses, type BindingMissing } from './cmsBindings'
 import { designTypesForModel, modelCountQueries, modelPlanningBuild, ModelStatementRefused, planModelChange, runModelStatements } from './cmsModelPlan'
 import { scrubError } from './cmsScrub'
 
@@ -55,10 +56,18 @@ export interface CmsModelPlace {
   entity: string
   id: string
   title: string
+  /** The blocks field (`sections`) for a block, or the link field for a link. */
   field: string | null
-  block: string | null
+  /** The block a place is, or null for a link. `label` is the block definition's label, so a block with no heading can be named. */
+  block: { id: string; type: string; heading: string | null; label: unknown } | null
+  /** Null: the entry's own row; else the translation's language. */
   locale: string | null
   admin: string
+}
+
+/** A place where a block's binding names something the site does not have. */
+export interface CmsModelAttention extends CmsModelPlace {
+  missing: BindingMissing
 }
 
 const quoteIdent = (id: string) => `"${id.replace(/"/g, '""')}"`
@@ -124,13 +133,108 @@ export async function linksToType(db: any, reg: CmsRegistry, type: string, perEn
   return out
 }
 
+/** A binding found in the stored blocks of an entry (or of one of its translations). */
+interface BindingHit {
+  entity: CmsEntity
+  id: string
+  title: string
+  /** The blocks field. */
+  field: string
+  /** Null: the entry's own row; else the translation's language. */
+  locale: string | null
+  block: { id: string; type: string; heading: string | null; label: unknown }
+  binding: CmsBinding
+}
+
+const adminPath = (e: CmsEntity, id: string) => (e.singleton ? `/admin/${e.name}` : `/admin/${e.name}/${id}`)
+
+function placeOf(h: BindingHit): CmsModelPlace {
+  return { entity: h.entity.name, id: h.id, title: h.title, field: h.field, block: h.block, locale: h.locale, admin: adminPath(h.entity, h.id) }
+}
+
 /**
- * Where a block shows a field or a type, or orders by it. The generic blocks of the next part
- * store their binding as data; until they exist no block can show a custom type, so there is
- * no place. `field` null: the type itself.
+ * The first `perEntity` hits of each collection, and at most `total` of all, as places.
+ * Hits come in registry order, so the first ones of a collection are kept.
  */
-export async function blocksShowing(_db: any, _reg: CmsRegistry, _type: string, _field: string | null): Promise<CmsModelPlace[]> {
-  return []
+function placesOf(hits: BindingHit[], perEntity: number, total: number): CmsModelPlace[] {
+  const seen = new Map<string, number>()
+  const out: CmsModelPlace[] = []
+  for (const h of hits) {
+    if (out.length >= total) break
+    const n = seen.get(h.entity.name) ?? 0
+    if (n >= perEntity) continue
+    seen.set(h.entity.name, n + 1)
+    out.push(placeOf(h))
+  }
+  return out
+}
+
+/**
+ * Every binding of a block in the stored pages that `match` accepts: in each blocks field of each
+ * collection (top level of the entity), on the entry's own row and on its translations. Only the
+ * rows that hold a block with a binding are read (`@>` on the stored blocks), and their blocks are
+ * walked here. Table and column names come from the registry's table objects; the block types
+ * are passed as parameters.
+ */
+async function findBindings(db: any, reg: CmsRegistry, match: (binding: CmsBinding) => boolean): Promise<BindingHit[]> {
+  const out: BindingHit[] = []
+  for (const e of reg.entities) {
+    const own = e.table as any
+    const titleCol = own[e.titleField] ?? own.id
+    for (const [key, fld] of Object.entries(e.fields)) {
+      if (fld.type !== 'blocks' || !fld.blocks) continue
+      const types = bindingBlockTypes(fld.blocks)
+      if (!types.size) continue
+      const column = (table: any) => table?.[propOf(key, fld)]
+      const holds = (col: any) => or(...[...types.keys()].map((type) => sql`${col} @> ${JSON.stringify([{ type }])}::jsonb`))
+      const collect = (id: string, title: unknown, locale: string | null, value: unknown) => {
+        let stored = value
+        if (typeof stored === 'string') { try { stored = JSON.parse(stored) } catch { stored = null } }
+        for (const found of bindingsIn(stored, types)) {
+          if (!match(found.binding)) continue
+          const label = fld.blocks![found.block.type]?.label ?? null
+          out.push({ entity: e, id, title: e.singleton || title == null ? '' : String(title), field: key, locale, block: { ...found.block, label }, binding: found.binding })
+        }
+      }
+      if (column(own)) {
+        const rows: any[] = await db.select({ id: own.id, title: titleCol, value: column(own) }).from(own).where(holds(column(own)))
+        for (const r of rows) collect(r.id, r.title, null, r.value)
+      }
+      const t = e.localesTable as any
+      if (t && e.localized.includes(key) && column(t)) {
+        const rows: any[] = await db.select({ parentId: t.parentId, locale: t.locale, value: column(t) }).from(t).where(holds(column(t)))
+        const parents = new Map<string, unknown>()
+        const ids = [...new Set(rows.map((r) => r.parentId as string))]
+        if (ids.length) {
+          const found: any[] = await db.select({ id: own.id, title: titleCol }).from(own).where(sql`${own.id} in (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`)
+          for (const p of found) parents.set(p.id, p.title)
+        }
+        for (const r of rows) if (parents.has(r.parentId)) collect(r.parentId, parents.get(r.parentId), r.locale, r.value)
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Where a block shows a field or a type, or orders by it: the blocks of the pages whose binding
+ * names `type` (and, with `field`, shows it or orders by it). `field` null: the type itself. At
+ * most `perEntity` places per collection, and `total` in all.
+ */
+export async function blocksShowing(db: any, reg: CmsRegistry, type: string, field: string | null, perEntity = PLACES_PER_ENTITY, total = Infinity): Promise<CmsModelPlace[]> {
+  return placesOf(await findBindings(db, reg, (b) => bindingUses(b, type, field)), perEntity, total)
+}
+
+/** The blocks whose binding names a type or a field the site does not have, each with what is missing. At most `limit`. */
+export async function cmsModelAttention(limit = 50): Promise<CmsModelAttention[]> {
+  const doc = cmsLoadedCustomPart()?.doc ?? null
+  const { db, reg } = useCms()
+  const out: CmsModelAttention[] = []
+  for (const h of await findBindings(db, reg, (b) => bindingMissing(b, doc) !== null)) {
+    if (out.length >= limit) break
+    out.push({ ...placeOf(h), missing: bindingMissing(h.binding, doc)! })
+  }
+  return out
 }
 
 /** The guard's checks against stored content, for the operations that take something away. */
@@ -211,8 +315,8 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
       if (inUse.length) {
         const first = inUse[0]!
         const message = first.what === 'type'
-          ? 'This content type is still in use: content links to its entries or shows them. Remove those first'
-          : 'This field is still shown on the website. Remove it from those places first'
+          ? 'This content type is still in use: blocks on pages show its entries, or content links to them. Change those first'
+          : 'This field is still shown or used to order a list on the website, by the blocks listed here. Change those blocks first'
         throw refusal(409, 'in-use', message, { op: first.op, places: inUse.flatMap((u) => u.places) })
       }
 
@@ -319,16 +423,34 @@ export async function countModelEntries(doc: ModelDoc | null): Promise<Record<st
   return out
 }
 
-/** Where a custom type, or one of its fields, is shown or linked to now (what removing it would meet). */
-export async function cmsModelUsage(type: string, field: string | null): Promise<CmsModelPlace[]> {
+/** The most places `cmsModelUsage` lists of each kind. */
+const USAGE_PLACES = 50
+
+/**
+ * Where a custom type, or one of its fields, is shown or linked to now (what removing it would
+ * meet). With a field: the blocks that show it or order by it. Without: the blocks that show the
+ * type and the content that links to it (up to 50 of each), and, for each field some block
+ * of the type uses, how many different entries have such a block.
+ */
+export async function cmsModelUsage(type: string, field: string | null): Promise<{ places: CmsModelPlace[]; fields?: Record<string, number> }> {
   const part = cmsLoadedCustomPart()
   const t = part?.doc?.types.find((x) => x.name === type)
   if (!t) throw createError({ statusCode: 404, statusMessage: 'No such content type' })
   if (field !== null && !t.fields.some((f) => f.key === field)) throw createError({ statusCode: 404, statusMessage: 'No such field' })
   const { db } = useCms()
   const { reg } = modelPlanningBuild(part!.doc!, cmsDesignModel().config)
-  if (field !== null) return blocksShowing(db, reg, type, field)
-  return [...await blocksShowing(db, reg, type, null), ...await linksToType(db, reg, type)]
+  if (field !== null) return { places: await blocksShowing(db, reg, type, field, USAGE_PLACES, USAGE_PLACES) }
+  const hits = await findBindings(db, reg, (b) => b.type === type)
+  const entries = new Map<string, Set<string>>()
+  for (const h of hits) {
+    for (const key of bindingFields(h.binding)) {
+      if (!entries.has(key)) entries.set(key, new Set())
+      entries.get(key)!.add(`${h.entity.name}:${h.id}`)
+    }
+  }
+  const fields: Record<string, number> = {}
+  for (const [key, set] of entries) fields[key] = set.size
+  return { places: [...placesOf(hits, USAGE_PLACES, USAGE_PLACES), ...await linksToType(db, reg, type, USAGE_PLACES)], fields }
 }
 
 /** The newest versions of the site's model: who changed it, when, and how (the documents themselves are left out). */

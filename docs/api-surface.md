@@ -407,6 +407,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content/_global/:name` | a global: `{ item }` (`null` before its first save) |
 | `GET /api/content/_search` | the website search: `?q=`, `?locale=`, `?limit=` (1 to 50), `?entity=a,b` |
 | `GET /api/content/_sitemap` | the site's public addresses as `{ entries }` (`CmsSitemapEntry`) |
+| `GET /api/content/_types` | **experimental**, like `/api/health/sites`: the content types a site made for itself (custom types, in multi-tenant mode with `NUXT_CMS_CUSTOM_TYPES=on`) as `{ types }`: each with its labels, address, order and visible fields (kind, label, choices). `{ types: [] }` for every other site. Not part of what 1.0 freezes: it may change with the feature |
 | `GET`, `POST /api/content/_form/:name` | a website form's definition and its submission (`tinyzoo/forms`) |
 | `POST /api/content/_analytics/e` | a page view, or the time one was looked at, from the website's pages (`tinyzoo/analytics`). Always `202` with no body |
 | `GET /api/content/_analytics/rollups` | the daily totals of `?from=` to `?to=` (at most 400 days) for a tool that watches many sites (`AnalyticsRollups`, `tinyzoo/analytics`). Guarded like `/api/health/status`: `404` until `cms.status.token` is set, then that token. See [analytics](analytics.md#for-a-fleet-monitor) |

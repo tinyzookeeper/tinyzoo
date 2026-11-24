@@ -128,7 +128,7 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   if (modelHasBinding(model)) {
     out.push('/** Which custom type a block shows, and which field goes to which place. */')
     out.push('export interface CmsBinding {')
-    out.push('  /** The custom type, for example `x_course`. */')
+    out.push('  /** The name of the custom type. */')
     out.push('  type: string')
     out.push('  /** The fields that go to the places of a card. */')
     out.push('  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }')

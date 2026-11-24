@@ -249,9 +249,9 @@ const TABLE_NAME = /^[a-z][a-z0-9_]{0,62}$/
 /** A global component's name as Nuxt registers it from a file name. */
 const COMPONENT_NAME = /^[A-Z][A-Za-z0-9]*$/
 const LOCALE = /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/
-const RESERVED_PLUGIN_NAMES = new Set(['cms', 'core', 'tinyzoo', 'admin', 'api', 'content', 'media', 'plugins', 'p', 'auth', 'system'])
+const RESERVED_PLUGIN_NAMES = new Set(['cms', 'core', 'tinyzoo', 'admin', 'api', 'content', 'media', 'plugins', 'p', 'auth', 'system', 'types'])
 /** Content API addresses tinyzoo uses itself (`server/api/content/_*`), and the forms plugin's. */
-const RESERVED_CONTENT_SEGMENTS = new Set(['_global', '_search', '_sitemap', '_tree', '_form'])
+const RESERVED_CONTENT_SEGMENTS = new Set(['_global', '_search', '_sitemap', '_tree', '_form', '_types'])
 /** First-party plugins whose content routes kept the address they had before plugins existed. */
 const LEGACY_CONTENT_SEGMENTS: Record<string, string> = { forms: '_form' }
 /** The first segment of a plugin's `contentPath`: `_<plugin name>` (dashes kept). */
