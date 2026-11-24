@@ -240,6 +240,15 @@ describe('merging typefaces', () => {
     expect(out.google!.experimental.variableAxis.Archivo!.wdth).toEqual([['62', '125']])
   })
 
+  // A family that names no styles is fetched in @nuxt/fonts' default ones; asking for only the
+  // normal style would fetch other files and draw the letters differently.
+  it('names no styles for a family no design names styles for, and adds the default ones where one design names none', () => {
+    const jost = (styles?: ('normal' | 'italic')[]): DesignFonts => ({ families: [{ name: 'Jost', provider: 'google', weights: [400, 500], ...(styles ? { styles } : {}) }] })
+    expect(mergeFonts([jost(), jost()]).families[0]).not.toHaveProperty('styles')
+    expect(mergeFonts([jost(['normal']), jost()]).families[0]!.styles).toEqual(['normal', 'italic'])
+    expect(mergeFonts([jost(['normal']), jost(['normal'])]).families[0]!.styles).toEqual(['normal'])
+  })
+
   it('declares a design\'s own families global, with its axes', () => {
     const own = ownFonts(photographerFonts as DesignFonts)
     expect(own.families.every((f) => f.global === true)).toBe(true)

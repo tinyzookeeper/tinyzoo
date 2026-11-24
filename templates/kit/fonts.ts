@@ -38,6 +38,15 @@ export function unionWeights(a: (number | string)[], b: (number | string)[]): (n
 
 const union = <T>(a: T[], b: T[]): T[] => [...new Set([...a, ...b])]
 
+// What @nuxt/fonts asks for when a family names no styles (fontless's own default). A family
+// that names none in every design keeps naming none, so it is fetched exactly as before.
+const DEFAULT_STYLES: ('normal' | 'italic')[] = ['normal', 'italic']
+
+function unionStyles(a: FontFamily, b: FontFamily): Pick<FontFamily, 'styles'> {
+  if (!a.styles && !b.styles) return {}
+  return { styles: union(a.styles ?? DEFAULT_STYLES, b.styles ?? DEFAULT_STYLES) }
+}
+
 /** One family's axes from several designs: each axis from the smallest to the largest value any of them asks for. */
 function unionAxes(a: Record<string, [string, string][]>, b: Record<string, [string, string][]>): Record<string, [string, string][]> {
   const out: Record<string, [string, string][]> = { ...a }
@@ -60,7 +69,7 @@ export function mergeFonts(all: DesignFonts[]) {
     for (const f of d.families) {
       const had = byName.get(f.name)
       byName.set(f.name, had
-        ? { ...had, weights: unionWeights(had.weights, f.weights), styles: union(had.styles ?? ['normal'], f.styles ?? ['normal']) }
+        ? { ...had, weights: unionWeights(had.weights, f.weights), ...unionStyles(had, f) }
         : { ...f })
     }
     for (const [family, a] of Object.entries(d.variableAxis ?? {})) axes[family] = unionAxes(axes[family] ?? {}, a)
