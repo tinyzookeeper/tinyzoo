@@ -3,7 +3,7 @@
 // and finding and stopping the site processes those runs made. (What the walkthrough is
 // filmed with is in film.mjs.)
 import { execFile, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -205,6 +205,8 @@ export const siteFolders = (dataDir) => (existsSync(dataDir) ? readdirSync(dataD
 export async function startCloud({ port, env = {}, logFile }) {
   if (!(await portFree(port))) throw new Error(`port ${port} is in use`)
   mkdirSync(dirname(logFile), { recursive: true })
+  // What this start prints begins here (the log is appended to).
+  const from = existsSync(logFile) ? statSync(logFile).size : 0
   const out = openSync(logFile, 'a')
   const child = spawn('pnpm', ['exec', 'nuxt', 'dev', '--port', String(port)], {
     cwd: cloudDir, detached: true, stdio: ['ignore', out, out],
@@ -218,7 +220,15 @@ export async function startCloud({ port, env = {}, logFile }) {
   const until = Date.now() + 180_000
   for (;;) {
     if (exited) throw new Error(`the cloud app exited while starting; see ${logFile}`)
-    try { if ((await fetch(`${url}/api/account`, { signal: AbortSignal.timeout(3000) })).ok) break } catch { /* not up yet */ }
+    // Nuxt takes another port, without failing, when the one asked for was taken a moment
+    // before (two runs starting together): the answer on `port` would then be the other run's
+    // app. So the run waits until its own app says where it listens, and stops if that is elsewhere.
+    const said = /Local:\s+(http:\/\/\S+)/.exec(readFileSync(logFile, 'utf8').slice(from))?.[1]
+    if (said && !said.startsWith(`${url}/`)) {
+      try { process.kill(-child.pid, 'SIGTERM') } catch { /* gone */ }
+      throw new Error(`the cloud app started at ${said}, not on port ${port} (it was taken a moment before); see ${logFile}`)
+    }
+    try { if (said && (await fetch(`${url}/api/account`, { signal: AbortSignal.timeout(3000) })).ok) break } catch { /* not up yet */ }
     if (Date.now() > until) throw new Error(`the cloud app did not answer; see ${logFile}`)
     await sleep(500)
   }
