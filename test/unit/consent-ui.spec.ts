@@ -261,7 +261,7 @@ describe('<CmsConsent>', () => {
     const [banner] = byClass(body, 'cms-consent')
     expect(banner!.props.class).toBe('cms-consent cms-consent-styled')
     expect(textOf(banner!)).toContain('Cookies on this website')
-    expect(byClass(banner!, 'cms-consent__btn').map(textOf)).toEqual(['Reject all', 'Accept all', 'Settings'])
+    expect(byClass(banner!, 'cms-consent__btn').map(textOf)).toEqual(['Accept all', 'Reject all', 'Settings'])
     const [dialog] = byClass(body, 'cms-consent__dialog')
     expect(byClass(dialog!, 'cms-consent__service-name').map(textOf)).toEqual(['Cookie consent', 'Meta Pixel'])
     byClass(banner!, 'cms-consent__btn')[2]!.props.onClick()
