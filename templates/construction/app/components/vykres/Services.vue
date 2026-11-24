@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výkres's services: one ruled table. Each kind of work on its own row: what it is, what is in
 // the price (filled squares), what is not (empty ones) and the price.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 const words = useSiteWords()

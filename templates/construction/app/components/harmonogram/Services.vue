@@ -2,7 +2,7 @@
 // Harmonogram's services: one ruled strip of columns, a column for each kind of work with what
 // is in the price (filled green squares) and what is not (empty ones). On a phone and a
 // tablet the columns are a row to swipe.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 const words = useSiteWords()

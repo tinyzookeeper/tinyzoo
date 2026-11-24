@@ -19,6 +19,7 @@
 @import "../../../../association/app/assets/css/design.css";
 @import "../../../../realty/app/assets/css/design.css";
 @import "../../../../development/app/assets/css/design.css";
+@import "../../../../construction/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
@@ -40,6 +41,7 @@
 @source "../../../../association";
 @source "../../../../realty";
 @source "../../../../development";
+@source "../../../../construction";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -151,4 +153,13 @@
   /* Realty */
   --color-spark: var(--brand-on-dark);
   --color-lamp-ink: var(--accent-ink);
+  /* Construction */
+  --font-data: system-ui, sans-serif;
+  --color-hair: var(--hair);
+  --color-plaster: var(--plaster);
+  --color-brand-d: var(--brand-d);
+  --color-brand-2: var(--brand-2);
+  --color-brand-3: var(--brand-3);
+  --color-concrete: var(--concrete);
+  --color-timber: var(--timber);
 }

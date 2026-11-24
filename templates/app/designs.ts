@@ -18,6 +18,7 @@ import event from '../event/fonts'
 import association from '../association/fonts'
 import realty from '../realty/fonts'
 import development from '../development/fonts'
+import construction from '../construction/fonts'
 
 export const DESIGNS: Record<string, DesignFonts> = {
   individual,
@@ -37,4 +38,5 @@ export const DESIGNS: Record<string, DesignFonts> = {
   association,
   realty,
   development,
+  construction,
 }

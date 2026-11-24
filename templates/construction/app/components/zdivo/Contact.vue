@@ -2,7 +2,7 @@
 // Zdivo's contact: the office on the left, and the area on the right as bricks: the seat on a
 // dark one, every town on a clay one with its distance, and a wide brick for the villages
 // between them.
-import type { Town } from '~/lib/cms-content'
+import type { Town } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'contact'>; first?: boolean; anchor?: string; towns: Town[] }>()
 const { settings, words, tel, postalTown } = await useFirm()

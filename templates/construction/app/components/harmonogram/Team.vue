@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Harmonogram's people: a portrait, the role in mono, the name large and the direct phone in
 // the colour of the site: "these three pick up the phone".
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; people: Person[] }>()
 </script>

@@ -2,7 +2,7 @@
 // Harmonogram's page of one project (/realizace/dum-v-libici): the name very large, the
 // photographs, the figures of the build and its length as a bar on the shared scale, the text
 // and the client's words.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Project }>()
 const words = useSiteWords()

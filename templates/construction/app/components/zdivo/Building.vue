@@ -3,7 +3,7 @@
 // each week of the build, laid in the colour of the site as far as the build has got (the week
 // it is in is counted from its start, so it is worked out in the browser; the server draws the
 // whole row unlaid), the stage it is in and the handover date from the contract.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'building'>; first?: boolean; anchor?: string; items: Project[] }>()
 const words = useSiteWords()

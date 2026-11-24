@@ -2,7 +2,7 @@
 // Zdivo's services: five courses of two bricks. A clay brick with the name and the price, a card
 // with what the work is and what is and is not in the price; the clay brick changes sides from
 // row to row.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 const words = useSiteWords()

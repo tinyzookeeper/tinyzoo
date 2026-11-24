@@ -2,7 +2,7 @@
 // The filter of the projects by kind, the same in every look (each look's stylesheet draws
 // `.filter`): all, then the kinds that exist. On a phone the buttons are a row to swipe
 // (Embla), from a tablet up they stand in one row.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../lib/cms-content'
 
 const props = defineProps<{
   active: Project['kind'] | null

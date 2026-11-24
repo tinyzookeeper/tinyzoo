@@ -20,6 +20,7 @@ import * as event from '../event/cms.config'
 import * as association from '../association/cms.config'
 import * as realty from '../realty/cms.config'
 import * as development from '../development/cms.config'
+import * as construction from '../construction/cms.config'
 
 export const models = defineModels({
   individual: { config: individual, migrations: '../individual/server/db/migrations' },
@@ -39,4 +40,5 @@ export const models = defineModels({
   association: { config: association, migrations: '../association/server/db/migrations' },
   realty: { config: realty, migrations: '../realty/server/db/migrations' },
   development: { config: development, migrations: '../development/server/db/migrations' },
+  construction: { config: construction, migrations: '../construction/server/db/migrations' },
 })

@@ -1,6 +1,6 @@
 // What the blocks draw from: the facts of the firm (Site settings) and the collections.
 // (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { Person, Project, Service, Testimonial, Town } from '~/lib/cms-content'
+import type { Person, Project, Service, Testimonial, Town } from '../lib/cms-content'
 
 /** The projects, finished and under construction, in the editors' order. */
 export const useProjects = () => useSiteList<Project>('site-projects', 'project')

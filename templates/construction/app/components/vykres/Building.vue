@@ -2,7 +2,7 @@
 // Výkres's "under construction": a ruled list, each build with a dimension line that reads the
 // week it is in, and the handover date from the contract. (Which week it is depends on today,
 // so it is worked out in the browser; the server draws the planned length.)
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'building'>; first?: boolean; anchor?: string; items: Project[] }>()
 const words = useSiteWords()

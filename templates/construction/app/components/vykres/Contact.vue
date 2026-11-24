@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výkres's contact: the office as a ruled list on the left, the area on the right, and under
 // them the towns on a distance axis from the seat of the firm (a ruled list on a phone).
-import type { Town } from '~/lib/cms-content'
+import type { Town } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'contact'>; first?: boolean; anchor?: string; towns: Town[] }>()
 const { settings, words, tel, postalTown } = await useFirm()

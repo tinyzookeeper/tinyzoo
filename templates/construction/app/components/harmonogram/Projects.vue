@@ -2,7 +2,7 @@
 // Harmonogram's projects: the highlighted one as a card with two bars (the contract's time
 // against the real one), the others as large photographs, each with one bar on a common scale
 // so a roof and a house can be compared at a glance.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'projects'>; first?: boolean; anchor?: string; featured: Project | null; others: Project[] }>()
 const words = useSiteWords()

@@ -3,7 +3,7 @@
 // on its own week grid (the week it is in, counted from its start), its stage and the handover
 // date from the contract. (Which week it is depends on today, so it is worked out in the
 // browser; the server draws the planned length.)
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'building'>; first?: boolean; anchor?: string; items: Project[] }>()
 const words = useSiteWords()

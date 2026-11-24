@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zdivo's clients' words: three cards stepped like the end of an unfinished wall, each lower
 // than the one before it.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 // (whole class names, so the stylesheet finds them)

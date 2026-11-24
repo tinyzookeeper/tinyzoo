@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Harmonogram's clients' words: the first one set very large with the others stacked beside it,
 // ruled by hairlines. The heading is a mono label.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 </script>
