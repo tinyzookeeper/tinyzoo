@@ -2,6 +2,7 @@ import {
   defineBlock, defineEntity, defineLocales, defineNavigation,
   definePages, defineRedirects, defineSingleton, eq, f, seo,
 } from 'tinyzoo'
+import { analyticsPlugin } from 'tinyzoo/analytics'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 
 // The tinyzoo website: what it is, where it is heading, and the way into the demo.
@@ -308,8 +309,9 @@ export const Plan = defineEntity('plan', {
 export const Navigation = defineNavigation({ localized: true })
 export const Redirect = defineRedirects()
 
-// Plugins add features with their own admin pages, routes and tables: Forms here.
-export const plugins = [formsPlugin()]
+// Plugins add features with their own admin pages, routes and tables: Forms, and Analytics,
+// which counts the website's visits without a cookie (so there is no cookie banner here).
+export const plugins = [formsPlugin(), analyticsPlugin()]
 
 export const Feedback = defineForm('feedback', {
   label: { en: 'Pilot feedback', cs: 'Zpětná vazba', de: 'Feedback zum Pilotprojekt' },
