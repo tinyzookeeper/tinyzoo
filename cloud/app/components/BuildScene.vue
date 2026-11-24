@@ -71,6 +71,8 @@ const current = computed(() => rows.value.find((r) => r.state === 'running' || r
 const failedRow = computed(() => rows.value.find((r) => r.state === 'failed') ?? null)
 
 const peekers = computed(() => STEP_IDS.map((id, i) => ({ animal: ANIMALS[id], up: !waiting.value && shown.value >= i * 2 + 1, busy: stateOf(i) === 'running' })))
+// A website that came in as an archive gets its own content back where a new one gets the demo's.
+const stepText = (kind: 'step' | 'doing', id: StepId) => `build.${kind}.${props.site.imported && id === 'content' ? 'restore' : id}` as TKey
 const failText = computed(() => {
   const code = failedRow.value?.code
   if (!code) return ''
@@ -115,7 +117,7 @@ const failText = computed(() => {
           <h1 class="z-display text-[1.75rem] leading-tight text-balance text-highlighted sm:text-4xl lg:text-5xl">{{ t('build.title') }}</h1>
           <p class="z-moment-text mt-3 min-h-[1.75em] text-pretty sm:text-lg">
             <Transition name="line" mode="out-in">
-              <span :key="current?.id ?? 'start'" class="inline-block">{{ current ? t(`build.doing.${current.id}` as any) : t('build.starting') }}</span>
+              <span :key="current?.id ?? 'start'" class="inline-block">{{ current ? t(stepText('doing', current.id)) : t('build.starting') }}</span>
             </Transition>
           </p>
         </template>
@@ -123,7 +125,7 @@ const failText = computed(() => {
         <ol v-if="!waiting" class="build__steps mt-7">
           <li v-for="r in rows" :key="r.id" class="build__step" :class="`is-${r.state}`" :data-step="r.id" :data-state="r.state">
             <span class="build__tile z-tile"><ZAnimal :name="r.animal" /></span>
-            <span class="build__label">{{ t(`build.step.${r.id}` as any) }}</span>
+            <span class="build__label">{{ t(stepText('step', r.id)) }}</span>
             <span class="build__state">
               <template v-if="r.state === 'done'"><UIcon name="i-lucide-check" class="size-4 text-(--z-ok)" /><span class="tabular">{{ r.took }}</span></template>
               <template v-else-if="r.state === 'running'"><span class="build__pulse" />{{ t('build.now') }}</template>

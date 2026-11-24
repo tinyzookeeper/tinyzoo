@@ -1,5 +1,7 @@
+import type { SharedSiteState } from './sharedHosting'
 import type { Step } from './steps'
 import type { Locale } from './templates'
+import type { ExportView } from './transfer'
 
 export type SiteStatus = 'waiting' | 'creating' | 'ready' | 'failed' | 'removing' | 'removed'
 
@@ -28,9 +30,33 @@ export interface SiteView {
   ownerAccepted: boolean
   createdAt: string
   readyAt: string | null
+  /** The site's plan (shared/plans.ts). */
+  plan: string
+  /** What the site does with requests: served, paused, read-only while it is copied, or moved away. */
+  hostState: SharedSiteState
+  /** Where a moved site lives now. */
+  movedTo: string | null
+  /** A moved site whose database and files were deleted here. */
+  dataRemoved: boolean
+  /** Domains of its own and moving it out are possible where it runs (the shared driver). */
+  operable: boolean
+  /** It came in as an archive of a website that ran elsewhere. */
+  imported: boolean
+  /** Its export, once one was asked for: the steps, and whether the archive is there. */
+  export: ExportView | null
 }
 
 export interface SiteRuntime { running: boolean; memoryBytes: number | null }
+
+/** How much a website stores, as the website itself reports it, against its plan. */
+export interface SiteStorage {
+  /** The bytes of its uploaded files. */
+  usedBytes: number
+  /** Everything it may store (the plan's limit as the site applies it); null when the site reports none. */
+  limitBytes: number | null
+  /** The largest single upload, in megabytes. */
+  maxUploadMb: number
+}
 
 /** A website somebody runs themselves, connected to their account so its admin opens through the account. */
 export interface ConnectedSiteView {
@@ -73,6 +99,8 @@ export interface AccountView {
   devVerifyUrl: string | null
   /** What follows a site's address on this host: ".localhost" locally (or what NUXT_HOSTING_LOCAL_PUBLIC_URL says), ".pushbase.app" on Pushbase. */
   siteHost: string
+  /** A website can be moved in here as an archive (the shared driver takes one). */
+  canImport: boolean
 }
 
 export interface SlugCheck {

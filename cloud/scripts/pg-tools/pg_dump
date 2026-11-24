@@ -1,0 +1,3 @@
+#!/bin/sh
+# pg_dump, run inside the Postgres container (see README.md and _run.sh).
+exec "$(dirname "$0")/_run.sh" pg_dump "$@"

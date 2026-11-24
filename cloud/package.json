@@ -16,6 +16,8 @@
     "e2e:shared": "node scripts/e2e-shared.mjs",
     "e2e:account": "node scripts/e2e-account.mjs",
     "e2e:signin": "node scripts/e2e-signin.mjs",
+    "e2e:ops": "node scripts/e2e-ops.mjs",
+    "postgres:close": "node scripts/postgres-close.mjs",
     "walkthrough": "node scripts/walkthrough.mjs"
   },
   "dependencies": {

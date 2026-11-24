@@ -2,7 +2,9 @@ import { sql } from 'drizzle-orm'
 import { boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core'
 import type { Step } from '../../shared/steps'
 import type { SiteStatus } from '../../shared/api'
+import type { SharedSiteRow, SharedSiteState } from '../../shared/sharedHosting'
 import type { Locale } from '../../shared/templates'
+import type { SiteExport, SiteImport } from '../../shared/transfer'
 
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date', precision: 3 })
 
@@ -72,11 +74,55 @@ export const sites = pgTable('sites', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
   readyAt: ts('ready_at'),
   removedAt: ts('removed_at'),
+  // The site's plan (shared/plans.ts): what it may store. The numbers go to the site in its row of the site directory.
+  plan: text('plan').notNull().default('basic'),
+  // What the site does with a request (the shared driver writes it into the site's row): served
+  // (`active`), `paused`, `read-only` while it is copied, or `moved` to `movedTo`.
+  hostState: text('host_state').$type<SharedSiteState>().notNull().default('active'),
+  movedTo: text('moved_to'),
+  // A moved site whose database and files were deleted here: its address still redirects.
+  dataRemovedAt: ts('data_removed_at'),
+  // Moving out (shared/transfer.ts): the steps of the export and the archive's name.
+  moveOut: jsonb('move_out').$type<SiteExport>(),
+  // A site that came in as an archive: where the upload lies until it is restored, and where the site came from.
+  moveIn: jsonb('move_in').$type<SiteImport>(),
 }, (t) => [
   // An address belongs to one website at a time; a removed one gives it back.
   uniqueIndex('sites_slug_unique').on(t.slug).where(sql`${t.status} <> 'removed'`),
   index('sites_owner_idx').on(t.ownerId),
 ])
+
+/**
+ * A domain of its owner's own for a website. A name belongs to one website at a time (the
+ * unique index). It is used once the DNS was seen to lead to the service (`verifiedAt`); one
+ * verified domain may be the site's address (`main`), the others redirect to the address.
+ */
+export const siteDomains = pgTable('site_domains', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  siteId: uuid('site_id').notNull().references(() => sites.id, { onDelete: 'cascade' }),
+  // Lower case, no port; a name in another script as its punycode.
+  host: text('host').notNull(),
+  main: boolean('main').notNull().default(false),
+  verifiedAt: ts('verified_at'),
+  checkedAt: ts('checked_at'),
+  // Why the last check said no (shared/domains.ts, DomainWait); null once verified.
+  wait: text('wait'),
+  createdAt: ts('created_at').notNull().defaultNow(),
+}, (t) => [uniqueIndex('site_domains_host_unique').on(t.host), index('site_domains_site_idx').on(t.siteId)])
+
+/**
+ * The site directory of the shared driver when it is kept here (NUXT_HOSTING_SHARED_DIRECTORY=postgres):
+ * one row per site, read by each template's process (tinyzoo's multi-tenant mode,
+ * packages/cms/server/utils/cmsSite.ts) with a role that may only read this table. `row` is
+ * the site's row as that process takes it, every secret in it encrypted with the directory
+ * key. `updatedAt` changes with every write: it is how the process notices.
+ */
+export const tenantSites = pgTable('tenant_sites', {
+  id: text('id').primaryKey(),
+  template: text('template').notNull(),
+  row: jsonb('row').$type<SharedSiteRow>().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+}, (t) => [index('tenant_sites_template_idx').on(t.template)])
 
 // ── The account service: the cloud as the issuer of sign-in for websites (docs/multi-tenant-plan.md, 2.15) ──
 
@@ -145,5 +191,6 @@ export const accountMembers = pgTable('account_members', {
 
 export type UserRow = typeof users.$inferSelect
 export type SiteRow = typeof sites.$inferSelect
+export type SiteDomainRow = typeof siteDomains.$inferSelect
 export type AccountClientRow = typeof accountClients.$inferSelect
 export type AccountMemberRow = typeof accountMembers.$inferSelect

@@ -2,10 +2,13 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import type { H3Event } from 'h3'
 import { adminThroughAccount } from '#shared/account'
-import type { SiteView } from '#shared/api'
+import type { SiteStorage, SiteView } from '#shared/api'
+import { planById } from '#shared/plans'
 import { normalizeSteps } from '#shared/steps'
 import { templateById } from '#shared/templates'
+import { normalizeExport, toExportView } from '#shared/transfer'
 import type { SiteRow } from '../db/schema'
+import { useHosting } from '../hosting'
 import type { HostedSite } from '../hosting/types'
 
 /** What the cloud keeps about a site, encrypted in sites.secrets. */
@@ -75,7 +78,9 @@ const INVITE_TTL_MS = 7 * 24 * 60 * 60_000
 /** A site as its owner's browser gets it: no secret, and the invitation link only while it is still needed. */
 export function toSiteView(row: SiteRow): SiteView {
   const accepted = !!row.ownerAcceptedAt
-  const inviteUrl = row.status === 'ready' && !accepted ? decryptSecret(row.inviteUrl) : null
+  const moved = row.hostState === 'moved'
+  const inviteUrl = row.status === 'ready' && !accepted && !moved ? decryptSecret(row.inviteUrl) : null
+  const operable = canOperate(row.driver)
   return {
     id: row.id,
     name: row.name,
@@ -84,8 +89,9 @@ export function toSiteView(row: SiteRow): SiteView {
     look: row.look,
     status: row.status,
     publicUrl: row.publicUrl,
-    adminUrl: row.publicUrl ? adminThroughAccount(row.publicUrl) : null,
-    adminPasswordUrl: row.publicUrl ? `${row.publicUrl}/admin` : null,
+    // A site that moved away has its admin at its new home.
+    adminUrl: row.publicUrl && !moved ? adminThroughAccount(row.publicUrl) : null,
+    adminPasswordUrl: row.publicUrl && !moved ? `${row.publicUrl}/admin` : null,
     steps: normalizeSteps(row.steps),
     errorDetail: import.meta.dev ? row.error : null,
     inviteUrl,
@@ -93,6 +99,53 @@ export function toSiteView(row: SiteRow): SiteView {
     ownerAccepted: accepted,
     createdAt: row.createdAt.toISOString(),
     readyAt: row.readyAt?.toISOString() ?? null,
+    plan: planById(row.plan).id,
+    hostState: row.hostState,
+    movedTo: moved ? row.movedTo : null,
+    dataRemoved: !!row.dataRemovedAt,
+    operable,
+    imported: !!row.moveIn,
+    export: toExportView(normalizeExport(row.moveOut), !!archivePathOf(row)),
+  }
+}
+
+/** Whether a site's hosting keeps its row outside the site's own process: then it can have domains, a plan's limits, and be moved (the shared driver). */
+function canOperate(driverName: string): boolean {
+  try {
+    const driver = useHosting(driverName)
+    return !!driver.refresh && !!driver.access
+  }
+  catch {
+    return false
+  }
+}
+
+// What a site says it stores, kept for a few seconds: its page asks every time it is looked at.
+const storageSeen = new Map<string, { at: number; storage: SiteStorage }>()
+
+/**
+ * How much a site stores against its plan: asked of the site itself (GET /api/health/status
+ * with the site's status token: `media.bytes`, and `media.limitBytes` as the site applies
+ * it). Null when the site does not answer in a moment.
+ */
+export async function siteStorage(row: SiteRow): Promise<SiteStorage | null> {
+  // Only where the plan's limits reach the site (its row of the site directory): elsewhere the page is as it was.
+  if (!canOperate(row.driver) || row.status !== 'ready' || !row.internalUrl || row.hostState === 'moved' || row.hostState === 'paused') return null
+  const seen = storageSeen.get(row.id)
+  if (seen && Date.now() - seen.at < 5000) return seen.storage
+  try {
+    const status = await new SiteClient(row.internalUrl).get<{ database?: { ok?: boolean }; media?: { bytes?: number; limitBytes?: number } }>('/api/health/status', {
+      headers: { authorization: `Bearer ${readSecrets(row).statusToken}` }, timeoutMs: 3000,
+    })
+    // A site that is just checking its database (after its row changed) reports no figures yet: not "nothing stored".
+    if (status.database?.ok !== true || typeof status.media?.bytes !== 'number') return null
+    const storage: SiteStorage = { usedBytes: status.media.bytes, limitBytes: typeof status.media.limitBytes === 'number' ? status.media.limitBytes : null, maxUploadMb: planById(row.plan).storage.maxSizeMb }
+    storageSeen.set(row.id, { at: Date.now(), storage })
+    if (storageSeen.size > 5000) storageSeen.clear()
+    return storage
+  }
+  catch {
+    return null
   }
 }
 

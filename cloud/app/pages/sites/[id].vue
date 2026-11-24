@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SiteRuntime, SiteView } from '#shared/api'
+import type { SiteRuntime, SiteStorage, SiteView } from '#shared/api'
 import { lookOf, templateById } from '#shared/templates'
 import type { Fact } from '~/components/FactList.vue'
 
@@ -14,7 +14,7 @@ const { account, user, refresh: refreshAccount } = useAccount()
 const toast = useToast()
 const id = String(route.params.id)
 
-const { data, error: loadError, refresh } = await useFetch<{ site: SiteView; runtime: SiteRuntime | null }>(`/api/sites/${id}`, { key: `site-${id}`, query: { runtime: 1 } })
+const { data, error: loadError, refresh } = await useFetch<{ site: SiteView; runtime: SiteRuntime | null; storage?: SiteStorage | null }>(`/api/sites/${id}`, { key: `site-${id}`, query: { runtime: 1 } })
 if (loadError.value || !data.value) throw createError({ statusCode: 404, statusMessage: 'Not found', fatal: true })
 // The last answer stays on screen while the next one is on its way, and after the site is gone
 // (a refresh then fails and the page leaves for the list).
@@ -22,6 +22,12 @@ const known = shallowRef(data.value)
 watch(data, (v) => { if (v) known.value = v })
 const site = computed(() => known.value.site)
 const runtime = computed(() => known.value.runtime ?? null)
+const storage = computed(() => known.value.storage ?? null)
+// A change made by one of the page's parts (a domain, a move): shown at once, then asked for again.
+function changed(next?: SiteView) {
+  if (next) known.value = { ...known.value, site: next }
+  void refresh()
+}
 useHead({ title: () => site.value.name })
 
 // Opened while it was being made: the making stays on screen until it has shown its end.
@@ -79,7 +85,7 @@ async function freshLink() {
   linking.value = true
   try {
     const res = await $fetch<{ site: SiteView }>(`/api/sites/${id}/invite`, { method: 'POST' })
-    known.value = { site: res.site, runtime: runtime.value }
+    known.value = { ...known.value, site: res.site }
     toast.add({ title: res.site.ownerAccepted ? t('site.alreadyAccepted') : t('site.freshLinkDone'), icon: 'i-lucide-check' })
   }
   catch (err) { toast.add({ title: errorText(err), color: 'error' }) }
@@ -127,8 +133,13 @@ const facts = computed<Fact[]>(() => [
   { label: t('site.template'), value: template.value ? l(template.value.name) : site.value.template },
   ...(look.value ? [{ label: t('site.look'), value: l(look.value.name) }] : []),
   { label: t('site.created'), value: formatDateTime(site.value.readyAt ?? site.value.createdAt, locale.value) },
-  ...(runtime.value ? [{ label: t('site.state'), value: runtime.value.running ? t('site.running') : t('site.stopped') }] : []),
+  // (A website that moved away is not run here: its address only sends visitors on.)
+  ...(runtime.value && site.value.hostState !== 'moved' ? [{ label: t('site.state'), value: runtime.value.running ? t('site.running') : t('site.stopped') }] : []),
+  // How much the website stores against its plan, as the website itself reports it.
+  ...(storage.value ? [{ label: t('site.storage'), value: storage.value.limitBytes ? t('site.storageUsed', { used: formatSize(storage.value.usedBytes, locale.value), limit: formatSize(storage.value.limitBytes, locale.value) }) : formatSize(storage.value.usedBytes, locale.value) }] : []),
 ])
+// An imported website shows its own content being put back, not the demo's.
+const moved = computed(() => site.value.hostState === 'moved')
 </script>
 
 <template>
@@ -163,15 +174,15 @@ const facts = computed<Fact[]>(() => [
           <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
             <div class="min-w-0">
               <p class="mb-2 inline-flex items-center gap-2 text-sm font-medium text-highlighted">
-                <span class="size-2 rounded-full bg-(--z-ok) shadow-[0_0_0_4px_color-mix(in_oklab,var(--z-ok)_20%,transparent)]" />
-                {{ justMade ? t('site.justMade') : t('site.live') }}
+                <span class="size-2 rounded-full" :class="moved ? 'bg-(--ui-text-dimmed)' : 'bg-(--z-ok) shadow-[0_0_0_4px_color-mix(in_oklab,var(--z-ok)_20%,transparent)]'" />
+                {{ moved ? t('sites.stateMoved') : justMade ? t('site.justMade') : t('site.live') }}
               </p>
               <h1 class="z-display text-[2rem] leading-[1.1] text-balance text-highlighted sm:text-[2.75rem]" data-site-name>{{ site.name }}</h1>
             </div>
-            <UButton v-if="site.publicUrl" :to="site.publicUrl" target="_blank" :label="t('site.open')" size="lg" trailing-icon="i-lucide-arrow-up-right" data-open-site />
+            <UButton v-if="site.publicUrl && !moved" :to="site.publicUrl" target="_blank" :label="t('site.open')" size="lg" trailing-icon="i-lucide-arrow-up-right" data-open-site />
           </div>
           <div class="mt-6">
-            <SitePreview v-if="site.publicUrl" :url="site.publicUrl" :label="t('site.open')" :template="site.template" :look="site.look" :name="site.name" />
+            <SitePreview v-if="site.publicUrl && !moved" :url="site.publicUrl" :label="t('site.open')" :template="site.template" :look="site.look" :name="site.name" />
           </div>
         </section>
 
@@ -180,7 +191,8 @@ const facts = computed<Fact[]>(() => [
                and lets its owner in. That needs a confirmed e-mail (a site links a person by a
                confirmed address only), so until then the card says so. The invitation the cloud
                made stays reachable as a quiet second way while nobody has used it. -->
-          <section class="z-card p-5 sm:p-6" :data-admin="site.ownerAccepted ? 'open' : 'first'" :data-admin-way="user?.emailVerified ? 'account' : 'confirm'">
+          <SiteMoved v-if="moved" :site="site" @changed="changed" />
+          <section v-else class="z-card p-5 sm:p-6" :data-admin="site.ownerAccepted ? 'open' : 'first'" :data-admin-way="user?.emailVerified ? 'account' : 'confirm'">
             <template v-if="user?.emailVerified">
               <h2 class="z-title text-xl leading-snug text-highlighted">{{ t('site.adminTitle') }}</h2>
               <p class="mt-1.5 text-[0.9375rem] leading-relaxed text-pretty text-muted">{{ t('site.adminText') }}</p>
@@ -207,7 +219,14 @@ const facts = computed<Fact[]>(() => [
 
           <InfoCard :title="t('site.about')">
             <FactList :facts="facts" />
+            <p v-if="storage" class="mt-3 text-sm text-muted" data-storage :data-storage-used="storage.usedBytes" :data-storage-limit="storage.limitBytes ?? ''">{{ t('site.storageUpload', { mb: storage.maxUploadMb }) }}</p>
           </InfoCard>
+
+          <!-- A domain of the owner's own, where the website's hosting can take one. -->
+          <SiteDomains v-if="site.operable && !moved" :site-id="site.id" @changed="changed()" />
+
+          <!-- Moving the website out, in a quiet place. -->
+          <SiteMove v-if="site.operable && !moved" :site="site" @refresh="refresh()" @changed="changed" />
 
           <section class="flex items-center justify-between gap-4 px-1">
             <p class="text-sm text-pretty text-muted">{{ t('site.deleteHint') }}</p>

@@ -21,5 +21,6 @@ export default defineEventHandler(async (event): Promise<AccountView> => {
     requireVerifiedEmail: requireVerifiedEmail(),
     devVerifyUrl: me && !me.emailVerifiedAt ? devLink(me.id, 'verify') : null,
     siteHost: siteHost(),
+    canImport: hostingDriverName() === 'shared',
   }
 })

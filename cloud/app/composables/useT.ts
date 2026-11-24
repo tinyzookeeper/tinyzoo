@@ -51,10 +51,13 @@ export function useErrorText() {
   const t = useT()
   const { locale } = useLocale()
   return (err: unknown, fallback: TKey = 'error.generic'): string => {
-    const e = err as { data?: { data?: { code?: string; max?: number } }; statusCode?: number }
-    const code = e?.data?.data?.code
+    const e = err as { data?: { data?: Record<string, unknown> & { code?: string } }; statusCode?: number }
+    const data = e?.data?.data
+    const code = data?.code
     const key = code ? (`error.${code}` as TKey) : null
-    if (key && key in DICTIONARIES[locale.value]) return t(key, { max: e?.data?.data?.max ?? '' })
+    // What the server says beside the code fills the sentence's gaps ({max}, {theirs}, …).
+    const params = Object.fromEntries(Object.entries(data ?? {}).filter(([, v]) => typeof v === 'string' || typeof v === 'number')) as Record<string, string | number>
+    if (key && key in DICTIONARIES[locale.value]) return t(key, { max: '', ...params })
     return t(fallback)
   }
 }

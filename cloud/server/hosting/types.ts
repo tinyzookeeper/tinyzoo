@@ -51,6 +51,30 @@ export interface HostingDriver {
   /** Stop the site and remove its data. Safe to call again. */
   remove(site: HostedSite): Promise<void>
   describe(site: HostedSite): Promise<{ running: boolean; memoryBytes?: number }>
+  /**
+   * What the cloud keeps about the site changed (its state, its own domains, its plan): bring
+   * the hosting in line and resolve once that is in effect, with the address people open now.
+   * Only a driver that keeps such things outside the site's own process has it (the shared one).
+   */
+  refresh?(site: HostedSite): Promise<{ publicUrl: string }>
+  /** Where the site's data is, for a backup or a restore the cloud runs itself. Never sent anywhere. */
+  access?(site: HostedSite): Promise<SiteAccess>
+  /** Remove the site's database and files, and keep what makes its address answer (a site that moved away keeps redirecting). */
+  removeData?(site: HostedSite): Promise<void>
+}
+
+/** A site's own database and files, as the cloud's own tools reach them. */
+export interface SiteAccess {
+  /** The site's database with the site's own user. */
+  databaseUrl: string
+  /** The folder its uploads are in. */
+  uploadsDir: string
+  /** The site's own folder (the uploads are inside it): archives of the site are kept here, outside anything that is served. */
+  dir: string
+  /** The template's source folder: tinyzoo's command line is run from the packages it resolves. */
+  sourceDir: string
+  /** The tinyzoo the site runs on. */
+  tinyzooVersion: string
 }
 
 /**

@@ -4,6 +4,7 @@ import { dirname, join, resolve } from 'node:path'
 import { and, eq, inArray } from 'drizzle-orm'
 import { beginStep, completeStep, failStep, initialSteps, isDone, nextStep, normalizeSteps, resumeSteps, type Step, type StepId } from '#shared/steps'
 import { lookOf, templateById, type LookDef, type TemplateDef } from '#shared/templates'
+import { exportState, normalizeExport, type SiteFile } from '#shared/transfer'
 import type { SiteRow } from '../db/schema'
 import { HostingError, hostingDriverName, useHosting } from '../hosting'
 import { sharedRoot } from '../hosting/shared'
@@ -21,6 +22,10 @@ import { sharedRoot } from '../hosting/shared'
 //
 // Before the site starts it gets its client at the account service (server/utils/account.ts):
 // the id and the secret travel in its environment, like its other secrets.
+//
+// A site that came in as an archive (server/utils/transfer.ts) goes through the same four
+// steps: its row starts paused, `content` puts the archive into its database and folder and
+// then lets it be served, `account` makes sure the cloud's service account and the owner are on it.
 //
 // It runs in the background, never inside a request. Each step is written down before and
 // after, so a failure shows where it was, "Try again" goes on from there, and a restart of the
@@ -44,7 +49,7 @@ async function saveSite(id: string, change: Partial<SiteRow>): Promise<void> {
 }
 
 /** One run per site across processes: a session-level advisory lock on a connection of its own. */
-async function withSiteLock(siteId: string, work: () => Promise<void>): Promise<boolean> {
+export async function withSiteLock(siteId: string, work: () => Promise<void>): Promise<boolean> {
   const client = await usePool().connect()
   try {
     const got = await client.query<{ ok: boolean }>('select pg_try_advisory_lock(hashtext($1)) as ok', [`tinyzoo-cloud:site:${siteId}`])
@@ -112,12 +117,15 @@ async function provision(siteId: string): Promise<void> {
     }
     const internalUrl = site.internalUrl!
 
-    await step('content', () => seedSite(template, internalUrl, secrets, site.driver))
+    // A site that came in as an archive gets its own content back instead of the demo's.
+    const imported = !!site.moveIn
+    await step('content', () => (imported ? restoreArchive(site) : seedSite(template, internalUrl, secrets, site.driver)))
 
     await step('account', async () => {
       const [owner] = await useDb().select().from(schema.users).where(eq(schema.users.id, site.ownerId))
       if (!owner) throw new StepError('account_failed', 'the owner\'s account is gone')
-      const handed = await handOver(internalUrl, secrets, { name: site.name, look: lookOf(template, site.look) }, owner)
+      // Its name and its look are its own already: only the way in for its new owner is seen to.
+      const handed = imported ? await letOwnerIn(internalUrl, secrets, owner) : await handOver(internalUrl, secrets, { name: site.name, look: lookOf(template, site.look) }, owner)
       await saveSite(site.id, {
         inviteUrl: handed.inviteUrl ? encryptSecret(handed.inviteUrl) : null,
         inviteSentAt: handed.inviteUrl ? new Date() : site.inviteSentAt,
@@ -136,6 +144,32 @@ async function provision(siteId: string): Promise<void> {
     steps = failStep(steps, at, code)
     await saveSite(site.id, { status: 'failed', steps, error: detail.slice(0, 4000) })
     console.error(`[cloud] ${site.slug} failed at "${at}" (${code}): ${detail}`)
+  }
+}
+
+/** The archive into the site's database and folder; a failure is the step's, in plain words. */
+async function restoreArchive(site: SiteRow): Promise<void> {
+  try {
+    await restoreImported(site)
+  }
+  catch (err: any) {
+    const known = moveFailure(err)
+    if (known) throw new StepError(known.code === 'tools_missing' ? 'restore_tools' : 'restore_failed', known.detail)
+    if (err instanceof HostingError) throw err
+    throw new StepError('restore_failed', String(err?.message ?? err))
+  }
+}
+
+/** An imported site's `account` step: the cloud signs in with its service account (put there by the restore) and lets the new owner in. */
+async function letOwnerIn(internalUrl: string, secrets: SiteSecrets, owner: { email: string; name: string; locale: string }): Promise<{ inviteUrl: string | null; accepted: boolean }> {
+  try {
+    const client = await serviceClient(internalUrl, secrets)
+    await client.request('PATCH', '/api/cms/_auth/me', { locale: owner.locale }).catch(() => {})
+    return await inviteOwner(client, owner)
+  }
+  catch (err: any) {
+    if (err instanceof StepError) throw err
+    throw new StepError('account_failed', String(err?.message ?? err))
   }
 }
 
@@ -278,7 +312,7 @@ async function handOver(internalUrl: string, secrets: SiteSecrets, site: { name:
 
 /** A fresh invitation link (the old one stops working), for an owner whose link expired. */
 export async function refreshInvite(site: SiteRow): Promise<SiteRow> {
-  if (site.status !== 'ready' || !site.internalUrl) throw fail(409, 'site.notReady', 'The website is not ready')
+  if (site.status !== 'ready' || !site.internalUrl || site.hostState === 'moved') throw fail(409, 'site.notReady', 'The website is not ready')
   const [owner] = await useDb().select().from(schema.users).where(eq(schema.users.id, site.ownerId))
   if (!owner) throw fail(404, 'site.none', 'No such website')
   await useHosting(site.driver).ensureRunning(hostedSite(site))
@@ -301,7 +335,7 @@ const lastAsked = new Map<string, number>()
  * (GET /api/health/status: people.invited). Returns the row as it is now.
  */
 export async function noteAcceptance(site: SiteRow): Promise<SiteRow> {
-  if (site.status !== 'ready' || site.ownerAcceptedAt || !site.internalUrl) return site
+  if (site.status !== 'ready' || site.ownerAcceptedAt || !site.internalUrl || site.hostState !== 'active') return site
   const now = Date.now()
   if (now - (lastAsked.get(site.id) ?? 0) < 4000) return site
   lastAsked.set(site.id, now)
@@ -348,6 +382,44 @@ export async function createSite(owner: Me, input: { name: string; slug: string;
   return row
 }
 
+/**
+ * A website from an archive (server/utils/transfer.ts): a new site of the archive's template,
+ * owned by whoever brought it. It keeps the secret its sessions were bound to and the token
+ * its status is asked with; everything else about it here is new. The archive waits in the
+ * cloud's own folder until the `content` step has restored it.
+ */
+export async function createImportedSite(owner: Me, input: { name: string; slug: string; template: string; look: string | null; archive: string; from: SiteFile }): Promise<SiteRow> {
+  const secrets: SiteSecrets = {
+    ...newSiteSecrets(),
+    appSecret: input.from.secret,
+    ...(input.from.statusToken.length >= 24 ? { statusToken: input.from.statusToken } : {}),
+  }
+  let row: SiteRow | undefined
+  try {
+    ;[row] = await useDb().insert(schema.sites).values({
+      ownerId: owner.id,
+      name: input.name,
+      slug: input.slug,
+      template: input.template,
+      look: input.look,
+      status: 'creating',
+      driver: hostingDriverName(),
+      secrets: encryptSecret(JSON.stringify(secrets)),
+      steps: initialSteps(),
+      // Paused until the archive is in: nothing touches the empty database before that.
+      hostState: 'paused',
+      moveIn: { file: input.archive, from: { publicUrl: input.from.publicUrl, name: input.from.name, tinyzooVersion: input.from.tinyzooVersion, exportedAt: input.from.exportedAt } },
+    }).returning()
+  }
+  catch (err: any) {
+    if (err?.code === '23505' || err?.cause?.code === '23505') throw fail(409, 'slug.taken', 'This address is taken')
+    throw err
+  }
+  if (!row) throw fail(500, 'unexpected', 'Could not save the website')
+  startProvision(row.id)
+  return row
+}
+
 /** Go on from the step that failed. */
 export async function retrySite(site: SiteRow): Promise<SiteRow> {
   if (site.status !== 'failed') return site
@@ -379,7 +451,10 @@ export async function finishRemoval(siteId: string): Promise<void> {
     try {
       await revokeSiteClient(site.id)
       await useHosting(site.driver).remove(hostedSite(site))
-      await saveSite(site.id, { status: 'removed', removedAt: new Date(), inviteUrl: null, error: null })
+      // Its own domains are free for another website, and an archive that was never restored goes too.
+      await releaseDomains(site.id)
+      discardUpload(site.moveIn?.file)
+      await saveSite(site.id, { status: 'removed', removedAt: new Date(), inviteUrl: null, error: null, moveOut: null })
       console.info(`[cloud] ${site.slug} was removed`)
     }
     catch (err: any) {
@@ -402,8 +477,12 @@ export async function resumeSites(): Promise<void> {
   for (const site of rows.filter((s) => s.status === 'ready')) {
     try {
       // A site made before the account service gets its client now; the others keep theirs.
-      const secrets = await ensureSiteClient(site)
+      // (A site that moved away has none any more: nobody signs in to it here.)
+      const secrets = site.hostState === 'moved' ? readSecrets(site) : await ensureSiteClient(site)
       await useHosting(site.driver).ensureRunning(hostedSite({ ...site, secrets: encryptSecret(JSON.stringify(secrets)) }))
+      // An export that was cut off goes on (a failed one waits for its owner to ask again).
+      const out = normalizeExport(site.moveOut)
+      if (out && ['running', 'pending'].includes(exportState(out.steps))) continueExport(site.id)
     }
     catch (err: any) {
       console.error(`[cloud] ${site.slug} could not be started again: ${err instanceof HostingError ? err.detail : err?.message ?? err}`)

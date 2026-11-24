@@ -81,7 +81,19 @@ export default defineNuxtConfig({
         // NUXT_HOSTING_SHARED_SESSION_COOKIE: another name for the sites' session cookie (e.g. __Host-tinyzoo).
         // Empty: tinyzoo's own default. Read when a template's process is started.
         sessionCookie: '',
+        // NUXT_HOSTING_SHARED_DIRECTORY: where the site directory is kept. `file` (default): sites.json in
+        // each template's folder. `postgres`: the table tenant_sites in the cloud's own database, read by
+        // each template's process with a role that may read that table only.
+        directory: 'file',
+        // NUXT_HOSTING_SHARED_DIRECTORY_KEY: encrypts every secret in the site directory (32+ characters).
+        // Needed for `postgres`; with `file` it is optional, and without it the file holds them in plain text.
+        directoryKey: '',
       },
+      // NUXT_HOSTING_DOMAIN_TARGET: where a customer's own domain must lead before it is used: a host name
+      // (the target of a CNAME) and/or IP addresses, separated by commas.
+      domainTarget: '',
+      // NUXT_HOSTING_IMPORT_MAX_MB: the largest archive of a website that is taken in (default 2048).
+      importMaxMb: '',
       pushbase: {
         // NUXT_HOSTING_PUSHBASE_TEMPLATES_DIR: a folder with one standalone project per template (<dir>/<template id>).
         templatesDir: '',

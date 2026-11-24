@@ -61,6 +61,36 @@ export function sharedSiteUrl(slug: string, port: number): string {
 
 export const sharedSiteHost = (slug: string): string => `${assertSlug(slug)}.localhost`
 
+/** What follows a site's address at the service itself: `<slug>.localhost`. A domain of a customer's own is never one of these names. */
+export const SHARED_SERVICE_HOST = 'localhost'
+
+/**
+ * The address of a site at a domain of its own. A `*.localhost` name is this machine (trying
+ * the flow locally): plain http on the template's port. Any other name is reached through the
+ * platform in front, which holds its certificate: https, no port.
+ */
+export function sharedDomainUrl(host: string, port: number): string {
+  if (!/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/.test(host)) throw new Error(`Not a host name: ${JSON.stringify(host)}`)
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`Not a port: ${port}`)
+  return host.endsWith('.localhost') ? `http://${host}:${port}` : `https://${host}`
+}
+
+/** A database address of the same server with another user, password and database (the directory's reader). */
+export function sharedReaderUrl(base: string, database: string, user: string, password: string): string {
+  const url = new URL(base)
+  url.username = user
+  url.password = password
+  url.pathname = `/${database}`
+  return url.toString()
+}
+
+/** The name of the Postgres role a template's process reads the site directory with: `<prefix>_reader_<template id>`. */
+export function sharedReaderRole(templateId: string, prefix: string = SHARED_DATABASE_PREFIX): string {
+  const name = `${sharedDatabasePrefix(prefix)}_reader_${assertTemplateId(templateId).replace(/-/g, '_')}`
+  if (name.length > 63) throw new Error(`The reader's name is too long: ${name}`)
+  return name
+}
+
 /** The site's database address: the server of `base` (the cloud's own address), the site's database, user and password. */
 export function sharedDatabaseUrl(base: string, name: string, password: string): string {
   const url = new URL(base)
@@ -116,20 +146,35 @@ export function splitSiteEnv(env: Record<string, string>): SplitSiteEnv {
   return { site: { ...site, account: given ? account : null }, process: rest }
 }
 
+/** What a site does with a request: served, `paused` (503), `read-only` (reads only, while it is moved), `moved` (redirected to where it lives now). */
+export type SharedSiteState = 'active' | 'paused' | 'read-only' | 'moved'
+export const SHARED_SITE_STATES: readonly SharedSiteState[] = ['active', 'paused', 'read-only', 'moved']
+
 /** A site's row in the site directory (packages/cms/server/utils/cmsSite.ts reads it). */
 export interface SharedSiteRow {
   id: string
+  /** The first is the site's address; the others redirect to it. */
   hosts: string[]
+  /** Served as the site without a redirect: its address at the service, when people use a domain of the site's own. */
+  alsoHosts?: string[]
   publicUrl: string
+  /** Left out for a site that is simply served (`active`). */
+  state?: Exclude<SharedSiteState, 'active'>
+  /** Where a `moved` site lives now. */
+  movedTo?: string
   databaseUrl: string
   secret: string
   config: {
     auth: { setupToken: string; account?: SharedSiteAccount }
     status: { token: string }
-    storage: { driver: 'local'; local: { dir: string } }
+    /** `maxSizeMb`, `maxBytes`: the site's plan (shared/plans.ts): the largest upload, and everything it may store. */
+    storage: { driver: 'local'; local: { dir: string }; maxSizeMb?: number; maxBytes?: number }
     mail?: { file: { dir: string } }
   }
 }
+
+/** A site's verified domains of its own: `main` is its address when set, the others redirect to the address. */
+export interface SharedSiteDomains { main: string | null; others: string[] }
 
 export interface SharedSiteRowInput {
   siteId: string
@@ -141,6 +186,14 @@ export interface SharedSiteRowInput {
   env: Record<string, string>
   /** The site's own folder (absolute): its uploads live under it, and its e-mails when they are written to files. */
   siteDir: string
+  /** The site's verified domains of its own. None: the site is at its service address only, as always. */
+  domains?: SharedSiteDomains
+  /** Default `active`. */
+  state?: SharedSiteState
+  /** For a `moved` site: the address it lives at now. */
+  movedTo?: string | null
+  /** The site's plan: the largest upload (MB) and everything it may store (bytes). */
+  limits?: { maxSizeMb: number; maxBytes: number }
 }
 
 /** The row of one site. The keys are always written in this order, so the same site gives the same text. */
@@ -148,16 +201,33 @@ export function sharedSiteRow(input: SharedSiteRowInput): SharedSiteRow {
   if (!input.siteDir.startsWith('/')) throw new Error(`The site's folder must be an absolute path: ${input.siteDir}`)
   const split = splitSiteEnv(input.env)
   const dir = input.siteDir.replace(/\/+$/, '')
+  const service = sharedSiteHost(input.slug)
+  const state = input.state ?? 'active'
+  if (!SHARED_SITE_STATES.includes(state)) throw new Error(`Not a state of a site: ${JSON.stringify(state)}`)
+  const movedTo = String(input.movedTo ?? '').replace(/\/+$/, '')
+  if (state === 'moved' && !/^https?:\/\/[^/]+$/.test(movedTo)) throw new Error('A moved site needs the address it lives at now')
+  // A domain is listed once, and never the service address itself.
+  const seen = new Set<string>([service])
+  const fresh = (host: string) => (seen.has(host) ? false : !!seen.add(host))
+  const main = input.domains?.main && fresh(input.domains.main) ? input.domains.main : null
+  const others = (input.domains?.others ?? []).filter(fresh)
+  const limits = input.limits
+  if (limits && !(limits.maxSizeMb > 0 && Number.isSafeInteger(limits.maxBytes) && limits.maxBytes > 0)) throw new Error('The limits of a site must be positive numbers')
   return {
     id: assertSiteId(input.siteId),
-    hosts: [sharedSiteHost(input.slug)],
-    publicUrl: sharedSiteUrl(input.slug, input.port),
+    // With a main domain the site lives there: its other domains redirect to it, and the
+    // service address keeps answering as the site (the cloud itself talks to it there).
+    hosts: main ? [main, ...others] : [service, ...others],
+    ...(main ? { alsoHosts: [service] } : {}),
+    publicUrl: main ? sharedDomainUrl(main, input.port) : sharedSiteUrl(input.slug, input.port),
+    ...(state !== 'active' ? { state } : {}),
+    ...(state === 'moved' ? { movedTo } : {}),
     databaseUrl: input.databaseUrl,
     secret: split.site.secret,
     config: {
       auth: { setupToken: split.site.setupToken, ...(split.site.account ? { account: split.site.account } : {}) },
       status: { token: split.site.statusToken },
-      storage: { driver: 'local', local: { dir: `${dir}/uploads` } },
+      storage: { driver: 'local', local: { dir: `${dir}/uploads` }, ...(limits ? { maxSizeMb: limits.maxSizeMb, maxBytes: limits.maxBytes } : {}) },
       // E-mails written to files get a folder per site; any other transport needs nothing here.
       ...(split.process.NUXT_CMS_MAIL_TRANSPORT === 'file' ? { mail: { file: { dir: `${dir}/mail` } } } : {}),
     },
