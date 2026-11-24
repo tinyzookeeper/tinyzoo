@@ -17,6 +17,7 @@
 @import "../../../../studio/app/assets/css/design.css";
 @import "../../../../event/app/assets/css/design.css";
 @import "../../../../association/app/assets/css/design.css";
+@import "../../../../realty/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
@@ -36,6 +37,7 @@
 @source "../../../../studio";
 @source "../../../../event";
 @source "../../../../association";
+@source "../../../../realty";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -144,4 +146,7 @@
   --color-jaro-m: var(--jaro-m);
   --color-leto-m: var(--leto-m);
   --color-podzim-m: var(--podzim-m);
+  /* Realty */
+  --color-spark: var(--brand-on-dark);
+  --color-lamp-ink: var(--accent-ink);
 }

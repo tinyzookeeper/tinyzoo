@@ -2,7 +2,7 @@
 // Cedule's "where we work": the photograph of the region darkened under the places, set as
 // huge words that run on across the page. A place with something on offer carries its number
 // as a small raised figure; one taken on by arrangement is paler.
-import type { Area } from '~/lib/cms-content'
+import type { Area } from '../../lib/cms-content'
 
 type Place = Area & { count: number }
 defineProps<{ block: BlockOf<'areas'>; first?: boolean; anchor?: string; places: Place[] }>()

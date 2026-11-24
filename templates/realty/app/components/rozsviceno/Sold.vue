@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Rozsvíceno's sold section: the heading, and up to three rounded cards (a row to swipe on a
 // phone): a key tag with how fast it went, what was sold, what the client said, and who said it.
-import type { Sale } from '~/lib/cms-content'
+import type { Sale } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'sold'>; first?: boolean; anchor?: string; sales: Sale[] }>()
 const w = useSiteWords().value.rozsviceno

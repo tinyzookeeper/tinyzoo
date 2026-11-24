@@ -2,7 +2,7 @@
 // Rozsvíceno's listing card: a rounded card with the photograph inset (the state in a pill on
 // its corner), the deal in quiet type, the title and place, the parameters as pills and the
 // price in the lamp colour beside a round arrow.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ listing: Listing }>()
 const words = useSiteWords()

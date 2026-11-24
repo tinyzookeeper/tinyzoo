@@ -2,7 +2,7 @@
 // Katastr's "where we work": the drawn map of the district on the left (the rivers, two rings
 // of distance, the towns lit where something is on offer), and on the right two ruled lists
 // of places with the number of properties in each, the town and the surroundings.
-import type { Area } from '~/lib/cms-content'
+import type { Area } from '../../lib/cms-content'
 
 type Place = Area & { count: number }
 const props = defineProps<{ block: BlockOf<'areas'>; first?: boolean; anchor?: string; places: Place[] }>()

@@ -2,7 +2,7 @@
 // Katastr's opening: the heading and the photograph of the town in a frame, the cadastral plan
 // of the office's street laid over the photograph's lower corner (under it on a phone), and a
 // ruled search of one row of cells: sale or rent, kind, place, price.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; listings: Listing[]; total: number; fresh: Listing[]; featured: Listing | null }>()
 const { settings, words } = await useOffice()

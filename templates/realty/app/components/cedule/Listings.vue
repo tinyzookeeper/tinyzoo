@@ -3,7 +3,7 @@
 // figure, the filter chips beside it (a row to swipe on a phone), then the cards as one ruled
 // sheet of up to four columns, the black cell that watches the offer filling the last row, and
 // a count with a ghost button to the whole offer.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'listings'>; first?: boolean; anchor?: string; listings: Listing[]; total: number; watchdog: SiteForm | null; moreUrl: string | null }>()
 const words = useSiteWords()

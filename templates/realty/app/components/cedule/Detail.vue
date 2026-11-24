@@ -3,7 +3,7 @@
 // mosaic of photographs (one large, two small, the second stamped with how many more there
 // are), the parameters in a mono table and a black box with the agent's phone set large.
 // On the property's own page (`page`) every photograph is there and the title is the page's heading.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'detail'>; first?: boolean; anchor?: string; listing: Listing | null; page?: boolean }>()
 const { words } = await useOffice()

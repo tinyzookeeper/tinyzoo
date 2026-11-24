@@ -2,7 +2,7 @@
 // Rozsvíceno's opening: a greeting, the question as the heading and the search written as a
 // sentence ("Hledám byt ke koupi v Písku a okolí do 5 mil. Kč"), each choice a dashed word as
 // wide as its own text; beside them the newest property in a window with a round price sticker.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; listings: Listing[]; total: number; fresh: Listing[]; featured: Listing | null }>()
 const { settings, words } = await useOffice()

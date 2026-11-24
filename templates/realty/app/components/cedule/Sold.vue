@@ -2,7 +2,7 @@
 // Cedule's sold section: the heading and a line of text over a black rule, then up to three
 // columns divided by rules, each with what was sold in mono, the number of days set enormous,
 // what the client said and who said it.
-import type { Sale } from '~/lib/cms-content'
+import type { Sale } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'sold'>; first?: boolean; anchor?: string; sales: Sale[] }>()
 const w = useSiteWords().value.cedule

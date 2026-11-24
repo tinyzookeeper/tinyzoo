@@ -3,7 +3,7 @@
 // other under it) on the left; on the right "house of the week", the title, the place, the
 // price in the lamp colour, the parameters as tiles and a pill with the agent and a phone button.
 // On the property's own page (`page`) every photograph is there and the title is the page's heading.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'detail'>; first?: boolean; anchor?: string; listing: Listing | null; page?: boolean }>()
 const { words } = await useOffice()

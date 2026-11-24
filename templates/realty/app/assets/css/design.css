@@ -1,0 +1,19 @@
+/* Realty's own rules from its main.css, for Realty's sites only (html[data-design="realty"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+/* Its theme values that differ from the app's: in the theme layer, so a look's own value still wins. */
+@layer theme {
+  html[data-design="realty"] {
+    --color-night: var(--bg);
+    --color-raised: var(--surface-2);
+    --color-cream: var(--text);
+    --color-lamp: var(--accent);
+  }
+}
+
+@layer base {
+  html[data-design="realty"] :is(h1, h2, h3, p, li, dd, figcaption, blockquote) { overflow-wrap: anywhere; }
+  html[data-design="realty"] { scroll-behavior: smooth; }
+  html[data-design="realty"] [id] { scroll-margin-top: 1rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="realty"] { scroll-behavior: auto; } }
+}

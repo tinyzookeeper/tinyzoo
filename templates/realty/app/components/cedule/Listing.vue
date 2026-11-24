@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A property's own page in Cedule: the detail band of the home page with every photograph and
 // the property's name as the page's heading, then the way back to the offer.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Listing }>()
 const w = useSiteWords().value.cedule

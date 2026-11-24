@@ -2,7 +2,7 @@
 // Katastr's listing card: a photograph with its state in a corner, the deal and the number of
 // the listing like a record's header, a serif title, the price and a ruled record of three
 // cells (layout, area, plot or floor).
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ listing: Listing }>()
 const words = useSiteWords()

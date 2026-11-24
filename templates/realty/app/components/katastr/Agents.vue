@@ -2,7 +2,7 @@
 // Katastr's agents: on the card's white a narrow column with the heading, and the agents
 // beside it, each a portrait, a name, what they do and a ruled phone and e-mail (the portrait
 // small beside the text on a phone).
-import type { Agent } from '~/lib/cms-content'
+import type { Agent } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'agents'>; first?: boolean; anchor?: string; agents: Agent[] }>()
 </script>
