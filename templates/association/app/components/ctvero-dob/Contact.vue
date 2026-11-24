@@ -3,7 +3,7 @@
 // to reach it on the left, and on the right one white card with the message form. The form is
 // a sign-up, a membership application, a question about a gift or a plain message: its topic is
 // chosen from the coming events that need a sign-up and the topics the block lists.
-import type { Event as CalendarEvent } from '~/lib/cms-content'
+import type { Event as CalendarEvent } from '../../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 const props = defineProps<{ block: BlockOf<'contact'>; first?: boolean; anchor?: string; form: SiteForm; events: CalendarEvent[] }>()

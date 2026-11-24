@@ -16,6 +16,7 @@
 @import "../../../../sports-club/app/assets/css/design.css";
 @import "../../../../studio/app/assets/css/design.css";
 @import "../../../../event/app/assets/css/design.css";
+@import "../../../../association/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
@@ -34,6 +35,7 @@
 @source "../../../../sports-club";
 @source "../../../../studio";
 @source "../../../../event";
+@source "../../../../association";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -132,4 +134,14 @@
   --color-c2: var(--c2);
   --color-c3: var(--c3);
   --color-paper2: var(--paper2);
+  /* Association */
+  --color-sand: var(--sand);
+  --color-zima: var(--zima);
+  --color-jaro: var(--jaro);
+  --color-leto: var(--leto);
+  --color-podzim: var(--podzim);
+  --color-zima-m: var(--zima-m);
+  --color-jaro-m: var(--jaro-m);
+  --color-leto-m: var(--leto-m);
+  --color-podzim-m: var(--podzim-m);
 }

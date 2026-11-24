@@ -1,0 +1,7 @@
+/* Association's own rules from its main.css, for Association's sites only (html[data-design="association"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+@layer base {
+  html[data-design="association"] { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="association"] { scroll-behavior: auto; } }
+}

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One piece of news as a card: with a photograph, or led by the day of the month in large
 // figures. The dot is the mark of the season it was written in.
-import type { News } from '~/lib/cms-content'
+import type { News } from '../../lib/cms-content'
 
 const props = defineProps<{ item: News }>()
 const { words } = await useAssociation()

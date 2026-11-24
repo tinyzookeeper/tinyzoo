@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The documents as a card per year (and one for those that always apply), each file a row to
 // download. `years` is how many of the newest years to show; 0 shows all.
-import type { Document } from '~/lib/cms-content'
+import type { Document } from '../../lib/cms-content'
 
 const props = withDefaults(defineProps<{ documents: Document[]; years?: number }>(), { years: 0 })
 const { words } = await useAssociation()

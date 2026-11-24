@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Čtvero dob's news: cards on the second ground, a row to swipe on a phone and four columns on
 // a desktop; the page of all news lets them wrap into rows instead.
-import type { News } from '~/lib/cms-content'
+import type { News } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; news: News[] }>()
 const shown = computed(() => props.news.slice(0, props.block.count ?? 4))
