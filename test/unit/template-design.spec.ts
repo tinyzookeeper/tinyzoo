@@ -330,7 +330,7 @@ describe('looks that read their template\'s default typeface', () => {
 
   it('finds a look whose stylesheet reads it, and none for a token that does not differ', () => {
     write('app/assets/css/b.css', 'html[data-look="b"] h1 { font-family: var(--font-display); }')
-    expect(fontAdvice(root, differing, families).map((a) => a.look)).toEqual(['b'])
+    expect(fontAdvice(root, differing, families).map((a: { look: string }) => a.look)).toEqual(['b'])
     expect(fontAdvice(root, [['--color-rule', 'red']], families)).toEqual([])
     // A system typeface is in design.css, so a look that reads it needs nothing of its own.
     expect(fontAdvice(root, [['--font-display', 'system-ui, sans-serif']], families)).toEqual([])
