@@ -99,32 +99,6 @@ beforeAll(async () => {
 
   // B has never changed its structure: it has no table of model versions yet.
   bHadModelTable = (await siteQuery(t.b, `select to_regclass('public.cms_model') as t`))[0].t !== null
-
-  // A: a type with a page and publishing, then its fields (the required text while the type is empty).
-  await mustChange(adminA, [{ op: 'type.add', name: 'x_course', label: text('Courses'), labelSingular: text('Course'), page: { prefix: 'kurzy' }, publish: true }])
-  await mustChange(adminA, [
-    { op: 'field.add', type: 'x_course', field: { key: 'level', type: 'select', label: text('Level'), options: [{ value: 'beginner', label: text('Beginner') }, { value: 'advanced', label: text('Advanced') }] } },
-    { op: 'field.add', type: 'x_course', field: { key: 'cover', type: 'media', label: text('Cover') } },
-    { op: 'field.add', type: 'x_course', field: { key: 'author', type: 'relation', to: 'author', label: text('Author') } },
-    { op: 'field.add', type: 'x_course', field: { key: 'teacher', type: 'text', required: true, label: text('Teacher') } },
-  ])
-  // A second type of A's (for the tests that change the structure while x_course is in use).
-  await mustChange(adminA, [{ op: 'type.add', name: 'x_event', label: text('Events'), labelSingular: text('Event'), page: { prefix: 'akce' }, publish: true }])
-  // B: its own type.
-  await mustChange(adminB, [{ op: 'type.add', name: 'x_recipe', label: text('Recipes'), labelSingular: text('Recipe'), page: { prefix: 'recepty' }, publish: true }])
-  await mustChange(adminB, [{ op: 'field.add', type: 'x_recipe', field: { key: 'minutes', type: 'number', label: text('Minutes') } }])
-
-  // Content of each site's own, made before anything asks for the sitemap (it is cached for a while).
-  authorA = (await createAuthor(adminA, { name: 'Autor kurzu' })).id
-  const made = await adminA.post('/api/cms/x_course', { title: `Kurz ${WORD.a}`, slug: 'python', teacher: 'Ada', level: 'beginner', author: authorA, status: 'published' })
-  if (made.status !== 201) throw new Error(`course on A: ${made.status} ${JSON.stringify(made.body)}`)
-  course = { id: made.body.row.id, slug: made.body.row.slug }
-  const draft = await adminA.post('/api/cms/x_course', { title: `Koncept ${WORD.a}`, slug: 'koncept', teacher: 'Bob', status: 'draft' })
-  if (draft.status !== 201) throw new Error(`draft on A: ${draft.status} ${JSON.stringify(draft.body)}`)
-  courseDraft = { id: draft.body.row.id, slug: draft.body.row.slug }
-  const r = await adminB.post('/api/cms/x_recipe', { title: `Polévka ${WORD.b}`, slug: 'polevka', minutes: 20, status: 'published' })
-  if (r.status !== 201) throw new Error(`recipe on B: ${r.status} ${JSON.stringify(r.body)}`)
-  recipe = { id: r.body.row.id, slug: r.body.row.slug }
 }, 240_000)
 
 afterAll(async () => {
@@ -146,6 +120,35 @@ afterAll(async () => {
 })
 
 describe('the premise', () => {
+  // Every later test builds on what this one makes.
+  it('each site makes its own types through the structure function, and its first entries through the admin routes', async () => {
+    // A: a type with a page and publishing, then its fields (the required text while the type is empty).
+    await mustChange(adminA, [{ op: 'type.add', name: 'x_course', label: text('Courses'), labelSingular: text('Course'), page: { prefix: 'kurzy' }, publish: true }])
+    await mustChange(adminA, [
+      { op: 'field.add', type: 'x_course', field: { key: 'level', type: 'select', label: text('Level'), options: [{ value: 'beginner', label: text('Beginner') }, { value: 'advanced', label: text('Advanced') }] } },
+      { op: 'field.add', type: 'x_course', field: { key: 'cover', type: 'media', label: text('Cover') } },
+      { op: 'field.add', type: 'x_course', field: { key: 'author', type: 'relation', to: 'author', label: text('Author') } },
+      { op: 'field.add', type: 'x_course', field: { key: 'teacher', type: 'text', required: true, label: text('Teacher') } },
+    ])
+    // A second type of A's (for the tests that change the structure while x_course is in use).
+    await mustChange(adminA, [{ op: 'type.add', name: 'x_event', label: text('Events'), labelSingular: text('Event'), page: { prefix: 'akce' }, publish: true }])
+    // B: its own type.
+    await mustChange(adminB, [{ op: 'type.add', name: 'x_recipe', label: text('Recipes'), labelSingular: text('Recipe'), page: { prefix: 'recepty' }, publish: true }])
+    await mustChange(adminB, [{ op: 'field.add', type: 'x_recipe', field: { key: 'minutes', type: 'number', label: text('Minutes') } }])
+
+    // Content of each site's own, made before anything asks for the sitemap (it is cached for a while).
+    authorA = (await createAuthor(adminA, { name: 'Autor kurzu' })).id
+    const made = await adminA.post('/api/cms/x_course', { title: `Kurz ${WORD.a}`, slug: 'python', teacher: 'Ada', level: 'beginner', author: authorA, status: 'published' })
+    if (made.status !== 201) throw new Error(`course on A: ${made.status} ${JSON.stringify(made.body)}`)
+    course = { id: made.body.row.id, slug: made.body.row.slug }
+    const draft = await adminA.post('/api/cms/x_course', { title: `Koncept ${WORD.a}`, slug: 'koncept', teacher: 'Bob', status: 'draft' })
+    if (draft.status !== 201) throw new Error(`draft on A: ${draft.status} ${JSON.stringify(draft.body)}`)
+    courseDraft = { id: draft.body.row.id, slug: draft.body.row.slug }
+    const r = await adminB.post('/api/cms/x_recipe', { title: `Polévka ${WORD.b}`, slug: 'polevka', minutes: 20, status: 'published' })
+    if (r.status !== 201) throw new Error(`recipe on B: ${r.status} ${JSON.stringify(r.body)}`)
+    recipe = { id: r.body.row.id, slug: r.body.row.slug }
+  }, 60_000)
+
   it('the sites have types of their own, and B had no table of model versions before it changed its structure', async () => {
     expect(bHadModelTable).toBe(false)
     const a = await model(adminA)
@@ -477,6 +480,40 @@ describe('a request under way while the structure changes', () => {
     expect((await change(adminA, [{ op: 'field.add', type: 'x_course', field: textField('notes') }])).status).toBe(200)
     expect(await columnsOf(t.a, 'x_course')).toContain('notes')
   })
+})
+
+describe('a fresh instance of a site', () => {
+  it('waits for the site\'s own types before it answers the site\'s first request', async () => {
+    // The test holds the table of model versions, so a process that starts now cannot read A's types yet.
+    const db = new pg.Client({ connectionString: t.a.databaseUrl })
+    await db.connect()
+    let extra: Awaited<ReturnType<Tenants['startInstance']>> | undefined
+    let pending: Promise<{ status: number; body: any }> | undefined
+    try {
+      await db.query('begin')
+      await db.query('lock table cms_model in access exclusive mode')
+      extra = await t.startInstance()
+      let settled = false
+      pending = get({ url: `http://${t.a.host}:${extra.port}` }, '/api/content/x_course/python')
+      void pending.then(() => { settled = true }, () => { settled = true })
+      await sleep(500)
+      // It neither answers without the types (a 404 for x_course) nor fails: it waits.
+      expect(settled, 'the first request waits for the site\'s own types').toBe(false)
+      await db.query('commit')
+      const res = await pending
+      expect(res.status, JSON.stringify(res.body)).toBe(200)
+      expect(res.body.item.teacher).toBe('Ada')
+      // B, which has its own types too, is served by the same process.
+      expect((await get({ url: `http://${t.b.host}:${extra.port}` }, `/api/content/x_recipe/${recipe.slug}`)).status).toBe(200)
+    }
+    finally {
+      await db.query('rollback').catch(() => {})
+      await db.end()
+      await pending?.catch(() => {})
+      await extra?.server.stop()
+    }
+    expectNoSiteErrors(extra)
+  }, 60_000)
 })
 
 describe('the function', () => {
