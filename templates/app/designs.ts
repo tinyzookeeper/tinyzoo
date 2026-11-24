@@ -3,8 +3,10 @@
 import type { DesignFonts } from 'tinyzoo-template-kit/fonts'
 import photographer from '../photographer/fonts'
 import wedding from '../wedding/fonts'
+import restaurant from '../restaurant/fonts'
 
 export const DESIGNS: Record<string, DesignFonts> = {
   photographer,
   wedding,
+  restaurant,
 }

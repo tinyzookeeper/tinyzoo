@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Paragon's menu: a heading and a sentence, tabs that are boxes of a form (the chosen one crossed
 // with the red pencil) and one typed sheet with the dishes of the chosen section in two columns.
-import type { MenuSection } from '~/utils/site'
+import type { MenuSection } from '../../utils/site'
 
 const props = defineProps<{ block: BlockOf<'menu'>; first?: boolean; anchor?: string; sections: MenuSection[] }>()
 const { words, settings } = await useRestaurant()

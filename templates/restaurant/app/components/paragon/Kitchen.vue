@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Paragon's kitchen: the cook's print beside a few words, and the suppliers as a delivery note
 // on a pink carbon copy, stamped "received", with the delivery's print overlapping it.
-import type { Supplier } from '~/lib/cms-content'
+import type { Supplier } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'kitchen'>; first?: boolean; anchor?: string; suppliers: Supplier[] }>()
 const { name, address, words } = await useRestaurant()

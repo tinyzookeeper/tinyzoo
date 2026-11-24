@@ -4,12 +4,14 @@
    (The looks' stylesheets are not here: each is a file of its own, linked on its look's pages.) */
 @import "../../../../photographer/app/assets/css/design.css";
 @import "../../../../wedding/app/assets/css/design.css";
+@import "../../../../restaurant/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
 @source "../../../node_modules/tinyzoo-template-kit/app";
 @source "../../../../photographer";
 @source "../../../../wedding";
+@source "../../../../restaurant";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -47,4 +49,9 @@
   --color-card-body: var(--card-body);
   --color-card-line: var(--card-line);
   --color-deep: var(--deep);
+  /* Restaurant */
+  --font-label: system-ui, sans-serif;
+  --color-pop: var(--pop);
+  --color-sheet: var(--sheet);
+  --color-type: var(--type);
 }

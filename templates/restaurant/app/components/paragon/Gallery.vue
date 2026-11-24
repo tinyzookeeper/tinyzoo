@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Paragon's gallery: prints in columns like a contact sheet, each with a typed caption in lower
 // case; the ninth print is left out on a phone.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'gallery'>; first?: boolean; anchor?: string; photos: Array<{ image: CmsMedia; caption: string }>; link?: string }>()
 // (print by print: its shape, so the columns fill evenly)
