@@ -4,7 +4,7 @@
 
 Key facts for working in a tinyzoo site: the schema is code-first (never edited in the admin or by hand in the database); after changing `cms.config.ts` run `tinyzoo generate`, review the migration, `tinyzoo up`, and regenerate the client; after updating tinyzoo run `tinyzoo upgrade`. Never use `drizzle-kit push`, never edit generated files, never import exports tagged `@internal`. Every new site has an `AGENTS.md` with these rules.
 
-The same documentation, rendered from the Markdown linked below, is on the website: https://tinyzoo.pushbase.app/en/docs (developer guides in English; the editors' guide in Czech at /dokumentace, English at /en/docs/editors and German at /de/dokumentation/redaktion).
+The same documentation, rendered from the Markdown linked below, is on the website: https://tinyzoo.site/en/docs (developer guides in English; the editors' guide in Czech at /dokumentace, English at /en/docs/editors and German at /de/dokumentation/redaktion).
 
 ## Building a site
 
