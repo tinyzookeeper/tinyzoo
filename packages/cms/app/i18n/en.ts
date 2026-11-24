@@ -1040,8 +1040,8 @@ export default {
     notAvailableTitle: 'Content types are not available on this website',
     dialog: {
       questionName: 'What do you call them?',
-      several: 'Several',
-      one: 'One',
+      several: 'Plural',
+      one: 'Singular',
       severalPlaceholder: 'Courses',
       onePlaceholder: 'Course',
       icon: 'Icon',

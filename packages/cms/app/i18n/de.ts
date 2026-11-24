@@ -1038,8 +1038,8 @@ export default {
     notAvailableTitle: 'Inhaltstypen sind auf dieser Website nicht verfügbar',
     dialog: {
       questionName: 'Wie nennen Sie sie?',
-      several: 'Mehrere',
-      one: 'Einer',
+      several: 'Mehrzahl',
+      one: 'Einzahl',
       severalPlaceholder: 'Kurse',
       onePlaceholder: 'Kurs',
       icon: 'Symbol',
@@ -1051,7 +1051,7 @@ export default {
       addressFixed: 'Die Adresse lässt sich später nicht mehr ändern.',
       questionDrafts: 'Möchten Sie sie zuerst als Entwürfe vorbereiten, bevor sie erscheinen?',
       draftsSwitch: 'Einträge beginnen als Entwurf, Sie veröffentlichen sie, wenn sie fertig sind',
-      startWith: 'Beginnen mit',
+      startWith: 'Gleich hinzufügen',
       created: 'Der Typ „{name}“ ist bereit',
     },
     validation: {
