@@ -1,8 +1,5 @@
-import {
-  applyModelOps, assertAllowedStatement, buildRegistry, customShape, emptyModelDoc, linkFieldsOf, linkRef, modelEntities, ModelProblem,
-  or, parseModelDoc, planModelDdl, propOf, snake, sql, sqlWithParams,
-  type CmsEntity, type CmsRegistry, type Entity, type ModelContext, type ModelDdlAllow, type ModelDoc, type ModelNote, type ModelOp,
-} from 'tinyzoo'
+import { applyModelOps, emptyModelDoc, linkFieldsOf, linkRef, ModelProblem, or, parseModelDoc, snake, sql, sqlWithParams, type CmsRegistry, type ModelContext, type ModelDoc, type ModelNote, type ModelOp } from 'tinyzoo'
+import { designTypesForModel, modelCountQueries, modelPlanningBuild, ModelStatementRefused, planModelChange, runModelStatements } from './cmsModelPlan'
 import { scrubError } from './cmsScrub'
 
 /**
@@ -66,7 +63,6 @@ export interface CmsModelPlace {
 
 const quoteIdent = (id: string) => `"${id.replace(/"/g, '""')}"`
 const rowsOf = (res: any): any[] => res?.rows ?? res ?? []
-const keyed = (entities: Record<string, Entity>): Record<string, Entity> => Object.fromEntries(Object.entries(entities).map(([name, e]) => [`custom:${name}`, e]))
 
 /** A refusal a person can act on: `{ code, message, … }` in the answer's `data`. */
 function refusal(statusCode: number, code: string, message: string, extra: Record<string, unknown> = {}): Error {
@@ -78,151 +74,6 @@ class StaleVersion extends Error {
 }
 class DryRun extends Error {
   constructor(readonly result: CmsModelChangeResult) { super('dry run') }
-}
-
-// ── pure parts ─────────────────────────────────────────────────────────────────
-
-/**
- * The design's code-first types as the document's operations need them: name, whether it is a
- * single page, and the first part of its address (one entry per language when it differs).
- */
-export function designTypesForModel(reg: CmsRegistry): ModelContext['design'] {
-  const out: ModelContext['design'] = []
-  for (const e of reg.entities) {
-    const path = e.content?.path
-    const templates = !path ? [] : typeof path === 'string' ? [path] : Object.values(path as Record<string, string>)
-    const prefixes = [...new Set(templates.map((t) => String(t).split('/').filter(Boolean)[0] ?? '').filter((p) => p && !p.startsWith(':')))]
-    if (!prefixes.length) out.push({ name: e.name, singleton: !!e.singleton, pathPrefix: null })
-    else for (const p of prefixes) out.push({ name: e.name, singleton: !!e.singleton, pathPrefix: p })
-  }
-  return out
-}
-
-/** The type and field names each operation touches (`purge` and `type.add` touch nothing that exists yet). */
-function touched(ops: ModelOp[]): { types: Set<string>; fields: Map<string, Set<string>> } {
-  const types = new Set<string>()
-  const fields = new Map<string, Set<string>>()
-  for (const op of ops as any[]) {
-    if (!op || typeof op !== 'object' || typeof op.type !== 'string') continue
-    types.add(op.type)
-    if (typeof op.key === 'string') fields.set(op.type, new Set([...(fields.get(op.type) ?? []), op.key]))
-  }
-  return { types, fields }
-}
-
-/**
- * The counting queries the operations need, read from the entities the mapper built (names never
- * come from the request: a name in an operation only picks an entity or a field that exists).
- * `entries` per type; `values` and `missing` per field (`'x_course.price'`).
- */
-export function modelCountQueries(customEntities: Record<string, CmsEntity | Entity>, ops: ModelOp[]): { kind: 'entries' | 'values' | 'missing'; key: string; text: string }[] {
-  const { types, fields } = touched(ops)
-  const out: { kind: 'entries' | 'values' | 'missing'; key: string; text: string }[] = []
-  for (const name of types) {
-    const e = customEntities[name] as CmsEntity | undefined
-    if (!e) continue
-    const table = quoteIdent(snake(e.name))
-    out.push({ kind: 'entries', key: e.name, text: `select count(*)::int as n from ${table}` })
-    for (const key of fields.get(name) ?? []) {
-      const fld = (e.fields as Record<string, any>)[key]
-      const column = fld && !fld.isLocalized ? (e.table as any)[propOf(key, fld)]?.name : undefined
-      if (typeof column !== 'string') continue
-      out.push({ kind: 'values', key: `${e.name}.${key}`, text: `select count(*)::int as n from ${table} where ${quoteIdent(column)} is not null` })
-      out.push({ kind: 'missing', key: `${e.name}.${key}`, text: `select count(*)::int as n from ${table} where ${quoteIdent(column)} is null` })
-    }
-  }
-  return out
-}
-
-/**
- * What the statements may do beyond adding and loosening, for this call only: `SET NOT NULL` for
- * the fields an operation of it made required, drops for what a `purge` of it removed. SQL names.
- */
-export function modelDdlAllow(before: ModelDoc, after: ModelDoc, ops: ModelOp[], beforeEntities: Record<string, CmsEntity | Entity>, beforeReg: CmsRegistry): ModelDdlAllow {
-  const setNotNull: string[] = []
-  const drop = { tables: [] as string[], columns: [] as string[], types: [] as string[] }
-  const required = (f: any) => !!f && !f.removedAt && f.required === true
-  for (const op of ops as any[]) {
-    if ((op?.op !== 'field.update' || op.required !== true) && op?.op !== 'field.restore') continue
-    const was = before.types.find((t) => t.name === op.type)?.fields.find((f) => f.key === op.key)
-    const now = after.types.find((t) => t.name === op.type)?.fields.find((f) => f.key === op.key)
-    if (required(was) || !required(now)) continue
-    const e = beforeEntities[op.type] as CmsEntity | undefined
-    const fld = (e?.fields as Record<string, any> | undefined)?.[op.key]
-    const column = fld ? (e!.table as any)[propOf(op.key, fld)]?.name : undefined
-    if (typeof column === 'string') setNotNull.push(`${snake(op.type)}.${column}`)
-  }
-  for (const op of ops as any[]) {
-    if (op?.op !== 'purge') continue
-    for (const name of op.types ?? []) {
-      const e = beforeEntities[name] as CmsEntity | undefined
-      if (!e) continue
-      drop.tables.push(snake(e.name))
-      if (e.localesTable) drop.tables.push(`${snake(e.name)}_locales`)
-      for (const j of beforeReg.junctions) if (j.ownerEntity === e.name || j.targetEntity === e.name) drop.tables.push(j.tableName)
-      for (const en of e.enums) drop.types.push(en.enumName)
-    }
-    for (const ref of op.fields ?? []) {
-      const e = beforeEntities[ref.type] as CmsEntity | undefined
-      const fld = (e?.fields as Record<string, any> | undefined)?.[ref.key]
-      if (!e || !fld) continue
-      const column = (e.table as any)[propOf(ref.key, fld)]?.name
-      if (typeof column === 'string') drop.columns.push(`${snake(e.name)}.${column}`)
-      const en = e.enums.find((x) => x.key === ref.key)
-      if (en) drop.types.push(en.enumName)
-    }
-  }
-  return { setNotNull, drop }
-}
-
-/** The custom types of a document built over the design, hidden things included (the statements are planned from these). */
-export function modelPlanningBuild(doc: ModelDoc, design: Record<string, any>): { entities: Record<string, Entity>; reg: CmsRegistry } {
-  const { entities } = modelEntities(doc, design, { withHidden: true })
-  return { entities, reg: buildRegistry({ ...design, ...keyed(entities) }) }
-}
-
-/**
- * The statements from one document to the next, and what the planner refuses.
- *
- * A required field added to a type that has no entries (the operations allow it only when the
- * count says so) is added as an optional column first, then made required: the planner never
- * adds a required column without a default to a table that is there already.
- */
-export function planModelChange(before: ModelDoc, after: ModelDoc, design: Record<string, any>, ops: ModelOp[]): { statements: string[]; refused: string[] } {
-  const b = modelPlanningBuild(before, design)
-  const a = modelPlanningBuild(after, design)
-  const allow = modelDdlAllow(before, after, ops, b.entities, b.reg)
-  const added: { type: string; key: string }[] = []
-  for (const t of after.types) {
-    const was = before.types.find((x) => x.name === t.name)
-    if (!was) continue
-    for (const f of t.fields) if (!f.removedAt && (f as { required?: boolean }).required === true && !was.fields.some((x) => x.key === f.key)) added.push({ type: t.name, key: f.key })
-  }
-  if (!added.length) return planModelDdl(customShape(b.reg), customShape(a.reg), allow)
-  const middle = structuredClone(after)
-  for (const { type, key } of added) {
-    const f = middle.types.find((x) => x.name === type)!.fields.find((x) => x.key === key) as { required?: boolean }
-    f.required = false
-  }
-  const m = modelPlanningBuild(middle, design)
-  const columns = added.flatMap(({ type, key }) => {
-    const e = m.entities[type] as CmsEntity | undefined
-    const fld = (e?.fields as Record<string, any> | undefined)?.[key]
-    const column = fld ? (e!.table as any)[propOf(key, fld)]?.name : undefined
-    return typeof column === 'string' ? [`${snake(type)}.${column}`] : []
-  })
-  const first = planModelDdl(customShape(b.reg), customShape(m.reg), allow)
-  const then = planModelDdl(customShape(m.reg), customShape(a.reg), { setNotNull: columns })
-  return { statements: [...first.statements, ...then.statements], refused: [...first.refused, ...then.refused] }
-}
-
-/** Run the statements of a change, each checked against the allowed list first (again: the planner checked them too). */
-export async function runModelStatements(exec: (text: string) => Promise<unknown>, statements: string[]): Promise<void> {
-  for (const statement of statements) {
-    try { assertAllowedStatement(statement) }
-    catch (err) { throw refusal(422, 'not-allowed', 'This change needs a statement that is not allowed here', { reasons: [(err as Error).message] }) }
-    await exec(statement)
-  }
 }
 
 // ── the guard: what the stored content says ────────────────────────────────────
@@ -386,6 +237,7 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
       throw refusal(409, 'stale-version', 'The content types were changed in the meantime. Reload and try again', { version: err.current })
     }
     if (err instanceof ModelProblem) throw refusal(422, err.code, err.message, { op: err.op, details: err.details ?? null })
+    if (err instanceof ModelStatementRefused) throw refusal(422, 'not-allowed', 'This change needs a statement that is not allowed here', { reasons: [err.reason] })
     if ((err as any)?.statusCode) throw err
     const pg = (err as any)?.code ? err : (err as any)?.cause
     if (pg?.code === '55P03') throw refusal(503, 'busy', 'The content is being saved right now, so the structure cannot change this moment. Try again in a few seconds')
@@ -451,18 +303,6 @@ export function requireCustomTypes(): { on: true; limits: ModelContext['limits']
   const feature = cmsCustomTypes()
   if (!feature.on) throw createError({ statusCode: 404, statusMessage: 'Not found' })
   return { on: true, limits: feature.limits }
-}
-
-/** The design's types as the structure editor shows them (read-only) and offers them as targets of a relation. */
-export function describeDesignTypes(reg: CmsRegistry): { name: string; label: unknown; labelSingular: unknown; icon: string | null; singleton: boolean; fields: { key: string; type: string; label: unknown }[] }[] {
-  return reg.entities.map((e) => ({
-    name: e.name,
-    label: e.label,
-    labelSingular: e.labelSingular ?? e.label,
-    icon: e.icon ?? null,
-    singleton: !!e.singleton,
-    fields: Object.entries(e.fields as Record<string, any>).map(([key, fld]) => ({ key, type: String(fld.type), label: fld.meta?.label ?? key })),
-  }))
 }
 
 /** How many entries each custom type of the document has (hidden types too: their tables are there until the later deletion). */
