@@ -1112,7 +1112,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (256): exported, not part of the frozen API, may change in any minor ──
+// ── internal (257): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
@@ -1196,6 +1196,7 @@ interface ModelOption
 type ModelOrder
 interface ModelPage
 class ModelProblem
+interface ModelPurgeTimes
 interface ModelType
 interface MovedPath
 const ORDER_FIX
