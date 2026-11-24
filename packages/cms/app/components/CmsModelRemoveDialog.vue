@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { ModelField, ModelType } from '../../src/model-doc'
 import {
-  cmsModelDayText, cmsModelFieldRefs, cmsModelNotesText, cmsModelPointingAt, cmsModelPurgeFromNow, cmsModelRemoveOp,
-  type CmsModelData, type CmsModelProblemInfo,
+  cmsModelDayText, cmsModelDistinctPlaces, cmsModelFieldRefs, cmsModelNotesText, cmsModelPlaceBlock, cmsModelPointingAt, cmsModelPurgeFromNow, cmsModelRemoveOp,
+  type CmsModelData, type CmsModelPlace,
 } from '../utils/cmsModel'
 
 // Removing a type or a field: nothing is deleted right away. It is hidden, deleted for good later, and
@@ -16,7 +16,7 @@ const toast = useToast()
 const model = useCmsModel()
 const { data: graph } = useNuxtData<any[]>('cms-graph')
 
-type Place = NonNullable<CmsModelProblemInfo['places']>[number]
+type Place = CmsModelPlace
 const loading = ref(false)
 const saving = ref(false)
 const places = ref<Place[]>([])
@@ -36,7 +36,8 @@ const dateCtx = { formatDateWith }
 
 const placeTitle = (p: Place) => p.title || entityLabel((graph.value ?? []).find((g: any) => g.name === p.entity)) || p.entity
 const placeKind = (p: Place) => (p.title ? entityLabel((graph.value ?? []).find((g: any) => g.name === p.entity)) : '')
-const distinct = (all: Place[]) => all.filter((p, i) => all.findIndex((q) => q.entity === p.entity && q.id === p.id) === i)
+const distinct = (all: Place[]) => cmsModelDistinctPlaces(all)
+const blockName = (p: Place) => cmsModelPlaceBlock(p, tl)
 
 async function load() {
   places.value = []
@@ -94,9 +95,9 @@ async function remove() {
             <span>{{ t('model.remove.stillUsed') }}</span>
           </p>
           <ul v-if="places.length" class="cms-card overflow-hidden text-sm">
-            <li v-for="p in places" :key="`${p.entity}-${p.id}`" class="border-b border-default last:border-0">
+            <li v-for="p in places" :key="`${p.entity}-${p.id}-${p.block?.id ?? ''}`" class="border-b border-default last:border-0">
               <NuxtLink :to="p.admin" class="flex min-h-11 items-center gap-2 px-3 py-2 transition-colors hover:bg-elevated/60" @click="() => { open = false }">
-                <span class="min-w-0 flex-1 truncate font-medium text-highlighted">{{ placeTitle(p) }}</span>
+                <span class="min-w-0 flex-1 truncate font-medium text-highlighted">{{ placeTitle(p) }}<template v-if="blockName(p)"> <span class="font-normal text-muted">›</span> {{ blockName(p) }}</template></span>
                 <span v-if="placeKind(p)" class="shrink-0 text-xs text-muted">{{ placeKind(p) }}</span>
                 <UIcon name="i-lucide-arrow-up-right" class="size-3.5 shrink-0 text-dimmed" aria-hidden="true" />
               </NuxtLink>

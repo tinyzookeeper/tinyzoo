@@ -38,6 +38,25 @@ export interface CmsModelDesignType {
   fields: { key: string; type: string; label: ModelLabel | string | null }[]
 }
 
+/** Where a content type or one of its fields is shown: an entry, and the block of it when it is in one. */
+export interface CmsModelPlace {
+  entity: string
+  id: string
+  title: string
+  /** The blocks field (`sections`), or a link field. */
+  field: string | null
+  /** The block that shows it; `label` is the block type's label. */
+  block: { id: string; type: string; heading: string | null; label: any } | null
+  locale: string | null
+  /** Where the entry is edited. */
+  admin: string
+}
+
+/** A place in the answer of `/api/cms/_model/attention`: what it shows that is gone. */
+export interface CmsModelAttentionPlace extends CmsModelPlace {
+  missing: { type?: string; fields?: string[] }
+}
+
 /** A change that did not work, said for a person. */
 export interface CmsModelProblemInfo {
   kind: 'stale' | 'busy' | 'in-use' | 'refused' | 'other'
@@ -45,7 +64,7 @@ export interface CmsModelProblemInfo {
   text: string
   /** The form field it is about, or null when the dialog says it. */
   at: 'label' | 'help' | 'key' | 'prefix' | 'options' | 'required' | 'to' | 'icon' | null
-  places?: { entity: string; id: string; title: string; field: string | null; block: string | null; locale: string | null; admin: string }[]
+  places?: CmsModelPlace[]
   fields?: { type: string; key: string }[]
   missing?: number
 }
@@ -332,6 +351,14 @@ export const cmsModelSameKeys = (a: readonly string[], b: readonly string[]): bo
 
 // ---------------------------------------------------------------------------------------------
 // What a field row says
+
+/** The block of a place in words: its heading, else its kind ("Entries"); empty for a place that is not in a block. */
+export const cmsModelPlaceBlock = (p: Pick<CmsModelPlace, 'block'>, tl: (label: any, fallback?: string) => string): string =>
+  p.block ? (p.block.heading?.trim() || tl(p.block.label, p.block.type)) : ''
+
+/** Each place once: the same entry may show the type in several blocks, and each block is a place of its own. */
+export const cmsModelDistinctPlaces = <P extends Pick<CmsModelPlace, 'entity' | 'id' | 'block'>>(all: readonly P[]): P[] =>
+  all.filter((p, i) => all.findIndex((q) => q.entity === p.entity && q.id === p.id && (q.block?.id ?? '') === (p.block?.id ?? '')) === i)
 
 /** How many different places a usage answer lists (one entry shown twice counts once). */
 export const cmsModelUsageCount = (places: { id: string }[] | null | undefined): number => new Set((places ?? []).map((p) => p.id)).size

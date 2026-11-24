@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import {
-  CMS_MODEL_DEFAULT_ICON, cmsModelDayText, cmsModelFields, cmsModelHiddenTypes, cmsModelNotesText, cmsModelPurgeText, cmsModelVisibleTypes,
+  CMS_MODEL_DEFAULT_ICON, cmsModelDayText, cmsModelFields, cmsModelHiddenTypes, cmsModelNotesText, cmsModelPlaceBlock, cmsModelPurgeText, cmsModelVisibleTypes,
+  type CmsModelAttentionPlace,
 } from '../../../utils/cmsModel'
 
 // Content types: the kinds of content the site's owner made (Courses, Branches…), the ones waiting
 // to be deleted for good, and the ones that come with the website's design. Administrators only;
 // a site without the feature answers 404 and the page says so calmly.
 definePageMeta({ layout: 'admin' })
-const { t, tl, formatDateWith, formatNumber } = useCmsI18n()
+const { t, tl, formatDateWith, formatNumber, entityLabel, languageName } = useCmsI18n()
 const toast = useToast()
 useHead({ title: () => t('model.title') })
 
@@ -49,6 +50,34 @@ const problems = computed(() => (data.value?.problems ?? []).map((p, i) => {
   const field = type?.fields.find((f) => f.key === p.field)
   const where = [type ? typeName(type) : p.type, p.field ? (field ? tl(field.label, field.key) : p.field) : ''].filter(Boolean).join(' › ')
   return { id: i, where, message: p.message }
+}))
+
+// ── entries whose blocks show a type or a field that is gone (asked after the page is shown; a failure says nothing) ──
+const { data: graph } = useNuxtData<any[]>('cms-graph')
+const attention = ref<CmsModelAttentionPlace[]>([])
+async function loadAttention() {
+  if (!import.meta.client) return
+  try {
+    const res = await cmsFetch<{ places: CmsModelAttentionPlace[] }>('/api/cms/_model/attention')
+    attention.value = res.places ?? []
+  }
+  catch {
+    attention.value = []
+  }
+}
+onMounted(loadAttention)
+watch(() => data.value?.version, loadAttention)
+const attentionRows = computed(() => attention.value.map((p, i) => {
+  const entry = p.title || entityLabel((graph.value ?? []).find((g: any) => g.name === p.entity)) || p.entity
+  const block = cmsModelPlaceBlock(p, tl)
+  const fields = p.missing?.fields ?? []
+  return {
+    id: `${p.entity}-${p.id}-${p.block?.id ?? i}`,
+    to: p.admin,
+    where: block ? `${entry} › ${block}` : entry,
+    fields,
+    language: p.locale ? languageName(p.locale) : '',
+  }
 }))
 
 const dateCtx = { t: t as any, formatDateWith }
@@ -135,7 +164,7 @@ const lastChange = computed(() => {
       </section>
       <p v-else-if="atLimit" id="cms-model-limit" class="-mb-4 text-sm text-muted text-pretty">{{ t('model.limitReached', { limit: formatNumber(limit) }) }}</p>
 
-      <section v-if="problems.length" :aria-label="t('model.needsAttention')">
+      <section v-if="problems.length || attentionRows.length" :aria-label="t('model.needsAttention')">
         <h2 class="cms-label mb-1.5">{{ t('model.needsAttention') }}</h2>
         <ul class="cms-card overflow-hidden">
           <li v-for="p in problems" :key="p.id" class="flex items-start gap-3 border-b border-default bg-warning/10 px-4 py-3 last:border-0">
@@ -148,6 +177,16 @@ const lastChange = computed(() => {
                 <p class="mt-1 break-words font-mono text-xs text-dimmed">{{ p.message }}</p>
               </details>
             </div>
+          </li>
+          <li v-for="a in attentionRows" :key="a.id" class="border-b border-default last:border-0">
+            <NuxtLink :to="a.to" class="flex items-start gap-3 bg-warning/10 px-4 py-3 text-sm transition-colors hover:bg-warning/15">
+              <UIcon name="i-lucide-triangle-alert" class="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+              <span class="min-w-0 flex-1">
+                <span class="block truncate font-medium text-highlighted">{{ a.where }}<span v-if="a.language" class="font-normal text-muted"> · {{ a.language }}</span></span>
+                <span class="block break-words text-muted text-pretty">{{ a.fields.length ? t('model.attention.fields', { count: a.fields.length, fields: a.fields.join(', ') }) : t('model.attention.type') }}</span>
+              </span>
+              <UIcon name="i-lucide-chevron-right" class="mt-0.5 size-4 shrink-0 text-dimmed" aria-hidden="true" />
+            </NuxtLink>
           </li>
         </ul>
       </section>

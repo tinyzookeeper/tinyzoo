@@ -2,7 +2,7 @@
 import type { ModelField } from '../../../../src/model-doc'
 import {
   CMS_MODEL_DEFAULT_ICON, cmsModelDesignKind, cmsModelFieldParts, cmsModelFields, cmsModelHiddenFields, cmsModelKindIcon, cmsModelKindOf, cmsModelMoveKey,
-  cmsModelMoveKeyTo, cmsModelNotesText, cmsModelOrderOp, cmsModelPurgeText, cmsModelSameKeys, cmsModelUsageCount,
+  cmsModelMoveKeyTo, cmsModelNotesText, cmsModelOrderOp, cmsModelPurgeText, cmsModelSameKeys,
 } from '../../../utils/cmsModel'
 
 // One content type: its fields (in the order the form shows them), what the website adds itself,
@@ -49,22 +49,20 @@ const targetName = (to: string) => {
   return x ? tl(x.label as any, x.name) : to
 }
 
-// ── how many pages show each field (asked after the page is shown; a failure says nothing) ──
+// ── how many pages show each field (one question for the whole type, asked after the page is shown; a failure says nothing) ──
 const usage = ref<Record<string, number | null>>({})
 async function loadUsage() {
   const current = type.value
   if (!import.meta.client || !current) return
   const asked = current.name
-  const answers = await Promise.all(cmsModelFields(current).map(async (f): Promise<[string, number | null]> => {
-    try {
-      const res = await cmsFetch<{ places: { id: string }[] }>(`/api/cms/_model/usage?type=${encodeURIComponent(asked)}&field=${encodeURIComponent(f.key)}`)
-      return [f.key, cmsModelUsageCount(res.places)]
-    }
-    catch {
-      return [f.key, null]
-    }
-  }))
-  if (type.value?.name === asked) usage.value = Object.fromEntries(answers)
+  try {
+    const res = await cmsFetch<{ fields?: Record<string, number> }>(`/api/cms/_model/usage?type=${encodeURIComponent(asked)}`)
+    // Only keys above zero are listed: a field not in the answer is shown nowhere.
+    if (type.value?.name === asked) usage.value = { ...(res.fields ?? {}) }
+  }
+  catch {
+    if (type.value?.name === asked) usage.value = {}
+  }
 }
 onMounted(loadUsage)
 watch(() => [data.value?.version, name.value], loadUsage)
