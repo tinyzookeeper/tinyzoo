@@ -27,7 +27,9 @@ const directoryFile = join(dataDir, 'sites.json')
 writeDirectory(directoryFile, rows)
 const server = await startServer({ entry, directoryFile, port, logFile: join(dataDir, 'server.log') })
 log(`server ${server.pid} on port ${port}, answering after ${Math.round(server.readyMs)} ms`)
-if (seed) for (const row of rows) { seedSite(row, templatesDir); log(`seeded ${row._site.slug}`) }
+// (a seed that fails stops the server too: it runs in a process group of its own and would outlive this script)
+try { if (seed) for (const row of rows) { seedSite(row, templatesDir); log(`seeded ${row._site.slug}`) } }
+catch (error) { await server.stop(); throw error }
 for (const row of rows) console.log(`  ${row._site.url}`)
 console.log(`SERVER_PID=${server.pid}`)
 const stop = async () => { await server.stop(); log('stopped'); process.exit(0) }
