@@ -5,11 +5,11 @@
 //   pnpm --filter tinyzoo-cloud e2e:ops     # needs the template built: pnpm --filter tinyzoo-cloud templates:build photographer
 //
 // It starts a cloud app of its own with the shared driver and NUXT_HOSTING_SHARED_DIRECTORY=postgres
-// (database tz_cloud_ops_e2e, data under .data/ops-e2e, template ports 4540–4559, site
+// (database tz_cloud_ops_e2e, data under .data/ops-e2e, template ports 4580–4599, site
 // databases and users tzops_e2e_…, the app on 3296 or the next free port, its own build
 // folder) and removes everything it made at the end (--keep leaves it). The names and ports
 // can be set from the environment: E2E_OPS_DB, E2E_OPS_SITE_PREFIX, E2E_OPS_PORT,
-// E2E_OPS_SITE_PORTS ("4540-4559"), E2E_OPS_DATA (the folder's name under .data); the Postgres
+// E2E_OPS_SITE_PORTS ("4580-4599"), E2E_OPS_DATA (the folder's name under .data); the Postgres
 // server from CLOUD_PG_URL.
 //
 // `tinyzoo backup` and `restore` need pg_dump, pg_restore and psql. On a machine without them
@@ -38,7 +38,7 @@ const run = promisify(execFile)
 const keep = arg('keep', false) === true
 const DB = process.env.E2E_OPS_DB || 'tz_cloud_ops_e2e'
 const PREFIX = process.env.E2E_OPS_SITE_PREFIX || 'tzops_e2e'
-const [portFrom, portTo] = (process.env.E2E_OPS_SITE_PORTS || '4540-4559').split('-').map(Number)
+const [portFrom, portTo] = (process.env.E2E_OPS_SITE_PORTS || '4580-4599').split('-').map(Number)
 const PORTS = { from: portFrom, to: portTo }
 const APP_PORT = Number(process.env.E2E_OPS_PORT) || 3296
 const dataDir = join(cloudDir, '.data', process.env.E2E_OPS_DATA || 'ops-e2e')

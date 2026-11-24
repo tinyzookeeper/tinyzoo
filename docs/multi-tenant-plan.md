@@ -1,6 +1,6 @@
 # Multi-tenant tinyzoo: the design
 
-**Status (2026-11-23):** the design was accepted and a first working version is built on this branch (local only, not released). Section 2.14 says what is built, what the build showed and where it differs from the design; the rest of the document is the design as it was written, corrected where the build proved it wrong. The measurements were taken on this machine against Postgres 16.11; where a number is an estimate, it says so.
+**Status (2026-11-24):** the design was accepted and everything in its order of work is built on this branch and runs locally: the mode itself, the shared hosting driver, the account sign-in with the switcher, and the operations (the directory in Postgres, domains, plans, moving a site, PgBouncer, two instances). It is not released and not deployed. Section 2.14 says what is built, what the build showed, where it differs from the design, and what the platform in front of the sites still has to provide; 2.15 is the account's protocol. The rest of the document is the design as it was written, corrected where the build proved it wrong. The measurements were taken on this machine against Postgres 16.11; where a number is an estimate, it says so.
 
 Part 1 is the ten-minute read. Part 2 holds the details behind each paragraph of part 1.
 
@@ -12,7 +12,7 @@ Part 1 is the ten-minute read. Part 2 holds the details behind each paragraph of
 
 ## What is proposed
 
-One switch with two values (in the first build it is the environment variable `NUXT_CMS_TENANCY_MODE`). `single` is the default and behaves as today. In `multi` the same build serves many sites: each request is given its site from its host name, and everything a site owns (database, files, secrets, caches, sockets) is reached only through that site.
+One switch with two values (as built: the environment variable `NUXT_CMS_TENANCY_MODE`). `single` is the default and behaves as today. In `multi` the same build serves many sites: each request is given its site from its host name, and everything a site owns (database, files, secrets, caches, sockets) is reached only through that site.
 
 The two uses need different parts of it:
 
@@ -102,7 +102,7 @@ A site is four things: a database, a folder of files, its settings and secrets, 
 
 A third hosting driver, **`shared`**, beside `local` and `pushbase`:
 
-- *database* step: create the role and the database from the template's prepared database.
+- *database* step: create the role and an empty database; the app migrates it on first use (2.3).
 - *start* step: write the site into the directory and wait until the template's app answers for that host. Nothing is built or started.
 - *content* and *account* steps: unchanged; they talk to the site over HTTP.
 - *remove*: take the site out of the directory, drop its database and role, delete its files.
@@ -118,9 +118,11 @@ Each step can be merged and released alone, and single-mode sites behave the sam
 3. **Work outside a request** names its site: start-up, scheduled tasks, timers, sockets, queues; changes carry their site; migration state per site.
 4. **Settings per site** instead of the environment: public address, secrets, mail, storage, webhooks, the admin's brand.
 5. **Multi mode** behind `cms.tenancy.mode: 'multi'`: the directory, the request wrapper, pool limits, the session binding, the two-site suite in CI.
-6. **`cloud/`:** the `shared` driver and the template database.
+6. **`cloud/`:** the `shared` driver.
 7. **Account sign-in and the switcher** (independent of 1 to 6; it can come first for 6dance and Studio Grand).
 8. **Operations:** PgBouncer, custom domains, quotas, moving in and out.
+
+All eight are built on the branch `feat/multi-tenant` and run locally (2.14). What is left is outside this repository: the platform in front of the sites, and a deployment.
 
 ## Decisions (2026-11-23)
 
@@ -128,7 +130,7 @@ Each step can be merged and released alone, and single-mode sites behave the sam
 2. **Where the identity lives:** the cloud app.
 3. **Template updates:** every site of a template moves to a new build together. The rule that goes with it: a change to a template adds things or fixes them; a redesign ships as a new look. A customer's content is data in their own database and a deploy does not touch it.
 4. **Files:** a key per site, limited to that site's files. Pushbase Storage already confines every key this way (2.4); it needs a way to issue one such key per site for an app that serves many.
-5. **The first build** went ahead: 2.14.
+5. **The first build** went ahead, then the rest: 2.14.
 
 ---
 
@@ -211,7 +213,7 @@ In single mode `useCmsSite()` returns the one site without looking at the async 
 
 **A site's memory and the work under way (as built).** Each site loaded in the process is an *instance*: its row and what is kept for it. Work runs inside an instance and keeps it until it has finished; `event.waitUntil` work counts too. When the site's row changes, the instance is retired: new requests get a new instance made from the new row, the requests under way finish with what they started with (the old settings, the old pool), and only then is the old instance released, or after 30 s if something never finishes. So a change of the directory never cuts a request off, and a request that began under the old row cannot make the site's new memory from it. Work that outlives its instance goes on in the site as it is loaded now. When a site leaves the directory its work under way is told (`cmsSiteHasLeft()`), its storage refuses further writes, and late work fails instead of making a new pool or folder.
 
-**Unloading idle sites** (not built): a site that has not been used for a while could drop its caches. Its connections already close by themselves, and the measured memory per site is small (2.14), so this can wait.
+**Unloading idle sites (built).** A site nobody has used for 15 minutes gives its memory back: its caches, its pool, its live hub and its shared-editing engine with that engine's Redis connections (`NUXT_CMS_TENANCY_IDLE_MINUTES`, `0` for never). Background work (the start-up sweep, scheduled tasks) does not count as use, so the tasks do not keep every site loaded. The next request loads the site again.
 
 ## 2.3 A database per site
 
@@ -243,9 +245,9 @@ Verified locally (Postgres 16.11):
 
 Measured: 1 000 pools with no open connection add 1.1 MB to the app. An open connection adds about 60 KB in the app and 1.3 MB (fresh) to 2.5 MB (after a few queries) of private memory in Postgres; plan for 5 MB with tinyzoo's wider queries (estimate).
 
-**A pooler in front.** PgBouncer in transaction mode helps when several instances and several templates share one Postgres: the apps' connections to it are cheap, and the real connections are capped in one place. It cannot share a connection between two sites (a connection belongs to one database and one user), so the saving is in idle and duplicated connections, not in the peak. tinyzoo is compatible with transaction mode: locks are `pg_advisory_xact_lock`, settings are set per transaction (`server/utils/cmsSearch.ts:224-229`), there is no `LISTEN` and no named prepared statement in `server/`. Per-site users are handled with `auth_query`, so there is no user list to maintain. Adding it later is a change of the database host in the directory.
+**A pooler in front.** PgBouncer in transaction mode helps when several instances and several templates share one Postgres: the apps' connections to it are cheap. It cannot share a connection between two sites (a connection belongs to one database and one user), so the saving is in connections duplicated across instances, not in the peak. **It does not cap the real connections in one place,** as the first version of this document said: PgBouncer keeps a pool per database and has limits per database and per user, none across databases. Measured (2.14): the app's cap then counts its connections to PgBouncer, and behind it one app held more real connections in a burst (50 to 86 for 50 sites) than without it (30). The pool per site at PgBouncer has to be small (1) and its idle time short. tinyzoo is compatible with transaction mode: locks are `pg_advisory_xact_lock`, settings are set per transaction (`server/utils/cmsSearch.ts:224-229`), there is no `LISTEN` and no named prepared statement in `server/`. Per-site users are handled with `auth_query`, so there is no user list to maintain. Adding it later is a change of the database host in the directory.
 
-**Scheduled work must not wake every database.** Two tasks run every minute today (`module.ts:326-333`). Run naively over 10 000 sites they would open 20 000 connections a minute. The build runs them the naive way (in every active site, five at a time, under the connection cap), which is fine for tens of sites and is the first thing to change before hundreds. The design:
+**Scheduled work must not wake every database.** Two tasks run every minute today (`module.ts:326-333`). Run naively over 10 000 sites they would open 20 000 connections a minute. The first build ran them the naive way (in every active site, five at a time, under the connection cap). They now work as designed (2.14):
 
 - `cms:scheduled` (publishing at a set time): after each run the app remembers when that site's next entry is due and does not ask again before then; a change in the site that touches scheduling clears the memory. A slow rotation visits every site every 15 minutes as a safety net for another instance's restart.
 - `cms:media-sizes`: runs for sites that had an upload in this instance, plus the same slow rotation for leftovers.
@@ -285,7 +287,7 @@ In multi mode:
 
 - The session payload gains `cms.site` and `cms.proof`, a keyed hash (HMAC-SHA256) of the account and the sign-in time made with the **site's own secret** from the directory. `activeAccountOf()` (`server/utils/cmsSession.ts`), the single function behind the middleware and both sockets, refuses a session whose site is not the current one or whose proof does not match. Built and tested: site A's cookie is refused on site B although the same account id exists there. Changing a site's secret signs everybody out of that site alone.
 - The cookie itself is still sealed with the process's secret: nuxt-auth-utils 0.6.2 takes its key from the process and drops a per-call password (`dist/runtime/server/lib/session.js`). A sealing key per site would need a change there or tinyzoo sealing its own session. Not built.
-- The cookie should be named with the `__Host-` prefix (`NUXT_SESSION_NAME`). Browsers refuse such a cookie with a `Domain`, so a script on one site cannot plant a session cookie for a sibling under the same parent domain. Not set by the build and not tried: the local sites run on `http://*.localhost`.
+- The cookie should be named with the `__Host-` prefix (`NUXT_SESSION_NAME`). Browsers refuse such a cookie with a `Domain`, so a script on one site cannot plant a session cookie for a sibling under the same parent domain. The app warns at start when multi mode runs without it, and the shared driver sets it with `NUXT_HOSTING_SHARED_SESSION_COOKIE`. Tried in Chromium on `http://<slug>.localhost` (sign-in, the switcher and signing out work with it); Firefox and WebKit were not tried (2.14).
 - The shared domain of SaaS sites should be put on the Public Suffix List, which separates the sites for every other cookie as well.
 - Personal access tokens, OAuth grants, invitations and reset links are rows in the site's database and need nothing more.
 
@@ -398,7 +400,7 @@ Paths are under `packages/cms/`. "Per site" means it moves to `cmsSiteScoped` or
 | Picture queue and media sizes | one chain, one run | jobs bound to their site; turns shared fairly between sites |
 | Analytics flush (every 3 s) | one buffer | per site; only sites with pending views |
 | Live hub (`/api/cms/_live`) | one map of sockets, topics `list:<entity>`; one 20 s timer checks all peers in one query | a hub per site, made when its first socket opens; the timer walks the hubs, each inside its site |
-| Shared editing (`/api/cms/_collab/socket`) | one Hocuspocus, documents named `<entity>/<uuid>`; hooks call `useCms()`; one 30 s heartbeat and an hourly purge | one Hocuspocus per site with open documents, closed when the last leaves; its hooks run inside its site; Redis prefix includes the site |
+| Shared editing (`/api/cms/_collab/socket`) | one Hocuspocus, documents named `<entity>/<uuid>`; hooks call `useCms()`; one 30 s heartbeat and an hourly purge | one Hocuspocus per site, made when its first document opens and closed when the site is unloaded (15 minutes without use); its hooks run inside its site; Redis prefix includes the site |
 | Redis messages between instances (`changes`, `live`) | no site in the message | the site is part of the channel |
 | Logo re-read in the background | by address | per site |
 
@@ -517,7 +519,7 @@ Consequences to accept or plan around:
 2. The site's state becomes `read-only`.
 3. `tinyzoo backup` for the site: the database dump and every file in one archive.
 4. `tinyzoo restore` into the new app's database and storage.
-5. The new app gets the site's settings as environment variables: app secret (so sign-ins survive), status token, content token, mail, public address.
+5. The new app gets the site's settings as environment variables: status token, content token, mail, public address. As built, the archive carries them in `site.json`. Open sessions do not survive: in shared hosting the cookie is sealed with the secret of the template's process, which all its sites share and which is not handed to one owner; people sign in once more with the passwords they had (2.14).
 6. The host names are pointed at the new app. The directory row becomes `moved`.
 7. After a grace period the shared database, role and files are removed.
 
@@ -574,37 +576,65 @@ A second, smaller run goes through the sign-up app: two Photographer sites made 
 - `describe()` reports the template app's health; memory is per app, not per site.
 - Keeper keeps working per site: each site has its own status token and answers `/api/health/status` on its own host. The memory it reports is the whole app's.
 
-## 2.14 The first build: what exists and what it showed
+## 2.14 The build: what exists and what it showed
 
-Built on the branch `feat/multi-tenant`, local only: nothing is pushed, released or deployed. Single mode is the default and its 789 existing API tests pass unchanged.
+Built on the branch `feat/multi-tenant`, local only: nothing is pushed, released or deployed. Single mode is the default. Its API tests pass unchanged, and a site that sets none of the new variables behaves as before.
 
 ### What exists
 
-**In `packages/cms`**
+**In `packages/cms`: the mode**
 
-- `server/utils/cmsSite.ts`: the seam. The mode (`NUXT_CMS_TENANCY_MODE=multi`), the site directory (a JSON file, `NUXT_CMS_TENANCY_FILE`, reread when it changes), the current site, per-site memory (`cmsSiteScoped`), the settings of a site laid over the process's (`cmsSettings()`), work in every site (`forEachCmsSite`).
+- `server/utils/cmsSite.ts`: the seam. The mode (`NUXT_CMS_TENANCY_MODE=multi`), the site directory, the current site, per-site memory (`cmsSiteScoped`), the settings of a site laid over the process's (`cmsSettings()`), work in every site (`forEachCmsSite`).
 - `server/plugins/cms-0-site.ts`: the wrapper that gives every request its site from its host name. `server/utils/cmsSocketSite.ts` does the same for sockets at the upgrade.
-- A database per site with its own user (`server/utils/cmsDb.ts`), with one cap on the connections of all sites together. Storage, sessions, secrets and e-mail per site.
+- **The site directory** is a JSON file (`NUXT_CMS_TENANCY_FILE`) or a table in Postgres (`NUXT_CMS_TENANCY_DATABASE_URL` and `NUXT_CMS_TENANCY_TEMPLATE`; the table is `tenant_sites`, asked once a second). With `NUXT_CMS_TENANCY_KEY` the database address and the secret of each site are stored encrypted (AES-256-GCM, written `enc:v1:…`); the table needs the key. A row that cannot be read is refused with its reason in the log, and the sites that were loaded keep running.
+- **Hosts.** A site's first host is its address. Its other `hosts` redirect there (308). Its `alsoHosts` are served without a redirect: that is where a site with a customer's domain keeps answering at its service address.
+- **States:** `active`, `paused` (503), `read-only` (reads work; writes, background tasks and the editing socket do not), `moved` (every request is redirected to `movedTo`, path and query kept).
+- A database per site with its own user (`server/utils/cmsDb.ts`), with one cap on the connections of all sites together (`NUXT_CMS_TENANCY_MAX_CONNECTIONS`, default 30). Storage, sessions, secrets and e-mail per site.
 - Every cache moved to per-site memory or declared process-wide (about 40 places), in the core and in the analytics, consent and forms plugins. `test/unit/module-state.spec.ts` refuses new module-level state in the server code that is neither.
-- Work outside a request names its site: migrations, the search index and the setup code per site on first use; the three scheduled tasks in every active site; the picture queue runs each job in the site that queued it; the analytics buffer, the live hub and shared editing (one Hocuspocus per site) are per site.
-- States of a site: `active`, `paused` (503), `read-only` (reads work; writes, background tasks and the editing socket do not).
+- Work outside a request names its site: migrations, the search index and the setup code per site on first use; the picture queue runs each job in the site that queued it; the analytics buffer, the live hub and shared editing (one Hocuspocus per site) are per site.
+- **Scheduled work by "next due"** (`server/utils/cmsBackground.ts`, `cmsScheduler.ts`). Each task first asks, in memory, whether a site has a reason to be looked at, and opens its database only then. Publishing at a set time remembers when the site's next entry is due; a change that touches scheduling clears that. Picture sizes run where an upload happened. Every site is looked at once in 15 minutes whatever the memory says, each at its own moment inside that quarter of an hour, so thousands of sites are not all visited on the same tick. Retention (daily) goes through the sites a few at a time with a pause between one site and the next.
+- **Idle sites are unloaded** after 15 minutes without use (`NUXT_CMS_TENANCY_IDLE_MINUTES`): caches, pool, live hub, shared-editing engine. Background work does not count as use.
+- **The operator's route:** `GET /api/health/sites` with `NUXT_CMS_TENANCY_OPERATOR_TOKEN` lists every site of the process (hosts, state, whether it is loaded, work under way, how long it has been quiet, its migration state, its connections) and the totals: sites loaded, failed migrations, connections against the cap, memory. Looking never loads a site. Without the token the route does not exist.
+- **The session cookie:** the app warns at start when the cookie is not named with the `__Host-` prefix.
 
-**In `cloud/`**: the `shared` hosting driver (`server/hosting/shared.ts`). One process per template; a new site is a role, an empty database, a folder and a row in the template's directory file.
+**In `packages/cms`: for single-site apps too**
+
+- **Sign-in with the account and the website switcher** (2.15): `cms.auth.account`, three routes under `/api/cms/_auth/account/`, the button on the sign-in page, the site's name as a menu of the person's websites. Described in `docs/guide/admin.md`. Off without the three settings.
+- **A place inside a bucket:** `cms.storage.s3.prefix`. **A limit for the whole site:** `cms.storage.maxBytes`, checked under a lock per site so parallel uploads cannot all see room. Described in `docs/guide/media.md`.
+
+**In `cloud/`**
+
+- **The `shared` hosting driver** (`server/hosting/shared.ts`): one process per template; a new site is a role, an empty database, a folder and a row in the template's directory. The directory is a file, or the table `tenant_sites` in the cloud's own database (`NUXT_HOSTING_SHARED_DIRECTORY=postgres` with `NUXT_HOSTING_SHARED_DIRECTORY_KEY`), which the template's process reads as a role that may `SELECT` that one table and nothing else.
+- **The account service** (`server/routes/oauth/`, `server/utils/account.ts`): the issuer of 2.15. Every cloud-made site is a client; a website somebody runs themselves is connected on `/sites/connect` and gets three lines for its environment. "My websites" lists a person's own sites, connected websites and other owners' websites they work on.
+- **Custom domains** (`server/utils/domains.ts`): add, check, make main, remove. A name is used once its DNS leads to `NUXT_HOSTING_DOMAIN_TARGET`. `GET /api/domains/ask?domain=<host>` answers 200 or 404: the question a certificate issuer asks before it issues.
+- **Plans** (`shared/plans.ts`): the limits of a site's plan go into its row, and the site enforces them. One plan exists, `basic`: 20 MB an upload, 1 GB in all.
+- **Moving a site out and in** (`server/utils/transfer.ts`): out is read-only, `tinyzoo backup`, reopen; the archive carries `site.json` (the site's settings) and is downloaded by its owner only. "It lives elsewhere now" makes the row `moved`; then its data here can be deleted while the redirect stays. In is an archive sent to `POST /api/sites/import`, which becomes a new site through the usual steps.
+- **`postgres:close`** (`scripts/postgres-close.mjs`): revokes `CONNECT` from `PUBLIC` on every database of a named server, so a site's user can connect to its own database only. It lists what it would do and changes nothing without `--yes`. It is run once per server by whoever runs the server.
 
 **Tests**
 
 | | |
 |---|---|
-| `test/api/tenants*.spec.ts` | two sites in one process, the second database a copy of the first (same account ids, same entry ids): 114 tests in 9 files, about two minutes |
-| `test/unit/cms-site.spec.ts` | the seam by itself: 38 tests |
-| `test/unit/module-state.spec.ts` | no undeclared module-level state |
-| `pnpm --filter tinyzoo-cloud e2e:shared` | the sign-up app makes two Photographer sites with the shared driver: 81 checks, half a minute |
+| `test/api/tenants*.spec.ts` | two sites in one process, the second database a copy of the first (same account ids, same entry ids): 16 files, 166 tests with Redis, about four minutes |
+| `test/api/tenants-instances.spec.ts` | two processes on one directory with Redis: 13 tests (needs `TEST_REDIS_URL`) |
+| `test/api/tenants-burst.spec.ts` | 24 new sites used at the same moment under a cap of 6 connections |
+| `test/unit/cms-site.spec.ts`, `module-state.spec.ts`, `background-sites.spec.ts`, `db-driver.spec.ts` | the seam, no undeclared module-level state, the scheduling memory, the driver against the real pool |
+| `test/api/account.spec.ts`, `storage-limits.spec.ts`, `s3-prefix.spec.ts` | the single-site side of the new settings |
+| `pnpm --filter tinyzoo-cloud e2e:shared` | the sign-up app makes two Photographer sites with the shared driver: 81 checks |
+| `… e2e:account` | the account protocol played from a website's side, every refusal: 163 checks |
+| `… e2e:signin` | the cloud, real sites and a real browser (Chromium): 88 checks |
+| `… e2e:ops` | the directory in Postgres, domains, limits, moving out and in, `postgres:close`: 180 checks |
+| `test/pgbouncer/` | the PgBouncer set-up and how to run the suites through it |
 
-Run them:
+The whole run on the finished branch (2026-11-24, against a Postgres of its own): the API project 1 006 tests in 84 files (seven minutes), the unit project 1 931 tests in 110 files, the type-check, and the four scripts of the cloud, all passing.
+
+Run them (use a Postgres of your own for the cloud's scripts: they make and drop databases and roles):
 
 ```sh
 TEST_DATABASE_URL=postgres://cms:cms@localhost:5434/<a database of your own>_test pnpm vitest run --project api test/api/tenants
-pnpm --filter tinyzoo-cloud templates:build photographer && pnpm --filter tinyzoo-cloud e2e:shared
+TEST_REDIS_URL=redis://localhost:6383/11 TEST_DATABASE_URL=… pnpm vitest run --project api test/api/tenants-instances.spec.ts
+pnpm --filter tinyzoo-cloud templates:build photographer
+pnpm --filter tinyzoo-cloud e2e:shared && pnpm --filter tinyzoo-cloud e2e:account && pnpm --filter tinyzoo-cloud e2e:signin && pnpm --filter tinyzoo-cloud e2e:ops
 NUXT_HOSTING_DRIVER=shared pnpm --filter tinyzoo-cloud dev     # the sign-up app with the shared driver, by hand
 ```
 
@@ -622,11 +652,34 @@ NUXT_HOSTING_DRIVER=shared pnpm --filter tinyzoo-cloud dev     # the sign-up app
 | 100 | 303 MB | 309 to 399 MB |
 | 300 | 303 MB | 397 to 469 MB |
 
-The figures move from run to run (the ranges are several runs). A site that has been used costs roughly half a megabyte, between 0.3 and 1 MB in these runs, and a site in the directory that nobody visits costs nothing measurable. One process per site, as the local driver does it, is about 300 MB each: 300 sites would be 90 GB. With demo content and pictures in work, two sites ran at 440 to 530 MB. No connection stays open once the sites are quiet.
+The figures move from run to run (the ranges are several runs). A site that has been used costs roughly half a megabyte, between 0.3 and 1 MB in these runs, and a site in the directory that nobody visits costs nothing measurable. One process per site, as the local driver does it, is about 300 MB each: 300 sites would be 90 GB. With demo content and pictures in work, two sites ran at 440 to 530 MB. No connection stays open once the sites are quiet. These were measured before idle sites were unloaded; a used site now gives its half megabyte back after 15 minutes.
 
-**Connections.** The first use of 100 new sites, each migrating its empty database: without a cap, 187 s with failed connections (the local Postgres allows 100 and other work was using a third of them). With the cap at 12 connections for the whole app: 13 s, no failure. 300 sites: 32 s, no failure. During those runs Postgres listed up to 19 connections of the sites at once. The app counts every connection it opens and gives room only under the cap; The difference is taken to be connections the app had already closed that Postgres still listed while it was busy; that is not proven. During the measurements the shared local Postgres was at its own limit of 100 connections from other work on this machine.
+**Connections.** The first use of 100 new sites, each migrating its empty database: without a cap, 187 s with failed connections (the local Postgres allows 100 and other work was using a third of them). With the cap at 12 connections for the whole app: 13 s, no failure. 300 sites: 32 s, no failure. During those runs Postgres listed up to 19 connections of the sites at once, over the cap. That had a cause, found later with 50 sites under a cap of 30, where the app held 46 to 52 connections: the pool hands an idle connection out one tick after it is asked, and the driver gave the room back at once, so the same idle connection was promised twice and the pool opened one nobody had made room for (bug 10 below). With the fix, eight cold bursts of 50 sites peaked at exactly 30.
 
-**Bugs the two-site tests found, all fixed.** None of these was visible from reading the code:
+**Two instances with Redis.** Two processes on one directory, two sites with the same user ids and entry ids. Changes (the redirect list, the sitemap) reach the other instance inside their site, with one webhook delivery per change. Presence, "is editing" and change notices cross instances; site B's tabs on either instance were sent nothing of site A's. Shared editing carries text and cursors both ways, and the same document name on B is another document on both instances. Rate limits count across instances per site. Scheduled publishing announces once, not once per instance. Pausing a site answers 503 on both instances within a second. Every Redis key and message names its site. With four cross-site leaks put into a temporary build, 10 of the 13 tests failed.
+
+**PgBouncer in transaction mode** (1.26.1). The two-site suite and the single-site API suite pass through it with no change to the app's SQL. The set-up that works: `auth_query` through a `SECURITY DEFINER` function in one lookup database, SCRAM pass-through, so PgBouncer holds no site's password and its own login may open no site's database (`test/pgbouncer/`). Two things to know:
+
+- *The cap changes meaning.* It counts the app's connections to PgBouncer. Real connections at Postgres, 50 sites, one app, cap 30:
+
+  | Most real connections at once | straight | PgBouncer, 2 per site, idle 5 s | 1 per site, idle 5 s |
+  |---|---|---|---|
+  | First use of all 50 at once | 30 | 86 | 50 |
+  | All 50 again, migrated | 30 | 50 | 50 |
+  | One round of the every-minute tasks (before "next due") | 29 | 84 | not measured |
+
+  PgBouncer keeps a pool per site and closes a connection only after its idle time; it has no limit across databases. When the app closes a quiet site's pool to make room, that site's real connections stay open at PgBouncer. So with one instance PgBouncer costs connections. Its gain is that real connections stop multiplying with the number of instances.
+- *A database with connections cannot be copied or dropped.* PgBouncer keeps real connections after the app let go of them. Whoever drops or copies a site's database behind it ends them first. `tinyzoo backup` and `restore` use `pg_dump` and need the direct address.
+
+**The directory in Postgres.** A change of the table reaches the running process in under a second (0.85 to 0.96 s in the runs, for a paused row and for a removed one). The table holds no password and no secret in plain text; the process's command line and environment hold no secret of a site. What the process holds of its own: the directory key, the reader's password, its operator token.
+
+**The account, in a browser.** An owner makes an account, confirms the e-mail, makes two sites and gets into the first with *Open the admin*, having typed no password for the site. The switcher takes them to the second site without a form (two redirects). An invited colleague with no account makes one and is accepted as an editor; they see that site and no other. A person with no invitation gets the no-access notice and is listed nowhere. Roles changed and people disabled on the site show in the account at once. With the cloud app stopped, open sessions keep working and a password still signs in. Two websites that run as their own processes are connected with three lines each and behave the same.
+
+**Domains.** A site with its own domain as the main address answers there; its service address still answers without a redirect (the cloud keeps reaching it); the sitemap and the links in its e-mails use the domain; sign-in through the account works at the domain and a sign-in that would come back to the old address is refused.
+
+**Moving.** A site moved into shared hosting as a new site has the same content, people (with their passwords) and media, its own database, user and folder, and nothing connects it to the original. A site moved out runs as an ordinary single-site process from the same archive. What does not carry over is the open sessions: in shared hosting the cookie is sealed with the secret of the template's process, shared by all its sites, so it is not in the archive. People sign in once more. A move also needs the website connected to the account again (it gets a new client).
+
+**Bugs the tests found, all fixed.** None of these was visible from reading the code:
 
 1. A health check by IP with a session cookie answered 500 (the session middleware asked for a site).
 2. A hook of the sitemap module fires on every request, also the ones without a site.
@@ -634,33 +687,54 @@ The figures move from run to run (the ranges are several runs). A site that has 
 4. A request under way when its site's row changed failed with 500: the site's pool was closed under it.
 5. Page views waiting in memory were thrown away when the site's row changed.
 6. Picture work of a deleted site went on and wrote its files into the deleted site's folder again.
-7. The connections, above.
+7. Without a cap, the first use of many sites ran the Postgres server out of connections.
 8. With the cap in place: work that is not a request (a page's own request left running after the page was sent, a search index being built) held a handle to a pool the cap then closed, and its next query failed. A handle to a closed pool now takes its connection from the site's current pool, a pool with callers waiting is never closed, and a page's in-process requests count as work of their site.
 9. A page asked for before its new site's database was migrated looked for tables that were not there yet. Pages now wait for the site's migrations, as API requests always did.
+10. The cap let a pool open connections nobody had made room for (above). Found by counting the process's sockets, not by any test that existed; `tenants-burst.spec.ts` now fails against the old driver.
+11. Presence between instances arrived up to one heartbeat late (20 s in production; the tests' 1 s heartbeat hid it): a site's hub that starts on one instance had not been listening. It now asks the other instances who is there.
+12. The per-user upload quota was a select followed by an insert, so parallel uploads could all pass it. It is checked under the same lock as the new total now. This one is in single mode too.
 
 Numbers 3, 4 and 6 led to how a site's memory is held now (2.2, "as built").
 
 ### Where the build differs from the design
 
 - **The switch** is an environment variable, not the module option `cms.tenancy.mode`: the option list is part of the frozen public surface, and the mode is experimental.
-- **The directory** has the `file` driver only. Database passwords are in that file in plain text, readable by its owner only. The `postgres` driver and encryption at rest are not built. A row's `state` must be one of the three words; anything else is refused.
 - **Making a database:** empty and migrated by the app, not copied from a template database (2.3, with the trap that was in the first version of this document).
-- **Sessions:** bound to the site by a proof made with the site's secret; the cookie's sealing key is still the process's; the `__Host-` cookie name is not set (2.4).
-- **Scheduled tasks** run in every active site every time; the "next due" memory is not built (2.3).
-- **The operator's status route** and the `moved` state are not built. A failed migration is visible on the site itself (503, and its `/api/health/ready`) and in the log.
-- **Object storage:** a site can be given a bucket and keys of its own through its settings, untested; a prefix per site inside one bucket is not built. The tests use a folder per site.
-- **Several instances with Redis:** the code carries the site in every key and message, but no test ran it in multi mode.
-- **Other databases on the server:** the driver closes the cloud's own database to the sites' users; `postgres`, `template1` and anybody else's databases stay open to them until whoever runs the server revokes that (2.3).
+- **Sessions:** bound to the site by a proof made with the site's secret; the cookie's sealing key is still the process's (2.4). That is why sessions do not survive a move.
+- **PgBouncer** does not cap real connections in one place (2.3, corrected).
+- **Shared editing:** a site's engine closes when the site is unloaded, not when its last editor leaves. Until then it holds about 3 Redis connections per instance.
+- **The account** (2.15): a person is listed as a member of a website only once that website confirmed them, not as soon as they signed in. An invitation is accepted by the account's verified e-mail also after its link ran out.
+- **A verified domain that is not the main one** redirects to the site's address, and the certificate question says yes for it.
+- **Other databases on the server:** the driver closes the cloud's own database to the sites' users. Closing `postgres`, `template1` and anybody else's databases is `postgres:close`, run on purpose by whoever runs the server; it was run on a Postgres of its own only.
 
-### Not built, as planned
+### What the platform in front must provide
 
-The account sign-in and the switcher, PgBouncer, custom domains, quotas, moving a site in and out, and any production deployment.
+None of this is in this repository; nothing was changed on Pushbase.
+
+1. **Routing by host.** Every service address (`<slug>.<service domain>`) and every verified domain goes to the template's process with its `Host` header kept, or with `X-Forwarded-Host` and `NUXT_CMS_TENANCY_FORWARDED_HOST=true`.
+2. **Certificates.** A wildcard certificate for the service domain. For a customer's domain, a certificate issued only after `GET <cloud>/api/domains/ask?domain=<host>` answered 200. The platform is reachable at `NUXT_HOSTING_DOMAIN_TARGET`.
+3. **A storage key per site.** Pushbase Storage confines every key to its own files already (2.4); it needs a way to issue one such key per site for an app that serves many, or a prefix policy per key. The app side is ready: a site's row takes a bucket, keys and a prefix of its own.
+4. **One long-running process per template**, started with the directory's address and key, restarted on a release, with the health routes that need no site (`/api/health/live`, `/api/health/ready`).
+5. **Postgres:** `postgres:close` once per server; `autovacuum_naptime` raised when databases are counted in thousands (2.7).
+
+### Not built, not tried
+
+- Any deployment. Everything ran on one machine.
+- A sealing key per site for the session cookie (it needs a change in nuxt-auth-utils, or tinyzoo sealing its own session).
+- Firefox and WebKit with the `__Host-` cookie: their browser builds were not installed. WebKit keeps no `Secure` cookie on `http://localhost`, which is a matter of local runs only.
+- A page in the cloud to pause a site or to change its plan; rechecking a domain that was verified once; importing a plain `tinyzoo backup` that has no `site.json`.
+- A live DNS lookup of a domain that leads to the target (the comparison is unit-tested; the live run was of a name that does not resolve).
+- The export waits one second after the site turns read-only. A write that began before and runs longer than that could miss the dump.
+- The backup spec with a storage prefix could not run on this machine (no `pg_dump` on the host); the storage side of it is covered against a stand-in bucket.
+- Keeper's copy of the status type has no `media.limitBytes` yet. The field is optional.
+- Memory and connections were measured up to 300 sites, with empty sites. Nothing was measured with thousands, or with real traffic.
 
 ### What to do next, in order
 
-1. The account sign-in and the switcher (step 7 of the order of work): the part 6dance and Studio Grand need.
-2. Before more than tens of sites: scheduled work by "next due", the `postgres` directory with encrypted secrets, the `__Host-` cookie, the operator's status route.
-3. Before production: the storage keys per site on Pushbase, the cluster-wide revoke, a run with two instances and Redis, and the template's process management on the platform.
+1. Merge this branch with the templates' branch and release the package (three changesets, all experimental or additive).
+2. On Pushbase: the five things above. The storage key per site and the certificate question are the two that need new work there.
+3. Deploy the cloud app and one template's process for real, with a handful of sites, behind the operator's route and Keeper.
+4. Connect 6dance and Studio Grand to the account as two websites that run by themselves (*Connect a website you already run*): this needs the cloud app deployed and nothing else.
 
 ## 2.15 The account: the protocol between the cloud app and a site
 
@@ -696,3 +770,20 @@ Settings: `cms.auth.account = { issuer, clientId, clientSecret }` (`NUXT_CMS_AUT
 - **The link** between an account and a site's user is kept on the site, in `cms_state` (no change of the schema): `account:<sha256(issuer + "\n" + sub)>` → `{ userId, issuer, sub }` and `account-of:<userId>` → `{ issuer, sub }`. Both go when the user is deleted.
 - **The switcher** is the site's name at the top of the admin: with other websites in the list it opens a menu (name, role, the current one marked, "All my websites" leading to the issuer). Choosing one opens `<that site>/api/cms/_auth/account/start?next=/admin&silent=1`; the issuer knows the person, so they land in that admin without a form. When the issuer answers `login_required` the site shows its sign-in page.
 - **A disabled account, a removed role, "sign out everywhere"** work as before: the session is the site's own and is checked on every request.
+
+### Settled when the two sides met
+
+Built on both sides and run together in a browser (`e2e:signin`). Where the text above left something open, this holds:
+
+- **Listed once confirmed.** A person becomes known to the issuer at a client when a code is exchanged there. They are *listed* (in "My websites" and in other websites' switchers) only once that website has sent `membership` with `active: true`, so a person the site turned away shows up nowhere. Only the site can set `active` back to true. The asking client is always in its own `sites` answer as `current`. `role` may be `null`: a website that has not said a role yet is listed by its name alone.
+- **A site may report only people who signed in to it.** `membership` for a person who never exchanged a code at that client answers 404 `{ error: "not_found" }`, so a connected website cannot push itself into a stranger's list. `active` left out means true; `role` left out or unusable keeps the role the issuer had.
+- **The site reports before the browser goes on** (two seconds at most), so the list of websites is right on the next page. It reports again on a role change, when a user is disabled, removed, or erased with the privacy tools.
+- **An invited user is accepted by the verified e-mail,** whether or not the invitation's link still works (7 days), as long as the user is still invited. An account whose e-mail is not confirmed is linked to nobody and gets its own notice.
+- **Addresses.** The issuer keeps a client's address as an origin: lower-case host, no default port, no trailing slash. The site builds `redirect_uri` from the same form of its public address (`server/utils/cmsAccountAddress.ts`, tested against the issuer's own function). A connected website is https, or http for `localhost`, `*.localhost` and the loopback addresses. When a site's main address changes (a domain), the cloud changes its client's address in the same step.
+- **`authorize`.** Once the client and the redirect address are right, other problems go back to the site as `error=invalid_request` or `error=unsupported_response_type`; the site treats any `error` on its callback like `login_required`. `state` is required (at most 512 characters); `code_challenge` is exactly 43 base64url characters. The error page is HTTP 400.
+- **`token`.** A code is spent by the first try of its own authenticated client, even a failed one; a wrong secret or another client does not spend it. `code_verifier` is 43 to 128 unreserved characters. `sub` is a lower-case uuid; `locale` is `cs` or `en`.
+- **Limits.** Fifty failures from one address in ten minutes block that address on the three POST routes. Thirty bad codes sent with a client's right secret block that client's exchanges. A wrong secret is not counted against the client it names: the client id is public, and counting it would let anybody lock a site's sign-in out. On the site, 60 sign-ins from one address in 15 minutes.
+- **When the issuer is down.** The site asks the issuer's discovery address before it sends a browser there. With no answer the person stays on the site's sign-in page with a notice; open sessions keep working and a password still signs in.
+- **Somebody with no password on the site** (accepted through the account) is told so on their account page and can have the forgotten-password e-mail sent to set one.
+- **Ids and secrets.** Client ids are uuids, secrets 32 random bytes; the issuer keeps secrets and codes as SHA-256. The issuer handed to sites is the cloud's public address without a trailing slash. An account can connect at most 50 websites.
+- **Beyond the protocol:** `/signup` at the issuer (an account without a website, for a person invited to somebody else's site) and `GET /api/auth/continue` (the sign-in page asks which website the person is going to).
