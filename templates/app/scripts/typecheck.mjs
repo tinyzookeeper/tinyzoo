@@ -68,7 +68,10 @@ writeFileSync(join(out, 'components.d.ts'), [
   'export {}',
   '',
 ].join('\n'))
-writeFileSync(join(out, 'nuxt.d.ts'), ['/// <reference path="../nuxt.d.ts" />', '/// <reference path="./imports.d.ts" />', '/// <reference path="./components.d.ts" />', 'export {}', ''].join('\n'))
+// The design's helpers come first: where a global name is declared twice, TypeScript keeps the
+// first declaration, and the design's name must win over one of Nitro's server helpers (Event's
+// `useEvent`), as it does in the template's own build (Nuxt lists its app's imports before Nitro's).
+writeFileSync(join(out, 'nuxt.d.ts'), ['/// <reference path="./imports.d.ts" />', '/// <reference path="../nuxt.d.ts" />', '/// <reference path="./components.d.ts" />', 'export {}', ''].join('\n'))
 
 // Nuxt's settings with this design's files, and `#site` as its folder. (`paths` replace those of
 // the extended file, so Nuxt's are carried over, made absolute.)
