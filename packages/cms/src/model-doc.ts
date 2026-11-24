@@ -198,6 +198,16 @@ export interface ModelContext {
   counts?: { entries?: Record<string, number>; values?: Record<string, number>; missing?: Record<string, number> }
   /** True only for the server's own sweep: allows `purge`. */
   internal?: boolean
+  /** How long a hidden thing waits before it may be deleted; default `MODEL_PURGE_AFTER_MS`. (The tests make it shorter.) */
+  purgeAfterMs?: number
+  /** The same for a hidden thing that held no content; default `MODEL_PURGE_EMPTY_AFTER_MS`. */
+  purgeEmptyAfterMs?: number
+}
+
+/** The waits before the later deletion, when they are not the defaults. @internal */
+export interface ModelPurgeTimes {
+  purgeAfterMs?: number
+  purgeEmptyAfterMs?: number
 }
 
 /** What an operation made safe on the way (a use of a removed field cleared, say). @internal */
@@ -1068,11 +1078,13 @@ function fieldOrder(r: Run, op: Extract<ModelOp, { op: 'field.order' }>): void {
 // Purge
 
 /** A hidden thing is due once it has been hidden long enough (an hour when it held nothing). */
-function isDue(item: { removedAt?: string | null; removedEmpty?: boolean }, now: Date): boolean {
+function isDue(item: { removedAt?: string | null; removedEmpty?: boolean }, now: Date, times: ModelPurgeTimes = {}): boolean {
   if (!item.removedAt) return false
   const age = now.getTime() - Date.parse(item.removedAt)
   if (Number.isNaN(age)) return false
-  return age >= MODEL_PURGE_AFTER_MS || (item.removedEmpty === true && age >= MODEL_PURGE_EMPTY_AFTER_MS)
+  const after = times.purgeAfterMs ?? MODEL_PURGE_AFTER_MS
+  const empty = times.purgeEmptyAfterMs ?? MODEL_PURGE_EMPTY_AFTER_MS
+  return age >= after || (item.removedEmpty === true && age >= empty)
 }
 
 const fieldId = (type: string, key: string): string => `${type}.${key}`
@@ -1095,7 +1107,7 @@ function purge(r: Run, op: Extract<ModelOp, { op: 'purge' }>): void {
   for (const name of op.types ?? []) {
     const t = typeOf(r, name, true)
     if (!isHidden(t)) fail(r, 'not-removed', `${typeText(t)} is not removed`)
-    if (!isDue(t, r.ctx.now)) fail(r, 'not-due', `${typeText(t)} was removed too recently to be deleted`)
+    if (!isDue(t, r.ctx.now, r.ctx)) fail(r, 'not-due', `${typeText(t)} was removed too recently to be deleted`)
     types.add(name)
   }
   const fields = new Set<string>()
@@ -1104,7 +1116,7 @@ function purge(r: Run, op: Extract<ModelOp, { op: 'purge' }>): void {
     const t = typeOf(r, ref.type, true)
     const f = fieldOf(r, t, ref.key, true)
     if (!isHidden(f)) fail(r, 'not-removed', `${fieldText(f)} in ${typeText(t)} is not removed`)
-    if (!isDue(f, r.ctx.now)) fail(r, 'not-due', `${fieldText(f)} in ${typeText(t)} was removed too recently to be deleted`)
+    if (!isDue(f, r.ctx.now, r.ctx)) fail(r, 'not-due', `${fieldText(f)} in ${typeText(t)} was removed too recently to be deleted`)
     fields.add(fieldId(ref.type, ref.key))
   }
   const blockers = purgeBlockers(r.doc, types, fields)
@@ -1120,12 +1132,13 @@ function purge(r: Run, op: Extract<ModelOp, { op: 'purge' }>): void {
  * What the server's sweep may delete for good now: every removed type that is due, and every
  * removed field that is due on a type that stays. A type that a field outside the purge still
  * points at is left out, so `applyModelOps` with this as a `purge` operation does not refuse it.
+ * `times` are the waits, when they are not the defaults (give `applyModelOps` the same).
  * @internal
  */
-export function modelPurgeDue(doc: ModelDoc, now: Date): { types: string[]; fields: { type: string; key: string }[] } {
-  const types = new Set(doc.types.filter((t) => isDue(t, now)).map((t) => t.name))
+export function modelPurgeDue(doc: ModelDoc, now: Date, times: ModelPurgeTimes = {}): { types: string[]; fields: { type: string; key: string }[] } {
+  const types = new Set(doc.types.filter((t) => isDue(t, now, times)).map((t) => t.name))
   const fieldsFor = (): { type: string; key: string }[] =>
-    doc.types.filter((t) => !types.has(t.name)).flatMap((t) => t.fields.filter((f) => isDue(f, now)).map((f) => ({ type: t.name, key: f.key })))
+    doc.types.filter((t) => !types.has(t.name)).flatMap((t) => t.fields.filter((f) => isDue(f, now, times)).map((f) => ({ type: t.name, key: f.key })))
   for (;;) {
     const ids = new Set(fieldsFor().map((f) => fieldId(f.type, f.key)))
     const held = new Set(purgeBlockers(doc, types, ids).map((b) => b.to))
