@@ -33,7 +33,8 @@ export function useCmsMenu(graph: Ref<any[] | null | undefined>) {
 
   const builtin: Record<string, () => Omit<CmsMenuRow, 'key'>> = {
     '@media': () => ({ label: t('media.libraryTitle'), icon: 'i-lucide-images', to: '/admin/media' }),
-    '@model': () => ({ label: t('nav.model'), icon: 'i-lucide-shapes', to: '/admin/_model' }),
+    // (one type's page, /admin/_model/<name>, is a page of its own: the row stays the current one there)
+    '@model': () => ({ label: t('nav.model'), icon: 'i-lucide-shapes', to: '/admin/_model', active: isAt('/admin/_model') }),
     '@team': () => ({ label: t('nav.team'), icon: 'i-lucide-users-round', to: '/admin/team' }),
     '@privacy': () => ({ label: t('nav.privacy'), icon: 'i-lucide-shield-check', to: '/admin/privacy' }),
     '@about': () => ({ label: t('nav.about'), icon: 'i-lucide-info', to: '/admin/about' }),

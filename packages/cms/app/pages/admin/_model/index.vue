@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import {
-  CMS_MODEL_DEFAULT_ICON, cmsModelFields, cmsModelHiddenTypes, cmsModelNotesText, cmsModelPurgeAt, cmsModelVisibleTypes,
+  CMS_MODEL_DEFAULT_ICON, cmsModelDayText, cmsModelFields, cmsModelHiddenTypes, cmsModelNotesText, cmsModelPurgeText, cmsModelVisibleTypes,
 } from '../../../utils/cmsModel'
 
 // Content types: the kinds of content the site's owner made (Courses, Branches…), the ones waiting
@@ -51,19 +51,9 @@ const problems = computed(() => (data.value?.problems ?? []).map((p, i) => {
   return { id: i, where, message: p.message }
 }))
 
-const thisYear = new Date().getFullYear()
-/** A day and month; the year only when it is not this year. */
-function dayText(value: Date | string): string {
-  const d = value instanceof Date ? value : new Date(value)
-  return formatDateWith(d, d.getFullYear() === thisYear ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' })
-}
-function purgeText(type: (typeof hidden.value)[number]): string {
-  const at = cmsModelPurgeAt(type)
-  if (!at) return ''
-  // Within a day the hour matters more than the date.
-  if (at.getTime() - Date.now() < 24 * 60 * 60 * 1000) return t('model.deletedOnAt', { date: dayText(at), time: formatDateWith(at, { timeStyle: 'short' }) })
-  return t('model.deletedOn', { date: dayText(at) })
-}
+const dateCtx = { t: t as any, formatDateWith }
+const dayText = (value: Date | string) => cmsModelDayText(value, dateCtx)
+const purgeText = (type: (typeof hidden.value)[number]) => cmsModelPurgeText(type, dateCtx)
 
 const restoring = ref('')
 async function restore(type: (typeof hidden.value)[number]) {

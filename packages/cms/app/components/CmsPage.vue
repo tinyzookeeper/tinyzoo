@@ -30,6 +30,8 @@ defineProps<{
   flush?: boolean
   /** Wide but with gutters (the Preview arrangement). */
   wide?: boolean
+  /** An icon drawn before the title (a content type's own). */
+  icon?: string
 }>()
 </script>
 
@@ -79,6 +81,7 @@ defineProps<{
         <header v-if="title || $slots.meta" class="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
           <div class="min-w-0">
             <div class="flex items-baseline gap-3 flex-wrap">
+              <UIcon v-if="icon" :name="icon" class="size-7 shrink-0 self-center text-muted" aria-hidden="true" />
               <h1 class="cms-display text-[1.75rem] leading-tight text-highlighted">{{ title }}</h1>
               <slot name="badge" />
             </div>

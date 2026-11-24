@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { MODEL_LABEL_MAX, modelPagePrefix, type ModelDoc } from '../../src/model-doc'
 import {
-  CMS_MODEL_ICONS, CMS_MODEL_DEFAULT_ICON, cmsModelNewType, cmsModelTakenPrefixes, cmsSheetUi,
+  CMS_MODEL_DEFAULT_ICON, cmsModelNewType, cmsModelTakenPrefixes, cmsSheetUi,
   type CmsModelData, type CmsModelStarter,
 } from '../utils/cmsModel'
 
@@ -44,22 +44,6 @@ function editPrefix() {
 
 function toggleStarter(id: CmsModelStarter, on: boolean | 'indeterminate') {
   form.starters = on === true ? [...form.starters.filter((s) => s !== id), id] : form.starters.filter((s) => s !== id)
-}
-
-// The icons are one choice among many squares: arrows move through them, as in any group of radio buttons.
-function iconKey(icon: string): string {
-  return icon.replace(/^i-lucide-/, '').replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())
-}
-function moveIcon(event: KeyboardEvent) {
-  const delta = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0
-  if (!delta) return
-  event.preventDefault()
-  const buttons = [...(event.currentTarget as HTMLElement).querySelectorAll<HTMLElement>('[role="radio"]')]
-  const at = buttons.findIndex((b) => b === document.activeElement)
-  const next = buttons[(at + delta + buttons.length) % buttons.length]
-  if (!next) return
-  form.icon = CMS_MODEL_ICONS[buttons.indexOf(next)] ?? form.icon
-  next.focus()
 }
 
 async function submit() {
@@ -117,17 +101,7 @@ async function submit() {
             </UFormField>
           </div>
           <UFormField :label="t('model.dialog.icon')" name="icon" :error="errors.icon || undefined">
-            <div role="radiogroup" :aria-label="t('model.dialog.icon')" class="grid w-fit grid-cols-6 gap-1.5 sm:grid-cols-8" @keydown="moveIcon">
-              <button
-                v-for="icon in CMS_MODEL_ICONS" :key="icon" type="button" role="radio" :aria-checked="form.icon === icon"
-                :aria-label="t(`model.icons.${iconKey(icon)}` as any)" :tabindex="form.icon === icon ? 0 : -1"
-                class="grid size-11 place-items-center rounded-md border transition-colors sm:size-10"
-                :class="form.icon === icon ? 'border-transparent bg-(--cms-moment-strong) text-highlighted ring-2 ring-inset ring-(--ui-text-highlighted)' : 'border-default text-muted hover:bg-elevated hover:text-highlighted'"
-                @click="form.icon = icon"
-              >
-                <UIcon :name="icon" class="size-5" aria-hidden="true" />
-              </button>
-            </div>
+            <CmsModelIconPicker v-model="form.icon" :label="t('model.dialog.icon')" />
             <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
           </UFormField>
         </section>
