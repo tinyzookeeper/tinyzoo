@@ -128,6 +128,7 @@ Import these in `cms.config.ts` and in code that uses the config's types. Anythi
 | `defineLocales(def)` | the content languages: default, list, labels, address prefix |
 | `defineAdminMenu(menu)` | the admin's menu: the rows beside Home, the groups and their order, what sits behind "Settings", the order of the forms ([the menu](guide/admin.md#the-menu)) |
 | `defineRoles(roles)` | the site's own roles, each extending `editor` or `author`: per-collection operations, `publish`, `media` ([roles](guide/roles.md)) |
+| `defineModels(models)` | **experimental**, may change in a minor: the content models one build carries (`CmsModelDef`: `config` and the `migrations` folder; `defineModels` returns `CmsModels`), for multi-tenant mode, where each site's directory row names its `model`. Without it, `cms.config.ts` is the one model |
 | `definePages(opts)` | the ready-made pages collection (blocks, SEO, preview, optionally a tree) |
 | `defineNavigation(opts)` | site menus as one global (`/api/content/_global/navigation`) |
 | `defineRedirects(opts)` | the redirects collection |

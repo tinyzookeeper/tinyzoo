@@ -25,6 +25,7 @@ export {
   type CmsPluginRequirement, type CmsFieldRenderer, type CmsGraphExtension, type CmsRetentionContext, type CmsRouteAccess, type CmsHttpMethod, type PluginPlan,
   type CmsPluginAppPlugin, type CmsDashboardWidget, type CmsEntityPanel,
 } from './plugin'
+export { defineModels, isCmsModels, modelsOf, modelMigrationsAsset, modelPluginsProblem, DEFAULT_MODEL, type CmsModelDef, type CmsModels } from './models'
 export { emitSchema } from './emitter'
 export { buildOpenApiDocument, type OpenApiOptions } from './openapi'
 export { emitContentTypes, type SdkOptions } from './sdk'

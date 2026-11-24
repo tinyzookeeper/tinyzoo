@@ -2,6 +2,8 @@
 
 **Status (2026-11-24):** an exploration. Nothing here is built into the product and nothing is decided. The experiments were throwaway: they ran on this machine against a Postgres 16.16 of their own, and their temporary changes were removed afterwards (2.14 says what each one showed). Where a number is an estimate, it says so.
 
+**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released). 2.16 says what exists.
+
 Part 1 is the short read with the recommendation and the decisions to make. Part 2 holds the details behind it.
 
 **Words.** A *site* is one website with its own content, people and files. An *app* is one running build. A site's *model* is its content types: collections, globals, fields, blocks. A *design* is what draws a site: a template's pages and components in one of its looks. A *code-first type* is written in `cms.config.ts`. A *custom type* is stored as data and made in the admin. A *contract* is the list of types and fields that some code or some block reads.
@@ -363,3 +365,61 @@ All were throwaway. They ran in a scratch folder outside the repository against 
 - Requests that are under way when a site's model changes. The multi-tenant build found two bugs of this kind when a site's row changed (2.14 there, numbers 3 and 4); the same care is needed here.
 - The structure editor's screens, and what the generic blocks look like in each look.
 - Any real traffic.
+
+## 2.16 What is built: the model of the current site
+
+Built on the branch `feat/one-app`, local only: nothing is released or deployed. This is step 0 and the server's half of step 1. A site whose `cms.config.ts` does not export `defineModels` runs as before; the single-site API tests pass unchanged.
+
+**How a build declares its models.** The app's `cms.config.ts` exports them (`defineModels` is a new export of `tinyzoo`, marked experimental):
+
+```ts
+import { defineModels } from 'tinyzoo'
+import * as photographer from '../templates/photographer/cms.config'
+import * as restaurant from '../templates/restaurant/cms.config'
+
+export const models = defineModels({
+  photographer: { config: photographer, migrations: '../templates/photographer/server/db/migrations' },
+  restaurant: { config: restaurant, migrations: '../templates/restaurant/server/db/migrations' },
+})
+```
+
+- `config` is what the model's own `cms.config.ts` exports. `migrations` is its migrations folder, relative to the app's root folder.
+- A name is 1 to 40 characters of `a-z`, `0-9` and `-`, starting with a letter. `default` is taken.
+- The app's own exports are one more model, `default`, when they define at least one entity. An app with only `models` has no `default`.
+- No module option was added. The multi-tenant mode itself stays an environment setting.
+
+**The site's row.** It has a new optional field, `model`, the same in the JSON file and in the `row` of `tenant_sites`. A row without it uses `default`. A row that names a model the build does not have (or names none when there is no `default`) is refused like any other bad row: the last good directory stays and the log says why. Changing a site's `model` in its row reloads the site like any change of its row. Its database is not converted.
+
+**One place decides.** `cmsSiteModel()` (`server/utils/cmsModel.ts`) gives the current site's model: its name, its config and its registry. It is the only server file that reads the build's `cms.config.ts`. Step 2 lays a site's own types over the model there. Sites of one model share one registry (it holds structure, never content).
+
+**What follows the site's model:** `useCms().reg` and with it every route, the admin graph, `/api/content-types.ts`, `/api/openapi.json`, the site search, the sitemap, the forms (`defineForm` forms are entities of the model), the plugins' options and hooks, the upgrade steps, the scheduled work and the MCP tools. The caches that said "the same for every site" are now kept by model, or their reason was corrected where they never depended on the model.
+
+**Migrations.** Each named model's folder is bundled with the build under its own name (`cms-migrations-<name>`; `default` keeps `cms-migrations`). Each site is migrated with its own model's migrations when it is first used. A folder that does not exist stops the build.
+
+**Plugins.** The build registers the plugins' pages, routes, components and texts once, so every model must have the same plugins, with the same options, in the same order. The build checks it, and so does the server when it starts, with a message that names the two models. Options that do not change what the build registers (the analytics plugin's country database file, for example) may differ, and each site reads its own model's. All 20 templates use `forms` only, which has no options, so they meet this rule.
+
+**Tests.**
+
+- Unit: `test/unit/models.spec.ts` (24 tests: `defineModels`, which models a config has, the plugin check, the relation tables) and 5 more in `test/unit/cms-site.spec.ts` (the row's `model`).
+- `test/api/tenants-models.spec.ts` (25 tests): two sites with different models in one process. Site A has the playground's model and site B has a small second model, `shop` (`playground/models/shop`). Both have a `post` and a `tag` of different shapes, and a relation table `post_to_tag`. The suite shows these things:
+  - Every admin and content route called with one model's type name on the other site answers 404, in both directions.
+  - The admin graph, the generated types, the OpenAPI document, the search and the sitemap of a site name nothing of the other model.
+  - Each database holds only its own model's tables and migrations.
+  - A write on one site changes nothing on the other.
+  - Each site has only its own forms.
+  - A row naming an unknown model is refused while both sites keep running.
+- Three leaks were put into a temporary build one at a time, and the new suite failed each time: a registry kept once for the whole process, the generated types kept once for the whole process, and every site migrated with the `default` model's migrations.
+
+**Found on the way.**
+
+- `_junctionCache` (`src/entity.ts`) kept relation tables by name for the whole process. Two models with `post_to_tag` would have shared one table object whose foreign keys point at the first model's tables. It is now kept by the pair of entity tables.
+- The analytics plugin's country database was one slot for the whole process. With two models naming different files it would have been read again at every switch. It is now kept by file.
+
+**Limits to know.**
+
+- A single-mode server whose build has no `default` model refuses to start: such a build is meant for multi-tenant mode.
+- `cms.admin.nameFrom` in `app.config` names a global of one model. On a site whose model does not have it, the admin shows `cms.admin.name`.
+- The CLI (`tinyzoo generate`, `client`, `seed`, `export`) still reads one `cms.config.ts`. A template's model and migrations are made in the template's own folder, as today.
+- A plugin's `entityPanels` names collections, so every model must have those collections.
+
+**For the hosted app (the rest of step 1).** The app's `cms.config.ts` imports every template's `cms.config.ts` and lists them in `defineModels`, each with its migrations folder. The app needs no model of its own. The cloud's shared driver writes `model: '<template id>'` into each site's row, and one process serves every template, started like today's template process: `NUXT_CMS_TENANCY_MODE=multi` with the directory's settings. Not built yet: the merged frontend (2.3), the cloud's driver writing `model`, and one process for all templates in the cloud.

@@ -1,8 +1,9 @@
-import { defineAdminMenu, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
+import { defineAdminMenu, defineBlock, defineEntity, defineLocales, defineModels, defineNavigation, definePages, defineRedirects, defineRoles, defineSingleton, eq, f, ilike, not, seo } from "tinyzoo"
 import { defineForm, defineFormSettings, formsPlugin } from "tinyzoo/forms"
 import { analyticsPlugin } from "tinyzoo/analytics"
 import { consentPlugin } from "tinyzoo/consent"
 import { eventsPlugin } from "./cms-plugins/events"
+import * as shop from "./models/shop/cms.config"
 
 // Content languages: Czech is the default (each entry's own row), English is a
 // translation of the fields marked .localized(), falling back to Czech when missing.
@@ -378,3 +379,7 @@ export const ContactForm = defineForm("contactForm", {
 
 // Who gets an email about new form messages (editable in the admin).
 export const FormSettings = defineFormSettings()
+
+// A second content model, for the tests of two sites with different models in one process
+// (multi-tenant mode: a site's directory row names its model). Single mode never uses it.
+export const models = defineModels({ shop: { config: shop, migrations: "models/shop/server/db/migrations" } })

@@ -1,15 +1,15 @@
-import { buildRegistry, type CmsRegistry } from 'tinyzoo'
+import type { CmsRegistry } from 'tinyzoo'
 import { createCmsDb } from '../db/driver'
-import * as cmsConfig from '#cms/config'
 
 /**
  * The current site's database (cmsSite.ts): one connection pool per site, made on first
  * use and ended when the site is unloaded. Single mode has one site, so one pool, as always.
+ * The pool is built with the schema of the site's content model (cmsModel.ts).
  * Multi mode: the site's own address and user from the site directory, and no pool at all
  * for work that has no site (useCmsSite throws).
  */
 const siteDb = cmsSiteScoped<ReturnType<typeof createCmsDb>>(() => {
-  const reg = buildRegistry(cmsConfig as Record<string, any>)
+  const { reg } = cmsSiteModel()
   if (cmsIsMultiTenant()) {
     const db = createCmsDb(useCmsSite('a database query').databaseUrl, reg.schema, { multiTenant: true, beforeConnect: roomForConnection })
     const quiet = cmsSiteQuietCheck()
@@ -117,6 +117,5 @@ async function roomForConnection(asked: any): Promise<{ pool: any; taken: () => 
  * runtime code here is identical for both — a single Postgres dialect.
  */
 export function useCms(): { db: ReturnType<typeof createCmsDb>; reg: CmsRegistry } {
-  const reg = buildRegistry(cmsConfig as Record<string, any>)
-  return { db: siteDb(), reg }
+  return { db: siteDb(), reg: cmsSiteModel().reg }
 }

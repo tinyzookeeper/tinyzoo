@@ -621,7 +621,9 @@ export interface CmsRegistry {
 }
 
 const _regCache = new WeakMap<object, CmsRegistry>()
-const _junctionCache = new Map<string, any>()
+// Keyed by the two entity tables (then the table name), not by the name alone: two content models of
+// one build may each have a relation table of the same name, and each needs foreign keys to its own tables.
+const _junctionCache = new WeakMap<object, WeakMap<object, Map<string, any>>>()
 
 function isEntity(v: any): v is CmsEntity {
   return v && typeof v === 'object' && v.__cms === 'entity'
@@ -715,13 +717,18 @@ export function buildRegistry(config: Record<string, any>): CmsRegistry {
       const jtableName = fld.relation.through ?? `${snake(pair[0]!)}_to_${snake(pair[1]!)}`
       const ownerCol = `${e.name}Id`
       const targetCol = `${target.name}Id`
-      let jtable = _junctionCache.get(jtableName)
+      const [first, second] = e.name <= target.name ? [e, target] : [target, e]
+      let byFirst = _junctionCache.get(first.table)
+      if (!byFirst) _junctionCache.set(first.table, byFirst = new WeakMap())
+      let byName = byFirst.get(second.table)
+      if (!byName) byFirst.set(second.table, byName = new Map())
+      let jtable = byName.get(jtableName)
       if (!jtable) {
         jtable = pgTable(jtableName, {
           [ownerCol]: uuid(`${snake(e.name)}_id`).notNull().references(() => e.table.id, { onDelete: 'cascade' }),
           [targetCol]: uuid(`${snake(target.name)}_id`).notNull().references(() => target.table.id, { onDelete: 'cascade' }),
         }, (t: any) => [primaryKey({ columns: [t[ownerCol], t[targetCol]] })])
-        _junctionCache.set(jtableName, jtable)
+        byName.set(jtableName, jtable)
       }
       const j: Junction = { name: jname, tableName: jtableName, table: jtable, ownerEntity: e.name, targetEntity: target.name, ownerCol, targetCol, fieldKey: key }
       junctions.push(j)

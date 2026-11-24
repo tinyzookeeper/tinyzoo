@@ -612,3 +612,53 @@ describe('multi mode: secrets of a directory row, extra hosts, a moved site, idl
     await underWay
   })
 })
+
+describe('the content model of a site (experimental)', () => {
+  it('a row\'s model is carried; a row without one uses "default"; the single site is "default"', async () => {
+    const s = await load('multi', [row('site-a'), row('site-b', { model: 'shop' }), row('site-c', { model: null }), row('site-d', { model: 'default' })])
+    expect(s.cmsSiteById('site-a')!.model).toBe('default')
+    expect(s.cmsSiteById('site-b')!.model).toBe('shop')
+    expect(s.cmsSiteById('site-c')!.model).toBe('default')
+    expect(s.cmsSiteById('site-d')!.model).toBe('default')
+    expect(s.runInCmsSite(s.cmsSiteById('site-b')!, () => s.useCmsSite().model)).toBe('shop')
+    expect((await load('single')).useCmsSite().model).toBe('default')
+  })
+
+  it('with the build\'s models known, a row naming one the build does not have is refused', async () => {
+    const s = await load('multi')
+    s.cmsKnowSiteModels(['default', 'shop'])
+    writeFileSync(directoryFile, JSON.stringify({ sites: [row('site-a', { model: 'shop' }), row('site-b')] }))
+    await s.cmsDirectoryReady()
+    expect(s.cmsAllSites().map((x: any) => [x.id, x.model])).toEqual([['site-a', 'shop'], ['site-b', 'default']])
+    const t = await load('multi')
+    t.cmsKnowSiteModels(['default', 'shop'])
+    writeFileSync(directoryFile, JSON.stringify({ sites: [row('site-a', { model: 'blog' })] }))
+    expect(() => t.cmsAllSites()).toThrow('site site-a: "model" names "blog", which this build does not have (it has: default, shop)')
+  })
+
+  it('a row without a model is refused when the build has no model of its own, and a row naming one is not', async () => {
+    const s = await load('multi')
+    s.cmsKnowSiteModels(['shop', 'blog'])
+    writeFileSync(directoryFile, JSON.stringify({ sites: [row('site-a')] }))
+    expect(() => s.cmsAllSites()).toThrow('site site-a: this build has no content model of its own: "model" must name one of: shop, blog')
+    const t = await load('multi')
+    t.cmsKnowSiteModels(['shop', 'blog'])
+    writeFileSync(directoryFile, JSON.stringify({ sites: [row('site-a', { model: 'blog' })] }))
+    expect(t.cmsAllSites().map((x: any) => x.model)).toEqual(['blog'])
+  })
+
+  it.each([['an upper-case name', 'Shop'], ['a name with an underscore', 'my_shop'], ['a number', 3], ['an empty name', '']])('%s is refused', async (_what, model) => {
+    const s = await load('multi', [row('site-a', { model })])
+    expect(() => s.cmsAllSites()).toThrow(/site site-a: "model" must be the name of a content model/)
+  })
+
+  it('a directory with a bad model keeps the last good one, and says why', async () => {
+    const s = await load('multi', [row('site-a', { model: 'shop' })])
+    s.cmsKnowSiteModels(['shop'])
+    expect(s.cmsAllSites().map((x: any) => x.id)).toEqual(['site-a'])
+    await new Promise((r) => setTimeout(r, 600))
+    writeFileSync(directoryFile, JSON.stringify({ sites: [row('site-a', { model: 'blog' })] }))
+    expect(s.cmsAllSites().map((x: any) => x.model)).toEqual(['shop'])
+    expect(logged().join('\n')).toContain('"model" names "blog"')
+  })
+})

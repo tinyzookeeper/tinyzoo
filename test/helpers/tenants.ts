@@ -21,6 +21,11 @@ import { startServer, type SpawnedServer } from './server'
  * (a hosted site made from a template database looks like this), so a session, a token or
  * an id of A always "exists" on B, and only the site's own separation can refuse it.
  *
+ * The other kind (`options.models`): site B uses ANOTHER content model of the build (its row
+ * names it). Its database is then not a copy: it is new and empty, and the server migrates it
+ * on first use with that model's own migrations. B gets its accounts through its own first-run
+ * setup, so the two sites hold different ids.
+ *
  * Addresses: http://site-a.localhost:<port> and http://site-b.localhost:<port>. Node and
  * browsers resolve *.localhost to this machine; the Host header is what chooses the site
  * (Node's fetch does not let a test set Host itself).
@@ -46,7 +51,7 @@ export interface TenantSite {
   webhookSecret: string
   /** Sessions of the three accounts (the same people on both sites, signed in on each). */
   cookies: { admin: string; editor: string; author: string }
-  /** The same ids on both sites. */
+  /** The ids of the three accounts on this site: the same on both sites, except when B has a model of its own (then each site's own). */
   users: { admin: string; editor: string; author: string }
 }
 
@@ -90,6 +95,14 @@ export interface Tenants {
 }
 
 export interface TenantsOptions {
+  /**
+   * The content model a site uses, by its name in the build's `defineModels` (the others use the
+   * app's own, `default`). With `b` set, site B's database is a new empty one owned by B's user
+   * (not a copy of A's), its row says `model`, the server migrates it on first use, and `seed` is
+   * not used for it. B's accounts are made through its own setup with the same e-mails and
+   * password as A's.
+   */
+  models?: { b?: string }
   /**
    * Content made on site A BEFORE its database is copied to site B: both sites then hold
    * these entries under the same ids (and the same media rows, redirects, tokens…). Called
@@ -244,8 +257,10 @@ export async function startTenants(suffix: string, env: Record<string, string> =
     for (const [key, value] of Object.entries(options.siteConfig?.(site, row.publicUrl) ?? {})) row.config[key] = { ...row.config[key], ...value }
     return row
   }
+  const modelOfB = options.models?.b
   const siteRow = (site: 'a' | 'b' | 'c', port: number) => withSiteConfig(site, {
     id: `site-${site}`,
+    ...(site === 'b' && modelOfB ? { model: modelOfB } : {}),
     hosts: [`site-${site}.localhost`, `www.site-${site}.localhost`],
     publicUrl: `http://site-${site}.localhost:${port}`,
     databaseUrl: serverUrlFor(site),
@@ -311,13 +326,19 @@ export async function startTenants(suffix: string, env: Record<string, string> =
 
   // 2. Site B = a copy of A's database (same ids everywhere), handed to B's own user.
   await asAdmin('postgres', async (c) => {
+    if (modelOfB) {
+      // A model of its own: a new, empty database; the server migrates it with that model's migrations.
+      await c.query(`create database ${ident(dbName('b'))} owner ${ident(roleName('b'))}`)
+      await c.query(`revoke connect on database ${ident(dbName('b'))} from public`)
+      return
+    }
     // Behind a pooler the server's connections outlive the server: the pooler keeps them open
     // for its idle time, and a database with a connection cannot be copied. They are idle; end them.
     if (sitesVia()) await c.query('select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()', [dbName('a')])
     await c.query(`create database ${ident(dbName('b'))} template ${ident(dbName('a'))} owner ${ident(roleName('b'))}`)
     await c.query(`revoke connect on database ${ident(dbName('b'))} from public`)
   })
-  await asAdmin(dbName('b'), async (c) => {
+  if (!modelOfB) await asAdmin(dbName('b'), async (c) => {
     // Object by object: REASSIGN OWNED would also hand over database A itself (a database is a shared object).
     const from = roleName('a'); const to = ident(roleName('b'))
     const stmts: string[] = []
@@ -344,6 +365,28 @@ export async function startTenants(suffix: string, env: Record<string, string> =
     })
   }
 
+  // B with a model of its own: its first request makes the server migrate the empty database
+  // (API requests wait for it), then B's own first-run setup and invitations, as A had.
+  let usersB = users
+  if (modelOfB) {
+    try {
+      const admin = await tenantPost(bUrl, '/api/cms/_auth/setup', { name: 'Ada Admin', email: 'admin@test.local', password: TENANT_PASSWORD, token: 'setup-code-b' })
+      if (admin.status !== 201) throw new Error(`setup on site B: ${admin.status} ${admin.text}`)
+      usersB = { admin: admin.body.user.id, editor: '', author: '' }
+      for (const [role, name] of [['editor', 'Eda Editor'], ['author', 'Alma Author']] as const) {
+        const invited = await tenantPost(bUrl, '/api/cms/_users', { email: `${role}@test.local`, role }, admin.cookie)
+        if (invited.status !== 201) throw new Error(`invite ${role} on B: ${invited.status} ${invited.text}`)
+        const accepted = await tenantPost(bUrl, '/api/cms/_auth/accept', { token: String(invited.body.inviteUrl).split('/').pop(), name, password: TENANT_PASSWORD })
+        if (accepted.status !== 200) throw new Error(`accept ${role} on B: ${accepted.status} ${accepted.text}`)
+        usersB[role] = accepted.body.user.id
+      }
+    }
+    catch (err) {
+      await server.stop()
+      throw new Error(`${(err as Error).message}\n${server.logs.join('')}`)
+    }
+  }
+
   const signIn = async (url: string) => {
     const cookies = {} as TenantSite['cookies']
     for (const role of ['admin', 'editor', 'author'] as const) {
@@ -360,7 +403,7 @@ export async function startTenants(suffix: string, env: Record<string, string> =
       id: row.id, url, host: `site-${s}.localhost`, databaseUrl: urlFor(s), role: roleName(s), database: dbName(s),
       uploadsDir: row.config.storage.local.dir, mailDir: row.config.mail.file.dir, hooksDir: hooks[s].dir,
       statusToken: row.config.status.token, setupToken: row.config.auth.setupToken, contentToken: '', webhookSecret: row.config.webhooks.secret,
-      cookies: await signIn(url), users: { ...users },
+      cookies: await signIn(url), users: { ...(s === 'b' ? usersB : users) },
     }
   }
 

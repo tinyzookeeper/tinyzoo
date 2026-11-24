@@ -139,7 +139,7 @@ describe('the docs on the website', () => {
 
   it('publishes every page of docs/guide and docs/ for developers, except the ones for people working on tinyzoo', () => {
     // A new page is either in docs/README.md's table (so on the website) or named here as not for site builders.
-    const forContributors = new Set(['README', 'development', 'roadmap', 'production-plan', 'pilot-plan', 'ui-foundation', 'multi-tenant-plan'])
+    const forContributors = new Set(['README', 'development', 'roadmap', 'production-plan', 'pilot-plan', 'ui-foundation', 'multi-tenant-plan', 'one-app-plan'])
     const published = new Set((built.files.get('en/nav.json') as DocsNav).sections.developers.groups.flatMap((g) => g.pages).map((p) => p.slug))
     const files = [...readdirSync(join(root, 'docs/guide')), ...readdirSync(join(root, 'docs'))].filter((n) => n.endsWith('.md')).map((n) => n.replace(/\.md$/, ''))
     expect(files.filter((n) => !published.has(n) && !forContributors.has(n))).toEqual([])
