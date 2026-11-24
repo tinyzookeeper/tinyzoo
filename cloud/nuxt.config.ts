@@ -48,7 +48,7 @@ export default defineNuxtConfig({
     // A minute, and never longer; the checks set a shorter time (shared/account.ts).
     accountCodeTtlSeconds: '',
     hosting: {
-      // NUXT_HOSTING_DRIVER: local | shared | pushbase
+      // NUXT_HOSTING_DRIVER: local | shared | pushbase, or none (no website is made: the account service alone)
       driver: 'local',
       local: {
         // NUXT_HOSTING_LOCAL_PORT_FROM / _TO: one port per website.

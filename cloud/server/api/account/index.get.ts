@@ -1,6 +1,6 @@
 import type { AccountView } from '#shared/api'
 import { siteHostSuffix } from '#shared/address'
-import { hostingDriverName } from '../../hosting'
+import { hostingDriverName, makesSites, NO_HOSTING } from '../../hosting'
 import { localPublicUrlPattern } from '../../hosting/local'
 
 /** What follows the slug in a site's address, as the wizard shows it. The shared driver's sites are always <slug>.localhost. */
@@ -8,6 +8,7 @@ function siteHost(): string {
   const driver = hostingDriverName()
   if (driver === 'pushbase') return '.pushbase.app'
   if (driver === 'shared') return '.localhost'
+  if (driver === NO_HOSTING) return ''
   return siteHostSuffix(localPublicUrlPattern())
 }
 
@@ -22,5 +23,6 @@ export default defineEventHandler(async (event): Promise<AccountView> => {
     devVerifyUrl: me && !me.emailVerifiedAt ? devLink(me.id, 'verify') : null,
     siteHost: siteHost(),
     canImport: hostingDriverName() === 'shared',
+    canCreate: makesSites(),
   }
 })

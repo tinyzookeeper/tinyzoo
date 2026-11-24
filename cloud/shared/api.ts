@@ -101,6 +101,8 @@ export interface AccountView {
   siteHost: string
   /** A website can be moved in here as an archive (the shared driver takes one). */
   canImport: boolean
+  /** Websites are made here. False with NUXT_HOSTING_DRIVER=none: accounts, sign-in for websites and connecting one, nothing else. */
+  canCreate: boolean
 }
 
 export interface SlugCheck {
