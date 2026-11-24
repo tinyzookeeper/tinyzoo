@@ -2,6 +2,8 @@
 // fields) is shown or linked to now: what removing it would meet. Administrators only; 404 when
 // the feature is off for the site.
 export default defineEventHandler(async (event) => {
+  // Signed in first (401), as every admin route; then the route exists only with the feature on (404), and is for administrators (403).
+  requireCmsUser(event)
   requireCustomTypes()
   requireCmsAdmin(event)
   setResponseHeader(event, 'cache-control', 'no-store')
