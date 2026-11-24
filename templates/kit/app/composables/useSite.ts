@@ -4,16 +4,21 @@
 //
 // The template brings its own part: `looks.ts` beside its cms.config.ts, the generated client
 // (app/lib/cms-content.ts) and, in app/utils/site.ts, `DEFAULT_LANGUAGE`, `wordsOf` and
-// `ENTRY_PAGES`. (`#site` is the template's folder: `~` and `~~` are the kit's own here.)
+// `ENTRY_PAGES`. At run time they come from the site's design (`useDesign()`); the types name
+// the template's own files (`#site` is the template's folder: `~` and `~~` are the kit's own here).
 import type { Navigation, Page, SiteSettings } from '#site/app/lib/cms-content'
-import { looks } from '#site/looks'
+import type { looks } from '#site/looks'
+
+type SiteWords = ReturnType<typeof wordsOf>
 
 /** The website's own words in its language (the template's `wordsOf`). */
 export function useSiteWords() {
-  return computed(() => wordsOf(DEFAULT_LANGUAGE))
+  const { site } = useDesign()
+  return computed(() => site.wordsOf(site.DEFAULT_LANGUAGE) as SiteWords)
 }
 
 export async function useSite() {
+  const design = useDesign()
   // In the admin's preview (?preview) the settings and menus come with the editor's unsaved
   // values laid over them, so a look or a colour can be tried before it is saved.
   const query = 'preview' in useRoute().query ? { preview: '' } : undefined
@@ -26,9 +31,9 @@ export async function useSite() {
     settings: item,
     nav: computed(() => nav.value?.item ?? null),
     /** The look and colours the site shows (looks.ts): the first look until the settings say otherwise. */
-    look: computed(() => looks.resolve(item.value?.look, item.value?.colors)),
+    look: computed(() => design.looks.resolve(item.value?.look, item.value?.colors) as ReturnType<typeof looks.resolve>),
     /** The site's name: what the settings hold, else a neutral word. */
-    name: computed(() => item.value?.siteName || wordsOf(DEFAULT_LANGUAGE).defaultName),
+    name: computed(() => item.value?.siteName || (design.site.wordsOf(design.site.DEFAULT_LANGUAGE) as SiteWords).defaultName),
   }
 }
 
@@ -57,8 +62,9 @@ export async function useSiteList<T>(key: string, entity: string, query: Record<
  */
 export async function useSitePage() {
   const route = useRoute()
+  const { site } = useDesign()
   const parts = computed(() => ([] as string[]).concat(route.params.slug ?? []).filter(Boolean))
-  const entryPage = computed(() => (parts.value.length === 2 ? ENTRY_PAGES.find((e) => e.prefix === parts.value[0]) ?? null : null))
+  const entryPage = computed(() => (parts.value.length === 2 ? site.ENTRY_PAGES.find((e) => e.prefix === parts.value[0]) ?? null : null))
   const kind = computed<string>(() => entryPage.value?.kind ?? 'page')
   const url = computed(() => (entryPage.value
     ? `/api/content/${entryPage.value.entity}/${encodeURIComponent(parts.value[1]!)}`
