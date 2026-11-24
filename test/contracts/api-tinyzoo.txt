@@ -1112,7 +1112,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (215): exported, not part of the frozen API, may change in any minor ──
+// ── internal (256): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
@@ -1126,6 +1126,7 @@ const CMS_MEDIA_ACCESS
 const CMS_ROLES
 const CMS_ROLE_BASES
 const CORE_UPGRADE_STEPS
+const CUSTOM_PREFIX
 interface CmsAccentScheme
 type CmsAdminIconLink
 interface CmsAdminMenuLayout
@@ -1154,6 +1155,12 @@ type ContentFieldType
 interface ContentModel
 interface ContentShape
 const DEFAULT_MODEL
+const DEFAULT_MODEL_LIMITS
+interface DbColumn
+interface DbForeignKey
+interface DbIndex
+interface DbShape
+interface DbTable
 interface EmbeddedShape
 const FORM_FIELD_TYPES
 interface FilterParam
@@ -1162,11 +1169,34 @@ interface Junction
 interface LinkFieldLike
 interface LinkRef
 interface LinkVisitor
+const MODEL_DOC_MAX_BYTES
+const MODEL_FIELD_TYPES
+const MODEL_FORMAT
+const MODEL_HELP_MAX
+const MODEL_LABEL_MAX
+const MODEL_PURGE_AFTER_MS
+const MODEL_PURGE_EMPTY_AFTER_MS
 interface MigrationClassification
 interface MigrationJournal
 class MigrationOrderError
 interface MigrationSource
 interface MigrationStatus
+interface ModelContext
+interface ModelDdlAllow
+interface ModelDoc
+type ModelField
+type ModelFieldInput
+type ModelFieldType
+type ModelLabel
+interface ModelLimits
+interface ModelMapProblem
+interface ModelNote
+type ModelOp
+interface ModelOption
+type ModelOrder
+interface ModelPage
+class ModelProblem
+interface ModelType
 interface MovedPath
 const ORDER_FIX
 interface OpenApiOptions
@@ -1200,6 +1230,8 @@ function allUpgradeSteps
 function allowedTypos
 function applyChange
 function applyMigrations
+function applyModelOps
+function assertAllowedStatement
 function blockMediaKeys
 const blockVersion
 function blocksSchema
@@ -1231,6 +1263,7 @@ const cmsState
 const cmsTokens
 const cmsUsers
 function collectPlugins
+function customShape
 function depthOf
 function descendantsOf
 function editDistance
@@ -1238,6 +1271,7 @@ function editorLayout
 function emitContentTypes
 function emitSchema
 const emptyDoc
+function emptyModelDoc
 function entryTexts
 function excerptOf
 function existsIn
@@ -1274,17 +1308,24 @@ function matchRoute
 function mediaIdsInBlocks
 function mediaIdsInFields
 function menuSources
+function modelEntities
+function modelFieldKey
 function modelMigrationsAsset
+function modelPagePrefix
 function modelPluginsProblem
+function modelPurgeDue
+function modelTypeName
 function modelsOf
 function movedPaths
 function normalizeFieldAccess
 function normalizeSetupCode
 function parseLinkRef
+function parseModelDoc
 const pascal
 function pathTemplateFor
 function pathTemplateKeys
 function placeAmong
+function planModelDdl
 function planPlugins
 const pluginAdminBase
 const pluginApiBase

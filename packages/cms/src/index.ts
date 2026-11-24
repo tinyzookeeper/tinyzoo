@@ -26,6 +26,14 @@ export {
   type CmsPluginAppPlugin, type CmsDashboardWidget, type CmsEntityPanel,
 } from './plugin'
 export { defineModels, isCmsModels, modelsOf, modelMigrationsAsset, modelPluginsProblem, DEFAULT_MODEL, type CmsModelDef, type CmsModels } from './models'
+export {
+  CUSTOM_PREFIX, MODEL_FORMAT, DEFAULT_MODEL_LIMITS, MODEL_LABEL_MAX, MODEL_HELP_MAX, MODEL_DOC_MAX_BYTES, MODEL_PURGE_AFTER_MS, MODEL_PURGE_EMPTY_AFTER_MS, MODEL_FIELD_TYPES,
+  ModelProblem, emptyModelDoc, parseModelDoc, applyModelOps, modelPurgeDue, modelTypeName, modelFieldKey, modelPagePrefix,
+  type ModelDoc, type ModelType, type ModelField, type ModelFieldType, type ModelFieldInput, type ModelOption, type ModelPage, type ModelOrder, type ModelLabel,
+  type ModelLimits, type ModelOp, type ModelContext, type ModelNote,
+} from './model-doc'
+export { modelEntities, type ModelMapProblem } from './model-map'
+export { customShape, planModelDdl, assertAllowedStatement, type DbShape, type DbTable, type DbColumn, type DbForeignKey, type DbIndex, type ModelDdlAllow } from './model-ddl'
 export { emitSchema } from './emitter'
 export { buildOpenApiDocument, type OpenApiOptions } from './openapi'
 export { emitContentTypes, type SdkOptions } from './sdk'
