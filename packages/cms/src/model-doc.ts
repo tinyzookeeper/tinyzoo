@@ -55,7 +55,13 @@ interface ModelFieldBase {
   removedEmpty?: boolean
 }
 
-/** One field of a custom type, by kind (`type`). A field is optional unless it says `required`. @internal */
+/**
+ * One field of a custom type, by kind (`type`). A field is optional unless it says `required`.
+ * A picture, a file and a relation are always optional: a required one would hold on to its target
+ * in the database (`ON DELETE restrict`), also while the field is hidden.
+ *
+ * @internal
+ */
 export type ModelField = ModelFieldBase & (
   | { type: 'text'; required?: boolean; long?: boolean; format?: 'email' | 'url' | 'link' | null; max?: number | null }
   | { type: 'richtext'; required?: boolean }
@@ -63,11 +69,11 @@ export type ModelField = ModelFieldBase & (
   | { type: 'boolean'; default?: boolean }
   | { type: 'datetime'; required?: boolean; allDay?: boolean }
   | { type: 'select'; required?: boolean; options: ModelOption[]; default?: string | null }
-  | { type: 'media'; required?: boolean }
-  | { type: 'file'; required?: boolean }
+  | { type: 'media' }
+  | { type: 'file' }
   | { type: 'gallery' }
   | { type: 'color'; required?: boolean }
-  | { type: 'relation'; required?: boolean; to: string }
+  | { type: 'relation'; to: string }
 )
 
 /** @internal */
@@ -375,11 +381,11 @@ const docField = z.discriminatedUnion('type', [
   z.strictObject({ ...docFieldBase, type: z.literal('boolean'), default: z.boolean().optional() }),
   z.strictObject({ ...docFieldBase, type: z.literal('datetime'), required: z.boolean().optional(), allDay: z.boolean().optional() }),
   z.strictObject({ ...docFieldBase, type: z.literal('select'), required: z.boolean().optional(), options: z.array(docOption), default: z.string().nullish() }),
-  z.strictObject({ ...docFieldBase, type: z.literal('media'), required: z.boolean().optional() }),
-  z.strictObject({ ...docFieldBase, type: z.literal('file'), required: z.boolean().optional() }),
+  z.strictObject({ ...docFieldBase, type: z.literal('media') }),
+  z.strictObject({ ...docFieldBase, type: z.literal('file') }),
   z.strictObject({ ...docFieldBase, type: z.literal('gallery') }),
   z.strictObject({ ...docFieldBase, type: z.literal('color'), required: z.boolean().optional() }),
-  z.strictObject({ ...docFieldBase, type: z.literal('relation'), required: z.boolean().optional(), to: z.string().min(1) }),
+  z.strictObject({ ...docFieldBase, type: z.literal('relation'), to: z.string().min(1) }),
 ], { error: () => `unknown kind of field (this tinyzoo knows ${MODEL_FIELD_TYPES.join(', ')})` })
 
 const orderSchema = z.union([z.literal('manual'), z.strictObject({ by: z.string(), dir: z.enum(['asc', 'desc']) })])
@@ -491,11 +497,11 @@ const opField = z.discriminatedUnion('type', [
   z.strictObject({ ...opFieldBase, type: z.literal('boolean'), default: z.boolean().optional() }),
   z.strictObject({ ...opFieldBase, ...opRequired, type: z.literal('datetime'), allDay: z.boolean().optional() }),
   z.strictObject({ ...opFieldBase, ...opRequired, type: z.literal('select'), options: z.array(opOption), default: z.string().nullish() }),
-  z.strictObject({ ...opFieldBase, ...opRequired, type: z.literal('media') }),
-  z.strictObject({ ...opFieldBase, ...opRequired, type: z.literal('file') }),
+  z.strictObject({ ...opFieldBase, type: z.literal('media') }),
+  z.strictObject({ ...opFieldBase, type: z.literal('file') }),
   z.strictObject({ ...opFieldBase, type: z.literal('gallery') }),
   z.strictObject({ ...opFieldBase, ...opRequired, type: z.literal('color') }),
-  z.strictObject({ ...opFieldBase, ...opRequired, type: z.literal('relation'), to: z.string() }),
+  z.strictObject({ ...opFieldBase, type: z.literal('relation'), to: z.string() }),
 ], { error: () => `unknown kind of field (use ${MODEL_FIELD_TYPES.join(', ')})` })
 
 const opSchema = z.discriminatedUnion('op', [
@@ -898,11 +904,11 @@ const UPDATE_ALLOWED: Record<ModelFieldType, readonly string[]> = {
   boolean: ['default'],
   datetime: ['required', 'allDay'],
   select: ['required', 'default', 'addOptions', 'optionLabels', 'removeOptions', 'restoreOptions'],
-  media: ['required'],
-  file: ['required'],
+  media: [],
+  file: [],
   gallery: [],
   color: ['required'],
-  relation: ['required'],
+  relation: [],
 }
 
 function fieldUpdate(r: Run, op: Extract<ModelOp, { op: 'field.update' }>): void {

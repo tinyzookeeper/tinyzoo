@@ -94,7 +94,7 @@ The server makes it itself the first time a site changes its structure, as it ma
 | `color` | | `f.color` |
 | `relation` | `to`: a code-first collection of the design, or a custom type | `f.relation`, many-to-one |
 
-Every field also has `label`, optional `help`, and `required` where the kind has it. A field is optional unless it says `required`.
+Every field also has `label`, optional `help`, and `required` where the kind has it. A field is optional unless it says `required`. A picture, a file and a relation are always optional: a required one would hold on to its target in the database (`ON DELETE restrict`), also while the field is hidden, and deleting a picture would then be refused because of a field nobody sees.
 
 **What the mapper refuses to express,** because it is a function in code: access rules, hooks, a block's `upgrade`, a custom `content.published`. Roles work as for any collection: administrators, editors and authors by the built-in rules (`server/utils/cmsCrud.ts`); a site's own roles from `defineRoles` see a custom type only when the role lists it, which code cannot do for a name that does not exist yet. Per-field access is not in the first version.
 

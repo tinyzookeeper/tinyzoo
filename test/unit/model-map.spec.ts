@@ -54,15 +54,14 @@ const courseDoc: ModelType = {
       options: [
         { value: 'beginner', label: { cs: 'Začátečníci', en: 'Beginners' } },
         { value: 'advanced', label: { cs: 'Pokročilí', en: 'Advanced' } },
-        { value: 'legacy', label: { cs: 'Starý', en: 'Old' }, removed: true },
       ],
     },
-    { key: 'cover', type: 'media', required: true, label: { cs: 'Obrázek', en: 'Image' } },
+    { key: 'cover', type: 'media', label: { cs: 'Obrázek', en: 'Image' } },
     { key: 'brochure', type: 'file', label: { cs: 'Brožura', en: 'Brochure' } },
     { key: 'photos', type: 'gallery', label: { cs: 'Fotky', en: 'Photos' } },
     { key: 'accent', type: 'color', required: true, label: { cs: 'Barva', en: 'Colour' } },
     { key: 'category', type: 'relation', to: 'category', label: { cs: 'Kategorie', en: 'Category' } },
-    { key: 'teacher', type: 'relation', to: 'x_teacher', required: true, label: { cs: 'Lektor', en: 'Teacher' } },
+    { key: 'teacher', type: 'relation', to: 'x_teacher', label: { cs: 'Lektor', en: 'Teacher' } },
   ],
 }
 const teacherDoc: ModelType = {
@@ -97,16 +96,16 @@ function byHand() {
       featured: f.boolean({ default: true }).label({ cs: 'Doporučeno', en: 'Featured' }),
       startsAt: f.datetime({ allDay: true }).optional().label({ cs: 'Začátek', en: 'Starts' }),
       level: f.select({
-        options: ['beginner', 'advanced', 'legacy'] as const,
+        options: ['beginner', 'advanced'] as const,
         default: 'beginner',
-        labels: { beginner: { cs: 'Začátečníci', en: 'Beginners' }, advanced: { cs: 'Pokročilí', en: 'Advanced' }, legacy: { cs: 'Starý', en: 'Old' } },
+        labels: { beginner: { cs: 'Začátečníci', en: 'Beginners' }, advanced: { cs: 'Pokročilí', en: 'Advanced' } },
       }).label({ cs: 'Úroveň', en: 'Level' }),
-      cover: f.media({ accept: 'image/*' }).label({ cs: 'Obrázek', en: 'Image' }),
+      cover: f.media({ accept: 'image/*' }).optional().label({ cs: 'Obrázek', en: 'Image' }),
       brochure: f.file().optional().label({ cs: 'Brožura', en: 'Brochure' }),
       photos: f.gallery().label({ cs: 'Fotky', en: 'Photos' }),
       accent: f.color({ required: true }).label({ cs: 'Barva', en: 'Colour' }),
       category: f.relation({ to: () => category, kind: 'many-to-one' }).label({ cs: 'Kategorie', en: 'Category' }),
-      teacher: f.relation({ to: () => teacher, kind: 'many-to-one', required: true }).label({ cs: 'Lektor', en: 'Teacher' }),
+      teacher: f.relation({ to: () => teacher, kind: 'many-to-one' }).label({ cs: 'Lektor', en: 'Teacher' }),
       slug: f.slug({ from: 'title', unique: true }).label({ en: 'URL address', cs: 'Adresa (URL)', de: 'Adresse (URL)' }),
       status: f.select({
         options: ['draft', 'published'] as const,
@@ -184,9 +183,6 @@ describe('the same types written in a document and in code', () => {
     }
   })
 
-  it('keeps the removed choice in the column, as the database keeps its values', () => {
-    expect((entities.x_course!.fields.level as any).spec.base.values).toEqual(['beginner', 'advanced', 'legacy'])
-  })
 })
 
 describe('the columns of the admin list', () => {
@@ -220,14 +216,50 @@ describe('the columns of the admin list', () => {
   })
 })
 
+describe('what the mapper decides by itself', () => {
+  it('builds a picture, a file and a relation as optional, so none holds on to its target', () => {
+    const { entities } = modelEntities(doc(type('x_item', [
+      title(),
+      { key: 'cover', type: 'media', label: { en: 'Cover' } },
+      { key: 'paper', type: 'file', label: { en: 'Paper' } },
+      { key: 'category', type: 'relation', to: 'category', label: { en: 'Category' } },
+    ])), designOf())
+    const item = entities.x_item!
+    for (const key of ['cover', 'paper', 'category']) {
+      expect(item.fields[key]!.isOptional, key).toBe(true)
+      expect(item.fields[key]!.spec!.reference!.onDelete, key).toBe('set null')
+    }
+  })
+
+  it('keeps a removed choice as a value and names it for the admin', () => {
+    const { entities } = modelEntities(doc(type('x_item', [
+      title(),
+      { key: 'level', type: 'select', label: { en: 'Level' }, options: [
+        { value: 'a', label: { en: 'A' } },
+        { value: 'old', label: { en: 'Old' }, removed: true },
+      ] },
+      { key: 'plain', type: 'select', label: { en: 'Plain' }, options: [{ value: 'a', label: { en: 'A' } }] },
+    ])), designOf())
+    const item = entities.x_item!
+    expect(item.fields.level!.meta.options).toEqual(['a', 'old'])
+    // The column keeps the value too, as the database keeps its values.
+    expect((item.fields.level as any).spec.base.values).toEqual(['a', 'old'])
+    expect(item.fields.level!.meta.removedOptions).toEqual(['old'])
+    expect(item.fields.level!.zod('create').safeParse('old').success).toBe(true)
+    expect(item.fields.plain!.meta.removedOptions).toBeUndefined()
+    const graph = buildRegistry({ ...designOf(), ...entities }).graph.find((g: any) => g.name === 'x_item')
+    expect(graph.fields.find((x: any) => x.key === 'level').meta.removedOptions).toEqual(['old'])
+  })
+})
+
 describe('hidden types and fields', () => {
   const removedAt = '2026-11-24T10:00:00.000Z'
   const fields: ModelField[] = [
     title(),
     { key: 'visibleRequired', type: 'text', required: true, label: { en: 'Visible' } },
     { key: 'hiddenText', type: 'text', required: true, label: { en: 'Hidden text' }, removedAt },
-    { key: 'hiddenMedia', type: 'media', required: true, label: { en: 'Hidden media' }, removedAt },
-    { key: 'hiddenRelation', type: 'relation', to: 'category', required: true, label: { en: 'Hidden relation' }, removedAt },
+    { key: 'hiddenMedia', type: 'media', label: { en: 'Hidden media' }, removedAt },
+    { key: 'hiddenRelation', type: 'relation', to: 'category', label: { en: 'Hidden relation' }, removedAt },
   ]
   const hiddenType = type('x_old', [title()], { removedAt })
   const pointing = type('x_point', [title(), { key: 'old', type: 'relation', to: 'x_old', label: { en: 'Old' } }])

@@ -492,7 +492,7 @@ describe('from the document to the statements', () => {
     { op: 'field.add', type: 'x_course', field: { key: 'teacher', type: 'text', required: true, label: { cs: 'Lektor' } } },
     { op: 'field.add', type: 'x_course', field: { key: 'price', type: 'number', decimal: true, label: { cs: 'Cena' } } },
     { op: 'field.add', type: 'x_course', field: { key: 'level', type: 'select', required: true, default: 'zacatecnici', label: { cs: 'Úroveň' }, options: [{ label: { cs: 'Začátečníci' } }, { label: { cs: 'Pokročilí' } }] } },
-    { op: 'field.add', type: 'x_course', field: { key: 'cover', type: 'media', required: true, label: { cs: 'Obrázek' } } },
+    { op: 'field.add', type: 'x_course', field: { key: 'cover', type: 'media', label: { cs: 'Obrázek' } } },
     { op: 'field.add', type: 'x_course', field: { key: 'category', type: 'relation', to: 'category', label: { cs: 'Kategorie' } } },
     { op: 'field.add', type: 'x_course', field: { key: 'photos', type: 'gallery', label: { cs: 'Fotky' } } },
   ], ctx({ counts: { entries: { x_course: 0 } } }))
@@ -514,9 +514,10 @@ describe('from the document to the statements', () => {
     expect(plan(shapeOf(doc1), shapeOf(doc2))).toEqual({ statements: ['ALTER TABLE "x_course" ALTER COLUMN "teacher" DROP NOT NULL'], refused: [] })
   })
 
-  it('hides a required picture with one DROP NOT NULL (its foreign key stays as it is)', () => {
+  it('hides a picture with no statement: it was optional, and its foreign key already lets its target go', () => {
     const { doc: doc2 } = applyModelOps(doc1, [{ op: 'field.remove', type: 'x_course', key: 'cover' }], ctx())
-    expect(plan(shapeOf(doc1), shapeOf(doc2))).toEqual({ statements: ['ALTER TABLE "x_course" ALTER COLUMN "cover_id" DROP NOT NULL'], refused: [] })
+    expect(plan(shapeOf(doc1), shapeOf(doc2))).toEqual({ statements: [], refused: [] })
+    expect(shapeOf(doc1).tables.x_course!.fks.find((fk) => fk.columns[0] === 'cover_id')!.onDelete).toBe('set null')
   })
 
   it('restores a field as optional with no statement, or as required with SET NOT NULL when allowed', () => {

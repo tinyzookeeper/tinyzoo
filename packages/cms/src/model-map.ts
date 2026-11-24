@@ -80,10 +80,11 @@ function buildField(field: ModelField, build: Build): { descriptor: AnyFieldDesc
       break
     }
     case 'media':
-      d = optionalUnlessRequired(f.media({ accept: 'image/*' }))
+      // A picture, a file and a relation are always optional (see ModelField).
+      d = f.media({ accept: 'image/*' }).optional()
       break
     case 'file':
-      d = optionalUnlessRequired(f.file())
+      d = f.file().optional()
       break
     case 'gallery':
       d = f.gallery()
@@ -105,7 +106,7 @@ function buildField(field: ModelField, build: Build): { descriptor: AnyFieldDesc
         else if (entity) return { problem: `its relation points at "${target}", a single page, and a relation needs a collection, so the field is left out` }
         else return { problem: `its relation points at "${target}", which is not a collection of this site, so the field is left out` }
       }
-      d = f.relation({ to: thunk, kind: 'many-to-one', ...(required ? { required: true } : {}) }) as AnyFieldDescriptor
+      d = f.relation({ to: thunk, kind: 'many-to-one' }) as AnyFieldDescriptor
       break
     }
     default:
@@ -113,6 +114,10 @@ function buildField(field: ModelField, build: Build): { descriptor: AnyFieldDesc
   }
   d = asAny<{ label: (t: unknown) => AnyFieldDescriptor }>(d).label(field.label)
   if (field.help) d = asAny<{ help: (t: unknown) => AnyFieldDescriptor }>(d).help(field.help)
+  // A removed choice stays a value of the field (entries hold it, and the database keeps it), so it
+  // is still an option here. The admin reads this list and stops offering those.
+  const removed = field.type === 'select' ? field.options.filter((o) => o.removed).map((o) => o.value) : []
+  if (removed.length) d = { ...d, meta: { ...d.meta, removedOptions: removed } }
   return { descriptor: d }
 }
 
