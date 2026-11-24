@@ -65,6 +65,7 @@
       }
     },
     "publicUrl": "",
+    "redirectHosts": "",
     "mail": {
       "transport": "log",
       "from": "",
@@ -199,6 +200,10 @@
     },
     {
       "name": "NUXT_CMS_PUBLIC_URL",
+      "default": ""
+    },
+    {
+      "name": "NUXT_CMS_REDIRECT_HOSTS",
       "default": ""
     },
     {
