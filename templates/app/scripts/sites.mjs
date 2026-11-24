@@ -6,8 +6,8 @@
 //
 // A site is `{ template, look }`; its address is http://<template>-<look>.localhost:<port>
 // (browsers and Node resolve *.localhost to this machine; the host name chooses the site).
-// Databases are named `<prefix><template>_<look>` on the Postgres server given; only names with
-// that prefix are ever dropped.
+// Databases are named `<prefix><template>_<look>` (each `-` as `_`) on the Postgres server given;
+// only names with that prefix are ever dropped.
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
@@ -81,7 +81,7 @@ export async function makeSites({ pgUrl, prefix, dataDir, port, sites, model = f
   const rows = []
   for (const s of sites) {
     const slug = `${s.template}-${s.look}`
-    const database = `${prefix}${s.template.replace(/-/g, '_')}_${s.look}`
+    const database = `${prefix}${s.template.replace(/-/g, '_')}_${s.look.replace(/-/g, '_')}`
     const exists = await withPg(pgUrl, async (c) => (await c.query('select 1 from pg_database where datname = $1', [database])).rowCount > 0)
     if (exists && !keep) await withPg(pgUrl, (c) => c.query(`drop database ${ident(database)} with (force)`))
     if (!exists || !keep) await withPg(pgUrl, (c) => c.query(`create database ${ident(database)}`))

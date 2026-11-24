@@ -64,6 +64,14 @@ async function compare(name) {
   return { name, ok, differing, share, worstTile, why: ok ? '' : `${differing} pixels differ (${(share * 100).toFixed(3)} %), worst tile ${(worstTile * 100).toFixed(1)} %` }
 }
 
+// Pages that show the time come out the same only from runs with the same clock and seeded on
+// the same day (shots.mjs records both).
+const runOf = (dir) => (existsSync(join(dir, 'shots.json')) ? JSON.parse(readFileSync(join(dir, 'shots.json'), 'utf8')) : {})
+const [runBefore, runAfter] = [runOf(before), runOf(after)]
+for (const key of ['clock', 'seededOn']) {
+  if (runBefore[key] && runAfter[key] && runBefore[key] !== runAfter[key]) console.log(`! the two runs differ in ${key}: ${runBefore[key]} and ${runAfter[key]}; pages that show the time may differ for that reason`)
+}
+
 const names = readdirSync(before).filter((f) => f.endsWith('.png') && !f.endsWith('.diff.png')).sort()
 const missing = names.filter((f) => !existsSync(join(after, f)))
 const extra = readdirSync(after).filter((f) => f.endsWith('.png') && !f.endsWith('.diff.png') && !names.includes(f))

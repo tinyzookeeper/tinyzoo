@@ -5,12 +5,19 @@
 //   node templates/app/scripts/shots.mjs --entry <.output/server/index.mjs> --templates photographer,wedding
 //        --out <folder> --pg postgres://user:pw@host:port/postgres --prefix tzshots_a_ [--model]
 //        [--templates-dir <folder of templates, for looks and seeds>] [--port 4870] [--keep] [--reuse]
+//        [--now 2026-11-25T09:40:00]
 //
 // For every look (one site each, seeded in that look): the home page in the default colours at
 // 1440 × 900 and 390 × 844 (whole page, up to 8 000 px), the first screen in each other colour
 // preset, one page of each kind of entry the template gives an address (an album…) and a
 // missing address. `--model`: the rows name their content model (the one app). `--keep` keeps
 // the databases; `--reuse` takes kept ones as they are (no seed).
+//
+// Time: the browser's clock stands still at one moment (`--now`, by default the first Wednesday
+// from today on at 9.40), so what a look works out from "now" in the browser (open now, the next
+// match, a countdown) is the same in both runs. The seeds count some dates from the day they run
+// (an event some months ahead, this week's lunch menu): two runs to compare must be seeded on the
+// same day. shots.json records both, and compare-shots.mjs warns when two runs differ in either.
 import { createRequire } from 'node:module'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
@@ -35,6 +42,13 @@ function weekdayMorning() {
   while (d.getDay() !== 3) d.setDate(d.getDate() + 1)
   return d
 }
+const clock = arg('now', null) ? new Date(String(arg('now'))) : weekdayMorning()
+if (Number.isNaN(clock.getTime())) {
+  console.error(`--now is not a moment: ${arg('now')}`)
+  process.exit(2)
+}
+/** The local day of a moment, 2026-11-24. */
+const dayOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const MAX_HEIGHT = 8000
 
@@ -44,7 +58,7 @@ async function shoot(browser, url, file, { width, height, full }) {
   const failures = []
   page.on('pageerror', (e) => failures.push(String(e?.message ?? e)))
   page.on('console', (m) => { if (m.type() === 'error' || /hydrat/i.test(m.text())) failures.push(m.text()) })
-  await page.clock.setFixedTime(weekdayMorning())
+  await page.clock.setFixedTime(clock)
   await page.goto(url, { waitUntil: 'networkidle' })
   await page.evaluate(() => document.fonts.ready)
   // Pictures load as they come into view: walk down the page, then back up, and wait for them.
@@ -60,12 +74,22 @@ async function shoot(browser, url, file, { width, height, full }) {
   await page.waitForLoadState('networkidle')
   await sleep(400)
   const pageHeight = await page.evaluate(() => document.documentElement.scrollHeight)
+  const bottom = full ? Math.min(pageHeight, MAX_HEIGHT) : height
   await page.screenshot({
     path: file, animations: 'disabled', caret: 'hide',
-    ...(full ? { fullPage: true, clip: { x: 0, y: 0, width, height: Math.min(pageHeight, MAX_HEIGHT) } } : {}),
+    ...(full ? { fullPage: true, clip: { x: 0, y: 0, width, height: bottom } } : {}),
   })
+  // The page's forms (a look draws its fields with the design's own components): how many, and
+  // how many the picture shows whole. The first form below the picture gets a picture of its own.
+  const forms = await page.evaluate(() => [...document.querySelectorAll('form')].map((f) => { const r = f.getBoundingClientRect(); return { top: r.top + window.scrollY, bottom: r.bottom + window.scrollY } }))
+  const below = forms.findIndex((f) => f.bottom > bottom)
+  let formFile = null
+  if (full && below !== -1) {
+    formFile = file.replace(/\.png$/, '-form.png')
+    await page.locator('form').nth(below).screenshot({ path: formFile, animations: 'disabled', caret: 'hide' })
+  }
   await ctx.close()
-  return failures
+  return { failures, meta: { height: pageHeight, forms: forms.length, formsInPicture: forms.filter((f) => f.bottom <= bottom).length }, formFile }
 }
 
 const port = Number(arg('port', 0)) || await freePortFrom(4870)
@@ -78,11 +102,12 @@ mkdirSync(out, { recursive: true })
 
 let server = null
 let browser = null
-const report = { entry, started: new Date().toISOString(), shots: [], failures: {} }
+const report = { entry, started: new Date().toISOString(), clock: clock.toISOString(), seededOn: null, shots: [], pages: {}, failures: {} }
 try {
   server = await startServer({ entry, directoryFile, port, logFile: join(dataDir, 'server.log') })
   log(`server ${server.pid} on ${port}, up in ${Math.round(server.readyMs)} ms`)
   if (arg('reuse', false) !== true) {
+    report.seededOn = dayOf(new Date())
     for (const row of rows) {
       const t0 = Date.now()
       seedSite(row, templatesDir)
@@ -97,8 +122,10 @@ try {
     await chooseLook(s.url, cookie, s.look, first)
     const name = (what) => join(out, `${s.slug}-${what}.png`)
     const take = async (what, url, size) => {
-      const failures = await shoot(browser, url, name(what), size)
+      const { failures, meta, formFile } = await shoot(browser, url, name(what), size)
       report.shots.push(`${s.slug}-${what}.png`)
+      if (formFile) report.shots.push(`${s.slug}-${what}-form.png`)
+      report.pages[`${s.slug}-${what}`] = meta
       if (failures.length) report.failures[`${s.slug}-${what}`] = failures
     }
     await take('desktop', s.url, { width: 1440, height: 900, full: true })
