@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The warning lights in Šuplíky's style (the look's own design has none): a row of labelled
 // drawer tags, one for each group of the price list, each leading to its group and opening it.
-import type { ServiceGroup } from '~/lib/cms-content'
+import type { ServiceGroup } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'lamps'>; first?: boolean; anchor?: string; groups: ServiceGroup[] }>()
 const focus = useGroupFocus()

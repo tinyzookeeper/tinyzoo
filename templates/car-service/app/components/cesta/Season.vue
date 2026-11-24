@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Cesta's seasonal notice: a tinted band with the heading, a sentence, four prices and a
 // photograph of the balancing machine.
-import type { SeasonalOffer } from '~/lib/cms-content'
+import type { SeasonalOffer } from '../../lib/cms-content'
 
 defineProps<{ offer: SeasonalOffer; first?: boolean; anchor?: string }>()
 const { words } = await useGarage()

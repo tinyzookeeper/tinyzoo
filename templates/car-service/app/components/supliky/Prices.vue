@@ -3,7 +3,7 @@
 // hourly rate on a label, then one drawer for every group, each with its aluminium pull and its
 // label; an open drawer shows its lines on a cream liner in two columns. On a phone only the first
 // two drawers start pulled out.
-import type { PriceGroup } from '~/utils/site'
+import type { PriceGroup } from '../../utils/site'
 
 const props = defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; sets: PriceGroup[] }>()
 const { settings, words } = await useGarage()

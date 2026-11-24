@@ -3,7 +3,7 @@
 // light; a row is the name with a short text, then the price and the duration. A light of the row
 // above opens its group and marks its name for a moment. On a phone the groups after the second
 // start closed. Under the list: the two rates, the note and the warranty.
-import type { PriceGroup } from '~/utils/site'
+import type { PriceGroup } from '../../utils/site'
 
 const props = defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; sets: PriceGroup[] }>()
 const { settings, words } = await useGarage()

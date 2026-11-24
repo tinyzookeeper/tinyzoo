@@ -7,6 +7,7 @@
 @import "../../../../wedding/app/assets/css/design.css";
 @import "../../../../blog/app/assets/css/design.css";
 @import "../../../../trades/app/assets/css/design.css";
+@import "../../../../car-service/app/assets/css/design.css";
 @import "../../../../restaurant/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
@@ -17,6 +18,7 @@
 @source "../../../../wedding";
 @source "../../../../blog";
 @source "../../../../trades";
+@source "../../../../car-service";
 @source "../../../../restaurant";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
@@ -68,4 +70,10 @@
   --color-brand-soft: var(--brand-soft);
   --color-coal: var(--coal);
   --color-brand-lit: var(--brand-lit);
+  /* Car-service */
+  --color-text: var(--text);
+  --color-signal-amber: #ffb224;
+  --color-signal-red: #ff6a57;
+  --color-brand-deep: var(--brand-deep);
+  --color-edge: var(--edge);
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Šuplíky's reviews: lacquered slabs in two columns, each headed by the car on a number plate.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; items: Review[] }>()
 </script>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Cesta's reviews: white surfaces in two columns, the quote, the name and the car.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; items: Review[] }>()
 </script>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Cesta's extras: three photographs with a name, a price and a few words. A row to swipe on a
 // phone (the cards run to the edge of the screen), three columns from a tablet's width.
-import type { Extra } from '~/lib/cms-content'
+import type { Extra } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'extras'>; first?: boolean; items: Extra[] }>()
 </script>

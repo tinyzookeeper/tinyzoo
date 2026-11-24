@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šuplíky's seasonal notice: prices by wheel size, drawn as wheels that grow with the size, the
 // heading and a button beside them (the photograph of the balancing machine on a tablet and up).
-import type { SeasonalOffer } from '~/lib/cms-content'
+import type { SeasonalOffer } from '../../lib/cms-content'
 
 defineProps<{ offer: SeasonalOffer; first?: boolean; anchor?: string }>()
 const { words } = await useGarage()

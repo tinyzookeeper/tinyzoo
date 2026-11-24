@@ -6,6 +6,7 @@ import photographer from '../photographer/fonts'
 import wedding from '../wedding/fonts'
 import blog from '../blog/fonts'
 import trades from '../trades/fonts'
+import carService from '../car-service/fonts'
 import restaurant from '../restaurant/fonts'
 
 export const DESIGNS: Record<string, DesignFonts> = {
@@ -14,5 +15,6 @@ export const DESIGNS: Record<string, DesignFonts> = {
   wedding,
   blog,
   trades,
+  'car-service': carService,
   restaurant,
 }
