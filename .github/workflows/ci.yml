@@ -1,7 +1,9 @@
 name: CI
 
 # What runs on every pull request and every push to main: the fast checks, in parallel.
-#   typecheck  the code, the docs' examples and the four Nuxt apps (at once)
+#   typecheck  in three parts, each on its own runner: the code, the docs' examples and the Nuxt
+#              apps; and the hosted templates in two halves (each template is checked twice: as
+#              its own app and as a design of the one app)
 #   unit       the unit tests
 #   check      green when both passed: the check branch protection asks for
 #   api-shard  the API tests in four parts, each on its own runner with its own database and
@@ -62,9 +64,17 @@ jobs:
               - '.github/workflows/ci.yml'
               - '.github/actions/**'
 
+  # `pnpm typecheck` in three parts. On one runner it took as long as the time limit once every
+  # template was checked twice (as its own app and as a design of the one app), and a run that
+  # had found no error was cancelled.
   typecheck:
+    name: typecheck (${{ matrix.part }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [code, templates-1, templates-2]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -73,7 +83,29 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
+      - name: Typecheck (${{ matrix.part }})
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          set -euo pipefail
+          if [ "$PART" = code ]; then
+            # What `pnpm typecheck` runs, without the templates.
+            pnpm exec tsc -p tsconfig.json
+            pnpm docs:check
+            pnpm --filter playground --filter tinyzoo-starter --filter tinyzoo-web --filter tinyzoo-keeper --filter tinyzoo-cloud --workspace-concurrency=4 typecheck
+          else
+            # Every other folder of templates/, by its place in the list: the two halves together
+            # are what `--filter "tinyzoo-template-*"` names.
+            half=$(( ${PART#templates-} % 2 ))
+            filters=()
+            n=0
+            for dir in templates/*/; do
+              n=$(( n + 1 ))
+              if [ $(( n % 2 )) -eq "$half" ]; then filters+=(--filter "./${dir%/}"); fi
+            done
+            echo "templates in this part: ${filters[*]}"
+            pnpm "${filters[@]}" --workspace-concurrency=4 typecheck
+          fi
 
   unit:
     runs-on: ubuntu-latest
