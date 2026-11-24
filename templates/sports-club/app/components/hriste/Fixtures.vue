@@ -2,8 +2,8 @@
 // Hřiště's fixtures: a pill switch for the teams and two soft panels, what is coming and what is
 // played. A match is the date on the left, the two teams one under the other with the score, and
 // the kick-off or the outcome disc on the right.
-import type { Squad } from '~/lib/cms-content'
-import type { TableView } from '~/composables/useClub'
+import type { Squad } from '../../lib/cms-content'
+import type { TableView } from '../../composables/useClub'
 
 const props = defineProps<{
   block: BlockOf<'fixtures'>; first?: boolean; anchor?: string; squads: Squad[]; matches: MatchView[]

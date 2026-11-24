@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Na háčku's departments on the white wall beside the board: two columns of rows, each a round
 // photograph, the name with its price range as an outlined pill, the sentence and the makers.
-import type { Range } from '~/lib/cms-content'
+import type { Range } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'ranges'>; first?: boolean; anchor?: string; items: Range[] }>()
 </script>

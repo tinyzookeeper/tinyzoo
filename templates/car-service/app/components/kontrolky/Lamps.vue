@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Kontrolky's warning lights: six lights on one soft panel, each with the name of its group, each
 // leading to its group of the price list and opening it.
-import type { ServiceGroup } from '~/lib/cms-content'
+import type { ServiceGroup } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'lamps'>; first?: boolean; anchor?: string; groups: ServiceGroup[] }>()
 const focus = useGroupFocus()

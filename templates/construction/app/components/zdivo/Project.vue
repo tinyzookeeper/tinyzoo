@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zdivo's page of one project (/realizace/dum-v-libici): the name in the blocky slab, the
 // photographs in a card, the parameters laid as bricks, the text and the client's words.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Project }>()
 const words = useSiteWords()

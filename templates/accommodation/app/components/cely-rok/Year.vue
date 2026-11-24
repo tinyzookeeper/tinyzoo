@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Celý rok's year: one ribbon of twelve months coloured by season, with today marked, and
 // under it each season with its dates, the price from and the shortest stay.
-import type { Season } from '~/lib/cms-content'
+import type { Season } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'year'>; first?: boolean; anchor?: string; rows: Array<{ season: Season; from: number | null }> }>()
 const { words } = await useStay()

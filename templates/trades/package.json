@@ -8,7 +8,7 @@
     "dev": "nuxt dev",
     "build": "nuxt build",
     "preview": "nuxt preview",
-    "typecheck": "node ../kit/scripts/typecheck.mjs",
+    "typecheck": "node ../kit/scripts/typecheck.mjs && node ../app/scripts/typecheck.mjs trades",
     "db:generate": "tinyzoo generate",
     "db:migrate": "tinyzoo up",
     "seed": "tinyzoo seed",

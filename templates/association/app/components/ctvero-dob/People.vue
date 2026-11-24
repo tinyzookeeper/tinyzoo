@@ -2,7 +2,7 @@
 // Čtvero dob's people: portraits 4:5 with a name, a role and a few words (on a phone the
 // portrait stands beside the text), every other one set lower, and a card for newcomers with the
 // phone of the person who takes the call-outs.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'people'>; first?: boolean; anchor?: string; people: Person[] }>()
 const volunteer = computed(() => volunteerOf(props.people))

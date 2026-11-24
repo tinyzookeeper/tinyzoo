@@ -1,0 +1,8 @@
+/* Car-service's own rules from its main.css, for Car-service's sites only (html[data-design="car-service"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+@layer base {
+  html[data-design="car-service"] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-design="car-service"] { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="car-service"] { scroll-behavior: auto; } }
+}

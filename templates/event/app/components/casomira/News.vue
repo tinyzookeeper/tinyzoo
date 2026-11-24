@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Časomíra's news: dated lines of an organiser's bulletin, the date lit in the colour of the diodes.
-import type { NewsItem } from '~/lib/cms-content'
+import type { NewsItem } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; items: NewsItem[] }>()
 const { words } = await useEvent()

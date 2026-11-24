@@ -2,7 +2,7 @@
 // Rozsvíceno's "where we work": the photograph of the region in a rounded frame, and the places
 // as windows of a street: lit (and a link to the properties there) where something is on
 // offer, dark where the agency takes a property on by arrangement.
-import type { Area } from '~/lib/cms-content'
+import type { Area } from '../../lib/cms-content'
 
 type Place = Area & { count: number }
 defineProps<{ block: BlockOf<'areas'>; first?: boolean; anchor?: string; places: Place[] }>()

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Magazín's places to stay: three columns, each led by the distance in large figures.
-import type { Lodging } from '~/lib/cms-content'
+import type { Lodging } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'lodging'>; first?: boolean; anchor?: string; items: Lodging[] }>()
 </script>

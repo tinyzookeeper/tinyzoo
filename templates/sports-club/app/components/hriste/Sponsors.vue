@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Hřiště's partners: the main ones as two large soft cards, the partners as a grid of smaller
 // ones, the supporters as a line of names.
-import type { Sponsor } from '~/lib/cms-content'
+import type { Sponsor } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'sponsors'>; first?: boolean; anchor?: string; items: Sponsor[] }>()
 const words = useSiteWords()

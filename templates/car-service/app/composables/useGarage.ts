@@ -2,7 +2,7 @@
 // seasonal offer) and the facts from Site settings. (The site-wide content, the page and
 // `useSiteList` are the template kit's: templates/kit/app/composables/useSite.ts.)
 import type { SiteForm } from '#imports'
-import type { Extra, Review, SeasonalOffer, Service, ServiceGroup, TeamMember } from '~/lib/cms-content'
+import type { Extra, Review, SeasonalOffer, Service, ServiceGroup, TeamMember } from '../lib/cms-content'
 
 /** The groups of the price list, in the editors' order. */
 export const useServiceGroups = () => useSiteList<ServiceGroup>('site-service-groups', 'serviceGroup')

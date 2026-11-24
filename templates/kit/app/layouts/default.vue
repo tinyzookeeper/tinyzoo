@@ -2,9 +2,10 @@
 // The website's frame: the look's header and footer around the page. The look and its colours
 // come from the site's settings and go onto <html>, so the first answer of the server is
 // already drawn right; the look's styles are in app/assets/css/<look>.css.
+const design = useDesign()
 const { look } = await useSite()
 useLookHead(look)
-useHead({ htmlAttrs: { lang: DEFAULT_LANGUAGE } })
+useHead({ htmlAttrs: { lang: design.site.DEFAULT_LANGUAGE } })
 </script>
 
 <template>

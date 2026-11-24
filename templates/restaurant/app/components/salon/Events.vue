@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Salon's events: the heading and a sentence beside a ruled list, the date in brass italics.
-import type { Event } from '~/lib/cms-content'
+import type { Event } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'events'>; first?: boolean; anchor?: string; events: Event[] }>()
 </script>

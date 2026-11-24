@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Salon's lunch: the heading and the date beside a cream card with the soup and the main
 // courses of the day, dotted leaders between each name and its price.
-import type { DailyMenu } from '~/lib/cms-content'
+import type { DailyMenu } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'lunch'>; first?: boolean; anchor?: string; lunch: { menu: DailyMenu; today: boolean } | null }>()
 const { words } = await useRestaurant()

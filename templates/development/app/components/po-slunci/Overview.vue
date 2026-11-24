@@ -3,7 +3,7 @@
 // gets the sun, and beside it the floor plan seen from above, street to the north and garden to
 // the south, with the sun's path around it. A switch picks the floor; the flats are coloured by
 // state and lead to the price list. Everything on the plan comes from the flats.
-import type { Flat, Floor } from '~/lib/cms-content'
+import type { Flat, Floor } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'overview'>; first?: boolean; anchor?: string; flats: Flat[]; floors: Floor[] }>()
 const words = useSiteWords()

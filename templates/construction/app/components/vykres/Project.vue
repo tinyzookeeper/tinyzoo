@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výkres's page of one project (/realizace/dum-v-libici): the name over a heavy rule, the
 // photographs on the left, the table of its facts, the text and the client's words on the right.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Project }>()
 const words = useSiteWords()

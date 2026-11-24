@@ -2,7 +2,7 @@
 // Čtvero dob's ways to help: three cards (by hand in straw, membership in young leaves, and the
 // gift in the brand colour with the payment code and the account), then a strip of what a sum
 // pays for and the note about the gift receipt.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'help'>; first?: boolean; anchor?: string; people: Person[] }>()
 const { settings, words } = await useAssociation()

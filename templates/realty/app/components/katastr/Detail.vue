@@ -2,7 +2,7 @@
 // Katastr's detail: the photographs (one large, two small) beside the record of the property:
 // state, title, place, a serif price and a ruled table of parameters, the agent and two buttons.
 // On the property's own page (`page`) the photographs are all there, and the page's heading is the title.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'detail'>; first?: boolean; anchor?: string; listing: Listing | null; page?: boolean }>()
 const { words } = await useOffice()

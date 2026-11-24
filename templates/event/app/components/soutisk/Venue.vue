@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Soutisk's venue: the plan as flat coloured shapes beside the numbered legend. A plan uploaded
 // in the block replaces the sample drawing; the numbers then lie over it.
-import type { VenuePoint } from '~/lib/cms-content'
+import type { VenuePoint } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'venue'>; first?: boolean; anchor?: string; points: VenuePoint[] }>()
 const { settings, words } = await useEvent()

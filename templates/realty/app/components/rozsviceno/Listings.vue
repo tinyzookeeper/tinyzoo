@@ -2,7 +2,7 @@
 // Rozsvíceno's listings: a greeting-like line, the heading and the filter chips (a row to swipe
 // on a phone); the cards as a row to swipe on a phone and a grid from a tablet's width up, the
 // dashed box that asks what the visitor looks for as the last cell, and a count with an outlined button.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 type Cell = { kind: 'listing'; listing: Listing; class?: string } | { kind: 'watchdog'; class?: string }
 const props = defineProps<{ block: BlockOf<'listings'>; first?: boolean; anchor?: string; listings: Listing[]; total: number; watchdog: SiteForm | null; moreUrl: string | null }>()

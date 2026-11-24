@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Dres's membership drive: a full block of the club colour. The photograph beside the headline and
 // the age groups on shirt stripes, and under them one black strip with the form in a single row.
-import type { AgeGroup } from '~/lib/cms-content'
+import type { AgeGroup } from '../../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 const props = defineProps<{ block: BlockOf<'join'>; first?: boolean; anchor?: string; groups: AgeGroup[]; form: SiteForm }>()

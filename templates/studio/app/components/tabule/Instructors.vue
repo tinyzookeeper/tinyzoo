@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Tabule's instructors: dark, four portraits printed in the colour of the site (their own colours
 // under the pointer), the name in capitals. On a phone a row to swipe.
-import type { Instructor, LessonKind } from '~/lib/cms-content'
+import type { Instructor, LessonKind } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'instructors'>; first?: boolean; anchor?: string; instructors: Instructor[]; kinds: LessonKind[] }>()
 </script>

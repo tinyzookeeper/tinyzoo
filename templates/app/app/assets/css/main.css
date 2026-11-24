@@ -1,0 +1,191 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+/* Each design's own rules, all under html[data-design="<id>"]: they never touch another design.
+   (The looks' stylesheets are not here: each is a file of its own, linked on its look's pages.) */
+@import "../../../../individual/app/assets/css/design.css";
+@import "../../../../photographer/app/assets/css/design.css";
+@import "../../../../wedding/app/assets/css/design.css";
+@import "../../../../blog/app/assets/css/design.css";
+@import "../../../../trades/app/assets/css/design.css";
+@import "../../../../car-service/app/assets/css/design.css";
+@import "../../../../salon/app/assets/css/design.css";
+@import "../../../../medical/app/assets/css/design.css";
+@import "../../../../office/app/assets/css/design.css";
+@import "../../../../restaurant/app/assets/css/design.css";
+@import "../../../../accommodation/app/assets/css/design.css";
+@import "../../../../sports-club/app/assets/css/design.css";
+@import "../../../../studio/app/assets/css/design.css";
+@import "../../../../event/app/assets/css/design.css";
+@import "../../../../association/app/assets/css/design.css";
+@import "../../../../realty/app/assets/css/design.css";
+@import "../../../../development/app/assets/css/design.css";
+@import "../../../../construction/app/assets/css/design.css";
+@import "../../../../shop/app/assets/css/design.css";
+@import "../../../../software/app/assets/css/design.css";
+
+/* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
+@source "../../../node_modules/tinyzoo/app";
+@source "../../../node_modules/tinyzoo-template-kit/app";
+@source "../../../../individual";
+@source "../../../../photographer";
+@source "../../../../wedding";
+@source "../../../../blog";
+@source "../../../../trades";
+@source "../../../../car-service";
+@source "../../../../salon";
+@source "../../../../medical";
+@source "../../../../office";
+@source "../../../../restaurant";
+@source "../../../../accommodation";
+@source "../../../../sports-club";
+@source "../../../../studio";
+@source "../../../../event";
+@source "../../../../association";
+@source "../../../../realty";
+@source "../../../../development";
+@source "../../../../construction";
+@source "../../../../shop";
+@source "../../../../software";
+
+/* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
+   design's. Where designs give a token different values, the value most templates use is here
+   and the others are in their design.css. Each look gives the variables behind them their values
+   (under html[data-look="…"]), and a colour preset from the site's settings overrides the colours
+   inline on <html>. Outside a look (the admin) none of these is set, and none is used. The names
+   keep clear of Nuxt UI's own (muted, dimmed, default…), which the admin uses. */
+@theme {
+  --font-display: Georgia, "Times New Roman", serif;
+  --font-cond: system-ui, sans-serif;
+  --color-cream: var(--cream);
+  --color-lamp: var(--lamp);
+  --color-night: var(--night);
+  --color-raised: var(--raised);
+  --color-rule: var(--rule);
+  /* Photographer */
+  --font-hand: cursive;
+  --color-paper: var(--paper);
+  --color-tint: var(--tint);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-body: var(--body);
+  --color-quiet: var(--quiet);
+  --color-card: var(--card);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-dim: var(--dim);
+  --color-panel: var(--panel);
+  --breakpoint-wide: 68.75rem;
+  /* Wedding */
+  --font-caps: system-ui, sans-serif;
+  --color-card-ink: var(--card-ink);
+  --color-card-body: var(--card-body);
+  --color-card-line: var(--card-line);
+  --color-deep: var(--deep);
+  /* Restaurant */
+  --font-label: system-ui, sans-serif;
+  --color-pop: var(--pop);
+  --color-sheet: var(--sheet);
+  --color-type: var(--type);
+  /* Blog */
+  --color-deep-ink: var(--deep-ink);
+  --color-deep-soft: var(--deep-soft);
+  --color-ground: var(--ground);
+  /* Trades */
+  --color-brand-soft: var(--brand-soft);
+  --color-coal: var(--coal);
+  --color-brand-lit: var(--brand-lit);
+  /* Car-service */
+  --color-text: var(--text);
+  --color-signal-amber: #ffb224;
+  --color-signal-red: #ff6a57;
+  --color-brand-deep: var(--brand-deep);
+  --color-edge: var(--edge);
+  /* Salon */
+  --color-surface: var(--surface);
+  --color-accent: var(--accent);
+  --color-soft: var(--soft);
+  --color-glass: var(--glass);
+  --color-pane: var(--pane);
+  --color-brass: var(--brass);
+  --color-shade: var(--shade);
+  /* Medical */
+  --color-brand-tint: var(--brand-tint);
+  --color-note: var(--note);
+  --color-note-tint: var(--note-tint);
+  --color-ok: var(--ok);
+  --color-second: var(--second);
+  --color-sun: var(--sun);
+  --color-track: var(--track);
+  /* Office */
+  --color-signal: var(--signal);
+  --color-signal-ink: var(--signal-ink);
+  --color-signal-text: var(--signal-text);
+  /* Accommodation */
+  --color-off: var(--off);
+  /* Sports-club */
+  --color-brand-lite: var(--brand-lite);
+  --color-stone: var(--stone);
+  --color-pitch: var(--pitch);
+  /* Studio */
+  --color-warm: var(--warm);
+  --color-accent-ink: var(--accent-ink);
+  --color-k1: var(--k1);
+  --color-k2: var(--k2);
+  --color-k3: var(--k3);
+  --color-k4: var(--k4);
+  --color-k5: var(--k5);
+  /* Event */
+  --font-led: monospace;
+  --color-led: var(--led);
+  --color-led-ink: var(--led-ink);
+  --color-c1: var(--c1);
+  --color-c2: var(--c2);
+  --color-c3: var(--c3);
+  --color-paper2: var(--paper2);
+  /* Association */
+  --color-sand: var(--sand);
+  --color-zima: var(--zima);
+  --color-jaro: var(--jaro);
+  --color-leto: var(--leto);
+  --color-podzim: var(--podzim);
+  --color-zima-m: var(--zima-m);
+  --color-jaro-m: var(--jaro-m);
+  --color-leto-m: var(--leto-m);
+  --color-podzim-m: var(--podzim-m);
+  /* Realty */
+  --color-spark: var(--brand-on-dark);
+  --color-lamp-ink: var(--accent-ink);
+  /* Construction */
+  --font-data: system-ui, sans-serif;
+  --color-hair: var(--hair);
+  --color-plaster: var(--plaster);
+  --color-brand-d: var(--brand-d);
+  --color-brand-2: var(--brand-2);
+  --color-brand-3: var(--brand-3);
+  --color-concrete: var(--concrete);
+  --color-timber: var(--timber);
+  /* Shop */
+  --color-wood: var(--wood);
+  --color-wood-hi: var(--wood-hi);
+  --color-wood-lo: var(--wood-lo);
+  --color-brass-lo: var(--brass-lo);
+  --color-rail: var(--rail);
+  --color-rail-ink: var(--rail-ink);
+  --color-board: var(--board);
+  --color-board-lo: var(--board-lo);
+  --color-wall: var(--wall);
+  --color-peg: var(--peg);
+  /* Software */
+  --color-am: var(--am);
+  --color-pm: var(--pm);
+  --color-sky: var(--sky);
+  --color-dawn: var(--dawn);
+  --color-morning: var(--morning);
+  --color-noon: var(--noon);
+  --color-afternoon: var(--afternoon);
+  --color-late: var(--late);
+  --color-dusk: var(--dusk);
+  --color-evening: var(--evening);
+}

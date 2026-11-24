@@ -5,7 +5,8 @@ import { addComponentsDir, addImportsDir, addPlugin, addServerHandler, addServer
 import type { ModuleDependencies, Nuxt } from 'nuxt/schema'
 import { createJiti } from 'jiti'
 import { docsUrl } from './src/docs'
-import { collectPlugins, planPlugins, type CmsPlugin } from './src/plugin'
+import { modelMigrationsAsset, modelPluginsProblem, modelsOf } from './src/models'
+import { collectPlugins, planPlugins } from './src/plugin'
 import { prepareStaticImages, STATIC_IMAGES_BASE, type StaticImageManifest } from './src/staticImages'
 
 const layerDir = dirname(fileURLToPath(import.meta.url))
@@ -233,20 +234,30 @@ export interface CmsModuleOptions {
 }
 
 /**
- * The plugins of the host's `cms.config.ts` (`export const plugins = [...]`, plus the
- * ones an entity registers by itself, see `collectPlugins`). The config is read at build
- * time with jiti, exactly as the CLI reads it, because the admin pages, server routes
- * and components a plugin brings have to be registered before the build starts.
+ * The content models of the host's `cms.config.ts` (one, unless it exports `defineModels`) and
+ * the plugins to register: those of the first model, which are the same for every model (checked
+ * here). A plugin is `export const plugins = [...]` plus the ones an entity registers by itself,
+ * see `collectPlugins`. The config is read at build time with jiti, exactly as the CLI reads it,
+ * because the admin pages, server routes and components a plugin brings have to be registered
+ * before the build starts.
  */
-async function loadPlugins(configPath: string, alias: Record<string, string>): Promise<CmsPlugin[]> {
-  if (!existsSync(configPath)) return []
+async function loadModels(configPath: string, alias: Record<string, string>): Promise<{ models: ReturnType<typeof modelsOf>['models']; plugins: ReturnType<typeof collectPlugins> }> {
+  if (!existsSync(configPath)) return { models: new Map(), plugins: [] }
+  let models: ReturnType<typeof modelsOf>['models']
+  let plugins: ReturnType<typeof collectPlugins>
   try {
     const jiti = createJiti(configPath, { alias, interopDefault: true, moduleCache: false, fsCache: false })
-    return collectPlugins(await jiti.import<Record<string, any>>(configPath))
+    models = modelsOf(await jiti.import<Record<string, any>>(configPath)).models
+    if (!models.size) throw new Error('the config has no content model: no entities, and defineModels() has no models')
+    plugins = collectPlugins([...models.values()][0]!.config)
   }
   catch (err: any) {
     throw new Error(`[tinyzoo] could not read the plugins from ${configPath}: ${err?.message ?? err}`, { cause: err })
   }
+  // The build registers each plugin's pages, routes, components and texts once, so every model must have the same plugins.
+  const problem = modelPluginsProblem(models.values())
+  if (problem) throw new Error(`[tinyzoo] ${problem}`)
+  return { models, plugins }
 }
 
 /** `cms.sitemap.paths` checked at build time: each is an address starting with one "/" (or a map of them per language). */
@@ -352,10 +363,22 @@ export default defineNuxtModule<CmsModuleOptions>({
     nuxt.options.alias['#cms/config'] = configPath
     // Bundle the host's migrations as server assets so they ship with .output.
     const migrationsDir = resolve(nuxt.options.rootDir, options.migrations?.dir || 'server/db/migrations')
+    // The content models (one, unless the config exports defineModels) and the plugins, read once.
+    const { models, plugins } = await loadModels(configPath, nuxt.options.alias as Record<string, string>)
+    // Each named model has its own migrations folder, bundled under its own name; a missing one is a build error.
+    const modelMigrations = [...models.values()].filter((m) => m.migrations !== null).map((m) => {
+      const dir = resolve(nuxt.options.rootDir, m.migrations!)
+      if (!existsSync(dir)) throw new Error(`[tinyzoo] the content model "${m.name}": its migrations folder ${dir} does not exist (\`migrations\` in defineModels, relative to ${nuxt.options.rootDir}).`)
+      return { baseName: modelMigrationsAsset(m.name), dir }
+    })
     nuxt.hook('nitro:config', (nitro) => {
       if (existsSync(migrationsDir)) {
         nitro.serverAssets = nitro.serverAssets || []
-        nitro.serverAssets.push({ baseName: 'cms-migrations', dir: migrationsDir })
+        nitro.serverAssets.push({ baseName: modelMigrationsAsset('default'), dir: migrationsDir })
+      }
+      for (const m of modelMigrations) {
+        nitro.serverAssets = nitro.serverAssets || []
+        nitro.serverAssets.push(m)
       }
       // Scheduled publishing: announce entries whose publish time has come.
       nitro.experimental = { ...(nitro.experimental || {}), tasks: true }
@@ -407,7 +430,6 @@ export {}
     // their entities, tables, hooks and upgrade steps reach the server through the registry
     // (src/entity.ts, buildRegistry), and their tables reach the migrations through
     // `tinyzoo generate` (src/emitter.ts).
-    const plugins = await loadPlugins(configPath, nuxt.options.alias as Record<string, string>)
     const plan = planPlugins(plugins, { exists: existsSync })
     if (plan.pages.length) {
       extendPages((pages) => {

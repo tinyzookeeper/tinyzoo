@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Soutisk's partners and organiser: the partners set in the display face by level, and the
 // organiser on a paper card under a photograph of the village cut with a line of hills.
-import type { Partner } from '~/lib/cms-content'
+import type { Partner } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'partners'>; first?: boolean; anchor?: string; items: Partner[] }>()
 const { settings, words } = await useEvent()

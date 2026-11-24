@@ -1,0 +1,16 @@
+/* Medical's own rules from its main.css, for Medical's sites only (html[data-design="medical"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+/* Its theme values that differ from the app's: in the theme layer, so a look's own value still wins. */
+@layer theme {
+  html[data-design="medical"] {
+    --font-display: system-ui, sans-serif;
+  }
+}
+
+@layer base {
+  html[data-design="medical"] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-design="medical"] { scroll-behavior: smooth; }
+  html[data-design="medical"] [id] { scroll-margin-top: 1.5rem; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="medical"] { scroll-behavior: auto; } }
+}

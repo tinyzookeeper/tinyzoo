@@ -3,7 +3,7 @@
 // the articles run down the right, ruled. An article with a photograph gets a thumbnail; one
 // without is set larger (a column in italics, with its standfirst), and the reading time stands
 // in the right margin.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: { heading: string; text?: string | null; links?: BlockOf<'list'>['links'] }; first?: boolean; anchor?: string; items: Article[] }>()
 const { words } = await useBlog()

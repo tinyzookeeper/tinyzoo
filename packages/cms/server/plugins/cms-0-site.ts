@@ -23,6 +23,8 @@ function answer(event: any, status: number, text: string, headers: Record<string
 
 export default defineNitroPlugin((nitroApp) => {
   if (!cmsIsMultiTenant()) return
+  // The directory refuses a row naming a model the build does not have: it must know them before it reads anything.
+  cmsKnowSiteModels(cmsModelNames())
   // A directory in a file is read now: a missing or broken one fails the start, not the
   // first request. One in a database is read in the background; requests wait for the first read.
   const ready = cmsDirectoryReady().then(() => {

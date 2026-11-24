@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výloha's results: photographs in the window. Five framed pictures, every other one set lower;
 // a row to swipe on a phone (the carousel switches itself off from `lg`, where a grid takes over).
-import type { Result } from '~/lib/cms-content'
+import type { Result } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'results'>; first?: boolean; anchor?: string; items: Result[] }>()
 // Every other photograph hangs lower on the grid.

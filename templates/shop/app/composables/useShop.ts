@@ -1,7 +1,7 @@
 // What the Shop's blocks draw from: the facts of the shop (Site settings), the collections, the
 // opening hours as they stand at the visitor's clock, and the enquiry the product buttons fill in.
 // (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { News, Person, Product, Range, Service } from '~/lib/cms-content'
+import type { News, Person, Product, Range, Service } from '../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 /** The departments, in the editors' order. */

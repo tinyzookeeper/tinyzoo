@@ -3,7 +3,7 @@
 // and finding and stopping the site processes those runs made. (What the walkthrough is
 // filmed with is in film.mjs.)
 import { execFile, spawn } from 'node:child_process'
-import { existsSync, mkdirSync, openSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, openSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import net from 'node:net'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,20 +14,31 @@ const run = promisify(execFile)
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 export const cloudDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 export const repoRoot = resolve(cloudDir, '..')
-// A hosted template (templates/<id>, package tinyzoo-template-<id>): what its demo content is
+/**
+ * The apps that are built and run (shared/templates.ts `APPS`): the one app that holds the
+ * designs of every hosted template (each site's row names its template as its content model),
+ * and the Basic website's own. `templates:build` builds these, not one app per template.
+ */
+export const APPS = [
+  { id: 'templates', pkg: 'tinyzoo-template-app', dir: 'templates/app', models: true },
+  { id: 'basic', pkg: 'tinyzoo-starter', dir: 'packages/cms/starter', models: false },
+]
+
+// A hosted template (templates/<id>): its own folder holds its demo content and its looks; it is
+// a design of the one app. What its demo content is
 // called in its pictures, where it writes the site's name (`wordmark`: what the wizard's typed
 // name replaces; by default the first visible element marked `data-wordmark`, in the header or
 // opening the page) and what else of the name to leave out of that picture (`hide`: a monogram).
 const hosted = (id, demoName, { wordmark = '[data-wordmark]', hide = null } = {}) =>
-  ({ id, pkg: `tinyzoo-template-${id}`, dir: `templates/${id}`, demoName, wordmark, hide })
+  ({ id, app: 'templates', pkg: `tinyzoo-template-${id}`, dir: `templates/${id}`, demoName, wordmark, hide })
 
 /**
- * The ready templates of shared/templates.ts, in its order: what `templates:build` builds,
- * what `pictures --real` photographs and what `e2e` makes sites from. A template's looks are
- * read from its own looks.ts (`looksOf`).
+ * The ready templates of shared/templates.ts, in its order: what `pictures --real`
+ * photographs and what `e2e` makes sites from (`app` is the app that serves each; `dir` is the
+ * template's own folder, not the app's). A template's looks are read from its own looks.ts (`looksOf`).
  */
 export const BUILT_TEMPLATES = [
-  { id: 'basic', pkg: 'tinyzoo-starter', dir: 'packages/cms/starter', demoName: 'Pekárna Na Růžku', wordmark: 'header .site-header > a > span', hide: null },
+  { id: 'basic', app: 'basic', pkg: 'tinyzoo-starter', dir: 'packages/cms/starter', demoName: 'Pekárna Na Růžku', wordmark: 'header .site-header > a > span', hide: null },
   hosted('individual', 'Magda Šubrtová'),
   hosted('photographer', 'Johana Loudová'),
   // The names open the page, large: the wizard writes the typed ones there; the header's monogram is left out.
@@ -50,9 +61,31 @@ export const BUILT_TEMPLATES = [
   hosted('shop', 'U Dvou klíčů'),
   hosted('software', 'Odpolka'),
 ]
-/** The built server of each ready template (scripts/build-templates.mjs makes them). */
-export const templateEntries = Object.fromEntries(BUILT_TEMPLATES.map((t) => [t.id, join(repoRoot, t.dir, '.output/server/index.mjs')]))
+/** The built server of each app (scripts/build-templates.mjs makes them). */
+export const appEntries = Object.fromEntries(APPS.map((a) => [a.id, join(repoRoot, a.dir, '.output/server/index.mjs')]))
+/** The built server of each ready template: the one of the app that serves it. */
+export const templateEntries = Object.fromEntries(BUILT_TEMPLATES.map((t) => [t.id, appEntries[t.app]]))
+/** The Basic website's server. */
 export const templateEntry = templateEntries.basic
+
+/**
+ * The designs the one app was built with (`.output/tinyzoo-designs.json`, which
+ * `templates:build` writes), or null when the build does not say: then it has every design.
+ */
+export function builtDesigns() {
+  try {
+    const list = JSON.parse(readFileSync(join(repoRoot, 'templates/app/.output/tinyzoo-designs.json'), 'utf8'))?.designs
+    return Array.isArray(list) ? list : null
+  }
+  catch { return null }
+}
+
+/** Of these template ids, the kit templates (served by the one app) that the current build lacks. Empty when all are there or the app is not built. */
+export function missingDesigns(ids) {
+  const built = builtDesigns()
+  if (!built || !existsSync(appEntries.templates)) return []
+  return ids.filter((id) => BUILT_TEMPLATES.some((t) => t.id === id && t.app === 'templates') && !built.includes(id))
+}
 
 /** A template's looks as its own looks.ts lists them (`{ ids, all }`); null for a template with one unnamed design. */
 export async function looksOf(template) {
@@ -70,6 +103,8 @@ const runTag = (process.env.CLOUD_RUN_TAG || '').toLowerCase().replace(/[^a-z0-9
 export const runDb = (name) => (runTag ? `${name}_${runTag}` : name)
 /** "tzc_e2e_" → "tzc_e2etpl_" with CLOUD_RUN_TAG=tpl (one word after tzc_: the cloud's own rule for a prefix). */
 export const runPrefix = (prefix) => (runTag ? `${prefix.replace(/_$/, '')}${runTag}_` : prefix)
+/** A prefix of the shared driver, which need not end in `_`: "tzmt_e2e" → "tzmt_e2eoneapp" with CLOUD_RUN_TAG=oneapp. */
+export const runSitePrefix = (prefix) => (runTag ? `${prefix}${runTag}` : prefix)
 /** 4350 → 4550 with CLOUD_PORT_SHIFT=200. */
 export const runPort = (port) => port + (Number(process.env.CLOUD_PORT_SHIFT) || 0)
 
@@ -170,6 +205,8 @@ export const siteFolders = (dataDir) => (existsSync(dataDir) ? readdirSync(dataD
 export async function startCloud({ port, env = {}, logFile }) {
   if (!(await portFree(port))) throw new Error(`port ${port} is in use`)
   mkdirSync(dirname(logFile), { recursive: true })
+  // What this start prints begins here (the log is appended to).
+  const from = existsSync(logFile) ? statSync(logFile).size : 0
   const out = openSync(logFile, 'a')
   const child = spawn('pnpm', ['exec', 'nuxt', 'dev', '--port', String(port)], {
     cwd: cloudDir, detached: true, stdio: ['ignore', out, out],
@@ -183,8 +220,21 @@ export async function startCloud({ port, env = {}, logFile }) {
   const until = Date.now() + 180_000
   for (;;) {
     if (exited) throw new Error(`the cloud app exited while starting; see ${logFile}`)
-    try { if ((await fetch(`${url}/api/account`, { signal: AbortSignal.timeout(3000) })).ok) break } catch { /* not up yet */ }
-    if (Date.now() > until) throw new Error(`the cloud app did not answer; see ${logFile}`)
+    // Nuxt takes another port, without failing, when the one asked for was taken a moment
+    // before (two runs starting together): the answer on `port` would then be the other run's
+    // app. So the run waits until its own app says where it listens, and stops if that is elsewhere.
+    // (`from` counts bytes, and the log holds characters of several bytes: cut the bytes, then read them as text.)
+    const said = /Local:\s+(http:\/\/\S+)/.exec(readFileSync(logFile).subarray(from).toString('utf8'))?.[1]
+    if (said && !said.startsWith(`${url}/`)) {
+      try { process.kill(-child.pid, 'SIGTERM') } catch { /* gone */ }
+      throw new Error(`the cloud app started at ${said}, not on port ${port} (it was taken a moment before); see ${logFile}`)
+    }
+    try { if (said && (await fetch(`${url}/api/account`, { signal: AbortSignal.timeout(3000) })).ok) break } catch { /* not up yet */ }
+    if (Date.now() > until) {
+      // The app is the script's own and nobody holds its `stop()` yet: end it here, or it stays behind.
+      try { process.kill(-child.pid, 'SIGTERM') } catch { /* gone */ }
+      throw new Error(`the cloud app did not answer; see ${logFile}`)
+    }
     await sleep(500)
   }
   // The first page render compiles the client bundle: do it once here, so the browser does not wait on it.

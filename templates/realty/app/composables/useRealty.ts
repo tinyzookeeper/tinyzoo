@@ -1,7 +1,7 @@
 // What the Realty's blocks draw from: the collections, the facts of the office (Site settings),
 // the filter over the listings and the search that sets it. (The site-wide content, the page and
 // `useSiteList` are the template kit's.)
-import type { Agent, Area, Listing, Sale } from '~/lib/cms-content'
+import type { Agent, Area, Listing, Sale } from '../lib/cms-content'
 
 /** The published listings in the agency's order. */
 export const useListings = () => useSiteList<Listing>('site-listings', 'listing')

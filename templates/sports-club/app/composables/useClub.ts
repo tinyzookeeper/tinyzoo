@@ -1,7 +1,7 @@
 // What the Sports club's blocks draw from: the collections, and the club's facts worked out of
 // them (the next match, the last result, the form, the place in the table). (The site-wide
 // content, the page and `useSiteList` are the template kit's.)
-import type { AgeGroup, Article, Committee, Match, Player, Sponsor, Squad, Standing } from '~/lib/cms-content'
+import type { AgeGroup, Article, Committee, Match, Player, Sponsor, Squad, Standing } from '../lib/cms-content'
 
 /** The teams, in the editors' order: the first one is the club's main team. */
 export const useSquads = () => useSiteList<Squad>('site-squads', 'squad')

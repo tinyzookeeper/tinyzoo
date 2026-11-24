@@ -34,12 +34,12 @@
 // the admin's two buttons by their keys in the admin's own dictionary, never by a wording
 // written here: the script survives a change of the texts.
 //
-// Needs the templates built (pnpm --filter tinyzoo-cloud templates:build), Postgres and ffmpeg.
+// Needs the one app built with the Photographer design (pnpm --filter tinyzoo-cloud templates:build), Postgres and ffmpeg.
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { chromium } from 'playwright'
-import { arg, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, log, open, recreateDatabase, repoRoot, runDb, runPort, runPrefix, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
+import { arg, cleanSites, cloudDir, dbUrl, dropDatabase, freePortFrom, log, missingDesigns, open, recreateDatabase, repoRoot, runDb, runPort, runPrefix, sleep, startCloud, templateEntries, waitFor } from './lib.mjs'
 import { drawPointer, film, filmLine, hand, showcaseProxy, slowDown, smallerCopy } from './film.mjs'
 
 const keep = arg('keep', false) === true
@@ -67,10 +67,16 @@ const TAKES = quick
   ? { desktop: { width: 1440, height: 810, scale: 1, fps: 30, slow: 3, crf: 27, preset: 'veryfast', quality: 85 }, phone: { width: 390, height: 844, scale: 1, fps: 30, slow: 3, crf: 27, preset: 'veryfast', quality: 85 } }
   : { desktop: { width: 1440, height: 810, scale: 2, fps: 60, slow: 8, crf: 20, preset: 'medium', quality: 95 }, phone: { width: 390, height: 844, scale: 3, fps: 60, slow: 7, crf: 19, preset: 'medium', quality: 95 } }
 
-for (const [id, entry] of Object.entries(templateEntries)) {
-  if (given || only === 'index' || existsSync(entry)) continue
-  console.error(`The template "${id}" is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
-  process.exit(2)
+// Every site it makes is a Photographer one: only the one app, built with that design, is needed.
+if (!given && only !== 'index') {
+  if (!existsSync(templateEntries.photographer)) {
+    console.error(`The one app is not built (${templateEntries.photographer}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+    process.exit(2)
+  }
+  if (missingDesigns(['photographer']).length) {
+    console.error('The one app was built without the design photographer.\nRun: pnpm --filter tinyzoo-cloud templates:build')
+    process.exit(2)
+  }
 }
 mkdirSync(screens, { recursive: true })
 mkdirSync(looksDir, { recursive: true })

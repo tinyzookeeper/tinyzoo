@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // A section's page (/rubrika/lide): its name and description, then its articles as the staircase.
-import type { Section } from '~/lib/cms-content'
+import type { Section } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Section }>()
 const { words } = await useBlog()

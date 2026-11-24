@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Obálka's series: a dark band, the photograph bleeding to the left edge, the latest part beside
 // it and every part below in a row (a row to swipe on a phone, six to a line on a desktop).
-import type { Article, Series } from '~/lib/cms-content'
+import type { Article, Series } from '../../lib/cms-content'
 
 const props = defineProps<{ block: Pick<BlockOf<'series'>, 'eyebrow' | 'partsLabel'>; first?: boolean; anchor?: string; articles: Article[]; series: Series[]; only?: Series }>()
 const { words } = await useBlog()

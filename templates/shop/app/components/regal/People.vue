@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Regál's people: the shop and the two people standing on one shelf, the shop's photograph
 // across two places, each rail carrying a name and one short word.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'people'>; first?: boolean; anchor?: string; items: Person[] }>()
 </script>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Lhůty's articles: a row of three (more wrap into rows) divided by rules, each a date in mono,
 // a title in Plex Serif and two sentences.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'articles'>; first?: boolean; anchor?: string; items: Article[] }>()
 // A cell's rules and padding by its column; the rows after the first are divided by a rule above.

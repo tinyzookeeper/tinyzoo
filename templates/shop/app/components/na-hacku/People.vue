@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Na háčku's people: the story and a sentence in a soft box, and two portraits in rounded
 // corners, each with a tilted green name plate overlapping its corner.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'people'>; first?: boolean; anchor?: string; items: Person[] }>()
 </script>

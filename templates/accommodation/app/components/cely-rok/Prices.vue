@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Celý rok's price list on the raised surface: the table of rooms against seasons with a
 // swatch for each, then what is included, the extra charges and what is good to know in three columns.
-import type { Season } from '~/lib/cms-content'
+import type { Season } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; rooms: RoomRow[]; seasons: Season[] }>()
 const { words } = await useStay()

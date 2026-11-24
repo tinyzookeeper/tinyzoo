@@ -2,7 +2,7 @@
 // Ode dveří's enquiry: what happens next in numbered discs beside a soft rounded form. The
 // room is a choice of pills, the guesthouse's own rooms and "advise me".
 import type { SiteForm } from '#imports'
-import type { Room } from '~/lib/cms-content'
+import type { Room } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'enquiry'>; first?: boolean; anchor?: string; form: SiteForm; rooms: Room[] }>()
 const { settings, words, tel } = await useStay()

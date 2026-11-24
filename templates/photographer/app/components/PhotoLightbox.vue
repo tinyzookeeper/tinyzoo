@@ -8,7 +8,7 @@
 //
 // One component for every look: what it holds and how it behaves is here, how it is drawn is in
 // the look's stylesheet (`.lb…` in app/assets/css/<look>.css).
-import type { CmsGalleryItem } from '~/lib/cms-content'
+import type { CmsGalleryItem } from '../lib/cms-content'
 
 const props = defineProps<{ photos: CmsGalleryItem[] }>()
 const index = defineModel<number | null>({ default: null })

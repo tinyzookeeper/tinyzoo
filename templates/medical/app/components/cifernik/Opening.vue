@@ -3,7 +3,7 @@
 // the clock stand at the visitor's time on today's dial. Everything that depends on the clock
 // comes after the page is drawn (useClock); until then the dial is only a face and the pill and
 // the legend hold their place empty, so the server's page and the browser's first drawing agree.
-import type { OpeningHour } from '~/lib/cms-content'
+import type { OpeningHour } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; hours: OpeningHour[] }>()
 const { settings, words, phoneHref } = await useMedical()

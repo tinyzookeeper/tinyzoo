@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Po slunci's financing: three discs whose areas are the shares (they share a baseline), each with
 // its share and amount, then the mortgage adviser on a soft rounded card.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'financing'>; first?: boolean; anchor?: string; flats: Flat[] }>()
 const example = computed(() => flatByNumber(props.flats, props.block.exampleFlat))

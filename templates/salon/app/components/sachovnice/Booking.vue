@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šachovnice's booking: the brand colour edge to edge, the phone number under a heavy line, and a
 // paper form in a black frame with square fields and three square buttons for the time of day.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 const props = defineProps<{ block: BlockOf<'booking'>; first?: boolean; anchor?: string; form: SiteForm; groups: ServiceGroupWithItems[]; people: Person[] }>()

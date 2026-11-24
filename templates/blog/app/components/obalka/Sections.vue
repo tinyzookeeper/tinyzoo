@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Obálka's sections: one ruled column each, with the number of articles, a line about it and its
 // latest three headlines. Five across on a desktop, two across on a tablet.
-import type { Article, Section } from '~/lib/cms-content'
+import type { Article, Section } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'sections'>; first?: boolean; anchor?: string; articles: Article[]; sections: Section[] }>()
 const { words } = await useBlog()

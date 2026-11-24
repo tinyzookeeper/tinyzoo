@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Hřiště's teams: a training timetable, teams down and days across, the times as pills. Below a
 // desktop's width each team is a soft card with its times as chips.
-import type { Squad } from '~/lib/cms-content'
+import type { Squad } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'teams'>; first?: boolean; anchor?: string; squads: Squad[] }>()
 const words = useSiteWords()

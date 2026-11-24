@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Negativ's price list: a table of numbered rows, the highlighted one filled with the accent.
-import type { Pack } from '~/lib/cms-content'
+import type { Pack } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'pricing'>; packs: Pack[]; first?: boolean }>()
 const no = (i: number) => String(i + 1).padStart(2, '0')

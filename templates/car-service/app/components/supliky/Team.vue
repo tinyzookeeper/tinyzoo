@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šuplíky's people: a portrait with a stitched name patch, the full name, the role and the years in
 // the trade in the brand colour, and a few sentences in the first person of the garage.
-import type { TeamMember } from '~/lib/cms-content'
+import type { TeamMember } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; people: TeamMember[] }>()
 const { words } = await useGarage()

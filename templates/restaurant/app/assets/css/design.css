@@ -1,0 +1,16 @@
+/* Restaurant's own rules from its main.css, for Restaurant's sites only (html[data-design="restaurant"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+/* Its theme values that differ from the app's: in the theme layer, so a look's own value still wins. */
+@layer theme {
+  html[data-design="restaurant"] {
+    --color-night: var(--bg);
+    --color-cream: var(--text);
+  }
+}
+
+@layer base {
+  html[data-design="restaurant"] :is(h1, h2, h3, h4, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+  html[data-design="restaurant"] { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="restaurant"] { scroll-behavior: auto; } }
+}

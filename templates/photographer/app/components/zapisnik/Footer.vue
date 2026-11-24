@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zápisník's footer: a dark page with a strip of six recent pictures, then the name, the
 // menu and the contacts.
-import type { Album } from '~/lib/cms-content'
+import type { Album } from '../../lib/cms-content'
 
 const { settings, nav, name } = await useSite()
 const words = useSiteWords()

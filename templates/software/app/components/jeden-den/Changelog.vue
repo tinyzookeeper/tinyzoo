@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One Day's changelog, 17:00: a small timeline of releases (the newest with a large dot), and a
 // photograph with a caption beside it (under it on a phone).
-import type { Release } from '~/lib/cms-content'
+import type { Release } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'changelog'>; first?: boolean; anchor?: string; items: Release[] }>()
 const words = useSiteWords()

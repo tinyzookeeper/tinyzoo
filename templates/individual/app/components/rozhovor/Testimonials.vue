@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Rozhovor's testimonials: other people's words are always bubbles. On a rounded panel of the
 // brand colour, three bubbles set lower one after another, each with the initials of who said it.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 const { name } = await useProfile()

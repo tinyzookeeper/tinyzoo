@@ -5,7 +5,7 @@
 // and a message. A question the developer left empty in the block is not asked. Goes inside the
 // look's <form>; the look sets the spacing between the three groups.
 import type { SiteForm } from '#imports'
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../lib/cms-content'
 
 const props = defineProps<{
   form: SiteForm

@@ -2,7 +2,7 @@
 // Magnets' price list: on the orange, one big tile for each plan (the highlighted one dark, the
 // others cream and sky) with a huge price, then the limits on a board and what happens on the
 // thirty-first day in a dashed tile.
-import type { Plan, PlanLimit } from '~/lib/cms-content'
+import type { Plan, PlanLimit } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'pricing'>; first?: boolean; anchor?: string; plans: Plan[]; limits: PlanLimit[] }>()
 const words = useSiteWords()

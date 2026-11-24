@@ -2,7 +2,7 @@
 // Na háčku's goods: a card on two pegs with the heading, and under it cards hanging on the
 // board, each on its peg and a little crooked: the photograph with a tag, the name and the price,
 // a note, two round buttons that fill in the enquiry form. Three columns; a swipe row on a phone.
-import type { Product } from '~/lib/cms-content'
+import type { Product } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'picks'>; first?: boolean; anchor?: string; items: Product[] }>()
 const { words } = await useShop()

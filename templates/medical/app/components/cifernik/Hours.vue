@@ -4,7 +4,7 @@
 // the parts of the day with their colour dots. Today's card is outlined and its dial has the
 // hands, from the visitor's clock after the page is drawn (useClock). On a phone each day is a
 // row: the dial on the left, the text on the right.
-import type { OpeningHour } from '~/lib/cms-content'
+import type { OpeningHour } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'hours'>; first?: boolean; anchor?: string; hours: OpeningHour[] }>()
 const { settings } = await useMedical()

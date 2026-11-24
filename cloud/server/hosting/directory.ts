@@ -6,14 +6,16 @@ import { parseSharedDirectory, sharedDirectoryText, sharedReaderRole, sharedRead
 import { quoteIdent } from '../../shared/slug'
 import { HostingError } from './types'
 
-// The site directory of one template, as the shared driver uses it: where the rows of the
-// template's sites are kept and how the template's process is told to read them. Two places:
+// The site directory of one app, as the shared driver uses it: where the rows of the app's
+// sites are kept and how the app's process is told to read them. Two places:
 //
-//  - `file`      `<template folder>/sites.json`, readable by its owner only. The process
+//  - `file`      `<app folder>/sites.json`, readable by its owner only. The process
 //                rereads it when it changes.
 //  - `postgres`  the table `tenant_sites` in the cloud's own database (server/db/schema.ts).
-//                The process reads it with a role of its own that may read that one table
-//                and nothing else, and looks at it again every second.
+//                The process reads it with a role of its own that may read that one table,
+//                and only the rows of its own app, and looks at it again every second.
+//                The column `template` holds the APP's id (`templates`, `basic`); the model
+//                a site uses is inside its row.
 //
 // The driver works with rows in plain text. What is STORED has every secret encrypted with
 // the directory key (shared/directorySecret.ts) whenever a key is set; the table is never
@@ -21,27 +23,27 @@ import { HostingError } from './types'
 
 export type DirectoryKind = 'file' | 'postgres'
 
-/** The role a template's process reads the table with: its name, and its password encrypted as the cloud keeps secrets. */
+/** The role an app's process reads the table with: its name, and its password encrypted as the cloud keeps secrets. */
 export interface DirectoryReader { role: string; password: string }
 
 export interface SiteDirectory {
   readonly kind: DirectoryKind
-  /** Is the directory there: the file exists; the table holds a row of this template. When it is not, the driver writes every site of the template again. */
+  /** Is the directory there: the file exists; the table holds a row of this app. When it is not, the driver writes every site of the app again. */
   present(): Promise<boolean>
   /** The rows as they are stored now, secrets in plain text. */
   rows(): Promise<SharedSiteRow[]>
   /** Read, change and write in one turn, one writer at a time. Resolves to whether anything was changed. */
   change(change: (rows: SharedSiteRow[]) => { rows: SharedSiteRow[]; changed: boolean }): Promise<boolean>
   /**
-   * Before the template's process starts: the directory exists, and so does what the process
+   * Before the app's process starts: the directory exists, and so does what the process
    * reads it with. Resolves to the process's environment for it, and the reader to remember.
    */
   prepare(known: DirectoryReader | undefined): Promise<{ env: Record<string, string>; reader?: DirectoryReader }>
 }
 
-export interface DirectoryOptions { kind: DirectoryKind; key: string; templateId: string; templateDir: string; databasePrefix: string }
+export interface DirectoryOptions { kind: DirectoryKind; key: string; appId: string; appDir: string; databasePrefix: string }
 
-export const directoryFilePath = (templateDir: string): string => join(templateDir, 'sites.json')
+export const directoryFilePath = (appDir: string): string => join(appDir, 'sites.json')
 
 /** Write a file that only its owner may read, in one move: a temporary file beside it, then a rename. */
 export function writePrivate(file: string, text: string): void {
@@ -102,11 +104,11 @@ function seal(before: Read, after: SharedSiteRow[], key: string): { list: Shared
 // ── a file ──────────────────────────────────────────────────────────────────────
 
 // One writer at a time, and the file is read again inside the turn: two sites made at the
-// same moment never lose each other's row. (One chain for all templates: a turn is a read and a write.)
+// same moment never lose each other's row. (One chain for all apps: a turn is a read and a write.)
 let writing: Promise<unknown> = Promise.resolve()
 
 function fileDirectory(opts: DirectoryOptions): SiteDirectory {
-  const file = directoryFilePath(opts.templateDir)
+  const file = directoryFilePath(opts.appDir)
   const read = (): Read => {
     try { return open(parseSharedDirectory(readFileSync(file, 'utf8')), opts.key) }
     catch { return open([], opts.key) }
@@ -141,10 +143,10 @@ function fileDirectory(opts: DirectoryOptions): SiteDirectory {
 // ── the table ───────────────────────────────────────────────────────────────────
 
 /**
- * The reader of a template: a Postgres role that may sign in, connect to the cloud's database
- * and read `tenant_sites`, and nothing else. Made once; its password is kept encrypted with
- * the template's other state (app.json). When that was lost the role gets a new password:
- * a process that still runs keeps its open connection, and the next start uses the new one.
+ * The reader of an app: a Postgres role that may sign in, connect to the cloud's database
+ * and read `tenant_sites`, and nothing else. Made once; its password is kept
+ * encrypted with the app's other state (app.json). When that was lost the role gets a new
+ * password: a process that still runs keeps its open connection, and the next start uses the new one.
  */
 async function ensureReader(role: string, known: DirectoryReader | undefined): Promise<{ reader: DirectoryReader; password: string }> {
   const pool = usePool()
@@ -173,13 +175,13 @@ function tableDirectory(opts: DirectoryOptions): SiteDirectory {
     if (!opts.key) throw new HostingError('start_failed', 'the site directory in Postgres needs a key: set NUXT_HOSTING_SHARED_DIRECTORY_KEY (32 or more characters)')
   }
   const read = async (client: { query: (text: string, values?: unknown[]) => Promise<{ rows: any[] }> }): Promise<Read> => {
-    const { rows } = await client.query('select row from tenant_sites where template = $1 order by id', [opts.templateId])
+    const { rows } = await client.query('select row from tenant_sites where template = $1 order by id', [opts.appId])
     return open(rows.map((r) => r.row as SharedSiteRow).filter((r) => r && typeof r.id === 'string'), opts.key)
   }
   return {
     kind: 'postgres',
     async present() {
-      return !!(await usePool().query('select 1 from tenant_sites where template = $1 limit 1', [opts.templateId])).rowCount
+      return !!(await usePool().query('select 1 from tenant_sites where template = $1 limit 1', [opts.appId])).rowCount
     },
     async rows() {
       needKey()
@@ -190,8 +192,8 @@ function tableDirectory(opts: DirectoryOptions): SiteDirectory {
       const client = await usePool().connect()
       try {
         await client.query('begin')
-        // One writer per template at a time; the rows are read again inside the turn.
-        await client.query('select pg_advisory_xact_lock(hashtext($1))', [`tinyzoo-cloud:directory:${opts.templateId}`])
+        // One writer per app at a time; the rows are read again inside the turn.
+        await client.query('select pg_advisory_xact_lock(hashtext($1))', [`tinyzoo-cloud:directory:${opts.appId}`])
         const before = await read(client)
         const { rows, changed } = change(before.plain)
         const after = seal(before, rows, opts.key)
@@ -201,10 +203,10 @@ function tableDirectory(opts: DirectoryOptions): SiteDirectory {
           await client.query(
             `insert into tenant_sites (id, template, row, updated_at) values ($1, $2, $3, clock_timestamp())
              on conflict (id) do update set template = excluded.template, row = excluded.row, updated_at = clock_timestamp()`,
-            [id, opts.templateId, JSON.stringify(row)],
+            [id, opts.appId, JSON.stringify(row)],
           )
         }
-        if (after.removed.length) await client.query('delete from tenant_sites where template = $1 and id = any($2)', [opts.templateId, after.removed])
+        if (after.removed.length) await client.query('delete from tenant_sites where template = $1 and id = any($2)', [opts.appId, after.removed])
         await client.query('commit')
         return changed
       }
@@ -218,13 +220,13 @@ function tableDirectory(opts: DirectoryOptions): SiteDirectory {
     },
     async prepare(known) {
       needKey()
-      const { reader, password } = await ensureReader(sharedReaderRole(opts.templateId, opts.databasePrefix), known)
+      const { reader, password } = await ensureReader(sharedReaderRole(opts.appId, opts.databasePrefix), known)
       const { rows: [db] } = await usePool().query<{ name: string }>('select current_database() as name')
       return {
         reader,
         env: {
           NUXT_CMS_TENANCY_DATABASE_URL: sharedReaderUrl(databaseUrl(), db!.name, reader.role, password),
-          NUXT_CMS_TENANCY_TEMPLATE: opts.templateId,
+          NUXT_CMS_TENANCY_TEMPLATE: opts.appId,
           NUXT_CMS_TENANCY_KEY: opts.key,
         },
       }

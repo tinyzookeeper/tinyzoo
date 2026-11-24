@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // An event's own page (/akce/…): the card of the nearest event drawn for this one, in the
 // tint of its season, with its photograph beside it. A past event says so and tells how it went.
-import type { Event as CalendarEvent } from '~/lib/cms-content'
+import type { Event as CalendarEvent } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: CalendarEvent }>()
 const { words, today } = await useAssociation()

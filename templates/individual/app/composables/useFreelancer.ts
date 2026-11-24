@@ -1,6 +1,6 @@
 // What the blocks draw from: the collections, in the editors' order (the articles newest first).
 // (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { Article, Project, Service, Testimonial } from '~/lib/cms-content'
+import type { Article, Project, Service, Testimonial } from '../lib/cms-content'
 
 /** The services of the price list. */
 export const useServices = () => useSiteList<Service>('site-services', 'service')

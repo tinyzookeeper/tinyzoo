@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Časomíra's results: a finish board. One row for each winner, the times lit in the dot-matrix
 // face, a photograph from the finish beside it.
-import type { ResultGroup } from '~/utils/site'
+import type { ResultGroup } from '../../utils/site'
 
 const props = defineProps<{ block: BlockOf<'results'>; first?: boolean; anchor?: string; groups: ResultGroup[] }>()
 const { words } = await useEvent()

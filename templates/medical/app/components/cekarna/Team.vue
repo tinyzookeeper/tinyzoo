@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Čekárna's team: four portraits side by side; on a phone a row with a small portrait.
-import type { TeamMember } from '~/lib/cms-content'
+import type { TeamMember } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; items: TeamMember[] }>()
 </script>

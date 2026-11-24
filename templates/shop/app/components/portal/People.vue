@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Portál's people: the shop's story and a sentence in the shopkeeper's voice, beside two framed portraits.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'people'>; first?: boolean; anchor?: string; items: Person[] }>()
 </script>

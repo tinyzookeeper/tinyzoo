@@ -1,13 +1,14 @@
 // The account service for real, locally: the cloud app as the issuer of sign-in for websites
 // (docs/multi-tenant-plan.md, 2.15).
 //
-//   pnpm --filter tinyzoo-cloud e2e:account     # needs the template built: pnpm --filter tinyzoo-cloud templates:build photographer
-//   pnpm --filter tinyzoo-cloud e2e:account --protocol-only   # the protocol alone, no real site (no template needed)
+//   pnpm --filter tinyzoo-cloud e2e:account     # needs the one app built: pnpm --filter tinyzoo-cloud templates:build
+//   pnpm --filter tinyzoo-cloud e2e:account --protocol-only   # the protocol alone, no real site (no build needed)
 //
 // It starts a cloud app of its own with the shared driver (database tz_cloud_account_e2e, data
-// under .data/account-e2e, template ports 4520–4539, site databases and users tzacct_e2e_…, the
+// under .data/account-e2e, ports 4520–4539 for the app's process, site databases and users tzacct_e2e_…, the
 // app on 3295 or the next free port, its own build folder) and removes everything it made at
-// the end (--keep leaves it). The names and ports can be set from the environment:
+// the end (--keep leaves it). With CLOUD_RUN_TAG and CLOUD_PORT_SHIFT (a second checkout beside the
+// first) the names get the tag and the ports the shift. They can also be set from the environment:
 // E2E_ACCOUNT_DB, E2E_ACCOUNT_SITE_PREFIX, E2E_ACCOUNT_PORT, E2E_ACCOUNT_SITE_PORTS ("4520-4539"),
 // E2E_ACCOUNT_DATA (the folder's name under .data); the Postgres server from CLOUD_PG_URL.
 //
@@ -26,18 +27,19 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import pg from 'pg'
-import { alive, arg, cloudDir, dbUrl, freePortFrom, log, sleep, startCloud, templateEntries, waitFor, withPg } from './lib.mjs'
+import { alive, appEntries, arg, cloudDir, dbUrl, freePortFrom, log, runDb, runPort, runSitePrefix, sleep, startCloud, waitFor, withPg } from './lib.mjs'
 
 const run = promisify(execFile)
 const keep = arg('keep', false) === true
 const protocolOnly = arg('protocol-only', false) === true
-const DB = process.env.E2E_ACCOUNT_DB || 'tz_cloud_account_e2e'
-const PREFIX = process.env.E2E_ACCOUNT_SITE_PREFIX || 'tzacct_e2e'
-const [portFrom, portTo] = (process.env.E2E_ACCOUNT_SITE_PORTS || '4520-4539').split('-').map(Number)
+const DB = process.env.E2E_ACCOUNT_DB || runDb('tz_cloud_account_e2e')
+const PREFIX = process.env.E2E_ACCOUNT_SITE_PREFIX || runSitePrefix('tzacct_e2e')
+const [portFrom, portTo] = (process.env.E2E_ACCOUNT_SITE_PORTS || `${runPort(4520)}-${runPort(4539)}`).split('-').map(Number)
 const PORTS = { from: portFrom, to: portTo }
-const APP_PORT = Number(process.env.E2E_ACCOUNT_PORT) || 3295
-const dataDir = join(cloudDir, '.data', process.env.E2E_ACCOUNT_DATA || 'account-e2e')
-const templateDir = join(dataDir, 'photographer')
+const APP_PORT = Number(process.env.E2E_ACCOUNT_PORT) || runPort(3295)
+const dataDir = join(cloudDir, '.data', process.env.E2E_ACCOUNT_DATA || runSitePrefix('account-e2e'))
+// The shared driver keeps one folder per app: the one app serves the Photographer site made here.
+const appDir = join(dataDir, 'templates')
 const preview = join(cloudDir, '.preview')
 const logFile = join(preview, 'e2e-account-cloud.log')
 const CODE_TTL = 3
@@ -46,11 +48,12 @@ const stamp = Date.now().toString(36).slice(-5)
 const startedAt = Date.now()
 const results = []
 
-if (!/^[a-z][a-z0-9_]*_e2e$/.test(DB)) { console.error(`E2E_ACCOUNT_DB must be a database of this script's own, named …_e2e (it is dropped): ${DB}`); process.exit(2) }
+// The name ends in _e2e, or in _e2e_<tag> when CLOUD_RUN_TAG is set: only such a database is ever dropped.
+if (!/^[a-z][a-z0-9_]*_e2e(_[a-z0-9]+)?$/.test(DB)) { console.error(`E2E_ACCOUNT_DB must be a database of this script's own, named …_e2e or …_e2e_<tag> (it is dropped): ${DB}`); process.exit(2) }
 if (!/^[a-z][a-z0-9]*(_[a-z0-9]+)*$/.test(PREFIX)) { console.error(`E2E_ACCOUNT_SITE_PREFIX is not a usable prefix: ${PREFIX}`); process.exit(2) }
 if (!Number.isInteger(PORTS.from) || !Number.isInteger(PORTS.to) || PORTS.to < PORTS.from) { console.error('E2E_ACCOUNT_SITE_PORTS must be "from-to"'); process.exit(2) }
-if (!protocolOnly && !existsSync(templateEntries.photographer)) {
-  console.error(`The template "photographer" is not built (${templateEntries.photographer}).\nRun: pnpm --filter tinyzoo-cloud templates:build photographer\n(or pass --protocol-only for the protocol's checks alone)`)
+if (!protocolOnly && !existsSync(appEntries.templates)) {
+  console.error(`The one app is not built (${appEntries.templates}).\nRun: pnpm --filter tinyzoo-cloud templates:build\n(or pass --protocol-only for the protocol's checks alone)`)
   process.exit(2)
 }
 
@@ -168,30 +171,30 @@ const sha256 = (text) => createHash('sha256').update(text).digest('hex')
 
 // ── the processes of this run's data folder ──
 
-async function templateProcesses() {
+async function appProcesses() {
   const { stdout } = await run('ps', ['-axo', 'pid=,rss=,command='])
-  const marker = `--template-dir=${resolve(dataDir)}/`
+  const marker = `--app-dir=${resolve(dataDir)}/`
   return stdout.split('\n').map((l) => l.trim().match(/^(\d+)\s+(\d+)\s+(.*)$/)).filter(Boolean)
     .filter((m) => m[3].split(/\s+/).some((word) => word.startsWith(marker)))
-    .map((m) => ({ pid: Number(m[1]), template: m[3].split(marker)[1].split(/\s/)[0] }))
+    .map((m) => ({ pid: Number(m[1]), app: m[3].split(marker)[1].split(/\s/)[0] }))
 }
 
 /** Stop them: only pids whose command line names a folder under this run's data folder. */
-async function stopTemplateProcesses() {
-  const procs = await templateProcesses()
+async function stopAppProcesses() {
+  const procs = await appProcesses()
   for (const p of procs) { try { process.kill(p.pid, 'SIGTERM') } catch { /* gone */ } }
   for (let i = 0; i < 40; i++) {
     if (!(await Promise.all(procs.map((p) => alive(p.pid)))).some(Boolean)) break
     await sleep(250)
   }
-  for (const p of await templateProcesses()) {
+  for (const p of await appProcesses()) {
     if (procs.some((was) => was.pid === p.pid)) { try { process.kill(p.pid, 'SIGKILL') } catch { /* gone */ } }
   }
   return procs
 }
 
 async function cleanUp() {
-  const stopped = await stopTemplateProcesses()
+  const stopped = await stopAppProcesses()
   const databases = await siteDatabases()
   const roles = await siteRoles()
   await withPg(async (c) => {
@@ -544,8 +547,8 @@ async function main() {
 // ── the second part: one real site of the shared driver ──
 
 async function realSite({ alena, marta, ota, a1 }) {
-  log('11 · a real Photographer site (the shared driver) is handed its client')
-  const directory = () => JSON.parse(readFileSync(join(templateDir, 'sites.json'), 'utf8')).sites
+  log('11 · a real Photographer site (the shared driver, a design of the one app) is handed its client')
+  const directory = () => JSON.parse(readFileSync(join(appDir, 'sites.json'), 'utf8')).sites
   const siteOf = async (browser, id) => (await browser.get(`/api/sites/${id}`)).body?.site
   const untilReady = (browser, id) => waitFor(async () => {
     const now = await siteOf(browser, id)
@@ -568,7 +571,7 @@ async function realSite({ alena, marta, ota, a1 }) {
   check('the issuer keeps that client for the site: its owner, the site\'s address, the hash of that secret', kept?.id === account.clientId && kept.owner_id === alena.id && kept.url === site.publicUrl && kept.secret_hash === sha256(account.clientSecret) && kept.revoked_at === null, JSON.stringify(kept))
   const [siteRow] = await query('select secrets, driver_state::text as state from sites where id = $1', [site.id])
   check('the cloud keeps the secret with the site\'s other secrets, encrypted', siteRow.secrets.startsWith('v1.') && !siteRow.secrets.includes(account.clientSecret) && !siteRow.state.includes(account.clientSecret))
-  const procs = await templateProcesses()
+  const procs = await appProcesses()
   const environment = (await run('ps', ['eww', '-o', 'command=', '-p', String(procs[0].pid)])).stdout
   check('the secret is the site\'s own setting: the environment of the process that serves every site does not hold it', procs.length === 1 && environment.includes('NUXT_CMS_TENANCY_MODE=multi') && !environment.includes(account.clientSecret) && !environment.includes('NUXT_CMS_AUTH_ACCOUNT'), environment.includes('NUXT_CMS_TENANCY_MODE=multi') ? 'it is there' : 'ps did not show the environment')
 
@@ -632,11 +635,11 @@ catch (err) {
 finally {
   const missed = results.filter((r) => !r.ok)
   if (!failed && missed.length) failed = new Error(`failed: ${missed.map((r) => r.name).join('; ')}`)
-  if (failed && existsSync(join(templateDir, 'server.log'))) console.error('--- last lines of the template process\'s log ---\n' + readFileSync(join(templateDir, 'server.log'), 'utf8').split('\n').slice(-25).join('\n'))
+  if (failed && existsSync(join(appDir, 'server.log'))) console.error('--- last lines of the app\'s log ---\n' + readFileSync(join(appDir, 'server.log'), 'utf8').split('\n').slice(-25).join('\n'))
   await cloud?.stop().catch(() => {})
   if (keep) {
-    const procs = await templateProcesses().catch(() => [])
-    log(`kept: ${procs.map((p) => `the ${p.template} process (pid ${p.pid})`).join(', ') || 'no process'}, the databases ${PREFIX}_… and ${DB}, and ${dataDir}`)
+    const procs = await appProcesses().catch(() => [])
+    log(`kept: ${procs.map((p) => `the ${p.app} process (pid ${p.pid})`).join(', ') || 'no process'}, the databases ${PREFIX}_… and ${DB}, and ${dataDir}`)
   }
   else {
     const cleaned = await cleanUp().catch((e) => { console.error('cleanup:', e.message); return null })

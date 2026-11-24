@@ -2,7 +2,7 @@
 // Čtvero dob's year: the strip of twelve months (each in the tint of its season, the current one
 // in the brand colour; on a phone a row to swipe that starts at it), then the projects as large
 // cards in their season's tint, staggered in two columns, the last cell a note.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'year'>; first?: boolean; anchor?: string; projects: Project[] }>()
 const { settings, words, month } = await useAssociation()

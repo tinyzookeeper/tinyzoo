@@ -2,7 +2,7 @@
 // Čtvero dob's opening: the heading and two buttons beside a photograph. The season it is now
 // shows quietly: a soft block behind the photograph, the label above the heading, the date
 // tile of the nearest event, which stands under the photograph's corner.
-import type { Event as CalendarEvent } from '~/lib/cms-content'
+import type { Event as CalendarEvent } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; events: CalendarEvent[] }>()
 const { settings, words, month, season } = await useAssociation()

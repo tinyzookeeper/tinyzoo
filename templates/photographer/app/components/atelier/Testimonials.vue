@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Ateliér's testimonials: the first one large and centred, the others in two columns under a hairline.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; items: Testimonial[] }>()
 // (not `first`: that is the prop that says the block opens the page)

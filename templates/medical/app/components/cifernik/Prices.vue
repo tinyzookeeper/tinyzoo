@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Ciferník's price list: a dark panel, the prices in honey-coloured pills, a round photograph.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'prices'>; first?: boolean; items: Service[] }>()
 const words = useSiteWords()

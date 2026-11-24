@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Časomíra's partners and organiser: the partners set in type by level, and the organiser on a
 // panel with the telephone number lit.
-import type { Partner } from '~/lib/cms-content'
+import type { Partner } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'partners'>; first?: boolean; anchor?: string; items: Partner[] }>()
 const { settings, words } = await useEvent()

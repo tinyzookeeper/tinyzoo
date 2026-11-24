@@ -4,6 +4,8 @@
 //   pnpm --filter tinyzoo-cloud e2e                        # the whole flow, then every hosted template
 //   pnpm --filter tinyzoo-cloud e2e --templates wedding    # only these templates' part
 //
+// All of them are designs of the one app (templates/app), each site a process of it in its
+// multi-tenant mode; the site's <html> says which design draws it.
 // For each template: a site is made from its last look (not the default one), with the typed
 // name; it is drawn in that look and its default colours; then, signed in to the site's admin
 // through the invitation, every look is set with each of its palettes and checked: the look
@@ -37,7 +39,7 @@ const SETTINGS = `async () => {
 }`
 
 const drawn = (page) => page.evaluate(() => ({
-  look: document.documentElement.dataset.look, colors: document.documentElement.dataset.colors,
+  design: document.documentElement.dataset.design, look: document.documentElement.dataset.look, colors: document.documentElement.dataset.colors,
   vars: Object.fromEntries((document.documentElement.getAttribute('style') ?? '').split(';').filter(Boolean).map((d) => d.split(':').map((x) => x.trim()))),
   h1: document.querySelectorAll('h1').length,
   // (the sections' headings; the main one may carry the look's own sign between two names)
@@ -90,6 +92,7 @@ export async function checkHostedTemplates({ browser, signUp, base, stamp, dataD
     await web.goto(origin, { waitUntil: 'networkidle' })
     const first = await drawn(web)
     check(`${built.id}: the site is drawn in the chosen look and its default colours`, first.look === chosen.id && first.colors === chosen.presets[0].id, JSON.stringify([first.look, first.colors]))
+    check(`${built.id}: the one app draws it as its own design`, first.design === built.id, String(first.design))
     check(`${built.id}: it carries the typed name`, await spec.named(web))
     check(`${built.id}: its admin is called by the site's name`, await web.evaluate(async () => (await (await fetch('/api/cms/_theme')).json()).name) === spec.name)
     check(`${built.id}: its pictures are served`, await web.evaluate(async () => { const img = [...document.images].find((i) => i.currentSrc); return !!img && (await fetch(img.currentSrc)).ok }))

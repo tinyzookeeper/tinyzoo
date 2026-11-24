@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Talíř's menu: a huge heading with pill tabs beside it, and a dense ruled table (dish, weight,
 // allergens, price) of one section at a time, with one plate that stays in view beside it.
-import type { MenuSection } from '~/utils/site'
+import type { MenuSection } from '../../utils/site'
 
 const props = defineProps<{ block: BlockOf<'menu'>; first?: boolean; anchor?: string; sections: MenuSection[] }>()
 const { words, settings } = await useRestaurant()

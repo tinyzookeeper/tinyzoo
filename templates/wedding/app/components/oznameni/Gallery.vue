@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Oznámení's gallery: five matted photographs in one row, tall and square in turns; a row to
 // swipe on a phone.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'gallery'>; first?: boolean; anchor?: string; photos: CmsMedia[] }>()
 const { names, words } = await useWedding()

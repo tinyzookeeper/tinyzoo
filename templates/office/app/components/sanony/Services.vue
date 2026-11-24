@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šanony's price list: the binders lie in a pile, each a coloured row with its price, grouped
 // under heavy rules. A group's rows share one colour; the three groups use three.
-import type { Service, ServiceGroup } from '~/lib/cms-content'
+import type { Service, ServiceGroup } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; groups: ServiceGroup[]; services: Service[] }>()
 const grouped = computed(() => groupServices(props.groups, props.services))

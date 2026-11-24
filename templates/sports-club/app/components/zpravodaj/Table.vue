@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Zpravodaj's league table on its own (when it does not follow the fixtures).
-import type { TableView } from '~/composables/useClub'
+import type { TableView } from '../../composables/useClub'
 
 defineProps<{ block: BlockOf<'table'>; first?: boolean; anchor?: string; table: TableView }>()
 </script>

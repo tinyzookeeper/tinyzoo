@@ -2,7 +2,7 @@
 // A screen of the product as Návod draws it: a framed figure with numbered pins that the list
 // beside it explains. The drawing is the website's own; a screenshot an editor uploads takes its
 // place in the same frame.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ kind?: string | null; image?: CmsMedia | null }>()
 const words = useSiteWords()

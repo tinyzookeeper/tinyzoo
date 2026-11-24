@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Vizitka's projects: on a tinted band, the first project large (photograph, story and the
 // result in a figure), the rest in a row of three, each ending in its own result.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'projects'>; first?: boolean; anchor?: string; items: Project[] }>()
 const words = useSiteWords()

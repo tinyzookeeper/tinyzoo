@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Magnets' testimonials: a question as the heading, and a tile for each quote with a round
 // portrait that hangs over its top edge.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 const size = computed(() => byLength(props.block.heading, [[18, 'text-[44px] sm:text-[64px] lg:text-[84px]'], [34, 'text-[36px] sm:text-[48px] lg:text-[64px]']], 'text-[30px] sm:text-[40px] lg:text-[52px]'))

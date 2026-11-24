@@ -2,7 +2,7 @@
 // Lhůty's case studies: on the brand colour, one row for each case: the title with who and how
 // long, the problem, what was done, and the result on a lighter panel. The title leads to the
 // case's page.
-import type { CaseStudy } from '~/lib/cms-content'
+import type { CaseStudy } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'cases'>; first?: boolean; anchor?: string; items: CaseStudy[] }>()
 const { words } = await useOffice()

@@ -2,7 +2,7 @@
 // The config API (defineEntity, f.*, presets, plugins, seeds), the types of hooks and webhooks, and what the server and CLI share.
 // Part of the frozen API from 1.0 (CONTRIBUTING.md, "Contracts"). Accept a change with `pnpm contracts:update`.
 
-// ── public (128) ─────────────────────────────────────────────────
+// ── public (131) ─────────────────────────────────────────────────
 
 export type AnyFieldDescriptor = FieldDescriptor<FieldKind>;
 
@@ -386,6 +386,15 @@ export type CmsListLayout = 'table' | 'grid' | 'dated' | 'tree';
 export type CmsListValue<F, K extends string = 'item'> = Array<BlockValue<K, F>>;
 
 export type CmsMediaAccess = 'all' | 'own' | 'none';
+
+export interface CmsModelDef {
+    config: Record<string, unknown>;
+    migrations: string;
+}
+
+export type CmsModels<T extends Record<string, CmsModelDef>> = T & {
+    readonly __cms?: 'models';
+};
 
 export interface CmsNavLink {
     id: string;
@@ -956,6 +965,8 @@ export function defineLocales(def: {
     prefix?: LocalesDef["prefix"];
 }): LocalesDef;
 
+export function defineModels<T extends Record<string, CmsModelDef>>(models: T): CmsModels<T>;
+
 export function defineNavigation(opts?: {
     name?: string;
     menus?: Record<string, LocalizedText>;
@@ -1101,7 +1112,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (210): exported, not part of the frozen API, may change in any minor ──
+// ── internal (215): exported, not part of the frozen API, may change in any minor ──
 const BLOCK_FIELD_TYPES
 const CMS_ACCENT_PRESETS
 const CMS_ADMIN_MANIFEST_URL
@@ -1142,6 +1153,7 @@ interface ContentField
 type ContentFieldType
 interface ContentModel
 interface ContentShape
+const DEFAULT_MODEL
 interface EmbeddedShape
 const FORM_FIELD_TYPES
 interface FilterParam
@@ -1239,6 +1251,7 @@ function highlightRanges
 function holdsLinks
 function indexTree
 function inspectMigrations
+function isCmsModels
 const isCmsPlugin
 function isConnectionError
 const isLinkRef
@@ -1261,6 +1274,9 @@ function matchRoute
 function mediaIdsInBlocks
 function mediaIdsInFields
 function menuSources
+function modelMigrationsAsset
+function modelPluginsProblem
+function modelsOf
 function movedPaths
 function normalizeFieldAccess
 function normalizeSetupCode

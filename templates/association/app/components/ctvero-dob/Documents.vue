@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Čtvero dob's archive of documents: every year as a card, on the second ground, with the
 // section's heading in the same place as the other sections.
-import type { Document } from '~/lib/cms-content'
+import type { Document } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'documents'>; first?: boolean; anchor?: string; documents: Document[] }>()
 </script>

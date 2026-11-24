@@ -2,7 +2,7 @@
 // The page of one flat in Po slunci: the number in the serif with the compass of its side and the
 // words for when it gets the sun, the facts on rounded rows, the floor plan on a soft card, and the
 // round way to ask about it.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Flat }>()
 const words = useSiteWords()

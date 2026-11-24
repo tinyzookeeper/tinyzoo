@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Soutisk's results: on dark ink, one rounded frame for each route, the winners with their
 // times in the display face.
-import type { ResultGroup } from '~/utils/site'
+import type { ResultGroup } from '../../utils/site'
 
 defineProps<{ block: BlockOf<'results'>; first?: boolean; anchor?: string; groups: ResultGroup[] }>()
 const { words } = await useEvent()

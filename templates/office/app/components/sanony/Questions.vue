@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šanony's questions, on white: a heavy heading with a photograph of the shelf (not on a phone),
 // and every question a heavy row that opens to its answer. The first one is open.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 </script>

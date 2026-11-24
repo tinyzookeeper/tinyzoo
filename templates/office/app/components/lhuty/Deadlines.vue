@@ -2,7 +2,7 @@
 // Lhůty's ruler of deadlines: the nearest ones hang on a 100-day scale from xl up, and make a
 // plain list beside a strip of ticks on smaller screens. Which deadlines are still ahead
 // depends on today, so the ruler is drawn once the page is mounted; the server draws it empty.
-import type { Deadline } from '~/lib/cms-content'
+import type { Deadline } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'deadlines'>; first?: boolean; anchor?: string; items: Deadline[] }>()
 const { words } = await useOffice()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Patra's opening: the name of the project in a large serif beside a short text and two
 // buttons, the visualisation with rounded corners, and the four key facts as a ruled column.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; flats: Flat[] }>()
 const { settings, name } = await useSite()

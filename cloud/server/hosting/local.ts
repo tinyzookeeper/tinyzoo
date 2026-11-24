@@ -5,20 +5,29 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { siteUrlFor, siteUrlPattern } from '../../shared/address'
 import { parsePortRange, pickPort } from '../../shared/ports'
+import { localSiteRow, sharedDirectoryText, splitSiteEnv } from '../../shared/sharedHosting'
 import { assertSlug, DATABASE_PREFIX, databaseNameFor, quoteIdent } from '../../shared/slug'
+import { modelOf } from '../../shared/templates'
+import { builtAppOf } from './apps'
+import { writePrivate } from './directory'
 import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteSpec } from './types'
 
 // The local driver: every website is a process on this machine.
 //
-//  - The template is built once (`pnpm --filter tinyzoo-cloud templates:build`); one build
-//    serves any number of sites, since everything per site comes from the environment.
+//  - The app that serves the template is built once (`pnpm --filter tinyzoo-cloud
+//    templates:build`); one build serves any number of sites. The hosted templates are designs
+//    of one app that has no content model of its own, so it cannot run as a single site: every
+//    site, of either app, runs in tinyzoo's multi-tenant mode with a site directory that holds
+//    that one site (`<folder>/sites.json`, written before each start: the site's address, its
+//    database, its secrets, its model). The process is still one per site.
 //  - A site gets a database `tzc_<slug>` on the cloud's own Postgres server, a port from a
 //    range, and a folder `<data>/<slug>/` (its uploads, its log, `site.json` with its port and pid).
-//  - It runs detached, so it outlives the cloud app: `node <template>/.output/server/index.mjs
+//  - It runs detached, so it outlives the cloud app: `node <app>/.output/server/index.mjs
 //    --site-dir=<folder>`. The extra argument means nothing to the server; it is how the driver
 //    recognises a process as this site's before it stops it. A pid alone is never trusted.
 //  - Address: http://<slug>.localhost:<port> (browsers resolve *.localhost to this machine, and
-//    each site keeps its own cookies); the cloud itself talks to http://127.0.0.1:<port>.
+//    each site keeps its own cookies); the cloud itself talks to http://127.0.0.1:<port> (the
+//    row lists 127.0.0.1 as another host name the site answers to).
 //    NUXT_HOSTING_LOCAL_PUBLIC_URL gives the sites another public address (a pattern such as
 //    https://{slug}.pushbase.app, see shared/address.ts): what people see and what the site
 //    itself is told changes, where it runs does not. Something in front must then lead those
@@ -164,15 +173,8 @@ function logTail(dir: string, bytes = 1500): string {
 
 const urls = (slug: string, port: number) => ({ publicUrl: siteUrlFor(config().publicUrl, slug, port), internalUrl: `http://127.0.0.1:${port}` })
 
-/** The template's server entry, or a clear word that it has not been built. */
-function entryOf(spec: SiteSpec): string {
-  if (!spec.template.sourceDir) throw new HostingError('template_not_built', `template "${spec.template.id}" has no source folder`)
-  const entry = join(config().root, spec.template.sourceDir, '.output', 'server', 'index.mjs')
-  if (!existsSync(entry)) {
-    throw new HostingError('template_not_built', `${entry} is missing. Build the template first: pnpm --filter tinyzoo-cloud templates:build`)
-  }
-  return entry
-}
+/** The server entry of the app that serves the site's template, or a clear word that it has not been built (with this template). */
+const entryOf = (spec: SiteSpec): string => builtAppOf(config().root, spec.template).entry
 
 const databaseOf = (slug: string) => databaseNameFor(slug, config().databasePrefix)
 
@@ -223,10 +225,27 @@ function pickPortFor(slug: string, dir: string): Promise<number> {
   return next
 }
 
+/**
+ * The site's own site directory: one row, this site. Written before each start (a process
+ * rereads the file when it changes), so what the cloud decides now reaches the site.
+ */
+function writeDirectory(spec: SiteSpec, dir: string, port: number): string {
+  const file = join(dir, 'sites.json')
+  const row = localSiteRow({
+    siteId: spec.siteId,
+    publicUrl: urls(spec.slug, port).publicUrl,
+    databaseUrl: databaseUrlFor(spec.slug),
+    env: spec.env,
+    siteDir: dir,
+    model: modelOf(spec.template),
+  })
+  writePrivate(file, sharedDirectoryText([row]))
+  return file
+}
+
 /** Start the site's process, detached, with a clean environment (nothing of the cloud's own leaks into it). */
-function start(spec: SiteSpec, dir: string, port: number): number {
+function start(spec: SiteSpec, dir: string, port: number, directory: string): number {
   const entry = entryOf(spec)
-  const { publicUrl } = urls(spec.slug, port)
   const out = openSync(join(dir, 'site.log'), 'a')
   try {
     const child = spawn(process.execPath, [entry, marker(dir)], {
@@ -237,13 +256,15 @@ function start(spec: SiteSpec, dir: string, port: number): number {
         PATH: process.env.PATH ?? '',
         HOME: process.env.HOME ?? '',
         ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}),
-        ...spec.env,
+        // What is the same for every site (the mail transport, migrations at start). The site's
+        // secrets are in its row; the app secret is also the process's own and seals its sessions, as before.
+        ...splitSiteEnv(spec.env).process,
+        NUXT_APP_SECRET: spec.env.NUXT_APP_SECRET ?? '',
         NODE_ENV: 'production',
         HOST: '127.0.0.1',
         PORT: String(port),
-        DATABASE_URL: databaseUrlFor(spec.slug),
-        NUXT_CMS_PUBLIC_URL: publicUrl,
-        NUXT_CMS_STORAGE_LOCAL_DIR: join(dir, 'uploads'),
+        NUXT_CMS_TENANCY_MODE: 'multi',
+        NUXT_CMS_TENANCY_FILE: directory,
       },
     })
     child.unref()
@@ -269,6 +290,8 @@ async function waitUntilReady(dir: string, pid: number, internalUrl: string, tim
 /** Bring the site's process up on its port, unless it already answers. */
 async function up(spec: SiteSpec, dir: string, port: number): Promise<void> {
   const { internalUrl } = urls(spec.slug, port)
+  // Written before every start, and also for a process that runs: it rereads the file when it changes.
+  const directory = writeDirectory(spec, dir, port)
   const known = readSiteFile(dir)
   const ours = await isOurs(known?.pid, dir)
   if (ours && await ready(internalUrl)) return
@@ -288,7 +311,7 @@ async function up(spec: SiteSpec, dir: string, port: number): Promise<void> {
     }
     throw new HostingError('port_taken', `port ${port} is used by another program`)
   }
-  const pid = start(spec, dir, port)
+  const pid = start(spec, dir, port, directory)
   await waitUntilReady(dir, pid, internalUrl)
 }
 

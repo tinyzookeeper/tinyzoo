@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Kontrolky's reviews: two columns, each quote under a hairline, with the name and the car.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; items: Review[] }>()
 </script>

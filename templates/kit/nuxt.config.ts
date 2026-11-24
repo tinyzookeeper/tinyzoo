@@ -14,11 +14,15 @@
 // and `ENTRY_PAGES` (app/utils/site.ts), one stylesheet and one folder of components per look.
 //
 // In the kit's own files `~` and `~~` are the kit's folders, so the template's files are named
-// `#site/…` (its root: `#site/looks`, `#site/app/lib/cms-content`).
+// `#site/…` (its root: `#site/looks`, `#site/app/lib/cms-content`). The kit's module (module.ts)
+// tells the website which design draws it: the template's own, or in the one app (templates/app)
+// the one the site's content model names.
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// A layer's module is named from the layer's folder: a bare './module' would resolve against the app.
+const layerDir = dirname(fileURLToPath(import.meta.url))
+
 export default defineNuxtConfig({
-  modules: [
-    function templateKit(_options, nuxt) {
-      nuxt.options.alias['#site'] = nuxt.options.rootDir
-    },
-  ],
+  modules: [join(layerDir, 'module')],
 })

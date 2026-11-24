@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Návod's features: each one a "situation", ruled off, with its text and numbered points on the
 // left and a numbered figure of the screen it is about on the right.
-import type { Feature } from '~/lib/cms-content'
+import type { Feature } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'features'>; first?: boolean; anchor?: string; items: Feature[] }>()
 const words = useSiteWords()

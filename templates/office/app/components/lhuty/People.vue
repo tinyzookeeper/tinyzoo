@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Lhůty's people: a heading beside a wide photograph of the office, then one cell for each
 // person (a compact photo-left list on a phone) with the contact in mono under a rule.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'people'>; first?: boolean; anchor?: string; items: Person[] }>()
 </script>

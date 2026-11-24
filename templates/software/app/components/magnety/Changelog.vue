@@ -2,7 +2,7 @@
 // Magnets' changelog: a dark section with a question as the heading and a tile for each version
 // (the newest in orange): a row to swipe on a phone, five across on a desktop (a page that shows
 // every release wraps them).
-import type { Release } from '~/lib/cms-content'
+import type { Release } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'changelog'>; first?: boolean; anchor?: string; items: Release[] }>()
 const words = useSiteWords()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Salon's menu: one large cream card with every section open in two columns, jump links on
 // top, and under it a dish shown large with a few words beside it.
-import type { MenuSection } from '~/utils/site'
+import type { MenuSection } from '../../utils/site'
 
 const props = defineProps<{ block: BlockOf<'menu'>; first?: boolean; anchor?: string; sections: MenuSection[] }>()
 const { words, settings } = await useRestaurant()

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // One album's page (/album/anna-a-vojta).
-import type { Album } from '~/lib/cms-content'
+import type { Album } from '../lib/cms-content'
 
 defineProps<{ album: Album }>()
 </script>

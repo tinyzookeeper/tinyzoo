@@ -2,7 +2,7 @@
 // Čtvrthodinka's series: the year drawn as a clock. The photograph is in a circle, the parts stand
 // where the hours are (the one out last filled, the coming one dashed), and beside it the latest
 // part with a button and every part in a list.
-import type { Article, Series } from '~/lib/cms-content'
+import type { Article, Series } from '../../lib/cms-content'
 
 const props = defineProps<{ block: Pick<BlockOf<'series'>, 'eyebrow' | 'partsLabel'>; first?: boolean; anchor?: string; articles: Article[]; series: Series[]; only?: Series }>()
 const { words } = await useBlog()

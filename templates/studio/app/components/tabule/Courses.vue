@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Tabule's courses: a block in the accent colour, three columns ruled in black, the start day
 // in huge capitals and a seat map of squares (full squares are taken).
-import type { Course, LessonKind } from '~/lib/cms-content'
+import type { Course, LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'courses'>; first?: boolean; anchor?: string; courses: Course[]; kinds: LessonKind[] }>()
 const { words } = await useStudio()

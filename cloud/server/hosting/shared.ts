@@ -13,47 +13,59 @@ import {
   type SharedSiteDomains, type SharedSiteRow, type SharedSiteState,
 } from '../../shared/sharedHosting'
 import { quoteIdent } from '../../shared/slug'
-import type { TemplateDef } from '../../shared/templates'
+import { appOf, modelOf, templatesOfApp, type AppDef, type TemplateDef } from '../../shared/templates'
 import type { SiteRow } from '../db/schema'
+import { builtAppOf, entryOf as appEntryOf } from './apps'
 import { siteDirectory, writePrivate, type DirectoryKind, type DirectoryReader, type SiteDirectory } from './directory'
 import { portIsFree } from './local'
 import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteAccess, type SiteSpec } from './types'
 
-// The shared driver: one process per TEMPLATE serves every site made from it (tinyzoo's
-// multi-tenant mode, packages/cms/server/utils/cmsSite.ts). A new site is a database, a folder
-// and a row in its template's site directory. Nothing is built and no process is started per site.
+// The shared driver: one process per APP serves every site made from the templates the app
+// carries (tinyzoo's multi-tenant mode, packages/cms/server/utils/cmsSite.ts). Today there are
+// two apps: the one app (templates/app) that holds the designs of all 20 hosted templates, and
+// the Basic website's own (packages/cms/starter). A new site is a database, a folder and a row
+// in its app's site directory. Nothing is built and no process is started per site.
 //
-// Per template, in `<data>/<template id>/`, made the first time a site of it is made or must run:
+// Each row names the content model the site uses (`model`, the template's id) when the app
+// carries several; the app draws the site in the design of the same name. The Basic website's
+// row names none: its app has one model of its own.
+//
+// Per app, in `<data>/<app id>/`, made the first time a site of it is made or must run:
 //  - `sites.json`  the site directory: one row per site (its host name, database address,
-//                  secrets, upload folder). The process rereads it when it changes.
+//                  secrets, upload folder, model). The process rereads it when it changes.
 //  - `app.json`    the process's port, pid, start time and its own app secret (made once).
 //  - `server.log`  what the process prints.
-//  - one detached process, `node <template>/.output/server/index.mjs --template-dir=<folder>`,
+//  - one detached process, `node <app>/.output/server/index.mjs --app-dir=<folder>`,
 //    with a clean environment. The extra argument means nothing to the server; it is how the
 //    driver recognises a process as this folder's. A pid alone is never trusted.
+//
+// The one app can be built with only some of its designs (`templates:build photographer`). The
+// build then says which in `.output/tinyzoo-designs.json`, and a site of another template is
+// refused up front, with the words to build it.
 //
 // Per site:
 //  - a Postgres role and an empty database owned by it, both named `<prefix>_<the site's id>`
 //    (never the slug: every role of a server can list the names). Nobody else may connect to
 //    the database. The site's own app migrates it, as that role, the first time it is used.
-//  - a folder `<data>/<template id>/sites/<site id>/` with its uploads;
+//  - a folder `<data>/<app id>/sites/<site id>/` with its uploads;
 //  - its row in `sites.json`.
 //
-// Address: http://<slug>.localhost:<the template's port>, for people and for the cloud alike.
+// Address: http://<slug>.localhost:<the app's port>, for people and for the cloud alike.
 // The host name is what chooses the site, so the cloud cannot talk to 127.0.0.1 here as it does
 // with the local driver; Node resolves *.localhost to this machine, as browsers do.
 //
 // The database password is kept in `sites.json` (plain text, readable by the owner only) and,
 // encrypted, in the site's `driver_state`. When `sites.json` or `app.json` is lost, the driver
 // writes it again from what the cloud's database keeps: the rows of every site of the
-// template (not only of the one that was asked for), and the template's port.
+// app (not only of the one that was asked for), and the app's port.
 //
-// The driver never stops a template's process: it serves the other sites.
+// The driver never stops an app's process: it serves the other sites.
 //
 // Where the site directory is kept is a setting (NUXT_HOSTING_SHARED_DIRECTORY): the file above,
-// or the table `tenant_sites` in the cloud's own database, read by the template's process with a
-// role that may read that table and nothing else (./directory.ts has both). With a directory key
-// (NUXT_HOSTING_SHARED_DIRECTORY_KEY) no password and no secret is stored in plain text in either.
+// or the table `tenant_sites` in the cloud's own database, read by the app's process with a
+// role that may read the rows of its own app in that table and nothing else (./directory.ts has
+// both). With a directory key (NUXT_HOSTING_SHARED_DIRECTORY_KEY) no password and no secret is
+// stored in plain text in either.
 //
 // What a row says besides the site's secrets comes from what the cloud keeps about the site
 // (its `sites` row and its domains): its state (served, paused, read-only, moved), its own
@@ -64,7 +76,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 interface SharedConfig { root: string; dataDir: string; portFrom: number; portTo: number; databasePrefix: string; directory: DirectoryKind; directoryKey: string }
 /**
- * `app.json`: what is known about a template's process. `reader` is the Postgres role the
+ * `app.json`: what is known about an app's process. `reader` is the Postgres role the
  * process reads the directory table with, `operator` the token of its own status route
  * (GET /api/health/sites); the reader's password and the token are kept encrypted.
  */
@@ -112,15 +124,22 @@ export const sharedDataDir = (): string => config().dataDir
 
 // ── folders and files ───────────────────────────────────────────────────────────
 
-/** A template's folder. The id is checked again here: it becomes a path. */
-function templateDir(template: TemplateDef): string {
+/** The app that serves a template. A template without one is not built (it is planned). */
+function appOfTemplate(template: TemplateDef): AppDef {
+  const app = appOf(template)
+  if (!app) throw new HostingError('template_not_built', `template "${template.id}" has no app that serves it`)
+  return app
+}
+
+/** An app's folder. The id is checked again here: it becomes a path. */
+function appDir(def: AppDef): string {
   const base = config().dataDir
-  const dir = join(base, assertTemplateId(template.id))
+  const dir = join(base, assertTemplateId(def.id))
   if (!dir.startsWith(base + sep)) throw new HostingError('start_failed', `refusing a folder outside ${base}`)
   return dir
 }
 
-/** A site's folder inside its template's. */
+/** A site's folder inside its app's. */
 function siteDirOf(tdir: string, siteId: string): string {
   const base = join(tdir, 'sites')
   const dir = join(base, assertSiteId(siteId))
@@ -131,10 +150,10 @@ function siteDirOf(tdir: string, siteId: string): string {
 const appFile = (tdir: string) => join(tdir, 'app.json')
 const siteFile = (sdir: string) => join(sdir, 'site.json')
 
-/** A template's site directory: the file in its folder, or the table (./directory.ts). */
-function directoryOf(template: TemplateDef, tdir: string): SiteDirectory {
+/** An app's site directory: the file in its folder, or the table (./directory.ts). */
+function directoryOf(def: AppDef, tdir: string): SiteDirectory {
   const c = config()
-  return siteDirectory({ kind: c.directory, key: c.directoryKey, templateId: template.id, templateDir: tdir, databasePrefix: c.databasePrefix })
+  return siteDirectory({ kind: c.directory, key: c.directoryKey, appId: def.id, appDir: tdir, databasePrefix: c.databasePrefix })
 }
 
 function readAppFile(tdir: string): AppFile | null {
@@ -165,9 +184,9 @@ function readSiteFile(sdir: string): SiteFile | null {
   }
 }
 
-// ── the template's process ──────────────────────────────────────────────────────
+// ── the app's process ──────────────────────────────────────────────────────
 
-const marker = (tdir: string) => `--template-dir=${tdir}`
+const marker = (tdir: string) => `--app-dir=${tdir}`
 
 /** A process's command line, or null when there is no such process. */
 async function commandOf(pid: number): Promise<string | null> {
@@ -180,7 +199,7 @@ async function commandOf(pid: number): Promise<string | null> {
   }
 }
 
-/** Whether `pid` is this template folder's process: its command line names the folder. */
+/** Whether `pid` is this app folder's process: its command line names the folder. */
 async function isOurs(pid: number | null | undefined, tdir: string): Promise<boolean> {
   if (!pid || pid <= 1) return false
   const command = await commandOf(pid)
@@ -245,7 +264,7 @@ async function processSites(app: AppFile): Promise<{ id: string; hosts: string[]
  * asked (started before it had an operator's token) is given a moment instead; it looks at a
  * file at most twice a second, when something asks it, and at the table every second.
  */
-async function waitUntilTaken(app: AppFile, siteId: string, row: SharedSiteRow | null, timeoutMs = 15_000): Promise<void> {
+async function waitUntilTaken(app: AppFile, dir: string, siteId: string, row: SharedSiteRow | null, timeoutMs = 15_000): Promise<void> {
   const until = Date.now() + timeoutMs
   for (;;) {
     const sites = await processSites(app)
@@ -258,7 +277,7 @@ async function waitUntilTaken(app: AppFile, siteId: string, row: SharedSiteRow |
     const seen = sites.find((s) => s.id === siteId)
     if (!row && !seen) return
     if (row && seen && seen.state === (row.state ?? 'active') && JSON.stringify(seen.hosts) === JSON.stringify(row.hosts) && JSON.stringify(seen.alsoHosts) === JSON.stringify(row.alsoHosts ?? [])) return
-    if (Date.now() > until) throw new HostingError('start_timeout', `the template's process did not take the change of ${siteId} up within ${Math.round(timeoutMs / 1000)} s`)
+    if (Date.now() > until) throw new HostingError('start_timeout', `the app's process did not take the change of ${siteId} up within ${Math.round(timeoutMs / 1000)} s:\n${logTail(dir)}`)
     await sleep(150)
   }
 }
@@ -285,17 +304,7 @@ function logTail(tdir: string, bytes = 1500): string {
   }
 }
 
-/** The template's server entry, or a clear word that it has not been built. */
-function entryOf(template: TemplateDef): string {
-  if (!template.sourceDir) throw new HostingError('template_not_built', `template "${template.id}" has no source folder`)
-  const entry = join(config().root, template.sourceDir, '.output', 'server', 'index.mjs')
-  if (!existsSync(entry)) {
-    throw new HostingError('template_not_built', `${entry} is missing. Build the template first: pnpm --filter tinyzoo-cloud templates:build`)
-  }
-  return entry
-}
-
-/** The ports held by every template that has a folder, running or not. */
+/** The ports held by every app that has a folder, running or not. */
 function heldPorts(except: string): number[] {
   const base = config().dataDir
   if (!existsSync(base)) return []
@@ -307,11 +316,11 @@ function heldPorts(except: string): number[] {
 }
 
 // One port is picked at a time, and written down (with the process's secret) before the next
-// pick: two templates started at the same moment never get the same one. `known` is the port
-// the cloud's database remembers for a site of this template: when `app.json` was lost, the
-// template comes back on it, since every address of its sites contains it.
+// pick: two apps started at the same moment never get the same one. `known` is the port
+// the cloud's database remembers for a site of this app: when `app.json` was lost, the
+// app comes back on it, since every address of its sites contains it.
 let picking: Promise<unknown> = Promise.resolve()
-function appFor(tdir: string, known?: number): Promise<AppFile> {
+function appFileFor(tdir: string, known?: number): Promise<AppFile> {
   const next = picking.then(async () => {
     const existing = readAppFile(tdir)
     if (existing) return existing
@@ -329,7 +338,7 @@ function appFor(tdir: string, known?: number): Promise<AppFile> {
 // ── ONE SETTING, on its own: the name of the sites' session cookie ──────────────
 // `hosting.shared.sessionCookie` (NUXT_HOSTING_SHARED_SESSION_COOKIE), e.g. `__Host-tinyzoo`.
 // Empty (the default) changes nothing: the sites use tinyzoo's own cookie name. With a name,
-// the template's process gets it as NUXT_SESSION_NAME the next time the driver starts it.
+// the app's process gets it as NUXT_SESSION_NAME the next time the driver starts it.
 // (`e2e:signin` uses it to find out what browsers do with a `__Host-` cookie on http://*.localhost.)
 function sessionCookieName(): string {
   const name = String((useRuntimeConfig().hosting as any)?.shared?.sessionCookie ?? '').trim()
@@ -337,12 +346,12 @@ function sessionCookieName(): string {
 }
 
 /**
- * Start the template's process, detached, with a clean environment (nothing of the cloud's
+ * Start the app's process, detached, with a clean environment (nothing of the cloud's
  * own leaks into it). `settings` is the part of a site's environment that is the same for
  * every site (the mail transport, migrations at start); the sites' own secrets are in the directory.
  */
-function start(template: TemplateDef, tdir: string, app: AppFile, settings: Record<string, string>, directoryEnv: Record<string, string>, operator: string): number {
-  const entry = entryOf(template)
+function start(def: AppDef, tdir: string, app: AppFile, settings: Record<string, string>, directoryEnv: Record<string, string>, operator: string): number {
+  const entry = appEntryOf(config().root, def)
   const out = openSync(join(tdir, 'server.log'), 'a', 0o600)
   try {
     const child = spawn(process.execPath, [entry, marker(tdir)], {
@@ -369,7 +378,7 @@ function start(template: TemplateDef, tdir: string, app: AppFile, settings: Reco
     })
     child.on('error', () => { /* reported by the wait that follows: the process is not there */ })
     child.unref()
-    if (!child.pid) throw new HostingError('start_failed', 'the template\'s process did not start')
+    if (!child.pid) throw new HostingError('start_failed', 'the app\'s process did not start')
     writeAppFile(tdir, { ...app, pid: child.pid, startedAt: new Date().toISOString() })
     return child.pid
   }
@@ -382,24 +391,24 @@ async function waitUntilUp(tdir: string, pid: number, port: number, timeoutMs = 
   const until = Date.now() + timeoutMs
   for (;;) {
     if (await processAnswers(port)) return
-    if (!(await isOurs(pid, tdir))) throw new HostingError('start_failed', `the template's process stopped while starting:\n${logTail(tdir)}`)
-    if (Date.now() > until) throw new HostingError('start_timeout', `the template's process did not answer within ${Math.round(timeoutMs / 1000)} s:\n${logTail(tdir)}`)
+    if (!(await isOurs(pid, tdir))) throw new HostingError('start_failed', `the app's process stopped while starting:\n${logTail(tdir)}`)
+    if (Date.now() > until) throw new HostingError('start_timeout', `the app's process did not answer within ${Math.round(timeoutMs / 1000)} s:\n${logTail(tdir)}`)
     await sleep(300)
   }
 }
 
-/** Bring the template's process up on its port, unless it already answers. */
-async function up(template: TemplateDef, tdir: string, settings: Record<string, string>, known?: number): Promise<AppFile> {
+/** Bring the app's process up on its port, unless it already answers. */
+async function up(def: AppDef, tdir: string, settings: Record<string, string>, known?: number): Promise<AppFile> {
   mkdirSync(tdir, { recursive: true, mode: 0o700 })
-  const app = await appFor(tdir, known)
-  const directory = directoryOf(template, tdir)
+  const app = await appFileFor(tdir, known)
+  const directory = directoryOf(def, tdir)
   const ours = await isOurs(app.pid, tdir)
   // A process started before the setting changed reads the other directory: it would never
   // see what is written now. The driver does not stop it (it serves sites); it says so.
   const wrongDirectory = async (pid: number) => {
     const reads = await directoryKindOf(pid)
     if (reads && reads !== directory.kind) {
-      throw new HostingError('start_failed', `the template's process (pid ${pid}) reads its site directory from the ${reads === 'file' ? 'file' : 'database'}, and NUXT_HOSTING_SHARED_DIRECTORY now says ${directory.kind}. Stop that process; it is started again with the new setting.`)
+      throw new HostingError('start_failed', `the app's process (pid ${pid}) reads its site directory from the ${reads === 'file' ? 'file' : 'database'}, and NUXT_HOSTING_SHARED_DIRECTORY now says ${directory.kind}. Stop that process; it is started again with the new setting.`)
     }
   }
   if (ours) await wrongDirectory(app.pid!)
@@ -428,16 +437,16 @@ async function up(template: TemplateDef, tdir: string, settings: Record<string, 
   const operator = decryptSecret(app.operator) ?? randomBytes(32).toString('base64url')
   const next: AppFile = { ...app, ...(prepared.reader ? { reader: prepared.reader } : {}), operator: decryptSecret(app.operator) ? app.operator! : encryptSecret(operator) }
   writeAppFile(tdir, next)
-  const pid = start(template, tdir, next, settings, prepared.env, operator)
+  const pid = start(def, tdir, next, settings, prepared.env, operator)
   await waitUntilUp(tdir, pid, next.port)
   return { ...next, pid }
 }
 
-// One start per template at a time: two sites of a template made at the same moment find one process.
+// One start per app at a time: two sites of an app made at the same moment find one process.
 const starting = new Map<string, Promise<unknown>>()
-function ensureProcess(template: TemplateDef, settings: Record<string, string>, known?: number): Promise<AppFile> {
-  const tdir = templateDir(template)
-  const next = (starting.get(tdir) ?? Promise.resolve()).then(() => up(template, tdir, settings, known))
+function ensureProcess(def: AppDef, settings: Record<string, string>, known?: number): Promise<AppFile> {
+  const tdir = appDir(def)
+  const next = (starting.get(tdir) ?? Promise.resolve()).then(() => up(def, tdir, settings, known))
   starting.set(tdir, next.catch(() => {}))
   return next
 }
@@ -446,7 +455,7 @@ async function waitUntilSiteAnswers(tdir: string, pid: number | null, url: strin
   const until = Date.now() + timeoutMs
   for (;;) {
     if (await siteAnswers(url)) return
-    if (!(await isOurs(pid, tdir))) throw new HostingError('start_failed', `the template's process stopped:\n${logTail(tdir)}`)
+    if (!(await isOurs(pid, tdir))) throw new HostingError('start_failed', `the app's process stopped:\n${logTail(tdir)}`)
     if (Date.now() > until) throw new HostingError('start_timeout', `${url} did not answer within ${Math.round(timeoutMs / 1000)} s:\n${logTail(tdir)}`)
     await sleep(300)
   }
@@ -547,13 +556,15 @@ function rowOf(site: SiteSpec, tdir: string, port: number, password: string, kep
     state: kept.state,
     movedTo: kept.movedTo,
     limits: planById(kept.plan).storage,
+    // In an app that carries several models the row names the site's own: its template.
+    model: modelOf(site.template),
   })
 }
 
-/** The sites of a template that got as far as a database, as the cloud's own database keeps them. */
-async function sitesOfTemplate(template: TemplateDef): Promise<SiteRow[]> {
+/** The sites of an app (of every template it serves) that got as far as a database, as the cloud's own database keeps them. */
+async function sitesOfApp(def: AppDef): Promise<SiteRow[]> {
   const rows = await useDb().select().from(schema.sites)
-    .where(and(eq(schema.sites.driver, 'shared'), eq(schema.sites.template, template.id), notInArray(schema.sites.status, ['waiting', 'removing', 'removed'])))
+    .where(and(eq(schema.sites.driver, 'shared'), inArray(schema.sites.template, templatesOfApp(def.id).map((t) => t.id)), notInArray(schema.sites.status, ['waiting', 'removing', 'removed'])))
   return rows.filter((r) => typeof r.driverState?.databasePassword === 'string')
 }
 
@@ -563,25 +574,25 @@ const portOf = (state: Record<string, unknown> | null | undefined): number | und
 }
 
 /**
- * The port a template is known to have when `app.json` does not say (it was lost): the one
- * in what the cloud keeps about the site at hand, else about any site of the template. Every
- * address of the template's sites contains it, so it must not change.
+ * The port an app is known to have when `app.json` does not say (it was lost): the one
+ * in what the cloud keeps about the site at hand, else about any site of the app. Every
+ * address of the app's sites contains it, so it must not change.
  */
-async function knownPort(template: TemplateDef, tdir: string, state?: Record<string, unknown> | null): Promise<number | undefined> {
+async function knownPort(def: AppDef, tdir: string, state?: Record<string, unknown> | null): Promise<number | undefined> {
   if (readAppFile(tdir)) return undefined
-  return portOf(state) ?? (await sitesOfTemplate(template)).map((s) => portOf(s.driverState)).find((p) => p !== undefined)
+  return portOf(state) ?? (await sitesOfApp(def)).map((s) => portOf(s.driverState)).find((p) => p !== undefined)
 }
 
 /**
- * Put a site's row into its template's directory. `lost`: the directory was not there (a new
- * template, or the file was lost, or the table holds nothing of the template). Then the other
- * sites of the template are written again too, from what the cloud keeps: with this row
+ * Put a site's row into its app's directory. `lost`: the directory was not there (a new
+ * app, or the file was lost, or the table holds nothing of the app). Then the other
+ * sites of the app are written again too, from what the cloud keeps: with this row
  * alone in a file, the process would stop serving them.
  */
-async function putRow(template: TemplateDef, tdir: string, port: number, row: SharedSiteRow, lost: boolean): Promise<void> {
+async function putRow(def: AppDef, tdir: string, port: number, row: SharedSiteRow, lost: boolean): Promise<void> {
   const others: SharedSiteRow[] = []
   if (lost) {
-    const sites = (await sitesOfTemplate(template)).filter((other) => other.id !== row.id)
+    const sites = (await sitesOfApp(def)).filter((other) => other.id !== row.id)
     const kept = await keptOf(sites.map((other) => other.id))
     for (const other of sites) {
       const password = decryptSecret(other.driverState!.databasePassword as string)
@@ -590,7 +601,7 @@ async function putRow(template: TemplateDef, tdir: string, port: number, row: Sh
       catch { /* left out */ }
     }
   }
-  await directoryOf(template, tdir).change((rows) => {
+  await directoryOf(def, tdir).change((rows) => {
     let changed = false
     for (const r of [...others, row]) {
       const next = withSharedSite(rows, r)
@@ -605,13 +616,13 @@ async function putRow(template: TemplateDef, tdir: string, port: number, row: Sh
 async function settle(tdir: string, app: AppFile, site: SiteSpec, row: SharedSiteRow, timeoutMs: number): Promise<void> {
   if (!row.state || row.state === 'read-only') {
     // The process serves the site as this row says (its hosts, its state), not as an earlier one did…
-    await waitUntilTaken(app, row.id, row)
+    await waitUntilTaken(app, tdir, row.id, row)
     // …and the site answers, its database checked. The cloud asks at the service address: the site
     // answers there whatever its own domain is. (After a row changed the site is loaded anew.)
     await waitUntilSiteAnswers(tdir, app.pid, sharedSiteUrl(site.slug, app.port), timeoutMs)
     return
   }
-  await waitUntilTaken(app, row.id, row)
+  await waitUntilTaken(app, tdir, row.id, row)
 }
 
 /** The password of the site's database user: what the cloud keeps, else what its row holds. */
@@ -623,40 +634,44 @@ async function passwordOf(site: HostedSite, directory: SiteDirectory): Promise<s
 }
 
 /**
- * Bring a site in line with what the cloud keeps about it: the template's process runs, the
+ * Bring a site in line with what the cloud keeps about it: the app's process runs, the
  * site's row is as it should be (written again when it is not), and the site answers as the
  * row says. Returns the row.
  */
 async function bring(site: HostedSite, timeoutMs: number): Promise<SharedSiteRow> {
-  const tdir = templateDir(site.template)
-  const directory = directoryOf(site.template, tdir)
+  const { app: def } = builtAppOf(config().root, site.template)
+  const tdir = appDir(def)
+  const directory = directoryOf(def, tdir)
   const lost = !(await directory.present())
-  const app = await ensureProcess(site.template, splitSiteEnv(site.env).process, await knownPort(site.template, tdir, site.state))
+  const app = await ensureProcess(def, splitSiteEnv(site.env).process, await knownPort(def, tdir, site.state))
   const kept = (await keptOf([site.siteId])).get(site.siteId) ?? NOTHING_KEPT
   const password = await passwordOf(site, directory)
   // A moved site whose data was deleted here has no folder any more, and gets none.
   if (!kept.dataRemoved) mkdirSync(siteDirOf(tdir, site.siteId), { recursive: true, mode: 0o700 })
   const row = rowOf(site, tdir, app.port, password, kept)
-  await putRow(site.template, tdir, app.port, row, lost)
+  await putRow(def, tdir, app.port, row, lost)
   await settle(tdir, app, site, row, timeoutMs)
   return row
 }
 
-/** The tinyzoo a template's build runs on (the version of the package its source folder resolves). */
-function buildVersionOf(template: TemplateDef): string {
+/** The tinyzoo an app's build runs on (the version of the package its source folder resolves). */
+function buildVersionOf(def: AppDef): string {
   try {
-    return String(JSON.parse(readFileSync(join(config().root, template.sourceDir!, 'node_modules', 'tinyzoo', 'package.json'), 'utf8')).version ?? '')
+    return String(JSON.parse(readFileSync(join(config().root, def.sourceDir, 'node_modules', 'tinyzoo', 'package.json'), 'utf8')).version ?? '')
   }
   catch {
     return ''
   }
 }
 
-/** The tinyzoo version a template's sites run on with the shared driver, or '' when the template is not built here. */
+/** The tinyzoo version a template's sites run on with the shared driver, or '' when its app is not built here (or not with this template). */
 export function sharedBuildVersion(template: TemplateDef): string {
-  try { entryOf(template) }
-  catch { return '' }
-  return buildVersionOf(template)
+  try {
+    return buildVersionOf(builtAppOf(config().root, template).app)
+  }
+  catch {
+    return ''
+  }
 }
 
 export function sharedDriver(): HostingDriver {
@@ -664,12 +679,12 @@ export function sharedDriver(): HostingDriver {
     name: 'shared',
 
     async provision(spec: SiteSpec, onStep: OnStep): Promise<Provisioned> {
-      entryOf(spec.template)
+      const { app: def } = builtAppOf(config().root, spec.template)
       const settings = splitSiteEnv(spec.env).process
-      const tdir = templateDir(spec.template)
+      const tdir = appDir(def)
       const sdir = siteDirOf(tdir, spec.siteId)
       const name = databaseOf(spec.siteId)
-      const directory = directoryOf(spec.template, tdir)
+      const directory = directoryOf(def, tdir)
 
       await onStep('database', 'running')
       // site.json is written before the database is made: finding it means this site was
@@ -685,17 +700,17 @@ export function sharedDriver(): HostingDriver {
 
       await onStep('start', 'running')
       const lost = !(await directory.present())
-      const app = await ensureProcess(spec.template, settings, await knownPort(spec.template, tdir))
+      const app = await ensureProcess(def, settings, await knownPort(def, tdir))
       // A site that comes in as an archive starts paused: nothing touches its empty database before the archive is in it.
       const row = rowOf(spec, tdir, app.port, password, (await keptOf([spec.siteId])).get(spec.siteId))
-      await putRow(spec.template, tdir, app.port, row, lost)
+      await putRow(def, tdir, app.port, row, lost)
       await settle(tdir, app, spec, row, 120_000)
       await onStep('start', 'done')
       return {
         publicUrl: row.publicUrl,
         // The cloud itself always talks to the site at its service address.
         internalUrl: sharedSiteUrl(spec.slug, app.port),
-        state: { template: spec.template.id, port: app.port, dir: sdir, database: name, role: name, databasePassword: encryptSecret(password) },
+        state: { app: def.id, template: spec.template.id, port: app.port, dir: sdir, database: name, role: name, databasePassword: encryptSecret(password) },
       }
     },
 
@@ -708,35 +723,38 @@ export function sharedDriver(): HostingDriver {
     },
 
     async access(site: HostedSite): Promise<SiteAccess> {
-      const tdir = templateDir(site.template)
+      const def = appOfTemplate(site.template)
+      const tdir = appDir(def)
       const sdir = siteDirOf(tdir, site.siteId)
-      const password = await passwordOf(site, directoryOf(site.template, tdir))
+      const password = await passwordOf(site, directoryOf(def, tdir))
+      // The command line of tinyzoo runs in the template's own folder (its seed and its tools are there); the version is the app's.
       if (!site.template.sourceDir) throw new HostingError('template_not_built', `template "${site.template.id}" has no source folder`)
       return {
         databaseUrl: sharedDatabaseUrl(databaseUrl(), databaseOf(site.siteId), password),
         uploadsDir: join(sdir, 'uploads'),
         dir: sdir,
         sourceDir: join(config().root, site.template.sourceDir),
-        tinyzooVersion: buildVersionOf(site.template),
+        tinyzooVersion: buildVersionOf(def),
       }
     },
 
     async removeData(site: HostedSite): Promise<void> {
-      const sdir = siteDirOf(templateDir(site.template), site.siteId)
+      const sdir = siteDirOf(appDir(appOfTemplate(site.template)), site.siteId)
       await dropDatabase(databaseOf(site.siteId))
       if (existsSync(sdir) && statSync(sdir).isDirectory()) rmSync(sdir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
     },
 
     async remove(site: HostedSite): Promise<void> {
-      const tdir = templateDir(site.template)
+      const def = appOfTemplate(site.template)
+      const tdir = appDir(def)
       const sdir = siteDirOf(tdir, site.siteId)
-      const directory = directoryOf(site.template, tdir)
+      const directory = directoryOf(def, tdir)
       const removed = await directory.present() && await directory.change((rows) => withoutSharedSite(rows, site.siteId))
       if (removed) {
         // Wait until the process no longer serves the site, and give it a moment to close the
         // site's database connections.
         const app = readAppFile(tdir)
-        if (app && await isOurs(app.pid, tdir)) await waitUntilTaken(app, site.siteId, null)
+        if (app && await isOurs(app.pid, tdir)) await waitUntilTaken(app, tdir, site.siteId, null)
         else await sleep(600)
         await sleep(400)
       }
@@ -745,12 +763,12 @@ export function sharedDriver(): HostingDriver {
     },
 
     async describe(site: HostedSite) {
-      const tdir = templateDir(site.template)
+      const tdir = appDir(appOfTemplate(site.template))
       const app = readAppFile(tdir)
       if (!app || !(await isOurs(app.pid, tdir))) return { running: false }
       const running = await siteAnswers(sharedSiteUrl(site.slug, app.port))
       try {
-        // The memory of the template's process: every site of the template shares it. There is no figure per site.
+        // The memory of the app's process: every site of every template of the app shares it. There is no figure per site.
         const { stdout } = await run('ps', ['-o', 'rss=', '-p', String(app.pid)])
         const kb = Number(stdout.trim())
         return { running, memoryBytes: Number.isFinite(kb) ? kb * 1024 : undefined }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Čekárna's insurers: the code in the brand colour, then the name, in two plain columns.
-import type { Insurer } from '~/lib/cms-content'
+import type { Insurer } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'insurers'>; first?: boolean; items: Insurer[] }>()
 </script>

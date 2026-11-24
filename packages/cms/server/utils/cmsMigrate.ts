@@ -18,7 +18,7 @@
  * rather than staying up and answering 503 forever.
  */
 
-import { allUpgradeSteps, isConnectionError, runUpgrade, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
+import { allUpgradeSteps, DEFAULT_MODEL, modelMigrationsAsset, isConnectionError, runUpgrade, sqlWithParams, type MigrationJournal, type MigrationSource } from 'tinyzoo'
 import { scrubError } from './cmsScrub'
 
 // Per site: in multi-tenant mode every site has its own database to migrate, and one
@@ -68,14 +68,18 @@ export function startCmsMigrations(): void {
 }
 
 async function migrateOnce(): Promise<void> {
-  const assets = useStorage('assets:cms-migrations')
+  // Each site is migrated with the migrations of its own content model.
+  const model = cmsSiteModel().name
+  const assets = useStorage('assets:' + modelMigrationsAsset(model))
   const journal = await assets.getItem<MigrationJournal>('meta/_journal.json')
-  if (!journal?.entries) throw new Error('No bundled migrations (meta/_journal.json) — is cms.migrations.dir right?')
+  if (!journal?.entries) throw new Error(model === DEFAULT_MODEL
+    ? 'No bundled migrations (meta/_journal.json) — is cms.migrations.dir right?'
+    : `No bundled migrations (meta/_journal.json) for the content model "${model}" — is its \`migrations\` folder in defineModels right?`)
   const source: MigrationSource = {
     journal,
     readSql: async (tag) => {
       const raw = await assets.getItemRaw(`${tag}.sql`)
-      if (raw == null) throw new Error(`Bundled migration ${tag}.sql is missing`)
+      if (raw == null) throw new Error(`Bundled migration ${tag}.sql is missing${model === DEFAULT_MODEL ? '' : ` (content model "${model}")`}`)
       return typeof raw === 'string' ? raw : new TextDecoder().decode(raw as Uint8Array)
     },
   }

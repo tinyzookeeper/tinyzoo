@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Magazín's programme: a table across the page (time, title, note) under a strong rule, then
 // the photographs captioned with their times.
-import type { ProgramItem } from '~/lib/cms-content'
+import type { ProgramItem } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'programme'>; first?: boolean; anchor?: string; items: ProgramItem[] }>()
 const { day } = await useWedding()

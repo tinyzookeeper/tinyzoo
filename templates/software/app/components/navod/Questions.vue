@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Návod's questions: ruled rows that open to their answer, the first one open.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 const sections = await usePageSections()

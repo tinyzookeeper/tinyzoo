@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Cedule's agents: a table with a row for each person, ruled in black. The portrait, the name
 // set large, what they do, and the phone number set larger than anything else in the row.
-import type { Agent } from '~/lib/cms-content'
+import type { Agent } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'agents'>; first?: boolean; anchor?: string; agents: Agent[] }>()
 </script>

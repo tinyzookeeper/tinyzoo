@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Zrcadlo's reviews: the first one large, the next two beside it in plain type.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; anchor?: string; items: Review[] }>()
 </script>

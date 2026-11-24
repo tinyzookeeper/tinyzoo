@@ -1,6 +1,6 @@
 // What the Blog's blocks draw from: the collections and the facts of the site. (The site-wide
 // content, the page and `useSiteList` are the template kit's.)
-import type { Article, Author, Section, Series } from '~/lib/cms-content'
+import type { Article, Author, Section, Series } from '../lib/cms-content'
 
 /** Every published article, newest first, with its author, section and series (and its photograph). One request for the whole page. */
 export const useArticles = () => useSiteList<Article>('site-articles', 'article', { sort: 'publishedAt', dir: 'desc' })

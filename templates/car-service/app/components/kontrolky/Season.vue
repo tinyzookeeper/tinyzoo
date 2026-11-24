@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Kontrolky's seasonal notice: the frost warning, a snowflake and a figure beside the date, the
 // heading and four prices under hairlines.
-import type { SeasonalOffer } from '~/lib/cms-content'
+import type { SeasonalOffer } from '../../lib/cms-content'
 
 defineProps<{ offer: SeasonalOffer; first?: boolean; anchor?: string }>()
 const { words } = await useGarage()

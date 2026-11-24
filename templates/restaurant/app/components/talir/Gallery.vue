@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Talíř's gallery: a grid of squares with the bar and the last picture across two columns, and
 // food photographed from above cut into plates.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'gallery'>; first?: boolean; anchor?: string; photos: Array<{ image: CmsMedia; caption: string; overhead: boolean }>; link?: string }>()
 // (the first and the last picture hang across two columns)

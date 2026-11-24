@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Magazín's contacts: the heading on the left, the people as columns under strong rules, the phone set large.
-import type { Contact } from '~/lib/cms-content'
+import type { Contact } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'contacts'>; first?: boolean; anchor?: string; items: Contact[] }>()
 </script>

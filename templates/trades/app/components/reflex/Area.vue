@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Reflex's area: the towns set as one big typographic paragraph, slashes between them and the
 // home town on a block of the signal colour.
-import type { Town } from '~/lib/cms-content'
+import type { Town } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'area'>; first?: boolean; anchor?: string; items: Town[] }>()
 </script>

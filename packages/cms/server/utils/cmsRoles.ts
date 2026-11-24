@@ -32,7 +32,7 @@ export function assignableRoles(): string[] {
 
 // ── per-field access ──────────────────────────────────────────────────────────────
 
-const ruled = cmsProcessWide(new WeakMap<CmsEntity, [string, CmsFieldRule][]>(), 'derived from the content model, the same for every site')
+const ruled = cmsProcessWide(new WeakMap<CmsEntity, [string, CmsFieldRule][]>(), 'derived from an entity object, and each content model has its own, so it is the same for every site of a model')
 
 /** The fields of an entity that carry an `.access()` rule (most have none). */
 export function fieldRules(e: CmsEntity): [string, CmsFieldRule][] {

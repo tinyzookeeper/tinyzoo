@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Čtvrthodinka's three larger articles: one wide and two narrow cards, each with the clock of its
 // reading time, the longest first.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'picks'>; first?: boolean; anchor?: string; articles: Article[] }>()
 const { words } = await useBlog()

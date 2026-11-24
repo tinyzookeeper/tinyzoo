@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Talíř's events: three big dates in a closed black-ruled box, the heading and a sentence above.
-import type { Event } from '~/lib/cms-content'
+import type { Event } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'events'>; first?: boolean; anchor?: string; events: Event[] }>()
 </script>

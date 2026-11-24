@@ -2,7 +2,7 @@
 // Cedule's listing card: one cell of the ruled sheet. The photograph with its state stamped
 // in a corner, then the deal in mono, the price set largest, the title, the place and a line
 // of parameters in mono. (On a phone the photograph stands beside the text.)
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ listing: Listing }>()
 const words = useSiteWords()

@@ -2,7 +2,7 @@
 // Dres's opening: continues the masthead's band of the club colour. The two teams as a headline in
 // very wide capitals, and a black scoreboard of date, kick-off and ground that hangs over the
 // edge of the band into the photograph below.
-import type { NextView } from '~/composables/useClub'
+import type { NextView } from '../../composables/useClub'
 
 const props = defineProps<{ block: BlockOf<'nextMatch'>; first?: boolean; next: NextView }>()
 const { settings, name, words } = await useClub()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Časomíra's venue: the plan as a dark schematic with the numbered points lit, and the legend
 // beside it. A plan uploaded in the block replaces the sample drawing; the numbers then lie over it.
-import type { VenuePoint } from '~/lib/cms-content'
+import type { VenuePoint } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'venue'>; first?: boolean; anchor?: string; points: VenuePoint[] }>()
 const { settings, words } = await useEvent()

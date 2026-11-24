@@ -2,7 +2,7 @@
 // Cesta's price guide: a sticky column (heading, note, list of the groups) and one soft white
 // surface for every group, closable, with ruled rows: name with a short text, duration, price.
 // On a phone the groups after the second start closed; a link from the list opens its group.
-import type { PriceGroup } from '~/utils/site'
+import type { PriceGroup } from '../../utils/site'
 
 const props = defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; sets: PriceGroup[] }>()
 const { words } = await useGarage()

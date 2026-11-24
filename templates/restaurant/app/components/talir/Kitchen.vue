@@ -2,7 +2,7 @@
 // Talíř's kitchen: a black section. The heading with its second half in the accent colour, two
 // paragraphs, the suppliers as a boxed grid of distances; the cook beside it with the delivery
 // cut into a plate over his corner.
-import type { Supplier } from '~/lib/cms-content'
+import type { Supplier } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'kitchen'>; first?: boolean; anchor?: string; suppliers: Supplier[] }>()
 const { words } = await useRestaurant()

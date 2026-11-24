@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Sál's kinds of classes: ruled rows, a photograph, the text with a link that filters the
 // timetable, and a small table of who it is for, the level and the length.
-import type { LessonKind } from '~/lib/cms-content'
+import type { LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'kinds'>; first?: boolean; anchor?: string; kinds: LessonKind[]; slots: Slot[] }>()
 const { words } = await useStudio()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šachovnice's team: on black, under a strip of the floor, a square portrait for each person
 // and the six days they work as tiles (a filled tile is a day they stand at the chair).
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; people: Person[] }>()
 const words = useSiteWords()

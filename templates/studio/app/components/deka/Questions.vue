@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Deka's questions: answers in soft cards that open with a round plus, in two columns.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 const half = computed(() => Math.ceil(props.items.length / 2))

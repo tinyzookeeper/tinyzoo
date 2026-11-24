@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Rozhovor's articles: the visitor asks what to read, the owner answers, then photo cards with
 // the date, the headline and the first lines.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'articles'>; first?: boolean; anchor?: string; items: Article[] }>()
 const words = useSiteWords()

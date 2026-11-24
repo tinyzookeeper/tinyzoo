@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Dres's partners: a heavy rule, then the names in capitals, the larger the more they give; a
 // name turns into a block of the club colour when hovered.
-import type { Sponsor } from '~/lib/cms-content'
+import type { Sponsor } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'sponsors'>; first?: boolean; anchor?: string; items: Sponsor[] }>()
 const words = useSiteWords()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Šanony's page of one case: a heavy title with who and how long, a wide photograph, the problem
 // on ink, what was done on paper and the result on the brand colour, then the whole story.
-import type { CaseStudy } from '~/lib/cms-content'
+import type { CaseStudy } from '../../lib/cms-content'
 
 defineProps<{ entry: CaseStudy }>()
 const { words, cta } = await useOffice()

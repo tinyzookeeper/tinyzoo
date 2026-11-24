@@ -1,0 +1,7 @@
+/* Development's own rules from its main.css, for Development's sites only (html[data-design="development"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+@layer base {
+  html[data-design="development"] { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html[data-design="development"] { scroll-behavior: auto; } }
+}

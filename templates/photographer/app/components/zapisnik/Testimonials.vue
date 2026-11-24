@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Zápisník's testimonials: notes taped onto the tinted page, each a little askew.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; items: Testimonial[]; first?: boolean }>()
 const quoted = (text: string) => `„${tidyText(text.replace(/^[„"“]+|[“"”]+$/g, ''))}“`

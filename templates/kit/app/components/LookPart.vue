@@ -6,21 +6,20 @@
 // Every look has the same parts with the same props: that is what lets a site change its look
 // and keep its content. A part missing from a look is a mistake of the template, said in
 // development.
+//
+// Each part is loaded on its own, only when a page of its look needs it (app/utils/design.ts).
+// It is loaded before this component draws, on the server and in the browser alike, so the
+// page the browser takes over is the one the server sent.
 import type { Component } from 'vue'
 
 defineOptions({ inheritAttrs: false })
 const props = defineProps<{ part: string }>()
-
-// Every folder of the template's components is a look, except `global` (the blocks). `#site`
-// is the template's folder.
-const files = import.meta.glob<Component>(['#site/app/components/*/*.vue', '!#site/app/components/global/*.vue'], { eager: true, import: 'default' })
-const parts = new Map(Object.entries(files).map(([file, component]) => [file.split('/').slice(-2).join('/'), component]))
+const design = useDesign()
 const look = await useLookId()
-const component = computed(() => {
-  const found = parts.get(`${look.value}/${props.part}.vue`)
-  if (!found && import.meta.dev) console.warn(`[look] components/${look.value}/${props.part}.vue is missing`)
-  return found ?? null
-})
+const component = shallowRef<Component | null>(await design.loadPart(look.value, props.part))
+if (!component.value && import.meta.dev) console.warn(`[look] ${design.id}: components/${look.value}/${props.part}.vue is missing`)
+// The admin's live preview changes the look in place: the new look's part takes over once it has loaded.
+watch(look, async (id) => { component.value = await design.loadPart(id, props.part) })
 </script>
 
 <template>

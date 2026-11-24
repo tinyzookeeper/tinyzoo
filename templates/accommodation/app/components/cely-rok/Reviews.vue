@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Celý rok's reviews: three columns under hairlines, each with the guest, the month of the stay
 // and the room, and the month marked on a small year.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; anchor?: string; reviews: Review[] }>()
 const { words } = await useStay()

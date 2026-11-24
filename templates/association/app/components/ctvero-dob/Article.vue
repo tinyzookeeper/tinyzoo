@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A piece of news on a page of its own (/aktuality/…): the date with the mark of its season,
 // the headline, the first lines large, the photograph and the text.
-import type { News } from '~/lib/cms-content'
+import type { News } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: News }>()
 const { words } = await useAssociation()

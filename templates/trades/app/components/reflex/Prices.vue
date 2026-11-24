@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Reflex's price list: the main rates as black tiles with huge numerals, then every other line
 // as one list whose row fills with the signal colour on hover, then what is always included as labels.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; items: Service[] }>()
 const words = useSiteWords()

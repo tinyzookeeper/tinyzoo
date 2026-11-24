@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Ode dveří's price list: a table without boxes, then what is included and the extra charges
 // as two soft panels, and the notes as one quiet paragraph.
-import type { Season } from '~/lib/cms-content'
+import type { Season } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; rooms: RoomRow[]; seasons: Season[] }>()
 const { words } = await useStay()

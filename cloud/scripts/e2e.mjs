@@ -1,11 +1,13 @@
 // The whole flow for real, locally, through a browser (Playwright):
 //
-//   pnpm --filter tinyzoo-cloud e2e            # needs the template built: pnpm --filter tinyzoo-cloud templates:build
+//   pnpm --filter tinyzoo-cloud e2e            # needs both apps built (the one app with every design, and the Basic website): pnpm --filter tinyzoo-cloud templates:build
 //
 // It starts a cloud app of its own (database tz_cloud_e2e, sites under .data/e2e, ports
 // 4350–4369, app on 3290 or the next free port), so the developer's own data and running
 // app are not touched, and removes everything it made at the end (--keep leaves it).
-// `--templates wedding,salon` runs only the hosted templates' part, for those templates.
+// `--templates wedding,salon` runs only the hosted templates' part, for those templates (only
+// the app that serves them has to be built, and with those designs).
+// Every site runs in its app's multi-tenant mode, one process per site (the local driver).
 // (A second checkout on the same machine: CLOUD_RUN_TAG and CLOUD_PORT_SHIFT, see lib.mjs.)
 //
 // What it proves: sign-up through the wizard, a site made and served with the chosen name,
@@ -20,8 +22,8 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { join } from 'node:path'
 import { chromium } from 'playwright'
 import {
-  alive, arg, cleanSites, cloudDir, databaseExists, dbUrl, dropDatabase, freePortFrom, log, open, recreateDatabase,
-  runDb, runPort, runPrefix, siteProcesses, sleep, startCloud, stopSiteProcesses, templateEntries, templateEntry, waitFor,
+  alive, arg, BUILT_TEMPLATES, cleanSites, cloudDir, databaseExists, dbUrl, dropDatabase, freePortFrom, log, open, recreateDatabase,
+  missingDesigns, runDb, runPort, runPrefix, siteProcesses, sleep, startCloud, stopSiteProcesses, templateEntries, templateEntry, waitFor,
 } from './lib.mjs'
 import { checkHostedTemplates } from './e2e-templates.mjs'
 
@@ -46,10 +48,23 @@ function check(name, ok, detail = '') {
   if (!ok) throw new Error(`failed: ${name}${detail ? ` (${detail})` : ''}`)
 }
 
-for (const [id, entry] of Object.entries(templateEntries)) {
-  // (with --templates only those templates have to be built)
-  if (existsSync(entry) || (onlyTemplates && !onlyTemplates.includes(id))) continue
-  console.error(`The template "${id}" is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+// The apps this run needs: the one app (all hosted templates are designs of it) and the Basic
+// website's own, or with --templates only the apps of those templates. The one app may be built
+// with only some designs (`templates:build photographer`): then the run must not need others.
+const wanted = onlyTemplates ?? BUILT_TEMPLATES.map((t) => t.id)
+const unknown = wanted.filter((id) => !(id in templateEntries))
+if (unknown.length) {
+  console.error(`Unknown template: ${unknown.join(', ')}`)
+  process.exit(2)
+}
+for (const entry of new Set(wanted.map((id) => templateEntries[id]))) {
+  if (existsSync(entry)) continue
+  console.error(`An app is not built (${entry}).\nRun: pnpm --filter tinyzoo-cloud templates:build`)
+  process.exit(2)
+}
+const lacking = missingDesigns(wanted)
+if (lacking.length) {
+  console.error(`The one app was built without the design(s) ${lacking.join(', ')}.\nRun: pnpm --filter tinyzoo-cloud templates:build`)
   process.exit(2)
 }
 mkdirSync(shots, { recursive: true })
@@ -127,7 +142,7 @@ async function main() {
       check(`a person for the templates' part signs up (from ${id} on)`, signed.ok(), String(signed.status()))
       return ctxT
     }
-    // (Photographer has its own section above: the wizard, the lightbox, the enquiry)
+    // (Photographer has its own section above: the wizard, the lightbox, the enquiry; with --templates photographer it goes through the common part like the others, with the few checks of e2e/photographer.mjs)
     await checkHostedTemplates({ browser, signUp, base, stamp, dataDir, check, measures, only, skip: ['photographer'] })
   }
   if (onlyTemplates) return hostedTemplates(onlyTemplates)
@@ -446,6 +461,7 @@ async function main() {
 
   // ── a step fails; "Try again" goes on ──
   log('8 · a failed step and "Try again"')
+  // (the wizard makes a Basic site: the entry that goes missing is the Basic website's own, not the one app's)
   renameSync(templateEntry, bak); templateMoved = true
   await wizard(page, base, { name: 'Zkouška nezdaru', slug: `e2e-nezdar-${stamp}` })
   await page.waitForSelector('[data-build=failed]', { timeout: 30_000 })

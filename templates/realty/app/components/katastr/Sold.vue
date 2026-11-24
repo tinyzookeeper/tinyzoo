@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Katastr's sold section: a heading over a rule, then up to three columns divided by hairlines:
 // the time it took in a large serif, what was sold, what the client said.
-import type { Sale } from '~/lib/cms-content'
+import type { Sale } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'sold'>; first?: boolean; anchor?: string; sales: Sale[] }>()
 const w = useSiteWords().value.katastr

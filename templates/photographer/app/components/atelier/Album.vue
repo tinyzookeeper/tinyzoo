@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Ateliér's album page: the title in italics, when and where, then every photograph in a masonry.
-import type { Album } from '~/lib/cms-content'
+import type { Album } from '../../lib/cms-content'
 
 const props = defineProps<{ album: Album }>()
 const { settings } = await useSite()

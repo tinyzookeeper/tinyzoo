@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The warning lights in Cesta's style (the look's own design has none): a tinted panel with a
 // round symbol and the name of every group, each leading to its group of the price list.
-import type { ServiceGroup } from '~/lib/cms-content'
+import type { ServiceGroup } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'lamps'>; first?: boolean; anchor?: string; groups: ServiceGroup[] }>()
 const focus = useGroupFocus()

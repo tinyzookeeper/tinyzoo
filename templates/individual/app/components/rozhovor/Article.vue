@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Rozhovor's article page: the date, the headline in the display face with the first lines
 // under it and a rounded photograph, then the text in one column.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ entry: Article }>()
 const { settings, words } = await useProfile()

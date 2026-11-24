@@ -1,7 +1,7 @@
 // What the Restaurant's blocks draw from: the collections, the clock, and the facts from
 // Site settings (the address, the phone, the opening hours and whether the doors are open).
 // (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { DailyMenu, Dish, Event, MenuCategory, Supplier } from '~/lib/cms-content'
+import type { DailyMenu, Dish, Event, MenuCategory, Supplier } from '../lib/cms-content'
 import type { OpenWords } from '../../texts/cs'
 import type { MenuSection } from '../utils/site'
 

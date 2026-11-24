@@ -4,7 +4,7 @@
 // the Insurers section, when it suits as three chips, the consent as a sentence with a link to
 // the page about personal data. Goes inside the look's <form>, in a two-column grid from `sm` up.
 import type { SiteForm } from '#imports'
-import type { Insurer, OpeningHour } from '~/lib/cms-content'
+import type { Insurer, OpeningHour } from '../lib/cms-content'
 
 const props = defineProps<{ form: SiteForm; block: BlockOf<'booking'>; insurers: Insurer[]; hours: OpeningHour[] }>()
 const form = props.form

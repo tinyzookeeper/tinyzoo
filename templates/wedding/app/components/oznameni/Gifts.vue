@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Oznámení's gift list: the contribution on a tinted panel, then a ruled list with
 // "Reserve" or a quiet "Reserved".
-import type { Gift } from '~/lib/cms-content'
+import type { Gift } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'gifts'>; first?: boolean; anchor?: string; gifts: Gift[] }>()
 const words = useSiteWords()

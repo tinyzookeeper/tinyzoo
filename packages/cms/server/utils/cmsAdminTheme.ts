@@ -22,7 +22,7 @@ import { brandLogoFiles } from './cmsBrandSource'
 // (useCmsAdminTheme resolves app.config there until the server's theme arrives), which only
 // gives the right theme while app.config is the source.
 
-const resolved = cmsProcessWide(new WeakMap<object, CmsAdminTheme>(), 'derived from the build\'s app config, the same for every site')
+const resolved = cmsProcessWide(new WeakMap<object, CmsAdminTheme>(), 'derived from the build\'s app config (`cms.admin`), not from a content model; kept by that config object')
 
 /** The admin settings the server reads for a site: the theme, and the language the admin and its emails default to. */
 export interface CmsAdminSettings {

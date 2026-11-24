@@ -2,7 +2,7 @@
 // Po slunci's construction progress: the one deep brand panel of the page, the site photograph on
 // the left and the stages as a vertical list of rounded rows on the right: done ones with a white
 // dot, the current one a lit white pill with the sun in it.
-import type { Milestone } from '~/lib/cms-content'
+import type { Milestone } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'progress'>; first?: boolean; anchor?: string; milestones: Milestone[] }>()
 const words = useSiteWords()

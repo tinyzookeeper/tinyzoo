@@ -1,6 +1,6 @@
 // What the Salon's blocks draw from: the facts of the salon (Site settings) and the
 // collections. (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { Person, Result, Review, Service, ServiceGroup } from '~/lib/cms-content'
+import type { Person, Result, Review, Service, ServiceGroup } from '../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 /** The groups of the price list, in the editors' order. */

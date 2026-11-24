@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Ode dveří's tips for trips: up to three photographs in a row, then a list of two columns led
 // by distances, each with its seasons as pills; filtered by the season the guest chooses.
-import type { Trip } from '~/lib/cms-content'
+import type { Trip } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'trips'>; first?: boolean; anchor?: string; trips: Trip[] }>()
 const { words } = await useStay()

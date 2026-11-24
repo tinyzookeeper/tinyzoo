@@ -1,6 +1,6 @@
 // What the Association's blocks draw from: the facts (Site settings), the collections, and
 // today. (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { Document, Event as CalendarEvent, News, Person, Project, Supporter } from '~/lib/cms-content'
+import type { Document, Event as CalendarEvent, News, Person, Project, Supporter } from '../lib/cms-content'
 
 /** The projects, in the editors' order. */
 export const useProjects = () => useSiteList<Project>('site-projects', 'project')

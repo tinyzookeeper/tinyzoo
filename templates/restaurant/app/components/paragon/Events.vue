@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Paragon's events: leaves of a tear-off calendar, the month on a coloured strip, the day large.
-import type { Event } from '~/lib/cms-content'
+import type { Event } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'events'>; first?: boolean; anchor?: string; events: Event[] }>()
 </script>

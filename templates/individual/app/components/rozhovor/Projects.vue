@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Rozhovor's projects: on a rounded tinted panel, photo cards with the result in a coloured
 // bubble on the photograph's edge. A row to swipe on a phone, two columns from a tablet's width.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'projects'>; first?: boolean; anchor?: string; items: Project[] }>()
 const words = useSiteWords()

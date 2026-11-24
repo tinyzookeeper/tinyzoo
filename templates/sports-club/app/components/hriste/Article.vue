@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Hřiště's article page: a pill with the section and the date, a headline that leans forward, the
 // first words in grey, a soft-cornered photograph and the text in a column.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Article }>()
 const words = useSiteWords()

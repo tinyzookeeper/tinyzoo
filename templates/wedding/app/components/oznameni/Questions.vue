@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Oznámení's questions: two ruled columns on the card-coloured band.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 // The last row closes with a rule: the last item, and its neighbour when the count is even.

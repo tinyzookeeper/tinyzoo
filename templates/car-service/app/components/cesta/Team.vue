@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Cesta's people: a portrait, the name, the role in the brand colour and a few sentences.
-import type { TeamMember } from '~/lib/cms-content'
+import type { TeamMember } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; people: TeamMember[] }>()
 </script>

@@ -2,7 +2,7 @@
 // clock and the state the timetable shares with the opening and the sign-up form.
 // (The site-wide content, the page and `useSiteList` are the template kit's.)
 import type { SiteForm } from '#imports'
-import type { Course, Instructor, Lesson, LessonKind, Question, Tariff } from '~/lib/cms-content'
+import type { Course, Instructor, Lesson, LessonKind, Question, Tariff } from '../lib/cms-content'
 
 const byPosition = <T extends { position: number | null }>(list: T[]): T[] => [...list].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Portál's departments: six framed windows in three columns (photo, the name with its price
 // range in brass, a sentence in italics, the makers). On a phone a small framed photo beside the text.
-import type { Range } from '~/lib/cms-content'
+import type { Range } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'ranges'>; first?: boolean; anchor?: string; items: Range[] }>()
 </script>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Sál's courses: three white cards on a tinted band, the start day large, the price, and a bar
 // of the places taken.
-import type { Course, LessonKind } from '~/lib/cms-content'
+import type { Course, LessonKind } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'courses'>; first?: boolean; anchor?: string; courses: Course[]; kinds: LessonKind[] }>()
 const { words } = await useStudio()

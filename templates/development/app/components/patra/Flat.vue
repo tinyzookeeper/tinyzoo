@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The page of one flat in Patra: the number in the large serif, the facts as ruled rows, the
 // floor plan on a rounded sheet, and the way to ask about it.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Flat }>()
 const words = useSiteWords()

@@ -2,7 +2,7 @@
 // Soutisk's routes: four paper cards on petrol, each topped by its own profile printed as a
 // solid hill under a printed sun, then its figures, a thick bar of places taken and a button.
 // A row to swipe on a phone; four in a grid from a desktop's width.
-import type { Track } from '~/lib/cms-content'
+import type { Track } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'routes'>; first?: boolean; anchor?: string; tracks: Track[] }>()
 const { words, registerUrl } = await useEvent()

@@ -2,7 +2,7 @@
 // Čekárna's booking: the phone number as a headline, what a first visit looks like and what to
 // bring on the left; the request form on a soft panel on the right.
 import type { SiteForm } from '#imports'
-import type { Insurer, OpeningHour } from '~/lib/cms-content'
+import type { Insurer, OpeningHour } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'booking'>; first?: boolean; anchor?: string; form: SiteForm; insurers: Insurer[]; hours: OpeningHour[] }>()
 const { settings, words, phoneHref, smsHref } = await useMedical()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Deka's courses: white stitched tickets on a band in the colour of the site, the start day
 // large, a round dot and a pill in the colour of the kind, and the places left.
-import type { Course, LessonKind } from '~/lib/cms-content'
+import type { Course, LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'courses'>; first?: boolean; anchor?: string; courses: Course[]; kinds: LessonKind[] }>()
 const { words } = await useStudio()

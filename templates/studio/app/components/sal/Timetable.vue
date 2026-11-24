@@ -3,7 +3,7 @@
 // down, one white card for each class; on a phone six day tabs and that day's classes as a
 // list. Filters: the kinds as chips, a level and "only with places". Today's column is
 // tinted; which day is today needs the visitor's clock, so it is marked once the page is mounted.
-import type { LessonKind } from '~/lib/cms-content'
+import type { LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'timetable'>; first?: boolean; anchor?: string; slots: Slot[]; kinds: LessonKind[] }>()
 const { words } = await useStudio()

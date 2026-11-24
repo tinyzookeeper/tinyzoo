@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Celý rok's tips for trips: a list led by large distances, each with the twelve months it
 // suits as a small year, filtered by the season the guest chooses; a tall photograph beside it.
-import type { Trip } from '~/lib/cms-content'
+import type { Trip } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'trips'>; first?: boolean; anchor?: string; trips: Trip[] }>()
 const { words } = await useStay()

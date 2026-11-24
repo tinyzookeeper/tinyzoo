@@ -2,7 +2,7 @@
 // Cedule's opening: the brand colour across the whole width and a heading of type only, one
 // sentence to a line, set as large as a banner. Beside the lead the list of this week's new
 // properties, and under all of it a chunky search whose first cell switches sale and rent.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; listings: Listing[]; total: number; fresh: Listing[]; featured: Listing | null }>()
 const { settings, words } = await useOffice()

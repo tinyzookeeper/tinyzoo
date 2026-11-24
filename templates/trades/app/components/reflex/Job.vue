@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Reflex's page of one job: the name as large type, its facts as small capitals, the photographs
 // edge to edge as on the home page, then the text beside a black button.
-import type { Job } from '~/lib/cms-content'
+import type { Job } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Job }>()
 const { phone, cta, words } = await useTrades()

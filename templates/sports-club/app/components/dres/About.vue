@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Dres's club page: a black block. The photograph of the ground with the heading laid over its
 // bottom edge, the story and three figures, the ground, the match-day facts and the committee.
-import type { Committee } from '~/lib/cms-content'
+import type { Committee } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'about'>; first?: boolean; anchor?: string; committee: Committee[] }>()
 const { settings, words } = await useClub()

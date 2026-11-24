@@ -3,7 +3,7 @@
 // small flags on the photographs. The last place on the shelf is empty, with a question mark,
 // and takes whatever is left of the row. A swipe row on a phone, shelves of three (five on a wide
 // screen) from a tablet up, where the carousel is switched off and its container wraps.
-import type { Product } from '~/lib/cms-content'
+import type { Product } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'picks'>; first?: boolean; anchor?: string; items: Product[] }>()
 const { words } = await useShop()

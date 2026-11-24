@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Lhůty's opening: a ruler-mark line, the heading, a text and one button, beside a framed
 // photograph of a consultation with a two-part caption.
-import type { Service, ServiceGroup } from '~/lib/cms-content'
+import type { Service, ServiceGroup } from '../../lib/cms-content'
 
 // (the shelf of services is Šanony's)
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; groups: ServiceGroup[]; services: Service[] }>()

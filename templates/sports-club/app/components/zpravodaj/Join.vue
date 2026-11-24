@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zpravodaj's membership drive: the one tinted band of the page. The headline, the photograph and
 // the age groups as a ruled table on one side, the trial-training form on a paper card on the other.
-import type { AgeGroup } from '~/lib/cms-content'
+import type { AgeGroup } from '../../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 const props = defineProps<{ block: BlockOf<'join'>; first?: boolean; anchor?: string; groups: AgeGroup[]; form: SiteForm }>()

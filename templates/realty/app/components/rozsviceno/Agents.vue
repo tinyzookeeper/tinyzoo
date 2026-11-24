@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Rozsvíceno's agents: each in a window (a portrait under a shallow arch), with a name, what
 // they do in the lamp colour, a sentence and a pill with the phone number.
-import type { Agent } from '~/lib/cms-content'
+import type { Agent } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'agents'>; first?: boolean; anchor?: string; agents: Agent[] }>()
 </script>

@@ -1,0 +1,21 @@
+import type { DesignFonts } from 'tinyzoo-template-kit/fonts'
+
+// The typefaces of the looks (looks.ts), through @nuxt/fonts: downloaded from Google at build time
+// and served by the site itself (no request to Google from a visitor's browser). The template's own
+// build declares them global (nuxt.config.ts); the one app (templates/app) merges every design's list.
+export default {
+  families: [
+    // Zpravodaj
+    { name: 'Besley', provider: 'google', weights: ['400 900'], styles: ['normal', 'italic'] },
+    { name: 'Instrument Sans', provider: 'google', weights: ['400 700'] },
+    // Dres
+    { name: 'Anybody', provider: 'google', weights: ['100 900'] },
+    { name: 'Chivo', provider: 'google', weights: ['400 700'] },
+    // Hřiště
+    { name: 'Red Hat Display', provider: 'google', weights: ['500 900'], styles: ['normal', 'italic'] },
+    { name: 'Red Hat Text', provider: 'google', weights: ['400 700'], styles: ['normal', 'italic'] },
+  ],
+  // Axes beyond weight, asked of Google itself (it serves the file with the axis in it): Dres
+  // sets its capitals very wide (the width axis of Anybody).
+  variableAxis: { Anybody: { wdth: [['50', '150']] } },
+} satisfies DesignFonts

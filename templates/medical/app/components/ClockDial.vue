@@ -3,7 +3,7 @@
 // open, coloured by whom the part is for. With the hands of the moment given (today's dial).
 // Without `segs` it is only the face: what the server draws, before the browser knows the day.
 // A day that is open longer than twelve hours would need a second ring.
-import type { Seg } from '~/utils/site'
+import type { Seg } from '../utils/site'
 
 const props = withDefaults(defineProps<{ segs?: Seg[]; big?: boolean; minutes?: number | null; label?: string }>(), { segs: () => [], big: false, minutes: null, label: '' })
 

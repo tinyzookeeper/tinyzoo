@@ -44,6 +44,11 @@ export interface CmsSite {
   databaseUrl: string
   /** The site's own secret: its sessions are bound to it. */
   secret: string
+  /**
+   * The content model the site uses, by its name in the build's `defineModels` (experimental).
+   * `default` (a row without `model`) is the model of the app's own cms.config.ts.
+   */
+  model: string
   /** The site's settings, laid over `runtimeConfig.cms` (only the keys in SITE_SETTINGS). */
   config: Record<string, any>
 }
@@ -101,7 +106,7 @@ export function cmsTenancyMode(): 'single' | 'multi' {
 export const cmsIsMultiTenant = (): boolean => cmsTenancyMode() === 'multi'
 
 /** The one site of single mode. Its database, files and settings come from the environment, where they always did. */
-const SINGLE: CmsSite = Object.freeze({ id: 'default', hosts: [], alsoHosts: [], publicUrl: '', state: 'active', databaseUrl: '', secret: '', config: {} }) as CmsSite
+const SINGLE: CmsSite = Object.freeze({ id: 'default', hosts: [], alsoHosts: [], publicUrl: '', state: 'active', databaseUrl: '', secret: '', model: 'default', config: {} }) as CmsSite
 const SINGLE_INSTANCE = newInstance(SINGLE)
 
 /**
@@ -417,6 +422,10 @@ export function cmsSettings(): Record<string, any> {
 //     naming which rows are this app's): `tenant_sites (id text primary key, template text,
 //     row jsonb, updated_at timestamptz)`, read with a role that may only read it, and looked
 //     at again every second (NUXT_CMS_TENANCY_POLL_MS).
+// A row is `id`, `hosts`, `alsoHosts`, `publicUrl`, `state`, `movedTo`, `databaseUrl`, `secret`,
+// `model` (the content model the site uses: a name from the build's `defineModels`, or `default`
+// for the app's own cms.config.ts when the row has none) and `config`; the same in the JSON file
+// and in the `row` jsonb of `tenant_sites`.
 // A row's secrets (`databaseUrl`, `secret`, and any text inside `config`) may be encrypted
 // (`enc:v1:…`, AES-256-GCM with a key made from NUXT_CMS_TENANCY_KEY). With the key set,
 // `databaseUrl` and `secret` MUST be encrypted, and the Postgres source needs the key: a
@@ -441,6 +450,18 @@ interface Directory {
 let directory: Directory | undefined
 const DIRECTORY_CHECK_MS = 500
 const SITE_ID = /^[a-z0-9][a-z0-9_-]{0,62}$/
+/** A content model's name (the same rule as `defineModels`; this file loads without the package). */
+const MODEL_NAME = /^[a-z][a-z0-9-]{0,39}$/
+/** The names of the content models this build carries, once the server has told the directory (`cmsKnowSiteModels`): a row naming another is refused. */
+const knownModels: { names: string[] | null } = { names: null }
+
+/**
+ * Tell the directory which content models this build carries, before it is first read: a row
+ * that names another model, or names none when the build has no `default`, is refused like any other bad row.
+ */
+export function cmsKnowSiteModels(names: string[]): void {
+  knownModels.names = [...names]
+}
 
 /** A host name as the directory holds it: lower case, no port, no trailing dot. */
 export function cmsNormalHost(value: unknown): string {
@@ -535,8 +556,17 @@ function parseSite(raw: any, index: number, key: Buffer | null): CmsSite {
   if (state !== 'active' && state !== 'paused' && state !== 'read-only' && state !== 'moved') throw new Error(`[tinyzoo] site ${id}: "state" must be active, paused, read-only or moved, got ${JSON.stringify(raw.state)}`)
   const movedTo = String(raw.movedTo ?? '').replace(/\/+$/, '')
   if (state === 'moved' && !/^https?:\/\//.test(movedTo)) throw new Error(`[tinyzoo] site ${id}: a moved site needs "movedTo", the address it lives at now`)
+  const named = raw.model === undefined || raw.model === null ? 'default' : raw.model
+  if (typeof named !== 'string' || (named !== 'default' && !MODEL_NAME.test(named))) throw new Error(`[tinyzoo] site ${id}: "model" must be the name of a content model (a-z, 0-9 and -), got ${JSON.stringify(raw.model)}`)
+  const have = knownModels.names
+  if (have) {
+    if (raw.model === undefined || raw.model === null) {
+      if (!have.includes('default')) throw new Error(`[tinyzoo] site ${id}: this build has no content model of its own: "model" must name one of: ${have.join(', ')}`)
+    }
+    else if (!have.includes(named)) throw new Error(`[tinyzoo] site ${id}: "model" names "${named}", which this build does not have (it has: ${have.join(', ')})`)
+  }
   const config = (raw.config && typeof raw.config === 'object' ? decryptDeep(raw.config, key, `site ${id}: config`) : {}) as Record<string, any>
-  return { id, hosts, alsoHosts, publicUrl, state, ...(state === 'moved' ? { movedTo } : {}), databaseUrl, secret, config }
+  return { id, hosts, alsoHosts, publicUrl, state, ...(state === 'moved' ? { movedTo } : {}), databaseUrl, secret, model: named, config }
 }
 
 function buildDirectory(list: unknown[], stamp: string): Directory {

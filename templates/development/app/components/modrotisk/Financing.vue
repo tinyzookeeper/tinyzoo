@@ -2,7 +2,7 @@
 // Modrotisk's financing: the payments as a dimension chain whose lengths are in the ratio of
 // the shares (the last one takes what is left), the amounts worked out for the example flat,
 // and the mortgage adviser in a ruled box.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'financing'>; first?: boolean; index?: number; anchor?: string; flats: Flat[] }>()
 const example = computed(() => flatByNumber(props.flats, props.block.exampleFlat))

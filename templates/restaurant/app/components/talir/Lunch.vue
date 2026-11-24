@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Talíř's lunch: the heading and a black date pill beside big numbered rows with large prices,
 // ruled in 2 px black; a soup row first.
-import type { DailyMenu } from '~/lib/cms-content'
+import type { DailyMenu } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'lunch'>; first?: boolean; anchor?: string; lunch: { menu: DailyMenu; today: boolean } | null }>()
 const { words } = await useRestaurant()

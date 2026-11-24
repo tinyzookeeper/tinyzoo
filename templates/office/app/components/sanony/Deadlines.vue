@@ -2,7 +2,7 @@
 // Šanony's deadlines: no ruler, heavy ruled rows like its list of articles: the date, what is due
 // and, for the nearest ones, a brand-coloured tag. Which deadlines are still ahead depends on
 // today, so the rows are drawn once the page is mounted; the server draws none.
-import type { Deadline } from '~/lib/cms-content'
+import type { Deadline } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'deadlines'>; first?: boolean; anchor?: string; items: Deadline[] }>()
 const { words } = await useOffice()

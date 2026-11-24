@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Celý rok's page of one room: the name over a large photograph with the others beneath it,
 // the facts in Gloock, what the room is like, its equipment, and the price in each season.
-import type { Room } from '~/lib/cms-content'
+import type { Room } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Room }>()
 const { words } = await useStay()

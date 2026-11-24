@@ -2,7 +2,7 @@
 // Šanony's opening: a kicker, a huge three-sentence heading with the last one in the brand
 // colour, a text and a button, and beside them the shelf: every service the spine of a binder
 // with its price, the last one leaning. Each spine leads to the price list.
-import type { Service, ServiceGroup } from '~/lib/cms-content'
+import type { Service, ServiceGroup } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; groups: ServiceGroup[]; services: Service[] }>()
 const { words } = await useOffice()

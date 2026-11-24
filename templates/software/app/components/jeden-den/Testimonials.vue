@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One Day's testimonials, 15:00: one large quote with a tall portrait, and the others smaller
 // under it (the featured one is the large one; the first, when none is marked).
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 const lead = computed(() => props.items.find((t) => t.featured) ?? props.items[0] ?? null)

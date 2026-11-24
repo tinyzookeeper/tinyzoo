@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výkres's people: the heading and a few words on the left, a portrait with name and role under
 // it for each person on the right.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; people: Person[] }>()
 </script>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Magazín's gift list: a large photograph beside the list, the contribution on a tinted
 // block, then ruled rows with "Reserve" or a quiet "Reserved".
-import type { Gift } from '~/lib/cms-content'
+import type { Gift } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'gifts'>; first?: boolean; anchor?: string; gifts: Gift[] }>()
 const words = useSiteWords()

@@ -2,7 +2,7 @@
 // Čtvero dob's calendar: the nearest event as a tall card in its season's tint, the coming ones
 // beside it grouped by month, and below a look back at past events with a photograph (on a
 // phone a row to swipe). What is coming and what is past depends on the day.
-import type { Event as CalendarEvent } from '~/lib/cms-content'
+import type { Event as CalendarEvent } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'events'>; first?: boolean; anchor?: string; events: CalendarEvent[] }>()
 const { words } = await useAssociation()

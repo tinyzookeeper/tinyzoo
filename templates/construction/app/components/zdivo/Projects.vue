@@ -3,7 +3,7 @@
 // then the others as a wall: a row of three cards alternates with a row of a half brick, two
 // cards and a half brick, and the filter keeps the bond (an unfinished row is closed by a dashed
 // slot "yours" and blank bricks). On a phone the cards are a row to swipe.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'projects'>; first?: boolean; anchor?: string; featured: Project | null; others: Project[] }>()
 const words = useSiteWords()

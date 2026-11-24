@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Večer's contacts: centred columns divided by a hairline, the phone set large.
-import type { Contact } from '~/lib/cms-content'
+import type { Contact } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'contacts'>; first?: boolean; anchor?: string; items: Contact[] }>()
 </script>

@@ -1,7 +1,7 @@
 // What the Trades blocks draw from: the collections, and the facts from Site settings that
 // every look writes (the phone, the hours). (The site-wide content, the page and `useSiteList`
 // are the template kit's.)
-import type { Job, Review, Service, Town } from '~/lib/cms-content'
+import type { Job, Review, Service, Town } from '../lib/cms-content'
 
 /** The price list, in the editors' order. */
 export const useServices = () => useSiteList<Service>('site-services', 'service')

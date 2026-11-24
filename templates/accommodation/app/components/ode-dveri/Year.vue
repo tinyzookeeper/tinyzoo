@@ -2,7 +2,7 @@
 // The year in Ode dveří's own terms (its design has no such section): the seasons as soft
 // cards, each with its dates, the price from and the shortest stay, under a thin ribbon of the
 // year in rounded pieces.
-import type { Season } from '~/lib/cms-content'
+import type { Season } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'year'>; first?: boolean; anchor?: string; rows: Array<{ season: Season; from: number | null }> }>()
 const { words } = await useStay()

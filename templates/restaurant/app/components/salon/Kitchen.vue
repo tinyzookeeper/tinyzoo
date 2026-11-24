@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Salon's kitchen: the cook's portrait framed in brass beside a few words, and under them the
 // suppliers as a ruled list next to the delivery.
-import type { Supplier } from '~/lib/cms-content'
+import type { Supplier } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'kitchen'>; first?: boolean; anchor?: string; suppliers: Supplier[] }>()
 const { words } = await useRestaurant()

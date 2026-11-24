@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Soutisk's closing call: vermilion under a line of hills, one question set very large and
 // the registration button.
-import type { Track } from '~/lib/cms-content'
+import type { Track } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'closing'>; first?: boolean; tracks: Track[] }>()
 const { words, cta, phase } = await useEvent()

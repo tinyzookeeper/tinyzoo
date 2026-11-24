@@ -2,6 +2,10 @@
 // Every other address: a page from blocks (/cenik) or an entry of a collection the template
 // gives an address (`ENTRY_PAGES`: /album/anna-a-vojta).
 const route = useRoute()
+const design = useDesign()
+// The entry's frame: the template's own LookEntry when it has one (in its own build Nuxt finds
+// it under this name; the one app hands it over with the design), else the kit's.
+const KitEntry = resolveComponent('LookEntry')
 const words = useSiteWords()
 // The home page has one address: /. The query stays (?preview shows a draft).
 if (route.path.replace(/\/$/, '') === '/home') await navigateTo({ path: '/', query: route.query }, { redirectCode: 301 })
@@ -13,7 +17,7 @@ const { name } = await useSite()
 // A collection without SEO fields of its own (`titleField`) gets a plain title and description.
 const plain = computed(() => entryPage.value?.titleField ?? null)
 const item = computed(() => page.value ?? (plain.value ? null : entry.value) ?? null)
-useCmsSeo(item, { siteName: name.value, descriptionField: entryPage.value?.descriptionField, imageField: entryPage.value?.imageField, defaultLocale: DEFAULT_LANGUAGE, path: siteHref })
+useCmsSeo(item, { siteName: name.value, descriptionField: entryPage.value?.descriptionField, imageField: entryPage.value?.imageField, defaultLocale: design.site.DEFAULT_LANGUAGE, path: siteHref })
 if (plain.value) {
   useHead({ title: () => `${entry.value?.[plain.value!] ?? ''} · ${name.value}` })
   useSeoMeta({ description: () => (entryPage.value?.descriptionField ? entry.value?.[entryPage.value.descriptionField] : undefined) ?? undefined })
@@ -23,7 +27,7 @@ if (plain.value) {
 <template>
   <div>
     <SiteDraftNote v-if="isDraft" />
-    <CmsBlocks v-if="page" :blocks="page.sections" />
-    <LookEntry v-else-if="entry && entryPage" :kind="kind" :part="entryPage.part" :entry="entry" />
+    <CmsBlocks v-if="page" :blocks="page.sections" :prefix="design.blockPrefix" />
+    <component :is="design.entry ?? KitEntry" v-else-if="entry && entryPage" :kind="kind" :part="entryPage.part" :entry="entry" />
   </div>
 </template>

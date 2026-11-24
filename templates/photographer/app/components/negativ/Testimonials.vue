@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Negativ's testimonials: ruled rows, who on the left, what they said in large type.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; items: Testimonial[]; first?: boolean }>()
 const quoted = (text: string) => `„${tidyText(text.replace(/^[„"“]+|[“"”]+$/g, ''))}“`

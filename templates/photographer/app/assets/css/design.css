@@ -1,0 +1,6 @@
+/* Photographer's own rules from its main.css, for Photographer's sites only (html[data-design="photographer"]).
+   Written by templates/app/scripts/theme-diff.mjs; change the template's main.css and run it again. */
+
+@layer base {
+  html[data-design="photographer"] :is(h1, h2, h3, p, li, dd, figcaption) { overflow-wrap: anywhere; }
+}

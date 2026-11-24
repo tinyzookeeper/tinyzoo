@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výkres's clients' words: three columns divided by hairlines, each a quotation in the light
 // expanded family with the name and what was built under it.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 </script>

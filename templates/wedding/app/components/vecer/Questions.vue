@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Večer's questions: two ruled columns, the questions in italics.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 // The last row closes with a rule: the last item, and its neighbour when the count is even.

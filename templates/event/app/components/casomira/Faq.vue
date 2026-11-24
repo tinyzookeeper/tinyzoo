@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Časomíra's questions: two columns of short questions, the plus turning to a cross when one opens.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'faq'>; first?: boolean; anchor?: string; items: Question[] }>()
 </script>

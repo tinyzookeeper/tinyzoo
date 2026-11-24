@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // One Day's questions, 19:00: the light goes and the questions are asked on dusk blue, each
 // opening to its answer, the first one open.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 const contactHref = `/#${anchorOf('contact')}`

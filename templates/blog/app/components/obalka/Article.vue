@@ -2,7 +2,7 @@
 // Obálka's article: the section, the headline in extra-light Spectral, the standfirst, the byline,
 // the photograph wide, the text in a reading column, then the author, the series it belongs to
 // and more from its section.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Article }>()
 const { words } = await useBlog()

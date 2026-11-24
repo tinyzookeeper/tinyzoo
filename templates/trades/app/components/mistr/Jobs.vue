@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Mistr's jobs: on a tinted band, the first job large (its pair of photographs, a small table
 // of the facts and the text), the others in two columns with the photographs on top.
-import type { Job } from '~/lib/cms-content'
+import type { Job } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'jobs'>; first?: boolean; anchor?: string; jobs: Job[]; total: number }>()
 const words = useSiteWords()

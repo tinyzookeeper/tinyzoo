@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Sál's questions: the heading and a line to write to on the left, ruled answers that open on the right.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 </script>

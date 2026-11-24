@@ -2,8 +2,8 @@
 // rooms and seasons, and the enquiry a guest has begun. (The site-wide content, the page and
 // `useSiteList` are the template kit's.)
 import type { SiteForm } from '#imports'
-import type { Feature, Review, Room, RoomPrice, Season, Trip } from '~/lib/cms-content'
-import type { RoomRow } from '~/utils/site'
+import type { Feature, Review, Room, RoomPrice, Season, Trip } from '../lib/cms-content'
+import type { RoomRow } from '../utils/site'
 
 /** The rooms, in the editors' order. */
 export const useRooms = () => useSiteList<Room>('site-rooms', 'room')

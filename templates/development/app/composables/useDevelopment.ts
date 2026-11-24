@@ -1,7 +1,7 @@
 // What the Development's blocks draw from: the collections, the facts of the project (Site
 // settings) and the one behaviour the price list, the drawings of the building and the
 // enquiry form share. (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { Flat, Floor, Milestone, Place, Reference, Standard } from '~/lib/cms-content'
+import type { Flat, Floor, Milestone, Place, Reference, Standard } from '../lib/cms-content'
 
 /** Every flat, by number. */
 export async function useFlats() {

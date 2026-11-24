@@ -2,7 +2,7 @@
 // Patra's enquiry: a soft band with the salesperson, her portrait with rounded corners and the
 // phone number in the large serif, and the form on a white rounded sheet.
 import type { SiteForm } from '#imports'
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'enquiry'>; first?: boolean; anchor?: string; form: SiteForm; flats: Flat[] }>()
 const { settings, nav } = await useSite()

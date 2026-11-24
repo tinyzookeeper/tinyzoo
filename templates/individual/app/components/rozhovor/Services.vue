@@ -2,7 +2,7 @@
 // Rozhovor's services: the visitor asks, the owner answers, then cards with whom each is for,
 // a pill with how long it takes and the price. A coloured cell closes the grid whatever the
 // number of services.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 const words = useSiteWords()

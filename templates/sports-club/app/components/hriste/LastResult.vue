@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Hřiště's three soft cards under the opening: the last result as two score tiles, the last five
 // matches as discs, and the place in the table.
-import type { LastView } from '~/composables/useClub'
+import type { LastView } from '../../composables/useClub'
 
 const props = defineProps<{ block: BlockOf<'lastResult'>; first?: boolean; last: LastView }>()
 const { words } = await useClub()

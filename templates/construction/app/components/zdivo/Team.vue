@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zdivo's people: the owner speaking in the first person beside his portrait, the site managers
 // as small cards, and a brick for the rest of the crew.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; people: Person[] }>()
 const owner = computed(() => props.people[0] ?? null)

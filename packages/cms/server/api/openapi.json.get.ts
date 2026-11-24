@@ -1,9 +1,7 @@
 import { buildOpenApiDocument } from 'tinyzoo'
-// virtual alias provided by the module (build-time); typed through the host's tsconfig paths
-import * as cmsConfig from '#cms/config'
 
 // GET /api/openapi.json — OpenAPI 3.1 document for the public content API,
-// generated from cms.config.ts. Gated by the same optional content token.
+// generated from the site's content model (cms.config.ts). Gated by the same optional content token.
 //
 // Unlike the interactive page (/api/openapi, off in production by default), this
 // document stays available: the docs tell people to feed it to code generators
@@ -15,7 +13,7 @@ import * as cmsConfig from '#cms/config'
 // and cached. NB: the `servers` URL comes from configured `cms.content.publicUrl`
 // (or, when that is empty, `cms.publicUrl`), NOT the request Host — reflecting an attacker-controlled Host into the publicly
 // cacheable spec would be a cache-poisoning vector.
-// Per site: it holds the site's address.
+// Per site: it holds the site's address, and the content model is the site's.
 const cached = cmsSiteScoped<Record<string, any> | undefined>(() => undefined)
 
 export default defineEventHandler((event) => {
@@ -25,7 +23,7 @@ export default defineEventHandler((event) => {
     const content = cms.content ?? {}
     // `cms.content.publicUrl` wins; a site that set only `cms.publicUrl` (emails, sitemap) gets it here too.
     const serverUrl = String(content.publicUrl || '').trim() || String(cms.publicUrl || '').trim()
-    cached.set(buildOpenApiDocument(cmsConfig as Record<string, any>, {
+    cached.set(buildOpenApiDocument(cmsSiteModel().config, {
       title: 'Content API',
       servers: serverUrl ? [{ url: serverUrl }] : undefined,
       tokenAuth: !!content.token,

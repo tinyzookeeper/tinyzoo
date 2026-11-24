@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Lhůty's page of one article: the date in mono, the title in Plex Serif, the short text and the
 // article between rules.
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ entry: Article }>()
 const { words, cta } = await useOffice()

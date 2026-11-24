@@ -8,7 +8,7 @@
 //
 // In development only (never in a built site), `?now=2026-11-25T09:40` in the address fixes
 // the moment (the wall clock of the practice's town): what the comparisons with the designs use.
-import type { Moment } from '~/utils/site'
+import type { Moment } from '../utils/site'
 
 let timer: ReturnType<typeof setInterval> | undefined
 let users = 0

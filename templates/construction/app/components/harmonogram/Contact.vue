@@ -2,7 +2,7 @@
 // Harmonogram's contact: the office as ruled rows in mono on the left; the area on the right,
 // each town as a bar as long as its distance from the seat, the laser closing the scale at the
 // farthest one.
-import type { Town } from '~/lib/cms-content'
+import type { Town } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'contact'>; first?: boolean; anchor?: string; towns: Town[] }>()
 const { settings, words, tel } = await useFirm()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Tabule's prices: four boxes in one black frame; the highlighted price is filled in the colour
 // of the site and rises above and below the others on a desktop.
-import type { Tariff } from '~/lib/cms-content'
+import type { Tariff } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'prices'>; first?: boolean; anchor?: string; tariffs: Tariff[] }>()
 const n = computed(() => props.tariffs.length)

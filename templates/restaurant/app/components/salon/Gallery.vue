@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Salon's gallery: two hung rows on a desktop (the first and last picture of each row twice as
 // wide), a row to swipe on a phone.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'gallery'>; first?: boolean; anchor?: string; photos: Array<{ image: CmsMedia; caption: string }>; link?: string }>()
 // (picture by picture, in the desktop's grid: how wide it hangs and how tall it is)

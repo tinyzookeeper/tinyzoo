@@ -2,7 +2,7 @@
 // Katastr's listings: a heading over a rule with the filter chips beside it (a row to swipe on a
 // phone), three columns of cards, the box that watches the offer filling the last row, and a
 // count with a link to the whole offer. The chips and the search of the opening set one filter.
-import type { Listing } from '~/lib/cms-content'
+import type { Listing } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'listings'>; first?: boolean; anchor?: string; listings: Listing[]; total: number; watchdog: SiteForm | null; moreUrl: string | null }>()
 const words = useSiteWords()

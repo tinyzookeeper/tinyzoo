@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zpravodaj's strip under the opening: three ruled columns, the last result, the last five
 // matches as small squares, and the place in the table.
-import type { LastView } from '~/composables/useClub'
+import type { LastView } from '../../composables/useClub'
 
 const props = defineProps<{ block: BlockOf<'lastResult'>; first?: boolean; last: LastView }>()
 const { words } = await useClub()

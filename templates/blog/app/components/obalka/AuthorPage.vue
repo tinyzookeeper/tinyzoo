@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // An author's page (/autor/tomas-havlena): the portrait and a few words about them, then their
 // articles as the contents list.
-import type { Author } from '~/lib/cms-content'
+import type { Author } from '../../lib/cms-content'
 
 const props = defineProps<{ entry: Author }>()
 const { words } = await useBlog()

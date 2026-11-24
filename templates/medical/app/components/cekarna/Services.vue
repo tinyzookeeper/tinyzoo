@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Čekárna's services: an open two-column list beside a short introduction, no boxes.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'services'>; first?: boolean; anchor?: string; items: Service[] }>()
 </script>

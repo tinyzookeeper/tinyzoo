@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zvýrazňovač's testimonials: on the brand colour, one quote at poster size and the others
 // smaller under a heavy rule. The heading is the mono line above them.
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 </script>

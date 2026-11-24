@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Patra's surroundings: the minutes as large serif numerals in a ruled grid, the walk first and
 // the car smaller below it, and two photographs with their captions beside them.
-import type { Place } from '~/lib/cms-content'
+import type { Place } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'surroundings'>; first?: boolean; anchor?: string; places: Place[] }>()
 const w = useSiteWords().value.patra

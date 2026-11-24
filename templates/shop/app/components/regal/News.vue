@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Regál's news: a shelf whose rail carries the dates in big condensed figures.
-import type { News } from '~/lib/cms-content'
+import type { News } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'news'>; first?: boolean; anchor?: string; items: News[] }>()
 </script>

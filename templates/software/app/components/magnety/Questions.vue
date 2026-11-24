@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Magnets' questions: a question as the heading, and the questions as rounded tiles that open to
 // their answer on sky blue, the first one open.
-import type { Question } from '~/lib/cms-content'
+import type { Question } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'questions'>; first?: boolean; anchor?: string; items: Question[] }>()
 const contactHref = `/#${anchorOf('contact')}`

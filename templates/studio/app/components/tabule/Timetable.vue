@@ -3,7 +3,7 @@
 // hours, the larger room above, the smaller below, faded where a filter hides a class), and
 // the chosen day as a board of large rows. Filters are segmented buttons; on a desktop one more
 // switches between a day and the whole week in three columns.
-import type { LessonKind } from '~/lib/cms-content'
+import type { LessonKind } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'timetable'>; first?: boolean; anchor?: string; slots: Slot[]; kinds: LessonKind[] }>()
 const { words } = await useStudio()

@@ -2,7 +2,7 @@
 // Čtvero dob's accounts: two strips on one scale (what came in in the brand colour, what went
 // out in ink, and what was left in the colour of autumn), then the documents as a card per
 // year and the supporters as plain text.
-import type { Document, Supporter } from '~/lib/cms-content'
+import type { Document, Supporter } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'accounts'>; first?: boolean; anchor?: string; documents: Document[]; supporters: Supporter[] }>()
 const { words } = await useAssociation()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zpravodaj's teams: a ruled list, each team with its competition and coach and its training
 // times written out. The photograph stands beside the list on wide screens.
-import type { Squad } from '~/lib/cms-content'
+import type { Squad } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'teams'>; first?: boolean; anchor?: string; squads: Squad[] }>()
 const words = useSiteWords()

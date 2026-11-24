@@ -3,7 +3,7 @@
 // the most read articles, numbered. The block comes first on the page whatever the order of the
 // markup (the most read is first in it, as in Obálka, so both looks read in the same order).
 import type { SiteForm } from '#imports'
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'newsletter'>; first?: boolean; anchor?: string; articles: Article[]; form: SiteForm }>()
 const { words } = await useBlog()

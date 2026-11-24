@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The little compass of a flat: a circle with the sun on the side the flat faces. Drawn from the
 // flat's orientation.
-import type { Flat } from '~/lib/cms-content'
+import type { Flat } from '../../lib/cms-content'
 
 defineProps<{ orientation: Flat['orientation'] }>()
 </script>

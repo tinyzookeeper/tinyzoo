@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Negativ's list of albums (the "All albums" block, and a category's page): the category
 // names as large links, the albums as a mosaic of covers.
-import type { Album, Category } from '~/lib/cms-content'
+import type { Album, Category } from '../../lib/cms-content'
 
 const props = defineProps<{ eyebrow: string | null; heading: string; text: string | null; albums: Album[]; categories: Category[]; active: string | null; first?: boolean }>()
 const words = useSiteWords()

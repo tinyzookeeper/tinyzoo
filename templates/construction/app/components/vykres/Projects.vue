@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výkres's projects: the highlighted one large, its facts as a ruled table, then the others in
 // three columns, each with the pictogram of its kind, a three-cell record and the price.
-import type { Project } from '~/lib/cms-content'
+import type { Project } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'projects'>; first?: boolean; anchor?: string; featured: Project | null; others: Project[] }>()
 const words = useSiteWords()

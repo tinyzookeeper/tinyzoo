@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Paragon's lunch: a typed sheet with a "Dnes" stamp, the soup and the numbered main courses in
 // typewriter type with their prices; beside it a print of the soup.
-import type { DailyMenu } from '~/lib/cms-content'
+import type { DailyMenu } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'lunch'>; first?: boolean; anchor?: string; lunch: { menu: DailyMenu; today: boolean } | null }>()
 const { words } = await useRestaurant()

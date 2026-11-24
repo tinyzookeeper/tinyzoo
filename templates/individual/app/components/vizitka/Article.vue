@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Vizitka's article page: the date, the headline in the serif and the first lines, then the
 // text in one column (the photograph, when there is one, after the heading).
-import type { Article } from '~/lib/cms-content'
+import type { Article } from '../../lib/cms-content'
 
 defineProps<{ entry: Article }>()
 const { settings, words } = await useProfile()
