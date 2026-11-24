@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výloha's team: framed portraits with the working days as six abbreviations, the days off
 // faded; a row to swipe on a phone (the carousel switches itself off from `lg`, where a grid takes over).
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; people: Person[] }>()
 const words = useSiteWords()

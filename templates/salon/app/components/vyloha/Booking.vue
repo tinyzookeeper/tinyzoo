@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Výloha's booking: a cream enamel plate on the dark page, the heading and phone number in glass
 // green on it, and a form whose fields are only underlined.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 const props = defineProps<{ block: BlockOf<'booking'>; first?: boolean; anchor?: string; form: SiteForm; groups: ServiceGroupWithItems[]; people: Person[] }>()

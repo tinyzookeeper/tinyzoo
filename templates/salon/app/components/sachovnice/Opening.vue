@@ -2,7 +2,7 @@
 // Šachovnice's opening: the brand colour from the header down to a floor of black and light
 // tiles in perspective. The heading is huge and lowercase-wide; the photograph has a black
 // border, and a black label on it says whether the salon is open today.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; quick: Service[] }>()
 const { words, days, range } = await useSalon()

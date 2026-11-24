@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zrcadlo's opening: the heading and two buttons beside a photograph in an oval mirror, a small
 // round mirror and a badge on it; the quick prices as one strip under them.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; quick: Service[] }>()
 const { words, days, range } = await useSalon()

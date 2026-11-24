@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zrcadlo's results: one large photograph and four small ones on a grid; a row to swipe on a
 // phone (the carousel switches itself off from `md` on, where the grid takes over).
-import type { Result } from '~/lib/cms-content'
+import type { Result } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'results'>; first?: boolean; anchor?: string; items: Result[] }>()
 const { settings, words } = await useSalon()

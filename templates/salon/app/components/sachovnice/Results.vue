@@ -2,7 +2,7 @@
 // Šachovnice's results: a real checkerboard, photographs alternating with caption tiles that name
 // who did it and what it costs; it stays a checkerboard in two columns on a phone. A click on a
 // tile starts booking that service. The last tile leads to Instagram.
-import type { Result } from '~/lib/cms-content'
+import type { Result } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'results'>; first?: boolean; anchor?: string; items: Result[] }>()
 const { settings, words } = await useSalon()

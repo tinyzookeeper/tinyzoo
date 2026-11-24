@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Šachovnice's reviews: three on black, side by side, each signed with a small brand-coloured square.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; anchor?: string; items: Review[] }>()
 </script>

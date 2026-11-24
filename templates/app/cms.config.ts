@@ -9,6 +9,7 @@ import * as wedding from '../wedding/cms.config'
 import * as blog from '../blog/cms.config'
 import * as trades from '../trades/cms.config'
 import * as carService from '../car-service/cms.config'
+import * as salon from '../salon/cms.config'
 import * as restaurant from '../restaurant/cms.config'
 
 export const models = defineModels({
@@ -18,5 +19,6 @@ export const models = defineModels({
   blog: { config: blog, migrations: '../blog/server/db/migrations' },
   trades: { config: trades, migrations: '../trades/server/db/migrations' },
   'car-service': { config: carService, migrations: '../car-service/server/db/migrations' },
+  salon: { config: salon, migrations: '../salon/server/db/migrations' },
   restaurant: { config: restaurant, migrations: '../restaurant/server/db/migrations' },
 })

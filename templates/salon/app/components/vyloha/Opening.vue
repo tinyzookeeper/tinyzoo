@@ -2,7 +2,7 @@
 // Výloha's opening: the shop window. The salon seen through tinted glass, a line of lettering
 // painted in an arch, the heading and a few words, and below it the sill: the hours on the door,
 // the price list and booking, the address.
-import type { Service } from '~/lib/cms-content'
+import type { Service } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'opening'>; first?: boolean; anchor?: string; quick: Service[] }>()
 const { settings, words, days, range, townName } = await useSalon()

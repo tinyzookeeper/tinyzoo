@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Výloha's reviews: three centred quotes in the display face, brass rules between them.
-import type { Review } from '~/lib/cms-content'
+import type { Review } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'reviews'>; first?: boolean; anchor?: string; items: Review[] }>()
 </script>

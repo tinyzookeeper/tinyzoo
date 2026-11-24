@@ -2,7 +2,7 @@
 // Zrcadlo's booking: a panel in the brand colour with the phone number beside a white form with
 // soft fields. The service, the person and the day are choices (useBooking); a click on a price
 // or on a person elsewhere on the page has already chosen one.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 import type { SiteForm } from '#imports'
 
 const props = defineProps<{ block: BlockOf<'booking'>; first?: boolean; anchor?: string; form: SiteForm; groups: ServiceGroupWithItems[]; people: Person[] }>()

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Zrcadlo's team: tall oval mirrors on a rounded panel, each person with the six days they
 // work as dots and a link that starts booking them; a row per person on a phone.
-import type { Person } from '~/lib/cms-content'
+import type { Person } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'team'>; first?: boolean; anchor?: string; people: Person[] }>()
 const words = useSiteWords()
