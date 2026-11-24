@@ -2,7 +2,7 @@
 // One Day's features, 07:00: each is a moment of the day, told in the layout of the screen it is
 // about: notifications stacked beside the text; a photograph with the attendance card laid over
 // it; the week grid on a card under the text; a photograph beside the payroll table.
-import type { Feature } from '~/lib/cms-content'
+import type { Feature } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'features'>; first?: boolean; anchor?: string; items: Feature[] }>()
 // The first moment is closer to the heading than the rest are to each other.

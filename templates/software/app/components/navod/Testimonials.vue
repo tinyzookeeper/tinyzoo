@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Návod's testimonials: three quotes ruled off under the section above them (the heading is only
 // for screen readers: the section continues the one before it).
-import type { Testimonial } from '~/lib/cms-content'
+import type { Testimonial } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'testimonials'>; first?: boolean; anchor?: string; items: Testimonial[] }>()
 </script>

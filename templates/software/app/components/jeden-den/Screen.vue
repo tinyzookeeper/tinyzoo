@@ -3,7 +3,7 @@
 // it (where it stands, how it overlaps a photograph) is the feature's and comes in as the class of
 // the root; a screenshot an editor uploads takes the place of the drawing, in the same card.
 // `place="opening"`: the phone of the opening (only the swap of a shift has one).
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ kind?: string | null; image?: CmsMedia | null; place?: 'opening' | 'feature' }>()
 const words = useSiteWords()

@@ -2,7 +2,7 @@
 // Návod's price list: one ruled table. The first column holds the switch between monthly and
 // yearly payment and what happens after the trial, then one column for each plan (the
 // highlighted one tinted), and under them the limits of each plan in the same columns.
-import type { Plan, PlanLimit } from '~/lib/cms-content'
+import type { Plan, PlanLimit } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'pricing'>; first?: boolean; anchor?: string; plans: Plan[]; limits: PlanLimit[] }>()
 const words = useSiteWords()

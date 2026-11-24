@@ -2,7 +2,7 @@
 // Magnets' features: the first one across the page on a board, the next two as a pair of tiles (the
 // orange one and the dark one), the last as a wide tile on sky blue. Each heading is a question; the
 // section's own heading is only for screen readers.
-import type { Feature } from '~/lib/cms-content'
+import type { Feature } from '../../lib/cms-content'
 
 const props = defineProps<{ block: BlockOf<'features'>; first?: boolean; anchor?: string; items: Feature[] }>()
 const lead = computed(() => props.items[0] ?? null)

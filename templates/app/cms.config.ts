@@ -22,6 +22,7 @@ import * as realty from '../realty/cms.config'
 import * as development from '../development/cms.config'
 import * as construction from '../construction/cms.config'
 import * as shop from '../shop/cms.config'
+import * as software from '../software/cms.config'
 
 export const models = defineModels({
   individual: { config: individual, migrations: '../individual/server/db/migrations' },
@@ -43,4 +44,5 @@ export const models = defineModels({
   development: { config: development, migrations: '../development/server/db/migrations' },
   construction: { config: construction, migrations: '../construction/server/db/migrations' },
   shop: { config: shop, migrations: '../shop/server/db/migrations' },
+  software: { config: software, migrations: '../software/server/db/migrations' },
 })

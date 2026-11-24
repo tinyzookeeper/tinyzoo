@@ -1,6 +1,6 @@
 // What the Software template's blocks draw from: the facts of the product (Site settings) and
 // the collections. (The site-wide content, the page and `useSiteList` are the template kit's.)
-import type { Feature, Plan, PlanLimit, Question, Release, Testimonial } from '~/lib/cms-content'
+import type { Feature, Plan, PlanLimit, Question, Release, Testimonial } from '../lib/cms-content'
 
 /** What the product does, in the editors' order. */
 export const useFeatures = () => useSiteList<Feature>('site-features', 'feature')

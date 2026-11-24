@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // A screen of the product as Magnets draws it: on rounded tiles, in the page's own colours. The
 // tile around it is the feature's; a screenshot an editor uploads takes the place of the drawing.
-import type { CmsMedia } from '~/lib/cms-content'
+import type { CmsMedia } from '../../lib/cms-content'
 
 defineProps<{ kind?: string | null; image?: CmsMedia | null }>()
 const words = useSiteWords()

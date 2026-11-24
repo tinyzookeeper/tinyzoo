@@ -2,7 +2,7 @@
 // One Day's price list, 12:00: soft cards for the plans (the highlighted one in the afternoon
 // colour), a switch between monthly and yearly payment, then the limits and what happens on the
 // thirty-first day.
-import type { Plan, PlanLimit } from '~/lib/cms-content'
+import type { Plan, PlanLimit } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'pricing'>; first?: boolean; anchor?: string; plans: Plan[]; limits: PlanLimit[] }>()
 const words = useSiteWords()

@@ -21,6 +21,7 @@
 @import "../../../../development/app/assets/css/design.css";
 @import "../../../../construction/app/assets/css/design.css";
 @import "../../../../shop/app/assets/css/design.css";
+@import "../../../../software/app/assets/css/design.css";
 
 /* Tailwind scans the admin, the kit and every design's folder (as a template's own build scans its own). */
 @source "../../../node_modules/tinyzoo/app";
@@ -44,6 +45,7 @@
 @source "../../../../development";
 @source "../../../../construction";
 @source "../../../../shop";
+@source "../../../../software";
 
 /* The looks' tokens as utilities (bg-paper, text-ink, font-display…), the union of every
    design's. Where designs give a token different values, the value most templates use is here
@@ -175,4 +177,15 @@
   --color-board-lo: var(--board-lo);
   --color-wall: var(--wall);
   --color-peg: var(--peg);
+  /* Software */
+  --color-am: var(--am);
+  --color-pm: var(--pm);
+  --color-sky: var(--sky);
+  --color-dawn: var(--dawn);
+  --color-morning: var(--morning);
+  --color-noon: var(--noon);
+  --color-afternoon: var(--afternoon);
+  --color-late: var(--late);
+  --color-dusk: var(--dusk);
+  --color-evening: var(--evening);
 }

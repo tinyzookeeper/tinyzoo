@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Návod's changelog: a revision list, the newest version in a filled tag, the others outlined.
-import type { Release } from '~/lib/cms-content'
+import type { Release } from '../../lib/cms-content'
 
 defineProps<{ block: BlockOf<'changelog'>; first?: boolean; anchor?: string; items: Release[] }>()
 const sections = await usePageSections()
