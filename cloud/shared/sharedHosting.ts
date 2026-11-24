@@ -1,11 +1,12 @@
-// The pure parts of the shared hosting driver (server/hosting/shared.ts): names, addresses,
-// and a site's row in its template's site directory. Nothing here touches a disk, a database
-// or a process, so all of it is covered by unit specs.
+// The pure parts of the shared hosting driver (server/hosting/shared.ts) and of the local one
+// (which writes a site directory of one site): names, addresses, and a site's row in its app's
+// site directory. Nothing here touches a disk, a database or a process, so all of it is
+// covered by unit specs.
 
 import type { PortRange } from './ports'
 import { assertSlug } from './slug'
 
-/** The shared driver's own ports: one per template, beside the local driver's 4300–4399. */
+/** The shared driver's own ports: one per APP, beside the local driver's 4300–4399. */
 export const SHARED_PORT_RANGE: PortRange = { from: 4400, to: 4419 }
 
 export const SHARED_DATABASE_PREFIX = 'tzs'
@@ -18,9 +19,9 @@ export function assertSiteId(id: string): string {
   return id
 }
 
-/** A template's id, or an error: it becomes a folder name. */
+/** A template's or an app's id, or an error: it becomes a folder name. */
 export function assertTemplateId(id: string): string {
-  if (typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || id.length > 40) throw new Error(`Not a template id: ${JSON.stringify(id)}`)
+  if (typeof id !== 'string' || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || id.length > 40) throw new Error(`Not a template or app id: ${JSON.stringify(id)}`)
   return id
 }
 
@@ -53,7 +54,7 @@ export function sqlLiteral(text: string): string {
   return quoted.includes('\\') ? `E'${quoted.replace(/\\/g, '\\\\')}'` : `'${quoted}'`
 }
 
-/** A site's address: its own host name on its template's port. Public and internal alike: the host name chooses the site. */
+/** A site's address: its own host name on its app's port. Public and internal alike: the host name chooses the site. */
 export function sharedSiteUrl(slug: string, port: number): string {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error(`Not a port: ${port}`)
   return `http://${sharedSiteHost(slug)}:${port}`
@@ -66,7 +67,7 @@ export const SHARED_SERVICE_HOST = 'localhost'
 
 /**
  * The address of a site at a domain of its own. A `*.localhost` name is this machine (trying
- * the flow locally): plain http on the template's port. Any other name is reached through the
+ * the flow locally): plain http on the app's port. Any other name is reached through the
  * platform in front, which holds its certificate: https, no port.
  */
 export function sharedDomainUrl(host: string, port: number): string {
@@ -84,9 +85,9 @@ export function sharedReaderUrl(base: string, database: string, user: string, pa
   return url.toString()
 }
 
-/** The name of the Postgres role a template's process reads the site directory with: `<prefix>_reader_<template id>`. */
-export function sharedReaderRole(templateId: string, prefix: string = SHARED_DATABASE_PREFIX): string {
-  const name = `${sharedDatabasePrefix(prefix)}_reader_${assertTemplateId(templateId).replace(/-/g, '_')}`
+/** The name of the Postgres role an app's process reads the site directory with: `<prefix>_reader_<app id>`. */
+export function sharedReaderRole(appId: string, prefix: string = SHARED_DATABASE_PREFIX): string {
+  const name = `${sharedDatabasePrefix(prefix)}_reader_${assertTemplateId(appId).replace(/-/g, '_')}`
   if (name.length > 63) throw new Error(`The reader's name is too long: ${name}`)
   return name
 }
@@ -115,7 +116,7 @@ export function passwordOfDatabaseUrl(databaseUrl: unknown): string | null {
 export interface SplitSiteEnv {
   /** The site's own secrets: they go into its row of the site directory. */
   site: { secret: string; setupToken: string; statusToken: string; account: SharedSiteAccount | null }
-  /** The rest: settings of the process that serves every site of the template (the mail transport, migrations at start). */
+  /** The rest: settings of the process that serves every site of the app (the mail transport, migrations at start). */
   process: Record<string, string>
 }
 
@@ -164,13 +165,18 @@ export interface SharedSiteRow {
   movedTo?: string
   databaseUrl: string
   secret: string
-  config: {
-    auth: { setupToken: string; account?: SharedSiteAccount }
-    status: { token: string }
-    /** `maxSizeMb`, `maxBytes`: the site's plan (shared/plans.ts): the largest upload, and everything it may store. */
-    storage: { driver: 'local'; local: { dir: string }; maxSizeMb?: number; maxBytes?: number }
-    mail?: { file: { dir: string } }
-  }
+  /** The content model the site uses, in an app that carries several (the site is drawn in the design of the same name). Left out for an app with one model of its own. */
+  model?: string
+  config: SharedSiteConfig
+}
+
+/** What a row's `config` holds: the site's own settings. */
+export interface SharedSiteConfig {
+  auth: { setupToken: string; account?: SharedSiteAccount }
+  status: { token: string }
+  /** `maxSizeMb`, `maxBytes`: the site's plan (shared/plans.ts): the largest upload, and everything it may store. */
+  storage: { driver: 'local'; local: { dir: string }; maxSizeMb?: number; maxBytes?: number }
+  mail?: { file: { dir: string } }
 }
 
 /** A site's verified domains of its own: `main` is its address when set, the others redirect to the address. */
@@ -179,7 +185,7 @@ export interface SharedSiteDomains { main: string | null; others: string[] }
 export interface SharedSiteRowInput {
   siteId: string
   slug: string
-  /** The template process's port. */
+  /** The app process's port. */
   port: number
   databaseUrl: string
   /** The site's environment as the cloud decided it (siteEnv). */
@@ -194,6 +200,27 @@ export interface SharedSiteRowInput {
   movedTo?: string | null
   /** The site's plan: the largest upload (MB) and everything it may store (bytes). */
   limits?: { maxSizeMb: number; maxBytes: number }
+  /** The content model the site uses in an app that carries several (the template's id). */
+  model?: string | null
+}
+
+const MODEL = /^[a-z][a-z0-9-]{0,39}$/
+
+/** A model's name, or an error: it is a name of a content model (and of a design) in the app. */
+function assertModel(model: string): string {
+  if (typeof model !== 'string' || !MODEL.test(model)) throw new Error(`Not a name of a content model: ${JSON.stringify(model)}`)
+  return model
+}
+
+/** A row's `config` from the site's environment: its sign-in, its status token, where its uploads and e-mails go. */
+function siteConfig(split: SplitSiteEnv, dir: string, limits?: { maxSizeMb: number; maxBytes: number }): SharedSiteConfig {
+  return {
+    auth: { setupToken: split.site.setupToken, ...(split.site.account ? { account: split.site.account } : {}) },
+    status: { token: split.site.statusToken },
+    storage: { driver: 'local', local: { dir: `${dir}/uploads` }, ...(limits ? { maxSizeMb: limits.maxSizeMb, maxBytes: limits.maxBytes } : {}) },
+    // E-mails written to files get a folder per site; any other transport needs nothing here.
+    ...(split.process.NUXT_CMS_MAIL_TRANSPORT === 'file' ? { mail: { file: { dir: `${dir}/mail` } } } : {}),
+  }
 }
 
 /** The row of one site. The keys are always written in this order, so the same site gives the same text. */
@@ -224,13 +251,40 @@ export function sharedSiteRow(input: SharedSiteRowInput): SharedSiteRow {
     ...(state === 'moved' ? { movedTo } : {}),
     databaseUrl: input.databaseUrl,
     secret: split.site.secret,
-    config: {
-      auth: { setupToken: split.site.setupToken, ...(split.site.account ? { account: split.site.account } : {}) },
-      status: { token: split.site.statusToken },
-      storage: { driver: 'local', local: { dir: `${dir}/uploads` }, ...(limits ? { maxSizeMb: limits.maxSizeMb, maxBytes: limits.maxBytes } : {}) },
-      // E-mails written to files get a folder per site; any other transport needs nothing here.
-      ...(split.process.NUXT_CMS_MAIL_TRANSPORT === 'file' ? { mail: { file: { dir: `${dir}/mail` } } } : {}),
-    },
+    ...(input.model ? { model: assertModel(input.model) } : {}),
+    config: siteConfig(split, dir, limits),
+  }
+}
+
+export interface LocalSiteRowInput {
+  siteId: string
+  /** The site's address as people and the cloud's own pages know it (`http://<slug>.localhost:<port>`, or a pattern's). */
+  publicUrl: string
+  databaseUrl: string
+  env: Record<string, string>
+  /** The site's own folder (absolute). */
+  siteDir: string
+  model?: string | null
+}
+
+/**
+ * The row of the one site a local process serves (server/hosting/local.ts). The process answers
+ * at its public host name, and also at 127.0.0.1: that is where the cloud itself reaches it.
+ */
+export function localSiteRow(input: LocalSiteRowInput): SharedSiteRow {
+  if (!input.siteDir.startsWith('/')) throw new Error(`The site's folder must be an absolute path: ${input.siteDir}`)
+  const split = splitSiteEnv(input.env)
+  const publicUrl = input.publicUrl.replace(/\/+$/, '')
+  const host = new URL(publicUrl).hostname.toLowerCase()
+  return {
+    id: assertSiteId(input.siteId),
+    hosts: [host],
+    ...(host !== '127.0.0.1' ? { alsoHosts: ['127.0.0.1'] } : {}),
+    publicUrl,
+    databaseUrl: input.databaseUrl,
+    secret: split.site.secret,
+    ...(input.model ? { model: assertModel(input.model) } : {}),
+    config: siteConfig(split, input.siteDir.replace(/\/+$/, '')),
   }
 }
 

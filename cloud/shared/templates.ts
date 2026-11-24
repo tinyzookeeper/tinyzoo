@@ -1,6 +1,8 @@
 // The templates a website can start from. Some really exist: `basic`, built from
-// packages/cms/starter, and the hosted ones built from templates/<id> (`hosted(…)` below and
-// Photographer). The rest are planned: their designs are finished and approved, so the gallery shows each as it will
+// packages/cms/starter, and the hosted ones (`hosted(…)` below and Photographer), which are
+// designs of one Nuxt app (templates/app) and keep their own folder (templates/<id>) for their
+// demo content and tinyzoo's command line. An APP is what is built and run: it serves a set of
+// templates (`APPS`, `appOf`, `templatesOfApp`). The rest are planned: their designs are finished and approved, so the gallery shows each as it will
 // look, but only with NUXT_PUBLIC_SHOW_PLANNED=true, marked as not available and not
 // selectable. A customer never sees them without the flag, and the server refuses to make a
 // site from one (`ready: false`) whatever the flag says.
@@ -45,6 +47,24 @@ export interface LookDef {
   colors?: string
 }
 
+export type AppId = 'templates' | 'basic'
+
+/** A Nuxt app that is built and run for websites. One app serves a set of templates. */
+export interface AppDef {
+  id: AppId
+  /** The app's source folder, from the repository's root (its build is `<sourceDir>/.output`). */
+  sourceDir: string
+  /** Whether the app has no content model of its own: each site's row names its template as its content model (and the site is drawn in the design of that name). */
+  models: boolean
+}
+
+export const APPS: AppDef[] = [
+  // The one app: every hosted template is a design of it, and each site's row names its template as its content model.
+  { id: 'templates', sourceDir: 'templates/app', models: true },
+  // The Basic website: its own app with its own model (a row without a model uses it).
+  { id: 'basic', sourceDir: 'packages/cms/starter', models: false },
+]
+
 export interface TemplateDef {
   id: string
   /** Whether a website can be made from it today. */
@@ -55,7 +75,9 @@ export interface TemplateDef {
   description: L
   /** Three or four short points for the card. */
   features: L[]
-  /** The template's source folder, from the repository's root (its build is `<sourceDir>/.output`). Null until it exists. */
+  /** The app that serves it. Null for a planned template. */
+  app: AppId | null
+  /** The template's own folder, from the repository's root: its demo content (`seed/`) and tinyzoo's command line run there. The build is the app's (`<app.sourceDir>/.output`). Null until it exists. */
   sourceDir: string | null
   /** Whether the template brings demo content (`seed/index.ts`, put in with `tinyzoo seed`). */
   seed: boolean
@@ -67,10 +89,10 @@ export interface TemplateDef {
 
 const look = (id: string, cs: string, en: string, csText: string, enText: string, colors?: string): LookDef => ({ id, name: { cs, en }, description: { cs: csText, en: enText }, ...(colors ? { colors } : {}) })
 const planned = (id: string, field: FieldId, animal: string, name: L, description: L, features: L[], looks: LookDef[]): TemplateDef =>
-  ({ id, ready: false, field, name, description, features, sourceDir: null, seed: false, animal, looks })
+  ({ id, ready: false, field, name, description, features, app: null, sourceDir: null, seed: false, animal, looks })
 /** A hosted template that is built (templates/<id>): each of its looks names its default colours as the sixth argument of `look(…)`. */
 const hosted = (id: string, field: FieldId, animal: string, name: L, description: L, features: L[], looks: LookDef[]): TemplateDef =>
-  ({ id, ready: true, field, name, description, features, sourceDir: `templates/${id}`, seed: true, animal, looks })
+  ({ id, ready: true, field, name, description, features, app: 'templates', sourceDir: `templates/${id}`, seed: true, animal, looks })
 
 export const TEMPLATES: TemplateDef[] = [
   {
@@ -88,6 +110,7 @@ export const TEMPLATES: TemplateDef[] = [
       { cs: 'Kontakt a otevírací doba', en: 'Contact and opening hours' },
       { cs: 'Česky a anglicky', en: 'Czech and English' },
     ],
+    app: 'basic',
     sourceDir: 'packages/cms/starter',
     seed: true,
     animal: 'elephant',
@@ -113,6 +136,7 @@ export const TEMPLATES: TemplateDef[] = [
       { cs: 'Balíčky a ceny', en: 'Packages and prices' },
       { cs: 'Poptávka termínu', en: 'Photography enquiries' },
     ],
+    app: 'templates',
     sourceDir: 'templates/photographer',
     seed: true,
     animal: 'owl',
@@ -296,6 +320,17 @@ export const TEMPLATES: TemplateDef[] = [
 export function templateById(id: string | null | undefined): TemplateDef | null {
   return TEMPLATES.find((t) => t.id === id) ?? null
 }
+
+export const appById = (id: string | null | undefined): AppDef | null => APPS.find((a) => a.id === id) ?? null
+
+/** The app that serves a template; null for a planned one. */
+export const appOf = (template: TemplateDef | null | undefined): AppDef | null => appById(template?.app)
+
+/** The ready templates an app serves, in the order of TEMPLATES. */
+export const templatesOfApp = (appId: AppId): TemplateDef[] => TEMPLATES.filter((t) => t.ready && t.app === appId)
+
+/** The content model a site of this template names in its row: the template's id, when its app carries several models; else null (the app's own model). */
+export const modelOf = (template: TemplateDef | null | undefined): string | null => (template && appOf(template)?.models ? template.id : null)
 
 /** A template's look by its id; the default (first) one when the id is unknown or missing. Null for a template without looks. */
 export function lookOf(template: TemplateDef | null | undefined, id: string | null | undefined): LookDef | null {

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
   assertSiteId, assertTemplateId, parseSharedDirectory, passwordOfDatabaseUrl, SHARED_PORT_RANGE, sharedDatabaseNameFor, sharedDatabasePrefix,
-  sharedDatabaseUrl, sharedDirectoryText, sharedSiteRow, sharedSiteUrl, splitSiteEnv, sqlLiteral, withoutSharedSite, withSharedSite,
+  localSiteRow, sharedDatabaseUrl, sharedDirectoryText, sharedSiteRow, sharedSiteUrl, splitSiteEnv, sqlLiteral, withoutSharedSite, withSharedSite,
 } from '../../cloud/shared/sharedHosting'
 import { DEFAULT_PORT_RANGE } from '../../cloud/shared/ports'
 import { quoteIdent } from '../../cloud/shared/slug'
 
-// The shared hosting driver: one process per template, a database and a database user per site.
+// The shared hosting driver: one process per app, a database and a database user per site.
 const ID = '7f3a2c1e-0b4d-4e6f-8a9b-0c1d2e3f4a5b'
 const OTHER = '11111111-2222-4333-8444-555555555555'
 const ENV = {
@@ -53,10 +53,11 @@ describe('the names of a site\'s database and database user', () => {
   })
 })
 
-describe('a template\'s folder name', () => {
-  it('is the template\'s id, and nothing that could leave the data folder', () => {
+describe('a template\'s or an app\'s folder name', () => {
+  it('is the template\'s or the app\'s id, and nothing that could leave the data folder', () => {
     expect(assertTemplateId('photographer')).toBe('photographer')
     expect(assertTemplateId('car-service')).toBe('car-service')
+    expect(assertTemplateId('templates')).toBe('templates')
     for (const bad of ['', '..', '../x', 'a/b', 'A', 'a_b', '-a', 'a-', 'x'.repeat(41)]) expect(() => assertTemplateId(bad), bad).toThrow()
   })
 })
@@ -81,7 +82,7 @@ describe('a password as an SQL literal', () => {
 })
 
 describe('a site\'s addresses', () => {
-  it('is its own host name on the template\'s port', () => {
+  it('is its own host name on the app\'s port', () => {
     expect(sharedSiteUrl('pekarna-u-kone', 4400)).toBe('http://pekarna-u-kone.localhost:4400')
     expect(() => sharedSiteUrl('Bad_Slug', 4400)).toThrow()
     expect(() => sharedSiteUrl('pekarna', 0)).toThrow()
@@ -100,7 +101,7 @@ describe('a site\'s addresses', () => {
     expect(passwordOfDatabaseUrl('not an address')).toBeNull()
   })
 
-  it('the templates\' ports do not overlap the local driver\'s', () => {
+  it('the apps\' ports do not overlap the local driver\'s', () => {
     expect(SHARED_PORT_RANGE).toEqual({ from: 4400, to: 4419 })
     expect(SHARED_PORT_RANGE.from).toBeGreaterThan(DEFAULT_PORT_RANGE.to)
   })
@@ -169,6 +170,20 @@ describe('a site\'s row in the site directory', () => {
     expect(sharedSiteRow({ ...input, env: { ...ENV, NUXT_CMS_MAIL_TRANSPORT: 'file' } }).config.mail).toEqual({ file: { dir: `/data/photographer/sites/${ID}/mail` } })
   })
 
+  it('names the content model after the secret and before the config, only when one is given', () => {
+    const row = sharedSiteRow({ ...input, model: 'car-service' })
+    expect(row.model).toBe('car-service')
+    expect(Object.keys(row)).toEqual(['id', 'hosts', 'publicUrl', 'databaseUrl', 'secret', 'model', 'config'])
+    expect(Object.keys(sharedSiteRow(input))).toEqual(['id', 'hosts', 'publicUrl', 'databaseUrl', 'secret', 'config'])
+    expect(sharedSiteRow({ ...input, model: null })).not.toHaveProperty('model')
+    expect({ ...row, model: undefined }).toEqual({ ...sharedSiteRow(input), model: undefined })
+  })
+
+  it('refuses a name of a model that is not a lower case word of letters, digits and hyphens', () => {
+    for (const bad of ['Photographer', '1a', '-a', 'a b', 'a/b', '../x', 'a_b', 'x'.repeat(41)]) expect(() => sharedSiteRow({ ...input, model: bad }), bad).toThrow()
+    expect(sharedSiteRow({ ...input, model: 'x'.repeat(40) }).model).toBe('x'.repeat(40))
+  })
+
   it('is the same text for the same site, so writing it again changes nothing', () => {
     expect(JSON.stringify(sharedSiteRow(input))).toBe(JSON.stringify(sharedSiteRow({ ...input, env: { ...ENV } })))
   })
@@ -177,6 +192,50 @@ describe('a site\'s row in the site directory', () => {
     expect(() => sharedSiteRow({ ...input, siteDir: 'sites/x' })).toThrow()
     expect(() => sharedSiteRow({ ...input, slug: 'admin' })).toThrow()
     expect(() => sharedSiteRow({ ...input, siteId: 'x' })).toThrow()
+  })
+})
+
+describe('the row of a site that runs on its own', () => {
+  const local = { siteId: ID, publicUrl: 'http://atelier-svetlo.localhost:4301', databaseUrl: 'postgres://cms:cms@localhost:5434/tzc_atelier_svetlo', env: ENV, siteDir: `/data/sites/atelier-svetlo`, model: 'photographer' }
+
+  it('answers at its own host name and at 127.0.0.1, where the cloud reaches it', () => {
+    expect(localSiteRow(local)).toEqual({
+      id: ID,
+      hosts: ['atelier-svetlo.localhost'],
+      alsoHosts: ['127.0.0.1'],
+      publicUrl: 'http://atelier-svetlo.localhost:4301',
+      databaseUrl: 'postgres://cms:cms@localhost:5434/tzc_atelier_svetlo',
+      secret: ENV.NUXT_APP_SECRET,
+      model: 'photographer',
+      config: {
+        auth: { setupToken: 'setup-code' },
+        status: { token: 'status-token' },
+        storage: { driver: 'local', local: { dir: '/data/sites/atelier-svetlo/uploads' } },
+      },
+    })
+    expect(Object.keys(localSiteRow(local))).toEqual(['id', 'hosts', 'alsoHosts', 'publicUrl', 'databaseUrl', 'secret', 'model', 'config'])
+  })
+
+  it('takes its host from a public address of a pattern, without a port or a trailing slash, in lower case', () => {
+    const row = localSiteRow({ ...local, publicUrl: 'https://Atelier.Pushbase.app/' })
+    expect(row.hosts).toEqual(['atelier.pushbase.app'])
+    expect(row.publicUrl).toBe('https://Atelier.Pushbase.app')
+    expect(localSiteRow({ ...local, publicUrl: 'https://x.pushbase.app' }).hosts).toEqual(['x.pushbase.app'])
+    expect(localSiteRow({ ...local, publicUrl: 'http://x.localhost:4301/' }).hosts).toEqual(['x.localhost'])
+  })
+
+  it('leaves 127.0.0.1 out when it is the address itself, and the model out when there is none', () => {
+    const row = localSiteRow({ ...local, publicUrl: 'http://127.0.0.1:4301', model: null })
+    expect(row.hosts).toEqual(['127.0.0.1'])
+    expect(row).not.toHaveProperty('alsoHosts')
+    expect(row).not.toHaveProperty('model')
+  })
+
+  it('writes e-mails to a folder of the site when they go to files, and refuses a bad folder, id or model', () => {
+    expect(localSiteRow({ ...local, env: { ...ENV, NUXT_CMS_MAIL_TRANSPORT: 'file' } }).config.mail).toEqual({ file: { dir: '/data/sites/atelier-svetlo/mail' } })
+    expect(() => localSiteRow({ ...local, siteDir: 'sites/x' })).toThrow()
+    expect(() => localSiteRow({ ...local, siteId: 'x' })).toThrow()
+    expect(() => localSiteRow({ ...local, model: 'Bad Model' })).toThrow()
   })
 })
 

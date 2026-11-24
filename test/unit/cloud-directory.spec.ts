@@ -122,6 +122,13 @@ describe('a row as the directory stores it', () => {
   it('is not encrypted twice', () => {
     expect(decryptSiteRow(encryptSiteRow(stored, KEY), KEY)).toEqual(row)
   })
+
+  it('keeps the name of its model readable, and gives it back when it is decrypted', () => {
+    const modelled = sharedSiteRow({ ...input, model: 'photographer' })
+    const sealed = encryptSiteRow(modelled, KEY)
+    expect(sealed.model).toBe('photographer')
+    expect(decryptSiteRow(sealed, KEY)).toEqual(modelled)
+  })
 })
 
 describe('what a row says besides the secrets', () => {
@@ -204,14 +211,15 @@ describe('the plans', () => {
 })
 
 describe('the reader of the directory table', () => {
-  it('is named by the prefix and the template', () => {
-    expect(sharedReaderRole('photographer')).toBe('tzs_reader_photographer')
-    expect(sharedReaderRole('car-service', 'tzmt_e2e')).toBe('tzmt_e2e_reader_car_service')
+  it('is named by the prefix and the app', () => {
+    expect(sharedReaderRole('templates')).toBe('tzs_reader_templates')
+    expect(sharedReaderRole('basic', 'tzmt_e2e')).toBe('tzmt_e2e_reader_basic')
+    expect(sharedReaderRole('templates')).not.toBe(sharedReaderRole('basic'))
     expect(() => sharedReaderRole('../x')).toThrow()
     expect(() => sharedReaderRole('a'.repeat(40), 'a2345678901234567890')).toThrow()
   })
 
   it('gets the cloud\'s server and database with its own name and password', () => {
-    expect(sharedReaderUrl('postgres://cms:cms@localhost:5434/tz_cloud_dev?sslmode=disable', 'tz_cloud_dev', 'tzs_reader_photographer', 'p@ss/word')).toBe('postgres://tzs_reader_photographer:p%40ss%2Fword@localhost:5434/tz_cloud_dev?sslmode=disable')
+    expect(sharedReaderUrl('postgres://cms:cms@localhost:5434/tz_cloud_dev?sslmode=disable', 'tz_cloud_dev', 'tzs_reader_templates', 'p@ss/word')).toBe('postgres://tzs_reader_templates:p%40ss%2Fword@localhost:5434/tz_cloud_dev?sslmode=disable')
   })
 })

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { cs } from '../../cloud/app/i18n/cs'
 import { en } from '../../cloud/app/i18n/en'
 import { STEP_IDS } from '../../cloud/shared/steps'
-import { FIELD_IDS, FIELDS, fieldsOf, hasLookChoice, lookOf, measuredLooks, pictureLooks, pictureOf, templateById, TEMPLATES, visibleTemplates, wordmarkOf } from '../../cloud/shared/templates'
+import { APPS, appById, appOf, FIELD_IDS, FIELDS, fieldsOf, hasLookChoice, lookOf, measuredLooks, modelOf, pictureLooks, pictureOf, templateById, TEMPLATES, templatesOfApp, visibleTemplates, wordmarkOf } from '../../cloud/shared/templates'
 import type { LookDef as KitLook, Looks } from '../../templates/kit/looks'
 import { looks as photographerLooks } from '../../templates/photographer/looks'
 import { repoRoot } from '../setup/database'
@@ -237,7 +237,7 @@ describe('the pages\' texts', () => {
       expect(cs, id).toHaveProperty([`build.doing.${id}`])
     }
     // Every `new HostingError('code', …)` and `new StepError('code', …)` in the server has its sentence.
-    const sources = ['server/hosting/local.ts', 'server/hosting/pushbase.ts', 'server/utils/provision.ts'].map((f) => readFileSync(join(repoRoot, 'cloud', f), 'utf8')).join('\n')
+    const sources = ['server/hosting/local.ts', 'server/hosting/apps.ts', 'server/hosting/pushbase.ts', 'server/utils/provision.ts'].map((f) => readFileSync(join(repoRoot, 'cloud', f), 'utf8')).join('\n')
     const codes = new Set([...sources.matchAll(/new (?:HostingError|StepError)\('([a-z_]+)'/g)].map((m) => m[1]!))
     expect(codes.size).toBeGreaterThan(5)
     // Removal on Pushbase is not a step of making a site: it has no sentence on the "being made" screen.
@@ -252,5 +252,50 @@ describe('the pages\' texts', () => {
       const texts = [t.name, t.description, ...t.features, ...t.looks.flatMap((l) => [l.name, l.description])].flatMap((pair) => Object.values(pair))
       for (const text of texts) expect(banned.test(text), text).toBe(false)
     }
+  })
+})
+
+describe('which app serves a template', () => {
+  const read = (file: string) => readFileSync(join(repoRoot, file), 'utf8')
+  // The ids of the one app, read as text: designs.ts and cms.config.ts import for Nuxt's loader, not Node's.
+  const designs = [...(/DESIGNS[^=]*=\s*\{([^}]*)\}/.exec(read('templates/app/designs.ts'))?.[1] ?? '').matchAll(/^\s*['"]?([a-z][a-z0-9-]*)['"]?\s*[:,]/gm)].map((m) => m[1]!)
+  const models = [...(/defineModels\(\{\n([\s\S]*?)\n\}\)/.exec(read('templates/app/cms.config.ts'))?.[1] ?? '').matchAll(/^ {2}['"]?([a-z][a-z0-9-]*)['"]?:/gm)].map((m) => m[1]!)
+
+  it('gives every ready template an app of APPS, and a planned one none', () => {
+    for (const t of TEMPLATES) {
+      if (t.ready) expect(appById(t.app), t.id).not.toBeNull()
+      else expect(t.app, t.id).toBeNull()
+      expect(appOf(t)?.id ?? null, t.id).toBe(t.app)
+    }
+    expect(templateById('basic')!.app).toBe('basic')
+    expect(templateById('photographer')!.app).toBe('templates')
+    expect(templatesOfApp('basic').map((t) => t.id)).toEqual(['basic'])
+  })
+
+  it('serves with the one app the ready hosted templates, the designs and the models of templates/app, in the same order', async () => {
+    const lib: { BUILT_TEMPLATES: Array<{ id: string; app: string }>; APPS: Array<{ id: string; dir: string; models: boolean }> } = await import(/* @vite-ignore */ join(repoRoot, 'cloud', 'scripts', 'lib.mjs'))
+    const ids = templatesOfApp('templates').map((t) => t.id)
+    expect(ids.length).toBeGreaterThan(1)
+    expect(designs).toEqual(ids)
+    expect(models).toEqual(ids)
+    expect(lib.BUILT_TEMPLATES.filter((t) => t.app === 'templates').map((t) => t.id)).toEqual(ids)
+    expect(lib.BUILT_TEMPLATES.filter((t) => t.app === 'basic').map((t) => t.id)).toEqual(['basic'])
+    expect(ids).not.toContain('basic')
+  })
+
+  it('lists the same apps in the scripts as in the registry, each with a package and a Nuxt config', async () => {
+    const lib: { APPS: Array<{ id: string; dir: string; models: boolean }> } = await import(/* @vite-ignore */ join(repoRoot, 'cloud', 'scripts', 'lib.mjs'))
+    expect(lib.APPS.map((a) => ({ id: a.id, dir: a.dir, models: a.models }))).toEqual(APPS.map((a) => ({ id: a.id, dir: a.sourceDir, models: a.models })))
+    for (const app of APPS) {
+      expect(existsSync(join(repoRoot, app.sourceDir, 'package.json')), `${app.sourceDir}/package.json`).toBe(true)
+      expect(existsSync(join(repoRoot, app.sourceDir, 'nuxt.config.ts')), `${app.sourceDir}/nuxt.config.ts`).toBe(true)
+    }
+  })
+
+  it('names a content model for a template of an app that carries several, and none for the Basic website', () => {
+    for (const t of templatesOfApp('templates')) expect(modelOf(t), t.id).toBe(t.id)
+    expect(modelOf(templateById('basic'))).toBeNull()
+    expect(modelOf(null)).toBeNull()
+    expect(modelOf(TEMPLATES.find((t) => !t.ready))).toBeNull()
   })
 })
