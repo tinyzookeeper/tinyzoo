@@ -9,6 +9,7 @@
 import type { Navigation, Page, SiteSettings } from '#site/app/lib/cms-content'
 import type { looks } from '#site/looks'
 import type { CustomPage } from '../utils/customTypes'
+import { colourDistance } from '../../palette'
 
 type SiteWords = ReturnType<typeof wordsOf>
 
@@ -35,10 +36,11 @@ export async function useSite() {
     nav: computed(() => nav.value?.item ?? null),
     /** The look and colours the site shows (looks.ts): the first look until the settings say otherwise. */
     look,
-    /** The owner's colour and how it is shown, when it differs; only in the admin's preview, else null. */
+    /** The owner's colour and how it is shown, when it visibly differs; only in the admin's preview, else null. */
     ownNote: computed(() => {
       const own = look.value.own
-      return isPreview && own && own.given !== own.shown ? own : null
+      // A change the eye does not see is not worth a line (about 2 is just visible).
+      return isPreview && own && colourDistance(own.given, own.shown) >= 3 ? own : null
     }),
     /** The site's name: what the settings hold, else a neutral word. */
     name: computed(() => item.value?.siteName || (design.site.wordsOf(design.site.DEFAULT_LANGUAGE) as SiteWords).defaultName),

@@ -23,7 +23,7 @@ export const looks = defineLooks([
     // The shelf and its price rail: things stand on a board, the rail under them carries the labels.
     id: 'regal',
     name: { cs: 'Regál', en: 'Shelf' },
-    own: { main: '--rail', against: ['--paper', '--rail-ink'] },
+    own: { main: '--rail', against: ['--paper', '--rail-ink', '--tint'], fixed: ['#ffffff'] },
     presets: [
       { id: 'smalt', name: { cs: 'Smalt', en: 'Enamel blue' }, swatch: ['#2b3557', '#dcae52', '#f6f5f2'], vars: { '--rail': '#2b3557', '--rail-ink': '#ffffff', '--signal': '#dcae52', '--signal-ink': '#1a1e2a', '--paper': '#f6f5f2', '--tint': '#e9e8e3', '--ink': '#1a1e2a' } },
       { id: 'police', name: { cs: 'Regál', en: 'Shelf green' }, swatch: ['#2f4638', '#d9ab4d', '#f7f5f0'], vars: { '--rail': '#2f4638', '--rail-ink': '#ffffff', '--signal': '#d9ab4d', '--signal-ink': '#1b221d', '--paper': '#f7f5f0', '--tint': '#eceae2', '--ink': '#1b221d' } },
@@ -34,7 +34,7 @@ export const looks = defineLooks([
     // The pegboard behind the counter: everything hangs on wooden pegs, a little crooked, and straightens when touched.
     id: 'na-hacku',
     name: { cs: 'Na háčku', en: 'On the Hook' },
-    own: { against: ['--brand-ink', '--tint'], fixed: ['#ffffff'] },
+    own: { against: ['--board', '--brand-ink', '--tint'], fixed: ['#ffffff'] },
     presets: [
       { id: 'zelena', name: { cs: 'Regál', en: 'Shelf green' }, swatch: ['#2f4f3e', '#eceae4', '#e6bb58'], vars: { '--brand': '#2f4f3e', '--brand-ink': '#ffffff', '--board': '#eceae4', '--board-lo': '#bfb9aa', '--tint': '#f3f1eb', '--ink': '#1d2420', '--pop': '#e6bb58', '--peg': '#d7a56c' } },
       { id: 'kobalt', name: { cs: 'Smalt', en: 'Enamel blue' }, swatch: ['#2c3a63', '#e9e9e5', '#e6bb58'], vars: { '--brand': '#2c3a63', '--brand-ink': '#ffffff', '--board': '#e9e9e5', '--board-lo': '#babab2', '--tint': '#f1f1ed', '--ink': '#1b1f2b', '--pop': '#e6bb58', '--peg': '#d7a56c' } },

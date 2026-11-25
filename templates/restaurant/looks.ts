@@ -34,7 +34,7 @@ export const looks = defineLooks([
     // The pub's own paperwork: forms printed in ink and filled in on a typewriter, a red stamp, the waiter's pencil.
     id: 'paragon',
     name: { cs: 'Paragon', en: 'Receipt' },
-    own: { against: ['--brand-ink', '--paper'] },
+    own: { against: ['--brand-ink', '--paper', '--sheet', '--tint'] },
     presets: [
       { id: 'inkoust', name: { cs: 'Inkoust', en: 'Ink' }, vars: { '--paper': '#e9e3d3', '--sheet': '#fbf9f2', '--tint': '#f2d9d0', '--ink': '#1d2b57', '--type': '#25242b', '--brand': '#b82e1b', '--brand-ink': '#fff8f0' } },
       { id: 'vycep', name: { cs: 'Výčep', en: 'Taproom' }, vars: { '--paper': '#e4e2cf', '--sheet': '#fafaf0', '--tint': '#f0dfa6', '--ink': '#1c3a2c', '--type': '#262722', '--brand': '#a44414', '--brand-ink': '#fff8ec' } },

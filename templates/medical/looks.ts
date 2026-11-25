@@ -13,7 +13,7 @@ export const looks = defineLooks([
     // The waiting room in daylight: a white page with a lot of air, large calm type, rounded photographs, today's hours in one soft band.
     id: 'cekarna',
     name: { cs: 'Čekárna', en: 'Waiting Room' },
-    own: { against: ['--brand-ink', '--brand-tint'], fixed: ['#ffffff'] },
+    own: { against: ['--brand-ink', '--brand-tint', '--tint'], fixed: ['#fdf4de', '#ffffff'] },
     presets: [
       { id: 'inkoust', name: { cs: 'Inkoust', en: 'Ink' }, swatch: ['#27416e', '#e3eaf6', '#141c2b'], vars: { '--brand': '#27416e', '--brand-ink': '#ffffff', '--brand-tint': '#e3eaf6', '--tint': '#f3f5f8', '--line': '#e1e6ee', '--ink': '#141c2b', '--body': '#3b4558', '--quiet': '#5e687b' } },
       { id: 'jedle', name: { cs: 'Jedle', en: 'Fir' }, swatch: ['#1f5c49', '#e2efe8', '#15221c'], vars: { '--brand': '#1f5c49', '--brand-ink': '#ffffff', '--brand-tint': '#e2efe8', '--tint': '#f3f6f2', '--line': '#e2e8e2', '--ink': '#15221c', '--body': '#3c4943', '--quiet': '#5f6d66' } },
@@ -24,7 +24,7 @@ export const looks = defineLooks([
     // The waiting-room clock: every day is a dial, coloured where the practice is open, and the colour says for whom.
     id: 'cifernik',
     name: { cs: 'Ciferník', en: 'Clock Face' },
-    own: { against: ['--brand-ink', '--paper'] },
+    own: { against: ['--brand-ink', '--card', '--paper', '--soft', '--track'] },
     presets: [
       { id: 'tyrkys', name: { cs: 'Tyrkys', en: 'Teal' }, swatch: ['#0b7d70', '#1d3f5e', '#f4bd4a'], vars: { '--brand': '#0b7d70', '--brand-ink': '#ffffff', '--soft': '#d8eee9', '--second': '#1d3f5e', '--sun': '#f4bd4a', '--paper': '#f3f7f6', '--card': '#ffffff', '--track': '#dee8e6', '--ink': '#12303a', '--body': '#38505a', '--quiet': '#586d76' } },
       { id: 'chrpa', name: { cs: 'Chrpa', en: 'Cornflower' }, swatch: ['#2a5fd0', '#1b2b57', '#f4bd4a'], vars: { '--brand': '#2a5fd0', '--brand-ink': '#ffffff', '--soft': '#dde7fb', '--second': '#1b2b57', '--sun': '#f4bd4a', '--paper': '#f4f6fa', '--card': '#ffffff', '--track': '#dfe4ee', '--ink': '#172240', '--body': '#3b4560', '--quiet': '#5a647e' } },

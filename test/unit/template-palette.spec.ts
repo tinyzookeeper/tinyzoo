@@ -300,6 +300,18 @@ describe('the look-pairs scan on a made-up template', () => {
     expect(notAsText.against).toEqual([])
   })
 
+  it('counts a background nearly as light as the page as one of its surfaces, and a dark one not', () => {
+    // A text in the main colour inside a tinted section: the section's background is set on an
+    // element around it, so no single rule shows the pair. --tint is as light as the page; --ink
+    // (a dark footer) is not, and has its own texts.
+    const css = 'html[data-look="x"] { body { background: var(--paper); color: var(--ink); } .band { background: var(--tint); } .foot { background: var(--ink); color: var(--paper); } }'
+    const found = scan(css, { A: vue('<section class="band"><a class="text-brand">x</a></section>') })
+    expect(found.against).toEqual(['--paper', '--tint'])
+    expect(found.sources['--tint']?.[0]).toMatch(/a surface like the page/)
+    // Without a text in the main colour no surface counts.
+    expect(scan(css, { A: vue('<section class="band">x</section>') }).against).toEqual([])
+  })
+
   it('puts every text without a background of its own on a main colour that is the page itself', () => {
     const calm: LookInput = { id: 'x', own: { main: '--paper', calm: true }, presets: look.presets }
     const dir = join(root, `case-${++count}`)

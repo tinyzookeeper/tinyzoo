@@ -12,7 +12,7 @@ export const looks = defineLooks([
     // A quiet gallery wall: white paper, hairlines, a thin serif.
     id: 'atelier',
     name: { cs: 'Ateliér', en: 'Atelier' },
-    own: { against: ['--brand-ink', '--paper'] },
+    own: { against: ['--brand-ink', '--paper', '--tint'] },
     presets: [
       { id: 'bronz', name: { cs: 'Bronz', en: 'Bronze' }, vars: { '--brand': '#7a5a3a', '--brand-ink': '#ffffff', '--paper': '#faf8f4', '--tint': '#f1ece3', '--line': '#dfd8cc' } },
       { id: 'oliva', name: { cs: 'Oliva', en: 'Olive' }, vars: { '--brand': '#4e5b3a', '--brand-ink': '#ffffff', '--paper': '#f9f9f3', '--tint': '#eceee1', '--line': '#d8dbc9' } },
@@ -34,7 +34,7 @@ export const looks = defineLooks([
     // The photographer's own album: prints with white borders, tape, handwritten notes.
     id: 'zapisnik',
     name: { cs: 'Zápisník', en: 'Notebook' },
-    own: { against: ['--brand-ink', '--paper'] },
+    own: { against: ['--brand-ink', '--paper', '--tint'], fixed: ['#ffffff'] },
     presets: [
       { id: 'inkoust', name: { cs: 'Inkoust', en: 'Ink' }, vars: { '--brand': '#2c4270', '--brand-ink': '#ffffff', '--paper': '#f5f6f8', '--tint': '#e1e7f0', '--ink': '#181d2a' } },
       { id: 'jedle', name: { cs: 'Jedle', en: 'Fir' }, vars: { '--brand': '#34604e', '--brand-ink': '#ffffff', '--paper': '#f6f6f3', '--tint': '#e2e9e3', '--ink': '#19211d' } },

@@ -14,9 +14,10 @@
 // A pair is a background and a text *in the same place*: one CSS block, or one element's classes
 // (a variant such as `hover:` or `peer-checked:` pairs only with what it replaces). A gradient is
 // a decoration, not a background under text, and a colour-mix is not the main colour: both are
-// left out. The page's own background counts when the main colour is used as a text anywhere;
-// and where the main colour is the page's background, so does every text that has no
-// background of its own.
+// left out. The page's own background counts when the main colour is used as a text anywhere,
+// and so do the look's backgrounds that are nearly as light or as dark as the page (a tinted
+// section, a card). Where the main colour is the page's background, every text that has no
+// background of its own counts.
 //
 // What it cannot see:
 //   - text inside an element whose background is set on an ancestor (a section with `bg-brand`
@@ -27,7 +28,7 @@
 // Plain TypeScript that Node runs as it is (type stripping): no enums, no namespaces.
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { mainVariable, plainHex, type Vars } from './palette.ts'
+import { hexToOklch, mainVariable, plainHex, type Vars } from './palette.ts'
 
 /** The parts of a look this file reads: the same shape as an entry of `looks.all`. */
 export interface LookInput {
@@ -66,6 +67,8 @@ interface Item { kind: Kind; variant: string; ref: string }
 /** The colours one CSS block or one element can show together. */
 interface Group { where: string; items: Item[] }
 
+// How near in lightness (OKLCH, 0 to 1) a background is to the page's to count as one of its surfaces.
+const SURFACE_LIKE_PAGE = 0.12
 const TEXT_PROPS = new Set(['color', 'fill', 'stroke', '-webkit-text-fill-color'])
 const BG_PROPS = new Set(['background', 'background-color'])
 
@@ -493,6 +496,26 @@ export function scanLook(templatesDir: string, templateId: string, look: LookInp
     page = refs?.[0] ?? null
   }
   if (mainAsText && page) candidate(page, `${cssName} ${body?.prelude}: page under text in ${main}`)
+  // The page's other surfaces: a background nearly as light (or as dark) as the page, such as a
+  // tinted section or a card. A text in the main colour stands on those too, often set on an
+  // element around it, which no single rule shows. A background far from the page's lightness
+  // (a dark footer on a light page) is another place with its own texts, and is left out.
+  if (mainAsText && page && page !== main) {
+    const lightness = (ref: string, preset: Record<string, string>): number | null => {
+      const hex = plainHex(ref.startsWith('#') ? ref : ref in preset ? preset[ref] : declared.get(ref))
+      return hex ? hexToOklch(hex)[0] : null
+    }
+    const likePage = (ref: string) => look.presets.every((preset) => {
+      const a = lightness(ref, preset.vars)
+      const b = lightness(page!, preset.vars)
+      return a !== null && b !== null && Math.abs(a - b) <= SURFACE_LIKE_PAGE
+    })
+    for (const group of groups) {
+      for (const item of group.items) {
+        if (item.kind === 'bg' && item.ref !== page && likePage(item.ref)) candidate(item.ref, `${group.where}: a surface like the page, under text in ${main}`)
+      }
+    }
+  }
   // The other way round: where the main colour is the page itself (Modrotisk, Výloha, Portál),
   // every text with no background of its own in the same place stands on it.
   if (page === main) {

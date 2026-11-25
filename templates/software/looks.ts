@@ -12,7 +12,7 @@ export const looks = defineLooks([
     // The page as a well-made instruction manual: numbered figures, green callout pins, ruled tables.
     id: 'navod',
     name: { cs: 'Návod', en: 'Manual' },
-    own: { against: ['--brand-ink', '--ground'] },
+    own: { against: ['--am', '--brand-ink', '--ground', '--pm', '--tint'], fixed: ['#ffffff'] },
     presets: [
       { id: 'zelena', name: { cs: 'Zelená', en: 'Green' }, vars: { '--brand': '#0d7a55', '--brand-ink': '#ffffff', '--tint': '#dcebe3', '--ground': '#eceeeb', '--ink': '#121617', '--am': '#fae7a2', '--pm': '#cbdfee' } },
       { id: 'modra', name: { cs: 'Modrá', en: 'Blue' }, vars: { '--brand': '#2348c9', '--brand-ink': '#ffffff', '--tint': '#dde4f6', '--ground': '#ecedf0', '--ink': '#12151c', '--am': '#fae7a2', '--pm': '#d3d9f3' } },
@@ -34,7 +34,7 @@ export const looks = defineLooks([
     // One working day: a time rail down the left edge, the background going from dawn to night.
     id: 'jeden-den',
     name: { cs: 'Jeden den', en: 'One Day' },
-    own: { against: ['--dawn'], fixed: ['#ffffff'] },
+    own: { against: ['--afternoon', '--am', '--dawn', '--lamp', '--late', '--morning', '--noon', '--pm'], fixed: ['#fbf1dc', '#fffdf8', '#ffffff'] },
     presets: [
       { id: 'podzim', name: { cs: 'Podzim', en: 'Autumn' }, swatch: ['#bb3f17', '#fbf1dc', '#2f4a5c'], vars: { '--dawn': '#f8dcc6', '--morning': '#fbf1dc', '--noon': '#fffaf0', '--afternoon': '#f7d8a2', '--late': '#f0bd8c', '--dusk': '#2f4a5c', '--evening': '#223649', '--night': '#141e2f', '--brand': '#bb3f17', '--ink': '#2b1d12', '--am': '#fbe2a0', '--pm': '#f3bb8f', '--lamp': '#f8d98b' } },
       { id: 'zima', name: { cs: 'Zima', en: 'Winter' }, swatch: ['#9d2f2b', '#f2f0ea', '#3b4d68'], vars: { '--dawn': '#efdcdc', '--morning': '#f2f0ea', '--noon': '#fcfbf8', '--afternoon': '#eadbb6', '--late': '#dcc2a6', '--dusk': '#3b4d68', '--evening': '#293751', '--night': '#151c30', '--brand': '#9d2f2b', '--ink': '#211d22', '--am': '#f2e2a6', '--pm': '#e8c1ab', '--lamp': '#f1dca0' } },
