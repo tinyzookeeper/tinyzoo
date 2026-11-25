@@ -17,12 +17,15 @@ const read = (label: any) => tl(label, '')
 const form = reactive<CmsModelSettingsForm>(cmsModelSettingsFormOf(props.type, read))
 const errors = reactive<{ plural?: string; columns?: string; orderBy?: string; icon?: string }>({})
 const failed = ref('')
+// The website's code reads what the change takes away (409 `breaks-code`): the refusal, with a link to that code.
+const codeRefusal = ref('')
 const saving = ref(false)
 const formEl = ref<HTMLElement | null>(null)
 
 function reset() {
   Object.assign(form, cmsModelSettingsFormOf(props.type, read))
   failed.value = ''
+  codeRefusal.value = ''
   for (const k of Object.keys(errors)) delete (errors as Record<string, unknown>)[k]
 }
 watch(open, (on) => { if (on) reset() }, { immediate: true })
@@ -57,6 +60,7 @@ function toggleColumn(key: string, on: boolean | 'indeterminate') {
 async function submit() {
   for (const k of Object.keys(errors)) delete (errors as Record<string, unknown>)[k]
   failed.value = ''
+  codeRefusal.value = ''
   const found = cmsModelSettingsCheck(form, t as any)
   if (Object.keys(found).length) {
     Object.assign(errors, found)
@@ -80,6 +84,7 @@ async function submit() {
     const { problem } = res
     if (problem.at === 'label') errors.plural = problem.text
     else if (problem.at === 'icon') errors.icon = problem.text
+    else if (problem.kind === 'breaks-code') codeRefusal.value = problem.text
     else failed.value = problem.text
     await cmsFocusInvalid(formEl.value)
   }
@@ -175,6 +180,7 @@ async function submit() {
         </details>
 
         <UAlert v-if="failed" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="failed" role="alert" data-cms-error-summary />
+        <CmsModelCodeRefusal v-if="codeRefusal" alert :text="codeRefusal" @leave="() => { open = false }" />
       </form>
     </template>
     <template #footer>

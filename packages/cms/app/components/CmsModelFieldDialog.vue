@@ -23,6 +23,8 @@ const step = ref<'kind' | 'form'>('kind')
 const form = reactive<CmsModelFieldForm>(cmsModelBlankForm('text'))
 const errors = reactive<CmsModelFieldFormErrors & { help?: string; key?: string; required?: string }>({})
 const failed = ref('')
+// The website's code reads what the change takes away (409 `breaks-code`): the refusal, with a link to that code.
+const codeRefusal = ref('')
 const saving = ref(false)
 const formEl = ref<HTMLElement | null>(null)
 const keyEdited = ref(false)
@@ -32,6 +34,7 @@ const newOption = ref('')
 function clearErrors() {
   for (const k of Object.keys(errors)) delete (errors as Record<string, unknown>)[k]
   failed.value = ''
+  codeRefusal.value = ''
 }
 function reset() {
   clearErrors()
@@ -126,6 +129,7 @@ async function submit() {
     const { problem } = res
     if (problem.at === 'key') { errors.key = problem.text; devOpen.value = true }
     else if (problem.at && problem.at in { label: 1, help: 1, options: 1, required: 1, to: 1 }) (errors as Record<string, string>)[problem.at] = problem.text
+    else if (problem.kind === 'breaks-code') codeRefusal.value = problem.text
     else failed.value = problem.text
     await cmsFocusInvalid(formEl.value)
   }
@@ -294,6 +298,7 @@ const title = computed(() => {
         </details>
 
         <UAlert v-if="failed" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="failed" role="alert" data-cms-error-summary />
+        <CmsModelCodeRefusal v-if="codeRefusal" alert :text="codeRefusal" @leave="() => { open = false }" />
       </form>
     </template>
     <template #footer>

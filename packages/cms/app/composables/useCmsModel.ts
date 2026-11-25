@@ -1,5 +1,5 @@
 import type { ModelOp } from '../../src/model-doc'
-import { cmsModelProblem, type CmsModelData, type CmsModelProblemInfo } from '../utils/cmsModel'
+import { cmsModelCodeRefusalText, cmsModelProblem, type CmsModelData, type CmsModelProblemInfo } from '../utils/cmsModel'
 
 /** One saved version of the content types, as `GET /api/cms/_model/history` lists it. */
 export interface CmsModelHistoryEntry {
@@ -23,7 +23,7 @@ export interface CmsModelChangeResult {
  * words (`problem`), never thrown, so the dialog that asked can say it where the person is looking.
  */
 export function useCmsModel() {
-  const { t } = useCmsI18n()
+  const { t, tl, formatDateWith, locale } = useCmsI18n()
   const toast = useToast()
   const request = useFetch<CmsModelData>('/api/cms/_model', { key: 'cms-model' })
 
@@ -39,6 +39,11 @@ export function useCmsModel() {
     }
     catch (err: any) {
       const problem = cmsModelProblem(err, t as any, ops)
+      // Code reads what the change takes away: said with the labels of the types on screen.
+      if (problem.kind === 'breaks-code' && problem.registrations?.length) {
+        const doc = request.data.value?.doc ?? { format: 1 as const, types: [] }
+        problem.text = cmsModelCodeRefusalText(problem.registrations, { t: t as any, formatDateWith, doc, read: (label) => tl(label as any, ''), locale: locale.value }, ops)
+      }
       // Somebody else changed the types first: what is shown is read again, so the next try is made against it.
       if (problem.kind === 'stale') {
         await refreshAll()

@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import {
-  CMS_MODEL_DEFAULT_ICON, cmsModelDayText, cmsModelFields, cmsModelHiddenTypes, cmsModelNotesText, cmsModelPlaceBlock, cmsModelRemovedLine, cmsModelTypesAtLimit, cmsModelVisibleTypes,
-  type CmsModelAttentionPlace,
+  CMS_MODEL_DEFAULT_ICON, cmsModelCodeRow, cmsModelDayText, cmsModelFields, cmsModelHiddenTypes, cmsModelNotesText, cmsModelPlaceBlock, cmsModelRemovedLine, cmsModelTypesAtLimit, cmsModelVisibleTypes,
+  type CmsModelAttentionPlace, type CmsModelCodeRegistration,
 } from '../../../utils/cmsModel'
+import { cmsRequestError } from '../../../utils/cmsIssues'
 
 // Content types: the kinds of content the site's owner made (Courses, Branches…), the removed ones
 // (kept until a person restores or deletes them), and the ones that come with the website's design. Administrators only;
 // a site without the feature answers 404 and the page says so calmly.
 definePageMeta({ layout: 'admin' })
-const { t, tl, formatDateWith, formatNumber, entityLabel, languageName } = useCmsI18n()
+const { t, tl, formatDateWith, formatNumber, entityLabel, languageName, locale } = useCmsI18n()
 const toast = useToast()
+const confirm = useCmsConfirm()
 useHead({ title: () => t('model.title') })
 
 const model = useCmsModel()
-await model.ready
+// The code registered against the types: loaded with the page, so a link to its section (#cms-model-code) finds it.
+const code = useFetch<{ registrations: CmsModelCodeRegistration[] }>('/api/cms/_model/code', { key: 'cms-model-code' })
+await Promise.all([model.ready, code])
 const { data, error, refresh } = model
 const history = useCmsModelHistory()
 
@@ -111,6 +115,45 @@ function askDelete(type: (typeof hidden.value)[number]) {
   deleteOpen.value = true
 }
 
+// ── code that reads the types: shown only when there is some ──
+const registrations = computed(() => code.data.value?.registrations ?? [])
+// What code lacks changes with the types: read again after each change.
+watch(() => data.value?.version, () => { void code.refresh() })
+const codeRows = computed(() => registrations.value.map((reg) => ({
+  reg,
+  ...cmsModelCodeRow(reg, { t: t as any, formatDateWith, doc: doc.value, read: (label) => tl(label as any, ''), locale: locale.value }),
+})))
+// The admin scrolls a panel, not the window, so the router does not reach the section: the page does.
+const route = useRoute()
+function showCodeSection() {
+  if (route.hash !== '#cms-model-code') return
+  nextTick(() => document.getElementById('cms-model-code')?.scrollIntoView({ block: 'start' }))
+}
+onMounted(showCodeSection)
+watch(() => route.hash, showCodeSection)
+const removingCode = ref('')
+async function removeCode(reg: CmsModelCodeRegistration) {
+  const ok = await confirm({
+    title: t('model.code.removeTitle', { name: reg.name }),
+    description: t('model.code.removeBody'),
+    confirmLabel: t('model.code.remove'),
+    color: 'error',
+  })
+  if (!ok) return
+  removingCode.value = reg.name
+  try {
+    await $fetch(`/api/cms/_model/code/${encodeURIComponent(reg.name)}`, { method: 'DELETE' })
+    toast.add({ title: t('model.code.removed', { name: reg.name }), icon: 'i-lucide-check', color: 'success' })
+  }
+  catch (err: any) {
+    toast.add({ title: t('model.code.removeFailed'), description: cmsRequestError(err, t as any), icon: 'i-lucide-circle-alert', color: 'error' })
+  }
+  finally {
+    removingCode.value = ''
+    await code.refresh()
+  }
+}
+
 const dialogOpen = ref(false)
 const created = (name: string) => navigateTo(`/admin/_model/${name}`)
 
@@ -196,6 +239,37 @@ const lastChange = computed(() => {
               </span>
               <UIcon name="i-lucide-chevron-right" class="mt-0.5 size-4 shrink-0 text-dimmed" aria-hidden="true" />
             </NuxtLink>
+          </li>
+        </ul>
+      </section>
+
+      <!-- after the types and what needs attention: it is about the types in use now; removed things and the design are the quiet tail -->
+      <section v-if="codeRows.length" id="cms-model-code" class="scroll-mt-20" :aria-label="t('model.code.title')">
+        <h2 class="cms-label">{{ t('model.code.title') }}</h2>
+        <p class="mb-2 mt-0.5 text-sm text-muted text-pretty">{{ t('model.code.hint') }}</p>
+        <ul class="cms-card overflow-hidden">
+          <li v-for="row in codeRows" :key="row.reg.name" class="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-default px-4 py-3 last:border-0">
+            <span class="grid size-9 shrink-0 place-items-center rounded-md border border-default text-muted">
+              <UIcon name="i-lucide-code-xml" class="size-5" aria-hidden="true" />
+            </span>
+            <span class="min-w-0 flex-1 basis-44">
+              <span class="block truncate font-medium text-highlighted">{{ row.reg.name }}</span>
+              <span class="block text-sm text-muted text-pretty">{{ row.meta }}</span>
+              <span v-if="row.lacks" class="mt-1 flex items-start gap-1.5 text-sm text-toned text-pretty">
+                <UIcon name="i-lucide-triangle-alert" class="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden="true" />
+                <span class="min-w-0 break-words">{{ row.lacks }}</span>
+              </span>
+              <span v-else-if="row.unreadable" class="mt-1 flex items-start gap-1.5 text-sm text-muted text-pretty">
+                <UIcon name="i-lucide-info" class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                <span class="min-w-0">{{ t('model.code.unreadable') }}</span>
+              </span>
+            </span>
+            <span class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:justify-end">
+              <UButton
+                color="neutral" variant="ghost" size="sm" icon="i-lucide-unlink" class="min-h-11 px-3" :loading="removingCode === row.reg.name"
+                :disabled="!!removingCode && removingCode !== row.reg.name" :aria-label="t('model.code.removeNamed', { name: row.reg.name })" @click="removeCode(row.reg)"
+              >{{ t('model.code.remove') }}</UButton>
+            </span>
           </li>
         </ul>
       </section>

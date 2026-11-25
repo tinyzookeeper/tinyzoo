@@ -25,10 +25,12 @@ const values = ref<number | null>(null)
 // The fields that link to this type: from the document, then from the server's answer when it names others.
 const refs = ref<{ type: string; key: string }[]>([])
 const failed = ref('')
+// The website's code reads what the removal takes away (409 `breaks-code`): the refusal in words.
+const codeRefusal = ref('')
 
 const name = computed(() => tl((props.field ?? props.type).label as any, props.field?.key ?? props.type.name))
 const read = (label: any) => tl(label, '')
-const blocked = computed(() => places.value.length > 0 || refs.value.length > 0)
+const blocked = computed(() => places.value.length > 0 || refs.value.length > 0 || !!codeRefusal.value)
 const pointing = computed(() => cmsModelFieldRefs(props.data.doc, refs.value, read))
 const entries = computed(() => props.data.entries[props.type.name] ?? 0)
 // What holds nothing is deleted by the server an hour after it is removed; everything else stays until a person deletes it.
@@ -44,6 +46,7 @@ async function load() {
   places.value = []
   values.value = null
   failed.value = ''
+  codeRefusal.value = ''
   refs.value = props.field ? [] : cmsModelPointingAt(props.data.doc, props.type.name)
   loading.value = true
   try {
@@ -76,6 +79,7 @@ async function remove() {
     const { problem } = res
     if (problem.kind === 'in-use') places.value = distinct(problem.places ?? [])
     else if (problem.code === 'points-at-type' && problem.fields) refs.value = problem.fields
+    else if (problem.kind === 'breaks-code') codeRefusal.value = problem.text
     else failed.value = problem.text
   }
   finally {
@@ -92,7 +96,8 @@ async function remove() {
       </p>
       <div v-else class="flex flex-col gap-5">
         <!-- 1. still used somewhere: nothing else can be done here -->
-        <div v-if="blocked" class="flex flex-col gap-3">
+        <CmsModelCodeRefusal v-if="codeRefusal" :text="codeRefusal" @leave="() => { open = false }" />
+        <div v-else-if="blocked" class="flex flex-col gap-3">
           <p class="flex items-start gap-3 text-sm text-default text-pretty">
             <UIcon name="i-lucide-link-2" class="mt-0.5 size-4 shrink-0 text-muted" aria-hidden="true" />
             <span>{{ t('model.remove.stillUsed') }}</span>
