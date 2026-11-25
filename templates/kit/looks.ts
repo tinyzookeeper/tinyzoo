@@ -126,8 +126,8 @@ export function presetStyle(preset: ColorPreset): string {
 export const OWN_COLOR_FIELD: { label: LookText; help: LookText } = {
   label: { cs: 'Vlastní barva', en: 'Own colour' },
   help: {
-    cs: 'Zadejte svou hlavní barvu. Ostatní barvy palety se jí přizpůsobí. Barvu, na které by se texty špatně četly, zobrazíme o něco světlejší nebo tmavší.',
-    en: 'Give your own main colour. The other colours of the palette follow it. A colour that would make texts hard to read is shown a little lighter or darker.',
+    cs: 'Zadejte svou hlavní barvu. Ostatní barvy palety se jí přizpůsobí. Barvu, na které by se texty špatně četly nebo která je na velkou plochu příliš výrazná, zobrazíme o něco světlejší, tmavší nebo tlumenější.',
+    en: 'Give your own main colour. The other colours of the palette follow it. A colour that would make texts hard to read, or that is too loud for a large area, is shown a little lighter, darker or calmer.',
   },
 }
 

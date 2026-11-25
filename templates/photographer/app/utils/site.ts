@@ -69,7 +69,7 @@ export const WORDS: Record<string, Words> = {
     noAlbums: 'Zatím tu nejsou žádná alba.', backToGallery: 'Zpět do galerie',
     sending: 'Odesílám…',
     draftPreview: 'Náhled nezveřejněné stránky',
-    ownColorShown: (given, shown) => `Vaše barva ${given} je na tomto vzhledu zobrazena jako ${shown}, aby texty zůstaly čitelné.`,
+    ownColorShown: (given, shown) => `Vaše barva ${given} je na tomto vzhledu zobrazena jako ${shown}, aby stránka zůstala čitelná a klidná.`,
     welcomeTitle: 'Založte úvodní stránku',
     welcomeBefore: 'Otevřete ', welcomeAdmin: 'administraci', welcomeAfter: ' a založte stránku s adresou „home“. Její obsah sestavíte z bloků.',
     notFoundTitle: 'Stránku jsme nenašli', notFoundText: 'Zkontrolujte adresu nebo se vraťte na úvodní stránku.',
