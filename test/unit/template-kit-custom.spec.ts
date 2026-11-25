@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CUSTOM_PREFIX, defineEntity, defineSingleton, emitSchema, f } from 'tinyzoo'
@@ -395,5 +395,38 @@ describe('the twenty templates', () => {
       const committed = readFileSync(join(repoRoot, 'templates', id, 'server', 'db', 'schema.ts'), 'utf8')
       expect(emitSchema(config) === committed, `templates/${id}/server/db/schema.ts differs from what its cms.config.ts gives`).toBe(true)
     }
+  })
+})
+
+// The frame of the kit's sections (docs/builder-plan.md, 3.1): a look's own Text part, with what
+// the section draws in its slot. A look without the slot would draw the heading and drop the rest.
+describe('the frame every look gives the kit\'s sections', () => {
+  const templates = readdirSync(join(repoRoot, 'templates'), { withFileTypes: true })
+    .filter((d) => d.isDirectory() && d.name !== 'kit' && d.name !== 'app' && existsSync(join(repoRoot, 'templates', d.name, 'looks.ts')))
+    .map((d) => d.name)
+  const parts = templates.flatMap((template) => {
+    const folder = join(repoRoot, 'templates', template, 'app', 'components')
+    return readdirSync(folder, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && existsSync(join(folder, d.name, 'Text.vue')))
+      .map((d) => ({ look: `${template}/${d.name}`, source: readFileSync(join(folder, d.name, 'Text.vue'), 'utf8') }))
+  })
+
+  it('is there in all 52 looks of the 20 templates', () => {
+    expect(templates).toHaveLength(20)
+    expect(parts).toHaveLength(52)
+  })
+
+  it('has one slot in each look\'s Text part, after its heading and its text', () => {
+    const wrong = parts.filter((p) => {
+      const slots = p.source.match(/<slot\b[^>]*\/>/g) ?? []
+      return slots.length !== 1 || p.source.indexOf('<slot') < p.source.lastIndexOf('block.body')
+    })
+    expect(wrong.map((p) => p.look)).toEqual([])
+  })
+
+  it('is passed on by LookPart, and the entries of a site\'s own types are drawn inside it', () => {
+    const kit = join(repoRoot, 'templates', 'kit', 'app', 'components')
+    expect(readFileSync(join(kit, 'LookPart.vue'), 'utf8')).toContain('<template v-if="$slots.default" #default><slot /></template>')
+    expect(readFileSync(join(kit, 'KitEntries.vue'), 'utf8')).toMatch(/<LookPart [^>]*part="Text"/)
   })
 })

@@ -1,6 +1,6 @@
 # Sections and layout as data, the builder: a first design of step 5
 
-**Status (2026-11-25):** a first design, not a detailed one. What is counted here was counted on the branch `feat/builder` (cut from `feat/look-as-data`, step 4). One experiment was run and is on the branch as an unchecked commit (section 4). Nothing else is built. The owner made the four decisions of section 6 on 2026-11-25, each as picked there, and added one rule: the limits are there so that every site stays responsive (3.4). It is step 5 of `docs/one-app-plan.md` (2.11, levels 3 and 4).
+**Status (2026-11-25):** a first design, not a detailed one. Part 1 of section 5, the frame, is built and checked (section 4). What is counted here was counted on the branch `feat/builder` (cut from `feat/look-as-data`, step 4). Nothing else is built. The owner made the four decisions of section 6 on 2026-11-25, each as picked there, and added one rule: the limits are there so that every site stays responsive (3.4). It is step 5 of `docs/one-app-plan.md` (2.11, levels 3 and 4).
 
 **Words.** A *block* is one part of a page, as today. A *section* is a block that belongs to no template: the kit draws it once for every look. A look's *frame* is what its own Text part gives every section: the container, the space above and below, the heading.
 
@@ -53,7 +53,9 @@ Names get the prefix `section_` (`section_cards`), so they never meet a design's
 
 ## 4. The experiment
 
-On the branch, as one commit marked as an experiment: the slot in all 52 Text parts, slots passed on by `LookPart`, and `KitEntries` drawn inside the frame. Pictures of the two blocks of own types in 21 looks of 8 templates, before and after (`custom-shots.mjs`, 168 pictures each, no failures): the blocks take each look's container, spacing and heading size. Not done: the comparison of all 376 pictures against `main`, the unit specs, a real look at phones. The commit is there to be judged, and to be thrown away if the direction is not wanted.
+On the branch: the slot in all 52 Text parts, slots passed on by `LookPart`, and `KitEntries` drawn inside the frame. Pictures of the two blocks of own types in 21 looks of 8 templates, before and after (`custom-shots.mjs`, 168 pictures each, no failures): the blocks take each look's container, spacing and heading size.
+
+**Part 1 is checked (2026-11-25).** The 376 pictures of that build against the pictures of `main` (67e8fad8, kept from step 4): 364 identical, 12 with 1 to 13 differing pixels inside photographs, none failing. So the slot changes no page that has no kit section. A unit spec holds the frame in place (`test/unit/template-kit-custom.spec.ts`): one slot in each of the 52 Text parts, after the heading and the text. After the pictures, the framed section got its id and its accessible name back (no change to what is drawn). Not done yet: a real look at the two blocks on phones in all looks; that belongs to part 2, where their layout changes anyway.
 
 ## 5. The order of work
 

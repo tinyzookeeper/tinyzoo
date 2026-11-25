@@ -1,14 +1,16 @@
 <script setup lang="ts">
 // The entries of one of the site's own types, as the two generic blocks draw them (BlockCustomEntries,
-// BlockCustomChosen): a heading and a short text, then the entries as cards or as rows. The same
-// markup in every look, which it takes from what all looks share: headings and texts sit in the
-// look's `.prose-look`, colours are inherited, lines and quiet text are made from the text colour.
+// BlockCustomChosen): a heading and a short text, then the entries as cards or as rows. It is drawn
+// inside the look's frame, its own Text part (LookPart): the container, the space above and below
+// and the heading are the look's. Inside, the same markup in every look, made from what all looks
+// share: texts sit in the look's `.prose-look`, colours are inherited, lines and quiet text are
+// made from the text colour.
 // A look may refine it with `--custom-radius` (the pictures' corners), `--custom-line` (the lines) and
 // `--custom-gap` (the space between cards); each has a fallback, so no look has to.
 import type { CustomCard } from '../utils/customTypes'
 
 const props = defineProps<{
-  /** The block's id: the heading's id is made from it. */
+  /** The block's id: the section's id is made from it. */
   id: string
   heading: string
   text: string
@@ -17,14 +19,14 @@ const props = defineProps<{
 }>()
 
 const NuxtLink = resolveComponent('NuxtLink')
-const headingId = computed(() => `custom-${props.id}`)
+const sectionId = computed(() => `custom-${props.id}`)
 const intro = computed(() => paragraphs(props.text))
 // Rows keep the column of the quiet line only when an entry has one.
 const plainRows = computed(() => props.cards.every((c) => !c.meta))
 </script>
 
 <template>
-  <LookPart part="Text" :block="{ heading, body: null }" :first="false" class="custom-block">
+  <LookPart :id="sectionId" part="Text" :block="{ heading, body: null }" :first="false" class="custom-block" :aria-label="heading || undefined">
     <div class="custom-wrap">
       <div v-if="intro.length" class="custom-intro prose-look">
         <p v-for="(p, i) in intro" :key="i">{{ p }}</p>
