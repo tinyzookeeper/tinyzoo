@@ -593,8 +593,8 @@ Run `tinyzoo <command>` from the root of the website. `tinyzoo help` prints the 
 | `tinyzoo up` | |
 | `tinyzoo status` | |
 | `tinyzoo upgrade` | `--allow-drop`, `--allow-risky` |
-| `tinyzoo client [out]` | `--stdout` |
-| `tinyzoo openapi [out]` | `--stdout` |
+| `tinyzoo client [out]` | `--stdout`, `--check`, `--model <file>`, `--no-model` |
+| `tinyzoo openapi [out]` | `--stdout`, `--model <file>`, `--no-model` |
 | `tinyzoo content:migrate` | `--dry-run`, `--batch <n>` |
 | `tinyzoo links:convert` | `--dry-run`, `--batch <n>` |
 | `tinyzoo export <file.tar.gz>` | `--only a,b`, `--no-media`, `--with-revisions`, `--with-submissions`, `--force` |
@@ -602,12 +602,20 @@ Run `tinyzoo <command>` from the root of the website. `tinyzoo help` prints the 
 | `tinyzoo backup [file]` | |
 | `tinyzoo restore <file>` | `--yes`, `--force` |
 | `tinyzoo seed [file]` | `--url <url>`, `--email <email>`, `--name <name>`, `--setup-code <code>`, `--wait <sec>`, `--dry-run`, `--reset`, `--yes`, `--verbose` |
+| `tinyzoo model pull` | `--url <address>`, `--file <path>`, `--force`, `--types <file>` |
+| `tinyzoo model push` | `--url <address>`, `--file <path>`, `--dry-run`, `--yes` |
+| `tinyzoo model check` | `--url <address>`, `--file <path>`, `--offline`, `--strict` |
+| `tinyzoo model register` | `--url <address>`, `--file <path>`, `--name <name>`, `--remove` |
+
+`tinyzoo client` and `tinyzoo openapi` read `cms.model.json` when it is in the folder: the site's own content types in it are in the output beside the types of `cms.config.ts`. Without the file the output is what it was before. `tinyzoo client --check` writes nothing and exits 1 when the generated file on disk differs from what it would write.
+
+`tinyzoo model` reads and changes a site's own content types through the model file `cms.model.json`. The token is the environment variable `TINYZOO_TOKEN`: an access token with the right "Content types". The site's address is `--url`, else `TINYZOO_MODEL_URL`, else the address the file came from. `pull --types` reads the content API, and sends `TINYZOO_CONTENT_TOKEN` when the site has a content token.
 
 Exit codes:
 
 - `0`: success.
-- `1`: a failure, or, for `status`, something pending.
-- `2`: for `status`, the database could not be read.
+- `1`: a failure, or, for `status`, something pending. For `model`: something needs a person (the site refused a change, the file does not fit the site).
+- `2`: for `status`, the database could not be read. For `model`: the command was used wrongly (an unknown flag, no address, no token, `push` without a terminal and without `--yes`).
 
 What the CLI prints is not covered: its wording can change in any release. A script reads the exit code.
 

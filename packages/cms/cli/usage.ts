@@ -46,8 +46,27 @@ export const CLI_COMMANDS: CliCommand[] = [
       ['--allow-risky', 'as for generate'],
     ],
   },
-  { name: 'client', args: '[out]', summary: 'emit the typed @tinyzoo/client bindings (default cms-content.ts)', flags: [['--stdout', 'print instead of writing a file']] },
-  { name: 'openapi', args: '[out]', summary: 'emit the OpenAPI 3.1 document of the content API (default openapi.json)', flags: [['--stdout', 'print instead of writing a file']] },
+  {
+    name: 'client',
+    args: '[out]',
+    summary: 'emit the typed @tinyzoo/client bindings (default cms-content.ts)',
+    flags: [
+      ['--stdout', 'print instead of writing a file'],
+      ['--check', 'write nothing; exit 1 when the file on disk is not what this would write'],
+      ['--model <file>', "the site's own types from this model file (default cms.model.json, when it is there)"],
+      ['--no-model', 'leave out the types of the model file'],
+    ],
+  },
+  {
+    name: 'openapi',
+    args: '[out]',
+    summary: 'emit the OpenAPI 3.1 document of the content API (default openapi.json)',
+    flags: [
+      ['--stdout', 'print instead of writing a file'],
+      ['--model <file>', 'as for client'],
+      ['--no-model', 'as for client'],
+    ],
+  },
   {
     name: 'content:migrate',
     summary: 'rewrite stored blocks, lists and rich text to their current versions',
@@ -113,6 +132,46 @@ export const CLI_COMMANDS: CliCommand[] = [
       ['--reset', 'first remove what this seed made'],
       ['--yes', 'do not ask before --reset'],
       ['--verbose', 'also list what was already up to date'],
+    ],
+  },
+  {
+    name: 'model pull',
+    summary: "write cms.model.json (the site's own content types) from a site; the token is $TINYZOO_TOKEN",
+    flags: [
+      ['--url <address>', 'the site (default $TINYZOO_MODEL_URL, else the site the file came from)'],
+      ['--file <path>', 'the model file (default cms.model.json)'],
+      ['--force', 'replace the file even when it has changes the site does not have'],
+      ['--types <file>', "also save the site's generated types (for a frontend without cms.config.ts)"],
+    ],
+  },
+  {
+    name: 'model push',
+    summary: 'send what you changed in the model file to the site, then write the file from the site',
+    flags: [
+      ['--url <address>', 'as for model pull'],
+      ['--file <path>', 'as for model pull'],
+      ['--dry-run', 'show the plan, send nothing'],
+      ['--yes', 'do not ask'],
+    ],
+  },
+  {
+    name: 'model check',
+    summary: 'for CI: the model file reads, and the site still has what it says (exit 1 when not)',
+    flags: [
+      ['--url <address>', 'as for model pull'],
+      ['--file <path>', 'as for model pull'],
+      ['--offline', 'check the file alone, without the site'],
+      ['--strict', 'also exit 1 when the site has more or other things than the file'],
+    ],
+  },
+  {
+    name: 'model register',
+    summary: 'tell the site that code built from the model file runs against it: a change that takes away what it reads is refused',
+    flags: [
+      ['--url <address>', 'as for model pull'],
+      ['--file <path>', 'as for model pull'],
+      ['--name <name>', 'the name of the registration (default web)'],
+      ['--remove', 'remove the registration'],
     ],
   },
 ]

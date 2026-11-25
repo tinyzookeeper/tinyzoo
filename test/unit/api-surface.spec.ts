@@ -282,7 +282,9 @@ describe('the CLI usage', () => {
     const dispatched = [...source.matchAll(/^ {2}case '([a-z:]+)':/gm)].map((m) => m[1]!).filter((c) => c !== 'help')
     const listed = CLI_COMMANDS.map((c) => c.name)
     expect(new Set(listed).size).toBe(listed.length)
-    expect([...listed].sort()).toEqual([...dispatched].sort())
+    // A command with subcommands (`model pull`, `model push`, …) is dispatched once, by its first word.
+    const commands = [...new Set(listed.map((name) => name.split(' ')[0]!))]
+    expect(commands.sort()).toEqual([...dispatched].sort())
   })
 })
 
