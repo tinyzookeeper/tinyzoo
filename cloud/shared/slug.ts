@@ -17,17 +17,32 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
 
 export type SlugProblem = 'empty' | 'short' | 'long' | 'chars' | 'edges' | 'reserved'
 
+/**
+ * More reserved names, from a setting (NUXT_RESERVED_SLUGS): names separated by commas or
+ * spaces. They are the names under the sites' domain that lead somewhere else: a website that
+ * is not made here, or an address the service itself used. The list changes as such websites
+ * come and go, so it is a setting of the deployment and not part of the code. The server checks
+ * it (GET /api/slug, and again when a website is made); the browser learns it from there.
+ */
+export function parseReservedSlugs(value: unknown): ReadonlySet<string> {
+  const parts = Array.isArray(value) ? value.map(String) : String(value ?? '').split(/[\s,]+/)
+  return new Set(parts.map((name) => name.trim().toLowerCase()).filter(Boolean))
+}
+
 const SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
-/** What is wrong with a slug, or null when it may be used (whether it is free is another question). */
-export function slugProblem(slug: string): SlugProblem | null {
+/**
+ * What is wrong with a slug, or null when it may be used (whether it is free is another question).
+ * `alsoReserved`: the deployment's own reserved names (parseReservedSlugs), where they are known.
+ */
+export function slugProblem(slug: string, alsoReserved?: ReadonlySet<string>): SlugProblem | null {
   if (typeof slug !== 'string' || slug.length === 0) return 'empty'
   if (/[^a-z0-9-]/.test(slug)) return 'chars'
   if (slug.length < SLUG_MIN) return 'short'
   if (slug.length > SLUG_MAX) return 'long'
   // A dash only between letters or digits: never first, last or doubled.
   if (!SHAPE.test(slug)) return 'edges'
-  if (RESERVED_SLUGS.has(slug)) return 'reserved'
+  if (RESERVED_SLUGS.has(slug) || alsoReserved?.has(slug)) return 'reserved'
   return null
 }
 

@@ -1,4 +1,3 @@
-import { slugProblem } from '#shared/slug'
 import { lookOf, templateById } from '#shared/templates'
 import { importProblem } from '#shared/transfer'
 import { hostingDriverName } from '../../hosting'
@@ -17,7 +16,7 @@ export default defineEventHandler(async (event) => {
   if (hostingDriverName() !== 'shared') throw fail(409, 'import.unavailable', 'Websites cannot be moved in here')
   const query = getQuery(event)
   const slug = String(query.slug ?? '').slice(0, 80)
-  const problem = slugProblem(slug)
+  const problem = newSlugProblem(slug)
   if (problem) throw fail(422, `slug.${problem}`, 'This address cannot be used', { field: 'slug' })
   const max = maxSitesPerUser()
   if (await siteCount(me.id) >= max) throw fail(403, 'sites.limit', `An account can have ${max} websites`, { max })

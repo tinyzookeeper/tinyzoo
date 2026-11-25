@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { slugProblem } from '#shared/slug'
 import { lookOf, templateById } from '#shared/templates'
 import { makesSites } from '../../hosting'
 
@@ -22,7 +21,7 @@ export default defineEventHandler(async (event) => {
   // A look that the template does not have is refused; none given means the template's default.
   if (data.look && !template.looks.some((l) => l.id === data.look)) throw fail(422, 'look.unavailable', 'This look is not available')
   const look = lookOf(template, data.look)?.id ?? null
-  const problem = slugProblem(data.slug)
+  const problem = newSlugProblem(data.slug)
   if (problem) throw fail(422, `slug.${problem}`, 'This address cannot be used')
   const max = maxSitesPerUser()
   if (await siteCount(me.id) >= max) throw fail(403, 'sites.limit', `An account can have ${max} websites`, { max })

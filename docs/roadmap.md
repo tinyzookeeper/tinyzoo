@@ -2022,7 +2022,7 @@ Branch `feat/site-roadmap`. The owner wanted the project's plans in one place th
 **After the deploy, on the live website** (the migration runs at start, then the Plány page shows its heading, text and note with no plans until this is run), from `site/` on your machine:
 
 ```bash
-SEED_URL=https://tinyzoo.site SEED_EMAIL=<an administrator> SEED_PASSWORD=<their password> pnpm seed:plans
+SEED_URL=https://tinyzoo.dev SEED_EMAIL=<an administrator> SEED_PASSWORD=<their password> pnpm seed:plans
 ```
 
 It prints `✓ plans: 16 added (cs, en, de)` the first time. If it stops halfway (a network error), run it again: it adds only the plans that are missing, and a missing English or German text, and never changes a plan. Once all 16 are there it says `· plans: the site has all 16, left alone`. Run it right after the deploy, not later: a plan an editor deleted or retitled would come back. Do not run `pnpm seed` or `pnpm reset` on the website. The demo needs nothing: its nightly reset seeds the plans (the same command against `https://tinyzoo-demo.pushbase.app` shows them before then).
