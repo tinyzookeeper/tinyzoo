@@ -180,6 +180,24 @@ export function checkDesigns(designs: DesignScan[]): { errors: string[]; warning
   return { errors, warnings }
 }
 
+/**
+ * The content types of a design whose names take the prefix of a site's own types (`x_`, tinyzoo's
+ * CUSTOM_PREFIX): such a design leaves no room for them, and its blocks of a site's own types
+ * would read its own collections. `names` are the names of the design's content model.
+ */
+export function customPrefixProblems(design: string, names: string[], prefix: string): string[] {
+  return names.filter((n) => n.startsWith(prefix)).map((n) => `design "${design}": its content type "${n}" starts with "${prefix}", the prefix of the types a site makes for itself; rename it`)
+}
+
+/** The names of the content types a config exports (`defineEntity`, `defineSingleton`, `definePages`…). */
+export function exportedTypeNames(config: Record<string, unknown>): string[] {
+  const names = new Set<string>()
+  for (const v of Object.values(config ?? {})) {
+    if (v && typeof v === 'object' && (v as { __cms?: unknown }).__cms === 'entity' && typeof (v as { name?: unknown }).name === 'string') names.add((v as { name: string }).name)
+  }
+  return [...names]
+}
+
 // `_resolveComponent("AtelierWordmark")`, as the Vue compiler writes a component it does not
 // see imported (the same calls Nuxt's own component loader rewrites).
 const RESOLVE_RE = /(?<=[\s(=;,])_?resolveComponent\d*\s*\(\s*(["'`])([^'"`]+)\1[^)]*\)/g

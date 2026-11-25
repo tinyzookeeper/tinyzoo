@@ -51,3 +51,17 @@ export const KIT_WORDS: Record<'cs' | 'en', KitWords> = {
     goHome: 'To the home page', defaultName: 'Website',
   },
 }
+
+/** The kit's words on the page of an entry of one of the site's own types (KitCustomEntry). */
+export interface KitEntryWords {
+  /** Before a file's name: "Stáhnout" */
+  download: string
+}
+
+export const KIT_ENTRY_WORDS: Record<'cs' | 'en', KitEntryWords> = {
+  cs: { download: 'Stáhnout' },
+  en: { download: 'Download' },
+}
+
+/** The words of an entry's page in a language, Czech for a language the kit has no words in. */
+export const kitEntryWords = (lang: string): KitEntryWords => KIT_ENTRY_WORDS[lang as 'cs' | 'en'] ?? KIT_ENTRY_WORDS.cs
