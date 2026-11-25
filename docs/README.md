@@ -21,6 +21,7 @@ Since 1.0, tinyzoo follows semver. [tinyzoo 1.0](stability.md) says what stays s
 | [Roles and permissions](guide/roles.md) | Roles of your own, who reads and edits each field, media per role, removed roles, a worked example with a translator |
 | [Seeding](guide/seeding.md) | Content a site starts with, written in code and put into a running site with `tinyzoo seed` |
 | [Content between environments](guide/content-transfer.md) | `tinyzoo export` and `import`: production to staging, a laptop to a server |
+| [Content types made in the admin](guide/custom-types.md) | Experimental: collections a site's administrators add without a release, the model file (`tinyzoo model pull`, `push`, `check`, `register`), typed code against them, and the lock that keeps a click from breaking your pages |
 | [tinyzoo 1.0](stability.md) | What the 1.0 promise covers, what it does not, and how to get there |
 | [The public API](api-surface.md) | What 1.0 freezes: the config API, options and environment variables, content API, client, webhook, hooks, CLI, admin extension points. Everything else is internal |
 | [Plugins](plugins.md) | Adding a feature of your own (collections, admin pages, routes, upgrade steps) and shipping it as a package |

@@ -593,6 +593,10 @@ The owner decided that no timer ever deletes content. It replaces Part 2's delet
 
 **What is left in the database** after a deletion by hand, with the options: section 6.
 
+### Since this step
+
+Step 3 (`docs/model-file-plan.md`) builds what section 13 left to it: the switch for single-site apps (a single site's requests are counted, so its memory can be replaced), the model as a file, the registered file and the check for CI. The structure function as an MCP tool is still not built; a personal access token has a right of its own for the developer's routes instead.
+
 ### Open after this step
 
 - Decided by the owner on 2026-11-25: the prefix `custom_` (section 3), and removal without a timer (section 6). Still the owner's: what each plan's limits are.

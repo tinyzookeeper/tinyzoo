@@ -2,7 +2,7 @@
 
 **Status (2026-11-24):** an exploration. Nothing here is built into the product and nothing is decided. The experiments were throwaway: they ran on this machine against a Postgres 16.16 of their own, and their temporary changes were removed afterwards (2.14 says what each one showed). Where a number is an estimate, it says so.
 
-**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18. Step 2 has its detailed design in `docs/custom-types-plan.md` (2.19).
+**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18. Step 2 has its detailed design in `docs/custom-types-plan.md` (2.19), step 3 in `docs/model-file-plan.md` (2.20).
 
 Part 1 is the short read with the recommendation and the decisions to make. Part 2 holds the details behind it.
 
@@ -540,4 +540,16 @@ Three things there correct this document:
 - **The looks share no tokens** (2.11 said they do). No CSS variable is defined by all 52 looks. The generic blocks take their look from each look's own text styles (`.prose-look`, in every look) and from the colour and typeface the page inherits.
 - **No index of bindings is kept** (2.6 said one is). The stored pages are read when a change needs to know where a field is shown: 6 ms for 2 000 pages.
 - **Translations, a many-to-many relation and choice types made at run time** (2.15 listed them as not explored) work through one small planner that reads the engine's own table objects; its statements are the ones drizzle-kit makes.
+
+## 2.20 Step 3: the detailed design
+
+Step 3 (the developer's side) is designed in detail in `docs/model-file-plan.md`, and built on the branch `feat/model-file`: the model file and its four commands, the types generated from it, the registered file as a lock, the check for CI, and the switch for single-site apps.
+
+Five things there correct this document:
+
+- **CI fails when code would break, not on any difference** (2.7, step 3, said any difference). An owner who changes a label must not turn a developer's CI red. `--strict` gives the other behaviour.
+- **`push` sends the developer's changes, not the file** (part 1 said "a changed file"). The difference is taken against the version the file was pulled at, so what the owner changed since then stays.
+- **No force on a change** (2.7 left it open). An administrator removes the registration, and that is logged.
+- **The CLI changes no database** (2.7, step 1, said `pull` brings the local database to the same shape). The local server adds what the file has when it starts, on request, and never removes.
+- **A new choice passes a registration,** and a custom type's choice field is typed as its known values or any other text. 2.6 called a new choice safe; for typed code that reads the field it is only safe when the type says so.
 

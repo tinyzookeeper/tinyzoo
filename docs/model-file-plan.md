@@ -1,6 +1,6 @@
 # The developer's side: the detailed design of step 3
 
-**Status (2026-11-25):** the design, written before the build. It is step 3 of `docs/one-app-plan.md` and builds on step 2 (`docs/custom-types-plan.md`), which is on `main` and not released yet. Every claim about the code names its file. Nothing here is built until section 13 says so. The points marked **(owner)** are decisions that are the owner's; each has my pick and the other choices.
+**Status (2026-11-25):** the design, and since then the build: every part of section 12 is built on the branch `feat/model-file`, local only, not released (section 13). It is step 3 of `docs/one-app-plan.md` and builds on step 2 (`docs/custom-types-plan.md`), which was released as 1.15.0 while this was built. The design below is as it was written before the build, corrected where the build showed otherwise; section 13 records what is built. Every claim about the code names its file. The points marked **(owner)** are decisions that are the owner's; each has my pick and the other choices.
 
 **Words.** As in the two plans. New here: the *model file* is a site's own content types written into a file in git. A *registration* is a model file that some running code told the site it was compiled against. A *promise* is what such a file says the content API returns. A model *fits* a registration when it still keeps that promise.
 
@@ -147,7 +147,7 @@ For a separate frontend, in its deploy: `tinyzoo model register --name web`. It 
 
 So the types of a custom type come from the same path as the site's own: the site builds its entities from the stored document with the same mapper, and serves the same generator's output at `/api/content-types.ts`. A test holds the two equal: the types generated from a pulled file equal the types the site serves.
 
-**A choice field of a custom type is typed open:** `'beginner' | 'advanced' | (string & {})`. The editor still completes the known values, and the type says the truth: an owner may add a choice at any time (section 6). The OpenAPI document says the same (a string, with the known values named). Code-first choice fields are closed unions as before. Step 2 is not released, so no generated file in use changes.
+**A choice field of a custom type is typed open:** `'beginner' | 'advanced' | (string & {})`. The editor still completes the known values, and the type says the truth: an owner may add a choice at any time (section 6). The OpenAPI document says the same (a string, with the known values named). Code-first choice fields are closed unions as before. Step 2 was released (1.15.0) with closed unions for custom types too, as an experimental feature that is off unless switched on; the changeset names the change.
 
 ## 6. Registrations: the lock
 
