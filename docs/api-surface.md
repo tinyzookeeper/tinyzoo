@@ -377,7 +377,7 @@ The `NUXT_CMS_*` and `NUXT_PUBLIC_CMS_*` variables above, and:
 | `TINYZOO_DEPRECATIONS` | `1` prints deprecation warnings under `NODE_ENV=test`, `0` silences them |
 | `TINYZOO_PG_DUMP`, `TINYZOO_PG_RESTORE`, `TINYZOO_PSQL` | the `pg_dump`, `pg_restore` and `psql` that `tinyzoo backup` and `restore` run |
 | `SEED_URL`, `SEED_EMAIL`, `SEED_PASSWORD`, `SEED_NAME`, `SEED_SETUP_CODE` | the defaults of `tinyzoo seed`'s flags |
-| `NUXT_CMS_CUSTOM_TYPES` | **experimental**, multi-tenant mode only: `on` lets each site make content types of its own in the admin, each a table in the site's own database. A site's directory row may switch them off for that site or set its limits: `config.customTypes` with `enabled` (`false` switches them off), `types`, `fields`, `options` (whole numbers from 0 to 200; the defaults are 12, 30 and 30). Read from the environment, not at build time. Without it nothing of the feature runs. Not part of what 1.0 freezes: it may change with the feature |
+| `NUXT_CMS_CUSTOM_TYPES` | **experimental**, multi-tenant mode only: `on` lets each site make content types of its own in the admin, each a table in the site's own database. A site's directory row may switch them off for that site or set its limits: `config.customTypes` with `enabled` (`false` switches them off), `types`, `fields`, `options` (whole numbers from 0 to 200; the defaults are 12, 30 and 30; removed types and fields do not count, and an administrator deletes them for good by hand). Read from the environment, not at build time. Without it nothing of the feature runs. Not part of what 1.0 freezes: it may change with the feature |
 
 Not part of the surface: the test-only `CMS_TEST_*` variables.
 

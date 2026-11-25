@@ -1,6 +1,6 @@
 # Custom content types: the detailed design of step 2
 
-**Status (2026-11-25):** the design, and since then the build: every part of section 11 is built on the branch `feat/custom-types`, local only, not released (section 14). The design below is as it was written before the build, corrected where the build showed otherwise. It is step 2 of `docs/one-app-plan.md` and builds on what steps 0 and 1 put on `main`. Every claim about the code names its file. Numbers are measured on this machine (Apple silicon, Node 24, Postgres 16 in a container of its own) unless they are marked as estimates. The experiments were throwaway and ran outside the product code; section 12 says what each showed. Section 14 records what is built, as it is built.
+**Status (2026-11-25):** the design, and since then the build: every part of section 11 is built on the branch `feat/custom-types`, local only, not released (section 14). Removal hides for good and nothing is deleted by a timer (section 6, section 14 part 6). The design below is as it was written before the build, corrected where the build showed otherwise. It is step 2 of `docs/one-app-plan.md` and builds on what steps 0 and 1 put on `main`. Every claim about the code names its file. Numbers are measured on this machine (Apple silicon, Node 24, Postgres 16 in a container of its own) unless they are marked as estimates. The experiments were throwaway and ran outside the product code; section 12 says what each showed. Section 14 records what is built, as it is built.
 
 **Words.** As in the plan: a *site*, an *app*, a *model*, a *design*, a *code-first type*, a *custom type*. New here: a *binding* says which type a block shows and which field goes to which place. The *structure function* is the one server function that changes a site's custom types.
 
@@ -9,7 +9,7 @@
 ## 1. The short read
 
 1. **A site's own types are one document in its own database.** The document says what `defineEntity` and `f.*` say, without functions. A mapper turns it into tinyzoo's own entities, so the admin, the API, search, the sitemap and the generated types serve a custom type with the code that exists.
-2. **Each custom type is a real table,** made and changed by statements the site's own database user runs. The statements are read from the same table objects the engine queries with, so the two cannot disagree. Only additions run at once. A removal hides first and deletes later.
+2. **Each custom type is a real table,** made and changed by statements the site's own database user runs. The statements are read from the same table objects the engine queries with, so the two cannot disagree. Only additions run at once. A removal hides. A person deletes by hand what holds content; the server deletes only what was removed empty, after an hour.
 3. **A change of structure gives the site a fresh memory.** The mechanism is the one that already handles a changed site row (`retireInstance` in `server/utils/cmsSite.ts`): requests under way finish with the model they started with, new requests get the new one. No cache has to be listed and cleared by hand.
 4. **One function changes structure.** The admin's editor, and later the model file of step 3 and the MCP tools, all call it. It holds the lock, checks the version, asks the guard, runs the statements and writes the new version in one transaction.
 5. **The guard reads the pages.** A block stores its binding as data. Before a field or a type goes, the server reads every stored block and refuses while one shows it, with the list of places. No index table is kept: reading 2 000 pages takes 6 ms.
@@ -23,7 +23,7 @@
 | Every look shares tokens (`bg-paper`, `text-ink`, `font-display`), so the kit can style generic blocks through them (2.11) | No variable is in all 52 looks: `--font-sans` in 50, `--ink` and `--brand` in 45, `--paper` in 35, `--line` in 25. Section 8 gives the footing that does hold |
 | The server keeps an index of bindings, as it keeps the search index (2.6) | The pages are read when a change needs it. Nothing can drift from the truth, and it is fast enough (section 7) |
 | The model is read where a request waits for migrations, and a change is announced to other instances (2.4) | Kept. Added: the model never changes inside a loaded site; a change retires the site's memory (section 4) |
-| The first editor only adds (part 1, step 2) | Adding, changing labels, hiding, restoring and the later deletion are all in, because hiding is what makes removal safe |
+| The first editor only adds (part 1, step 2) | Adding, changing labels, hiding, restoring and deletion by hand are all in, because hiding is what makes removal safe |
 
 ## 2. The model document
 
@@ -104,12 +104,16 @@ Every field also has `label`, optional `help`, and `required` where the kind has
 
 | | Default |
 |---|---|
-| Custom types per site, hidden ones included | 12 |
-| Fields per type, hidden ones included | 30 |
-| Choices per choice field | 30 |
+| Custom types per site, removed ones not counted | 12 |
+| Fields per type, removed ones not counted | 30 |
+| Choices per choice field, removed choices counted | 30 |
 | A label | 80 characters; a help text 300 |
+| Removed types per site | as many as the type limit |
+| Removed fields per type | as many as the field limit |
 | The document | 256 KB |
 | Versions kept | 200 |
+
+Postgres never reuses a dropped column's number, and a table can have had 1 600 columns in its life. After roughly 1 500 fields were added and deleted for good on one type, the database refuses a new column. This is not handled.
 
 ## 3. Names
 
@@ -147,7 +151,7 @@ Why this and not swapping the model in place: a request calls `useCms()` many ti
 
 - Additions do not hurt the old model: its queries name their columns.
 - Hiding keeps the column and the table, so a write of the old model still lands.
-- The real deletion comes at least an hour after the hiding, when no instance with the old model is left.
+- The real deletion comes one minute after the hiding at the earliest, by a person, and an hour after it, by the server. Both give a request of the old model time to finish.
 
 **Other instances.** With a shared store (Redis, which two instances need anyway) the message arrives in milliseconds. An instance that misses it serves the older model until the site is unloaded (15 minutes idle) or the process restarts. It lacks what was added and breaks nothing. When somebody tries to change the structure on it, the version check fails, it retires the site and answers "reload".
 
@@ -171,7 +175,7 @@ Reading the table objects, not the document, settles three things the plan left 
 | `CREATE [UNIQUE] INDEX … ON "custom_…"` | on a table made in the same change |
 | `ALTER TABLE "custom_…" ALTER COLUMN … DROP NOT NULL` | hiding a field; a required field made optional |
 | `ALTER TABLE "custom_…" ALTER COLUMN … SET NOT NULL` | an optional field made required, after a count shows that no entry lacks a value |
-| `ALTER TABLE "custom_…" DROP COLUMN …`, `DROP TABLE "custom_…"`, `DROP TYPE "custom_…"` | only the later deletion of something hidden long enough (section 6) |
+| `ALTER TABLE "custom_…" DROP COLUMN …`, `DROP TABLE "custom_…"`, `DROP TYPE "custom_…"` | only the deletion of something removed: by a person after a minute, or by the server after an hour when it held nothing (section 6) |
 
 Refused whatever asks for them: a changed column type, a renamed column or table, a removed choice, a new unique rule on a table with entries, anything on a table without the prefix.
 
@@ -188,20 +192,42 @@ Postgres runs these statements inside a transaction, a new choice included: a fa
 
 **Measured.** Two new types with their translations and relation table: 16 ms. Six new fields and a new choice on a type with entries: 8 ms. A new column on 20 000 entries: 0.9 ms, the same for dropping one. A change that meets a transaction still open on the same table waits for its lock, and readers that arrive queue behind it: with the 2 s limit the change is refused after 2 s ("busy, try again") and the readers go on. tinyzoo's requests hold no transaction open across a response, so this is the rare case.
 
-## 6. Removing: hidden first
+## 6. Removing: it hides, a person deletes
 
-**Hiding.** Removing a field or a type sets `removedAt` on it in the document. The mapper leaves hidden things out, so they are gone from the admin, the API, search, the sitemap and the generated types at the next request. The column or the table stays. The one statement hiding needs: `DROP NOT NULL` on a hidden required column, because a write that no longer knows the field would otherwise be refused by the database (seen in the experiment: 23502).
+**The rule.** Removing a field or a type hides it, for good. A timer never deletes content. Only a person deletes what holds content, by hand, and the server deletes by itself only what held nothing when it was removed.
 
-**Restoring.** Until the deletion, one click brings it back with its content. A restored required field comes back optional when entries were written without it meanwhile.
+**Hiding.** Removing sets `removedAt` on the field or the type in the document. The mapper leaves removed things out, so they are gone from the admin, the API, search, the sitemap and the generated types at the next request. The column or the table stays, with its content. The one statement hiding needs: `DROP NOT NULL` on a removed required column, because a write that no longer knows the field would otherwise be refused by the database (seen in the experiment: 23502).
 
-**The deletion.** A hidden field or type is deleted for good:
+**Restoring.** At any time, one click brings a removed thing back with its content. A restored required field comes back optional when entries were written without it meanwhile.
 
-- 30 days after it was hidden; or
-- after one hour, when it held no content at the moment it was hidden (a field added by mistake).
+**Deletion by hand.** An administrator deletes a removed thing for good: `POST /api/cms/_model` with the operation `purge`: `{ op: 'purge', types?: [...], fields?: [{ type, key }] }`. It goes through the structure function like every other change: the lock, the version check, the dry run, the audit line, the retirement of the site's instance and the message to other instances. The admin offers it as "Delete for good" on every removed row. The dialog shows how many entries the thing holds. When it holds content, the person types its name to go on.
 
-It runs when the site is loaded and then once a day while it stays loaded, through the structure function (so under the same lock, with a version of its own). A site nobody opens keeps its hidden columns a little longer, which costs nothing. No job walks every database: 2.3 of the multi-tenant plan forbids that for a reason.
+**The one-minute wait.** A person may delete a thing only one minute after it was removed (`MODEL_DELETE_WAIT_MS`). Before that the answer is 422 `too-soon`, with the milliseconds left. The reason: a request that started with the old model, where the thing was still visible, may still write to its table or column. The wait lets such work finish, as the hour does for the server's own deletion.
 
-**Names stay taken** until the deletion, so a new field cannot silently take over an old field's column.
+**The hour for empty things.** A thing that held nothing when it was removed (`removedEmpty`, for a field added by mistake) is deleted by the server one hour later. It runs when the site is loaded and every six hours while the site stays loaded. The timer starts only for a site that has such a thing. The server checks again, at that moment, that the thing holds nothing. When it got content meanwhile (a request of the old model wrote to it), it is kept: `removedEmpty` becomes false, the note is `kept-not-empty`, and the server never deletes it again. It is then an ordinary removed thing. A site nobody opens keeps its removed columns, which costs nothing. No job walks every database: 2.3 of the multi-tenant plan forbids that for a reason.
+
+**What "for good" takes with it.** In the same transaction as the drop:
+
+- A deleted type takes its revisions (`cms_revisions`), its rows of the search index (`cms_search`) and its shared-editing working copies (`cms_collab`).
+- A deleted field's key (and `<key>__media`) is taken out of every stored revision of its type, in `data` and in `changed`. The search index's stored signature is cleared, so the next instance rebuilds the index from the current model. A field's text sits inside the index's joined columns; hiding already starts a rebuild, and this makes it certain.
+- These are ordinary parameterised statements on tinyzoo's own tables. The allowed list of structure statements is unchanged.
+- The audit log keeps the line that the deletion happened, with the names of what was deleted. An entry's audit lines hold ids only.
+- Pictures and files stay in the media library.
+
+**What is left after a deletion by hand,** and the options for each:
+
+| What is left | Why | Options |
+|---|---|---|
+| A deleted field's values in the shared-editing working copies (`cms_collab`: the Yjs state and the `~unsaved` rows) of the type's entries | Someone may have the entry open, so they are not deleted. The existing clean-up of working copies untouched for a long time removes them | Delete those rows (they restart from the saved entry); delete only the ones not active; strip the field from the Yjs state |
+| The analytics plugin's rows: `analytics_events` (entity, entry id, address) and `analytics_daily` (address) | Counts, no field content | Clear the entity and entry id; delete the rows; leave them |
+| Redirects made when an entry's address changed (the design's redirects collection) | Old addresses | Delete those that lead to a deleted type |
+| The `cms_model` history, the newest 200 versions | Old documents hold the names and labels of deleted types and fields, never their content | Leave it |
+| Links in other content to a deleted entry (`cms:<type>/<id>`) | They are not stripped. They lead nowhere, as a link to any deleted entry does | Leave it |
+| Media used only by deleted entries | Pictures and files stay in the library | Leave it |
+
+**Limits of removed things.** Removed things do not count toward the plan's limits. They have a bound of their own. A site keeps at most as many removed types as its type limit (`limit-removed-types`: "Delete one of them for good first"). A type keeps at most as many removed fields as its field limit (`limit-removed-fields`). Adding or restoring is refused when the visible ones reach the limit (`limit-types`, `limit-fields`). Choices of a choice field are unchanged: removed choices count.
+
+**Names stay taken** until the thing is deleted for good, so a new field cannot silently take over an old field's column. After a deletion by hand the name is free again.
 
 ## 7. The guard: what happens on each change
 
@@ -221,9 +247,10 @@ The guard runs inside the structure function, in the transaction, before any sta
 | Make an optional field required | Refused while an entry has no value, with the count |
 | Change a field's kind | Not offered: add a new field. (Copying values over is a later step) |
 | Reorder fields | The document only |
-| Remove a field | Refused when it is the title, or made by the mapper (`slug`, `status`, `position`). Refused while a block shows it or orders by it, with the places: "Home › Courses". Otherwise hidden; where the type itself used it (list columns, the default order, the page's picture or summary), that use is cleared in the same change and the answer says so |
-| Remove a type | Refused while a block shows it, while another type's field points at it, or while content links to one of its entries (`linksTo` in `server/utils/cmsLinks.ts`), each with its places. Otherwise hidden |
-| Restore | Runs at once |
+| Remove a field | Refused when it is the title, or made by the mapper (`slug`, `status`, `position`). Refused while a block shows it or orders by it, with the places: "Home › Courses". Otherwise hidden (removed), and counted against the removed-fields bound; where the type itself used it (list columns, the default order, the page's picture or summary), that use is cleared in the same change and the answer says so |
+| Remove a type | Refused while a block shows it, while another type's field points at it, or while content links to one of its entries (`linksTo` in `server/utils/cmsLinks.ts`), each with its places. Otherwise hidden (removed), and counted against the removed-types bound |
+| Restore | Runs at once. Refused when the visible ones are at the limit (`limit-types`, `limit-fields`) |
+| Delete for good (`purge`) | Only for a removed thing, a minute after it was removed (`too-soon` before), by an administrator. The table or the column goes, with the type's revisions, search rows and working copies, or the field's key out of the type's revisions (section 6) |
 | Change a type's page prefix, switch pages or publishing on or off later | Not in the first version (section 13) |
 | Anything on a type of the design | Refused. The editor shows these types as part of the design, with no control to change them |
 
@@ -293,9 +320,9 @@ So the kit's components are built from these, in this order:
 
 | Route | |
 |---|---|
-| `GET /api/cms/_model` | the document with hidden things, the design's types (read-only), the limits and how much is used, entry counts |
-| `POST /api/cms/_model` | `{ baseVersion, ops, dryRun? }`: the structure function |
-| `GET /api/cms/_model/usage?type=…&field=…` | where a type or a field is shown |
+| `GET /api/cms/_model` | the document with removed things, the design's types (read-only), the limits and how much is used (`used.types` counts visible types), entry counts |
+| `POST /api/cms/_model` | `{ baseVersion, ops, dryRun? }`: the structure function. The operation `{ op: 'purge', types?, fields?: [{ type, key }] }` deletes removed things for good |
+| `GET /api/cms/_model/usage?type=T` | `{ places, fields, entries }`: where the type is shown, its fields' places, its entries. With `&field=K`: `{ places, values }`, the entries that hold a value (`null` when it cannot be counted). Works for removed types and fields |
 | `GET /api/cms/_model/attention` | blocks whose binding names something missing |
 | `GET /api/cms/_model/history` | the versions: who, when, what |
 
@@ -313,8 +340,8 @@ Settings › Content types                                   [ New content type 
   NEEDS ATTENTION                       (only when there is something)
   │ Home › "Upcoming courses" shows a field that no longer exists      › │
 
-  HIDDEN                                (only when there is something)
-  │ Old price list   will be deleted on 24 December       [ Restore ]   │
+  REMOVED                               (only when there is something)
+  │ Old price list   2 entries     [ Restore ]  [ Delete for good ]     │
 
   PART OF THE DESIGN
   │ 🔒 Albums, Categories, Packages, Testimonials, Pages…               │
@@ -350,7 +377,7 @@ Rows drag to reorder (arrows on a phone, as in the menu editor, `CmsMenuEditor.v
 
 **Screen 4: a field.** Adding starts with the kind, as a grid of eleven tiles, each an icon, a name and one line ("Choice: one of a few options"). Then the label, an optional help text, "required", and what the kind needs (the options of a choice, whole or decimal for a number, which type a relation points at). The key is shown once, small, under "For developers", and can be changed before the field is made.
 
-**Removing.** The dialog says what will happen in the order a person cares about: where it is shown now (with links, and then the removal is not offered), how many entries hold a value, that it is hidden now and deleted on a date, and that it can be restored until then.
+**Removing.** The dialog says what will happen in the order a person cares about: where it is shown now (with links, and then the removal is not offered), how many entries hold a value, that it is hidden now and can be restored at any time with its content. A removed row offers *Restore* and *Delete for good*. The deletion dialog shows how many entries the thing holds and, when it holds content, asks the person to type its name.
 
 **The look.** The admin's own: `CmsPage`, `.cms-card`, `CmsEmptyState`, `CmsConfirmDialog` through `useCmsConfirm`, toasts as in `team.vue`; one primary action a screen; no colour bar on the left edge of anything; a row of tiles that overflows on a phone is `UCarousel`. Texts in Czech, English and German (`app/i18n`, where a test keeps the three equal).
 
@@ -381,7 +408,7 @@ Rows drag to reorder (arrows on a phone, as in the menu editor, `CmsMenuEditor.v
 Each part ends with its own tests green and is useful without the next.
 
 1. **The core, without the server** (`src/`): the document's format and its operations, the mapper, the planner and the allowed list. Unit tests: the mapper's types give the same admin graph as the same types written in code; the planner's statements against drizzle-kit's; every refusal.
-2. **The server.** Loading, retiring, the channel, the structure function with the guard's document, relation and link checks, hiding, restoring and the later deletion, the routes, the isolation suite and the leaks. *Useful alone: a site's types can be made through the API, and the unchanged admin shows their lists and forms.*
+2. **The server.** Loading, retiring, the channel, the structure function with the guard's document, relation and link checks, hiding, restoring and deletion, the routes, the isolation suite and the leaks. *Useful alone: a site's types can be made through the API, and the unchanged admin shows their lists and forms.*
 3. **The editor's screens.** *Useful alone: an owner adds "Courses", fills them in the admin, and reads them from the API.*
 4. **The generic blocks.** The binding kind, the two blocks, the control, the guard's reading of pages, the public types route, the kit's components and the entry page, all 20 templates, pictures of all 52 looks. *Useful alone: the owner shows "Courses" on the website without a developer.*
 5. **Around it.** The cloud's plans carry the limits and its driver switches the feature on; `e2e:shared` gets a site with a custom type; moving a site refuses one with custom types; the documentation and the changeset.
@@ -420,7 +447,7 @@ Built on the branch `feat/custom-types`, local only: nothing is released or depl
 
 ### Part 1: the core (`packages/cms/src`)
 
-- `model-doc.ts`: the document (`parseModelDoc`), the operations (`applyModelOps`), names made from labels, the limits, and what is due for deletion (`modelPurgeDue`). A refusal is a `ModelProblem` with a stable code.
+- `model-doc.ts`: the document (`parseModelDoc`), the operations (`applyModelOps`), names made from labels, the limits, what the server deletes by itself (`modelPurgeDue`: what was removed empty, an hour ago) and the one-minute wait before a person may delete (`MODEL_DELETE_WAIT_MS`). A refusal is a `ModelProblem` with a stable code.
 - `model-map.ts`: `modelEntities(doc, design)` builds the types through `defineEntity` and `f.*`. It never throws: a type or a field that cannot be built is left out and named.
 - `model-ddl.ts`: `customShape`, `planModelDdl` and `assertAllowedStatement`.
 - All of it is internal (not part of the public surface). 167 unit tests, among them: a document's types give the same admin graph as the same types written in code; the planner's statements equal drizzle-kit's for new types (with translations and a many-to-many relation), new fields and a new choice; every refusal; a list of hostile statements the allowed list turns away.
@@ -431,7 +458,7 @@ Built on the branch `feat/custom-types`, local only: nothing is released or depl
 - A removed choice stays a value of its field. The mapper names it in the field's `meta.removedOptions`, and the admin's choice control stops offering it.
 - Leaving manual order is refused: it would drop the `position` column.
 - A required field can be added to a type that has no entries. The column is added optional and made required in the same transaction.
-- A switch and a gallery always hold a value, so a hidden one waits the full 30 days.
+- A switch and a gallery always hold a value, so one is never removed empty. Only a person deletes it.
 - `order: { by }` reaches no entity (`defineEntity` has no default order). The generic blocks read it from the document.
 
 ### Part 2: the server
@@ -441,7 +468,7 @@ Built on the branch `feat/custom-types`, local only: nothing is released or depl
 - `server/utils/cmsModelChange.ts`: `cmsChangeModel`, the structure function, as section 5 describes it; `linksToType` for the guard; the `model` channel between instances.
 - `server/utils/cmsSite.ts`: `cmsRetireCurrentSite`, `cmsRetireSite`, and a count of each site's loads.
 - Routes for administrators: `GET` and `POST /api/cms/_model`, `GET /api/cms/_model/usage`, `GET /api/cms/_model/history`. The operator's `GET /api/health/sites` names each site's `loads` and the version of its own types.
-- The later deletion runs when a site is loaded and every six hours while it stays loaded.
+- The server's deletion of what was removed empty runs when a site is loaded and every six hours while it stays loaded. A person's deletion is the operation `purge` of the structure function (section 6).
 
 **Measured** (the playground, two sites, on this machine):
 
@@ -520,9 +547,52 @@ Built on the branch `feat/custom-types`, local only: nothing is released or depl
 - `tinyzoo export` and `import` refuse a site with types of its own.
 - The changeset `.changeset/custom-types.md`.
 
+### Part 6: removal without a timer
+
+The owner decided that no timer ever deletes content. It replaces Part 2's deletion of every hidden thing after a fixed wait.
+
+**Built.**
+
+- The model document (`src/model-doc.ts`): the operation `purge`, with its rules `not-removed`, `too-soon` (with the milliseconds left) and `points-at-type`; `MODEL_DELETE_WAIT_MS` (one minute); `removedEmpty` on what was removed with no content; the bounds `limit-removed-types` and `limit-removed-fields`; removed things no longer count toward `limit-types` and `limit-fields`. The fixed wait and the rule that only the server may delete are gone.
+- The server: a deletion by hand goes through the structure function and takes the type's revisions, search rows and shared-editing working copies with it, and a field's key out of the revisions. The server's own sweep deletes only what was removed empty and still holds nothing, and keeps the rest with the note `kept-not-empty`. `GET /api/cms/_model/usage` counts entries and values.
+- The admin: *Delete for good* on every removed row, in a dialog that shows how many entries the thing holds and asks for its name when it holds content.
+- Test knobs: `CMS_TEST_MODEL_PURGE_EMPTY_MS` and `CMS_TEST_MODEL_DELETE_WAIT_MS`.
+
+**Tested** (`test/api/tenants-custom.spec.ts`, two sites in one process, 45 tests; 120 unit tests on the model document's rules and 33 on the server's pure parts):
+
+- A thing removed empty is gone after the shortened hour. A thing with content is still there well after that and comes back with its content.
+- An administrator deletes a removed type and a removed field for good: the table and the column are gone, the type's revisions are gone, no stored revision of the type still names the field, the type's search rows are gone and the field's text is gone from the rebuilt index, the type's working copies are gone (two look-alike names are untouched). The names are free again, with empty columns.
+- Too soon gives `too-soon`. A thing removed empty that got content before the sweep is kept. An editor gets 403.
+- The other site is untouched: its model version, its tables, its instance loads.
+- With two instances (Redis), the second one sees the deletion.
+
+**Measured** (the test knobs, this machine):
+
+| | |
+|---|---|
+| The server deleted a field and a type removed empty | 3 085 ms after removal, with a 3 000 ms knob |
+| What held content | still there after 7.6 s |
+| A deletion by hand over HTTP | 13 ms |
+| The second instance saw it after | 25 ms |
+
+**A leak put in on purpose.** The sweep was made to delete what is not empty. The suite failed: in `tenants-custom.spec.ts` the test "has the server delete what was removed empty, keep what held content, and keep what got content after it was hidden" (the column written after hiding was dropped), and four unit tests of the sweep in `model-doc.spec.ts`.
+
+**What a deletion by hand runs.** All steps of the structure function run.
+
+| Step | For a purge |
+|---|---|
+| The feature check, the lock, `lock_timeout`, the version check | Needed |
+| The operations' rules (`not-removed`, `too-soon`, `points-at-type`) | Needed |
+| The planner and the allowed list | Needed: the drops are allowed only for what the purge removed |
+| The new version and the audit line, the retirement and the announcement | Needed |
+| The counts | Run, not needed for a person. They matter for the server's sweep |
+| The check of blocks and links (`placesInUse` looks only at removals) | Run and finds nothing. It ran when the thing was removed, and a removed type cannot be picked in a block or a link afterwards |
+
+**What is left in the database** after a deletion by hand, with the options: section 6.
+
 ### Open after this step
 
-- The decisions listed for the owner at the head of the work: the 30 days, the prefix, the plan's limits.
+- The decisions listed for the owner at the head of the work: the plan's limits. The wait before a deletion is decided: nothing with content is deleted by a timer (section 6).
 - A new block's "layout" starts empty in the admin, and the kit draws an empty one as cards: the admin does not carry a block field's default (so for every block of every site).
 - A block of the two kinds stored on a site that has no type of its own shows in the admin as a block that "no longer exists". It is kept on save; only the words are wrong.
 - The search index of a large site after a change of structure was not measured.

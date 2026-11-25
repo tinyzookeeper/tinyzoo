@@ -22,7 +22,7 @@ Part 1 is the short read with the recommendation and the decisions to make. Part
 
 4. **Storage: a real table per custom type, in the site's own database.** Each site already has its own database, so a custom type is just one more table there. Measured with 1 000 site databases: five custom types cost 0.3 MB more per site (8.7 MB before), making a type takes 5 ms, and queries are as fast as with JSON rows. The reason to choose tables is not speed. It is that lists, filters, relations, translations, publishing, versions, search and backups then work through the code that exists, as the experiment showed.
 
-5. **No broken pages, by three rules.** The design's part is locked. A generic block stores which type and fields it shows, so the server knows where a field is used and refuses to remove it while it is used. Code written by a developer registers the snapshot of the model it was compiled against, and the live site refuses changes that do not fit a registered snapshot. Removing something never deletes at once: it is hidden first and deleted later.
+5. **No broken pages, by three rules.** The design's part is locked. A generic block stores which type and fields it shows, so the server knows where a field is used and refuses to remove it while it is used. Code written by a developer registers the snapshot of the model it was compiled against, and the live site refuses changes that do not fit a registered snapshot. Removing something never deletes at once: it is hidden first, and deleted for good only by a person (or, when it held nothing, by the server after an hour).
 
 6. **Types.** A site's model can be pulled into a file, and the client types are generated from that file, by a developer or in CI. The compile-time guarantee that was the reason against a dynamic schema on 2026-11-13 comes back through rule 5: the snapshot is not only a copy, it is a lock on the live site.
 
@@ -75,7 +75,7 @@ What it makes harder:
 1. **One app now, or later?** My pick: do steps 0 and 1 before the first outside customer. No hosted site exists yet, so nothing has to be moved.
 2. **Storage:** real tables (my pick) or JSON rows.
 3. **Two parts of the model:** the design's part locked and the site's own part free (my pick), or everything editable.
-4. **Removing a field or a type:** hidden first, deleted after 30 days (my pick); or always refused; or deleted at once after a warning.
+4. **Removing a field or a type:** hidden for good, deleted only by a person by hand, and by the server only what was removed empty (decided); or always refused; or deleted at once after a warning.
 5. **Custom code:** none on the server in a shared app (my pick). Custom HTML, CSS and scripts on the site's own pages, for the owner only, can come later.
 6. **The developer's flow:** the model as a file in git with `pull`, `push` and a locked snapshot (my pick), for sites that switch custom types on.
 7. **How far the frontend goes now:** generic blocks with step 2 (my pick); tokens, sections and the builder later, each with its own design.
@@ -228,7 +228,7 @@ For readers one more rule applies: what the site now returns must still fit what
 **Made safe instead of refused.**
 
 - *Renaming* for editors is a change of the label. The key never changes, so nothing breaks.
-- *Removing* hides first: the field leaves the forms and the API, its column stays for 30 days and can be brought back, then it is deleted. This is the two-step rule tinyzoo already asks of developers during rolling deploys, done in time instead of in releases.
+- *Removing* hides first: the field leaves the forms and the API, its column stays, with its content, and can be brought back at any time. An administrator deletes it for good by hand, a minute after it was removed at the earliest. A timer deletes only what held nothing when it was removed. This is the two-step rule tinyzoo already asks of developers during rolling deploys, done in time instead of in releases.
 - *Changing a type* is a new field and a copy of the values.
 - *Drawing never fails.* A generic block whose field is gone draws nothing in that place and reports itself in the admin. A visitor never sees an error because of a structure change.
 
