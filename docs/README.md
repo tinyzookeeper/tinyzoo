@@ -47,11 +47,11 @@ Hand it to the client. In Czech, English and German, with the same chapters and 
 
 The editors' guide (in its three languages) and the developer pages in the table at the top are also on the tinyzoo website:
 
-- [/dokumentace](https://tinyzoo.site/dokumentace) (Czech)
-- [/en/docs](https://tinyzoo.site/en/docs) (English)
-- [/de/dokumentation](https://tinyzoo.site/de/dokumentation) (German)
+- [/dokumentace](https://tinyzoo.dev/dokumentace) (Czech)
+- [/en/docs](https://tinyzoo.dev/en/docs) (English)
+- [/de/dokumentation](https://tinyzoo.dev/de/dokumentation) (German)
 
-The developer pages are in English only, at [/en/docs/developers](https://tinyzoo.site/en/docs/developers). The Czech and German docs link there, with a note in their language.
+The developer pages are in English only, at [/en/docs/developers](https://tinyzoo.dev/en/docs/developers). The Czech and German docs link there, with a note in their language.
 
 The Markdown here is the source. The website renders it when it is built (`site/modules/docs`), so a change here is on the website with the next deploy.
 

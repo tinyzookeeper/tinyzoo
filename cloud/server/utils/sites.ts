@@ -4,6 +4,7 @@ import type { H3Event } from 'h3'
 import { adminThroughAccount } from '#shared/account'
 import type { SiteStorage, SiteView } from '#shared/api'
 import { planById } from '#shared/plans'
+import { parseReservedSlugs, slugProblem, type SlugProblem } from '#shared/slug'
 import { normalizeSteps } from '#shared/steps'
 import { templateById } from '#shared/templates'
 import { normalizeExport, toExportView } from '#shared/transfer'
@@ -160,6 +161,16 @@ export async function requireOwnSite(event: H3Event): Promise<{ me: Me; site: Si
     : []
   if (!site) throw fail(404, 'site.none', 'No such website')
   return { me, site }
+}
+
+/** NUXT_RESERVED_SLUGS: names no new website may take, on top of the built-in ones (shared/slug.ts). */
+export function reservedSlugs(): ReadonlySet<string> {
+  return parseReservedSlugs(useRuntimeConfig().reservedSlugs)
+}
+
+/** What is wrong with the address of a website that is about to be made, or null: the rules, and the deployment's reserved names. */
+export function newSlugProblem(slug: string): SlugProblem | null {
+  return slugProblem(slug, reservedSlugs())
 }
 
 /** Whether an address is held by a website (any that is not removed). */

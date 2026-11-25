@@ -4,6 +4,7 @@ import {
   domainPointsAtTarget, MAX_DOMAINS_PER_SITE, normalizeDomain, parseDomainTarget,
   type DnsAnswers, type DomainRules, type DomainsView, type DomainTarget, type DomainView, type DomainWait,
 } from '#shared/domains'
+import { redirectHostList } from '#shared/hosts'
 import { SHARED_SERVICE_HOST } from '#shared/sharedHosting'
 import { slugProblem } from '#shared/slug'
 import type { SiteDomainRow, SiteRow } from '../db/schema'
@@ -27,6 +28,8 @@ function domainRules(): DomainRules {
   const own: string[] = []
   try { own.push(new URL(publicUrl()).hostname) }
   catch { /* no address configured */ }
+  // The names the cloud itself used to be reached at stay its own.
+  own.push(...redirectHostList(useRuntimeConfig().redirectHosts))
   const target = domainTarget()
   if (target.cname) own.push(target.cname)
   return { allowLocalhost: localNamesAllowed(), serviceHosts: own }

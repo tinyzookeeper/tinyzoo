@@ -41,7 +41,7 @@ export default defineNuxtConfig({
   // the sharing images. Per deployment: NUXT_SITE_URL, and NUXT_SITE_INDEXABLE=false on the
   // demo (same content as the website): noindex meta, X-Robots-Tag and `Disallow: /`.
   site: {
-    url: 'https://tinyzoo.site',
+    url: 'https://tinyzoo.dev',
     name: 'tinyzoo',
     description: 'tinyzoo je česká administrace pro váš web. Pište články, skládejte stránky a prohlížejte si náhled.',
     defaultLocale: 'cs',
