@@ -99,7 +99,7 @@ html[data-look="zapisnik"] {
     .prose-look h3 { font-size: 1.4rem; line-height: 1.2; margin-top: 2rem; }
     .prose-look a { color: var(--ink); font-weight: 700; text-decoration: underline var(--brand) 2px; text-underline-offset: 5px; }
     .prose-look a:hover { color: var(--brand); }
-    .prose-look ul { display: grid; gap: 0.5rem; }
+    .prose-look ul { display: grid; gap: 0.5rem; list-style: none; padding-left: 0; }
     .prose-look ul li { position: relative; padding-left: 1.5rem; }
     .prose-look ul li::before { content: ""; position: absolute; left: 0.15rem; top: 0.62em; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--brand); }
     .prose-look ol { list-style: decimal; padding-left: 1.3rem; }

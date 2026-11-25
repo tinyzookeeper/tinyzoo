@@ -5,5 +5,8 @@
 export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'cache-control', 'no-store')
   await requireCmsStatusToken(event, 'status')
+  // A site with its own content types counts them too, once they are read (at once with the feature off).
+  // When they cannot be read just now, the status still answers, with the design's types.
+  await cmsAfterSiteReady(() => undefined, () => undefined)
   return collectCmsStatus()
 })

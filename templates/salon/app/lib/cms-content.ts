@@ -33,6 +33,20 @@ export interface CmsGalleryItem extends CmsMedia {
   caption: string | null
 }
 
+/** Which custom type a block shows, and which field goes to which place. */
+export interface CmsBinding {
+  /** The name of the custom type. */
+  type: string
+  /** The fields that go to the places of a card. */
+  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }
+  /** A list only: the field to order by. Null or left out is the type's own order. */
+  order?: { by: string; dir: 'asc' | 'desc' } | null
+  /** A list only: how many entries, 1 to 48. Left out is 6. */
+  limit?: number | null
+  /** Chosen entries only: their ids, in the picked order. */
+  entries?: string[]
+}
+
 // ── nested (populated) projections ─────────────────────────────────────────────
 export interface PersonEmbedded {
   id: string
@@ -71,7 +85,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'opening'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; image2: CmsMedia | null; primaryLabel: string | null; primaryUrl: string | null; secondaryLabel: string | null; secondaryUrl: string | null; badgeLabel: string | null; badgeValue: string | null; arc: string | null } | { id: string; type: 'pricelist'; eyebrow: string | null; heading: string; text: string | null; footnote: string | null } | { id: string; type: 'team'; eyebrow: string | null; heading: string; text: string | null; bookLabel: string | null } | { id: string; type: 'results'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'firstVisit'; eyebrow: string | null; heading: string; text: string | null; steps: Array<{ id: string; type: 'item'; heading: string; text: string | null }> } | { id: string; type: 'reviews'; heading: string } | { id: string; type: 'booking'; eyebrow: string | null; heading: string; text: string | null; phoneLabel: string | null; phoneNote: string | null; submitLabel: string | null; note: string | null } | { id: string; type: 'visit'; eyebrow: string | null; heading: string; image: CmsMedia | null; ways: Array<{ id: string; type: 'item'; label: string; text: string | null }> } | { id: string; type: 'brands'; heading: string; names: Array<{ id: string; type: 'item'; name: string }>; text: string | null; image: CmsMedia | null; voucherEyebrow: string | null; voucherHeading: string | null; voucherText: string | null; amounts: Array<{ id: string; type: 'item'; amount: number | null }>; voucherLabel: string | null; voucherUrl: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null }>
+  sections: Array<{ id: string; type: 'opening'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; image2: CmsMedia | null; primaryLabel: string | null; primaryUrl: string | null; secondaryLabel: string | null; secondaryUrl: string | null; badgeLabel: string | null; badgeValue: string | null; arc: string | null } | { id: string; type: 'pricelist'; eyebrow: string | null; heading: string; text: string | null; footnote: string | null } | { id: string; type: 'team'; eyebrow: string | null; heading: string; text: string | null; bookLabel: string | null } | { id: string; type: 'results'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'firstVisit'; eyebrow: string | null; heading: string; text: string | null; steps: Array<{ id: string; type: 'item'; heading: string; text: string | null }> } | { id: string; type: 'reviews'; heading: string } | { id: string; type: 'booking'; eyebrow: string | null; heading: string; text: string | null; phoneLabel: string | null; phoneNote: string | null; submitLabel: string | null; note: string | null } | { id: string; type: 'visit'; eyebrow: string | null; heading: string; image: CmsMedia | null; ways: Array<{ id: string; type: 'item'; label: string; text: string | null }> } | { id: string; type: 'brands'; heading: string; names: Array<{ id: string; type: 'item'; name: string }>; text: string | null; image: CmsMedia | null; voucherEyebrow: string | null; voucherHeading: string | null; voucherText: string | null; amounts: Array<{ id: string; type: 'item'; amount: number | null }>; voucherLabel: string | null; voucherUrl: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'custom_entries'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null } | { id: string; type: 'custom_chosen'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null }>
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null

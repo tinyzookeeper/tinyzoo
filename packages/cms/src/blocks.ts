@@ -32,11 +32,12 @@ import { upgradeRichText } from './richtext'
 
 /**
  * Field types allowed inside a block, a list item or a group ('blocks' = a list, one
- * level deep; 'group' = a named object of fields).
+ * level deep; 'group' = a named object of fields). A 'binding' is allowed in a block only,
+ * as one of its own fields (see `checkContainedFields`).
  *
  * @internal
  */
-export const BLOCK_FIELD_TYPES = new Set(['text', 'slug', 'number', 'boolean', 'datetime', 'select', 'richtext', 'media', 'blocks', 'group'])
+export const BLOCK_FIELD_TYPES = new Set(['text', 'slug', 'number', 'boolean', 'datetime', 'select', 'richtext', 'media', 'blocks', 'group', 'binding'])
 
 export interface BlockDef<F extends Record<string, AnyFieldDescriptor> = Record<string, AnyFieldDescriptor>> {
   /** Name in the block picker ("Hero", { cs: 'Úvod', en: 'Hero' }). */
@@ -74,7 +75,7 @@ export const blockVersion = (def: Pick<BlockDef, 'version'>): number => def.vers
 
 export function defineBlock<F extends Record<string, AnyFieldDescriptor>>(def: BlockDef<F>): BlockDef<F> {
   checkVersioning('Block', def)
-  checkContainedFields('Block', def.fields)
+  checkContainedFields('Block', def.fields, { reserved: true, binding: true })
   return def
 }
 
@@ -87,9 +88,10 @@ export function holdsList(fields: Record<string, AnyFieldDescriptor>): boolean {
  * The rules for fields that sit inside something else (a block, a list item, a group):
  * only the field types blocks support; a list inside is one level (its items hold
  * plain fields and groups, not more lists); a group inside a block or a list holds no
- * list (only a group straight on an entry may).
+ * list (only a group straight on an entry may). A binding is a field of a block itself
+ * (`opts.binding`), never of a group, a list item or a block inside another block.
  */
-export function checkContainedFields(what: string, fields: Record<string, AnyFieldDescriptor>, opts: { reserved?: boolean } = { reserved: true }) {
+export function checkContainedFields(what: string, fields: Record<string, AnyFieldDescriptor>, opts: { reserved?: boolean; binding?: boolean } = { reserved: true }) {
   for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
     if (opts.reserved && (key === 'id' || key === 'type' || key === 'v')) throw new Error(`${what} field "${key}" is reserved (every block has an id, a type and a version).`)
     if (fld.meta?.access) {
@@ -98,10 +100,12 @@ export function checkContainedFields(what: string, fields: Record<string, AnyFie
     if (!BLOCK_FIELD_TYPES.has(fld.type)) {
       throw new Error(`${what} field "${key}" has type "${fld.type}", which blocks, lists and groups do not support (allowed: ${[...BLOCK_FIELD_TYPES].join(', ')}).`)
     }
+    if (fld.type === 'binding' && !opts.binding) throw new Error(bindingRefusal(what, key))
     // A list inside a block is one level: its items hold plain fields, not more lists.
     if (fld.type === 'blocks') {
       for (const inner of Object.values(fld.blocks ?? {})) {
         for (const [innerKey, innerFld] of Object.entries(inner.fields) as [string, FieldDescriptor][]) {
+          if (innerFld.type === 'binding') throw new Error(bindingRefusal(what, innerKey))
           if (innerFld.type === 'blocks' || (innerFld.type === 'group' && holdsList(innerFld.fields ?? {}))) {
             throw new Error(`${what} field "${key}" is a list whose items have a list ("${innerKey}"). Lists inside a block are one level deep.`)
           }
@@ -111,6 +115,16 @@ export function checkContainedFields(what: string, fields: Record<string, AnyFie
     if (fld.type === 'group' && holdsList(fld.fields ?? {})) {
       throw new Error(`${what} field "${key}" is a group with a list inside. Inside a block or a list a group holds plain fields only (a group straight on an entry may hold a list).`)
     }
+  }
+}
+
+const bindingRefusal = (what: string, key: string) =>
+  `${what} field "${key}" has type "binding": a binding is a field of a block only, not of a group, a list item or a block inside another block.`
+
+/** The fields of a list's items hold no binding (`defineBlock`, which makes the item type, would allow one). */
+export function checkNoBinding(what: string, fields: Record<string, AnyFieldDescriptor>) {
+  for (const [key, fld] of Object.entries(fields) as [string, FieldDescriptor][]) {
+    if (fld.type === 'binding') throw new Error(bindingRefusal(what, key))
   }
 }
 

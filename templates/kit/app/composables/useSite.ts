@@ -8,6 +8,7 @@
 // the template's own files (`#site` is the template's folder: `~` and `~~` are the kit's own here).
 import type { Navigation, Page, SiteSettings } from '#site/app/lib/cms-content'
 import type { looks } from '#site/looks'
+import type { CustomPage } from '../utils/customTypes'
 
 type SiteWords = ReturnType<typeof wordsOf>
 
@@ -56,19 +57,24 @@ export async function useSiteList<T>(key: string, entity: string, query: Record<
 
 /**
  * The page the visitor is on: a page built from blocks (`/`, `/cenik`; the home page has the
- * address `home`), or an entry of a collection the template gives an address of its own
- * (`ENTRY_PAGES`: `/album/anna-a-vojta`). The page and the layout ask with the same key, so
- * it is fetched once.
+ * address `home`), an entry of a collection the template gives an address of its own
+ * (`ENTRY_PAGES`: `/album/anna-a-vojta`), or an entry of one of the site's own types
+ * (`/kurzy/python`: its page prefix, from app/plugins/design.ts; the design's own entry pages
+ * come first). The page and the layout ask with the same key, so it is fetched once.
  */
 export async function useSitePage() {
   const route = useRoute()
   const { site } = useDesign()
   const parts = computed(() => ([] as string[]).concat(route.params.slug ?? []).filter(Boolean))
   const entryPage = computed(() => (parts.value.length === 2 ? site.ENTRY_PAGES.find((e) => e.prefix === parts.value[0]) ?? null : null))
-  const kind = computed<string>(() => entryPage.value?.kind ?? 'page')
+  const customPages = useState<CustomPage[]>('tz:custom-pages', () => [])
+  const customPage = computed(() => customPageFor(parts.value, customPages.value, site.ENTRY_PAGES.map((e) => e.prefix)))
+  const kind = computed<string>(() => entryPage.value?.kind ?? (customPage.value ? 'custom' : 'page'))
   const url = computed(() => (entryPage.value
     ? `/api/content/${entryPage.value.entity}/${encodeURIComponent(parts.value[1]!)}`
-    : `/api/content/page/${encodeURIComponent(parts.value.join('/') || 'home')}`))
+    : customPage.value
+      ? `/api/content/${customPage.value.type}/${encodeURIComponent(parts.value[1]!)}`
+      : `/api/content/page/${encodeURIComponent(parts.value.join('/') || 'home')}`))
   // A draft is previewed with ?preview, which has to survive every redirect on the way.
   const query = computed(() => ('preview' in route.query ? { preview: '' } : {}))
   const { data, error } = await useAsyncData<any>(
@@ -79,9 +85,13 @@ export async function useSitePage() {
     kind, data, error,
     /** How the template describes this kind of entry; null on a page built from blocks. */
     entryPage,
-    page: computed<Page | null>(() => (entryPage.value ? null : data.value?.item ?? null)),
+    page: computed<Page | null>(() => (entryPage.value || customPage.value ? null : data.value?.item ?? null)),
     /** The entry the address leads to; null on a page built from blocks. */
     entry: computed<any | null>(() => (entryPage.value ? data.value?.item ?? null : null)),
+    /** Which of the site's own types the address leads to; null elsewhere. */
+    customPage,
+    /** The entry of one of the site's own types the address leads to; null elsewhere. */
+    customEntry: computed<Record<string, any> | null>(() => (customPage.value ? data.value?.item ?? null : null)),
     /** Whether what is shown is a draft an editor previews. */
     isDraft: computed(() => !!data.value?.preview && data.value?.item?.status !== 'published'),
   }

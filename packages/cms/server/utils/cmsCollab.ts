@@ -117,6 +117,82 @@ function documentKeysOutside(state: string, allowed: ReadonlySet<string>): strin
 }
 
 /**
+ * A stored document without the text of some fields (fields deleted for good), or null when it
+ * holds none of them. Yjs keeps what was deleted in a document's history, so the rest is carried
+ * over into a new document as it stands, text typed and not saved yet included. Throws when the
+ * document cannot be read or carried over.
+ */
+export function documentWithoutFields(state: string, gone: ReadonlySet<string>): string | null {
+  const doc = new Y.Doc()
+  const next = new Y.Doc()
+  try {
+    Y.applyUpdate(doc, decodeState(state))
+    const keys = [...doc.share.keys()]
+    if (!keys.some((k) => gone.has(k))) return null
+    const schema = editorSchema()
+    for (const k of keys) {
+      if (!gone.has(k)) prosemirrorJSONToYXmlFragment(schema, yXmlFragmentToProsemirrorJSON(doc.getXmlFragment(k)), next.getXmlFragment(k))
+    }
+    return encodeState(next)
+  }
+  finally {
+    doc.destroy()
+    next.destroy()
+  }
+}
+
+/**
+ * Rich-text fields of a type were deleted for good: take their text out of the working copies of
+ * the type's entries. Called inside the transaction that drops the columns (`exec` runs in it).
+ *
+ * A document that holds such a field is stored again without it, under a new epoch: browsers and
+ * instances that hold the old history are refused when they store or reconnect, start over, and
+ * get this one, with the text of the other fields as it was last stored. A document that cannot
+ * be carried over is deleted (it starts afresh from the saved entry). Left-over text that waits
+ * aside (`~unsaved`) loses the fields; nothing left of it, the row goes. Documents that never
+ * held the fields are not touched, so nobody working in them is disturbed.
+ */
+export async function forgetCollabFields(type: string, gone: ReadonlySet<string>, exec: (text: string, params?: unknown[]) => Promise<any[]>): Promise<void> {
+  const prefix = type + '/'
+  const drop = (name: string) => exec('delete from "cms_collab" where name = $1', [name])
+  let after = ''
+  for (;;) {
+    // In pages, each row locked until the commit: text stored meanwhile is not overwritten by an older copy.
+    const rows = await exec(`select name, state from "cms_collab" where left(name, length($1::text)) = $1::text and name > $2 and right(name, 3) <> '~by' order by name limit 100 for update`, [prefix, after])
+    if (!rows.length) return
+    for (const row of rows) {
+      const name = String(row.name)
+      if (name.endsWith('~unsaved')) {
+        let note: any
+        try {
+          note = JSON.parse(row.state)
+        }
+        catch {
+          await drop(name)
+          continue
+        }
+        const values = Object.entries(note?.values ?? {})
+        const rest = values.filter(([k]) => !gone.has(k))
+        if (rest.length === values.length) continue
+        if (!rest.length) await drop(name)
+        else await exec('update "cms_collab" set state = $2 where name = $1', [name, JSON.stringify({ ...note, values: Object.fromEntries(rest) })])
+        continue
+      }
+      let next: string | null
+      try {
+        next = documentWithoutFields(row.state, gone)
+      }
+      catch {
+        await drop(name)
+        continue
+      }
+      if (next !== null) await exec('update "cms_collab" set state = $2, epoch = $3::uuid where name = $1', [name, next, crypto.randomUUID()])
+    }
+    after = String(rows[rows.length - 1].name)
+  }
+}
+
+/**
  * What this person may do with the document: 'write' (may edit the entry, or this
  * translation), 'read' (may read it: sees the others typing), or null.
  */

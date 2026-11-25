@@ -2,7 +2,7 @@
 
 **Status (2026-11-24):** an exploration. Nothing here is built into the product and nothing is decided. The experiments were throwaway: they ran on this machine against a Postgres 16.16 of their own, and their temporary changes were removed afterwards (2.14 says what each one showed). Where a number is an estimate, it says so.
 
-**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18.
+**Update (2026-11-24):** step 0 and the server's half of step 1 are now built on the branch `feat/one-app` (not released), and the designs of all 20 hosted templates are in one app there. 2.16 and 2.17 say what exists and what it costs. The cloud runs that one app since 2.18. Step 2 has its detailed design in `docs/custom-types-plan.md` (2.19).
 
 Part 1 is the short read with the recommendation and the decisions to make. Part 2 holds the details behind it.
 
@@ -22,7 +22,7 @@ Part 1 is the short read with the recommendation and the decisions to make. Part
 
 4. **Storage: a real table per custom type, in the site's own database.** Each site already has its own database, so a custom type is just one more table there. Measured with 1 000 site databases: five custom types cost 0.3 MB more per site (8.7 MB before), making a type takes 5 ms, and queries are as fast as with JSON rows. The reason to choose tables is not speed. It is that lists, filters, relations, translations, publishing, versions, search and backups then work through the code that exists, as the experiment showed.
 
-5. **No broken pages, by three rules.** The design's part is locked. A generic block stores which type and fields it shows, so the server knows where a field is used and refuses to remove it while it is used. Code written by a developer registers the snapshot of the model it was compiled against, and the live site refuses changes that do not fit a registered snapshot. Removing something never deletes at once: it is hidden first and deleted later.
+5. **No broken pages, by three rules.** The design's part is locked. A generic block stores which type and fields it shows, so the server knows where a field is used and refuses to remove it while it is used. Code written by a developer registers the snapshot of the model it was compiled against, and the live site refuses changes that do not fit a registered snapshot. Removing something never deletes at once: it is hidden first, and deleted for good only by a person (or, when it held nothing, by the server after an hour).
 
 6. **Types.** A site's model can be pulled into a file, and the client types are generated from that file, by a developer or in CI. The compile-time guarantee that was the reason against a dynamic schema on 2026-11-13 comes back through rule 5: the snapshot is not only a copy, it is a lock on the live site.
 
@@ -75,7 +75,7 @@ What it makes harder:
 1. **One app now, or later?** My pick: do steps 0 and 1 before the first outside customer. No hosted site exists yet, so nothing has to be moved.
 2. **Storage:** real tables (my pick) or JSON rows.
 3. **Two parts of the model:** the design's part locked and the site's own part free (my pick), or everything editable.
-4. **Removing a field or a type:** hidden first, deleted after 30 days (my pick); or always refused; or deleted at once after a warning.
+4. **Removing a field or a type:** hidden for good, deleted only by a person by hand, and by the server only what was removed empty (decided); or always refused; or deleted at once after a warning.
 5. **Custom code:** none on the server in a shared app (my pick). Custom HTML, CSS and scripts on the site's own pages, for the owner only, can come later.
 6. **The developer's flow:** the model as a file in git with `pull`, `push` and a locked snapshot (my pick), for sites that switch custom types on.
 7. **How far the frontend goes now:** generic blocks with step 2 (my pick); tokens, sections and the builder later, each with its own design.
@@ -228,7 +228,7 @@ For readers one more rule applies: what the site now returns must still fit what
 **Made safe instead of refused.**
 
 - *Renaming* for editors is a change of the label. The key never changes, so nothing breaks.
-- *Removing* hides first: the field leaves the forms and the API, its column stays for 30 days and can be brought back, then it is deleted. This is the two-step rule tinyzoo already asks of developers during rolling deploys, done in time instead of in releases.
+- *Removing* hides first: the field leaves the forms and the API, its column stays, with its content, and can be brought back at any time. An administrator deletes it for good by hand, a minute after it was removed at the earliest. A timer deletes only what held nothing when it was removed. This is the two-step rule tinyzoo already asks of developers during rolling deploys, done in time instead of in releases.
 - *Changing a type* is a new field and a copy of the values.
 - *Drawing never fails.* A generic block whose field is gone draws nothing in that place and reports itself in the admin. A visitor never sees an error because of a structure change.
 
@@ -530,3 +530,14 @@ The Basic website is not in the one app: it is not built on the template kit, an
 - Whether to remove the templates' own builds (their `nuxt.config.ts`, `main.css`, build scripts and the kit's way of building one template). The cloud no longer uses them. A website that moves out of shared hosting is run by `e2e:ops` on the one app with a site directory of that one site, as the local driver runs a site; whether a customer gets that, or a template's own build, is not decided.
 - Sites made with the shared driver before this change (per-template folders and rows) are not carried over. No such site exists outside development machines.
 - Basic websites in the one app, which would leave one process for every site.
+
+## 2.19 Step 2: the detailed design
+
+Step 2 (custom types and generic blocks) is designed in detail in `docs/custom-types-plan.md`: the model document's format, how a site's model is loaded and how a change spreads, the run-time statements and their allowed list, names, the guard's rule for every kind of change, the generic blocks and their bindings, the structure editor's screens, the tests, the order of work, and what the first version leaves out.
+
+Three things there correct this document:
+
+- **The looks share no tokens** (2.11 said they do). No CSS variable is defined by all 52 looks. The generic blocks take their look from each look's own text styles (`.prose-look`, in every look) and from the colour and typeface the page inherits.
+- **No index of bindings is kept** (2.6 said one is). The stored pages are read when a change needs to know where a field is shown: 6 ms for 2 000 pages.
+- **Translations, a many-to-many relation and choice types made at run time** (2.15 listed them as not explored) work through one small planner that reads the engine's own table objects; its statements are the ones drizzle-kit makes.
+

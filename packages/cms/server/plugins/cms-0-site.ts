@@ -88,9 +88,13 @@ export default defineNitroPlugin((nitroApp) => {
       ensureCmsSiteStarted()
       // The first request of a new site may arrive before its database is migrated: pages wait
       // for that as API requests do (cms-0-migrate-gate), instead of asking for tables that are
-      // not there yet. A failure is the gate's and the health routes' to report.
+      // not there yet, and for the site's own content types. A failed migration is the gate's and
+      // the health routes' to report; content types that could not be read answer 503, and the
+      // next request tries again.
       if (path.startsWith('/api/')) return handle(event)
-      return cmsMigrationsReady().then(() => handle(event), () => handle(event))
+      return cmsSiteReady().then(() => handle(event), (err) => (cmsIsModelLoadError(err)
+        ? answer(event, 503, 'This website cannot be shown for a moment; try again shortly', { 'retry-after': '5' })
+        : handle(event)))
     })
   }
   nitroApp.h3App.handler = (event: any) => {

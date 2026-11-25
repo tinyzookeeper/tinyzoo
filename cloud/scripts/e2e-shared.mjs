@@ -27,6 +27,13 @@
 // app's process is gone (it is started again on the same port), a step fails ("Try again" goes
 // on, keeping the database of the first try), the site directory or app.json is lost (written
 // again from what the cloud keeps, for every site of the app).
+//
+// With CLOUD_CUSTOM_TYPES=on (experimental) it also checks a content type of a site's own: the
+// owner of a Photographer site makes one with a page and three fields through the admin API, adds
+// two entries and an Entries block on the home page; the home page, the entry's page and the
+// sitemap show them; the Wedding site in the same process has no route, no table and the same
+// home page; a field the block shows cannot be removed. Without the setting that part is skipped
+// and nothing else changes.
 import { execFile } from 'node:child_process'
 import net from 'node:net'
 import { createHash } from 'node:crypto'
@@ -38,6 +45,8 @@ import { alive, appEntries, arg, cloudDir, dbUrl, freePortFrom, log, looksOf, re
 
 const run = promisify(execFile)
 const keep = arg('keep', false) === true
+// CLOUD_CUSTOM_TYPES=on (as the cloud reads it): the cloud app of the run gets it from this environment, and section 3c runs.
+const CUSTOM_TYPES = String(process.env.CLOUD_CUSTOM_TYPES ?? '').trim() === 'on'
 const DB = process.env.E2E_SHARED_DB || runDb('tz_cloud_mt_e2e')
 const PREFIX = process.env.E2E_SHARED_SITE_PREFIX || runSitePrefix('tzmt_e2e')
 const [portFrom, portTo] = (process.env.E2E_SHARED_SITE_PORTS || `${runPort(4500)}-${runPort(4519)}`).split('-').map(Number)
@@ -444,6 +453,9 @@ async function main() {
   check('the same request with an id that is no gift is 404 there (the route is found, the gift is not)', (await anon(wed).post('/api/gift/00000000-0000-4000-8000-000000000000/reserve', {})).status === 404)
   check('and the Basic site has no such route either', (await anon(bas).post(`/api/gift/${gift.id}/reserve`, {})).status === 404)
 
+  // ── 3c · a site's own content type (only with CLOUD_CUSTOM_TYPES=on) ──
+  if (CUSTOM_TYPES) await customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home: homeW, pid, basicPid: basicApp.pid, htmlTag, looksOn })
+
   // ── 4 · sessions ──
   log('4 · a session of one site is refused on the other')
   const samePeople = await Promise.all([row1, row2].map(async (row) => (await query(row.databaseUrl, 'select email from cms_users order by email')).map((r) => r.email).join(',')))
@@ -620,6 +632,77 @@ async function main() {
   rmSync(join(basicDir, 'sites.json'))
   const askedBasic = await api.post(`/api/sites/${bas.id}/invite`)
   check('the Basic app\'s directory is lost: the cloud writes its one row again, and nothing of the one app is in it', askedBasic.status === 200 && JSON.stringify(directory(basicDir).map((r) => r.id)) === JSON.stringify([bas.id]) && !('model' in directory(basicDir)[0]) && byId(directory()) === byId(before), `${askedBasic.status} ${askedBasic.text.slice(0, 200)}`)
+}
+
+/**
+ * With CLOUD_CUSTOM_TYPES=on: the owner of a Photographer site makes a content type of the site's
+ * own through its admin API, fills it, and shows it on the home page with the Entries block. The
+ * Wedding site, served by the same process, has nothing of it: no route, no table, the same page.
+ */
+async function customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home, pid, basicPid, htmlTag, looksOn }) {
+  const anon = (site) => new Http(site.publicUrl)
+  log('3c · a content type of the Photographer site\'s own, made in its admin and shown on its home page; nothing of it on the Wedding site')
+  const environment = async (p) => (await run('ps', ['eww', '-o', 'command=', '-p', String(p)])).stdout
+  check('the one app\'s process runs with NUXT_CMS_CUSTOM_TYPES=on, the Basic app\'s without it', (await environment(pid)).includes('NUXT_CMS_CUSTOM_TYPES=on') && !(await environment(basicPid)).includes('NUXT_CMS_CUSTOM_TYPES'))
+  check('the kit sites\' rows carry the plan\'s limits as config.customTypes; the Basic site\'s row says nothing of them', JSON.stringify(row1.config.customTypes) === '{"types":12,"fields":30}' && JSON.stringify(rowW.config.customTypes) === '{"types":12,"fields":30}' && !('customTypes' in rowB.config), JSON.stringify([row1.config.customTypes, rowW.config.customTypes, rowB.config.customTypes]))
+
+  // The type: a page per entry under /kurzy, drafts and publishing, and three fields beside the title.
+  const label = (en, cs) => ({ cs, en })
+  const change = async (admin, ops) => {
+    const m = (await admin.get('/api/cms/_model')).body
+    return admin.post('/api/cms/_model', { baseVersion: m?.version, ops })
+  }
+  const made = await change(admin1, [
+    { op: 'type.add', name: 'custom_course', label: label('Courses', 'Kurzy'), labelSingular: label('Course', 'Kurz'), page: { prefix: 'kurzy' }, publish: true },
+    { op: 'field.add', type: 'custom_course', field: { key: 'perex', type: 'text', long: true, label: label('Summary', 'Krátký popis') } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'startsAt', type: 'datetime', label: label('Starts', 'Začátek') } },
+    { op: 'field.add', type: 'custom_course', field: { key: 'place', type: 'text', label: label('Place', 'Místo') } },
+  ])
+  check('the owner makes a type with a page and three fields through the admin API', made.status === 200, `${made.status} ${made.text.slice(0, 300)}`)
+  const titles = [`Kurz světla ${stamp}`, `Kurz portrétu ${stamp}`]
+  const slugs = [`kurz-svetla-${stamp}`, `kurz-portretu-${stamp}`]
+  const entries = []
+  for (const [i, title] of titles.entries()) {
+    const res = await admin1.post('/api/cms/custom_course', { title, slug: slugs[i], perex: `Krátce o kurzu ${i + 1}.`, startsAt: `2027-0${i + 3}-01T09:00:00.000Z`, place: 'Praha', status: 'published' })
+    entries.push(res)
+  }
+  check('two published entries are added', entries.every((r, i) => r.status === 201 && r.body?.row?.slug === slugs[i]), entries.map((r) => `${r.status} ${JSON.stringify(r.body?.data ?? r.body).slice(0, 300)}`).join(' | '))
+
+  // The Entries block on the home page, after what is there.
+  const homeEntry = (await anon(one).get('/api/content/page/home')).body?.item
+  const homeRow = (await admin1.get(`/api/cms/page/${homeEntry?.id}`)).body?.row
+  const block = { id: `custom-courses-${stamp}`, type: 'custom_entries', heading: 'Kurzy', text: '', layout: 'cards', source: { type: 'custom_course', show: { text: 'perex', date: 'startsAt' }, order: { by: 'startsAt', dir: 'asc' }, limit: 6 } }
+  const put = await admin1.request('PATCH', `/api/cms/page/${homeRow?.id}`, { json: { sections: [...(homeRow?.sections ?? []), block] } })
+  check('an Entries block of the type is put on the home page', put.status === 200 && Array.isArray(homeRow?.sections), `${put.status} ${put.text.slice(0, 300)}`)
+
+  const homeNow = await page(one.publicUrl)
+  check('the home page\'s HTML holds both entries\' titles', homeNow.status === 200 && titles.every((t) => homeNow.text.includes(t)), `${homeNow.status} ${titles.map((t) => homeNow.text.includes(t)).join(' ')}`)
+  const own = await page(one.publicUrl, `/kurzy/${slugs[0]}`)
+  const h1 = [...own.text.matchAll(/<h1\b[^>]*>([\s\S]*?)<\/h1>/g)].map((m) => m[1].replace(/<[^>]+>/g, '').trim())
+  check('the entry\'s own address answers 200 with its title in an h1', own.status === 200 && h1.includes(titles[0]), `${own.status} ${JSON.stringify(h1)}`)
+  const sitemap = await page(one.publicUrl, '/sitemap.xml')
+  check('the sitemap lists that address', sitemap.status === 200 && sitemap.text.includes(`/kurzy/${slugs[0]}</loc>`) && sitemap.text.includes(`/kurzy/${slugs[1]}</loc>`), `${sitemap.status} ${sitemap.text.slice(0, 200)}`)
+  const tables1 = await query(row1.databaseUrl, `select tablename as name from pg_tables where schemaname = 'public' and (tablename = 'cms_model' or tablename like 'custom\\_%') order by 1`)
+  check('the Photographer site\'s own database holds the type\'s table and its model', JSON.stringify(tables1.map((t) => t.name)) === '["cms_model","custom_course"]', JSON.stringify(tables1))
+
+  // The Wedding site: the same process, nothing of it.
+  const weddingRoutes = [(await adminW.get('/api/cms/custom_course')).status, (await anon(wed).get('/api/content/custom_course')).status, (await anon(wed).get(`/api/content/custom_course/${slugs[0]}`)).status, (await adminW.post('/api/cms/custom_course', { title: 'x' })).status]
+  check('on the Wedding site the type\'s admin and content routes answer 404', weddingRoutes.every((s) => s === 404), weddingRoutes.join(' '))
+  const typesW = await anon(wed).get('/api/content/_types')
+  check('its list of the site\'s own types is empty', typesW.status === 200 && JSON.stringify(typesW.body) === '{"types":[]}', `${typesW.status} ${typesW.text.slice(0, 200)}`)
+  const homeW = await page(wed.publicUrl)
+  check('its home page is as before: its name, its design, its look, nothing of the type', homeW.status === 200 && homeW.text.includes('Kristýna') && htmlTag(homeW.text) === htmlTag(home.text) && JSON.stringify(looksOn(homeW.text)) === JSON.stringify(looksOn(home.text)) && !titles.some((t) => homeW.text.includes(t)) && !homeW.text.includes('/kurzy/'), `${homeW.status} ${htmlTag(homeW.text)}`)
+  const pageW = await page(wed.publicUrl, `/kurzy/${slugs[0]}`)
+  check('and the entry\'s address is not a page there', pageW.status === 404 && !pageW.text.includes(titles[0]), `${pageW.status}`)
+  const tablesW = await query(rowW.databaseUrl, `select tablename as name from pg_tables where schemaname = 'public' and (tablename = 'cms_model' or tablename like 'custom\\_%')`)
+  check('its database has no cms_model table and no custom_ table', tablesW.length === 0, JSON.stringify(tablesW))
+
+  // The guard: a field the block shows cannot go while the block shows it.
+  const refused = await change(admin1, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }])
+  const places = refused.body?.data?.places ?? []
+  check('removing a field the block shows is refused (409), with the home page named', refused.status === 409 && refused.body?.data?.code === 'in-use' && places.length === 1 && places[0].entity === 'page' && places[0].id === homeRow.id && places[0].title === homeRow.title && places[0].block?.id === block.id, `${refused.status} ${refused.text.slice(0, 300)}`)
+  const still = (await admin1.get('/api/cms/_model')).body
+  check('and the field is still there', JSON.stringify(still?.doc?.types?.find((t) => t.name === 'custom_course')?.fields?.map((x) => [x.key, x.removedAt ?? null])).includes('["perex",null]'), JSON.stringify(still?.doc?.types?.[0]?.fields))
 }
 
 let failed = null

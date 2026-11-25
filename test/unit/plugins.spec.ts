@@ -38,7 +38,7 @@ describe('defineCmsPlugin: names and versions', () => {
     expect(() => defineCmsPlugin(def({ name }))).toThrow(/name must be lowercase/)
   })
 
-  it.each(['cms', 'core', 'tinyzoo', 'admin', 'api', 'content', 'media', 'plugins', 'p'])('reserves the name %s', (name) => {
+  it.each(['cms', 'core', 'tinyzoo', 'admin', 'api', 'content', 'media', 'plugins', 'p', 'types'])('reserves the name %s', (name) => {
     expect(() => defineCmsPlugin(def({ name }))).toThrow(/reserved by tinyzoo/)
   })
 

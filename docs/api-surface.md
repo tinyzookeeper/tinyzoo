@@ -129,6 +129,7 @@ Import these in `cms.config.ts` and in code that uses the config's types. Anythi
 | `defineAdminMenu(menu)` | the admin's menu: the rows beside Home, the groups and their order, what sits behind "Settings", the order of the forms ([the menu](guide/admin.md#the-menu)) |
 | `defineRoles(roles)` | the site's own roles, each extending `editor` or `author`: per-collection operations, `publish`, `media` ([roles](guide/roles.md)) |
 | `defineModels(models)` | **experimental**, may change in a minor: the content models one build carries (`CmsModelDef`: `config` and the `migrations` folder; `defineModels` returns `CmsModels`), for multi-tenant mode, where each site's directory row names its `model`. Without it, `cms.config.ts` is the one model |
+| `customTypeBlocks()` | **experimental**, may change in a minor: the two page blocks that show the entries of a content type the site made for itself (`custom_entries`, a list; `custom_chosen`, entries picked by hand). Spread it into the blocks of `definePages`: `blocks: { hero, ...customTypeBlocks() }`. Blocks are stored in one column, so it needs no migration |
 | `definePages(opts)` | the ready-made pages collection (blocks, SEO, preview, optionally a tree) |
 | `defineNavigation(opts)` | site menus as one global (`/api/content/_global/navigation`) |
 | `defineRedirects(opts)` | the redirects collection |
@@ -230,7 +231,7 @@ The column description (`spec`, `dbDefault`) and `zod()` are internal.
 |---|---|
 | Data shapes | `Row`, `Insert`, `Update` (of an entity), `Entity`, `EntityDef`, `ContentConfig`, `PublishConfig`, `TreeConfig`, `CmsEditorLayout`, `CmsListLayout`, `CmsFormSection` |
 | Fields | `FieldDescriptor`, `AnyFieldDescriptor`, `FieldKind`, `FieldUi`, `Nullable`, `Defaulted`, `OnDelete`, `RelationKind`, `RelationSpec` |
-| Values | `RichTextDoc`, `CmsBlock`, `BlockDef`, `BlockValue`, `BlocksValue`, `GroupValue`, `CmsListValue`, `CmsGalleryValue` |
+| Values | `RichTextDoc`, `CmsBlock`, `BlockDef`, `BlockValue`, `BlocksValue`, `GroupValue`, `CmsListValue`, `CmsGalleryValue`, `CmsBinding` (what `customTypeBlocks()`'s blocks store in `source`) |
 | Languages and text | `LocalesDef`, `LocalizedText`, `PathTemplate` |
 | The admin's menu | `CmsAdminMenuInput` (what `defineAdminMenu` takes), `CmsAdminMenuDef` (what it returns), `CmsAdminMenuItem` (one row), `CmsAdminMenuBuiltin` (`'@forms'`, `'@media'`, `'@team'`, `'@privacy'`, `'@about'`) |
 | Users and roles | `CmsAccessUser` (what an `access` rule is given: `id`, `email`, `name`, `role`, `base`, `locale`, and what an external sign-in adds as `unknown`), `CmsRole` (`'admin' \| 'editor' \| 'author'`), `CmsRoleBase`, `CmsRoleDef`, `CmsRoleRef`, `CmsRoleInput`, `CmsRoles`, `CmsEntityOp`, `CmsMediaAccess`, `CmsFieldAccess` |
@@ -376,6 +377,7 @@ The `NUXT_CMS_*` and `NUXT_PUBLIC_CMS_*` variables above, and:
 | `TINYZOO_DEPRECATIONS` | `1` prints deprecation warnings under `NODE_ENV=test`, `0` silences them |
 | `TINYZOO_PG_DUMP`, `TINYZOO_PG_RESTORE`, `TINYZOO_PSQL` | the `pg_dump`, `pg_restore` and `psql` that `tinyzoo backup` and `restore` run |
 | `SEED_URL`, `SEED_EMAIL`, `SEED_PASSWORD`, `SEED_NAME`, `SEED_SETUP_CODE` | the defaults of `tinyzoo seed`'s flags |
+| `NUXT_CMS_CUSTOM_TYPES` | **experimental**, multi-tenant mode only: `on` lets each site make content types of its own in the admin, each a table in the site's own database. A site's directory row may switch them off for that site or set its limits: `config.customTypes` with `enabled` (`false` switches them off), `types`, `fields`, `options` (whole numbers from 0 to 200; the defaults are 12, 30 and 30; removed types and fields do not count, and an administrator deletes them for good by hand). Read from the environment, not at build time. Without it nothing of the feature runs. Not part of what 1.0 freezes: it may change with the feature |
 
 Not part of the surface: the test-only `CMS_TEST_*` variables.
 
@@ -406,6 +408,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content/_global/:name` | a global: `{ item }` (`null` before its first save) |
 | `GET /api/content/_search` | the website search: `?q=`, `?locale=`, `?limit=` (1 to 50), `?entity=a,b` |
 | `GET /api/content/_sitemap` | the site's public addresses as `{ entries }` (`CmsSitemapEntry`) |
+| `GET /api/content/_types` | **experimental**, like `/api/health/sites`: the content types a site made for itself (custom types, in multi-tenant mode with `NUXT_CMS_CUSTOM_TYPES=on`) as `{ types }`: each with its labels, address, order and visible fields (kind, label, choices). `{ types: [] }` for every other site. Not part of what 1.0 freezes: it may change with the feature |
 | `GET`, `POST /api/content/_form/:name` | a website form's definition and its submission (`tinyzoo/forms`) |
 | `POST /api/content/_analytics/e` | a page view, or the time one was looked at, from the website's pages (`tinyzoo/analytics`). Always `202` with no body |
 | `GET /api/content/_analytics/rollups` | the daily totals of `?from=` to `?to=` (at most 400 days) for a tool that watches many sites (`AnalyticsRollups`, `tinyzoo/analytics`). Guarded like `/api/health/status`: `404` until `cms.status.token` is set, then that token. See [analytics](analytics.md#for-a-fleet-monitor) |
@@ -417,7 +420,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content-types.ts` | the generated client types (what `tinyzoo client` writes) |
 | `GET /api/health/live`, `GET /api/health/ready` | liveness and readiness (`{ ok }`, `503` when not) |
 | `GET /api/health/status` | a summary of the site for a tool that watches many sites (`CmsStatus`). `404` until `cms.status.token` is set; then it asks for that token (`x-api-key` or `Authorization: Bearer`). See [deploying](deploying.md#site-status) |
-| `GET /api/health/sites` | **experimental**, multi-tenant mode only: every site of the process as the process sees it, for whoever runs the service. `404` unless `NUXT_CMS_TENANCY_OPERATOR_TOKEN` is set; then it asks for that token (`Authorization: Bearer`). Not part of what 1.0 freezes: it may change with the mode |
+| `GET /api/health/sites` | **experimental**, multi-tenant mode only: every site of the process as the process sees it, for whoever runs the service. `404` unless `NUXT_CMS_TENANCY_OPERATOR_TOKEN` is set; then it asks for that token (`Authorization: Bearer`). Each site's row says, among the rest, how many times the process has loaded the site (`loads`) and, for a loaded site with its own content types (`NUXT_CMS_CUSTOM_TYPES=on`), the version it serves (`model: { version, types }`, else `null`). Not part of what 1.0 freezes: it may change with the mode |
 | `POST /api/mcp` | the MCP server: tools that read and edit the content, for a person's access token (`Authorization: Bearer tzp_…`, made by hand or by signing in). Built-in sign-in only; `404` with `cms.mcp: false`. Tools and their names are kept within 1.x; a minor may add tools and keys. See [the MCP server](guide/mcp.md) |
 | `GET /.well-known/oauth-protected-resource`, `GET /.well-known/oauth-authorization-server` (each also with `/api/mcp` after it) | the MCP server's OAuth discovery documents (RFC 9728, RFC 8414) |
 | `POST /api/mcp/oauth/register`, `GET /api/mcp/oauth/authorize`, `POST /api/mcp/oauth/token`, `POST /api/mcp/oauth/revoke` | signing in to the MCP server: registration (RFC 7591), the authorization code flow with PKCE (S256), refresh, revocation (RFC 7009). See [signing in](guide/mcp.md#signing-in-oauth) |

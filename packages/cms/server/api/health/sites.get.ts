@@ -1,5 +1,12 @@
 import { timingSafeEqual } from 'node:crypto'
 
+/** The site's own content types as the loaded instance read them: their version and how many are shown; null before that, or without them. */
+function loadedModel(): { version: number; types: number } | null {
+  const part = cmsLoadedCustomPart()
+  if (!part) return null
+  return { version: part.version, types: part.doc ? part.doc.types.filter((t) => !t.removedAt).length : 0 }
+}
+
 // GET /api/health/sites — multi-tenant mode: every site of this process as the process sees
 // it, for whoever runs the service (no content, no secrets). Asked with the operator's
 // token (NUXT_CMS_TENANCY_OPERATOR_TOKEN) as `Authorization: Bearer …`; without a token
@@ -17,8 +24,8 @@ export default defineEventHandler(async (event) => {
   const sites = cmsSitesOverview().map((row) => {
     const site = cmsSiteById(row.id)
     // Only what a loaded site already knows: looking never loads a site or opens a connection.
-    const seen = site ? cmsPeekInSite(site, () => ({ migrations: cmsMigrationState(), connections: cmsSiteConnections() })) : undefined
-    return { ...row, migrations: seen?.migrations ?? null, connections: seen?.connections ?? null }
+    const seen = site ? cmsPeekInSite(site, () => ({ migrations: cmsMigrationState(), connections: cmsSiteConnections(), model: loadedModel() })) : undefined
+    return { ...row, migrations: seen?.migrations ?? null, connections: seen?.connections ?? null, model: seen?.model ?? null }
   })
   const memory = process.memoryUsage()
   return {

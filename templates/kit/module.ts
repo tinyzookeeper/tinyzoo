@@ -16,13 +16,14 @@
 // Both ways write `#tz-designs`, the designs the build carries, each loaded when a site of it
 // is first drawn (app/plugins/design.ts, app/utils/design.ts).
 import { existsSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { addBuildPlugin, addComponent, addServerHandler, addTemplate, addTypeTemplate, defineNuxtModule, useLogger } from '@nuxt/kit'
 import { optimize } from '@tailwindcss/node'
 import MagicString from 'magic-string'
 import { createUnimport, scanDirExports, type Unimport } from 'unimport'
-import { checkDesigns, guardCode, pascalId, rewriteComponents, scanDesign, type DesignScan } from './design-build'
+import { checkDesigns, customPrefixProblems, exportedTypeNames, guardCode, pascalId, rewriteComponents, scanDesign, type DesignScan } from './design-build'
 
 export interface TemplateKitOptions {
   /** The designs (template ids) of the one app. Not set: a template's own build. */
@@ -35,6 +36,26 @@ const kitDir = dirname(fileURLToPath(import.meta.url))
 const LOOK_CSS_ID = 'virtual:tz-look-css:'
 const HELPER_DIRS = ['app/composables', 'app/utils']
 const HELPER_FILES = ['*.{ts,js,mjs,mts}', '*/index.{ts,js,mjs,mts}']
+/** The two blocks of a site's own types (tinyzoo's customTypeBlocks()), drawn by the kit for every design. */
+const CUSTOM_BLOCKS = ['BlockCustomEntries', 'BlockCustomChosen']
+
+/**
+ * The designs whose content model names a type with the prefix of a site's own types. Each
+ * design's cms.config.ts is read as tinyzoo's module reads the app's: with jiti (tinyzoo's own copy).
+ */
+async function customPrefixErrors(designs: DesignScan[]): Promise<string[]> {
+  const fromTinyzoo = createRequire(createRequire(import.meta.url).resolve('tinyzoo/package.json'))
+  const { createJiti } = fromTinyzoo('jiti') as { createJiti: (from: string, opts?: Record<string, unknown>) => { import: <T>(id: string) => Promise<T> } }
+  const jiti = createJiti(import.meta.url, { interopDefault: true, fsCache: false })
+  const { CUSTOM_PREFIX } = await jiti.import<{ CUSTOM_PREFIX: string }>('tinyzoo')
+  const errors: string[] = []
+  for (const d of designs) {
+    const file = join(d.root, 'cms.config.ts')
+    if (!existsSync(file)) continue
+    errors.push(...customPrefixProblems(d.id, exportedTypeNames(await jiti.import<Record<string, unknown>>(file)), CUSTOM_PREFIX))
+  }
+  return errors
+}
 
 /** The generated module of one design: what `defineDesign` gets. Paths are absolute. */
 function designModule(d: DesignScan, oneApp: boolean): string {
@@ -87,6 +108,18 @@ export default defineNuxtModule<TemplateKitOptions>({
       const { errors, warnings } = checkDesigns(designs)
       for (const w of warnings) logger.warn(w)
       if (errors.length) throw new Error(`[tinyzoo] the designs cannot be built together:\n  ${errors.join('\n  ')}`)
+    }
+    // A design keeps the prefix of a site's own types free (both ways of building).
+    const prefixErrors = await customPrefixErrors(designs)
+    if (prefixErrors.length) throw new Error(`[tinyzoo] ${prefixErrors.join('\n[tinyzoo] ')}`)
+
+    // The blocks of a site's own types are the kit's, the same for every design: found by name
+    // (<CmsBlocks :prefix>), so registered globally under each design's block prefix in the one
+    // app, and as BlockCustomEntries, BlockCustomChosen in a template's own build.
+    for (const name of CUSTOM_BLOCKS) {
+      const filePath = join(kitDir, 'app/components', `${name}.vue`)
+      if (!oneApp) addComponent({ name, filePath, global: true, priority: 10 })
+      else for (const d of designs) addComponent({ name: `${pascalId(d.id)}${name}`, filePath, global: true })
     }
 
     // The designs this build carries, each a chunk of its own, loaded when a site of it is drawn.

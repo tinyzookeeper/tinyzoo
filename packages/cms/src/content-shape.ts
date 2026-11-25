@@ -23,6 +23,7 @@ export type ContentFieldType =
   | { kind: 'richtext' }
   | { kind: 'media' }
   | { kind: 'gallery' }
+  | { kind: 'binding' }
   | { kind: 'relation-one'; target: string; public: boolean }
   | { kind: 'relation-many'; target: string; public: boolean }
   | { kind: 'blocks'; blocks: { type: string; fields: ContentField[] }[] }
@@ -113,6 +114,20 @@ export interface ContentModel {
   search: { collections: string[]; locales: string[] | null }
 }
 
+/**
+ * Does any field of the model hold a binding (a block of `customTypeBlocks()`)? The
+ * generated types and the OpenAPI document then carry `CmsBinding`; without one they are as before.
+ *
+ * @internal
+ */
+export function modelHasBinding(model: ContentModel): boolean {
+  const inType = (t: ContentFieldType): boolean =>
+    t.kind === 'binding'
+    || (t.kind === 'blocks' && t.blocks.some((b) => b.fields.some((f) => inType(f.type))))
+    || (t.kind === 'group' && t.fields.some((f) => inType(f.type)))
+  return [...model.entities, ...model.globals].some((s) => s.fields.some((f) => inType(f.type)))
+}
+
 // ── projection helpers — mirror cmsContent.ts byte for byte ─────────────────────
 
 function hiddenSet(e: CmsEntity): Set<string> {
@@ -166,6 +181,7 @@ function innerField(key: string, bf: FieldDescriptor): ContentField {
   if (bf.type === 'media') return { key, type: { kind: 'media' }, nullable: true }
   if (bf.type === 'blocks') return { key, type: blocksType(bf), nullable: false } // a list inside a block: always an array
   if (bf.type === 'group') return { key, type: groupType(bf), nullable: true }
+  if (bf.type === 'binding') return { key, type: { kind: 'binding' }, nullable: true } // a block's own field, stored as it is: null while empty
   return { key, type: scalarType(bf), nullable: !bf.isRequired || isLink(bf) }
 }
 

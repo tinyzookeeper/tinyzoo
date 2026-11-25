@@ -228,7 +228,7 @@ function hooksInSite<T extends Partial<Configuration>>(siteId: string, config: T
     out[name] = (...args: any[]) => {
       const site = cmsSiteById(siteId)
       if (!site) return Promise.reject(new Error('This website is not served here any more'))
-      return runInCmsSite(site, () => (hook as any)(...args))
+      return runInCmsSite(site, () => cmsAfterSiteReady(() => (hook as any)(...args)))
     }
   }
   return out as T
@@ -417,7 +417,7 @@ async function startCollabServer(c: Collab): Promise<Hocuspocus> {
     // A timer carries no site of its own: the heartbeat runs inside the engine's.
     const site = cmsSiteById(c.site)
     if (!site) return
-    c.beating = runInCmsSite(site, () => beat(c)).finally(() => { c.beating = null })
+    c.beating = Promise.resolve(runInCmsSite(site, () => cmsAfterSiteReady(() => beat(c), () => {}))).finally(() => { c.beating = null })
   }, cmsTimerMs('CMS_TEST_COLLAB_HEARTBEAT_MS', HEARTBEAT_MS))
   ;(c.heartbeat as any).unref?.()
   return server

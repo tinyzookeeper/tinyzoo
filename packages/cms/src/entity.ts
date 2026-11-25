@@ -328,13 +328,19 @@ export function propOf(key: string, fld: FieldDescriptor): string {
  * Field names the CMS uses itself: system columns, and keys tinyzoo writes onto items
  * (`locale`, `locales`, `paths` of a translated collection; `path`, `breadcrumbs` of a page
  * tree; `preview` is a parameter of the content API). Names starting with "_" are tinyzoo's too.
+ *
+ * @internal
  */
-const RESERVED_FIELD_NAMES = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales', 'path', 'paths', 'breadcrumbs', 'preview'])
+export const RESERVED_FIELD_NAMES: ReadonlySet<string> = new Set(['id', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy', 'parentId', 'locale', 'locales', 'path', 'paths', 'breadcrumbs', 'preview'])
 /** A field key, like an entity name: a letter first, then letters, digits and "_". */
 const FIELD_KEY = /^[A-Za-z][A-Za-z0-9_]*$/
 
-/** Query parameters of the content API's list (`/api/content/:entity?page=…`): a field of that name cannot be filtered by. */
-const LIST_PARAMS = ['page', 'limit', 'sort', 'dir', 'q']
+/**
+ * Query parameters of the content API's list (`/api/content/:entity?page=…`): a field of that name cannot be filtered by.
+ *
+ * @internal
+ */
+export const LIST_PARAMS: readonly string[] = ['page', 'limit', 'sort', 'dir', 'q']
 /** The columns of `<entity>_locales` that hold a language's own publish state (`publish.perLocale`). */
 export const PUBLISH_STATE_COLUMNS = ['published', 'publishedAt', 'firstLiveAt']
 
@@ -383,7 +389,10 @@ function buildEntity<F extends Record<string, AnyFieldDescriptor>>(
     )
   }
   const fields = def.fields as unknown as Record<string, FieldDescriptor>
-  for (const key of Object.keys(fields)) {
+  for (const [key, fld] of Object.entries(fields)) {
+    if (fld.type === 'binding') {
+      throw new Error(`Field "${key}" in "${name}" has type "binding": a binding is a field of a block only (made by customTypeBlocks()), not of a collection or a global.`)
+    }
     if (key.startsWith('_')) {
       throw new Error(`Field "${key}" in "${name}": names starting with "_" are reserved by the CMS. Rename the field; a rename is a migration: see "Renaming a field": ${docsUrl('renamingField')}`)
     }

@@ -49,7 +49,7 @@ import { extractTarGz, safeArchivePath } from './tar'
 import { loadRegistry } from './export'
 import {
   ARCHIVE_FILES, ARCHIVE_FORMAT, BATCH, SAFE_NAME, connectDb, databaseName, dependencyOrder, describeDatabase,
-  describeSchema, diffSchemas, formatDifferences, hostSettings, layoutOf, newerStoredBlocks, parseArgs, readJsonl, storageFingerprint, storageFromSettings,
+  describeSchema, diffSchemas, formatDifferences, hostSettings, layoutOf, newerStoredBlocks, parseArgs, readJsonl, refuseCustomTypes, storageFingerprint, storageFromSettings,
   usedMediaIds,
   type Difference, type Entry, type EntityLayout, type FkEdge, type LayoutField, type Manifest, type TransferStorage,
 } from './transfer'
@@ -289,6 +289,7 @@ export async function importContent(opts: ImportOptions): Promise<ImportReport> 
   const log = opts.log ?? (() => {})
   const file = resolve(opts.file)
   if (!existsSync(file)) throw new Error(`${file} does not exist`)
+  await refuseCustomTypes(opts.databaseUrl, 'import')
 
   const tmp = await mkdtemp(join(tmpdir(), 'tinyzoo-import-'))
   const { db, close } = connectDb(opts.databaseUrl, reg)

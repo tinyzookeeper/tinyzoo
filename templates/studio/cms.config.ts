@@ -1,4 +1,4 @@
-import { defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
+import { customTypeBlocks, defineBlock, defineEntity, defineLocales, defineNavigation, definePages, defineRedirects, defineSingleton, f, seo } from 'tinyzoo'
 import { defineForm, defineFormSettings, formsPlugin } from 'tinyzoo/forms'
 import { looks } from './looks'
 
@@ -402,7 +402,7 @@ const richText = defineBlock({
 
 // Pages built from blocks: title, address, status, blocks, SEO, preview.
 export const Page = definePages({
-  blocks: { hero, timetable, kinds, courses, prices, instructors, space, where, questions, signup, text: richText },
+  blocks: { hero, timetable, kinds, courses, prices, instructors, space, where, questions, signup, text: richText, ...customTypeBlocks() },
 })
 
 // ── menus ──

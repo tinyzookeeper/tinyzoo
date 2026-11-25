@@ -662,3 +662,126 @@ describe('the content model of a site (experimental)', () => {
     expect(logged().join('\n')).toContain('"model" names "blog"')
   })
 })
+
+describe('multi mode: retiring the current site\'s instance', () => {
+  it('the caller\'s work goes on and sees its own value, and the next work of the site gets a fresh instance', async () => {
+    const s = await load('multi', three())
+    const a = s.cmsSiteById('site-a')!
+    let made = 0
+    const cache = s.cmsSiteScoped(() => ({ n: ++made }))
+    const first = s.runInCmsSite(a, () => cache())
+    const inside = await s.runInCmsSite(a, async () => {
+      const before = cache()
+      s.cmsRetireCurrentSite()
+      await tick()
+      return { before, after: cache() }
+    })
+    expect(inside.before).toBe(first)
+    expect(inside.after).toBe(first)
+    const next = s.runInCmsSite(a, () => cache())
+    expect(next).not.toBe(first)
+    expect(next.n).toBe(2)
+    expect(s.runInCmsSite(a, () => cache())).toBe(next)
+  })
+
+  it('retiring one site leaves the others alone', async () => {
+    const s = await load('multi', three())
+    const cache = s.cmsSiteScoped(() => ({ of: s.useCmsSite().id }))
+    const b = s.runInCmsSite(s.cmsSiteById('site-b')!, () => cache())
+    s.runInCmsSite(s.cmsSiteById('site-a')!, () => { cache(); s.cmsRetireCurrentSite() })
+    expect(s.runInCmsSite(s.cmsSiteById('site-b')!, () => cache())).toBe(b)
+  })
+
+  it('a per-site value is released once the retired instance\'s work has finished, and once only', async () => {
+    const s = await load('multi', three())
+    const a = s.cmsSiteById('site-a')!
+    const released: string[] = []
+    let n = 0
+    const cache = s.cmsSiteScoped(() => `value ${++n}`, { dispose: (v) => { released.push(v) } })
+    let finish!: () => void
+    const waiting = new Promise<void>((r) => { finish = r })
+    const work = s.runInCmsSite(a, async () => {
+      cache()
+      s.cmsRetireCurrentSite()
+      s.cmsRetireCurrentSite()
+      await waiting
+    })
+    await tick()
+    expect(released).toEqual([])
+    finish()
+    await work
+    await tick()
+    expect(released).toEqual(['value 1'])
+    s.runInCmsSite(a, () => cache())
+    expect(released).toEqual(['value 1'])
+  })
+
+  it('cmsRetireSite says whether the site had an instance to retire', async () => {
+    const s = await load('multi', three())
+    const a = s.cmsSiteById('site-a')!
+    expect(s.cmsRetireSite('site-a')).toBe(false)
+    s.runInCmsSite(a, () => 1)
+    expect(s.cmsRetireSite('site-a')).toBe(true)
+    expect(s.cmsRetireSite('site-a')).toBe(false)
+    expect(s.cmsRetireSite('site-nobody')).toBe(false)
+  })
+
+  it('cmsRetireSite releases an idle instance and the next work makes a new one', async () => {
+    const s = await load('multi', three())
+    const a = s.cmsSiteById('site-a')!
+    const released: string[] = []
+    let n = 0
+    const cache = s.cmsSiteScoped(() => `value ${++n}`, { dispose: (v) => { released.push(v) } })
+    s.runInCmsSite(a, () => cache())
+    expect(s.cmsRetireSite('site-a')).toBe(true)
+    await tick()
+    expect(released).toEqual(['value 1'])
+    expect(s.runInCmsSite(a, () => cache())).toBe('value 2')
+  })
+
+  it('cmsSitesOverview counts the instances made for each site', async () => {
+    const s = await load('multi', three())
+    const a = s.cmsSiteById('site-a')!
+    const loads = (id: string) => s.cmsSitesOverview().find((r) => r.id === id)!.loads
+    expect(loads('site-a')).toBe(0)
+    s.runInCmsSite(a, () => 1)
+    s.runInCmsSite(a, () => 1)
+    expect(loads('site-a')).toBe(1)
+    s.cmsRetireSite('site-a')
+    expect(loads('site-a')).toBe(1)
+    s.runInCmsSite(a, () => 1)
+    expect(loads('site-a')).toBe(2)
+    expect(loads('site-b')).toBe(0)
+    expect(s.cmsSitesOverview().find((r) => r.id === 'site-b')!.loaded).toBe(false)
+  })
+
+  it('cmsSiteRetiredCheck turns true after the retire, and stays true for the old instance', async () => {
+    const s = await load('multi', three())
+    const a = s.cmsSiteById('site-a')!
+    const oldCheck = s.runInCmsSite(a, () => s.cmsSiteRetiredCheck())
+    expect(oldCheck()).toBe(false)
+    s.runInCmsSite(a, () => s.cmsRetireCurrentSite())
+    expect(oldCheck()).toBe(true)
+    const newCheck = s.runInCmsSite(a, () => s.cmsSiteRetiredCheck())
+    expect(newCheck()).toBe(false)
+    expect(oldCheck()).toBe(true)
+  })
+
+  it('outside any site, the check refuses and the retire does nothing', async () => {
+    const s = await load('multi', three())
+    expect(() => s.cmsSiteRetiredCheck()).toThrow(s.CmsNoSiteError)
+    expect(() => s.cmsRetireCurrentSite()).not.toThrow()
+  })
+
+  it('in single mode the retire does nothing and no site has an instance to retire', async () => {
+    const s = await load('single')
+    let made = 0
+    const cache = s.cmsSiteScoped(() => ({ n: ++made }))
+    const before = cache()
+    s.cmsRetireCurrentSite()
+    expect(cache()).toBe(before)
+    expect(s.cmsRetireSite('default')).toBe(false)
+    expect(s.cmsSiteRetiredCheck()()).toBe(false)
+    expect(made).toBe(1)
+  })
+})

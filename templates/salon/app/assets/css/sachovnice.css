@@ -64,3 +64,7 @@ html[data-look="sachovnice"] {
     .prose-look strong { font-weight: 800; }
   }
 }
+
+/* A wide typeface: the title of an entry's page (the kit's KitCustomEntry) a step smaller than the kit's.
+   Outside the layers, so it stands over the kit's own size. */
+html[data-look="sachovnice"] .custom-entry .custom-entry-title { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.5rem); }

@@ -10,12 +10,23 @@ export interface PlanDef {
     /** Everything the site may store, in bytes. */
     maxBytes: number
   }
+  /**
+   * The site's own content types (experimental), when the cloud runs with CLOUD_CUSTOM_TYPES=on:
+   * how many types it may make, and how many fields each may have. They go into the row as
+   * `config.customTypes.types` and `.fields`. Removed ones do not count; a site keeps as many
+   * removed ones as the same numbers.
+   */
+  customTypes: {
+    types: number
+    fields: number
+  }
 }
 
 const MB = 1024 * 1024
 
+// The numbers are the plan's to set. Basic takes tinyzoo's defaults (DEFAULT_MODEL_LIMITS).
 export const PLANS: readonly PlanDef[] = [
-  { id: 'basic', storage: { maxSizeMb: 20, maxBytes: 1024 * MB } },
+  { id: 'basic', storage: { maxSizeMb: 20, maxBytes: 1024 * MB }, customTypes: { types: 12, fields: 30 } },
 ]
 
 export const DEFAULT_PLAN = 'basic'

@@ -94,6 +94,8 @@ const context = new AsyncLocalStorage<SiteInstance>()
 const instances = new Map<string, SiteInstance>()
 /** Retired instances whose work is still finishing. */
 const retiring = new Set<SiteInstance>()
+/** How many times each site was loaded in this process (an instance made for it): for the operator's status. */
+const loads = new Map<string, number>()
 /** How long a retired instance waits for its work before it is released regardless. */
 const DRAIN_MS = Number(process.env.CMS_TEST_SITE_DRAIN_MS) || 30_000
 
@@ -179,6 +181,7 @@ function instanceFor(site: CmsSite): SiteInstance {
   if (!row) throw new CmsNoSiteError(`site ${site.id}, which is not in the site directory`)
   const made = newInstance(row)
   instances.set(row.id, made)
+  loads.set(row.id, (loads.get(row.id) ?? 0) + 1)
   return made
 }
 
@@ -309,6 +312,36 @@ function retireInstance(instance: SiteInstance, left: boolean): void {
   timer.unref?.()
 }
 
+/**
+ * Retire the instance the caller runs in (multi mode): nothing new starts in it, and the next
+ * request of the site makes a fresh one. The caller's own work, and all other work under way in
+ * it, goes on with what it started with until it has finished. For a change that the site's
+ * memory must not survive, as a changed row (a change of the site's own content types). Single
+ * mode: nothing happens.
+ */
+export function cmsRetireCurrentSite(): void {
+  if (cmsTenancyMode() === 'single') return
+  const instance = context.getStore()
+  if (instance && !instance.released) retireInstance(instance, false)
+}
+
+/** Retire the instance a site has loaded in this process, if it has one. True when there was one. */
+export function cmsRetireSite(id: string): boolean {
+  if (cmsTenancyMode() === 'single') return false
+  const instance = instances.get(id)
+  if (!instance) return false
+  retireInstance(instance, false)
+  return true
+}
+
+/** Has the instance the current work runs in been retired since? For something that outlives this call (a timer kept in the site's memory). */
+export function cmsSiteRetiredCheck(): () => boolean {
+  if (cmsTenancyMode() === 'single') return () => false
+  const instance = context.getStore()
+  if (!instance) throw new CmsNoSiteError('a check bound to its site')
+  return () => instance.retired
+}
+
 /** Release every site's resources (server shutdown). */
 export async function unloadAllCmsSites(): Promise<void> {
   const all = [...instances.values(), ...retiring]
@@ -343,10 +376,10 @@ export function cmsUnloadIdleSites(idleMs: number): number {
 }
 
 /** What the operator's status route lists per site (multi mode): no content, no secrets. */
-export function cmsSitesOverview(): { id: string; hosts: string[]; alsoHosts: string[]; state: CmsSite['state']; loaded: boolean; active: number; idleSeconds: number | null }[] {
+export function cmsSitesOverview(): { id: string; hosts: string[]; alsoHosts: string[]; state: CmsSite['state']; loaded: boolean; active: number; idleSeconds: number | null; loads: number }[] {
   return cmsAllSites().map((site) => {
     const instance = instances.get(site.id)
-    return { id: site.id, hosts: site.hosts, alsoHosts: site.alsoHosts, state: site.state, loaded: !!instance, active: instance?.active ?? 0, idleSeconds: instance ? Math.round((Date.now() - instance.usedAt) / 1000) : null }
+    return { id: site.id, hosts: site.hosts, alsoHosts: site.alsoHosts, state: site.state, loaded: !!instance, active: instance?.active ?? 0, idleSeconds: instance ? Math.round((Date.now() - instance.usedAt) / 1000) : null, loads: loads.get(site.id) ?? 0 }
   })
 }
 

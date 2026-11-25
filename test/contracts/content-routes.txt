@@ -14,6 +14,7 @@ GET  /api/content/_global/:name
 GET  /api/content/_search
 GET  /api/content/_sitemap
 GET  /api/content/_tree/:entity
+GET  /api/content/_types
 GET  /api/health/live
 GET  /api/health/ready
 GET  /api/health/sites

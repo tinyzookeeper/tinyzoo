@@ -25,7 +25,9 @@ import { upgradedCopy } from './cmsBlocks'
 
 /** Bump when what goes into the index changes: every site rebuilds it once. */
 const INDEX_VERSION = 1
-const STATE_KEY = 'search.index'
+/** The row of `cms_state` that says what the index was built from; without it, the next start rebuilds the index. */
+export const CMS_SEARCH_STATE_KEY = 'search.index'
+const STATE_KEY = CMS_SEARCH_STATE_KEY
 const LOCK = 72_011_005
 /** Trigram word similarity a candidate needs (lenient: step 2 decides). */
 const THRESHOLD = 0.3

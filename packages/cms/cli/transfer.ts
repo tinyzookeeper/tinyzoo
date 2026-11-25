@@ -544,6 +544,39 @@ export function databaseName(url: string): string {
   catch { return '' }
 }
 
+/**
+ * The site's own content types (experimental, docs/custom-types-plan.md), hidden ones too: their
+ * tables hold content. They are read from the newest document of `cms_model`. A database without
+ * that table, or with a document without types, has none.
+ */
+export async function customTypesOf(url: string): Promise<string[]> {
+  const client = new pg.Client({ connectionString: url, connectionTimeoutMillis: 10_000 })
+  await client.connect()
+  try {
+    const { rows: [table] } = await client.query(`select to_regclass('public.cms_model') as t`)
+    if (!table?.t) return []
+    const { rows: [latest] } = await client.query('select doc from "cms_model" order by version desc limit 1')
+    const types = Array.isArray(latest?.doc?.types) ? latest.doc.types : []
+    return types.map((t: any) => String(t?.name ?? '?'))
+  }
+  finally {
+    await client.end().catch(() => {})
+  }
+}
+
+/**
+ * `tinyzoo export` and `import` read and write the content model of `cms.config.ts` only. A site
+ * with content types of its own is refused before anything is written, so that nothing is left
+ * behind without a word.
+ */
+export async function refuseCustomTypes(url: string, command: 'export' | 'import'): Promise<void> {
+  const types = await customTypesOf(url)
+  if (!types.length) return
+  const site = command === 'export' ? 'This site' : 'The site you import into'
+  throw new Error(`${site} has content types of its own (${types.join(', ')}), which tinyzoo ${command} does not carry. `
+    + 'tinyzoo backup and tinyzoo restore take them: they copy the whole database. Nothing was changed.')
+}
+
 export function connectDb(url: string, reg: CmsRegistry) {
   const pool = new pg.Pool({ connectionString: url, connectionTimeoutMillis: 10_000 })
   const db = drizzle(pool, { schema: reg.schema })

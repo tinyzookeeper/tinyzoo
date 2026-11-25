@@ -33,6 +33,20 @@ export interface CmsGalleryItem extends CmsMedia {
   caption: string | null
 }
 
+/** Which custom type a block shows, and which field goes to which place. */
+export interface CmsBinding {
+  /** The name of the custom type. */
+  type: string
+  /** The fields that go to the places of a card. */
+  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }
+  /** A list only: the field to order by. Null or left out is the type's own order. */
+  order?: { by: string; dir: 'asc' | 'desc' } | null
+  /** A list only: how many entries, 1 to 48. Left out is 6. */
+  limit?: number | null
+  /** Chosen entries only: their ids, in the picked order. */
+  entries?: string[]
+}
+
 // ── nested (populated) projections ─────────────────────────────────────────────
 export interface LessonKindEmbedded {
   id: string
@@ -111,7 +125,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'hero'; eyebrow: string | null; heading: string; text: string | null; photos: Array<{ id: string; type: 'item'; image: CmsMedia | null }>; primaryLabel: string | null; primaryUrl: string | null; secondaryLabel: string | null; secondaryUrl: string | null; facts: Array<{ id: string; type: 'item'; label: string; value: string | null }>; badgeTop: string | null; badgeBottom: string | null } | { id: string; type: 'timetable'; eyebrow: string | null; heading: string; text: string | null; printLabel: string | null; printUrl: string | null } | { id: string; type: 'kinds'; eyebrow: string | null; heading: string; text: string | null; helpTitle: string | null; helpText: string | null; helpLabel: string | null; helpUrl: string | null } | { id: string; type: 'courses'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'prices'; eyebrow: string | null; heading: string; text: string | null; footnote: string | null } | { id: string; type: 'instructors'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'space'; eyebrow: string | null; heading: string; text: string | null; photos: Array<{ id: string; type: 'item'; image: CmsMedia | null; caption: string | null }>; facts: Array<{ id: string; type: 'item'; label: string; value: string | null }> } | { id: string; type: 'where'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; ways: Array<{ id: string; type: 'item'; icon: 'walk' | 'bus' | 'car' | 'bike' | 'clock' | null; label: string; figure: string | null; text: string | null }>; routeFrom: string | null; routeFromTime: string | null; routeVia: string | null; routeViaTime: string | null; river: string | null; parking: string | null; stop: string | null; stopNote: string | null } | { id: string; type: 'questions'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'signup'; eyebrow: string | null; heading: string; text: string | null; steps: Array<{ id: string; type: 'item'; text: string }>; consent: string | null; phoneNote: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null }>
+  sections: Array<{ id: string; type: 'hero'; eyebrow: string | null; heading: string; text: string | null; photos: Array<{ id: string; type: 'item'; image: CmsMedia | null }>; primaryLabel: string | null; primaryUrl: string | null; secondaryLabel: string | null; secondaryUrl: string | null; facts: Array<{ id: string; type: 'item'; label: string; value: string | null }>; badgeTop: string | null; badgeBottom: string | null } | { id: string; type: 'timetable'; eyebrow: string | null; heading: string; text: string | null; printLabel: string | null; printUrl: string | null } | { id: string; type: 'kinds'; eyebrow: string | null; heading: string; text: string | null; helpTitle: string | null; helpText: string | null; helpLabel: string | null; helpUrl: string | null } | { id: string; type: 'courses'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'prices'; eyebrow: string | null; heading: string; text: string | null; footnote: string | null } | { id: string; type: 'instructors'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'space'; eyebrow: string | null; heading: string; text: string | null; photos: Array<{ id: string; type: 'item'; image: CmsMedia | null; caption: string | null }>; facts: Array<{ id: string; type: 'item'; label: string; value: string | null }> } | { id: string; type: 'where'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; ways: Array<{ id: string; type: 'item'; icon: 'walk' | 'bus' | 'car' | 'bike' | 'clock' | null; label: string; figure: string | null; text: string | null }>; routeFrom: string | null; routeFromTime: string | null; routeVia: string | null; routeViaTime: string | null; river: string | null; parking: string | null; stop: string | null; stopNote: string | null } | { id: string; type: 'questions'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'signup'; eyebrow: string | null; heading: string; text: string | null; steps: Array<{ id: string; type: 'item'; text: string }>; consent: string | null; phoneNote: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'custom_entries'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null } | { id: string; type: 'custom_chosen'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null }>
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null

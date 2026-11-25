@@ -4,6 +4,7 @@ export type { CmsEntity, CmsRegistry, ContentConfig, PublishConfig, EntityDef, E
 export { f, snake, camel, pascal, buildColumn, serializeColumn, type CmsGalleryValue, type CmsListValue } from './fields'
 export { seo, linkBlock, definePages, defineNavigation, defineRedirects, FORM_FIELD_TYPES } from './presets'
 export { defineBlock, blocksSchema, mediaIdsInBlocks, mediaIdsInFields, blockMediaKeys, BLOCK_FIELD_TYPES, blockVersion, storedBlockVersion, upgradeBlock, upgradeBlocks, upgradeListItems, upgradeStoredRow, logUpgradeFailure, UPGRADE_FAILED_KEY, UNKNOWN_BLOCK_TYPE, type UpgradeIssue, type UpgradeOptions, type BlockDef, type BlockValue, type BlocksValue, type GroupValue, type CmsBlock } from './blocks'
+export { customTypeBlocks, CUSTOM_BLOCK_TYPES, BINDING_LIMIT_DEFAULT, BINDING_LIMIT_MAX, BINDING_ENTRIES_MAX, BINDING_MORE_MAX, type CmsBinding } from './custom-blocks'
 export { resolveText, type LocalizedText } from './i18n'
 export { defineLocales, type LocalesDef } from './locales'
 export { defineAdminMenu, menuSources, resolveMenu, CMS_ADMIN_MENU_BUILTINS, CMS_ADMIN_MENU_GROUPS, type CmsAdminMenuDef, type CmsAdminMenuInput, type CmsAdminMenuBuiltin, type CmsAdminMenuItem, type CmsAdminMenuLayout, type CmsAdminMenuSource, type CmsAdminMenuSaved } from './menu'
@@ -26,6 +27,14 @@ export {
   type CmsPluginAppPlugin, type CmsDashboardWidget, type CmsEntityPanel,
 } from './plugin'
 export { defineModels, isCmsModels, modelsOf, modelMigrationsAsset, modelPluginsProblem, DEFAULT_MODEL, type CmsModelDef, type CmsModels } from './models'
+export {
+  CUSTOM_PREFIX, MODEL_FORMAT, DEFAULT_MODEL_LIMITS, MODEL_LABEL_MAX, MODEL_HELP_MAX, MODEL_DOC_MAX_BYTES, MODEL_PURGE_EMPTY_AFTER_MS, MODEL_DELETE_WAIT_MS, MODEL_FIELD_TYPES,
+  ModelProblem, emptyModelDoc, parseModelDoc, applyModelOps, modelPurgeDue, modelTypeName, modelFieldKey, modelPagePrefix,
+  type ModelDoc, type ModelType, type ModelField, type ModelFieldType, type ModelFieldInput, type ModelOption, type ModelPage, type ModelOrder, type ModelLabel,
+  type ModelLimits, type ModelOp, type ModelContext, type ModelNote, type ModelPurgeTimes,
+} from './model-doc'
+export { modelEntities, type ModelMapProblem } from './model-map'
+export { customShape, planModelDdl, assertAllowedStatement, type DbShape, type DbTable, type DbColumn, type DbForeignKey, type DbIndex, type ModelDdlAllow } from './model-ddl'
 export { emitSchema } from './emitter'
 export { buildOpenApiDocument, type OpenApiOptions } from './openapi'
 export { emitContentTypes, type SdkOptions } from './sdk'

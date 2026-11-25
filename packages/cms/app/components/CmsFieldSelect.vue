@@ -16,10 +16,18 @@ const variant = computed(() => injected?.value ?? 'outline')
 const form = inject<{ state?: Record<string, any> } | null>('cmsForm', null)
 
 const otherValue = computed(() => (props.field.meta.optionsBy ? form?.state?.[props.field.meta.optionsBy.field] : undefined))
-const offered = computed(() => cmsSelectOffered(props.field, otherValue.value))
+// A choice that is no longer offered stays in sight for the entry that holds it, also after
+// someone picked another one here (so it can be picked back before saving).
+const held = ref<string | null>(null)
+watch(model, (v) => { if (cmsSelectRemoved(props.field, v)) held.value = v }, { immediate: true })
+const offered = computed(() => cmsSelectOffered(props.field, otherValue.value, held.value ?? model.value))
+const labelOf = (value: string) => {
+  const label = tl(props.field.meta.labels?.[value], value)
+  return cmsSelectRemoved(props.field, value) ? t('model.choiceRemoved', { label }) : label
+}
 const items = computed(() => offered.value.map((value) => ({
   value,
-  label: tl(props.field.meta.labels?.[value], value),
+  label: labelOf(value),
   symbol: props.field.meta.icons?.[value] as string | undefined,
   swatches: props.field.meta.swatches?.[value] as string[] | undefined,
 })))

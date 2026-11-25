@@ -585,6 +585,7 @@ Built on the branch `feat/multi-tenant`, local only: nothing is pushed, released
 **In `packages/cms`: the mode**
 
 - `server/utils/cmsSite.ts`: the seam. The mode (`NUXT_CMS_TENANCY_MODE=multi`), the site directory, the current site, per-site memory (`cmsSiteScoped`), the settings of a site laid over the process's (`cmsSettings()`), work in every site (`forEachCmsSite`).
+- **A site's own content types** (experimental, built later on `feat/custom-types`; `docs/custom-types-plan.md`): `NUXT_CMS_CUSTOM_TYPES=on` beside the mode lets each site make types of its own, and a row's `config.customTypes` (`enabled`, `types`, `fields`, `options`) switches them off for one site or sets its limits.
 - `server/plugins/cms-0-site.ts`: the wrapper that gives every request its site from its host name. `server/utils/cmsSocketSite.ts` does the same for sockets at the upgrade.
 - **The site directory** is a JSON file (`NUXT_CMS_TENANCY_FILE`) or a table in Postgres (`NUXT_CMS_TENANCY_DATABASE_URL` and `NUXT_CMS_TENANCY_TEMPLATE`; the table is `tenant_sites`, asked once a second). With `NUXT_CMS_TENANCY_KEY` the database address and the secret of each site are stored encrypted (AES-256-GCM, written `enc:v1:…`); the table needs the key. A row that cannot be read is refused with its reason in the log, and the sites that were loaded keep running.
 - **Hosts.** A site's first host is its address. Its other `hosts` redirect there (308). Its `alsoHosts` are served without a redirect: that is where a site with a customer's domain keeps answering at its service address.

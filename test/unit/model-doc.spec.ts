@@ -1,0 +1,1474 @@
+import { describe, expect, it } from 'vitest'
+import {
+  DEFAULT_MODEL_LIMITS,
+  MODEL_DELETE_WAIT_MS,
+  MODEL_PURGE_EMPTY_AFTER_MS,
+  ModelProblem,
+  applyModelOps,
+  emptyModelDoc,
+  modelFieldKey,
+  modelPagePrefix,
+  modelPurgeDue,
+  modelTypeName,
+  parseModelDoc,
+  type ModelContext,
+  type ModelDoc,
+  type ModelOp,
+} from '../../packages/cms/src/model-doc'
+
+const NOW = new Date('2026-11-24T12:00:00.000Z')
+const at = (ms: number): Date => new Date(NOW.getTime() + ms)
+const DAY = 24 * 60 * 60 * 1000
+
+const ctx = (over: Partial<ModelContext> = {}): ModelContext => ({
+  design: [
+    { name: 'category', singleton: false, pathPrefix: 'kategorie' },
+    { name: 'settings', singleton: true, pathPrefix: null },
+    { name: 'page', singleton: false, pathPrefix: null },
+  ],
+  limits: { ...DEFAULT_MODEL_LIMITS },
+  now: NOW,
+  ...over,
+})
+
+/** A context where the types are known to be empty, so required fields may be added. */
+const empty = (extra: Partial<ModelContext> = {}): ModelContext =>
+  ctx({ counts: { entries: { custom_course: 0, custom_teacher: 0 } }, ...extra })
+
+const L = (cs: string) => ({ cs })
+
+function deepFreeze<T>(value: T): T {
+  if (value && typeof value === 'object') {
+    for (const v of Object.values(value)) deepFreeze(v)
+    Object.freeze(value)
+  }
+  return value
+}
+
+/** Catches the refusal of a change and returns it. */
+function refusal(fn: () => unknown): ModelProblem {
+  try {
+    fn()
+  } catch (e) {
+    if (e instanceof ModelProblem) return e
+    throw e
+  }
+  throw new Error('expected a refusal, nothing was thrown')
+}
+
+const apply = (doc: ModelDoc, ops: ModelOp[], c: ModelContext = ctx()) => applyModelOps(doc, ops, c)
+const refuse = (doc: ModelDoc, ops: ModelOp[], code: string, op = ops.length - 1, c: ModelContext = ctx()): ModelProblem => {
+  const p = refusal(() => apply(doc, ops, c))
+  expect({ code: p.code, op: p.op }).toEqual({ code, op })
+  return p
+}
+
+/** A type of courses with a page, publishing and one field of most kinds. */
+function courses(): ModelDoc {
+  return apply(emptyModelDoc(), [
+    { op: 'type.add', name: 'custom_course', label: { cs: 'Kurzy', en: 'Courses' }, page: {}, publish: true },
+    { op: 'field.add', type: 'custom_course', field: { type: 'text', key: 'perex', label: L('Perex'), long: true } },
+    {
+      op: 'field.add',
+      type: 'custom_course',
+      field: {
+        type: 'select',
+        key: 'level',
+        label: L('Úroveň'),
+        required: true,
+        default: 'beginner',
+        options: [{ value: 'beginner', label: L('Začátečník') }, { value: 'advanced', label: L('Pokročilý') }],
+      },
+    },
+    { op: 'field.add', type: 'custom_course', field: { type: 'media', key: 'cover', label: L('Obrázek') } },
+    { op: 'field.add', type: 'custom_course', field: { type: 'datetime', key: 'startsAt', label: L('Začátek') } },
+    { op: 'field.add', type: 'custom_course', field: { type: 'number', key: 'price', label: L('Cena') } },
+    { op: 'field.add', type: 'custom_course', field: { type: 'relation', key: 'category', label: L('Kategorie'), to: 'category' } },
+  ], empty()).doc
+}
+
+/** Courses and teachers; a teacher field points at a course. */
+function twoTypes(): ModelDoc {
+  return apply(courses(), [
+    { op: 'type.add', name: 'custom_teacher', label: L('Lektoři') },
+    { op: 'field.add', type: 'custom_teacher', field: { type: 'relation', key: 'course', label: L('Kurz'), to: 'custom_course' } },
+  ], empty()).doc
+}
+
+const course = (doc: ModelDoc) => doc.types.find((t) => t.name === 'custom_course')!
+const fieldOf = (doc: ModelDoc, type: string, key: string) => doc.types.find((t) => t.name === type)!.fields.find((f) => f.key === key)!
+
+describe('parseModelDoc', () => {
+  it('reads a good document and returns it unchanged', () => {
+    const doc = courses()
+    expect(parseModelDoc(JSON.parse(JSON.stringify(doc)))).toEqual(doc)
+    expect(parseModelDoc(emptyModelDoc())).toEqual({ format: 1, types: [] })
+  })
+
+  it('refuses unknown keys, at any depth', () => {
+    const doc = JSON.parse(JSON.stringify(courses()))
+    expect(refusal(() => parseModelDoc({ ...doc, extra: 1 })).code).toBe('invalid-doc')
+    doc.types[0].extra = 1
+    expect(refusal(() => parseModelDoc(doc)).code).toBe('invalid-doc')
+    delete doc.types[0].extra
+    doc.types[0].fields[0].extra = 1
+    const p = refusal(() => parseModelDoc(doc))
+    expect(p.code).toBe('invalid-doc')
+    expect(p.op).toBe(-1)
+    expect(p.message).toContain('fields[0]')
+  })
+
+  it('refuses a newer format and names both numbers', () => {
+    const p = refusal(() => parseModelDoc({ format: 2, types: [] }))
+    expect(p.code).toBe('invalid-doc')
+    expect(p.message).toContain('newer tinyzoo')
+    expect(p.message).toContain('format 2')
+    expect(p.message).toContain('format 1')
+    expect(refusal(() => parseModelDoc({ format: 0, types: [] })).code).toBe('invalid-doc')
+    expect(refusal(() => parseModelDoc(null)).code).toBe('invalid-doc')
+  })
+
+  it('refuses an unknown kind of field', () => {
+    const doc = JSON.parse(JSON.stringify(courses()))
+    doc.types[0].fields.push({ key: 'x', type: 'hologram', label: L('X') })
+    const p = refusal(() => parseModelDoc(doc))
+    expect(p.code).toBe('invalid-doc')
+    expect(p.message).toContain('unknown kind of field')
+  })
+
+  it('refuses a bare string label and an empty label', () => {
+    const doc = JSON.parse(JSON.stringify(courses()))
+    doc.types[0].label = 'Kurzy'
+    expect(refusal(() => parseModelDoc(doc)).message).toContain('types[0].label')
+    doc.types[0].label = {}
+    expect(refusal(() => parseModelDoc(doc)).message).toContain('at least one language')
+    doc.types[0].label = { 'not a language': 'Kurzy' }
+    expect(refusal(() => parseModelDoc(doc)).code).toBe('invalid-doc')
+    doc.types[0].label = { cs: 'a'.repeat(81) }
+    expect(refusal(() => parseModelDoc(doc)).code).toBe('invalid-doc')
+  })
+
+  it('accepts language keys like pt-BR', () => {
+    const doc = JSON.parse(JSON.stringify(courses()))
+    doc.types[0].label = { cs: 'Kurzy', 'pt-BR': 'Cursos' }
+    expect(parseModelDoc(doc).types[0]!.label['pt-BR']).toBe('Cursos')
+  })
+
+  it('checks the rules between names and fields', () => {
+    const bad = (change: (d: any) => void, text: string) => {
+      const doc = JSON.parse(JSON.stringify(courses()))
+      change(doc)
+      const p = refusal(() => parseModelDoc(doc))
+      expect(p.code).toBe('invalid-doc')
+      expect(p.message).toContain(text)
+    }
+    bad((d) => { d.types[0].name = 'course' }, 'not a type name')
+    bad((d) => { d.types.push(JSON.parse(JSON.stringify(d.types[0]))) }, 'two types')
+    bad((d) => { d.types[0].fields[1].key = 'Perex' }, 'not a field key')
+    bad((d) => { d.types[0].fields[1].key = 'title' }, 'two fields')
+    bad((d) => { d.types[0].fields[1].key = 'slug' }, 'tinyzoo uses')
+    bad((d) => { d.types[0].titleField = 'perex'; d.types[0].fields[1].removedAt = NOW.toISOString() }, 'titleField')
+    bad((d) => { d.types[0].titleField = 'price' }, 'titleField')
+    bad((d) => { d.types[0].fields[2].options = [] }, 'at least one choice')
+    bad((d) => { d.types[0].fields[2].options.push({ value: 'beginner', label: L('X') }) }, 'twice')
+    bad((d) => { d.types[0].fields[2].default = 'gone' }, 'not one of the choices')
+  })
+
+  it('refuses a document over the size limit', () => {
+    const doc = JSON.parse(JSON.stringify(courses()))
+    doc.types[0].description = { cs: 'a'.repeat(300) }
+    for (let i = 0; i < 600; i++) {
+      const t = JSON.parse(JSON.stringify(doc.types[0]))
+      t.name = `custom_t${i}`
+      t.page = null
+      doc.types.push(t)
+    }
+    const p = refusal(() => parseModelDoc(doc))
+    expect(p.code).toBe('invalid-doc')
+    expect(p.message).toContain('larger than')
+  })
+})
+
+describe('names', () => {
+  it('makes a type name from a Czech label', () => {
+    expect(modelTypeName('Kurzy a školení')).toBe('custom_kurzy_a_skoleni')
+    expect(modelTypeName('Ceník')).toBe('custom_cenik')
+    expect(modelTypeName('  Žluťoučký kůň!  ')).toBe('custom_zlutoucky_kun')
+    expect(modelTypeName('2024 akce')).toBe('custom_type')
+    expect(modelTypeName('???')).toBe('custom_type')
+  })
+
+  it('keeps a type name within 32 characters, with numbers too', () => {
+    const long = modelTypeName('Velmi dlouhý název typu obsahu webu')
+    expect(long.length).toBeLessThanOrEqual(32)
+    expect(long.endsWith('_')).toBe(false)
+    const second = modelTypeName('Velmi dlouhý název typu obsahu webu', [long])
+    expect(second.length).toBeLessThanOrEqual(32)
+    expect(second.endsWith('2')).toBe(true)
+    expect(second).not.toBe(long)
+  })
+
+  it('adds numbers to a type name that is taken', () => {
+    expect(modelTypeName('Kurzy', ['custom_kurzy'])).toBe('custom_kurzy2')
+    expect(modelTypeName('Kurzy', ['custom_kurzy', 'custom_kurzy2'])).toBe('custom_kurzy3')
+  })
+
+  it('never makes a name the database uses for its own tables', () => {
+    expect(modelTypeName('Jedna to druhá')).toBe('custom_jedna_druha')
+    expect(modelTypeName('Locales')).not.toMatch(/_locales$/)
+  })
+
+  it('makes a field key in lower camel case', () => {
+    expect(modelFieldKey('Datum zahájení')).toBe('datumZahajeni')
+    expect(modelFieldKey('Úroveň kurzu')).toBe('uroven' + 'Kurzu')
+    expect(modelFieldKey('Cena')).toBe('cena')
+    expect(modelFieldKey('2 dny')).toBe('field')
+    expect(modelFieldKey('')).toBe('field')
+  })
+
+  it('numbers a field key that is taken or reserved', () => {
+    expect(modelFieldKey('Cena', ['cena'])).toBe('cena2')
+    expect(modelFieldKey('Status')).toBe('status2')
+    expect(modelFieldKey('Slug')).toBe('slug2')
+    expect(modelFieldKey('Page')).toBe('page2')
+    expect(modelFieldKey('Id')).toBe('id2')
+  })
+
+  it('keeps a generated column within 27 characters', () => {
+    const key = modelFieldKey('Velmi dlouhý název pole který nikdy neskončí a neskončí')
+    expect(key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase()).length).toBeLessThanOrEqual(27)
+    expect(key).toMatch(/^[a-z][a-zA-Z0-9]*$/)
+  })
+
+  it('makes a page prefix', () => {
+    expect(modelPagePrefix('Kurzy a školení')).toBe('kurzy-a-skoleni')
+    expect(modelPagePrefix('Kurzy', ['kurzy'])).toBe('kurzy-2')
+    expect(modelPagePrefix('Admin')).toBe('admin-2')
+    expect(modelPagePrefix('API')).toBe('api-2')
+    expect(modelPagePrefix('!!!')).toBe('entries')
+    expect(modelPagePrefix('x'.repeat(100)).length).toBe(40)
+    expect(modelPagePrefix('x'.repeat(100), ['x'.repeat(40)]).length).toBeLessThanOrEqual(40)
+  })
+
+  it('refuses given names that are not valid', () => {
+    const doc = emptyModelDoc()
+    const add = (name: string) => [{ op: 'type.add', name, label: L('A') }] as ModelOp[]
+    for (const name of ['course', 'custom_', 'custom_1a', 'Custom_course', 'custom_course_', 'custom_a__b', 'custom_' + 'a'.repeat(26), 'custom_course_locales', 'custom_a_to_b']) {
+      expect(refusal(() => apply(doc, add(name))).code, name).toBe('invalid-name')
+    }
+    const withPage = (prefix: string) => [{ op: 'type.add', label: L('A'), page: { prefix } }] as ModelOp[]
+    for (const prefix of ['Kurzy', '-a', 'a--b', 'a_b', 'a'.repeat(41), 'admin', 'api', 'home']) {
+      expect(refusal(() => apply(doc, withPage(prefix))).code, prefix).toBe('invalid-prefix')
+    }
+  })
+
+  it('refuses a given field key that is reserved, invalid or too long', () => {
+    const doc = courses()
+    const add = (key: string, type: 'text' | 'relation' = 'text') =>
+      [{ op: 'field.add', type: 'custom_course', field: type === 'text' ? { type, key, label: L('A') } : { type, key, label: L('A'), to: 'category' } }] as ModelOp[]
+    for (const key of ['id', 'createdAt', 'locale', 'path', 'preview', 'page', 'limit', 'sort', 'q', 'slug', 'status', 'position', '_hidden']) {
+      expect(refusal(() => apply(doc, add(key))).code, key).toBe('reserved-key')
+    }
+    for (const key of ['Title', '1a', 'a_b', 'a-b', '']) {
+      expect(refusal(() => apply(doc, add(key))).code, key).toBe('invalid-name')
+    }
+    // 30 characters is the longest column; a relation also has `_id`.
+    const thirty = 'a'.repeat(30)
+    expect(() => apply(doc, add(thirty))).not.toThrow()
+    expect(refusal(() => apply(doc, add('a'.repeat(31)))).code).toBe('invalid-name')
+    expect(refusal(() => apply(doc, add('a'.repeat(28), 'relation'))).code).toBe('invalid-name')
+    expect(() => apply(doc, add('a'.repeat(27), 'relation'))).not.toThrow()
+  })
+})
+
+describe('type.add', () => {
+  it('adds a type with a title field and made-up names', () => {
+    const { doc } = apply(emptyModelDoc(), [{ op: 'type.add', label: { cs: 'Kurzy a školení', en: 'Courses' }, page: {}, publish: true }])
+    expect(doc.types).toEqual([{
+      name: 'custom_kurzy_a_skoleni',
+      label: { cs: 'Kurzy a školení', en: 'Courses' },
+      labelSingular: null,
+      description: null,
+      icon: null,
+      titleField: 'title',
+      page: { prefix: 'kurzy-a-skoleni', image: null, summary: null },
+      publish: true,
+      order: null,
+      listColumns: null,
+      removedAt: null,
+      fields: [{ key: 'title', type: 'text', required: true, label: { cs: 'Název', en: 'Title', de: 'Titel' } }],
+    }])
+  })
+
+  it('takes given names, a title label, icon and order', () => {
+    const { doc } = apply(emptyModelDoc(), [{
+      op: 'type.add',
+      name: 'custom_course',
+      label: L('Kurzy'),
+      labelSingular: L('Kurz'),
+      description: L('Naše kurzy'),
+      icon: 'i-lucide-graduation-cap',
+      page: { prefix: 'nase-kurzy' },
+      order: { by: 'title', dir: 'asc' },
+      titleLabel: L('Jméno'),
+    }])
+    const t = doc.types[0]!
+    expect(t.name).toBe('custom_course')
+    expect(t.page).toEqual({ prefix: 'nase-kurzy', image: null, summary: null })
+    expect(t.publish).toBe(false)
+    expect(t.order).toEqual({ by: 'title', dir: 'asc' })
+    expect(t.fields[0]!.label).toEqual(L('Jméno'))
+  })
+
+  it('accepts manual order', () => {
+    const { doc } = apply(emptyModelDoc(), [{ op: 'type.add', label: L('A'), order: 'manual' }])
+    expect(doc.types[0]!.order).toBe('manual')
+  })
+
+  it('numbers names and prefixes that are taken, hidden types and the design included', () => {
+    const first = apply(emptyModelDoc(), [{ op: 'type.add', label: L('Kurzy'), page: {} }]).doc
+    const hidden = apply(first, [{ op: 'type.remove', type: 'custom_kurzy' }]).doc
+    const { doc } = apply(hidden, [
+      { op: 'type.add', label: L('Kurzy'), page: {} },
+      { op: 'type.add', label: L('Kategorie'), page: {} },
+    ])
+    expect(doc.types.map((t) => t.name)).toEqual(['custom_kurzy', 'custom_kurzy2', 'custom_kategorie'])
+    expect(doc.types.map((t) => t.page?.prefix)).toEqual(['kurzy', 'kurzy-2', 'kategorie-2'])
+    const withDesignName = apply(emptyModelDoc(), [{ op: 'type.add', label: L('Page') }], ctx({ design: [{ name: 'custom_page', singleton: false, pathPrefix: null }] }))
+    expect(withDesignName.doc.types[0]!.name).toBe('custom_page2')
+  })
+
+  it('refuses a name or prefix that is taken', () => {
+    const doc = courses()
+    refuse(doc, [{ op: 'type.add', name: 'custom_course', label: L('A') }], 'name-taken')
+    refuse(doc, [{ op: 'type.add', name: 'custom_kurzy', label: L('A'), page: { prefix: 'kategorie' } }], 'prefix-taken')
+    refuse(doc, [{ op: 'type.add', label: L('A'), page: { prefix: 'kurzy' } }], 'prefix-taken')
+    const hidden = apply(doc, [{ op: 'type.remove', type: 'custom_course' }]).doc
+    refuse(hidden, [{ op: 'type.add', name: 'custom_course', label: L('A') }], 'name-taken')
+    refuse(hidden, [{ op: 'type.add', label: L('A'), page: { prefix: 'kurzy' } }], 'prefix-taken')
+    refuse(doc, [{ op: 'type.add', name: 'custom_cat', label: L('A') }, { op: 'type.add', name: 'custom_cat', label: L('B') }], 'name-taken', 1)
+    expect(() => apply(doc, [{ op: 'type.add', label: L('A'), name: 'custom_a' }], ctx({ design: [{ name: 'custom_a', singleton: false, pathPrefix: null }] }))).toThrow(expect.objectContaining({ code: 'name-taken' }))
+  })
+
+  it('refuses an order by a field the new type does not have', () => {
+    refuse(emptyModelDoc(), [{ op: 'type.add', label: L('A'), order: { by: 'price', dir: 'asc' } }], 'unknown-field', 0)
+  })
+
+  it('refuses labels, icons and the limit of types', () => {
+    const doc = emptyModelDoc()
+    refuse(doc, [{ op: 'type.add', label: {} }], 'invalid-label', 0)
+    refuse(doc, [{ op: 'type.add', label: { cs: '  ' } }], 'invalid-label', 0)
+    refuse(doc, [{ op: 'type.add', label: { 'czech': 'A' } }], 'invalid-label', 0)
+    refuse(doc, [{ op: 'type.add', label: { cs: 'a'.repeat(81) } }], 'limit-label', 0)
+    expect(() => apply(doc, [{ op: 'type.add', label: { cs: 'a'.repeat(80) } }])).not.toThrow()
+    refuse(doc, [{ op: 'type.add', label: L('A'), description: { cs: 'a'.repeat(301) } }], 'limit-help', 0)
+    expect(() => apply(doc, [{ op: 'type.add', label: L('A'), description: { cs: 'a'.repeat(300) } }])).not.toThrow()
+    for (const icon of ['lucide-book', 'i-', 'i-Book', 'i-' + 'a'.repeat(80)]) {
+      refuse(doc, [{ op: 'type.add', label: L('A'), icon }], 'invalid-icon', 0)
+    }
+    const c = ctx({ limits: { types: 2, fields: 30, options: 30 } })
+    const p = refuse(doc, [{ op: 'type.add', label: L('A') }, { op: 'type.add', label: L('B') }, { op: 'type.add', label: L('C') }], 'limit-types', 2, c)
+    expect(p.message).not.toContain('removed ones count')
+    // hidden types do not count: one visible and one hidden leave room for another
+    const two = apply(doc, [{ op: 'type.add', label: L('A') }, { op: 'type.add', label: L('B') }, { op: 'type.remove', type: 'custom_b' }], c).doc
+    expect(apply(two, [{ op: 'type.add', label: L('C') }], c).doc.types.filter((t) => !t.removedAt).length).toBe(2)
+    // visible ones do
+    const full = apply(doc, [{ op: 'type.add', label: L('A') }, { op: 'type.add', label: L('B') }], c).doc
+    refuse(full, [{ op: 'type.add', label: L('C') }], 'limit-types', 0, c)
+  })
+
+  it('refuses to restore a type when the visible ones are at the limit', () => {
+    const c = ctx({ limits: { types: 2, fields: 30, options: 30 } })
+    const doc = apply(emptyModelDoc(), [
+      { op: 'type.add', label: L('A') },
+      { op: 'type.add', label: L('B') },
+      { op: 'type.remove', type: 'custom_b' },
+      { op: 'type.add', label: L('C') },
+    ], c).doc
+    refuse(doc, [{ op: 'type.restore', type: 'custom_b' }], 'limit-types', 0, c)
+    // with room it restores
+    expect(() => apply(doc, [{ op: 'type.remove', type: 'custom_c' }, { op: 'type.restore', type: 'custom_b' }], c)).not.toThrow()
+  })
+
+  it('refuses to remove a type when the removed ones are at the limit', () => {
+    const c = ctx({ limits: { types: 2, fields: 30, options: 30 } })
+    const doc = apply(emptyModelDoc(), [
+      { op: 'type.add', label: L('A') },
+      { op: 'type.add', label: L('B') },
+      { op: 'type.add', label: L('C') },
+      { op: 'type.remove', type: 'custom_a' },
+      { op: 'type.remove', type: 'custom_b' },
+    ], ctx({ limits: { types: 12, fields: 30, options: 30 } })).doc
+    const p = refuse(doc, [{ op: 'type.remove', type: 'custom_c' }], 'limit-removed-types', 0, c)
+    expect(p.details).toEqual({ limit: 2 })
+    // one fewer hidden and it goes through
+    const one = apply(doc, [{ op: 'type.restore', type: 'custom_a' }], ctx({ limits: { types: 12, fields: 30, options: 30 } })).doc
+    expect(() => apply(one, [{ op: 'type.remove', type: 'custom_c' }], c)).not.toThrow()
+  })
+
+  it('refuses a model over the size limit', () => {
+    const ops: ModelOp[] = Array.from({ length: 700 }, (_, i) => ({ op: 'type.add', label: L(`T${i}`), description: { cs: 'a'.repeat(300) } }))
+    const p = refusal(() => apply(emptyModelDoc(), ops, ctx({ limits: { types: 10000, fields: 30, options: 30 } })))
+    expect(p.code).toBe('limit-size')
+    expect(p.op).toBeGreaterThan(100)
+  })
+
+  it('refuses a type name and a choice type that would be equal (both ways)', () => {
+    // custom_course with a select `level` makes the choice type custom_course_level.
+    const doc = courses()
+    refuse(doc, [{ op: 'type.add', name: 'custom_course_level', label: L('A') }], 'name-clash', 0)
+    // The other way round: the type exists, then a select `level` on custom_course.
+    const base = apply(emptyModelDoc(), [
+      { op: 'type.add', name: 'custom_course', label: L('A') },
+      { op: 'type.add', name: 'custom_course_level', label: L('B') },
+    ]).doc
+    refuse(base, [{ op: 'field.add', type: 'custom_course', field: { type: 'select', key: 'level', label: L('Level'), options: [{ value: 'a', label: L('A') }] } }], 'name-clash', 0)
+    // A generated key goes around the clash.
+    const { doc: made } = apply(base, [{ op: 'field.add', type: 'custom_course', field: { type: 'select', label: L('Level'), options: [{ value: 'a', label: L('A') }] } }])
+    expect(fieldOf(made, 'custom_course', 'level2')).toBeTruthy()
+    // Hidden types and fields still hold their names.
+    const hiddenSel = apply(doc, [{ op: 'field.remove', type: 'custom_course', key: 'level' }]).doc
+    refuse(hiddenSel, [{ op: 'type.add', name: 'custom_course_level', label: L('A') }], 'name-clash', 0)
+    // Two choice types that become equal: custom_a_b + c, and custom_a + bC.
+    const two = apply(emptyModelDoc(), [
+      { op: 'type.add', name: 'custom_a_b', label: L('AB') },
+      { op: 'type.add', name: 'custom_a', label: L('A') },
+      { op: 'field.add', type: 'custom_a_b', field: { type: 'select', key: 'c', label: L('C'), options: [{ value: 'a', label: L('A') }] } },
+    ]).doc
+    refuse(two, [{ op: 'field.add', type: 'custom_a', field: { type: 'select', key: 'bC', label: L('C'), options: [{ value: 'a', label: L('A') }] } }], 'name-clash', 0)
+  })
+})
+
+describe('type.update', () => {
+  it('changes labels, icon and description', () => {
+    const { doc } = apply(courses(), [{
+      op: 'type.update',
+      type: 'custom_course',
+      label: { cs: 'Naše kurzy' },
+      labelSingular: L('Kurz'),
+      description: L('Popis'),
+      icon: 'i-lucide-book',
+    }])
+    const t = course(doc)
+    expect(t.label).toEqual({ cs: 'Naše kurzy' })
+    expect(t.labelSingular).toEqual(L('Kurz'))
+    expect(t.description).toEqual(L('Popis'))
+    expect(t.icon).toBe('i-lucide-book')
+    const cleared = apply(doc, [{ op: 'type.update', type: 'custom_course', labelSingular: null, description: null, icon: null }]).doc
+    expect(course(cleared).icon).toBeNull()
+    expect(course(cleared).description).toBeNull()
+  })
+
+  it('sets list columns, the order and the page picture and summary', () => {
+    const { doc } = apply(courses(), [{
+      op: 'type.update',
+      type: 'custom_course',
+      listColumns: ['title', 'startsAt', 'slug', 'status'],
+      order: { by: 'startsAt', dir: 'desc' },
+      page: { image: 'cover', summary: 'perex' },
+    }])
+    const t = course(doc)
+    expect(t.listColumns).toEqual(['title', 'startsAt', 'slug', 'status'])
+    expect(t.order).toEqual({ by: 'startsAt', dir: 'desc' })
+    expect(t.page).toEqual({ prefix: 'kurzy', image: 'cover', summary: 'perex' })
+    const back = apply(doc, [{ op: 'type.update', type: 'custom_course', listColumns: null, order: null, page: { image: null } }]).doc
+    expect(course(back).listColumns).toBeNull()
+    expect(course(back).order).toBeNull()
+    expect(course(back).page?.image).toBeNull()
+    expect(course(back).page?.summary).toBe('perex')
+  })
+
+  it('lets the order change to manual', () => {
+    const { doc } = apply(courses(), [{ op: 'type.update', type: 'custom_course', order: 'manual' }])
+    expect(course(doc).order).toBe('manual')
+  })
+
+  it('refuses a change from manual order', () => {
+    const doc = apply(courses(), [{ op: 'type.update', type: 'custom_course', order: 'manual' }]).doc
+    refuse(doc, [{ op: 'type.update', type: 'custom_course', order: { by: 'price', dir: 'asc' } }], 'order-manual', 0)
+    refuse(doc, [{ op: 'type.update', type: 'custom_course', order: null }], 'order-manual', 0)
+    expect(() => apply(doc, [{ op: 'type.update', type: 'custom_course', order: 'manual' }])).not.toThrow()
+  })
+
+  it('refuses the list columns that are not right', () => {
+    const doc = courses()
+    const columns = (listColumns: string[]) => [{ op: 'type.update', type: 'custom_course', listColumns }] as ModelOp[]
+    refuse(doc, columns(['nope']), 'unknown-field', 0)
+    refuse(doc, columns([]), 'invalid-op', 0)
+    refuse(doc, columns(['title', 'title']), 'invalid-op', 0)
+    refuse(doc, columns(['title', 'perex', 'level', 'cover', 'startsAt', 'price', 'category', 'slug', 'status', 'title']), 'invalid-op', 0)
+    const hidden = apply(doc, [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
+    refuse(hidden, columns(['price']), 'unknown-field', 0)
+    const plain = apply(emptyModelDoc(), [{ op: 'type.add', name: 'custom_plain', label: L('P') }]).doc
+    refuse(plain, [{ op: 'type.update', type: 'custom_plain', listColumns: ['slug'] }], 'unknown-field', 0)
+    refuse(plain, [{ op: 'type.update', type: 'custom_plain', listColumns: ['status'] }], 'unknown-field', 0)
+  })
+
+  it('refuses orders and page fields of the wrong kind', () => {
+    const doc = courses()
+    refuse(doc, [{ op: 'type.update', type: 'custom_course', order: { by: 'nope', dir: 'asc' } }], 'unknown-field', 0)
+    refuse(doc, [{ op: 'type.update', type: 'custom_course', order: { by: 'cover', dir: 'asc' } }], 'invalid-op', 0)
+    refuse(doc, [{ op: 'type.update', type: 'custom_course', page: { image: 'perex' } }], 'invalid-op', 0)
+    refuse(doc, [{ op: 'type.update', type: 'custom_course', page: { image: 'nope' } }], 'unknown-field', 0)
+    refuse(doc, [{ op: 'type.update', type: 'custom_course', page: { summary: 'cover' } }], 'invalid-op', 0)
+    refuse(doc, [{ op: 'type.update', type: 'custom_course', page: { summary: 'nope' } }], 'unknown-field', 0)
+  })
+
+  it('refuses page fields on a type without a page', () => {
+    const plain = apply(emptyModelDoc(), [{ op: 'type.add', name: 'custom_plain', label: L('P') }]).doc
+    refuse(plain, [{ op: 'type.update', type: 'custom_plain', page: { image: null } }], 'no-page', 0)
+  })
+
+  it('refuses what cannot change in the first version', () => {
+    const doc = courses()
+    const update = (extra: Record<string, unknown>) => [{ op: 'type.update', type: 'custom_course', ...extra }] as unknown as ModelOp[]
+    refuse(doc, update({ name: 'custom_other' }), 'not-changeable', 0)
+    refuse(doc, update({ publish: false }), 'not-changeable', 0)
+    refuse(doc, update({ titleField: 'perex' }), 'not-changeable', 0)
+    refuse(doc, update({ page: { prefix: 'jine' } }), 'not-changeable', 0)
+    refuse(doc, update({ page: null }), 'not-changeable', 0)
+  })
+})
+
+describe('type.remove and type.restore', () => {
+  it('hides a type and says whether it was empty', () => {
+    const known = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }], ctx({ counts: { entries: { custom_course: 0 } } })).doc
+    expect(course(known).removedAt).toBe(NOW.toISOString())
+    expect(course(known).removedEmpty).toBe(true)
+    const unknown = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }]).doc
+    expect(course(unknown).removedEmpty).toBe(false)
+    const full = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }], ctx({ counts: { entries: { custom_course: 3 } } })).doc
+    expect(course(full).removedEmpty).toBe(false)
+  })
+
+  it('refuses while a visible field of another visible type points at it', () => {
+    const p = refuse(twoTypes(), [{ op: 'type.remove', type: 'custom_course' }], 'points-at-type', 0)
+    expect(p.details).toEqual({ fields: [{ type: 'custom_teacher', key: 'course' }] })
+  })
+
+  it('does not count a self-relation, a hidden field or a hidden type', () => {
+    const self = apply(courses(), [{ op: 'field.add', type: 'custom_course', field: { type: 'relation', key: 'next', label: L('Další'), to: 'custom_course' } }]).doc
+    expect(() => apply(self, [{ op: 'type.remove', type: 'custom_course' }])).not.toThrow()
+    const field = apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }, { op: 'type.remove', type: 'custom_course' }]).doc
+    expect(course(field).removedAt).toBeTruthy()
+    const type = apply(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }, { op: 'type.remove', type: 'custom_course' }]).doc
+    expect(course(type).removedAt).toBeTruthy()
+  })
+
+  it('refuses to remove twice', () => {
+    refuse(courses(), [{ op: 'type.remove', type: 'custom_course' }, { op: 'type.remove', type: 'custom_course' }], 'already-removed')
+  })
+
+  it('restores a type with its hidden fields still hidden', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }, { op: 'type.remove', type: 'custom_course' }]).doc
+    const restored = apply(doc, [{ op: 'type.restore', type: 'custom_course' }]).doc
+    expect(course(restored).removedAt).toBeNull()
+    expect(course(restored).removedEmpty).toBeUndefined()
+    expect(fieldOf(restored, 'custom_course', 'price').removedAt).toBeTruthy()
+  })
+
+  it('refuses to restore what is not removed, or whose prefix or targets are gone', () => {
+    refuse(courses(), [{ op: 'type.restore', type: 'custom_course' }], 'not-removed', 0)
+    const hidden = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }]).doc
+    const taken = ctx({ design: [{ name: 'category', singleton: false, pathPrefix: 'kurzy' }] })
+    refuse(hidden, [{ op: 'type.restore', type: 'custom_course' }], 'prefix-taken', 0, taken)
+    // a relation to a design collection that is gone
+    const noCategory = ctx({ design: [] })
+    refuse(hidden, [{ op: 'type.restore', type: 'custom_course' }], 'unknown-target', 0, noCategory)
+    // a relation to a hidden custom type
+    const both = apply(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }, { op: 'type.remove', type: 'custom_course' }]).doc
+    refuse(both, [{ op: 'type.restore', type: 'custom_teacher' }], 'target-hidden', 0)
+    const ok = apply(both, [{ op: 'type.restore', type: 'custom_course' }, { op: 'type.restore', type: 'custom_teacher' }]).doc
+    expect(ok.types.every((t) => !t.removedAt)).toBe(true)
+  })
+
+  it('does not let a hidden field with a gone target stop a restore', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'category' }, { op: 'type.remove', type: 'custom_course' }]).doc
+    expect(() => apply(doc, [{ op: 'type.restore', type: 'custom_course' }], ctx({ design: [] }))).not.toThrow()
+  })
+})
+
+describe('what an operation may touch', () => {
+  it('refuses a hidden type, an unknown type and a type of the design', () => {
+    const hidden = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }]).doc
+    const field = { type: 'text', key: 'a', label: L('A') } as const
+    const ops: ModelOp[][] = [
+      [{ op: 'type.update', type: 'custom_course', icon: null }],
+      [{ op: 'type.remove', type: 'custom_course' }].slice(0, 0) as ModelOp[],
+      [{ op: 'field.add', type: 'custom_course', field }],
+      [{ op: 'field.update', type: 'custom_course', key: 'perex', long: false }],
+      [{ op: 'field.remove', type: 'custom_course', key: 'perex' }],
+      [{ op: 'field.restore', type: 'custom_course', key: 'perex' }],
+      [{ op: 'field.order', type: 'custom_course', keys: [] }],
+    ]
+    for (const list of ops.filter((l) => l.length)) refuse(hidden, list, 'type-hidden', 0)
+    refuse(courses(), [{ op: 'type.update', type: 'custom_nope', icon: null }], 'unknown-type', 0)
+    refuse(courses(), [{ op: 'field.add', type: 'custom_nope', field }], 'unknown-type', 0)
+    refuse(courses(), [{ op: 'type.update', type: 'category', icon: null }], 'design-type', 0)
+    refuse(courses(), [{ op: 'field.add', type: 'settings', field }], 'design-type', 0)
+    refuse(courses(), [{ op: 'type.remove', type: 'page' }], 'design-type', 0)
+  })
+
+  it('refuses an unknown or hidden field', () => {
+    const hidden = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
+    refuse(courses(), [{ op: 'field.update', type: 'custom_course', key: 'nope', label: L('A') }], 'unknown-field', 0)
+    refuse(hidden, [{ op: 'field.update', type: 'custom_course', key: 'price', label: L('A') }], 'unknown-field', 0)
+    refuse(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'nope' }], 'unknown-field', 0)
+    refuse(courses(), [{ op: 'field.restore', type: 'custom_course', key: 'nope' }], 'unknown-field', 0)
+    refuse(courses(), [{ op: 'field.add', type: 'custom_course', after: 'nope', field: { type: 'text', label: L('A') } }], 'unknown-field', 0)
+    refuse(hidden, [{ op: 'field.add', type: 'custom_course', after: 'price', field: { type: 'text', label: L('A') } }], 'unknown-field', 0)
+  })
+
+  it('refuses an operation that is not the right shape', () => {
+    const doc = courses()
+    const bad = (raw: unknown) => refuse(doc, [raw as ModelOp], 'invalid-op', 0)
+    bad({ op: 'type.sing', type: 'custom_course' })
+    bad({ op: 'type.remove' })
+    bad({ op: 'type.remove', type: 'custom_course', extra: 1 })
+    bad('type.remove')
+    bad(null)
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'hologram', label: L('A') } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'boolean', label: L('A'), required: true } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'gallery', label: L('A'), required: true } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'text', label: L('A'), removedAt: NOW.toISOString() } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'text', label: 'A' } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'boolean', label: L('A'), default: 'yes' } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'text', label: L('A'), max: 0 } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'text', label: L('A'), max: 100001 } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'text', label: L('A'), max: 1.5 } })
+    bad({ op: 'field.add', type: 'custom_course', field: { type: 'number', label: L('A'), min: 5, max: 1 } })
+  })
+})
+
+describe('field.add', () => {
+  const add = (field: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    [{ op: 'field.add', type: 'custom_course', field, ...extra }] as unknown as ModelOp[]
+
+  it('adds a field at the end with a key made from the label', () => {
+    const { doc } = apply(courses(), add({ type: 'text', label: { cs: 'Datum zahájení', en: 'Start' }, help: L('Pomoc') }))
+    const f = course(doc).fields.at(-1)!
+    expect(f).toMatchObject({ key: 'datumZahajeni', type: 'text', help: L('Pomoc') })
+  })
+
+  it('puts the field after another one', () => {
+    const { doc } = apply(courses(), add({ type: 'text', key: 'subtitle', label: L('Podtitul') }, { after: 'title' }))
+    expect(course(doc).fields.map((f) => f.key).slice(0, 3)).toEqual(['title', 'subtitle', 'perex'])
+  })
+
+  it('adds every kind of field', () => {
+    const kinds: Record<string, unknown>[] = [
+      { type: 'text', label: L('A'), format: 'email', max: 100, required: true },
+      { type: 'richtext', label: L('B') },
+      { type: 'number', label: L('C'), decimal: true, min: 0, max: 10 },
+      { type: 'boolean', label: L('D'), default: true },
+      { type: 'datetime', label: L('E'), allDay: true },
+      { type: 'select', label: L('F'), options: [{ label: L('Ano') }] },
+      { type: 'media', label: L('G') },
+      { type: 'file', label: L('H') },
+      { type: 'gallery', label: L('I') },
+      { type: 'color', label: L('J') },
+      { type: 'relation', label: L('K'), to: 'custom_course' },
+    ]
+    const doc = apply(courses(), kinds.map((field) => ({ op: 'field.add', type: 'custom_course', field }) as unknown as ModelOp), ctx({ limits: { types: 12, fields: 40, options: 30 }, counts: { entries: { custom_course: 0 } } })).doc
+    expect(course(doc).fields.length).toBe(8 + 10)
+    expect(parseModelDoc(doc)).toBeTruthy()
+  })
+
+  it('makes choices with values from their labels and checks them', () => {
+    const { doc } = apply(courses(), add({
+      type: 'select',
+      key: 'kind',
+      label: L('Druh'),
+      options: [{ label: L('Dětský kurz') }, { label: L('Dětský kurz') }, { value: 'adult', label: L('Dospělí') }],
+      default: 'detsky-kurz',
+    }))
+    const f = fieldOf(doc, 'custom_course', 'kind')
+    expect(f.type === 'select' && f.options.map((o) => o.value)).toEqual(['detsky-kurz', 'detsky-kurz-2', 'adult'])
+    const select = (options: unknown[], extra: Record<string, unknown> = {}) => add({ type: 'select', key: 'kind', label: L('Druh'), options, ...extra })
+    refuse(courses(), select([{ value: 'A', label: L('A') }]), 'invalid-option', 0)
+    refuse(courses(), select([{ value: '-a', label: L('A') }]), 'invalid-option', 0)
+    refuse(courses(), select([{ value: 'a'.repeat(41), label: L('A') }]), 'invalid-option', 0)
+    refuse(courses(), select([{ value: 'a', label: L('A') }, { value: 'a', label: L('B') }]), 'invalid-option', 0)
+    refuse(courses(), select([{ label: L('A') }], { default: 'zzz' }), 'invalid-option', 0)
+    refuse(courses(), select([{ value: 'a', label: {} }]), 'invalid-label', 0)
+  })
+
+  it('refuses too few or too many choices', () => {
+    const select = (n: number) => add({ type: 'select', key: 'kind', label: L('Druh'), options: Array.from({ length: n }, (_, i) => ({ value: `v${i}`, label: L(`V${i}`) })) })
+    refuse(courses(), select(0), 'limit-options', 0)
+    expect(() => apply(courses(), select(30))).not.toThrow()
+    refuse(courses(), select(31), 'limit-options', 0)
+  })
+
+  it('refuses a field over the limit of the visible ones, hidden fields not counted', () => {
+    const c = ctx({ limits: { types: 12, fields: 7, options: 30 } })
+    const p = refuse(courses(), add({ type: 'text', label: L('Další') }), 'limit-fields', 0, c)
+    expect(p.message).not.toContain('removed ones count')
+    expect(() => apply(courses(), add({ type: 'text', label: L('Další') }), ctx({ limits: { types: 12, fields: 8, options: 30 } }))).not.toThrow()
+    // a hidden field leaves room, even when it is still named
+    const hidden = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
+    const { doc } = apply(hidden, add({ type: 'text', label: L('Další') }), c)
+    expect(course(doc).fields.filter((f) => !f.removedAt).length).toBe(7)
+    refuse(doc, add({ type: 'text', label: L('Ještě') }), 'limit-fields', 0, c)
+  })
+
+  it('refuses to restore a field when the visible ones are at the limit', () => {
+    const c = ctx({ limits: { types: 12, fields: 7, options: 30 } })
+    const hidden = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
+    const full = apply(hidden, add({ type: 'text', label: L('Další') }), c).doc
+    const restore: ModelOp[] = [{ op: 'field.restore', type: 'custom_course', key: 'price' }]
+    refuse(full, restore, 'limit-fields', 0, c)
+    // with room it restores
+    expect(() => apply(full, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }, ...restore], c)).not.toThrow()
+  })
+
+  it('refuses to remove a field when the removed ones are at the limit', () => {
+    const big = ctx({ limits: { types: 12, fields: 30, options: 30 } })
+    const doc = apply(courses(), [
+      { op: 'field.remove', type: 'custom_course', key: 'price' },
+      { op: 'field.remove', type: 'custom_course', key: 'cover' },
+    ], big).doc
+    const c = ctx({ limits: { types: 12, fields: 2, options: 30 } })
+    const p = refuse(doc, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }], 'limit-removed-fields', 0, c)
+    expect(p.details).toEqual({ limit: 2 })
+    expect(p.message).not.toContain('removed ones count')
+    // another type has its own count
+    const withTeacher = apply(twoTypes(), [{ op: 'field.add', type: 'custom_teacher', field: { type: 'text', key: 'bio', label: L('Bio') } }]).doc
+    expect(() => apply(withTeacher, [{ op: 'field.remove', type: 'custom_teacher', key: 'bio' }], c)).not.toThrow()
+    // one fewer hidden and it goes through
+    const one = apply(doc, [{ op: 'field.restore', type: 'custom_course', key: 'cover' }], big).doc
+    expect(() => apply(one, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }], c)).not.toThrow()
+  })
+
+  it('refuses labels and help texts that are too long or empty', () => {
+    refuse(courses(), add({ type: 'text', label: {} }), 'invalid-label', 0)
+    refuse(courses(), add({ type: 'text', label: { cs: 'a'.repeat(81) } }), 'limit-label', 0)
+    refuse(courses(), add({ type: 'text', label: L('A'), help: { cs: 'a'.repeat(301) } }), 'limit-help', 0)
+  })
+
+  it('refuses names that are taken, reserved or clash', () => {
+    refuse(courses(), add({ type: 'text', key: 'perex', label: L('A') }), 'name-taken', 0)
+    refuse(courses(), add({ type: 'text', key: 'title', label: L('A') }), 'name-taken', 0)
+    const hidden = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
+    refuse(hidden, add({ type: 'text', key: 'price', label: L('A') }), 'name-taken', 0)
+    // columns: relation `topic` has `topic_id`, text `topicId` has `topic_id`
+    const rel = apply(courses(), add({ type: 'relation', key: 'topic', label: L('A'), to: 'category' })).doc
+    refuse(rel, add({ type: 'text', key: 'topicId', label: L('A') }), 'name-taken', 0)
+    refuse(courses(), add({ type: 'text', key: 'slug', label: L('A') }), 'reserved-key', 0)
+  })
+
+  it('numbers a generated key that is taken or reserved', () => {
+    const doc = apply(courses(), [
+      { op: 'field.add', type: 'custom_course', field: { type: 'text', label: L('Cena') } },
+      { op: 'field.add', type: 'custom_course', field: { type: 'text', label: L('Status') } },
+      { op: 'field.add', type: 'custom_course', field: { type: 'text', label: L('Perex') } },
+    ]).doc
+    expect(course(doc).fields.slice(-3).map((f) => f.key)).toEqual(['cena', 'status2', 'perex2'])
+  })
+
+  it('checks the target of a relation', () => {
+    const relation = (to: string) => add({ type: 'relation', key: 'rel', label: L('A'), to })
+    expect(() => apply(courses(), relation('category'))).not.toThrow()
+    expect(() => apply(courses(), relation('custom_course'))).not.toThrow()
+    refuse(courses(), relation('settings'), 'unknown-target', 0)
+    refuse(courses(), relation('nope'), 'unknown-target', 0)
+    refuse(courses(), relation('custom_nope'), 'unknown-target', 0)
+    const hidden = apply(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }]).doc
+    refuse(hidden, relation('custom_teacher'), 'target-hidden', 0)
+  })
+
+  it('refuses a number with min above max', () => {
+    refuse(courses(), add({ type: 'number', label: L('A'), min: 2, max: 1 }), 'invalid-op', 0)
+    expect(() => apply(courses(), add({ type: 'number', label: L('A'), min: 1, max: 1 }))).not.toThrow()
+  })
+
+  it('refuses a required field while entries may exist, except a choice with a default', () => {
+    const required = add({ type: 'text', key: 'subtitle', label: L('A'), required: true })
+    refuse(courses(), required, 'needs-optional', 0)
+    refuse(courses(), required, 'needs-optional', 0, ctx({ counts: { entries: { custom_course: 4 } } }))
+    expect(() => apply(courses(), required, empty())).not.toThrow()
+    const withDefault = add({ type: 'select', key: 'kind', label: L('A'), required: true, default: 'a', options: [{ value: 'a', label: L('A') }] })
+    expect(() => apply(courses(), withDefault)).not.toThrow()
+    const noDefault = add({ type: 'select', key: 'kind', label: L('A'), required: true, options: [{ value: 'a', label: L('A') }] })
+    refuse(courses(), noDefault, 'needs-optional', 0)
+    // the second operation of a batch is the one named
+    refuse(courses(), [...add({ type: 'text', label: L('A') }), ...required], 'needs-optional', 1)
+  })
+})
+
+describe('field.update', () => {
+  const update = (key: string, extra: Record<string, unknown>) => [{ op: 'field.update', type: 'custom_course', key, ...extra }] as unknown as ModelOp[]
+
+  it('changes the label and help, and clears the help', () => {
+    const { doc } = apply(courses(), update('perex', { label: L('Úvod'), help: L('Pomoc') }))
+    expect(fieldOf(doc, 'custom_course', 'perex')).toMatchObject({ label: L('Úvod'), help: L('Pomoc') })
+    const cleared = apply(doc, update('perex', { help: null })).doc
+    expect(fieldOf(cleared, 'custom_course', 'perex').help).toBeNull()
+  })
+
+  it('changes the settings of each kind', () => {
+    const { doc } = apply(courses(), [
+      ...update('perex', { long: false, format: 'email', max: 200 }),
+      ...update('price', { min: 1, max: 9 }),
+      ...update('startsAt', { allDay: true }),
+    ])
+    expect(fieldOf(doc, 'custom_course', 'perex')).toMatchObject({ long: false, format: 'email', max: 200 })
+    expect(fieldOf(doc, 'custom_course', 'price')).toMatchObject({ min: 1, max: 9 })
+    expect(fieldOf(doc, 'custom_course', 'startsAt')).toMatchObject({ allDay: true })
+    const flag = apply(courses(), [
+      { op: 'field.add', type: 'custom_course', field: { type: 'boolean', key: 'open', label: L('Otevřeno') } },
+      ...update('open', { default: true }),
+    ]).doc
+    expect(fieldOf(flag, 'custom_course', 'open')).toMatchObject({ default: true })
+    const unset = apply(doc, [...update('perex', { max: null }), ...update('price', { min: null })]).doc
+    expect(fieldOf(unset, 'custom_course', 'perex')).toMatchObject({ max: null })
+  })
+
+  it('refuses settings that do not belong to the kind or are not right', () => {
+    refuse(courses(), update('price', { long: true }), 'invalid-op', 0)
+    refuse(courses(), update('perex', { min: 1 }), 'invalid-op', 0)
+    refuse(courses(), update('cover', { allDay: true }), 'invalid-op', 0)
+    refuse(courses(), update('level', { max: 3 }), 'invalid-op', 0)
+    refuse(courses(), update('perex', { default: 'a' }), 'invalid-op', 0)
+    refuse(courses(), update('perex', { max: 0 }), 'invalid-op', 0)
+    refuse(courses(), update('price', { min: 10, max: 1 }), 'invalid-op', 0)
+    refuse(courses(), update('price', { min: 10 }).concat(update('price', { max: 3 })), 'invalid-op', 1)
+    refuse(courses(), update('perex', { required: 'yes' }), 'invalid-op', 0)
+    const flag = apply(courses(), [{ op: 'field.add', type: 'custom_course', field: { type: 'boolean', key: 'open', label: L('O') } }]).doc
+    refuse(flag, update('open', { required: true }), 'invalid-op', 0)
+    refuse(flag, update('open', { default: 'x' }), 'invalid-op', 0)
+    refuse(courses(), update('level', { default: true }), 'invalid-op', 0)
+    refuse(courses(), update('perex', { label: {} }), 'invalid-label', 0)
+    refuse(courses(), update('perex', { label: { cs: 'a'.repeat(81) } }), 'limit-label', 0)
+    refuse(courses(), update('perex', { help: { cs: 'a'.repeat(301) } }), 'limit-help', 0)
+  })
+
+  it('refuses what cannot change in the first version', () => {
+    for (const extra of [{ to: 'category' }, { decimal: true }, { newKey: 'other' }, { kind: 'text' }, { fieldType: 'text' }]) {
+      refuse(courses(), update('price', extra), 'not-changeable', 0)
+    }
+  })
+
+  it('makes a required field optional at once, and the other way only without missing values', () => {
+    const optional = apply(courses(), update('level', { required: false })).doc
+    expect(fieldOf(optional, 'custom_course', 'level')).toMatchObject({ required: false })
+    const p = refuse(optional, update('level', { required: true }), 'has-missing-values', 0)
+    expect(p.details).toEqual({ missing: null })
+    const counted = ctx({ counts: { missing: { 'custom_course.level': 4 } } })
+    expect(refusal(() => apply(optional, update('level', { required: true }), counted)).details).toEqual({ missing: 4 })
+    const none = ctx({ counts: { missing: { 'custom_course.level': 0 } } })
+    expect(fieldOf(apply(optional, update('level', { required: true }), none).doc, 'custom_course', 'level')).toMatchObject({ required: true })
+    // already required: a no-op needs no count
+    expect(() => apply(courses(), update('level', { required: true }))).not.toThrow()
+  })
+
+  it('keeps the title field required', () => {
+    refuse(courses(), update('title', { required: false }), 'title-field', 0)
+    expect(() => apply(courses(), update('title', { label: L('Jméno') }))).not.toThrow()
+  })
+
+  it('adds, relabels, removes and restores choices', () => {
+    const { doc } = apply(courses(), update('level', {
+      addOptions: [{ label: L('Expert') }, { value: 'pro', label: L('Profesionál') }],
+      optionLabels: { beginner: L('Nováček') },
+    }))
+    const f = fieldOf(doc, 'custom_course', 'level')
+    expect(f.type === 'select' && f.options.map((o) => o.value)).toEqual(['beginner', 'advanced', 'expert', 'pro'])
+    expect(f.type === 'select' && f.options[0]!.label).toEqual(L('Nováček'))
+    const removed = apply(doc, update('level', { removeOptions: ['advanced'] })).doc
+    const r = fieldOf(removed, 'custom_course', 'level')
+    expect(r.type === 'select' && r.options[1]).toMatchObject({ value: 'advanced', removed: true })
+    const restored = apply(removed, update('level', { restoreOptions: ['advanced'] })).doc
+    const b = fieldOf(restored, 'custom_course', 'level')
+    expect(b.type === 'select' && b.options[1]).toEqual({ value: 'advanced', label: L('Pokročilý') })
+  })
+
+  it('sets and clears the default of a choice field', () => {
+    const { doc } = apply(courses(), update('level', { default: 'advanced' }))
+    expect(fieldOf(doc, 'custom_course', 'level')).toMatchObject({ default: 'advanced' })
+    expect(fieldOf(apply(doc, update('level', { default: null })).doc, 'custom_course', 'level')).toMatchObject({ default: null })
+    refuse(courses(), update('level', { default: 'zzz' }), 'invalid-option', 0)
+    refuse(courses(), update('level', { removeOptions: ['advanced'] }).concat(update('level', { default: 'advanced' })), 'invalid-option', 1)
+  })
+
+  it('clears the default of a removed choice and says so', () => {
+    const { doc, notes } = apply(courses(), update('level', { removeOptions: ['beginner'] }))
+    expect(fieldOf(doc, 'custom_course', 'level')).toMatchObject({ default: null })
+    expect(notes).toEqual([expect.objectContaining({ code: 'default-cleared', op: 0, type: 'custom_course', field: 'level' })])
+    expect(notes[0]!.message).toContain('beginner')
+    const other = apply(courses(), update('level', { removeOptions: ['advanced'] }))
+    expect(other.notes).toEqual([])
+  })
+
+  it('refuses the last choice, and choices that are wrong or too many', () => {
+    refuse(courses(), update('level', { removeOptions: ['beginner', 'advanced'] }), 'last-option', 0)
+    refuse(courses(), update('level', { removeOptions: ['zzz'] }), 'invalid-option', 0)
+    refuse(courses(), update('level', { removeOptions: ['advanced'] }).concat(update('level', { removeOptions: ['advanced'] })), 'invalid-option', 1)
+    refuse(courses(), update('level', { restoreOptions: ['advanced'] }), 'invalid-option', 0)
+    refuse(courses(), update('level', { optionLabels: { zzz: L('A') } }), 'invalid-option', 0)
+    refuse(courses(), update('level', { addOptions: [{ value: 'beginner', label: L('A') }] }), 'invalid-option', 0)
+    refuse(courses(), update('level', { addOptions: [{ value: 'Bad', label: L('A') }] }), 'invalid-option', 0)
+    refuse(courses(), update('level', { optionLabels: { beginner: {} } }), 'invalid-label', 0)
+    // 2 choices, limit 3: one more fits, two do not. Removed choices count.
+    const c = ctx({ limits: { types: 12, fields: 30, options: 3 } })
+    expect(() => apply(courses(), update('level', { addOptions: [{ label: L('C') }] }), c)).not.toThrow()
+    refuse(courses(), update('level', { addOptions: [{ label: L('C') }, { label: L('D') }] }), 'limit-options', 0, c)
+    const removed = apply(courses(), update('level', { addOptions: [{ label: L('C') }] }).concat(update('level', { removeOptions: ['advanced'] })), c).doc
+    refuse(removed, update('level', { addOptions: [{ label: L('D') }] }), 'limit-options', 0, c)
+  })
+})
+
+describe('field.remove', () => {
+  const remove = (key: string) => [{ op: 'field.remove', type: 'custom_course', key }] as ModelOp[]
+
+  it('hides a field, and says whether it held values', () => {
+    const { doc, notes } = apply(courses(), remove('price'))
+    expect(fieldOf(doc, 'custom_course', 'price')).toMatchObject({ removedAt: NOW.toISOString(), removedEmpty: false })
+    expect(notes).toEqual([])
+    const empty0 = apply(courses(), remove('price'), ctx({ counts: { values: { 'custom_course.price': 0 } } })).doc
+    expect(fieldOf(empty0, 'custom_course', 'price')).toMatchObject({ removedEmpty: true })
+    const full = apply(courses(), remove('price'), ctx({ counts: { values: { 'custom_course.price': 5 } } })).doc
+    expect(fieldOf(full, 'custom_course', 'price')).toMatchObject({ removedEmpty: false })
+  })
+
+  it('refuses the title, the fields the mapper makes and a field that is gone already', () => {
+    refuse(courses(), remove('title'), 'title-field', 0)
+    for (const key of ['slug', 'status', 'position']) refuse(courses(), remove(key), 'system-field', 0)
+    refuse(courses(), remove('price').concat(remove('price')), 'already-removed', 1)
+  })
+
+  it('clears the type\'s own uses of the field, one note each', () => {
+    const configured = apply(courses(), [{
+      op: 'type.update',
+      type: 'custom_course',
+      listColumns: ['title', 'startsAt', 'level'],
+      order: { by: 'startsAt', dir: 'asc' },
+    }, {
+      op: 'type.update',
+      type: 'custom_course',
+      page: { image: 'cover', summary: 'perex' },
+    }]).doc
+    const dates = apply(configured, remove('startsAt'))
+    expect(course(dates.doc).listColumns).toEqual(['title', 'level'])
+    expect(course(dates.doc).order).toBeNull()
+    expect(dates.notes.map((n) => n.code)).toEqual(['list-column-cleared', 'order-cleared'])
+    for (const n of dates.notes) expect(n).toMatchObject({ op: 0, type: 'custom_course', field: 'startsAt' })
+
+    const cover = apply(configured, remove('cover'))
+    expect(course(cover.doc).page?.image).toBeNull()
+    expect(course(cover.doc).page?.summary).toBe('perex')
+    expect(cover.notes.map((n) => n.code)).toEqual(['page-image-cleared'])
+
+    const perex = apply(configured, remove('perex'))
+    expect(course(perex.doc).page?.summary).toBeNull()
+    expect(perex.notes.map((n) => n.code)).toEqual(['page-summary-cleared'])
+  })
+
+  it('turns an emptied list of columns into null and reports the batch index', () => {
+    const doc = apply(courses(), [{ op: 'type.update', type: 'custom_course', listColumns: ['price'] }]).doc
+    const { doc: next, notes } = apply(doc, [...remove('perex'), ...remove('price')])
+    expect(course(next).listColumns).toBeNull()
+    expect(notes).toEqual([expect.objectContaining({ code: 'list-column-cleared', op: 1, field: 'price' })])
+  })
+})
+
+describe('field.restore', () => {
+  it('brings a field back', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }]).doc
+    const { doc: back, notes } = apply(doc, [{ op: 'field.restore', type: 'custom_course', key: 'price' }])
+    expect(fieldOf(back, 'custom_course', 'price').removedAt).toBeNull()
+    expect(fieldOf(back, 'custom_course', 'price').removedEmpty).toBeUndefined()
+    expect(notes).toEqual([])
+  })
+
+  it('brings a required field back optional unless there are no missing values', () => {
+    const hidden = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'level' }]).doc
+    const restore: ModelOp[] = [{ op: 'field.restore', type: 'custom_course', key: 'level' }]
+    const { doc, notes } = apply(hidden, restore)
+    expect(fieldOf(doc, 'custom_course', 'level')).toMatchObject({ required: false })
+    expect(notes).toEqual([expect.objectContaining({ code: 'restored-optional', op: 0, type: 'custom_course', field: 'level' })])
+    const counted = apply(hidden, restore, ctx({ counts: { missing: { 'custom_course.level': 2 } } }))
+    expect(fieldOf(counted.doc, 'custom_course', 'level')).toMatchObject({ required: false })
+    expect(counted.notes.length).toBe(1)
+    const none = apply(hidden, restore, ctx({ counts: { missing: { 'custom_course.level': 0 } } }))
+    expect(fieldOf(none.doc, 'custom_course', 'level')).toMatchObject({ required: true })
+    expect(none.notes).toEqual([])
+  })
+
+  it('refuses a field that is not removed or whose target is gone', () => {
+    refuse(courses(), [{ op: 'field.restore', type: 'custom_course', key: 'price' }], 'not-removed', 0)
+    const hidden = apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }, { op: 'type.remove', type: 'custom_course' }]).doc
+    refuse(hidden, [{ op: 'field.restore', type: 'custom_teacher', key: 'course' }], 'target-hidden', 0)
+    const gone = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'category' }]).doc
+    refuse(gone, [{ op: 'field.restore', type: 'custom_course', key: 'category' }], 'unknown-target', 0, ctx({ design: [] }))
+    expect(() => apply(gone, [{ op: 'field.restore', type: 'custom_course', key: 'category' }])).not.toThrow()
+  })
+})
+
+describe('field.order', () => {
+  it('puts the visible fields in the new order and leaves hidden ones in place', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'level' }]).doc
+    expect(course(doc).fields.map((f) => f.key)).toEqual(['title', 'perex', 'level', 'cover', 'startsAt', 'price', 'category'])
+    const { doc: next } = apply(doc, [{ op: 'field.order', type: 'custom_course', keys: ['category', 'price', 'startsAt', 'cover', 'perex', 'title'] }])
+    expect(course(next).fields.map((f) => f.key)).toEqual(['category', 'price', 'level', 'startsAt', 'cover', 'perex', 'title'])
+  })
+
+  it('refuses keys that are not exactly the visible fields', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'level' }]).doc
+    const order = (keys: string[]) => [{ op: 'field.order', type: 'custom_course', keys }] as ModelOp[]
+    refuse(doc, order(['title']), 'invalid-op', 0)
+    refuse(doc, order(['title', 'perex', 'level', 'cover', 'startsAt', 'price', 'category']), 'invalid-op', 0)
+    refuse(doc, order(['title', 'title', 'cover', 'startsAt', 'price', 'category']), 'invalid-op', 0)
+    refuse(doc, order(['title', 'perex', 'cover', 'startsAt', 'price', 'nope']), 'invalid-op', 0)
+  })
+})
+
+describe('purge', () => {
+  const T0 = new Date('2026-10-01T00:00:00.000Z')
+  const MIN = 60 * 1000
+  const HOUR = 60 * MIN
+  const price = { type: 'custom_course', key: 'price' }
+  const priceOp: ModelOp = { op: 'purge', fields: [price] }
+  const typeOp: ModelOp = { op: 'purge', types: ['custom_course'] }
+  const removedAt = (doc: ModelDoc, ops: ModelOp[], extra: Partial<ModelContext> = {}) => apply(doc, ops, ctx({ now: T0, ...extra })).doc
+  /** The server's sweep, `ms` after `T0`, with the counts it has at that moment. */
+  const sweep = (doc: ModelDoc, op: ModelOp, ms: number, counts?: ModelContext['counts']) =>
+    apply(doc, [op], ctx({ now: new Date(T0.getTime() + ms), internal: true, counts }))
+  /** A person, `ms` after `T0`; no counts. */
+  const person = (doc: ModelDoc, op: ModelOp, ms: number, extra: Partial<ModelContext> = {}) =>
+    apply(doc, [op], ctx({ now: new Date(T0.getTime() + ms), ...extra }))
+  const gone = (doc: ModelDoc, key = 'price') => !course(doc).fields.some((f) => f.key === key)
+  /** `price` hidden while it held nothing. */
+  const hiddenEmpty = () => removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], { counts: { values: { 'custom_course.price': 0 } } })
+  /** `price` hidden while it held values. */
+  const hiddenFull = () => removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], { counts: { values: { 'custom_course.price': 3 } } })
+  const emptyCounts: ModelContext['counts'] = { values: { 'custom_course.price': 0 }, entries: { custom_course: 0 } }
+
+  it('refuses what is not removed for a person and for the server, and deletes a hidden type for a person', () => {
+    const doc = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
+    // neither the server nor a person may delete what is not hidden
+    refuse(courses(), [typeOp], 'not-removed', 0)
+    refuse(courses(), [typeOp], 'not-removed', 0, ctx({ internal: true }))
+    expect(person(doc, typeOp, HOUR).doc.types).toEqual([])
+  })
+
+  describe('the server\'s sweep', () => {
+    it('deletes a field hidden empty after an hour, not 59 minutes', () => {
+      const doc = hiddenEmpty()
+      for (const ms of [0, MIN, 59 * MIN, MODEL_PURGE_EMPTY_AFTER_MS - 1]) {
+        const p = refusal(() => sweep(doc, priceOp, ms, emptyCounts))
+        expect({ code: p.code, op: p.op }).toEqual({ code: 'not-due', op: 0 })
+      }
+      const { doc: next, notes } = sweep(doc, priceOp, MODEL_PURGE_EMPTY_AFTER_MS, emptyCounts)
+      expect(gone(next)).toBe(true)
+      expect(notes).toEqual([])
+    })
+
+    it('never deletes what was hidden with content or without a count, however old', () => {
+      const op = priceOp
+      for (const doc of [hiddenFull(), removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }])]) {
+        for (const ms of [2 * HOUR, 30 * DAY, 400 * DAY]) {
+          expect(refusal(() => sweep(doc, op, ms, emptyCounts)).code).toBe('not-due')
+        }
+      }
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 5 } } })
+      expect(refusal(() => sweep(type, typeOp, 400 * DAY, emptyCounts)).code).toBe('not-due')
+    })
+
+    it('deletes a type hidden empty with all its fields', () => {
+      const doc = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 0 } } })
+      expect(refusal(() => sweep(doc, typeOp, 59 * MIN, emptyCounts)).code).toBe('not-due')
+      expect(sweep(doc, typeOp, HOUR, emptyCounts).doc.types).toEqual([])
+      // a field of a purged type needs no check of its own
+      const both = sweep(doc, { op: 'purge', types: ['custom_course'], fields: [price] }, HOUR, emptyCounts)
+      expect(both.doc.types).toEqual([])
+    })
+
+    it('keeps a field that holds values now, clears its flag and says so', () => {
+      const doc = hiddenEmpty()
+      const { doc: next, notes } = sweep(doc, priceOp, 2 * HOUR, { values: { 'custom_course.price': 4 } })
+      expect(gone(next)).toBe(false)
+      expect(fieldOf(next, 'custom_course', 'price')).toMatchObject({ removedAt: T0.toISOString(), removedEmpty: false })
+      expect(notes).toEqual([expect.objectContaining({ code: 'kept-not-empty', op: 0, type: 'custom_course', field: 'price' })])
+      // from then on it is never due again
+      expect(modelPurgeDue(next, new Date(T0.getTime() + 400 * DAY))).toEqual({ types: [], fields: [] })
+      expect(refusal(() => sweep(next, priceOp, 400 * DAY, emptyCounts)).code).toBe('not-due')
+    })
+
+    it('keeps what has no count, as if it held something', () => {
+      const field = sweep(hiddenEmpty(), priceOp, 2 * HOUR)
+      expect(gone(field.doc)).toBe(false)
+      expect(fieldOf(field.doc, 'custom_course', 'price').removedEmpty).toBe(false)
+      expect(field.notes.map((n) => n.code)).toEqual(['kept-not-empty'])
+      // a count for something else is no count for this
+      const other = sweep(hiddenEmpty(), priceOp, 2 * HOUR, { values: { 'custom_course.cover': 0 }, entries: { custom_course: 0 } })
+      expect(gone(other.doc)).toBe(false)
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 0 } } })
+      const kept = sweep(type, typeOp, 2 * HOUR)
+      expect(course(kept.doc).removedEmpty).toBe(false)
+      expect(kept.notes).toEqual([expect.objectContaining({ code: 'kept-not-empty', op: 0, type: 'custom_course' })])
+    })
+
+    it('keeps a type that holds entries now, without a field in the note', () => {
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 0 } } })
+      const { doc, notes } = sweep(type, typeOp, 2 * HOUR, { entries: { custom_course: 2 } })
+      expect(course(doc)).toMatchObject({ removedAt: T0.toISOString(), removedEmpty: false })
+      expect(course(doc).fields.length).toBe(7)
+      expect(notes).toHaveLength(1)
+      expect(notes[0]).toMatchObject({ code: 'kept-not-empty', op: 0, type: 'custom_course' })
+      expect(notes[0]).not.toHaveProperty('field')
+      expect(modelPurgeDue(doc, new Date(T0.getTime() + 400 * DAY)).types).toEqual([])
+    })
+
+    it('goes on with the other targets of the same purge', () => {
+      const doc = removedAt(
+        courses(),
+        [{ op: 'field.remove', type: 'custom_course', key: 'price' }, { op: 'field.remove', type: 'custom_course', key: 'perex' }],
+        { counts: { values: { 'custom_course.price': 0, 'custom_course.perex': 0 } } },
+      )
+      const op: ModelOp = { op: 'purge', fields: [price, { type: 'custom_course', key: 'perex' }] }
+      const { doc: next, notes } = sweep(doc, op, 2 * HOUR, { values: { 'custom_course.price': 2, 'custom_course.perex': 0 } })
+      expect(gone(next, 'perex')).toBe(true)
+      expect(gone(next, 'price')).toBe(false)
+      expect(fieldOf(next, 'custom_course', 'price').removedEmpty).toBe(false)
+      expect(notes).toEqual([expect.objectContaining({ code: 'kept-not-empty', field: 'price' })])
+    })
+
+    it('still refuses a target that is not due, in a purge with others', () => {
+      const doc = hiddenEmpty()
+      const p = refusal(() => sweep(doc, { op: 'purge', fields: [price, { type: 'custom_course', key: 'perex' }] }, 2 * HOUR, emptyCounts))
+      expect(p.code).toBe('not-removed')
+    })
+  })
+
+  describe('a person', () => {
+    it('refuses what is not removed', () => {
+      refuse(courses(), [priceOp], 'not-removed', 0)
+      refuse(courses(), [typeOp], 'not-removed', 0, ctx({ internal: false }))
+    })
+
+    it('waits a minute after the removal, and is told how long', () => {
+      const doc = hiddenFull()
+      const p = refusal(() => person(doc, priceOp, 20 * 1000))
+      expect({ code: p.code, op: p.op }).toEqual({ code: 'too-soon', op: 0 })
+      expect(p.details).toEqual({ msLeft: MODEL_DELETE_WAIT_MS - 20 * 1000 })
+      expect(refusal(() => person(doc, priceOp, 0)).details).toEqual({ msLeft: MODEL_DELETE_WAIT_MS })
+      const late = refusal(() => person(doc, priceOp, MODEL_DELETE_WAIT_MS - 1))
+      expect(late.code).toBe('too-soon')
+      expect((late.details as { msLeft: number }).msLeft).toBe(1)
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
+      expect(refusal(() => person(type, typeOp, 5 * 1000)).code).toBe('too-soon')
+    })
+
+    it('may delete exactly at the wait, and later', () => {
+      expect(MODEL_DELETE_WAIT_MS).toBe(60_000)
+      expect(gone(person(hiddenFull(), priceOp, MODEL_DELETE_WAIT_MS).doc)).toBe(true)
+      expect(gone(person(hiddenFull(), priceOp, 400 * DAY).doc)).toBe(true)
+      const type = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
+      expect(person(type, typeOp, MODEL_DELETE_WAIT_MS).doc.types).toEqual([])
+    })
+
+    it('may delete what holds content, without counts, and what was hidden empty', () => {
+      const withEntries = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }], { counts: { entries: { custom_course: 40 } } })
+      expect(person(withEntries, typeOp, 2 * MIN, { counts: { entries: { custom_course: 40 } } }).doc.types).toEqual([])
+      expect(person(withEntries, typeOp, 2 * MIN).doc.types).toEqual([])
+      expect(gone(person(hiddenEmpty(), priceOp, 2 * MIN).doc)).toBe(true)
+      expect(person(hiddenFull(), priceOp, 2 * MIN).notes).toEqual([])
+    })
+
+    it('waits the default minute when the context gives none, and the context value when it does', () => {
+      const doc = hiddenFull()
+      expect(refusal(() => person(doc, priceOp, 30 * 1000)).code).toBe('too-soon')
+      const long = { deleteWaitMs: 10 * MIN }
+      const p = refusal(() => person(doc, priceOp, 2 * MIN, long))
+      expect(p.code).toBe('too-soon')
+      expect(p.details).toEqual({ msLeft: 8 * MIN })
+      expect(gone(person(doc, priceOp, 10 * MIN, long).doc)).toBe(true)
+      const short = { deleteWaitMs: 5 * 1000 }
+      expect(gone(person(doc, priceOp, 5 * 1000, short).doc)).toBe(true)
+      expect(refusal(() => person(doc, priceOp, 4 * 1000, short)).details).toEqual({ msLeft: 1000 })
+    })
+
+    it('refuses things that are unknown', () => {
+      refuse(courses(), [{ op: 'purge', types: ['custom_nope'] }], 'unknown-type', 0)
+      refuse(courses(), [{ op: 'purge', types: ['category'] }], 'design-type', 0)
+      refuse(courses(), [{ op: 'purge', fields: [{ type: 'custom_course', key: 'nope' }] }], 'unknown-field', 0)
+    })
+  })
+
+  it('refuses things that are not removed, or are unknown, in the sweep too', () => {
+    const c = ctx({ internal: true })
+    refuse(courses(), [typeOp], 'not-removed', 0, c)
+    refuse(courses(), [priceOp], 'not-removed', 0, c)
+    refuse(courses(), [{ op: 'purge', types: ['custom_nope'] }], 'unknown-type', 0, c)
+    refuse(courses(), [{ op: 'purge', types: ['category'] }], 'design-type', 0, c)
+    refuse(courses(), [{ op: 'purge', fields: [{ type: 'custom_course', key: 'nope' }] }], 'unknown-field', 0, c)
+  })
+
+  describe('a relation that points at the type', () => {
+    /** custom_teacher.course is hidden (empty), custom_course is hidden too. */
+    const stage = () => {
+      const hiddenField = apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }], ctx({ now: T0 })).doc
+      return removedAt(hiddenField, [{ op: 'type.remove', type: 'custom_course' }])
+    }
+
+    it('stops a person, names the fields, and works once they go too', () => {
+      const doc = stage()
+      const p = refusal(() => person(doc, typeOp, 5 * MIN))
+      expect({ code: p.code, op: p.op }).toEqual({ code: 'points-at-type', op: 0 })
+      expect(p.details).toEqual({ fields: [{ type: 'custom_teacher', key: 'course' }] })
+      expect(p.message).toContain('Kurz')
+      expect(p.message).toMatch(/delete/i)
+      expect(p.message).toMatch(/for good/)
+      const done = person(doc, { op: 'purge', types: ['custom_course'], fields: [{ type: 'custom_teacher', key: 'course' }] }, 5 * MIN)
+      expect(done.doc.types.map((t) => t.name)).toEqual(['custom_teacher'])
+      expect(done.doc.types[0]!.fields.map((f) => f.key)).toEqual(['title'])
+      // the field alone is fine, and then the type can go
+      const first = person(doc, { op: 'purge', fields: [{ type: 'custom_teacher', key: 'course' }] }, 5 * MIN).doc
+      expect(person(first, typeOp, 5 * MIN).doc.types.map((t) => t.name)).toEqual(['custom_teacher'])
+    })
+
+    it('stops the sweep too', () => {
+      const doc = removedAt(
+        apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }], ctx({ now: T0, counts: { values: { 'custom_teacher.course': 0 } } })).doc,
+        [{ op: 'type.remove', type: 'custom_course' }],
+        { counts: { entries: { custom_course: 0 } } },
+      )
+      const counts = { entries: { custom_course: 0 }, values: { 'custom_teacher.course': 0 } }
+      const p = refusal(() => sweep(doc, typeOp, 2 * HOUR, counts))
+      expect(p.code).toBe('points-at-type')
+      expect(p.details).toEqual({ fields: [{ type: 'custom_teacher', key: 'course' }] })
+      const done = sweep(doc, { op: 'purge', ...modelPurgeDue(doc, new Date(T0.getTime() + 2 * HOUR)) }, 2 * HOUR, counts)
+      expect(done.doc.types.map((t) => t.name)).toEqual(['custom_teacher'])
+    })
+
+    it('stops a person when a visible field of a hidden type points at the type', () => {
+      const hiddenTeacher = removedAt(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }])
+      // custom_course may be hidden too, now that custom_teacher is hidden
+      const both = removedAt(hiddenTeacher, [{ op: 'type.remove', type: 'custom_course' }])
+      const p = refusal(() => person(both, typeOp, 5 * MIN))
+      expect(p.code).toBe('points-at-type')
+      expect(p.details).toEqual({ fields: [{ type: 'custom_teacher', key: 'course' }] })
+      expect(person(both, { op: 'purge', types: ['custom_course', 'custom_teacher'] }, 5 * MIN).doc.types).toEqual([])
+    })
+  })
+
+  describe('a name is free again after the deletion', () => {
+    it('a field key', () => {
+      const hidden = removedAt(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }])
+      const add: ModelOp[] = [{ op: 'field.add', type: 'custom_course', field: { type: 'number', key: 'price', label: L('Cena nová') } }]
+      refuse(hidden, add, 'name-taken', 0, ctx({ now: new Date(T0.getTime() + 5 * MIN) }))
+      const purged = person(hidden, priceOp, 5 * MIN).doc
+      const { doc } = apply(purged, add, ctx({ now: new Date(T0.getTime() + 5 * MIN) }))
+      expect(fieldOf(doc, 'custom_course', 'price')).toMatchObject({ label: L('Cena nová') })
+      expect(fieldOf(doc, 'custom_course', 'price').removedAt ?? null).toBeNull()
+    })
+
+    it('a type name and its page prefix', () => {
+      const hidden = removedAt(courses(), [{ op: 'type.remove', type: 'custom_course' }])
+      const add: ModelOp[] = [{ op: 'type.add', name: 'custom_course', label: L('Nové kurzy'), page: { prefix: 'kurzy' } }]
+      const later = ctx({ now: new Date(T0.getTime() + 5 * MIN) })
+      refuse(hidden, add, 'name-taken', 0, later)
+      const purged = person(hidden, typeOp, 5 * MIN).doc
+      const { doc } = apply(purged, add, later)
+      expect(doc.types.map((t) => t.name)).toEqual(['custom_course'])
+      expect(course(doc).label).toEqual(L('Nové kurzy'))
+      expect(course(doc).page?.prefix).toBe('kurzy')
+      // and a made-up name is the plain one again
+      expect(apply(purged, [{ op: 'type.add', label: L('Kurzy'), page: {} }], later).doc.types.map((t) => t.name)).toEqual(['custom_kurzy'])
+    })
+  })
+})
+
+describe('modelPurgeDue', () => {
+  const T0 = new Date('2026-10-01T00:00:00.000Z')
+  const MIN = 60 * 1000
+  const at0 = (ms: number) => new Date(T0.getTime() + ms)
+  const price = { type: 'custom_course', key: 'price' }
+  const zeros: ModelContext['counts'] = { entries: { custom_course: 0, custom_teacher: 0 }, values: { 'custom_course.price': 0, 'custom_teacher.course': 0 } }
+
+  it('lists only what was hidden empty, an hour ago', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts: { values: { 'custom_course.price': 0 } } })).doc
+    expect(modelPurgeDue(doc, at0(0))).toEqual({ types: [], fields: [] })
+    expect(modelPurgeDue(doc, at0(59 * MIN))).toEqual({ types: [], fields: [] })
+    expect(modelPurgeDue(doc, at0(60 * MIN))).toEqual({ types: [], fields: [price] })
+    expect(modelPurgeDue(doc, at0(400 * DAY))).toEqual({ types: [], fields: [price] })
+    expect(modelPurgeDue(courses(), at0(400 * DAY))).toEqual({ types: [], fields: [] })
+  })
+
+  it('never lists what was hidden with content or without a count, however old', () => {
+    const full = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts: { values: { 'custom_course.price': 3 } } })).doc
+    const unknown = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0 })).doc
+    const type = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: { entries: { custom_course: 9 } } })).doc
+    for (const doc of [full, unknown, type]) {
+      for (const ms of [(60 * 60 * 1000), 30 * DAY, 400 * DAY]) expect(modelPurgeDue(doc, at0(ms))).toEqual({ types: [], fields: [] })
+    }
+  })
+
+  it('leaves the fields of a purged type to the type', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }, { op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: zeros })).doc
+    expect(modelPurgeDue(doc, at0(60 * MIN))).toEqual({ types: ['custom_course'], fields: [] })
+  })
+
+  it('holds a type back while a field outside the purge points at it', () => {
+    // custom_teacher.course is hidden half an hour after custom_course, so it is due half an hour later
+    const early = apply(twoTypes(), [{ op: 'field.remove', type: 'custom_teacher', key: 'course' }], ctx({ now: at0(30 * MIN), counts: zeros })).doc
+    const doc = apply(early, [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: zeros })).doc
+    const held = modelPurgeDue(doc, at0(61 * MIN))
+    expect(held).toEqual({ types: [], fields: [] })
+    const due = modelPurgeDue(doc, at0(90 * MIN))
+    expect(due).toEqual({ types: ['custom_course'], fields: [{ type: 'custom_teacher', key: 'course' }] })
+    for (const [ms, result] of [[61 * MIN, held], [90 * MIN, due]] as const) {
+      expect(() => apply(doc, [{ op: 'purge', ...result }], ctx({ now: at0(ms), internal: true, counts: zeros }))).not.toThrow()
+    }
+  })
+
+  it('holds a type back for a visible field in a hidden type, and keeps going until stable', () => {
+    // both are hidden; custom_teacher is not due yet, so it stays and its visible field holds custom_course back.
+    const early = apply(twoTypes(), [{ op: 'type.remove', type: 'custom_teacher' }], ctx({ now: at0(30 * MIN), counts: zeros })).doc
+    const doc = apply(early, [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: zeros })).doc
+    const result = modelPurgeDue(doc, at0(61 * MIN))
+    expect(result).toEqual({ types: [], fields: [] })
+    expect(() => apply(doc, [{ op: 'purge', ...result }], ctx({ now: at0(61 * MIN), internal: true, counts: zeros }))).not.toThrow()
+    expect(modelPurgeDue(doc, at0(90 * MIN)).types).toEqual(['custom_course', 'custom_teacher'])
+    // a chain: C points at B, B points at A; only C is due
+    const chain = apply(emptyModelDoc(), [
+      { op: 'type.add', name: 'custom_a', label: L('A') },
+      { op: 'type.add', name: 'custom_b', label: L('B') },
+      { op: 'type.add', name: 'custom_c', label: L('C') },
+      { op: 'field.add', type: 'custom_b', field: { type: 'relation', key: 'toA', label: L('A'), to: 'custom_a' } },
+      { op: 'field.add', type: 'custom_c', field: { type: 'relation', key: 'toB', label: L('B'), to: 'custom_b' } },
+      { op: 'field.remove', type: 'custom_c', key: 'toB' },
+      { op: 'type.remove', type: 'custom_c' },
+    ], ctx({ now: T0, counts: { entries: { custom_c: 0 }, values: { 'custom_c.toB': 0 } } })).doc
+    const chainDue = modelPurgeDue(chain, at0(61 * MIN))
+    expect(chainDue.types).toEqual(['custom_c'])
+    expect(() => apply(chain, [{ op: 'purge', ...chainDue }], ctx({ now: at0(61 * MIN), internal: true, counts: { entries: { custom_c: 0 } } }))).not.toThrow()
+  })
+
+  it('does not list a thing again once the sweep kept it', () => {
+    const doc = apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts: zeros })).doc
+    expect(modelPurgeDue(doc, at0(2 * 60 * MIN)).fields).toEqual([price])
+    const kept = apply(doc, [{ op: 'purge', fields: [price] }], ctx({ now: at0(2 * 60 * MIN), internal: true, counts: { values: { 'custom_course.price': 1 } } })).doc
+    expect(modelPurgeDue(kept, at0(400 * DAY))).toEqual({ types: [], fields: [] })
+  })
+})
+
+describe('applyModelOps purity', () => {
+  it('leaves a deep-frozen input untouched', () => {
+    const doc = deepFreeze(twoTypes())
+    const before = JSON.stringify(doc)
+    const ops: ModelOp[] = [
+      { op: 'type.update', type: 'custom_course', listColumns: ['title', 'level'], page: { image: 'cover' } },
+      { op: 'field.update', type: 'custom_course', key: 'level', addOptions: [{ label: L('Expert') }], removeOptions: ['beginner'] },
+      { op: 'field.remove', type: 'custom_course', key: 'cover' },
+      { op: 'field.order', type: 'custom_course', keys: ['price', 'title', 'perex', 'level', 'startsAt', 'category'] },
+      { op: 'type.add', label: L('Nový') },
+    ]
+    const { doc: next, notes } = apply(doc, ops)
+    expect(JSON.stringify(doc)).toBe(before)
+    expect(next).not.toBe(doc)
+    expect(next.types.length).toBe(3)
+    expect(notes.length).toBeGreaterThan(0)
+    // the ops and the context are not touched either
+    const frozenOps = deepFreeze(JSON.parse(JSON.stringify(ops))) as ModelOp[]
+    expect(() => apply(doc, frozenOps, deepFreeze(ctx()))).not.toThrow()
+  })
+
+  it('is all or nothing', () => {
+    const doc = deepFreeze(courses())
+    const before = JSON.stringify(doc)
+    const p = refusal(() => apply(doc, [
+      { op: 'type.add', label: L('Dobrý') },
+      { op: 'field.add', type: 'custom_course', field: { type: 'text', key: 'id', label: L('Zlý') } },
+    ]))
+    expect({ code: p.code, op: p.op }).toEqual({ code: 'reserved-key', op: 1 })
+    expect(JSON.stringify(doc)).toBe(before)
+  })
+
+  it('does nothing for no operations and returns the same content', () => {
+    const doc = courses()
+    const { doc: next, notes } = apply(doc, [])
+    expect(next).toEqual(doc)
+    expect(notes).toEqual([])
+  })
+})
+
+describe('the times of the later deletion, given by the caller', () => {
+  const T0 = new Date('2026-10-01T00:00:00.000Z')
+  const MIN = 60 * 1000
+  const after = (ms: number) => new Date(T0.getTime() + ms)
+  const hide = (counts?: ModelContext['counts']) => apply(courses(), [{ op: 'field.remove', type: 'custom_course', key: 'price' }], ctx({ now: T0, counts })).doc
+  const times = { purgeEmptyAfterMs: 2 * MIN, deleteWaitMs: 10 * MIN }
+  const price = [{ type: 'custom_course', key: 'price' }]
+  const zero = { values: { 'custom_course.price': 0 } }
+
+  it('decides a hidden empty field by the short empty time', () => {
+    const doc = hide(zero)
+    expect(modelPurgeDue(doc, after(MIN), times).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(2 * MIN), times).fields).toEqual(price)
+  })
+
+  it('never lists a hidden field with content, whatever the times', () => {
+    const doc = hide({ values: { 'custom_course.price': 5 } })
+    for (const ms of [2 * MIN, 10 * MIN, 400 * DAY]) expect(modelPurgeDue(doc, after(ms), times).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(400 * DAY), { purgeEmptyAfterMs: 0, deleteWaitMs: 0 }).fields).toEqual([])
+  })
+
+  it('can take only one of the two times and keep the default of the other', () => {
+    const doc = hide(zero)
+    expect(modelPurgeDue(doc, after(30 * MIN), { deleteWaitMs: 1 }).fields).toEqual([])
+    expect(modelPurgeDue(doc, after(60 * MIN), { deleteWaitMs: 1 }).fields).toEqual(price)
+    expect(modelPurgeDue(doc, after(MIN), { purgeEmptyAfterMs: MIN }).fields).toEqual(price)
+  })
+
+  it('keeps the default of an hour when no times are given', () => {
+    const none = hide(zero)
+    expect(modelPurgeDue(none, after(59 * MIN)).fields).toEqual([])
+    expect(modelPurgeDue(none, after(60 * MIN)).fields).toEqual(price)
+    expect(modelPurgeDue(none, after(60 * MIN), {}).fields).toEqual(price)
+    const full = hide({ values: { 'custom_course.price': 5 } })
+    expect(modelPurgeDue(full, after(400 * DAY)).fields).toEqual([])
+  })
+
+  it('has only the hour and the minute as default times', () => {
+    expect(MODEL_PURGE_EMPTY_AFTER_MS).toBe(60 * MIN)
+    expect(MODEL_DELETE_WAIT_MS).toBe(MIN)
+  })
+
+  it('purges a field that is due by the times of the context', () => {
+    const doc = hide(zero)
+    const { doc: next } = apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true, counts: zero, ...times }))
+    expect(course(next).fields.some((f) => f.key === 'price')).toBe(false)
+  })
+
+  it('refuses a purge of a field that is not due by the times of the context', () => {
+    const doc = hide(zero)
+    const p = refusal(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(MIN), internal: true, counts: zero, ...times })))
+    expect(p.code).toBe('not-due')
+    // what held content is not due at any time
+    const full = hide({ values: { 'custom_course.price': 5 } })
+    expect(refusal(() => apply(full, [{ op: 'purge', fields: price }], ctx({ now: after(400 * DAY), internal: true, counts: zero, ...times }))).code).toBe('not-due')
+  })
+
+  it('refuses the same purge with the default times', () => {
+    const doc = hide(zero)
+    expect(refusal(() => apply(doc, [{ op: 'purge', fields: price }], ctx({ now: after(2 * MIN), internal: true, counts: zero }))).code).toBe('not-due')
+  })
+
+  it('purges a removed type by the times of the context too', () => {
+    const doc = apply(courses(), [{ op: 'type.remove', type: 'custom_course' }], ctx({ now: T0, counts: { entries: { custom_course: 0 } } })).doc
+    const counts = { entries: { custom_course: 0 } }
+    expect(refusal(() => apply(doc, [{ op: 'purge', types: ['custom_course'] }], ctx({ now: after(MIN), internal: true, counts, ...times }))).code).toBe('not-due')
+    expect(apply(doc, [{ op: 'purge', types: ['custom_course'] }], ctx({ now: after(2 * MIN), internal: true, counts, ...times })).doc.types).toEqual([])
+  })
+
+  it('makes a person wait by deleteWaitMs of the context, not by the empty time', () => {
+    const doc = hide(zero)
+    const op: ModelOp = { op: 'purge', fields: price }
+    const p = refusal(() => apply(doc, [op], ctx({ now: after(5 * MIN), ...times })))
+    expect(p.code).toBe('too-soon')
+    expect(p.details).toEqual({ msLeft: 5 * MIN })
+    expect(() => apply(doc, [op], ctx({ now: after(10 * MIN), ...times }))).not.toThrow()
+  })
+})

@@ -58,6 +58,8 @@ html[data-look="dres"] {
     .prose-look { max-width: 44rem; }
     .prose-look > * + * { margin-top: 1.1rem; }
     .prose-look h2 { font-family: var(--font-display); font-stretch: 108%; font-weight: 800; font-size: 1.9rem; line-height: 1.08; margin-top: 2.4rem; }
+    /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
+    .custom-entry .custom-entry-title { font-family: var(--font-display); font-stretch: 108%; font-weight: 800; }
     .prose-look h3 { font-family: var(--font-display); font-stretch: 108%; font-weight: 800; font-size: 1.35rem; line-height: 1.1; margin-top: 1.8rem; }
     .prose-look a { font-weight: 700; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 4px; }
     .prose-look a:hover { background: var(--ink); color: var(--paper); }
@@ -68,3 +70,7 @@ html[data-look="dres"] {
     .prose-look strong { font-weight: 700; }
   }
 }
+
+/* A wide typeface: the title of an entry's page (the kit's KitCustomEntry) a step smaller than the kit's.
+   Outside the layers, so it stands over the kit's own size. */
+html[data-look="dres"] .custom-entry .custom-entry-title { font-size: clamp(1.5rem, 1.1rem + 1.6vw, 2.5rem); }

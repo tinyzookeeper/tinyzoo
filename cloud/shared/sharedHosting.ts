@@ -177,6 +177,33 @@ export interface SharedSiteConfig {
   /** `maxSizeMb`, `maxBytes`: the site's plan (shared/plans.ts): the largest upload, and everything it may store. */
   storage: { driver: 'local'; local: { dir: string }; maxSizeMb?: number; maxBytes?: number }
   mail?: { file: { dir: string } }
+  /** The site's own content types (experimental): its plan's limits. Only with CLOUD_CUSTOM_TYPES=on, and only in the one app. */
+  customTypes?: SiteCustomTypes
+}
+
+/** How many content types of its own a site may make, and how many fields each may have (shared/plans.ts). */
+export interface SiteCustomTypes { types: number; fields: number }
+
+/**
+ * CLOUD_CUSTOM_TYPES: `on` lets the sites of the one app make content types of their own
+ * (experimental). Anything else is off, and then nothing the cloud starts or writes changes.
+ */
+export const customTypesSetting = (value: unknown): boolean => String(value ?? '').trim() === 'on'
+
+/**
+ * What an app's process gets in its environment for the sites' own content types. Only the one
+ * app (an app that carries several models): its designs have the blocks that show such types.
+ * The Basic website's app does not, and is started without the switch.
+ */
+export function customTypesEnv(app: { models: boolean }, on: boolean): Record<string, string> {
+  return on && app.models ? { NUXT_CMS_CUSTOM_TYPES: 'on' } : {}
+}
+
+/** A site's limits for its own content types, or an error: tinyzoo reads whole numbers from 0 to 200. */
+function assertCustomTypes(limits: SiteCustomTypes): SiteCustomTypes {
+  const ok = (n: unknown) => Number.isInteger(n) && (n as number) >= 0 && (n as number) <= 200
+  if (!ok(limits.types) || !ok(limits.fields)) throw new Error('The limits of a site\'s own content types must be whole numbers from 0 to 200')
+  return { types: limits.types, fields: limits.fields }
 }
 
 /** A site's verified domains of its own: `main` is its address when set, the others redirect to the address. */
@@ -202,6 +229,8 @@ export interface SharedSiteRowInput {
   limits?: { maxSizeMb: number; maxBytes: number }
   /** The content model the site uses in an app that carries several (the template's id). */
   model?: string | null
+  /** Its own content types' limits (CLOUD_CUSTOM_TYPES=on). Left out: the row says nothing of them. */
+  customTypes?: SiteCustomTypes | null
 }
 
 const MODEL = /^[a-z][a-z0-9-]{0,39}$/
@@ -213,13 +242,15 @@ function assertModel(model: string): string {
 }
 
 /** A row's `config` from the site's environment: its sign-in, its status token, where its uploads and e-mails go. */
-function siteConfig(split: SplitSiteEnv, dir: string, limits?: { maxSizeMb: number; maxBytes: number }): SharedSiteConfig {
+function siteConfig(split: SplitSiteEnv, dir: string, limits?: { maxSizeMb: number; maxBytes: number }, customTypes?: SiteCustomTypes | null): SharedSiteConfig {
   return {
     auth: { setupToken: split.site.setupToken, ...(split.site.account ? { account: split.site.account } : {}) },
     status: { token: split.site.statusToken },
     storage: { driver: 'local', local: { dir: `${dir}/uploads` }, ...(limits ? { maxSizeMb: limits.maxSizeMb, maxBytes: limits.maxBytes } : {}) },
     // E-mails written to files get a folder per site; any other transport needs nothing here.
     ...(split.process.NUXT_CMS_MAIL_TRANSPORT === 'file' ? { mail: { file: { dir: `${dir}/mail` } } } : {}),
+    // Last, so that a row without them is the text it always was.
+    ...(customTypes ? { customTypes: assertCustomTypes(customTypes) } : {}),
   }
 }
 
@@ -252,7 +283,7 @@ export function sharedSiteRow(input: SharedSiteRowInput): SharedSiteRow {
     databaseUrl: input.databaseUrl,
     secret: split.site.secret,
     ...(input.model ? { model: assertModel(input.model) } : {}),
-    config: siteConfig(split, dir, limits),
+    config: siteConfig(split, dir, limits, input.customTypes),
   }
 }
 
@@ -265,6 +296,8 @@ export interface LocalSiteRowInput {
   /** The site's own folder (absolute). */
   siteDir: string
   model?: string | null
+  /** Its own content types' limits (CLOUD_CUSTOM_TYPES=on). Left out: the row says nothing of them. */
+  customTypes?: SiteCustomTypes | null
 }
 
 /**
@@ -284,7 +317,7 @@ export function localSiteRow(input: LocalSiteRowInput): SharedSiteRow {
     databaseUrl: input.databaseUrl,
     secret: split.site.secret,
     ...(input.model ? { model: assertModel(input.model) } : {}),
-    config: siteConfig(split, input.siteDir.replace(/\/+$/, '')),
+    config: siteConfig(split, input.siteDir.replace(/\/+$/, ''), undefined, input.customTypes),
   }
 }
 

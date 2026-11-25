@@ -40,7 +40,8 @@ export function cmsSocketHooksInSite<T extends SocketHooks>(hooks: T, opts: { wr
   const served = <A>(hook: ((peer: any, arg: A) => any) | undefined) => (peer: any, arg: A) => {
     const site = siteOf(peer)
     if (!site || closedTo(site)) return close(peer)
-    return runInCmsSite(site, () => hook?.(peer, arg))
+    // The site's own content types are read before the socket's first look at the site (at once with the feature off).
+    return runInCmsSite(site, () => cmsAfterSiteReady(() => hook?.(peer, arg), () => close(peer)))
   }
   /** `close` and `error`: the site tidies up after its socket while it is in the directory, paused or not. */
   const known = <A>(hook: ((peer: any, arg: A) => any) | undefined) => (peer: any, arg: A) => {
@@ -62,7 +63,10 @@ export function cmsSocketHooksInSite<T extends SocketHooks>(hooks: T, opts: { wr
       return runInCmsSite(site, () => {
         // As the request wrapper does: a socket may be the first use of the site on this instance.
         ensureCmsSiteStarted()
-        return hooks.upgrade?.(request)
+        // And as the gate does: the site's own content types are read first (at once with the feature off).
+        return cmsAfterSiteReady(() => hooks.upgrade?.(request), () => {
+          throw new Response('This website cannot be reached for a moment', { status: 503, headers: { 'retry-after': '5' } })
+        })
       })
     },
     open: served(hooks.open),
