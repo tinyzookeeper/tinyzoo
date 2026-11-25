@@ -34,6 +34,11 @@ export {
   type ModelLimits, type ModelOp, type ModelContext, type ModelNote, type ModelPurgeTimes,
 } from './model-doc'
 export { modelEntities, type ModelMapProblem } from './model-map'
+export {
+  MODEL_FILE_NAME, modelFileOf, writeModelFile, parseModelFile, modelFileDoc, diffModelFile, describeModelOps, customModelConfig,
+  type ModelFile, type ModelFileType, type ModelFileField, type ModelDiffProblem,
+} from './model-file'
+export { modelMisfits, newModelMisfits, type ModelMisfit, type ModelMisfitWhy } from './model-fit'
 export { customShape, planModelDdl, assertAllowedStatement, type DbShape, type DbTable, type DbColumn, type DbForeignKey, type DbIndex, type ModelDdlAllow } from './model-ddl'
 export { emitSchema } from './emitter'
 export { buildOpenApiDocument, type OpenApiOptions } from './openapi'

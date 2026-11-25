@@ -309,4 +309,11 @@ Each part ends with its own tests green and is useful without the next.
 
 ## 13. What is built
 
-Nothing yet.
+**Part 1, the core** (`src/model-file.ts`, `src/model-fit.ts`, the open choice in `content-shape.ts`, `sdk.ts`, `openapi.ts`; exported from `tinyzoo` as `@internal`; tests in `test/unit/model-file.spec.ts`, `model-fit.spec.ts`, `model-types.spec.ts`). What it adds to the design above:
+
+- `parseModelFile` refuses with the code `invalid-file` only; a broken rule of the document keeps `parseModelDoc`'s message.
+- `diffModelFile` also refuses, as `not-changeable`: a choice deleted or moved (choices are only ever added at the end or marked removed), a new type whose title field is not `title` (`type.add` always makes that one), and a type arranged by hand going back to an order by a field.
+- A type or field that the base file does not have is always a `type.add` or `field.add`, also when the site keeps a removed one of that name: the site then refuses it (`name-taken`), and the owner restores it in the admin. The same for a new type that takes the page address of a removed one (`prefix-taken`).
+- The file keeps the types in the document's order, but the difference does not: a type added by a push comes last.
+- `customModelConfig(design, doc)` is the one way to lay a site's own types over its design (`custom:<name>` keys), for the CLI now and for the server's `readCustomPart` in part 2.
+- An open choice is `open: true` on the scalar kind of `ContentFieldType` and on `FilterParam`, decided by the entity (a `custom_` name, and not its publish field), not by the field's `meta`. In OpenAPI it is `{ type: 'string', examples: [...] }`.
