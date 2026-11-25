@@ -18,16 +18,8 @@ export function useSiteWords() {
   return computed(() => site.wordsOf(site.DEFAULT_LANGUAGE) as SiteWords)
 }
 
-/** The own main colour the owner gave in the settings, if any (the generated clients may not have the field yet). */
-function ownColorOf(item: unknown): string | null {
-  const value = (item as { ownColor?: unknown } | null)?.ownColor
-  return typeof value === 'string' ? value : null
-}
-
 export async function useSite() {
   const design = useDesign()
-  // Whether sites may take an own colour (TZ_OWN_LOOK): the server's answer, from the payload.
-  const ownOn = useState<boolean>('tz:own-look', () => false)
   // In the admin's preview (?preview) the settings and menus come with the editor's unsaved
   // values laid over them, so a look or a colour can be tried before it is saved.
   const isPreview = 'preview' in useRoute().query
@@ -37,8 +29,7 @@ export async function useSite() {
     useFetch<{ item: Navigation | null }>('/api/content/_global/navigation', { key: 'site-nav', query }),
   ])
   const item = computed(() => settings.value?.item ?? null)
-  // The own colour is passed only when the setting is on; otherwise the preset alone decides.
-  const look = computed(() => design.looks.resolve(item.value?.look, item.value?.colors, ownOn.value ? { color: ownColorOf(item.value) } : null) as ReturnType<typeof looks.resolve>)
+  const look = computed(() => design.looks.resolve(item.value?.look, item.value?.colors, { color: item.value?.ownColor }) as ReturnType<typeof looks.resolve>)
   return {
     settings: item,
     nav: computed(() => nav.value?.item ?? null),

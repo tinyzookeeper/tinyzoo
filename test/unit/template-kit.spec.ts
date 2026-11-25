@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { emphasisParts, plainEmphasis, tidyText } from '../../templates/kit/app/utils/emphasis'
 import { defineSingleton, f } from 'tinyzoo'
-import { defineLooks, ownLookOn, presetStyle, presetSwatch } from '../../templates/kit/looks'
+import { defineLooks, presetStyle, presetSwatch } from '../../templates/kit/looks'
 import { byLength, dateParts, formatDate, formatPrice, paragraphs, siteHref, socialHandle, telHref, timeAttr } from '../../templates/kit/app/utils/format'
 import { mixAlbumPhotos, shapeOf, tileCategories, frameCode } from '../../templates/photographer/app/utils/site'
 import type { Album } from '../../templates/photographer/app/lib/cms-content'
@@ -86,23 +86,6 @@ describe('looks and colour presets', () => {
     expect(other.style).toBe(`--brand:${other.own?.shown}`)
     expect(looks.resolve('one', 'a', { color: 'red' }).own).toBeNull()
     expect(looks.resolve('one', 'a', { color: 'red' }).style).toBe('--brand:#112233')
-  })
-
-  it('switch the own colour on only with TZ_OWN_LOOK=on', () => {
-    const was = process.env.TZ_OWN_LOOK
-    try {
-      delete process.env.TZ_OWN_LOOK
-      expect(ownLookOn()).toBe(false)
-      process.env.TZ_OWN_LOOK = 'on'
-      expect(ownLookOn()).toBe(true)
-      for (const value of ['off', '1', 'true', '']) {
-        process.env.TZ_OWN_LOOK = value
-        expect(ownLookOn()).toBe(false)
-      }
-    } finally {
-      if (was === undefined) delete process.env.TZ_OWN_LOOK
-      else process.env.TZ_OWN_LOOK = was
-    }
   })
 
   it('refuse a preset id used twice, and write nothing but plain custom properties into a style', () => {

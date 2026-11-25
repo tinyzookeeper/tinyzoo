@@ -131,14 +131,6 @@ export const OWN_COLOR_FIELD: { label: LookText; help: LookText } = {
   },
 }
 
-/**
- * TZ_OWN_LOOK=on: the sites of this app may have a main colour of their own (experimental).
- * Read on the server only; the website gets the answer with the page (app/composables/useSite.ts).
- */
-export function ownLookOn(): boolean {
-  return typeof process !== 'undefined' && process.env?.TZ_OWN_LOOK === 'on'
-}
-
 const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i
 // The variables a look's presets usually set, by what they are: the brand colour, the page's
 // background, and one more tone that tells presets with the same brand apart.
