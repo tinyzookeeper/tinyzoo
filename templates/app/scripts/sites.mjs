@@ -161,18 +161,37 @@ export async function startServer({ entry, directoryFile, port, logFile, env = {
   }
 }
 
+/** What a template's seed reads from its environment, for one site. Shared by seedSite and seedSiteAsync. */
+function seedEnv(row) {
+  const s = row._site
+  return {
+    PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '',
+    SEED_URL: s.url, SEED_EMAIL: SERVICE.email, SEED_PASSWORD: SERVICE.password, SEED_NAME: SERVICE.name,
+    SEED_SETUP_CODE: row.config.auth.setupToken, SEED_LOOK: s.look,
+  }
+}
+
 /** Run the template's seed (`pnpm seed` in its folder) against a site: its first account and the demo content worded for its look. */
 export function seedSite(row, templatesDir) {
   const s = row._site
   const res = spawnSync('pnpm', ['seed'], {
-    cwd: join(templatesDir, s.template), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024,
-    env: {
-      PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '',
-      SEED_URL: s.url, SEED_EMAIL: SERVICE.email, SEED_PASSWORD: SERVICE.password, SEED_NAME: SERVICE.name,
-      SEED_SETUP_CODE: row.config.auth.setupToken, SEED_LOOK: s.look,
-    },
+    cwd: join(templatesDir, s.template), encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, env: seedEnv(row),
   })
   if (res.status !== 0) throw new Error(`the seed of ${s.slug} failed:\n${(res.stdout + res.stderr).slice(-3000)}`)
+}
+
+/** The same seed without blocking, so several sites can be seeded at once. */
+export function seedSiteAsync(row, templatesDir) {
+  const s = row._site
+  return new Promise((done, fail) => {
+    const child = spawn('pnpm', ['seed'], { cwd: join(templatesDir, s.template), env: seedEnv(row), stdio: ['ignore', 'pipe', 'pipe'] })
+    let output = ''
+    const keep = (d) => { output = (output + d).slice(-6000) }
+    child.stdout.on('data', keep)
+    child.stderr.on('data', keep)
+    child.on('error', fail)
+    child.on('close', (code) => (code === 0 ? done() : fail(new Error(`the seed of ${s.slug} failed:\n${output.slice(-3000)}`))))
+  })
 }
 
 /** An admin session on a site (the service account the seed made). */
