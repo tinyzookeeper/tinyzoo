@@ -97,7 +97,7 @@ async function remove() {
           <ul v-if="places.length" class="cms-card overflow-hidden text-sm">
             <li v-for="p in places" :key="`${p.entity}-${p.id}-${p.block?.id ?? ''}`" class="border-b border-default last:border-0">
               <NuxtLink :to="p.admin" class="flex min-h-11 items-center gap-2 px-3 py-2 transition-colors hover:bg-elevated/60" @click="() => { open = false }">
-                <span class="min-w-0 flex-1 truncate font-medium text-highlighted">{{ placeTitle(p) }}<template v-if="blockName(p)"> <span class="font-normal text-muted">›</span> {{ blockName(p) }}</template></span>
+                <span class="min-w-0 flex-1 truncate font-medium text-highlighted">{{ placeTitle(p) }}<template v-if="blockName(p)"><span class="mx-1 font-normal text-muted">›</span>{{ blockName(p) }}</template></span>
                 <span v-if="placeKind(p)" class="shrink-0 text-xs text-muted">{{ placeKind(p) }}</span>
                 <UIcon name="i-lucide-arrow-up-right" class="size-3.5 shrink-0 text-dimmed" aria-hidden="true" />
               </NuxtLink>

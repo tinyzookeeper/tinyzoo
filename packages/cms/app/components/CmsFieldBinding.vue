@@ -227,13 +227,14 @@ const labelClass = 'block text-sm font-medium text-highlighted'
           <label :for="`${base}-order`" :class="labelClass">{{ t('model.binding.order') }}</label>
           <USelect :id="`${base}-order`" :model-value="mode" :items="modeItems" :disabled="readOnly" class="w-full" @update:model-value="setMode" />
         </div>
-        <div class="min-w-0 space-y-1.5">
+        <!-- on a phone the number comes after the order's field and direction, which belong to the order -->
+        <div class="min-w-0 space-y-1.5 max-sm:order-last">
           <label :for="`${base}-limit`" :class="labelClass">{{ t('model.binding.limit') }}</label>
           <UInput
             :id="`${base}-limit`" type="number" inputmode="numeric" :min="1" :max="BINDING_LIMIT_MAX" :model-value="limitShown" :placeholder="String(BINDING_LIMIT_DEFAULT)"
             :disabled="readOnly" class="w-full" @update:model-value="setLimit"
           />
-          <p class="text-xs text-muted">{{ t('model.binding.limitHint', { max: BINDING_LIMIT_MAX, default: BINDING_LIMIT_DEFAULT }) }}</p>
+          <p class="text-xs text-muted">{{ t('model.binding.limitHint', { max: BINDING_LIMIT_MAX }) }}</p>
         </div>
         <template v-if="mode === 'field'">
           <div class="min-w-0 space-y-1.5">

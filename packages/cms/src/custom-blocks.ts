@@ -23,13 +23,7 @@ function blockFields(kind: 'entries' | 'chosen') {
   return {
     heading: f.text().label({ en: 'Heading', cs: 'Nadpis', de: 'Überschrift' }),
     text: f.text({ multiline: true }).label({ en: 'Short text', cs: 'Krátký text', de: 'Kurzer Text' }),
-    source: bindingField(kind)
-      .label({ en: 'What it shows', cs: 'Co zobrazuje', de: 'Was er zeigt' })
-      .help({
-        en: 'Which content type, and which of its fields go where.',
-        cs: 'Který typ obsahu blok ukáže a co z něj bude kde.',
-        de: 'Welcher Inhaltstyp gezeigt wird und welches seiner Felder wohin kommt.',
-      }),
+    source: bindingField(kind).label({ en: 'What it shows', cs: 'Co zobrazuje', de: 'Was er zeigt' }),
     layout: f.select({
       options: ['cards', 'rows'],
       default: 'cards',
@@ -62,9 +56,9 @@ export function customTypeBlocks(): CustomTypeBlocks {
     [CUSTOM_BLOCK_TYPES.entries]: defineBlock({
       label: { en: 'Entries', cs: 'Seznam záznamů', de: 'Einträge' },
       description: {
-        en: 'A list of entries of one of your content types, newest first or in an order you choose.',
-        cs: 'Seznam záznamů jednoho z vašich typů obsahu, od nejnovějších nebo v pořadí, které si zvolíte.',
-        de: 'Eine Liste der Einträge eines Ihrer Inhaltstypen, die neuesten zuerst oder in einer Reihenfolge Ihrer Wahl.',
+        en: 'Show the entries of one of your content types.',
+        cs: 'Ukažte záznamy jednoho z vašich typů obsahu.',
+        de: 'Zeigen Sie die Einträge eines Ihrer Inhaltstypen.',
       },
       icon: 'i-lucide-layout-list',
       fields: blockFields('entries'),
@@ -72,9 +66,9 @@ export function customTypeBlocks(): CustomTypeBlocks {
     [CUSTOM_BLOCK_TYPES.chosen]: defineBlock({
       label: { en: 'Chosen entries', cs: 'Vybrané záznamy', de: 'Ausgewählte Einträge' },
       description: {
-        en: 'Entries you pick by hand, in the order you pick them.',
-        cs: 'Záznamy, které vyberete ručně, v pořadí, v jakém je vyberete.',
-        de: 'Einträge, die Sie von Hand auswählen, in der Reihenfolge, in der Sie sie auswählen.',
+        en: 'Show the entries you pick, in the order you want.',
+        cs: 'Ukažte záznamy, které vyberete, v pořadí, jaké chcete.',
+        de: 'Zeigen Sie ausgewählte Einträge in der Reihenfolge Ihrer Wahl.',
       },
       icon: 'i-lucide-list-checks',
       fields: blockFields('chosen'),
