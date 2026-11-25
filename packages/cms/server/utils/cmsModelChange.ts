@@ -41,6 +41,8 @@ export interface CmsModelChangeInput {
   dryRun?: boolean
   /** The server's own sweep (allows `purge`). */
   internal?: boolean
+  /** The server's own work of taking in the app's model file at start (`NUXT_CMS_MODEL_FILE=follow`): said in the audit line. */
+  via?: 'file'
 }
 
 export interface CmsModelChangeResult {
@@ -334,12 +336,14 @@ export function cmsChangeModel(event: any, input: CmsModelChangeInput): Promise<
 /**
  * The same, for the site's own load (the later deletion found due before the instance serves):
  * the instance is not retired and nothing is announced, as it has not served the old model.
+ * `announce`: the other instances are told all the same (what the app's model file added at start:
+ * they may have served the old model).
  */
-export function cmsChangeModelBeforeLoad(input: CmsModelChangeInput): Promise<CmsModelChangeResult> {
-  return changeModel(null, input, true)
+export function cmsChangeModelBeforeLoad(input: CmsModelChangeInput, opts: { announce?: boolean } = {}): Promise<CmsModelChangeResult> {
+  return changeModel(null, input, true, !!opts.announce)
 }
 
-async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: boolean): Promise<CmsModelChangeResult> {
+async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: boolean, announce = !beforeLoad): Promise<CmsModelChangeResult> {
   const feature = cmsCustomTypes()
   if (!feature.on) throw createError({ statusCode: 404, statusMessage: 'Not found' })
   if (!input || !Number.isInteger(input.baseVersion) || input.baseVersion < 0 || !Array.isArray(input.ops)) {
@@ -403,7 +407,7 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
       const version = current + 1
       await exec('insert into "cms_model" (version, doc, ops, user_id) values ($1, $2::jsonb, $3::jsonb, $4)', [version, JSON.stringify(applied.doc), JSON.stringify(input.ops), userId])
       await exec('delete from "cms_model" where version <= $1', [version - KEEP_VERSIONS])
-      await audit(event, 'model.change', { meta: { version, ops: summary(input.ops), statements: plan.statements.length, ...(input.internal ? { internal: true } : {}) } }, tx)
+      await audit(event, 'model.change', { meta: { version, ops: summary(input.ops), statements: plan.statements.length, ...(input.internal ? { internal: true } : {}), ...(input.via === 'file' ? { via: 'file' } : {}) } }, tx)
       const out: CmsModelChangeResult = { version, doc: applied.doc, notes: applied.notes, statements: plan.statements.length }
       if (input.dryRun) throw new DryRun({ ...out, dryRun: true })
       return out
@@ -427,9 +431,9 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
     throw createError({ statusCode: 500, statusMessage: 'The content types could not be changed' })
   }
 
-  if (!beforeLoad) {
-    // Requests under way finish with the model they started with; the next one reads the new model.
-    cmsRetireCurrentSite()
+  // Requests under way finish with the model they started with; the next one reads the new model.
+  if (!beforeLoad) cmsRetireCurrentSite()
+  if (announce) {
     // The message names its site now: by the time the store answers, this work's instance may be gone.
     const message = channelMessage({ origin: instanceId(), version: result.version })
     const announced = useCmsStore()

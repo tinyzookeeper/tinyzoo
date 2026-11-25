@@ -6,7 +6,10 @@
 // (server rendering, the MCP tools) go through the same handler: they already run inside
 // their caller's site and keep it.
 //
-// Single mode: this plugin does nothing.
+// Single mode: this plugin does nothing, unless the one site is counted (cmsSiteCounted: its own
+// content types are on). Then every request runs inside the site's current instance and holds it
+// until it has finished, as in multi-tenant mode, so a change of structure can retire it. Nothing
+// about hosts or a directory: that stays single mode's.
 //
 // Routes that need no site: the two health checks (the platform's probes arrive by IP) and
 // the operator's list of sites, which asks for the operator's token.
@@ -21,8 +24,37 @@ function answer(event: any, status: number, text: string, headers: Record<string
   res.end(text)
 }
 
+/** Single mode, counted: the request wrapper without hosts, states or a directory. */
+function countSingleSite(nitroApp: any): void {
+  const handle = nitroApp.h3App.handler
+  nitroApp.h3App.handler = (event: any) => {
+    // A request made from inside the site's work (server rendering, the MCP tools) stays in that work's instance.
+    if (cmsInSiteWork()) {
+      const inner = handle(event)
+      cmsHoldSiteUntil(inner)
+      return inner
+    }
+    return runInCmsSite(useCmsSite(), () => {
+      const platformWaitUntil = event.context.waitUntil
+      event.context.waitUntil = (work: unknown) => { cmsHoldSiteUntil(work); platformWaitUntil?.(work) }
+      // A fresh instance (after a change of structure) runs the start-up work again: the search index follows the new model.
+      ensureCmsSiteStarted()
+      const path = String(event.path || event.node.req.url || '/').split('?')[0]!
+      if (path.startsWith('/api/')) return handle(event)
+      return cmsSiteReady().then(() => handle(event), (err) => (cmsIsModelLoadError(err)
+        ? answer(event, 503, 'This website cannot be shown for a moment; try again shortly', { 'retry-after': '5' })
+        : handle(event)))
+    })
+  }
+  // No unloading when the server closes, as single mode never had: the background tasks may still
+  // be running, and the process ends the pool by exiting.
+}
+
 export default defineNitroPlugin((nitroApp) => {
-  if (!cmsIsMultiTenant()) return
+  if (!cmsIsMultiTenant()) {
+    if (cmsSiteCounted()) countSingleSite(nitroApp)
+    return
+  }
   // The directory refuses a row naming a model the build does not have: it must know them before it reads anything.
   cmsKnowSiteModels(cmsModelNames())
   // A directory in a file is read now: a missing or broken one fails the start, not the

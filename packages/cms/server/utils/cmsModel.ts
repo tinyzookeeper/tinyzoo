@@ -68,7 +68,7 @@ export function cmsDesignModel(): CmsSiteModel {
  */
 export function cmsSiteModel(): CmsSiteModel {
   const design = cmsDesignModel()
-  if (!cmsIsMultiTenant()) return design
+  if (!cmsSiteCounted()) return design
   return custom.peek()?.loaded?.model ?? design
 }
 
@@ -224,12 +224,12 @@ async function sweepDue(): Promise<void> {
 }
 
 /**
- * Read the current site's own content types, once per site instance (multi-tenant mode, with
- * the feature on for the site; otherwise at once). A failure (the database could not be read)
+ * Read the current site's own content types, once per site instance (a counted site, with the
+ * feature on for the site; otherwise at once). A failure (the database could not be read)
  * is not kept: the caller answers 503 and the next one tries again.
  */
 export function cmsLoadSiteModel(): Promise<void> {
-  if (!cmsIsMultiTenant() || !cmsCustomTypesSwitch()) return Promise.resolve()
+  if (!cmsSiteCounted() || !cmsCustomTypesSwitch()) return Promise.resolve()
   const state = custom()
   if (state.loaded) return Promise.resolve()
   if (state.loading) return state.loading
@@ -244,10 +244,12 @@ export function cmsLoadSiteModel(): Promise<void> {
 
 /**
  * Resolves when the current site can serve: its migrations have run, and then its own content
- * types are loaded. With the feature off this is `cmsMigrationsReady()` and nothing else.
+ * types are loaded. With the feature off this is `cmsMigrationsReady()` and nothing else. Single
+ * mode: the app's own model file is taken in first, once per process (cmsAppModelFile.ts).
  */
 export function cmsSiteReady(): Promise<void> {
-  if (!cmsIsMultiTenant() || !cmsCustomTypesSwitch()) return cmsMigrationsReady()
+  if (!cmsSiteCounted() || !cmsCustomTypesSwitch()) return cmsMigrationsReady()
+  if (!cmsIsMultiTenant()) return cmsMigrationsReady().then(() => cmsAppModelFileReady()).then(() => cmsLoadSiteModel())
   return cmsMigrationsReady().then(() => cmsLoadSiteModel())
 }
 
@@ -257,7 +259,7 @@ export function cmsSiteReady(): Promise<void> {
  * the site's types are loaded already, so the order of such work is kept.
  */
 export function cmsAfterSiteReady<T>(fn: () => T, failed?: (err: unknown) => unknown): T | Promise<Awaited<T>> {
-  if (!cmsIsMultiTenant() || !cmsCustomTypesSwitch() || custom.peek()?.loaded) return fn()
+  if (!cmsSiteCounted() || !cmsCustomTypesSwitch() || custom.peek()?.loaded) return fn()
   return cmsSiteReady().then(() => fn() as Awaited<T>, (err) => {
     if (!failed) throw err
     return failed(err) as Awaited<T>
@@ -266,12 +268,12 @@ export function cmsAfterSiteReady<T>(fn: () => T, failed?: (err: unknown) => unk
 
 /** What the current instance loaded of the site's own types; null before the load and with the feature off. Never loads. */
 export function cmsLoadedCustomPart(): CmsCustomPart | null {
-  if (!cmsIsMultiTenant()) return null
+  if (!cmsSiteCounted()) return null
   return custom.peek()?.loaded ?? null
 }
 
 /** Whether the current instance has read its own types yet: `idle` (nobody asked), `loading` or `loaded`. Never loads. */
 export function cmsCustomPartState(): 'idle' | 'loading' | 'loaded' {
-  const state = cmsIsMultiTenant() ? custom.peek() : undefined
+  const state = cmsSiteCounted() ? custom.peek() : undefined
   return state?.loaded ? 'loaded' : state?.loading ? 'loading' : 'idle'
 }

@@ -13,8 +13,36 @@
  * none either: its hooks are dropped and the socket is closed. What the site kept for the
  * socket was released when the site was unloaded (the `dispose` of its per-site values).
  *
- * Single mode: the hooks are returned as they are.
+ * Single mode: the hooks are returned as they are, unless the one site is counted (its own
+ * content types are on, cmsSiteCounted). Then each hook runs inside the site's current instance
+ * and waits for its types as a request does; there are no hosts to look at.
  */
+/** Single mode, counted: every hook inside the one site's current instance, the first ones after its types are read. */
+function singleSiteHooks<T extends SocketHooks>(hooks: T): T {
+  const site = () => useCmsSite()
+  const served = <A>(hook: ((peer: any, arg: A) => any) | undefined) => (peer: any, arg: A) =>
+    runInCmsSite(site(), () => cmsAfterSiteReady(() => hook?.(peer, arg), () => {
+      try { peer?.close?.(1011, 'Try again shortly') }
+      catch { /* already closing */ }
+    }))
+  const known = <A>(hook: ((peer: any, arg: A) => any) | undefined) => (peer: any, arg: A) => runInCmsSite(site(), () => hook?.(peer, arg))
+  return {
+    ...hooks,
+    upgrade(request: any) {
+      return runInCmsSite(site(), () => {
+        ensureCmsSiteStarted()
+        return cmsAfterSiteReady(() => hooks.upgrade?.(request), () => {
+          throw new Response('This website cannot be reached for a moment', { status: 503, headers: { 'retry-after': '5' } })
+        })
+      })
+    },
+    open: served(hooks.open),
+    message: served(hooks.message),
+    close: known(hooks.close),
+    error: known(hooks.error),
+  } as T
+}
+
 interface SocketHooks {
   upgrade?: (request: any) => any
   open?: (peer: any) => any
@@ -24,7 +52,8 @@ interface SocketHooks {
 }
 
 export function cmsSocketHooksInSite<T extends SocketHooks>(hooks: T, opts: { writes?: boolean } = {}): T {
-  if (!cmsIsMultiTenant()) return hooks
+  if (!cmsSiteCounted()) return hooks
+  if (!cmsIsMultiTenant()) return singleSiteHooks(hooks)
   /** `writes`: the socket writes to the database (shared editing). A read-only site, which is being moved, gets none. */
   const closedTo = (site: CmsSite) => site.state === 'paused' || site.state === 'moved' || (site.state === 'read-only' && !!opts.writes)
   /** The socket's site as the directory has it now, or null. */

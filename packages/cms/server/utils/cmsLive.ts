@@ -135,7 +135,8 @@ function start(): void {
   // Multi-tenant mode: this hub started with the site's first socket on this instance, so it has
   // not been listening for the site and knows nobody on the other instances. They would say who
   // is there at their next heartbeat (up to 20 s): ask them now, once this instance listens.
-  if (cmsIsMultiTenant()) void listening.started.then(() => askWhoIsHere())
+  // The same for a counted single site: a change of its structure gives it a fresh hub too.
+  if (cmsSiteCounted()) void listening.started.then(() => askWhoIsHere())
 }
 
 /** Ask the other instances to announce their people of the current site again (see `onRemote`). */

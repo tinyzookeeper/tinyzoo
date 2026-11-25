@@ -12,7 +12,8 @@ export default defineTask({
     const sites = { looked: 0, skipped: 0, failed: 0 }
     await runReportedTask('cms:scheduled', async () => {
       if (!cmsIsMultiTenant()) {
-        await forEachCmsSite(async () => { announced += (await announceScheduled()) ?? 0 }, { concurrency: 5, what: 'scheduled publishing' })
+        // A counted single site reads its own content types first (at once with the feature off).
+        await forEachCmsSite(async () => { announced += (await cmsAfterSiteReady(() => announceScheduled())) ?? 0 }, { concurrency: 5, what: 'scheduled publishing' })
         return
       }
       // A site with its own content types reads them first, as a request would (at once with the feature off).

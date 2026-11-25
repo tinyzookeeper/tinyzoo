@@ -40,8 +40,9 @@ const PROCESS_CMS = {
 
 let n = 0
 /** The module, loaded anew in the mode asked for. */
-async function load(mode: 'single' | 'multi', sites?: unknown[]): Promise<SiteModule> {
+async function load(mode: 'single' | 'multi', sites?: unknown[], customTypes = false): Promise<SiteModule> {
   vi.stubEnv('NUXT_CMS_TENANCY_MODE', mode === 'multi' ? 'multi' : '')
+  vi.stubEnv('NUXT_CMS_CUSTOM_TYPES', customTypes ? 'on' : '')
   vi.stubEnv('NUXT_CMS_TENANCY_FILE', mode === 'multi' ? directoryFile : '')
   if (sites) writeFileSync(directoryFile, JSON.stringify({ sites }))
   vi.stubGlobal('useRuntimeConfig', () => ({ cms: PROCESS_CMS }))
@@ -783,5 +784,184 @@ describe('multi mode: retiring the current site\'s instance', () => {
     expect(s.cmsRetireSite('default')).toBe(false)
     expect(s.cmsSiteRetiredCheck()()).toBe(false)
     expect(made).toBe(1)
+  })
+})
+
+describe('single mode without the switch: one object for the process\'s life', () => {
+  it('the site is not counted, and a retire changes nothing, inside or outside the work', async () => {
+    const s = await load('single')
+    expect(s.cmsSiteCounted()).toBe(false)
+    expect(s.cmsInSiteWork()).toBe(false)
+    let made = 0
+    const cache = s.cmsSiteScoped(() => ({ n: ++made }))
+    const first = cache()
+    s.cmsRetireCurrentSite()
+    expect(cache()).toBe(first)
+    expect(s.cmsRetireSite('default')).toBe(false)
+    expect(cache()).toBe(first)
+    // Inside the helper as well.
+    expect(s.runInCmsSite(s.useCmsSite(), () => { s.cmsRetireCurrentSite(); return cache() })).toBe(first)
+    expect(s.runInCmsSite(s.useCmsSite(), () => cache())).toBe(first)
+    expect(made).toBe(1)
+  })
+
+  it('runInCmsSite calls the function directly and returns what it returns, as it is', async () => {
+    const s = await load('single')
+    const calls: string[] = []
+    const promise = Promise.resolve('done')
+    const result = s.runInCmsSite(s.useCmsSite(), () => { calls.push('ran'); return promise })
+    // Same tick: it has run before runInCmsSite returned.
+    expect(calls).toEqual(['ran'])
+    expect(result).toBe(promise)
+    const fn = () => 'unchanged'
+    expect(s.bindToCmsSite(fn)).toBe(fn)
+  })
+
+  it('holding the site, the retired check and the start-up work are as they always were', async () => {
+    const s = await load('single')
+    let finish!: () => void
+    const waiting = new Promise<void>((r) => { finish = r })
+    s.cmsHoldSiteUntil(waiting)
+    finish()
+    await waiting
+    expect(s.cmsSiteRetiredCheck()()).toBe(false)
+    s.cmsRetireCurrentSite()
+    expect(s.cmsSiteRetiredCheck()()).toBe(false)
+    let started = 0
+    s.onCmsSiteStart(() => { started++ })
+    expect(started).toBe(1)
+    s.ensureCmsSiteStarted()
+    expect(started).toBe(1)
+  })
+})
+
+describe('single mode with the switch (NUXT_CMS_CUSTOM_TYPES=on): the one site is counted', () => {
+  it('the site is counted, though it is not multi-tenant, and it is still the default one', async () => {
+    const s = await load('single', undefined, true)
+    expect(s.cmsSiteCounted()).toBe(true)
+    expect(s.cmsIsMultiTenant()).toBe(false)
+    expect(s.useCmsSite().id).toBe('default')
+  })
+
+  it('cmsInSiteWork is false outside the work and true inside it', async () => {
+    const s = await load('single', undefined, true)
+    expect(s.cmsInSiteWork()).toBe(false)
+    expect(s.runInCmsSite(s.useCmsSite(), () => s.cmsInSiteWork())).toBe(true)
+    expect(s.cmsInSiteWork()).toBe(false)
+  })
+
+  it('a scoped value is the same outside any instance and inside one', async () => {
+    const s = await load('single', undefined, true)
+    let made = 0
+    const cache = s.cmsSiteScoped(() => ({ n: ++made }))
+    const outside = cache()
+    expect(s.runInCmsSite(s.useCmsSite(), () => cache())).toBe(outside)
+    expect(cache()).toBe(outside)
+    expect(made).toBe(1)
+  })
+
+  it('a retire gives new work a new object, while the work under way keeps the old one until it has finished', async () => {
+    const s = await load('single', undefined, true)
+    const released: string[] = []
+    let made = 0
+    const cache = s.cmsSiteScoped(() => ({ name: `value ${++made}` }), { dispose: (v) => { released.push(v.name) } })
+    let finish!: () => void
+    const waiting = new Promise<void>((r) => { finish = r })
+    const timers: Promise<unknown>[] = []
+    const seen: Record<string, unknown> = {}
+    const work = s.runInCmsSite(s.useCmsSite(), async () => {
+      seen.before = cache()
+      s.cmsRetireCurrentSite()
+      // A timer started inside the old instance.
+      timers.push(new Promise((r) => setTimeout(() => { seen.timer = cache(); r(null) }, 40)))
+      await waiting
+      seen.during = cache()
+    })
+    // New work gets a new object at once.
+    const fresh = s.runInCmsSite(s.useCmsSite(), () => cache())
+    expect(fresh).not.toBe(seen.before)
+    expect(fresh.name).toBe('value 2')
+    await tick()
+    expect(released).toEqual([])
+    finish()
+    await work
+    await tick()
+    expect(seen.during).toBe(seen.before)
+    expect(released).toEqual(['value 1'])
+    // The timer fires after the old instance was released: it sees the current one.
+    await Promise.all(timers)
+    expect(seen.timer).toBe(fresh)
+    expect(cache()).toBe(fresh)
+    expect(released).toEqual(['value 1'])
+  })
+
+  it('cmsRetireSite("default") says there was an instance, and new work gets a new object', async () => {
+    const s = await load('single', undefined, true)
+    let made = 0
+    const cache = s.cmsSiteScoped(() => ({ n: ++made }))
+    const first = s.runInCmsSite(s.useCmsSite(), () => cache())
+    expect(s.cmsRetireSite('default')).toBe(true)
+    const next = s.runInCmsSite(s.useCmsSite(), () => cache())
+    expect(next).not.toBe(first)
+    expect(next.n).toBe(2)
+  })
+
+  it('start-up work runs at once, once; a fresh instance runs it again the first time it is used', async () => {
+    const s = await load('single', undefined, true)
+    let started = 0
+    s.onCmsSiteStart(() => { started++ })
+    expect(started).toBe(1)
+    s.runInCmsSite(s.useCmsSite(), () => s.ensureCmsSiteStarted())
+    expect(started).toBe(1)
+    s.ensureCmsSiteStarted()
+    expect(started).toBe(1)
+    expect(s.cmsRetireSite('default')).toBe(true)
+    s.runInCmsSite(s.useCmsSite(), () => s.ensureCmsSiteStarted())
+    expect(started).toBe(2)
+    s.runInCmsSite(s.useCmsSite(), () => s.ensureCmsSiteStarted())
+    expect(started).toBe(2)
+  })
+
+  it('work in every site runs inside the instance and holds it until it has finished', async () => {
+    const s = await load('single', undefined, true)
+    const released: string[] = []
+    let made = 0
+    const cache = s.cmsSiteScoped(() => ({ name: `value ${++made}` }), { dispose: (v) => { released.push(v.name) } })
+    const current = cache()
+    let finish!: () => void
+    const waiting = new Promise<void>((r) => { finish = r })
+    let inside: unknown
+    const run = s.forEachCmsSite(async () => {
+      inside = cache()
+      s.cmsRetireCurrentSite()
+      await waiting
+    })
+    await tick()
+    expect(inside).toBe(current)
+    expect(released).toEqual([])
+    finish()
+    expect(await run).toEqual([])
+    await tick()
+    expect(released).toEqual(['value 1'])
+  })
+
+  it('a callback bound inside an instance that is then retired runs in the current instance', async () => {
+    const s = await load('single', undefined, true)
+    let made = 0
+    const cache = s.cmsSiteScoped(() => ({ n: ++made }))
+    const bound = s.runInCmsSite(s.useCmsSite(), () => { cache(); return s.bindToCmsSite(() => cache()) })
+    expect(s.cmsRetireSite('default')).toBe(true)
+    const fresh = s.runInCmsSite(s.useCmsSite(), () => cache())
+    expect(bound()).toBe(fresh)
+    expect(fresh.n).toBe(2)
+  })
+
+  it('a retired check turns true for the old instance only', async () => {
+    const s = await load('single', undefined, true)
+    const oldCheck = s.cmsSiteRetiredCheck()
+    expect(oldCheck()).toBe(false)
+    s.cmsRetireCurrentSite()
+    expect(oldCheck()).toBe(true)
+    expect(s.cmsSiteRetiredCheck()()).toBe(false)
   })
 })

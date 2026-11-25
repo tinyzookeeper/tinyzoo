@@ -20,6 +20,13 @@ import { isAbsolute } from 'node:path'
  * Everything a site owns in memory is declared with `cmsSiteScoped`; state shared by the
  * whole process on purpose with `cmsProcessWide`. A unit test (test/unit/module-state.spec.ts)
  * refuses module-level state that is neither.
+ *
+ * Single mode with a site's own content types (NUXT_CMS_CUSTOM_TYPES=on; experimental): the one
+ * site's work is counted as a multi-tenant site's is (`cmsSiteCounted`). Its memory is then an
+ * instance that a change of structure retires and the next request makes again, while the work
+ * under way finishes with the memory it started with. What keeps many sites apart (hosts, the
+ * directory, the session's proof) stays as single mode has it. Without the switch the one site's
+ * memory is one object for the process's life, as always.
  */
 export interface CmsSite {
   /** Stable, opaque id: keys this site's state, its rate limits and its messages. */
@@ -107,6 +114,17 @@ export function cmsTenancyMode(): 'single' | 'multi' {
 }
 export const cmsIsMultiTenant = (): boolean => cmsTenancyMode() === 'multi'
 
+let counted: boolean | undefined
+/**
+ * Is the work of a site counted, so that its memory can be retired and made again? Yes in multi
+ * mode. In single mode only with NUXT_CMS_CUSTOM_TYPES=on (a site's own content types change its
+ * model while it runs). Read once, from the environment: this file loads without the package.
+ */
+export function cmsSiteCounted(): boolean {
+  if (counted === undefined) counted = cmsTenancyMode() === 'multi' || (typeof process !== 'undefined' && process.env?.NUXT_CMS_CUSTOM_TYPES === 'on')
+  return counted
+}
+
 /** The one site of single mode. Its database, files and settings come from the environment, where they always did. */
 const SINGLE: CmsSite = Object.freeze({ id: 'default', hosts: [], alsoHosts: [], publicUrl: '', state: 'active', databaseUrl: '', secret: '', model: 'default', config: {} }) as CmsSite
 const SINGLE_INSTANCE = newInstance(SINGLE)
@@ -119,7 +137,9 @@ const SINGLE_INSTANCE = newInstance(SINGLE)
  */
 function currentInstance(): SiteInstance | undefined {
   const instance = context.getStore()
-  if (!instance || !instance.released) return instance
+  // Single mode (counted): the one site is the current site everywhere, so work outside any instance runs in the site's current one.
+  if (!instance) return cmsTenancyMode() === 'single' ? instanceFor(SINGLE) : undefined
+  if (!instance.released) return instance
   if (instance.left) throw new CmsNoSiteError(`late work of site ${instance.site.id}, which left the site directory`)
   return instanceFor(instance.site)
 }
@@ -143,7 +163,7 @@ export function currentCmsSite(): CmsSite | null {
  * promise here, so a change of the site's row does not close the database under it.
  */
 export function cmsHoldSiteUntil(work: unknown): void {
-  if (cmsTenancyMode() === 'single') return
+  if (!cmsSiteCounted()) return
   const instance = context.getStore()
   if (!instance || instance.released || !work || typeof (work as any).then !== 'function') return
   instance.active++
@@ -171,6 +191,16 @@ export function cmsSiteQuietCheck(): () => boolean {
   const instance = context.getStore()
   if (!instance) throw new CmsNoSiteError('a check bound to its site')
   return () => instance.active <= 0
+}
+
+/** Does the caller run inside an instance (a request, a socket's hook, bound or background work)? Counted sites only: for the request wrapper of single mode. */
+export function cmsInSiteWork(): boolean {
+  return cmsSiteCounted() && !!context.getStore()
+}
+
+/** The instance the caller runs in; for single mode (counted), the one site's current instance when it runs in none. */
+function ownInstance(): SiteInstance | undefined {
+  return context.getStore() ?? (cmsTenancyMode() === 'single' ? instanceFor(SINGLE) : undefined)
 }
 
 /** The instance new work of `site` starts in. A row held from before the directory changed still names its site. */
@@ -208,12 +238,12 @@ function leave(instance: SiteInstance): void {
 
 /** Run `fn` with `site` as the current site (and everything it awaits, and the timers it starts). */
 export function runInCmsSite<T>(site: CmsSite, fn: () => T): T {
-  return cmsTenancyMode() === 'single' ? fn() : enter(instanceFor(site), fn)
+  return !cmsSiteCounted() ? fn() : enter(instanceFor(site), fn)
 }
 
 /** Run `fn` with no current site: for process-wide work started from inside a request (a shared timer, a shared queue). */
 export function outsideCmsSite<T>(fn: () => T): T {
-  return cmsTenancyMode() === 'single' ? fn() : context.exit(fn)
+  return !cmsSiteCounted() ? fn() : context.exit(fn)
 }
 
 /**
@@ -224,8 +254,8 @@ export function outsideCmsSite<T>(fn: () => T): T {
  * its files can no longer be written.
  */
 export function bindToCmsSite<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
-  if (cmsTenancyMode() === 'single') return fn
-  const bound = context.getStore()
+  if (!cmsSiteCounted()) return fn
+  const bound = ownInstance()
   if (!bound) throw new CmsNoSiteError('a callback bound to its site')
   return (...args: A) => enter(bound.retired && !bound.left ? instanceFor(bound.site) : bound, () => fn(...args))
 }
@@ -256,7 +286,7 @@ export function cmsSiteScoped<T>(init: () => T, opts: { dispose?: (value: T) => 
   if (opts.dispose) disposers.set(key, opts.dispose)
   if (opts.inUse) keepers.set(key, opts.inUse)
   const stateOf = () => {
-    const instance = cmsTenancyMode() === 'single' ? SINGLE_INSTANCE : currentInstance()
+    const instance = !cmsSiteCounted() ? SINGLE_INSTANCE : currentInstance()
     if (!instance) throw new CmsNoSiteError('a per-site value')
     return instance.state
   }
@@ -317,17 +347,17 @@ function retireInstance(instance: SiteInstance, left: boolean): void {
  * request of the site makes a fresh one. The caller's own work, and all other work under way in
  * it, goes on with what it started with until it has finished. For a change that the site's
  * memory must not survive, as a changed row (a change of the site's own content types). Single
- * mode: nothing happens.
+ * mode: the same when the site is counted (`cmsSiteCounted`); otherwise nothing happens.
  */
 export function cmsRetireCurrentSite(): void {
-  if (cmsTenancyMode() === 'single') return
-  const instance = context.getStore()
+  if (!cmsSiteCounted()) return
+  const instance = context.getStore() ?? (cmsTenancyMode() === 'single' ? instances.get(SINGLE.id) : undefined)
   if (instance && !instance.released) retireInstance(instance, false)
 }
 
 /** Retire the instance a site has loaded in this process, if it has one. True when there was one. */
 export function cmsRetireSite(id: string): boolean {
-  if (cmsTenancyMode() === 'single') return false
+  if (!cmsSiteCounted()) return false
   const instance = instances.get(id)
   if (!instance) return false
   retireInstance(instance, false)
@@ -336,8 +366,8 @@ export function cmsRetireSite(id: string): boolean {
 
 /** Has the instance the current work runs in been retired since? For something that outlives this call (a timer kept in the site's memory). */
 export function cmsSiteRetiredCheck(): () => boolean {
-  if (cmsTenancyMode() === 'single') return () => false
-  const instance = context.getStore()
+  if (!cmsSiteCounted()) return () => false
+  const instance = ownInstance()
   if (!instance) throw new CmsNoSiteError('a check bound to its site')
   return () => instance.retired
 }
@@ -779,7 +809,7 @@ export async function forEachCmsSite(fn: (site: CmsSite) => unknown, opts: { con
       const site = sites[next++]!
       try {
         // Background work: it does not count as somebody using the site (an idle site stays idle).
-        await (cmsTenancyMode() === 'single' ? fn(site) : enter(instanceFor(site), () => fn(site), true))
+        await (!cmsSiteCounted() ? fn(site) : enter(instanceFor(site), () => fn(site), true))
       }
       catch (error) {
         failed.push({ site: site.id, error })
@@ -800,16 +830,19 @@ const started = cmsSiteScoped(() => false)
 /**
  * Work a site needs once before it is used: migrations, the search index, the setup code.
  * Single mode: runs now (the server is starting). Multi mode: runs inside each site, the
- * first time the site is used or when the sweep after start reaches it.
+ * first time the site is used or when the sweep after start reaches it. Single mode with the
+ * site counted: runs now, inside the site's first instance (a failure stops the start as
+ * always), and again in each fresh instance, the first time it is used.
  */
 export function onCmsSiteStart(fn: () => unknown): void {
-  if (cmsTenancyMode() === 'single') { fn(); return }
+  if (!cmsSiteCounted()) { fn(); return }
   startHooks.push(fn)
+  if (cmsTenancyMode() === 'single') enter(instanceFor(SINGLE), () => { started.set(true); return fn() }, true)
 }
 
 /** Run the start hooks of the current site, once. They start their own work in the background; nothing here waits. */
 export function ensureCmsSiteStarted(): void {
-  if (cmsTenancyMode() === 'single' || started()) return
+  if (!cmsSiteCounted() || started()) return
   started.set(true)
   const site = useCmsSite()
   for (const hook of startHooks) {

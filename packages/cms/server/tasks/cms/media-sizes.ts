@@ -13,7 +13,8 @@ export default defineTask({
     const sites = { looked: 0, skipped: 0, failed: 0 }
     await runReportedTask('cms:media-sizes', async () => {
       if (!cmsIsMultiTenant()) {
-        await forEachCmsSite(async () => { pictures += (await runMediaSizes()) ?? 0 }, { concurrency: 5, what: 'smaller copies of pictures' })
+        // A counted single site reads its own content types first (at once with the feature off).
+        await forEachCmsSite(async () => { pictures += (await cmsAfterSiteReady(() => runMediaSizes())) ?? 0 }, { concurrency: 5, what: 'smaller copies of pictures' })
         return
       }
       // A site with its own content types reads them first, as a request would (at once with the feature off).

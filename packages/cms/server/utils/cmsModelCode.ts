@@ -188,6 +188,14 @@ function registrationOf(row: any, doc: ModelDoc, design: Record<string, any>, na
   }
 }
 
+/** The file stored under one registration and who registered it, or null (no such registration, or no table yet). Never makes the table. */
+export async function cmsModelCodeFile(name: string): Promise<{ file: unknown; source: string } | null> {
+  const exec = execOn(useCms().db)
+  if (!await tableExists(exec, 'cms_model_code')) return null
+  const [row] = await exec('select file, source from "cms_model_code" where name = $1', [name])
+  return row ? { file: row.file, source: row.source } : null
+}
+
 /** The site's registrations, by name, each with what the site lacks now. Empty for a site that never registered. */
 export async function cmsModelCodeList(): Promise<CmsCodeRegistration[]> {
   const exec = execOn(useCms().db)
