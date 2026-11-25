@@ -8,14 +8,14 @@ import { directoryKey } from '../../shared/directorySecret'
 import { planById } from '../../shared/plans'
 import { parsePortRange, pickPort } from '../../shared/ports'
 import {
-  assertSiteId, assertTemplateId, passwordOfDatabaseUrl, SHARED_PORT_RANGE, sharedDatabaseNameFor, sharedDatabasePrefix,
+  assertSiteId, assertTemplateId, customTypesEnv, passwordOfDatabaseUrl, SHARED_PORT_RANGE, sharedDatabaseNameFor, sharedDatabasePrefix,
   sharedDatabaseUrl, sharedSiteRow, sharedSiteUrl, splitSiteEnv, sqlLiteral, withoutSharedSite, withSharedSite,
   type SharedSiteDomains, type SharedSiteRow, type SharedSiteState,
 } from '../../shared/sharedHosting'
 import { quoteIdent } from '../../shared/slug'
 import { appOf, modelOf, templatesOfApp, type AppDef, type TemplateDef } from '../../shared/templates'
 import type { SiteRow } from '../db/schema'
-import { builtAppOf, entryOf as appEntryOf } from './apps'
+import { builtAppOf, cloudCustomTypes, entryOf as appEntryOf } from './apps'
 import { siteDirectory, writePrivate, type DirectoryKind, type DirectoryReader, type SiteDirectory } from './directory'
 import { portIsFree } from './local'
 import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteAccess, type SiteSpec } from './types'
@@ -368,6 +368,8 @@ function start(def: AppDef, tdir: string, app: AppFile, settings: Record<string,
         HOST: '127.0.0.1',
         PORT: String(app.port),
         NUXT_CMS_TENANCY_MODE: 'multi',
+        // The sites' own content types (CLOUD_CUSTOM_TYPES=on), for the one app only.
+        ...customTypesEnv(def, cloudCustomTypes()),
         // Where the site directory is: the file, or the table with the reader's address (and the directory key).
         ...directoryEnv,
         NUXT_APP_SECRET: app.secret,
@@ -558,6 +560,8 @@ function rowOf(site: SiteSpec, tdir: string, port: number, password: string, kep
     limits: planById(kept.plan).storage,
     // In an app that carries several models the row names the site's own: its template.
     model: modelOf(site.template),
+    // With CLOUD_CUSTOM_TYPES=on, the one app's sites get their plan's limits for types of their own.
+    customTypes: cloudCustomTypes() && appOf(site.template)?.models ? planById(kept.plan).customTypes : null,
   })
 }
 

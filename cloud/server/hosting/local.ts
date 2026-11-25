@@ -5,10 +5,11 @@ import { dirname, join, resolve, sep } from 'node:path'
 import { promisify } from 'node:util'
 import { siteUrlFor, siteUrlPattern } from '../../shared/address'
 import { parsePortRange, pickPort } from '../../shared/ports'
-import { localSiteRow, sharedDirectoryText, splitSiteEnv } from '../../shared/sharedHosting'
+import { planById } from '../../shared/plans'
+import { customTypesEnv, localSiteRow, sharedDirectoryText, splitSiteEnv } from '../../shared/sharedHosting'
 import { assertSlug, DATABASE_PREFIX, databaseNameFor, quoteIdent } from '../../shared/slug'
-import { modelOf } from '../../shared/templates'
-import { builtAppOf } from './apps'
+import { appOf, modelOf } from '../../shared/templates'
+import { builtAppOf, cloudCustomTypes } from './apps'
 import { writePrivate } from './directory'
 import { HostingError, type HostedSite, type HostingDriver, type OnStep, type Provisioned, type SiteSpec } from './types'
 
@@ -238,6 +239,9 @@ function writeDirectory(spec: SiteSpec, dir: string, port: number): string {
     env: spec.env,
     siteDir: dir,
     model: modelOf(spec.template),
+    // With CLOUD_CUSTOM_TYPES=on, a site of the one app gets the limits for types of its own.
+    // This driver keeps no plan per site: the default plan's.
+    customTypes: cloudCustomTypes() && appOf(spec.template)?.models ? planById(null).customTypes : null,
   })
   writePrivate(file, sharedDirectoryText([row]))
   return file
@@ -265,6 +269,8 @@ function start(spec: SiteSpec, dir: string, port: number, directory: string): nu
         PORT: String(port),
         NUXT_CMS_TENANCY_MODE: 'multi',
         NUXT_CMS_TENANCY_FILE: directory,
+        // The sites' own content types (CLOUD_CUSTOM_TYPES=on), for the one app only.
+        ...customTypesEnv(builtAppOf(config().root, spec.template).app, cloudCustomTypes()),
       },
     })
     child.unref()

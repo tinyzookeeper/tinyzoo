@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { customTypesSetting } from '../../shared/sharedHosting'
 import { appOf, type AppDef, type TemplateDef } from '../../shared/templates'
 import { HostingError } from './types'
 
@@ -7,6 +8,13 @@ import { HostingError } from './types'
 // template: where its build is, and whether the template is in that build. The one app for the
 // hosted templates can be built with only some of its designs (`templates:build photographer`);
 // the build then says which in `tinyzoo-designs.json` beside its entry.
+
+/**
+ * CLOUD_CUSTOM_TYPES=on: the one app's sites may make content types of their own (experimental).
+ * Read from the environment each time, as the other CLOUD_* settings are (runtime config holds
+ * NUXT_* names only). Off: what the drivers start and write is as it always was.
+ */
+export const cloudCustomTypes = (): boolean => customTypesSetting(process.env.CLOUD_CUSTOM_TYPES)
 
 /** The app's server entry. It need not exist. */
 export const entryOf = (root: string, app: AppDef): string => join(root, app.sourceDir, '.output', 'server', 'index.mjs')

@@ -105,6 +105,7 @@ With `NUXT_MAIL_TRANSPORT=log` (the default) e-mails are printed to the server l
 | `NUXT_MAIL_TRANSPORT`, `NUXT_MAIL_FROM`, `NUXT_MAIL_SMTP_*` | e-mail, as in Keeper: `log` prints, `smtp` sends |
 | `NUXT_DEV_MAIL_LINKS` | `false` hides the development notes that show an e-mail's link on the page (the walkthrough sets it) |
 | `CLOUD_DEV_HOSTS` | more names the dev server answers to (`.pushbase.app`), for a proxy in front of it |
+| `CLOUD_CUSTOM_TYPES` | `on` lets the sites of the twenty hosted templates make content types of their own (experimental; *A site's own content types*, below). Anything else, or unset, is off, and then nothing the cloud starts or writes changes. Read from the environment, not from `NUXT_*` settings. An app's process gets it the next time the driver starts it |
 
 The sign-in cookie is called `tinyzoo-cloud`, not nuxt-auth-utils' default: on `localhost` cookies are shared across ports, and the sites use the default name.
 
@@ -236,7 +237,15 @@ A site's owner adds a domain of their own on the site's page (`/api/sites/:id/do
 
 #### Plans
 
-`shared/plans.ts` is a small table of plans in code: one today (`basic`: 20 MB an upload, 1 GB in all). A site's plan is `sites.plan`; its numbers go into the site's row as `config.storage.maxSizeMb` and `config.storage.maxBytes`, and the site itself refuses what goes over them. The site's page shows how much is used against the total, as the site reports it (`GET /api/health/status` with the site's status token: `media.bytes`, `media.limitBytes`). A later paid plan is another row of that table.
+`shared/plans.ts` is a small table of plans in code: one today (`basic`: 20 MB an upload, 1 GB in all; 12 content types of the site's own with 30 fields each). A site's plan is `sites.plan`; its numbers go into the site's row as `config.storage.maxSizeMb` and `config.storage.maxBytes` (and, with `CLOUD_CUSTOM_TYPES=on`, `config.customTypes.types` and `.fields`), and the site itself refuses what goes over them. The site's page shows how much is used against the total, as the site reports it (`GET /api/health/status` with the site's status token: `media.bytes`, `media.limitBytes`). A later paid plan is another row of that table.
+
+#### A site's own content types
+
+Experimental, and off unless the cloud runs with `CLOUD_CUSTOM_TYPES=on`. With it on, both drivers start the one app (`templates/app`) with `NUXT_CMS_CUSTOM_TYPES=on`, and each of its sites' rows gets `config.customTypes = { types, fields }` from the site's plan. An administrator of such a site then makes types of their own in its admin (*Settings › Content types*): "Courses", say, with the fields they need, each type a real table in the site's own database. The two blocks *Entries* and *Chosen entries* show them on any page, and a type with pages gives each entry its own address, in the sitemap and the site search. How it works: [`docs/custom-types-plan.md`](../docs/custom-types-plan.md).
+
+The Basic website's app (`packages/cms/starter`) is not built on the template kit and its pages have no such blocks: its process is started without the switch, and its rows say nothing of it. The local driver keeps no plan per site and gives each site the default plan's numbers.
+
+A move out of shared hosting keeps such a site's types: it is `tinyzoo backup` of the whole database. `tinyzoo export` and `import` refuse a site with types of its own.
 
 #### Moving a website out, and in
 
