@@ -593,9 +593,10 @@ describe('from the document to the statements', () => {
       { op: 'field.remove', type: 'custom_course', key: 'price' },
       { op: 'type.remove', type: 'custom_branch' },
     ], ctx())
-    const due = modelPurgeDue(hidden, later(31))
-    expect(due).toEqual({ types: ['custom_branch'], fields: [{ type: 'custom_course', key: 'price' }] })
-    const { doc: purged } = applyModelOps(hidden, [{ op: 'purge', ...due }], ctx({ now: later(31), internal: true }))
+    // Nothing here was removed empty, so the server's sweep never deletes it: a person does.
+    expect(modelPurgeDue(hidden, later(31))).toEqual({ types: [], fields: [] })
+    const purge = { types: ['custom_branch'], fields: [{ type: 'custom_course', key: 'price' }] }
+    const { doc: purged } = applyModelOps(hidden, [{ op: 'purge', ...purge }], ctx({ now: later(31) }))
 
     const refused = plan(shapeOf(hidden), shapeOf(purged))
     expect(refused.statements).toEqual([])
