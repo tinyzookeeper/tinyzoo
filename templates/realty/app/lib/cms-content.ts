@@ -33,6 +33,20 @@ export interface CmsGalleryItem extends CmsMedia {
   caption: string | null
 }
 
+/** Which custom type a block shows, and which field goes to which place. */
+export interface CmsBinding {
+  /** The name of the custom type. */
+  type: string
+  /** The fields that go to the places of a card. */
+  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }
+  /** A list only: the field to order by. Null or left out is the type's own order. */
+  order?: { by: string; dir: 'asc' | 'desc' } | null
+  /** A list only: how many entries, 1 to 48. Left out is 6. */
+  limit?: number | null
+  /** Chosen entries only: their ids, in the picked order. */
+  entries?: string[]
+}
+
 // ── nested (populated) projections ─────────────────────────────────────────────
 export interface AgentEmbedded {
   id: string
@@ -112,7 +126,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'opening'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; imageCaption: string | null; primaryLabel: string | null; primaryUrl: string | null; secondaryLabel: string | null; secondaryUrl: string | null; quickLabel: string | null; quickLinks: Array<{ id: string; type: 'item'; label: string; url: string | null }> } | { id: string; type: 'listings'; eyebrow: string | null; heading: string; limit: number | null; watchdog: boolean | null; watchdogEyebrow: string | null; watchdogHeading: string | null; watchdogText: string | null; watchdogButton: string | null; watchdogSent: string | null } | { id: string; type: 'detail'; eyebrow: string | null; caption: string | null; moreLabel: string | null; badge: string | null } | { id: string; type: 'sellers'; eyebrow: string | null; heading: string; text: string | null; steps: Array<{ id: string; type: 'item'; title: string; text: string | null }>; commission: string | null; formHeading: string | null; formText: string | null; formButton: string | null } | { id: string; type: 'sold'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'agents'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'areas'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; towns: Array<{ id: string; type: 'item'; name: string; x: number | null; y: number | null; labelX: number | null; labelY: number | null; anchor: 'start' | 'end' | 'middle' | null; kind: 'main' | 'offer' | 'request' | null }> } | { id: string; type: 'contact'; eyebrow: string | null; heading: string; text: string | null; viewings: string | null; topics: Array<{ id: string; type: 'item'; name: string }> } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null }>
+  sections: Array<{ id: string; type: 'opening'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; imageCaption: string | null; primaryLabel: string | null; primaryUrl: string | null; secondaryLabel: string | null; secondaryUrl: string | null; quickLabel: string | null; quickLinks: Array<{ id: string; type: 'item'; label: string; url: string | null }> } | { id: string; type: 'listings'; eyebrow: string | null; heading: string; limit: number | null; watchdog: boolean | null; watchdogEyebrow: string | null; watchdogHeading: string | null; watchdogText: string | null; watchdogButton: string | null; watchdogSent: string | null } | { id: string; type: 'detail'; eyebrow: string | null; caption: string | null; moreLabel: string | null; badge: string | null } | { id: string; type: 'sellers'; eyebrow: string | null; heading: string; text: string | null; steps: Array<{ id: string; type: 'item'; title: string; text: string | null }>; commission: string | null; formHeading: string | null; formText: string | null; formButton: string | null } | { id: string; type: 'sold'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'agents'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'areas'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; towns: Array<{ id: string; type: 'item'; name: string; x: number | null; y: number | null; labelX: number | null; labelY: number | null; anchor: 'start' | 'end' | 'middle' | null; kind: 'main' | 'offer' | 'request' | null }> } | { id: string; type: 'contact'; eyebrow: string | null; heading: string; text: string | null; viewings: string | null; topics: Array<{ id: string; type: 'item'; name: string }> } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'x_entries'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null } | { id: string; type: 'x_chosen'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null }>
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null

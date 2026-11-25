@@ -33,6 +33,20 @@ export interface CmsGalleryItem extends CmsMedia {
   caption: string | null
 }
 
+/** Which custom type a block shows, and which field goes to which place. */
+export interface CmsBinding {
+  /** The name of the custom type. */
+  type: string
+  /** The fields that go to the places of a card. */
+  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }
+  /** A list only: the field to order by. Null or left out is the type's own order. */
+  order?: { by: string; dir: 'asc' | 'desc' } | null
+  /** A list only: how many entries, 1 to 48. Left out is 6. */
+  limit?: number | null
+  /** Chosen entries only: their ids, in the picked order. */
+  entries?: string[]
+}
+
 // ── collection items ────────────────────────────────────────────────────────────
 export interface Job {
   id: string
@@ -58,7 +72,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'opening'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; imageCaption: string | null; secondaryLabel: string | null; secondaryUrl: string | null; note: string | null } | { id: string; type: 'facts'; items: Array<{ id: string; type: 'item'; label: string; value: string }> } | { id: string; type: 'prices'; eyebrow: string | null; heading: string; text: string | null; includedTitle: string | null; included: Array<{ id: string; type: 'item'; text: string }>; note: string | null; linkLabel: string | null; linkUrl: string | null; linkNote: string | null } | { id: string; type: 'photo'; image: CmsMedia | null; caption: string | null } | { id: string; type: 'jobs'; eyebrow: string | null; heading: string; text: string | null; count: number | null; all: boolean | null } | { id: string; type: 'steps'; eyebrow: string | null; heading: string; text: string | null; items: Array<{ id: string; type: 'item'; title: string; text: string | null }> } | { id: string; type: 'about'; eyebrow: string | null; heading: string; text: string | null; photos: Array<{ id: string; type: 'item'; image: CmsMedia | null; caption: string | null }>; ownerImage: CmsMedia | null; licencesTitle: string | null; licences: Array<{ id: string; type: 'item'; text: string }> } | { id: string; type: 'reviews'; eyebrow: string | null; heading: string; count: number | null } | { id: string; type: 'area'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; note: string | null } | { id: string; type: 'enquiry'; eyebrow: string | null; heading: string; text: string | null; callLabel: string | null; note: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null }>
+  sections: Array<{ id: string; type: 'opening'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; imageCaption: string | null; secondaryLabel: string | null; secondaryUrl: string | null; note: string | null } | { id: string; type: 'facts'; items: Array<{ id: string; type: 'item'; label: string; value: string }> } | { id: string; type: 'prices'; eyebrow: string | null; heading: string; text: string | null; includedTitle: string | null; included: Array<{ id: string; type: 'item'; text: string }>; note: string | null; linkLabel: string | null; linkUrl: string | null; linkNote: string | null } | { id: string; type: 'photo'; image: CmsMedia | null; caption: string | null } | { id: string; type: 'jobs'; eyebrow: string | null; heading: string; text: string | null; count: number | null; all: boolean | null } | { id: string; type: 'steps'; eyebrow: string | null; heading: string; text: string | null; items: Array<{ id: string; type: 'item'; title: string; text: string | null }> } | { id: string; type: 'about'; eyebrow: string | null; heading: string; text: string | null; photos: Array<{ id: string; type: 'item'; image: CmsMedia | null; caption: string | null }>; ownerImage: CmsMedia | null; licencesTitle: string | null; licences: Array<{ id: string; type: 'item'; text: string }> } | { id: string; type: 'reviews'; eyebrow: string | null; heading: string; count: number | null } | { id: string; type: 'area'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; note: string | null } | { id: string; type: 'enquiry'; eyebrow: string | null; heading: string; text: string | null; callLabel: string | null; note: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'x_entries'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null } | { id: string; type: 'x_chosen'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null }>
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null

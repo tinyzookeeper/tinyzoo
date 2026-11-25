@@ -33,6 +33,20 @@ export interface CmsGalleryItem extends CmsMedia {
   caption: string | null
 }
 
+/** Which custom type a block shows, and which field goes to which place. */
+export interface CmsBinding {
+  /** The name of the custom type. */
+  type: string
+  /** The fields that go to the places of a card. */
+  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }
+  /** A list only: the field to order by. Null or left out is the type's own order. */
+  order?: { by: string; dir: 'asc' | 'desc' } | null
+  /** A list only: how many entries, 1 to 48. Left out is 6. */
+  limit?: number | null
+  /** Chosen entries only: their ids, in the picked order. */
+  entries?: string[]
+}
+
 // ── nested (populated) projections ─────────────────────────────────────────────
 export interface AuthorEmbedded {
   id: string
@@ -105,7 +119,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'front'; briefHeading: string | null; question: string | null; leadLabel: string | null } | { id: string; type: 'picks'; heading: string; note: string | null; linkUrl: string | null } | { id: string; type: 'list'; heading: string; text: string | null; scope: 'rest' | 'all' | null; count: number | null; links: Array<{ id: string; type: 'item'; label: string; url: string | null }> } | { id: string; type: 'series'; eyebrow: string | null; partsLabel: string | null } | { id: string; type: 'sections'; heading: string; text: string | null } | { id: string; type: 'newsletter'; mostReadHeading: string | null; eyebrow: string | null; schedule: string | null; minutes: number | null; heading: string; text: string | null; consentUrl: string | null } | { id: string; type: 'authors'; heading: string; text: string | null } | { id: string; type: 'about'; heading: string; text: string | null; supportHeading: string | null; supportText: string | null; supportLabel: string | null; supportUrl: string | null; adHeading: string | null; adText: string | null; writeHeading: string | null; writeText: string | null } | { id: string; type: 'search'; heading: string; text: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null }>
+  sections: Array<{ id: string; type: 'front'; briefHeading: string | null; question: string | null; leadLabel: string | null } | { id: string; type: 'picks'; heading: string; note: string | null; linkUrl: string | null } | { id: string; type: 'list'; heading: string; text: string | null; scope: 'rest' | 'all' | null; count: number | null; links: Array<{ id: string; type: 'item'; label: string; url: string | null }> } | { id: string; type: 'series'; eyebrow: string | null; partsLabel: string | null } | { id: string; type: 'sections'; heading: string; text: string | null } | { id: string; type: 'newsletter'; mostReadHeading: string | null; eyebrow: string | null; schedule: string | null; minutes: number | null; heading: string; text: string | null; consentUrl: string | null } | { id: string; type: 'authors'; heading: string; text: string | null } | { id: string; type: 'about'; heading: string; text: string | null; supportHeading: string | null; supportText: string | null; supportLabel: string | null; supportUrl: string | null; adHeading: string | null; adText: string | null; writeHeading: string | null; writeText: string | null } | { id: string; type: 'search'; heading: string; text: string | null } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'x_entries'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null } | { id: string; type: 'x_chosen'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null }>
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null

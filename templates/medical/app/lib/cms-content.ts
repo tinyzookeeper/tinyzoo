@@ -33,6 +33,20 @@ export interface CmsGalleryItem extends CmsMedia {
   caption: string | null
 }
 
+/** Which custom type a block shows, and which field goes to which place. */
+export interface CmsBinding {
+  /** The name of the custom type. */
+  type: string
+  /** The fields that go to the places of a card. */
+  show?: { image?: string | null; text?: string | null; date?: string | null; label?: string | null; more?: string[] }
+  /** A list only: the field to order by. Null or left out is the type's own order. */
+  order?: { by: string; dir: 'asc' | 'desc' } | null
+  /** A list only: how many entries, 1 to 48. Left out is 6. */
+  limit?: number | null
+  /** Chosen entries only: their ids, in the picked order. */
+  entries?: string[]
+}
+
 // ── collection items ────────────────────────────────────────────────────────────
 export interface Insurer {
   id: string
@@ -73,7 +87,7 @@ export interface Page {
   title: string
   slug: string
   status: 'draft' | 'published'
-  sections: Array<{ id: string; type: 'opening'; heading: string; lead: string | null; image: CmsMedia | null; primaryLabel: string | null; primaryUrl: string | null } | { id: string; type: 'notices'; heading: string } | { id: string; type: 'hours'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'photo'; image: CmsMedia | null } | { id: string; type: 'services'; eyebrow: string | null; heading: string; text: string | null; coveredNote: string | null; image: CmsMedia | null } | { id: string; type: 'prices'; heading: string; text: string | null; image: CmsMedia | null; roundImage: CmsMedia | null } | { id: string; type: 'insurers'; heading: string } | { id: string; type: 'team'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'booking'; eyebrow: string | null; heading: string; firstVisit: Array<{ id: string; type: 'item'; text: string }>; bring: Array<{ id: string; type: 'item'; text: string }>; formText: string | null; privacyUrl: string | null } | { id: string; type: 'location'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; facts: Array<{ id: string; type: 'item'; icon: 'bus' | 'parking' | 'access' | 'door' | 'car' | 'info' | null; title: string; text: string | null }>; walks: Array<{ id: string; type: 'item'; minutes: number | null; place: string; how: string | null }> } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null }>
+  sections: Array<{ id: string; type: 'opening'; heading: string; lead: string | null; image: CmsMedia | null; primaryLabel: string | null; primaryUrl: string | null } | { id: string; type: 'notices'; heading: string } | { id: string; type: 'hours'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'photo'; image: CmsMedia | null } | { id: string; type: 'services'; eyebrow: string | null; heading: string; text: string | null; coveredNote: string | null; image: CmsMedia | null } | { id: string; type: 'prices'; heading: string; text: string | null; image: CmsMedia | null; roundImage: CmsMedia | null } | { id: string; type: 'insurers'; heading: string } | { id: string; type: 'team'; eyebrow: string | null; heading: string; text: string | null } | { id: string; type: 'booking'; eyebrow: string | null; heading: string; firstVisit: Array<{ id: string; type: 'item'; text: string }>; bring: Array<{ id: string; type: 'item'; text: string }>; formText: string | null; privacyUrl: string | null } | { id: string; type: 'location'; eyebrow: string | null; heading: string; text: string | null; image: CmsMedia | null; facts: Array<{ id: string; type: 'item'; icon: 'bus' | 'parking' | 'access' | 'door' | 'car' | 'info' | null; title: string; text: string | null }>; walks: Array<{ id: string; type: 'item'; minutes: number | null; place: string; how: string | null }> } | { id: string; type: 'text'; heading: string | null; body: RichTextDoc | null } | { id: string; type: 'x_entries'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null } | { id: string; type: 'x_chosen'; heading: string | null; text: string | null; source: CmsBinding | null; layout: 'cards' | 'rows' | null }>
   metaTitle: string | null
   metaDescription: string | null
   ogImage: CmsMedia | null
