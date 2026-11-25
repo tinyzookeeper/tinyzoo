@@ -37,7 +37,7 @@ const LOOK_CSS_ID = 'virtual:tz-look-css:'
 const HELPER_DIRS = ['app/composables', 'app/utils']
 const HELPER_FILES = ['*.{ts,js,mjs,mts}', '*/index.{ts,js,mjs,mts}']
 /** The two blocks of a site's own types (tinyzoo's customTypeBlocks()), drawn by the kit for every design. */
-const CUSTOM_BLOCKS = ['BlockXEntries', 'BlockXChosen']
+const CUSTOM_BLOCKS = ['BlockCustomEntries', 'BlockCustomChosen']
 
 /**
  * The designs whose content model names a type with the prefix of a site's own types. Each
@@ -115,7 +115,7 @@ export default defineNuxtModule<TemplateKitOptions>({
 
     // The blocks of a site's own types are the kit's, the same for every design: found by name
     // (<CmsBlocks :prefix>), so registered globally under each design's block prefix in the one
-    // app, and as BlockXEntries, BlockXChosen in a template's own build.
+    // app, and as BlockCustomEntries, BlockCustomChosen in a template's own build.
     for (const name of CUSTOM_BLOCKS) {
       const filePath = join(kitDir, 'app/components', `${name}.vue`)
       if (!oneApp) addComponent({ name, filePath, global: true, priority: 10 })

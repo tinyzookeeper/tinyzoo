@@ -74,7 +74,7 @@ html[data-look="mistr"] {
     .prose-look > * + * { margin-top: 1rem; }
     .prose-look h2 { font-family: var(--font-sans); font-size: 1.5rem; line-height: 1.2; margin-top: 2.2rem; }
     /* the title of an entry's page (the kit's KitCustomEntry) in the type of these headings */
-    .x-entry .x-entry-title { font-family: var(--font-sans); }
+    .custom-entry .custom-entry-title { font-family: var(--font-sans); }
     .prose-look h3 { font-family: var(--font-sans); font-size: 1.2rem; margin-top: 1.6rem; }
     .prose-look ul { list-style: disc; padding-left: 1.4rem; }
     .prose-look ol { list-style: decimal; padding-left: 1.4rem; }

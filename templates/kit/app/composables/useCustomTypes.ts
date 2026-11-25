@@ -25,7 +25,7 @@ export async function useCustomTypes() {
 }
 
 /**
- * A block of the site's own type (`x_entries`: `kind: 'entries'`, `x_chosen`: `'chosen'`): its
+ * A block of the site's own type (`custom_entries`: `kind: 'entries'`, `custom_chosen`: `'chosen'`): its
  * plan (customBlockPlan) and its entries as cards, fetched on the server with a key of the block's
  * own, so the page comes drawn complete. Nothing to draw (no cards) when the block names no type
  * or one the site does not have, when the request fails, or when there are no entries.
@@ -41,7 +41,7 @@ export async function useCustomBlock(block: () => Record<string, any>, kind: 'en
   const query = 'preview' in route.query ? { preview: '' } : {}
   const warn = (why: string) => { if (import.meta.dev) console.warn(`[${block()?.type ?? kind}] block ${block()?.id ?? ''} draws nothing: ${why}`) }
   const { data } = await useAsyncData(
-    () => `x-block:${block()?.id ?? ''}:${plan.value.ok ? JSON.stringify(plan.value.request) : ''}`,
+    () => `custom-block:${block()?.id ?? ''}:${plan.value.ok ? JSON.stringify(plan.value.request) : ''}`,
     async () => {
       const p = plan.value
       if (!p.ok) return []

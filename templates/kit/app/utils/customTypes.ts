@@ -1,5 +1,5 @@
 // What the kit decides about a site's own content types (custom types) before it draws them:
-// the two generic blocks (`x_entries`, `x_chosen`) and the page of one entry. Plain functions of
+// the two generic blocks (`custom_entries`, `custom_chosen`) and the page of one entry. Plain functions of
 // their arguments, so the unit specs test them without Nuxt (test/unit/template-kit-custom.spec.ts).
 // The site's types come from `GET /api/content/_types` (useCustomTypes), the entries from the
 // content API.
@@ -40,7 +40,7 @@ export interface CustomType {
   fields: CustomTypeField[]
 }
 
-/** An address prefix that leads to an entry of a site's type: `/kurzy/<slug>` → `{ prefix: 'kurzy', type: 'x_course' }`. */
+/** An address prefix that leads to an entry of a site's type: `/kurzy/<slug>` → `{ prefix: 'kurzy', type: 'custom_course' }`. */
 export interface CustomPage {
   prefix: string
   type: string
@@ -210,7 +210,7 @@ export function customShow(type: CustomType, show: unknown): CustomShow {
 }
 
 /**
- * What a block of the type `x_entries` (`kind: 'entries'`) or `x_chosen` (`'chosen'`) draws:
+ * What a block of the type `custom_entries` (`kind: 'entries'`) or `custom_chosen` (`'chosen'`) draws:
  * its type, its places, its layout (a new block's empty layout is cards) and the request for
  * its entries. Nothing to draw (`ok: false`, with the reason) when the block has no binding, the
  * site has no such type, or a block of chosen entries has none chosen.

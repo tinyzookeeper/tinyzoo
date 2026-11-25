@@ -1,4 +1,4 @@
-// Pictures of the two blocks that show a site's own content type (`x_entries`, `x_chosen`) and of
+// Pictures of the two blocks that show a site's own content type (`custom_entries`, `custom_chosen`) and of
 // one entry page, in every look of every hosted template, from a built server of the one app,
 // with contact sheets that put the looks side by side.
 //
@@ -7,7 +7,7 @@
 //        [--templates a,b] [--keep] [--port <n>]
 //
 // Every look gets a site of its own (the one app, content types switched on), seeded with its
-// template's demo content and set to the look. Each site then makes the type `x_course` (courses
+// template's demo content and set to the look. Each site then makes the type `custom_course` (courses
 // with a picture, a short text, a date, a level, a price and a programme) through the admin
 // routes, five entries of it, and puts five blocks at the end of its home page: a list of cards,
 // three that must draw nothing (no source, a missing type, a chosen entry that does not exist),
@@ -204,11 +204,11 @@ async function setUpSite(row) {
   await chooseLook(base, cookie, s.look, s.presets[0])
 
   await changeModel(base, cookie, [{
-    op: 'type.add', name: 'x_course', label: { cs: 'Kurzy', en: 'Courses' }, labelSingular: { cs: 'Kurz', en: 'Course' },
+    op: 'type.add', name: 'custom_course', label: { cs: 'Kurzy', en: 'Courses' }, labelSingular: { cs: 'Kurz', en: 'Course' },
     page: { prefix: 'kurzy' }, publish: true,
   }])
-  await changeModel(base, cookie, TYPE_FIELDS.map((field) => ({ op: 'field.add', type: 'x_course', field })))
-  await changeModel(base, cookie, [{ op: 'type.update', type: 'x_course', page: { image: 'cover', summary: 'perex' } }])
+  await changeModel(base, cookie, TYPE_FIELDS.map((field) => ({ op: 'field.add', type: 'custom_course', field })))
+  await changeModel(base, cookie, [{ op: 'type.update', type: 'custom_course', page: { image: 'cover', summary: 'perex' } }])
 
   // The pictures the seed uploaded (images only), a different one for each entry, round again when there are few.
   const media = await call(base, cookie, 'GET', '/api/cms/_media?accept=image/*&limit=60')
@@ -224,7 +224,7 @@ async function setUpSite(row) {
       ...(c.picture ? { cover: pictures[n++ % pictures.length] } : {}),
       ...(c.at ? { startsAt: pragueMoment(c.at[0], c.at[1]) } : {}),
     }
-    const res = await call(base, cookie, 'POST', '/api/cms/x_course', body)
+    const res = await call(base, cookie, 'POST', '/api/cms/custom_course', body)
     if (res.status !== 201) throw new Error(`entry ${c.slug} on ${base}: ${res.status} ${res.text.slice(0, 400)}`)
     made.push({ id: res.body.row.id, slug: res.body.row.slug ?? c.slug })
   }
@@ -237,18 +237,18 @@ async function setUpSite(row) {
   const block = (type, heading, text, source, layout) => ({ id: crypto.randomUUID(), type, heading, text, source, layout })
   const sections = [
     ...(home.sections ?? []),
-    block('x_entries', 'Kurzy a workshopy', 'Malé skupiny, hodně praxe a odpovědi na všechno, na co se zeptáte.', {
-      type: 'x_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level', more: ['price', 'gone'] }, limit: 3,
+    block('custom_entries', 'Kurzy a workshopy', 'Malé skupiny, hodně praxe a odpovědi na všechno, na co se zeptáte.', {
+      type: 'custom_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level', more: ['price', 'gone'] }, limit: 3,
     }, 'cards'),
     // Three that draw nothing.
-    block('x_entries', null, null, null, 'cards'),
-    block('x_entries', null, null, { type: 'x_missing' }, 'cards'),
-    block('x_chosen', null, null, { type: 'x_course', entries: [crypto.randomUUID()] }, 'cards'),
-    block('x_entries', 'Nejbližší termíny', null, {
-      type: 'x_course', show: { text: 'perex', date: 'startsAt', label: 'level' }, order: { by: 'startsAt', dir: 'asc' }, limit: 5,
+    block('custom_entries', null, null, null, 'cards'),
+    block('custom_entries', null, null, { type: 'custom_missing' }, 'cards'),
+    block('custom_chosen', null, null, { type: 'custom_course', entries: [crypto.randomUUID()] }, 'cards'),
+    block('custom_entries', 'Nejbližší termíny', null, {
+      type: 'custom_course', show: { text: 'perex', date: 'startsAt', label: 'level' }, order: { by: 'startsAt', dir: 'asc' }, limit: 5,
     }, 'rows'),
-    block('x_chosen', 'Doporučujeme', null, {
-      type: 'x_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level' }, entries: [made[3].id, made[1].id],
+    block('custom_chosen', 'Doporučujeme', null, {
+      type: 'custom_course', show: { image: 'cover', text: 'perex', date: 'startsAt', label: 'level' }, entries: [made[3].id, made[1].id],
     }, null),
   ]
   const saved = await call(base, cookie, 'PATCH', `/api/cms/page/${home.id}`, { sections })
@@ -390,9 +390,9 @@ async function main() {
           const homeErrors = await visit(browser, s.url, size, async (page, response) => {
             if (response?.status() !== 200) fail(key('home'), `the home page answered ${response?.status()}`)
             await settle(page)
-            const blocks = page.locator('section.x-block')
+            const blocks = page.locator('section.custom-block')
             const count = await blocks.count()
-            if (count !== 3) fail(key('home'), `${count} blocks of section.x-block, expected 3`)
+            if (count !== 3) fail(key('home'), `${count} blocks of section.custom-block, expected 3`)
             // A header that stays on screen would lie over a block's picture: hidden, without moving anything.
             await page.evaluate(() => {
               for (const el of document.querySelectorAll('body *')) {

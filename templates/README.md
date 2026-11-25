@@ -42,7 +42,7 @@ A few things let one set of content serve looks that differ a lot:
 
 A site can make content types of its own in the admin (courses, events…: `docs/custom-types-plan.md`). Two blocks show them on a page, and every template has both: `...customTypeBlocks()` from tinyzoo at the end of the blocks of its `definePages`.
 
-- **Entries** (`x_entries`): a list of one type's entries, as cards or as rows. **Chosen entries** (`x_chosen`): entries picked by hand, in the picked order.
+- **Entries** (`custom_entries`): a list of one type's entries, as cards or as rows. **Chosen entries** (`custom_chosen`): entries picked by hand, in the picked order.
 - **The page of one entry**, at the type's address (`/kurzy/python`): the title, the picture, the short facts as one list, then the texts, the gallery and the files.
 
 The kit draws them, the same markup for every look (`KitEntries.vue`, `KitCustomEntry.vue`; what they decide is in `app/utils/customTypes.ts`). A template brings nothing for them. A block that has nothing to show (no type chosen, a type the site does not have, no entries, a request that failed) draws nothing, and the page stands.
@@ -52,7 +52,7 @@ They take the look from what every look shares:
 1. Headings and texts sit in `.prose-look`, so they are the look's.
 2. Colours are inherited; lines and quiet text are made from the text colour.
 3. Widths, spacing and grids are the kit's own, fluid.
-4. A look may refine them with `--x-radius` (the pictures' corners), `--x-line` (the lines) and `--x-gap` (the space between cards), or a few lines of its own on the kit's `x-…` classes. Each property has a fallback, so no look has to set any.
+4. A look may refine them with `--custom-radius` (the pictures' corners), `--custom-line` (the lines) and `--custom-gap` (the space between cards), or a few lines of its own on the kit's `x-…` classes. Each property has a fallback, so no look has to set any.
 
 **In the cloud** this is off unless the cloud runs with `CLOUD_CUSTOM_TYPES=on` (`cloud/README.md`). With it on, the one app's process gets `NUXT_CMS_CUSTOM_TYPES=on` and each site's row the limits of its plan (12 types, 30 fields each on Basic). The site's administrators then find *Content types* under *Settings* in the admin, make a type such as "Courses", fill it in, and put one of the two blocks on any page; a type with pages gives each entry its own address, listed in the sitemap. Without the setting a hosted site has none of it, and the two blocks are not offered.
 

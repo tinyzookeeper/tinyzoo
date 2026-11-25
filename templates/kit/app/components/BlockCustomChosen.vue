@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Block "x_chosen" (tinyzoo's customTypeBlocks()): entries of one of the site's own types, picked
+// Block "custom_chosen" (tinyzoo's customTypeBlocks()): entries of one of the site's own types, picked
 // by hand, in the picked order, drawn by the kit for every look (KitEntries). An entry that is
 // gone is left out; nothing at all when none is left.
 const props = defineProps<{ block: Record<string, any>; index?: number }>()

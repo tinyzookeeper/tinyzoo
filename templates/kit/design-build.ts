@@ -181,7 +181,7 @@ export function checkDesigns(designs: DesignScan[]): { errors: string[]; warning
 }
 
 /**
- * The content types of a design whose names take the prefix of a site's own types (`x_`, tinyzoo's
+ * The content types of a design whose names take the prefix of a site's own types (`custom_`, tinyzoo's
  * CUSTOM_PREFIX): such a design leaves no room for them, and its blocks of a site's own types
  * would read its own collections. `names` are the names of the design's content model.
  */

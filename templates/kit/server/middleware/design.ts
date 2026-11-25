@@ -4,7 +4,7 @@
 // only on that design's sites (the kit's module wraps them). A template's own build has one
 // design and needs nothing; only the one app runs in multi-tenant mode.
 //
-// Beside it, the page prefixes of the site's own types (`/kurzy/<slug>` → `x_course`), so the
+// Beside it, the page prefixes of the site's own types (`/kurzy/<slug>` → `custom_course`), so the
 // app knows without another request that such an address is an entry of one of them
 // (useSitePage). Only for a page: a visible type with pages that the site's model holds; none
 // with the feature off.
