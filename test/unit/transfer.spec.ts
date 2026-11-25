@@ -1364,3 +1364,59 @@ describe('tinyzoo export / import (command line)', () => {
     expect(bad.stderr).toMatch(/usage: tinyzoo import/)
   })
 })
+
+describe('a site with content types of its own', () => {
+  // A site's own types (docs/custom-types-plan.md) are one document in `cms_model`, and a table
+  // each. Export and import carry the content model of cms.config.ts only: such a site is refused.
+  const course = { name: 'x_course', label: { en: 'Courses' }, fields: [{ key: 'title', type: 'text', label: { en: 'Title' } }] }
+  const putModel = async (url: string, docs: unknown[]) => {
+    const pool = new pg.Pool({ connectionString: url })
+    try {
+      await pool.query('create table if not exists cms_model (version integer primary key, doc jsonb not null, ops jsonb not null, user_id uuid, created_at timestamptz(3) not null default now())')
+      await pool.query('delete from cms_model')
+      for (const [i, doc] of docs.entries()) await pool.query('insert into cms_model (version, doc, ops) values ($1, $2::jsonb, \'[]\'::jsonb)', [i + 1, JSON.stringify(doc)])
+    }
+    finally { await pool.end() }
+  }
+  const dropModel = async (url: string) => {
+    const pool = new pg.Pool({ connectionString: url })
+    try { await pool.query('drop table if exists cms_model') }
+    finally { await pool.end() }
+  }
+  afterAll(async () => { await dropModel(urlA); await dropModel(urlB) })
+
+  it('exports a site without the table, or whose newest document has no type, as before', async () => {
+    await dropModel(urlA)
+    expect((await exportAll('no-model.tar.gz')).manifest.entities.length).toBeGreaterThan(0)
+    // A type that was there once and is gone for good: the newest document is what counts.
+    await putModel(urlA, [{ format: 1, types: [course] }, { format: 1, types: [] }])
+    expect((await exportAll('empty-model.tar.gz')).manifest.entities.length).toBeGreaterThan(0)
+  })
+
+  it('refuses to export a site with a type of its own, hidden ones too, and writes no file', async () => {
+    for (const types of [[course], [{ ...course, removedAt: '2026-11-24T10:00:00.000Z' }]]) {
+      await putModel(urlA, [{ format: 1, types }])
+      const file = archive(`custom-${types[0]!.removedAt ? 'hidden' : 'shown'}.tar.gz`)
+      const err: Error = await exportContent({ reg, databaseUrl: urlA, storage: storageA, file }).catch((e) => e)
+      expect(err).toBeInstanceOf(Error)
+      expect(err.message).toBe('This site has content types of its own (x_course), which tinyzoo export does not carry yet. tinyzoo backup and tinyzoo restore take them: they copy the whole database. Nothing was changed.')
+      expect(existsSync(file)).toBe(false)
+      expect(existsSync(`${file}.partial`)).toBe(false)
+    }
+  })
+
+  it('refuses to import into a site with a type of its own and changes nothing; without one it imports', async () => {
+    await dropModel(urlA)
+    const file = archive('into-custom.tar.gz')
+    await exportAll('into-custom.tar.gz')
+    await wipe(B.db)
+    await putModel(urlB, [{ format: 1, types: [course] }])
+    const before = await snapshot(B.db)
+    const err: Error = await importInto(file).catch((e) => e)
+    expect(err.message).toMatch(/^The site you import into has content types of its own \(x_course\), which tinyzoo import does not carry yet\. tinyzoo backup and tinyzoo restore take them/)
+    expect(await snapshot(B.db)).toEqual(before)
+    // An empty document is a site without types of its own.
+    await putModel(urlB, [{ format: 1, types: [] }])
+    expect((await importInto(file)).entries.post).toEqual({ rows: 3, translations: 1 })
+  })
+})

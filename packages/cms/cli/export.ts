@@ -29,7 +29,7 @@ import { buildRegistry, type CmsEntity, type CmsRegistry } from '../src/index'
 import { type TarEntry, writeTarGz } from './tar'
 import {
   ARCHIVE_FILES, ARCHIVE_FORMAT, BATCH, JsonlWriter, connectDb, dependencyOrder, describeSchema,
-  encodeEntry, fingerprintOf, hostSettings, iso, layoutOf, mediaIdsOfEntry, parseArgs, storageFingerprint, storageFromSettings, tinyzooVersion,
+  encodeEntry, fingerprintOf, hostSettings, iso, layoutOf, mediaIdsOfEntry, parseArgs, refuseCustomTypes, storageFingerprint, storageFromSettings, tinyzooVersion,
   type Manifest, type ManifestEntity, type TransferStorage,
 } from './transfer'
 import { noDatabaseMessage } from './backup'
@@ -105,6 +105,7 @@ export async function exportContent(opts: ExportOptions): Promise<ExportResult> 
     }
   }
   const { order } = dependencyOrder(reg, selected)
+  await refuseCustomTypes(opts.databaseUrl, 'export')
 
   const tmp = await mkdtemp(join(tmpdir(), 'tinyzoo-export-'))
   const { db, close } = connectDb(opts.databaseUrl, reg)
