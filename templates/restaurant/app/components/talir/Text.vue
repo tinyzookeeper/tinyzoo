@@ -9,5 +9,6 @@ defineProps<{ block: BlockOf<'text'>; first?: boolean }>()
       <component :is="first ? 'h1' : 'h2'" v-if="block.heading" class="wide text-[2.5rem] lg:text-[4.4rem] mb-8 lg:mb-10"><KitMarked :text="block.heading" plain /></component>
       <CmsContent v-if="block.body" :doc="block.body" class="prose-look" />
     </div>
+    <slot />
   </section>
 </template>

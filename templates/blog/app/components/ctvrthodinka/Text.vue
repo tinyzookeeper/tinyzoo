@@ -10,5 +10,6 @@ const tag = await useHeadingTag(() => props.first)
       <component :is="tag" v-if="block.heading" class="mb-8 text-[2.9rem] font-black leading-[0.94] tracking-[-0.045em] lg:mb-10 lg:text-[4.6rem]"><KitMarked :text="block.heading" /></component>
       <CmsContent v-if="block.body" :doc="block.body" class="prose-look" />
     </div>
+    <slot />
   </section>
 </template>

@@ -24,10 +24,9 @@ const plainRows = computed(() => props.cards.every((c) => !c.meta))
 </script>
 
 <template>
-  <section class="custom-block" :aria-labelledby="heading ? headingId : undefined">
+  <LookPart part="Text" :block="{ heading, body: null }" :first="false" class="custom-block">
     <div class="custom-wrap">
-      <div v-if="heading || intro.length" class="custom-intro prose-look">
-        <h2 v-if="heading" :id="headingId">{{ heading }}</h2>
+      <div v-if="intro.length" class="custom-intro prose-look">
         <p v-for="(p, i) in intro" :key="i">{{ p }}</p>
       </div>
 
@@ -64,14 +63,12 @@ const plainRows = computed(() => props.cards.every((c) => !c.meta))
         </li>
       </ul>
     </div>
-  </section>
+  </LookPart>
 </template>
 
 <style>
 /* Every rule starts with .custom-block and names two more classes: a look's own rules
    (html[data-look="…"] .prose-look h3) must not move the kit's spacing. */
-.custom-block { padding-block: clamp(3rem, 7vw, 6rem); }
-.custom-block .custom-wrap { box-sizing: border-box; max-width: 80rem; margin-inline: auto; padding-inline: clamp(1.25rem, 4vw, 2.5rem); }
 .custom-block .custom-intro > :first-child { margin-top: 0; }
 .custom-block .custom-intro > :last-child { margin-bottom: 0; }
 .custom-block .custom-wrap .custom-list { list-style: none; margin: clamp(1.75rem, 3.5vw, 2.75rem) 0 0; padding: 0; }
