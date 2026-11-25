@@ -101,7 +101,7 @@ function colourRefs(value: string): string[] {
   for (const m of text.matchAll(/var\(\s*(--[\w-]+)|(#[0-9a-f]+)(?!\w)|(?<![\w#-])(white|black)(?![\w-])/gi)) {
     if (m[1]) refs.push(m[1])
     else if (m[2]) { const hex = plainHex(m[2]); if (hex) refs.push(hex) }
-    else refs.push(m[3].toLowerCase() === 'white' ? '#ffffff' : '#000000')
+    else refs.push(m[3]!.toLowerCase() === 'white' ? '#ffffff' : '#000000')
   }
   return refs
 }
@@ -258,10 +258,10 @@ function classItems(token: string, theme: Map<string, string[]>): Item[] {
   const m = /^(bg|text|fill|stroke)-(.+)$/.exec(cls)
   if (!m) return []
   const kind: Kind = m[1] === 'bg' ? 'bg' : 'text'
-  const x = m[2]
+  const x = m[2]!
   const arbitrary = /^\[(?:color:)?var\(\s*(--[\w-]+)/.exec(x) ?? /^\((?:color:)?(--[\w-]+)\)$/.exec(x)
   let refs: string[]
-  if (arbitrary) refs = [arbitrary[1]]
+  if (arbitrary) refs = [arbitrary[1]!]
   else if (/^\[(?:color:)?#[0-9a-f]+\]$/i.test(x)) refs = [plainHex(x.replace(/^\[(?:color:)?|\]$/gi, ''))].filter((h): h is string => !!h)
   else if (x === 'white') refs = ['#ffffff']
   else if (x === 'black') refs = ['#000000']
@@ -325,19 +325,19 @@ function scanTags(src: string, from: number, to: number): Tag[] {
     let j = lt + m[0].length
     const attrs: Tag['attrs'] = []
     while (j < to) {
-      while (j < to && /\s/.test(src[j])) j++
+      while (j < to && /\s/.test(src[j]!)) j++
       if (src[j] === '>') { j++; break }
       if (src[j] === '/') { j++; continue }
       let k = j
-      while (k < to && !/[\s=>]/.test(src[k]) && !(src[k] === '/' && src[k + 1] === '>')) k++
+      while (k < to && !/[\s=>]/.test(src[k]!) && !(src[k] === '/' && src[k + 1] === '>')) k++
       if (k === j) { j++; continue }
       const name = src.slice(j, k)
       j = k
-      while (j < to && /\s/.test(src[j])) j++
+      while (j < to && /\s/.test(src[j]!)) j++
       let value: string | null = null
       if (src[j] === '=') {
         j++
-        while (j < to && /\s/.test(src[j])) j++
+        while (j < to && /\s/.test(src[j]!)) j++
         const q = src[j]
         if (q === '"' || q === "'") {
           const e = src.indexOf(q, j + 1)
@@ -345,7 +345,7 @@ function scanTags(src: string, from: number, to: number): Tag[] {
           j = (e < 0 ? to : e) + 1
         } else {
           k = j
-          while (k < to && !/[\s>]/.test(src[k])) k++
+          while (k < to && !/[\s>]/.test(src[k]!)) k++
           value = src.slice(j, k)
           j = k
         }
@@ -367,7 +367,7 @@ function vueGroups(file: string, name: string, theme: Map<string, string[]>): Gr
   const parts: { tag: 'script' | 'style'; from: number; to: number }[] = []
   for (const m of src.matchAll(/<(script|style)\b[^>]*>([\s\S]*?)<\/\1>/g)) {
     const from = m.index + m[0].indexOf('>') + 1
-    parts.push({ tag: m[1] as 'script' | 'style', from, to: from + m[2].length })
+    parts.push({ tag: m[1] as 'script' | 'style', from, to: from + m[2]!.length })
   }
 
   const open = /^<template\b[^>]*>/m.exec(src)
@@ -438,7 +438,7 @@ function pairsOf(items: Item[]): { bgs: string[]; texts: string[] }[] {
 const sorted = <T extends string>(values: Iterable<T>): T[] => [...new Set(values)].sort()
 
 export function scanLook(templatesDir: string, templateId: string, look: LookInput): LookPairs {
-  const vars = look.presets[0].vars
+  const vars = look.presets[0]!.vars
   const main = (look.own?.main ?? mainVariable(vars as Vars)) as `--${string}` | null
   if (!main) throw new Error(`[look-pairs] ${templateId}/${look.id}: no main colour (no --brand or --accent, and no own.main)`)
   const templateDir = join(templatesDir, templateId)
