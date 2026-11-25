@@ -14,7 +14,10 @@ export default defineNitroPlugin((nitroApp) => {
   // boot finds it ready (its messages would otherwise arrive before it listens).
   // Multi-tenant mode: each site's engine starts with that site's first shared-editing
   // socket, which waits for it (api/cms/_collab/socket.ts keeps the frames meanwhile).
-  if (!cmsIsMultiTenant()) useCollabServer().catch((err) => console.error('[cms] collab could not start', scrubError(err)))
+  // A counted single site (its own content types on): with the server, and again with each
+  // fresh instance of the site, as start-up work (the old instance's engine stops with it).
+  if (!cmsSiteCounted()) useCollabServer().catch((err) => console.error('[cms] collab could not start', scrubError(err)))
+  else if (!cmsIsMultiTenant()) onCmsSiteStart(() => { useCollabServer().catch((err) => console.error('[cms] collab could not start', scrubError(err))) })
   nitroApp.hooks.hook('close', async () => {
     stopLive()
     await stopCollabServer()

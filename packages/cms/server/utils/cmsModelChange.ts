@@ -9,9 +9,10 @@ import { scrubError } from './cmsScrub'
  *
  * One transaction on the site's own pool, as the site's own database user: the lock (two changes of
  * one site take turns), the version check, the facts the operations need, the operations, the
- * guard, the statements (each checked against the allowed list), the new version and the audit
- * line. After the commit the site's instance is retired, so the next request reads the new model,
- * and the change is announced to the other instances.
+ * guard (the stored content, and the code registered against the site: cmsModelCode.ts), the
+ * statements (each checked against the allowed list), the new version and the audit line. After
+ * the commit the site's instance is retired, so the next request reads the new model, and the
+ * change is announced to the other instances.
  */
 
 /** The advisory lock of a site's structure changes (the others in use: 72_011_001…005, _040, _050, _060). */
@@ -40,6 +41,8 @@ export interface CmsModelChangeInput {
   dryRun?: boolean
   /** The server's own sweep (allows `purge`). */
   internal?: boolean
+  /** The server's own work of taking in the app's model file at start (`NUXT_CMS_MODEL_FILE=follow`): said in the audit line. */
+  via?: 'file'
 }
 
 export interface CmsModelChangeResult {
@@ -322,7 +325,8 @@ async function fillRestored(before: ModelDoc, after: ModelDoc, design: Record<st
  * (the feature is off for the site), 422 `{ code, message, op, details }` (an operation is not
  * valid, or the planner refuses a statement: `not-allowed` with `reasons`), 409 `stale-version`
  * (the model changed since `baseVersion`; `version` is the current one), 409 `in-use` with
- * `places`, 503 `busy` (the tables are in use; try again). Anything else is logged and answers 500.
+ * `places`, 409 `breaks-code` with `registrations` (code registered against the site reads what
+ * the change takes away), 403 `token-cannot-purge`, 503 `busy` (the tables are in use; try again). Anything else is logged and answers 500.
  */
 /** `event`: the request that asked (its person is named in the history and the audit log), or null for the server's own work. */
 export function cmsChangeModel(event: any, input: CmsModelChangeInput): Promise<CmsModelChangeResult> {
@@ -332,16 +336,22 @@ export function cmsChangeModel(event: any, input: CmsModelChangeInput): Promise<
 /**
  * The same, for the site's own load (the later deletion found due before the instance serves):
  * the instance is not retired and nothing is announced, as it has not served the old model.
+ * `announce`: the other instances are told all the same (what the app's model file added at start:
+ * they may have served the old model).
  */
-export function cmsChangeModelBeforeLoad(input: CmsModelChangeInput): Promise<CmsModelChangeResult> {
-  return changeModel(null, input, true)
+export function cmsChangeModelBeforeLoad(input: CmsModelChangeInput, opts: { announce?: boolean } = {}): Promise<CmsModelChangeResult> {
+  return changeModel(null, input, true, !!opts.announce)
 }
 
-async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: boolean): Promise<CmsModelChangeResult> {
+async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: boolean, announce = !beforeLoad): Promise<CmsModelChangeResult> {
   const feature = cmsCustomTypes()
   if (!feature.on) throw createError({ statusCode: 404, statusMessage: 'Not found' })
   if (!input || !Number.isInteger(input.baseVersion) || input.baseVersion < 0 || !Array.isArray(input.ops)) {
     throw refusal(422, 'invalid-request', 'A change names the version it was made against (a whole number) and a list of operations')
+  }
+  // Deleting for good stays a person's act in the admin: a personal access token never does it.
+  if (event?.context?.cmsUser?.token && (input.ops as any[]).some((o) => o?.op === 'purge')) {
+    throw refusal(403, 'token-cannot-purge', 'An access token cannot delete content types or fields for good. Do that in the admin, signed in')
   }
   const site = useCmsSite()
   const design = cmsDesignModel()
@@ -382,6 +392,12 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
         throw refusal(409, 'in-use', message, { op: first.op, places: inUse.flatMap((u) => u.places) })
       }
 
+      // Code registered against the site (cmsModelCode.ts): only what this change would newly take away refuses it.
+      const broken = await cmsRegistrationsBrokenBy(exec, before, applied.doc, design.config)
+      if (broken.length) {
+        throw refusal(409, 'breaks-code', 'Code that runs against this site reads what this change would take away. Update that code first, or remove its registration', { registrations: broken })
+      }
+
       const plan = planModelChange(before, applied.doc, design.config, input.ops)
       if (plan.refused.length) throw refusal(422, 'not-allowed', 'This change cannot be made to the database', { reasons: plan.refused })
       await runModelStatements((text) => exec(text), plan.statements)
@@ -391,7 +407,7 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
       const version = current + 1
       await exec('insert into "cms_model" (version, doc, ops, user_id) values ($1, $2::jsonb, $3::jsonb, $4)', [version, JSON.stringify(applied.doc), JSON.stringify(input.ops), userId])
       await exec('delete from "cms_model" where version <= $1', [version - KEEP_VERSIONS])
-      await audit(event, 'model.change', { meta: { version, ops: summary(input.ops), statements: plan.statements.length, ...(input.internal ? { internal: true } : {}) } }, tx)
+      await audit(event, 'model.change', { meta: { version, ops: summary(input.ops), statements: plan.statements.length, ...(input.internal ? { internal: true } : {}), ...(input.via === 'file' ? { via: 'file' } : {}) } }, tx)
       const out: CmsModelChangeResult = { version, doc: applied.doc, notes: applied.notes, statements: plan.statements.length }
       if (input.dryRun) throw new DryRun({ ...out, dryRun: true })
       return out
@@ -415,9 +431,9 @@ async function changeModel(event: any, input: CmsModelChangeInput, beforeLoad: b
     throw createError({ statusCode: 500, statusMessage: 'The content types could not be changed' })
   }
 
-  if (!beforeLoad) {
-    // Requests under way finish with the model they started with; the next one reads the new model.
-    cmsRetireCurrentSite()
+  // Requests under way finish with the model they started with; the next one reads the new model.
+  if (!beforeLoad) cmsRetireCurrentSite()
+  if (announce) {
     // The message names its site now: by the time the store answers, this work's instance may be gone.
     const message = channelMessage({ origin: instanceId(), version: result.version })
     const announced = useCmsStore()

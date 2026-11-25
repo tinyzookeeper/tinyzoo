@@ -26,7 +26,7 @@ Anything that is not on this page is internal. For example:
 
 - The admin's own components (the other `Cms*` components). [The frontend kit](#the-frontend-kit) lists the ones a website uses.
 - The server's other utilities (`audit`, `parseOr422`, `rateLimit`, `clientIp`, `sendCmsMail` and the rest). Only [the two helpers for plugins](#server-helpers-for-plugins) are covered.
-- The admin's API (`/api/cms/**`), apart from the three [media and logo addresses](#media-and-logo-addresses).
+- The admin's API (`/api/cms/**`), apart from the three [media and logo addresses](#media-and-logo-addresses) (and the experimental routes of a site's own content types listed with the content API, which may change with the feature).
 - Anything marked `@internal`.
 - The SQL tables and their column names. tinyzoo migrates them for you, and [upgrading.md](upgrading.md) lists the steps. An entity's `table` object is frozen for reading (see [Types](#types)). tinyzoo's own `cms_*` tables only gain things within 1.x, so a site can skip minor releases ([upgrading](upgrading.md#skipping-minor-versions)).
 - The driver under `useCms().db` (today node-postgres, `db.$client`). See [server helpers](#server-helpers-for-plugins).
@@ -377,7 +377,9 @@ The `NUXT_CMS_*` and `NUXT_PUBLIC_CMS_*` variables above, and:
 | `TINYZOO_DEPRECATIONS` | `1` prints deprecation warnings under `NODE_ENV=test`, `0` silences them |
 | `TINYZOO_PG_DUMP`, `TINYZOO_PG_RESTORE`, `TINYZOO_PSQL` | the `pg_dump`, `pg_restore` and `psql` that `tinyzoo backup` and `restore` run |
 | `SEED_URL`, `SEED_EMAIL`, `SEED_PASSWORD`, `SEED_NAME`, `SEED_SETUP_CODE` | the defaults of `tinyzoo seed`'s flags |
-| `NUXT_CMS_CUSTOM_TYPES` | **experimental**, multi-tenant mode only: `on` lets each site make content types of its own in the admin, each a table in the site's own database. A site's directory row may switch them off for that site or set its limits: `config.customTypes` with `enabled` (`false` switches them off), `types`, `fields`, `options` (whole numbers from 0 to 200; the defaults are 12, 30 and 30; removed types and fields do not count, and an administrator deletes them for good by hand). Read from the environment, not at build time. Without it nothing of the feature runs. Not part of what 1.0 freezes: it may change with the feature |
+| `NUXT_CMS_CUSTOM_TYPES` | **experimental**, in multi-tenant mode or for a single-site app: `on` lets each site make content types of its own in the admin, each a table in the site's own database. In a single-site app the one site's requests are then counted, so a change of structure gives the site fresh memory while the requests under way finish with the old one; its limits are the defaults. A multi-tenant site's directory row may switch them off for that site or set its limits: `config.customTypes` with `enabled` (`false` switches them off), `types`, `fields`, `options` (whole numbers from 0 to 200; the defaults are 12, 30 and 30; removed types and fields do not count, and an administrator deletes them for good by hand). Read from the environment, not at build time. Without it nothing of the feature runs. Not part of what 1.0 freezes: it may change with the feature |
+| `NUXT_CMS_MODEL_FILE` | **experimental**, a single-site app with `NUXT_CMS_CUSTOM_TYPES=on`: what the server does at start with the app's own `cms.model.json`, which the build carries when the file is beside `cms.config.ts`. Unset: it registers the file, so a change of structure that takes away what the app's code reads is refused. `follow`: it first adds to the database what the file has and the database lacks, and never removes or changes anything. `off`: it ignores the file. A file that cannot be read is logged and ignored; nothing here stops the server. In multi-tenant mode a build's own model file is ignored. Not part of what 1.0 freezes: it may change with the feature |
+| `NUXT_CMS_MODEL_CODE` | **experimental**, with `NUXT_CMS_MODEL_FILE`: the name the app's own model file is registered under (default `app`; 1 to 40 characters of `a-z`, `0-9` and `-`). Not part of what 1.0 freezes: it may change with the feature |
 
 Not part of the surface: the test-only `CMS_TEST_*` variables.
 
@@ -408,7 +410,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `GET /api/content/_global/:name` | a global: `{ item }` (`null` before its first save) |
 | `GET /api/content/_search` | the website search: `?q=`, `?locale=`, `?limit=` (1 to 50), `?entity=a,b` |
 | `GET /api/content/_sitemap` | the site's public addresses as `{ entries }` (`CmsSitemapEntry`) |
-| `GET /api/content/_types` | **experimental**, like `/api/health/sites`: the content types a site made for itself (custom types, in multi-tenant mode with `NUXT_CMS_CUSTOM_TYPES=on`) as `{ types }`: each with its labels, address, order and visible fields (kind, label, choices). `{ types: [] }` for every other site. Not part of what 1.0 freezes: it may change with the feature |
+| `GET /api/content/_types` | **experimental**, like `/api/health/sites`: the content types a site made for itself (custom types, with `NUXT_CMS_CUSTOM_TYPES=on`) as `{ types }`: each with its labels, address, order and visible fields (kind, label, choices). `{ types: [] }` for every other site. Not part of what 1.0 freezes: it may change with the feature |
 | `GET`, `POST /api/content/_form/:name` | a website form's definition and its submission (`tinyzoo/forms`) |
 | `POST /api/content/_analytics/e` | a page view, or the time one was looked at, from the website's pages (`tinyzoo/analytics`). Always `202` with no body |
 | `GET /api/content/_analytics/rollups` | the daily totals of `?from=` to `?to=` (at most 400 days) for a tool that watches many sites (`AnalyticsRollups`, `tinyzoo/analytics`). Guarded like `/api/health/status`: `404` until `cms.status.token` is set, then that token. See [analytics](analytics.md#for-a-fleet-monitor) |
@@ -424,6 +426,7 @@ The content API is public and read-only. It is the only HTTP API a site's fronte
 | `POST /api/mcp` | the MCP server: tools that read and edit the content, for a person's access token (`Authorization: Bearer tzp_…`, made by hand or by signing in). Built-in sign-in only; `404` with `cms.mcp: false`. Tools and their names are kept within 1.x; a minor may add tools and keys. See [the MCP server](guide/mcp.md) |
 | `GET /.well-known/oauth-protected-resource`, `GET /.well-known/oauth-authorization-server` (each also with `/api/mcp` after it) | the MCP server's OAuth discovery documents (RFC 9728, RFC 8414) |
 | `POST /api/mcp/oauth/register`, `GET /api/mcp/oauth/authorize`, `POST /api/mcp/oauth/token`, `POST /api/mcp/oauth/revoke` | signing in to the MCP server: registration (RFC 7591), the authorization code flow with PKCE (S256), refresh, revocation (RFC 7009). See [signing in](guide/mcp.md#signing-in-oauth) |
+| `GET /api/cms/_model/file`, `POST /api/cms/_model/fit`, `POST /api/cms/_model`, `GET /api/cms/_model/code`, `PUT /api/cms/_model/code/<name>`, `DELETE /api/cms/_model/code/<name>` | **experimental**, with `NUXT_CMS_CUSTOM_TYPES=on`: a site's own content types for a developer's tools (`tinyzoo model …`). The model file now or at `?version=N`; whether a model file fits the site (`{ version, fits, breaks }`); a change of structure (`{ baseVersion, ops, dryRun? }`); the code registered against the site, registering a model file under a name and removing it. An administrator signed in, or a personal access token (`Authorization: Bearer tzp_…`) with the right `model` ("Content types"), which only an administrator can give and which works only while that person is one; such a token never deletes for good (`purge`). `404` when the feature is off for the site. These are the only routes under `/api/cms` that take a token. Not part of what 1.0 freezes: they may change with the feature |
 
 When `cms.content.token` is set, requests carry the token as `x-api-key` or `Authorization: Bearer`.
 
@@ -592,8 +595,8 @@ Run `tinyzoo <command>` from the root of the website. `tinyzoo help` prints the 
 | `tinyzoo up` | |
 | `tinyzoo status` | |
 | `tinyzoo upgrade` | `--allow-drop`, `--allow-risky` |
-| `tinyzoo client [out]` | `--stdout` |
-| `tinyzoo openapi [out]` | `--stdout` |
+| `tinyzoo client [out]` | `--stdout`, `--check`, `--model <file>`, `--no-model` |
+| `tinyzoo openapi [out]` | `--stdout`, `--model <file>`, `--no-model` |
 | `tinyzoo content:migrate` | `--dry-run`, `--batch <n>` |
 | `tinyzoo links:convert` | `--dry-run`, `--batch <n>` |
 | `tinyzoo export <file.tar.gz>` | `--only a,b`, `--no-media`, `--with-revisions`, `--with-submissions`, `--force` |
@@ -601,12 +604,20 @@ Run `tinyzoo <command>` from the root of the website. `tinyzoo help` prints the 
 | `tinyzoo backup [file]` | |
 | `tinyzoo restore <file>` | `--yes`, `--force` |
 | `tinyzoo seed [file]` | `--url <url>`, `--email <email>`, `--name <name>`, `--setup-code <code>`, `--wait <sec>`, `--dry-run`, `--reset`, `--yes`, `--verbose` |
+| `tinyzoo model pull` | `--url <address>`, `--file <path>`, `--force`, `--types <file>` |
+| `tinyzoo model push` | `--url <address>`, `--file <path>`, `--dry-run`, `--yes` |
+| `tinyzoo model check` | `--url <address>`, `--file <path>`, `--offline`, `--strict` |
+| `tinyzoo model register` | `--url <address>`, `--file <path>`, `--name <name>`, `--remove` |
+
+`tinyzoo client` and `tinyzoo openapi` read `cms.model.json` when it is in the folder: the site's own content types in it are in the output beside the types of `cms.config.ts`. Without the file the output is what it was before. `tinyzoo client --check` writes nothing and exits 1 when the generated file on disk differs from what it would write.
+
+`tinyzoo model` reads and changes a site's own content types through the model file `cms.model.json`. The token is the environment variable `TINYZOO_TOKEN`: an access token with the right "Content types". The site's address is `--url`, else `TINYZOO_MODEL_URL`, else the address the file came from. `pull --types` reads the content API, and sends `TINYZOO_CONTENT_TOKEN` when the site has a content token.
 
 Exit codes:
 
 - `0`: success.
-- `1`: a failure, or, for `status`, something pending.
-- `2`: for `status`, the database could not be read.
+- `1`: a failure, or, for `status`, something pending. For `model`: something needs a person (the site refused a change, the file does not fit the site).
+- `2`: for `status`, the database could not be read. For `model`: the command was used wrongly (an unknown flag, no address, no token, `push` without a terminal and without `--yes`).
 
 What the CLI prints is not covered: its wording can change in any release. A script reads the exit code.
 

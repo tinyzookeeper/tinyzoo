@@ -16,6 +16,10 @@ import { z } from 'zod'
  * this process with `x-tinyzoo-mcp` (a secret of this process plus the token's id), which the
  * session middleware turns into the token's user for a few content routes, never for
  * accounts, people or privacy (`MCP_ROUTES`).
+ *
+ * The second place a token is taken: the routes of a site's own content types under
+ * `/api/cms/_model` that a developer's tools call (`requireModelCaller` in cmsModelCode.ts), for a
+ * token with the right `model` only.
  */
 
 export interface CmsTokenRights {
@@ -29,6 +33,13 @@ export interface CmsTokenRights {
   media: boolean
   /** Only these collections and globals (by name); null: every one the role reaches. */
   entities: string[] | null
+  /**
+   * Content types (experimental): read the site's own content types, change them and register
+   * code against them, at the routes under `/api/cms/_model` (cmsModelCode.ts). Only an
+   * administrator can give it, on a site with the feature on, and it works only while that
+   * person is an administrator. Never a deletion for good. Absent: false.
+   */
+  model?: boolean
 }
 
 /** What `cmsUser.token` holds for a request made with an access token. */
@@ -54,6 +65,7 @@ export const tokenRightsSchema = z.object({
   delete: z.boolean(),
   media: z.boolean(),
   entities: z.array(z.string().min(1).max(100)).max(200).nullable(),
+  model: z.boolean().optional(),
 })
 
 /**
@@ -73,12 +85,15 @@ export function clampTokenRights(asked: CmsTokenRights, user: CmsUser): CmsToken
     if (!entities.length) throw createError({ statusCode: 422, statusMessage: 'Pick at least one collection you can open' })
   }
   const write = asked.write
+  // Content types: the person manages the site, and the site has the feature. Left out when not given, as a token made before it.
+  const model = asked.model === true && role.manage && cmsCustomTypes().on
   return {
     write,
     publish: write && asked.publish && role.publish,
     delete: write && asked.delete,
     media: write && asked.media && role.media !== 'none',
     entities,
+    ...(model ? { model: true } : {}),
   }
 }
 

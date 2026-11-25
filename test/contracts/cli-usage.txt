@@ -17,9 +17,14 @@ Run from the root of the website. Commands:
                           --allow-drop   as for generate
                           --allow-risky  as for generate
   client [out]          emit the typed @tinyzoo/client bindings (default cms-content.ts)
-                          --stdout  print instead of writing a file
+                          --stdout        print instead of writing a file
+                          --check         write nothing; exit 1 when the file on disk is not what this would write
+                          --model <file>  the site's own types from this model file (default cms.model.json, when it is there)
+                          --no-model      leave out the types of the model file
   openapi [out]         emit the OpenAPI 3.1 document of the content API (default openapi.json)
-                          --stdout  print instead of writing a file
+                          --stdout        print instead of writing a file
+                          --model <file>  as for client
+                          --no-model      as for client
   content:migrate       rewrite stored blocks, lists and rich text to their current versions
                           --dry-run    report only
                           --batch <n>  rows per batch
@@ -53,6 +58,26 @@ Run from the root of the website. Commands:
                           --reset              first remove what this seed made
                           --yes                do not ask before --reset
                           --verbose            also list what was already up to date
+  model pull            write cms.model.json (the site's own content types) from a site; the token is $TINYZOO_TOKEN
+                          --url <address>  the site (default $TINYZOO_MODEL_URL, else the site the file came from)
+                          --file <path>    the model file (default cms.model.json)
+                          --force          replace the file even when it has changes the site does not have
+                          --types <file>   also save the site's generated types (for a frontend without cms.config.ts)
+  model push            send what you changed in the model file to the site, then write the file from the site
+                          --url <address>  as for model pull
+                          --file <path>    as for model pull
+                          --dry-run        show the plan, send nothing
+                          --yes            do not ask
+  model check           for CI: the model file reads, and the site still has what it says (exit 1 when not)
+                          --url <address>  as for model pull
+                          --file <path>    as for model pull
+                          --offline        check the file alone, without the site
+                          --strict         also exit 1 when the site has more or other things than the file
+  model register        tell the site that code built from the model file runs against it: a change that takes away what it reads is refused
+                          --url <address>  as for model pull
+                          --file <path>    as for model pull
+                          --name <name>    the name of the registration (default web)
+                          --remove         remove the registration
 
   help, --help, -h   this text
 

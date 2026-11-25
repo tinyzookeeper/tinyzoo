@@ -10,7 +10,11 @@ import {
   cmsModelParseNumber, cmsModelPointingAt, cmsModelPreset, cmsModelPurgeFromNow, cmsModelRemovedLine, cmsModelRemoveOp, cmsModelRemoveOptionRow,
   cmsModelRestoreOptionRow, cmsModelSameKeys, cmsModelSettingsCheck, cmsModelSettingsFormOf, cmsModelSettingsOp, cmsModelUsageCount,
   cmsModelDeleteNeedsName, cmsModelFieldsAtLimit, cmsModelFieldsUsed, cmsModelNameMatches, cmsModelPurgeBlockers, cmsModelPurgeOp, cmsModelSecondsLeft, cmsModelTypesAtLimit,
+  cmsModelCodeRefusalText, cmsModelCodeRow, cmsModelListText, cmsModelMisfitList, cmsModelMisfitName,
+  type CmsModelCodeBreak, type CmsModelCodeRegistration,
 } from '../../packages/cms/app/utils/cmsModel'
+import cs from '../../packages/cms/app/i18n/cs'
+import de from '../../packages/cms/app/i18n/de'
 
 // A fake translator: the key and the parameters, so a test sees which sentence was chosen.
 const t = (key: string, params?: Record<string, any>) => (params ? `${key} ${JSON.stringify(params)}` : key)
@@ -789,5 +793,153 @@ describe('the texts of part 2', () => {
       expect(key.split('.').reduce((node, part) => node?.[part], text), key).toBeTruthy()
     }
     expect(en.model.remove.confirm).toBe('Remove')
+  })
+})
+
+describe('code that reads the types', () => {
+  // A translator over a real catalogue: the key's text with its parameters, plurals by the language's rules.
+  const realT = (catalogue: any, locale: string) => (key: string, params: Record<string, any> = {}) => {
+    let node = key.split('.').reduce((n, part) => n?.[part], catalogue)
+    if (node && typeof node === 'object') node = node[new Intl.PluralRules(locale).select(Number(params.count))] ?? node.other
+    if (typeof node !== 'string') throw new Error(`no text: ${key}`)
+    return node.replace(/\{(\w+)\}/g, (_, k: string) => String(params[k] ?? ''))
+  }
+  const now = new Date('2026-11-25T12:00:00Z')
+  const doc: ModelDoc = {
+    format: 1,
+    types: [
+      {
+        name: 'custom_course', label: { en: 'Courses', cs: 'Kurzy' },
+        fields: [
+          { key: 'title', type: 'text', label: { en: 'Title' }, required: true },
+          { key: 'perex', type: 'text', long: true, label: { en: 'Short description', cs: 'Perex' } },
+          { key: 'teacher', type: 'text', label: { en: 'Teacher', cs: 'Lektor' }, required: true },
+          { key: 'starts', type: 'datetime', label: { en: 'Starts', cs: 'Začátek' } },
+          { key: 'old', type: 'text', label: { en: 'Old note' }, removedAt: '2026-11-20T10:00:00.000Z' },
+        ],
+      },
+      { name: 'custom_branch', label: { en: 'Branches', cs: 'Pobočky' }, fields: [{ key: 'title', type: 'text', label: { en: 'Title' }, required: true }], removedAt: '2026-11-21T10:00:00.000Z' },
+    ],
+  } as any
+  const ctxIn = (locale: 'en' | 'cs' | 'de') => {
+    const catalogue = { en, cs, de }[locale]
+    return {
+      t: realT(catalogue, locale) as any,
+      formatDateWith: (v: Date | string | number, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat(locale, { ...o, timeZone: 'UTC' }).format(new Date(v)),
+      now,
+      doc,
+      read: (label: any) => (label && typeof label === 'object' ? label[locale] ?? '' : ''),
+      locale,
+    }
+  }
+  // English dates are as the admin shows them ("November 25"); Czech lists hold a no-break space after "a".
+  const reg = (name: string, breaks: CmsModelCodeBreak['breaks'], registeredAt = '2026-11-25T10:00:00.000Z'): CmsModelCodeBreak => ({ name, registeredAt, updatedAt: registeredAt, source: 'token', breaks })
+
+  it('names a type and a field by their labels in the admin\'s language, removed ones too, and the key only when no label is known', () => {
+    const ctx = ctxIn('en')
+    expect(cmsModelMisfitName({ type: 'custom_course', field: 'perex' }, ctx)).toBe('Courses › Short description')
+    expect(cmsModelMisfitName({ type: 'custom_course' }, ctx)).toBe('Courses')
+    expect(cmsModelMisfitName({ type: 'custom_course', field: 'old' }, ctx)).toBe('Courses › Old note')
+    expect(cmsModelMisfitName({ type: 'custom_branch' }, ctx)).toBe('Branches')
+    // A filter of a date is about its field.
+    expect(cmsModelMisfitName({ type: 'custom_course', field: 'starts.from' }, ctx)).toBe('Courses › Starts')
+    // Gone from the document altogether: the name without its prefix, the key.
+    expect(cmsModelMisfitName({ type: 'custom_event', field: 'venue' }, ctx)).toBe('event › venue')
+    expect(cmsModelMisfitName({ type: 'custom_course', field: 'perex' }, ctxIn('cs'))).toBe('Kurzy › Perex')
+    // No Czech label: the key, never another language's label.
+    expect(cmsModelMisfitName({ type: 'custom_course', field: 'title' }, ctxIn('cs'))).toBe('Kurzy › title')
+  })
+
+  it('says the sentence of the design for one field one registration reads', () => {
+    const ops: ModelOp[] = [{ op: 'field.remove', type: 'custom_course', key: 'perex' }]
+    const text = cmsModelCodeRefusalText([reg('app', [{ type: 'custom_course', field: 'perex', why: 'field-removed', message: 'The field perex of custom_course is gone or removed' }])], ctxIn('en'), ops)
+    expect(text).toBe('The website’s code reads this field. It is registered as “app” since November 25. Its developer has to update the code first.')
+    expect(text).not.toContain('perex')
+    expect(text).not.toContain('field-removed')
+  })
+
+  it('says it in Czech and German, with the date in that language', () => {
+    const ops: ModelOp[] = [{ op: 'field.remove', type: 'custom_course', key: 'perex' }]
+    const one = [reg('app', [{ type: 'custom_course', field: 'perex', why: 'field-removed' }])]
+    expect(cmsModelCodeRefusalText(one, ctxIn('cs'), ops)).toBe('Toto pole čte kód webu. Na webu je zapsaný pod názvem „app“ od 25. listopadu. Nejdřív ho musí upravit jeho vývojář.')
+    expect(cmsModelCodeRefusalText(one, ctxIn('de'), ops)).toBe('Der Code der Website liest dieses Feld. Er ist seit dem 25. November unter dem Namen „app“ eingetragen. Zuerst muss sein Entwickler den Code anpassen.')
+  })
+
+  it('adapts to a type, to a required field made optional, and to several registrations', () => {
+    const ctx = ctxIn('en')
+    const typeText = cmsModelCodeRefusalText([reg('web', [{ type: 'custom_course', why: 'type-removed' }])], ctx, [{ op: 'type.remove', type: 'custom_course' }])
+    expect(typeText.startsWith('The website’s code reads this type. It is registered as “web” since November 25.')).toBe(true)
+    const loose = cmsModelCodeRefusalText([reg('web', [{ type: 'custom_course', field: 'teacher', why: 'may-be-empty' }])], ctx, [{ op: 'field.update', type: 'custom_course', key: 'teacher', required: false }])
+    expect(loose.startsWith('The website’s code counts on this field always being filled in.')).toBe(true)
+    const two = cmsModelCodeRefusalText([
+      reg('app', [{ type: 'custom_course', field: 'perex', why: 'field-removed' }]),
+      reg('web', [{ type: 'custom_course', field: 'perex', why: 'field-removed' }], '2025-03-02T10:00:00.000Z'),
+    ], ctx, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }])
+    expect(two).toBe('The website’s code reads this field. It is registered as “app” since November 25 and “web” since March 2, 2025. Its developer has to update the code first.')
+  })
+
+  it('names what is read when the change was about something else, or about several things', () => {
+    const ctx = ctxIn('en')
+    const breaks = [{ type: 'custom_course', field: 'perex', why: 'field-removed' }, { type: 'custom_course', field: 'teacher', why: 'may-be-empty' }]
+    const text = cmsModelCodeRefusalText([reg('web', breaks)], ctx, [{ op: 'field.remove', type: 'custom_course', key: 'perex' }, { op: 'field.update', type: 'custom_course', key: 'teacher', required: false }])
+    expect(text.startsWith('The website’s code reads “Courses › Short description” and “Courses › Teacher” always filled in.')).toBe(true)
+  })
+
+  it('says the short sentence when the refusal names nothing it can say more of', () => {
+    expect(cmsModelCodeRefusalText([], ctxIn('en'))).toBe(en.model.code.refusal.short)
+    expect(cmsModelCodeRefusalText([reg('web', [])], ctxIn('en'))).toBe(en.model.code.refusal.short)
+  })
+
+  it('reads the refusal of the server as its own kind, with its registrations', () => {
+    const regs = [reg('app', [{ type: 'custom_course', field: 'perex', why: 'field-removed' }])]
+    const p = cmsModelProblem(refusal('breaks-code', { registrations: regs }, 409), t, [])
+    expect(p.kind).toBe('breaks-code')
+    expect(p.at).toBeNull()
+    expect(p.registrations).toEqual(regs)
+    expect(p.text).toBe('model.code.refusal.short')
+    expect(cmsModelProblem(refusal('breaks-code', {}, 409), t, []).registrations).toEqual([])
+  })
+
+  it('lists at most four things, each once, then how many more', () => {
+    const ctx = ctxIn('en')
+    const many = ['a', 'b', 'c', 'd', 'e', 'f'].map((k) => ({ type: 'custom_course', field: k, why: 'field-removed' }))
+    expect(cmsModelMisfitList(many, ctx)).toBe('“Courses › a”, “Courses › b”, “Courses › c”, “Courses › d”, and 2 more')
+    expect(cmsModelMisfitList([...many.slice(0, 2), many[0]!], ctx)).toBe('“Courses › a” and “Courses › b”')
+    expect(cmsModelListText(['A', 'B', 'C'], 'cs').replace(/\u00a0/g, ' ')).toBe('A, B a C')
+  })
+
+  describe('a row of the list', () => {
+    const row = (extra: Partial<CmsModelCodeRegistration> = {}): CmsModelCodeRegistration => ({
+      name: 'web', registeredAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-25T10:00:00.000Z', source: 'token', by: { id: 'u1', name: 'Ada Admin' }, version: 4, types: 2, breaks: [], ...extra,
+    })
+
+    it('says who registered the file in force, when, and how many types it reads', () => {
+      expect(cmsModelCodeRow(row(), ctxIn('en'))).toEqual({ meta: 'Ada Admin · registered November 25 · reads 2 types', lacks: '', unreadable: false })
+      expect(cmsModelCodeRow(row({ source: 'app', by: null, types: 1 }), ctxIn('en')).meta).toBe('The website itself · registered November 25 · reads 1 type')
+      expect(cmsModelCodeRow(row({ by: null }), ctxIn('en')).meta).toBe('Registered November 25 · reads 2 types')
+      expect(cmsModelCodeRow(row({ types: 5 }), ctxIn('cs')).meta).toBe('Ada Admin · zapsáno 25. listopadu · čte 5 typů')
+      expect(cmsModelCodeRow(row({ source: 'app', by: null }), ctxIn('de')).meta).toBe('Die Website selbst · eingetragen am 25. November · liest 2 Typen')
+    })
+
+    it('says in one line what the code expects and the site no longer has, by labels', () => {
+      const lacking = row({ breaks: [{ type: 'custom_course', field: 'perex', why: 'field-removed', message: 'The field perex of custom_course is gone or removed' }, { type: 'custom_branch', why: 'type-removed' }] })
+      expect(cmsModelCodeRow(lacking, ctxIn('en')).lacks).toBe('It expects something the site no longer has: “Courses › Short description” and “Branches”.')
+      expect(cmsModelCodeRow(lacking, ctxIn('cs')).lacks.replace(/\u00a0/g, ' ')).toBe('Počítá s něčím, co web už nemá: „Kurzy › Perex“ a „Pobočky“.')
+    })
+
+    it('says so when the stored file cannot be read here', () => {
+      const r = cmsModelCodeRow(row({ types: null, breaks: null }), ctxIn('en'))
+      expect(r).toEqual({ meta: 'Ada Admin · registered November 25', lacks: '', unreadable: true })
+    })
+  })
+
+  it('has every text in the three languages', () => {
+    for (const key of ['title', 'hint', 'seeAll', 'removeTitle', 'removeBody', 'refusal.field', 'refusal.type', 'refusal.fieldFilled', 'refusal.named', 'refusal.registeredOne', 'refusal.registeredMany', 'refusal.developer']) {
+      for (const catalogue of [en, cs, de]) expect(key.split('.').reduce((node: any, part) => node?.[part], (catalogue as any).model.code), key).toBeTruthy()
+    }
+    expect(en.model.code.title).toBe('Code that reads these types')
+    expect(cs.model.code.title).toBe('Kód, který tyto typy čte')
+    expect(de.model.code.title).toBe('Code, der diese Typen liest')
+    expect(en.account.tokens.model).toBe('Content types')
   })
 })

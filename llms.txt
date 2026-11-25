@@ -34,4 +34,5 @@ The same documentation, rendered from the Markdown linked below, is on the websi
 - [Analytics](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/analytics.md): the website's visits in its own admin, without cookies (`tinyzoo/analytics`)
 - [Cookie consent](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/consent.md): a cookie banner, `useConsent()` and a consent log (`tinyzoo/consent`)
 - [Content between environments](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/content-transfer.md): `tinyzoo export` and `import`
+- [Content types made in the admin](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/guide/custom-types.md): experimental; types administrators add in the admin, `cms.model.json`, `tinyzoo model`, typed code, the lock
 - [Editors' guide](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/en/README.md): the manual for the people who write content, with the admin's own labels, in [Czech](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/cs/README.md), English and [German](https://github.com/tinyzookeeper/tinyzoo/blob/main/docs/editors/de/README.md)

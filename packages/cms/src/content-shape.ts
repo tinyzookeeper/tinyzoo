@@ -1,6 +1,7 @@
 import { buildRegistry, type CmsEntity, type CmsRegistry } from './entity'
 import { pascal } from './fields'
 import type { FieldDescriptor } from './descriptor'
+import { CUSTOM_PREFIX } from './model-doc'
 
 // ── ONE IR, TWO MORE SINKS ──────────────────────────────────────────────────────
 // The public content API projects rows through `server/utils/cmsContent.ts`
@@ -19,7 +20,7 @@ export const SLUG_PATTERN = '^[a-z0-9]+(?:-[a-z0-9]+)*$'
  * @internal
  */
 export type ContentFieldType =
-  | { kind: 'scalar'; scalar: 'string' | 'integer' | 'number' | 'boolean' | 'datetime'; enumValues?: readonly string[]; pattern?: string }
+  | { kind: 'scalar'; scalar: 'string' | 'integer' | 'number' | 'boolean' | 'datetime'; enumValues?: readonly string[]; pattern?: string; open?: true }
   | { kind: 'richtext' }
   | { kind: 'media' }
   | { kind: 'gallery' }
@@ -45,6 +46,8 @@ export interface ContentField {
 export interface FilterParam {
   key: string
   enumValues?: readonly string[]
+  /** With `enumValues`: the owner can add values, so the listed ones are only the known ones. */
+  open?: true
   /** 'boolean': `true`/`false`; 'datetime': an ISO date or time (a `.from` / `.to` bound). Default: exact text. */
   value?: 'boolean' | 'datetime'
 }
@@ -153,6 +156,20 @@ function populateSet(e: CmsEntity): Set<string> {
  */
 const isLink = (fld: FieldDescriptor) => fld.type === 'text' && fld.meta?.format === 'link'
 
+/**
+ * A select of a site's own content type (custom_…) is open: the owner can add a choice at any
+ * time. The publish field (draft/published) is the mapper's own and stays closed.
+ */
+function isOpenSelect(e: CmsEntity, key: string, fld: FieldDescriptor): boolean {
+  return fld.type === 'select' && e.name.startsWith(CUSTOM_PREFIX) && key !== e.publish?.field
+}
+
+/** The scalar type of a field of an entity: an open select is marked open. */
+function entityScalarType(e: CmsEntity, key: string, fld: FieldDescriptor): ContentFieldType {
+  const t = scalarType(fld)
+  return t.kind === 'scalar' && t.enumValues && isOpenSelect(e, key, fld) ? { ...t, open: true } : t
+}
+
 function scalarType(fld: FieldDescriptor): ContentFieldType {
   switch (fld.type) {
     case 'text': return { kind: 'scalar', scalar: 'string' }
@@ -256,7 +273,7 @@ function topLevelFields(reg: CmsRegistry, e: CmsEntity): ContentField[] {
       out.push({ key, type: { kind: 'gallery' }, nullable: false })
       continue
     }
-    out.push({ key, type: scalarType(fld), nullable: fld.isOptional || isLink(fld) })
+    out.push({ key, type: entityScalarType(e, key, fld), nullable: fld.isOptional || isLink(fld) })
   }
   return out
 }
@@ -268,7 +285,7 @@ function embeddedFields(e: CmsEntity): ContentField[] {
   for (const [key, fld] of Object.entries(e.fields)) {
     // Blocks are not embedded in related items (they can hold media to resolve).
     if (hidden.has(key) || fld.relation || fld.type === 'media' || fld.type === 'blocks' || fld.type === 'group' || fld.type === 'gallery') continue
-    out.push({ key, type: scalarType(fld), nullable: fld.isOptional || isLink(fld) })
+    out.push({ key, type: entityScalarType(e, key, fld), nullable: fld.isOptional || isLink(fld) })
   }
   return out
 }
@@ -299,7 +316,8 @@ function filters(e: CmsEntity): FilterParam[] {
     if (hidden.has(key) || RESERVED_QUERY_KEYS.has(key)) continue
     if (fld.relation?.kind === 'many-to-one') out.push({ key })
     else if (!fld.relation && ['text', 'slug', 'select'].includes(fld.type)) {
-      out.push({ key, enumValues: fld.type === 'select' ? scalarEnum(fld) : undefined })
+      const enumValues = fld.type === 'select' ? scalarEnum(fld) : undefined
+      out.push({ key, enumValues, ...(enumValues && isOpenSelect(e, key, fld) ? { open: true as const } : {}) })
     }
     else if (fld.type === 'boolean') out.push({ key, value: 'boolean' })
     else if (fld.type === 'datetime') out.push({ key: `${key}.from`, value: 'datetime' }, { key: `${key}.to`, value: 'datetime' })

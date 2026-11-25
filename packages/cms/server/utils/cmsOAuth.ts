@@ -133,7 +133,9 @@ export async function approveOAuthRequest(input: { requestId: string; user: CmsU
   const rights = clampTokenRights(input.rights, input.user)
   const request = await claimOAuthRequest(input.requestId)
   if (!request) throw cmsOAuthFailure('invalid_request', 'This request is no longer open', 410)
-  const granted = request.scope === 'write' ? rights : { ...rights, write: false, publish: false, delete: false, media: false }
+  // A client that asked to read only gets no writing, and no change of the content types either.
+  const { model: _model, ...readOnly } = rights
+  const granted = request.scope === 'write' ? rights : { ...readOnly, write: false, publish: false, delete: false, media: false }
   const code = randomBytes(32).toString('base64url')
   const { db, reg } = useCms()
   await db.insert(reg.cmsOauthCodes).values({

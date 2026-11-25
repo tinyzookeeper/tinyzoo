@@ -5,6 +5,7 @@ import { addComponentsDir, addImportsDir, addPlugin, addServerHandler, addServer
 import type { ModuleDependencies, Nuxt } from 'nuxt/schema'
 import { createJiti } from 'jiti'
 import { docsUrl } from './src/docs'
+import { MODEL_FILE_ASSET, MODEL_FILE_NAME } from './src/model-file'
 import { modelMigrationsAsset, modelPluginsProblem, modelsOf } from './src/models'
 import { collectPlugins, planPlugins } from './src/plugin'
 import { prepareStaticImages, STATIC_IMAGES_BASE, type StaticImageManifest } from './src/staticImages'
@@ -371,7 +372,16 @@ export default defineNuxtModule<CmsModuleOptions>({
       if (!existsSync(dir)) throw new Error(`[tinyzoo] the content model "${m.name}": its migrations folder ${dir} does not exist (\`migrations\` in defineModels, relative to ${nuxt.options.rootDir}).`)
       return { baseName: modelMigrationsAsset(m.name), dir }
     })
+    // A single-site app's own content types (experimental): its model file, beside cms.config.ts, goes
+    // into the server build as a server asset when it is there. The server registers it at start
+    // (server/utils/cmsAppModelFile.ts). Development: a change of the file restarts the server.
+    const modelFile = resolve(nuxt.options.rootDir, MODEL_FILE_NAME)
+    if (nuxt.options.dev && Array.isArray(nuxt.options.watch)) nuxt.options.watch.push(modelFile)
     nuxt.hook('nitro:config', (nitro) => {
+      if (existsSync(modelFile)) {
+        nitro.serverAssets = nitro.serverAssets || []
+        nitro.serverAssets.push({ baseName: MODEL_FILE_ASSET, dir: dirname(modelFile), pattern: MODEL_FILE_NAME })
+      }
       if (existsSync(migrationsDir)) {
         nitro.serverAssets = nitro.serverAssets || []
         nitro.serverAssets.push({ baseName: modelMigrationsAsset('default'), dir: migrationsDir })

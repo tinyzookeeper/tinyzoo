@@ -1131,7 +1131,7 @@ export function seo(opts?: {
 // ── re-exported from other packages (18) ───────────────────────────
 alias, and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, ne, not, notInArray, or, sql
 
-// ── internal (262): exported, not part of the frozen API, may change in any minor ──
+// ── internal (280): exported, not part of the frozen API, may change in any minor ──
 const BINDING_ENTRIES_MAX
 const BINDING_LIMIT_DEFAULT
 const BINDING_LIMIT_MAX
@@ -1196,6 +1196,8 @@ interface LinkVisitor
 const MODEL_DELETE_WAIT_MS
 const MODEL_DOC_MAX_BYTES
 const MODEL_FIELD_TYPES
+const MODEL_FILE_ASSET
+const MODEL_FILE_NAME
 const MODEL_FORMAT
 const MODEL_HELP_MAX
 const MODEL_LABEL_MAX
@@ -1207,13 +1209,19 @@ interface MigrationSource
 interface MigrationStatus
 interface ModelContext
 interface ModelDdlAllow
+interface ModelDiffProblem
 interface ModelDoc
 type ModelField
 type ModelFieldInput
 type ModelFieldType
+interface ModelFile
+type ModelFileField
+type ModelFileType
 type ModelLabel
 interface ModelLimits
 interface ModelMapProblem
+interface ModelMisfit
+type ModelMisfitWhy
 interface ModelNote
 type ModelOp
 interface ModelOption
@@ -1288,9 +1296,12 @@ const cmsState
 const cmsTokens
 const cmsUsers
 function collectPlugins
+function customModelConfig
 function customShape
 function depthOf
 function descendantsOf
+function describeModelOps
+function diffModelFile
 function editDistance
 function editorLayout
 function emitContentTypes
@@ -1333,19 +1344,25 @@ function matchRoute
 function mediaIdsInBlocks
 function mediaIdsInFields
 function menuSources
+function mergeModelFileAdditions
 function modelEntities
 function modelFieldKey
+function modelFileDoc
+function modelFileOf
 function modelMigrationsAsset
+function modelMisfits
 function modelPagePrefix
 function modelPluginsProblem
 function modelPurgeDue
 function modelTypeName
 function modelsOf
 function movedPaths
+function newModelMisfits
 function normalizeFieldAccess
 function normalizeSetupCode
 function parseLinkRef
 function parseModelDoc
+function parseModelFile
 const pascal
 function pathTemplateFor
 function pathTemplateKeys
@@ -1394,3 +1411,4 @@ function upgradeRichText
 function upgradeStoredRow
 function webhookPayload
 function wordMatch
+function writeModelFile

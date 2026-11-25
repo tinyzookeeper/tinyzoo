@@ -510,8 +510,8 @@ async function stopCollab(c: Collab): Promise<void> {
   c.presence = null
   if (!server) {
     await p?.close()
-    // Multi-tenant mode: a site unloaded while its engine was still starting. Stop it once it is up, or it would stay behind.
-    if (starting && cmsIsMultiTenant()) await starting.then(() => stopCollab(c), () => {})
+    // A counted site (multi-tenant mode, or a single site with its own types) unloaded while its engine was still starting. Stop it once it is up, or it would stay behind.
+    if (starting && cmsSiteCounted()) await starting.then(() => stopCollab(c), () => {})
     return
   }
   server.closeConnections()

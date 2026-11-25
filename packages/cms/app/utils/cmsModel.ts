@@ -57,14 +57,51 @@ export interface CmsModelAttentionPlace extends CmsModelPlace {
   missing: { type?: string; fields?: string[] }
 }
 
+/** One thing code reads that a model does not keep (`ModelMisfit` of `src/model-fit.ts`). */
+export interface CmsModelMisfit {
+  type: string
+  /** A field key, or a sort key or filter parameter of the list. */
+  field?: string
+  why: string
+  message?: string
+}
+
+/** A registration a refused change would break (409 `breaks-code`). */
+export interface CmsModelCodeBreak {
+  name: string
+  registeredAt: string
+  updatedAt: string
+  source: string
+  breaks: CmsModelMisfit[]
+}
+
+/** One registration, as `GET /api/cms/_model/code` lists it. */
+export interface CmsModelCodeRegistration {
+  name: string
+  /** When something first registered under this name. */
+  registeredAt: string
+  /** When the file in force now was registered. */
+  updatedAt: string
+  /** 'app' (the site's own build), 'token' or 'session'. */
+  source: string
+  by: { id: string; name: string } | null
+  version: number
+  /** How many types the file reads; null when this version cannot read the stored file. */
+  types: number | null
+  /** What the site lacks now of what the file reads; null when the file cannot be read. */
+  breaks: CmsModelMisfit[] | null
+}
+
 /** A change that did not work, said for a person. */
 export interface CmsModelProblemInfo {
-  kind: 'stale' | 'busy' | 'in-use' | 'refused' | 'other'
+  kind: 'stale' | 'busy' | 'in-use' | 'breaks-code' | 'refused' | 'other'
   code: string
   text: string
   /** The form field it is about, or null when the dialog says it. */
   at: 'label' | 'help' | 'key' | 'prefix' | 'options' | 'required' | 'to' | 'icon' | null
   places?: CmsModelPlace[]
+  /** `breaks-code`: the code that reads what the change would take away. */
+  registrations?: CmsModelCodeBreak[]
   /** `too-soon`: whole seconds until the thing may be deleted for good. */
   secondsLeft?: number
   fields?: { type: string; key: string }[]
@@ -254,6 +291,11 @@ export function cmsModelProblem(err: any, t: T, ops: ModelOp[] = []): CmsModelPr
   if (status === 503 || code === 'busy') return { kind: 'busy', code: code || 'busy', text: t('model.errors.busy'), at: null }
   if (code === 'in-use') {
     return { kind: 'in-use', code, text: t('model.errors.inUse'), at: null, places: Array.isArray(data.places) ? data.places : [] }
+  }
+  // The words that name the code and what it reads need the document: `cmsModelCodeRefusalText` makes them.
+  if (code === 'breaks-code') {
+    const registrations = Array.isArray(data.registrations) ? data.registrations.filter((r: any) => r && typeof r.name === 'string') : []
+    return { kind: 'breaks-code', code, text: t('model.code.refusal.short'), at: null, registrations }
   }
   if (!KNOWN.has(code)) return { kind: 'other', code, text: cmsRequestError(err, t as any), at: null }
 
@@ -768,3 +810,110 @@ export const cmsModelPurgeBlockers = (doc: ModelDoc, name: string): { type: stri
   doc.types
     .filter((other) => other.name !== name)
     .flatMap((other) => other.fields.filter((f) => f.type === 'relation' && f.to === name).map((f) => ({ type: other.name, key: f.key })))
+
+// ---------------------------------------------------------------------------------------------
+// Code that reads the types (registrations: docs/model-file-plan.md, sections 6 and 8)
+
+/** What the words about code need: the dates, the document for the labels, and the admin's language. */
+export interface CmsModelCodeCtx extends CmsModelDateCtx {
+  doc: ModelDoc
+  /** A stored label in the admin's language, '' when it has none. */
+  read: (label: ModelLabel | null | undefined) => string
+  locale: string
+}
+
+/** A type's name without the prefix every custom type has, for a type the document no longer knows. */
+const bareName = (name: string): string => name.replace(/^custom_/, '')
+
+/** A filter parameter of a date (`starts.from`) is about its field (`starts`). */
+const fieldOfKey = (key: string): string => key.replace(/\.(from|to)$/, '')
+
+/** "Courses › Teacher": the labels of a misfit's type and field, the key only when the label is not known. */
+export function cmsModelMisfitName(m: Pick<CmsModelMisfit, 'type' | 'field'>, ctx: Pick<CmsModelCodeCtx, 'doc' | 'read'>): string {
+  const type = ctx.doc.types.find((x) => x.name === m.type)
+  const typeName = (type && ctx.read(type.label)) || bareName(m.type)
+  if (!m.field) return typeName
+  const key = fieldOfKey(m.field)
+  const field = type?.fields.find((f) => f.key === key)
+  return `${typeName} › ${(field && ctx.read(field.label)) || key}`
+}
+
+/** The things code reads that are missing, as one list in the admin's language: each once, at most four, then "3 more". */
+export function cmsModelMisfitList(breaks: readonly CmsModelMisfit[], ctx: Pick<CmsModelCodeCtx, 'doc' | 'read' | 't' | 'locale'>): string {
+  const phrases = [...new Set(breaks.map((m) => {
+    const thing = ctx.t('model.code.quoted', { text: cmsModelMisfitName(m, ctx) })
+    return m.why === 'may-be-empty' ? ctx.t('model.code.alwaysFilled', { thing }) : thing
+  }))]
+  const shown = phrases.length > 5 ? [...phrases.slice(0, 4), ctx.t('model.code.more', { count: phrases.length - 4 })] : phrases
+  return cmsModelListText(shown, ctx.locale)
+}
+
+/** "A, B and C" in the admin's language. */
+export function cmsModelListText(items: readonly string[], locale: string): string {
+  try {
+    return new Intl.ListFormat(locale, { style: 'long', type: 'conjunction' }).format(items)
+  }
+  catch {
+    return items.join(', ')
+  }
+}
+
+/** The thing one operation is about: a field it removes or changes, or a type it removes. */
+function subjectOf(ops: readonly ModelOp[]): { type: string; field?: string } | null {
+  if (ops.length !== 1) return null
+  const op = ops[0]!
+  if (op.op === 'type.remove') return { type: op.type }
+  if (op.op === 'field.remove' || op.op === 'field.update') return { type: op.type, field: op.key }
+  return null
+}
+
+/**
+ * A change refused because code reads what it takes away (409 `breaks-code`), in the admin's words:
+ * what the code reads ("this field" when the change was about that field alone, else the labels),
+ * under which name and since when it is registered, and that its developer acts first.
+ * `ops` are the operations that were sent.
+ */
+export function cmsModelCodeRefusalText(registrations: readonly CmsModelCodeBreak[], ctx: CmsModelCodeCtx, ops: readonly ModelOp[] = []): string {
+  const { t } = ctx
+  const breaks = registrations.flatMap((r) => r.breaks ?? [])
+  if (!registrations.length || !breaks.length) return t('model.code.refusal.short')
+
+  const subject = subjectOf(ops)
+  const onSubject = (m: CmsModelMisfit) => !!subject && m.type === subject.type && (!subject.field || (!!m.field && fieldOfKey(m.field) === subject.field))
+  let what: string
+  if (subject && breaks.every(onSubject)) {
+    if (!subject.field) what = t('model.code.refusal.type')
+    else what = breaks.every((m) => m.why === 'may-be-empty') ? t('model.code.refusal.fieldFilled') : t('model.code.refusal.field')
+  }
+  else what = t('model.code.refusal.named', { list: cmsModelMisfitList(breaks, ctx) })
+
+  const since = (r: CmsModelCodeBreak) => cmsModelDayText(r.registeredAt, ctx)
+  const who = registrations.length === 1
+    ? t('model.code.refusal.registeredOne', { name: registrations[0]!.name, date: since(registrations[0]!) })
+    : t('model.code.refusal.registeredMany', { list: cmsModelListText(registrations.map((r) => t('model.code.refusal.registeredItem', { name: r.name, date: since(r) })), ctx.locale) })
+  return [what, who, t('model.code.refusal.developer')].join(' ')
+}
+
+/** What a row of the list of registered code says: who and when, how many types, and what the site lacks. */
+export interface CmsModelCodeRowText {
+  /** "The website itself · registered 25 November · reads 2 types" */
+  meta: string
+  /** What the code expects and the site no longer has, or ''. */
+  lacks: string
+  /** The stored file is of a newer version: what it reads is not known here. */
+  unreadable: boolean
+}
+
+export function cmsModelCodeRow(reg: CmsModelCodeRegistration, ctx: CmsModelCodeCtx): CmsModelCodeRowText {
+  const { t } = ctx
+  const who = reg.source === 'app' ? t('model.code.byWebsite') : (reg.by?.name?.trim() ?? '')
+  const parts = [who, t('model.code.registeredOn', { date: cmsModelDayText(reg.updatedAt, ctx) })]
+  if (typeof reg.types === 'number') parts.push(t('model.code.readsTypes', { count: reg.types }))
+  const meta = parts.filter(Boolean).join(' · ')
+  const unreadable = reg.types === null || reg.breaks === null
+  return {
+    meta: meta.charAt(0).toLocaleUpperCase(ctx.locale) + meta.slice(1),
+    lacks: !unreadable && reg.breaks!.length ? t('model.code.lacks', { list: cmsModelMisfitList(reg.breaks!, ctx) }) : '',
+    unreadable,
+  }
+}

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { defineBlock, defineEntity, defineSingleton, editorLayout, f, listLayout, type CmsEntity } from 'tinyzoo'
-import { CMS_SIDEBAR_LAYOUT_COOKIE, cmsSidebarFolded } from '../../packages/cms/app/utils/cmsSidebar'
+import { CMS_SIDEBAR_LAYOUT_COOKIE, cmsMenuHasRow, cmsSidebarFolded } from '../../packages/cms/app/utils/cmsSidebar'
 
 // The admin picks how an editor and a list look from what the content is; the
 // developer can say otherwise with admin.editor / admin.list.layout.
@@ -91,5 +91,15 @@ describe('cmsSidebarFolded: the folded sidebar after a reload', () => {
     const id = /<UDashboardSidebar\s[^>]*\bid="([^"]+)"/.exec(vue)?.[1]
     expect(`${key}-sidebar-${id}`).toBe(CMS_SIDEBAR_LAYOUT_COOKIE)
     expect(vue).toMatch(/useCookie<[^>]+>\(CMS_SIDEBAR_LAYOUT_COOKIE\)/)
+  })
+})
+
+describe('cmsMenuHasRow: a row wherever the menu places it', () => {
+  it('finds a row beside Home, in a group or behind Settings, and nothing in no menu', () => {
+    expect(cmsMenuHasRow({ home: [], groups: [], settings: ['@model', '@team'] }, '@model')).toBe(true)
+    expect(cmsMenuHasRow({ home: ['@model'], groups: [], settings: [] }, '@model')).toBe(true)
+    expect(cmsMenuHasRow({ home: [], groups: [{ items: ['posts', '@model'] }], settings: [] }, '@model')).toBe(true)
+    expect(cmsMenuHasRow({ home: ['posts'], groups: [{ items: ['pages'] }], settings: ['@team'] }, '@model')).toBe(false)
+    expect(cmsMenuHasRow(null, '@model')).toBe(false)
   })
 })

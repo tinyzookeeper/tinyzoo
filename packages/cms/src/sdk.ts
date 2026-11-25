@@ -20,11 +20,16 @@ function pascalRef(name: string): string {
   return name.replace(/(^|[_-])([a-z0-9])/g, (_, __, c) => c.toUpperCase())
 }
 
+/** The union of known values; an open one also takes any other text. */
+function enumUnion(values: readonly string[], open?: boolean): string {
+  return [...values.map((v) => `'${v}'`), ...(open ? ['(string & {})'] : [])].join(' | ')
+}
+
 /** TypeScript type expression for a projected field value (without nullability). */
 function tsType(t: ContentFieldType): string {
   switch (t.kind) {
     case 'scalar':
-      if (t.enumValues) return t.enumValues.map((v) => `'${v}'`).join(' | ')
+      if (t.enumValues) return enumUnion(t.enumValues, t.open)
       if (t.scalar === 'integer' || t.scalar === 'number') return 'number'
       if (t.scalar === 'boolean') return 'boolean'
       return 'string' // string + datetime(ISO) both serialize as string
@@ -166,7 +171,7 @@ export function emitContentTypes(config: Record<string, any>, opts: SdkOptions =
   out.push('// ── query types ─────────────────────────────────────────────────────────────────')
   for (const e of model.entities) {
     const filterLines = e.filters.map((f) => {
-      const t = f.value === 'boolean' ? 'boolean' : f.value === 'datetime' ? 'string | Date' : f.enumValues ? f.enumValues.map((v) => `'${v}'`).join(' | ') : 'string'
+      const t = f.value === 'boolean' ? 'boolean' : f.value === 'datetime' ? 'string | Date' : f.enumValues ? enumUnion(f.enumValues, f.open) : 'string'
       const key = /^[A-Za-z_$][\w$]*$/.test(f.key) ? f.key : `'${f.key}'`
       const doc = f.value === 'datetime' ? `  /** ${f.key.endsWith('.from') ? 'On or after' : 'On or before'} this date or time. */\n` : ''
       return `${doc}  ${key}?: ${t}`
