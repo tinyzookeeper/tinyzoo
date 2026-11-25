@@ -766,7 +766,7 @@ function typeUpdate(r: Run, op: Extract<ModelOp, { op: 'type.update' }>): void {
 
   if (op.order !== undefined) {
     if (op.order !== 'manual' && t.order === 'manual') {
-      fail(r, 'order-manual', `${typeText(t)} is arranged by hand. Going back to an order by a field is not available yet`)
+      fail(r, 'order-manual', `${typeText(t)} is arranged by hand. Going back to an order by a field is not possible`)
     }
     checkOrder(r, t, op.order)
   }

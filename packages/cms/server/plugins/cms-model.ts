@@ -7,7 +7,7 @@
 export default defineNitroPlugin(() => {
   if (!cmsCustomTypesSwitch()) return
   if (!cmsIsMultiTenant()) {
-    console.info('[cms] NUXT_CMS_CUSTOM_TYPES is on, but a site\'s own content types need multi-tenant mode (NUXT_CMS_TENANCY_MODE=multi) for now: they stay off')
+    console.info('[cms] NUXT_CMS_CUSTOM_TYPES is on, but a site\'s own content types need multi-tenant mode (NUXT_CMS_TENANCY_MODE=multi): they stay off')
     return
   }
   void (async () => {

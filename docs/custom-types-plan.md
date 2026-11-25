@@ -1,6 +1,6 @@
 # Custom content types: the detailed design of step 2
 
-**Status (2026-11-24):** a design, written before the build. It is step 2 of `docs/one-app-plan.md` and builds on what steps 0 and 1 put on `main`. Every claim about the code names its file. Numbers are measured on this machine (Apple silicon, Node 24, Postgres 16 in a container of its own) unless they are marked as estimates. The experiments were throwaway and ran outside the product code; section 12 says what each showed. Section 14 records what is built, as it is built.
+**Status (2026-11-25):** the design, and since then the build: every part of section 11 is built on the branch `feat/custom-types`, local only, not released (section 14). The design below is as it was written before the build, corrected where the build showed otherwise. It is step 2 of `docs/one-app-plan.md` and builds on what steps 0 and 1 put on `main`. Every claim about the code names its file. Numbers are measured on this machine (Apple silicon, Node 24, Postgres 16 in a container of its own) unless they are marked as estimates. The experiments were throwaway and ran outside the product code; section 12 says what each showed. Section 14 records what is built, as it is built.
 
 **Words.** As in the plan: a *site*, an *app*, a *model*, a *design*, a *code-first type*, a *custom type*. New here: a *binding* says which type a block shows and which field goes to which place. The *structure function* is the one server function that changes a site's custom types.
 
@@ -410,7 +410,7 @@ All were throwaway, in a scratch folder outside the repository, against a Postgr
 | A site's own roles for custom types | Roles are code and name types | Roles as data: step 3 or later |
 | The model as a file, the registered snapshot, the CI check | Step 3. The structure function is built so that step 3 calls it | |
 | The structure function as an MCP tool | The function is ready; a tool that changes structure needs its own decision on rights | |
-| `tinyzoo export`, `import` and moving a site, for custom types | They read one `cms.config.ts` (`cli/export.ts`, `cli/transfer.ts`). Moving a site with custom types is refused with a clear message instead of leaving them behind. `tinyzoo backup` takes everything: it is `pg_dump` of the whole database (`cli/backup.ts`) | The CLI reading the model document |
+| `tinyzoo export` and `import`, for custom types | They read one `cms.config.ts` (`cli/export.ts`, `cli/transfer.ts`), so they refuse a site with custom types, before anything is written, instead of leaving them behind. `tinyzoo backup` and `restore` take everything: they copy the whole database (`cli/backup.ts`), and the cloud moves a site with them | The CLI reading the model document |
 | Rebuilding only one type's part of the search index | The whole index of the site is rebuilt after a change, in the background | A rebuild by type |
 | A check that wakes an instance which missed a change | Section 4 says what such an instance does | A version in the site directory |
 
@@ -468,3 +468,61 @@ Built on the branch `feat/custom-types`, local only: nothing is released or depl
 - The routes ask for a session first (401), then whether the site has the feature (404), then for an administrator (403). The other order changed what an address of that shape answered before the feature existed.
 - A line of the audit log can now be written inside a transaction, so it is kept or rolled back with the change.
 - Scheduled tasks load every site on each round before they ask whether it has work. The new count of loads shows it; it was so before.
+
+### Part 3: the structure editor
+
+- The row "Content types" under Settings (`@model`, `server/utils/cmsMenu.ts`), for administrators of a site with the feature. Without the feature the menu is what it was.
+- `app/pages/admin/_model/index.vue` (the list) and `[name].vue` (one type), with the dialogs `CmsModelTypeDialog`, `CmsModelFieldDialog`, `CmsModelSettingsDialog`, `CmsModelRemoveDialog` and the icon picker. What a form turns into operations, and what a refusal says in words, are plain functions in `app/utils/cmsModel.ts`.
+- The texts are in Czech, English and German (`app/i18n`, the area `model`).
+- A choice that is no longer offered shows only in the entry that holds it, marked in words (`CmsFieldSelect.vue`).
+- A link field is offered collections of content only: not forms' messages, redirects or what a plugin keeps.
+- Looked at in a browser, as an owner would go through it, in Czech and in English, at 1280 and 390 pixels wide, light and dark.
+
+**To know.** The editor's pages load tinyzoo's own name rules, so the names it shows are the names the server makes. With them comes about 120 KB of script (minified) that only these pages load.
+
+### Part 4: the generic blocks
+
+**In the core and the admin.**
+
+- A field kind `binding`, for blocks only (`src/binding.ts`), and `customTypeBlocks()` with the blocks `x_entries` and `x_chosen` (`src/custom-blocks.ts`). Both are public and experimental. The generated client types and the OpenAPI document describe a binding only for a model that has one, so every other site's generated files are what they were.
+- The control `CmsFieldBinding.vue`, with its rules as plain functions (`app/utils/cmsBinding.ts`): which fields fit which place, what a stored binding names that is gone.
+- The block picker leaves the two blocks out on a site with no type of its own (`server/api/cms/_graph.get.ts`).
+- The guard reads the pages (`findBindings` in `server/utils/cmsModelChange.ts`, the walk in `server/utils/cmsBindings.ts`): removing a field or a type that a block shows is refused with the page and the block named. `GET /api/cms/_model/usage` counts the pages per field; `GET /api/cms/_model/attention` lists the blocks whose binding names something missing.
+- `GET /api/content/_types`: a site's visible types, for whatever draws them. An empty list for every other site.
+
+**In the kit and the templates.**
+
+- `templates/kit/app/components/KitEntries.vue`, `BlockXEntries.vue`, `BlockXChosen.vue` and `KitCustomEntry.vue`, with what they decide as plain functions in `app/utils/customTypes.ts`. They draw nothing where there is nothing to draw: no type, a type the site does not have, a failed request, no entries.
+- The kit's module registers the two block components for every design, and stops a build whose design has a type with the custom prefix.
+- An entry's page: the server puts the site's custom page prefixes on the request, `useSitePage` leads such an address to the entry, and `[...slug].vue` draws it.
+- All 20 templates have the two blocks in their pages. No template needed a migration: each one's generated `schema.ts` is unchanged.
+
+**Every look, in pictures.** `templates/app/scripts/custom-shots.mjs` makes one site per look, gives each a type with five entries, puts the three kinds of block on its home page, and takes pictures of the blocks and of an entry's page at 1440 and 390 pixels, with contact sheets per template. All 52 looks drew them with no failure and no error in the browser. What the pictures showed:
+
+- The footing of section 8 holds for the blocks in every look. No look needed one of the optional `--x-*` properties.
+- It does not cover one thing: no look styles a first-level heading inside `.prose-look`. The title of an entry's page therefore has a size of the kit's own, and 25 looks have one line that gives it the typeface and weight of their own headings. Two looks whose header lies over the page (Association's Čtvero dob, Event's Časomíra) have a line that starts the entry's page below it.
+- Formatted text on an entry's page takes each look's own list style, as that look's text pages do.
+
+**Measured.**
+
+| | |
+|---|---|
+| The one app's build | 34 to 35 s warm, 6.1 GB at its peak: as before this step |
+| The main stylesheet | 431 KB, 64 KB gzipped: it holds no rule of the blocks |
+| A page with the blocks | one more stylesheet of 2.3 KB; an entry's page 2.4 KB and 0.9 KB |
+| A page without them | nothing more to download |
+| Pictures of all 52 looks | 10 minutes |
+
+### Part 5: around it
+
+- The cloud: `CLOUD_CUSTOM_TYPES=on` starts the one app with the feature and gives each site's row its plan's limits (`cloud/shared/plans.ts`: 12 types and 30 fields for the Basic plan, numbers that are the plan's to set). Without the setting the cloud starts and writes what it did, byte for byte. The Basic website's app stays without the feature: its pages do not have the two blocks.
+- `e2e:shared` with the setting on: a Photographer site makes a type, shows it on its home page and at the entry's address, and the Wedding site in the same process has nothing of it (16 checks more; the 120 others are unchanged with and without the setting).
+- `tinyzoo export` and `import` refuse a site with types of its own.
+- The changeset `.changeset/custom-types.md`.
+
+### Open after this step
+
+- The decisions listed for the owner at the head of the work: the 30 days, the prefix, the plan's limits.
+- A new block's "layout" starts empty in the admin, and the kit draws an empty one as cards: the admin does not carry a block field's default (so for every block of every site).
+- A block of the two kinds stored on a site that has no type of its own shows in the admin as a block that "no longer exists". It is kept on save; only the words are wrong.
+- The search index of a large site after a change of structure was not measured.

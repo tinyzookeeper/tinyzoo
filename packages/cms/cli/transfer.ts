@@ -573,7 +573,7 @@ export async function refuseCustomTypes(url: string, command: 'export' | 'import
   const types = await customTypesOf(url)
   if (!types.length) return
   const site = command === 'export' ? 'This site' : 'The site you import into'
-  throw new Error(`${site} has content types of its own (${types.join(', ')}), which tinyzoo ${command} does not carry yet. `
+  throw new Error(`${site} has content types of its own (${types.join(', ')}), which tinyzoo ${command} does not carry. `
     + 'tinyzoo backup and tinyzoo restore take them: they copy the whole database. Nothing was changed.')
 }
 
