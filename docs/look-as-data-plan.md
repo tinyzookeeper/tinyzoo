@@ -260,6 +260,8 @@ With an own colour: `own-gallery.mjs` took the first screen of all 52 looks with
 
 Each is the owner's.
 
+**Decided on 2026-11-25:** step 4 is merged as built. That is one own main colour (1), the readability rule as built (2), hosted only (5) and no setting (6). Typefaces (3), corners (4) and spacing are not built for the 52 looks: they wait for the website without a template (`docs/builder-plan.md`, 3.6), where they are data from the first line. Section 8 stays as the record of what was counted about typefaces.
+
 1. **What an owner may change.** My pick: one main colour now; a type set from a small list next; corners and spacing not in this step.
 2. **How strict the readability rule is.** My pick, as built: the colours a look really puts together, the page's tinted surfaces included, and a calm main colour where it fills the screen (42 % of company colours shown exactly, 56 % exactly or nearly). The other choices are in the table of 5.4: looser (58 %, and texts on tinted sections fall just under the mark) or stricter (about 40 % before the calm looks).
 3. **Typefaces.** My pick: type sets, look by look, each look after its pictures were seen. The other choice: no typefaces in step 4.
