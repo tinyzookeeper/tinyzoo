@@ -682,7 +682,7 @@ async function customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home, p
   check('the entry\'s own address answers 200 with its title in an h1', own.status === 200 && h1.includes(titles[0]), `${own.status} ${JSON.stringify(h1)}`)
   const sitemap = await page(one.publicUrl, '/sitemap.xml')
   check('the sitemap lists that address', sitemap.status === 200 && sitemap.text.includes(`/kurzy/${slugs[0]}</loc>`) && sitemap.text.includes(`/kurzy/${slugs[1]}</loc>`), `${sitemap.status} ${sitemap.text.slice(0, 200)}`)
-  const tables1 = await query(row1.databaseUrl, `select tablename as name from pg_tables where schemaname = 'public' and (tablename = 'cms_model' or tablename like 'x\\_%') order by 1`)
+  const tables1 = await query(row1.databaseUrl, `select tablename as name from pg_tables where schemaname = 'public' and (tablename = 'cms_model' or tablename like 'custom\\_%') order by 1`)
   check('the Photographer site\'s own database holds the type\'s table and its model', JSON.stringify(tables1.map((t) => t.name)) === '["cms_model","custom_course"]', JSON.stringify(tables1))
 
   // The Wedding site: the same process, nothing of it.
@@ -694,7 +694,7 @@ async function customTypes({ one, wed, row1, rowW, rowB, admin1, adminW, home, p
   check('its home page is as before: its name, its design, its look, nothing of the type', homeW.status === 200 && homeW.text.includes('Kristýna') && htmlTag(homeW.text) === htmlTag(home.text) && JSON.stringify(looksOn(homeW.text)) === JSON.stringify(looksOn(home.text)) && !titles.some((t) => homeW.text.includes(t)) && !homeW.text.includes('/kurzy/'), `${homeW.status} ${htmlTag(homeW.text)}`)
   const pageW = await page(wed.publicUrl, `/kurzy/${slugs[0]}`)
   check('and the entry\'s address is not a page there', pageW.status === 404 && !pageW.text.includes(titles[0]), `${pageW.status}`)
-  const tablesW = await query(rowW.databaseUrl, `select tablename as name from pg_tables where schemaname = 'public' and (tablename = 'cms_model' or tablename like 'x\\_%')`)
+  const tablesW = await query(rowW.databaseUrl, `select tablename as name from pg_tables where schemaname = 'public' and (tablename = 'cms_model' or tablename like 'custom\\_%')`)
   check('its database has no cms_model table and no custom_ table', tablesW.length === 0, JSON.stringify(tablesW))
 
   // The guard: a field the block shows cannot go while the block shows it.
