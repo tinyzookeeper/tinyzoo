@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { defineEntity, f } from '../../packages/cms/src/index'
-import { MODEL_USAGE, ModelStop, modelCommand, siteAddress, type ModelIo } from '../../packages/cms/cli/model'
+import { MODEL_USAGE, ModelStop, modelCommand, shownPath, siteAddress, type ModelIo } from '../../packages/cms/cli/model'
 import {
   MODEL_FILE_NAME,
   describeModelOps,
@@ -94,6 +94,14 @@ async function run(argv: string[], routes: Routes = {}, io: Partial<ModelIo> = {
 
 afterEach(() => { cwd = '' })
 const fresh = () => { cwd = newDir() }
+
+describe('tinyzoo model: how a path is shown', () => {
+  it('is relative inside the folder and whole outside it', () => {
+    expect(shownPath('/work/site', '/work/site/cms.model.json')).toBe('cms.model.json')
+    expect(shownPath('/work/site', '/work/site/model/cms.model.json')).toBe(join('model', 'cms.model.json'))
+    expect(shownPath('/work/site', '/tmp/elsewhere/cms.model.json')).toBe('/tmp/elsewhere/cms.model.json')
+  })
+})
 
 describe('tinyzoo model: arguments', () => {
   it('prints the usage and exits 2 without a subcommand', async () => {

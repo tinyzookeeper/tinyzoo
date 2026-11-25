@@ -11,7 +11,8 @@
  * would write.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
+import { shownPath } from './model'
 import { buildOpenApiDocument, customModelConfig, emitContentTypes, MODEL_FILE_NAME, ModelProblem, modelFileDoc, parseModelFile } from '../src/index'
 
 export interface ClientIo {
@@ -50,7 +51,7 @@ export function parseClientArgs(argv: string[]): { out?: string; stdout: boolean
 function withModel(config: Record<string, any>, args: ReturnType<typeof parseClientArgs>, io: Required<Pick<ClientIo, 'cwd' | 'error'>>): { config: Record<string, any>; types: number; file?: string } | null {
   if (args.noModel) return { config, types: 0 }
   const path = resolve(io.cwd, args.model ?? MODEL_FILE_NAME)
-  const shown = relative(io.cwd, path) || path
+  const shown = shownPath(io.cwd, path)
   if (!existsSync(path)) {
     if (args.model) { io.error(`✗ There is no model file ${shown}.`); return null }
     return { config, types: 0 }
@@ -87,7 +88,7 @@ export async function clientCommand(kind: 'client' | 'openapi', argv: string[], 
   const out = resolve(io.cwd, args.out ?? (kind === 'client' ? 'cms-content.ts' : 'openapi.json'))
 
   if (args.check) {
-    const shown = relative(io.cwd, out) || out
+    const shown = shownPath(io.cwd, out)
     const same = existsSync(out) && readFileSync(out, 'utf8') === text
     if (same) { log(`✓ ${shown} is up to date.`); return 0 }
     error(`✗ ${shown} is not what \`tinyzoo ${kind}${args.out ? ` ${args.out}` : ''}\` writes now${existsSync(out) ? '' : ' (there is no such file)'}. Run it, and commit the result.`)

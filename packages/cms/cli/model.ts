@@ -254,6 +254,12 @@ function connect(ctx: Context, file: ModelFile | null): ModelSite {
   return new ModelSite(base, token, ctx.io.fetch ?? fetch)
 }
 
+/** A path as a person reads it: relative inside the folder, whole outside it (never a row of `../`). */
+export function shownPath(cwd: string, path: string): string {
+  const rel = relative(cwd, path)
+  return !rel || rel.startsWith('..') ? path : rel
+}
+
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`
 
 /** A problem of a difference, as a line. */
@@ -328,7 +334,7 @@ async function pull(ctx: Context): Promise<number> {
     const out = resolve(ctx.io.cwd, types)
     mkdirSync(dirname(out), { recursive: true })
     writeFileSync(out, a.text)
-    ctx.io.log(`✓ Wrote ${relative(ctx.io.cwd, out) || out}: the site's generated types.`)
+    ctx.io.log(`✓ Wrote ${shownPath(ctx.io.cwd, out)}: the site's generated types.`)
   }
   clientHint(ctx)
   return 0
@@ -479,7 +485,7 @@ export async function modelCommand(argv: string[], io: ModelIo): Promise<number>
     const path = resolve(out.cwd, args.values.file ?? MODEL_FILE_NAME)
     const ctx: Context = {
       sub, args, io: out, path,
-      shown: relative(out.cwd, path) || path,
+      shown: shownPath(out.cwd, path),
       hasConfig: existsSync(resolve(out.cwd, 'cms.config.ts')),
     }
     switch (sub) {
