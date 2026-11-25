@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { CUSTOM_BLOCK_TYPES } from 'tinyzoo'
 import { cs } from '../../cloud/app/i18n/cs'
 import { en } from '../../cloud/app/i18n/en'
 import { STEP_IDS } from '../../cloud/shared/steps'
@@ -281,6 +282,16 @@ describe('which app serves a template', () => {
     expect(lib.BUILT_TEMPLATES.filter((t) => t.app === 'templates').map((t) => t.id)).toEqual(ids)
     expect(lib.BUILT_TEMPLATES.filter((t) => t.app === 'basic').map((t) => t.id)).toEqual(['basic'])
     expect(ids).not.toContain('basic')
+  })
+
+  it('gives the pages of every template of the one app both blocks of a site\'s own types', async () => {
+    for (const t of templatesOfApp('templates')) {
+      const config = await import(/* @vite-ignore */ join(repoRoot, 'templates', t.id, 'cms.config.ts'))
+      const blocks = Object.keys(config.Page?.fields?.sections?.blocks ?? {})
+      for (const type of Object.values(CUSTOM_BLOCK_TYPES)) {
+        expect(blocks, `${t.id}: Page.fields.sections has no "${type}" block (add ...customTypeBlocks() to its blocks)`).toContain(type)
+      }
+    }
   })
 
   it('lists the same apps in the scripts as in the registry, each with a package and a Nuxt config', async () => {
