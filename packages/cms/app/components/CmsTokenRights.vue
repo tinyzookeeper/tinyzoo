@@ -2,15 +2,17 @@
 // What an access token, or a program signing in, may do: the same questions in the same words
 // on the account page and the connect page. The server holds the answer to the person's role
 // either way (cmsAccessTokens.ts, clampTokenRights).
-export interface CmsTokenRightsState { write: boolean; publish: boolean; delete: boolean; media: boolean; scope: 'all' | 'some'; entities: string[] }
+export interface CmsTokenRightsState { write: boolean; publish: boolean; delete: boolean; media: boolean; scope: 'all' | 'some'; entities: string[]; model?: boolean }
 
-const props = defineProps<{
-  can: { publish: boolean; media: boolean }
+// A boolean prop left out is false in Vue, so "write allowed" needs its default: the account page does not set it.
+const props = withDefaults(defineProps<{
+  /** `model`: the site's own content types may be offered (an administrator, on a site with the feature). */
+  can: { publish: boolean; media: boolean; model?: boolean }
   areas: { name: string; label: unknown; kind: string }[]
   /** False when the program asked only to read: writing is not offered. */
   writeAllowed?: boolean
   entitiesError?: string
-}>()
+}>(), { writeAllowed: true })
 const state = defineModel<CmsTokenRightsState>({ required: true })
 const { t, entityLabel } = useCmsI18n()
 const canWrite = computed(() => props.writeAllowed !== false)
@@ -36,6 +38,8 @@ const areaItems = computed(() => props.areas.map((a) => ({ value: a.name, label:
           />
         </div>
       </template>
+      <!-- for a developer's tools; never offered to a program signing in (connect page) -->
+      <UCheckbox v-if="can.model" v-model="state.model" :label="t('account.tokens.model')" :description="t('account.tokens.modelHint')" />
     </fieldset>
     <UFormField :label="t('account.tokens.scope')" name="scope" :error="entitiesError || undefined">
       <URadioGroup

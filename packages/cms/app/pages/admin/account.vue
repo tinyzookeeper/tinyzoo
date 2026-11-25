@@ -133,7 +133,7 @@ async function changePassword() {
   }
 }
 // ── access tokens (the MCP server): made here, shown once, revoked here ──
-interface TokenRights { write: boolean; publish: boolean; delete: boolean; media: boolean; entities: string[] | null }
+interface TokenRights { write: boolean; publish: boolean; delete: boolean; media: boolean; entities: string[] | null; model?: boolean }
 interface AccessToken { id: string; name: string; prefix: string; origin: 'manual' | 'oauth'; client: string | null; rights: TokenRights; createdAt: string; expiresAt: string | null; lastUsedAt: string | null }
 interface TokenState { tokens: AccessToken[]; can: { publish: boolean; media: boolean }; areas: { name: string; label: unknown; kind: string }[]; max: number }
 const { entityLabel, formatDateWith } = useCmsI18n()
@@ -158,12 +158,15 @@ const areaLabel = (name: string) => {
 const tokenOpen = ref(false)
 const tokenBusy = ref(false)
 const tokenErrors = reactive<Record<string, string>>({})
-const newToken = reactive({ name: '', write: false, publish: false, delete: false, media: false, scope: 'all' as 'all' | 'some', entities: [] as string[], expires: '90' })
+const newToken = reactive({ name: '', write: false, publish: false, delete: false, media: false, model: false, scope: 'all' as 'all' | 'some', entities: [] as string[], expires: '90' })
+// The right "Content types" is offered where the menu has that row: to an administrator, on a site with the feature.
+const { data: menuLayout } = useNuxtData<any>('cms-menu')
+const tokenCan = computed(() => (tokenState.value ? { ...tokenState.value.can, model: cmsMenuHasRow(menuLayout.value, '@model') } : null))
 const madeToken = ref<string | null>(null)
 const tokenCopied = ref(false)
 const addressCopied = ref(false)
 function openToken() {
-  Object.assign(newToken, { name: '', write: false, publish: false, delete: false, media: false, scope: 'all', entities: [], expires: '90' })
+  Object.assign(newToken, { name: '', write: false, publish: false, delete: false, media: false, model: false, scope: 'all', entities: [], expires: '90' })
   Object.keys(tokenErrors).forEach((k) => delete tokenErrors[k])
   madeToken.value = null
   tokenCopied.value = false
@@ -202,6 +205,7 @@ async function makeToken() {
           delete: newToken.write && newToken.delete,
           media: newToken.write && newToken.media,
           entities: newToken.scope === 'some' ? newToken.entities : null,
+          ...(tokenCan.value?.model && newToken.model ? { model: true } : {}),
         },
         expiresInDays: newToken.expires === 'never' ? null : Number(newToken.expires),
       },
@@ -241,8 +245,9 @@ async function revokeToken(token: AccessToken) {
 }
 /** What a token may do, in a few words. */
 function rightBadges(r: TokenRights): string[] {
-  if (!r.write) return [t('account.tokens.readOnly')]
-  return [t('account.tokens.edit'), ...(r.publish ? [t('account.tokens.publishBadge')] : []), ...(r.delete ? [t('account.tokens.deleteBadge')] : []), ...(r.media ? [t('account.tokens.filesBadge')] : [])]
+  const model = r.model ? [t('account.tokens.modelBadge')] : []
+  if (!r.write) return [t('account.tokens.readOnly'), ...model]
+  return [t('account.tokens.edit'), ...(r.publish ? [t('account.tokens.publishBadge')] : []), ...(r.delete ? [t('account.tokens.deleteBadge')] : []), ...(r.media ? [t('account.tokens.filesBadge')] : []), ...model]
 }
 </script>
 
@@ -413,7 +418,7 @@ function rightBadges(r: TokenRights): string[] {
             <UInput v-model="newToken.name" maxlength="80" autofocus :placeholder="t('account.tokens.namePlaceholder')" class="w-full" />
             <template #error="{ error }"><span v-if="error" role="alert">{{ error }}</span></template>
           </UFormField>
-          <CmsTokenRights v-model="newToken" :can="tokenState.can" :areas="tokenState.areas" :entities-error="tokenErrors.entities" />
+          <CmsTokenRights v-model="newToken" :can="tokenCan ?? tokenState.can" :areas="tokenState.areas" :entities-error="tokenErrors.entities" />
           <UFormField :label="t('account.tokens.expires')" name="expires">
             <USelect v-model="newToken.expires" :items="expiryItems" class="w-full sm:w-60" />
           </UFormField>

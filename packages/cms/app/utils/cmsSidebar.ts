@@ -13,3 +13,13 @@ export function cmsSidebarFolded(value: unknown): boolean {
  * `-sidebar-` + the sidebar's `id` ("main"). It holds the width and the fold as drawn.
  */
 export const CMS_SIDEBAR_LAYOUT_COOKIE = 'cms-admin-sidebar-main'
+
+/**
+ * Whether the admin's menu (`GET /api/cms/_menu`) holds a row, wherever it is placed. Every row
+ * the person may open is somewhere in it, so `'@model'` tells that the person manages the site
+ * and the site has its own content types (server/utils/cmsMenu.ts).
+ */
+export function cmsMenuHasRow(layout: { home?: string[]; groups?: { items?: string[] }[]; settings?: string[] } | null | undefined, key: string): boolean {
+  if (!layout) return false
+  return [...(layout.home ?? []), ...(layout.settings ?? []), ...(layout.groups ?? []).flatMap((g) => g.items ?? [])].includes(key)
+}
