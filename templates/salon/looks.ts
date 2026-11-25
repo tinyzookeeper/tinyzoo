@@ -12,6 +12,7 @@ export const looks = defineLooks([
     // The salon mirror in daylight: cool paper, photographs in oval mirrors, services timed on small clock faces.
     id: 'zrcadlo',
     name: { cs: 'Zrcadlo', en: 'Mirror' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'mlha', name: { cs: 'Mlha', en: 'Mist' }, vars: { '--paper': '#e6edf2', '--surface': '#f8fafc', '--ink': '#15233d', '--body': '#33405a', '--quiet': '#56627a', '--brand': '#24417d', '--brand-ink': '#ffffff', '--accent': '#f2b79c', '--line': '#c9d4de' } },
       { id: 'pudr', name: { cs: 'Pudr', en: 'Powder' }, vars: { '--paper': '#f3e3de', '--surface': '#fdf7f4', '--ink': '#3b1826', '--body': '#553340', '--quiet': '#75505c', '--brand': '#7c2b46', '--brand-ink': '#ffffff', '--accent': '#e8c27a', '--line': '#e0c5bd' } },
@@ -22,6 +23,7 @@ export const looks = defineLooks([
     // The black-and-white tiled salon floor: one loud colour, very wide lowercase type, square tiles.
     id: 'sachovnice',
     name: { cs: 'Šachovnice', en: 'Chessboard' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'malina', name: { cs: 'Malina', en: 'Raspberry' }, vars: { '--brand': '#ff6a98', '--brand-ink': '#141214', '--paper': '#fff5ea', '--ink': '#141214', '--soft': '#5a5357' } },
       { id: 'pistacie', name: { cs: 'Pistácie', en: 'Pistachio' }, vars: { '--brand': '#b9e27a', '--brand-ink': '#132016', '--paper': '#fbf8ea', '--ink': '#132016', '--soft': '#4d5a4f' } },
@@ -32,6 +34,7 @@ export const looks = defineLooks([
     // Lettering painted on the shop window: a dark green page, cream and brass sign-painter's type, enamel plates.
     id: 'vyloha',
     name: { cs: 'Výloha', en: 'Shop Window' },
+    own: { main: '--glass', calm: true, against: ['--brass', '--cream'], fixed: ['#8a1c1c'] },
     presets: [
       { id: 'lahvova', name: { cs: 'Lahvová', en: 'Bottle green' }, vars: { '--glass': '#0f2b22', '--pane': '#17392d', '--cream': '#f3e9d2', '--brass': '#d3ab60', '--shade': '#06150f' } },
       { id: 'bordo', name: { cs: 'Bordó', en: 'Burgundy' }, vars: { '--glass': '#3b1118', '--pane': '#4b1921', '--cream': '#f6e8d6', '--brass': '#e0b06a', '--shade': '#1c0509' } },

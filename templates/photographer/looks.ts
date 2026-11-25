@@ -12,6 +12,7 @@ export const looks = defineLooks([
     // A quiet gallery wall: white paper, hairlines, a thin serif.
     id: 'atelier',
     name: { cs: 'Ateliér', en: 'Atelier' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'bronz', name: { cs: 'Bronz', en: 'Bronze' }, vars: { '--brand': '#7a5a3a', '--brand-ink': '#ffffff', '--paper': '#faf8f4', '--tint': '#f1ece3', '--line': '#dfd8cc' } },
       { id: 'oliva', name: { cs: 'Oliva', en: 'Olive' }, vars: { '--brand': '#4e5b3a', '--brand-ink': '#ffffff', '--paper': '#f9f9f3', '--tint': '#eceee1', '--line': '#d8dbc9' } },
@@ -22,6 +23,7 @@ export const looks = defineLooks([
     // A contact sheet turned poster: black, edge-to-edge photographs, condensed capitals.
     id: 'negativ',
     name: { cs: 'Negativ', en: 'Negative' },
+    own: { against: ['--bg', '--brand-ink'] },
     presets: [
       { id: 'mosaz', name: { cs: 'Mosaz', en: 'Brass' }, vars: { '--brand': '#d4b57e', '--brand-ink': '#100f0d', '--bg': '#0e0e0d', '--fg': '#efece6' } },
       { id: 'salvej', name: { cs: 'Šalvěj', en: 'Sage' }, vars: { '--brand': '#a9bd9b', '--brand-ink': '#0e100d', '--bg': '#0d0e0d', '--fg': '#edede8' } },
@@ -32,6 +34,7 @@ export const looks = defineLooks([
     // The photographer's own album: prints with white borders, tape, handwritten notes.
     id: 'zapisnik',
     name: { cs: 'Zápisník', en: 'Notebook' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'inkoust', name: { cs: 'Inkoust', en: 'Ink' }, vars: { '--brand': '#2c4270', '--brand-ink': '#ffffff', '--paper': '#f5f6f8', '--tint': '#e1e7f0', '--ink': '#181d2a' } },
       { id: 'jedle', name: { cs: 'Jedle', en: 'Fir' }, vars: { '--brand': '#34604e', '--brand-ink': '#ffffff', '--paper': '#f6f6f3', '--tint': '#e2e9e3', '--ink': '#19211d' } },

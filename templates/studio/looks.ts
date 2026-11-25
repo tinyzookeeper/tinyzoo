@@ -12,6 +12,7 @@ export const looks = defineLooks([
     // The room in daylight: a pale green-grey page, a bookish serif, soft rounded photographs and white cards.
     id: 'sal',
     name: { cs: 'Sál', en: 'Hall' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'borovice', name: { cs: 'Borovice', en: 'Pine' }, vars: { '--brand': '#2f5d50', '--brand-ink': '#ffffff', '--paper': '#f5f4ee', '--card': '#ffffff', '--tint': '#e6ebe1', '--line': '#d6dacd', '--ink': '#1b2a25', '--body': '#3d4843', '--quiet': '#5d6862', '--warm': '#a8481f' } },
       { id: 'jil', name: { cs: 'Jíl', en: 'Clay' }, vars: { '--brand': '#99472a', '--brand-ink': '#ffffff', '--paper': '#f8f4ed', '--card': '#ffffff', '--tint': '#f0e5d8', '--line': '#e0d5c6', '--ink': '#2a1f1a', '--body': '#3d4843', '--quiet': '#5d6862', '--warm': '#2f6a58' } },
@@ -22,6 +23,7 @@ export const looks = defineLooks([
     // A departures board: the whole page in the studio's colour, wide capitals, mono numerals, square edges, today's classes in the opening.
     id: 'tabule',
     name: { cs: 'Tabule', en: 'Board' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'kobalt', name: { cs: 'Kobalt', en: 'Cobalt' }, vars: { '--brand': '#1d32d8', '--brand-ink': '#ffffff', '--accent': '#ffd84a', '--accent-ink': '#0c0f24', '--ink': '#0c0f24', '--paper': '#f1efe9' } },
       { id: 'rumelka', name: { cs: 'Rumělka', en: 'Vermilion' }, vars: { '--brand': '#c22d14', '--brand-ink': '#ffffff', '--accent': '#fbe9a4', '--accent-ink': '#1d100c', '--ink': '#1d100c', '--paper': '#f5f1ea' } },
@@ -32,6 +34,7 @@ export const looks = defineLooks([
     // The striped wool blanket from the shelf: every kind of class has a thread colour, and the week's timetable is woven from them.
     id: 'deka',
     name: { cs: 'Deka', en: 'Blanket' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'slunce', name: { cs: 'Slunce', en: 'Sun' }, swatch: ['#f8c950', '#9ccbec', '#f49980'], vars: { '--paper': '#ffffff', '--card': '#f3f5f8', '--ink': '#1e2638', '--brand': '#f8c950', '--brand-ink': '#1e2638', '--k1': '#f8d678', '--k2': '#9ccbec', '--k3': '#f49980', '--k4': '#f8bec5', '--k5': '#a2d8b0' } },
       { id: 'mata', name: { cs: 'Máta', en: 'Mint' }, swatch: ['#9dd4a7', '#f6d97e', '#f49f81'], vars: { '--paper': '#ffffff', '--card': '#f3f6f4', '--ink': '#152920', '--brand': '#9dd4a7', '--brand-ink': '#152920', '--k1': '#a7dbb1', '--k2': '#f6d97e', '--k3': '#f49f81', '--k4': '#aed7e9', '--k5': '#f8c0c7' } },

@@ -14,6 +14,7 @@ export const looks = defineLooks([
     // The careful firm's page: warm white paper, hairlines, a real price list, photographs in plain frames.
     id: 'mistr',
     name: { cs: 'Mistr', en: 'Master' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'modra', name: { cs: 'Modrá', en: 'Blue' }, vars: { '--brand': '#1d4772', '--brand-ink': '#ffffff', '--brand-soft': '#e3eaf1', '--paper': '#fbfaf6', '--tint': '#f0eee6', '--line': '#d9d5c9' } },
       { id: 'zelena', name: { cs: 'Zelená', en: 'Green' }, vars: { '--brand': '#27523e', '--brand-ink': '#ffffff', '--brand-soft': '#e2ebe3', '--paper': '#fafaf5', '--tint': '#eef0e6', '--line': '#d5d8c8' } },
@@ -24,6 +25,7 @@ export const looks = defineLooks([
     // A hi-vis vest as a website: a field of signal colour, black slabs, heavy type, the phone number the largest thing on the page.
     id: 'reflex',
     name: { cs: 'Reflex', en: 'Hi-Vis' },
+    own: { against: ['--brand-ink', '--paper'] },
     presets: [
       { id: 'zluta', name: { cs: 'Reflexní žlutá', en: 'Hi-vis yellow' }, vars: { '--brand': '#e2f133', '--brand-ink': '#101211', '--brand-lit': '#e2f133', '--paper': '#f2f2ec', '--ink': '#101211', '--coal': '#1c1f1d' } },
       { id: 'oranzova', name: { cs: 'Signální oranžová', en: 'Signal orange' }, vars: { '--brand': '#ff6b1a', '--brand-ink': '#140d08', '--brand-lit': '#ff7a30', '--paper': '#f4f1ec', '--ink': '#14110f', '--coal': '#211d1a' } },
